@@ -7,8 +7,8 @@ city zone can be refreshed independently and kept small enough for CI/game use.
 
 The public TramNetwork/TrainNetwork layers can expose overlapping rail features.
 Runtime classification already validates UrbIS TYPE values; this fetcher also
-applies server-side CQL filters (TW for tramway, RW for railway) to avoid storing
-thousands of irrelevant duplicate rail features in every 500 m raw cell.
+tries exact server-side CQL filters (TW for tramway, RW for railway) to avoid
+storing irrelevant duplicate rail features in every 500 m raw cell.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -30,8 +31,8 @@ DEFAULT_LAYERS = {
     "train_network": "urbisvector:TrainNetwork",
 }
 LAYER_CQL_FILTERS = {
-    "urbisvector:TramNetwork": "TYPE LIKE 'TW%'",
-    "urbisvector:TrainNetwork": "TYPE LIKE 'RW%'",
+    "urbisvector:TramNetwork": "TYPE = 'TW'",
+    "urbisvector:TrainNetwork": "TYPE = 'RW'",
 }
 
 
@@ -69,6 +70,17 @@ def build_request_url(layer_name: str, bbox: tuple[float, float, float, float]) 
     return WFS_URL + "?" + urllib.parse.urlencode(build_request_params(layer_name, bbox))
 
 
+def _http_error_detail(exc: urllib.error.HTTPError) -> str:
+    try:
+        payload = exc.read()
+        text = payload.decode("utf-8", errors="replace").strip()
+    except Exception:
+        text = ""
+    if len(text) > 2000:
+        text = text[:2000] + "…"
+    return f"HTTP {exc.code}: {text or exc.reason}"
+
+
 def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retries: int) -> dict:
     url = build_request_url(layer_name, bbox)
     request = urllib.request.Request(
@@ -88,10 +100,11 @@ def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retr
             if data.get("type") != "FeatureCollection":
                 raise RuntimeError(f"unexpected WFS payload for {layer_name}: {data.get('type')!r}")
             return data
+        except urllib.error.HTTPError as exc:
+            last_error = RuntimeError(_http_error_detail(exc))
         except Exception as exc:  # network/service failures are retriable in CI
             last_error = exc
-            if attempt >= retries:
-                break
+        if attempt < retries:
             time.sleep(min(12, 2 ** attempt))
     raise RuntimeError(f"failed to fetch {layer_name} after {retries} attempts: {last_error}")
 

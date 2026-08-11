@@ -1,0 +1,27 @@
+name: Grand Bruxelles STIB Preview
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/inspect_stib_open_data.py"
+      - "grand-bruxelles-game/tools/fetch_stib_*"
+      - "grand-bruxelles-game/data/stib/**"
+      - ".github/workflows/grand-bruxelles-stib-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-official-stib-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate STIB inspection tool
+        run: python3 -m py_compile grand-bruxelles-game/tools/inspect_stib_open_data.py
+
+      - name: Inspect official STIB Open Data schemas
+        run: python3 grand-bruxelles-game/tools/inspect_stib_open_data.py

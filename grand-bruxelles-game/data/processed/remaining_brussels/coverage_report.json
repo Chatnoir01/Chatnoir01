@@ -3,12 +3,12 @@
   "crs": "EPSG:31370",
   "cell_size_m": 500,
   "municipalities_total": 17,
-  "municipality_grids_ready": 7,
-  "unique_planned_cells_known": 256,
+  "municipality_grids_ready": 11,
+  "unique_planned_cells_known": 310,
   "materialized_cells_total": 4,
   "materialized_cells_in_known_grids": 4,
-  "known_grid_coverage_percent": 1.56,
-  "shared_cross_municipality_cell_count": 38,
+  "known_grid_coverage_percent": 1.29,
+  "shared_cross_municipality_cell_count": 73,
   "shared_cross_municipality_cells": {
     "bxl-e146500-n168500-s500": [
       "anderlecht",
@@ -76,6 +76,74 @@
     ],
     "bxl-e146000-n171000-s500": [
       "anderlecht",
+      "molenbeek"
+    ],
+    "bxl-e144000-n171500-s500": [
+      "berchem",
+      "molenbeek"
+    ],
+    "bxl-e144500-n171500-s500": [
+      "berchem",
+      "molenbeek"
+    ],
+    "bxl-e145000-n171500-s500": [
+      "berchem",
+      "molenbeek"
+    ],
+    "bxl-e146500-n171500-s500": [
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e147000-n171500-s500": [
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e147500-n171500-s500": [
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e145000-n172000-s500": [
+      "berchem",
+      "molenbeek"
+    ],
+    "bxl-e145500-n172000-s500": [
+      "berchem",
+      "molenbeek"
+    ],
+    "bxl-e146000-n172000-s500": [
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e146500-n172000-s500": [
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e147000-n172000-s500": [
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e147500-n172000-s500": [
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e145500-n172500-s500": [
+      "berchem",
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e146000-n172500-s500": [
+      "berchem",
+      "ganshoren",
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e147000-n172500-s500": [
+      "ganshoren",
+      "koekelberg",
+      "molenbeek"
+    ],
+    "bxl-e147500-n172500-s500": [
+      "koekelberg",
       "molenbeek"
     ],
     "bxl-e148500-n167500-s500": [
@@ -161,6 +229,82 @@
     "bxl-e152000-n170000-s500": [
       "etterbeek",
       "schaerbeek"
+    ],
+    "bxl-e152500-n171000-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e153000-n171000-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e152500-n171500-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e153000-n171500-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e152000-n172000-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e152500-n172000-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e151500-n172500-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e152000-n172500-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e151500-n173000-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e151500-n173500-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e151000-n174000-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e151500-n174000-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e151000-n174500-s500": [
+      "evere",
+      "schaerbeek"
+    ],
+    "bxl-e146500-n172500-s500": [
+      "ganshoren",
+      "koekelberg"
+    ],
+    "bxl-e145000-n173000-s500": [
+      "berchem",
+      "ganshoren"
+    ],
+    "bxl-e145500-n173000-s500": [
+      "berchem",
+      "ganshoren"
+    ],
+    "bxl-e146000-n173000-s500": [
+      "berchem",
+      "ganshoren"
+    ],
+    "bxl-e144500-n173500-s500": [
+      "berchem",
+      "ganshoren"
+    ],
+    "bxl-e145000-n173500-s500": [
+      "berchem",
+      "ganshoren"
     ]
   },
   "zones": [
@@ -255,19 +399,21 @@
       "name": "Koekelberg",
       "wave": "R2",
       "priority": 8,
-      "grid_ready": false,
-      "planned_cells": 0,
-      "materialized_cells": 0,
-      "coverage_percent": 0.0,
-      "materialized_cell_ids": []
+      "grid_ready": true,
+      "planned_cells": 13,
+      "materialized_cells": 1,
+      "coverage_percent": 7.69,
+      "materialized_cell_ids": [
+        "bxl-e147500-n171500-s500"
+      ]
     },
     {
       "zone_id": "ganshoren",
       "name": "Ganshoren",
       "wave": "R2",
       "priority": 9,
-      "grid_ready": false,
-      "planned_cells": 0,
+      "grid_ready": true,
+      "planned_cells": 19,
       "materialized_cells": 0,
       "coverage_percent": 0.0,
       "materialized_cell_ids": []
@@ -277,8 +423,8 @@
       "name": "Berchem-Sainte-Agathe",
       "wave": "R2",
       "priority": 10,
-      "grid_ready": false,
-      "planned_cells": 0,
+      "grid_ready": true,
+      "planned_cells": 23,
       "materialized_cells": 0,
       "coverage_percent": 0.0,
       "materialized_cell_ids": []
@@ -288,8 +434,8 @@
       "name": "Evere",
       "wave": "R2",
       "priority": 11,
-      "grid_ready": false,
-      "planned_cells": 0,
+      "grid_ready": true,
+      "planned_cells": 38,
       "materialized_cells": 0,
       "coverage_percent": 0.0,
       "materialized_cell_ids": []

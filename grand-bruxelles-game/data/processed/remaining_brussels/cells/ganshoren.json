@@ -1,0 +1,265 @@
+{
+  "format": "grand-bruxelles-zone-cells-v2",
+  "zone_id": "ganshoren",
+  "crs": "EPSG:31370",
+  "boundary_source": "data/processed/remaining_brussels/boundaries/ganshoren.geojson",
+  "source_bbox": [
+    144564.67721807,
+    172746.02268986,
+    147000.45257229,
+    174639.84839276
+  ],
+  "cell_size_m": 500.0,
+  "cell_id_scheme": "global Lambert72 minE/minN + cell size",
+  "envelope_cell_count": 30,
+  "cell_count": 19,
+  "cells": [
+    {
+      "id": "bxl-e146000-n172500-s500",
+      "zone_id": "ganshoren",
+      "row": 0,
+      "col": 3,
+      "bbox": [
+        146000.0,
+        172500.0,
+        146500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n172500-s500 --bbox 146000.0,172500.0,146500.0,173000.0"
+    },
+    {
+      "id": "bxl-e146500-n172500-s500",
+      "zone_id": "ganshoren",
+      "row": 0,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        172500.0,
+        147000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n172500-s500 --bbox 146500.0,172500.0,147000.0,173000.0"
+    },
+    {
+      "id": "bxl-e147000-n172500-s500",
+      "zone_id": "ganshoren",
+      "row": 0,
+      "col": 5,
+      "bbox": [
+        147000.0,
+        172500.0,
+        147500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n172500-s500 --bbox 147000.0,172500.0,147500.0,173000.0"
+    },
+    {
+      "id": "bxl-e145000-n173000-s500",
+      "zone_id": "ganshoren",
+      "row": 1,
+      "col": 1,
+      "bbox": [
+        145000.0,
+        173000.0,
+        145500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n173000-s500 --bbox 145000.0,173000.0,145500.0,173500.0"
+    },
+    {
+      "id": "bxl-e145500-n173000-s500",
+      "zone_id": "ganshoren",
+      "row": 1,
+      "col": 2,
+      "bbox": [
+        145500.0,
+        173000.0,
+        146000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n173000-s500 --bbox 145500.0,173000.0,146000.0,173500.0"
+    },
+    {
+      "id": "bxl-e146000-n173000-s500",
+      "zone_id": "ganshoren",
+      "row": 1,
+      "col": 3,
+      "bbox": [
+        146000.0,
+        173000.0,
+        146500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n173000-s500 --bbox 146000.0,173000.0,146500.0,173500.0"
+    },
+    {
+      "id": "bxl-e146500-n173000-s500",
+      "zone_id": "ganshoren",
+      "row": 1,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        173000.0,
+        147000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n173000-s500 --bbox 146500.0,173000.0,147000.0,173500.0"
+    },
+    {
+      "id": "bxl-e144500-n173500-s500",
+      "zone_id": "ganshoren",
+      "row": 2,
+      "col": 0,
+      "bbox": [
+        144500.0,
+        173500.0,
+        145000.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n173500-s500 --bbox 144500.0,173500.0,145000.0,174000.0"
+    },
+    {
+      "id": "bxl-e145000-n173500-s500",
+      "zone_id": "ganshoren",
+      "row": 2,
+      "col": 1,
+      "bbox": [
+        145000.0,
+        173500.0,
+        145500.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n173500-s500 --bbox 145000.0,173500.0,145500.0,174000.0"
+    },
+    {
+      "id": "bxl-e145500-n173500-s500",
+      "zone_id": "ganshoren",
+      "row": 2,
+      "col": 2,
+      "bbox": [
+        145500.0,
+        173500.0,
+        146000.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n173500-s500 --bbox 145500.0,173500.0,146000.0,174000.0"
+    },
+    {
+      "id": "bxl-e146000-n173500-s500",
+      "zone_id": "ganshoren",
+      "row": 2,
+      "col": 3,
+      "bbox": [
+        146000.0,
+        173500.0,
+        146500.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n173500-s500 --bbox 146000.0,173500.0,146500.0,174000.0"
+    },
+    {
+      "id": "bxl-e146500-n173500-s500",
+      "zone_id": "ganshoren",
+      "row": 2,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        173500.0,
+        147000.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n173500-s500 --bbox 146500.0,173500.0,147000.0,174000.0"
+    },
+    {
+      "id": "bxl-e144500-n174000-s500",
+      "zone_id": "ganshoren",
+      "row": 3,
+      "col": 0,
+      "bbox": [
+        144500.0,
+        174000.0,
+        145000.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n174000-s500 --bbox 144500.0,174000.0,145000.0,174500.0"
+    },
+    {
+      "id": "bxl-e145000-n174000-s500",
+      "zone_id": "ganshoren",
+      "row": 3,
+      "col": 1,
+      "bbox": [
+        145000.0,
+        174000.0,
+        145500.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n174000-s500 --bbox 145000.0,174000.0,145500.0,174500.0"
+    },
+    {
+      "id": "bxl-e145500-n174000-s500",
+      "zone_id": "ganshoren",
+      "row": 3,
+      "col": 2,
+      "bbox": [
+        145500.0,
+        174000.0,
+        146000.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n174000-s500 --bbox 145500.0,174000.0,146000.0,174500.0"
+    },
+    {
+      "id": "bxl-e146000-n174000-s500",
+      "zone_id": "ganshoren",
+      "row": 3,
+      "col": 3,
+      "bbox": [
+        146000.0,
+        174000.0,
+        146500.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n174000-s500 --bbox 146000.0,174000.0,146500.0,174500.0"
+    },
+    {
+      "id": "bxl-e146500-n174000-s500",
+      "zone_id": "ganshoren",
+      "row": 3,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        174000.0,
+        147000.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n174000-s500 --bbox 146500.0,174000.0,147000.0,174500.0"
+    },
+    {
+      "id": "bxl-e145000-n174500-s500",
+      "zone_id": "ganshoren",
+      "row": 4,
+      "col": 1,
+      "bbox": [
+        145000.0,
+        174500.0,
+        145500.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n174500-s500 --bbox 145000.0,174500.0,145500.0,175000.0"
+    },
+    {
+      "id": "bxl-e145500-n174500-s500",
+      "zone_id": "ganshoren",
+      "row": 4,
+      "col": 2,
+      "bbox": [
+        145500.0,
+        174500.0,
+        146000.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n174500-s500 --bbox 145500.0,174500.0,146000.0,175000.0"
+    }
+  ]
+}

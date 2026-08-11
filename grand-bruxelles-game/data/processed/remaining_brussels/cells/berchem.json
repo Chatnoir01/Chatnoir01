@@ -1,0 +1,317 @@
+{
+  "format": "grand-bruxelles-zone-cells-v2",
+  "zone_id": "berchem",
+  "crs": "EPSG:31370",
+  "boundary_source": "data/processed/remaining_brussels/boundaries/berchem.geojson",
+  "source_bbox": [
+    143695.28104504,
+    171662.85001987,
+    146149.75953212,
+    173882.58943763
+  ],
+  "cell_size_m": 500.0,
+  "cell_id_scheme": "global Lambert72 minE/minN + cell size",
+  "envelope_cell_count": 30,
+  "cell_count": 23,
+  "cells": [
+    {
+      "id": "bxl-e144000-n171500-s500",
+      "zone_id": "berchem",
+      "row": 0,
+      "col": 1,
+      "bbox": [
+        144000.0,
+        171500.0,
+        144500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n171500-s500 --bbox 144000.0,171500.0,144500.0,172000.0"
+    },
+    {
+      "id": "bxl-e144500-n171500-s500",
+      "zone_id": "berchem",
+      "row": 0,
+      "col": 2,
+      "bbox": [
+        144500.0,
+        171500.0,
+        145000.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n171500-s500 --bbox 144500.0,171500.0,145000.0,172000.0"
+    },
+    {
+      "id": "bxl-e145000-n171500-s500",
+      "zone_id": "berchem",
+      "row": 0,
+      "col": 3,
+      "bbox": [
+        145000.0,
+        171500.0,
+        145500.0,
+        172000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n171500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n171500-s500 --bbox 145000.0,171500.0,145500.0,172000.0"
+    },
+    {
+      "id": "bxl-e143500-n172000-s500",
+      "zone_id": "berchem",
+      "row": 1,
+      "col": 0,
+      "bbox": [
+        143500.0,
+        172000.0,
+        144000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n172000-s500 --bbox 143500.0,172000.0,144000.0,172500.0"
+    },
+    {
+      "id": "bxl-e144000-n172000-s500",
+      "zone_id": "berchem",
+      "row": 1,
+      "col": 1,
+      "bbox": [
+        144000.0,
+        172000.0,
+        144500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n172000-s500 --bbox 144000.0,172000.0,144500.0,172500.0"
+    },
+    {
+      "id": "bxl-e144500-n172000-s500",
+      "zone_id": "berchem",
+      "row": 1,
+      "col": 2,
+      "bbox": [
+        144500.0,
+        172000.0,
+        145000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n172000-s500 --bbox 144500.0,172000.0,145000.0,172500.0"
+    },
+    {
+      "id": "bxl-e145000-n172000-s500",
+      "zone_id": "berchem",
+      "row": 1,
+      "col": 3,
+      "bbox": [
+        145000.0,
+        172000.0,
+        145500.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n172000-s500 --bbox 145000.0,172000.0,145500.0,172500.0"
+    },
+    {
+      "id": "bxl-e145500-n172000-s500",
+      "zone_id": "berchem",
+      "row": 1,
+      "col": 4,
+      "bbox": [
+        145500.0,
+        172000.0,
+        146000.0,
+        172500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n172000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n172000-s500 --bbox 145500.0,172000.0,146000.0,172500.0"
+    },
+    {
+      "id": "bxl-e143500-n172500-s500",
+      "zone_id": "berchem",
+      "row": 2,
+      "col": 0,
+      "bbox": [
+        143500.0,
+        172500.0,
+        144000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n172500-s500 --bbox 143500.0,172500.0,144000.0,173000.0"
+    },
+    {
+      "id": "bxl-e144000-n172500-s500",
+      "zone_id": "berchem",
+      "row": 2,
+      "col": 1,
+      "bbox": [
+        144000.0,
+        172500.0,
+        144500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n172500-s500 --bbox 144000.0,172500.0,144500.0,173000.0"
+    },
+    {
+      "id": "bxl-e144500-n172500-s500",
+      "zone_id": "berchem",
+      "row": 2,
+      "col": 2,
+      "bbox": [
+        144500.0,
+        172500.0,
+        145000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n172500-s500 --bbox 144500.0,172500.0,145000.0,173000.0"
+    },
+    {
+      "id": "bxl-e145000-n172500-s500",
+      "zone_id": "berchem",
+      "row": 2,
+      "col": 3,
+      "bbox": [
+        145000.0,
+        172500.0,
+        145500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n172500-s500 --bbox 145000.0,172500.0,145500.0,173000.0"
+    },
+    {
+      "id": "bxl-e145500-n172500-s500",
+      "zone_id": "berchem",
+      "row": 2,
+      "col": 4,
+      "bbox": [
+        145500.0,
+        172500.0,
+        146000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n172500-s500 --bbox 145500.0,172500.0,146000.0,173000.0"
+    },
+    {
+      "id": "bxl-e146000-n172500-s500",
+      "zone_id": "berchem",
+      "row": 2,
+      "col": 5,
+      "bbox": [
+        146000.0,
+        172500.0,
+        146500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n172500-s500 --bbox 146000.0,172500.0,146500.0,173000.0"
+    },
+    {
+      "id": "bxl-e143500-n173000-s500",
+      "zone_id": "berchem",
+      "row": 3,
+      "col": 0,
+      "bbox": [
+        143500.0,
+        173000.0,
+        144000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e143500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e143500-n173000-s500 --bbox 143500.0,173000.0,144000.0,173500.0"
+    },
+    {
+      "id": "bxl-e144000-n173000-s500",
+      "zone_id": "berchem",
+      "row": 3,
+      "col": 1,
+      "bbox": [
+        144000.0,
+        173000.0,
+        144500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n173000-s500 --bbox 144000.0,173000.0,144500.0,173500.0"
+    },
+    {
+      "id": "bxl-e144500-n173000-s500",
+      "zone_id": "berchem",
+      "row": 3,
+      "col": 2,
+      "bbox": [
+        144500.0,
+        173000.0,
+        145000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n173000-s500 --bbox 144500.0,173000.0,145000.0,173500.0"
+    },
+    {
+      "id": "bxl-e145000-n173000-s500",
+      "zone_id": "berchem",
+      "row": 3,
+      "col": 3,
+      "bbox": [
+        145000.0,
+        173000.0,
+        145500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n173000-s500 --bbox 145000.0,173000.0,145500.0,173500.0"
+    },
+    {
+      "id": "bxl-e145500-n173000-s500",
+      "zone_id": "berchem",
+      "row": 3,
+      "col": 4,
+      "bbox": [
+        145500.0,
+        173000.0,
+        146000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n173000-s500 --bbox 145500.0,173000.0,146000.0,173500.0"
+    },
+    {
+      "id": "bxl-e146000-n173000-s500",
+      "zone_id": "berchem",
+      "row": 3,
+      "col": 5,
+      "bbox": [
+        146000.0,
+        173000.0,
+        146500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n173000-s500 --bbox 146000.0,173000.0,146500.0,173500.0"
+    },
+    {
+      "id": "bxl-e144000-n173500-s500",
+      "zone_id": "berchem",
+      "row": 4,
+      "col": 1,
+      "bbox": [
+        144000.0,
+        173500.0,
+        144500.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144000-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144000-n173500-s500 --bbox 144000.0,173500.0,144500.0,174000.0"
+    },
+    {
+      "id": "bxl-e144500-n173500-s500",
+      "zone_id": "berchem",
+      "row": 4,
+      "col": 2,
+      "bbox": [
+        144500.0,
+        173500.0,
+        145000.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n173500-s500 --bbox 144500.0,173500.0,145000.0,174000.0"
+    },
+    {
+      "id": "bxl-e145000-n173500-s500",
+      "zone_id": "berchem",
+      "row": 4,
+      "col": 3,
+      "bbox": [
+        145000.0,
+        173500.0,
+        145500.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n173500-s500 --bbox 145000.0,173500.0,145500.0,174000.0"
+    }
+  ]
+}

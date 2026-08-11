@@ -1,0 +1,154 @@
+name: Reserve official Jette global cells
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/reserve-jette-global-cells.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reserve-jette-global-cells
+  cancel-in-progress: true
+
+jobs:
+  reserve-jette:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Require custom catalog support
+        working-directory: grand-bruxelles-game
+        run: python tools/bootstrap_remaining_brussels.py --help | grep -q -- '--catalog'
+
+      - name: Build isolated Jette reservation catalog from known municipality template
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+
+          source = json.loads(Path('data/remaining_brussels_zones.json').read_text())
+          template = copy.deepcopy(next(zone for zone in source['zones'] if zone['id'] == 'molenbeek'))
+
+          def replace_names(value):
+              if isinstance(value, str):
+                  return value.replace('Molenbeek-Saint-Jean', 'Jette').replace('Molenbeek', 'Jette')
+              if isinstance(value, list):
+                  return [replace_names(item) for item in value]
+              if isinstance(value, dict):
+                  return {key: replace_names(item) for key, item in value.items()}
+              return value
+
+          jette = replace_names(template)
+          jette['id'] = 'jette'
+          jette['name'] = 'Jette'
+          jette['wave'] = 'RESERVED'
+          jette['priority'] = 1
+          catalog = {
+              **{key: value for key, value in source.items() if key != 'zones'},
+              'zones': [jette],
+          }
+          Path('/tmp/reserved-jette-catalog.json').write_text(
+              json.dumps(catalog, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(jette, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Fetch official Jette boundary and intersecting 500m cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/bootstrap_remaining_brussels.py \
+            --catalog /tmp/reserved-jette-catalog.json \
+            --zone jette \
+            --output-root data/processed/reserved_neighbors
+
+      - name: Build northwest reservation union
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          grid_path = Path('data/processed/reserved_neighbors/cells/jette.json')
+          grid = json.loads(grid_path.read_text())
+          assert grid['format'] == 'grand-bruxelles-zone-cells-v2'
+          assert grid['zone_id'] == 'jette'
+          assert grid['cell_count'] > 0
+          jette_ids = {cell['id'] for cell in grid['cells']}
+          assert len(jette_ids) == grid['cell_count']
+          assert all(cell_id.startswith('bxl-e') for cell_id in jette_ids)
+
+          external_path = Path('data/urbis/remaining_brussels/external_branch_reservations.json')
+          external_ids = set()
+          external = None
+          if external_path.exists():
+              external = json.loads(external_path.read_text())
+              assert external['format'] == 'grand-bruxelles-external-cell-reservations-v1'
+              external_ids = set(external['reserved_cell_ids'])
+
+          union = sorted(jette_ids | external_ids)
+          output = {
+              'format': 'grand-bruxelles-northwest-reservations-v1',
+              'purpose': 'prevent duplicate 500m production geometry between zone-reste-bruxelles and zone-laeken-jette',
+              'sources': {
+                  'official_jette_grid': str(grid_path),
+                  'external_branch_snapshot': str(external_path) if external_path.exists() else None,
+              },
+              'jette_planned_cell_count': len(jette_ids),
+              'external_branch_cell_count': len(external_ids),
+              'reserved_cell_count': len(union),
+              'reserved_cell_ids': union,
+          }
+          out = Path('data/urbis/remaining_brussels/northwest_reserved_cells.json')
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print('Jette planned global cells:', len(jette_ids))
+          print('External branch cells:', len(external_ids))
+          print('Northwest reserved union:', len(union))
+          PY
+
+      - name: Verify reserved cells are not currently streamed by this branch
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          reservations = json.loads(Path('data/urbis/remaining_brussels/northwest_reserved_cells.json').read_text())
+          index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          reserved = set(reservations['reserved_cell_ids'])
+          streamed = {cell['cell_id'] for cell in index['cells']}
+          overlap = sorted(reserved & streamed)
+          # Existing R1 geometry may touch a Jette grid only if it was created before
+          # this coordination guard. Refuse to silently bless such overlap.
+          assert not overlap, f'existing streamed cells overlap Jette reservations: {overlap}'
+          print('No existing streamable cell overlaps official Jette reservation grid.')
+          PY
+
+      - name: Commit Jette reservation data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/reserved_neighbors \
+            grand-bruxelles-game/data/urbis/remaining_brussels/northwest_reserved_cells.json
+          if git diff --cached --quiet; then
+            echo 'Jette reservation data unchanged.'
+            exit 0
+          fi
+          git commit -m 'data: reserve official Jette global cells'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

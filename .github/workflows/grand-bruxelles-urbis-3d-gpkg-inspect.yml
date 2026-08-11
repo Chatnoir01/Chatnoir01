@@ -1,0 +1,151 @@
+name: Grand Bruxelles UrbIS 3D GPKG Inspect
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/tools/select_urbis_distribution.py"
+      - "grand-bruxelles-game/data/sources/midi/discovered_urbis_distributions.json"
+      - ".github/workflows/grand-bruxelles-urbis-3d-gpkg-inspect.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-urbis-3d-gpkg-inspect
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select preferred 31370 GPKG distribution
+        run: |
+          python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
+            grand-bruxelles-game/data/sources/midi/discovered_urbis_distributions.json \
+            grand-bruxelles-game/data/sources/midi/urbis_3d_constructions_preferred.json \
+            --source-id urbis_3d_constructions \
+            --token 31370 \
+            --token GPKG
+          cat grand-bruxelles-game/data/sources/midi/urbis_3d_constructions_preferred.json
+
+      - name: Download preferred official package
+        run: |
+          URL=$(python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/sources/midi/urbis_3d_constructions_preferred.json'
+          print(json.load(open(p, encoding='utf-8'))['selected']['href'])
+          PY
+          )
+          echo "Downloading $URL"
+          mkdir -p /tmp/urbis3d
+          curl -fL --retry 3 --retry-delay 5 "$URL" -o /tmp/urbis3d/distribution.bin
+          ls -lh /tmp/urbis3d/distribution.bin
+          file /tmp/urbis3d/distribution.bin
+          sha256sum /tmp/urbis3d/distribution.bin | tee /tmp/urbis3d/sha256.txt
+
+      - name: Extract GeoPackage
+        run: |
+          mkdir -p /tmp/urbis3d/extracted
+          if unzip -t /tmp/urbis3d/distribution.bin >/dev/null 2>&1; then
+            unzip -q /tmp/urbis3d/distribution.bin -d /tmp/urbis3d/extracted
+          else
+            cp /tmp/urbis3d/distribution.bin /tmp/urbis3d/extracted/UrbIS3D.gpkg
+          fi
+          find /tmp/urbis3d/extracted -type f -maxdepth 4 -printf '%p %s bytes\n'
+          GPKG=$(find /tmp/urbis3d/extracted -type f -iname '*.gpkg' | head -n 1)
+          test -n "$GPKG"
+          echo "$GPKG" > /tmp/urbis3d/gpkg_path.txt
+
+      - name: Inspect GeoPackage metadata and feature counts
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, sqlite3
+          from pathlib import Path
+
+          gpkg = Path(Path('/tmp/urbis3d/gpkg_path.txt').read_text().strip())
+          selected = json.load(open('grand-bruxelles-game/data/sources/midi/urbis_3d_constructions_preferred.json', encoding='utf-8'))
+          conn = sqlite3.connect(f'file:{gpkg}?mode=ro', uri=True)
+          conn.row_factory = sqlite3.Row
+
+          contents = {
+              row['table_name']: dict(row)
+              for row in conn.execute('SELECT * FROM gpkg_contents ORDER BY table_name')
+          }
+          geom_cols = {
+              row['table_name']: dict(row)
+              for row in conn.execute('SELECT * FROM gpkg_geometry_columns ORDER BY table_name')
+          }
+          srs = {
+              int(row['srs_id']): dict(row)
+              for row in conn.execute('SELECT * FROM gpkg_spatial_ref_sys')
+          }
+
+          layers = []
+          for table, meta in contents.items():
+              if meta.get('data_type') != 'features':
+                  continue
+              safe = table.replace('"', '""')
+              count = conn.execute(f'SELECT COUNT(*) FROM "{safe}"').fetchone()[0]
+              geom = geom_cols.get(table, {})
+              srs_id = geom.get('srs_id', meta.get('srs_id'))
+              layer = {
+                  'table_name': table,
+                  'identifier': meta.get('identifier'),
+                  'description': meta.get('description'),
+                  'feature_count': count,
+                  'geometry_column': geom.get('column_name'),
+                  'geometry_type': geom.get('geometry_type_name'),
+                  'z': geom.get('z'),
+                  'm': geom.get('m'),
+                  'srs_id': srs_id,
+                  'srs_name': srs.get(int(srs_id), {}).get('srs_name') if srs_id is not None else None,
+                  'extent': [meta.get('min_x'), meta.get('min_y'), meta.get('max_x'), meta.get('max_y')],
+              }
+              layers.append(layer)
+
+          raw = Path('/tmp/urbis3d/distribution.bin').read_bytes()
+          out = {
+              'schema': 1,
+              'source_id': 'urbis_3d_constructions',
+              'preferred_distribution': selected,
+              'download': {
+                  'size_bytes': len(raw),
+                  'sha256': hashlib.sha256(raw).hexdigest(),
+              },
+              'gpkg': {
+                  'filename': gpkg.name,
+                  'size_bytes': gpkg.stat().st_size,
+                  'layers': layers,
+              },
+          }
+          dest = Path('grand-bruxelles-game/data/sources/midi/urbis_3d_constructions_gpkg_inventory.json')
+          dest.write_text(json.dumps(out, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print('GeoPackage:', gpkg, gpkg.stat().st_size)
+          for layer in layers:
+              print(layer)
+          assert layers, 'No feature layers found in GeoPackage'
+          assert any(layer.get('z') in (1, 2) for layer in layers), 'No Z-enabled feature layer found'
+          conn.close()
+          PY
+
+      - name: Commit preferred distribution and GPKG inventory
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            grand-bruxelles-game/data/sources/midi/urbis_3d_constructions_preferred.json \
+            grand-bruxelles-game/data/sources/midi/urbis_3d_constructions_gpkg_inventory.json
+          if git diff --cached --quiet; then
+            echo "UrbIS 3D GPKG inventory already up to date."
+          else
+            git commit -m "data: inspect preferred UrbIS 3D GeoPackage [skip ci]"
+            git push origin HEAD:main
+          fi

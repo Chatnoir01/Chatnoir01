@@ -73,8 +73,8 @@ func _draw() -> void:
         var points: Array = road.get("points", [])
         if points.size() < 2:
             continue
-        var class_name: String = str(road.get("class", ""))
-        var is_major: bool = class_name in ["primary", "secondary", "tertiary"]
+        var road_class: String = str(road.get("class", ""))
+        var is_major: bool = road_class in ["primary", "secondary", "tertiary"]
         var color: Color = _major_color if is_major else _minor_color
         var width: float = 1.8 if is_major else 1.0
         for index: int in range(points.size() - 1):
@@ -102,7 +102,7 @@ func _draw() -> void:
 
 
 func _panel_style() -> StyleBoxFlat:
-    var style := StyleBoxFlat.new()
+    var style: StyleBoxFlat = StyleBoxFlat.new()
     style.bg_color = _background_color
     style.border_color = Color(1.0, 1.0, 1.0, 0.16)
     style.set_border_width_all(1)

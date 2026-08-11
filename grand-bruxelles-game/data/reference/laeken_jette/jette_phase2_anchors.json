@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "zone": "laeken_jette",
+  "phase": "jette_miroir_station_roi_baudouin",
+  "crs": "EPSG:31370",
+  "project_origin": {
+    "e": 147868.29422791934,
+    "n": 169538.62414926197,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
+  "bbox": [144900.0, 173000.0, 147700.0, 175300.0],
+  "anchors": [
+    {
+      "id": "place_reine_astrid_miroir",
+      "name": "Place Reine Astrid / Place du Miroir",
+      "wgs84": [4.32458, 50.87268],
+      "lambert72": [146890.82600482754, 173590.50218979083],
+      "game_xz": [-977.468223091797, -4051.878040528856],
+      "coordinate_source": "OpenStreetMap-derived anchor; UrbIS remains authoritative for final geometry",
+      "coordinate_source_url": "https://mapcarta.com/W23912203",
+      "official_context_url": "https://jette.brussels/fr/emploi-vie-commerciale/marches"
+    },
+    {
+      "id": "gare_jette",
+      "name": "Gare de Jette",
+      "wgs84": [4.32869, 50.88078],
+      "lambert72": [147180.59395941312, 174491.39830964524],
+      "game_xz": [-687.700268506218, -4952.774160383269],
+      "coordinate_source": "OpenStreetMap-derived anchor; station address cross-checked with SNCB",
+      "coordinate_source_url": "https://mapcarta.com/fr/W41426682",
+      "official_station_url": "https://www.belgiantrain.be/nl/station-information/brussel-bruxelles/jette",
+      "official_address": "Place Cardinal Mercier 22, 1090 Jette"
+    },
+    {
+      "id": "parc_roi_baudouin",
+      "name": "Parc Roi Baudouin",
+      "wgs84": [4.3191669444444445, 50.88138888888889],
+      "lambert72": [146510.4557814129, 174559.53055338655],
+      "game_xz": [-1357.8384465064446, -5020.906404124573],
+      "coordinate_source": "Wikidata anchor; official regional green-space sources govern park interpretation",
+      "coordinate_source_url": "https://www.wikidata.org/wiki/Q3363894",
+      "regional_context_url": "https://gardens.brussels/fr/promenades/les-plateaux-du-nord-ouest"
+    },
+    {
+      "id": "avenue_de_jette_reference",
+      "name": "Avenue de Jette",
+      "wgs84": [4.324935, 50.870458],
+      "lambert72": [146915.6697846579, 173343.3089981852],
+      "game_xz": [-952.6244432614476, -3804.684848923236],
+      "coordinate_source": "Secondary street reference only; final axis comes from UrbIS StreetAxes",
+      "coordinate_source_url": "https://callejear.be/fr/bruxelles/jette/avenue-de-jette/"
+    }
+  ],
+  "source_policy": {
+    "geometry_priority": ["UrbIS WFS", "UrbIS Landscape", "official orthophoto/LiDAR", "OpenStreetMap"],
+    "manual_trace_without_source": false
+  }
+}

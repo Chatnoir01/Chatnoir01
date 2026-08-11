@@ -5,6 +5,13 @@ Features returned by bbox WFS queries can cross cell boundaries and therefore be
 returned in adjacent cells. Ownership is deterministic: a polygon belongs to the
 half-open cell containing its plan centroid. This prevents duplicate buildings
 and street surfaces at streaming seams.
+
+The current prototype OSM world uses lat/lon origin (50.8419, 4.3480), where
+Bruxelles-Midi is already located at (-668.5, 627.84). UrbIS uses the project's
+Lambert72 Midi control point as its metric origin, so every UrbIS coordinate is
+translated by this single global world anchor. The translation is baked here,
+not independently in each zone, keeping all cells and the existing prototype in
+one world coordinate system.
 """
 
 from __future__ import annotations
@@ -12,12 +19,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 from pathlib import Path
 from typing import Any
 
 ORIGIN_E = 147868.29422791934
 ORIGIN_N = 169538.62414926197
+WORLD_ANCHOR_X = -668.5
+WORLD_ANCHOR_Z = 627.84
 
 
 def parse_bbox(raw: str) -> tuple[float, float, float, float]:
@@ -95,11 +103,16 @@ def owns_centroid(centroid: tuple[float, float], bbox: tuple[float, float, float
     return min_e <= easting < max_e and min_n <= northing < max_n
 
 
-def game_ring(ring: list[list[float]]) -> list[list[float]]:
+def game_point(point: list[float]) -> list[float]:
+    """Convert Lambert72 plan coordinates directly into current game-world X/Z."""
     return [
-        [round(point[0] - ORIGIN_E, 3), round(-(point[1] - ORIGIN_N), 3)]
-        for point in ring
+        round(point[0] - ORIGIN_E + WORLD_ANCHOR_X, 3),
+        round(-(point[1] - ORIGIN_N) + WORLD_ANCHOR_Z, 3),
     ]
+
+
+def game_ring(ring: list[list[float]]) -> list[list[float]]:
+    return [game_point(point) for point in ring]
 
 
 def feature_id(feature: dict[str, Any], props: dict[str, Any]) -> str:
@@ -182,11 +195,13 @@ def build_runtime(
         "source": "Paradigm UrbIS WFS / EPSG:31370",
         "source_bbox": list(bbox),
         "coordinate_system": {
-            "origin_e": ORIGIN_E,
-            "origin_n": ORIGIN_N,
+            "lambert_origin_e": ORIGIN_E,
+            "lambert_origin_n": ORIGIN_N,
+            "world_anchor_x": WORLD_ANCHOR_X,
+            "world_anchor_z": WORLD_ANCHOR_Z,
             "axes": "X=east, Y=up, Z=south",
             "units": "metres",
-            "coordinates_are_global_game_local": True,
+            "coordinates_are_current_game_world": True,
         },
         "ownership": "polygon centroid inside half-open source_bbox",
         "accuracy": {

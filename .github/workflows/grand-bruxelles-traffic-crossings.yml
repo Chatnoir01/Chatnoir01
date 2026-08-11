@@ -65,6 +65,18 @@ jobs:
           fi
           grep -q "TRAFFIC_DENSITY_OK" /tmp/density.log
 
+      - name: Mixed vehicle archetype test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/traffic_vehicle_mix_test.gd 2>&1 | tee /tmp/mix.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_MIX_FAIL" /tmp/mix.log; then
+            exit 1
+          fi
+          grep -q "TRAFFIC_MIX_OK" /tmp/mix.log
+
       - name: Live traffic crossing smoke test
         shell: bash
         run: |

@@ -1,14 +1,17 @@
 extends Node3D
 
-## Official UrbIS DTM terrain patch around Atomium/Heysel.
-## Horizontal coordinates remain project-local Lambert72 metres. Vertical values
-## are official DTM elevations relative to the sampled Atomium terrain level.
-## UrbIS NoData cells are kept as holes; they are never interpreted as altitude.
+## Official UrbIS DTM terrain for Laeken phase 1.
+## Prefer the full Bockstael/Parc de Laeken/Heysel mosaic when available and
+## keep the validated Atomium 1 km tile only as a safe fallback.
+## X/Z remain project-local Lambert72 metres. Y is official elevation relative
+## to the sampled Atomium terrain level. UrbIS NoData cells remain holes.
 
-const DATA_PATH := "res://data/terrain/laeken_jette/atomium_dtm.game.json"
+const PRIMARY_DATA_PATH := "res://data/terrain/laeken_jette/phase1_dtm.game.json"
+const FALLBACK_DATA_PATH := "res://data/terrain/laeken_jette/atomium_dtm.game.json"
 const LEGACY_NODATA_THRESHOLD := -1.0e20
 
 var terrain_loaded: bool = false
+var data_path_used: String = ""
 var width: int = 0
 var height: int = 0
 var first_e: float = 0.0
@@ -34,13 +37,22 @@ func _ready() -> void:
     _build_collision()
     call_deferred("_lower_reference_ground")
     terrain_loaded = true
-    print("LAEKEN_TERRAIN_READY: %dx%d valid=%d holes=%d height_range=[%.2f, %.2f]m atomium_abs=%.2fm" % [width, height, valid_sample_count, invalid_sample_count, min_height_m, max_height_m, atomium_absolute_elevation_m])
+    print("LAEKEN_TERRAIN_READY: source=%s %dx%d valid=%d holes=%d height_range=[%.2f, %.2f]m atomium_abs=%.2fm" % [data_path_used, width, height, valid_sample_count, invalid_sample_count, min_height_m, max_height_m, atomium_absolute_elevation_m])
+
+
+func _select_runtime_path() -> String:
+    if FileAccess.file_exists(PRIMARY_DATA_PATH):
+        return PRIMARY_DATA_PATH
+    if FileAccess.file_exists(FALLBACK_DATA_PATH):
+        return FALLBACK_DATA_PATH
+    return ""
 
 
 func _load_runtime() -> bool:
-    if not FileAccess.file_exists(DATA_PATH):
+    data_path_used = _select_runtime_path()
+    if data_path_used.is_empty():
         return false
-    var file := FileAccess.open(DATA_PATH, FileAccess.READ)
+    var file := FileAccess.open(data_path_used, FileAccess.READ)
     if file == null:
         return false
     var parsed = JSON.parse_string(file.get_as_text())
@@ -94,7 +106,6 @@ func _load_runtime() -> bool:
         push_error("LaekenTerrain: DTM runtime contains no valid samples")
         return false
     if min_height_m < LEGACY_NODATA_THRESHOLD:
-        # Reject the old unsafe v1 runtime so NoData can never become geometry.
         push_error("LaekenTerrain: unsafe legacy DTM runtime still contains NoData extrema")
         return false
     return true
@@ -153,7 +164,7 @@ func _build_mesh() -> void:
             var index := row * width + col
             vertices[index] = Vector3(_game_x(col), _height(row, col), _game_z(row))
             normals[index] = _normal(row, col)
-            uvs[index] = Vector2(float(col) / float(width - 1), float(row) / float(height - 1)) * 24.0
+            uvs[index] = Vector2(float(col) / float(width - 1), float(row) / float(height - 1)) * 32.0
 
     var indices := PackedInt32Array()
     for row in range(height - 1):
@@ -253,8 +264,8 @@ func _build_collision() -> void:
 
 
 func _lower_reference_ground() -> void:
-    # Keep a distant fallback ground outside the 1 km DTM tile, but lower it
-    # below the minimum valid DTM terrain so it cannot cut through it.
+    # The fallback plane only exists outside valid official terrain. Lower it
+    # below the full DTM range so it cannot cut through the official surface.
     var fallback_y := min_height_m - 2.0
     var reference := get_parent().get_node_or_null("Phase1ReferenceGround") as MeshInstance3D
     if reference != null:

@@ -9,6 +9,9 @@ extends CharacterBody3D
 @export var steering_speed: float = 1.55
 @export var exit_distance: float = 2.7
 @export var mouse_sensitivity: float = 0.0022
+@export var impact_cooldown_ms: int = 350
+
+const DAMAGE_MODEL_SCRIPT := preload("res://game/scripts/vehicle_damage_model.gd")
 
 @onready var camera_pivot: Node3D = $CameraPivot
 @onready var camera: Camera3D = $CameraPivot/SpringArm3D/Camera3D
@@ -17,6 +20,12 @@ var driver: CharacterBody3D = null
 var speed: float = 0.0
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _exit_unlock_ms: int = 0
+var _next_impact_ms: int = 0
+var _damage_model: RefCounted
+
+
+func _ready() -> void:
+    _damage_model = DAMAGE_MODEL_SCRIPT.new()
 
 
 func _physics_process(delta: float) -> void:
@@ -28,7 +37,7 @@ func _physics_process(delta: float) -> void:
     var throttle: float = 0.0
     var steering: float = 0.0
     var handbrake_pressed: bool = false
-    if driver != null:
+    if driver != null and not is_vehicle_disabled():
         var forward_pressed: bool = Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_Z)
         var reverse_pressed: bool = Input.is_key_pressed(KEY_S)
         var left_pressed: bool = Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_Q)
@@ -43,30 +52,67 @@ func _physics_process(delta: float) -> void:
         throttle = float(forward_pressed) - float(reverse_pressed)
         steering = float(right_pressed) - float(left_pressed)
 
-    if handbrake_pressed:
+    var performance := get_vehicle_performance_factor()
+    var effective_forward_speed := max_forward_speed * performance
+    var effective_reverse_speed := max_reverse_speed * maxf(0.55, performance)
+    var effective_acceleration := acceleration * maxf(0.48, performance)
+
+    if is_vehicle_disabled():
+        speed = move_toward(speed, 0.0, braking * delta)
+    elif handbrake_pressed:
         speed = move_toward(speed, 0.0, handbrake_strength * delta)
     elif throttle > 0.0:
-        speed = move_toward(speed, max_forward_speed, acceleration * delta)
+        speed = move_toward(speed, effective_forward_speed, effective_acceleration * delta)
     elif throttle < 0.0:
         if speed > 1.0:
             speed = move_toward(speed, 0.0, braking * delta)
         else:
-            speed = move_toward(speed, -max_reverse_speed, acceleration * delta)
+            speed = move_toward(speed, -effective_reverse_speed, effective_acceleration * delta)
     else:
         speed = move_toward(speed, 0.0, coast_drag * delta)
 
     if absf(speed) > 0.15 and absf(steering) > 0.01:
-        var speed_ratio: float = clampf(absf(speed) / max_forward_speed, 0.18, 1.0)
+        var speed_ratio: float = clampf(absf(speed) / maxf(0.1, max_forward_speed), 0.18, 1.0)
         var direction_sign: float = 1.0 if speed >= 0.0 else -1.0
         rotation.y -= steering * steering_speed * speed_ratio * direction_sign * delta
 
+    var impact_speed_kmh := absf(speed) * 3.6
     var forward_vector: Vector3 = -global_transform.basis.z
     velocity.x = forward_vector.x * speed
     velocity.z = forward_vector.z * speed
     move_and_slide()
 
     if is_on_wall():
+        _register_wall_impact(impact_speed_kmh, forward_vector)
         speed *= 0.35
+        if is_vehicle_disabled():
+            speed = 0.0
+
+
+func _register_wall_impact(impact_speed_kmh: float, forward_vector: Vector3) -> void:
+    if _damage_model == null or Time.get_ticks_msec() < _next_impact_ms:
+        return
+
+    var best_alignment := 0.42
+    for index: int in range(get_slide_collision_count()):
+        var collision := get_slide_collision(index)
+        if collision == null:
+            continue
+        var normal := collision.get_normal()
+        if absf(normal.y) > 0.65:
+            continue
+        normal.y = 0.0
+        if normal.length_squared() <= 0.001:
+            continue
+        normal = normal.normalized()
+        var flat_forward := forward_vector
+        flat_forward.y = 0.0
+        if flat_forward.length_squared() > 0.001:
+            flat_forward = flat_forward.normalized()
+            best_alignment = maxf(best_alignment, absf(flat_forward.dot(normal)))
+
+    _damage_model.call("register_impact", impact_speed_kmh, best_alignment)
+    _next_impact_ms = Time.get_ticks_msec() + impact_cooldown_ms
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -120,3 +166,45 @@ func get_speed_kmh() -> float:
 
 func get_max_forward_speed_kmh() -> float:
     return max_forward_speed * 3.6
+
+
+func get_vehicle_health() -> float:
+    if _damage_model == null:
+        return 100.0
+    return float(_damage_model.call("get_health"))
+
+
+func get_vehicle_body_damage() -> float:
+    if _damage_model == null:
+        return 0.0
+    return float(_damage_model.get("body_damage"))
+
+
+func get_vehicle_mechanical_damage() -> float:
+    if _damage_model == null:
+        return 0.0
+    return float(_damage_model.get("mechanical_damage"))
+
+
+func get_vehicle_performance_factor() -> float:
+    if _damage_model == null:
+        return 1.0
+    return float(_damage_model.call("get_performance_factor"))
+
+
+func is_vehicle_disabled() -> bool:
+    if _damage_model == null:
+        return false
+    return bool(_damage_model.call("is_disabled"))
+
+
+func apply_test_impact(speed_kmh: float, alignment: float = 1.0) -> Dictionary:
+    if _damage_model == null:
+        _damage_model = DAMAGE_MODEL_SCRIPT.new()
+    return _damage_model.call("register_impact", speed_kmh, alignment)
+
+
+func repair_vehicle(amount: float = 100.0) -> Dictionary:
+    if _damage_model == null:
+        _damage_model = DAMAGE_MODEL_SCRIPT.new()
+    return _damage_model.call("repair", amount)

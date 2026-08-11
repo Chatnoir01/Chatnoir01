@@ -1,6 +1,10 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_jette_zone.gd" id="1_zone"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_realism_pass.gd" id="2_realism"]
 
 [node name="LaekenJetteZone" type="Node3D"]
 script = ExtResource("1_zone")
+
+[node name="RealismPass" type="Node3D" parent="."]
+script = ExtResource("2_realism")

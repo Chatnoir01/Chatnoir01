@@ -13,11 +13,12 @@ func _ready() -> void:
 
 
 func _bind_wanted_system() -> void:
-    var wanted := _wanted_system()
+    var wanted: Node = _wanted_system()
     if wanted == null:
         return
-    if not wanted.wanted_level_changed.is_connected(_on_wanted_level_changed):
-        wanted.wanted_level_changed.connect(_on_wanted_level_changed)
+    var callback: Callable = Callable(self, "_on_wanted_level_changed")
+    if not wanted.is_connected("wanted_level_changed", callback):
+        wanted.connect("wanted_level_changed", callback)
     _sync_units(int(wanted.call("get_wanted_level")))
 
 
@@ -27,13 +28,13 @@ func _on_wanted_level_changed(level: int, _heat: float) -> void:
 
 func _sync_units(level: int) -> void:
     _cleanup_officers()
-    var target_count := _target_count(level)
+    var target_count: int = _target_count(level)
 
     while _active_officers.size() < target_count:
         _spawn_officer(_active_officers.size())
 
     while _active_officers.size() > target_count:
-        var officer := _active_officers.pop_back()
+        var officer: Node = _active_officers.pop_back() as Node
         if is_instance_valid(officer):
             officer.queue_free()
 
@@ -42,21 +43,24 @@ func _sync_units(level: int) -> void:
 
 
 func _spawn_officer(index: int) -> void:
-    var player := _player()
+    var player: Node3D = _player()
     if player == null:
         return
-    var officer := OFFICER_SCENE.instantiate()
+    var officer: Node3D = OFFICER_SCENE.instantiate() as Node3D
+    if officer == null:
+        return
     add_child(officer)
-    var angle := TAU * float(index) / maxf(1.0, float(_target_count(maxi(1, index + 1))))
-    var radius := spawn_radius + float(index % 2) * 5.0
-    var offset := Vector3(cos(angle) * radius, spawn_height, sin(angle) * radius)
+    var divisor: float = maxf(1.0, float(_target_count(maxi(1, index + 1))))
+    var angle: float = TAU * float(index) / divisor
+    var radius: float = spawn_radius + float(index % 2) * 5.0
+    var offset: Vector3 = Vector3(cos(angle) * radius, spawn_height, sin(angle) * radius)
     officer.global_position = _player_position(player) + offset
     _active_officers.append(officer)
 
 
 func _cleanup_officers() -> void:
     var valid: Array[Node] = []
-    for officer in _active_officers:
+    for officer: Node in _active_officers:
         if is_instance_valid(officer) and not officer.is_queued_for_deletion():
             valid.append(officer)
     _active_officers = valid
@@ -84,14 +88,14 @@ func _target_count(level: int) -> int:
 
 
 func _set_police_vehicle_emergency(enabled: bool) -> void:
-    for vehicle in get_tree().get_nodes_in_group("police_vehicle"):
-        var visuals := vehicle.get_node_or_null("EmergencyVisuals")
+    for vehicle: Node in get_tree().get_nodes_in_group("police_vehicle"):
+        var visuals: Node = vehicle.get_node_or_null("EmergencyVisuals")
         if visuals != null and visuals.has_method("set_emergency_lights"):
             visuals.call("set_emergency_lights", enabled)
 
 
 func _update_hud(level: int) -> void:
-    var label := get_parent().get_node_or_null("WantedLabel") as Label
+    var label: Label = get_parent().get_node_or_null("WantedLabel") as Label
     if label == null:
         return
     if level <= 0:

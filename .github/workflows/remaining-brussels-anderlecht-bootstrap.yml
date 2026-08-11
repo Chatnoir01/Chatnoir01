@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: remaining-brussels-anderlecht-bootstrap
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   materialize-first-cell:
@@ -33,12 +33,24 @@ jobs:
           python3 -m compileall -q tools tests
           python3 -m unittest discover -s tests -p 'test_*.py' -v
 
-      - name: Fetch official Anderlecht boundary and generate intersecting global cells
+      - name: Reuse official Anderlecht boundary or fetch if missing
         working-directory: grand-bruxelles-game
         run: |
-          python3 tools/bootstrap_remaining_brussels.py \
-            --zone anderlecht \
-            --output-root data/processed/remaining_brussels
+          BOUNDARY=data/processed/remaining_brussels/boundaries/anderlecht.geojson
+          CELLS=data/processed/remaining_brussels/cells/anderlecht.json
+          if [ -s "$BOUNDARY" ]; then
+            echo 'Reusing committed official UrbIS Anderlecht boundary snapshot.'
+            python3 tools/make_zone_cells.py \
+              --boundary "$BOUNDARY" \
+              --zone-id anderlecht \
+              --cell-size 500 \
+              --output "$CELLS"
+          else
+            echo 'Official boundary snapshot missing; fetching from UrbIS WFS.'
+            python3 tools/bootstrap_remaining_brussels.py \
+              --zone anderlecht \
+              --output-root data/processed/remaining_brussels
+          fi
 
       - name: Select contiguous Anderlecht seed outside the reserved Midi cell
         working-directory: grand-bruxelles-game

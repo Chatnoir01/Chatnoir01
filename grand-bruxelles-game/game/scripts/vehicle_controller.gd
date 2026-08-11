@@ -4,6 +4,7 @@ extends CharacterBody3D
 @export var max_reverse_speed: float = 8.0
 @export var acceleration: float = 12.0
 @export var braking: float = 20.0
+@export var handbrake_strength: float = 30.0
 @export var coast_drag: float = 7.5
 @export var steering_speed: float = 1.55
 @export var exit_distance: float = 2.7
@@ -17,6 +18,7 @@ var speed: float = 0.0
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _exit_unlock_ms: int = 0
 
+
 func _physics_process(delta: float) -> void:
     if not is_on_floor():
         velocity.y -= gravity * delta
@@ -25,11 +27,13 @@ func _physics_process(delta: float) -> void:
 
     var throttle: float = 0.0
     var steering: float = 0.0
+    var handbrake_pressed: bool = false
     if driver != null:
         var forward_pressed: bool = Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_Z)
         var reverse_pressed: bool = Input.is_key_pressed(KEY_S)
         var left_pressed: bool = Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_Q)
         var right_pressed: bool = Input.is_key_pressed(KEY_D)
+        handbrake_pressed = Input.is_key_pressed(KEY_SPACE)
         var touch: Node = get_parent().get_node_or_null("MobileControls")
         if touch != null:
             forward_pressed = forward_pressed or bool(touch.get("forward_pressed"))
@@ -39,7 +43,9 @@ func _physics_process(delta: float) -> void:
         throttle = float(forward_pressed) - float(reverse_pressed)
         steering = float(right_pressed) - float(left_pressed)
 
-    if throttle > 0.0:
+    if handbrake_pressed:
+        speed = move_toward(speed, 0.0, handbrake_strength * delta)
+    elif throttle > 0.0:
         speed = move_toward(speed, max_forward_speed, acceleration * delta)
     elif throttle < 0.0:
         if speed > 1.0:
@@ -62,6 +68,7 @@ func _physics_process(delta: float) -> void:
     if is_on_wall():
         speed *= 0.35
 
+
 func _unhandled_input(event: InputEvent) -> void:
     if driver == null:
         return
@@ -74,6 +81,7 @@ func _unhandled_input(event: InputEvent) -> void:
         elif event.keycode == KEY_ESCAPE:
             Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 
+
 func enter_driver(player: CharacterBody3D) -> void:
     if driver != null:
         return
@@ -84,6 +92,7 @@ func enter_driver(player: CharacterBody3D) -> void:
     player.call("set_vehicle_mode", true)
     camera.current = true
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED
+
 
 func exit_driver() -> void:
     if driver == null:
@@ -96,5 +105,18 @@ func exit_driver() -> void:
     player.rotation.y = rotation.y
     player.call("set_vehicle_mode", false)
 
+
 func has_driver() -> bool:
     return driver != null
+
+
+func get_speed_mps() -> float:
+    return speed
+
+
+func get_speed_kmh() -> float:
+    return absf(speed) * 3.6
+
+
+func get_max_forward_speed_kmh() -> float:
+    return max_forward_speed * 3.6

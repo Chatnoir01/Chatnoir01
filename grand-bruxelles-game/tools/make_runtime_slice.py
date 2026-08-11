@@ -166,6 +166,7 @@ def main() -> int:
         "format": full.get("format", "grand-bruxelles-osm-v1"),
         "source": full.get("source", "OpenStreetMap contributors via Overpass API"),
         "license": full.get("license", "ODbL-1.0"),
+        "traffic_schema": full.get("traffic_schema", {}),
         "origin": full["origin"],
         "corridor": {
             "name": "Midi -> Anneessens -> Bourse -> Grand-Place",

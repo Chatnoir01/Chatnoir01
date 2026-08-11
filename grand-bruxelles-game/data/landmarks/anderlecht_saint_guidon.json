@@ -1,0 +1,75 @@
+{
+  "format": "grand-bruxelles-landmark-zone-v1",
+  "zone_id": "anderlecht-saint-guidon",
+  "municipality": "Anderlecht",
+  "cell_id": "bxl-e145500-n169000-s500",
+  "anchor": {
+    "name": "Place de la Vaillance",
+    "crs": "EPSG:31370",
+    "easting": 145611.15627840292,
+    "northing": 169471.81357855164,
+    "game_x": -2925.638,
+    "game_z": 694.651
+  },
+  "reconstruction_tier": "hero",
+  "targets": [
+    {
+      "id": "place-vaillance",
+      "kind": "historic_square",
+      "priority": 1,
+      "requirements": [
+        "official street and surface geometry",
+        "historic facade rhythm and silhouettes",
+        "paving and curb layout validated against official orthophoto"
+      ]
+    },
+    {
+      "id": "collegiale-saints-pierre-guidon",
+      "kind": "classified_landmark",
+      "priority": 1,
+      "requirements": [
+        "dedicated non-procedural silhouette",
+        "tower and spire readable at long distance",
+        "LOD0 LOD1 LOD2",
+        "simplified dedicated collision"
+      ]
+    },
+    {
+      "id": "historicist-facades-vaillance",
+      "kind": "hero_facade_set",
+      "priority": 2,
+      "requirements": [
+        "UrbIS footprints remain authoritative",
+        "individual facade widths preserved",
+        "stepped and Baroque gable variants",
+        "no generic facade randomizer on the square first row"
+      ]
+    },
+    {
+      "id": "vandenpeereboom",
+      "kind": "historic_building",
+      "priority": 2
+    },
+    {
+      "id": "rue-porselein",
+      "kind": "historic_lane",
+      "priority": 3,
+      "requirements": [
+        "retain narrow lane proportions",
+        "do not apply procedural road widening"
+      ]
+    }
+  ],
+  "source_policy": {
+    "official_municipal_web_pages": "reference_only_until_reuse_rights_are_verified",
+    "official_urbis_geometry": "production_geometry_source",
+    "official_orthophoto": "validation_reference_with_metadata",
+    "external_web_images_embedded": false,
+    "external_web_images_used_as_textures": false
+  },
+  "production_gate": {
+    "hero_asset_complete": false,
+    "licensed_visual_reference_pack_complete": false,
+    "geometry_cell_materialized": true
+  }
+}

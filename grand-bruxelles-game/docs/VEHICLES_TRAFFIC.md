@@ -82,8 +82,9 @@ Le test synthétique vérifie aussi qu'un carrefour équipé d'un feu n'est pas 
 - `game/scripts/traffic_control_system.gd`
   - rattache les contrôles OSM aux routes ;
   - regroupe les têtes de feux proches en carrefours ;
-  - fournit des phases rouge/orange/vert sûres avec intervalles tout-rouge ;
-  - les positions viennent d'OSM ; les phases sont simulées localement et ne prétendent pas reproduire une programmation temps réel de Bruxelles.
+  - utilise des positions et types de contrôles venant d'OSM ;
+  - fournit des phases rouge/orange/vert simulées avec intervalles tout-rouge ;
+  - ces phases sont un modèle de gameplay sûr et ne prétendent pas reproduire la programmation réelle des contrôleurs de feux bruxellois.
 
 Comportement véhicule actuel :
 
@@ -171,7 +172,7 @@ Godot 4.7.1 headless :
 
 ## Limites connues
 
-- Les positions des feux sont réelles OSM mais leur cycle est simulé, pas synchronisé avec les contrôleurs physiques de Bruxelles.
+- Les positions des feux sont issues d'OSM mais leur cycle est simulé, pas synchronisé avec les contrôleurs physiques de Bruxelles.
 - Le cédez-le-passage ralentit déjà, mais ne calcule pas encore complètement l'acceptation d'un créneau selon le trafic transversal.
 - Les passages piétons ralentissent le véhicule, mais n'intègrent pas encore l'état d'un PNJ traversant.
 - Les voitures IA sont encore des modèles greybox procéduraux.

@@ -1,0 +1,99 @@
+name: Bootstrap Anderlecht UrbIS cell
+
+on:
+  push:
+    branches:
+      - zone-reste-bruxelles
+    paths:
+      - '.github/workflows/remaining-brussels-anderlecht-bootstrap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-anderlecht-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  materialize-first-cell:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout dedicated zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+
+      - name: Validate Python pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m compileall -q tools tests
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Fetch official Anderlecht boundary and generate intersecting global cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/bootstrap_remaining_brussels.py \
+            --zone anderlecht \
+            --output-root data/processed/remaining_brussels
+
+      - name: Materialize first globally identified Anderlecht cell from UrbIS WFS
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/materialize_zone_cells.py \
+            --manifest data/processed/remaining_brussels/cells/anderlecht.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --limit 1
+
+      - name: Build Godot streaming index
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+
+      - name: Verify generated data
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          zone = json.loads(Path('data/processed/remaining_brussels/cells/anderlecht.json').read_text())
+          assert zone['format'] == 'grand-bruxelles-zone-cells-v2'
+          assert zone['cell_count'] > 0
+          assert zone['cell_count'] <= zone['envelope_cell_count']
+          assert all(cell['id'].startswith('bxl-e') for cell in zone['cells'])
+
+          index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v1'
+          assert index['cell_count'] == 1, index['cell_count']
+          first = index['cells'][0]
+          manifest_path = Path('data/urbis/remaining_brussels/cells') / first['cell_id'] / 'manifest.json'
+          manifest = json.loads(manifest_path.read_text())
+          assert manifest['runtime']['geometry_format'] == 'grand-bruxelles-urbis-cell-runtime-v1'
+          assert manifest['runtime']['network_format'] == 'grand-bruxelles-urbis-network-cell-runtime-v1'
+          print('Generated official cell:', first['cell_id'])
+          print('Geometry stats:', manifest['runtime']['geometry_stats'])
+          print('Network stats:', manifest['runtime']['network_stats'])
+          PY
+
+      - name: Commit reproducible official data snapshot
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/boundaries/anderlecht.geojson \
+            grand-bruxelles-game/data/processed/remaining_brussels/cells/anderlecht.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/bootstrap_manifest.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then
+            echo 'No generated data changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: bootstrap first official Anderlecht UrbIS cell'
+          git push origin HEAD:zone-reste-bruxelles

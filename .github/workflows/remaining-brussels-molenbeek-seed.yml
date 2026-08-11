@@ -1,0 +1,211 @@
+name: Materialize Molenbeek contiguous seed
+
+on:
+  push:
+    branches:
+      - zone-reste-bruxelles
+    paths:
+      - '.github/workflows/remaining-brussels-molenbeek-seed.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-molenbeek-seed
+  cancel-in-progress: false
+
+jobs:
+  materialize-molenbeek-seed:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout dedicated zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+
+      - name: Validate reconstruction pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m compileall -q tools tests
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Record currently materialized global cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('data/urbis/remaining_brussels/cells')
+          ids = sorted(path.parent.name for path in root.glob('*/manifest.json'))
+          Path('/tmp/preexisting-cells.json').write_text(json.dumps(ids), encoding='utf-8')
+          print('Pre-existing cells:', ids)
+          assert 'bxl-e145500-n169000-s500' in ids, ids
+          assert 'bxl-e147000-n169500-s500' in ids, ids
+          PY
+
+      - name: Rebuild existing cells with current compact rail pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/rebuild_materialized_cells.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --retries 3
+
+      - name: Fetch official Molenbeek boundary and generate intersecting global cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/bootstrap_remaining_brussels.py \
+            --zone molenbeek \
+            --output-root data/processed/remaining_brussels
+
+      - name: Select nearest genuinely new Molenbeek cell
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/select_zone_seed_cell.py \
+            --manifest data/processed/remaining_brussels/cells/molenbeek.json \
+            --anchor-e 147868.29422791934 \
+            --anchor-n 169538.62414926197 \
+            --exclude-existing-root data/urbis/remaining_brussels/cells \
+            --exclude-cell-id bxl-e147500-n169500-s500 \
+            --output /tmp/molenbeek-seed.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          preexisting = set(json.loads(Path('/tmp/preexisting-cells.json').read_text()))
+          seed = json.loads(Path('/tmp/molenbeek-seed.json').read_text())
+          selected = seed['seed_selection']['selected_cell_id']
+          assert seed['cell_count'] == 1
+          assert selected not in preexisting, (selected, sorted(preexisting))
+          assert selected != 'bxl-e147500-n169500-s500'
+          print('Selected new Molenbeek cell:', selected)
+          print('Distance from Midi anchor (m):', seed['seed_selection']['distance_m'])
+          print('Existing cells excluded:', seed['seed_selection']['excluded_existing_cell_ids'])
+          PY
+
+      - name: Materialize new Molenbeek cell from official UrbIS WFS
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/materialize_zone_cells.py \
+            --manifest /tmp/molenbeek-seed.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --force
+
+      - name: Build ownership-aware Godot streaming index
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+
+      - name: Capture official Molenbeek orthophoto reference
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p data/processed/remaining_brussels/references /tmp/molenbeek-ortho
+          BBOX=$(python3 - <<'PY'
+          import json
+          seed = json.load(open('/tmp/molenbeek-seed.json', encoding='utf-8'))
+          print(','.join(str(value) for value in seed['cells'][0]['bbox']))
+          PY
+          )
+          python3 tools/capture_urbis_orthophoto.py \
+            --bbox "$BBOX" \
+            --width 1024 \
+            --height 1024 \
+            --output /tmp/molenbeek-ortho/seed.png \
+            --metadata data/processed/remaining_brussels/references/molenbeek_seed_orthophoto.json
+
+      - name: Verify new cell, compact rails, ownership and retained Anderlecht cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('data/urbis/remaining_brussels/cells')
+          preexisting = set(json.loads(Path('/tmp/preexisting-cells.json').read_text()))
+          seed = json.loads(Path('/tmp/molenbeek-seed.json').read_text())
+          seed_id = seed['seed_selection']['selected_cell_id']
+          cell_dir = root / seed_id
+          manifest = json.loads((cell_dir / 'manifest.json').read_text())
+          geometry = json.loads((cell_dir / manifest['runtime']['geometry_file']).read_text())
+          network = json.loads((cell_dir / manifest['runtime']['network_file']).read_text())
+          index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          ortho = json.loads(Path('data/processed/remaining_brussels/references/molenbeek_seed_orthophoto.json').read_text())
+
+          assert manifest['runtime']['geometry_format'] == 'grand-bruxelles-urbis-cell-runtime-v1'
+          assert manifest['runtime']['network_format'] == 'grand-bruxelles-urbis-network-cell-runtime-v2'
+          assert geometry['stats']['buildings'] > 0
+          assert geometry['stats']['street_surfaces'] > 0
+          assert network['stats']['street_segments'] > 0
+          assert all(item['type'].startswith('TW') for item in network['tram_network'])
+          assert all(item['type'].startswith('RW') for item in network['train_network'])
+          assert {item['source_id'] for item in network['tram_network']}.isdisjoint(
+              {item['source_id'] for item in network['train_network']}
+          )
+
+          for short_name, expected in [('tram_network', 'TW'), ('train_network', 'RW')]:
+              layer = manifest['layers'][short_name]
+              filter_meta = layer['feature_filter']
+              assert filter_meta['mode'] == 'post_bbox_in_memory'
+              assert filter_meta['equals'] == expected
+              raw = json.loads((cell_dir / layer['file']).read_text())
+              types = {str((feature.get('properties') or {}).get('TYPE', '')).upper() for feature in raw['features']}
+              if raw['features']:
+                  assert types == {expected}, (short_name, types)
+
+          # The migration must also upgrade every older materialized cell.
+          for old_id in preexisting:
+              old_manifest = json.loads((root / old_id / 'manifest.json').read_text())
+              for short_name, expected in [('tram_network', 'TW'), ('train_network', 'RW')]:
+                  filter_meta = old_manifest['layers'][short_name]['feature_filter']
+                  assert filter_meta['mode'] == 'post_bbox_in_memory'
+                  assert filter_meta['equals'] == expected
+
+          assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v2'
+          indexed_ids = {item['cell_id'] for item in index['cells']}
+          assert preexisting.issubset(indexed_ids), (sorted(preexisting), sorted(indexed_ids))
+          assert seed_id in indexed_ids
+          assert 'bxl-e147500-n169500-s500' not in indexed_ids
+          assert len(indexed_ids) >= len(preexisting) + 1
+
+          assert ortho['provider'] == 'Paradigm / UrbIS'
+          assert ortho['layer'] == 'inspire:Ortho'
+          assert ortho['crs'] == 'EPSG:31370'
+          assert ortho['bbox'] == seed['cells'][0]['bbox']
+          assert ortho['download']['bytes'] > 1000
+
+          print('Molenbeek cell:', seed_id)
+          print('Molenbeek geometry:', geometry['stats'])
+          print('Molenbeek network:', network['stats'])
+          print('Streamable cells:', sorted(indexed_ids))
+          print('Orthophoto SHA256:', ortho['download']['sha256'])
+          PY
+
+      - name: Upload official Molenbeek orthophoto validation preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: molenbeek-seed-official-orthophoto
+          path: /tmp/molenbeek-ortho/seed.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit reproducible Molenbeek snapshot and migrated cells
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/boundaries/molenbeek.geojson \
+            grand-bruxelles-game/data/processed/remaining_brussels/cells/molenbeek.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/bootstrap_manifest.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/references/molenbeek_seed_orthophoto.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then
+            echo 'No Molenbeek or migrated data changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: add official Molenbeek seed and compact rail extracts'
+          git push origin HEAD:zone-reste-bruxelles

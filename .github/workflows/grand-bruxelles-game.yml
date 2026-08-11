@@ -95,7 +95,8 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/godot-run.log; then
             exit 1
           fi
-          grep -q "Grand Bruxelles OSM greybox:" /tmp/godot-run.log
+          grep -q "Grand Bruxelles visual pass:" /tmp/godot-run.log
+          grep -q "Grand Bruxelles hero zone: Bruxelles-Midi visual landmark active" /tmp/godot-run.log
 
       - name: Vehicle enter-exit smoke test
         shell: bash

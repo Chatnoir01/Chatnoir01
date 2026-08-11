@@ -6,6 +6,7 @@ const ROUTE_SNAP_RADIUS_M := 6.5
 const REQUEST_TTL_S := 0.55
 const RESERVATION_TTL_S := 2.6
 const APPROACH_WINDOW_M := 22.0
+const GIVE_WAY_CONFLICT_WINDOW_M := 28.0
 const RIGHT_DOT_THRESHOLD := 0.52
 
 var _intersections: Array[Dictionary] = []
@@ -96,8 +97,6 @@ func intersections_for_route(route: PackedVector3Array) -> Array[Dictionary]:
         return result
 
     for intersection: Dictionary in _intersections:
-        if not bool(intersection.get("priority_to_right", false)):
-            continue
         var position: Vector3 = intersection["position"]
         var nearest := _nearest_route_segment(route, position)
         if float(nearest.get("distance_m", INF)) > ROUTE_SNAP_RADIUS_M:
@@ -135,23 +134,18 @@ func request_passage(
         now_seconds = float(Time.get_ticks_msec()) / 1000.0
     _purge_expired(now_seconds)
 
-    var requests: Dictionary = _requests.get(intersection_id, {})
-    requests[vehicle_id] = {
-        "vehicle_id": vehicle_id,
-        "approach_direction": approach_direction.normalized(),
-        "distance_m": maxf(0.0, distance_m),
-        "seen_s": now_seconds,
-    }
-    _requests[intersection_id] = requests
+    var requests := _register_request(
+        intersection_id,
+        vehicle_id,
+        approach_direction,
+        distance_m,
+        false,
+        now_seconds
+    )
 
-    var reservation: Dictionary = _reservations.get(intersection_id, {})
-    if not reservation.is_empty():
-        var holder := int(reservation.get("vehicle_id", -1))
-        if holder == vehicle_id:
-            reservation["expires_s"] = now_seconds + RESERVATION_TTL_S
-            _reservations[intersection_id] = reservation
-            return true
-        return false
+    var reservation_state := _reservation_permission(intersection_id, vehicle_id, now_seconds)
+    if reservation_state != 0:
+        return reservation_state > 0
 
     if distance_m > APPROACH_WINDOW_M:
         return true
@@ -160,11 +154,141 @@ func request_passage(
         return false
 
     if distance_m <= 3.4:
-        _reservations[intersection_id] = {
-            "vehicle_id": vehicle_id,
-            "expires_s": now_seconds + RESERVATION_TTL_S,
-        }
+        _reserve(intersection_id, vehicle_id, now_seconds)
     return true
+
+
+func request_controlled_passage(
+    intersection_id: int,
+    vehicle_id: int,
+    approach_direction: Vector3,
+    distance_m: float,
+    yielding_approach: bool,
+    now_seconds: float = -1.0
+) -> bool:
+    if now_seconds < 0.0:
+        now_seconds = float(Time.get_ticks_msec()) / 1000.0
+    _purge_expired(now_seconds)
+
+    var requests := _register_request(
+        intersection_id,
+        vehicle_id,
+        approach_direction,
+        distance_m,
+        yielding_approach,
+        now_seconds
+    )
+
+    var reservation_state := _reservation_permission(intersection_id, vehicle_id, now_seconds)
+    if reservation_state != 0:
+        return reservation_state > 0
+
+    if distance_m > GIVE_WAY_CONFLICT_WINDOW_M:
+        return true
+
+    if yielding_approach and _has_conflicting_priority_request(vehicle_id, approach_direction, requests):
+        return false
+
+    if yielding_approach and _has_competing_yield_request(vehicle_id, distance_m, requests):
+        return false
+
+    if distance_m <= 3.4:
+        _reserve(intersection_id, vehicle_id, now_seconds)
+    return true
+
+
+func _register_request(
+    intersection_id: int,
+    vehicle_id: int,
+    approach_direction: Vector3,
+    distance_m: float,
+    yielding_approach: bool,
+    now_seconds: float
+) -> Dictionary:
+    var requests: Dictionary = _requests.get(intersection_id, {})
+    var normalized := approach_direction
+    normalized.y = 0.0
+    if normalized.length_squared() > 0.001:
+        normalized = normalized.normalized()
+    requests[vehicle_id] = {
+        "vehicle_id": vehicle_id,
+        "approach_direction": normalized,
+        "distance_m": maxf(0.0, distance_m),
+        "yielding": yielding_approach,
+        "seen_s": now_seconds,
+    }
+    _requests[intersection_id] = requests
+    return requests
+
+
+func _reservation_permission(intersection_id: int, vehicle_id: int, now_seconds: float) -> int:
+    var reservation: Dictionary = _reservations.get(intersection_id, {})
+    if reservation.is_empty():
+        return 0
+    var holder := int(reservation.get("vehicle_id", -1))
+    if holder == vehicle_id:
+        reservation["expires_s"] = now_seconds + RESERVATION_TTL_S
+        _reservations[intersection_id] = reservation
+        return 1
+    return -1
+
+
+func _reserve(intersection_id: int, vehicle_id: int, now_seconds: float) -> void:
+    _reservations[intersection_id] = {
+        "vehicle_id": vehicle_id,
+        "expires_s": now_seconds + RESERVATION_TTL_S,
+    }
+
+
+func _has_conflicting_priority_request(
+    vehicle_id: int,
+    approach_direction: Vector3,
+    requests: Dictionary
+) -> bool:
+    var current := approach_direction
+    current.y = 0.0
+    if current.length_squared() <= 0.001:
+        return false
+    current = current.normalized()
+
+    for raw_other_id: Variant in requests.keys():
+        var other_id := int(raw_other_id)
+        if other_id == vehicle_id:
+            continue
+        var other: Dictionary = requests[other_id]
+        if bool(other.get("yielding", false)):
+            continue
+        var other_distance := float(other.get("distance_m", INF))
+        if other_distance > GIVE_WAY_CONFLICT_WINDOW_M:
+            continue
+
+        var other_approach: Vector3 = other.get("approach_direction", Vector3.ZERO)
+        other_approach.y = 0.0
+        if other_approach.length_squared() <= 0.001:
+            continue
+        other_approach = other_approach.normalized()
+
+        # Same-direction traffic is not a crossing-flow conflict for this simple gap model.
+        if current.dot(other_approach) > 0.82:
+            continue
+        return true
+    return false
+
+
+func _has_competing_yield_request(vehicle_id: int, distance_m: float, requests: Dictionary) -> bool:
+    for raw_other_id: Variant in requests.keys():
+        var other_id := int(raw_other_id)
+        if other_id == vehicle_id:
+            continue
+        var other: Dictionary = requests[other_id]
+        if not bool(other.get("yielding", false)):
+            continue
+        var other_distance := float(other.get("distance_m", INF))
+        if other_distance + 0.5 < distance_m:
+            return true
+        if absf(other_distance - distance_m) <= 0.5 and other_id < vehicle_id:
+            return true
+    return false
 
 
 func release_vehicle(vehicle_id: int) -> void:
@@ -279,5 +403,13 @@ func get_right_priority_count() -> int:
     var count := 0
     for intersection: Dictionary in _intersections:
         if bool(intersection.get("priority_to_right", false)):
+            count += 1
+    return count
+
+
+func get_give_way_intersection_count() -> int:
+    var count := 0
+    for intersection: Dictionary in _intersections:
+        if str(intersection.get("control_kind", "")) == "give_way":
             count += 1
     return count

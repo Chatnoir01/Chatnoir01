@@ -1,0 +1,70 @@
+name: Grand Bruxelles OSM Traffic Preview
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/fetch_osm_slice.py"
+      - "grand-bruxelles-game/tools/transform_osm_to_game.py"
+      - "grand-bruxelles-game/tools/make_runtime_slice.py"
+      - ".github/workflows/grand-bruxelles-osm-traffic-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-osm-traffic-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-traffic-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Python tools
+        run: python3 -m py_compile grand-bruxelles-game/tools/*.py
+
+      - name: Fetch current Brussels OSM traffic data
+        run: |
+          python3 grand-bruxelles-game/tools/fetch_osm_slice.py \
+            --output /tmp/vertical_slice_traffic.raw.json \
+            --retries 4
+
+      - name: Convert current OSM data
+        run: |
+          python3 grand-bruxelles-game/tools/transform_osm_to_game.py \
+            --input /tmp/vertical_slice_traffic.raw.json \
+            --output /tmp/vertical_slice_traffic.full.game.json
+
+      - name: Build traffic-control runtime slice
+        run: |
+          python3 grand-bruxelles-game/tools/make_runtime_slice.py \
+            --input /tmp/vertical_slice_traffic.full.game.json \
+            --control-points grand-bruxelles-game/data/vertical_slice_control_points.json \
+            --output /tmp/vertical_slice_traffic.game.json
+
+      - name: Validate traffic-control runtime
+        run: |
+          python3 - <<'PY'
+          import json
+          path = '/tmp/vertical_slice_traffic.game.json'
+          data = json.load(open(path, encoding='utf-8'))
+          stats = data['stats']
+          assert data['format'] == 'grand-bruxelles-osm-v3', data['format']
+          assert stats['roads'] >= 100, stats
+          assert stats['drivable_roads'] >= 80, stats
+          assert stats['traffic_controls'] > 0, stats
+          print('Fresh traffic runtime stats:', stats)
+          PY
+
+      - name: Upload fresh traffic runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-osm-traffic-runtime
+          path: /tmp/vertical_slice_traffic.game.json
+          if-no-files-found: error
+          retention-days: 3

@@ -1,6 +1,7 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
+[ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -32,32 +33,15 @@ light_energy = 1.25
 shadow_enabled = true
 
 [node name="Ground" type="CSGBox3D" parent="."]
-position = Vector3(0, -0.2, 0)
-size = Vector3(120, 0.4, 120)
+position = Vector3(0, -0.23, 0)
+size = Vector3(1800, 0.4, 1800)
 use_collision = true
 
-[node name="Block_A" type="CSGBox3D" parent="."]
-position = Vector3(-12, 4, -18)
-size = Vector3(15, 8, 18)
-use_collision = true
-
-[node name="Block_B" type="CSGBox3D" parent="."]
-position = Vector3(13, 5.5, -19)
-size = Vector3(17, 11, 16)
-use_collision = true
-
-[node name="Block_C" type="CSGBox3D" parent="."]
-position = Vector3(-15, 6, 17)
-size = Vector3(14, 12, 20)
-use_collision = true
-
-[node name="Block_D" type="CSGBox3D" parent="."]
-position = Vector3(15, 4.5, 18)
-size = Vector3(18, 9, 18)
-use_collision = true
+[node name="BrusselsOSM" type="Node3D" parent="."]
+script = ExtResource("2_city")
 
 [node name="Player" type="CharacterBody3D" parent="."]
-position = Vector3(0, 1.05, 8)
+position = Vector3(0, 1.05, 90)
 script = ExtResource("1_player")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
@@ -81,7 +65,7 @@ fov = 72.0
 [node name="PrototypeLabel" type="Label" parent="."]
 offset_left = 20.0
 offset_top = 18.0
-offset_right = 520.0
+offset_right = 760.0
 offset_bottom = 82.0
 theme_override_font_sizes/font_size = 18
-text = "GRAND BRUXELLES — PROTOTYPE 0.1\nZQSD/WASD · Shift courir · Espace sauter · Échap souris"
+text = "GRAND BRUXELLES — OSM GREYBOX 0.2\nZQSD/WASD · Shift courir · Espace sauter · Échap souris"

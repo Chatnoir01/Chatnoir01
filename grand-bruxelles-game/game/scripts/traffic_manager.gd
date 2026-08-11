@@ -4,17 +4,21 @@ extends Node3D
 @export var max_vehicles: int = 12
 @export var spawn_radius_m: float = 520.0
 @export var despawn_radius_m: float = 760.0
-@export var min_route_length_m: float = 24.0
+@export var min_route_length_m: float = 42.0
+@export var route_target_length_m: float = 320.0
+@export var route_max_length_m: float = 720.0
+@export var max_route_edges: int = 28
 @export var default_speed_kmh: float = 30.0
 @export var traffic_seed: int = 20260812
 @export var player_path: NodePath = NodePath("../Player")
 @export var maintenance_interval_s: float = 1.5
 
 const TRAFFIC_VEHICLE_SCRIPT := preload("res://game/scripts/traffic_vehicle.gd")
+const ROAD_GRAPH_SCRIPT := preload("res://game/scripts/traffic_road_graph.gd")
 const FALLBACK_ANCHOR := Vector3(-668.5, 0.0, 627.84)
 const VEHICLE_BODY_SIZE := Vector3(1.82, 1.16, 4.15)
 const MIN_SPAWN_CLEARANCE_M := 7.0
-const MAX_SPAWN_ATTEMPTS := 40
+const MAX_SPAWN_ATTEMPTS := 64
 
 const CAR_COLORS: Array[Color] = [
     Color(0.18, 0.20, 0.22, 1.0),
@@ -26,6 +30,7 @@ const CAR_COLORS: Array[Color] = [
 ]
 
 var _roads: Array[Dictionary] = []
+var _road_graph: RefCounted
 var _traffic_root: Node3D
 var _rng := RandomNumberGenerator.new()
 var _spawn_serial: int = 0
@@ -34,6 +39,8 @@ var _maintenance_elapsed: float = 0.0
 
 func _ready() -> void:
     _rng.seed = traffic_seed
+    _road_graph = ROAD_GRAPH_SCRIPT.new()
+
     _traffic_root = Node3D.new()
     _traffic_root.name = "TrafficVehicles"
     add_child(_traffic_root)
@@ -41,8 +48,14 @@ func _ready() -> void:
     _load_roads()
     _replenish_traffic()
     print(
-        "Grand Bruxelles traffic: %d eligible OSM roads, %d AI vehicles, default %.0f km/h" %
-        [_roads.size(), get_active_vehicle_count(), default_speed_kmh]
+        "Grand Bruxelles traffic graph: %d OSM ways, %d nodes, %d directed edges, %d intersections, %d AI vehicles" %
+        [
+            _roads.size(),
+            get_graph_node_count(),
+            get_graph_edge_count(),
+            get_intersection_count(),
+            get_active_vehicle_count(),
+        ]
     )
 
 
@@ -79,26 +92,16 @@ func _load_roads() -> void:
         var points: Array = road.get("points", [])
         if points.size() < 2:
             continue
-        if _raw_route_length(points) < min_route_length_m:
-            continue
         _roads.append(road)
+
+    if _road_graph != null:
+        _road_graph.call("rebuild", _roads)
 
 
 func _road_is_access_restricted(road: Dictionary) -> bool:
     var access := str(road.get("access", "")).to_lower()
     var motor_vehicle := str(road.get("motor_vehicle", "")).to_lower()
     return access in ["no", "private"] or motor_vehicle in ["no", "private"]
-
-
-func _raw_route_length(points: Array) -> float:
-    var total := 0.0
-    for index: int in range(points.size() - 1):
-        total += _raw_point(points[index]).distance_to(_raw_point(points[index + 1]))
-    return total
-
-
-func _raw_point(raw: Variant) -> Vector3:
-    return Vector3(float(raw[0]), 0.68, float(raw[1]))
 
 
 func _anchor_position() -> Vector3:
@@ -108,28 +111,14 @@ func _anchor_position() -> Vector3:
     return FALLBACK_ANCHOR
 
 
-func _candidate_roads(anchor: Vector3) -> Array[Dictionary]:
-    var candidates: Array[Dictionary] = []
-    for road: Dictionary in _roads:
-        var points: Array = road.get("points", [])
-        var is_near := false
-        for raw: Variant in points:
-            var point := _raw_point(raw)
-            point.y = anchor.y
-            if point.distance_to(anchor) <= spawn_radius_m:
-                is_near = true
-                break
-        if is_near:
-            candidates.append(road)
-    return candidates
-
-
 func _replenish_traffic() -> void:
-    if _traffic_root == null or _roads.is_empty() or max_vehicles <= 0:
+    if _traffic_root == null or _road_graph == null or max_vehicles <= 0:
+        return
+    if get_graph_edge_count() <= 0:
         return
 
     var safety := 0
-    while get_active_vehicle_count() < max_vehicles and safety < max_vehicles * 4:
+    while get_active_vehicle_count() < max_vehicles and safety < max_vehicles * 5:
         safety += 1
         if not _spawn_one_vehicle():
             break
@@ -137,19 +126,34 @@ func _replenish_traffic() -> void:
 
 func _spawn_one_vehicle() -> bool:
     var anchor := _anchor_position()
-    var candidates := _candidate_roads(anchor)
+    var candidates: Array = _road_graph.call(
+        "find_candidate_edge_ids",
+        anchor,
+        spawn_radius_m
+    )
     if candidates.is_empty():
-        candidates = _roads.duplicate()
+        candidates = _road_graph.call("find_candidate_edge_ids", anchor, 100000.0)
     if candidates.is_empty():
         return false
 
     for _attempt: int in range(MAX_SPAWN_ATTEMPTS):
-        var road: Dictionary = candidates[_rng.randi_range(0, candidates.size() - 1)]
-        var direction := _direction_for_road(road)
-        var route := _lane_route(road, direction, anchor)
-        if route.size() < 2:
+        var start_edge_id := int(candidates[_rng.randi_range(0, candidates.size() - 1)])
+        var edge_ids: Array = _road_graph.call(
+            "build_random_walk",
+            start_edge_id,
+            _rng,
+            route_target_length_m,
+            route_max_length_m,
+            max_route_edges
+        )
+        if edge_ids.size() < 2:
             continue
-        if _packed_route_length(route) < maxf(10.0, min_route_length_m * 0.45):
+
+        var route_bundle := _route_bundle_from_edges(edge_ids)
+        var route: PackedVector3Array = route_bundle.get("points", PackedVector3Array())
+        if route.size() < 3:
+            continue
+        if _packed_route_length(route) < min_route_length_m:
             continue
         if not _spawn_position_is_clear(route[0]):
             continue
@@ -159,64 +163,63 @@ func _spawn_one_vehicle() -> bool:
         vehicle.global_position = route[0]
         vehicle.connect("route_finished", Callable(self, "_on_route_finished"))
         vehicle.call(
-            "configure_route",
+            "configure_route_profile",
             route,
-            _speed_limit_for_road(road),
-            str(road.get("name", "")),
-            int(road.get("osm_id", 0))
+            route_bundle.get("speed_limits_kmh", PackedFloat32Array()),
+            str(route_bundle.get("road_name", "")),
+            int(route_bundle.get("osm_id", 0)),
+            edge_ids.size()
         )
         return true
     return false
 
 
-func _direction_for_road(road: Dictionary) -> int:
-    var raw_oneway: Variant = road.get("oneway", 0)
-    if typeof(raw_oneway) == TYPE_INT or typeof(raw_oneway) == TYPE_FLOAT:
-        var numeric := int(raw_oneway)
-        if numeric < 0:
-            return -1
-        if numeric > 0:
-            return 1
-    else:
-        var text := str(raw_oneway).to_lower()
-        if text == "-1":
-            return -1
-        if text in ["1", "yes", "true"]:
-            return 1
+func _route_bundle_from_edges(edge_ids: Array) -> Dictionary:
+    var points := PackedVector3Array()
+    var speed_limits := PackedFloat32Array()
+    var first_road_name := ""
+    var first_osm_id := 0
 
-    if str(road.get("junction", "")).to_lower() == "roundabout":
-        return 1
-    return 1 if _rng.randi_range(0, 1) == 1 else -1
-
-
-func _lane_route(road: Dictionary, direction: int, anchor: Vector3) -> PackedVector3Array:
-    var raw_points: Array = road.get("points", [])
-    if raw_points.size() < 2:
-        return PackedVector3Array()
-
-    var ordered: Array[Vector3] = []
-    if direction >= 0:
-        for raw: Variant in raw_points:
-            ordered.append(_raw_point(raw))
-    else:
-        for index: int in range(raw_points.size() - 1, -1, -1):
-            ordered.append(_raw_point(raw_points[index]))
-
-    var lane_offset := _lane_offset_for_road(road)
-    var shifted := PackedVector3Array()
-    for index: int in range(ordered.size()):
-        var previous: Vector3 = ordered[maxi(0, index - 1)]
-        var next: Vector3 = ordered[mini(ordered.size() - 1, index + 1)]
-        var tangent := next - previous
-        tangent.y = 0.0
-        if tangent.length_squared() <= 0.001:
-            shifted.append(ordered[index])
+    for raw_edge_id: Variant in edge_ids:
+        var edge: Dictionary = _road_graph.call("get_edge", int(raw_edge_id))
+        if edge.is_empty():
             continue
-        tangent = tangent.normalized()
-        var right := Vector3(-tangent.z, 0.0, tangent.x)
-        shifted.append(ordered[index] + right * lane_offset)
 
-    return _trim_route_near_anchor(shifted, anchor)
+        var road: Dictionary = edge.get("road", {})
+        var start: Vector3 = edge["from"]
+        var finish: Vector3 = edge["to"]
+        var direction := finish - start
+        direction.y = 0.0
+        if direction.length_squared() <= 0.001:
+            continue
+        direction = direction.normalized()
+
+        var right := Vector3(-direction.z, 0.0, direction.x)
+        var lane_offset := _lane_offset_for_road(road)
+        var shifted_start := start + right * lane_offset
+        var shifted_finish := finish + right * lane_offset
+        var speed_limit := _speed_limit_for_road(road)
+
+        if first_osm_id == 0:
+            first_osm_id = int(edge.get("osm_id", 0))
+            first_road_name = str(road.get("name", ""))
+
+        if points.is_empty():
+            points.append(shifted_start)
+            speed_limits.append(speed_limit)
+        elif points[points.size() - 1].distance_to(shifted_start) > 0.20:
+            points.append(shifted_start)
+            speed_limits.append(speed_limit)
+
+        points.append(shifted_finish)
+        speed_limits.append(speed_limit)
+
+    return {
+        "points": points,
+        "speed_limits_kmh": speed_limits,
+        "road_name": first_road_name,
+        "osm_id": first_osm_id,
+    }
 
 
 func _lane_offset_for_road(road: Dictionary) -> float:
@@ -234,7 +237,13 @@ func _lane_offset_for_road(road: Dictionary) -> float:
 func _normalized_oneway(road: Dictionary) -> int:
     var raw: Variant = road.get("oneway", 0)
     if typeof(raw) == TYPE_INT or typeof(raw) == TYPE_FLOAT:
-        return signi(int(raw))
+        var numeric := int(raw)
+        if numeric < 0:
+            return -1
+        if numeric > 0:
+            return 1
+        return 0
+
     var text := str(raw).to_lower()
     if text == "-1":
         return -1
@@ -243,30 +252,6 @@ func _normalized_oneway(road: Dictionary) -> int:
     if str(road.get("junction", "")).to_lower() == "roundabout":
         return 1
     return 0
-
-
-func _trim_route_near_anchor(route: PackedVector3Array, anchor: Vector3) -> PackedVector3Array:
-    if route.size() <= 2:
-        return route
-
-    var closest_index := 0
-    var closest_distance := INF
-    for index: int in range(route.size()):
-        var point := route[index]
-        point.y = anchor.y
-        var distance := point.distance_to(anchor)
-        if distance < closest_distance:
-            closest_distance = distance
-            closest_index = index
-
-    var start_index := maxi(0, closest_index - 1)
-    if route.size() - start_index < 2:
-        return route
-
-    var trimmed := PackedVector3Array()
-    for index: int in range(start_index, route.size()):
-        trimmed.append(route[index])
-    return trimmed
 
 
 func _packed_route_length(route: PackedVector3Array) -> float:
@@ -383,6 +368,24 @@ func _despawn_far_vehicles() -> void:
 
 func get_route_count() -> int:
     return _roads.size()
+
+
+func get_graph_node_count() -> int:
+    if _road_graph == null:
+        return 0
+    return int(_road_graph.call("get_node_count"))
+
+
+func get_graph_edge_count() -> int:
+    if _road_graph == null:
+        return 0
+    return int(_road_graph.call("get_edge_count"))
+
+
+func get_intersection_count() -> int:
+    if _road_graph == null:
+        return 0
+    return int(_road_graph.call("get_intersection_count"))
 
 
 func get_active_vehicle_count() -> int:

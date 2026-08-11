@@ -1,0 +1,73 @@
+name: Grand Bruxelles Laeken UrbIS DTM Tile
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/inspect_urbis_dtm_tile.py"
+      - ".github/workflows/grand-bruxelles-laeken-dtm-tile.yml"
+      - "grand-bruxelles-game/data/sources/laeken_jette/urbis_dtm_discovery.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-dtm-tile
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Inspect Atomium DTM tile
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/inspect_urbis_dtm_tile.py
+          python3 tools/inspect_urbis_dtm_tile.py \
+            --discovery data/sources/laeken_jette/urbis_dtm_discovery.json \
+            --tile 148176 \
+            --download-dir /tmp/grand-bruxelles-dtm \
+            --output data/sources/laeken_jette/urbis_dtm_atomium_tile_inventory.json
+
+      - name: Validate tile inventory
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          p = 'data/sources/laeken_jette/urbis_dtm_atomium_tile_inventory.json'
+          data = json.load(open(p, encoding='utf-8'))
+          assert data['dataset_id'] == '1d7bd49d-fe83-4388-af85-6f5dc8ec7909'
+          assert data['tile'] == '148176'
+          assert data['source_crs_expected'] == 'EPSG:31370'
+          assert len(data['sha256']) == 64
+          assert data['size_bytes'] > 0
+          assert data['raster_members']
+          print('LAEKEN_DTM_TILE_INVENTORY_OK', data['raster_members'])
+          PY
+
+      - name: Commit inventory safely
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/sources/laeken_jette/urbis_dtm_atomium_tile_inventory.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "data: inspect Atomium UrbIS DTM tile [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch origin zone-laeken-jette
+            git rebase origin/zone-laeken-jette
+            if git push origin HEAD:zone-laeken-jette; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

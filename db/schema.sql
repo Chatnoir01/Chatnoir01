@@ -67,12 +67,14 @@ create table if not exists invoices (
   vat_cents bigint not null default 0,
   gross_cents bigint not null default 0,
   issued_snapshot jsonb,
+  source_quote_id uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (organization_id, number)
 );
 create index if not exists invoices_org_idx on invoices(organization_id);
 create index if not exists invoices_client_idx on invoices(client_id);
+create unique index if not exists invoices_source_quote_uidx on invoices(organization_id, source_quote_id) where source_quote_id is not null;
 
 create table if not exists invoice_lines (
   id uuid primary key default gen_random_uuid(),
@@ -91,14 +93,32 @@ create table if not exists quotes (
   organization_id uuid not null references organizations(id) on delete cascade,
   client_id uuid not null references clients(id),
   number text not null,
-  status text not null check (status in ('draft','sent','accepted','rejected','expired')),
+  status text not null check (status in ('draft','sent','accepted','rejected','expired','converted')),
   issue_date date,
   valid_until date,
-  total_cents bigint not null default 0,
+  currency char(3) not null default 'EUR',
+  net_cents bigint not null default 0,
+  vat_cents bigint not null default 0,
+  gross_cents bigint not null default 0,
+  converted_invoice_id uuid references invoices(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (organization_id, number)
 );
+create index if not exists quotes_org_idx on quotes(organization_id);
+create index if not exists quotes_client_idx on quotes(client_id);
+
+create table if not exists quote_lines (
+  id uuid primary key default gen_random_uuid(),
+  quote_id uuid not null references quotes(id) on delete cascade,
+  position integer not null,
+  description text not null,
+  quantity numeric(18,4) not null check (quantity > 0),
+  unit_price_cents bigint not null check (unit_price_cents >= 0),
+  discount_percent numeric(5,2) not null default 0 check (discount_percent between 0 and 100),
+  vat_rate numeric(5,2) not null check (vat_rate in (0,6,12,21))
+);
+create unique index if not exists quote_lines_position_idx on quote_lines(quote_id, position);
 
 create table if not exists payments (
   id uuid primary key default gen_random_uuid(),

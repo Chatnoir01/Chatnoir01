@@ -1,6 +1,7 @@
 extends Node3D
 
-@export_file("*.json") var data_path: String = "res://data/osm/vertical_slice_01.game.json"
+@export_file("*.json") var traffic_manifest_path: String = "res://data/traffic/manifest.json"
+@export_file("*.json") var fallback_data_path: String = "res://data/osm/vertical_slice_01.game.json"
 @export var max_vehicles: int = 12
 @export var spawn_radius_m: float = 520.0
 @export var despawn_radius_m: float = 760.0
@@ -15,6 +16,7 @@ extends Node3D
 
 const TRAFFIC_VEHICLE_SCRIPT := preload("res://game/scripts/traffic_vehicle.gd")
 const ROAD_GRAPH_SCRIPT := preload("res://game/scripts/traffic_road_graph.gd")
+const TRAFFIC_CONTROL_SCRIPT := preload("res://game/scripts/traffic_control_system.gd")
 const FALLBACK_ANCHOR := Vector3(-668.5, 0.0, 627.84)
 const VEHICLE_BODY_SIZE := Vector3(1.82, 1.16, 4.15)
 const MIN_SPAWN_CLEARANCE_M := 7.0
@@ -30,7 +32,9 @@ const CAR_COLORS: Array[Color] = [
 ]
 
 var _roads: Array[Dictionary] = []
+var _traffic_controls: Array = []
 var _road_graph: RefCounted
+var _control_system: RefCounted
 var _traffic_root: Node3D
 var _rng := RandomNumberGenerator.new()
 var _spawn_serial: int = 0
@@ -40,20 +44,23 @@ var _maintenance_elapsed: float = 0.0
 func _ready() -> void:
     _rng.seed = traffic_seed
     _road_graph = ROAD_GRAPH_SCRIPT.new()
+    _control_system = TRAFFIC_CONTROL_SCRIPT.new()
 
     _traffic_root = Node3D.new()
     _traffic_root.name = "TrafficVehicles"
     add_child(_traffic_root)
 
-    _load_roads()
+    _load_traffic_data()
     _replenish_traffic()
     print(
-        "Grand Bruxelles traffic graph: %d OSM ways, %d nodes, %d directed edges, %d intersections, %d AI vehicles" %
+        "Grand Bruxelles traffic graph: %d OSM ways, %d nodes, %d directed edges, %d intersections, %d controls (%d signals), %d AI vehicles" %
         [
             _roads.size(),
             get_graph_node_count(),
             get_graph_edge_count(),
             get_intersection_count(),
+            get_traffic_control_count(),
+            get_signal_count(),
             get_active_vehicle_count(),
         ]
     )
@@ -68,19 +75,46 @@ func _process(delta: float) -> void:
     _replenish_traffic()
 
 
-func _load_roads() -> void:
-    _roads.clear()
-    if not FileAccess.file_exists(data_path):
-        push_warning("Traffic OSM data missing: %s" % data_path)
-        return
-
-    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(data_path))
+func _read_json_dictionary(path: String) -> Dictionary:
+    if not FileAccess.file_exists(path):
+        return {}
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
     if typeof(parsed) != TYPE_DICTIONARY:
-        push_error("Traffic OSM data is invalid JSON: %s" % data_path)
-        return
+        push_error("Traffic JSON is invalid: %s" % path)
+        return {}
+    return parsed as Dictionary
 
-    var root_data: Dictionary = parsed
-    var raw_roads: Array = root_data.get("roads", [])
+
+func _load_traffic_data() -> void:
+    _roads.clear()
+    _traffic_controls.clear()
+
+    var loaded_pack := false
+    var manifest := _read_json_dictionary(traffic_manifest_path)
+    if not manifest.is_empty():
+        var base_dir := traffic_manifest_path.get_base_dir()
+        for raw_name: Variant in manifest.get("road_chunks", []):
+            var chunk := _read_json_dictionary(base_dir.path_join(str(raw_name)))
+            _append_roads(chunk.get("roads", []))
+        for raw_name: Variant in manifest.get("control_chunks", []):
+            var chunk := _read_json_dictionary(base_dir.path_join(str(raw_name)))
+            _append_controls(chunk.get("traffic_controls", []))
+        loaded_pack = not _roads.is_empty()
+
+    if not loaded_pack:
+        var fallback := _read_json_dictionary(fallback_data_path)
+        _append_roads(fallback.get("roads", []))
+        _append_controls(fallback.get("traffic_controls", []))
+        if fallback.is_empty():
+            push_warning("No traffic data could be loaded")
+
+    if _road_graph != null:
+        _road_graph.call("rebuild", _roads)
+    if _control_system != null:
+        _control_system.call("rebuild", _traffic_controls)
+
+
+func _append_roads(raw_roads: Array) -> void:
     for raw_road: Variant in raw_roads:
         if typeof(raw_road) != TYPE_DICTIONARY:
             continue
@@ -94,8 +128,11 @@ func _load_roads() -> void:
             continue
         _roads.append(road)
 
-    if _road_graph != null:
-        _road_graph.call("rebuild", _roads)
+
+func _append_controls(raw_controls: Array) -> void:
+    for raw_control: Variant in raw_controls:
+        if typeof(raw_control) == TYPE_DICTIONARY:
+            _traffic_controls.append(raw_control)
 
 
 func _road_is_access_restricted(road: Dictionary) -> bool:
@@ -158,6 +195,10 @@ func _spawn_one_vehicle() -> bool:
         if not _spawn_position_is_clear(route[0]):
             continue
 
+        var route_controls: Array = []
+        if _control_system != null:
+            route_controls = _control_system.call("controls_for_route", route)
+
         var vehicle := _create_vehicle_node()
         _traffic_root.add_child(vehicle)
         vehicle.global_position = route[0]
@@ -168,7 +209,9 @@ func _spawn_one_vehicle() -> bool:
             route_bundle.get("speed_limits_kmh", PackedFloat32Array()),
             str(route_bundle.get("road_name", "")),
             int(route_bundle.get("osm_id", 0)),
-            edge_ids.size()
+            edge_ids.size(),
+            route_controls,
+            _control_system
         )
         return true
     return false
@@ -386,6 +429,18 @@ func get_intersection_count() -> int:
     if _road_graph == null:
         return 0
     return int(_road_graph.call("get_intersection_count"))
+
+
+func get_traffic_control_count() -> int:
+    if _control_system == null:
+        return 0
+    return int(_control_system.call("get_control_count"))
+
+
+func get_signal_count() -> int:
+    if _control_system == null:
+        return 0
+    return int(_control_system.call("get_signal_count"))
 
 
 func get_active_vehicle_count() -> int:

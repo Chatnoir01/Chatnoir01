@@ -1,0 +1,73 @@
+{
+  "format": "grand-bruxelles-zone-ownership-v1",
+  "crs": "EPSG:31370",
+  "global_game_origin": {
+    "easting": 147868.294,
+    "northing": 169538.624
+  },
+  "owners": [
+    {
+      "id": "main-corridor",
+      "branch": "main",
+      "status": "reserved",
+      "areas": [
+        "Gare du Midi",
+        "Lemonnier",
+        "Anneessens",
+        "Bourse",
+        "Grand-Place",
+        "Sablon"
+      ]
+    },
+    {
+      "id": "laeken-jette",
+      "branch": "zone-laeken-jette",
+      "status": "reserved",
+      "areas": [
+        "Laeken",
+        "Jette"
+      ]
+    },
+    {
+      "id": "reste-bruxelles",
+      "branch": "zone-reste-bruxelles",
+      "status": "active",
+      "municipalities": [
+        "Anderlecht",
+        "Auderghem",
+        "Berchem-Sainte-Agathe",
+        "Etterbeek",
+        "Evere",
+        "Forest",
+        "Ganshoren",
+        "Ixelles",
+        "Koekelberg",
+        "Molenbeek-Saint-Jean",
+        "Saint-Gilles",
+        "Saint-Josse-ten-Noode",
+        "Schaerbeek",
+        "Uccle",
+        "Watermael-Boitsfort",
+        "Woluwe-Saint-Lambert",
+        "Woluwe-Saint-Pierre"
+      ],
+      "brussels_city_remaining": [
+        "Haren",
+        "Neder-over-Heembeek",
+        "European Quarter / eastern extensions not already reserved",
+        "Louise-Roosevelt / Bois de la Cambre sectors belonging to Brussels City",
+        "Pentagon sectors outside the main corridor after seam lock"
+      ],
+      "explicit_exclusions": [
+        "Laeken",
+        "Jette",
+        "Gare du Midi -> Lemonnier -> Anneessens -> Bourse -> Grand-Place -> Sablon corridor"
+      ]
+    }
+  ],
+  "seam_policy": {
+    "allow_reference_overlap_m": 25,
+    "duplicate_production_geometry": false,
+    "shared_origin_required": true
+  }
+}

@@ -64,7 +64,8 @@ func build_from_data(data: Dictionary) -> bool:
     _clear_generated_children()
     var surface_count := _build_street_surfaces(data.get("street_surfaces", []))
     var building_count := _build_buildings(data.get("buildings", []))
-    name = "UrbISCell_%s" % cell_id
+    # The parent/streamer owns this node's identity. Do not rename it after
+    # loading data or callers lose the stable Cell_<id> path they assigned.
     print("Grand Bruxelles UrbIS cell %s: %d surfaces, %d buildings" % [cell_id, surface_count, building_count])
     return true
 

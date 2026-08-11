@@ -13,11 +13,15 @@ func _fail(message: String) -> void:
 func _run() -> void:
     var builder_script: Script = load("res://game/scripts/urbis_cell_builder.gd") as Script
     var streamer_script: Script = load("res://game/scripts/urbis_cell_streamer.gd") as Script
+    var mask_script: Script = load("res://game/scripts/urbis_cell_osm_mask.gd") as Script
     if builder_script == null:
         _fail("urbis_cell_builder.gd did not load")
         return
     if streamer_script == null:
         _fail("urbis_cell_streamer.gd did not load")
+        return
+    if mask_script == null:
+        _fail("urbis_cell_osm_mask.gd did not load")
         return
 
     var builder: Node3D = builder_script.new() as Node3D
@@ -75,8 +79,72 @@ func _run() -> void:
         _fail("outside cell distance should be 5m, got %s" % outside_distance)
         return
 
-    print("URBIS_CELL_SMOKE_OK: builder + streamer passed")
+    var index_path := "res://data/urbis/remaining_brussels/runtime_index.json"
+    if not FileAccess.file_exists(index_path):
+        _fail("ownership-aware runtime index is missing")
+        return
+    var index_parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(index_path))
+    if typeof(index_parsed) != TYPE_DICTIONARY:
+        _fail("runtime index is not valid JSON")
+        return
+    var runtime_index := index_parsed as Dictionary
+    if str(runtime_index.get("format", "")) != "grand-bruxelles-urbis-runtime-index-v2":
+        _fail("runtime index is not v2")
+        return
+    var reserved_midi := "bxl-e147500-n169500-s500"
+    for raw_cell: Variant in runtime_index.get("cells", []):
+        if typeof(raw_cell) == TYPE_DICTIONARY and str((raw_cell as Dictionary).get("cell_id", "")) == reserved_midi:
+            _fail("reserved Midi cell leaked into remaining-Brussels streaming index")
+            return
+
+    var mask: Node = mask_script.new() as Node
+    if mask == null:
+        _fail("OSM streaming mask did not instantiate")
+        return
+    var osm_root := Node3D.new()
+    root.add_child(osm_root)
+    var roads := Node3D.new()
+    roads.name = "GeneratedRoads"
+    osm_root.add_child(roads)
+
+    var visible_road := MeshInstance3D.new()
+    visible_road.position = Vector3(5.0, 0.0, 5.0)
+    visible_road.visible = true
+    roads.add_child(visible_road)
+    var prehidden_road := MeshInstance3D.new()
+    prehidden_road.position = Vector3(6.0, 0.0, 6.0)
+    prehidden_road.visible = false
+    roads.add_child(prehidden_road)
+    var outside_road := MeshInstance3D.new()
+    outside_road.position = Vector3(20.0, 0.0, 20.0)
+    roads.add_child(outside_road)
+    await process_frame
+
+    var changes: Array = []
+    var hidden_count := int(mask.call("_mask_root", roads, [0.0, 0.0, 10.0, 10.0], changes))
+    if hidden_count != 2:
+        _fail("OSM mask should select two in-cell nodes, got %d" % hidden_count)
+        return
+    if visible_road.visible or prehidden_road.visible or not outside_road.visible:
+        _fail("OSM mask visibility state is incorrect after masking")
+        return
+
+    mask.set("_masked_nodes_by_cell", {"test-cell": changes})
+    mask.call("_on_cell_unloaded", "test-cell")
+    if not visible_road.visible:
+        _fail("visible OSM node was not restored after cell unload")
+        return
+    if prehidden_road.visible:
+        _fail("pre-hidden OSM node was incorrectly made visible after cell unload")
+        return
+    if not outside_road.visible:
+        _fail("outside OSM node changed visibility unexpectedly")
+        return
+
+    print("URBIS_CELL_SMOKE_OK: builder + streamer + ownership + OSM mask passed")
     builder.queue_free()
+    osm_root.queue_free()
     streamer.queue_free()
+    mask.queue_free()
     await process_frame
     quit(0)

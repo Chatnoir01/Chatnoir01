@@ -40,14 +40,22 @@ jobs:
             --zone anderlecht \
             --output-root data/processed/remaining_brussels
 
-      - name: Select contiguous Anderlecht seed nearest the official Midi control point
+      - name: Select contiguous Anderlecht seed outside the reserved Midi cell
         working-directory: grand-bruxelles-game
         run: |
           python3 tools/select_zone_seed_cell.py \
             --manifest data/processed/remaining_brussels/cells/anderlecht.json \
             --anchor-e 147868.29422791934 \
             --anchor-n 169538.62414926197 \
+            --exclude-containing-anchor \
             --output /tmp/anderlecht-seed.json
+
+      - name: Remove only accidental bootstrap cells
+        working-directory: grand-bruxelles-game
+        run: |
+          rm -rf \
+            data/urbis/remaining_brussels/cells/bxl-e143500-n166000-s500 \
+            data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500
 
       - name: Rebuild contiguous Anderlecht seed from UrbIS WFS
         working-directory: grand-bruxelles-game
@@ -82,12 +90,15 @@ jobs:
             --output /tmp/anderlecht-ortho/seed.png \
             --metadata data/processed/remaining_brussels/references/anderlecht_seed_orthophoto.json
 
-      - name: Verify generated data and rail classification
+      - name: Verify generated data, branch ownership and rail classification
         working-directory: grand-bruxelles-game
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
+
+          reserved_midi = 'bxl-e147500-n169500-s500'
+          accidental_far = 'bxl-e143500-n166000-s500'
 
           zone = json.loads(Path('data/processed/remaining_brussels/cells/anderlecht.json').read_text())
           seed = json.loads(Path('/tmp/anderlecht-seed.json').read_text())
@@ -96,12 +107,18 @@ jobs:
           assert zone['cell_count'] <= zone['envelope_cell_count']
           assert all(cell['id'].startswith('bxl-e') for cell in zone['cells'])
           assert seed['cell_count'] == 1
+          assert seed['seed_selection']['exclude_containing_anchor'] is True
+          assert reserved_midi in seed['seed_selection']['excluded_anchor_cell_ids']
           seed_id = seed['seed_selection']['selected_cell_id']
+          assert seed_id not in {reserved_midi, accidental_far}
 
           index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
           assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v1'
           indexed_ids = {cell['cell_id'] for cell in index['cells']}
           assert seed_id in indexed_ids, (seed_id, sorted(indexed_ids))
+          assert reserved_midi not in indexed_ids, sorted(indexed_ids)
+          assert accidental_far not in indexed_ids, sorted(indexed_ids)
+
           manifest_path = Path('data/urbis/remaining_brussels/cells') / seed_id / 'manifest.json'
           manifest = json.loads(manifest_path.read_text())
           assert manifest['runtime']['geometry_format'] == 'grand-bruxelles-urbis-cell-runtime-v1'
@@ -121,11 +138,14 @@ jobs:
           assert ortho['layer'] == 'inspire:Ortho'
           assert ortho['crs'] == 'EPSG:31370'
           assert ortho['service'] == 'WMS 1.1.0'
+          assert ortho['bbox'] == seed['cells'][0]['bbox']
           assert ortho['download']['bytes'] > 1000
           assert len(ortho['download']['sha256']) == 64
 
           print('Contiguous official seed:', seed_id)
           print('Seed distance from Midi anchor (m):', seed['seed_selection']['distance_m'])
+          print('Excluded reserved cells:', seed['seed_selection']['excluded_anchor_cell_ids'])
+          print('Runtime cells retained:', sorted(indexed_ids))
           print('Geometry stats:', manifest['runtime']['geometry_stats'])
           print('Network stats:', manifest['runtime']['network_stats'])
           print('Rail source TYPE counts:', network['source_type_counts'])
@@ -144,7 +164,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add \
+          git add -A \
             grand-bruxelles-game/data/processed/remaining_brussels/boundaries/anderlecht.geojson \
             grand-bruxelles-game/data/processed/remaining_brussels/cells/anderlecht.json \
             grand-bruxelles-game/data/processed/remaining_brussels/bootstrap_manifest.json \
@@ -154,5 +174,5 @@ jobs:
             echo 'No generated data changes to commit.'
             exit 0
           fi
-          git commit -m 'data: rebuild Anderlecht seed with classified rail network'
+          git commit -m 'data: rebuild Anderlecht seed outside Midi ownership'
           git push origin HEAD:zone-reste-bruxelles

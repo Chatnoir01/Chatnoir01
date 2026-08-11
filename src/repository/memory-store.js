@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-function clone(value) {
-  return structuredClone(value);
-}
+function clone(value) { return structuredClone(value); }
 
 export class MemoryStore {
   constructor(seed = {}) {
@@ -14,132 +12,25 @@ export class MemoryStore {
     this.sessions = clone(seed.sessions || []);
   }
 
-  findUserByEmail(email) {
-    const item = this.users.find(row => row.email.toLowerCase() === String(email).toLowerCase());
-    return item ? clone(item) : null;
-  }
+  getOrganization(id){const row=this.organizations.find(x=>x.id===id);return row?clone(row):null;}
+  updateOrganization(id,patch){const i=this.organizations.findIndex(x=>x.id===id);if(i<0)return null;this.organizations[i]={...this.organizations[i],...patch,id,updatedAt:new Date().toISOString()};return clone(this.organizations[i]);}
+  findUserByEmail(email){const row=this.users.find(x=>x.email===String(email).toLowerCase());return row?clone(row):null;}
+  getUser(id){const row=this.users.find(x=>x.id===id);return row?clone(row):null;}
+  createUser(input){const now=new Date().toISOString();const row={id:randomUUID(),email:String(input.email).toLowerCase(),passwordHash:input.passwordHash,createdAt:now,updatedAt:now};this.users.push(row);return clone(row);}
+  createOrganization(input){const now=new Date().toISOString();const row={id:randomUUID(),name:input.name,address:'',vatNumber:'',iban:'',email:'',createdAt:now,updatedAt:now};this.organizations.push(row);return clone(row);}
+  addMembership(orgId,userId,role='owner'){this.memberships.push({organizationId:orgId,userId,role});return {organizationId:orgId,userId,role};}
+  listMemberships(userId){return clone(this.memberships.filter(x=>x.userId===userId));}
+  createSession(input){const row={id:randomUUID(),...input,createdAt:new Date().toISOString()};this.sessions.push(row);return clone(row);}
+  findSessionByTokenHash(hash){const row=this.sessions.find(x=>x.tokenHash===hash&&new Date(x.expiresAt)>new Date());return row?clone(row):null;}
+  deleteSessionByTokenHash(hash){const n=this.sessions.length;this.sessions=this.sessions.filter(x=>x.tokenHash!==hash);return this.sessions.length<n;}
 
-  createUser(input) {
-    if (this.findUserByEmail(input.email)) throw new Error('email_exists');
-    const now = new Date().toISOString();
-    const user = { id: randomUUID(), email: String(input.email).trim().toLowerCase(), passwordHash: input.passwordHash, createdAt: now, updatedAt: now };
-    this.users.push(user);
-    return clone(user);
-  }
-
-  createOrganization(input) {
-    const now = new Date().toISOString();
-    const organization = { id: randomUUID(), name: String(input.name).trim(), createdAt: now, updatedAt: now };
-    this.organizations.push(organization);
-    return clone(organization);
-  }
-
-  addMembership(organizationId, userId, role = 'owner') {
-    const membership = { organizationId, userId, role };
-    this.memberships.push(membership);
-    return clone(membership);
-  }
-
-  listMemberships(userId) {
-    return clone(this.memberships.filter(row => row.userId === userId).map(row => ({
-      ...row,
-      organization: this.organizations.find(org => org.id === row.organizationId) || null
-    })));
-  }
-
-  createSession(input) {
-    const session = {
-      id: randomUUID(),
-      tokenHash: input.tokenHash,
-      userId: input.userId,
-      organizationId: input.organizationId,
-      expiresAt: input.expiresAt,
-      createdAt: new Date().toISOString()
-    };
-    this.sessions.push(session);
-    return clone(session);
-  }
-
-  getSession(tokenHash) {
-    const item = this.sessions.find(row => row.tokenHash === tokenHash && new Date(row.expiresAt).getTime() > Date.now());
-    if (!item) return null;
-    const user = this.users.find(row => row.id === item.userId);
-    const membership = this.memberships.find(row => row.userId === item.userId && row.organizationId === item.organizationId);
-    if (!user || !membership) return null;
-    return clone({ ...item, user: { id: user.id, email: user.email }, role: membership.role });
-  }
-
-  deleteSession(tokenHash) {
-    const before = this.sessions.length;
-    this.sessions = this.sessions.filter(row => row.tokenHash !== tokenHash);
-    return before !== this.sessions.length;
-  }
-
-  listClients(organizationId) {
-    return clone(this.clients.filter(item => item.organizationId === organizationId));
-  }
-
-  getClient(organizationId, id) {
-    const item = this.clients.find(row => row.organizationId === organizationId && row.id === id);
-    return item ? clone(item) : null;
-  }
-
-  createClient(organizationId, input) {
-    const now = new Date().toISOString();
-    const client = {
-      id: randomUUID(), organizationId,
-      name: String(input.name || '').trim(), email: String(input.email || '').trim(),
-      vatNumber: String(input.vatNumber || '').trim(), address: String(input.address || '').trim(),
-      createdAt: now, updatedAt: now
-    };
-    this.clients.push(client);
-    return clone(client);
-  }
-
-  updateClient(organizationId, id, patch) {
-    const index = this.clients.findIndex(row => row.organizationId === organizationId && row.id === id);
-    if (index === -1) return null;
-    const current = this.clients[index];
-    const next = {
-      ...current,
-      ...(patch.name !== undefined ? { name: String(patch.name).trim() } : {}),
-      ...(patch.email !== undefined ? { email: String(patch.email).trim() } : {}),
-      ...(patch.vatNumber !== undefined ? { vatNumber: String(patch.vatNumber).trim() } : {}),
-      ...(patch.address !== undefined ? { address: String(patch.address).trim() } : {}),
-      id: current.id, organizationId: current.organizationId, updatedAt: new Date().toISOString()
-    };
-    this.clients[index] = next;
-    return clone(next);
-  }
-
-  deleteClient(organizationId, id) {
-    if (this.invoices.some(row => row.organizationId === organizationId && row.clientId === id)) return { deleted: false, reason: 'client_has_invoices' };
-    const before = this.clients.length;
-    this.clients = this.clients.filter(row => !(row.organizationId === organizationId && row.id === id));
-    return { deleted: this.clients.length !== before };
-  }
-
-  listInvoices(organizationId) { return clone(this.invoices.filter(item => item.organizationId === organizationId)); }
-  getInvoice(organizationId, id) {
-    const item = this.invoices.find(row => row.organizationId === organizationId && row.id === id);
-    return item ? clone(item) : null;
-  }
-
-  createInvoice(organizationId, input) {
-    const now = new Date().toISOString();
-    const invoice = {
-      id: randomUUID(), organizationId, clientId: input.clientId, number: input.number,
-      status: input.status || 'draft', issueDate: input.issueDate || now.slice(0, 10), dueDate: input.dueDate || null,
-      lines: clone(input.lines || []), totals: clone(input.totals || null), createdAt: now, updatedAt: now
-    };
-    this.invoices.push(invoice);
-    return clone(invoice);
-  }
-
-  updateInvoiceStatus(organizationId, id, status) {
-    const index = this.invoices.findIndex(row => row.organizationId === organizationId && row.id === id);
-    if (index === -1) return null;
-    this.invoices[index] = { ...this.invoices[index], status, updatedAt: new Date().toISOString() };
-    return clone(this.invoices[index]);
-  }
+  listClients(organizationId){return clone(this.clients.filter(x=>x.organizationId===organizationId));}
+  getClient(organizationId,id){const x=this.clients.find(r=>r.organizationId===organizationId&&r.id===id);return x?clone(x):null;}
+  createClient(organizationId,input){const now=new Date().toISOString();const x={id:randomUUID(),organizationId,name:String(input.name||'').trim(),email:String(input.email||'').trim(),vatNumber:String(input.vatNumber||'').trim(),address:String(input.address||'').trim(),createdAt:now,updatedAt:now};this.clients.push(x);return clone(x);}
+  updateClient(organizationId,id,patch){const i=this.clients.findIndex(r=>r.organizationId===organizationId&&r.id===id);if(i<0)return null;const c=this.clients[i];this.clients[i]={...c,...patch,id,organizationId,updatedAt:new Date().toISOString()};return clone(this.clients[i]);}
+  deleteClient(organizationId,id){if(this.invoices.some(r=>r.organizationId===organizationId&&r.clientId===id))return{deleted:false,reason:'client_has_invoices'};const n=this.clients.length;this.clients=this.clients.filter(r=>!(r.organizationId===organizationId&&r.id===id));return{deleted:this.clients.length<n};}
+  listInvoices(organizationId){return clone(this.invoices.filter(x=>x.organizationId===organizationId));}
+  getInvoice(organizationId,id){const x=this.invoices.find(r=>r.organizationId===organizationId&&r.id===id);return x?clone(x):null;}
+  createInvoice(organizationId,input){const now=new Date().toISOString();const x={id:randomUUID(),organizationId,clientId:input.clientId,number:input.number,status:input.status||'draft',issueDate:input.issueDate||now.slice(0,10),dueDate:input.dueDate||null,lines:clone(input.lines||[]),totals:clone(input.totals||null),createdAt:now,updatedAt:now};this.invoices.push(x);return clone(x);}
+  updateInvoiceStatus(organizationId,id,status){const i=this.invoices.findIndex(r=>r.organizationId===organizationId&&r.id===id);if(i<0)return null;this.invoices[i]={...this.invoices[i],status,updatedAt:new Date().toISOString()};return clone(this.invoices[i]);}
 }

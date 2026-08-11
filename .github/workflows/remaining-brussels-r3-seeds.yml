@@ -1,0 +1,214 @@
+name: Materialize remaining Brussels R3 seeds
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/remaining-brussels-r3-seeds.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-r3-seeds
+  cancel-in-progress: false
+
+jobs:
+  materialize-r3-seeds:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate current pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Record pre-batch materialized cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('data/urbis/remaining_brussels/cells')
+          ids = sorted(path.parent.name for path in root.glob('*/manifest.json'))
+          Path('/tmp/r3-before.json').write_text(json.dumps(ids), encoding='utf-8')
+          print('Materialized before R3 batch:', len(ids))
+          assert ids
+          PY
+
+      - name: Select six globally unique new R3 seeds
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/select_wave_seed_cells.py \
+            --wave R3 \
+            --existing-root data/urbis/remaining_brussels/cells \
+            --exclude-cell-id bxl-e147500-n169500-s500 \
+            --output /tmp/r3-seeds.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          before = set(json.loads(Path('/tmp/r3-before.json').read_text()))
+          batch = json.loads(Path('/tmp/r3-seeds.json').read_text())
+          expected = ['forest', 'uccle', 'auderghem', 'watermael', 'woluwe-lambert', 'woluwe-pierre']
+          assert batch['format'] == 'grand-bruxelles-wave-seeds-v1'
+          assert batch['wave'] == 'R3'
+          assert batch['seed_count'] == 6
+          assert [seed['zone_id'] for seed in batch['seeds']] == expected
+          ids = [seed['cell_id'] for seed in batch['seeds']]
+          assert len(ids) == len(set(ids)) == 6
+          assert all(cell_id not in before for cell_id in ids)
+          assert 'bxl-e147500-n169500-s500' not in ids
+          for seed in batch['seeds']:
+              print(seed['zone_id'], '->', seed['cell_id'], 'distance', seed['distance_m'])
+          PY
+
+      - name: Materialize six official UrbIS cells sequentially
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_wave_seeds.py \
+            --seeds /tmp/r3-seeds.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --retries 3
+
+      - name: Rebuild runtime index and coverage
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture six official orthophoto references
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/r3-orthos data/processed/remaining_brussels/references
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          batch = json.loads(Path('/tmp/r3-seeds.json').read_text())
+          for seed in batch['seeds']:
+              zone = seed['zone_id']
+              bbox = ','.join(str(value) for value in seed['bbox'])
+              image = Path('/tmp/r3-orthos') / f'{zone}.png'
+              metadata = Path('data/processed/remaining_brussels/references') / f'{zone}_seed_orthophoto.json'
+              subprocess.run(
+                  [
+                      sys.executable,
+                      'tools/capture_urbis_orthophoto.py',
+                      '--bbox', bbox,
+                      '--width', '768',
+                      '--height', '768',
+                      '--output', str(image),
+                      '--metadata', str(metadata),
+                  ],
+                  check=True,
+              )
+          PY
+
+      - name: Verify all six cells, provenance and global accounting
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          cell_root = Path('data/urbis/remaining_brussels/cells')
+          before = set(json.loads(Path('/tmp/r3-before.json').read_text()))
+          batch = json.loads(Path('/tmp/r3-seeds.json').read_text())
+          selected_ids = {seed['cell_id'] for seed in batch['seeds']}
+          after = {path.parent.name for path in cell_root.glob('*/manifest.json')}
+          assert before.issubset(after)
+          assert selected_ids.issubset(after)
+          assert len(after) >= len(before) + 6
+
+          index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          indexed = {item['cell_id'] for item in index['cells']}
+          assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v2'
+          assert selected_ids.issubset(indexed)
+          assert 'bxl-e147500-n169500-s500' not in indexed
+
+          report = json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          assert report['municipality_grids_ready'] == 17
+          zones = {item['zone_id']: item for item in report['zones']}
+
+          for seed in batch['seeds']:
+              zone = seed['zone_id']
+              cell_id = seed['cell_id']
+              cell_dir = cell_root / cell_id
+              manifest = json.loads((cell_dir / 'manifest.json').read_text())
+              geometry = json.loads((cell_dir / manifest['runtime']['geometry_file']).read_text())
+              network = json.loads((cell_dir / manifest['runtime']['network_file']).read_text())
+              assert manifest['bbox'] == seed['bbox']
+              assert manifest['runtime']['geometry_format'] == 'grand-bruxelles-urbis-cell-runtime-v1'
+              assert manifest['runtime']['network_format'] == 'grand-bruxelles-urbis-network-cell-runtime-v2'
+              useful = (
+                  geometry['stats']['buildings']
+                  + geometry['stats']['street_surfaces']
+                  + network['stats']['street_segments']
+                  + network['stats']['tram_segments']
+                  + network['stats']['train_segments']
+              )
+              assert useful > 0, (zone, cell_id)
+              assert all(item['type'].startswith('TW') for item in network['tram_network'])
+              assert all(item['type'].startswith('RW') for item in network['train_network'])
+              assert {item['source_id'] for item in network['tram_network']}.isdisjoint(
+                  {item['source_id'] for item in network['train_network']}
+              )
+              assert zones[zone]['grid_ready'] is True
+              assert zones[zone]['materialized_cells'] >= 1
+              assert cell_id in zones[zone]['materialized_cell_ids']
+
+              metadata = json.loads(
+                  (Path('data/processed/remaining_brussels/references') / f'{zone}_seed_orthophoto.json').read_text()
+              )
+              assert metadata['provider'] == 'Paradigm / UrbIS'
+              assert metadata['layer'] == 'inspire:Ortho'
+              assert metadata['crs'] == 'EPSG:31370'
+              assert metadata['bbox'] == seed['bbox']
+              assert metadata['download']['bytes'] > 1000
+              print(zone, cell_id, geometry['stats'], network['stats'])
+
+          print('Streamable after R3 batch:', len(indexed))
+          print('Materialized global cells:', report['materialized_cells_total'])
+          print('Global known-grid coverage:', report['known_grid_coverage_percent'], '%')
+          PY
+
+      - name: Upload six orthophoto validation previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: r3-official-orthophoto-previews
+          path: /tmp/r3-orthos/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit R3 materialized cells and provenance
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/references \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then
+            echo 'No R3 materialization changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: materialize one official cell per R3 municipality'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

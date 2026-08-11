@@ -16,7 +16,7 @@ SPEC.loader.exec_module(MODULE)
 
 
 def fake_layer(layer_name: str, bbox: tuple[float, float, float, float], retries: int) -> dict:
-    min_e, min_n, _, _ = bbox
+    min_e, min_n, max_e, _ = bbox
     if layer_name.endswith(":Buildings"):
         return {
             "type": "FeatureCollection",
@@ -57,11 +57,25 @@ def fake_layer(layer_name: str, bbox: tuple[float, float, float, float], retries
                 }
             ],
         }
+    if layer_name.endswith(":StreetAxes"):
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "id": "r1",
+                    "properties": {"INSPIRE_ID": "r1", "STRNAMEFRE": "Rue Test"},
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [[min_e - 10, min_n + 100], [max_e + 10, min_n + 100]],
+                    },
+                }
+            ],
+        }
     return {"type": "FeatureCollection", "features": []}
 
 
 class BuildUrbisCellTests(unittest.TestCase):
-    def test_build_cell_writes_raw_runtime_and_manifest(self) -> None:
+    def test_build_cell_writes_raw_geometry_network_and_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output = Path(temp_dir) / "cell"
             bbox = (147500.0, 169500.0, 148000.0, 170000.0)
@@ -72,11 +86,16 @@ class BuildUrbisCellTests(unittest.TestCase):
             self.assertTrue((output / "raw" / "buildings.geojson").exists())
             self.assertTrue((output / "raw" / "street_surfaces.geojson").exists())
             self.assertTrue((output / "runtime" / "cell.game.json").exists())
+            self.assertTrue((output / "runtime" / "network.game.json").exists())
             self.assertTrue((output / "manifest.json").exists())
 
             runtime = json.loads((output / "runtime" / "cell.game.json").read_text(encoding="utf-8"))
+            network = json.loads((output / "runtime" / "network.game.json").read_text(encoding="utf-8"))
             self.assertEqual(runtime["stats"], {"buildings": 1, "street_surfaces": 1})
             self.assertTrue(runtime["coordinate_system"]["coordinates_are_current_game_world"])
+            self.assertEqual(network["stats"]["street_segments"], 1)
+            self.assertEqual(manifest["runtime"]["geometry_file"], "runtime/cell.game.json")
+            self.assertEqual(manifest["runtime"]["network_file"], "runtime/network.game.json")
 
     def test_all_configured_wfs_layers_are_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

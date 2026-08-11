@@ -7,20 +7,26 @@ on:
     paths:
       - 'grand-bruxelles-game/tools/**'
       - 'grand-bruxelles-game/tests/**'
+      - 'grand-bruxelles-game/game/scripts/urbis_cell_*.gd'
+      - 'grand-bruxelles-game/game/tests/urbis_cell_smoke_test.gd'
       - 'grand-bruxelles-game/data/remaining_brussels_zones.json'
       - '.github/workflows/remaining-brussels-tests.yml'
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/**'
       - 'grand-bruxelles-game/tests/**'
+      - 'grand-bruxelles-game/game/scripts/urbis_cell_*.gd'
+      - 'grand-bruxelles-game/game/tests/urbis_cell_smoke_test.gd'
       - 'grand-bruxelles-game/data/remaining_brussels_zones.json'
+      - '.github/workflows/remaining-brussels-tests.yml'
 
 permissions:
   contents: read
 
 jobs:
-  python-tests:
+  pipeline-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: grand-bruxelles-game
@@ -35,3 +41,26 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Dry-run R1 bootstrap
         run: python tools/bootstrap_remaining_brussels.py --wave R1 --dry-run --output-root /tmp/remaining-brussels-ci
+      - name: Install Godot 4.7.1
+        working-directory: /tmp
+        run: |
+          curl -fL -o godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q godot.zip -d godot
+          chmod +x godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import Godot project and reject script errors
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --quit 2>&1 | tee /tmp/remaining-brussels-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/remaining-brussels-import.log; then
+            exit 1
+          fi
+      - name: Generic UrbIS cell smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --script res://game/tests/urbis_cell_smoke_test.gd 2>&1 | tee /tmp/urbis-cell-smoke.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|URBIS_CELL_SMOKE_FAIL' /tmp/urbis-cell-smoke.log; then
+            exit 1
+          fi
+          grep -q 'URBIS_CELL_SMOKE_OK' /tmp/urbis-cell-smoke.log

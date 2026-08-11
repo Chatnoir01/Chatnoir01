@@ -1,0 +1,399 @@
+extends Node3D
+
+@export_file("*.json") var data_path: String = "res://data/osm/vertical_slice_01.game.json"
+@export var max_vehicles: int = 12
+@export var spawn_radius_m: float = 520.0
+@export var despawn_radius_m: float = 760.0
+@export var min_route_length_m: float = 24.0
+@export var default_speed_kmh: float = 30.0
+@export var traffic_seed: int = 20260812
+@export var player_path: NodePath = NodePath("../Player")
+@export var maintenance_interval_s: float = 1.5
+
+const TRAFFIC_VEHICLE_SCRIPT := preload("res://game/scripts/traffic_vehicle.gd")
+const FALLBACK_ANCHOR := Vector3(-668.5, 0.0, 627.84)
+const VEHICLE_BODY_SIZE := Vector3(1.82, 1.16, 4.15)
+const MIN_SPAWN_CLEARANCE_M := 7.0
+const MAX_SPAWN_ATTEMPTS := 40
+
+const CAR_COLORS: Array[Color] = [
+    Color(0.18, 0.20, 0.22, 1.0),
+    Color(0.36, 0.39, 0.42, 1.0),
+    Color(0.12, 0.24, 0.38, 1.0),
+    Color(0.43, 0.12, 0.10, 1.0),
+    Color(0.73, 0.73, 0.69, 1.0),
+    Color(0.12, 0.31, 0.22, 1.0),
+]
+
+var _roads: Array[Dictionary] = []
+var _traffic_root: Node3D
+var _rng := RandomNumberGenerator.new()
+var _spawn_serial: int = 0
+var _maintenance_elapsed: float = 0.0
+
+
+func _ready() -> void:
+    _rng.seed = traffic_seed
+    _traffic_root = Node3D.new()
+    _traffic_root.name = "TrafficVehicles"
+    add_child(_traffic_root)
+
+    _load_roads()
+    _replenish_traffic()
+    print(
+        "Grand Bruxelles traffic: %d eligible OSM roads, %d AI vehicles, default %.0f km/h" %
+        [_roads.size(), get_active_vehicle_count(), default_speed_kmh]
+    )
+
+
+func _process(delta: float) -> void:
+    _maintenance_elapsed += delta
+    if _maintenance_elapsed < maintenance_interval_s:
+        return
+    _maintenance_elapsed = 0.0
+    _despawn_far_vehicles()
+    _replenish_traffic()
+
+
+func _load_roads() -> void:
+    _roads.clear()
+    if not FileAccess.file_exists(data_path):
+        push_warning("Traffic OSM data missing: %s" % data_path)
+        return
+
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(data_path))
+    if typeof(parsed) != TYPE_DICTIONARY:
+        push_error("Traffic OSM data is invalid JSON: %s" % data_path)
+        return
+
+    var root_data: Dictionary = parsed
+    var raw_roads: Array = root_data.get("roads", [])
+    for raw_road: Variant in raw_roads:
+        if typeof(raw_road) != TYPE_DICTIONARY:
+            continue
+        var road: Dictionary = raw_road
+        if not bool(road.get("drivable", false)):
+            continue
+        if _road_is_access_restricted(road):
+            continue
+        var points: Array = road.get("points", [])
+        if points.size() < 2:
+            continue
+        if _raw_route_length(points) < min_route_length_m:
+            continue
+        _roads.append(road)
+
+
+func _road_is_access_restricted(road: Dictionary) -> bool:
+    var access := str(road.get("access", "")).to_lower()
+    var motor_vehicle := str(road.get("motor_vehicle", "")).to_lower()
+    return access in ["no", "private"] or motor_vehicle in ["no", "private"]
+
+
+func _raw_route_length(points: Array) -> float:
+    var total := 0.0
+    for index: int in range(points.size() - 1):
+        total += _raw_point(points[index]).distance_to(_raw_point(points[index + 1]))
+    return total
+
+
+func _raw_point(raw: Variant) -> Vector3:
+    return Vector3(float(raw[0]), 0.68, float(raw[1]))
+
+
+func _anchor_position() -> Vector3:
+    var player := get_node_or_null(player_path) as Node3D
+    if player != null:
+        return player.global_position
+    return FALLBACK_ANCHOR
+
+
+func _candidate_roads(anchor: Vector3) -> Array[Dictionary]:
+    var candidates: Array[Dictionary] = []
+    for road: Dictionary in _roads:
+        var points: Array = road.get("points", [])
+        var is_near := false
+        for raw: Variant in points:
+            var point := _raw_point(raw)
+            point.y = anchor.y
+            if point.distance_to(anchor) <= spawn_radius_m:
+                is_near = true
+                break
+        if is_near:
+            candidates.append(road)
+    return candidates
+
+
+func _replenish_traffic() -> void:
+    if _traffic_root == null or _roads.is_empty() or max_vehicles <= 0:
+        return
+
+    var safety := 0
+    while get_active_vehicle_count() < max_vehicles and safety < max_vehicles * 4:
+        safety += 1
+        if not _spawn_one_vehicle():
+            break
+
+
+func _spawn_one_vehicle() -> bool:
+    var anchor := _anchor_position()
+    var candidates := _candidate_roads(anchor)
+    if candidates.is_empty():
+        candidates = _roads.duplicate()
+    if candidates.is_empty():
+        return false
+
+    for _attempt: int in range(MAX_SPAWN_ATTEMPTS):
+        var road: Dictionary = candidates[_rng.randi_range(0, candidates.size() - 1)]
+        var direction := _direction_for_road(road)
+        var route := _lane_route(road, direction, anchor)
+        if route.size() < 2:
+            continue
+        if _packed_route_length(route) < maxf(10.0, min_route_length_m * 0.45):
+            continue
+        if not _spawn_position_is_clear(route[0]):
+            continue
+
+        var vehicle := _create_vehicle_node()
+        _traffic_root.add_child(vehicle)
+        vehicle.global_position = route[0]
+        vehicle.connect("route_finished", Callable(self, "_on_route_finished"))
+        vehicle.call(
+            "configure_route",
+            route,
+            _speed_limit_for_road(road),
+            str(road.get("name", "")),
+            int(road.get("osm_id", 0))
+        )
+        return true
+    return false
+
+
+func _direction_for_road(road: Dictionary) -> int:
+    var raw_oneway: Variant = road.get("oneway", 0)
+    if typeof(raw_oneway) == TYPE_INT or typeof(raw_oneway) == TYPE_FLOAT:
+        var numeric := int(raw_oneway)
+        if numeric < 0:
+            return -1
+        if numeric > 0:
+            return 1
+    else:
+        var text := str(raw_oneway).to_lower()
+        if text == "-1":
+            return -1
+        if text in ["1", "yes", "true"]:
+            return 1
+
+    if str(road.get("junction", "")).to_lower() == "roundabout":
+        return 1
+    return 1 if _rng.randi_range(0, 1) == 1 else -1
+
+
+func _lane_route(road: Dictionary, direction: int, anchor: Vector3) -> PackedVector3Array:
+    var raw_points: Array = road.get("points", [])
+    if raw_points.size() < 2:
+        return PackedVector3Array()
+
+    var ordered: Array[Vector3] = []
+    if direction >= 0:
+        for raw: Variant in raw_points:
+            ordered.append(_raw_point(raw))
+    else:
+        for index: int in range(raw_points.size() - 1, -1, -1):
+            ordered.append(_raw_point(raw_points[index]))
+
+    var lane_offset := _lane_offset_for_road(road)
+    var shifted := PackedVector3Array()
+    for index: int in range(ordered.size()):
+        var previous: Vector3 = ordered[maxi(0, index - 1)]
+        var next: Vector3 = ordered[mini(ordered.size() - 1, index + 1)]
+        var tangent := next - previous
+        tangent.y = 0.0
+        if tangent.length_squared() <= 0.001:
+            shifted.append(ordered[index])
+            continue
+        tangent = tangent.normalized()
+        var right := Vector3(-tangent.z, 0.0, tangent.x)
+        shifted.append(ordered[index] + right * lane_offset)
+
+    return _trim_route_near_anchor(shifted, anchor)
+
+
+func _lane_offset_for_road(road: Dictionary) -> float:
+    var width := maxf(3.0, float(road.get("width", 5.6)))
+    var oneway := _normalized_oneway(road)
+    var lanes := maxi(0, int(road.get("lanes", 0)))
+
+    if oneway != 0:
+        if lanes >= 2:
+            return clampf(width * 0.18, 0.7, 1.65)
+        return clampf(width * 0.08, 0.25, 0.65)
+    return clampf(width * 0.23, 1.0, 2.05)
+
+
+func _normalized_oneway(road: Dictionary) -> int:
+    var raw: Variant = road.get("oneway", 0)
+    if typeof(raw) == TYPE_INT or typeof(raw) == TYPE_FLOAT:
+        return signi(int(raw))
+    var text := str(raw).to_lower()
+    if text == "-1":
+        return -1
+    if text in ["1", "yes", "true"]:
+        return 1
+    if str(road.get("junction", "")).to_lower() == "roundabout":
+        return 1
+    return 0
+
+
+func _trim_route_near_anchor(route: PackedVector3Array, anchor: Vector3) -> PackedVector3Array:
+    if route.size() <= 2:
+        return route
+
+    var closest_index := 0
+    var closest_distance := INF
+    for index: int in range(route.size()):
+        var point := route[index]
+        point.y = anchor.y
+        var distance := point.distance_to(anchor)
+        if distance < closest_distance:
+            closest_distance = distance
+            closest_index = index
+
+    var start_index := maxi(0, closest_index - 1)
+    if route.size() - start_index < 2:
+        return route
+
+    var trimmed := PackedVector3Array()
+    for index: int in range(start_index, route.size()):
+        trimmed.append(route[index])
+    return trimmed
+
+
+func _packed_route_length(route: PackedVector3Array) -> float:
+    var total := 0.0
+    for index: int in range(route.size() - 1):
+        total += route[index].distance_to(route[index + 1])
+    return total
+
+
+func _speed_limit_for_road(road: Dictionary) -> float:
+    var raw_limit: Variant = road.get("maxspeed_kmh", null)
+    if raw_limit != null and (typeof(raw_limit) == TYPE_INT or typeof(raw_limit) == TYPE_FLOAT):
+        var tagged_limit := float(raw_limit)
+        if tagged_limit > 0.0:
+            return clampf(tagged_limit, 5.0, 90.0)
+
+    var road_class := str(road.get("class", ""))
+    if road_class in ["living_street", "service"]:
+        return minf(default_speed_kmh, 20.0)
+    return default_speed_kmh
+
+
+func _spawn_position_is_clear(position: Vector3) -> bool:
+    var player := get_node_or_null(player_path) as Node3D
+    if player != null and player.global_position.distance_to(position) < MIN_SPAWN_CLEARANCE_M:
+        return false
+
+    for candidate: Node in get_tree().get_nodes_in_group("vehicle"):
+        if candidate is Node3D:
+            var node := candidate as Node3D
+            if node.global_position.distance_to(position) < MIN_SPAWN_CLEARANCE_M:
+                return false
+
+    if _traffic_root != null:
+        for child: Node in _traffic_root.get_children():
+            if child is Node3D and not child.is_queued_for_deletion():
+                var node := child as Node3D
+                if node.global_position.distance_to(position) < MIN_SPAWN_CLEARANCE_M:
+                    return false
+    return true
+
+
+func _create_vehicle_node() -> CharacterBody3D:
+    var vehicle := CharacterBody3D.new()
+    vehicle.name = "TrafficCar_%03d" % _spawn_serial
+    vehicle.set_script(TRAFFIC_VEHICLE_SCRIPT)
+    vehicle.collision_layer = 1
+    vehicle.collision_mask = 1
+    vehicle.add_to_group("traffic_vehicle")
+
+    var collision := CollisionShape3D.new()
+    collision.name = "CollisionShape3D"
+    var box_shape := BoxShape3D.new()
+    box_shape.size = VEHICLE_BODY_SIZE
+    collision.shape = box_shape
+    vehicle.add_child(collision)
+
+    var body_mesh := MeshInstance3D.new()
+    body_mesh.name = "Body"
+    var body_box := BoxMesh.new()
+    body_box.size = Vector3(1.82, 0.72, 4.15)
+    body_mesh.mesh = body_box
+    var body_material := StandardMaterial3D.new()
+    body_material.albedo_color = CAR_COLORS[_spawn_serial % CAR_COLORS.size()]
+    body_material.roughness = 0.48
+    body_material.metallic = 0.18
+    body_mesh.material_override = body_material
+    body_mesh.position.y = -0.12
+    vehicle.add_child(body_mesh)
+
+    var cabin_mesh := MeshInstance3D.new()
+    cabin_mesh.name = "Cabin"
+    var cabin_box := BoxMesh.new()
+    cabin_box.size = Vector3(1.52, 0.66, 1.95)
+    cabin_mesh.mesh = cabin_box
+    var cabin_material := StandardMaterial3D.new()
+    cabin_material.albedo_color = body_material.albedo_color.lightened(0.08)
+    cabin_material.roughness = 0.38
+    cabin_material.metallic = 0.12
+    cabin_mesh.material_override = cabin_material
+    cabin_mesh.position = Vector3(0.0, 0.48, -0.14)
+    vehicle.add_child(cabin_mesh)
+
+    var obstacle_ray := RayCast3D.new()
+    obstacle_ray.name = "ObstacleRay"
+    obstacle_ray.position = Vector3(0.0, 0.15, -1.75)
+    obstacle_ray.target_position = Vector3(0.0, 0.0, -9.0)
+    obstacle_ray.collision_mask = 1
+    obstacle_ray.exclude_parent = true
+    obstacle_ray.enabled = true
+    vehicle.add_child(obstacle_ray)
+
+    _spawn_serial += 1
+    return vehicle
+
+
+func _on_route_finished(vehicle: Node) -> void:
+    if is_instance_valid(vehicle):
+        vehicle.queue_free()
+    call_deferred("_replenish_traffic")
+
+
+func _despawn_far_vehicles() -> void:
+    if _traffic_root == null:
+        return
+    var anchor := _anchor_position()
+    for child: Node in _traffic_root.get_children():
+        if not child is Node3D or child.is_queued_for_deletion():
+            continue
+        var vehicle := child as Node3D
+        if vehicle.global_position.distance_to(anchor) > despawn_radius_m:
+            vehicle.queue_free()
+
+
+func get_route_count() -> int:
+    return _roads.size()
+
+
+func get_active_vehicle_count() -> int:
+    if _traffic_root == null:
+        return 0
+    var count := 0
+    for child: Node in _traffic_root.get_children():
+        if not child.is_queued_for_deletion():
+            count += 1
+    return count
+
+
+func get_default_speed_kmh() -> float:
+    return default_speed_kmh

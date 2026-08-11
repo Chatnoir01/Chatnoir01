@@ -85,14 +85,14 @@ func _install_vehicle_decals() -> void:
         # Keep markings in real-world metre ranges independent of texture resolution.
         _add_side_sprite(layer, "BilingualLeft", BILINGUAL_DECAL, Vector3(-0.984, 0.72, -0.32), 90.0, 0.0034)
         _add_side_sprite(layer, "BilingualRight", BILINGUAL_DECAL, Vector3(0.984, 0.72, -0.32), -90.0, 0.0034)
-        _add_side_sprite(layer, "StripeLeft", BLUE_STRIPES, Vector3(-0.986, 0.47, 0.42), 90.0, 0.0062)
-        _add_side_sprite(layer, "StripeRight", BLUE_STRIPES, Vector3(0.986, 0.47, 0.42), -90.0, 0.0062, true)
+        _add_side_sprite(layer, "StripeLeft", BLUE_STRIPES, Vector3(-0.986, 0.47, 0.42), 90.0, 0.0250)
+        _add_side_sprite(layer, "StripeRight", BLUE_STRIPES, Vector3(0.986, 0.47, 0.42), -90.0, 0.0250, true)
         _add_rear_sprite(layer, "RearChevrons", REAR_CHEVRONS, Vector3(0.0, 0.55, 2.306), 0.1125)
     elif vehicle.is_in_group("police_bab"):
         _add_side_sprite(layer, "BilingualLeft", BILINGUAL_DECAL, Vector3(-1.086, 1.18, -0.55), 90.0, 0.0040)
         _add_side_sprite(layer, "BilingualRight", BILINGUAL_DECAL, Vector3(1.086, 1.18, -0.55), -90.0, 0.0040)
-        _add_side_sprite(layer, "StripeLeft", BLUE_STRIPES, Vector3(-1.088, 0.82, 0.48), 90.0, 0.0074)
-        _add_side_sprite(layer, "StripeRight", BLUE_STRIPES, Vector3(1.088, 0.82, 0.48), -90.0, 0.0074, true)
+        _add_side_sprite(layer, "StripeLeft", BLUE_STRIPES, Vector3(-1.088, 0.82, 0.48), 90.0, 0.0300)
+        _add_side_sprite(layer, "StripeRight", BLUE_STRIPES, Vector3(1.088, 0.82, 0.48), -90.0, 0.0300, true)
         _add_rear_sprite(layer, "RearChevrons", REAR_CHEVRONS, Vector3(0.0, 0.86, 2.742), 0.1250)
 
 

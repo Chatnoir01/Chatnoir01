@@ -1,0 +1,136 @@
+name: Bootstrap remaining Brussels R2 grids
+
+on:
+  push:
+    branches:
+      - zone-reste-bruxelles
+    paths:
+      - '.github/workflows/remaining-brussels-r2-grids.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-r2-grids
+  cancel-in-progress: false
+
+jobs:
+  bootstrap-r2-grids:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout dedicated zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+
+      - name: Validate grid and coverage tooling
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m compileall -q tools tests
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Record pre-R2 coverage
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/build_remaining_brussels_coverage.py \
+            --output /tmp/pre-r2-coverage.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('/tmp/pre-r2-coverage.json').read_text())
+          Path('/tmp/pre-r2-unique-count.txt').write_text(str(report['unique_planned_cells_known']))
+          Path('/tmp/pre-r2-grid-count.txt').write_text(str(report['municipality_grids_ready']))
+          print('Pre-R2 grids:', report['municipality_grids_ready'])
+          print('Pre-R2 unique planned cells:', report['unique_planned_cells_known'])
+          PY
+
+      - name: Fetch all official R2 municipality boundaries and grids
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/bootstrap_remaining_brussels.py \
+            --wave R2 \
+            --output-root data/processed/remaining_brussels
+
+      - name: Rebuild deduplicated remaining-Brussels coverage report
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Verify all R2 grids and global-cell accounting
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('data/processed/remaining_brussels')
+          catalog = json.loads(Path('data/remaining_brussels_zones.json').read_text())
+          expected = [zone for zone in catalog['zones'] if zone['wave'] == 'R2']
+          expected_ids = [zone['id'] for zone in expected]
+          assert expected_ids == ['koekelberg', 'ganshoren', 'berchem', 'evere'], expected_ids
+
+          pre_grid_count = int(Path('/tmp/pre-r2-grid-count.txt').read_text())
+          pre_unique = int(Path('/tmp/pre-r2-unique-count.txt').read_text())
+          union_r2 = set()
+          for zone in expected:
+              zone_id = zone['id']
+              boundary = root / 'boundaries' / f'{zone_id}.geojson'
+              grid_path = root / 'cells' / f'{zone_id}.json'
+              assert boundary.exists() and boundary.stat().st_size > 100, boundary
+              grid = json.loads(grid_path.read_text())
+              assert grid['format'] == 'grand-bruxelles-zone-cells-v2'
+              assert grid['zone_id'] == zone_id
+              assert grid['cell_count'] > 0
+              assert grid['cell_count'] <= grid['envelope_cell_count']
+              assert len(grid['cells']) == grid['cell_count']
+              ids = [cell['id'] for cell in grid['cells']]
+              assert len(ids) == len(set(ids))
+              assert all(cell_id.startswith('bxl-e') for cell_id in ids)
+              union_r2.update(ids)
+              print(zone_id, 'cells:', grid['cell_count'], '/', grid['envelope_cell_count'])
+
+          report = json.loads((root / 'coverage_report.json').read_text())
+          assert report['format'] == 'grand-bruxelles-remaining-coverage-v1'
+          assert report['municipalities_total'] == 17
+          assert report['municipality_grids_ready'] >= max(11, pre_grid_count + 4)
+          assert report['unique_planned_cells_known'] > pre_unique
+          assert report['materialized_cells_total'] >= 10
+          assert report['materialized_cells_in_known_grids'] >= 10
+
+          zone_reports = {zone['zone_id']: zone for zone in report['zones']}
+          for zone_id in expected_ids:
+              assert zone_reports[zone_id]['grid_ready'] is True
+              assert zone_reports[zone_id]['planned_cells'] > 0
+              assert zone_reports[zone_id]['coverage_percent'] >= 0.0
+
+          runtime = report.get('runtime', {})
+          assert runtime.get('format') == 'grand-bruxelles-urbis-runtime-index-v2'
+          assert runtime.get('streamable_cells', 0) >= 10
+
+          print('R2 union cells:', len(union_r2))
+          print('All known unique planned cells:', report['unique_planned_cells_known'])
+          print('Materialized cells:', report['materialized_cells_total'])
+          print('Known-grid coverage:', report['known_grid_coverage_percent'], '%')
+          print('Ready municipality grids:', report['municipality_grids_ready'], '/ 17')
+          PY
+
+      - name: Commit official R2 grids and coverage report
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/boundaries \
+            grand-bruxelles-game/data/processed/remaining_brussels/cells \
+            grand-bruxelles-game/data/processed/remaining_brussels/bootstrap_manifest.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json
+          if git diff --cached --quiet; then
+            echo 'No R2 grid changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: bootstrap official remaining-Brussels R2 grids'
+          git push origin HEAD:zone-reste-bruxelles

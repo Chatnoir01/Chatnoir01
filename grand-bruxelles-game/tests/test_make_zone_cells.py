@@ -93,7 +93,7 @@ class MakeZoneCellsTests(unittest.TestCase):
         self.assertIn("bxl-e148000-n169500-s500", ids)
         self.assertIn("bxl-e147500-n170000-s500", ids)
 
-    def test_hole_does_not_materialize_cells_fully_inside_hole(self) -> None:
+    def test_hole_does_not_materialize_cell_fully_inside_hole(self) -> None:
         outer = [
             (147000.0, 169000.0),
             (149000.0, 169000.0),
@@ -101,14 +101,14 @@ class MakeZoneCellsTests(unittest.TestCase):
             (147000.0, 171000.0),
         ]
         hole = [
-            (147510.0, 169510.0),
-            (148490.0, 169510.0),
-            (148490.0, 170490.0),
-            (147510.0, 170490.0),
+            (147400.0, 169400.0),
+            (148600.0, 169400.0),
+            (148600.0, 170600.0),
+            (147400.0, 170600.0),
         ]
         self.assertFalse(
             MODULE.cell_intersects_polygon(
-                (148000.0, 170000.0, 148500.0, 170500.0),
+                (147500.0, 169500.0, 148000.0, 170000.0),
                 [outer, hole],
             )
         )

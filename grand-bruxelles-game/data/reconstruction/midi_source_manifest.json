@@ -1,0 +1,102 @@
+{
+  "zone": "Bruxelles-Midi / Brussel-Zuid - Avenue Fonsny / Place Horta",
+  "target": "metric reconstruction for Grand Bruxelles Game",
+  "coordinate_policy": {
+    "authoritative_crs": "EPSG:31370",
+    "game_axes": "+X east, +Y up, -Z north",
+    "origin_policy": "local origin anchored to Gare du Midi control point"
+  },
+  "sources": [
+    {
+      "id": "urbis_landscape",
+      "title": "UrbIS - Landscape",
+      "authority": "Paradigm / Brussels-Capital Region",
+      "dataset_id": "713171e6-65e3-11ef-b378-010101010000",
+      "url": "https://datastore.brussels/web/data/dataset/713171e6-65e3-11ef-b378-010101010000",
+      "role": ["3d_buildings", "terrain", "primary_geometry_reference"],
+      "refresh": "monthly",
+      "status": "authoritative_geometry_candidate",
+      "license_note": "verify current distribution metadata before shipping derived production assets"
+    },
+    {
+      "id": "urbis_parcels_buildings",
+      "title": "UrbIS - Parcels and buildings",
+      "authority": "Paradigm / Brussels-Capital Region",
+      "dataset_id": "2cf42541-1813-11ef-8a81-00090ffe0001",
+      "url": "https://datastore.brussels/web/data/dataset/2cf42541-1813-11ef-8a81-00090ffe0001",
+      "role": ["building_footprints", "addresses", "parcel_alignment"],
+      "crs": "EPSG:31370",
+      "license_note": "building/address classes CC0; cadastral parcel class has FPS Finance terms"
+    },
+    {
+      "id": "urbis_transport",
+      "title": "UrbIS - Transport networks",
+      "authority": "Paradigm / Brussels Mobility",
+      "dataset_id": "af847c40-848b-11ee-9a1f-00090ffe0001",
+      "url": "https://datastore.brussels/web/data/dataset/af847c40-848b-11ee-9a1f-00090ffe0001",
+      "role": ["street_axes", "intersections", "rail_network"],
+      "status": "replace_or_crosscheck_osm_roads"
+    },
+    {
+      "id": "brussels_lidar_2021",
+      "title": "Nuage de points LiDAR aérien - 2021",
+      "authority": "Paradigm / Brussels-Capital Region",
+      "dataset_id": "ff1124e1-424e-11ee-b156-00090ffe0001",
+      "url": "https://datastore.brussels/web/data/dataset/ff1124e1-424e-11ee-b156-00090ffe0001",
+      "role": ["height_validation", "roof_profiles", "street_elevation", "terrain_validation"],
+      "format": "LAS",
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "ngi_latest_orthophoto",
+      "title": "Orthophoto INSPIRE - latest operational national mosaic",
+      "authority": "National Geographic Institute Belgium",
+      "dataset_id": "e59181f0-8469-44c6-8f6c-a5e1a4af15d5",
+      "url": "https://www.geo.be/catalog/details/e59181f0-8469-44c6-8f6c-a5e1a4af15d5?l=fr",
+      "role": ["planimetric_validation", "roof_layout", "street_furniture_reference", "ground_material_reference"],
+      "brussels_ground_resolution_m": 0.125,
+      "license": "CC BY 4.0"
+    },
+    {
+      "id": "urbis_dsm",
+      "title": "UrbIS - Digital surface model",
+      "authority": "Paradigm / Brussels-Capital Region",
+      "dataset_id": "8c2d921e-6a53-11ed-bfb5-010101010000",
+      "url": "https://datastore.brussels/web/data/dataset/8c2d921e-6a53-11ed-bfb5-010101010000",
+      "role": ["surface_height_validation", "vegetation_and_roof_envelope"]
+    },
+    {
+      "id": "heritage_midi_9423",
+      "title": "Gare du Midi / Zuidstation et bâtiments annexes",
+      "authority": "Brussels-Capital Region architectural heritage inventory",
+      "url": "https://monument.heritage.brussels/fr/buildings/9423",
+      "role": ["facade_reference", "architectural_history", "material_reference", "component_reference"],
+      "production_reuse": "reference_only_unless_image_reuse_rights_are_verified",
+      "documented_features": [
+        "modernist station and annexes designed 1939-1959",
+        "yellow Fauquenberg brick cladding",
+        "blue-stone bases and horizontal bands",
+        "concrete frames and canopies",
+        "large glazing and repetitive window registers",
+        "Fonsny 47, 48 and 49 administrative/postal buildings",
+        "1990s HST extension on Victor Horta side"
+      ]
+    },
+    {
+      "id": "osm_runtime",
+      "title": "OpenStreetMap corridor runtime extract",
+      "authority": "OpenStreetMap contributors",
+      "role": ["temporary_runtime_network", "crosscheck_names", "mission_navigation"],
+      "license": "ODbL-1.0",
+      "status": "keep_for_gameplay_until_urbis_transport_import_is_stable"
+    }
+  ],
+  "acceptance_tests": {
+    "horizontal_alignment_error_m": 0.5,
+    "hero_building_height_error_m": 0.5,
+    "secondary_building_height_error_m": 1.5,
+    "road_edge_error_m": 0.35,
+    "tram_rail_error_m": 0.20,
+    "visual_rule": "without HUD or city label, Midi should be recognizable from a comparison screenshot"
+  }
+}

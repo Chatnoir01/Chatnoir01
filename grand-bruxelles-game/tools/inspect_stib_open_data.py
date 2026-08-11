@@ -4,7 +4,7 @@ from __future__ import annotations
 import sys
 import urllib.request
 
-GTFS_URL = "https://datasets.api.production.belgianmobility.io/api/datasets-static/gtfs"
+GTFS_URL = "https://stibmivb.opendatasoft.com/api/datasets/1.0/gtfs-files-production/alternative_exports/gtfszip/"
 
 
 def main() -> int:
@@ -18,18 +18,18 @@ def main() -> int:
             content_type = response.headers.get("Content-Type", "")
             if response.status == 200 and payload[:2] == b"PK":
                 print(
-                    "STIB_PUBLIC_ENDPOINT_OK: "
-                    f"status=200 content_type={content_type!r} zip_prefix=true"
+                    "STIB_OFFICIAL_SOURCE_OK: "
+                    f"status=200 content_type={content_type!r} zip_prefix=true source={GTFS_URL}"
                 )
                 return 0
             print(
-                f"STIB_PUBLIC_ENDPOINT_FAIL: status={response.status} "
+                f"STIB_OFFICIAL_SOURCE_FAIL: status={response.status} "
                 f"content_type={content_type!r} prefix={payload!r}",
                 file=sys.stderr,
             )
             return 1
     except Exception as exc:
-        print(f"STIB_PUBLIC_ENDPOINT_FAIL: {exc}", file=sys.stderr)
+        print(f"STIB_OFFICIAL_SOURCE_FAIL: {exc}", file=sys.stderr)
         return 2
 
 

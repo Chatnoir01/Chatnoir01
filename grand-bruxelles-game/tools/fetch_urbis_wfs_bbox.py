@@ -6,9 +6,10 @@ using Belgian Lambert 72 (EPSG:31370). It is intentionally bbox-based so each
 city zone can be refreshed independently and kept small enough for CI/game use.
 
 The public TramNetwork/TrainNetwork layers can expose overlapping rail features.
-Runtime classification already validates UrbIS TYPE values; this fetcher also
-tries exact server-side CQL filters (TW for tramway, RW for railway) to avoid
-storing irrelevant duplicate rail features in every 500 m raw cell.
+This GeoServer configuration rejects requests combining ``bbox`` and
+``CQL_FILTER``, so spatial bbox fetching remains authoritative and rail features
+are pruned immediately in memory before raw GeoJSON is written: TW for tramway,
+RW for railway. Runtime classification repeats the same rule defensively.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 WFS_URL = "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
 DEFAULT_BBOX = (147250.0, 168900.0, 148500.0, 170250.0)
@@ -30,9 +32,9 @@ DEFAULT_LAYERS = {
     "tram_network": "urbisvector:TramNetwork",
     "train_network": "urbisvector:TrainNetwork",
 }
-LAYER_CQL_FILTERS = {
-    "urbisvector:TramNetwork": "TYPE = 'TW'",
-    "urbisvector:TrainNetwork": "TYPE = 'RW'",
+LAYER_TYPE_FILTERS = {
+    "urbisvector:TramNetwork": "TW",
+    "urbisvector:TrainNetwork": "RW",
 }
 
 
@@ -51,7 +53,7 @@ def build_request_params(
     bbox: tuple[float, float, float, float],
 ) -> dict[str, str]:
     min_e, min_n, max_e, max_n = bbox
-    params = {
+    return {
         "service": "WFS",
         "version": "2.0.0",
         "request": "GetFeature",
@@ -60,10 +62,6 @@ def build_request_params(
         "srsName": "EPSG:31370",
         "bbox": f"{min_e},{min_n},{max_e},{max_n},EPSG:31370",
     }
-    cql_filter = LAYER_CQL_FILTERS.get(layer_name)
-    if cql_filter:
-        params["CQL_FILTER"] = cql_filter
-    return params
 
 
 def build_request_url(layer_name: str, bbox: tuple[float, float, float, float]) -> str:
@@ -79,6 +77,32 @@ def _http_error_detail(exc: urllib.error.HTTPError) -> str:
     if len(text) > 2000:
         text = text[:2000] + "…"
     return f"HTTP {exc.code}: {text or exc.reason}"
+
+
+def _feature_type(feature: dict[str, Any]) -> str:
+    properties = feature.get("properties") or {}
+    return str(properties.get("TYPE") or properties.get("TYP") or "").strip().upper()
+
+
+def prune_layer_features(layer_name: str, data: dict[str, Any]) -> tuple[dict[str, Any], int]:
+    """Return a shallow FeatureCollection copy with irrelevant rail types removed."""
+    required_type = LAYER_TYPE_FILTERS.get(layer_name)
+    if not required_type:
+        return data, 0
+
+    original_features = list(data.get("features", []))
+    kept = [feature for feature in original_features if _feature_type(feature) == required_type]
+    pruned = dict(data)
+    pruned["features"] = kept
+    pruned["grand_bruxelles_filter"] = {
+        "mode": "post_bbox_in_memory",
+        "property": "TYPE",
+        "equals": required_type,
+        "source_features": len(original_features),
+        "kept_features": len(kept),
+        "removed_features": len(original_features) - len(kept),
+    }
+    return pruned, len(original_features) - len(kept)
 
 
 def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retries: int) -> dict:
@@ -99,6 +123,7 @@ def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retr
             data = json.loads(payload.decode("utf-8"))
             if data.get("type") != "FeatureCollection":
                 raise RuntimeError(f"unexpected WFS payload for {layer_name}: {data.get('type')!r}")
+            data, _ = prune_layer_features(layer_name, data)
             return data
         except urllib.error.HTTPError as exc:
             last_error = RuntimeError(_http_error_detail(exc))
@@ -130,9 +155,10 @@ def main() -> int:
         path = args.output_dir / f"{short_name}.geojson"
         path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
         count = len(data.get("features", []))
+        filter_meta = data.get("grand_bruxelles_filter")
         manifest["layers"][short_name] = {
             "wfs_name": layer_name,
-            "cql_filter": LAYER_CQL_FILTERS.get(layer_name),
+            "feature_filter": filter_meta,
             "features": count,
             "file": path.name,
         }

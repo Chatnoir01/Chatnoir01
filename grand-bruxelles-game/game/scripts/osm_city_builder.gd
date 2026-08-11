@@ -4,10 +4,26 @@ extends Node3D
 @export var max_buildings: int = 260
 @export var max_road_segments: int = 850
 @export var build_collisions: bool = true
+@export var midi_detail_radius_m: float = 300.0
+
+const MIDI_ANCHOR := Vector2(-668.5, 627.84)
+const MAJOR_ROADS := ["primary", "secondary", "tertiary"]
 
 var _road_material: StandardMaterial3D
-var _building_material: StandardMaterial3D
+var _road_major_material: StandardMaterial3D
+var _sidewalk_material: StandardMaterial3D
+var _marking_material: StandardMaterial3D
 var _rail_material: StandardMaterial3D
+var _sleeper_material: StandardMaterial3D
+var _roof_material: StandardMaterial3D
+var _window_material: StandardMaterial3D
+var _shop_material: StandardMaterial3D
+var _building_materials: Array[StandardMaterial3D] = []
+
+var _window_transforms: Array[Transform3D] = []
+var _shop_transforms: Array[Transform3D] = []
+var _marking_count: int = 0
+var _sleeper_count: int = 0
 
 
 func _ready() -> void:
@@ -15,19 +31,33 @@ func _ready() -> void:
     _build_from_file()
 
 
+func _material(color: Color, roughness: float = 0.85, metallic: float = 0.0) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.roughness = roughness
+    material.metallic = metallic
+    return material
+
+
 func _make_materials() -> void:
-    _road_material = StandardMaterial3D.new()
-    _road_material.albedo_color = Color(0.12, 0.13, 0.15, 1.0)
-    _road_material.roughness = 0.96
+    _road_material = _material(Color(0.105, 0.11, 0.115, 1.0), 0.96)
+    _road_major_material = _material(Color(0.075, 0.08, 0.085, 1.0), 0.94)
+    _sidewalk_material = _material(Color(0.40, 0.385, 0.36, 1.0), 0.92)
+    _marking_material = _material(Color(0.88, 0.87, 0.80, 1.0), 0.82)
+    _rail_material = _material(Color(0.19, 0.205, 0.22, 1.0), 0.42, 0.72)
+    _sleeper_material = _material(Color(0.24, 0.235, 0.22, 1.0), 0.96)
+    _roof_material = _material(Color(0.18, 0.19, 0.205, 1.0), 0.86)
+    _window_material = _material(Color(0.045, 0.075, 0.095, 1.0), 0.24, 0.16)
+    _shop_material = _material(Color(0.07, 0.115, 0.135, 1.0), 0.20, 0.20)
 
-    _building_material = StandardMaterial3D.new()
-    _building_material.albedo_color = Color(0.42, 0.43, 0.46, 1.0)
-    _building_material.roughness = 0.92
-
-    _rail_material = StandardMaterial3D.new()
-    _rail_material.albedo_color = Color(0.25, 0.27, 0.30, 1.0)
-    _rail_material.metallic = 0.55
-    _rail_material.roughness = 0.48
+    _building_materials = [
+        _material(Color(0.37, 0.205, 0.145, 1.0), 0.91),
+        _material(Color(0.29, 0.205, 0.17, 1.0), 0.92),
+        _material(Color(0.53, 0.47, 0.37, 1.0), 0.90),
+        _material(Color(0.58, 0.555, 0.49, 1.0), 0.91),
+        _material(Color(0.37, 0.385, 0.395, 1.0), 0.89),
+        _material(Color(0.255, 0.19, 0.175, 1.0), 0.93),
+    ]
 
 
 func _build_from_file() -> void:
@@ -42,30 +72,51 @@ func _build_from_file() -> void:
         return
 
     var city_data: Dictionary = parsed
-    var roads_root: Node3D = Node3D.new()
+    var roads_root := Node3D.new()
     roads_root.name = "GeneratedRoads"
     add_child(roads_root)
 
-    var buildings_root: Node3D = Node3D.new()
+    var buildings_root := Node3D.new()
     buildings_root.name = "GeneratedBuildings"
     add_child(buildings_root)
 
-    var rails_root: Node3D = Node3D.new()
+    var rails_root := Node3D.new()
     rails_root.name = "GeneratedRails"
     add_child(rails_root)
+
+    var details_root := Node3D.new()
+    details_root.name = "GeneratedFacadeDetails"
+    add_child(details_root)
 
     var road_segments: int = _build_roads(city_data.get("roads", []), roads_root)
     var building_count: int = _build_buildings(city_data.get("buildings", []), buildings_root)
     var rail_segments: int = _build_rails(city_data.get("railways", []), rails_root)
+    _flush_facade_details(details_root)
 
     print(
-        "Grand Bruxelles OSM greybox: %d road segments, %d buildings, %d rail segments" %
-        [road_segments, building_count, rail_segments]
+        "Grand Bruxelles visual pass: %d road segments, %d buildings, %d rail segments, %d windows" %
+        [road_segments, building_count, rail_segments, _window_transforms.size()]
     )
 
 
 func _point(raw: Variant) -> Vector3:
     return Vector3(float(raw[0]), 0.0, float(raw[1]))
+
+
+func _is_midi_detail(point: Vector3) -> bool:
+    return Vector2(point.x, point.z).distance_to(MIDI_ANCHOR) <= midi_detail_radius_m
+
+
+func _road_width_for(road: Dictionary) -> float:
+    var width := float(road.get("width", 4.5))
+    var road_class := str(road.get("class", ""))
+    if road_class == "primary":
+        return maxf(width, 10.5)
+    if road_class == "secondary":
+        return maxf(width, 8.5)
+    if road_class == "tertiary":
+        return maxf(width, 7.2)
+    return width
 
 
 func _build_roads(roads: Array, root: Node3D) -> int:
@@ -74,7 +125,9 @@ func _build_roads(roads: Array, root: Node3D) -> int:
         if segment_count >= max_road_segments:
             break
         var points: Array = road.get("points", [])
-        var width: float = float(road.get("width", 4.5))
+        var width: float = _road_width_for(road)
+        var road_class := str(road.get("class", ""))
+        var material := _road_major_material if road_class in MAJOR_ROADS else _road_material
         for index: int in range(points.size() - 1):
             if segment_count >= max_road_segments:
                 break
@@ -85,16 +138,87 @@ func _build_roads(roads: Array, root: Node3D) -> int:
             if length < 0.75:
                 continue
 
-            var segment: CSGBox3D = CSGBox3D.new()
+            var segment := CSGBox3D.new()
             segment.name = "Road_%s_%d" % [str(road.get("osm_id", "x")), index]
             segment.size = Vector3(width, 0.10, length)
-            segment.position = (start + finish) * 0.5 + Vector3(0, 0.02, 0)
+            segment.position = (start + finish) * 0.5 + Vector3(0, 0.025, 0)
             segment.rotation.y = atan2(delta.x, delta.z)
-            segment.material = _road_material
+            segment.material = material
             segment.use_collision = false
             root.add_child(segment)
+
+            var midpoint := (start + finish) * 0.5
+            if _is_midi_detail(midpoint) and bool(road.get("drivable", false)):
+                _add_sidewalks(root, start, finish, width, road_class)
+                if road_class in MAJOR_ROADS:
+                    _add_lane_markings(root, start, finish)
+
             segment_count += 1
     return segment_count
+
+
+func _add_sidewalks(root: Node3D, start: Vector3, finish: Vector3, road_width: float, road_class: String) -> void:
+    var delta := finish - start
+    var length := delta.length()
+    if length < 1.0:
+        return
+    var direction := delta / length
+    var perpendicular := Vector3(-direction.z, 0.0, direction.x)
+    var sidewalk_width := 2.55 if road_class in ["primary", "secondary"] else 1.85
+    var offset := road_width * 0.5 + sidewalk_width * 0.5 + 0.10
+    var center := (start + finish) * 0.5
+    var angle := atan2(delta.x, delta.z)
+
+    for side: float in [-1.0, 1.0]:
+        var pavement := CSGBox3D.new()
+        pavement.size = Vector3(sidewalk_width, 0.12, length)
+        pavement.position = center + perpendicular * offset * side + Vector3(0, 0.085, 0)
+        pavement.rotation.y = angle
+        pavement.material = _sidewalk_material
+        pavement.use_collision = false
+        root.add_child(pavement)
+
+
+func _add_lane_markings(root: Node3D, start: Vector3, finish: Vector3) -> void:
+    if _marking_count >= 260:
+        return
+    var delta := finish - start
+    var length := delta.length()
+    if length < 7.0:
+        return
+    var direction := delta / length
+    var spacing := 8.5
+    var dash_length := 3.5
+    var dash_count := int(floor(length / spacing))
+    var angle := atan2(delta.x, delta.z)
+
+    for dash_index: int in range(dash_count):
+        if _marking_count >= 260:
+            return
+        var distance := minf(length - 0.6, 1.7 + float(dash_index) * spacing)
+        var dash := CSGBox3D.new()
+        dash.size = Vector3(0.12, 0.025, minf(dash_length, length - distance))
+        dash.position = start + direction * distance + Vector3(0, 0.09, 0)
+        dash.rotation.y = angle
+        dash.material = _marking_material
+        dash.use_collision = false
+        root.add_child(dash)
+        _marking_count += 1
+
+
+func _building_center(footprint: Array) -> Vector2:
+    var center := Vector2.ZERO
+    for raw: Variant in footprint:
+        center += Vector2(float(raw[0]), float(raw[1]))
+    return center / float(footprint.size())
+
+
+func _building_material_for(building: Dictionary) -> StandardMaterial3D:
+    var kind := str(building.get("kind", "yes"))
+    if kind in ["office", "commercial", "retail", "train_station"]:
+        return _building_materials[4]
+    var osm_id := abs(int(building.get("osm_id", 0)))
+    return _building_materials[osm_id % _building_materials.size()]
 
 
 func _build_buildings(buildings: Array, root: Node3D) -> int:
@@ -106,27 +230,111 @@ func _build_buildings(buildings: Array, root: Node3D) -> int:
         if footprint.size() < 3:
             continue
 
-        var center: Vector2 = Vector2.ZERO
-        for raw: Variant in footprint:
-            center += Vector2(float(raw[0]), float(raw[1]))
-        center /= float(footprint.size())
-
-        var polygon: PackedVector2Array = PackedVector2Array()
+        var center := _building_center(footprint)
+        var polygon := PackedVector2Array()
         for raw: Variant in footprint:
             polygon.append(Vector2(float(raw[0]) - center.x, float(raw[1]) - center.y))
 
         var height: float = clampf(float(building.get("height", 10.5)), 2.8, 120.0)
-        var solid: CSGPolygon3D = CSGPolygon3D.new()
+        var solid := CSGPolygon3D.new()
         solid.name = "Building_%s" % str(building.get("osm_id", "x"))
         solid.polygon = polygon
         solid.depth = height
         solid.rotation_degrees.x = -90.0
         solid.position = Vector3(center.x, height * 0.5, center.y)
-        solid.material = _building_material
+        solid.material = _building_material_for(building)
         solid.use_collision = build_collisions
         root.add_child(solid)
+
+        var roof := CSGPolygon3D.new()
+        roof.name = "Roof_%s" % str(building.get("osm_id", "x"))
+        roof.polygon = polygon
+        roof.depth = 0.20
+        roof.rotation_degrees.x = -90.0
+        roof.position = Vector3(center.x, height + 0.10, center.y)
+        roof.material = _roof_material
+        roof.use_collision = false
+        root.add_child(roof)
+
+        var world_center := Vector3(center.x, 0.0, center.y)
+        if _is_midi_detail(world_center):
+            _queue_facade_details(footprint, height)
+
         count += 1
     return count
+
+
+func _queue_facade_details(footprint: Array, height: float) -> void:
+    if height < 6.0:
+        return
+    var floor_count := clampi(int(floor(height / 3.15)) - 1, 1, 7)
+
+    for edge_index: int in range(footprint.size()):
+        if _window_transforms.size() >= 2600:
+            return
+        var raw_a: Variant = footprint[edge_index]
+        var raw_b: Variant = footprint[(edge_index + 1) % footprint.size()]
+        var a := Vector2(float(raw_a[0]), float(raw_a[1]))
+        var b := Vector2(float(raw_b[0]), float(raw_b[1]))
+        var edge := b - a
+        var edge_length := edge.length()
+        if edge_length < 4.0 or edge_length > 46.0:
+            continue
+
+        var direction := edge / edge_length
+        var module_count := clampi(int(edge_length / 3.2), 1, 9)
+        var step := edge_length / float(module_count + 1)
+        var window_width := clampf(step * 0.58, 1.05, 1.85)
+        var angle := atan2(-direction.y, direction.x)
+
+        for module_index: int in range(module_count):
+            var along := step * float(module_index + 1)
+            var point := a + direction * along
+
+            if _shop_transforms.size() < 650 and edge_length <= 30.0:
+                var shop_basis := Basis(Vector3.UP, angle).scaled(Vector3(minf(2.25, step * 0.72), 2.15, 0.11))
+                _shop_transforms.append(Transform3D(shop_basis, Vector3(point.x, 1.55, point.y)))
+
+            for floor_index: int in range(floor_count):
+                if _window_transforms.size() >= 2600:
+                    return
+                var y := 4.35 + float(floor_index) * 3.05
+                if y + 0.8 >= height:
+                    break
+                var basis := Basis(Vector3.UP, angle).scaled(Vector3(window_width, 1.38, 0.10))
+                _window_transforms.append(Transform3D(basis, Vector3(point.x, y, point.y)))
+
+
+func _flush_facade_details(root: Node3D) -> void:
+    if not _window_transforms.is_empty():
+        var window_mesh := BoxMesh.new()
+        window_mesh.size = Vector3.ONE
+        window_mesh.material = _window_material
+        var windows := MultiMesh.new()
+        windows.transform_format = MultiMesh.TRANSFORM_3D
+        windows.mesh = window_mesh
+        windows.instance_count = _window_transforms.size()
+        for index: int in range(_window_transforms.size()):
+            windows.set_instance_transform(index, _window_transforms[index])
+        var window_instance := MultiMeshInstance3D.new()
+        window_instance.name = "MidiFacadeWindows"
+        window_instance.multimesh = windows
+        root.add_child(window_instance)
+
+    if not _shop_transforms.is_empty():
+        var shop_mesh := BoxMesh.new()
+        shop_mesh.size = Vector3.ONE
+        shop_mesh.material = _shop_material
+        var shops := MultiMesh.new()
+        shops.transform_format = MultiMesh.TRANSFORM_3D
+        shops.mesh = shop_mesh
+        shops.instance_count = _shop_transforms.size()
+        for index: int in range(_shop_transforms.size()):
+            shops.set_instance_transform(index, _shop_transforms[index])
+        var shop_instance := MultiMeshInstance3D.new()
+        shop_instance.name = "MidiShopfronts"
+        shop_instance.multimesh = shops
+        root.add_child(shop_instance)
 
 
 func _build_rails(railways: Array, root: Node3D) -> int:
@@ -142,13 +350,45 @@ func _build_rails(railways: Array, root: Node3D) -> int:
             var length: float = delta.length()
             if length < 0.75:
                 continue
-            var segment: CSGBox3D = CSGBox3D.new()
-            segment.name = "Rail_%s_%d" % [str(railway.get("osm_id", "x")), index]
-            segment.size = Vector3(1.4, 0.07, length)
-            segment.position = (start + finish) * 0.5 + Vector3(0, 0.10, 0)
-            segment.rotation.y = atan2(delta.x, delta.z)
-            segment.material = _rail_material
-            segment.use_collision = false
-            root.add_child(segment)
+
+            var direction := delta / length
+            var perpendicular := Vector3(-direction.z, 0.0, direction.x)
+            var angle := atan2(delta.x, delta.z)
+            for side: float in [-1.0, 1.0]:
+                var rail := CSGBox3D.new()
+                rail.name = "Rail_%s_%d_%s" % [str(railway.get("osm_id", "x")), index, str(side)]
+                rail.size = Vector3(0.095, 0.09, length)
+                rail.position = (start + finish) * 0.5 + perpendicular * 0.72 * side + Vector3(0, 0.105, 0)
+                rail.rotation.y = angle
+                rail.material = _rail_material
+                rail.use_collision = false
+                root.add_child(rail)
+
+            if _is_midi_detail((start + finish) * 0.5):
+                _add_sleepers(root, start, finish)
             count += 1
     return count
+
+
+func _add_sleepers(root: Node3D, start: Vector3, finish: Vector3) -> void:
+    if _sleeper_count >= 180:
+        return
+    var delta := finish - start
+    var length := delta.length()
+    if length < 2.0:
+        return
+    var direction := delta / length
+    var angle := atan2(delta.x, delta.z)
+    var spacing := 2.9
+    var sleeper_total := int(floor(length / spacing))
+    for sleeper_index: int in range(sleeper_total):
+        if _sleeper_count >= 180:
+            return
+        var sleeper := CSGBox3D.new()
+        sleeper.size = Vector3(2.15, 0.055, 0.22)
+        sleeper.position = start + direction * (float(sleeper_index) * spacing + 1.0) + Vector3(0, 0.065, 0)
+        sleeper.rotation.y = angle
+        sleeper.material = _sleeper_material
+        sleeper.use_collision = false
+        root.add_child(sleeper)
+        _sleeper_count += 1

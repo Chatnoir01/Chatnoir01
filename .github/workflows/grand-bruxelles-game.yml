@@ -38,6 +38,24 @@ jobs:
       - name: Validate Python tools
         run: python3 -m py_compile grand-bruxelles-game/tools/*.py
 
+      - name: Validate Lambert72 to game conversion
+        run: |
+          cat > /tmp/lambert72.geojson <<'JSON'
+          {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"test"},"geometry":{"type":"LineString","coordinates":[[147868.29422791934,169538.62414926197],[148265.85626087448,170382.79665074125]]}}]}
+          JSON
+          python3 grand-bruxelles-game/tools/lambert72_to_game_geojson.py \
+            /tmp/lambert72.geojson /tmp/game-local.json
+          python3 - <<'PY'
+          import json, math
+          data = json.load(open('/tmp/game-local.json', encoding='utf-8'))
+          coords = data['features'][0]['geometry']['coordinates']
+          assert abs(coords[0][0]) < 1e-6 and abs(coords[0][1]) < 1e-6, coords[0]
+          assert math.isclose(coords[1][0], 397.5620329551457, abs_tol=1e-6), coords[1]
+          assert math.isclose(coords[1][1], -844.1725014792755, abs_tol=1e-6), coords[1]
+          assert data['grand_bruxelles_coordinate_system']['source_crs'] == 'EPSG:31370'
+          print('Lambert72 conversion OK:', coords)
+          PY
+
       - name: Validate committed Brussels runtime data
         run: |
           python3 - <<'PY'

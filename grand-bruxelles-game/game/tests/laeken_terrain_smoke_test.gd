@@ -23,6 +23,7 @@ func _run() -> void:
     await process_frame
     await process_frame
     await process_frame
+    await process_frame
 
     var terrain = scene.get_node_or_null("LaekenTerrain")
     if terrain == null:
@@ -64,7 +65,25 @@ func _run() -> void:
         _fail("Atomium local terrain should be near Y=0, got %.3f" % atomium_height)
         return
 
-    print("LAEKEN_TERRAIN_SMOKE_OK: range=[%.2f, %.2f]m atomium_local=%.3fm atomium_abs=%.3fm valid=%d holes=%d" % [min_height, max_height, atomium_height, atomium_abs, valid_samples, invalid_samples])
+    var drape = scene.get_node_or_null("TerrainDrape")
+    if drape == null:
+        _fail("TerrainDrape node missing")
+        return
+    var road_vertices := int(drape.get("road_vertices_draped"))
+    var building_vertices := int(drape.get("building_vertices_draped"))
+    var tram_vertices := int(drape.get("tram_vertices_draped"))
+    var train_vertices := int(drape.get("train_vertices_draped"))
+    if road_vertices < 100:
+        _fail("too few official road vertices draped: %d" % road_vertices)
+        return
+    if building_vertices < 100:
+        _fail("too few official building vertices draped: %d" % building_vertices)
+        return
+    if tram_vertices < 4 or train_vertices < 4:
+        _fail("official transit geometry was not draped: tram=%d train=%d" % [tram_vertices, train_vertices])
+        return
+
+    print("LAEKEN_TERRAIN_SMOKE_OK: range=[%.2f, %.2f]m atomium_local=%.3fm atomium_abs=%.3fm valid=%d holes=%d draped={roads:%d,buildings:%d,tram:%d,train:%d}" % [min_height, max_height, atomium_height, atomium_abs, valid_samples, invalid_samples, road_vertices, building_vertices, tram_vertices, train_vertices])
     scene.queue_free()
     await process_frame
     quit(0)

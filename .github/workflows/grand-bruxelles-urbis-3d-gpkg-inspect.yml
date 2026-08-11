@@ -51,18 +51,85 @@ jobs:
           file /tmp/urbis3d/distribution.bin
           sha256sum /tmp/urbis3d/distribution.bin | tee /tmp/urbis3d/sha256.txt
 
-      - name: Extract GeoPackage
+      - name: Recursively extract and locate GeoPackage
         run: |
-          mkdir -p /tmp/urbis3d/extracted
-          if unzip -t /tmp/urbis3d/distribution.bin >/dev/null 2>&1; then
-            unzip -q /tmp/urbis3d/distribution.bin -d /tmp/urbis3d/extracted
-          else
-            cp /tmp/urbis3d/distribution.bin /tmp/urbis3d/extracted/UrbIS3D.gpkg
-          fi
-          find /tmp/urbis3d/extracted -type f -maxdepth 4 -printf '%p %s bytes\n'
-          GPKG=$(find /tmp/urbis3d/extracted -type f -iname '*.gpkg' | head -n 1)
-          test -n "$GPKG"
-          echo "$GPKG" > /tmp/urbis3d/gpkg_path.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          import zipfile
+
+          seed = Path('/tmp/urbis3d/distribution.bin')
+          root = Path('/tmp/urbis3d/extracted')
+          root.mkdir(parents=True, exist_ok=True)
+
+          queue = [seed]
+          visited = set()
+          found = []
+          archive_index = 0
+
+          def is_sqlite(path: Path) -> bool:
+              try:
+                  with path.open('rb') as handle:
+                      return handle.read(16).startswith(b'SQLite format 3')
+              except OSError:
+                  return False
+
+          while queue:
+              current = queue.pop(0)
+              key = str(current.resolve())
+              if key in visited:
+                  continue
+              visited.add(key)
+              print(f'INSPECT {current} size={current.stat().st_size if current.exists() else -1}')
+
+              if current.is_file() and (current.suffix.lower() == '.gpkg' or is_sqlite(current)):
+                  print('GPKG_CANDIDATE', current)
+                  found.append(current)
+                  continue
+
+              if current.is_file() and zipfile.is_zipfile(current):
+                  out = root / f'archive_{archive_index:02d}_{current.stem}'
+                  archive_index += 1
+                  out.mkdir(parents=True, exist_ok=True)
+                  print('ARCHIVE', current, '->', out)
+                  with zipfile.ZipFile(current) as archive:
+                      for info in archive.infolist():
+                          print(' MEMBER', info.filename, 'compressed=', info.compress_size, 'size=', info.file_size)
+                      archive.extractall(out)
+                  for path in sorted(out.rglob('*')):
+                      if not path.is_file():
+                          continue
+                      print(' EXTRACTED', path, path.stat().st_size)
+                      if path.suffix.lower() == '.gpkg' or is_sqlite(path):
+                          found.append(path)
+                      elif zipfile.is_zipfile(path):
+                          queue.append(path)
+
+          # Deduplicate, prefer files explicitly named .gpkg, then largest candidate.
+          unique = {str(path.resolve()): path for path in found}
+          candidates = list(unique.values())
+          candidates.sort(key=lambda p: (p.suffix.lower() == '.gpkg', p.stat().st_size), reverse=True)
+
+          print('ALL_CANDIDATES')
+          for path in candidates:
+              print(' ', path, path.stat().st_size)
+
+          if not candidates:
+              print('FULL_EXTRACTED_TREE')
+              for path in sorted(root.rglob('*')):
+                  if path.is_file():
+                      print(' ', path, path.stat().st_size)
+              raise SystemExit('No SQLite/GeoPackage found after recursive ZIP extraction')
+
+          chosen = candidates[0]
+          target = Path('/tmp/urbis3d/UrbIS3D.gpkg')
+          if chosen.resolve() != target.resolve():
+              shutil.copy2(chosen, target)
+          Path('/tmp/urbis3d/gpkg_path.txt').write_text(str(target), encoding='utf-8')
+          print('SELECTED_GPKG', target, target.stat().st_size)
+          PY
+          file /tmp/urbis3d/UrbIS3D.gpkg
+          ls -lh /tmp/urbis3d/UrbIS3D.gpkg
 
       - name: Inspect GeoPackage metadata and feature counts
         run: |

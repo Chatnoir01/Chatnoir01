@@ -30,13 +30,13 @@ jobs:
             grand-bruxelles-game/tools/convert_stib_gtfs.py \
             grand-bruxelles-game/tools/test_stib_gtfs_converter.py
 
-      - name: Validate current public STIB GTFS endpoint
+      - name: Validate verified STIB official producer source
         run: python3 grand-bruxelles-game/tools/inspect_stib_open_data.py
 
-      - name: Validate GTFS converter with synthetic feed
+      - name: Validate GTFS converter and freshness gate
         run: python3 grand-bruxelles-game/tools/test_stib_gtfs_converter.py
 
-      - name: Fetch and convert current official STIB GTFS
+      - name: Fetch and convert official STIB GTFS preview
         run: |
           python3 grand-bruxelles-game/tools/fetch_stib_gtfs.py /tmp/stib-gtfs.zip
           python3 grand-bruxelles-game/tools/convert_stib_gtfs.py \
@@ -45,11 +45,16 @@ jobs:
           import json
           data = json.load(open('/tmp/stib-corridor.game.json', encoding='utf-8'))
           assert data['format'] == 'grand-bruxelles-stib-gtfs-v1'
-          assert data['license'] == 'CC-BY-4.0'
           assert data['stats']['routes'] > 0, data['stats']
           assert data['stats']['shapes'] > 0, data['stats']
+          assert data['license_url'].startswith('https://stibmivb.opendatasoft.com/')
           print('STIB_OFFICIAL_PREVIEW_OK:', data['stats'])
+          print('STIB_FRESHNESS:', data['freshness'])
           print('STIB_ROUTES:', [(r['mode'], r['short_name']) for r in data['routes']])
+          if data['freshness']['runtime_current_eligible']:
+              print('STIB_RUNTIME_CURRENT_ELIGIBLE: yes')
+          else:
+              print('STIB_RUNTIME_CURRENT_ELIGIBLE: no — preview only; current runtime activation blocked')
           PY
 
       - name: Upload official STIB preview

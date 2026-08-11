@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "zone": "laeken_jette",
+  "crs": "EPSG:31370",
+  "project_origin": {
+    "e": 147868.29422791934,
+    "n": 169538.62414926197,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
+  "first_slice_bbox": [147300.0, 173650.0, 149100.0, 176750.0],
+  "anchors": [
+    {
+      "id": "atomium",
+      "name": "Atomium",
+      "wgs84": [4.34165, 50.89517],
+      "lambert72": [148093.22038698208, 176091.76722726133],
+      "game_xz": [224.92615906274295, -6553.143077999353],
+      "coordinate_source": "OpenStreetMap-derived coordinate used only as a landmark anchor; official UrbIS geometry remains authoritative for the surrounding network",
+      "coordinate_source_url": "https://mapcarta.com/26242882",
+      "official_reference_url": "https://www.brussels.be/atomium",
+      "official_dimensions": {
+        "total_height_m": 102.0,
+        "sphere_diameter_m": 18.0,
+        "tube_diameter_m": 3.3,
+        "spheres": 9,
+        "tubes": 20
+      }
+    },
+    {
+      "id": "bockstael",
+      "name": "Place Emile Bockstael",
+      "wgs84": [4.3476647, 50.876904],
+      "lambert72": [148515.81566053463, 174059.6878348887],
+      "game_xz": [647.5214326152927, -4521.063685626723],
+      "coordinate_source": "City of Brussels markets service",
+      "coordinate_source_url": "https://marches.bruxelles.be/marches/marche-place-emile-bockstael"
+    },
+    {
+      "id": "heysel",
+      "name": "Heysel / Heizel station",
+      "wgs84": [4.33665, 50.89669],
+      "lambert72": [147741.5258610202, 176260.9924864797],
+      "game_xz": [-126.76836689913762, -6722.368337217718],
+      "coordinate_source": "OpenStreetMap-derived station coordinate used as a secondary orientation anchor",
+      "coordinate_source_url": "https://mapcarta.com/W498010561"
+    }
+  ],
+  "source_policy": {
+    "geometry_priority": ["UrbIS WFS", "UrbIS Landscape", "official orthophoto/LiDAR", "OpenStreetMap"],
+    "manual_trace_without_source": false
+  }
+}

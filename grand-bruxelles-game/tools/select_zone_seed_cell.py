@@ -2,9 +2,10 @@
 """Select the best seed cell from an official zone-cell manifest.
 
 The default strategy chooses the cell whose rectangle is closest to a Lambert72
-anchor. For branch boundaries such as Anderlecht next to the main Midi corridor,
-``--exclude-containing-anchor`` prevents this workstream from materializing the
-500 m cell that owns the shared control point, keeping branch ownership clean.
+anchor. Branch ownership can exclude the cell containing the anchor, while an
+existing materialized-cell root can be supplied to force real geographic
+expansion instead of selecting a 500 m square already built for a neighbouring
+municipality.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 FORMAT = "grand-bruxelles-zone-cells-v2"
+BUILT_CELL_FORMAT = "grand-bruxelles-urbis-built-cell-v1"
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
@@ -26,6 +28,21 @@ def load_manifest(path: Path) -> dict[str, Any]:
     if not isinstance(cells, list) or not cells:
         raise ValueError("manifest must contain cells")
     return payload
+
+
+def load_existing_cell_ids(root: Path | None) -> set[str]:
+    if root is None or not root.exists():
+        return set()
+    ids: set[str] = set()
+    for manifest_path in sorted(root.glob("*/manifest.json")):
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if payload.get("format") != BUILT_CELL_FORMAT:
+            raise ValueError(f"unsupported materialized cell manifest: {manifest_path}")
+        cell_id = str(payload.get("cell_id", "")).strip()
+        if not cell_id:
+            raise ValueError(f"materialized cell manifest has no cell_id: {manifest_path}")
+        ids.add(cell_id)
+    return ids
 
 
 def validated_bbox(bbox: list[float]) -> tuple[float, float, float, float]:
@@ -55,21 +72,29 @@ def select_seed(
     anchor_n: float,
     *,
     exclude_containing_anchor: bool = False,
+    excluded_cell_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     ranked = []
-    excluded_ids: list[str] = []
+    excluded_anchor_ids: list[str] = []
+    excluded_existing_ids: list[str] = []
+    forbidden = excluded_cell_ids or set()
+
     for cell in payload["cells"]:
         if not isinstance(cell, dict) or "bbox" not in cell or "id" not in cell:
             continue
+        cell_id = str(cell["id"])
+        if cell_id in forbidden:
+            excluded_existing_ids.append(cell_id)
+            continue
         if exclude_containing_anchor and point_in_bbox(anchor_e, anchor_n, cell["bbox"]):
-            excluded_ids.append(str(cell["id"]))
+            excluded_anchor_ids.append(cell_id)
             continue
         distance = distance_point_to_bbox(anchor_e, anchor_n, cell["bbox"])
         min_e, min_n, max_e, max_n = validated_bbox(cell["bbox"])
         center_e = (min_e + max_e) * 0.5
         center_n = (min_n + max_n) * 0.5
         center_distance = math.hypot(anchor_e - center_e, anchor_n - center_n)
-        ranked.append((distance, center_distance, str(cell["id"]), cell))
+        ranked.append((distance, center_distance, cell_id, cell))
     if not ranked:
         raise ValueError("manifest contains no selectable cells after exclusions")
     ranked.sort(key=lambda item: (item[0], item[1], item[2]))
@@ -77,7 +102,8 @@ def select_seed(
     return {
         **selected,
         "seed_distance_m": round(distance, 3),
-        "excluded_anchor_cell_ids": excluded_ids,
+        "excluded_anchor_cell_ids": sorted(excluded_anchor_ids),
+        "excluded_existing_cell_ids": sorted(excluded_existing_ids),
     }
 
 
@@ -89,7 +115,11 @@ def one_cell_manifest(
     *,
     exclude_containing_anchor: bool = False,
 ) -> dict[str, Any]:
-    internal_keys = {"seed_distance_m", "excluded_anchor_cell_ids"}
+    internal_keys = {
+        "seed_distance_m",
+        "excluded_anchor_cell_ids",
+        "excluded_existing_cell_ids",
+    }
     result = dict(payload)
     result["cells"] = [{key: value for key, value in selected.items() if key not in internal_keys}]
     result["cell_count"] = 1
@@ -98,6 +128,7 @@ def one_cell_manifest(
         "anchor": [anchor_e, anchor_n],
         "exclude_containing_anchor": exclude_containing_anchor,
         "excluded_anchor_cell_ids": selected.get("excluded_anchor_cell_ids", []),
+        "excluded_existing_cell_ids": selected.get("excluded_existing_cell_ids", []),
         "selected_cell_id": selected["id"],
         "distance_m": selected["seed_distance_m"],
     }
@@ -114,15 +145,29 @@ def main() -> int:
         action="store_true",
         help="skip any cell containing the anchor, useful when that cell belongs to another workstream",
     )
+    parser.add_argument(
+        "--exclude-existing-root",
+        type=Path,
+        help="skip cell IDs already materialized below this built-cell directory",
+    )
+    parser.add_argument(
+        "--exclude-cell-id",
+        action="append",
+        default=[],
+        help="skip an exact global cell ID; repeatable",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
     payload = load_manifest(args.manifest)
+    excluded = load_existing_cell_ids(args.exclude_existing_root)
+    excluded.update(str(cell_id) for cell_id in args.exclude_cell_id)
     selected = select_seed(
         payload,
         args.anchor_e,
         args.anchor_n,
         exclude_containing_anchor=args.exclude_containing_anchor,
+        excluded_cell_ids=excluded,
     )
     result = one_cell_manifest(
         payload,
@@ -136,6 +181,8 @@ def main() -> int:
     print(f"seed cell -> {selected['id']} ({selected['seed_distance_m']} m from anchor)")
     if selected.get("excluded_anchor_cell_ids"):
         print("excluded reserved anchor cells:", ", ".join(selected["excluded_anchor_cell_ids"]))
+    if selected.get("excluded_existing_cell_ids"):
+        print("excluded already materialized cells:", ", ".join(selected["excluded_existing_cell_ids"]))
     return 0
 
 

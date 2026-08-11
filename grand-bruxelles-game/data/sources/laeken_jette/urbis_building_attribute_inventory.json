@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "source": "Paradigm UrbIS vector Buildings WFS clipped to Laeken phase 1",
+  "feature_count": 9518,
+  "all_property_keys": [
+    {
+      "key": "AREA",
+      "present_features": 9518
+    },
+    {
+      "key": "BLOCK_ID",
+      "present_features": 9518
+    },
+    {
+      "key": "INSPIRE_ID",
+      "present_features": 9518
+    }
+  ],
+  "height_related_fields": {},
+  "decision_rule": "Only fields whose semantics and numeric range clearly represent metric building height or floor count may be consumed by the Godot builder. Otherwise the default height remains explicitly provisional until UrbIS Landscape/3D-derived heights are extracted."
+}

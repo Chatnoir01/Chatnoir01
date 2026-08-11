@@ -29,13 +29,29 @@ func _run() -> void:
     await physics_frame
     await physics_frame
 
-    if not manager.has_method("get_route_count"):
-        _fail("traffic manager public API missing")
-        return
+    for method_name: String in [
+        "get_route_count",
+        "get_graph_node_count",
+        "get_graph_edge_count",
+        "get_intersection_count",
+        "get_active_vehicle_count",
+    ]:
+        if not manager.has_method(method_name):
+            _fail("traffic manager public API missing: %s" % method_name)
+            return
 
     var route_count := int(manager.call("get_route_count"))
     if route_count < 10:
         _fail("too few eligible OSM traffic routes: %d" % route_count)
+        return
+
+    var graph_nodes := int(manager.call("get_graph_node_count"))
+    var graph_edges := int(manager.call("get_graph_edge_count"))
+    if graph_nodes < 20:
+        _fail("OSM road graph has too few nodes: %d" % graph_nodes)
+        return
+    if graph_edges <= route_count:
+        _fail("road graph was not split into directed segments: %d edges / %d ways" % [graph_edges, route_count])
         return
 
     var active_count := int(manager.call("get_active_vehicle_count"))
@@ -63,6 +79,7 @@ func _run() -> void:
         "get_road_name",
         "get_source_osm_id",
         "get_route_point_count",
+        "get_route_edge_count",
     ]:
         if not first_vehicle.has_method(method_name):
             _fail("traffic vehicle API missing: %s" % method_name)
@@ -73,8 +90,12 @@ func _run() -> void:
         _fail("invalid traffic speed limit: %.2f" % speed_limit)
         return
 
-    if int(first_vehicle.call("get_route_point_count")) < 2:
+    if int(first_vehicle.call("get_route_point_count")) < 3:
         _fail("spawned vehicle route is too short")
+        return
+
+    if int(first_vehicle.call("get_route_edge_count")) < 2:
+        _fail("spawned vehicle is still limited to one OSM segment")
         return
 
     if int(first_vehicle.call("get_source_osm_id")) <= 0:
@@ -82,8 +103,8 @@ func _run() -> void:
         return
 
     print(
-        "TRAFFIC_SMOKE_OK: %d OSM routes, %d active vehicles, first limit %.0f km/h" %
-        [route_count, active_count, speed_limit]
+        "TRAFFIC_SMOKE_OK: %d OSM ways, %d graph nodes, %d directed edges, %d active vehicles" %
+        [route_count, graph_nodes, graph_edges, active_count]
     )
     manager.queue_free()
     await process_frame

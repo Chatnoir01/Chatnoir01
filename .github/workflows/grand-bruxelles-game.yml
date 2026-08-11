@@ -32,8 +32,8 @@ jobs:
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
           echo "/tmp/godot" >> "$GITHUB_PATH"
 
-      - name: Python tool syntax
-        run: python3 -m py_compile grand-bruxelles-game/tools/collect_wikimedia_refs.py
+      - name: Python tools syntax
+        run: python3 -m py_compile grand-bruxelles-game/tools/*.py
 
       - name: Import project headless
         run: |

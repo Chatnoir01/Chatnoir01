@@ -53,6 +53,13 @@ func _material(color: Color, roughness: float, metallic: float = 0.0) -> Standar
     return material
 
 
+func _terrain_y(xz: Vector2) -> float:
+    var terrain := get_parent().get_node_or_null("LaekenTerrain")
+    if terrain != null and terrain.has_method("sample_height"):
+        return float(terrain.call("sample_height", xz.x, xz.y))
+    return 0.0
+
+
 func _load_data() -> Dictionary:
     if not FileAccess.file_exists(DATA_PATH):
         return {}
@@ -121,14 +128,13 @@ func _resolve_official_axis() -> bool:
 
 func _build_corridor() -> void:
     var start := official_axis_origin - official_axis_direction * HALF_LENGTH_M
-    var finish := official_axis_origin + official_axis_direction * HALF_LENGTH_M
     var side := Vector2(-official_axis_direction.y, official_axis_direction.x)
 
     var distance := 8.0
     while distance < HALF_LENGTH_M * 2.0 - 4.0:
         var centre := start + official_axis_direction * distance
         if centre.distance_to(ATOMIUM) <= MAX_RADIUS_M:
-            _add_box("LaneDash", Vector3(0.14, 0.025, 3.8), Vector3(centre.x, 0.08, centre.y), atan2(official_axis_direction.x, official_axis_direction.y), _road_marking)
+            _add_box("LaneDash", Vector3(0.14, 0.025, 3.8), Vector3(centre.x, _terrain_y(centre) + 0.08, centre.y), atan2(official_axis_direction.x, official_axis_direction.y), _road_marking)
             generated_dashes += 1
         distance += 10.0
 
@@ -156,7 +162,7 @@ func _build_corridor() -> void:
 func _add_tree(xz: Vector2) -> void:
     var tree := Node3D.new()
     tree.name = "PhotoGuidedTree"
-    tree.position = Vector3(xz.x, 0.0, xz.y)
+    tree.position = Vector3(xz.x, _terrain_y(xz), xz.y)
     add_child(tree)
 
     var trunk := CylinderMesh.new()
@@ -185,7 +191,7 @@ func _add_tree(xz: Vector2) -> void:
 func _add_lamp(xz: Vector2) -> void:
     var lamp := Node3D.new()
     lamp.name = "PhotoGuidedLamp"
-    lamp.position = Vector3(xz.x, 0.0, xz.y)
+    lamp.position = Vector3(xz.x, _terrain_y(xz), xz.y)
     add_child(lamp)
 
     var pole := CylinderMesh.new()

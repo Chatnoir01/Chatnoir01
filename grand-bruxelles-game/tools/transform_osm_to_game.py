@@ -2,8 +2,8 @@
 """Convert an Overpass JSON extract into lightweight Grand Bruxelles game data.
 
 The converter projects latitude/longitude into local metric coordinates, keeps
-road centerlines, and turns closed OSM building ways into simple footprints.
-This is a greybox pipeline: landmark modelling and facade work remain separate.
+road centerlines and traffic-relevant OSM tags, and turns closed OSM building
+ways into simple footprints. Landmark modelling and facade work remain separate.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,8 @@ DRIVABLE = {
     "unclassified", "residential", "living_street", "service",
 }
 
+BLOCKED_MOTOR_ACCESS = {"no", "private"}
+
 
 def metric_point(lat: float, lon: float, origin_lat: float, origin_lon: float) -> list[float]:
     """Project WGS84 approximately to a local tangent plane in metres.
@@ -60,6 +63,63 @@ def numeric_tag(tags: dict[str, Any], key: str) -> float | None:
         return float(text)
     except ValueError:
         return None
+
+
+def integer_tag(tags: dict[str, Any], key: str, minimum: int = 0, maximum: int = 24) -> int | None:
+    raw = tags.get(key)
+    if raw is None:
+        return None
+    match = re.search(r"-?\d+", str(raw))
+    if not match:
+        return None
+    value = int(match.group(0))
+    if minimum <= value <= maximum:
+        return value
+    return None
+
+
+def normalized_oneway(tags: dict[str, Any]) -> int:
+    """Return 1 for way direction, -1 for reverse, 0 for two-way/unknown."""
+    raw = str(tags.get("oneway", "")).strip().lower()
+    if raw in {"yes", "true", "1"}:
+        return 1
+    if raw == "-1":
+        return -1
+    if raw in {"no", "false", "0"}:
+        return 0
+    if str(tags.get("junction", "")).strip().lower() == "roundabout":
+        return 1
+    return 0
+
+
+def maxspeed_kmh(tags: dict[str, Any]) -> float | None:
+    """Parse the common numeric OSM maxspeed forms into km/h.
+
+    Non-numeric legal aliases such as BE:urban are intentionally left unknown;
+    the runtime applies the Brussels regional default when no numeric value is
+    available.
+    """
+    raw = tags.get("maxspeed")
+    if raw is None:
+        return None
+    text = str(raw).strip().lower().replace(",", ".")
+    match = re.search(r"(\d+(?:\.\d+)?)", text)
+    if not match:
+        return None
+    value = float(match.group(1))
+    if "mph" in text:
+        value *= 1.609344
+    if not 5.0 <= value <= 160.0:
+        return None
+    return round(value, 2)
+
+
+def motor_drivable(highway: str, tags: dict[str, Any]) -> bool:
+    if highway not in DRIVABLE:
+        return False
+    access = str(tags.get("access", "")).strip().lower()
+    motor_vehicle = str(tags.get("motor_vehicle", tags.get("vehicle", ""))).strip().lower()
+    return access not in BLOCKED_MOTOR_ACCESS and motor_vehicle not in BLOCKED_MOTOR_ACCESS
 
 
 def building_height(tags: dict[str, Any]) -> float:
@@ -109,6 +169,32 @@ def polygon_area(points: list[list[float]]) -> float:
     return abs(total) * 0.5
 
 
+def road_record(element: dict[str, Any], tags: dict[str, Any], points: list[list[float]]) -> dict[str, Any]:
+    highway = str(tags["highway"])
+    width = ROAD_WIDTHS.get(highway, 4.5)
+    lanes = integer_tag(tags, "lanes", 1, 16)
+    if lanes and lanes >= 2:
+        width = max(width, lanes * 3.0)
+
+    return {
+        "osm_id": element.get("id"),
+        "name": tags.get("name", ""),
+        "class": highway,
+        "width": round(width, 2),
+        "drivable": motor_drivable(highway, tags),
+        "oneway": normalized_oneway(tags),
+        "lanes": lanes,
+        "lanes_forward": integer_tag(tags, "lanes:forward", 1, 16),
+        "lanes_backward": integer_tag(tags, "lanes:backward", 1, 16),
+        "maxspeed_kmh": maxspeed_kmh(tags),
+        "junction": tags.get("junction", ""),
+        "access": tags.get("access", ""),
+        "motor_vehicle": tags.get("motor_vehicle", tags.get("vehicle", "")),
+        "surface": tags.get("surface", ""),
+        "points": points,
+    }
+
+
 def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]:
     roads: list[dict[str, Any]] = []
     buildings: list[dict[str, Any]] = []
@@ -124,18 +210,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
 
         highway = tags.get("highway")
         if highway:
-            width = ROAD_WIDTHS.get(str(highway), 4.5)
-            lanes = numeric_tag(tags, "lanes")
-            if lanes and lanes >= 2:
-                width = max(width, lanes * 3.0)
-            roads.append({
-                "osm_id": element.get("id"),
-                "name": tags.get("name", ""),
-                "class": highway,
-                "width": round(width, 2),
-                "drivable": highway in DRIVABLE,
-                "points": points,
-            })
+            roads.append(road_record(element, tags, points))
 
         railway = tags.get("railway")
         if railway:
@@ -172,7 +247,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
     buildings.sort(key=lambda b: (-float(b["area"]), int(b["osm_id"] or 0)))
 
     return {
-        "format": "grand-bruxelles-osm-v1",
+        "format": "grand-bruxelles-osm-v2",
         "source": "OpenStreetMap contributors via Overpass API",
         "license": "ODbL-1.0",
         "origin": {"lat": origin[0], "lon": origin[1]},
@@ -182,6 +257,11 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             "drivable_roads": sum(1 for road in roads if road["drivable"]),
             "buildings": len(buildings),
             "railways": len(railways),
+        },
+        "traffic_schema": {
+            "oneway": "1=OSM way direction, -1=reverse, 0=two-way/unknown",
+            "speed_unit": "km/h",
+            "missing_speed_policy": "runtime regional default",
         },
         "roads": roads,
         "buildings": buildings,

@@ -1,0 +1,114 @@
+extends RefCounted
+
+const LOCAL_RADIUS_M := 150.0
+
+
+func time_factor(hour: float) -> float:
+    var h := fposmod(hour, 24.0)
+    if h < 5.0:
+        return 0.32
+    if h < 6.5:
+        return lerpf(0.32, 0.72, (h - 5.0) / 1.5)
+    if h < 9.5:
+        return 0.95
+    if h < 15.5:
+        return 0.76
+    if h < 19.0:
+        return 1.0
+    if h < 22.0:
+        return 0.70
+    return 0.46
+
+
+func local_capacity_factor(roads: Array[Dictionary], position: Vector3) -> float:
+    var weighted_sum := 0.0
+    var samples := 0
+    for road: Dictionary in roads:
+        var points: Array = road.get("points", [])
+        if points.size() < 2:
+            continue
+        if _road_distance_to_point(points, position) > LOCAL_RADIUS_M:
+            continue
+
+        var road_class := str(road.get("class", ""))
+        var class_weight := 0.72
+        if road_class in ["motorway", "trunk", "primary"]:
+            class_weight = 1.18
+        elif road_class == "secondary":
+            class_weight = 1.08
+        elif road_class == "tertiary":
+            class_weight = 0.96
+        elif road_class in ["residential", "unclassified"]:
+            class_weight = 0.78
+        elif road_class in ["service", "living_street"]:
+            class_weight = 0.58
+
+        var lanes := _safe_int(road.get("lanes", null))
+        var lane_factor := 1.0
+        if lanes >= 4:
+            lane_factor = 1.12
+        elif lanes >= 2:
+            lane_factor = 1.05
+        weighted_sum += class_weight * lane_factor
+        samples += 1
+
+    if samples == 0:
+        return 0.85
+    return clampf(weighted_sum / float(samples), 0.62, 1.15)
+
+
+func target_vehicle_count(base_max: int, hour: float, roads: Array[Dictionary], position: Vector3) -> int:
+    if base_max <= 0:
+        return 0
+    var factor := time_factor(hour) * local_capacity_factor(roads, position)
+    return clampi(int(round(float(base_max) * factor)), 1, base_max)
+
+
+func nearest_sector(anchors: Array, position: Vector3) -> String:
+    var best_name := "corridor"
+    var best_distance := INF
+    for raw_anchor: Variant in anchors:
+        if typeof(raw_anchor) != TYPE_DICTIONARY:
+            continue
+        var anchor: Dictionary = raw_anchor
+        var anchor_position := Vector3(
+            float(anchor.get("x", 0.0)),
+            position.y,
+            float(anchor.get("z", 0.0))
+        )
+        var distance := anchor_position.distance_to(position)
+        if distance < best_distance:
+            best_distance = distance
+            best_name = str(anchor.get("id", anchor.get("name", "corridor")))
+    return best_name
+
+
+func _road_distance_to_point(points: Array, position: Vector3) -> float:
+    var best := INF
+    for index: int in range(points.size() - 1):
+        var start := Vector3(float(points[index][0]), position.y, float(points[index][1]))
+        var finish := Vector3(float(points[index + 1][0]), position.y, float(points[index + 1][1]))
+        best = minf(best, _point_segment_distance(position, start, finish))
+    return best
+
+
+func _point_segment_distance(point: Vector3, start: Vector3, finish: Vector3) -> float:
+    var segment := finish - start
+    segment.y = 0.0
+    var length_squared := segment.length_squared()
+    if length_squared <= 0.0001:
+        return point.distance_to(start)
+    var relative := point - start
+    relative.y = 0.0
+    var t := clampf(relative.dot(segment) / length_squared, 0.0, 1.0)
+    return point.distance_to(start + segment * t)
+
+
+func _safe_int(raw: Variant) -> int:
+    if raw == null:
+        return 0
+    if typeof(raw) in [TYPE_INT, TYPE_FLOAT]:
+        return maxi(0, int(raw))
+    if typeof(raw) == TYPE_STRING and str(raw).is_valid_int():
+        return maxi(0, int(str(raw)))
+    return 0

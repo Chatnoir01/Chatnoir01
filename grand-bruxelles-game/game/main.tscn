@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://game/scripts/osm_minimap.gd" id="5_minimap"]
 [ext_resource type="Script" path="res://game/scripts/mobile_controls.gd" id="6_mobile"]
 [ext_resource type="Script" path="res://game/scripts/midi_hero_zone.gd" id="7_midi"]
+[ext_resource type="Script" path="res://game/scripts/urbis_midi_builder.gd" id="8_urbis"]
+[ext_resource type="Script" path="res://game/scripts/osm_midi_mask.gd" id="9_mask"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -61,6 +63,12 @@ use_collision = true
 
 [node name="BrusselsOSM" type="Node3D" parent="."]
 script = ExtResource("2_city")
+
+[node name="UrbISMidiExact" type="Node3D" parent="."]
+script = ExtResource("8_urbis")
+
+[node name="OSMMidiMask" type="Node" parent="."]
+script = ExtResource("9_mask")
 
 [node name="MidiHeroZone" type="Node3D" parent="."]
 script = ExtResource("7_midi")
@@ -137,7 +145,7 @@ offset_right = 980.0
 offset_bottom = 150.0
 theme_override_colors/font_color = Color(0.92, 0.92, 0.90, 1)
 theme_override_font_sizes/font_size = 14
-text = "GRAND BRUXELLES · MIDI HERO PASS 0.7 · géométrie OSM + identité urbaine Bruxelles-Midi"
+text = "GRAND BRUXELLES · MIDI 0.8 · emprises officielles UrbIS + hero zone Bruxelles-Midi"
 
 [node name="MiniMap" type="Control" parent="."]
 offset_left = 1000.0

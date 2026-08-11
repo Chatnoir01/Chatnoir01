@@ -60,15 +60,22 @@ jobs:
         run: |
           python3 - <<'PY'
           import json
-          path = 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
-          data = json.load(open(path, encoding='utf-8'))
-          assert data.get('license') == 'ODbL-1.0', data.get('license')
-          stats = data['stats']
+          osm_path = 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+          osm = json.load(open(osm_path, encoding='utf-8'))
+          assert osm.get('license') == 'ODbL-1.0', osm.get('license')
+          stats = osm['stats']
           assert stats['roads'] >= 100, stats
           assert stats['buildings'] >= 100, stats
           assert stats['drivable_roads'] >= 80, stats
-          assert len(data.get('corridor', {}).get('anchors', [])) >= 4
+          assert len(osm.get('corridor', {}).get('anchors', [])) >= 4
           print('Committed runtime OSM stats:', stats)
+
+          urbis_path = 'grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json'
+          urbis = json.load(open(urbis_path, encoding='utf-8'))
+          assert urbis['accuracy']['plan_geometry'] == 'official_urbis'
+          assert urbis['stats']['buildings'] >= 2500, urbis['stats']
+          assert urbis['stats']['street_surfaces'] >= 1200, urbis['stats']
+          print('Committed UrbIS Midi runtime stats:', urbis['stats'])
           PY
 
       - name: Import project headless
@@ -96,7 +103,9 @@ jobs:
             exit 1
           fi
           grep -q "Grand Bruxelles visual pass:" /tmp/godot-run.log
-          grep -q "Grand Bruxelles hero zone: Bruxelles-Midi visual landmark active" /tmp/godot-run.log
+          grep -q "Grand Bruxelles UrbIS Midi exact-plan:" /tmp/godot-run.log
+          grep -q "Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active" /tmp/godot-run.log
+          grep -q "Grand Bruxelles UrbIS mask:" /tmp/godot-run.log
 
       - name: Vehicle enter-exit smoke test
         shell: bash

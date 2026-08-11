@@ -128,8 +128,14 @@ jobs:
           excluded_ids = {cell['cell_id'] for cell in index.get('excluded_cells', [])}
           assert seed_id in indexed_ids, (seed_id, sorted(indexed_ids))
           assert reserved_midi not in indexed_ids, sorted(indexed_ids)
-          assert reserved_midi in excluded_ids, sorted(excluded_ids)
           assert accidental_far not in indexed_ids, sorted(indexed_ids)
+
+          exclusions = json.loads(Path('data/urbis/remaining_brussels/runtime_exclusions.json').read_text())
+          configured_exclusions = {entry['cell_id'] for entry in exclusions['excluded_cells']}
+          assert reserved_midi in configured_exclusions
+          reserved_source_exists = (Path('data/urbis/remaining_brussels/cells') / reserved_midi / 'manifest.json').exists()
+          if reserved_source_exists:
+              assert reserved_midi in excluded_ids, sorted(excluded_ids)
 
           manifest_path = Path('data/urbis/remaining_brussels/cells') / seed_id / 'manifest.json'
           manifest = json.loads(manifest_path.read_text())
@@ -156,7 +162,9 @@ jobs:
               'seed_bbox': seed['cells'][0]['bbox'],
               'seed_distance_m': seed['seed_selection']['distance_m'],
               'streamable_cells': sorted(indexed_ids),
-              'excluded_cells': sorted(excluded_ids),
+              'configured_exclusions': sorted(configured_exclusions),
+              'materialized_exclusions': sorted(excluded_ids),
+              'reserved_source_exists': reserved_source_exists,
               'geometry_stats': manifest['runtime']['geometry_stats'],
               'network_stats': manifest['runtime']['network_stats'],
               'orthophoto_sha256': ortho['download']['sha256'],

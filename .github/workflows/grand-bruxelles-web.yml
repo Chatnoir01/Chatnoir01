@@ -60,17 +60,18 @@ jobs:
 
       - name: Export playable Web build
         run: |
-          rm -rf grand-bruxelles-game/web-preview
-          mkdir -p grand-bruxelles-game/web-preview
+          WEB_DIR="$GITHUB_WORKSPACE/grand-bruxelles-game/web-preview"
+          rm -rf "$WEB_DIR"
+          mkdir -p "$WEB_DIR"
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless \
-            --path grand-bruxelles-game \
-            --export-release "Web" grand-bruxelles-game/web-preview/index.html
-          test -f grand-bruxelles-game/web-preview/index.html
-          test -f grand-bruxelles-game/web-preview/index.wasm
-          test -f grand-bruxelles-game/web-preview/index.pck
-          test -f grand-bruxelles-game/web-preview/index.js
-          du -h grand-bruxelles-game/web-preview/*
+            --path "$GITHUB_WORKSPACE/grand-bruxelles-game" \
+            --export-release "Web" "$WEB_DIR/index.html"
+          test -f "$WEB_DIR/index.html"
+          test -f "$WEB_DIR/index.wasm"
+          test -f "$WEB_DIR/index.pck"
+          test -f "$WEB_DIR/index.js"
+          du -h "$WEB_DIR"/*
 
       - name: Verify Web files are servable
         run: |

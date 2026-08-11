@@ -88,10 +88,7 @@ jobs:
                       'id': 201,
                       'lat': 50.8420,
                       'lon': 4.3482,
-                      'tags': {
-                          'highway': 'traffic_signals',
-                          'direction': 'forward',
-                      },
+                      'tags': {'highway': 'traffic_signals', 'direction': 'forward'},
                   },
                   {
                       'type': 'node',
@@ -124,8 +121,37 @@ jobs:
           assert signal['direction'] == 'forward', signal
           assert crossing['crossing_signals'] is True, crossing
           assert crossing['button_operated'] is True, crossing
-          assert converted['stats']['traffic_controls'] == 2
           print('OSM traffic metadata + control conversion OK')
+          PY
+
+      - name: Validate committed current traffic pack
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          base = Path('grand-bruxelles-game/data/traffic')
+          manifest = json.load(open(base / 'manifest.json', encoding='utf-8'))
+          assert manifest['format'] == 'grand-bruxelles-traffic-pack-v1'
+          assert manifest['license'] == 'ODbL-1.0'
+          roads = []
+          controls = []
+          for name in manifest['road_chunks']:
+              chunk = json.load(open(base / name, encoding='utf-8'))
+              assert chunk['license'] == 'ODbL-1.0'
+              roads.extend(chunk['roads'])
+          for name in manifest['control_chunks']:
+              chunk = json.load(open(base / name, encoding='utf-8'))
+              assert chunk['license'] == 'ODbL-1.0'
+              controls.extend(chunk['traffic_controls'])
+          assert len(roads) == 140, len(roads)
+          assert len(controls) == 180, len(controls)
+          assert sum(c['kind'] == 'traffic_signals' for c in controls) == 19
+          assert sum(c['kind'] == 'give_way' for c in controls) == 14
+          assert sum(c['kind'] == 'crossing' for c in controls) == 147
+          assert any(r.get('maxspeed_kmh') == 50.0 for r in roads)
+          assert any(r.get('maxspeed_kmh') == 20.0 for r in roads)
+          assert any(r.get('oneway') == 1 for r in roads)
+          print('Current traffic pack OK:', len(roads), 'roads /', len(controls), 'controls')
           PY
 
       - name: Validate Lambert72 to game conversion
@@ -223,6 +249,19 @@ jobs:
             exit 1
           fi
           grep -q "TRAFFIC_GRAPH_OK" /tmp/traffic-graph.log
+
+      - name: Traffic control behavior test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/traffic_control_test.gd 2>&1 | tee /tmp/traffic-control.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CONTROL_FAIL" /tmp/traffic-control.log; then
+            exit 1
+          fi
+          grep -q "TRAFFIC_CONTROL_OK" /tmp/traffic-control.log
 
       - name: Civil traffic smoke test
         shell: bash

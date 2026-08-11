@@ -40,15 +40,15 @@ func _physics_process(delta: float) -> void:
     if Input.is_key_pressed(KEY_SPACE) and is_on_floor():
         velocity.y = jump_velocity
 
-    var input_2d := Vector2(
-        float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)),
-        float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W))
-    )
+    var left := Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_Q)
+    var right := Input.is_key_pressed(KEY_D)
+    var forward := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_Z)
+    var backward := Input.is_key_pressed(KEY_S)
 
-    # AZERTY support: Z/Q mirror W/A.
-    input_2d.x += float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_Q))
-    input_2d.y += float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_Z))
-    input_2d = input_2d.limit_length(1.0)
+    var input_2d := Vector2(
+        float(right) - float(left),
+        float(backward) - float(forward)
+    ).limit_length(1.0)
 
     var move_direction := Vector3(input_2d.x, 0.0, input_2d.y)
     move_direction = move_direction.rotated(Vector3.UP, rotation.y).normalized()

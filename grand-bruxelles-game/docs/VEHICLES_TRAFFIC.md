@@ -25,7 +25,20 @@ La géométrie routière ne doit pas être reconstruite au feeling. Le runtime u
   - accélère et freine progressivement ;
   - adapte sa direction aux courbes ;
   - utilise un rayon frontal pour ralentir ou s'arrêter devant un obstacle ;
-  - expose la vitesse, la limitation, la rue et l'identifiant OSM pour les tests et le futur HUD.
+  - expose la vitesse, la limitation, la rue et l'identifiant OSM pour les tests et le HUD.
+
+### Véhicule joueur
+
+- `game/scripts/vehicle_controller.gd`
+  - conserve l'entrée/sortie existante ;
+  - expose la vitesse instantanée en m/s et km/h ;
+  - expose la vitesse maximale du véhicule ;
+  - ajoute un frein à main sur `Espace` pendant la conduite.
+
+- `game/scripts/vehicle_hud.gd`
+  - affiche la vitesse du véhicule conduit ;
+  - affiche le nombre de véhicules civils IA actifs ;
+  - rappelle la valeur bruxelloise de 30 km/h utilisée par défaut lorsque la donnée de rue n'est pas encore disponible.
 
 ### Métadonnées routières
 
@@ -53,7 +66,7 @@ La CI Godot 4.7.1 vérifie désormais :
 - import du projet sans erreur de script ;
 - chargement de la scène avec le `TrafficManager` ;
 - test fumée des véhicules civils ;
-- conservation du test d'entrée/sortie du véhicule joueur ;
+- entrée/sortie du véhicule joueur et télémétrie de vitesse ;
 - conservation du test de mission Midi → Grand-Place.
 
 ## Fidélité Bruxelles

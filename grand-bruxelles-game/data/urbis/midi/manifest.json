@@ -1,0 +1,38 @@
+{
+  "format": "grand-bruxelles-urbis-wfs-v1",
+  "source": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+  "crs": "EPSG:31370",
+  "bbox": [
+    147250.0,
+    168900.0,
+    148500.0,
+    170250.0
+  ],
+  "layers": {
+    "buildings": {
+      "wfs_name": "urbisvector:Buildings",
+      "features": 4459,
+      "file": "buildings.geojson"
+    },
+    "street_surfaces": {
+      "wfs_name": "urbisvector:StreetSurfaces",
+      "features": 2006,
+      "file": "street_surfaces.geojson"
+    },
+    "street_axes": {
+      "wfs_name": "urbisvector:StreetAxes",
+      "features": 499,
+      "file": "street_axes.geojson"
+    },
+    "tram_network": {
+      "wfs_name": "urbisvector:TramNetwork",
+      "features": 1051,
+      "file": "tram_network.geojson"
+    },
+    "train_network": {
+      "wfs_name": "urbisvector:TrainNetwork",
+      "features": 1051,
+      "file": "train_network.geojson"
+    }
+  }
+}

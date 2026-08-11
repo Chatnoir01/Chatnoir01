@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/game/scripts/vehicle_controller.gd"
       - "grand-bruxelles-game/game/scripts/mobile_controls.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/**"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/**"
       - "grand-bruxelles-game/export_presets.cfg"
       - ".github/workflows/grand-bruxelles-laeken-web.yml"
   workflow_dispatch:
@@ -64,12 +65,15 @@ jobs:
             --headless \
             --path grand-bruxelles-game \
             res://game/zones/laeken_jette/laeken_playtest.tscn \
-            --quit-after 4 2>&1 | tee /tmp/laeken-playtest.log
+            --quit-after 5 2>&1 | tee /tmp/laeken-playtest.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load" /tmp/laeken-playtest.log; then
             exit 1
           fi
           grep -q "LAEKEN_JETTE_ZONE_READY" /tmp/laeken-playtest.log
           grep -q "LAEKEN_ATOMIUM_CORRIDOR_READY" /tmp/laeken-playtest.log
+          if test -f grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json; then
+            grep -q "LAEKEN_TERRAIN_READY" /tmp/laeken-playtest.log
+          fi
 
       - name: Select Laeken playtest as temporary export main scene
         run: |
@@ -125,23 +129,14 @@ jobs:
             echo "Laeken Web build already up to date."
             exit 0
           fi
-
           git commit -m "web: publish playable Laeken preview [skip ci]"
-
-          # Other zone CI jobs can legitimately commit data while the export is running.
-          # Rebase the generated Web-only commit instead of racing or forcing the branch.
           for attempt in 1 2 3; do
             git fetch origin zone-laeken-jette
             if ! git rebase origin/zone-laeken-jette; then
               git rebase --abort || true
-              echo "Rebase failed; refusing to force-push zone branch."
               exit 1
             fi
-            if git push origin HEAD:zone-laeken-jette; then
-              exit 0
-            fi
-            echo "Publish race on attempt $attempt; retrying after fresh fetch."
+            git push origin HEAD:zone-laeken-jette && exit 0
             sleep 2
           done
-          echo "Unable to publish Web build after safe retries."
           exit 1

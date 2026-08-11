@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://game/scripts/mission_drive_to_center.gd" id="4_mission"]
 [ext_resource type="Script" path="res://game/scripts/osm_minimap.gd" id="5_minimap"]
 [ext_resource type="Script" path="res://game/scripts/mobile_controls.gd" id="6_mobile"]
+[ext_resource type="Script" path="res://game/scripts/midi_hero_zone.gd" id="7_midi"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -16,15 +17,19 @@ radius = 0.42
 height = 1.8
 
 [sub_resource type="StandardMaterial3D" id="Material_player"]
-albedo_color = Color(1, 0.78, 0.12, 1)
+albedo_color = Color(0.18, 0.22, 0.27, 1)
 roughness = 0.72
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
-background_color = Color(0.16, 0.19, 0.24, 1)
+background_color = Color(0.48, 0.55, 0.62, 1)
 ambient_light_source = 3
-ambient_light_color = Color(0.55, 0.58, 0.65, 1)
-ambient_light_energy = 0.85
+ambient_light_color = Color(0.72, 0.75, 0.79, 1)
+ambient_light_energy = 0.72
+
+[sub_resource type="StandardMaterial3D" id="Material_ground"]
+albedo_color = Color(0.18, 0.19, 0.18, 1)
+roughness = 1.0
 
 [sub_resource type="BoxShape3D" id="BoxShape_car"]
 size = Vector3(1.9, 0.9, 4.2)
@@ -33,7 +38,7 @@ size = Vector3(1.9, 0.9, 4.2)
 size = Vector3(1.9, 0.9, 4.2)
 
 [sub_resource type="StandardMaterial3D" id="Material_car"]
-albedo_color = Color(0.08, 0.18, 0.34, 1)
+albedo_color = Color(0.055, 0.16, 0.30, 1)
 metallic = 0.35
 roughness = 0.32
 
@@ -44,16 +49,21 @@ environment = SubResource("Environment_main")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-48, -28, 0)
-light_energy = 1.25
+light_color = Color(1, 0.94, 0.84, 1)
+light_energy = 1.15
 shadow_enabled = true
 
 [node name="Ground" type="CSGBox3D" parent="."]
 position = Vector3(0, -0.23, 0)
 size = Vector3(1800, 0.4, 1800)
+material = SubResource("Material_ground")
 use_collision = true
 
 [node name="BrusselsOSM" type="Node3D" parent="."]
 script = ExtResource("2_city")
+
+[node name="MidiHeroZone" type="Node3D" parent="."]
+script = ExtResource("7_midi")
 
 [node name="Player" type="CharacterBody3D" parent="."]
 position = Vector3(-652, 1.05, 621)
@@ -125,9 +135,9 @@ offset_left = 20.0
 offset_top = 92.0
 offset_right = 980.0
 offset_bottom = 150.0
-theme_override_colors/font_color = Color(0.85, 0.85, 0.88, 1)
+theme_override_colors/font_color = Color(0.92, 0.92, 0.90, 1)
 theme_override_font_sizes/font_size = 14
-text = "GRAND BRUXELLES — OSM GREYBOX 0.6 · clavier + contrôles tactiles Web/mobile"
+text = "GRAND BRUXELLES · MIDI HERO PASS 0.7 · géométrie OSM + identité urbaine Bruxelles-Midi"
 
 [node name="MiniMap" type="Control" parent="."]
 offset_left = 1000.0

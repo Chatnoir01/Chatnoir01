@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Convert a STIB-MIVB GTFS ZIP into lightweight Grand Bruxelles runtime data.
+"""Convert an official STIB-MIVB GTFS ZIP into Grand Bruxelles runtime data.
 
-Only surface modes used by the road/traffic session are retained: tram (0) and
-bus (3). Geometry is projected to the same local metric frame as OSM.
+Only surface modes used by this traffic session are retained: tram (0) and bus
+(3). The converter also records the feed service window so expired data can be
+kept as a geometry preview without being presented as current Brussels service.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import json
 import math
 import zipfile
 from collections import defaultdict
+from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable
 
@@ -26,6 +28,8 @@ DEFAULT_ANCHORS = [
     (81.54, -664.58),
     (319.01, -535.2),
 ]
+SOURCE_URL = "https://stibmivb.opendatasoft.com/api/datasets/1.0/gtfs-files-production/alternative_exports/gtfszip/"
+LICENSE_URL = "https://stibmivb.opendatasoft.com/explore/dataset/gtfs-files-production/information/"
 
 
 def metric_point(lat: float, lon: float, origin_lat: float, origin_lon: float) -> list[float]:
@@ -39,6 +43,47 @@ def read_csv(zf: zipfile.ZipFile, name: str) -> list[dict[str, str]]:
     with zf.open(name) as raw:
         text = io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")
         return list(csv.DictReader(text))
+
+
+def read_optional_csv(zf: zipfile.ZipFile, name: str) -> list[dict[str, str]]:
+    if name not in zf.namelist():
+        return []
+    return read_csv(zf, name)
+
+
+def parse_gtfs_date(raw: str) -> date | None:
+    text = (raw or "").strip()
+    if len(text) != 8 or not text.isdigit():
+        return None
+    try:
+        return datetime.strptime(text, "%Y%m%d").date()
+    except ValueError:
+        return None
+
+
+def service_window(
+    calendar_rows: list[dict[str, str]],
+    calendar_date_rows: list[dict[str, str]],
+    feed_info_rows: list[dict[str, str]],
+) -> tuple[date | None, date | None]:
+    candidates: list[date] = []
+    for row in calendar_rows:
+        for field in ("start_date", "end_date"):
+            parsed = parse_gtfs_date(row.get(field, ""))
+            if parsed is not None:
+                candidates.append(parsed)
+    for row in calendar_date_rows:
+        parsed = parse_gtfs_date(row.get("date", ""))
+        if parsed is not None:
+            candidates.append(parsed)
+    for row in feed_info_rows:
+        for field in ("feed_start_date", "feed_end_date"):
+            parsed = parse_gtfs_date(row.get(field, ""))
+            if parsed is not None:
+                candidates.append(parsed)
+    if not candidates:
+        return None, None
+    return min(candidates), max(candidates)
 
 
 def segment_distance(point: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -60,7 +105,10 @@ def corridor_distance(point: tuple[float, float], anchors: Iterable[tuple[float,
     return min(segment_distance(point, anchors[i], anchors[i + 1]) for i in range(len(anchors) - 1))
 
 
-def convert(gtfs_zip: Path, radius_m: float = 380.0) -> dict:
+def convert(gtfs_zip: Path, radius_m: float = 380.0, today: date | None = None) -> dict:
+    if today is None:
+        today = date.today()
+
     with zipfile.ZipFile(gtfs_zip) as zf:
         required = {"routes.txt", "trips.txt", "shapes.txt", "stops.txt"}
         missing = sorted(required.difference(zf.namelist()))
@@ -70,6 +118,14 @@ def convert(gtfs_zip: Path, radius_m: float = 380.0) -> dict:
         trips_rows = read_csv(zf, "trips.txt")
         shapes_rows = read_csv(zf, "shapes.txt")
         stops_rows = read_csv(zf, "stops.txt")
+        calendar_rows = read_optional_csv(zf, "calendar.txt")
+        calendar_date_rows = read_optional_csv(zf, "calendar_dates.txt")
+        feed_info_rows = read_optional_csv(zf, "feed_info.txt")
+
+    start_date, end_date = service_window(calendar_rows, calendar_date_rows, feed_info_rows)
+    current_coverage: bool | None = None
+    if start_date is not None and end_date is not None:
+        current_coverage = start_date <= today <= end_date
 
     routes: dict[str, dict] = {}
     for row in routes_rows:
@@ -138,14 +194,24 @@ def convert(gtfs_zip: Path, radius_m: float = 380.0) -> dict:
         })
 
     filtered_routes = [routes[rid] for rid in sorted(active_route_ids)]
+    geometry_valid = bool(filtered_routes and shapes)
+    runtime_current_eligible = geometry_valid and current_coverage is True
+
     return {
         "format": "grand-bruxelles-stib-gtfs-v1",
-        "source": "STIB-MIVB – Open Data via Belgian Mobility Open Data Portal",
-        "source_url": "https://datasets.api.production.belgianmobility.io/api/datasets-static/gtfs",
-        "license": "CC-BY-4.0",
-        "attribution": "Source: STIB-MIVB – Open Data – date of dataset update",
+        "source": "STIB-MIVB official GTFS producer feed",
+        "source_url": SOURCE_URL,
+        "license_url": LICENSE_URL,
+        "license_status": "source-terms-must-be-preserved",
         "origin": {"lat": DEFAULT_ORIGIN[0], "lon": DEFAULT_ORIGIN[1]},
         "selection_radius_m": radius_m,
+        "freshness": {
+            "checked_on": today.isoformat(),
+            "service_start": start_date.isoformat() if start_date else None,
+            "service_end": end_date.isoformat() if end_date else None,
+            "current_coverage": current_coverage,
+            "runtime_current_eligible": runtime_current_eligible,
+        },
         "routes": filtered_routes,
         "shapes": shapes,
         "stops": stops,
@@ -168,7 +234,7 @@ def main() -> int:
     data = convert(args.input, args.radius)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print("STIB_GTFS_CONVERT_OK:", data["stats"], "->", args.output)
+    print("STIB_GTFS_CONVERT_OK:", data["stats"], "freshness=", data["freshness"], "->", args.output)
     return 0
 
 

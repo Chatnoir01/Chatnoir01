@@ -2,9 +2,9 @@
 """Build compact Godot-ready terrain data from an official UrbIS DTM XYZ grid.
 
 Input XYZ must come from GDAL resampling of the official EPSG:31370 TIFF tile.
-The runtime keeps absolute elevation metadata but stores heights relative to the
-terrain elevation nearest the Atomium so the existing local Y=0 convention can
-be preserved while adding real relative relief.
+NoData cells are preserved as a validity mask instead of being interpreted as
+terrain. Heights are stored relative to the nearest valid Atomium terrain sample
+so the existing project-local Y=0 convention remains compatible.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ ORIGIN_E = 147868.29422791934
 ORIGIN_N = 169538.62414926197
 ATOMIUM_E = 148093.22038698208
 ATOMIUM_N = 176091.76722726133
+NO_DATA_THRESHOLD = -1.0e20
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,8 +49,15 @@ def read_xyz(path: Path) -> list[tuple[float, float, float]]:
     return points
 
 
+def is_valid_elevation(value: float) -> bool:
+    return math.isfinite(value) and value > NO_DATA_THRESHOLD
+
+
 def nearest_atomium(points: list[tuple[float, float, float]]) -> tuple[float, float, float]:
-    return min(points, key=lambda p: (p[0] - ATOMIUM_E) ** 2 + (p[1] - ATOMIUM_N) ** 2)
+    valid = [point for point in points if is_valid_elevation(point[2])]
+    if not valid:
+        raise ValueError("DTM grid contains no valid elevation samples")
+    return min(valid, key=lambda p: (p[0] - ATOMIUM_E) ** 2 + (p[1] - ATOMIUM_N) ** 2)
 
 
 def main() -> int:
@@ -61,13 +69,18 @@ def main() -> int:
 
     atomium_sample = nearest_atomium(points)
     baseline = atomium_sample[2]
-    elevations = [point[2] for point in points]
-    relative = [round(value - baseline, 4) for value in elevations]
+    valid_mask = [1 if is_valid_elevation(point[2]) else 0 for point in points]
+    valid_elevations = [point[2] for point in points if is_valid_elevation(point[2])]
+    relative: list[float] = []
+    for point, valid in zip(points, valid_mask):
+        relative.append(round(point[2] - baseline, 4) if valid else 0.0)
+    valid_relative = [value for value, valid in zip(relative, valid_mask) if valid]
+
     eastings = [point[0] for point in points]
     northings = [point[1] for point in points]
 
-    # GDAL XYZ is row-major, usually north-to-south. Preserve that exact order
-    # and record the first/last sample so Godot can reconstruct coordinates.
+    # GDAL XYZ is row-major, north-to-south for this GeoTIFF. Preserve exact
+    # order and record spacing so Godot can reconstruct Lambert72 positions.
     first = points[0]
     second = points[1] if args.width > 1 else points[0]
     next_row = points[args.width] if args.height > 1 else points[0]
@@ -75,8 +88,8 @@ def main() -> int:
     step_n = next_row[1] - first[1]
 
     output = {
-        "schema": 1,
-        "format": "grand-bruxelles-dtm-grid-v1",
+        "schema": 2,
+        "format": "grand-bruxelles-dtm-grid-v2",
         "source": "Paradigm UrbIS Digital Terrain Model 2021",
         "source_url": args.source_url,
         "source_sha256": args.source_sha256,
@@ -96,10 +109,12 @@ def main() -> int:
             "sample_n": atomium_sample[1],
             "absolute_elevation_m": baseline,
         },
-        "absolute_elevation_min_m": min(elevations),
-        "absolute_elevation_max_m": max(elevations),
-        "relative_height_min_m": min(relative),
-        "relative_height_max_m": max(relative),
+        "absolute_elevation_min_m": min(valid_elevations),
+        "absolute_elevation_max_m": max(valid_elevations),
+        "relative_height_min_m": min(valid_relative),
+        "relative_height_max_m": max(valid_relative),
+        "valid_sample_count": sum(valid_mask),
+        "invalid_sample_count": len(valid_mask) - sum(valid_mask),
         "bounds_epsg31370": {
             "min_e": min(eastings),
             "max_e": max(eastings),
@@ -107,7 +122,8 @@ def main() -> int:
             "max_n": max(northings),
         },
         "relative_heights_m": relative,
-        "notes": "Heights are official DTM elevations minus the nearest sampled Atomium terrain elevation. X/Z remain project Lambert72-local metres.",
+        "valid_mask": valid_mask,
+        "notes": "Valid heights are official DTM elevations minus the nearest valid Atomium sample. NoData cells are stored as mask=0 and must become holes, not terrain.",
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(output, separators=(",", ":")) + "\n", encoding="utf-8")
@@ -115,9 +131,11 @@ def main() -> int:
         "LAEKEN_DTM_RUNTIME_OK",
         {
             "samples": len(relative),
+            "valid": output["valid_sample_count"],
+            "invalid": output["invalid_sample_count"],
             "baseline": baseline,
-            "absolute_range": [min(elevations), max(elevations)],
-            "relative_range": [min(relative), max(relative)],
+            "absolute_range": [min(valid_elevations), max(valid_elevations)],
+            "relative_range": [min(valid_relative), max(valid_relative)],
             "step": [step_e, step_n],
         },
     )

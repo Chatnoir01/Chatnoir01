@@ -13,8 +13,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
+
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
 
 from fetch_urbis_wfs_bbox import DEFAULT_LAYERS, parse_bbox, request_layer
 from make_urbis_cell_runtime import build_runtime

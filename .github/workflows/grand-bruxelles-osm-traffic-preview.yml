@@ -6,6 +6,8 @@ on:
       - "grand-bruxelles-game/tools/fetch_osm_slice.py"
       - "grand-bruxelles-game/tools/transform_osm_to_game.py"
       - "grand-bruxelles-game/tools/make_runtime_slice.py"
+      - "grand-bruxelles-game/tools/extract_osm_vehicle_services.py"
+      - "grand-bruxelles-game/tools/test_osm_vehicle_services.py"
       - ".github/workflows/grand-bruxelles-osm-traffic-preview.yml"
   workflow_dispatch:
 
@@ -28,6 +30,9 @@ jobs:
       - name: Validate Python tools
         run: python3 -m py_compile grand-bruxelles-game/tools/*.py
 
+      - name: Validate vehicle-service extraction policy
+        run: python3 grand-bruxelles-game/tools/test_osm_vehicle_services.py
+
       - name: Fetch current Brussels OSM traffic data
         run: |
           python3 grand-bruxelles-game/tools/fetch_osm_slice.py \
@@ -39,6 +44,21 @@ jobs:
           python3 grand-bruxelles-game/tools/transform_osm_to_game.py \
             --input /tmp/vertical_slice_traffic.raw.json \
             --output /tmp/vertical_slice_traffic.full.game.json
+
+      - name: Extract current repair garages
+        run: |
+          python3 grand-bruxelles-game/tools/extract_osm_vehicle_services.py \
+            --input /tmp/vertical_slice_traffic.raw.json \
+            --output /tmp/vehicle-services.game.json
+          python3 - <<'PY'
+          import json
+          data = json.load(open('/tmp/vehicle-services.game.json', encoding='utf-8'))
+          assert data['format'] == 'grand-bruxelles-vehicle-services-v1'
+          assert data['license'] == 'ODbL-1.0'
+          print('Fresh vehicle-service stats:', data['stats'])
+          for service in data['services']:
+              print('VEHICLE_SERVICE:', service['kind'], service['name'] or '<unnamed>', service['point'], service['street'], service['housenumber'])
+          PY
 
       - name: Build traffic-control runtime slice
         run: |
@@ -66,5 +86,13 @@ jobs:
         with:
           name: fresh-osm-traffic-runtime
           path: /tmp/vertical_slice_traffic.game.json
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload fresh vehicle-service preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-osm-vehicle-services
+          path: /tmp/vehicle-services.game.json
           if-no-files-found: error
           retention-days: 3

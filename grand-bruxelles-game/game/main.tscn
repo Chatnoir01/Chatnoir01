@@ -1,0 +1,87 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
+radius = 0.42
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
+radius = 0.42
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="Material_player"]
+albedo_color = Color(1, 0.78, 0.12, 1)
+roughness = 0.72
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 1
+background_color = Color(0.16, 0.19, 0.24, 1)
+ambient_light_source = 3
+ambient_light_color = Color(0.55, 0.58, 0.65, 1)
+ambient_light_energy = 0.85
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-48, -28, 0)
+light_energy = 1.25
+shadow_enabled = true
+
+[node name="Ground" type="CSGBox3D" parent="."]
+position = Vector3(0, -0.2, 0)
+size = Vector3(120, 0.4, 120)
+use_collision = true
+
+[node name="Block_A" type="CSGBox3D" parent="."]
+position = Vector3(-12, 4, -18)
+size = Vector3(15, 8, 18)
+use_collision = true
+
+[node name="Block_B" type="CSGBox3D" parent="."]
+position = Vector3(13, 5.5, -19)
+size = Vector3(17, 11, 16)
+use_collision = true
+
+[node name="Block_C" type="CSGBox3D" parent="."]
+position = Vector3(-15, 6, 17)
+size = Vector3(14, 12, 20)
+use_collision = true
+
+[node name="Block_D" type="CSGBox3D" parent="."]
+position = Vector3(15, 4.5, 18)
+size = Vector3(18, 9, 18)
+use_collision = true
+
+[node name="Player" type="CharacterBody3D" parent="."]
+position = Vector3(0, 1.05, 8)
+script = ExtResource("1_player")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+shape = SubResource("CapsuleShape_player")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Player"]
+mesh = SubResource("CapsuleMesh_player")
+material_override = SubResource("Material_player")
+
+[node name="CameraPivot" type="Node3D" parent="Player"]
+position = Vector3(0, 0.65, 0)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="Player/CameraPivot"]
+spring_length = 5.5
+margin = 0.15
+
+[node name="Camera3D" type="Camera3D" parent="Player/CameraPivot/SpringArm3D"]
+current = true
+fov = 72.0
+
+[node name="PrototypeLabel" type="Label" parent="."]
+offset_left = 20.0
+offset_top = 18.0
+offset_right = 520.0
+offset_bottom = 82.0
+theme_override_font_sizes/font_size = 18
+text = "GRAND BRUXELLES — PROTOTYPE 0.1\nZQSD/WASD · Shift courir · Espace sauter · Échap souris"

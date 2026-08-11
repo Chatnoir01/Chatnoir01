@@ -1,0 +1,82 @@
+name: Grand Bruxelles UrbIS Midi Refresh
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/tools/fetch_urbis_wfs_bbox.py"
+      - "grand-bruxelles-game/tools/lambert72_to_game_geojson.py"
+      - ".github/workflows/grand-bruxelles-urbis-midi-refresh.yml"
+  schedule:
+    - cron: "41 3 * * 2"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-urbis-midi-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh-midi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch official UrbIS Midi geometry
+        run: |
+          rm -rf /tmp/urbis-midi
+          python3 grand-bruxelles-game/tools/fetch_urbis_wfs_bbox.py \
+            --output-dir /tmp/urbis-midi \
+            --bbox 147250,168900,148500,170250 \
+            --retries 4
+
+      - name: Convert Lambert 72 layers to Godot local metres
+        run: |
+          mkdir -p grand-bruxelles-game/data/urbis/midi
+          for layer in buildings street_surfaces street_axes tram_network train_network; do
+            cp "/tmp/urbis-midi/${layer}.geojson" "grand-bruxelles-game/data/urbis/midi/${layer}.geojson"
+            python3 grand-bruxelles-game/tools/lambert72_to_game_geojson.py \
+              "/tmp/urbis-midi/${layer}.geojson" \
+              "grand-bruxelles-game/data/urbis/midi/${layer}.game.json"
+          done
+          cp /tmp/urbis-midi/manifest.json grand-bruxelles-game/data/urbis/midi/manifest.json
+
+      - name: Validate exact Midi extract
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('grand-bruxelles-game/data/urbis/midi')
+          manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
+          assert manifest['crs'] == 'EPSG:31370'
+          expected = ['buildings', 'street_surfaces', 'street_axes', 'tram_network', 'train_network']
+          for layer in expected:
+              raw = json.loads((root / f'{layer}.geojson').read_text(encoding='utf-8'))
+              game = json.loads((root / f'{layer}.game.json').read_text(encoding='utf-8'))
+              assert raw['type'] == 'FeatureCollection', layer
+              assert game['type'] == 'FeatureCollection', layer
+              assert len(raw.get('features', [])) == len(game.get('features', [])), layer
+              assert game['grand_bruxelles_coordinate_system']['source_crs'] == 'EPSG:31370'
+              print(layer, len(raw.get('features', [])), 'features')
+          assert manifest['layers']['buildings']['features'] > 100
+          assert manifest['layers']['street_surfaces']['features'] > 50
+          assert manifest['layers']['street_axes']['features'] > 50
+          PY
+
+      - name: Commit refreshed Midi UrbIS data
+        run: |
+          if git diff --quiet -- grand-bruxelles-game/data/urbis/midi; then
+            echo "UrbIS Midi data unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/urbis/midi
+          git commit -m "data: refresh exact UrbIS Midi geometry [skip ci]"
+          git push

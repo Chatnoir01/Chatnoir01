@@ -1,0 +1,258 @@
+name: Materialize Brussels City north subzones
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/materialize-brussels-city-north.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-brussels-city-north
+  cancel-in-progress: false
+
+jobs:
+  north-subzones:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate extraction and cell pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Ensure official admin probe evidence exists
+        working-directory: grand-bruxelles-game
+        run: |
+          PROBE=data/processed/brussels_city_remaining/urbis_admin_layer_probe.json
+          DISC=data/processed/brussels_city_remaining/urbis_admin_layer_candidates.json
+          if [ ! -s "$DISC" ]; then
+            python tools/discover_urbis_admin_layers.py --output "$DISC"
+          fi
+          if [ ! -s "$PROBE" ]; then
+            python tools/probe_urbis_admin_layers.py \
+              --discovery "$DISC" \
+              --target haren --target neder-over-heembeek \
+              --max-features 2500 \
+              --output "$PROBE"
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('data/processed/brussels_city_remaining/urbis_admin_layer_probe.json').read_text())
+          assert len(d['proven_layers_matching_all_targets'])==1,d['proven_layers_matching_all_targets']
+          assert d['production_approved_layer'] is None
+          print('Proven identity layer:',d['proven_layers_matching_all_targets'][0])
+          PY
+
+      - name: Extract official Haren, Neder-over-Heembeek and Laeken polygons
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/extract_brussels_city_subzones_v2.py \
+            --probe data/processed/brussels_city_remaining/urbis_admin_layer_probe.json \
+            --target haren \
+            --target neder-over-heembeek \
+            --target laeken \
+            --output-dir data/processed/brussels_city_remaining/boundaries
+
+      - name: Generate exact global 500m grids for the three official polygons
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p data/processed/brussels_city_remaining/cells
+          python tools/make_zone_cells.py \
+            --boundary data/processed/brussels_city_remaining/boundaries/haren.geojson \
+            --zone-id brussels-city-haren \
+            --cell-size 500 \
+            --output data/processed/brussels_city_remaining/cells/haren.json
+          python tools/make_zone_cells.py \
+            --boundary data/processed/brussels_city_remaining/boundaries/neder-over-heembeek.geojson \
+            --zone-id brussels-city-neder-over-heembeek \
+            --cell-size 500 \
+            --output data/processed/brussels_city_remaining/cells/neder-over-heembeek.json
+          python tools/make_zone_cells.py \
+            --boundary data/processed/brussels_city_remaining/boundaries/laeken.geojson \
+            --zone-id reserved-laeken \
+            --cell-size 500 \
+            --output data/processed/brussels_city_remaining/cells/laeken-reservation.json
+
+      - name: Extend northwest ownership reservations with official Laeken cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          existing_path=Path('data/urbis/remaining_brussels/northwest_reserved_cells.json')
+          existing=json.loads(existing_path.read_text()) if existing_path.exists() else {
+              'format':'grand-bruxelles-northwest-reservations-v1',
+              'reserved_cell_ids':[],
+          }
+          assert existing['format']=='grand-bruxelles-northwest-reservations-v1'
+          laeken=json.loads(Path('data/processed/brussels_city_remaining/cells/laeken-reservation.json').read_text())
+          assert laeken['format']=='grand-bruxelles-zone-cells-v2'
+          laeken_ids={cell['id'] for cell in laeken['cells']}
+          union=sorted(set(existing.get('reserved_cell_ids',[]))|laeken_ids)
+          existing['official_laeken_grid']='data/processed/brussels_city_remaining/cells/laeken-reservation.json'
+          existing['laeken_planned_cell_count']=len(laeken_ids)
+          existing['reserved_cell_count']=len(union)
+          existing['reserved_cell_ids']=union
+          existing_path.write_text(json.dumps(existing,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print('Official Laeken reserved cells:',len(laeken_ids))
+          print('Northwest reservation union:',len(union))
+          PY
+
+      - name: Select one new central cell for Haren and Neder-over-Heembeek
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json,sys
+          from pathlib import Path
+          sys.path.insert(0,'tools')
+          from select_zone_seed_cell import load_existing_cell_ids,load_manifest,select_seed
+          from select_uncovered_zone_seeds import grid_center
+
+          existing=load_existing_cell_ids(Path('data/urbis/remaining_brussels/cells'))
+          reserved=set(json.loads(Path('data/urbis/remaining_brussels/northwest_reserved_cells.json').read_text())['reserved_cell_ids'])
+          reserved.add('bxl-e147500-n169500-s500')
+          forbidden=set(existing)|reserved
+          seeds=[]
+          for zone_id,grid_name in [('brussels-city-haren','haren.json'),('brussels-city-neder-over-heembeek','neder-over-heembeek.json')]:
+              grid=load_manifest(Path('data/processed/brussels_city_remaining/cells')/grid_name)
+              ae,an=grid_center(grid)
+              chosen=select_seed(grid,ae,an,excluded_cell_ids=forbidden)
+              forbidden.add(chosen['id'])
+              seeds.append({
+                  'zone_id':zone_id,'zone_name':zone_id,'wave':'CITY-NORTH','priority':len(seeds)+1,
+                  'cell_id':chosen['id'],'bbox':chosen['bbox'],'distance_m':chosen['seed_distance_m'],
+                  'anchor':[ae,an],'anchor_kind':'official_subzone_boundary_bbox_center',
+              })
+          batch={
+              'format':'grand-bruxelles-wave-seeds-v1','crs':'EPSG:31370','cell_size_m':500,
+              'wave':'CITY-NORTH','seed_count':len(seeds),'seeds':seeds,
+          }
+          Path('/tmp/city-north-seeds.json').write_text(json.dumps(batch,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print(json.dumps(batch,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Prove selected cells do not overlap Laeken/Jette or existing geometry
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          batch=json.loads(Path('/tmp/city-north-seeds.json').read_text())
+          reserved=set(json.loads(Path('data/urbis/remaining_brussels/northwest_reserved_cells.json').read_text())['reserved_cell_ids'])
+          existing={p.parent.name for p in Path('data/urbis/remaining_brussels/cells').glob('*/manifest.json')}
+          ids=[seed['cell_id'] for seed in batch['seeds']]
+          assert len(ids)==len(set(ids))==2
+          assert not (set(ids)&reserved),sorted(set(ids)&reserved)
+          assert not (set(ids)&existing),sorted(set(ids)&existing)
+          assert 'bxl-e147500-n169500-s500' not in ids
+          PY
+
+      - name: Materialize Haren and Neder-over-Heembeek sequentially
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_wave_seeds.py \
+            --seeds /tmp/city-north-seeds.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --retries 3
+
+      - name: Rebuild runtime index
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+
+      - name: Capture official orthophoto references
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/city-north-orthos data/processed/brussels_city_remaining/references
+          python - <<'PY'
+          import json,subprocess,sys
+          from pathlib import Path
+          batch=json.loads(Path('/tmp/city-north-seeds.json').read_text())
+          for seed in batch['seeds']:
+              short=seed['zone_id'].replace('brussels-city-','')
+              bbox=','.join(str(v) for v in seed['bbox'])
+              subprocess.run([
+                  sys.executable,'tools/capture_urbis_orthophoto.py',
+                  '--bbox',bbox,'--width','768','--height','768',
+                  '--output',f'/tmp/city-north-orthos/{short}.png',
+                  '--metadata',f'data/processed/brussels_city_remaining/references/{short}_seed_orthophoto.json',
+              ],check=True)
+          PY
+
+      - name: Verify City north materialization and reservations
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('data/urbis/remaining_brussels/cells')
+          batch=json.loads(Path('/tmp/city-north-seeds.json').read_text())
+          selected={seed['cell_id'] for seed in batch['seeds']}
+          reserved=set(json.loads(Path('data/urbis/remaining_brussels/northwest_reserved_cells.json').read_text())['reserved_cell_ids'])
+          index=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          streamed={item['cell_id'] for item in index['cells']}
+          assert selected.issubset(streamed)
+          assert not (streamed&reserved),sorted(streamed&reserved)
+          assert 'bxl-e147500-n169500-s500' not in streamed
+          for seed in batch['seeds']:
+              cell=root/seed['cell_id']; manifest=json.loads((cell/'manifest.json').read_text())
+              geometry=json.loads((cell/manifest['runtime']['geometry_file']).read_text())
+              network=json.loads((cell/manifest['runtime']['network_file']).read_text())
+              useful=sum([
+                  geometry['stats']['buildings'],geometry['stats']['street_surfaces'],network['stats']['street_segments'],
+                  network['stats']['tram_segments'],network['stats']['train_segments'],
+              ])
+              assert useful>0,(seed['zone_id'],seed['cell_id'])
+              assert all(item['type'].startswith('TW') for item in network['tram_network'])
+              assert all(item['type'].startswith('RW') for item in network['train_network'])
+              short=seed['zone_id'].replace('brussels-city-','')
+              md=json.loads(Path(f'data/processed/brussels_city_remaining/references/{short}_seed_orthophoto.json').read_text())
+              assert md['provider']=='Paradigm / UrbIS'
+              assert md['bbox']==seed['bbox']
+              assert md['download']['bytes']>1000
+              print(seed['zone_id'],seed['cell_id'],geometry['stats'],network['stats'])
+          print('City north streamable cells:',sorted(selected))
+          PY
+
+      - name: Upload City north orthophotos
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-city-north-official-orthophotos
+          path: /tmp/city-north-orthos/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit official City north boundaries, grids, cells and provenance
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/brussels_city_remaining \
+            grand-bruxelles-game/data/urbis/remaining_brussels/northwest_reserved_cells.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels/runtime_index.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels/cells
+          if git diff --cached --quiet; then
+            echo 'No City north changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: materialize official Haren and Neder-over-Heembeek cells'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

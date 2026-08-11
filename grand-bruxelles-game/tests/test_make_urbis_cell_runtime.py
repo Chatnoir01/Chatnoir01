@@ -51,11 +51,16 @@ class MakeUrbisCellRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime["stats"]["buildings"], 1)
         self.assertEqual(runtime["buildings"][0]["id"], "owned")
 
-    def test_game_coordinates_use_shared_project_origin(self) -> None:
-        ring = [[MODULE.ORIGIN_E, MODULE.ORIGIN_N], [MODULE.ORIGIN_E + 1, MODULE.ORIGIN_N]]
-        game = MODULE.game_ring(ring)
-        self.assertEqual(game[0], [0.0, -0.0])
-        self.assertEqual(game[1], [1.0, -0.0])
+    def test_midi_lambert_origin_maps_to_existing_osm_midi_anchor(self) -> None:
+        game = MODULE.game_point([MODULE.ORIGIN_E, MODULE.ORIGIN_N])
+        self.assertEqual(game, [MODULE.WORLD_ANCHOR_X, MODULE.WORLD_ANCHOR_Z])
+        self.assertEqual(game, [-668.5, 627.84])
+
+    def test_east_and_north_axes_match_current_game_convention(self) -> None:
+        east = MODULE.game_point([MODULE.ORIGIN_E + 1.0, MODULE.ORIGIN_N])
+        north = MODULE.game_point([MODULE.ORIGIN_E, MODULE.ORIGIN_N + 1.0])
+        self.assertEqual(east, [-667.5, 627.84])
+        self.assertEqual(north, [-668.5, 626.84])
 
 
 if __name__ == "__main__":

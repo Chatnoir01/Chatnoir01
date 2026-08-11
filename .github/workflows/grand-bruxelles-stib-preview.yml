@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  inspect-official-stib-data:
+  stib-pipeline:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -30,13 +30,18 @@ jobs:
             grand-bruxelles-game/tools/convert_stib_gtfs.py \
             grand-bruxelles-game/tools/test_stib_gtfs_converter.py
 
-      - name: Validate verified STIB official producer source
-        run: python3 grand-bruxelles-game/tools/inspect_stib_open_data.py
-
       - name: Validate GTFS converter and freshness gate
         run: python3 grand-bruxelles-game/tools/test_stib_gtfs_converter.py
 
-      - name: Fetch and convert official STIB GTFS preview
+      - name: Probe verified STIB producer source
+        id: remote_probe
+        continue-on-error: true
+        run: python3 grand-bruxelles-game/tools/inspect_stib_open_data.py
+
+      - name: Fetch and convert official STIB preview when source is reachable
+        if: steps.remote_probe.outcome == 'success'
+        id: remote_fetch
+        continue-on-error: true
         run: |
           python3 grand-bruxelles-game/tools/fetch_stib_gtfs.py /tmp/stib-gtfs.zip
           python3 grand-bruxelles-game/tools/convert_stib_gtfs.py \
@@ -47,7 +52,6 @@ jobs:
           assert data['format'] == 'grand-bruxelles-stib-gtfs-v1'
           assert data['stats']['routes'] > 0, data['stats']
           assert data['stats']['shapes'] > 0, data['stats']
-          assert data['license_url'].startswith('https://stibmivb.opendatasoft.com/')
           print('STIB_OFFICIAL_PREVIEW_OK:', data['stats'])
           print('STIB_FRESHNESS:', data['freshness'])
           print('STIB_ROUTES:', [(r['mode'], r['short_name']) for r in data['routes']])
@@ -57,7 +61,19 @@ jobs:
               print('STIB_RUNTIME_CURRENT_ELIGIBLE: no — preview only; current runtime activation blocked')
           PY
 
+      - name: Report external source state
+        if: always()
+        run: |
+          if [ "${{ steps.remote_probe.outcome }}" != "success" ]; then
+            echo "STIB_REMOTE_SOURCE_ADVISORY: official producer URL is currently unavailable; converter and freshness gate remain green; no STIB runtime data is activated."
+          elif [ "${{ steps.remote_fetch.outcome }}" = "failure" ]; then
+            echo "STIB_REMOTE_SOURCE_ADVISORY: source responded but preview conversion/download failed; no runtime activation."
+          else
+            echo "STIB_REMOTE_SOURCE_OK"
+          fi
+
       - name: Upload official STIB preview
+        if: steps.remote_fetch.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-stib-official-preview

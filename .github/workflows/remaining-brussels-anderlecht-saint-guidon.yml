@@ -85,7 +85,7 @@ jobs:
             --output /tmp/saint-guidon-ortho/saint-guidon.png \
             --metadata data/processed/remaining_brussels/references/anderlecht_saint_guidon_orthophoto.json
 
-      - name: Verify urban geometry, network and provenance
+      - name: Verify urban geometry, network, ownership and provenance
         working-directory: grand-bruxelles-game
         run: |
           python3 - <<'PY'
@@ -93,6 +93,7 @@ jobs:
           from pathlib import Path
 
           cell_id = 'bxl-e145500-n169000-s500'
+          reserved_midi = 'bxl-e147500-n169500-s500'
           cell_dir = Path('data/urbis/remaining_brussels/cells') / cell_id
           manifest = json.loads((cell_dir / 'manifest.json').read_text())
           geometry = json.loads((cell_dir / manifest['runtime']['geometry_file']).read_text())
@@ -111,13 +112,21 @@ jobs:
           assert {item['source_id'] for item in network['tram_network']}.isdisjoint(
               {item['source_id'] for item in network['train_network']}
           )
-          assert cell_id in {item['cell_id'] for item in index['cells']}
+
+          assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v2'
+          indexed_ids = {item['cell_id'] for item in index['cells']}
+          assert cell_id in indexed_ids
+          assert reserved_midi not in indexed_ids
+
+          ortho = json.loads(Path('data/processed/remaining_brussels/references/anderlecht_saint_guidon_orthophoto.json').read_text())
           assert ortho['provider'] == 'Paradigm / UrbIS'
           assert ortho['layer'] == 'inspire:Ortho'
           assert ortho['download']['bytes'] > 1000
 
           print('Saint-Guidon geometry:', geometry['stats'])
           print('Saint-Guidon network:', network['stats'])
+          print('Runtime cells:', sorted(indexed_ids))
+          print('Runtime exclusions:', index['excluded_cells'])
           print('Rail source TYPE counts:', network['source_type_counts'])
           print('Orthophoto SHA256:', ortho['download']['sha256'])
           PY

@@ -57,22 +57,29 @@ Même convention que le projet principal :
 
 Aucune rue, bâtiment ou relief ne doit être reconstruit « au feeling ».
 
-## Origine locale Godot
+## Repère géométrique et monde Godot
 
-On conserve l'origine globale actuelle du projet afin que toutes les branches se recollent sans translation :
+La géométrie officielle est calculée depuis le point de contrôle Lambert72 de Bruxelles-Midi :
 
-- `ORIGIN_E = 147868.294`
-- `ORIGIN_N = 169538.624`
+- `ORIGIN_E = 147868.29422791934`
+- `ORIGIN_N = 169538.62414926197`
 
-Transformation :
+Cependant, le prototype OSM existant utilise son propre point WGS84 d'origine (`50.8419, 4.3480`). Dans ce monde déjà construit, le point Bruxelles-Midi se trouve à :
+
+- `WORLD_ANCHOR_X = -668.5`
+- `WORLD_ANCHOR_Z = 627.84`
+
+La conversion **à utiliser pour toutes les nouvelles cellules UrbIS** est donc :
 
 ```text
-Godot X = Lambert_E - ORIGIN_E
-Godot Z = -(Lambert_N - ORIGIN_N)
+Godot X = (Lambert_E - ORIGIN_E) + WORLD_ANCHOR_X
+Godot Z = -(Lambert_N - ORIGIN_N) + WORLD_ANCHOR_Z
 Godot Y = altitude - ORIGIN_ALTITUDE
 ```
 
-Une commune ne reçoit donc jamais sa propre origine flottante indépendante.
+Contrôle de non-régression obligatoire : le point `(ORIGIN_E, ORIGIN_N)` doit produire exactement `(-668.5, 627.84)` en X/Z dans le monde actuel.
+
+Ce décalage est **global et unique**. Une commune ou une cellule ne reçoit jamais sa propre origine indépendante. Cette règle garantit que les cellules UrbIS, le greybox OSM actuel et le builder Midi se recollent dans le même monde.
 
 ## Découpage technique
 
@@ -87,9 +94,11 @@ cellule Lambert72 500 m
         ↓
 WFS bâtiments + voirie + rail/tram
         ↓
+propriété par centroïde (coutures sans doublons)
+        ↓
 terrain / 3D / orthophoto de contrôle
         ↓
-conversion coordonnées globales du jeu
+conversion vers coordonnées du monde Godot actuel
         ↓
 runtime léger + assets de détail
         ↓
@@ -97,6 +106,17 @@ Godot
 ```
 
 Les sources brutes restent hors édition. Les dérivés sont reproductibles.
+
+### Propriété des objets aux coutures
+
+Une requête WFS par bbox peut retourner le même bâtiment dans deux cellules adjacentes s'il coupe la limite. Pour supprimer ces doublons, la cellule propriétaire est celle dont la bbox demi-ouverte contient le centroïde du polygone :
+
+```text
+minE <= centroidE < maxE
+minN <= centroidN < maxN
+```
+
+La cellule voisine peut voir l'objet dans sa source brute, mais ne le génère pas dans son runtime.
 
 ## Ordre de construction
 
@@ -146,6 +166,7 @@ Une cellule n'est marquée « reconstruite » que si :
 - au moins trois repères visuels réels dans les zones urbaines denses ;
 - provenance et licence des assets enregistrées ;
 - coutures avec cellules voisines sans trou ni double géométrie ;
+- repère Godot contrôlé contre l'ancre Midi ;
 - collision et navigation vérifiées ;
 - budget de performance respecté ;
 - test de chargement Godot réussi.

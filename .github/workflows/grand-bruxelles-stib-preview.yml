@@ -5,6 +5,8 @@ on:
     paths:
       - "grand-bruxelles-game/tools/inspect_stib_open_data.py"
       - "grand-bruxelles-game/tools/fetch_stib_*"
+      - "grand-bruxelles-game/tools/convert_stib_gtfs.py"
+      - "grand-bruxelles-game/tools/test_stib_gtfs_converter.py"
       - "grand-bruxelles-game/data/stib/**"
       - ".github/workflows/grand-bruxelles-stib-preview.yml"
   workflow_dispatch:
@@ -15,13 +17,60 @@ permissions:
 jobs:
   inspect-official-stib-data:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate STIB inspection tool
-        run: python3 -m py_compile grand-bruxelles-game/tools/inspect_stib_open_data.py
+      - name: Validate STIB tools
+        run: |
+          python3 -m py_compile \
+            grand-bruxelles-game/tools/inspect_stib_open_data.py \
+            grand-bruxelles-game/tools/fetch_stib_gtfs.py \
+            grand-bruxelles-game/tools/convert_stib_gtfs.py \
+            grand-bruxelles-game/tools/test_stib_gtfs_converter.py
 
-      - name: Inspect official STIB Open Data schemas
+      - name: Validate official STIB developer endpoint
         run: python3 grand-bruxelles-game/tools/inspect_stib_open_data.py
+
+      - name: Validate GTFS converter with synthetic feed
+        run: python3 grand-bruxelles-game/tools/test_stib_gtfs_converter.py
+
+      - name: Detect STIB developer credentials
+        id: stib_credentials
+        env:
+          STIB_CONSUMER_KEY: ${{ secrets.STIB_CONSUMER_KEY }}
+          STIB_CONSUMER_SECRET: ${{ secrets.STIB_CONSUMER_SECRET }}
+        run: |
+          if [ -n "$STIB_CONSUMER_KEY" ] && [ -n "$STIB_CONSUMER_SECRET" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "STIB developer credentials are not configured; official download step is skipped."
+          fi
+
+      - name: Fetch official STIB GTFS
+        if: steps.stib_credentials.outputs.available == 'true'
+        env:
+          STIB_CONSUMER_KEY: ${{ secrets.STIB_CONSUMER_KEY }}
+          STIB_CONSUMER_SECRET: ${{ secrets.STIB_CONSUMER_SECRET }}
+        run: |
+          python3 grand-bruxelles-game/tools/fetch_stib_gtfs.py /tmp/stib-gtfs.zip
+          python3 grand-bruxelles-game/tools/convert_stib_gtfs.py \
+            /tmp/stib-gtfs.zip /tmp/stib-corridor.game.json
+          python3 - <<'PY'
+          import json
+          data = json.load(open('/tmp/stib-corridor.game.json', encoding='utf-8'))
+          assert data['format'] == 'grand-bruxelles-stib-gtfs-v1'
+          assert data['stats']['routes'] > 0, data['stats']
+          assert data['stats']['shapes'] > 0, data['stats']
+          print('STIB_OFFICIAL_PREVIEW_OK:', data['stats'])
+          PY
+
+      - name: Upload official STIB preview
+        if: steps.stib_credentials.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-stib-official-preview
+          path: /tmp/stib-corridor.game.json
+          if-no-files-found: error

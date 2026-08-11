@@ -19,6 +19,7 @@ var generated_dashes: int = 0
 
 var _tree_trunk: StandardMaterial3D
 var _tree_leaf: StandardMaterial3D
+var _tree_leaf_dark: StandardMaterial3D
 var _lamp_metal: StandardMaterial3D
 var _lamp_head: StandardMaterial3D
 var _road_marking: StandardMaterial3D
@@ -40,6 +41,7 @@ func _build() -> void:
 func _make_materials() -> void:
     _tree_trunk = _material(Color(0.18, 0.105, 0.055, 1.0), 0.98)
     _tree_leaf = _material(Color(0.055, 0.18, 0.065, 1.0), 0.96)
+    _tree_leaf_dark = _material(Color(0.035, 0.125, 0.045, 1.0), 0.97)
     _lamp_metal = _material(Color(0.14, 0.15, 0.16, 1.0), 0.34, 0.72)
     _lamp_head = _material(Color(0.91, 0.88, 0.74, 1.0), 0.28, 0.05)
     _road_marking = _material(Color(0.91, 0.90, 0.83, 1.0), 0.92)
@@ -165,27 +167,43 @@ func _add_tree(xz: Vector2) -> void:
     tree.position = Vector3(xz.x, _terrain_y(xz), xz.y)
     add_child(tree)
 
+    # Deterministic variation from position keeps the corridor lightweight while
+    # avoiding the repeated perfect-sphere placeholder look.
+    var seed := absf(sin(xz.x * 0.031 + xz.y * 0.017))
+    var trunk_height := 4.1 + seed * 1.1
+    var crown_radius := 1.85 + seed * 0.55
+
     var trunk := CylinderMesh.new()
-    trunk.top_radius = 0.22
-    trunk.bottom_radius = 0.32
-    trunk.height = 4.4
+    trunk.top_radius = 0.18 + seed * 0.04
+    trunk.bottom_radius = 0.30 + seed * 0.05
+    trunk.height = trunk_height
     trunk.radial_segments = 7
     trunk.material = _tree_trunk
     var trunk_instance := MeshInstance3D.new()
     trunk_instance.mesh = trunk
-    trunk_instance.position.y = 2.2
+    trunk_instance.position.y = trunk_height * 0.5
     tree.add_child(trunk_instance)
 
+    var crown_y := trunk_height + 1.15
+    _add_leaf_lobe(tree, Vector3(0.0, crown_y + 0.65, 0.0), crown_radius, _tree_leaf)
+    _add_leaf_lobe(tree, Vector3(crown_radius * 0.58, crown_y + 0.15, 0.15), crown_radius * 0.72, _tree_leaf_dark)
+    _add_leaf_lobe(tree, Vector3(-crown_radius * 0.52, crown_y + 0.10, -0.22), crown_radius * 0.76, _tree_leaf)
+    _add_leaf_lobe(tree, Vector3(0.10, crown_y - 0.10, crown_radius * 0.55), crown_radius * 0.68, _tree_leaf_dark)
+    _add_leaf_lobe(tree, Vector3(-0.18, crown_y + 0.05, -crown_radius * 0.55), crown_radius * 0.70, _tree_leaf)
+
+
+func _add_leaf_lobe(parent: Node3D, position: Vector3, radius: float, material: Material) -> void:
     var crown := SphereMesh.new()
-    crown.radius = 2.3
-    crown.height = 4.6
-    crown.radial_segments = 10
-    crown.rings = 6
-    crown.material = _tree_leaf
+    crown.radius = radius
+    crown.height = radius * 1.85
+    crown.radial_segments = 8
+    crown.rings = 5
+    crown.material = material
     var crown_instance := MeshInstance3D.new()
+    crown_instance.name = "LeafCluster"
     crown_instance.mesh = crown
-    crown_instance.position.y = 5.45
-    tree.add_child(crown_instance)
+    crown_instance.position = position
+    parent.add_child(crown_instance)
 
 
 func _add_lamp(xz: Vector2) -> void:

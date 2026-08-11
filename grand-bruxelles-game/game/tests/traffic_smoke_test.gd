@@ -34,6 +34,7 @@ func _run() -> void:
         "get_graph_node_count",
         "get_graph_edge_count",
         "get_intersection_count",
+        "get_right_priority_count",
         "get_traffic_control_count",
         "get_signal_count",
         "get_active_vehicle_count",
@@ -49,11 +50,19 @@ func _run() -> void:
 
     var graph_nodes := int(manager.call("get_graph_node_count"))
     var graph_edges := int(manager.call("get_graph_edge_count"))
+    var intersection_count := int(manager.call("get_intersection_count"))
+    var right_priority_count := int(manager.call("get_right_priority_count"))
     if graph_nodes < 20:
         _fail("OSM road graph has too few nodes: %d" % graph_nodes)
         return
     if graph_edges <= route_count:
         _fail("road graph was not split into directed segments: %d edges / %d ways" % [graph_edges, route_count])
+        return
+    if intersection_count < 20:
+        _fail("too few current OSM intersections detected: %d" % intersection_count)
+        return
+    if right_priority_count <= 0 or right_priority_count > intersection_count:
+        _fail("invalid right-priority intersection count: %d/%d" % [right_priority_count, intersection_count])
         return
 
     var control_count := int(manager.call("get_traffic_control_count"))
@@ -92,6 +101,7 @@ func _run() -> void:
         "get_route_point_count",
         "get_route_edge_count",
         "get_route_control_count",
+        "get_route_intersection_count",
     ]:
         if not first_vehicle.has_method(method_name):
             _fail("traffic vehicle API missing: %s" % method_name)
@@ -105,18 +115,25 @@ func _run() -> void:
     if int(first_vehicle.call("get_route_point_count")) < 3:
         _fail("spawned vehicle route is too short")
         return
-
     if int(first_vehicle.call("get_route_edge_count")) < 2:
         _fail("spawned vehicle is still limited to one OSM segment")
         return
-
     if int(first_vehicle.call("get_source_osm_id")) <= 0:
         _fail("spawned vehicle lost OSM source id")
         return
 
     print(
-        "TRAFFIC_SMOKE_OK: %d OSM ways, %d graph nodes, %d directed edges, %d controls, %d signals, %d active vehicles" %
-        [route_count, graph_nodes, graph_edges, control_count, signal_count, active_count]
+        "TRAFFIC_SMOKE_OK: %d ways, %d nodes, %d edges, %d intersections (%d right-priority), %d controls, %d signals, %d vehicles" %
+        [
+            route_count,
+            graph_nodes,
+            graph_edges,
+            intersection_count,
+            right_priority_count,
+            control_count,
+            signal_count,
+            active_count,
+        ]
     )
     manager.queue_free()
     await process_frame

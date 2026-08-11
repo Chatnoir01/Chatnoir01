@@ -1,10 +1,11 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
 [ext_resource type="Script" path="res://game/scripts/vehicle_controller.gd" id="3_vehicle"]
 [ext_resource type="Script" path="res://game/scripts/mission_drive_to_center.gd" id="4_mission"]
 [ext_resource type="Script" path="res://game/scripts/osm_minimap.gd" id="5_minimap"]
+[ext_resource type="Script" path="res://game/scripts/mobile_controls.gd" id="6_mobile"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -126,7 +127,7 @@ offset_right = 980.0
 offset_bottom = 150.0
 theme_override_colors/font_color = Color(0.85, 0.85, 0.88, 1)
 theme_override_font_sizes/font_size = 14
-text = "GRAND BRUXELLES — OSM GREYBOX 0.5 · ZQSD/WASD · Shift courir · E entrer/sortir · Espace sauter"
+text = "GRAND BRUXELLES — OSM GREYBOX 0.6 · clavier + contrôles tactiles Web/mobile"
 
 [node name="MiniMap" type="Control" parent="."]
 offset_left = 1000.0
@@ -134,3 +135,13 @@ offset_top = 18.0
 offset_right = 1260.0
 offset_bottom = 278.0
 script = ExtResource("5_minimap")
+
+[node name="MobileControls" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("6_mobile")

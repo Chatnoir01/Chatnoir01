@@ -120,19 +120,6 @@ jobs:
           fi
           grep -q "VEHICLE_SMOKE_OK" /tmp/vehicle-smoke.log
 
-      - name: Police vehicle realism smoke test
-        shell: bash
-        run: |
-          set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless \
-            --path grand-bruxelles-game \
-            --script res://game/tests/police_vehicle_smoke_test.gd 2>&1 | tee /tmp/police-vehicle-smoke.log
-          if grep -E "SCRIPT ERROR|Parse Error:|POLICE_VEHICLE_SMOKE_FAIL" /tmp/police-vehicle-smoke.log; then
-            exit 1
-          fi
-          grep -q "POLICE_VEHICLE_SMOKE_OK" /tmp/police-vehicle-smoke.log
-
       - name: Mission Midi to Grand-Place smoke test
         shell: bash
         run: |

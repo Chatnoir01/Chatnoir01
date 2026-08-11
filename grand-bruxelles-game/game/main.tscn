@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -11,9 +11,6 @@
 [ext_resource type="Script" path="res://game/scripts/osm_midi_mask.gd" id="9_mask"]
 [ext_resource type="Script" path="res://game/scripts/urbis_cell_streamer.gd" id="10_streamer"]
 [ext_resource type="Script" path="res://game/scripts/urbis_cell_osm_mask.gd" id="11_stream_mask"]
-[ext_resource type="PackedScene" path="res://game/vehicles/police_patrol.tscn" id="12_patrol"]
-[ext_resource type="PackedScene" path="res://game/vehicles/police_civil.tscn" id="13_civil"]
-[ext_resource type="PackedScene" path="res://game/vehicles/police_bab_van.tscn" id="14_bab"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -131,18 +128,6 @@ margin = 0.15
 current = false
 fov = 75.0
 
-[node name="PolicePatrol" parent="." instance=ExtResource("12_patrol")]
-position = Vector3(-665.0, 0.35, 627.5)
-rotation_degrees = Vector3(0, 39, 0)
-
-[node name="PoliceCivilUnit" parent="." instance=ExtResource("13_civil")]
-position = Vector3(-669.5, 0.34, 631.0)
-rotation_degrees = Vector3(0, 39, 0)
-
-[node name="PoliceBAB" parent="." instance=ExtResource("14_bab")]
-position = Vector3(-674.8, 0.18, 635.0)
-rotation_degrees = Vector3(0, 39, 0)
-
 [node name="RemainingBrusselsStreamer" type="Node3D" parent="."]
 script = ExtResource("10_streamer")
 build_collisions = false
@@ -170,15 +155,6 @@ offset_bottom = 150.0
 theme_override_colors/font_color = Color(0.92, 0.92, 0.90, 1)
 theme_override_font_sizes/font_size = 14
 text = "GRAND BRUXELLES · MIDI + ANDERLECHT · UrbIS exact streamé + remplacement dynamique du greybox OSM"
-
-[node name="PoliceHintLabel" type="Label" parent="."]
-offset_left = 20.0
-offset_top = 148.0
-offset_right = 900.0
-offset_bottom = 184.0
-theme_override_colors/font_color = Color(0.35, 0.68, 1, 1)
-theme_override_font_sizes/font_size = 14
-text = "POLICE · patrouille + banalisée + BAB jouables · E entrer/sortir · G gyrophares"
 
 [node name="MiniMap" type="Control" parent="."]
 offset_left = 1000.0

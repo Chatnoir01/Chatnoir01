@@ -1,0 +1,99 @@
+name: Gate Brussels City open-data areas
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/gate-brussels-opendata-subzones.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gate-brussels-opendata-subzones
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test dataset and license gate
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests.test_select_brussels_opendata_dataset -v
+
+      - name: Ensure catalog discovery and polygon probe exist
+        working-directory: grand-bruxelles-game
+        run: |
+          DISC=data/processed/brussels_city_remaining/opendata_boundary_candidates.json
+          PROBE=data/processed/brussels_city_remaining/opendata_boundary_probe.json
+          test -s "$DISC"
+          test -s "$PROBE"
+
+      - name: Select single proven dataset and classify explicit license
+        id: select
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/select_brussels_opendata_dataset.py \
+            --discovery data/processed/brussels_city_remaining/opendata_boundary_candidates.json \
+            --probe data/processed/brussels_city_remaining/opendata_boundary_probe.json \
+            --target 'quartier européen' \
+            --target 'louise' \
+            --target 'roosevelt' \
+            --target 'bois de la cambre' \
+            --output data/processed/brussels_city_remaining/opendata_dataset_selection.json
+          ALLOWED=$(python - <<'PY'
+          import json
+          d=json.load(open('data/processed/brussels_city_remaining/opendata_dataset_selection.json',encoding='utf-8'))
+          print('true' if d['license_gate']['production_geometry_allowed'] else 'false')
+          PY
+          )
+          echo "allowed=$ALLOWED" >> "$GITHUB_OUTPUT"
+
+      - name: Verify selection remains conservative
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('data/processed/brussels_city_remaining/opendata_dataset_selection.json').read_text())
+          assert d['format']=='grand-bruxelles-opendata-dataset-selection-v1'
+          assert d['polygon_name_proof'] is True
+          assert len(d['targets'])==4
+          assert d['dataset_id']
+          assert d['license_gate']['not_legal_opinion'] is True
+          print('Dataset:',d['dataset_id'])
+          print('Title:',d['title'])
+          print('Publisher:',d['publisher'])
+          print('License:',d['license'])
+          print('Production geometry allowed:',d['license_gate']['production_geometry_allowed'])
+          print('Matched license rule:',d['license_gate']['matched_open_license_pattern'])
+          PY
+
+      - name: Commit license decision evidence
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/processed/brussels_city_remaining/opendata_dataset_selection.json
+          if git diff --cached --quiet; then
+            echo 'Dataset selection unchanged.'
+            exit 0
+          fi
+          git commit -m 'data: license-gate proven Brussels City area dataset'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles
+
+      - name: Explicitly report production block when license is not recognized
+        if: steps.select.outputs.allowed != 'true'
+        run: |
+          echo 'Geometry remains BLOCKED: the catalog license was not recognized by the conservative open-license allowlist.'

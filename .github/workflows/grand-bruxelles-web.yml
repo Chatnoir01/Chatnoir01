@@ -60,13 +60,12 @@ jobs:
 
       - name: Export playable Web build
         run: |
-          rm -rf /tmp/grand-bruxelles-web grand-bruxelles-game/web-preview
-          mkdir -p /tmp/grand-bruxelles-web grand-bruxelles-game/web-preview
+          rm -rf grand-bruxelles-game/web-preview
+          mkdir -p grand-bruxelles-game/web-preview
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless \
             --path grand-bruxelles-game \
-            --export-release "Web" /tmp/grand-bruxelles-web/grand-bruxelles.zip
-          unzip -q /tmp/grand-bruxelles-web/grand-bruxelles.zip -d grand-bruxelles-game/web-preview
+            --export-release "Web" grand-bruxelles-game/web-preview/index.html
           test -f grand-bruxelles-game/web-preview/index.html
           test -f grand-bruxelles-game/web-preview/index.wasm
           test -f grand-bruxelles-game/web-preview/index.pck
@@ -82,6 +81,7 @@ jobs:
           curl -fI http://127.0.0.1:8765/index.html
           curl -fI http://127.0.0.1:8765/index.wasm
           curl -fI http://127.0.0.1:8765/index.pck
+          curl -fI http://127.0.0.1:8765/index.js
 
       - name: Commit playable Web build
         run: |

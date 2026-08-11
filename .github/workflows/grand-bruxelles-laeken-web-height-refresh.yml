@@ -1,0 +1,141 @@
+name: Grand Bruxelles Laeken Web Height Refresh
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - ".github/workflows/grand-bruxelles-laeken-web-height-refresh.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout latest zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Cache export templates
+        id: templates-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/4.7.1.stable
+          key: godot-4.7.1-stable-export-templates-v1
+
+      - name: Install export templates
+        if: steps.templates-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/templates.tpz \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz
+          mkdir -p /tmp/templates-unpack
+          unzip -q /tmp/templates.tpz -d /tmp/templates-unpack
+          mkdir -p ~/.local/share/godot/export_templates/4.7.1.stable
+          cp -a /tmp/templates-unpack/templates/. ~/.local/share/godot/export_templates/4.7.1.stable/
+
+      - name: Require DSM building-height integration
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/laeken_building_heights_smoke_test.gd 2>&1 | tee /tmp/heights.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_BUILDING_HEIGHTS_FAIL" /tmp/heights.log; then exit 1; fi
+          grep -q "LAEKEN_BUILDING_HEIGHTS_OK" /tmp/heights.log
+
+      - name: Select Laeken playtest for export
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/project.godot')
+          s=p.read_text(encoding='utf-8')
+          old='run/main_scene="res://game/main.tscn"'
+          new='run/main_scene="res://game/zones/laeken_jette/laeken_playtest.tscn"'
+          if old not in s: raise SystemExit('main scene entry not found')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+
+      - name: Export current Laeken browser build
+        run: |
+          rm -rf grand-bruxelles-game/web-laeken
+          mkdir -p grand-bruxelles-game/web-laeken
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --export-release "Web" "$GITHUB_WORKSPACE/grand-bruxelles-game/web-laeken/index.html"
+          test -s grand-bruxelles-game/web-laeken/index.html
+          test -s grand-bruxelles-game/web-laeken/index.js
+          test -s grand-bruxelles-game/web-laeken/index.wasm
+          test -s grand-bruxelles-game/web-laeken/index.pck
+
+      - name: Write build identity
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          h=json.load(open('data/urbis/laeken_jette/building_heights_dsm.game.json',encoding='utf-8'))
+          terrain=json.load(open('data/terrain/laeken_jette/phase1_dtm.game.json',encoding='utf-8'))
+          ortho=json.load(open('data/sources/laeken_jette/orthophoto_phase1_runtime.json',encoding='utf-8'))
+          out={
+            'schema':1,
+            'build':'laeken-web-dsm-heights',
+            'source_commit':os.environ.get('GITHUB_SHA'),
+            'engine':'Godot 4.7.1',
+            'building_heights':{
+              'method':h['selection_method'],
+              'derived':h['derived_height_count'],
+              'fallback':h['feature_count']-h['derived_height_count'],
+              'median_m':h['derived_height_median_m'],
+              'max_m':h['derived_height_max_m'],
+              'quality':h['quality_counts'],
+            },
+            'terrain':{
+              'grid':[terrain['width'],terrain['height']],
+              'absolute_min_m':terrain['absolute_elevation_min_m'],
+              'absolute_max_m':terrain['absolute_elevation_max_m'],
+            },
+            'orthophoto':{
+              'layer':ortho['layer'],
+              'width':ortho['width'],'height':ortho['height'],
+              'sha256':ortho['sha256'],
+            },
+          }
+          pathlib.Path('web-laeken/build-info.json').write_text(json.dumps(out,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          print('LAEKEN_WEB_BUILD_INFO',out)
+          PY
+
+      - name: Verify HTTP assets
+        run: |
+          python3 -m http.server 8765 --directory grand-bruxelles-game/web-laeken >/tmp/server.log 2>&1 &
+          PID=$!
+          trap 'kill $PID' EXIT
+          sleep 2
+          for f in index.html index.js index.wasm index.pck build-info.json; do curl -fI "http://127.0.0.1:8765/$f"; done
+
+      - name: Publish build from latest branch head
+        run: |
+          git checkout -- grand-bruxelles-game/project.godot
+          rm -rf /tmp/web-laeken
+          cp -a grand-bruxelles-game/web-laeken /tmp/web-laeken
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          rm -rf grand-bruxelles-game/web-laeken
+          cp -a /tmp/web-laeken grand-bruxelles-game/web-laeken
+          git add -f grand-bruxelles-game/web-laeken
+          git diff --cached --quiet && exit 0
+          git commit -m "web: publish Laeken with DSM building heights [skip ci]"
+          git push origin HEAD:zone-laeken-jette

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Capture an official UrbIS orthophoto for one Lambert72 cell.
 
-This tool is intentionally small and deterministic: it builds a WMS 1.1.1
-GetMap request against the public Paradigm/UrbIS GeoServer using EPSG:31370.
-It can either print/write the request metadata or download the PNG.  The PNG is
-for validation/reference; geometry remains sourced from UrbIS vector products.
+This tool mirrors the public Paradigm/UrbIS GeoServer preview for
+``inspire:Ortho``: workspace-scoped WMS 1.1.0 in EPSG:31370. It can either
+print/write request metadata or download the PNG. The PNG is for visual
+validation/reference; geometry remains sourced from UrbIS vector products.
 """
 
 from __future__ import annotations
@@ -16,8 +16,9 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-DEFAULT_ENDPOINT = "https://geoservices-urbis.irisnet.be/geoserver/ows"
+DEFAULT_ENDPOINT = "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms"
 DEFAULT_LAYER = "inspire:Ortho"
+WMS_VERSION = "1.1.0"
 CRS = "EPSG:31370"
 
 
@@ -45,7 +46,7 @@ def build_wms_url(
     min_e, min_n, max_e, max_n = bbox
     params = {
         "service": "WMS",
-        "version": "1.1.1",
+        "version": WMS_VERSION,
         "request": "GetMap",
         "layers": layer,
         "styles": "",
@@ -61,12 +62,21 @@ def build_wms_url(
 
 def download(url: str, output: Path, timeout: float = 60.0) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True)
-    request = urllib.request.Request(url, headers={"User-Agent": "GrandBruxellesGame/1.0"})
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "GrandBruxellesGame/1.0",
+            "Accept": "image/png,image/*;q=0.9,*/*;q=0.1",
+        },
+    )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         content_type = response.headers.get("Content-Type", "")
         payload = response.read()
     if not payload.startswith(b"\x89PNG\r\n\x1a\n"):
-        raise RuntimeError(f"UrbIS WMS did not return PNG data (content-type={content_type!r})")
+        excerpt = payload[:160].decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"UrbIS WMS did not return PNG data (content-type={content_type!r}, body={excerpt!r})"
+        )
     output.write_bytes(payload)
     return {
         "path": str(output),
@@ -98,7 +108,7 @@ def main() -> int:
     result = {
         "format": "grand-bruxelles-orthophoto-reference-v1",
         "provider": "Paradigm / UrbIS",
-        "service": "WMS 1.1.1",
+        "service": f"WMS {WMS_VERSION}",
         "endpoint": args.endpoint,
         "layer": args.layer,
         "crs": CRS,

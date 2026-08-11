@@ -1,10 +1,11 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="PackedScene" path="res://game/zones/laeken_jette/laeken_jette.tscn" id="1_zone"]
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="2_player"]
 [ext_resource type="Script" path="res://game/scripts/vehicle_controller.gd" id="3_vehicle"]
 [ext_resource type="Script" path="res://game/scripts/mobile_controls.gd" id="4_mobile"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_playtest_spawn.gd" id="5_spawn"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_playtest_visuals.gd" id="6_visuals"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -30,14 +31,14 @@ metallic = 0.35
 roughness = 0.32
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSky_laeken"]
-sky_top_color = Color(0.24, 0.42, 0.64, 1)
-sky_horizon_color = Color(0.73, 0.78, 0.82, 1)
+sky_top_color = Color(0.22, 0.41, 0.66, 1)
+sky_horizon_color = Color(0.76, 0.82, 0.87, 1)
 sky_curve = 0.12
-sky_energy_multiplier = 0.9
-ground_bottom_color = Color(0.10, 0.11, 0.10, 1)
-ground_horizon_color = Color(0.55, 0.57, 0.55, 1)
+sky_energy_multiplier = 1.0
+ground_bottom_color = Color(0.11, 0.12, 0.105, 1)
+ground_horizon_color = Color(0.59, 0.61, 0.58, 1)
 ground_curve = 0.06
-ground_energy_multiplier = 0.72
+ground_energy_multiplier = 0.78
 sun_angle_max = 8.0
 sun_curve = 0.08
 use_debanding = true
@@ -50,15 +51,15 @@ sky_material = SubResource("ProceduralSky_laeken")
 background_mode = 2
 sky = SubResource("Sky_laeken")
 ambient_light_source = 3
-ambient_light_color = Color(0.76, 0.80, 0.84, 1)
-ambient_light_energy = 0.60
-ambient_light_sky_contribution = 0.78
+ambient_light_color = Color(0.79, 0.82, 0.85, 1)
+ambient_light_energy = 0.76
+ambient_light_sky_contribution = 0.72
 fog_enabled = true
-fog_light_color = Color(0.70, 0.74, 0.77, 1)
-fog_light_energy = 0.82
-fog_density = 0.0012
-fog_sky_affect = 0.28
-fog_sun_scatter = 0.10
+fog_light_color = Color(0.73, 0.77, 0.80, 1)
+fog_light_energy = 0.72
+fog_density = 0.00045
+fog_sky_affect = 0.18
+fog_sun_scatter = 0.08
 
 [node name="LaekenPlaytest" type="Node3D"]
 script = ExtResource("5_spawn")
@@ -68,15 +69,15 @@ environment = SubResource("Environment_playtest")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-48, -28, 0)
-light_color = Color(1, 0.94, 0.84, 1)
-light_energy = 1.25
+light_color = Color(1, 0.95, 0.86, 1)
+light_energy = 1.35
 shadow_enabled = true
 
 [node name="LaekenJetteZone" parent="." instance=ExtResource("1_zone")]
 
 [node name="Player" type="CharacterBody3D" parent="."]
 position = Vector3(225, 1.05, -6455)
-rotation_degrees = Vector3(0, 180, 0)
+rotation_degrees = Vector3(0, 0, 0)
 script = ExtResource("2_player")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
@@ -88,15 +89,15 @@ material_override = SubResource("Material_player")
 
 [node name="CameraPivot" type="Node3D" parent="Player"]
 position = Vector3(0, 0.65, 0)
-rotation_degrees = Vector3(-8, 0, 0)
+rotation_degrees = Vector3(-6, 0, 0)
 
 [node name="SpringArm3D" type="SpringArm3D" parent="Player/CameraPivot"]
-spring_length = 6.0
+spring_length = 5.8
 margin = 0.15
 
 [node name="Camera3D" type="Camera3D" parent="Player/CameraPivot/SpringArm3D"]
 current = true
-fov = 72.0
+fov = 70.0
 far = 15000.0
 
 [node name="PrototypeCar" type="CharacterBody3D" parent="." groups=["vehicle"]]
@@ -129,6 +130,9 @@ margin = 0.15
 current = false
 fov = 75.0
 far = 15000.0
+
+[node name="PlaytestVisualPass" type="Node" parent="."]
+script = ExtResource("6_visuals")
 
 [node name="Title" type="Label" parent="."]
 offset_left = 20.0

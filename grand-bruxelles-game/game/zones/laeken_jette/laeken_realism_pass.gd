@@ -299,7 +299,7 @@ func _add_segment_furniture(parent: Node3D, a: Vector2, b: Vector2) -> void:
         var centre := a + dir * cursor
         if centre.distance_to(ATOMIUM) <= MAX_APPROACH_RADIUS and centre.distance_to(ATOMIUM) >= 28.0:
             for sign_value in [-1.0, 1.0]:
-                var tree_pos := centre + side * 12.5 * sign_value
+                var tree_pos: Vector2 = centre + side * 12.5 * float(sign_value)
                 _add_tree(parent, tree_pos)
                 generated_trees += 1
         cursor += TREE_SPACING
@@ -309,7 +309,7 @@ func _add_segment_furniture(parent: Node3D, a: Vector2, b: Vector2) -> void:
         var centre_lamp := a + dir * cursor
         if centre_lamp.distance_to(ATOMIUM) <= MAX_APPROACH_RADIUS and centre_lamp.distance_to(ATOMIUM) >= 25.0:
             for sign_value in [-1.0, 1.0]:
-                var lamp_pos := centre_lamp + side * 8.8 * sign_value
+                var lamp_pos: Vector2 = centre_lamp + side * 8.8 * float(sign_value)
                 _add_lamp(parent, lamp_pos)
                 generated_lamps += 1
         cursor += LAMP_SPACING

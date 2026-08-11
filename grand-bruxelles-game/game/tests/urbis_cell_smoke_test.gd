@@ -141,10 +141,70 @@ func _run() -> void:
         _fail("outside OSM node changed visibility unexpectedly")
         return
 
-    print("URBIS_CELL_SMOKE_OK: builder + streamer + ownership + OSM mask passed")
     builder.queue_free()
     osm_root.queue_free()
     streamer.queue_free()
     mask.queue_free()
+    await process_frame
+
+    var main_scene := load("res://game/main.tscn") as PackedScene
+    if main_scene == null:
+        _fail("main.tscn did not load")
+        return
+    var main := main_scene.instantiate() as Node3D
+    if main == null:
+        _fail("main.tscn did not instantiate")
+        return
+    root.add_child(main)
+    for _frame: int in range(5):
+        await process_frame
+
+    var main_streamer := main.get_node_or_null("RemainingBrusselsStreamer")
+    var main_mask := main.get_node_or_null("RemainingBrusselsOSMMask")
+    if main_streamer == null or main_mask == null:
+        _fail("main scene is missing remaining-Brussels streamer or OSM mask")
+        return
+
+    var loaded_ids_variant: Variant = main_streamer.call("loaded_cell_ids")
+    if typeof(loaded_ids_variant) != TYPE_ARRAY:
+        _fail("main streamer did not return loaded cell IDs")
+        return
+    var loaded_ids := loaded_ids_variant as Array
+    var seam_cell := "bxl-e147000-n169500-s500"
+    var saint_guidon_cell := "bxl-e145500-n169000-s500"
+    if seam_cell not in loaded_ids:
+        _fail("contiguous Anderlecht seed did not stream at the Midi spawn: %s" % loaded_ids)
+        return
+    if reserved_midi in loaded_ids:
+        _fail("reserved Midi cell streamed in the main scene")
+        return
+    if saint_guidon_cell in loaded_ids:
+        _fail("distant Saint-Guidon cell should not stream at the Midi spawn")
+        return
+    if int(main_mask.call("masked_cell_count")) < 1:
+        _fail("main OSM mask did not synchronize with the streamed Anderlecht cell")
+        return
+
+    var streamed_node := main_streamer.get_node_or_null("Cell_%s" % seam_cell)
+    if streamed_node == null:
+        _fail("streamer reports seed loaded but generated cell node is missing")
+        return
+    if streamed_node.get_node_or_null("UrbISExactBuildings") == null:
+        _fail("streamed Anderlecht cell did not build exact buildings")
+        return
+    if streamed_node.get_node_or_null("UrbISStreetSurfaces") == null:
+        _fail("streamed Anderlecht cell did not build exact street surfaces")
+        return
+
+    var ground := main.get_node_or_null("Ground") as CSGBox3D
+    if ground == null or ground.size.x < 6000.0 or ground.size.z < 6000.0:
+        _fail("fallback ground does not extend under streamed Brussels cells")
+        return
+
+    print(
+        "URBIS_CELL_SMOKE_OK: main streamed %s, kept Midi ownership, masked OSM, Saint-Guidon remains distance-loaded" %
+        seam_cell
+    )
+    main.queue_free()
     await process_frame
     quit(0)

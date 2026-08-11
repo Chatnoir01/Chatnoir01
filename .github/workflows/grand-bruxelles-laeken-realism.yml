@@ -4,10 +4,11 @@ on:
   push:
     branches: ["zone-laeken-jette"]
     paths:
-      - "grand-bruxelles-game/game/zones/laeken_jette/laeken_realism_pass.gd"
-      - "grand-bruxelles-game/game/zones/laeken_jette/laeken_jette.tscn"
+      - "grand-bruxelles-game/game/zones/laeken_jette/**"
       - "grand-bruxelles-game/game/tests/laeken_realism_smoke_test.gd"
+      - "grand-bruxelles-game/game/tests/laeken_terrain_smoke_test.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/**"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/**"
       - ".github/workflows/grand-bruxelles-laeken-realism.yml"
   workflow_dispatch:
 
@@ -43,3 +44,20 @@ jobs:
             exit 1
           fi
           grep -q "LAEKEN_REALISM_SMOKE_OK" /tmp/laeken-realism.log
+
+      - name: Run official terrain smoke test when DTM runtime exists
+        shell: bash
+        run: |
+          if test ! -f grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json; then
+            echo "Official DTM runtime not committed yet; terrain smoke deferred."
+            exit 0
+          fi
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/laeken_terrain_smoke_test.gd 2>&1 | tee /tmp/laeken-terrain.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_TERRAIN_SMOKE_FAIL" /tmp/laeken-terrain.log; then
+            exit 1
+          fi
+          grep -q "LAEKEN_TERRAIN_SMOKE_OK" /tmp/laeken-terrain.log

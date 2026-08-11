@@ -1,7 +1,8 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
+[ext_resource type="Script" path="res://game/scripts/vehicle_controller.gd" id="3_vehicle"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -21,6 +22,17 @@ background_color = Color(0.16, 0.19, 0.24, 1)
 ambient_light_source = 3
 ambient_light_color = Color(0.55, 0.58, 0.65, 1)
 ambient_light_energy = 0.85
+
+[sub_resource type="BoxShape3D" id="BoxShape_car"]
+size = Vector3(1.9, 0.9, 4.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_car"]
+size = Vector3(1.9, 0.9, 4.2)
+
+[sub_resource type="StandardMaterial3D" id="Material_car"]
+albedo_color = Color(0.08, 0.18, 0.34, 1)
+metallic = 0.35
+roughness = 0.32
 
 [node name="Main" type="Node3D"]
 
@@ -62,10 +74,39 @@ margin = 0.15
 current = true
 fov = 72.0
 
+[node name="PrototypeCar" type="CharacterBody3D" parent="." groups=["vehicle"]]
+position = Vector3(5, 0.58, 90)
+script = ExtResource("3_vehicle")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PrototypeCar"]
+shape = SubResource("BoxShape_car")
+
+[node name="Body" type="MeshInstance3D" parent="PrototypeCar"]
+mesh = SubResource("BoxMesh_car")
+material_override = SubResource("Material_car")
+
+[node name="Cabin" type="CSGBox3D" parent="PrototypeCar"]
+position = Vector3(0, 0.62, -0.15)
+size = Vector3(1.55, 0.72, 1.9)
+material = SubResource("Material_car")
+use_collision = false
+
+[node name="CameraPivot" type="Node3D" parent="PrototypeCar"]
+position = Vector3(0, 1.45, 0)
+rotation_degrees = Vector3(-9, 0, 0)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="PrototypeCar/CameraPivot"]
+spring_length = 6.5
+margin = 0.15
+
+[node name="Camera3D" type="Camera3D" parent="PrototypeCar/CameraPivot/SpringArm3D"]
+current = false
+fov = 75.0
+
 [node name="PrototypeLabel" type="Label" parent="."]
 offset_left = 20.0
 offset_top = 18.0
-offset_right = 760.0
+offset_right = 920.0
 offset_bottom = 82.0
 theme_override_font_sizes/font_size = 18
-text = "GRAND BRUXELLES — OSM GREYBOX 0.2\nZQSD/WASD · Shift courir · Espace sauter · Échap souris"
+text = "GRAND BRUXELLES — OSM GREYBOX 0.3\nZQSD/WASD · Shift courir · E entrer/sortir voiture · Espace sauter · Échap souris"

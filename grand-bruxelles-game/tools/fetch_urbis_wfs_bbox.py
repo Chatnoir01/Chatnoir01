@@ -4,6 +4,11 @@
 The script requests official UrbIS vector layers directly from Paradigm's WFS,
 using Belgian Lambert 72 (EPSG:31370). It is intentionally bbox-based so each
 city zone can be refreshed independently and kept small enough for CI/game use.
+
+The public TramNetwork/TrainNetwork layers can expose overlapping rail features.
+Runtime classification already validates UrbIS TYPE values; this fetcher also
+applies server-side CQL filters (TW for tramway, RW for railway) to avoid storing
+thousands of irrelevant duplicate rail features in every 500 m raw cell.
 """
 
 from __future__ import annotations
@@ -24,6 +29,10 @@ DEFAULT_LAYERS = {
     "tram_network": "urbisvector:TramNetwork",
     "train_network": "urbisvector:TrainNetwork",
 }
+LAYER_CQL_FILTERS = {
+    "urbisvector:TramNetwork": "TYPE LIKE 'TW%'",
+    "urbisvector:TrainNetwork": "TYPE LIKE 'RW%'",
+}
 
 
 def parse_bbox(raw: str) -> tuple[float, float, float, float]:
@@ -36,7 +45,10 @@ def parse_bbox(raw: str) -> tuple[float, float, float, float]:
     return min_e, min_n, max_e, max_n
 
 
-def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retries: int) -> dict:
+def build_request_params(
+    layer_name: str,
+    bbox: tuple[float, float, float, float],
+) -> dict[str, str]:
     min_e, min_n, max_e, max_n = bbox
     params = {
         "service": "WFS",
@@ -47,7 +59,18 @@ def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retr
         "srsName": "EPSG:31370",
         "bbox": f"{min_e},{min_n},{max_e},{max_n},EPSG:31370",
     }
-    url = WFS_URL + "?" + urllib.parse.urlencode(params)
+    cql_filter = LAYER_CQL_FILTERS.get(layer_name)
+    if cql_filter:
+        params["CQL_FILTER"] = cql_filter
+    return params
+
+
+def build_request_url(layer_name: str, bbox: tuple[float, float, float, float]) -> str:
+    return WFS_URL + "?" + urllib.parse.urlencode(build_request_params(layer_name, bbox))
+
+
+def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retries: int) -> dict:
+    url = build_request_url(layer_name, bbox)
     request = urllib.request.Request(
         url,
         headers={
@@ -82,7 +105,7 @@ def main() -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "format": "grand-bruxelles-urbis-wfs-v1",
+        "format": "grand-bruxelles-urbis-wfs-v2",
         "source": WFS_URL,
         "crs": "EPSG:31370",
         "bbox": list(args.bbox),
@@ -96,6 +119,7 @@ def main() -> int:
         count = len(data.get("features", []))
         manifest["layers"][short_name] = {
             "wfs_name": layer_name,
+            "cql_filter": LAYER_CQL_FILTERS.get(layer_name),
             "features": count,
             "file": path.name,
         }

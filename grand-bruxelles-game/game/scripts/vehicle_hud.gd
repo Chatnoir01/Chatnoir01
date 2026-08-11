@@ -47,10 +47,25 @@ func _refresh() -> void:
             health = float(car.call("get_vehicle_health"))
         if car.has_method("is_vehicle_disabled"):
             disabled = bool(car.call("is_vehicle_disabled"))
+
         var state := "IMMOBILISÉ" if disabled else "%d%%" % int(round(health))
+        var recovery_line := ""
+        if disabled and car.has_method("get_recovery_state"):
+            var recovery_state := str(car.call("get_recovery_state"))
+            if recovery_state == "requested":
+                var remaining := 0.0
+                var quote := 0.0
+                if car.has_method("get_recovery_remaining_seconds"):
+                    remaining = float(car.call("get_recovery_remaining_seconds"))
+                if car.has_method("get_recovery_quote_eur"):
+                    quote = float(car.call("get_recovery_quote_eur"))
+                recovery_line = "\nDÉPANNEUSE · %.1fs · devis %.0f €" % [remaining, quote]
+            else:
+                recovery_line = "\nR · appeler la dépanneuse"
+
         text = (
-            "VÉHICULE · %03d km/h · ÉTAT %s\nTRAFIC · %d · %s" %
-            [int(round(speed)), state, traffic_count, mix_text]
+            "VÉHICULE · %03d km/h · ÉTAT %s%s\nTRAFIC · %d · %s" %
+            [int(round(speed)), state, recovery_line, traffic_count, mix_text]
         )
         return
 

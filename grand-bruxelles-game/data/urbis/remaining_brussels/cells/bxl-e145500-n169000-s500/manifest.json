@@ -12,26 +12,45 @@
     "buildings": {
       "wfs_name": "urbisvector:Buildings",
       "features": 1001,
+      "feature_filter": null,
       "file": "raw/buildings.geojson"
     },
     "street_surfaces": {
       "wfs_name": "urbisvector:StreetSurfaces",
       "features": 203,
+      "feature_filter": null,
       "file": "raw/street_surfaces.geojson"
     },
     "street_axes": {
       "wfs_name": "urbisvector:StreetAxes",
       "features": 48,
+      "feature_filter": null,
       "file": "raw/street_axes.geojson"
     },
     "tram_network": {
       "wfs_name": "urbisvector:TramNetwork",
       "features": 4,
+      "feature_filter": {
+        "mode": "post_bbox_in_memory",
+        "property": "TYPE",
+        "equals": "TW",
+        "source_features": 4,
+        "kept_features": 4,
+        "removed_features": 0
+      },
       "file": "raw/tram_network.geojson"
     },
     "train_network": {
       "wfs_name": "urbisvector:TrainNetwork",
-      "features": 4,
+      "features": 0,
+      "feature_filter": {
+        "mode": "post_bbox_in_memory",
+        "property": "TYPE",
+        "equals": "RW",
+        "source_features": 4,
+        "kept_features": 0,
+        "removed_features": 4
+      },
       "file": "raw/train_network.geojson"
     }
   },

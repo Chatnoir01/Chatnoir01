@@ -5,28 +5,28 @@
   "cell_size_m": 500.0,
   "zones": [
     {
-      "id": "anderlecht",
-      "name": "Anderlecht",
+      "id": "molenbeek",
+      "name": "Molenbeek-Saint-Jean",
       "commands": [
         [
           "/usr/bin/python3",
           "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/fetch_urbis_municipality.py",
           "--name",
-          "Anderlecht",
+          "Molenbeek-Saint-Jean",
           "--output",
-          "data/processed/remaining_brussels/boundaries/anderlecht.geojson"
+          "data/processed/remaining_brussels/boundaries/molenbeek.geojson"
         ],
         [
           "/usr/bin/python3",
           "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/make_zone_cells.py",
           "--boundary",
-          "data/processed/remaining_brussels/boundaries/anderlecht.geojson",
+          "data/processed/remaining_brussels/boundaries/molenbeek.geojson",
           "--zone-id",
-          "anderlecht",
+          "molenbeek",
           "--cell-size",
           "500.0",
           "--output",
-          "data/processed/remaining_brussels/cells/anderlecht.json"
+          "data/processed/remaining_brussels/cells/molenbeek.json"
         ]
       ]
     }

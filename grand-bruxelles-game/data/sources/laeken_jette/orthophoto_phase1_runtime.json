@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "source": "Paradigm / Brussels-Capital Region official raster WMS",
+  "layer": "Ortho",
+  "layer_title": "Latest orthophoto to date",
+  "layer_abstract": "This layer always displays the latest RGB (Red, Green, Blue) orthophoto to date, which is currently 2024. It covers the Brussels-Capital Region.",
+  "crs": "EPSG:31370",
+  "bbox_epsg31370": [
+    147300.0,
+    173650.0,
+    149100.0,
+    176750.0
+  ],
+  "width": 2048,
+  "height": 3527,
+  "approx_ground_resolution_m_per_pixel": 0.87890625,
+  "format": "image/jpeg",
+  "size_bytes": 1606105,
+  "sha256": "c23ab90490d78acb6accc0d4ce8a1bad5821b8b478b3643744382c4f13f57d95",
+  "request_url": "https://geoservices-grid.irisnet.be/geoserver/urbisgrid/ows?Service=WMS&Version=1.3.0&Request=GetMap&Layers=Ortho&Styles=&CRS=EPSG%3A31370&BBOX=147300.0%2C173650.0%2C149100.0%2C176750.0&Width=2048&Height=3527&Format=image%2Fjpeg&Transparent=false",
+  "license": "Creative Commons (CC-0) - no conditions for reuse, the data is in the public domain. The full license is available here: https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+  "access_constraints": "No limitations to public access",
+  "runtime_path": "data/orthophoto/laeken_jette/phase1_ortho.jpg",
+  "notes": "The WMS Ortho alias is documented by the service as the latest RGB orthophoto, currently 2024 at fetch time. This committed image freezes the exact phase-1 visual source used by the game build."
+}

@@ -6,7 +6,9 @@ import sys
 import urllib.request
 from pathlib import Path
 
-GTFS_URL = "https://datasets.api.production.belgianmobility.io/api/datasets-static/gtfs"
+# MobilityDatabase currently classifies this producer URL as the STIB/MIVB
+# Official Feed. Freshness is validated separately before runtime activation.
+GTFS_URL = "https://stibmivb.opendatasoft.com/api/datasets/1.0/gtfs-files-production/alternative_exports/gtfszip/"
 
 
 def main() -> int:
@@ -28,7 +30,7 @@ def main() -> int:
         return 2
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(data)
-    print(f"STIB_GTFS_FETCH_OK: {args.output} bytes={len(data)}")
+    print(f"STIB_GTFS_FETCH_OK: {args.output} bytes={len(data)} source={GTFS_URL}")
     return 0
 
 

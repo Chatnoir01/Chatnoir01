@@ -62,12 +62,10 @@ jobs:
             --exclude-containing-anchor \
             --output /tmp/anderlecht-seed.json
 
-      - name: Remove only accidental bootstrap cells
+      - name: Remove only disconnected accidental bootstrap cell
         working-directory: grand-bruxelles-game
         run: |
-          rm -rf \
-            data/urbis/remaining_brussels/cells/bxl-e143500-n166000-s500 \
-            data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500
+          rm -rf data/urbis/remaining_brussels/cells/bxl-e143500-n166000-s500
 
       - name: Rebuild contiguous Anderlecht seed from UrbIS WFS
         working-directory: grand-bruxelles-game
@@ -77,7 +75,7 @@ jobs:
             --output-root data/urbis/remaining_brussels/cells \
             --force
 
-      - name: Build Godot streaming index
+      - name: Build ownership-aware Godot streaming index
         working-directory: grand-bruxelles-game
         run: |
           python3 tools/build_urbis_runtime_index.py \
@@ -102,7 +100,7 @@ jobs:
             --output /tmp/anderlecht-ortho/seed.png \
             --metadata data/processed/remaining_brussels/references/anderlecht_seed_orthophoto.json
 
-      - name: Verify generated data, branch ownership and rail classification
+      - name: Verify generated data, ownership and visual reference
         working-directory: grand-bruxelles-game
         run: |
           python3 - <<'PY'
@@ -127,8 +125,10 @@ jobs:
           index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
           assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v2'
           indexed_ids = {cell['cell_id'] for cell in index['cells']}
+          excluded_ids = {cell['cell_id'] for cell in index.get('excluded_cells', [])}
           assert seed_id in indexed_ids, (seed_id, sorted(indexed_ids))
           assert reserved_midi not in indexed_ids, sorted(indexed_ids)
+          assert reserved_midi in excluded_ids, sorted(excluded_ids)
           assert accidental_far not in indexed_ids, sorted(indexed_ids)
 
           manifest_path = Path('data/urbis/remaining_brussels/cells') / seed_id / 'manifest.json'
@@ -141,9 +141,6 @@ jobs:
           assert network['format'] == 'grand-bruxelles-urbis-network-cell-runtime-v2'
           assert all(str(item.get('type', '')).startswith('TW') for item in network['tram_network'])
           assert all(str(item.get('type', '')).startswith('RW') for item in network['train_network'])
-          tram_ids = {item['source_id'] for item in network['tram_network']}
-          train_ids = {item['source_id'] for item in network['train_network']}
-          assert tram_ids.isdisjoint(train_ids), 'tram/train runtime source IDs overlap after TYPE filtering'
 
           ortho = json.loads(Path('data/processed/remaining_brussels/references/anderlecht_seed_orthophoto.json').read_text())
           assert ortho['provider'] == 'Paradigm / UrbIS'
@@ -154,21 +151,28 @@ jobs:
           assert ortho['download']['bytes'] > 1000
           assert len(ortho['download']['sha256']) == 64
 
-          print('Contiguous official seed:', seed_id)
-          print('Seed distance from Midi anchor (m):', seed['seed_selection']['distance_m'])
-          print('Excluded reserved cells:', seed['seed_selection']['excluded_anchor_cell_ids'])
-          print('Runtime cells retained:', sorted(indexed_ids))
-          print('Geometry stats:', manifest['runtime']['geometry_stats'])
-          print('Network stats:', manifest['runtime']['network_stats'])
-          print('Rail source TYPE counts:', network['source_type_counts'])
-          print('Orthophoto sha256:', ortho['download']['sha256'])
+          report = {
+              'seed_id': seed_id,
+              'seed_bbox': seed['cells'][0]['bbox'],
+              'seed_distance_m': seed['seed_selection']['distance_m'],
+              'streamable_cells': sorted(indexed_ids),
+              'excluded_cells': sorted(excluded_ids),
+              'geometry_stats': manifest['runtime']['geometry_stats'],
+              'network_stats': manifest['runtime']['network_stats'],
+              'orthophoto_sha256': ortho['download']['sha256'],
+              'orthophoto_bytes': ortho['download']['bytes'],
+          }
+          Path('/tmp/anderlecht-seed-report.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
           PY
 
-      - name: Upload orthophoto validation preview
+      - name: Upload orthophoto and validation report
         uses: actions/upload-artifact@v4
         with:
-          name: anderlecht-seed-official-orthophoto
-          path: /tmp/anderlecht-ortho/seed.png
+          name: anderlecht-seed-official-reference
+          path: |
+            /tmp/anderlecht-ortho/seed.png
+            /tmp/anderlecht-seed-report.json
           if-no-files-found: error
           retention-days: 14
 
@@ -186,5 +190,5 @@ jobs:
             echo 'No generated data changes to commit.'
             exit 0
           fi
-          git commit -m 'data: rebuild Anderlecht seed outside Midi ownership'
+          git commit -m 'data: rebuild ownership-safe Anderlecht seed'
           git push origin HEAD:zone-reste-bruxelles

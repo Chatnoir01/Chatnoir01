@@ -90,9 +90,9 @@ func _append_flat_polygon(tool: SurfaceTool, polygon: PackedVector2Array, y: flo
 
 
 func _commit_tool(tool: SurfaceTool, name: String, root: Node3D) -> void:
-    if tool.get_vertex_count() == 0:
-        return
     var mesh: ArrayMesh = tool.commit()
+    if mesh.get_surface_count() == 0:
+        return
     var instance: MeshInstance3D = MeshInstance3D.new()
     instance.name = name
     instance.mesh = mesh

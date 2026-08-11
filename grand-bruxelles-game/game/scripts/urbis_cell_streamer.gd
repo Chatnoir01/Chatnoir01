@@ -43,8 +43,9 @@ func _load_index() -> bool:
         push_error("Invalid UrbIS runtime index JSON: %s" % index_path)
         return false
     var data := parsed as Dictionary
-    if str(data.get("format", "")) != "grand-bruxelles-urbis-runtime-index-v1":
-        push_error("Unsupported UrbIS runtime index format")
+    var index_format := str(data.get("format", ""))
+    if index_format != "grand-bruxelles-urbis-runtime-index-v1" and index_format != "grand-bruxelles-urbis-runtime-index-v2":
+        push_error("Unsupported UrbIS runtime index format: %s" % index_format)
         return false
 
     _cells.clear()
@@ -61,7 +62,12 @@ func _load_index() -> bool:
             continue
         _cells.append(cell)
 
-    print("Grand Bruxelles streamer index: %d cells" % _cells.size())
+    var excluded_count := int(data.get("excluded_cell_count", 0))
+    print(
+        "Grand Bruxelles streamer index: %d streamable cells, %d ownership exclusions" % [
+            _cells.size(), excluded_count
+        ]
+    )
     return true
 
 

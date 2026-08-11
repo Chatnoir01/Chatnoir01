@@ -1,0 +1,60 @@
+name: Grand Bruxelles UrbIS 3D Inspect
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/tools/resolve_urbis_3d_distribution.py"
+      - ".github/workflows/grand-bruxelles-urbis-3d-inspect.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-urbis-3d-inspect
+  cancel-in-progress: true
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate resolver
+        run: python3 -m py_compile grand-bruxelles-game/tools/resolve_urbis_3d_distribution.py
+
+      - name: Resolve official EPSG 31370 GPKG distribution
+        run: |
+          python3 grand-bruxelles-game/tools/resolve_urbis_3d_distribution.py \
+            --output grand-bruxelles-game/data/sources/midi/urbis_3d_gpkg_resolution.json
+
+      - name: Validate resolved resource
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/data/sources/midi/urbis_3d_gpkg_resolution.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          assert data['resolved_url'].startswith('http'), data
+          assert len(data['chain']) >= 2, data
+          assert any('31370' in str(hop.get('selected', {}).get('title', '')) for hop in data['chain']), data
+          assert any('GPKG' in str(hop.get('selected', {}).get('title', '')).upper() for hop in data['chain']), data
+          print('Resolved:', data['resolved_kind'], data['resolved_url'])
+          for hop in data['chain']:
+              print('hop', hop['depth'], hop['kind'], hop.get('selected', {}).get('title', ''), hop.get('selected', {}).get('href', ''))
+          PY
+
+      - name: Commit resolution manifest
+        run: |
+          if [ -z "$(git status --porcelain -- grand-bruxelles-game/data/sources/midi/urbis_3d_gpkg_resolution.json)" ]; then
+            echo "Resolution unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/sources/midi/urbis_3d_gpkg_resolution.json
+          git commit -m "data: resolve official UrbIS 3D GPKG [skip ci]"
+          git push

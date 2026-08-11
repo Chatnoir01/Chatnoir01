@@ -69,6 +69,7 @@ jobs:
             exit 1
           fi
           grep -q "LAEKEN_JETTE_ZONE_READY" /tmp/laeken-playtest.log
+          grep -q "LAEKEN_ATOMIUM_CORRIDOR_READY" /tmp/laeken-playtest.log
 
       - name: Select Laeken playtest as temporary export main scene
         run: |
@@ -114,7 +115,7 @@ jobs:
           curl -fI http://127.0.0.1:8765/index.wasm
           curl -fI http://127.0.0.1:8765/index.pck
 
-      - name: Restore project config and commit Web build only
+      - name: Restore project config and publish Web build safely
         run: |
           git checkout -- grand-bruxelles-game/project.godot
           git config user.name "github-actions[bot]"
@@ -122,7 +123,25 @@ jobs:
           git add -f grand-bruxelles-game/web-laeken
           if git diff --cached --quiet; then
             echo "Laeken Web build already up to date."
-          else
-            git commit -m "web: publish playable Laeken preview [skip ci]"
-            git push origin HEAD:zone-laeken-jette
+            exit 0
           fi
+
+          git commit -m "web: publish playable Laeken preview [skip ci]"
+
+          # Other zone CI jobs can legitimately commit data while the export is running.
+          # Rebase the generated Web-only commit instead of racing or forcing the branch.
+          for attempt in 1 2 3; do
+            git fetch origin zone-laeken-jette
+            if ! git rebase origin/zone-laeken-jette; then
+              git rebase --abort || true
+              echo "Rebase failed; refusing to force-push zone branch."
+              exit 1
+            fi
+            if git push origin HEAD:zone-laeken-jette; then
+              exit 0
+            fi
+            echo "Publish race on attempt $attempt; retrying after fresh fetch."
+            sleep 2
+          done
+          echo "Unable to publish Web build after safe retries."
+          exit 1

@@ -1,0 +1,90 @@
+name: Probe Brussels open-data polygon areas
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/probe-brussels-opendata-boundaries.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: probe-brussels-opendata-boundaries
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test polygon-evidence probe
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests.test_probe_brussels_opendata_boundaries -v
+
+      - name: Ensure official catalog discovery exists
+        working-directory: grand-bruxelles-game
+        run: |
+          DISC=data/processed/brussels_city_remaining/opendata_boundary_candidates.json
+          if [ ! -s "$DISC" ]; then
+            python tools/discover_brussels_opendata_boundaries.py --output "$DISC"
+          fi
+
+      - name: Probe named polygon targets
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/probe_brussels_opendata_boundaries.py \
+            --discovery data/processed/brussels_city_remaining/opendata_boundary_candidates.json \
+            --target 'quartier européen' \
+            --target 'european quarter' \
+            --target 'léopold' \
+            --target 'louise' \
+            --target 'roosevelt' \
+            --target 'bois de la cambre' \
+            --target 'ter kamerenbos' \
+            --max-records 2500 \
+            --max-candidates 25 \
+            --output data/processed/brussels_city_remaining/opendata_boundary_probe.json
+
+      - name: Validate probe remains evidence-only
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('data/processed/brussels_city_remaining/opendata_boundary_probe.json')
+          d=json.loads(p.read_text())
+          assert d['format']=='grand-bruxelles-opendata-boundary-probe-v1'
+          assert d['source'].startswith('https://opendata.brussels.be/')
+          assert d['candidate_count_probed']>0
+          assert d['production_approved_datasets']=={}
+          assert isinstance(d['datasets_with_polygon_match_by_target'],dict)
+          print('Datasets probed:',d['candidate_count_probed'])
+          for target,datasets in d['datasets_with_polygon_match_by_target'].items():
+              print(target,'=>',datasets)
+          PY
+
+      - name: Commit official polygon probe evidence
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/brussels_city_remaining/opendata_boundary_candidates.json \
+            grand-bruxelles-game/data/processed/brussels_city_remaining/opendata_boundary_probe.json
+          if git diff --cached --quiet; then
+            echo 'Open-data boundary probe unchanged.'
+            exit 0
+          fi
+          git commit -m 'data: probe official Brussels polygon area datasets'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

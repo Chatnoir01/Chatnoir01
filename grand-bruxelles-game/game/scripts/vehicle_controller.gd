@@ -17,7 +17,6 @@ var speed: float = 0.0
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _exit_unlock_ms: int = 0
 
-
 func _physics_process(delta: float) -> void:
     if not is_on_floor():
         velocity.y -= gravity * delta
@@ -31,6 +30,12 @@ func _physics_process(delta: float) -> void:
         var reverse_pressed: bool = Input.is_key_pressed(KEY_S)
         var left_pressed: bool = Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_Q)
         var right_pressed: bool = Input.is_key_pressed(KEY_D)
+        var touch: Node = get_parent().get_node_or_null("MobileControls")
+        if touch != null:
+            forward_pressed = forward_pressed or bool(touch.get("forward_pressed"))
+            reverse_pressed = reverse_pressed or bool(touch.get("backward_pressed"))
+            left_pressed = left_pressed or bool(touch.get("left_pressed"))
+            right_pressed = right_pressed or bool(touch.get("right_pressed"))
         throttle = float(forward_pressed) - float(reverse_pressed)
         steering = float(right_pressed) - float(left_pressed)
 
@@ -57,25 +62,17 @@ func _physics_process(delta: float) -> void:
     if is_on_wall():
         speed *= 0.35
 
-
 func _unhandled_input(event: InputEvent) -> void:
     if driver == null:
         return
-
     if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
         camera_pivot.rotate_y(-event.relative.x * mouse_sensitivity)
         camera_pivot.rotation.y = clampf(camera_pivot.rotation.y, -1.35, 1.35)
-
     if event is InputEventKey and event.pressed and not event.echo:
         if event.keycode == KEY_E and Time.get_ticks_msec() >= _exit_unlock_ms:
             exit_driver()
         elif event.keycode == KEY_ESCAPE:
-            Input.mouse_mode = (
-                Input.MOUSE_MODE_VISIBLE
-                if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-                else Input.MOUSE_MODE_CAPTURED
-            )
-
+            Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 
 func enter_driver(player: CharacterBody3D) -> void:
     if driver != null:
@@ -86,11 +83,10 @@ func enter_driver(player: CharacterBody3D) -> void:
     camera_pivot.rotation.y = 0.0
     player.call("set_vehicle_mode", true)
     camera.current = true
-    Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED
 
 func exit_driver() -> void:
-    if driver == null:
+    if driver == null or Time.get_ticks_msec() < _exit_unlock_ms:
         return
     var player: CharacterBody3D = driver
     driver = null
@@ -99,7 +95,6 @@ func exit_driver() -> void:
     player.global_position = global_position + side * exit_distance + Vector3.UP * 0.8
     player.rotation.y = rotation.y
     player.call("set_vehicle_mode", false)
-
 
 func has_driver() -> bool:
     return driver != null

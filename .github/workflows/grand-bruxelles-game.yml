@@ -64,16 +64,29 @@ jobs:
           retention-days: 14
 
       - name: Import project headless
+        shell: bash
         run: |
+          set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless \
             --path grand-bruxelles-game \
             --editor \
-            --quit
+            --quit 2>&1 | tee /tmp/godot-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/godot-import.log; then
+            echo "Godot script/import error detected"
+            exit 1
+          fi
 
       - name: Load OSM greybox scene headless
+        shell: bash
         run: |
+          set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless \
             --path grand-bruxelles-game \
-            --quit-after 4
+            --quit-after 8 2>&1 | tee /tmp/godot-run.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/godot-run.log; then
+            echo "Godot runtime script error detected"
+            exit 1
+          fi
+          grep -q "Grand Bruxelles OSM greybox:" /tmp/godot-run.log

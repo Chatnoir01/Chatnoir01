@@ -75,16 +75,16 @@ func _draw() -> void:
             continue
         var road_class: String = str(road.get("class", ""))
         var is_major: bool = road_class in ["primary", "secondary", "tertiary"]
-        var color: Color = _major_color if is_major else _minor_color
-        var width: float = 1.8 if is_major else 1.0
+        var road_color: Color = _major_color if is_major else _minor_color
+        var road_width: float = 1.8 if is_major else 1.0
         for index: int in range(points.size() - 1):
-            var start: Variant = points[index]
-            var finish: Variant = points[index + 1]
+            var start_point: Variant = points[index]
+            var end_point: Variant = points[index + 1]
             draw_line(
-                _world_to_map(float(start[0]), float(start[1])),
-                _world_to_map(float(finish[0]), float(finish[1])),
-                color,
-                width,
+                _world_to_map(float(start_point[0]), float(start_point[1])),
+                _world_to_map(float(end_point[0]), float(end_point[1])),
+                road_color,
+                road_width,
                 true
             )
 

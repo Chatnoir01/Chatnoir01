@@ -110,6 +110,20 @@ jobs:
           fi
           grep -q "Grand Bruxelles OSM greybox:" /tmp/godot-run.log
 
+      - name: Vehicle enter-exit smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/vehicle_smoke_test.gd 2>&1 | tee /tmp/vehicle-smoke.log
+          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_SMOKE_FAIL" /tmp/vehicle-smoke.log; then
+            echo "Vehicle smoke test failed"
+            exit 1
+          fi
+          grep -q "VEHICLE_SMOKE_OK" /tmp/vehicle-smoke.log
+
       - name: Commit tested runtime OSM slice
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
         shell: bash

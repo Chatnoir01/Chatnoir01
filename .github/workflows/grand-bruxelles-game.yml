@@ -124,6 +124,20 @@ jobs:
           fi
           grep -q "VEHICLE_SMOKE_OK" /tmp/vehicle-smoke.log
 
+      - name: Mission Midi to Grand-Place smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/mission_smoke_test.gd 2>&1 | tee /tmp/mission-smoke.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MISSION_SMOKE_FAIL" /tmp/mission-smoke.log; then
+            echo "Mission smoke test failed"
+            exit 1
+          fi
+          grep -q "MISSION_SMOKE_OK" /tmp/mission-smoke.log
+
       - name: Commit tested runtime OSM slice
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
         shell: bash

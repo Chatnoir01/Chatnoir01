@@ -125,7 +125,7 @@ jobs:
           assert seed_id not in {reserved_midi, accidental_far}
 
           index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
-          assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v1'
+          assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v2'
           indexed_ids = {cell['cell_id'] for cell in index['cells']}
           assert seed_id in indexed_ids, (seed_id, sorted(indexed_ids))
           assert reserved_midi not in indexed_ids, sorted(indexed_ids)

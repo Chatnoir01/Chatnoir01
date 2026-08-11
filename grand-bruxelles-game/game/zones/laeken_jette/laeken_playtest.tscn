@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="PackedScene" path="res://game/zones/laeken_jette/laeken_jette.tscn" id="1_zone"]
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="2_player"]
@@ -28,12 +28,36 @@ albedo_color = Color(0.08, 0.22, 0.40, 1)
 metallic = 0.35
 roughness = 0.32
 
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSky_laeken"]
+sky_top_color = Color(0.24, 0.42, 0.64, 1)
+sky_horizon_color = Color(0.73, 0.78, 0.82, 1)
+sky_curve = 0.12
+sky_energy_multiplier = 0.9
+ground_bottom_color = Color(0.10, 0.11, 0.10, 1)
+ground_horizon_color = Color(0.55, 0.57, 0.55, 1)
+ground_curve = 0.06
+ground_energy_multiplier = 0.72
+sun_angle_max = 8.0
+sun_curve = 0.08
+use_debanding = true
+
+[sub_resource type="Sky" id="Sky_laeken"]
+radiance_size = 2
+sky_material = SubResource("ProceduralSky_laeken")
+
 [sub_resource type="Environment" id="Environment_playtest"]
-background_mode = 1
-background_color = Color(0.58, 0.70, 0.84, 1)
+background_mode = 2
+sky = SubResource("Sky_laeken")
 ambient_light_source = 3
-ambient_light_color = Color(0.80, 0.83, 0.88, 1)
-ambient_light_energy = 0.72
+ambient_light_color = Color(0.76, 0.80, 0.84, 1)
+ambient_light_energy = 0.60
+ambient_light_sky_contribution = 0.78
+fog_enabled = true
+fog_light_color = Color(0.70, 0.74, 0.77, 1)
+fog_light_energy = 0.82
+fog_density = 0.0012
+fog_sky_affect = 0.28
+fog_sun_scatter = 0.10
 
 [node name="LaekenPlaytest" type="Node3D"]
 
@@ -42,8 +66,8 @@ environment = SubResource("Environment_playtest")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-48, -28, 0)
-light_color = Color(1, 0.95, 0.86, 1)
-light_energy = 1.15
+light_color = Color(1, 0.94, 0.84, 1)
+light_energy = 1.25
 shadow_enabled = true
 
 [node name="LaekenJetteZone" parent="." instance=ExtResource("1_zone")]
@@ -107,11 +131,11 @@ far = 15000.0
 [node name="Title" type="Label" parent="."]
 offset_left = 20.0
 offset_top = 18.0
-offset_right = 730.0
+offset_right = 760.0
 offset_bottom = 82.0
 theme_override_colors/font_color = Color(1, 0.86, 0.28, 1)
 theme_override_font_sizes/font_size = 22
-text = "LAEKEN · PLAYTEST URBIS\nAtomium / Heysel · branche zone-laeken-jette"
+text = "LAEKEN · PLAYTEST URBIS + DTM\nAtomium / Heysel · relief officiel phase 1"
 
 [node name="Help" type="Label" parent="."]
 offset_left = 20.0

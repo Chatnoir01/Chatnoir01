@@ -71,9 +71,13 @@ func _run() -> void:
     if absf(atomium_height) > 1.0:
         _fail("Atomium local terrain should be near Y=0, got %.3f" % atomium_height)
         return
-    if FileAccess.file_exists(PRIMARY_DTM) and data_path != PRIMARY_DTM:
-        _fail("full phase-1 DTM exists but terrain did not select it: %s" % data_path)
-        return
+    if FileAccess.file_exists(PRIMARY_DTM):
+        if data_path != PRIMARY_DTM:
+            _fail("full phase-1 DTM exists but terrain did not select it: %s" % data_path)
+            return
+        if terrain_width != 360 or terrain_height != 620:
+            _fail("full phase-1 DTM must be 360x620 at 5m, got %dx%d" % [terrain_width, terrain_height])
+            return
 
     var drape = scene.get_node_or_null("TerrainDrape")
     if drape == null:

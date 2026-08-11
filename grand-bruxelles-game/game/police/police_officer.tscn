@@ -1,0 +1,50 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://game/scripts/police_officer.gd" id="1_officer"]
+
+[sub_resource type="CapsuleShape3D" id="Capsule_officer"]
+radius = 0.38
+height = 1.78
+
+[sub_resource type="CapsuleMesh" id="Mesh_body"]
+radius = 0.38
+height = 1.78
+
+[sub_resource type="BoxMesh" id="Mesh_box"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_uniform"]
+albedo_color = Color(0.025, 0.055, 0.11, 1)
+roughness = 0.72
+
+[sub_resource type="StandardMaterial3D" id="Mat_vest"]
+albedo_color = Color(0.78, 0.82, 0.12, 1)
+emission_enabled = true
+emission = Color(0.12, 0.14, 0.01, 1)
+emission_energy_multiplier = 0.25
+roughness = 0.62
+
+[node name="PoliceOfficer" type="CharacterBody3D" groups=["police_officer"]]
+script = ExtResource("1_officer")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.89, 0)
+shape = SubResource("Capsule_officer")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.89, 0)
+mesh = SubResource("Mesh_body")
+material_override = SubResource("Mat_uniform")
+
+[node name="Vest" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.04, -0.12)
+scale = Vector3(0.66, 0.50, 0.22)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_vest")
+
+[node name="PoliceLabel" type="Label3D" parent="."]
+position = Vector3(0, 1.18, -0.36)
+rotation_degrees = Vector3(0, 180, 0)
+font_size = 32
+outline_size = 3
+text = "POLICE"

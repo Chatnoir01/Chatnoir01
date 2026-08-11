@@ -13,15 +13,22 @@ extends CharacterBody3D
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _base_collision_layer: int = 1
 var _base_collision_mask: int = 1
+var _active_vehicle: Node3D = null
+var _arrested: bool = false
+var _spawn_transform: Transform3D
 
 
 func _ready() -> void:
     _base_collision_layer = collision_layer
     _base_collision_mask = collision_mask
+    _spawn_transform = global_transform
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED
 
 
 func _unhandled_input(event: InputEvent) -> void:
+    if _arrested:
+        return
+
     if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
         rotate_y(-event.relative.x * mouse_sensitivity)
         camera_pivot.rotate_x(-event.relative.y * mouse_sensitivity)
@@ -43,6 +50,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+    if _arrested:
+        velocity = Vector3.ZERO
+        return
+
     if not is_on_floor():
         velocity.y -= gravity * delta
 
@@ -86,6 +97,9 @@ func _mobile_controls() -> Node:
 
 
 func try_enter_vehicle() -> void:
+    if _arrested:
+        return
+
     var nearest_vehicle: Node3D = null
     var nearest_distance: float = vehicle_interaction_range
 
@@ -103,14 +117,19 @@ func try_enter_vehicle() -> void:
             nearest_distance = distance
 
     if nearest_vehicle != null:
+        if nearest_vehicle.is_in_group("police_vehicle"):
+            var wanted := get_tree().get_first_node_in_group("wanted_system")
+            if wanted != null and wanted.has_method("report_offence"):
+                wanted.call("report_offence", 28.0, "police_vehicle_theft")
         nearest_vehicle.call("enter_driver", self)
 
 
-func set_vehicle_mode(enabled: bool) -> void:
+func set_vehicle_mode(enabled: bool, vehicle: Node3D = null) -> void:
     visible = not enabled
-    set_physics_process(not enabled)
-    set_process_unhandled_input(not enabled)
+    set_physics_process(not enabled and not _arrested)
+    set_process_unhandled_input(not enabled and not _arrested)
     velocity = Vector3.ZERO
+    _active_vehicle = vehicle if enabled else null
 
     if enabled:
         collision_layer = 0
@@ -120,3 +139,33 @@ func set_vehicle_mode(enabled: bool) -> void:
         collision_mask = _base_collision_mask
         camera.current = true
         Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED
+
+
+func get_gameplay_position() -> Vector3:
+    if is_instance_valid(_active_vehicle):
+        return _active_vehicle.global_position
+    return global_position
+
+
+func is_in_vehicle() -> bool:
+    return is_instance_valid(_active_vehicle)
+
+
+func set_arrested(enabled: bool) -> void:
+    _arrested = enabled
+    velocity = Vector3.ZERO
+    if not is_in_vehicle():
+        set_physics_process(not enabled)
+        set_process_unhandled_input(not enabled)
+
+
+func is_arrested() -> bool:
+    return _arrested
+
+
+func reset_after_arrest() -> void:
+    if is_in_vehicle():
+        return
+    global_transform = _spawn_transform
+    velocity = Vector3.ZERO
+    camera.current = true

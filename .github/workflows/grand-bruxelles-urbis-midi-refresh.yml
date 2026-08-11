@@ -71,7 +71,7 @@ jobs:
 
       - name: Commit refreshed Midi UrbIS data
         run: |
-          if git diff --quiet -- grand-bruxelles-game/data/urbis/midi; then
+          if [ -z "$(git status --porcelain -- grand-bruxelles-game/data/urbis/midi)" ]; then
             echo "UrbIS Midi data unchanged"
             exit 0
           fi

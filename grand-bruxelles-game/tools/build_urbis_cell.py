@@ -3,7 +3,8 @@
 
 Pipeline:
   EPSG:31370 bbox -> official UrbIS WFS layers -> raw GeoJSON -> deduplicated
-  compact runtime JSON aligned to the current Godot/OSM world.
+  building/surface runtime + clipped road/tram/train network runtime aligned to
+  the current Godot/OSM world.
 
 Raw source files are preserved. Runtime geometry is derived, never edited back
 into the raw files.
@@ -23,6 +24,7 @@ if str(TOOLS_DIR) not in sys.path:
 
 from fetch_urbis_wfs_bbox import DEFAULT_LAYERS, parse_bbox, request_layer
 from make_urbis_cell_runtime import build_runtime
+from make_urbis_network_cell_runtime import build_runtime as build_network_runtime
 
 
 def write_json(path: Path, payload: dict[str, Any], compact: bool = True) -> None:
@@ -75,6 +77,16 @@ def build_cell(
     runtime_path = runtime_dir / "cell.game.json"
     write_json(runtime_path, runtime)
 
+    network_runtime = build_network_runtime(
+        layer_documents["street_axes"],
+        layer_documents["tram_network"],
+        layer_documents["train_network"],
+        bbox,
+        cell_id,
+    )
+    network_path = runtime_dir / "network.game.json"
+    write_json(network_path, network_runtime)
+
     manifest = {
         "format": "grand-bruxelles-urbis-built-cell-v1",
         "cell_id": cell_id,
@@ -82,9 +94,12 @@ def build_cell(
         "bbox": list(bbox),
         "layers": layer_stats,
         "runtime": {
-            "file": str(runtime_path.relative_to(output_dir)),
-            "stats": runtime["stats"],
-            "format": runtime["format"],
+            "geometry_file": str(runtime_path.relative_to(output_dir)),
+            "geometry_stats": runtime["stats"],
+            "geometry_format": runtime["format"],
+            "network_file": str(network_path.relative_to(output_dir)),
+            "network_stats": network_runtime["stats"],
+            "network_format": network_runtime["format"],
         },
     }
     write_json(output_dir / "manifest.json", manifest, compact=False)
@@ -100,7 +115,10 @@ def main() -> int:
     args = parser.parse_args()
 
     manifest = build_cell(args.cell_id, args.bbox, args.output_dir, args.retries)
-    print(f"{args.cell_id}: runtime {manifest['runtime']['stats']} -> {args.output_dir}")
+    print(
+        f"{args.cell_id}: geometry {manifest['runtime']['geometry_stats']} / "
+        f"network {manifest['runtime']['network_stats']} -> {args.output_dir}"
+    )
     return 0
 
 

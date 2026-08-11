@@ -1,0 +1,73 @@
+name: Remaining Brussels WFS smoke
+
+on:
+  push:
+    branches:
+      - zone-reste-bruxelles
+    paths:
+      - 'grand-bruxelles-game/tools/fetch_urbis_wfs_bbox.py'
+      - 'grand-bruxelles-game/tests/test_fetch_urbis_wfs_bbox.py'
+      - '.github/workflows/remaining-brussels-wfs-smoke.yml'
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/fetch_urbis_wfs_bbox.py'
+      - 'grand-bruxelles-game/tests/test_fetch_urbis_wfs_bbox.py'
+      - '.github/workflows/remaining-brussels-wfs-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  filtered-wfs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unit test WFS request construction
+        run: python -m unittest tests.test_fetch_urbis_wfs_bbox -v
+      - name: Fetch one real 500m seam cell
+        run: |
+          python tools/fetch_urbis_wfs_bbox.py \
+            --bbox 147000,169500,147500,170000 \
+            --output-dir /tmp/urbis-filter-smoke \
+            --retries 3
+      - name: Verify raw rail layers are source-filtered
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('/tmp/urbis-filter-smoke')
+          tram = json.loads((root / 'tram_network.geojson').read_text())
+          train = json.loads((root / 'train_network.geojson').read_text())
+          manifest = json.loads((root / 'manifest.json').read_text())
+
+          tram_types = {str((feature.get('properties') or {}).get('TYPE', '')).upper() for feature in tram['features']}
+          train_types = {str((feature.get('properties') or {}).get('TYPE', '')).upper() for feature in train['features']}
+          assert tram_types and all(value.startswith('TW') for value in tram_types), tram_types
+          assert train_types and all(value.startswith('RW') for value in train_types), train_types
+
+          tram_ids = {
+              str((feature.get('properties') or {}).get('INSPIRE_ID') or feature.get('id') or '')
+              for feature in tram['features']
+          }
+          train_ids = {
+              str((feature.get('properties') or {}).get('INSPIRE_ID') or feature.get('id') or '')
+              for feature in train['features']
+          }
+          assert tram_ids.isdisjoint(train_ids), 'source-filtered raw tram/train IDs still overlap'
+          assert manifest['format'] == 'grand-bruxelles-urbis-wfs-v2'
+          assert manifest['layers']['tram_network']['cql_filter'] == "TYPE LIKE 'TW%'"
+          assert manifest['layers']['train_network']['cql_filter'] == "TYPE LIKE 'RW%'"
+
+          print('raw tram features:', len(tram['features']), 'types:', sorted(tram_types))
+          print('raw train features:', len(train['features']), 'types:', sorted(train_types))
+          print('raw tram bytes:', (root / 'tram_network.geojson').stat().st_size)
+          print('raw train bytes:', (root / 'train_network.geojson').stat().st_size)
+          PY

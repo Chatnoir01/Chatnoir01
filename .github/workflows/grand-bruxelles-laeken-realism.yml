@@ -7,8 +7,10 @@ on:
       - "grand-bruxelles-game/game/zones/laeken_jette/**"
       - "grand-bruxelles-game/game/tests/laeken_realism_smoke_test.gd"
       - "grand-bruxelles-game/game/tests/laeken_terrain_smoke_test.gd"
+      - "grand-bruxelles-game/game/tests/laeken_building_visual_smoke_test.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/**"
       - "grand-bruxelles-game/data/terrain/laeken_jette/**"
+      - "grand-bruxelles-game/data/orthophoto/laeken_jette/**"
       - ".github/workflows/grand-bruxelles-laeken-realism.yml"
   workflow_dispatch:
 
@@ -18,7 +20,7 @@ permissions:
 jobs:
   realism-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout zone branch
         uses: actions/checkout@v4
@@ -61,3 +63,16 @@ jobs:
             exit 1
           fi
           grep -q "LAEKEN_TERRAIN_SMOKE_OK" /tmp/laeken-terrain.log
+
+      - name: Run building visual smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/laeken_building_visual_smoke_test.gd 2>&1 | tee /tmp/laeken-buildings.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_BUILDING_VISUAL_FAIL" /tmp/laeken-buildings.log; then
+            exit 1
+          fi
+          grep -q "LAEKEN_BUILDING_VISUAL_OK" /tmp/laeken-buildings.log

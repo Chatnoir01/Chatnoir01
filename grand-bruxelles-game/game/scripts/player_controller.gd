@@ -18,7 +18,7 @@ var _base_collision_mask: int = 1
 func _ready() -> void:
     _base_collision_layer = collision_layer
     _base_collision_mask = collision_mask
-    Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -33,7 +33,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
     if event is InputEventKey and event.pressed and not event.echo:
         if event.keycode == KEY_E:
-            _try_enter_vehicle()
+            try_enter_vehicle()
         elif event.keycode == KEY_ESCAPE:
             Input.mouse_mode = (
                 Input.MOUSE_MODE_VISIBLE
@@ -46,13 +46,23 @@ func _physics_process(delta: float) -> void:
     if not is_on_floor():
         velocity.y -= gravity * delta
 
-    if Input.is_key_pressed(KEY_SPACE) and is_on_floor():
+    var mobile := _mobile_controls()
+    var touch_jump: bool = mobile != null and bool(mobile.get("jump_pressed"))
+    if (Input.is_key_pressed(KEY_SPACE) or touch_jump) and is_on_floor():
         velocity.y = jump_velocity
 
     var left: bool = Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_Q)
     var right: bool = Input.is_key_pressed(KEY_D)
     var forward: bool = Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_Z)
     var backward: bool = Input.is_key_pressed(KEY_S)
+    var sprint: bool = Input.is_key_pressed(KEY_SHIFT)
+
+    if mobile != null:
+        left = left or bool(mobile.get("left_pressed"))
+        right = right or bool(mobile.get("right_pressed"))
+        forward = forward or bool(mobile.get("forward_pressed"))
+        backward = backward or bool(mobile.get("backward_pressed"))
+        sprint = sprint or bool(mobile.get("sprint_pressed"))
 
     var input_2d: Vector2 = Vector2(
         float(right) - float(left),
@@ -62,7 +72,7 @@ func _physics_process(delta: float) -> void:
     var move_direction: Vector3 = Vector3(input_2d.x, 0.0, input_2d.y)
     move_direction = move_direction.rotated(Vector3.UP, rotation.y).normalized()
 
-    var target_speed: float = sprint_speed if Input.is_key_pressed(KEY_SHIFT) else walk_speed
+    var target_speed: float = sprint_speed if sprint else walk_speed
     var target_velocity: Vector3 = move_direction * target_speed
 
     velocity.x = move_toward(velocity.x, target_velocity.x, acceleration * delta)
@@ -71,7 +81,11 @@ func _physics_process(delta: float) -> void:
     move_and_slide()
 
 
-func _try_enter_vehicle() -> void:
+func _mobile_controls() -> Node:
+    return get_parent().get_node_or_null("MobileControls")
+
+
+func try_enter_vehicle() -> void:
     var nearest_vehicle: Node3D = null
     var nearest_distance: float = vehicle_interaction_range
 
@@ -105,4 +119,4 @@ func set_vehicle_mode(enabled: bool) -> void:
         collision_layer = _base_collision_layer
         collision_mask = _base_collision_mask
         camera.current = true
-        Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED

@@ -1,0 +1,473 @@
+{
+  "format": "grand-bruxelles-zone-cells-v2",
+  "zone_id": "jette",
+  "crs": "EPSG:31370",
+  "boundary_source": "data/processed/reserved_neighbors/boundaries/jette.geojson",
+  "source_bbox": [
+    144723.41128427,
+    172685.16745371,
+    148012.95544337,
+    175975.35635088
+  ],
+  "cell_size_m": 500.0,
+  "cell_id_scheme": "global Lambert72 minE/minN + cell size",
+  "envelope_cell_count": 56,
+  "cell_count": 35,
+  "cells": [
+    {
+      "id": "bxl-e146500-n172500-s500",
+      "zone_id": "jette",
+      "row": 0,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        172500.0,
+        147000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n172500-s500 --bbox 146500.0,172500.0,147000.0,173000.0"
+    },
+    {
+      "id": "bxl-e147000-n172500-s500",
+      "zone_id": "jette",
+      "row": 0,
+      "col": 5,
+      "bbox": [
+        147000.0,
+        172500.0,
+        147500.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n172500-s500 --bbox 147000.0,172500.0,147500.0,173000.0"
+    },
+    {
+      "id": "bxl-e147500-n172500-s500",
+      "zone_id": "jette",
+      "row": 0,
+      "col": 6,
+      "bbox": [
+        147500.0,
+        172500.0,
+        148000.0,
+        173000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n172500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n172500-s500 --bbox 147500.0,172500.0,148000.0,173000.0"
+    },
+    {
+      "id": "bxl-e146500-n173000-s500",
+      "zone_id": "jette",
+      "row": 1,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        173000.0,
+        147000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n173000-s500 --bbox 146500.0,173000.0,147000.0,173500.0"
+    },
+    {
+      "id": "bxl-e147000-n173000-s500",
+      "zone_id": "jette",
+      "row": 1,
+      "col": 5,
+      "bbox": [
+        147000.0,
+        173000.0,
+        147500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n173000-s500 --bbox 147000.0,173000.0,147500.0,173500.0"
+    },
+    {
+      "id": "bxl-e147500-n173000-s500",
+      "zone_id": "jette",
+      "row": 1,
+      "col": 6,
+      "bbox": [
+        147500.0,
+        173000.0,
+        148000.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n173000-s500 --bbox 147500.0,173000.0,148000.0,173500.0"
+    },
+    {
+      "id": "bxl-e148000-n173000-s500",
+      "zone_id": "jette",
+      "row": 1,
+      "col": 7,
+      "bbox": [
+        148000.0,
+        173000.0,
+        148500.0,
+        173500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e148000-n173000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e148000-n173000-s500 --bbox 148000.0,173000.0,148500.0,173500.0"
+    },
+    {
+      "id": "bxl-e146500-n173500-s500",
+      "zone_id": "jette",
+      "row": 2,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        173500.0,
+        147000.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n173500-s500 --bbox 146500.0,173500.0,147000.0,174000.0"
+    },
+    {
+      "id": "bxl-e147000-n173500-s500",
+      "zone_id": "jette",
+      "row": 2,
+      "col": 5,
+      "bbox": [
+        147000.0,
+        173500.0,
+        147500.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n173500-s500 --bbox 147000.0,173500.0,147500.0,174000.0"
+    },
+    {
+      "id": "bxl-e147500-n173500-s500",
+      "zone_id": "jette",
+      "row": 2,
+      "col": 6,
+      "bbox": [
+        147500.0,
+        173500.0,
+        148000.0,
+        174000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n173500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n173500-s500 --bbox 147500.0,173500.0,148000.0,174000.0"
+    },
+    {
+      "id": "bxl-e145500-n174000-s500",
+      "zone_id": "jette",
+      "row": 3,
+      "col": 2,
+      "bbox": [
+        145500.0,
+        174000.0,
+        146000.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n174000-s500 --bbox 145500.0,174000.0,146000.0,174500.0"
+    },
+    {
+      "id": "bxl-e146000-n174000-s500",
+      "zone_id": "jette",
+      "row": 3,
+      "col": 3,
+      "bbox": [
+        146000.0,
+        174000.0,
+        146500.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n174000-s500 --bbox 146000.0,174000.0,146500.0,174500.0"
+    },
+    {
+      "id": "bxl-e146500-n174000-s500",
+      "zone_id": "jette",
+      "row": 3,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        174000.0,
+        147000.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n174000-s500 --bbox 146500.0,174000.0,147000.0,174500.0"
+    },
+    {
+      "id": "bxl-e147000-n174000-s500",
+      "zone_id": "jette",
+      "row": 3,
+      "col": 5,
+      "bbox": [
+        147000.0,
+        174000.0,
+        147500.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n174000-s500 --bbox 147000.0,174000.0,147500.0,174500.0"
+    },
+    {
+      "id": "bxl-e147500-n174000-s500",
+      "zone_id": "jette",
+      "row": 3,
+      "col": 6,
+      "bbox": [
+        147500.0,
+        174000.0,
+        148000.0,
+        174500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n174000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n174000-s500 --bbox 147500.0,174000.0,148000.0,174500.0"
+    },
+    {
+      "id": "bxl-e144500-n174500-s500",
+      "zone_id": "jette",
+      "row": 4,
+      "col": 0,
+      "bbox": [
+        144500.0,
+        174500.0,
+        145000.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n174500-s500 --bbox 144500.0,174500.0,145000.0,175000.0"
+    },
+    {
+      "id": "bxl-e145000-n174500-s500",
+      "zone_id": "jette",
+      "row": 4,
+      "col": 1,
+      "bbox": [
+        145000.0,
+        174500.0,
+        145500.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n174500-s500 --bbox 145000.0,174500.0,145500.0,175000.0"
+    },
+    {
+      "id": "bxl-e145500-n174500-s500",
+      "zone_id": "jette",
+      "row": 4,
+      "col": 2,
+      "bbox": [
+        145500.0,
+        174500.0,
+        146000.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n174500-s500 --bbox 145500.0,174500.0,146000.0,175000.0"
+    },
+    {
+      "id": "bxl-e146000-n174500-s500",
+      "zone_id": "jette",
+      "row": 4,
+      "col": 3,
+      "bbox": [
+        146000.0,
+        174500.0,
+        146500.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n174500-s500 --bbox 146000.0,174500.0,146500.0,175000.0"
+    },
+    {
+      "id": "bxl-e146500-n174500-s500",
+      "zone_id": "jette",
+      "row": 4,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        174500.0,
+        147000.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n174500-s500 --bbox 146500.0,174500.0,147000.0,175000.0"
+    },
+    {
+      "id": "bxl-e147000-n174500-s500",
+      "zone_id": "jette",
+      "row": 4,
+      "col": 5,
+      "bbox": [
+        147000.0,
+        174500.0,
+        147500.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n174500-s500 --bbox 147000.0,174500.0,147500.0,175000.0"
+    },
+    {
+      "id": "bxl-e147500-n174500-s500",
+      "zone_id": "jette",
+      "row": 4,
+      "col": 6,
+      "bbox": [
+        147500.0,
+        174500.0,
+        148000.0,
+        175000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n174500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n174500-s500 --bbox 147500.0,174500.0,148000.0,175000.0"
+    },
+    {
+      "id": "bxl-e144500-n175000-s500",
+      "zone_id": "jette",
+      "row": 5,
+      "col": 0,
+      "bbox": [
+        144500.0,
+        175000.0,
+        145000.0,
+        175500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n175000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n175000-s500 --bbox 144500.0,175000.0,145000.0,175500.0"
+    },
+    {
+      "id": "bxl-e145000-n175000-s500",
+      "zone_id": "jette",
+      "row": 5,
+      "col": 1,
+      "bbox": [
+        145000.0,
+        175000.0,
+        145500.0,
+        175500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n175000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n175000-s500 --bbox 145000.0,175000.0,145500.0,175500.0"
+    },
+    {
+      "id": "bxl-e145500-n175000-s500",
+      "zone_id": "jette",
+      "row": 5,
+      "col": 2,
+      "bbox": [
+        145500.0,
+        175000.0,
+        146000.0,
+        175500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n175000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n175000-s500 --bbox 145500.0,175000.0,146000.0,175500.0"
+    },
+    {
+      "id": "bxl-e146000-n175000-s500",
+      "zone_id": "jette",
+      "row": 5,
+      "col": 3,
+      "bbox": [
+        146000.0,
+        175000.0,
+        146500.0,
+        175500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n175000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n175000-s500 --bbox 146000.0,175000.0,146500.0,175500.0"
+    },
+    {
+      "id": "bxl-e146500-n175000-s500",
+      "zone_id": "jette",
+      "row": 5,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        175000.0,
+        147000.0,
+        175500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n175000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n175000-s500 --bbox 146500.0,175000.0,147000.0,175500.0"
+    },
+    {
+      "id": "bxl-e147000-n175000-s500",
+      "zone_id": "jette",
+      "row": 5,
+      "col": 5,
+      "bbox": [
+        147000.0,
+        175000.0,
+        147500.0,
+        175500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n175000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n175000-s500 --bbox 147000.0,175000.0,147500.0,175500.0"
+    },
+    {
+      "id": "bxl-e147500-n175000-s500",
+      "zone_id": "jette",
+      "row": 5,
+      "col": 6,
+      "bbox": [
+        147500.0,
+        175000.0,
+        148000.0,
+        175500.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147500-n175000-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147500-n175000-s500 --bbox 147500.0,175000.0,148000.0,175500.0"
+    },
+    {
+      "id": "bxl-e144500-n175500-s500",
+      "zone_id": "jette",
+      "row": 6,
+      "col": 0,
+      "bbox": [
+        144500.0,
+        175500.0,
+        145000.0,
+        176000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e144500-n175500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e144500-n175500-s500 --bbox 144500.0,175500.0,145000.0,176000.0"
+    },
+    {
+      "id": "bxl-e145000-n175500-s500",
+      "zone_id": "jette",
+      "row": 6,
+      "col": 1,
+      "bbox": [
+        145000.0,
+        175500.0,
+        145500.0,
+        176000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145000-n175500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145000-n175500-s500 --bbox 145000.0,175500.0,145500.0,176000.0"
+    },
+    {
+      "id": "bxl-e145500-n175500-s500",
+      "zone_id": "jette",
+      "row": 6,
+      "col": 2,
+      "bbox": [
+        145500.0,
+        175500.0,
+        146000.0,
+        176000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e145500-n175500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e145500-n175500-s500 --bbox 145500.0,175500.0,146000.0,176000.0"
+    },
+    {
+      "id": "bxl-e146000-n175500-s500",
+      "zone_id": "jette",
+      "row": 6,
+      "col": 3,
+      "bbox": [
+        146000.0,
+        175500.0,
+        146500.0,
+        176000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146000-n175500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146000-n175500-s500 --bbox 146000.0,175500.0,146500.0,176000.0"
+    },
+    {
+      "id": "bxl-e146500-n175500-s500",
+      "zone_id": "jette",
+      "row": 6,
+      "col": 4,
+      "bbox": [
+        146500.0,
+        175500.0,
+        147000.0,
+        176000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e146500-n175500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e146500-n175500-s500 --bbox 146500.0,175500.0,147000.0,176000.0"
+    },
+    {
+      "id": "bxl-e147000-n175500-s500",
+      "zone_id": "jette",
+      "row": 6,
+      "col": 5,
+      "bbox": [
+        147000.0,
+        175500.0,
+        147500.0,
+        176000.0
+      ],
+      "fetch_command": "python tools/build_urbis_cell.py --cell-id bxl-e147000-n175500-s500 --output-dir data/urbis/remaining_brussels/cells/bxl-e147000-n175500-s500 --bbox 147000.0,175500.0,147500.0,176000.0"
+    }
+  ]
+}

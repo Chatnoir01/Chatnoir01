@@ -1,0 +1,34 @@
+{
+  "format": "grand-bruxelles-bootstrap-run-v1",
+  "catalog": "/tmp/reserved-jette-catalog.json",
+  "output_root": "data/processed/reserved_neighbors",
+  "cell_size_m": 500.0,
+  "zones": [
+    {
+      "id": "jette",
+      "name": "Jette",
+      "commands": [
+        [
+          "/opt/hostedtoolcache/Python/3.12.13/x64/bin/python",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/fetch_urbis_municipality.py",
+          "--name",
+          "Jette",
+          "--output",
+          "data/processed/reserved_neighbors/boundaries/jette.geojson"
+        ],
+        [
+          "/opt/hostedtoolcache/Python/3.12.13/x64/bin/python",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/make_zone_cells.py",
+          "--boundary",
+          "data/processed/reserved_neighbors/boundaries/jette.geojson",
+          "--zone-id",
+          "jette",
+          "--cell-size",
+          "500.0",
+          "--output",
+          "data/processed/reserved_neighbors/cells/jette.json"
+        ]
+      ]
+    }
+  ]
+}

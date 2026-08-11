@@ -8,11 +8,11 @@ import {
   validateCompanyProfile,
   validateInvoiceDraft
 } from './src/domain/invoice.js';
-import { MemoryStore } from './src/repository/memory-store.js';
+import { createStore } from './src/repository/store-factory.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT || 3000);
-const store = new MemoryStore();
+const store = await createStore();
 
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -28,7 +28,7 @@ function sendJson(res, status, payload) {
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff'
   });
-  res.end(JSON.stringify(payload));
+  res.end(status === 204 ? '' : JSON.stringify(payload));
 }
 
 async function readJson(req) {
@@ -70,7 +70,12 @@ async function handleApi(req, res) {
   const parts = parseApiPath(req.url);
 
   if (req.method === 'GET' && req.url === '/api/health') {
-    return sendJson(res, 200, { ok: true, service: 'pilot', version: '0.2.0' });
+    return sendJson(res, 200, {
+      ok: true,
+      service: 'pilot',
+      version: '0.3.0',
+      storage: process.env.DATABASE_URL ? 'postgresql' : 'memory'
+    });
   }
 
   if (req.method === 'POST' && req.url === '/api/invoices/preview') {
@@ -91,7 +96,6 @@ async function handleApi(req, res) {
   if (parts[0] !== 'api' || parts[1] !== 'v1') return false;
 
   // Temporary pre-auth boundary for the MVP. This header is NOT authentication.
-  // A real authenticated organization context must replace it before production.
   const organizationId = getOrganizationId(req);
   if (!organizationId) return sendJson(res, 400, { error: 'organization_required' });
 
@@ -99,48 +103,48 @@ async function handleApi(req, res) {
   const id = parts[3];
 
   if (resource === 'clients') {
-    if (req.method === 'GET' && !id) return sendJson(res, 200, { data: store.listClients(organizationId) });
+    if (req.method === 'GET' && !id) return sendJson(res, 200, { data: await store.listClients(organizationId) });
     if (req.method === 'GET' && id) {
-      const client = store.getClient(organizationId, id);
+      const client = await store.getClient(organizationId, id);
       return client ? sendJson(res, 200, { data: client }) : sendJson(res, 404, { error: 'not_found' });
     }
     if (req.method === 'POST' && !id) {
       const input = await readJson(req);
       const errors = validateClient(input);
       if (errors.length) return sendJson(res, 400, { error: 'invalid_client', fields: errors });
-      return sendJson(res, 201, { data: store.createClient(organizationId, input) });
+      return sendJson(res, 201, { data: await store.createClient(organizationId, input) });
     }
     if (req.method === 'PATCH' && id) {
       const input = await readJson(req);
       const errors = validateClient(input, true);
       if (errors.length) return sendJson(res, 400, { error: 'invalid_client', fields: errors });
-      const client = store.updateClient(organizationId, id, input);
+      const client = await store.updateClient(organizationId, id, input);
       return client ? sendJson(res, 200, { data: client }) : sendJson(res, 404, { error: 'not_found' });
     }
     if (req.method === 'DELETE' && id) {
-      const result = store.deleteClient(organizationId, id);
+      const result = await store.deleteClient(organizationId, id);
       if (result.reason === 'client_has_invoices') return sendJson(res, 409, { error: result.reason });
       return result.deleted ? sendJson(res, 204, {}) : sendJson(res, 404, { error: 'not_found' });
     }
   }
 
   if (resource === 'invoices') {
-    if (req.method === 'GET' && !id) return sendJson(res, 200, { data: store.listInvoices(organizationId) });
+    if (req.method === 'GET' && !id) return sendJson(res, 200, { data: await store.listInvoices(organizationId) });
     if (req.method === 'GET' && id) {
-      const invoice = store.getInvoice(organizationId, id);
+      const invoice = await store.getInvoice(organizationId, id);
       return invoice ? sendJson(res, 200, { data: invoice }) : sendJson(res, 404, { error: 'not_found' });
     }
     if (req.method === 'POST' && !id) {
       const input = await readJson(req);
-      if (typeof input.clientId !== 'string' || !store.getClient(organizationId, input.clientId)) {
+      if (typeof input.clientId !== 'string' || !(await store.getClient(organizationId, input.clientId))) {
         return sendJson(res, 400, { error: 'invalid_client' });
       }
       const draft = { client: input.client || 'Client', lines: input.lines };
       const errors = validateInvoiceDraft(draft);
       if (errors.length) return sendJson(res, 400, { error: 'invalid_invoice', fields: errors });
       const totals = calculateInvoiceTotals(draft);
-      const numbers = store.listInvoices(organizationId).map(row => row.number);
-      const invoice = store.createInvoice(organizationId, {
+      const numbers = (await store.listInvoices(organizationId)).map(row => row.number);
+      const invoice = await store.createInvoice(organizationId, {
         clientId: input.clientId,
         number: nextInvoiceNumber(numbers),
         status: 'draft',
@@ -155,7 +159,7 @@ async function handleApi(req, res) {
       const input = await readJson(req);
       const allowed = new Set(['draft', 'issued', 'paid', 'overdue', 'cancelled']);
       if (!allowed.has(input.status)) return sendJson(res, 400, { error: 'invalid_status' });
-      const invoice = store.updateInvoiceStatus(organizationId, id, input.status);
+      const invoice = await store.updateInvoiceStatus(organizationId, id, input.status);
       return invoice ? sendJson(res, 200, { data: invoice }) : sendJson(res, 404, { error: 'not_found' });
     }
   }
@@ -188,11 +192,7 @@ const server = http.createServer(async (req, res) => {
       const handled = await handleApi(req, res);
       if (handled !== false) return handled;
     }
-
-    if (!['GET', 'HEAD'].includes(req.method)) {
-      return sendJson(res, 405, { error: 'method_not_allowed' });
-    }
-
+    if (!['GET', 'HEAD'].includes(req.method)) return sendJson(res, 405, { error: 'method_not_allowed' });
     return serveStatic(req, res);
   } catch (error) {
     if (error.message === 'PAYLOAD_TOO_LARGE') return sendJson(res, 413, { error: 'payload_too_large' });
@@ -202,6 +202,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => {
-  console.log(`Pilot running on http://localhost:${port}`);
-});
+server.listen(port, () => console.log(`Pilot running on http://localhost:${port}`));

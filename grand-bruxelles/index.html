@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#101014" />
+  <meta name="description" content="Grand Bruxelles — explorer les 19 communes, quartiers et lieux emblématiques de Bruxelles sur une carte interactive." />
+  <title>Grand Bruxelles — Explore la capitale</title>
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="preconnect" href="https://tile.openstreetmap.org" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Aller au contenu</a>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="Grand Bruxelles, accueil"><span class="brand-mark">GB</span><span>Grand Bruxelles</span></a>
+    <nav class="nav" aria-label="Navigation principale"><a href="#explorer">Explorer</a><a href="#communes">19 communes</a><a href="#selection">Sélection</a><a href="#apropos">À propos</a></nav>
+    <button class="menu-button" type="button" aria-expanded="false" aria-controls="mobile-nav">Menu</button>
+  </header>
+  <nav id="mobile-nav" class="mobile-nav" hidden aria-label="Navigation mobile"><a href="#explorer">Explorer</a><a href="#communes">19 communes</a><a href="#selection">Sélection</a><a href="#apropos">À propos</a></nav>
+  <main id="main">
+    <section id="top" class="hero">
+      <div class="hero-grid"></div>
+      <div class="hero-copy">
+        <p class="eyebrow">Bruxelles-Capitale · Belgique</p>
+        <h1>Une capitale.<br /><span>19 communes.</span><br />Des centaines d’histoires.</h1>
+        <p class="hero-text">Grand Bruxelles rassemble la ville dans une expérience visuelle, rapide et interactive : quartiers, monuments, parcs, culture et lieux à découvrir.</p>
+        <div class="hero-actions"><a class="button primary" href="#explorer">Ouvrir la carte</a><a class="button ghost" href="#communes">Voir les communes</a></div>
+        <dl class="hero-stats" aria-label="Chiffres clés du projet"><div><dt>19</dt><dd>communes</dd></div><div><dt id="place-count">0</dt><dd>lieux référencés</dd></div><div><dt>1</dt><dd>carte vivante</dd></div></dl>
+      </div>
+      <div class="orbital" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="city-core">BXL</div></div>
+    </section>
+    <section id="explorer" class="section explorer-section">
+      <div class="section-heading"><div><p class="eyebrow">Explorateur urbain</p><h2>Trouve ton Bruxelles.</h2></div><p>Recherche un lieu, filtre par catégorie ou clique directement sur la carte.</p></div>
+      <div class="explorer-shell">
+        <aside class="search-panel" aria-label="Filtres de recherche"><label class="search-box"><span class="sr-only">Rechercher un lieu</span><input id="search" type="search" placeholder="Atomium, Flagey, parc…" autocomplete="off" /></label><div id="filters" class="filters" aria-label="Catégories"></div><div id="results" class="results" aria-live="polite"></div></aside>
+        <div class="map-wrap"><div id="map" aria-label="Carte interactive de Bruxelles"></div><div class="map-badge">OpenStreetMap · Leaflet</div></div>
+      </div>
+    </section>
+    <section id="communes" class="section communes-section"><div class="section-heading"><div><p class="eyebrow">Région de Bruxelles-Capitale</p><h2>Les 19 communes.</h2></div><p>Une vue rapide de toute la région, du centre historique aux quartiers résidentiels et aux grands espaces verts.</p></div><div id="commune-grid" class="commune-grid"></div></section>
+    <section id="selection" class="section selection-section"><div class="section-heading"><div><p class="eyebrow">Sélection Grand Bruxelles</p><h2>Les incontournables.</h2></div><p>Une première sélection pour donner au projet une base éditoriale forte, extensible ensuite avec des centaines de lieux.</p></div><div id="featured-grid" class="featured-grid"></div></section>
+    <section id="apropos" class="section about-section"><div class="about-card"><p class="eyebrow">Projet open web</p><h2>Construit pour grandir.</h2><p>Grand Bruxelles est pensé comme une base pour un futur guide local complet : commerces, culture, mobilité, événements, itinéraires, favoris et contenus communautaires.</p><div class="roadmap"><span>01 · Carte</span><span>02 · Communes</span><span>03 · Lieux</span><span>04 · Événements</span><span>05 · Communauté</span></div></div></section>
+  </main>
+  <footer class="footer"><div><strong>Grand Bruxelles</strong><span>Une expérience urbaine indépendante.</span></div><p>Données cartographiques © OpenStreetMap contributors.</p></footer>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="./app.js" defer></script>
+</body>
+</html>

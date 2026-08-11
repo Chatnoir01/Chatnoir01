@@ -1,0 +1,84 @@
+name: Probe Brussels City admin layers
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/probe-brussels-city-admin-layers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: probe-brussels-city-admin-layers
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test probe logic
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests.test_probe_urbis_admin_layers -v
+
+      - name: Ensure discovery manifest exists or rebuild it
+        working-directory: grand-bruxelles-game
+        run: |
+          DISC=data/processed/brussels_city_remaining/urbis_admin_layer_candidates.json
+          if [ ! -s "$DISC" ]; then
+            python tools/discover_urbis_admin_layers.py --output "$DISC"
+          fi
+
+      - name: Probe candidate layers for Haren and Neder-over-Heembeek attributes
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/probe_urbis_admin_layers.py \
+            --discovery data/processed/brussels_city_remaining/urbis_admin_layer_candidates.json \
+            --target haren \
+            --target neder-over-heembeek \
+            --max-features 2500 \
+            --output data/processed/brussels_city_remaining/urbis_admin_layer_probe.json
+
+      - name: Validate evidence-only result
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('data/processed/brussels_city_remaining/urbis_admin_layer_probe.json')
+          d=json.loads(p.read_text())
+          assert d['format']=='grand-bruxelles-urbis-admin-layer-probe-v1'
+          assert d['targets']==['haren','neder-over-heembeek']
+          assert d['production_approved_layer'] is None
+          assert isinstance(d['results'],list)
+          for r in d['results']:
+              assert r['status'] in {'inspected','skipped_unknown_feature_count','skipped_feature_limit'}
+          print('Candidates probed:',d['candidate_count'])
+          print('Layers matching both names:',d['proven_layers_matching_all_targets'])
+          PY
+
+      - name: Commit probe evidence
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/brussels_city_remaining/urbis_admin_layer_candidates.json \
+            grand-bruxelles-game/data/processed/brussels_city_remaining/urbis_admin_layer_probe.json
+          if git diff --cached --quiet; then
+            echo 'Admin probe evidence unchanged.'
+            exit 0
+          fi
+          git commit -m 'data: probe official admin layers for Brussels City subzones'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

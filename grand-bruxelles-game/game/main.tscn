@@ -1,8 +1,9 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
 [ext_resource type="Script" path="res://game/scripts/vehicle_controller.gd" id="3_vehicle"]
+[ext_resource type="Script" path="res://game/scripts/mission_drive_to_center.gd" id="4_mission"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -53,7 +54,8 @@ use_collision = true
 script = ExtResource("2_city")
 
 [node name="Player" type="CharacterBody3D" parent="."]
-position = Vector3(0, 1.05, 90)
+position = Vector3(-652, 1.05, 621)
+rotation_degrees = Vector3(0, -38, 0)
 script = ExtResource("1_player")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
@@ -75,7 +77,8 @@ current = true
 fov = 72.0
 
 [node name="PrototypeCar" type="CharacterBody3D" parent="." groups=["vehicle"]]
-position = Vector3(5, 0.58, 90)
+position = Vector3(-659, 0.58, 624)
+rotation_degrees = Vector3(0, 39, 0)
 script = ExtResource("3_vehicle")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PrototypeCar"]
@@ -103,10 +106,23 @@ margin = 0.15
 current = false
 fov = 75.0
 
-[node name="PrototypeLabel" type="Label" parent="."]
+[node name="MissionDriveToCenter" type="Node" parent="."]
+script = ExtResource("4_mission")
+
+[node name="MissionLabel" type="Label" parent="."]
 offset_left = 20.0
 offset_top = 18.0
-offset_right = 920.0
-offset_bottom = 82.0
-theme_override_font_sizes/font_size = 18
-text = "GRAND BRUXELLES — OSM GREYBOX 0.3\nZQSD/WASD · Shift courir · E entrer/sortir voiture · Espace sauter · Échap souris"
+offset_right = 720.0
+offset_bottom = 86.0
+theme_override_colors/font_color = Color(1, 0.84, 0.23, 1)
+theme_override_font_sizes/font_size = 22
+text = "MISSION 01 · MIDI → CENTRE\nMonte dans la voiture · E"
+
+[node name="PrototypeLabel" type="Label" parent="."]
+offset_left = 20.0
+offset_top = 92.0
+offset_right = 980.0
+offset_bottom = 150.0
+theme_override_colors/font_color = Color(0.85, 0.85, 0.88, 1)
+theme_override_font_sizes/font_size = 14
+text = "GRAND BRUXELLES — OSM GREYBOX 0.4 · ZQSD/WASD · Shift courir · E entrer/sortir · Espace sauter"

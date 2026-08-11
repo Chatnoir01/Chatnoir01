@@ -2,8 +2,9 @@
 """Convert an Overpass JSON extract into lightweight Grand Bruxelles game data.
 
 The converter projects latitude/longitude into local metric coordinates, keeps
-road centerlines and traffic-relevant OSM tags, and turns closed OSM building
-ways into simple footprints. Landmark modelling and facade work remain separate.
+road centerlines and traffic-relevant OSM tags, preserves traffic-control nodes,
+and turns closed OSM building ways into simple footprints. Landmark modelling
+and facade work remain separate.
 """
 
 from __future__ import annotations
@@ -41,6 +42,7 @@ DRIVABLE = {
 }
 
 BLOCKED_MOTOR_ACCESS = {"no", "private"}
+TRUE_VALUES = {"yes", "true", "1"}
 
 
 def metric_point(lat: float, lon: float, origin_lat: float, origin_lon: float) -> list[float]:
@@ -81,7 +83,7 @@ def integer_tag(tags: dict[str, Any], key: str, minimum: int = 0, maximum: int =
 def normalized_oneway(tags: dict[str, Any]) -> int:
     """Return 1 for way direction, -1 for reverse, 0 for two-way/unknown."""
     raw = str(tags.get("oneway", "")).strip().lower()
-    if raw in {"yes", "true", "1"}:
+    if raw in TRUE_VALUES:
         return 1
     if raw == "-1":
         return -1
@@ -93,12 +95,7 @@ def normalized_oneway(tags: dict[str, Any]) -> int:
 
 
 def maxspeed_kmh(tags: dict[str, Any]) -> float | None:
-    """Parse the common numeric OSM maxspeed forms into km/h.
-
-    Non-numeric legal aliases such as BE:urban are intentionally left unknown;
-    the runtime applies the Brussels regional default when no numeric value is
-    available.
-    """
+    """Parse the common numeric OSM maxspeed forms into km/h."""
     raw = tags.get("maxspeed")
     if raw is None:
         return None
@@ -195,15 +192,61 @@ def road_record(element: dict[str, Any], tags: dict[str, Any], points: list[list
     }
 
 
+def traffic_control_kind(tags: dict[str, Any]) -> str | None:
+    highway = str(tags.get("highway", "")).strip().lower()
+    railway = str(tags.get("railway", "")).strip().lower()
+    if highway in {"traffic_signals", "stop", "give_way", "crossing"}:
+        return highway
+    if railway == "level_crossing":
+        return "level_crossing"
+    return None
+
+
+def traffic_control_record(
+    element: dict[str, Any],
+    tags: dict[str, Any],
+    origin: tuple[float, float],
+) -> dict[str, Any] | None:
+    kind = traffic_control_kind(tags)
+    if kind is None or "lat" not in element or "lon" not in element:
+        return None
+
+    point = metric_point(float(element["lat"]), float(element["lon"]), *origin)
+    crossing = str(tags.get("crossing", "")).strip().lower()
+    crossing_signals = str(tags.get("crossing:signals", "")).strip().lower() in TRUE_VALUES
+    if crossing == "traffic_signals":
+        crossing_signals = True
+
+    return {
+        "osm_id": element.get("id"),
+        "kind": kind,
+        "point": point,
+        "crossing": crossing,
+        "crossing_signals": crossing_signals,
+        "direction": tags.get("direction", tags.get("traffic_signals:direction", "")),
+        "button_operated": str(tags.get("button_operated", "")).strip().lower() in TRUE_VALUES,
+        "tactile_paving": tags.get("tactile_paving", ""),
+    }
+
+
 def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]:
     roads: list[dict[str, Any]] = []
     buildings: list[dict[str, Any]] = []
     railways: list[dict[str, Any]] = []
+    traffic_controls: list[dict[str, Any]] = []
 
     for element in data.get("elements", []):
+        tags = element.get("tags", {}) or {}
+
+        if element.get("type") == "node":
+            control = traffic_control_record(element, tags, origin)
+            if control is not None:
+                traffic_controls.append(control)
+            continue
+
         if element.get("type") != "way":
             continue
-        tags = element.get("tags", {}) or {}
+
         points = geometry_points(element, origin)
         if len(points) < 2:
             continue
@@ -222,22 +265,24 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             })
 
         if "building" in tags and len(points) >= 4:
-            if points[0] == points[-1]:
-                points = points[:-1]
-            area = polygon_area(points)
-            if len(points) >= 3 and 8.0 <= area <= 60_000.0:
+            building_points = points
+            if building_points[0] == building_points[-1]:
+                building_points = building_points[:-1]
+            area = polygon_area(building_points)
+            if len(building_points) >= 3 and 8.0 <= area <= 60_000.0:
                 buildings.append({
                     "osm_id": element.get("id"),
                     "name": tags.get("name", ""),
                     "kind": tags.get("building", "yes"),
                     "height": building_height(tags),
                     "area": round(area, 2),
-                    "footprint": points,
+                    "footprint": building_points,
                 })
 
     bounds = [0.0, 0.0, 0.0, 0.0]
     all_points = [p for road in roads for p in road["points"]]
     all_points += [p for b in buildings for p in b["footprint"]]
+    all_points += [c["point"] for c in traffic_controls]
     if all_points:
         xs = [p[0] for p in all_points]
         zs = [p[1] for p in all_points]
@@ -245,9 +290,10 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
 
     roads.sort(key=lambda r: (not r["drivable"], str(r["class"]), int(r["osm_id"] or 0)))
     buildings.sort(key=lambda b: (-float(b["area"]), int(b["osm_id"] or 0)))
+    traffic_controls.sort(key=lambda c: (str(c["kind"]), int(c["osm_id"] or 0)))
 
     return {
-        "format": "grand-bruxelles-osm-v2",
+        "format": "grand-bruxelles-osm-v3",
         "source": "OpenStreetMap contributors via Overpass API",
         "license": "ODbL-1.0",
         "origin": {"lat": origin[0], "lon": origin[1]},
@@ -257,15 +303,22 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             "drivable_roads": sum(1 for road in roads if road["drivable"]),
             "buildings": len(buildings),
             "railways": len(railways),
+            "traffic_controls": len(traffic_controls),
+            "traffic_signals": sum(1 for c in traffic_controls if c["kind"] == "traffic_signals"),
+            "stops": sum(1 for c in traffic_controls if c["kind"] == "stop"),
+            "give_ways": sum(1 for c in traffic_controls if c["kind"] == "give_way"),
+            "crossings": sum(1 for c in traffic_controls if c["kind"] == "crossing"),
         },
         "traffic_schema": {
             "oneway": "1=OSM way direction, -1=reverse, 0=two-way/unknown",
             "speed_unit": "km/h",
             "missing_speed_policy": "runtime regional default",
+            "controls": "traffic_signals, stop, give_way, crossing, level_crossing",
         },
         "roads": roads,
         "buildings": buildings,
         "railways": railways,
+        "traffic_controls": traffic_controls,
     }
 
 
@@ -292,7 +345,8 @@ def main() -> int:
     print(
         "converted "
         f"{stats['roads']} roads / {stats['buildings']} buildings / "
-        f"{stats['railways']} railways -> {args.output}"
+        f"{stats['railways']} railways / {stats['traffic_controls']} traffic controls "
+        f"-> {args.output}"
     )
     return 0
 

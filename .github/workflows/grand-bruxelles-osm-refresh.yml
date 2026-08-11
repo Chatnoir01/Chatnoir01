@@ -1,0 +1,63 @@
+name: Grand Bruxelles OSM Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-osm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Python tools
+        run: python3 -m py_compile grand-bruxelles-game/tools/*.py
+
+      - name: Fetch Brussels OSM
+        run: |
+          python3 grand-bruxelles-game/tools/fetch_osm_slice.py \
+            --output /tmp/vertical_slice_01.raw.json
+
+      - name: Convert full dataset
+        run: |
+          python3 grand-bruxelles-game/tools/transform_osm_to_game.py \
+            --input /tmp/vertical_slice_01.raw.json \
+            --output /tmp/vertical_slice_01.full.game.json
+
+      - name: Build playable runtime slice
+        run: |
+          python3 grand-bruxelles-game/tools/make_runtime_slice.py \
+            --input /tmp/vertical_slice_01.full.game.json \
+            --control-points grand-bruxelles-game/data/vertical_slice_control_points.json \
+            --output grand-bruxelles-game/data/osm/vertical_slice_01.game.json
+          python3 - <<'PY'
+          import json
+          path = 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+          data = json.load(open(path, encoding='utf-8'))
+          stats = data['stats']
+          assert stats['roads'] >= 100, stats
+          assert stats['buildings'] >= 100, stats
+          assert stats['drivable_roads'] >= 80, stats
+          print('Runtime OSM stats:', stats)
+          print('Runtime bounds:', data['bounds_m'])
+          PY
+
+      - name: Commit changed runtime slice
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/osm/vertical_slice_01.game.json
+          if git diff --cached --quiet; then
+            echo "Brussels runtime slice already up to date."
+          else
+            git commit -m "data: refresh Brussels OSM runtime slice [osm-sync]"
+            git push origin HEAD:main
+          fi

@@ -27,126 +27,51 @@ Le paquet conserve `source` et `license=ODbL-1.0` dans le manifeste et dans chaq
 
 ### Graphe routier et intersections
 
-- `game/scripts/traffic_road_graph.gd`
-  - transforme les voies OSM en arêtes dirigées ;
-  - respecte `oneway=1`, `oneway=-1` et les rond-points ;
-  - connecte les segments par leurs coordonnées communes ;
-  - évite le demi-tour immédiat ;
-  - privilégie la continuité de trajectoire tout en autorisant les changements de rue ;
-  - génère des itinéraires multi-arêtes au lieu de limiter un véhicule à un seul way.
+`game/scripts/traffic_road_graph.gd` transforme les voies OSM en arêtes dirigées, respecte les sens uniques/rond-points, connecte les segments par leurs coordonnées communes, évite les demi-tours immédiats et génère des itinéraires multi-rues.
 
-Sur le paquet actuel, le runtime produit :
-
-- 588 nœuds ;
-- 708 arêtes dirigées ;
-- 63 intersections ;
-- 53 intersections non signalées gérées par priorité de droite.
+Sur le paquet actuel, le runtime produit 588 nœuds, 708 arêtes dirigées, 63 intersections et 53 intersections non signalées gérées par priorité de droite.
 
 ### Priorité de droite
 
 `game/scripts/traffic_intersection_system.gd` arbitre les carrefours non couverts par un feu, un cédez-le-passage ou un STOP. Cette règle correspond au cadre routier belge actuellement applicable au projet ; elle devra être revue avec les règles du nouveau Code lorsqu'il entrera effectivement en vigueur.
 
-Le système :
-
-- détecte les intersections à partir des connexions géométriques du réseau ;
-- exclut de la règle générique les carrefours ayant un contrôle OSM prioritaire proche ;
-- enregistre les véhicules approchant d'un carrefour ;
-- détecte un véhicule provenant de la droite relativement à la trajectoire courante ;
-- force le véhicule non prioritaire à ralentir/attendre ;
-- réserve brièvement la zone de carrefour au véhicule autorisé afin d'éviter deux entrées simultanées ;
-- libère/expire automatiquement les réservations.
-
-Le test synthétique vérifie aussi qu'un carrefour équipé d'un feu n'est pas simultanément traité comme priorité de droite.
+Le système détecte les intersections, exclut les carrefours déjà contrôlés, enregistre les véhicules approchant, détecte le véhicule provenant de droite, force le véhicule non prioritaire à attendre et réserve brièvement la zone au véhicule autorisé afin d'éviter deux entrées simultanées.
 
 ### Trafic civil IA
 
-- `game/scripts/traffic_manager.gd` reste le point d'entrée stable ;
-- charge en priorité `data/traffic/manifest.json` et garde l'ancien runtime OSM comme fallback ;
-- fait apparaître jusqu'à 12 véhicules autour du joueur ;
-- recycle les véhicules terminés ou trop éloignés ;
-- décale la trajectoire sur le côté droit de la chaussée ;
-- applique un profil de vitesse pouvant changer en cours d'itinéraire ;
-- tolère les métadonnées OSM absentes ou `null` (`lanes`, largeur, etc.) sans erreur runtime ;
-- transmet aux véhicules les feux, contrôles et carrefours non signalés rencontrés sur leur route.
+`game/scripts/traffic_manager.gd` reste le point d'entrée stable. Il charge le paquet trafic actuel, garde l'ancien runtime OSM comme fallback, fait apparaître jusqu'à 12 véhicules, recycle les véhicules éloignés, applique la circulation à droite et transmet à chaque voiture son profil de vitesse, ses contrôles et ses intersections.
 
-- `game/scripts/traffic_vehicle.gd`
-  - accélération et freinage progressifs ;
-  - orientation continue dans les courbes ;
-  - freinage d'urgence devant obstacle ;
-  - vitesse adaptée à chaque route traversée ;
-  - respect des contrôles situés sur l'itinéraire ;
-  - ralentissement et attente lorsque la priorité de droite l'exige.
+Le chargement tolère désormais les métadonnées OSM absentes ou `null` (`lanes`, largeur, etc.). Le bug réel `int(null)` observé en CI a été reproduit puis corrigé.
+
+`game/scripts/traffic_vehicle.gd` gère accélération/freinage progressifs, courbes, freinage d'urgence, changements de limitation, feux, cédez-le-passage, passages piétons, STOP et priorité de droite.
 
 ### Feux et contrôles
 
-- `game/scripts/traffic_control_system.gd`
-  - rattache les contrôles OSM aux routes ;
-  - regroupe les têtes de feux proches en carrefours ;
-  - utilise des positions et types de contrôles venant d'OSM ;
-  - fournit des phases rouge/orange/vert simulées avec intervalles tout-rouge ;
-  - ces phases sont un modèle de gameplay sûr et ne prétendent pas reproduire la programmation réelle des contrôleurs de feux bruxellois.
+`game/scripts/traffic_control_system.gd` rattache les contrôles OSM aux routes et regroupe les têtes de feux proches en carrefours. Les positions et types de contrôles viennent d'OSM ; les phases rouge/orange/vert sont simulées localement avec intervalles tout-rouge et ne prétendent pas reproduire la programmation réelle des contrôleurs de feux bruxellois.
 
-Comportement véhicule actuel :
+Comportement actuel : rouge = arrêt, orange = arrêt si possible en sécurité, cédez-le-passage = fort ralentissement, passage piéton = approche autour de 20 km/h, STOP = arrêt complet avec temporisation. Le paquet actuel ne contient aucun STOP dans le corridor sélectionné.
 
-- feu rouge : freinage jusqu'à l'arrêt ;
-- orange : arrêt si la distance de freinage le permet, sinon poursuite ;
-- cédez-le-passage : ralentissement fort avant le contrôle ;
-- passage piéton : approche limitée à environ 20 km/h ;
-- STOP : arrêt complet et temporisation ; le système est prêt mais le paquet actuel n'en contient aucun.
-
-Le cédez-le-passage ne fait pas encore une résolution complète du créneau de trafic transversal et les passages piétons n'attendent pas encore un piéton réel : ces deux comportements seront raccordés aux prochaines couches IA.
+Le cédez-le-passage ne fait pas encore une résolution complète du créneau de trafic transversal et les passages piétons n'attendent pas encore un piéton réel.
 
 ### Véhicule joueur
 
-- `game/scripts/vehicle_controller.gd`
-  - entrée/sortie existante ;
-  - vitesse instantanée en m/s et km/h ;
-  - vitesse maximale exposée ;
-  - frein à main sur `Espace`.
+`game/scripts/vehicle_controller.gd` conserve l'entrée/sortie, expose la vitesse en m/s et km/h et dispose du frein à main sur `Espace`.
 
-- `game/scripts/vehicle_hud.gd`
-  - vitesse du véhicule conduit ;
-  - nombre de véhicules civils IA actifs ;
-  - valeur régionale de 30 km/h utilisée seulement lorsque la donnée routière ne fournit pas de limitation explicite.
+`game/scripts/vehicle_hud.gd` affiche la vitesse du véhicule conduit et le nombre de véhicules IA actifs. La valeur de 30 km/h n'est utilisée qu'en fallback lorsqu'aucune limitation explicite n'est disponible.
 
 ### Pipeline OSM
 
-`tools/fetch_osm_slice.py` récupère maintenant également :
+`tools/fetch_osm_slice.py` récupère les routes ainsi que `traffic_signals`, `stop`, `give_way`, `crossing` et `level_crossing`.
 
-- `highway=traffic_signals` ;
-- `highway=stop` ;
-- `highway=give_way` ;
-- `highway=crossing` ;
-- `railway=level_crossing`.
+`tools/transform_osm_to_game.py` produit `grand-bruxelles-osm-v3` avec `oneway`, voies, `maxspeed_kmh`, `junction`, accès, surface et contrôles.
 
-`tools/transform_osm_to_game.py` produit `grand-bruxelles-osm-v3` et conserve notamment :
-
-- `oneway` ;
-- `lanes`, `lanes_forward`, `lanes_backward` ;
-- `maxspeed_kmh` ;
-- `junction` ;
-- `access`, `motor_vehicle` ;
-- `surface` ;
-- les contrôles de circulation et leurs positions.
-
-`.github/workflows/grand-bruxelles-osm-traffic-preview.yml` peut construire un paquet OSM frais en artefact sans pousser sur `main`.
+`.github/workflows/grand-bruxelles-osm-traffic-preview.yml` construit un paquet OSM frais en artefact sans pousser sur `main`.
 
 ## Tests
 
-La CI Godot 4.7.1 vérifie :
+La CI Godot 4.7.1 vérifie la conversion OSM, l'intégrité/licence du paquet trafic, l'import Godot, le chargement de scène, le véhicule joueur, le graphe/sens uniques, les phases de feux, la priorité de droite/réservation de carrefour, le trafic civil multi-rues et la mission Midi → Grand-Place.
 
-- conversion des métadonnées OSM et des contrôles ;
-- intégrité/licence du paquet trafic actuel ;
-- import du projet sans erreur de script ;
-- chargement complet de la scène ;
-- entrée/sortie et télémétrie du véhicule joueur ;
-- graphe dirigé, intersection et sens unique synthétiques ;
-- phasage de feux sans vert conflictuel dans le test synthétique ;
-- arbitrage de priorité de droite et réservation de carrefour ;
-- trafic civil multi-rues avec le paquet actuel ;
-- conservation de la mission Midi → Grand-Place.
-
-Le paquet actuel contient volontairement des champs OSM optionnels à `null`. Le smoke test charge directement ce paquet : il sert aussi de test de régression pour la tolérance aux métadonnées manquantes. Un échec réel `int(null)` a été reproduit par la CI puis corrigé avant validation verte.
+Le paquet actuel contient volontairement des champs OSM optionnels à `null` ; le smoke test le charge directement et sert donc de test de régression.
 
 ## Dernière validation mesurée
 
@@ -172,8 +97,8 @@ Godot 4.7.1 headless :
 
 ## Limites connues
 
-- Les positions des feux sont issues d'OSM mais leur cycle est simulé, pas synchronisé avec les contrôleurs physiques de Bruxelles.
-- Le cédez-le-passage ralentit déjà, mais ne calcule pas encore complètement l'acceptation d'un créneau selon le trafic transversal.
-- Les passages piétons ralentissent le véhicule, mais n'intègrent pas encore l'état d'un PNJ traversant.
-- Les voitures IA sont encore des modèles greybox procéduraux.
+- Les positions des feux sont issues d'OSM mais leur cycle est simulé.
+- Le cédez-le-passage ne calcule pas encore complètement l'acceptation d'un créneau transversal.
+- Les passages piétons ne sont pas encore couplés à l'état d'un PNJ traversant.
+- Les véhicules IA sont encore des modèles greybox procéduraux.
 - Scooters, STIB, accidents et garages ne sont pas encore actifs.

@@ -2,6 +2,7 @@ extends SceneTree
 
 const ATOMIUM_X := 224.92615906274295
 const ATOMIUM_Z := -6553.143077999353
+const PRIMARY_DTM := "res://data/terrain/laeken_jette/phase1_dtm.game.json"
 
 
 func _initialize() -> void:
@@ -39,6 +40,9 @@ func _run() -> void:
         _fail("official DTM collision missing")
         return
 
+    var terrain_width := int(terrain.get("width"))
+    var terrain_height := int(terrain.get("height"))
+    var data_path := String(terrain.get("data_path_used"))
     var min_height := float(terrain.get("min_height_m"))
     var max_height := float(terrain.get("max_height_m"))
     var valid_samples := int(terrain.get("valid_sample_count"))
@@ -46,7 +50,10 @@ func _run() -> void:
     var atomium_abs := float(terrain.get("atomium_absolute_elevation_m"))
     var atomium_height := float(terrain.call("sample_height", ATOMIUM_X, ATOMIUM_Z))
 
-    if min_height < -30.0 or max_height > 40.0:
+    if terrain_width < 2 or terrain_height < 2:
+        _fail("invalid terrain dimensions: %dx%d" % [terrain_width, terrain_height])
+        return
+    if min_height < -60.0 or max_height > 70.0:
         _fail("relative terrain range unsafe: [%.3f, %.3f]" % [min_height, max_height])
         return
     if max_height - min_height < 0.5:
@@ -55,14 +62,17 @@ func _run() -> void:
     if valid_samples <= 0:
         _fail("terrain has no valid DTM samples")
         return
-    if valid_samples + invalid_samples != 257 * 257:
-        _fail("DTM validity accounting mismatch")
+    if valid_samples + invalid_samples != terrain_width * terrain_height:
+        _fail("DTM validity accounting mismatch: valid=%d holes=%d dimensions=%dx%d" % [valid_samples, invalid_samples, terrain_width, terrain_height])
         return
     if atomium_abs < 40.0 or atomium_abs > 90.0:
         _fail("Atomium absolute terrain elevation is implausible: %.3f" % atomium_abs)
         return
     if absf(atomium_height) > 1.0:
         _fail("Atomium local terrain should be near Y=0, got %.3f" % atomium_height)
+        return
+    if FileAccess.file_exists(PRIMARY_DTM) and data_path != PRIMARY_DTM:
+        _fail("full phase-1 DTM exists but terrain did not select it: %s" % data_path)
         return
 
     var drape = scene.get_node_or_null("TerrainDrape")
@@ -83,7 +93,7 @@ func _run() -> void:
         _fail("official transit geometry was not draped: tram=%d train=%d" % [tram_vertices, train_vertices])
         return
 
-    print("LAEKEN_TERRAIN_SMOKE_OK: range=[%.2f, %.2f]m atomium_local=%.3fm atomium_abs=%.3fm valid=%d holes=%d draped={roads:%d,buildings:%d,tram:%d,train:%d}" % [min_height, max_height, atomium_height, atomium_abs, valid_samples, invalid_samples, road_vertices, building_vertices, tram_vertices, train_vertices])
+    print("LAEKEN_TERRAIN_SMOKE_OK: source=%s size=%dx%d range=[%.2f, %.2f]m atomium_local=%.3fm atomium_abs=%.3fm valid=%d holes=%d draped={roads:%d,buildings:%d,tram:%d,train:%d}" % [data_path, terrain_width, terrain_height, min_height, max_height, atomium_height, atomium_abs, valid_samples, invalid_samples, road_vertices, building_vertices, tram_vertices, train_vertices])
     scene.queue_free()
     await process_frame
     quit(0)

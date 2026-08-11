@@ -1,0 +1,98 @@
+name: Grand Bruxelles UrbIS Midi Inspect
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/grand-bruxelles-urbis-midi-inspect.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-urbis-midi-inspect
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download three official Midi corridor tiles
+        run: |
+          mkdir -p /tmp/urbis-midi
+          BASE="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Landscape/SKP"
+          for TILE in 147169 148169 148170; do
+            FILE="UrbISLandscape_31370_SKP_${TILE}_20230801.zip"
+            echo "Downloading $FILE"
+            curl -fL --retry 3 --retry-delay 3 "$BASE/$FILE" -o "/tmp/urbis-midi/$FILE"
+          done
+
+      - name: Inspect archives and build inventory
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, zipfile
+          from pathlib import Path
+
+          root = Path('/tmp/urbis-midi')
+          output = {
+              'schema': 1,
+              'source': 'Paradigm UrbIS Landscape',
+              'crs': 'EPSG:31370',
+              'format': 'SKP inside ZIP',
+              'purpose': 'Brussels-Midi corridor source tile inventory',
+              'tiles': []
+          }
+          for path in sorted(root.glob('*.zip')):
+              tile = path.stem.split('_')[-2]
+              raw = path.read_bytes()
+              with zipfile.ZipFile(path) as archive:
+                  members = []
+                  for info in archive.infolist():
+                      members.append({
+                          'name': info.filename,
+                          'compressed_size': info.compress_size,
+                          'uncompressed_size': info.file_size,
+                      })
+              output['tiles'].append({
+                  'tile': tile,
+                  'filename': path.name,
+                  'url': 'https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Landscape/SKP/' + path.name,
+                  'size_bytes': len(raw),
+                  'sha256': hashlib.sha256(raw).hexdigest(),
+                  'members': members,
+              })
+          dest = Path('grand-bruxelles-game/data/sources/midi/urbis_midi_tile_inventory.json')
+          dest.parent.mkdir(parents=True, exist_ok=True)
+          dest.write_text(json.dumps(output, indent=2) + '\n', encoding='utf-8')
+          for tile in output['tiles']:
+              print(tile['tile'], tile['size_bytes'], tile['sha256'])
+              for member in tile['members']:
+                  print('  ', member)
+          PY
+
+      - name: Extract and identify SketchUp files
+        run: |
+          mkdir -p /tmp/urbis-midi/extracted
+          for ZIP in /tmp/urbis-midi/*.zip; do
+            unzip -q "$ZIP" -d /tmp/urbis-midi/extracted
+          done
+          find /tmp/urbis-midi/extracted -maxdepth 3 -type f -print -exec file {} \;
+
+      - name: Commit tile inventory only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/sources/midi/urbis_midi_tile_inventory.json
+          if git diff --cached --quiet; then
+            echo "Tile inventory already up to date."
+          else
+            git commit -m "data: inventory UrbIS Landscape Midi tiles [skip ci]"
+            git push origin HEAD:main
+          fi

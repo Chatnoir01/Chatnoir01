@@ -1,0 +1,83 @@
+name: Sync Laeken-Jette cell reservations
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/sync-laeken-jette-reservations.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-laeken-jette-reservations
+  cancel-in-progress: true
+
+jobs:
+  sync-reservations:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch Laeken-Jette branch read-only
+        run: git fetch origin zone-laeken-jette:refs/remotes/origin/zone-laeken-jette
+
+      - name: Test reservation scanner
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests.test_sync_external_branch_reservations -v
+
+      - name: Scan external branch global cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/sync_external_branch_reservations.py \
+            --ref origin/zone-laeken-jette \
+            --zone-id jette \
+            --zone-id laeken \
+            --output data/urbis/remaining_brussels/external_branch_reservations.json
+
+      - name: Verify reservation snapshot
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('data/urbis/remaining_brussels/external_branch_reservations.json')
+          data = json.loads(path.read_text())
+          assert data['format'] == 'grand-bruxelles-external-cell-reservations-v1'
+          assert data['source_ref'] == 'origin/zone-laeken-jette'
+          assert data['reserved_zone_ids'] == ['jette', 'laeken']
+          ids = data['reserved_cell_ids']
+          assert len(ids) == len(set(ids))
+          assert all(cell_id.startswith('bxl-e') for cell_id in ids)
+          assert data['reserved_cell_count'] == len(ids)
+          assert set(data['materialized_cell_ids']).issubset(ids)
+          assert set(data['planned_cell_ids']).issubset(ids)
+          print('External JSON files scanned:', data['json_files_scanned'])
+          print('Global cells reserved:', data['reserved_cell_count'])
+          print('Materialized there:', data['materialized_cell_count'])
+          print('Planned there:', data['planned_cell_count'])
+          if not ids:
+              print('NOTE: external branch has no current global-cell IDs; do not infer municipal safety from this empty set.')
+          PY
+
+      - name: Commit reservation snapshot
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/urbis/remaining_brussels/external_branch_reservations.json
+          if git diff --cached --quiet; then
+            echo 'Reservation snapshot unchanged.'
+            exit 0
+          fi
+          git commit -m 'data: sync Laeken Jette global cell reservations'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

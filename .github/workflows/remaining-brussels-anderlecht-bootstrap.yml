@@ -49,12 +49,13 @@ jobs:
             --anchor-n 169538.62414926197 \
             --output /tmp/anderlecht-seed.json
 
-      - name: Materialize contiguous Anderlecht seed from UrbIS WFS
+      - name: Rebuild contiguous Anderlecht seed from UrbIS WFS
         working-directory: grand-bruxelles-game
         run: |
           python3 tools/materialize_zone_cells.py \
             --manifest /tmp/anderlecht-seed.json \
-            --output-root data/urbis/remaining_brussels/cells
+            --output-root data/urbis/remaining_brussels/cells \
+            --force
 
       - name: Build Godot streaming index
         working-directory: grand-bruxelles-game
@@ -81,7 +82,7 @@ jobs:
             --output /tmp/anderlecht-ortho/seed.png \
             --metadata data/processed/remaining_brussels/references/anderlecht_seed_orthophoto.json
 
-      - name: Verify generated data
+      - name: Verify generated data and rail classification
         working-directory: grand-bruxelles-game
         run: |
           python3 - <<'PY'
@@ -104,7 +105,16 @@ jobs:
           manifest_path = Path('data/urbis/remaining_brussels/cells') / seed_id / 'manifest.json'
           manifest = json.loads(manifest_path.read_text())
           assert manifest['runtime']['geometry_format'] == 'grand-bruxelles-urbis-cell-runtime-v1'
-          assert manifest['runtime']['network_format'] == 'grand-bruxelles-urbis-network-cell-runtime-v1'
+          assert manifest['runtime']['network_format'] == 'grand-bruxelles-urbis-network-cell-runtime-v2'
+
+          network_path = manifest_path.parent / manifest['runtime']['network_file']
+          network = json.loads(network_path.read_text())
+          assert network['format'] == 'grand-bruxelles-urbis-network-cell-runtime-v2'
+          assert all(str(item.get('type', '')).startswith('TW') for item in network['tram_network'])
+          assert all(str(item.get('type', '')).startswith('RW') for item in network['train_network'])
+          tram_ids = {item['source_id'] for item in network['tram_network']}
+          train_ids = {item['source_id'] for item in network['train_network']}
+          assert tram_ids.isdisjoint(train_ids), 'tram/train runtime source IDs overlap after TYPE filtering'
 
           ortho = json.loads(Path('data/processed/remaining_brussels/references/anderlecht_seed_orthophoto.json').read_text())
           assert ortho['provider'] == 'Paradigm / UrbIS'
@@ -118,6 +128,7 @@ jobs:
           print('Seed distance from Midi anchor (m):', seed['seed_selection']['distance_m'])
           print('Geometry stats:', manifest['runtime']['geometry_stats'])
           print('Network stats:', manifest['runtime']['network_stats'])
+          print('Rail source TYPE counts:', network['source_type_counts'])
           print('Orthophoto sha256:', ortho['download']['sha256'])
           PY
 
@@ -143,5 +154,5 @@ jobs:
             echo 'No generated data changes to commit.'
             exit 0
           fi
-          git commit -m 'data: add contiguous official Anderlecht seed'
+          git commit -m 'data: rebuild Anderlecht seed with classified rail network'
           git push origin HEAD:zone-reste-bruxelles

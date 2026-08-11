@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "source": "Paradigm UrbIS Digital Terrain Model 2021",
   "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
   "tile": "148176",
@@ -53,7 +53,6 @@
       176500.072
     ]
   },
-  "coordinate_system": {},
   "bands": [
     {
       "band": 1,
@@ -70,9 +69,11 @@
     "step_n": -3.8910505836538505,
     "absolute_elevation_min_m": 46.17759704589844,
     "absolute_elevation_max_m": 76.80229187011719,
-    "atomium_absolute_elevation_m": 52.57776641845703,
     "relative_height_min_m": -6.4002,
-    "relative_height_max_m": 24.2245
+    "relative_height_max_m": 24.2245,
+    "valid_sample_count": 65577,
+    "invalid_sample_count": 472
   },
-  "policy": "Raw DTM archive is not committed. Runtime grid is a bilinear 257x257 resampling of the official tile and preserves provenance/hash and absolute elevation metadata."
+  "atomium_absolute_elevation_m": 52.57776641845703,
+  "policy": "257x257 bilinear runtime grid derived from the official UrbIS DTM tile; raw raster is not committed; NoData cells remain holes."
 }

@@ -14,6 +14,7 @@ signal route_finished(vehicle: Node)
 
 var route_points: PackedVector3Array = PackedVector3Array()
 var route_speed_limits_kmh: PackedFloat32Array = PackedFloat32Array()
+var route_controls: Array = []
 var route_index: int = 1
 var route_edge_count: int = 1
 var speed_mps: float = 0.0
@@ -21,6 +22,9 @@ var speed_limit_mps: float = 8.333333
 var road_name: String = ""
 var source_osm_id: int = 0
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+var _control_system: RefCounted = null
+var _handled_controls: Dictionary = {}
+var _stop_hold_until_s: float = 0.0
 var _finishing: bool = false
 
 @onready var obstacle_ray: RayCast3D = get_node_or_null("ObstacleRay") as RayCast3D
@@ -55,15 +59,21 @@ func configure_route_profile(
     new_speed_limits_kmh: PackedFloat32Array,
     new_road_name: String,
     new_source_osm_id: int,
-    new_route_edge_count: int
+    new_route_edge_count: int,
+    new_route_controls: Array = [],
+    new_control_system: RefCounted = null
 ) -> void:
     route_points = new_route.duplicate()
     route_speed_limits_kmh = new_speed_limits_kmh.duplicate()
+    route_controls = new_route_controls.duplicate(true)
     route_index = 1
     route_edge_count = maxi(1, new_route_edge_count)
     speed_mps = 0.0
     road_name = new_road_name
     source_osm_id = new_source_osm_id
+    _control_system = new_control_system
+    _handled_controls.clear()
+    _stop_hold_until_s = 0.0
     _finishing = false
 
     if route_points.size() < 2:
@@ -126,6 +136,8 @@ func _physics_process(delta: float) -> void:
     var desired_speed := speed_limit_mps * speed_factor
     var deceleration := braking_mps2
 
+    desired_speed = minf(desired_speed, _traffic_control_speed_cap(desired_speed))
+
     if obstacle_ray != null:
         var lookahead := maxf(
             obstacle_min_lookahead_m,
@@ -159,6 +171,68 @@ func _physics_process(delta: float) -> void:
 
     if is_on_wall():
         speed_mps = move_toward(speed_mps, 0.0, emergency_braking_mps2 * delta)
+
+
+func _traffic_control_speed_cap(base_speed: float) -> float:
+    if route_controls.is_empty():
+        return base_speed
+
+    var cap := base_speed
+    var now_seconds := float(Time.get_ticks_msec()) / 1000.0
+    if now_seconds < _stop_hold_until_s:
+        return 0.0
+
+    for control_variant: Variant in route_controls:
+        if typeof(control_variant) != TYPE_DICTIONARY:
+            continue
+        var control: Dictionary = control_variant
+        var control_route_index := int(control.get("route_index", -1))
+        if control_route_index < route_index - 1 or control_route_index > route_index + 3:
+            continue
+
+        var control_position: Vector3 = control.get("route_position", Vector3.ZERO)
+        var distance := global_position.distance_to(control_position)
+        if distance > 32.0:
+            continue
+
+        var kind := str(control.get("kind", ""))
+        var control_id := int(control.get("osm_id", 0))
+
+        if kind == "traffic_signals" and _control_system != null:
+            var approach: Vector3 = control.get("approach_direction", Vector3.ZERO)
+            var state := str(_control_system.call("signal_state_for", control, approach))
+            if state == "red":
+                cap = minf(cap, _safe_approach_speed(distance, 2.6))
+            elif state == "amber":
+                var stopping_distance := speed_mps * speed_mps / maxf(0.1, 2.0 * braking_mps2) + 1.8
+                if distance >= stopping_distance:
+                    cap = minf(cap, _safe_approach_speed(distance, 2.6))
+
+        elif kind == "give_way":
+            if distance <= 18.0:
+                cap = minf(cap, 3.0)
+            if distance <= 6.0:
+                cap = minf(cap, 1.5)
+
+        elif kind == "crossing":
+            if distance <= 16.0:
+                cap = minf(cap, 5.56)
+
+        elif kind == "stop" and not _handled_controls.has(control_id):
+            cap = minf(cap, _safe_approach_speed(distance, 2.2))
+            if distance <= 2.8 and speed_mps <= 0.45:
+                _handled_controls[control_id] = true
+                _stop_hold_until_s = now_seconds + 0.8
+                cap = 0.0
+
+    return cap
+
+
+func _safe_approach_speed(distance: float, stop_margin_m: float) -> float:
+    var usable_distance := maxf(0.0, distance - stop_margin_m)
+    if usable_distance <= 0.01:
+        return 0.0
+    return sqrt(2.0 * braking_mps2 * usable_distance) * 0.82
 
 
 func _speed_limit_at_index(index: int) -> float:
@@ -204,3 +278,7 @@ func get_route_point_count() -> int:
 
 func get_route_edge_count() -> int:
     return route_edge_count
+
+
+func get_route_control_count() -> int:
+    return route_controls.size()

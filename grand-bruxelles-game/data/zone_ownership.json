@@ -1,9 +1,17 @@
 {
   "format": "grand-bruxelles-zone-ownership-v1",
   "crs": "EPSG:31370",
-  "global_game_origin": {
-    "easting": 147868.294,
-    "northing": 169538.624
+  "global_geometry_origin": {
+    "easting": 147868.29422791934,
+    "northing": 169538.62414926197,
+    "control_point": "Bruxelles-Midi"
+  },
+  "current_game_world_alignment": {
+    "world_anchor_x": -668.5,
+    "world_anchor_z": 627.84,
+    "anchor_control_point": "Bruxelles-Midi",
+    "formula_x": "(Lambert_E - origin_e) + world_anchor_x",
+    "formula_z": "-(Lambert_N - origin_n) + world_anchor_z"
   },
   "owners": [
     {
@@ -68,6 +76,8 @@
   "seam_policy": {
     "allow_reference_overlap_m": 25,
     "duplicate_production_geometry": false,
-    "shared_origin_required": true
+    "shared_origin_required": true,
+    "shared_world_anchor_required": true,
+    "feature_ownership": "polygon centroid in half-open 500m cell bbox"
   }
 }

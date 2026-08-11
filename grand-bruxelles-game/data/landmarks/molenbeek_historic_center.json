@@ -1,0 +1,93 @@
+{
+  "format": "grand-bruxelles-landmark-zone-v1",
+  "zone_id": "molenbeek-historic-center",
+  "municipality": "Molenbeek-Saint-Jean",
+  "cell_id": "bxl-e147500-n171500-s500",
+  "anchor": {
+    "name": "Place Communale / Gemeenteplein",
+    "crs": "EPSG:31370",
+    "easting": 147881.77866061343,
+    "northing": 171572.0990160089,
+    "game_x": -655.016,
+    "game_z": -1405.635
+  },
+  "reconstruction_tier": "hero",
+  "targets": [
+    {
+      "id": "molenbeek-town-hall",
+      "name_fr": "Hôtel communal de Molenbeek-Saint-Jean",
+      "kind": "classified_landmark",
+      "priority": 1,
+      "heritage": {
+        "address": "Place Communale 15A / Rue du Comte de Flandre 20",
+        "architect": "J.-B. Janssens",
+        "date": 1886,
+        "style": "éclectisme",
+        "classified_since": "1995-04-13",
+        "heritage_inventory_id": "Urban 34097"
+      },
+      "requirements": [
+        "dedicated non-procedural facade and silhouette",
+        "official UrbIS footprint remains authoritative",
+        "facade proportions validated against regional heritage references",
+        "LOD0 LOD1 LOD2",
+        "simplified dedicated collision",
+        "night lighting points prepared separately from facade mesh"
+      ]
+    },
+    {
+      "id": "place-communale",
+      "name_fr": "Place Communale",
+      "kind": "historic_square",
+      "priority": 1,
+      "requirements": [
+        "exact official street and pedestrian-surface geometry",
+        "square paving and curb geometry validated against official orthophoto",
+        "preserve pedestrian character",
+        "street furniture positions only after licensed or official-source validation"
+      ]
+    },
+    {
+      "id": "comte-de-flandre-axis",
+      "name_fr": "Rue du Comte de Flandre",
+      "kind": "historic_urban_axis",
+      "priority": 2,
+      "requirements": [
+        "retain official road width and intersections",
+        "first-row facade rhythm treated above generic background tier",
+        "connect cleanly toward canal and central Brussels cells"
+      ]
+    }
+  ],
+  "official_references": [
+    {
+      "url": "https://www.molenbeek.irisnet.be/fr/vie-politique/accueil",
+      "publisher": "Commune de Molenbeek-Saint-Jean",
+      "use": "official identification of the historic centre around the town hall",
+      "asset_rights": "reference_only_unless_separate_license_is_verified"
+    },
+    {
+      "url": "https://monument.heritage.brussels/fr/buildings/34097",
+      "publisher": "Bruxelles Patrimoines / Région de Bruxelles-Capitale",
+      "use": "architectural and classification reference for the town hall",
+      "asset_rights": "reference_only_unless_separate_license_is_verified"
+    }
+  ],
+  "geometry_sources": {
+    "plan": "Paradigm UrbIS WFS EPSG:31370",
+    "orthophoto": "Paradigm UrbIS inspire:Ortho WMS validation capture metadata",
+    "runtime_geometry": "data/urbis/remaining_brussels/cells/bxl-e147500-n171500-s500/runtime/cell.game.json",
+    "runtime_network": "data/urbis/remaining_brussels/cells/bxl-e147500-n171500-s500/runtime/network.game.json"
+  },
+  "source_policy": {
+    "official_web_pages": "reference_only_until_reuse_rights_are_verified",
+    "official_urbis_geometry": "production_geometry_source",
+    "external_web_images_embedded": false,
+    "external_web_images_used_as_textures": false
+  },
+  "production_gate": {
+    "hero_asset_complete": false,
+    "licensed_visual_reference_pack_complete": false,
+    "geometry_cell_materialized": false
+  }
+}

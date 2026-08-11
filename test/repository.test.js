@@ -32,7 +32,22 @@ test('cannot delete client referenced by invoice', () => {
   });
   assert.deepEqual(store.deleteClient('org-a', client.id), {
     deleted: false,
-    reason: 'client_has_invoices'
+    reason: 'client_has_documents'
+  });
+});
+
+test('cannot delete client referenced by quote', () => {
+  const store = new MemoryStore();
+  const client = store.createClient('org-a', { name: 'Client devis' });
+  store.createQuote('org-a', {
+    clientId: client.id,
+    number: 'DEV-2026-0001',
+    lines: [],
+    totals: { gross: 100 }
+  });
+  assert.deepEqual(store.deleteClient('org-a', client.id), {
+    deleted: false,
+    reason: 'client_has_documents'
   });
 });
 
@@ -52,4 +67,17 @@ test('invoice status update is tenant-scoped', () => {
   });
   assert.equal(store.updateInvoiceStatus('org-b', invoice.id, 'paid'), null);
   assert.equal(store.updateInvoiceStatus('org-a', invoice.id, 'paid').status, 'paid');
+});
+
+test('quote conversion marker is tenant-scoped and idempotent', () => {
+  const store = new MemoryStore();
+  const quote = store.createQuote('org-a', {
+    clientId: 'client-a', number: 'DEV-2026-0001', lines: [], totals: { gross: 50 }
+  });
+  assert.equal(store.markQuoteConverted('org-b', quote.id, 'invoice-x'), null);
+  const first = store.markQuoteConverted('org-a', quote.id, 'invoice-a');
+  assert.equal(first.alreadyConverted, false);
+  const second = store.markQuoteConverted('org-a', quote.id, 'invoice-b');
+  assert.equal(second.alreadyConverted, true);
+  assert.equal(second.quote.convertedInvoiceId, 'invoice-a');
 });

@@ -50,8 +50,8 @@ jobs:
 
           tram_types = {str((feature.get('properties') or {}).get('TYPE', '')).upper() for feature in tram['features']}
           train_types = {str((feature.get('properties') or {}).get('TYPE', '')).upper() for feature in train['features']}
-          assert tram_types and all(value.startswith('TW') for value in tram_types), tram_types
-          assert train_types and all(value.startswith('RW') for value in train_types), train_types
+          assert tram_types and tram_types == {'TW'}, tram_types
+          assert train_types and train_types == {'RW'}, train_types
 
           tram_ids = {
               str((feature.get('properties') or {}).get('INSPIRE_ID') or feature.get('id') or '')
@@ -63,8 +63,8 @@ jobs:
           }
           assert tram_ids.isdisjoint(train_ids), 'source-filtered raw tram/train IDs still overlap'
           assert manifest['format'] == 'grand-bruxelles-urbis-wfs-v2'
-          assert manifest['layers']['tram_network']['cql_filter'] == "TYPE LIKE 'TW%'"
-          assert manifest['layers']['train_network']['cql_filter'] == "TYPE LIKE 'RW%'"
+          assert manifest['layers']['tram_network']['cql_filter'] == "TYPE = 'TW'"
+          assert manifest['layers']['train_network']['cql_filter'] == "TYPE = 'RW'"
 
           print('raw tram features:', len(tram['features']), 'types:', sorted(tram_types))
           print('raw train features:', len(train['features']), 'types:', sorted(train_types))

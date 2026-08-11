@@ -3,6 +3,7 @@ extends SceneTree
 const ATOMIUM_X := 224.92615906274295
 const ATOMIUM_Z := -6553.143077999353
 const PRIMARY_DTM := "res://data/terrain/laeken_jette/phase1_dtm.game.json"
+const ORTHO := "res://data/orthophoto/laeken_jette/phase1_ortho.jpg"
 
 
 func _initialize() -> void:
@@ -21,6 +22,7 @@ func _run() -> void:
         return
     var scene := packed.instantiate()
     root.add_child(scene)
+    await process_frame
     await process_frame
     await process_frame
     await process_frame
@@ -97,7 +99,26 @@ func _run() -> void:
         _fail("official transit geometry was not draped: tram=%d train=%d" % [tram_vertices, train_vertices])
         return
 
-    print("LAEKEN_TERRAIN_SMOKE_OK: source=%s size=%dx%d range=[%.2f, %.2f]m atomium_local=%.3fm atomium_abs=%.3fm valid=%d holes=%d draped={roads:%d,buildings:%d,tram:%d,train:%d}" % [data_path, terrain_width, terrain_height, min_height, max_height, atomium_height, atomium_abs, valid_samples, invalid_samples, road_vertices, building_vertices, tram_vertices, train_vertices])
+    var ortho_active := false
+    if ResourceLoader.exists(ORTHO):
+        var ortho = scene.get_node_or_null("OrthophotoPass")
+        if ortho == null:
+            _fail("orthophoto texture exists but OrthophotoPass node is missing")
+            return
+        ortho_active = bool(ortho.get("orthophoto_active"))
+        if not ortho_active:
+            _fail("official orthophoto texture exists but was not applied to terrain + roads")
+            return
+        var terrain_mesh := scene.get_node_or_null("LaekenTerrain/OfficialDTMTerrainMesh") as MeshInstance3D
+        var roads_mesh := scene.get_node_or_null("OfficialStreetSurfaces") as MeshInstance3D
+        if terrain_mesh == null or not terrain_mesh.material_override is ShaderMaterial:
+            _fail("orthophoto terrain material override missing")
+            return
+        if roads_mesh == null or not roads_mesh.material_override is ShaderMaterial:
+            _fail("orthophoto road material override missing")
+            return
+
+    print("LAEKEN_TERRAIN_SMOKE_OK: source=%s size=%dx%d range=[%.2f, %.2f]m atomium_local=%.3fm atomium_abs=%.3fm valid=%d holes=%d ortho=%s draped={roads:%d,buildings:%d,tram:%d,train:%d}" % [data_path, terrain_width, terrain_height, min_height, max_height, atomium_height, atomium_abs, valid_samples, invalid_samples, ortho_active, road_vertices, building_vertices, tram_vertices, train_vertices])
     scene.queue_free()
     await process_frame
     quit(0)

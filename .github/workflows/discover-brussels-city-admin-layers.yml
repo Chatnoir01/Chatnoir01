@@ -1,0 +1,71 @@
+name: Discover Brussels City admin layers
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/discover-brussels-city-admin-layers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: discover-brussels-city-admin-layers
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test discovery parser
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests.test_discover_urbis_admin_layers -v
+
+      - name: Read official UrbIS WFS capabilities
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/discover_urbis_admin_layers.py \
+            --output data/processed/brussels_city_remaining/urbis_admin_layer_candidates.json
+
+      - name: Validate discovery is evidence, not production approval
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path('data/processed/brussels_city_remaining/urbis_admin_layer_candidates.json')
+          data=json.loads(path.read_text())
+          assert data['format']=='grand-bruxelles-urbis-admin-layer-discovery-v1'
+          assert data['source'].startswith('https://geoservices-urbis.irisnet.be/')
+          assert isinstance(data['candidates'],list)
+          assert data['candidate_count']==len(data['candidates'])
+          assert 'not production-approved' in data['purpose']
+          assert all('name' in item and 'title' in item for item in data['candidates'])
+          print('Administrative candidates:',data['candidate_count'])
+          for item in data['candidates']:
+              print(item['name'],'|',item['title'],'|',item['matched_keywords'])
+          PY
+
+      - name: Commit reproducible discovery manifest
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/processed/brussels_city_remaining/urbis_admin_layer_candidates.json
+          if git diff --cached --quiet; then
+            echo 'Discovery manifest unchanged.'
+            exit 0
+          fi
+          git commit -m 'data: discover official UrbIS admin layer candidates'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

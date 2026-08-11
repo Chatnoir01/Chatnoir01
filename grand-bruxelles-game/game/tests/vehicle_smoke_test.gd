@@ -28,17 +28,32 @@ func _run() -> void:
     if car == null:
         _fail("PrototypeCar node missing")
         return
-    if not car.has_method("enter_driver") or not car.has_method("exit_driver"):
-        _fail("vehicle API missing")
-        return
-    if not car.has_method("get_speed_kmh") or not car.has_method("get_max_forward_speed_kmh"):
-        _fail("vehicle telemetry API missing")
-        return
+
+    for method_name: String in [
+        "enter_driver",
+        "exit_driver",
+        "get_speed_kmh",
+        "get_max_forward_speed_kmh",
+        "get_vehicle_health",
+        "get_vehicle_body_damage",
+        "get_vehicle_mechanical_damage",
+        "get_vehicle_performance_factor",
+        "is_vehicle_disabled",
+        "apply_test_impact",
+        "repair_vehicle",
+    ]:
+        if not car.has_method(method_name):
+            _fail("vehicle API missing: %s" % method_name)
+            return
+
     if bool(car.call("has_driver")):
         _fail("car unexpectedly starts occupied")
         return
     if absf(float(car.call("get_speed_kmh"))) > 0.01:
         _fail("parked car should start at 0 km/h")
+        return
+    if absf(float(car.call("get_vehicle_health")) - 100.0) > 0.01:
+        _fail("prototype car should start undamaged")
         return
 
     car.call("enter_driver", player)
@@ -71,7 +86,23 @@ func _run() -> void:
         _fail("car should reset to 0 km/h after exit")
         return
 
-    print("VEHICLE_SMOKE_OK: enter/exit flow and speed telemetry passed")
+    var impact: Dictionary = car.call("apply_test_impact", 50.0, 1.0)
+    if float(impact.get("health", 100.0)) >= 100.0:
+        _fail("damage model is not connected to playable vehicle")
+        return
+    if float(car.call("get_vehicle_performance_factor")) >= 1.0:
+        _fail("playable vehicle performance did not degrade after impact")
+        return
+
+    car.call("repair_vehicle", 100.0)
+    if absf(float(car.call("get_vehicle_health")) - 100.0) > 0.01:
+        _fail("playable vehicle repair did not restore health")
+        return
+    if bool(car.call("is_vehicle_disabled")):
+        _fail("repaired vehicle remained disabled")
+        return
+
+    print("VEHICLE_SMOKE_OK: enter/exit, speed telemetry, damage and repair passed")
     scene.queue_free()
     await process_frame
     quit(0)

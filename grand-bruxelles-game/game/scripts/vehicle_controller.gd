@@ -86,7 +86,7 @@ func enter_driver(player: CharacterBody3D) -> void:
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED
 
 func exit_driver() -> void:
-    if driver == null or Time.get_ticks_msec() < _exit_unlock_ms:
+    if driver == null:
         return
     var player: CharacterBody3D = driver
     driver = null

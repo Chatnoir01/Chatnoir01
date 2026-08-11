@@ -237,26 +237,59 @@ func _intersection_speed_cap(base_speed: float) -> float:
 
         var position: Vector3 = intersection.get("route_position", Vector3.ZERO)
         var distance := global_position.distance_to(position)
-        if distance > 24.0:
+        if distance > 29.0:
             continue
 
         var intersection_id := int(intersection.get("id", -1))
         var approach: Vector3 = intersection.get("approach_direction", Vector3.ZERO)
-        var allowed := bool(_intersection_system.call(
-            "request_passage",
-            intersection_id,
-            get_instance_id(),
-            approach,
-            distance
-        ))
+        var control_kind := str(intersection.get("control_kind", ""))
+        var allowed := true
+        var yielding_approach := false
+
+        if bool(intersection.get("priority_to_right", false)):
+            allowed = bool(_intersection_system.call(
+                "request_passage",
+                intersection_id,
+                get_instance_id(),
+                approach,
+                distance
+            ))
+        elif control_kind == "give_way":
+            yielding_approach = _has_route_control_near("give_way", position, 12.0)
+            allowed = bool(_intersection_system.call(
+                "request_controlled_passage",
+                intersection_id,
+                get_instance_id(),
+                approach,
+                distance,
+                yielding_approach
+            ))
+        else:
+            # Traffic signals and STOP controls are governed by _traffic_control_speed_cap().
+            continue
 
         if not allowed:
             cap = minf(cap, _safe_approach_speed(distance, 2.7))
             if distance <= 3.0:
                 cap = 0.0
+        elif yielding_approach and distance <= 12.0:
+            cap = minf(cap, 4.17)
         elif distance <= 14.0:
             cap = minf(cap, 6.94)
     return cap
+
+
+func _has_route_control_near(kind: String, position: Vector3, radius_m: float) -> bool:
+    for raw_control: Variant in route_controls:
+        if typeof(raw_control) != TYPE_DICTIONARY:
+            continue
+        var control: Dictionary = raw_control
+        if str(control.get("kind", "")) != kind:
+            continue
+        var control_position: Vector3 = control.get("route_position", Vector3.ZERO)
+        if control_position.distance_to(position) <= radius_m:
+            return true
+    return false
 
 
 func _safe_approach_speed(distance: float, stop_margin_m: float) -> float:

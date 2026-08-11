@@ -91,6 +91,18 @@ jobs:
           fi
           grep -q "VEHICLE_DAMAGE_OK" /tmp/damage.log
 
+      - name: Roadside recovery test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/vehicle_recovery_test.gd 2>&1 | tee /tmp/recovery.log
+          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_RECOVERY_FAIL" /tmp/recovery.log; then
+            exit 1
+          fi
+          grep -q "VEHICLE_RECOVERY_OK" /tmp/recovery.log
+
       - name: Live traffic smoke test
         shell: bash
         run: |

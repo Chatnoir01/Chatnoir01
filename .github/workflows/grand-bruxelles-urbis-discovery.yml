@@ -1,0 +1,58 @@
+name: Grand Bruxelles UrbIS Discovery
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/tools/discover_urbis_sources.py"
+      - "grand-bruxelles-game/data/sources/midi/manifest.json"
+      - ".github/workflows/grand-bruxelles-urbis-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-urbis-discovery
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Discover official UrbIS distributions
+        run: |
+          python3 grand-bruxelles-game/tools/discover_urbis_sources.py \
+            --output grand-bruxelles-game/data/sources/midi/discovered_urbis_distributions.json
+
+      - name: Validate discovery output
+        run: |
+          python3 - <<'PY'
+          import json
+          p = 'grand-bruxelles-game/data/sources/midi/discovered_urbis_distributions.json'
+          data = json.load(open(p, encoding='utf-8'))
+          ids = {f['source_id'] for f in data['feeds']}
+          expected = {'urbis_landscape','urbis_dsm','urbis_transport','urbis_parcels_buildings'}
+          assert ids == expected, (ids, expected)
+          for feed in data['feeds']:
+              assert feed['entry_count'] >= 1, feed['source_id']
+              print(feed['source_id'], 'entries', feed['entry_count'], 'files', len(feed['concrete_files']))
+          PY
+
+      - name: Commit source discovery
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/sources/midi/discovered_urbis_distributions.json
+          if git diff --cached --quiet; then
+            echo "UrbIS discovery already up to date."
+          else
+            git commit -m "data: refresh discovered UrbIS distributions [skip ci]"
+            git push origin HEAD:main
+          fi

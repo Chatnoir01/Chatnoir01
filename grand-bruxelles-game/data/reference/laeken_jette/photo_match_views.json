@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "zone": "laeken_jette",
+  "crs": "project-local metres derived from EPSG:31370",
+  "policy": "These are deterministic in-game benchmark viewpoints tied to lawful reference sources. They do not claim survey-grade replication of the photographer position unless explicitly stated. Geometry remains UrbIS/LiDAR authoritative.",
+  "views": [
+    {
+      "id": "atomium_approach_south_v1",
+      "subject": "Atomium approach",
+      "status": "provisional_photo_match_benchmark",
+      "camera_game_xz": [224.92615906274295, -6455.0],
+      "camera_height_above_terrain_m": 1.7,
+      "target_game_xyz": [224.92615906274295, 51.0, -6553.143077999353],
+      "fov_degrees": 50.0,
+      "resolution": [1280, 720],
+      "reference": {
+        "url": "https://pixy.org/5912449/",
+        "license": "CC0 / public domain as stated by source",
+        "usage": "visual reference only; benchmark camera position remains provisional until the source viewpoint can be surveyed or independently geolocated"
+      },
+      "comparison_checks": [
+        "Atomium silhouette and overall 102 m proportion",
+        "sphere/tube relative scale",
+        "central approach-axis alignment",
+        "foreground road and pedestrian-space proportions",
+        "tree-line density and spacing",
+        "lamp-post rhythm",
+        "major visual clutter and parked-vehicle presence",
+        "daylight direction and atmospheric contrast"
+      ]
+    }
+  ]
+}

@@ -217,7 +217,7 @@ func _building_material_for(building: Dictionary) -> StandardMaterial3D:
     var kind := str(building.get("kind", "yes"))
     if kind in ["office", "commercial", "retail", "train_station"]:
         return _building_materials[4]
-    var osm_id := abs(int(building.get("osm_id", 0)))
+    var osm_id: int = abs(int(building.get("osm_id", 0)))
     return _building_materials[osm_id % _building_materials.size()]
 
 

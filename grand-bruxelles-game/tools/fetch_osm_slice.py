@@ -17,7 +17,7 @@ import urllib.request
 from pathlib import Path
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-USER_AGENT = "GrandBruxellesGame/0.2 (development geodata fetcher)"
+USER_AGENT = "GrandBruxellesGame/0.3 (development geodata fetcher)"
 DEFAULT_BBOX = (50.8330, 4.3330, 50.8515, 4.3575)
 TRANSIENT_HTTP_CODES = {408, 425, 429, 500, 502, 503, 504}
 
@@ -34,6 +34,11 @@ def build_query(bbox: tuple[float, float, float, float]) -> str:
   way[\"railway\"]({box});
   way[\"leisure\"]({box});
   way[\"landuse\"]({box});
+  node[\"highway\"=\"traffic_signals\"]({box});
+  node[\"highway\"=\"stop\"]({box});
+  node[\"highway\"=\"give_way\"]({box});
+  node[\"highway\"=\"crossing\"]({box});
+  node[\"railway\"=\"level_crossing\"]({box});
 );
 out geom;
 """.strip()

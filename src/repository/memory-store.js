@@ -20,7 +20,7 @@ export class MemoryStore {
   createUser(input){const now=new Date().toISOString();const row={id:randomUUID(),email:String(input.email).toLowerCase(),passwordHash:input.passwordHash,createdAt:now,updatedAt:now};this.users.push(row);return clone(row);}
   createOrganization(input){const now=new Date().toISOString();const row={id:randomUUID(),name:input.name,address:'',vatNumber:'',iban:'',email:'',createdAt:now,updatedAt:now};this.organizations.push(row);return clone(row);}
   addMembership(orgId,userId,role='owner'){this.memberships.push({organizationId:orgId,userId,role});return {organizationId:orgId,userId,role};}
-  listMemberships(userId){return clone(this.memberships.filter(x=>x.userId===userId));}
+  listMemberships(userId){return this.memberships.filter(x=>x.userId===userId).map(x=>({...clone(x),organization:this.getOrganization(x.organizationId)}));}
   createSession(input){const row={id:randomUUID(),...input,createdAt:new Date().toISOString()};this.sessions.push(row);return clone(row);}
   getSession(hash){const row=this.sessions.find(x=>x.tokenHash===hash&&new Date(x.expiresAt)>new Date());if(!row)return null;const membership=this.memberships.find(x=>x.userId===row.userId&&x.organizationId===row.organizationId);const user=this.users.find(x=>x.id===row.userId);return membership&&user?{...clone(row),role:membership.role,user:{id:user.id,email:user.email}}:null;}
   deleteSession(hash){const n=this.sessions.length;this.sessions=this.sessions.filter(x=>x.tokenHash!==hash);return this.sessions.length<n;}

@@ -2,6 +2,12 @@
 
 Grand Bruxelles est une expérience web statique dédiée à l’exploration de la Région de Bruxelles-Capitale.
 
+## Aperçu en ligne
+
+**Voir la version actuelle :** https://raw.githack.com/Chatnoir01/Chatnoir01/main/grand-bruxelles/index.html
+
+Cette URL suit la branche `main` : les prochaines modifications poussées sur GitHub seront visibles sur le même lien après rafraîchissement, avec un léger délai de cache possible.
+
 ## Fonctionnalités
 
 - carte interactive basée sur Leaflet et OpenStreetMap ;

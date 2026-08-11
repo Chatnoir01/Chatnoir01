@@ -1,0 +1,123 @@
+name: Bootstrap remaining Brussels R1 grids
+
+on:
+  push:
+    branches:
+      - zone-reste-bruxelles
+    paths:
+      - '.github/workflows/remaining-brussels-r1-grids.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-r1-grids
+  cancel-in-progress: false
+
+jobs:
+  bootstrap-r1-grids:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout dedicated zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+
+      - name: Validate grid and coverage tooling
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m compileall -q tools tests
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Fetch all official R1 municipality boundaries and grids
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/bootstrap_remaining_brussels.py \
+            --wave R1 \
+            --output-root data/processed/remaining_brussels
+
+      - name: Build deduplicated remaining-Brussels coverage report
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Verify all R1 grids and global-cell accounting
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('data/processed/remaining_brussels')
+          catalog = json.loads(Path('data/remaining_brussels_zones.json').read_text())
+          expected = [zone for zone in catalog['zones'] if zone['wave'] == 'R1']
+          expected_ids = [zone['id'] for zone in expected]
+          assert expected_ids == [
+              'anderlecht', 'molenbeek', 'saint-gilles', 'ixelles',
+              'saint-josse', 'schaerbeek', 'etterbeek'
+          ], expected_ids
+
+          all_memberships = {}
+          for zone in expected:
+              zone_id = zone['id']
+              boundary = root / 'boundaries' / f'{zone_id}.geojson'
+              grid_path = root / 'cells' / f'{zone_id}.json'
+              assert boundary.exists() and boundary.stat().st_size > 100
+              grid = json.loads(grid_path.read_text())
+              assert grid['format'] == 'grand-bruxelles-zone-cells-v2'
+              assert grid['zone_id'] == zone_id
+              assert grid['cell_count'] > 0
+              assert grid['cell_count'] <= grid['envelope_cell_count']
+              assert len(grid['cells']) == grid['cell_count']
+              assert len({cell['id'] for cell in grid['cells']}) == grid['cell_count']
+              assert all(cell['id'].startswith('bxl-e') for cell in grid['cells'])
+              for cell in grid['cells']:
+                  all_memberships.setdefault(cell['id'], set()).add(zone_id)
+              print(zone_id, 'cells:', grid['cell_count'], '/', grid['envelope_cell_count'])
+
+          report = json.loads((root / 'coverage_report.json').read_text())
+          assert report['format'] == 'grand-bruxelles-remaining-coverage-v1'
+          assert report['municipalities_total'] == 17
+          assert report['municipality_grids_ready'] >= 7
+          assert report['unique_planned_cells_known'] == len(all_memberships)
+          assert report['materialized_cells_total'] >= 4
+          assert report['materialized_cells_in_known_grids'] >= 4
+          assert report['shared_cross_municipality_cell_count'] == sum(
+              1 for memberships in all_memberships.values() if len(memberships) > 1
+          )
+
+          zone_reports = {zone['zone_id']: zone for zone in report['zones']}
+          for zone_id in expected_ids:
+              assert zone_reports[zone_id]['grid_ready'] is True
+              assert zone_reports[zone_id]['planned_cells'] > 0
+
+          runtime = report['runtime']
+          assert runtime['format'] == 'grand-bruxelles-urbis-runtime-index-v2'
+          assert runtime['streamable_cells'] >= 4
+
+          print('Unique planned R1 cells:', report['unique_planned_cells_known'])
+          print('Materialized cells:', report['materialized_cells_total'])
+          print('Known-grid coverage:', report['known_grid_coverage_percent'], '%')
+          print('Cross-municipality shared cells:', report['shared_cross_municipality_cell_count'])
+          PY
+
+      - name: Commit official R1 grids and coverage report
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/boundaries \
+            grand-bruxelles-game/data/processed/remaining_brussels/cells \
+            grand-bruxelles-game/data/processed/remaining_brussels/bootstrap_manifest.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json
+          if git diff --cached --quiet; then
+            echo 'No R1 grid changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: bootstrap official remaining-Brussels R1 grids'
+          git push origin HEAD:zone-reste-bruxelles

@@ -18,7 +18,7 @@ permissions:
 jobs:
   validate-godot:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
 
     steps:
       - name: Checkout
@@ -35,6 +35,34 @@ jobs:
       - name: Python tools syntax
         run: python3 -m py_compile grand-bruxelles-game/tools/*.py
 
+      - name: Fetch live Brussels OSM slice
+        run: |
+          python3 grand-bruxelles-game/tools/fetch_osm_slice.py \
+            --output /tmp/vertical_slice_01.raw.json
+
+      - name: Convert OSM to game coordinates
+        run: |
+          python3 grand-bruxelles-game/tools/transform_osm_to_game.py \
+            --input /tmp/vertical_slice_01.raw.json \
+            --output grand-bruxelles-game/data/osm/vertical_slice_01.game.json
+          python3 - <<'PY'
+          import json
+          path = 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+          data = json.load(open(path, encoding='utf-8'))
+          stats = data['stats']
+          assert stats['roads'] > 20, stats
+          assert stats['buildings'] > 20, stats
+          print('OSM game-data stats:', stats)
+          print('Local bounds (m):', data['bounds_m'])
+          PY
+
+      - name: Upload generated Brussels data
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-osm-vertical-slice-01
+          path: grand-bruxelles-game/data/osm/vertical_slice_01.game.json
+          retention-days: 14
+
       - name: Import project headless
         run: |
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
@@ -43,9 +71,9 @@ jobs:
             --editor \
             --quit
 
-      - name: Load main scene headless
+      - name: Load OSM greybox scene headless
         run: |
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless \
             --path grand-bruxelles-game \
-            --quit-after 2
+            --quit-after 4

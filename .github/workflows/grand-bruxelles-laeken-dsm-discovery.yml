@@ -1,0 +1,50 @@
+name: Grand Bruxelles Laeken DSM Discovery
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/discover_urbis_dsm_layers.py"
+      - ".github/workflows/grand-bruxelles-laeken-dsm-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Discover official DSM/MNS candidates
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/discover_urbis_dsm_layers.py
+          python3 tools/discover_urbis_dsm_layers.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/urbis_dsm_layer_discovery.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['layer_count'] > 0
+          print('LAEKEN_DSM_DISCOVERY_VALID',d['layer_count'],[x['name'] for x in d['candidate_layers']])
+          PY
+
+      - name: Commit discovery safely
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/urbis_dsm_layer_discovery.json /tmp/urbis_dsm_layer_discovery.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/urbis_dsm_layer_discovery.json grand-bruxelles-game/data/sources/laeken_jette/urbis_dsm_layer_discovery.json
+          git add grand-bruxelles-game/data/sources/laeken_jette/urbis_dsm_layer_discovery.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: discover official UrbIS DSM layers [skip ci]"
+          git push origin HEAD:zone-laeken-jette

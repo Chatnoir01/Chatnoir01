@@ -167,7 +167,7 @@ jobs:
           grep -q "Grand Bruxelles UrbIS Midi exact-plan:" /tmp/godot-run.log
           grep -q "Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS mask:" /tmp/godot-run.log
-          grep -q "Grand Bruxelles traffic:" /tmp/godot-run.log
+          grep -q "Grand Bruxelles traffic graph:" /tmp/godot-run.log
 
       - name: Vehicle enter-exit smoke test
         shell: bash
@@ -181,6 +181,19 @@ jobs:
             exit 1
           fi
           grep -q "VEHICLE_SMOKE_OK" /tmp/vehicle-smoke.log
+
+      - name: Traffic graph routing test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/traffic_graph_test.gd 2>&1 | tee /tmp/traffic-graph.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_GRAPH_FAIL" /tmp/traffic-graph.log; then
+            exit 1
+          fi
+          grep -q "TRAFFIC_GRAPH_OK" /tmp/traffic-graph.log
 
       - name: Civil traffic smoke test
         shell: bash

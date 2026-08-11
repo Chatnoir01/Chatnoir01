@@ -20,6 +20,7 @@ func _run() -> void:
     manager.name = "TrafficManagerTest"
     manager.set_script(manager_script)
     manager.set("max_vehicles", 4)
+    manager.set("density_enabled", false)
     manager.set("max_crossing_pedestrians", 3)
     manager.set("spawn_radius_m", 2000.0)
     manager.set("crossing_spawn_radius_m", 2000.0)

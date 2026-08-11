@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -9,6 +9,8 @@
 [ext_resource type="Script" path="res://game/scripts/midi_hero_zone.gd" id="7_midi"]
 [ext_resource type="Script" path="res://game/scripts/urbis_midi_builder.gd" id="8_urbis"]
 [ext_resource type="Script" path="res://game/scripts/osm_midi_mask.gd" id="9_mask"]
+[ext_resource type="Script" path="res://game/scripts/urbis_cell_streamer.gd" id="10_streamer"]
+[ext_resource type="Script" path="res://game/scripts/urbis_cell_osm_mask.gd" id="11_stream_mask"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -126,6 +128,13 @@ margin = 0.15
 current = false
 fov = 75.0
 
+[node name="RemainingBrusselsStreamer" type="Node3D" parent="."]
+script = ExtResource("10_streamer")
+build_collisions = false
+
+[node name="RemainingBrusselsOSMMask" type="Node" parent="."]
+script = ExtResource("11_stream_mask")
+
 [node name="MissionDriveToCenter" type="Node" parent="."]
 script = ExtResource("4_mission")
 
@@ -145,7 +154,7 @@ offset_right = 980.0
 offset_bottom = 150.0
 theme_override_colors/font_color = Color(0.92, 0.92, 0.90, 1)
 theme_override_font_sizes/font_size = 14
-text = "GRAND BRUXELLES · MIDI 0.8 · emprises officielles UrbIS + hero zone Bruxelles-Midi"
+text = "GRAND BRUXELLES · MIDI + ANDERLECHT · UrbIS exact streamé + remplacement dynamique du greybox OSM"
 
 [node name="MiniMap" type="Control" parent="."]
 offset_left = 1000.0

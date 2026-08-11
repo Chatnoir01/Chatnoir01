@@ -34,6 +34,8 @@ func _run() -> void:
         "get_graph_node_count",
         "get_graph_edge_count",
         "get_intersection_count",
+        "get_traffic_control_count",
+        "get_signal_count",
         "get_active_vehicle_count",
     ]:
         if not manager.has_method(method_name):
@@ -41,8 +43,8 @@ func _run() -> void:
             return
 
     var route_count := int(manager.call("get_route_count"))
-    if route_count < 10:
-        _fail("too few eligible OSM traffic routes: %d" % route_count)
+    if route_count < 100:
+        _fail("too few eligible current OSM traffic routes: %d" % route_count)
         return
 
     var graph_nodes := int(manager.call("get_graph_node_count"))
@@ -52,6 +54,15 @@ func _run() -> void:
         return
     if graph_edges <= route_count:
         _fail("road graph was not split into directed segments: %d edges / %d ways" % [graph_edges, route_count])
+        return
+
+    var control_count := int(manager.call("get_traffic_control_count"))
+    var signal_count := int(manager.call("get_signal_count"))
+    if control_count < 100:
+        _fail("current traffic-control pack did not load: %d controls" % control_count)
+        return
+    if signal_count < 10:
+        _fail("too few current OSM traffic signals loaded: %d" % signal_count)
         return
 
     var active_count := int(manager.call("get_active_vehicle_count"))
@@ -80,6 +91,7 @@ func _run() -> void:
         "get_source_osm_id",
         "get_route_point_count",
         "get_route_edge_count",
+        "get_route_control_count",
     ]:
         if not first_vehicle.has_method(method_name):
             _fail("traffic vehicle API missing: %s" % method_name)
@@ -103,8 +115,8 @@ func _run() -> void:
         return
 
     print(
-        "TRAFFIC_SMOKE_OK: %d OSM ways, %d graph nodes, %d directed edges, %d active vehicles" %
-        [route_count, graph_nodes, graph_edges, active_count]
+        "TRAFFIC_SMOKE_OK: %d OSM ways, %d graph nodes, %d directed edges, %d controls, %d signals, %d active vehicles" %
+        [route_count, graph_nodes, graph_edges, control_count, signal_count, active_count]
     )
     manager.queue_free()
     await process_frame

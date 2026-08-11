@@ -8,6 +8,7 @@ extends CharacterBody3D
 @export var steering_speed: float = 1.55
 @export var exit_distance: float = 2.7
 @export var mouse_sensitivity: float = 0.0022
+@export var emergency_yield_range: float = 20.0
 
 @onready var camera_pivot: Node3D = $CameraPivot
 @onready var camera: Camera3D = $CameraPivot/SpringArm3D/Camera3D
@@ -16,6 +17,7 @@ var driver: CharacterBody3D = null
 var speed: float = 0.0
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _exit_unlock_ms: int = 0
+
 
 func _physics_process(delta: float) -> void:
     if not is_on_floor():
@@ -62,6 +64,7 @@ func _physics_process(delta: float) -> void:
     if is_on_wall():
         speed *= 0.35
 
+
 func _unhandled_input(event: InputEvent) -> void:
     if driver == null:
         return
@@ -74,6 +77,7 @@ func _unhandled_input(event: InputEvent) -> void:
         elif event.keycode == KEY_ESCAPE:
             Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 
+
 func enter_driver(player: CharacterBody3D) -> void:
     if driver != null:
         return
@@ -81,9 +85,10 @@ func enter_driver(player: CharacterBody3D) -> void:
     speed = 0.0
     _exit_unlock_ms = Time.get_ticks_msec() + 350
     camera_pivot.rotation.y = 0.0
-    player.call("set_vehicle_mode", true)
+    player.call("set_vehicle_mode", true, self)
     camera.current = true
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED
+
 
 func exit_driver() -> void:
     if driver == null:
@@ -94,7 +99,24 @@ func exit_driver() -> void:
     var side: Vector3 = global_transform.basis.x.normalized()
     player.global_position = global_position + side * exit_distance + Vector3.UP * 0.8
     player.rotation.y = rotation.y
-    player.call("set_vehicle_mode", false)
+    player.call("set_vehicle_mode", false, null)
+
 
 func has_driver() -> bool:
     return driver != null
+
+
+func get_emergency_yield_factor() -> float:
+    if not is_in_group("traffic_vehicle"):
+        return 1.0
+    for candidate in get_tree().get_nodes_in_group("police_vehicle"):
+        if candidate == self or not candidate is Node3D:
+            continue
+        var emergency_vehicle := candidate as Node3D
+        if global_position.distance_to(emergency_vehicle.global_position) > emergency_yield_range:
+            continue
+        var visuals := emergency_vehicle.get_node_or_null("EmergencyVisuals")
+        if visuals != null and visuals.has_method("are_emergency_lights_active"):
+            if bool(visuals.call("are_emergency_lights_active")):
+                return 0.18
+    return 1.0

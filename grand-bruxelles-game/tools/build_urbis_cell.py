@@ -2,12 +2,14 @@
 """Fetch and build one complete Grand Bruxelles UrbIS cell.
 
 Pipeline:
-  EPSG:31370 bbox -> official UrbIS WFS layers -> raw GeoJSON -> deduplicated
-  building/surface runtime + clipped road/tram/train network runtime aligned to
-  the current Godot/OSM world.
+  EPSG:31370 bbox -> official UrbIS WFS layers -> compact working GeoJSON ->
+  deduplicated building/surface runtime + clipped road/tram/train network runtime
+  aligned to the current Godot/OSM world.
 
-Raw source files are preserved. Runtime geometry is derived, never edited back
-into the raw files.
+The working extracts preserve the bbox response geometry. Rail layers are
+immediately pruned by authoritative UrbIS TYPE (TW/RW) because the public WFS
+layers overlap; the before/after counts are retained in provenance metadata.
+Runtime geometry is derived and never edited back into the working extracts.
 """
 
 from __future__ import annotations
@@ -65,6 +67,7 @@ def build_cell(
         layer_stats[short_name] = {
             "wfs_name": layer_name,
             "features": len(document.get("features", [])),
+            "feature_filter": document.get("grand_bruxelles_filter"),
             "file": str(raw_path.relative_to(output_dir)),
         }
 

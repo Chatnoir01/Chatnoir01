@@ -74,6 +74,9 @@ def selected_bounds(features: list[dict[str, Any]]) -> list[float]:
     for feature in features:
         points.extend(feature.get("points", []))
         points.extend(feature.get("footprint", []))
+        point = feature.get("point")
+        if point:
+            points.append(point)
     if not points:
         return [0.0, 0.0, 0.0, 0.0]
     xs = [float(p[0]) for p in points]
@@ -89,9 +92,11 @@ def main() -> int:
     parser.add_argument("--road-radius", type=float, default=170.0)
     parser.add_argument("--building-radius", type=float, default=130.0)
     parser.add_argument("--rail-radius", type=float, default=180.0)
+    parser.add_argument("--traffic-control-radius", type=float, default=190.0)
     parser.add_argument("--max-roads", type=int, default=140)
     parser.add_argument("--max-buildings", type=int, default=140)
     parser.add_argument("--max-railways", type=int, default=30)
+    parser.add_argument("--max-traffic-controls", type=int, default=180)
     args = parser.parse_args()
 
     full = json.loads(args.input.read_text(encoding="utf-8"))
@@ -162,6 +167,22 @@ def main() -> int:
     rail_candidates.sort(key=lambda item: item[0])
     railways = [item[1] for item in rail_candidates[: args.max_railways]]
 
+    traffic_control_candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    for control in full.get("traffic_controls", []):
+        point = control.get("point")
+        if not point or len(point) < 2:
+            continue
+        distance = corridor_distance((float(point[0]), float(point[1])), anchors)
+        if distance <= args.traffic_control_radius:
+            key = (
+                round(distance, 4),
+                str(control.get("kind", "")),
+                int(control.get("osm_id") or 0),
+            )
+            traffic_control_candidates.append((key, control))
+    traffic_control_candidates.sort(key=lambda item: item[0])
+    traffic_controls = [item[1] for item in traffic_control_candidates[: args.max_traffic_controls]]
+
     subset: dict[str, Any] = {
         "format": full.get("format", "grand-bruxelles-osm-v1"),
         "source": full.get("source", "OpenStreetMap contributors via Overpass API"),
@@ -175,6 +196,7 @@ def main() -> int:
                 "roads": args.road_radius,
                 "buildings": args.building_radius,
                 "railways": args.rail_radius,
+                "traffic_controls": args.traffic_control_radius,
             },
         },
         "source_stats": full.get("stats", {}),
@@ -183,12 +205,18 @@ def main() -> int:
             "drivable_roads": sum(1 for road in roads if road.get("drivable")),
             "buildings": len(buildings),
             "railways": len(railways),
+            "traffic_controls": len(traffic_controls),
+            "traffic_signals": sum(1 for c in traffic_controls if c.get("kind") == "traffic_signals"),
+            "stops": sum(1 for c in traffic_controls if c.get("kind") == "stop"),
+            "give_ways": sum(1 for c in traffic_controls if c.get("kind") == "give_way"),
+            "crossings": sum(1 for c in traffic_controls if c.get("kind") == "crossing"),
         },
         "roads": roads,
         "buildings": buildings,
         "railways": railways,
+        "traffic_controls": traffic_controls,
     }
-    subset["bounds_m"] = selected_bounds(roads + buildings + railways)
+    subset["bounds_m"] = selected_bounds(roads + buildings + railways + traffic_controls)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

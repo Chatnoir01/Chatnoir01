@@ -32,10 +32,15 @@ jobs:
           p='data/sources/laeken_jette/orthophoto_wms_inventory.json'
           d=json.load(open(p,encoding='utf-8'))
           names={x['name'] for x in d['target_layers']}
-          assert 'Ortho2024Ns' in names, names
-          layer=next(x for x in d['target_layers'] if x['name']=='Ortho2024Ns')
+          assert 'Ortho' in names, names
+          layer=next(x for x in d['target_layers'] if x['name']=='Ortho')
           assert 'EPSG:31370' in layer['crs'], layer['crs']
-          print('LAEKEN_ORTHO_WMS_INVENTORY_VALID',d['service'],names)
+          service=d['service']
+          fees=(service.get('fees') or '').lower()
+          access=(service.get('access_constraints') or '').lower()
+          assert 'cc-0' in fees or 'public domain' in fees, service
+          assert 'no limitations' in access, service
+          print('LAEKEN_ORTHO_WMS_INVENTORY_VALID',service,names)
           PY
 
       - name: Commit provenance inventory safely

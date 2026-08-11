@@ -19,6 +19,7 @@ USER_AGENT = "GrandBruxellesGame/0.7 source-discovery (+github.com/Chatnoir01/Ch
 
 DEFAULT_FEEDS = {
     "urbis_landscape": "https://urbisdownload.datastore.brussels/atomfeed/713171e6-65e3-11ef-b378-010101010000-en.xml",
+    "urbis_3d_constructions": "https://urbisdownload.datastore.brussels/atomfeed/e9ec2aa4-cffd-11ee-bccc-00090ffe0001-fr.xml",
     "urbis_dsm": "https://urbisdownload.datastore.brussels/atomfeed/8c2d921e-6a53-11ed-bfb5-010101010000-en.xml",
     "urbis_transport": "https://urbisdownload.datastore.brussels/atomfeed/af847c40-848b-11ee-9a1f-00090ffe0001-en.xml",
     "urbis_parcels_buildings": "https://urbisdownload.datastore.brussels/atomfeed/2cf42541-1813-11ef-8a81-00090ffe0001-en.xml",
@@ -90,7 +91,7 @@ def parse_feed(source_id: str, url: str) -> dict[str, Any]:
     for link in all_links:
         href = link["href"]
         lower = href.lower().split("?", 1)[0]
-        if not lower.endswith((".zip", ".gpkg", ".shp", ".gml", ".json", ".tif", ".tiff", ".xml")):
+        if not lower.endswith((".zip", ".gpkg", ".shp", ".gml", ".json", ".tif", ".tiff", ".xml", ".skp")):
             continue
         if href in seen:
             continue

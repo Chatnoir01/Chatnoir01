@@ -1,0 +1,59 @@
+name: Grand Bruxelles NPC Systems
+
+on:
+  push:
+    branches: ["systems-npc-police-civilians"]
+    paths:
+      - "grand-bruxelles-game/game/scripts/npc_*.gd"
+      - "grand-bruxelles-game/game/tests/npc_*.gd"
+      - ".github/workflows/grand-bruxelles-npc.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/npc_*.gd"
+      - "grand-bruxelles-game/game/tests/npc_*.gd"
+      - ".github/workflows/grand-bruxelles-npc.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-npc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import NPC scripts headless
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --editor \
+            --quit 2>&1 | tee /tmp/npc-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/npc-import.log; then
+            exit 1
+          fi
+
+      - name: NPC behavior smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_behavior_smoke_test.gd 2>&1 | tee /tmp/npc-smoke.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_BEHAVIOR_SMOKE_FAIL" /tmp/npc-smoke.log; then
+            exit 1
+          fi
+          grep -q "NPC_BEHAVIOR_SMOKE_OK" /tmp/npc-smoke.log

@@ -2,9 +2,14 @@
 """Build clipped street/tram/train network segments for one UrbIS cell.
 
 WFS bbox queries return whole lines that merely intersect the bbox. This module
-clips every segment against the exact half-open 500 m cell footprint before
-converting it to the current game world, so neighbouring cells meet on the seam
-without carrying the same full line twice.
+clips every segment against the exact 500 m cell footprint before converting it
+to the current game world.
+
+Important UrbIS rail rule: the public WFS can expose overlapping/duplicated
+content through ``TramNetwork`` and ``TrainNetwork``. UrbIS' own rail TYPE field
+is authoritative for gameplay classification: ``TW`` = tramway and ``RW`` =
+railway. Runtime output therefore filters by TYPE instead of trusting the WFS
+layer name alone.
 """
 
 from __future__ import annotations
@@ -13,13 +18,16 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
 from make_urbis_cell_runtime import game_point, parse_bbox
+
+TRAM_TYPE_PREFIXES = ("TW",)
+TRAIN_TYPE_PREFIXES = ("RW",)
 
 
 def line_strings(geometry: dict[str, Any] | None) -> list[list[list[float]]]:
@@ -78,14 +86,30 @@ def feature_identifier(feature: dict[str, Any], props: dict[str, Any]) -> str:
     return str(props.get("INSPIRE_ID") or feature.get("id") or "")
 
 
+def feature_type(props: dict[str, Any]) -> str:
+    return str(props.get("TYPE") or props.get("TYP") or "").strip().upper()
+
+
+def type_is_allowed(value: str, prefixes: Iterable[str] | None) -> bool:
+    if prefixes is None:
+        return True
+    normalized = value.strip().upper()
+    return any(normalized.startswith(prefix.upper()) for prefix in prefixes)
+
+
 def build_layer_segments(
     document: dict[str, Any],
     bbox: tuple[float, float, float, float],
     layer_kind: str,
+    *,
+    allowed_type_prefixes: Iterable[str] | None = None,
 ) -> list[dict[str, Any]]:
     segments: list[dict[str, Any]] = []
     for feature in document.get("features", []):
         props = feature.get("properties", {}) or {}
+        rail_type = feature_type(props)
+        if not type_is_allowed(rail_type, allowed_type_prefixes):
+            continue
         identifier = feature_identifier(feature, props)
         segment_index = 0
         for line in line_strings(feature.get("geometry")):
@@ -101,7 +125,7 @@ def build_layer_segments(
                         "id": f"{identifier}:{segment_index}",
                         "source_id": identifier,
                         "kind": layer_kind,
-                        "type": str(props.get("TYPE") or props.get("TYP") or ""),
+                        "type": rail_type,
                         "street_fr": str(props.get("STRNAMEFRE") or ""),
                         "street_nl": str(props.get("STRNAMEDUT") or ""),
                         "points": [game_point(start), game_point(end)],
@@ -112,6 +136,15 @@ def build_layer_segments(
     return segments
 
 
+def source_type_counts(document: dict[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for feature in document.get("features", []):
+        props = feature.get("properties", {}) or {}
+        value = feature_type(props) or "<EMPTY>"
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def build_runtime(
     street_axes: dict[str, Any],
     tram_network: dict[str, Any],
@@ -120,13 +153,33 @@ def build_runtime(
     cell_id: str,
 ) -> dict[str, Any]:
     roads = build_layer_segments(street_axes, bbox, "street_axis")
-    trams = build_layer_segments(tram_network, bbox, "tram")
-    trains = build_layer_segments(train_network, bbox, "train")
+    trams = build_layer_segments(
+        tram_network,
+        bbox,
+        "tram",
+        allowed_type_prefixes=TRAM_TYPE_PREFIXES,
+    )
+    trains = build_layer_segments(
+        train_network,
+        bbox,
+        "train",
+        allowed_type_prefixes=TRAIN_TYPE_PREFIXES,
+    )
     return {
-        "format": "grand-bruxelles-urbis-network-cell-runtime-v1",
+        "format": "grand-bruxelles-urbis-network-cell-runtime-v2",
         "cell_id": cell_id,
         "source_bbox": list(bbox),
         "coordinate_system": "current_game_world_xz_metres",
+        "classification": {
+            "street": "StreetAxes source layer",
+            "tram": "UrbIS TYPE prefix TW",
+            "train": "UrbIS TYPE prefix RW",
+            "reason": "rail TYPE is authoritative because public WFS rail layers may overlap",
+        },
+        "source_type_counts": {
+            "tram_network": source_type_counts(tram_network),
+            "train_network": source_type_counts(train_network),
+        },
         "stats": {
             "street_segments": len(roads),
             "tram_segments": len(trams),

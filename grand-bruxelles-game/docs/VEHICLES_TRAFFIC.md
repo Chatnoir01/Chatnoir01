@@ -15,7 +15,7 @@ La géométrie routière et les contrôles de circulation ne doivent pas être r
 Paquet actuel du corridor Midi → Anneessens → Bourse → Grand-Place :
 
 - 140 voies/ways OSM carrossables ;
-- limitations réelles présentes à 20, 30 et 50 km/h ;
+- limitations présentes à 20, 30 et 50 km/h ;
 - sens uniques, nombre de bandes, rond-points et restrictions d'accès conservés ;
 - 180 contrôles OSM ;
 - 19 feux de circulation ;
@@ -35,25 +35,45 @@ Le paquet conserve `source` et `license=ODbL-1.0` dans le manifeste et dans chaq
   - privilégie la continuité de trajectoire tout en autorisant les changements de rue ;
   - génère des itinéraires multi-arêtes au lieu de limiter un véhicule à un seul way.
 
-Sur le paquet actuel, le runtime produit 588 nœuds, 708 arêtes dirigées et 63 intersections détectées.
+Sur le paquet actuel, le runtime produit :
+
+- 588 nœuds ;
+- 708 arêtes dirigées ;
+- 63 intersections ;
+- 53 intersections non signalées gérées par priorité de droite.
+
+### Priorité de droite
+
+`game/scripts/traffic_intersection_system.gd` arbitre les carrefours non couverts par un feu, un cédez-le-passage ou un STOP :
+
+- détecte les intersections à partir des connexions géométriques du réseau ;
+- exclut de la règle générique les carrefours ayant un contrôle OSM prioritaire proche ;
+- enregistre les véhicules approchant d'un carrefour ;
+- détecte un véhicule provenant de la droite relativement à la trajectoire courante ;
+- force le véhicule non prioritaire à ralentir/attendre ;
+- réserve brièvement la zone de carrefour au véhicule autorisé afin d'éviter deux entrées simultanées ;
+- libère/expire automatiquement les réservations.
+
+Le test synthétique vérifie aussi qu'un carrefour équipé d'un feu n'est pas simultanément traité comme priorité de droite.
 
 ### Trafic civil IA
 
-- `game/scripts/traffic_manager.gd` est l'entrée stable ;
-- `game/scripts/traffic_manager_core.gd` contient l'implémentation robuste ;
+- `game/scripts/traffic_manager.gd` reste le point d'entrée stable ;
 - charge en priorité `data/traffic/manifest.json` et garde l'ancien runtime OSM comme fallback ;
 - fait apparaître jusqu'à 12 véhicules autour du joueur ;
 - recycle les véhicules terminés ou trop éloignés ;
 - décale la trajectoire sur le côté droit de la chaussée ;
 - applique un profil de vitesse pouvant changer en cours d'itinéraire ;
-- tolère les métadonnées OSM absentes ou `null` (`lanes`, largeur, etc.) sans erreur runtime.
+- tolère les métadonnées OSM absentes ou `null` (`lanes`, largeur, etc.) sans erreur runtime ;
+- transmet aux véhicules les feux, contrôles et carrefours non signalés rencontrés sur leur route.
 
 - `game/scripts/traffic_vehicle.gd`
   - accélération et freinage progressifs ;
   - orientation continue dans les courbes ;
   - freinage d'urgence devant obstacle ;
   - vitesse adaptée à chaque route traversée ;
-  - réception des contrôles situés sur son itinéraire.
+  - respect des contrôles situés sur l'itinéraire ;
+  - ralentissement et attente lorsque la priorité de droite l'exige.
 
 ### Feux et contrôles
 
@@ -71,7 +91,7 @@ Comportement véhicule actuel :
 - passage piéton : approche limitée à environ 20 km/h ;
 - STOP : arrêt complet et temporisation ; le système est prêt mais le paquet actuel n'en contient aucun.
 
-Les cédez-le-passage ne font pas encore une résolution complète des conflits entre flux et les passages piétons n'attendent pas encore un piéton réel : ces comportements seront raccordés à l'IA d'intersection et aux PNJ.
+Le cédez-le-passage ne fait pas encore une résolution complète du créneau de trafic transversal et les passages piétons n'attendent pas encore un piéton réel : ces deux comportements seront raccordés aux prochaines couches IA.
 
 ### Véhicule joueur
 
@@ -119,14 +139,26 @@ La CI Godot 4.7.1 vérifie :
 - entrée/sortie et télémétrie du véhicule joueur ;
 - graphe dirigé, intersection et sens unique synthétiques ;
 - phasage de feux sans vert conflictuel dans le test synthétique ;
-- trafic civil multi-rues avec paquet actuel ;
+- arbitrage de priorité de droite et réservation de carrefour ;
+- trafic civil multi-rues avec le paquet actuel ;
 - conservation de la mission Midi → Grand-Place.
 
-Le paquet actuel contient volontairement des champs OSM optionnels à `null`. Le smoke test charge directement ce paquet : il sert donc aussi de test de régression pour la tolérance aux métadonnées manquantes.
+Le paquet actuel contient volontairement des champs OSM optionnels à `null`. Le smoke test charge directement ce paquet : il sert aussi de test de régression pour la tolérance aux métadonnées manquantes. Un échec réel `int(null)` a été reproduit par la CI puis corrigé avant validation verte.
+
+## Dernière validation mesurée
+
+Godot 4.7.1 headless :
+
+- `Grand Bruxelles traffic graph: 140 OSM ways, 588 nodes, 708 directed edges, 63 intersections, 53 right-priority, 180 controls (19 signals), 12 AI vehicles` ;
+- `VEHICLE_SMOKE_OK` ;
+- `TRAFFIC_GRAPH_OK` ;
+- `TRAFFIC_CONTROL_OK` ;
+- `TRAFFIC_SMOKE_OK` ;
+- `MISSION_SMOKE_OK`.
 
 ## Étapes suivantes
 
-1. Résoudre les conflits de carrefour : priorité de droite, cédez-le-passage et réservation de zone d'intersection.
+1. Faire du cédez-le-passage une vraie acceptation de créneau selon le trafic transversal.
 2. Ajouter la présence réelle de piétons aux passages piétons.
 3. Ajouter densité de trafic selon l'heure et le quartier.
 4. Ajouter scooters et motos avec gabarits/comportements distincts.
@@ -138,8 +170,7 @@ Le paquet actuel contient volontairement des champs OSM optionnels à `null`. Le
 ## Limites connues
 
 - Les positions des feux sont réelles OSM mais leur cycle est simulé, pas synchronisé avec les contrôleurs physiques de Bruxelles.
-- La priorité de droite et l'arbitrage dynamique entre véhicules à une intersection non signalée restent à implémenter.
-- Le cédez-le-passage ralentit déjà, mais ne calcule pas encore l'acceptation d'un créneau selon le trafic transversal.
+- Le cédez-le-passage ralentit déjà, mais ne calcule pas encore complètement l'acceptation d'un créneau selon le trafic transversal.
 - Les passages piétons ralentissent le véhicule, mais n'intègrent pas encore l'état d'un PNJ traversant.
 - Les voitures IA sont encore des modèles greybox procéduraux.
 - Scooters, STIB, accidents et garages ne sont pas encore actifs.

@@ -1,0 +1,197 @@
+name: Materialize Evere contiguous seed
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/remaining-brussels-evere-seed.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-evere-seed
+  cancel-in-progress: false
+
+jobs:
+  materialize-evere-seed:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate current reconstruction pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Record current cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('data/urbis/remaining_brussels/cells')
+          ids = sorted(path.parent.name for path in root.glob('*/manifest.json'))
+          Path('/tmp/preexisting-evere.json').write_text(json.dumps(ids), encoding='utf-8')
+          print('Existing global cells:', len(ids))
+          assert ids
+          PY
+
+      - name: Refresh official Evere boundary and grid
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/bootstrap_remaining_brussels.py \
+            --zone evere \
+            --output-root data/processed/remaining_brussels
+
+      - name: Select nearest genuinely new Evere cell
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/select_zone_seed_cell.py \
+            --manifest data/processed/remaining_brussels/cells/evere.json \
+            --anchor-e 147868.29422791934 \
+            --anchor-n 169538.62414926197 \
+            --exclude-existing-root data/urbis/remaining_brussels/cells \
+            --exclude-cell-id bxl-e147500-n169500-s500 \
+            --output /tmp/evere-seed.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          before = set(json.loads(Path('/tmp/preexisting-evere.json').read_text()))
+          seed = json.loads(Path('/tmp/evere-seed.json').read_text())
+          selected = seed['seed_selection']['selected_cell_id']
+          assert seed['cell_count'] == 1
+          assert selected not in before
+          assert selected != 'bxl-e147500-n169500-s500'
+          assert selected.startswith('bxl-e')
+          print('Selected Evere seed:', selected)
+          print('Distance to project anchor:', seed['seed_selection']['distance_m'])
+          PY
+
+      - name: Materialize official Evere cell
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_zone_cells.py \
+            --manifest /tmp/evere-seed.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --force
+
+      - name: Rebuild runtime index and coverage report
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture official Evere orthophoto reference
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p data/processed/remaining_brussels/references /tmp/evere-ortho
+          BBOX=$(python - <<'PY'
+          import json
+          seed = json.load(open('/tmp/evere-seed.json', encoding='utf-8'))
+          print(','.join(str(v) for v in seed['cells'][0]['bbox']))
+          PY
+          )
+          python tools/capture_urbis_orthophoto.py \
+            --bbox "$BBOX" \
+            --width 1024 \
+            --height 1024 \
+            --output /tmp/evere-ortho/seed.png \
+            --metadata data/processed/remaining_brussels/references/evere_seed_orthophoto.json
+
+      - name: Verify exact new Evere cell
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('data/urbis/remaining_brussels/cells')
+          before = set(json.loads(Path('/tmp/preexisting-evere.json').read_text()))
+          seed = json.loads(Path('/tmp/evere-seed.json').read_text())
+          selected = seed['seed_selection']['selected_cell_id']
+          after = {path.parent.name for path in root.glob('*/manifest.json')}
+          assert selected not in before
+          assert selected in after
+          assert before.issubset(after)
+          assert len(after) >= len(before) + 1
+
+          manifest = json.loads((root / selected / 'manifest.json').read_text())
+          geometry = json.loads((root / selected / manifest['runtime']['geometry_file']).read_text())
+          network = json.loads((root / selected / manifest['runtime']['network_file']).read_text())
+          index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          report = json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          ortho = json.loads(Path('data/processed/remaining_brussels/references/evere_seed_orthophoto.json').read_text())
+
+          assert manifest['runtime']['geometry_format'] == 'grand-bruxelles-urbis-cell-runtime-v1'
+          assert manifest['runtime']['network_format'] == 'grand-bruxelles-urbis-network-cell-runtime-v2'
+          assert geometry['stats']['buildings'] > 0
+          assert geometry['stats']['street_surfaces'] > 0
+          assert network['stats']['street_segments'] > 0
+          assert all(item['type'].startswith('TW') for item in network['tram_network'])
+          assert all(item['type'].startswith('RW') for item in network['train_network'])
+          assert {item['source_id'] for item in network['tram_network']}.isdisjoint(
+              {item['source_id'] for item in network['train_network']}
+          )
+
+          indexed = {item['cell_id'] for item in index['cells']}
+          assert selected in indexed
+          assert 'bxl-e147500-n169500-s500' not in indexed
+          evere = next(item for item in report['zones'] if item['zone_id'] == 'evere')
+          assert evere['grid_ready'] is True
+          assert evere['materialized_cells'] >= 1
+          assert selected in evere['materialized_cell_ids']
+          assert report['municipality_grids_ready'] >= 11
+
+          assert ortho['provider'] == 'Paradigm / UrbIS'
+          assert ortho['layer'] == 'inspire:Ortho'
+          assert ortho['bbox'] == seed['cells'][0]['bbox']
+          assert ortho['download']['bytes'] > 1000
+
+          print('Evere cell:', selected)
+          print('Geometry:', geometry['stats'])
+          print('Network:', network['stats'])
+          print('Streamable cells:', len(indexed))
+          print('Evere coverage:', evere['coverage_percent'], '%')
+          PY
+
+      - name: Upload Evere orthophoto validation preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: evere-seed-official-orthophoto
+          path: /tmp/evere-ortho/seed.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit Evere snapshot
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/boundaries/evere.geojson \
+            grand-bruxelles-game/data/processed/remaining_brussels/cells/evere.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/bootstrap_manifest.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/references/evere_seed_orthophoto.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then
+            echo 'No Evere changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: add first official Evere UrbIS seed'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

@@ -1,0 +1,45 @@
+{
+  "crs": "EPSG:31370",
+  "origin": {
+    "name": "Gare du Midi",
+    "wgs84": {"lat": 50.83626, "lon": 4.33849},
+    "e": 147868.29422791934,
+    "n": 169538.62414926197,
+    "game": {"x": 0.0, "z": 0.0}
+  },
+  "points": [
+    {
+      "name": "Gare du Midi",
+      "wgs84": {"lat": 50.83626, "lon": 4.33849},
+      "e": 147868.29422791934,
+      "n": 169538.62414926197,
+      "game": {"x": 0.0, "z": 0.0}
+    },
+    {
+      "name": "Anneessens",
+      "wgs84": {"lat": 50.84385, "lon": 4.34413},
+      "e": 148265.85626087448,
+      "n": 170382.79665074125,
+      "game": {"x": 397.5620329551457, "z": -844.1725014792755}
+    },
+    {
+      "name": "Bourse",
+      "wgs84": {"lat": 50.84787, "lon": 4.34916},
+      "e": 148620.23351135076,
+      "n": 170829.88213200308,
+      "game": {"x": 751.9392834314203, "z": -1291.25798274111}
+    },
+    {
+      "name": "Grand-Place",
+      "wgs84": {"lat": 50.84670775, "lon": 4.35253815},
+      "e": 148858.10958090835,
+      "n": 170700.53740607295,
+      "game": {"x": 989.8153529890114, "z": -1161.913256810978}
+    }
+  ],
+  "formula": {
+    "game_x": "E - origin.E",
+    "game_z": "-(N - origin.N)"
+  },
+  "note": "Coordinates transformed from existing WGS84 control points. Official UrbIS geometries should supersede these anchors when ingested."
+}

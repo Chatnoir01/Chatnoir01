@@ -2,13 +2,15 @@
 
 Prototype de jeu d’action-aventure en monde ouvert, en vue à la troisième personne, inspiré de Bruxelles.
 
-## Lien Web permanent
+## Lien Web permanent — JOUABLE
 
-**Web Preview :**
+**Grand Bruxelles Game :**
 
-https://htmlpreview.github.io/?https://github.com/Chatnoir01/Chatnoir01/blob/main/grand-bruxelles-game/web-preview/index.html
+https://grand-bruxelles-game-hchxi.vercel.app
 
-Cette URL reste la référence de contrôle du projet : la page `web-preview/index.html` est mise à jour au fil des grosses évolutions du prototype.
+Cette URL Vercel est désormais la référence permanente du projet. Elle charge la build Godot Web et reste la même au fil des mises à jour du prototype.
+
+La build Web comprend aussi des contrôles tactiles pour téléphone/tablette : directions, SAUT, RUN et E pour entrer/sortir du véhicule.
 
 ## Objectif
 
@@ -32,10 +34,10 @@ Critère de réussite :
 
 - Godot 4.7.x stable
 - GDScript pour le prototype
-- rendu Forward+ pour le prototype desktop
-- export Web futur en Compatibility/WebGL 2.0
+- rendu GL Compatibility pour desktop + WebGL 2.0
+- export Web Godot automatisé
 - monde découpé en cellules / secteurs chargeables
-- NavigationServer3D pour les piétons
+- NavigationServer3D prévu pour les piétons
 - données OSM/Open Data comme aides à la reconstruction, pas comme rendu final brut
 
 ## Structure
@@ -43,16 +45,15 @@ Critère de réussite :
 ```text
 grand-bruxelles-game/
 ├── project.godot
+├── export_presets.cfg
 ├── web-preview/
-│   └── index.html
+│   ├── index.html
+│   ├── index.js
+│   ├── index.pck
+│   └── index.wasm
 ├── data/
 │   └── osm/
 ├── docs/
-│   ├── GDD.md
-│   ├── ROADMAP.md
-│   ├── ARCHITECTURE.md
-│   ├── DATA_PIPELINE.md
-│   └── VERTICAL_SLICE_01.md
 ├── tools/
 └── game/
     ├── main.tscn
@@ -78,10 +79,11 @@ grand-bruxelles-game/
 - [x] Véhicule jouable avec entrée/sortie
 - [x] Première mission Midi → Anneessens → Bourse → Grand-Place
 - [x] Mini-carte basée sur les routes OSM
+- [x] Contrôles tactiles Web/mobile
 - [x] Tests automatiques Godot pour scène, voiture et mission
-- [x] Web Preview permanent
+- [x] Build Godot Web automatisée
+- [x] URL Web permanente Vercel
 - [ ] Trafic
 - [ ] Piétons
 - [ ] Feux et intersections
 - [ ] Premier landmark détaillé
-- [ ] Build WebGL jouable publique

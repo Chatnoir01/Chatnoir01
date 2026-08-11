@@ -20,7 +20,9 @@ func _run() -> void:
     manager.name = "TrafficManagerTest"
     manager.set_script(manager_script)
     manager.set("max_vehicles", 4)
+    manager.set("max_crossing_pedestrians", 3)
     manager.set("spawn_radius_m", 2000.0)
+    manager.set("crossing_spawn_radius_m", 2000.0)
     manager.set("despawn_radius_m", 3000.0)
     manager.set("traffic_seed", 42)
     root.add_child(manager)
@@ -37,6 +39,9 @@ func _run() -> void:
         "get_right_priority_count",
         "get_traffic_control_count",
         "get_signal_count",
+        "get_crossing_count",
+        "get_unsignalized_crossing_count",
+        "get_active_crossing_pedestrian_count",
         "get_active_vehicle_count",
     ]:
         if not manager.has_method(method_name):
@@ -67,21 +72,37 @@ func _run() -> void:
 
     var control_count := int(manager.call("get_traffic_control_count"))
     var signal_count := int(manager.call("get_signal_count"))
+    var crossing_count := int(manager.call("get_crossing_count"))
+    var unsignalized_crossing_count := int(manager.call("get_unsignalized_crossing_count"))
     if control_count < 100:
         _fail("current traffic-control pack did not load: %d controls" % control_count)
         return
     if signal_count < 10:
         _fail("too few current OSM traffic signals loaded: %d" % signal_count)
         return
+    if crossing_count < 50:
+        _fail("too few OSM crossings mapped to roads: %d" % crossing_count)
+        return
+    if unsignalized_crossing_count <= 0 or unsignalized_crossing_count > crossing_count:
+        _fail("invalid unsignalized crossing count: %d/%d" % [unsignalized_crossing_count, crossing_count])
+        return
 
     var active_count := int(manager.call("get_active_vehicle_count"))
+    var active_pedestrians := int(manager.call("get_active_crossing_pedestrian_count"))
     if active_count != 4:
         _fail("expected 4 spawned traffic vehicles, got %d" % active_count)
         return
+    if active_pedestrians != 3:
+        _fail("expected 3 crossing pedestrians, got %d" % active_pedestrians)
+        return
 
     var traffic_root := manager.get_node_or_null("TrafficVehicles")
+    var pedestrian_root := manager.get_node_or_null("CrossingPedestrians")
     if traffic_root == null:
         _fail("TrafficVehicles root missing")
+        return
+    if pedestrian_root == null:
+        _fail("CrossingPedestrians root missing")
         return
 
     var first_vehicle: Node = null
@@ -102,6 +123,7 @@ func _run() -> void:
         "get_route_edge_count",
         "get_route_control_count",
         "get_route_intersection_count",
+        "set_crossing_system",
     ]:
         if not first_vehicle.has_method(method_name):
             _fail("traffic vehicle API missing: %s" % method_name)
@@ -111,7 +133,6 @@ func _run() -> void:
     if speed_limit < 5.0 or speed_limit > 90.0:
         _fail("invalid traffic speed limit: %.2f" % speed_limit)
         return
-
     if int(first_vehicle.call("get_route_point_count")) < 3:
         _fail("spawned vehicle route is too short")
         return
@@ -123,7 +144,7 @@ func _run() -> void:
         return
 
     print(
-        "TRAFFIC_SMOKE_OK: %d ways, %d nodes, %d edges, %d intersections (%d right-priority), %d controls, %d signals, %d vehicles" %
+        "TRAFFIC_SMOKE_OK: %d ways, %d nodes, %d edges, %d intersections (%d right-priority), %d controls, %d signals, %d crossings (%d unsignalized), %d vehicles, %d crossing pedestrians" %
         [
             route_count,
             graph_nodes,
@@ -132,7 +153,10 @@ func _run() -> void:
             right_priority_count,
             control_count,
             signal_count,
+            crossing_count,
+            unsignalized_crossing_count,
             active_count,
+            active_pedestrians,
         ]
     )
     manager.queue_free()

@@ -1,0 +1,107 @@
+name: Retry remaining Brussels R2 grids
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/remaining-brussels-r2-grids-retry.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-r2-grids
+  cancel-in-progress: false
+
+jobs:
+  bootstrap-r2-grids:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate current pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Bootstrap official R2 boundaries and 500m grids
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/bootstrap_remaining_brussels.py \
+            --wave R2 \
+            --output-root data/processed/remaining_brussels
+
+      - name: Rebuild global coverage report
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Verify R2 outputs
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = ['koekelberg', 'ganshoren', 'berchem', 'evere']
+          root = Path('data/processed/remaining_brussels')
+          union = set()
+          for zone_id in expected:
+              boundary = root / 'boundaries' / f'{zone_id}.geojson'
+              grid_path = root / 'cells' / f'{zone_id}.json'
+              assert boundary.exists() and boundary.stat().st_size > 100, boundary
+              assert grid_path.exists(), grid_path
+              grid = json.loads(grid_path.read_text())
+              assert grid['format'] == 'grand-bruxelles-zone-cells-v2'
+              assert grid['zone_id'] == zone_id
+              assert grid['cell_count'] > 0
+              assert grid['cell_count'] <= grid['envelope_cell_count']
+              ids = [cell['id'] for cell in grid['cells']]
+              assert len(ids) == len(set(ids)) == grid['cell_count']
+              assert all(cell_id.startswith('bxl-e') for cell_id in ids)
+              union.update(ids)
+              print(zone_id, grid['cell_count'], '/', grid['envelope_cell_count'])
+
+          report = json.loads((root / 'coverage_report.json').read_text())
+          zones = {item['zone_id']: item for item in report['zones']}
+          assert report['format'] == 'grand-bruxelles-remaining-coverage-v1'
+          assert report['municipalities_total'] == 17
+          assert report['municipality_grids_ready'] >= 11
+          assert report['unique_planned_cells_known'] > 235
+          for zone_id in expected:
+              assert zones[zone_id]['grid_ready'] is True
+              assert zones[zone_id]['planned_cells'] > 0
+          print('R2 union cells:', len(union))
+          print('Known unique cells:', report['unique_planned_cells_known'])
+          print('Ready grids:', report['municipality_grids_ready'])
+          print('Materialized:', report['materialized_cells_total'])
+          PY
+
+      - name: Commit R2 grids
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/boundaries \
+            grand-bruxelles-game/data/processed/remaining_brussels/cells \
+            grand-bruxelles-game/data/processed/remaining_brussels/bootstrap_manifest.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json
+          if git diff --cached --quiet; then
+            echo 'No R2 changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: bootstrap official remaining-Brussels R2 grids'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

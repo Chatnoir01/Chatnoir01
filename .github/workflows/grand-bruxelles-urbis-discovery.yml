@@ -38,7 +38,13 @@ jobs:
           p = 'grand-bruxelles-game/data/sources/midi/discovered_urbis_distributions.json'
           data = json.load(open(p, encoding='utf-8'))
           ids = {f['source_id'] for f in data['feeds']}
-          expected = {'urbis_landscape','urbis_dsm','urbis_transport','urbis_parcels_buildings'}
+          expected = {
+              'urbis_landscape',
+              'urbis_3d_constructions',
+              'urbis_dsm',
+              'urbis_transport',
+              'urbis_parcels_buildings',
+          }
           assert ids == expected, (ids, expected)
           for feed in data['feeds']:
               assert feed['entry_count'] >= 1, feed['source_id']

@@ -11,11 +11,9 @@ on:
       - "grand-bruxelles-game/**"
       - ".github/workflows/grand-bruxelles-game.yml"
   workflow_dispatch:
-  schedule:
-    - cron: "17 4 * * 1"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: grand-bruxelles-game-${{ github.ref }}
@@ -37,7 +35,7 @@ jobs:
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
 
-      - name: Python tools syntax
+      - name: Validate Python tools
         run: python3 -m py_compile grand-bruxelles-game/tools/*.py
 
       - name: Validate committed Brussels runtime data
@@ -53,7 +51,6 @@ jobs:
           assert stats['drivable_roads'] >= 80, stats
           assert len(data.get('corridor', {}).get('anchors', [])) >= 4
           print('Committed runtime OSM stats:', stats)
-          print('Runtime bounds (m):', data['bounds_m'])
           PY
 
       - name: Import project headless
@@ -66,11 +63,10 @@ jobs:
             --editor \
             --quit 2>&1 | tee /tmp/godot-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/godot-import.log; then
-            echo "Godot script/import error detected"
             exit 1
           fi
 
-      - name: Load OSM greybox scene headless
+      - name: Load Brussels scene headless
         shell: bash
         run: |
           set -o pipefail
@@ -79,7 +75,6 @@ jobs:
             --path grand-bruxelles-game \
             --quit-after 8 2>&1 | tee /tmp/godot-run.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/godot-run.log; then
-            echo "Godot runtime script error detected"
             exit 1
           fi
           grep -q "Grand Bruxelles OSM greybox:" /tmp/godot-run.log
@@ -93,7 +88,6 @@ jobs:
             --path grand-bruxelles-game \
             --script res://game/tests/vehicle_smoke_test.gd 2>&1 | tee /tmp/vehicle-smoke.log
           if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_SMOKE_FAIL" /tmp/vehicle-smoke.log; then
-            echo "Vehicle smoke test failed"
             exit 1
           fi
           grep -q "VEHICLE_SMOKE_OK" /tmp/vehicle-smoke.log
@@ -107,90 +101,6 @@ jobs:
             --path grand-bruxelles-game \
             --script res://game/tests/mission_smoke_test.gd 2>&1 | tee /tmp/mission-smoke.log
           if grep -E "SCRIPT ERROR|Parse Error:|MISSION_SMOKE_FAIL" /tmp/mission-smoke.log; then
-            echo "Mission smoke test failed"
             exit 1
           fi
           grep -q "MISSION_SMOKE_OK" /tmp/mission-smoke.log
-
-  refresh-osm:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Godot 4.7.1
-        run: |
-          curl -fL -o /tmp/godot.zip \
-            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
-          unzip -q /tmp/godot.zip -d /tmp/godot
-          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
-
-      - name: Fetch live Brussels OSM slice with retry
-        run: |
-          python3 grand-bruxelles-game/tools/fetch_osm_slice.py \
-            --retries 4 \
-            --output /tmp/vertical_slice_01.raw.json
-
-      - name: Convert and select playable runtime slice
-        run: |
-          python3 grand-bruxelles-game/tools/transform_osm_to_game.py \
-            --input /tmp/vertical_slice_01.raw.json \
-            --output /tmp/vertical_slice_01.full.game.json
-          python3 grand-bruxelles-game/tools/make_runtime_slice.py \
-            --input /tmp/vertical_slice_01.full.game.json \
-            --control-points grand-bruxelles-game/data/vertical_slice_control_points.json \
-            --output grand-bruxelles-game/data/osm/vertical_slice_01.game.json
-          python3 - <<'PY'
-          import json
-          path = 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
-          data = json.load(open(path, encoding='utf-8'))
-          stats = data['stats']
-          assert stats['roads'] >= 100, stats
-          assert stats['buildings'] >= 100, stats
-          assert stats['drivable_roads'] >= 80, stats
-          print('Refreshed OSM stats:', stats)
-          PY
-
-      - name: Test refreshed OSM data in Godot before commit
-        shell: bash
-        run: |
-          set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless \
-            --path grand-bruxelles-game \
-            --editor \
-            --quit 2>&1 | tee /tmp/osm-refresh-import.log
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless \
-            --path grand-bruxelles-game \
-            --quit-after 8 2>&1 | tee /tmp/osm-refresh-run.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/osm-refresh-import.log /tmp/osm-refresh-run.log; then
-            echo "Refreshed OSM data failed Godot validation"
-            exit 1
-          fi
-          grep -q "Grand Bruxelles OSM greybox:" /tmp/osm-refresh-run.log
-
-      - name: Upload full and runtime OSM artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: grand-bruxelles-osm-refresh
-          path: |
-            /tmp/vertical_slice_01.full.game.json
-            grand-bruxelles-game/data/osm/vertical_slice_01.game.json
-          retention-days: 14
-
-      - name: Commit tested runtime OSM slice
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add grand-bruxelles-game/data/osm/vertical_slice_01.game.json
-          if git diff --cached --quiet; then
-            echo "Runtime OSM slice already up to date."
-          else
-            git commit -m "data: sync Brussels OSM runtime slice [osm-sync]"
-            git push origin HEAD:main
-          fi

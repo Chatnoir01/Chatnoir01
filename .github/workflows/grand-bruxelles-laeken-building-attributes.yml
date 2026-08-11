@@ -1,0 +1,50 @@
+name: Grand Bruxelles Laeken Building Attributes
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/analyze_laeken_building_attributes.py"
+      - ".github/workflows/grand-bruxelles-laeken-building-attributes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Analyze official UrbIS building attributes
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/analyze_laeken_building_attributes.py
+          python3 tools/analyze_laeken_building_attributes.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/urbis_building_attribute_inventory.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['feature_count']==9518, d['feature_count']
+          print('LAEKEN_BUILDING_ATTRIBUTE_INVENTORY_VALID', len(d['all_property_keys']), len(d['height_related_fields']))
+          PY
+
+      - name: Commit inventory safely
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp grand-bruxelles-game/data/sources/laeken_jette/urbis_building_attribute_inventory.json /tmp/urbis_building_attribute_inventory.json
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/urbis_building_attribute_inventory.json grand-bruxelles-game/data/sources/laeken_jette/urbis_building_attribute_inventory.json
+          git add grand-bruxelles-game/data/sources/laeken_jette/urbis_building_attribute_inventory.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: inventory Laeken building attributes [skip ci]"
+          git push origin HEAD:zone-laeken-jette

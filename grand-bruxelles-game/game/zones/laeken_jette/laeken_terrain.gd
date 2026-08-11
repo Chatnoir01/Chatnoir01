@@ -3,8 +3,10 @@ extends Node3D
 ## Official UrbIS DTM terrain patch around Atomium/Heysel.
 ## Horizontal coordinates remain project-local Lambert72 metres. Vertical values
 ## are official DTM elevations relative to the sampled Atomium terrain level.
+## UrbIS NoData cells are kept as holes; they are never interpreted as altitude.
 
 const DATA_PATH := "res://data/terrain/laeken_jette/atomium_dtm.game.json"
+const LEGACY_NODATA_THRESHOLD := -1.0e20
 
 var terrain_loaded: bool = false
 var width: int = 0
@@ -16,6 +18,9 @@ var step_n: float = 0.0
 var origin_e: float = 0.0
 var origin_n: float = 0.0
 var heights: PackedFloat32Array = PackedFloat32Array()
+var valid_mask: PackedByteArray = PackedByteArray()
+var valid_sample_count: int = 0
+var invalid_sample_count: int = 0
 var min_height_m: float = 0.0
 var max_height_m: float = 0.0
 var atomium_absolute_elevation_m: float = 0.0
@@ -29,7 +34,7 @@ func _ready() -> void:
     _build_collision()
     call_deferred("_lower_reference_ground")
     terrain_loaded = true
-    print("LAEKEN_TERRAIN_READY: %dx%d height_range=[%.2f, %.2f]m atomium_abs=%.2fm" % [width, height, min_height_m, max_height_m, atomium_absolute_elevation_m])
+    print("LAEKEN_TERRAIN_READY: %dx%d valid=%d holes=%d height_range=[%.2f, %.2f]m atomium_abs=%.2fm" % [width, height, valid_sample_count, invalid_sample_count, min_height_m, max_height_m, atomium_absolute_elevation_m])
 
 
 func _load_runtime() -> bool:
@@ -68,10 +73,39 @@ func _load_runtime() -> bool:
         push_error("LaekenTerrain: invalid DTM sample spacing")
         return false
 
+    var raw_mask = data.get("valid_mask", [])
     heights.resize(raw_heights.size())
+    valid_mask.resize(raw_heights.size())
+    valid_sample_count = 0
+    invalid_sample_count = 0
     for i in range(raw_heights.size()):
-        heights[i] = float(raw_heights[i])
+        var value := float(raw_heights[i])
+        var valid := value > LEGACY_NODATA_THRESHOLD
+        if raw_mask is Array and raw_mask.size() == raw_heights.size():
+            valid = int(raw_mask[i]) != 0
+        valid_mask[i] = 1 if valid else 0
+        heights[i] = value if valid else 0.0
+        if valid:
+            valid_sample_count += 1
+        else:
+            invalid_sample_count += 1
+
+    if valid_sample_count == 0:
+        push_error("LaekenTerrain: DTM runtime contains no valid samples")
+        return false
+    if min_height_m < LEGACY_NODATA_THRESHOLD:
+        # Reject the old unsafe v1 runtime so NoData can never become geometry.
+        push_error("LaekenTerrain: unsafe legacy DTM runtime still contains NoData extrema")
+        return false
     return true
+
+
+func _index(row: int, col: int) -> int:
+    return clampi(row, 0, height - 1) * width + clampi(col, 0, width - 1)
+
+
+func _valid(row: int, col: int) -> bool:
+    return valid_mask[_index(row, col)] != 0
 
 
 func _game_x(col: int) -> float:
@@ -84,16 +118,21 @@ func _game_z(row: int) -> float:
 
 
 func _height(row: int, col: int) -> float:
-    row = clampi(row, 0, height - 1)
-    col = clampi(col, 0, width - 1)
-    return heights[row * width + col]
+    return heights[_index(row, col)]
+
+
+func _neighbor_height(row: int, col: int, fallback: float) -> float:
+    return _height(row, col) if _valid(row, col) else fallback
 
 
 func _normal(row: int, col: int) -> Vector3:
-    var left := _height(row, maxi(col - 1, 0))
-    var right := _height(row, mini(col + 1, width - 1))
-    var up := _height(maxi(row - 1, 0), col)
-    var down := _height(mini(row + 1, height - 1), col)
+    if not _valid(row, col):
+        return Vector3.UP
+    var centre := _height(row, col)
+    var left := _neighbor_height(row, maxi(col - 1, 0), centre)
+    var right := _neighbor_height(row, mini(col + 1, width - 1), centre)
+    var up := _neighbor_height(maxi(row - 1, 0), col, centre)
+    var down := _neighbor_height(mini(row + 1, height - 1), col, centre)
     var dx := maxf(absf(step_e), 0.001)
     var dz := maxf(absf(step_n), 0.001)
     var dhdx := (right - left) / (2.0 * dx)
@@ -117,21 +156,24 @@ func _build_mesh() -> void:
             uvs[index] = Vector2(float(col) / float(width - 1), float(row) / float(height - 1)) * 24.0
 
     var indices := PackedInt32Array()
-    indices.resize((width - 1) * (height - 1) * 6)
-    var cursor := 0
     for row in range(height - 1):
         for col in range(width - 1):
             var i0 := row * width + col
             var i1 := (row + 1) * width + col
             var i2 := row * width + col + 1
             var i3 := (row + 1) * width + col + 1
-            indices[cursor] = i0
-            indices[cursor + 1] = i1
-            indices[cursor + 2] = i2
-            indices[cursor + 3] = i2
-            indices[cursor + 4] = i1
-            indices[cursor + 5] = i3
-            cursor += 6
+            if _valid(row, col) and _valid(row + 1, col) and _valid(row, col + 1):
+                indices.append(i0)
+                indices.append(i1)
+                indices.append(i2)
+            if _valid(row, col + 1) and _valid(row + 1, col) and _valid(row + 1, col + 1):
+                indices.append(i2)
+                indices.append(i1)
+                indices.append(i3)
+
+    if indices.is_empty():
+        push_error("LaekenTerrain: no valid DTM triangles")
+        return
 
     var arrays: Array = []
     arrays.resize(Mesh.ARRAY_MAX)
@@ -156,18 +198,15 @@ shader_type spatial;
 render_mode cull_disabled;
 varying vec3 local_pos;
 varying vec3 local_normal;
-
 float hash21(vec2 p) {
     p = fract(p * vec2(127.1, 311.7));
     p += dot(p, p + 19.19);
     return fract(p.x * p.y);
 }
-
 void vertex() {
     local_pos = VERTEX;
     local_normal = NORMAL;
 }
-
 void fragment() {
     float slope = 1.0 - clamp(normalize(local_normal).y, 0.0, 1.0);
     float grain = hash21(floor(local_pos.xz * 0.42));
@@ -187,16 +226,20 @@ void fragment() {
 
 
 func _build_collision() -> void:
+    var collision_heights := PackedFloat32Array()
+    collision_heights.resize(heights.size())
+    for i in range(heights.size()):
+        collision_heights[i] = heights[i] if valid_mask[i] != 0 else NAN
+
     var shape := HeightMapShape3D.new()
     shape.map_width = width
     shape.map_depth = height
-    shape.map_data = heights
+    shape.map_data = collision_heights
 
     var collision := CollisionShape3D.new()
     collision.name = "OfficialDTMHeightMapCollision"
     collision.shape = shape
     collision.scale = Vector3(absf(step_e), 1.0, absf(step_n))
-
     var first_x := _game_x(0)
     var last_x := _game_x(width - 1)
     var first_z := _game_z(0)
@@ -211,7 +254,7 @@ func _build_collision() -> void:
 
 func _lower_reference_ground() -> void:
     # Keep a distant fallback ground outside the 1 km DTM tile, but lower it
-    # below the official terrain so it cannot cut through or steal collision.
+    # below the minimum valid DTM terrain so it cannot cut through it.
     var fallback_y := min_height_m - 2.0
     var reference := get_parent().get_node_or_null("Phase1ReferenceGround") as MeshInstance3D
     if reference != null:
@@ -226,9 +269,13 @@ func contains_game_point(game_x: float, game_z: float) -> bool:
         return false
     var e := game_x + origin_e
     var n := origin_n - game_z
-    var col := (e - first_e) / step_e
-    var row := (n - first_n) / step_n
-    return col >= 0.0 and col <= float(width - 1) and row >= 0.0 and row <= float(height - 1)
+    var col_f := (e - first_e) / step_e
+    var row_f := (n - first_n) / step_n
+    if col_f < 0.0 or col_f > float(width - 1) or row_f < 0.0 or row_f > float(height - 1):
+        return false
+    var col := clampi(int(round(col_f)), 0, width - 1)
+    var row := clampi(int(round(row_f)), 0, height - 1)
+    return _valid(row, col)
 
 
 func sample_height(game_x: float, game_z: float) -> float:
@@ -246,6 +293,20 @@ func sample_height(game_x: float, game_z: float) -> float:
     var r1 := mini(r0 + 1, height - 1)
     var tx := col_f - float(c0)
     var tz := row_f - float(r0)
-    var h0 := lerpf(_height(r0, c0), _height(r0, c1), tx)
-    var h1 := lerpf(_height(r1, c0), _height(r1, c1), tx)
-    return lerpf(h0, h1, tz)
+
+    var samples := [
+        [r0, c0, (1.0 - tx) * (1.0 - tz)],
+        [r0, c1, tx * (1.0 - tz)],
+        [r1, c0, (1.0 - tx) * tz],
+        [r1, c1, tx * tz],
+    ]
+    var weighted := 0.0
+    var total_weight := 0.0
+    for sample in samples:
+        var row := int(sample[0])
+        var col := int(sample[1])
+        var weight := float(sample[2])
+        if _valid(row, col) and weight > 0.0:
+            weighted += _height(row, col) * weight
+            total_weight += weight
+    return weighted / total_weight if total_weight > 0.000001 else 0.0

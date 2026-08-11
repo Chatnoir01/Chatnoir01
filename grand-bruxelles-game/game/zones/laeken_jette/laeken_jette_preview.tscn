@@ -1,0 +1,28 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://game/zones/laeken_jette/laeken_jette.tscn" id="1_zone"]
+
+[sub_resource type="Environment" id="Environment_preview"]
+background_mode = 1
+background_color = Color(0.62, 0.72, 0.84, 1)
+ambient_light_source = 3
+ambient_light_color = Color(0.78, 0.82, 0.88, 1)
+ambient_light_energy = 0.65
+
+[node name="LaekenJettePreview" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_preview")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-48, -32, 0)
+light_energy = 1.25
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(430, 145, -6800)
+rotation_degrees = Vector3(-18, 148, 0)
+current = true
+far = 15000.0
+
+[node name="LaekenJetteZone" parent="." instance=ExtResource("1_zone")]

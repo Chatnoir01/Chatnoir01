@@ -1,21 +1,25 @@
--- Pilot database schema (PostgreSQL target)
--- Not yet wired to production. Designed for strict tenant isolation.
+-- Pilot PostgreSQL schema
+-- Production-oriented baseline with strict organization ownership.
+
+create extension if not exists pgcrypto;
 
 create table if not exists organizations (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   name text not null,
   vat_number text,
   address text,
   iban text,
   email text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists users (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   email text not null unique,
   password_hash text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists memberships (
@@ -26,18 +30,19 @@ create table if not exists memberships (
 );
 
 create table if not exists clients (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references organizations(id) on delete cascade,
   name text not null,
   email text,
   vat_number text,
   address text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 create index if not exists clients_org_idx on clients(organization_id);
 
 create table if not exists invoices (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references organizations(id) on delete cascade,
   client_id uuid not null references clients(id),
   number text not null,
@@ -57,7 +62,7 @@ create index if not exists invoices_org_idx on invoices(organization_id);
 create index if not exists invoices_client_idx on invoices(client_id);
 
 create table if not exists invoice_lines (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   invoice_id uuid not null references invoices(id) on delete cascade,
   position integer not null,
   description text not null,
@@ -66,10 +71,10 @@ create table if not exists invoice_lines (
   discount_percent numeric(5,2) not null default 0 check (discount_percent between 0 and 100),
   vat_rate numeric(5,2) not null check (vat_rate in (0,6,12,21))
 );
-create index if not exists invoice_lines_invoice_idx on invoice_lines(invoice_id);
+create unique index if not exists invoice_lines_position_idx on invoice_lines(invoice_id, position);
 
 create table if not exists quotes (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references organizations(id) on delete cascade,
   client_id uuid not null references clients(id),
   number text not null,
@@ -78,11 +83,12 @@ create table if not exists quotes (
   valid_until date,
   total_cents bigint not null default 0,
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   unique (organization_id, number)
 );
 
 create table if not exists payments (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references organizations(id) on delete cascade,
   invoice_id uuid not null references invoices(id) on delete cascade,
   amount_cents bigint not null check (amount_cents > 0),
@@ -93,7 +99,7 @@ create table if not exists payments (
 );
 
 create table if not exists audit_events (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references organizations(id) on delete cascade,
   actor_user_id uuid references users(id),
   entity_type text not null,

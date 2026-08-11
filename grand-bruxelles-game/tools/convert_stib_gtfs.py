@@ -140,11 +140,12 @@ def convert(gtfs_zip: Path, radius_m: float = 380.0) -> dict:
     filtered_routes = [routes[rid] for rid in sorted(active_route_ids)]
     return {
         "format": "grand-bruxelles-stib-gtfs-v1",
-        "source": "STIB-MIVB official GTFS via developer API",
-        "source_url": "https://opendata-api.stib-mivb.be/Files/1.0/Gtfs",
+        "source": "STIB-MIVB – Open Data via Belgian Mobility Open Data Portal",
+        "source_url": "https://datasets.api.production.belgianmobility.io/api/datasets-static/gtfs",
+        "license": "CC-BY-4.0",
+        "attribution": "Source: STIB-MIVB – Open Data – date of dataset update",
         "origin": {"lat": DEFAULT_ORIGIN[0], "lon": DEFAULT_ORIGIN[1]},
         "selection_radius_m": radius_m,
-        "redistribution_status": "review STIB Open Data terms before committing downloaded feed",
         "routes": filtered_routes,
         "shapes": shapes,
         "stops": stops,

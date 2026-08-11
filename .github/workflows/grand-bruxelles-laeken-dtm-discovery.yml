@@ -1,0 +1,66 @@
+name: Grand Bruxelles Laeken UrbIS DTM Discovery
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/discover_urbis_dtm_laeken.py"
+      - ".github/workflows/grand-bruxelles-laeken-dtm-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-dtm-discovery
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Discover official DTM distributions
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/discover_urbis_dtm_laeken.py
+          python3 tools/discover_urbis_dtm_laeken.py
+
+      - name: Validate DTM inventory
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          path = 'data/sources/laeken_jette/urbis_dtm_discovery.json'
+          data = json.load(open(path, encoding='utf-8'))
+          assert data['dataset_id'] == '1d7bd49d-fe83-4388-af85-6f5dc8ec7909'
+          assert data['bbox_epsg31370'] == [147300.0, 173650.0, 149100.0, 176750.0]
+          assert data['discovered_link_count'] > 0
+          assert data['candidate_links'], 'no DTM distributions discovered'
+          print('LAEKEN_DTM_INVENTORY_OK', len(data['candidate_links']))
+          PY
+
+      - name: Commit inventory safely
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/sources/laeken_jette/urbis_dtm_discovery.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "data: discover Laeken UrbIS DTM sources [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch origin zone-laeken-jette
+            git rebase origin/zone-laeken-jette
+            if git push origin HEAD:zone-laeken-jette; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

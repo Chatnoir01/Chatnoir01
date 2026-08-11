@@ -1,0 +1,181 @@
+name: Materialize Molenbeek historic center
+
+on:
+  push:
+    branches:
+      - zone-reste-bruxelles
+    paths:
+      - '.github/workflows/remaining-brussels-molenbeek-center.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-molenbeek-center
+  cancel-in-progress: false
+
+jobs:
+  materialize-center:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout dedicated zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+
+      - name: Validate reconstruction pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m compileall -q tools tests
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Refresh official Molenbeek boundary and grid
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/bootstrap_remaining_brussels.py \
+            --zone molenbeek \
+            --output-root data/processed/remaining_brussels
+
+      - name: Select Place Communale cell from Lambert72 anchor
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/select_zone_seed_cell.py \
+            --manifest data/processed/remaining_brussels/cells/molenbeek.json \
+            --anchor-e 147881.77866061343 \
+            --anchor-n 171572.0990160089 \
+            --output /tmp/molenbeek-center.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          target = 'bxl-e147500-n171500-s500'
+          selected = json.loads(Path('/tmp/molenbeek-center.json').read_text())
+          assert selected['cell_count'] == 1
+          assert selected['seed_selection']['selected_cell_id'] == target, selected['seed_selection']
+          assert selected['seed_selection']['distance_m'] == 0.0
+          print('Historic-center cell:', target)
+          PY
+
+      - name: Materialize historic center from official UrbIS WFS
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/materialize_zone_cells.py \
+            --manifest /tmp/molenbeek-center.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --force
+
+      - name: Build ownership-aware Godot streaming index
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+
+      - name: Capture official historic-center orthophoto reference
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p data/processed/remaining_brussels/references /tmp/molenbeek-center-ortho
+          python3 tools/capture_urbis_orthophoto.py \
+            --bbox 147500,171500,148000,172000 \
+            --width 1024 \
+            --height 1024 \
+            --output /tmp/molenbeek-center-ortho/center.png \
+            --metadata data/processed/remaining_brussels/references/molenbeek_historic_center_orthophoto.json
+
+      - name: Verify center geometry, compact rails, index and hero registry
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          cell_id = 'bxl-e147500-n171500-s500'
+          reserved_midi = 'bxl-e147500-n169500-s500'
+          root = Path('data/urbis/remaining_brussels/cells')
+          cell_dir = root / cell_id
+          manifest = json.loads((cell_dir / 'manifest.json').read_text())
+          geometry = json.loads((cell_dir / manifest['runtime']['geometry_file']).read_text())
+          network = json.loads((cell_dir / manifest['runtime']['network_file']).read_text())
+          index = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          hero = json.loads(Path('data/landmarks/molenbeek_historic_center.json').read_text())
+          ortho = json.loads(Path('data/processed/remaining_brussels/references/molenbeek_historic_center_orthophoto.json').read_text())
+
+          assert manifest['bbox'] == [147500.0, 171500.0, 148000.0, 172000.0]
+          assert manifest['runtime']['geometry_format'] == 'grand-bruxelles-urbis-cell-runtime-v1'
+          assert manifest['runtime']['network_format'] == 'grand-bruxelles-urbis-network-cell-runtime-v2'
+          assert geometry['stats']['buildings'] > 0
+          assert geometry['stats']['street_surfaces'] > 0
+          assert network['stats']['street_segments'] > 0
+
+          for short_name, expected in [('tram_network', 'TW'), ('train_network', 'RW')]:
+              layer = manifest['layers'][short_name]
+              meta = layer['feature_filter']
+              assert meta['mode'] == 'post_bbox_in_memory'
+              assert meta['equals'] == expected
+              raw = json.loads((cell_dir / layer['file']).read_text())
+              types = {str((f.get('properties') or {}).get('TYPE', '')).upper() for f in raw['features']}
+              if raw['features']:
+                  assert types == {expected}, (short_name, types)
+
+          assert all(item['type'].startswith('TW') for item in network['tram_network'])
+          assert all(item['type'].startswith('RW') for item in network['train_network'])
+          assert {item['source_id'] for item in network['tram_network']}.isdisjoint(
+              {item['source_id'] for item in network['train_network']}
+          )
+
+          assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v2'
+          indexed_ids = {item['cell_id'] for item in index['cells']}
+          assert cell_id in indexed_ids
+          assert 'bxl-e145500-n169000-s500' in indexed_ids
+          assert 'bxl-e147000-n169500-s500' in indexed_ids
+          assert 'bxl-e147000-n170000-s500' in indexed_ids
+          assert reserved_midi not in indexed_ids
+
+          assert hero['cell_id'] == cell_id
+          assert hero['reconstruction_tier'] == 'hero'
+          assert hero['production_gate']['geometry_cell_materialized'] is False
+          assert any(target['id'] == 'molenbeek-town-hall' for target in hero['targets'])
+
+          assert ortho['provider'] == 'Paradigm / UrbIS'
+          assert ortho['layer'] == 'inspire:Ortho'
+          assert ortho['bbox'] == [147500.0, 171500.0, 148000.0, 172000.0]
+          assert ortho['download']['bytes'] > 1000
+
+          print('Historic-center geometry:', geometry['stats'])
+          print('Historic-center network:', network['stats'])
+          print('Streamable cells:', sorted(indexed_ids))
+          print('Rail filter metadata:', {
+              'tram': manifest['layers']['tram_network']['feature_filter'],
+              'train': manifest['layers']['train_network']['feature_filter'],
+          })
+          print('Orthophoto SHA256:', ortho['download']['sha256'])
+          PY
+
+      - name: Upload official historic-center orthophoto validation preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: molenbeek-historic-center-official-orthophoto
+          path: /tmp/molenbeek-center-ortho/center.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit reproducible historic-center snapshot
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/boundaries/molenbeek.geojson \
+            grand-bruxelles-game/data/processed/remaining_brussels/cells/molenbeek.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/bootstrap_manifest.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/references/molenbeek_historic_center_orthophoto.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then
+            echo 'No historic-center generated data changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: add official Molenbeek historic-center cell'
+          git push origin HEAD:zone-reste-bruxelles

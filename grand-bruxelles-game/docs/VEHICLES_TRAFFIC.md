@@ -44,7 +44,9 @@ Sur le paquet actuel, le runtime produit :
 
 ### Priorité de droite
 
-`game/scripts/traffic_intersection_system.gd` arbitre les carrefours non couverts par un feu, un cédez-le-passage ou un STOP :
+`game/scripts/traffic_intersection_system.gd` arbitre les carrefours non couverts par un feu, un cédez-le-passage ou un STOP. Cette règle correspond au cadre routier belge actuellement applicable au projet ; elle devra être revue avec les règles du nouveau Code lorsqu'il entrera effectivement en vigueur.
+
+Le système :
 
 - détecte les intersections à partir des connexions géométriques du réseau ;
 - exclut de la règle générique les carrefours ayant un contrôle OSM prioritaire proche ;

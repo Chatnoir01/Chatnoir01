@@ -1,0 +1,37 @@
+name: Remaining Brussels tests
+
+on:
+  push:
+    branches:
+      - zone-reste-bruxelles
+    paths:
+      - 'grand-bruxelles-game/tools/**'
+      - 'grand-bruxelles-game/tests/**'
+      - 'grand-bruxelles-game/data/remaining_brussels_zones.json'
+      - '.github/workflows/remaining-brussels-tests.yml'
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/**'
+      - 'grand-bruxelles-game/tests/**'
+      - 'grand-bruxelles-game/data/remaining_brussels_zones.json'
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile tools
+        run: python -m compileall -q tools tests
+      - name: Unit tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Dry-run R1 bootstrap
+        run: python tools/bootstrap_remaining_brussels.py --wave R1 --dry-run --output-root /tmp/remaining-brussels-ci

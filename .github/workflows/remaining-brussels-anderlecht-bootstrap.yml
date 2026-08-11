@@ -101,7 +101,6 @@ jobs:
           assert index['format'] == 'grand-bruxelles-urbis-runtime-index-v1'
           indexed_ids = {cell['cell_id'] for cell in index['cells']}
           assert seed_id in indexed_ids, (seed_id, sorted(indexed_ids))
-          first = next(cell for cell in index['cells'] if cell['cell_id'] == seed_id)
           manifest_path = Path('data/urbis/remaining_brussels/cells') / seed_id / 'manifest.json'
           manifest = json.loads(manifest_path.read_text())
           assert manifest['runtime']['geometry_format'] == 'grand-bruxelles-urbis-cell-runtime-v1'
@@ -111,6 +110,7 @@ jobs:
           assert ortho['provider'] == 'Paradigm / UrbIS'
           assert ortho['layer'] == 'inspire:Ortho'
           assert ortho['crs'] == 'EPSG:31370'
+          assert ortho['service'] == 'WMS 1.1.0'
           assert ortho['download']['bytes'] > 1000
           assert len(ortho['download']['sha256']) == 64
 

@@ -1,0 +1,242 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://game/scripts/vehicle_controller.gd" id="1_vehicle"]
+[ext_resource type="Script" path="res://game/scripts/police_vehicle_visuals.gd" id="2_visuals"]
+
+[sub_resource type="BoxShape3D" id="Collision_bab"]
+size = Vector3(2.08, 2.15, 5.45)
+
+[sub_resource type="BoxMesh" id="Mesh_box"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="CylinderMesh" id="Mesh_wheel"]
+top_radius = 0.39
+bottom_radius = 0.39
+height = 0.27
+radial_segments = 18
+
+[sub_resource type="StandardMaterial3D" id="Mat_white"]
+albedo_color = Color(0.88, 0.90, 0.91, 1)
+metallic = 0.12
+roughness = 0.34
+
+[sub_resource type="StandardMaterial3D" id="Mat_glass"]
+albedo_color = Color(0.022, 0.031, 0.041, 0.96)
+roughness = 0.11
+
+[sub_resource type="StandardMaterial3D" id="Mat_black"]
+albedo_color = Color(0.018, 0.02, 0.022, 1)
+roughness = 0.66
+
+[sub_resource type="StandardMaterial3D" id="Mat_blue"]
+albedo_color = Color(0.01, 0.12, 0.56, 1)
+roughness = 0.30
+
+[sub_resource type="StandardMaterial3D" id="Mat_blue_emissive"]
+albedo_color = Color(0.01, 0.13, 0.9, 1)
+emission_enabled = true
+emission = Color(0.01, 0.14, 1, 1)
+emission_energy_multiplier = 6.4
+roughness = 0.08
+
+[sub_resource type="StandardMaterial3D" id="Mat_red"]
+albedo_color = Color(0.86, 0.02, 0.02, 1)
+roughness = 0.36
+
+[sub_resource type="StandardMaterial3D" id="Mat_yellow"]
+albedo_color = Color(1, 0.68, 0.01, 1)
+emission_enabled = true
+emission = Color(0.35, 0.18, 0, 1)
+emission_energy_multiplier = 0.50
+roughness = 0.31
+
+[node name="PoliceBABVan" type="CharacterBody3D" groups=["vehicle", "police_vehicle", "police_bab"]]
+script = ExtResource("1_vehicle")
+max_forward_speed = 22.0
+max_reverse_speed = 6.5
+acceleration = 9.0
+braking = 18.0
+coast_drag = 6.5
+steering_speed = 1.15
+exit_distance = 3.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 1.03, 0)
+shape = SubResource("Collision_bab")
+
+[node name="MainBody" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.03, 0.22)
+scale = Vector3(2.06, 2.02, 4.95)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_white")
+
+[node name="Nose" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.83, -2.45)
+scale = Vector3(2.02, 1.35, 0.64)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_white")
+
+[node name="Windshield" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.40, -2.18)
+scale = Vector3(1.78, 0.66, 0.035)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_glass")
+
+[node name="LeftFrontGlass" type="MeshInstance3D" parent="."]
+position = Vector3(-1.04, 1.42, -1.68)
+scale = Vector3(0.025, 0.62, 0.72)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_glass")
+[node name="RightFrontGlass" type="MeshInstance3D" parent="."]
+position = Vector3(1.04, 1.42, -1.68)
+scale = Vector3(0.025, 0.62, 0.72)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_glass")
+
+[node name="LeftProtectiveGrille" type="MeshInstance3D" parent="."]
+position = Vector3(-1.07, 1.43, -1.68)
+scale = Vector3(0.035, 0.69, 0.80)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_black")
+[node name="RightProtectiveGrille" type="MeshInstance3D" parent="."]
+position = Vector3(1.07, 1.43, -1.68)
+scale = Vector3(0.035, 0.69, 0.80)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_black")
+
+[node name="LeftStripeLow" type="MeshInstance3D" parent="."]
+position = Vector3(-1.045, 0.72, 0.38)
+scale = Vector3(0.025, 0.15, 4.20)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_blue")
+[node name="LeftStripeHigh" type="MeshInstance3D" parent="."]
+position = Vector3(-1.046, 0.99, 0.42)
+rotation_degrees = Vector3(0, 0, -3)
+scale = Vector3(0.025, 0.12, 3.86)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_blue")
+[node name="RightStripeLow" type="MeshInstance3D" parent="."]
+position = Vector3(1.045, 0.72, 0.38)
+scale = Vector3(0.025, 0.15, 4.20)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_blue")
+[node name="RightStripeHigh" type="MeshInstance3D" parent="."]
+position = Vector3(1.046, 0.99, 0.42)
+rotation_degrees = Vector3(0, 0, 3)
+scale = Vector3(0.025, 0.12, 3.86)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_blue")
+
+[node name="BABLeft" type="Label3D" parent="."]
+position = Vector3(-1.085, 1.10, 0.30)
+rotation_degrees = Vector3(0, 90, 0)
+modulate = Color(0.01, 0.09, 0.43, 1)
+font_size = 72
+outline_size = 4
+text = "POLICE  ·  BAB"
+[node name="BABRight" type="Label3D" parent="."]
+position = Vector3(1.085, 1.10, 0.30)
+rotation_degrees = Vector3(0, -90, 0)
+modulate = Color(0.01, 0.09, 0.43, 1)
+font_size = 72
+outline_size = 4
+text = "POLITIE  ·  BAB"
+
+[node name="RearYellowA" type="MeshInstance3D" parent="."]
+position = Vector3(-0.67, 0.62, 2.72)
+rotation_degrees = Vector3(0, 0, 35)
+scale = Vector3(0.45, 0.15, 0.035)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_yellow")
+[node name="RearRedA" type="MeshInstance3D" parent="."]
+position = Vector3(-0.22, 0.62, 2.72)
+rotation_degrees = Vector3(0, 0, 35)
+scale = Vector3(0.45, 0.15, 0.035)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_red")
+[node name="RearYellowB" type="MeshInstance3D" parent="."]
+position = Vector3(0.67, 0.62, 2.72)
+rotation_degrees = Vector3(0, 0, -35)
+scale = Vector3(0.45, 0.15, 0.035)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_yellow")
+[node name="RearRedB" type="MeshInstance3D" parent="."]
+position = Vector3(0.22, 0.62, 2.72)
+rotation_degrees = Vector3(0, 0, -35)
+scale = Vector3(0.45, 0.15, 0.035)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_red")
+
+[node name="WheelFL" type="MeshInstance3D" parent="."]
+position = Vector3(-1.10, 0.27, -1.66)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("Mesh_wheel")
+material_override = SubResource("Mat_black")
+[node name="WheelFR" type="MeshInstance3D" parent="."]
+position = Vector3(1.10, 0.27, -1.66)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("Mesh_wheel")
+material_override = SubResource("Mat_black")
+[node name="WheelRL" type="MeshInstance3D" parent="."]
+position = Vector3(-1.10, 0.27, 1.72)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("Mesh_wheel")
+material_override = SubResource("Mat_black")
+[node name="WheelRR" type="MeshInstance3D" parent="."]
+position = Vector3(1.10, 0.27, 1.72)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("Mesh_wheel")
+material_override = SubResource("Mat_black")
+
+[node name="LightbarBase" type="MeshInstance3D" parent="."]
+position = Vector3(0, 2.16, -0.72)
+scale = Vector3(1.55, 0.11, 0.31)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_black")
+
+[node name="EmergencyVisuals" type="Node3D" parent="."]
+script = ExtResource("2_visuals")
+
+[node name="LeftFlashGroup" type="Node3D" parent="EmergencyVisuals"]
+[node name="RoofLeft" type="MeshInstance3D" parent="EmergencyVisuals/LeftFlashGroup"]
+position = Vector3(-0.54, 2.17, -0.72)
+scale = Vector3(0.44, 0.13, 0.33)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_blue_emissive")
+[node name="FrontLeft" type="MeshInstance3D" parent="EmergencyVisuals/LeftFlashGroup"]
+position = Vector3(-0.42, 0.78, -2.81)
+scale = Vector3(0.22, 0.10, 0.035)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_blue_emissive")
+[node name="BlueCast" type="OmniLight3D" parent="EmergencyVisuals/LeftFlashGroup"]
+position = Vector3(-0.5, 2.28, -0.72)
+light_color = Color(0.01, 0.14, 1, 1)
+light_energy = 4.0
+omni_range = 7.5
+
+[node name="RightFlashGroup" type="Node3D" parent="EmergencyVisuals"]
+[node name="RoofRight" type="MeshInstance3D" parent="EmergencyVisuals/RightFlashGroup"]
+position = Vector3(0.54, 2.17, -0.72)
+scale = Vector3(0.44, 0.13, 0.33)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_blue_emissive")
+[node name="FrontRight" type="MeshInstance3D" parent="EmergencyVisuals/RightFlashGroup"]
+position = Vector3(0.42, 0.78, -2.81)
+scale = Vector3(0.22, 0.10, 0.035)
+mesh = SubResource("Mesh_box")
+material_override = SubResource("Mat_blue_emissive")
+[node name="BlueCast" type="OmniLight3D" parent="EmergencyVisuals/RightFlashGroup"]
+position = Vector3(0.5, 2.28, -0.72)
+light_color = Color(0.01, 0.14, 1, 1)
+light_energy = 4.0
+omni_range = 7.5
+
+[node name="CameraPivot" type="Node3D" parent="."]
+position = Vector3(0, 2.30, 0)
+rotation_degrees = Vector3(-9, 0, 0)
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraPivot"]
+spring_length = 8.1
+margin = 0.18
+[node name="Camera3D" type="Camera3D" parent="CameraPivot/SpringArm3D"]
+current = false
+fov = 76.0

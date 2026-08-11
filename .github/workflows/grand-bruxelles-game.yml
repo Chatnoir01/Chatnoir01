@@ -83,10 +83,31 @@ jobs:
                           {'lat': 50.8421, 'lon': 4.3484},
                       ],
                   },
+                  {
+                      'type': 'node',
+                      'id': 201,
+                      'lat': 50.8420,
+                      'lon': 4.3482,
+                      'tags': {
+                          'highway': 'traffic_signals',
+                          'direction': 'forward',
+                      },
+                  },
+                  {
+                      'type': 'node',
+                      'id': 202,
+                      'lat': 50.84205,
+                      'lon': 4.34825,
+                      'tags': {
+                          'highway': 'crossing',
+                          'crossing': 'traffic_signals',
+                          'button_operated': 'yes',
+                      },
+                  },
               ]
           }
           converted = module.convert(raw, module.DEFAULT_ORIGIN)
-          assert converted['format'] == 'grand-bruxelles-osm-v2'
+          assert converted['format'] == 'grand-bruxelles-osm-v3'
           first, second = converted['roads']
           assert first['oneway'] == 1, first
           assert first['lanes'] == 2, first
@@ -96,7 +117,15 @@ jobs:
           assert second['oneway'] == -1, second
           assert abs(second['maxspeed_kmh'] - 32.19) < 0.02, second
           assert second['drivable'] is False, second
-          print('OSM traffic metadata conversion OK')
+          controls = converted['traffic_controls']
+          assert len(controls) == 2, controls
+          signal = next(c for c in controls if c['kind'] == 'traffic_signals')
+          crossing = next(c for c in controls if c['kind'] == 'crossing')
+          assert signal['direction'] == 'forward', signal
+          assert crossing['crossing_signals'] is True, crossing
+          assert crossing['button_operated'] is True, crossing
+          assert converted['stats']['traffic_controls'] == 2
+          print('OSM traffic metadata + control conversion OK')
           PY
 
       - name: Validate Lambert72 to game conversion

@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "zone": "laeken_jette",
+  "pass": "realism_01_atomium_heysel",
+  "geometry_policy": "Official UrbIS geometry remains authoritative. Photo-guided street furniture is visual-only until replaced by surveyed/open-data positions.",
+  "references": [
+    {
+      "subject": "Atomium approach",
+      "url": "https://pixy.org/5912449/",
+      "license": "CC0 / public domain as stated by source",
+      "observations": ["tree-lined approach", "regular modern lamp posts", "parked cars", "strong central view axis", "metallic reflective spheres"]
+    },
+    {
+      "subject": "Avenue Houba de Strooper",
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Laeken/Avenue_Houba_de_Strooper/10208100",
+      "publisher": "Brussels architectural heritage inventory",
+      "observations": ["brick and stone/stucco facades", "3-4 storey street wall", "ground-floor commerce", "street trees", "mixed historic facade rhythm"]
+    },
+    {
+      "subject": "Place Emile Bockstael",
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Laeken/Place_Emile_Bockstael/10208064",
+      "publisher": "Brussels architectural heritage inventory",
+      "observations": ["red and brown brick", "stone trim", "balconies", "retail ground floors", "dense perimeter blocks"]
+    }
+  ],
+  "temporary_visual_rules": {
+    "building_facades": "procedural shader only; building footprints remain UrbIS; facade colour/window pattern is not parcel-specific yet",
+    "atomium_approach_furniture": "aligned to nearest official UrbIS StreetAxes geometry; lateral offsets and spacing are photo-guided, not surveyed",
+    "building_heights": "existing pipeline uses source height/levels when present; otherwise default remains temporary pending 3D/LiDAR height pass"
+  }
+}

@@ -15,7 +15,9 @@ func _run() -> void:
         return
     if not _test_priority_to_right():
         return
-    print("TRAFFIC_CONTROL_OK: signals, route controls and priority-to-right arbitration passed")
+    if not _test_give_way_gap_acceptance():
+        return
+    print("TRAFFIC_CONTROL_OK: signals, right-priority and give-way gap arbitration passed")
     quit(0)
 
 
@@ -86,14 +88,8 @@ func _test_signals_and_route_controls() -> bool:
     return true
 
 
-func _test_priority_to_right() -> bool:
-    var intersection_script: Script = load("res://game/scripts/traffic_intersection_system.gd")
-    if intersection_script == null:
-        _fail("traffic intersection system script did not load")
-        return false
-
-    var system: RefCounted = intersection_script.new()
-    var roads: Array[Dictionary] = [
+func _cross_roads() -> Array[Dictionary]:
+    return [
         {
             "osm_id": 101,
             "points": [[-10.0, 0.0], [0.0, 0.0], [10.0, 0.0]],
@@ -103,6 +99,16 @@ func _test_priority_to_right() -> bool:
             "points": [[0.0, 10.0], [0.0, 0.0], [0.0, -10.0]],
         },
     ]
+
+
+func _test_priority_to_right() -> bool:
+    var intersection_script: Script = load("res://game/scripts/traffic_intersection_system.gd")
+    if intersection_script == null:
+        _fail("traffic intersection system script did not load")
+        return false
+
+    var system: RefCounted = intersection_script.new()
+    var roads := _cross_roads()
     system.call("rebuild", roads, [])
     if int(system.call("get_intersection_count")) != 1:
         _fail("synthetic four-way intersection was not detected")
@@ -149,5 +155,63 @@ func _test_priority_to_right() -> bool:
     signaled.call("rebuild", roads, [{"osm_id": 9, "kind": "traffic_signals", "point": [0.0, 0.0]}])
     if int(signaled.call("get_right_priority_count")) != 0:
         _fail("signal-controlled intersection must not also use priority-to-right")
+        return false
+    return true
+
+
+func _test_give_way_gap_acceptance() -> bool:
+    var intersection_script: Script = load("res://game/scripts/traffic_intersection_system.gd")
+    if intersection_script == null:
+        _fail("traffic intersection system script did not load for give-way test")
+        return false
+
+    var system: RefCounted = intersection_script.new()
+    var roads := _cross_roads()
+    system.call("rebuild", roads, [{"osm_id": 20, "kind": "give_way", "point": [-2.0, 0.0]}])
+
+    if int(system.call("get_give_way_intersection_count")) != 1:
+        _fail("give-way intersection was not detected")
+        return false
+    if int(system.call("get_right_priority_count")) != 0:
+        _fail("give-way-controlled intersection must not use generic priority-to-right")
+        return false
+
+    var priority_flow := Vector3(0.0, 0.0, -1.0)
+    var yielding_flow := Vector3(1.0, 0.0, 0.0)
+
+    var priority_allowed := bool(system.call(
+        "request_controlled_passage", 0, 2001, priority_flow, 12.0, false, 20.0
+    ))
+    if not priority_allowed:
+        _fail("priority flow was incorrectly blocked at give-way intersection")
+        return false
+
+    var yield_blocked := bool(system.call(
+        "request_controlled_passage", 0, 2002, yielding_flow, 8.0, true, 20.1
+    ))
+    if yield_blocked:
+        _fail("give-way vehicle accepted an unsafe gap while cross traffic was present")
+        return false
+
+    var priority_reserved := bool(system.call(
+        "request_controlled_passage", 0, 2001, priority_flow, 3.0, false, 20.15
+    ))
+    if not priority_reserved:
+        _fail("priority vehicle could not reserve give-way intersection")
+        return false
+
+    var yield_during_reservation := bool(system.call(
+        "request_controlled_passage", 0, 2002, yielding_flow, 2.8, true, 20.2
+    ))
+    if yield_during_reservation:
+        _fail("give-way vehicle entered while priority flow reserved the junction")
+        return false
+
+    system.call("release_vehicle", 2001)
+    var yield_after_clear := bool(system.call(
+        "request_controlled_passage", 0, 2002, yielding_flow, 2.8, true, 20.3
+    ))
+    if not yield_after_clear:
+        _fail("give-way vehicle did not proceed after a safe gap opened")
         return false
     return true

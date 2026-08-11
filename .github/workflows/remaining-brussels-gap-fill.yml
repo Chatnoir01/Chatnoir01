@@ -1,0 +1,204 @@
+name: Gap-fill uncovered Brussels municipalities
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/remaining-brussels-gap-fill.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-gap-fill
+  cancel-in-progress: false
+
+jobs:
+  gap-fill:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate current pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Record pre-gap materialized cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('data/urbis/remaining_brussels/cells')
+          ids=sorted(p.parent.name for p in root.glob('*/manifest.json'))
+          Path('/tmp/gap-before.json').write_text(json.dumps(ids),encoding='utf-8')
+          report=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          zero=[z['zone_id'] for z in report['zones'] if z['materialized_cells']==0]
+          Path('/tmp/gap-zero-before.json').write_text(json.dumps(zero),encoding='utf-8')
+          print('Materialized cells before gap-fill:',len(ids))
+          print('Zero-cell municipalities:',zero)
+          assert report['municipality_grids_ready']==17
+          PY
+
+      - name: Select central seeds only for zero-cell municipalities
+        id: select
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/select_uncovered_zone_seeds.py \
+            --reservation-file data/urbis/remaining_brussels/northwest_reserved_cells.json \
+            --exclude-cell-id bxl-e147500-n169500-s500 \
+            --output /tmp/gap-seeds.json
+          COUNT=$(python - <<'PY'
+          import json
+          print(json.load(open('/tmp/gap-seeds.json',encoding='utf-8'))['seed_count'])
+          PY
+          )
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          before=set(json.loads(Path('/tmp/gap-before.json').read_text()))
+          expected=set(json.loads(Path('/tmp/gap-zero-before.json').read_text()))
+          batch=json.loads(Path('/tmp/gap-seeds.json').read_text())
+          selected_zones={seed['zone_id'] for seed in batch['seeds']}
+          ids=[seed['cell_id'] for seed in batch['seeds']]
+          assert selected_zones==expected,(sorted(selected_zones),sorted(expected))
+          assert len(ids)==len(set(ids))
+          assert all(cell_id not in before for cell_id in ids)
+          reserved=set(json.loads(Path('data/urbis/remaining_brussels/northwest_reserved_cells.json').read_text())['reserved_cell_ids'])
+          assert not (set(ids)&reserved)
+          assert 'bxl-e147500-n169500-s500' not in ids
+          for seed in batch['seeds']:
+              assert seed['anchor_kind']=='official_boundary_bbox_center'
+              print(seed['zone_id'],'->',seed['cell_id'],'center distance',seed['distance_m'])
+          PY
+
+      - name: Materialize uncovered municipality cells
+        if: steps.select.outputs.count != '0'
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_wave_seeds.py \
+            --seeds /tmp/gap-seeds.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --retries 3
+
+      - name: Rebuild runtime index and coverage
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture gap-fill orthophotos
+        if: steps.select.outputs.count != '0'
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/gap-orthos data/processed/remaining_brussels/references
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+          batch=json.loads(Path('/tmp/gap-seeds.json').read_text())
+          for seed in batch['seeds']:
+              zone=seed['zone_id']
+              bbox=','.join(str(v) for v in seed['bbox'])
+              subprocess.run([
+                  sys.executable,'tools/capture_urbis_orthophoto.py',
+                  '--bbox',bbox,'--width','768','--height','768',
+                  '--output',f'/tmp/gap-orthos/{zone}.png',
+                  '--metadata',f'data/processed/remaining_brussels/references/{zone}_central_seed_orthophoto.json',
+              ],check=True)
+          PY
+
+      - name: Verify every municipality now has materialized geometry
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          cell_root=Path('data/urbis/remaining_brussels/cells')
+          before=set(json.loads(Path('/tmp/gap-before.json').read_text()))
+          batch=json.loads(Path('/tmp/gap-seeds.json').read_text())
+          selected={seed['cell_id'] for seed in batch['seeds']}
+          after={p.parent.name for p in cell_root.glob('*/manifest.json')}
+          assert before.issubset(after)
+          assert selected.issubset(after)
+
+          report=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          assert report['municipality_grids_ready']==17
+          zero=[z['zone_id'] for z in report['zones'] if z['materialized_cells']==0]
+          assert zero==[],zero
+          assert all(z['materialized_cells']>=1 for z in report['zones'])
+
+          index=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          streamed={item['cell_id'] for item in index['cells']}
+          assert selected.issubset(streamed)
+          assert 'bxl-e147500-n169500-s500' not in streamed
+          reserved=set(json.loads(Path('data/urbis/remaining_brussels/northwest_reserved_cells.json').read_text())['reserved_cell_ids'])
+          assert not (streamed&reserved),sorted(streamed&reserved)
+
+          for seed in batch['seeds']:
+              zone=seed['zone_id']; cell_id=seed['cell_id']
+              manifest=json.loads((cell_root/cell_id/'manifest.json').read_text())
+              geometry=json.loads((cell_root/cell_id/manifest['runtime']['geometry_file']).read_text())
+              network=json.loads((cell_root/cell_id/manifest['runtime']['network_file']).read_text())
+              useful=sum([
+                  geometry['stats']['buildings'],geometry['stats']['street_surfaces'],
+                  network['stats']['street_segments'],network['stats']['tram_segments'],network['stats']['train_segments'],
+              ])
+              assert useful>0,(zone,cell_id)
+              assert all(item['type'].startswith('TW') for item in network['tram_network'])
+              assert all(item['type'].startswith('RW') for item in network['train_network'])
+              metadata=Path(f'data/processed/remaining_brussels/references/{zone}_central_seed_orthophoto.json')
+              assert metadata.exists()
+              md=json.loads(metadata.read_text())
+              assert md['provider']=='Paradigm / UrbIS'
+              assert md['bbox']==seed['bbox']
+              assert md['download']['bytes']>1000
+              print(zone,cell_id,geometry['stats'],network['stats'])
+
+          print('ALL 17 MUNICIPALITY GRIDS HAVE >= 1 MATERIALIZED GLOBAL CELL')
+          print('Materialized cells:',report['materialized_cells_total'])
+          print('Global known-grid coverage:',report['known_grid_coverage_percent'],'%')
+          print('Streamable cells:',len(streamed))
+          PY
+
+      - name: Upload gap-fill orthophotos
+        if: steps.select.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: uncovered-municipality-orthophotos
+          path: /tmp/gap-orthos/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit gap-fill snapshots
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/references \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then
+            echo 'No gap-fill changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: give every remaining-Brussels municipality a materialized cell'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

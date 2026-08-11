@@ -1,5 +1,7 @@
 import importlib.util
+import json
 import pathlib
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -50,6 +52,46 @@ class ZoneSeedSelectionTests(unittest.TestCase):
         self.assertEqual(selected["excluded_anchor_cell_ids"], ["reserved-midi"])
         self.assertAlmostEqual(selected["seed_distance_m"], 38.624, places=3)
 
+    def test_excluded_existing_cell_forces_real_expansion(self):
+        payload = {
+            "format": "grand-bruxelles-zone-cells-v2",
+            "zone_id": "molenbeek",
+            "cell_count": 3,
+            "cells": [
+                {"id": "already-built", "bbox": [147500, 170000, 148000, 170500]},
+                {"id": "next-new", "bbox": [147000, 170000, 147500, 170500]},
+                {"id": "far", "bbox": [146500, 171000, 147000, 171500]},
+            ],
+        }
+        selected = MODULE.select_seed(
+            payload,
+            147800.0,
+            169900.0,
+            excluded_cell_ids={"already-built"},
+        )
+        self.assertEqual(selected["id"], "next-new")
+        self.assertEqual(selected["excluded_existing_cell_ids"], ["already-built"])
+
+    def test_load_existing_cell_ids_reads_built_cell_manifests(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            cell_dir = root / "bxl-e147000-n169500-s500"
+            cell_dir.mkdir()
+            (cell_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "format": MODULE.BUILT_CELL_FORMAT,
+                        "cell_id": "bxl-e147000-n169500-s500",
+                        "bbox": [147000, 169500, 147500, 170000],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                MODULE.load_existing_cell_ids(root),
+                {"bxl-e147000-n169500-s500"},
+            )
+
     def test_one_cell_manifest_records_selection_provenance(self):
         payload = {
             "format": "grand-bruxelles-zone-cells-v2",
@@ -73,6 +115,7 @@ class ZoneSeedSelectionTests(unittest.TestCase):
         self.assertEqual(result["seed_selection"]["selected_cell_id"], result["cells"][0]["id"])
         self.assertTrue(result["seed_selection"]["exclude_containing_anchor"])
         self.assertEqual(result["seed_selection"]["excluded_anchor_cell_ids"], ["reserved"])
+        self.assertEqual(result["seed_selection"]["excluded_existing_cell_ids"], [])
         self.assertEqual(result["seed_selection"]["strategy"], "nearest_bbox_to_lambert72_anchor")
 
 

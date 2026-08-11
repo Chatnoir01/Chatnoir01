@@ -79,6 +79,15 @@
     "runtime_geometry": "data/urbis/remaining_brussels/cells/bxl-e147500-n171500-s500/runtime/cell.game.json",
     "runtime_network": "data/urbis/remaining_brussels/cells/bxl-e147500-n171500-s500/runtime/network.game.json"
   },
+  "materialized_geometry": {
+    "validated": true,
+    "buildings": 1071,
+    "street_surfaces": 422,
+    "street_segments": 302,
+    "tram_segments": 0,
+    "train_segments": 0,
+    "source_cell_bbox": [147500.0, 171500.0, 148000.0, 172000.0]
+  },
   "source_policy": {
     "official_web_pages": "reference_only_until_reuse_rights_are_verified",
     "official_urbis_geometry": "production_geometry_source",
@@ -88,6 +97,6 @@
   "production_gate": {
     "hero_asset_complete": false,
     "licensed_visual_reference_pack_complete": false,
-    "geometry_cell_materialized": false
+    "geometry_cell_materialized": true
   }
 }

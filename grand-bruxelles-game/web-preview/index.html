@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0d1016" />
+  <title>Grand Bruxelles Game — Web Preview</title>
+  <style>
+    :root{--bg:#090b0f;--panel:#11151d;--panel2:#171c26;--text:#f3f5f7;--muted:#9ba5b4;--yellow:#ffd23f;--orange:#ff6a2b;--green:#43d17d;--line:#2b3342;--blue:#5b8cff}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 80% 0,#182032 0,transparent 35%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:28px 20px 70px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:28px}.brand{font-weight:900;letter-spacing:.04em}.pill{border:1px solid #314157;background:#121a27;padding:8px 12px;border-radius:999px;color:#cbd5e1;font-size:13px}.hero{display:grid;grid-template-columns:1.15fr .85fr;gap:20px}.card{background:linear-gradient(180deg,rgba(22,27,37,.96),rgba(14,18,25,.96));border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.22)}h1{font-size:clamp(38px,7vw,76px);line-height:.95;margin:0 0 18px;letter-spacing:-.055em}.accent{color:var(--yellow)}.lead{font-size:18px;line-height:1.6;color:#cbd2dc;max-width:720px}.status{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.status span{background:#101722;border:1px solid #263246;padding:8px 10px;border-radius:12px;font-size:13px}.ok{color:var(--green)}.mapbox{position:relative;min-height:430px;overflow:hidden}.maptitle{font-size:12px;text-transform:uppercase;letter-spacing:.16em;color:#8994a5;margin-bottom:16px}.map{position:relative;height:360px;border-radius:20px;background:linear-gradient(145deg,#0c1118,#141b25);border:1px solid #273142;overflow:hidden}.road{position:absolute;height:5px;background:#424b5c;border-radius:999px;transform-origin:left center;opacity:.88}.road.major{height:10px;background:#555f70}.rail{position:absolute;height:2px;background:repeating-linear-gradient(90deg,#a2a9b5 0 8px,transparent 8px 13px);transform-origin:left center;opacity:.75}.node{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 7px rgba(255,106,43,.14);transform:translate(-50%,-50%)}.node.start{background:var(--yellow);box-shadow:0 0 0 7px rgba(255,210,63,.14)}.label{position:absolute;transform:translate(-50%,-145%);font-size:12px;font-weight:800;white-space:nowrap;background:#090c12d9;border:1px solid #2c3545;border-radius:9px;padding:5px 7px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px}.metric{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}.metric b{display:block;font-size:27px;margin-bottom:4px}.metric small{color:var(--muted)}.section{margin-top:24px}.section h2{font-size:28px;margin:0 0 14px}.features{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.feature{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}.feature h3{margin:0 0 9px;font-size:17px}.feature p{color:var(--muted);line-height:1.5;margin:0}.check{display:inline-block;margin-right:8px;color:var(--green)}.mission{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.step{padding:16px;border-radius:16px;background:#111722;border:1px solid #273142}.step b{display:block;margin-bottom:6px}.step span{color:#9ca8b8;font-size:13px}.notice{margin-top:22px;padding:16px 18px;border:1px solid #5a4613;background:#1a160a;border-radius:16px;color:#e9d893}.footer{margin-top:30px;color:#7f8a9b;font-size:13px;display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}.live{display:inline-flex;align-items:center;gap:7px}.dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 5px rgba(67,209,125,.13)}
+    @media(max-width:900px){.hero,.features{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}.mission{grid-template-columns:1fr 1fr}}@media(max-width:560px){.wrap{padding:18px 14px 50px}.top{align-items:flex-start;flex-direction:column}.grid,.mission{grid-template-columns:1fr}.card{padding:18px}.mapbox{min-height:auto}.map{height:300px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">GRAND BRUXELLES <span class="accent">GAME</span></div>
+    <div class="pill live"><span class="dot"></span> Web Preview permanent · branche main</div>
+  </div>
+
+  <div class="hero">
+    <section class="card">
+      <div class="pill" style="display:inline-block;margin-bottom:18px">VERTICAL SLICE 01 · MIDI → CENTRE</div>
+      <h1>Bruxelles devient<br><span class="accent">jouable.</span></h1>
+      <p class="lead">Page de contrôle permanente du projet. Elle suit la version actuelle du prototype : données réelles OpenStreetMap, déplacement 3e personne, voiture pilotable, mission Midi → Anneessens → Bourse → Grand-Place et mini-carte OSM.</p>
+      <div class="status">
+        <span><b class="ok">●</b> CI Godot vert</span>
+        <span><b class="ok">●</b> Données OSM validées</span>
+        <span><b class="ok">●</b> Voiture testée</span>
+        <span><b class="ok">●</b> Mission testée</span>
+      </div>
+    </section>
+
+    <section class="card mapbox">
+      <div class="maptitle">Corridor actuel · représentation Web</div>
+      <div class="map" aria-label="Aperçu schématique du corridor Gare du Midi vers Grand-Place">
+        <div class="road major" style="left:6%;top:76%;width:42%;transform:rotate(-48deg)"></div>
+        <div class="road major" style="left:33%;top:47%;width:38%;transform:rotate(-39deg)"></div>
+        <div class="road" style="left:58%;top:27%;width:31%;transform:rotate(22deg)"></div>
+        <div class="road" style="left:47%;top:50%;width:42%;transform:rotate(-12deg)"></div>
+        <div class="road" style="left:18%;top:65%;width:42%;transform:rotate(8deg)"></div>
+        <div class="rail" style="left:4%;top:82%;width:46%;transform:rotate(-39deg)"></div>
+
+        <div class="label" style="left:14%;top:84%">Gare du Midi</div><div class="node start" style="left:14%;top:84%"></div>
+        <div class="label" style="left:43%;top:52%">Anneessens</div><div class="node" style="left:43%;top:52%"></div>
+        <div class="label" style="left:69%;top:27%">Bourse</div><div class="node" style="left:69%;top:27%"></div>
+        <div class="label" style="left:84%;top:35%">Grand-Place</div><div class="node" style="left:84%;top:35%"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <div class="metric"><b>140</b><small>routes carrossables dans la tranche runtime</small></div>
+    <div class="metric"><b>140</b><small>bâtiments OSM conservés pour le prototype</small></div>
+    <div class="metric"><b>30</b><small>tracés ferroviaires sélectionnés</small></div>
+    <div class="metric"><b>4</b><small>points majeurs du corridor actuel</small></div>
+  </div>
+
+  <section class="section">
+    <h2>Systèmes déjà présents</h2>
+    <div class="features">
+      <div class="feature"><h3><span class="check">✓</span>Personnage 3e personne</h3><p>Marche, course, saut, caméra SpringArm et commandes ZQSD/WASD.</p></div>
+      <div class="feature"><h3><span class="check">✓</span>Voiture pilotable</h3><p>Entrée/sortie avec E, caméra dédiée et logique conducteur testée en CI.</p></div>
+      <div class="feature"><h3><span class="check">✓</span>Bruxelles OSM</h3><p>Routes, bâtiments et rails issus du vrai secteur Bruxelles-Midi → centre.</p></div>
+      <div class="feature"><h3><span class="check">✓</span>Mission 01</h3><p>Parcours validé : Midi → Anneessens → Bourse → Grand-Place.</p></div>
+      <div class="feature"><h3><span class="check">✓</span>Mini-carte</h3><p>HUD construit à partir des vraies routes de la tranche OSM.</p></div>
+      <div class="feature"><h3><span class="check">✓</span>Tests automatiques</h3><p>Import Godot, scène, voiture et mission sont vérifiés automatiquement.</p></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Mission actuelle</h2>
+    <div class="mission">
+      <div class="step"><b>01 · Gare du Midi</b><span>Spawn joueur + voiture</span></div>
+      <div class="step"><b>02 · Anneessens</b><span>Premier checkpoint</span></div>
+      <div class="step"><b>03 · Bourse</b><span>Deuxième checkpoint</span></div>
+      <div class="step"><b>04 · Grand-Place</b><span>Mission terminée</span></div>
+    </div>
+  </section>
+
+  <div class="notice"><b>Important :</b> cette page est le <b>lien de contrôle Web permanent</b>. Le prototype Godot 3D n’est pas encore exporté en WebGL jouable dans Safari. Godot 4 nécessite un export Web dédié en mode Compatibility/WebGL 2.0 et un hébergement adapté aux fichiers WebAssembly.</div>
+
+  <div class="footer">
+    <span>Grand Bruxelles Game · Web Preview</span>
+    <span>Mise à jour : 11 août 2026 · prototype OSM 0.4+</span>
+  </div>
+</div>
+</body>
+</html>

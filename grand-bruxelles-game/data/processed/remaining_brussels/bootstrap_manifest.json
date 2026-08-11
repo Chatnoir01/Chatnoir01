@@ -5,6 +5,32 @@
   "cell_size_m": 500.0,
   "zones": [
     {
+      "id": "anderlecht",
+      "name": "Anderlecht",
+      "commands": [
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/fetch_urbis_municipality.py",
+          "--name",
+          "Anderlecht",
+          "--output",
+          "data/processed/remaining_brussels/boundaries/anderlecht.geojson"
+        ],
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/make_zone_cells.py",
+          "--boundary",
+          "data/processed/remaining_brussels/boundaries/anderlecht.geojson",
+          "--zone-id",
+          "anderlecht",
+          "--cell-size",
+          "500.0",
+          "--output",
+          "data/processed/remaining_brussels/cells/anderlecht.json"
+        ]
+      ]
+    },
+    {
       "id": "molenbeek",
       "name": "Molenbeek-Saint-Jean",
       "commands": [
@@ -27,6 +53,136 @@
           "500.0",
           "--output",
           "data/processed/remaining_brussels/cells/molenbeek.json"
+        ]
+      ]
+    },
+    {
+      "id": "saint-gilles",
+      "name": "Saint-Gilles",
+      "commands": [
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/fetch_urbis_municipality.py",
+          "--name",
+          "Saint-Gilles",
+          "--output",
+          "data/processed/remaining_brussels/boundaries/saint-gilles.geojson"
+        ],
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/make_zone_cells.py",
+          "--boundary",
+          "data/processed/remaining_brussels/boundaries/saint-gilles.geojson",
+          "--zone-id",
+          "saint-gilles",
+          "--cell-size",
+          "500.0",
+          "--output",
+          "data/processed/remaining_brussels/cells/saint-gilles.json"
+        ]
+      ]
+    },
+    {
+      "id": "ixelles",
+      "name": "Ixelles",
+      "commands": [
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/fetch_urbis_municipality.py",
+          "--name",
+          "Ixelles",
+          "--output",
+          "data/processed/remaining_brussels/boundaries/ixelles.geojson"
+        ],
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/make_zone_cells.py",
+          "--boundary",
+          "data/processed/remaining_brussels/boundaries/ixelles.geojson",
+          "--zone-id",
+          "ixelles",
+          "--cell-size",
+          "500.0",
+          "--output",
+          "data/processed/remaining_brussels/cells/ixelles.json"
+        ]
+      ]
+    },
+    {
+      "id": "saint-josse",
+      "name": "Saint-Josse-ten-Noode",
+      "commands": [
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/fetch_urbis_municipality.py",
+          "--name",
+          "Saint-Josse-ten-Noode",
+          "--output",
+          "data/processed/remaining_brussels/boundaries/saint-josse.geojson"
+        ],
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/make_zone_cells.py",
+          "--boundary",
+          "data/processed/remaining_brussels/boundaries/saint-josse.geojson",
+          "--zone-id",
+          "saint-josse",
+          "--cell-size",
+          "500.0",
+          "--output",
+          "data/processed/remaining_brussels/cells/saint-josse.json"
+        ]
+      ]
+    },
+    {
+      "id": "schaerbeek",
+      "name": "Schaerbeek",
+      "commands": [
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/fetch_urbis_municipality.py",
+          "--name",
+          "Schaerbeek",
+          "--output",
+          "data/processed/remaining_brussels/boundaries/schaerbeek.geojson"
+        ],
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/make_zone_cells.py",
+          "--boundary",
+          "data/processed/remaining_brussels/boundaries/schaerbeek.geojson",
+          "--zone-id",
+          "schaerbeek",
+          "--cell-size",
+          "500.0",
+          "--output",
+          "data/processed/remaining_brussels/cells/schaerbeek.json"
+        ]
+      ]
+    },
+    {
+      "id": "etterbeek",
+      "name": "Etterbeek",
+      "commands": [
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/fetch_urbis_municipality.py",
+          "--name",
+          "Etterbeek",
+          "--output",
+          "data/processed/remaining_brussels/boundaries/etterbeek.geojson"
+        ],
+        [
+          "/usr/bin/python3",
+          "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/make_zone_cells.py",
+          "--boundary",
+          "data/processed/remaining_brussels/boundaries/etterbeek.geojson",
+          "--zone-id",
+          "etterbeek",
+          "--cell-size",
+          "500.0",
+          "--output",
+          "data/processed/remaining_brussels/cells/etterbeek.json"
         ]
       ]
     }

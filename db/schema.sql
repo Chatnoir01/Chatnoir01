@@ -28,6 +28,19 @@ create table if not exists memberships (
   role text not null check (role in ('owner','admin','member','accountant')),
   primary key (organization_id, user_id)
 );
+create index if not exists memberships_user_idx on memberships(user_id);
+
+create table if not exists sessions (
+  id uuid primary key default gen_random_uuid(),
+  token_hash char(64) not null unique,
+  user_id uuid not null references users(id) on delete cascade,
+  organization_id uuid not null references organizations(id) on delete cascade,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now()
+);
+create index if not exists sessions_user_idx on sessions(user_id);
+create index if not exists sessions_expires_idx on sessions(expires_at);
 
 create table if not exists clients (
   id uuid primary key default gen_random_uuid(),

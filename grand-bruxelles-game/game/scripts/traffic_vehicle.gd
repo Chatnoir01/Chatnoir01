@@ -13,7 +13,9 @@ signal route_finished(vehicle: Node)
 @export_range(0.65, 1.05, 0.01) var speed_factor: float = 0.90
 
 var route_points: PackedVector3Array = PackedVector3Array()
+var route_speed_limits_kmh: PackedFloat32Array = PackedFloat32Array()
 var route_index: int = 1
+var route_edge_count: int = 1
 var speed_mps: float = 0.0
 var speed_limit_mps: float = 8.333333
 var road_name: String = ""
@@ -36,10 +38,30 @@ func configure_route(
     new_road_name: String,
     new_source_osm_id: int
 ) -> void:
+    var profile := PackedFloat32Array()
+    for _index: int in range(new_route.size()):
+        profile.append(new_speed_limit_kmh)
+    configure_route_profile(
+        new_route,
+        profile,
+        new_road_name,
+        new_source_osm_id,
+        1
+    )
+
+
+func configure_route_profile(
+    new_route: PackedVector3Array,
+    new_speed_limits_kmh: PackedFloat32Array,
+    new_road_name: String,
+    new_source_osm_id: int,
+    new_route_edge_count: int
+) -> void:
     route_points = new_route.duplicate()
+    route_speed_limits_kmh = new_speed_limits_kmh.duplicate()
     route_index = 1
+    route_edge_count = maxi(1, new_route_edge_count)
     speed_mps = 0.0
-    speed_limit_mps = maxf(1.4, new_speed_limit_kmh / 3.6)
     road_name = new_road_name
     source_osm_id = new_source_osm_id
     _finishing = false
@@ -48,6 +70,15 @@ func configure_route(
         _finish_route()
         return
 
+    if route_speed_limits_kmh.size() != route_points.size():
+        var fallback_limit := 30.0
+        if not route_speed_limits_kmh.is_empty():
+            fallback_limit = float(route_speed_limits_kmh[0])
+        route_speed_limits_kmh.clear()
+        for _index: int in range(route_points.size()):
+            route_speed_limits_kmh.append(fallback_limit)
+
+    speed_limit_mps = maxf(1.4, _speed_limit_at_index(route_index) / 3.6)
     global_position = route_points[0]
     var initial_direction := route_points[1] - route_points[0]
     initial_direction.y = 0.0
@@ -91,6 +122,7 @@ func _physics_process(delta: float) -> void:
         clampf(steering_response * delta, 0.0, 1.0)
     )
 
+    speed_limit_mps = maxf(1.4, _speed_limit_at_index(route_index) / 3.6)
     var desired_speed := speed_limit_mps * speed_factor
     var deceleration := braking_mps2
 
@@ -129,6 +161,13 @@ func _physics_process(delta: float) -> void:
         speed_mps = move_toward(speed_mps, 0.0, emergency_braking_mps2 * delta)
 
 
+func _speed_limit_at_index(index: int) -> float:
+    if route_speed_limits_kmh.is_empty():
+        return speed_limit_mps * 3.6
+    var safe_index := clampi(index, 0, route_speed_limits_kmh.size() - 1)
+    return maxf(5.0, float(route_speed_limits_kmh[safe_index]))
+
+
 func _yaw_for_direction(direction: Vector3) -> float:
     return atan2(-direction.x, -direction.z)
 
@@ -161,3 +200,7 @@ func get_source_osm_id() -> int:
 
 func get_route_point_count() -> int:
     return route_points.size()
+
+
+func get_route_edge_count() -> int:
+    return route_edge_count

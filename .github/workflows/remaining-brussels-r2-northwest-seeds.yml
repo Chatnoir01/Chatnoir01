@@ -1,0 +1,235 @@
+name: Materialize safe R2 northwest seeds
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/remaining-brussels-r2-northwest-seeds.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-r2-northwest-seeds
+  cancel-in-progress: false
+
+jobs:
+  materialize-northwest:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate current pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Verify northwest reservation guard
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('data/urbis/remaining_brussels/northwest_reserved_cells.json')
+          assert path.exists(), 'northwest reservation guard missing'
+          data = json.loads(path.read_text())
+          assert data['format'] == 'grand-bruxelles-northwest-reservations-v1'
+          assert data['jette_planned_cell_count'] > 0
+          assert data['reserved_cell_count'] > 0
+          assert len(data['reserved_cell_ids']) == data['reserved_cell_count']
+          print('Reserved northwest global cells:', data['reserved_cell_count'])
+          PY
+
+      - name: Record current materialized cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('data/urbis/remaining_brussels/cells')
+          ids = sorted(path.parent.name for path in root.glob('*/manifest.json'))
+          Path('/tmp/r2-nw-before.json').write_text(json.dumps(ids), encoding='utf-8')
+          print('Materialized before northwest batch:', len(ids))
+          PY
+
+      - name: Select unique R2 cells while excluding Jette and external branch reservations
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          mapfile -t RESERVED < <(python - <<'PY'
+          import json
+          data=json.load(open('data/urbis/remaining_brussels/northwest_reserved_cells.json', encoding='utf-8'))
+          for cell_id in data['reserved_cell_ids']:
+              print(cell_id)
+          PY
+          )
+          EXTRA=()
+          for cell_id in "${RESERVED[@]}"; do
+            EXTRA+=(--exclude-cell-id "$cell_id")
+          done
+          python tools/select_wave_seed_cells.py \
+            --wave R2 \
+            --existing-root data/urbis/remaining_brussels/cells \
+            --exclude-cell-id bxl-e147500-n169500-s500 \
+            "${EXTRA[@]}" \
+            --output /tmp/r2-all-new-seeds.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          source = json.loads(Path('/tmp/r2-all-new-seeds.json').read_text())
+          wanted = ['koekelberg', 'ganshoren', 'berchem']
+          seeds = [seed for seed in source['seeds'] if seed['zone_id'] in wanted]
+          assert [seed['zone_id'] for seed in seeds] == wanted, [seed['zone_id'] for seed in seeds]
+          result = dict(source)
+          result['wave'] = 'R2-NORTHWEST'
+          result['seed_count'] = len(seeds)
+          result['seeds'] = seeds
+          Path('/tmp/r2-northwest-seeds.json').write_text(
+              json.dumps(result, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+          for seed in seeds:
+              print(seed['zone_id'], '->', seed['cell_id'], seed['bbox'])
+          PY
+
+      - name: Prove selected cells are new and outside all northwest reservations
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          before = set(json.loads(Path('/tmp/r2-nw-before.json').read_text()))
+          batch = json.loads(Path('/tmp/r2-northwest-seeds.json').read_text())
+          reservations = set(json.loads(Path('data/urbis/remaining_brussels/northwest_reserved_cells.json').read_text())['reserved_cell_ids'])
+          ids = [seed['cell_id'] for seed in batch['seeds']]
+          assert batch['seed_count'] == 3
+          assert len(ids) == len(set(ids)) == 3
+          assert all(cell_id not in before for cell_id in ids)
+          assert all(cell_id not in reservations for cell_id in ids)
+          assert 'bxl-e147500-n169500-s500' not in ids
+          PY
+
+      - name: Materialize three official UrbIS cells sequentially
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_wave_seeds.py \
+            --seeds /tmp/r2-northwest-seeds.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --retries 3
+
+      - name: Rebuild runtime index and coverage
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture official orthophoto references
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/r2-nw-orthos data/processed/remaining_brussels/references
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+          batch=json.loads(Path('/tmp/r2-northwest-seeds.json').read_text())
+          for seed in batch['seeds']:
+              zone=seed['zone_id']
+              bbox=','.join(str(v) for v in seed['bbox'])
+              subprocess.run([
+                  sys.executable, 'tools/capture_urbis_orthophoto.py',
+                  '--bbox', bbox,
+                  '--width', '768', '--height', '768',
+                  '--output', f'/tmp/r2-nw-orthos/{zone}.png',
+                  '--metadata', f'data/processed/remaining_brussels/references/{zone}_seed_orthophoto.json',
+              ], check=True)
+          PY
+
+      - name: Verify three cells and ownership isolation
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          cell_root=Path('data/urbis/remaining_brussels/cells')
+          before=set(json.loads(Path('/tmp/r2-nw-before.json').read_text()))
+          batch=json.loads(Path('/tmp/r2-northwest-seeds.json').read_text())
+          reserved=set(json.loads(Path('data/urbis/remaining_brussels/northwest_reserved_cells.json').read_text())['reserved_cell_ids'])
+          selected={seed['cell_id'] for seed in batch['seeds']}
+          after={p.parent.name for p in cell_root.glob('*/manifest.json')}
+          assert before.issubset(after)
+          assert selected.issubset(after)
+          assert not (selected & reserved)
+          assert len(after) >= len(before)+3
+
+          index=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          streamed={item['cell_id'] for item in index['cells']}
+          assert selected.issubset(streamed)
+          assert not (streamed & reserved), sorted(streamed & reserved)
+          assert 'bxl-e147500-n169500-s500' not in streamed
+
+          report=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          zones={item['zone_id']:item for item in report['zones']}
+          for seed in batch['seeds']:
+              zone=seed['zone_id']
+              cell_id=seed['cell_id']
+              manifest=json.loads((cell_root/cell_id/'manifest.json').read_text())
+              geometry=json.loads((cell_root/cell_id/manifest['runtime']['geometry_file']).read_text())
+              network=json.loads((cell_root/cell_id/manifest['runtime']['network_file']).read_text())
+              useful=sum([
+                  geometry['stats']['buildings'], geometry['stats']['street_surfaces'],
+                  network['stats']['street_segments'], network['stats']['tram_segments'], network['stats']['train_segments'],
+              ])
+              assert useful>0, (zone,cell_id)
+              assert all(item['type'].startswith('TW') for item in network['tram_network'])
+              assert all(item['type'].startswith('RW') for item in network['train_network'])
+              assert {item['source_id'] for item in network['tram_network']}.isdisjoint({item['source_id'] for item in network['train_network']})
+              assert zones[zone]['materialized_cells']>=1
+              assert cell_id in zones[zone]['materialized_cell_ids']
+              metadata=json.loads(Path(f'data/processed/remaining_brussels/references/{zone}_seed_orthophoto.json').read_text())
+              assert metadata['provider']=='Paradigm / UrbIS'
+              assert metadata['bbox']==seed['bbox']
+              assert metadata['download']['bytes']>1000
+              print(zone,cell_id,geometry['stats'],network['stats'])
+          print('Streamable cells:',len(streamed))
+          print('Global coverage:',report['known_grid_coverage_percent'],'%')
+          PY
+
+      - name: Upload northwest orthophoto previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: r2-northwest-official-orthophotos
+          path: /tmp/r2-nw-orthos/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit safe northwest cells
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json \
+            grand-bruxelles-game/data/processed/remaining_brussels/references \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then
+            echo 'No northwest materialization changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: add safe R2 northwest UrbIS seeds outside Jette'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

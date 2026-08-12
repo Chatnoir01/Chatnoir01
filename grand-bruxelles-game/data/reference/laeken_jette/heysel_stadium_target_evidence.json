@@ -3,6 +3,12 @@
   "view_id": "heysel_stadium_context_v1",
   "status": "urbis_target_3d_resolved_camera_comparison_pending",
   "crs": "EPSG:31370",
+  "project_transform": {
+    "origin_e": 147868.29422791934,
+    "origin_n": 169538.62414926197,
+    "axes": "X=east, Y=up, Z=south",
+    "conversion": "x = e - origin_e; z = origin_n - n"
+  },
   "authoritative_target": {
     "geometry_source": "UrbIS Buildings",
     "geometry_role": "final target geometry basis",
@@ -28,11 +34,9 @@
       "n": 176160.013
     },
     "full_urbis_union_game_xz": {
-      "x": -296.11739780724747,
-      "z": -6996.067008908547,
-      "origin_e": 147868.29439780724,
-      "origin_n": 183156.08000890855,
-      "conversion": "x = e - origin_e; z = n - origin_n"
+      "x": -296.11722791934153,
+      "z": -6621.3888507380325,
+      "conversion": "x = e - origin_e; z = origin_n - n"
     },
     "full_urbis_union_oriented_rectangle": {
       "length_m": 288.358,
@@ -101,6 +105,7 @@
     "Official stadium dimensions are used only to detect gross semantic mismatches.",
     "The frozen 2024 official orthophoto covers the target and is used for visual cross-checking.",
     "The target ground elevation is derived only from the committed UrbIS DTM runtime and its pinned bilinear sample evidence.",
+    "Game X/Z is derived from the canonical Laeken/Jette project transform used by anchors.json; Z increases southward.",
     "No manual geometry or elevation was introduced to force agreement between sources."
   ]
 }

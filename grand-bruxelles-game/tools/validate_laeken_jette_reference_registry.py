@@ -21,6 +21,20 @@ def close(a: float, b: float, tol: float = 0.02) -> bool:
     return math.isfinite(a) and abs(a - b) <= tol
 
 
+def explicitly_rejects_surveyed_camera_claim(note: str) -> bool:
+    """Accept equivalent wording while preserving the provenance safety rule."""
+    text = " ".join(note.lower().split())
+    if "surveyed camera position" not in text:
+        return False
+    rejection_phrases = (
+        "not a surveyed camera position",
+        "not be used as a surveyed camera position",
+        "must not be used as a surveyed camera position",
+        "cannot be used as a surveyed camera position",
+    )
+    return any(phrase in text for phrase in rejection_phrases)
+
+
 def main() -> int:
     realism = load(REF / "realism_pass1.json")
     jette = load(REF / "jette_photo_references.json")
@@ -49,7 +63,9 @@ def main() -> int:
     assert len(miroir["source_game_xz_depicted_place"]) == 2
     note = miroir["source_coordinate_note"].lower()
     assert "not photographer" in note
-    assert "not a surveyed camera position" in note
+    assert explicitly_rejects_surveyed_camera_claim(note), (
+        "depicted-place coordinate note must explicitly reject use as a surveyed camera position"
+    )
 
     origin = jette["project_origin"]
     e, n = miroir["source_epsg31370_depicted_place"]

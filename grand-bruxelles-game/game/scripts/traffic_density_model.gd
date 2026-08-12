@@ -51,6 +51,9 @@ func get_official_capture_timestamp() -> String:
 func official_calibration_for(position: Vector3) -> Dictionary:
     return _official_profile.call("calibration_for", position, _official_radius_m)
 
+func nearest_official_sample(position: Vector3) -> Dictionary:
+    return _official_profile.call("nearest_sample", position)
+
 func local_capacity_factor(roads: Array[Dictionary], position: Vector3) -> float:
     var weighted_sum := 0.0
     var samples := 0

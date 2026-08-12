@@ -161,3 +161,29 @@ jobs:
             exit 1
           fi
           grep -q "NPC_AGENT_TRANSIT_STOP_OK" /tmp/npc-agent-transit-stop.log
+
+      - name: Agent disembark lifecycle test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_agent_disembark_test.gd 2>&1 | tee /tmp/npc-agent-disembark.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_AGENT_DISEMBARK_FAIL" /tmp/npc-agent-disembark.log; then
+            exit 1
+          fi
+          grep -q "NPC_AGENT_DISEMBARK_OK" /tmp/npc-agent-disembark.log
+
+      - name: Transit alighting priority test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_transit_alighting_priority_test.gd 2>&1 | tee /tmp/npc-transit-alighting.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_TRANSIT_ALIGHTING_PRIORITY_FAIL" /tmp/npc-transit-alighting.log; then
+            exit 1
+          fi
+          grep -q "NPC_TRANSIT_ALIGHTING_PRIORITY_OK" /tmp/npc-transit-alighting.log

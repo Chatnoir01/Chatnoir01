@@ -47,6 +47,7 @@ static func load_domains(path: String, providers: Dictionary) -> Dictionary:
     keys.sort()
     var backups: Dictionary = {}
 
+    # Phase 1: prove every requested domain is restorable before mutating live state.
     for key_value in keys:
         var key := str(key_value)
         if not domains.has(key):
@@ -67,15 +68,30 @@ static func load_domains(path: String, providers: Dictionary) -> Dictionary:
             return _error("invalid_live_state", key)
         backups[key] = (current_value as Dictionary).duplicate(true)
 
+    # Phase 2: apply in deterministic order. A failed provider may have partially
+    # mutated itself, so roll it back too, then unwind earlier domains in reverse.
     var applied: Array[String] = []
     for key_value in keys:
         var key := str(key_value)
         var provider: Object = providers[key_value]
         var state: Dictionary = domains[key]
         if not bool(provider.call("restore_state", state.duplicate(true))):
-            for rollback_key in applied:
+            var rollback_failures: Array[String] = []
+            if not bool(provider.call("restore_state", (backups[key] as Dictionary).duplicate(true))):
+                rollback_failures.append(key)
+            for index in range(applied.size() - 1, -1, -1):
+                var rollback_key: String = applied[index]
                 var rollback_provider: Object = providers[rollback_key]
-                rollback_provider.call("restore_state", (backups[rollback_key] as Dictionary).duplicate(true))
+                if not bool(rollback_provider.call("restore_state", (backups[rollback_key] as Dictionary).duplicate(true))):
+                    rollback_failures.append(rollback_key)
+            if not rollback_failures.is_empty():
+                return {
+                    "ok": false,
+                    "error": "rollback_failed",
+                    "domain": key,
+                    "rolled_back": false,
+                    "rollback_failures": rollback_failures,
+                }
             return {
                 "ok": false,
                 "error": "restore_rejected",

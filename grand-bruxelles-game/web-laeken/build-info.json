@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "build": "laeken-full-realism",
-  "source_commit": "7d8571440f629b8c95c31ac169dda16b148cc9f6",
+  "source_commit": "e9ee200bce255e9722da97237132aa2718bcf419",
   "engine": "Godot 4.7.1",
   "validation": [
-    "single-load terrain + orthophoto + DSM building heights + landmark contamination corrections + official City trees + multi-lobe canopy replacement"
+    "single-load terrain + orthophoto + DSM building heights + landmark contamination corrections + street-level facade geometry + official City trees + multi-lobe canopy replacement"
   ],
   "building_heights": {
     "feature_count": 9518,
@@ -30,6 +30,13 @@
       }
     ],
     "note": "Raw source distribution is preserved for audit; gameplay applies the listed deterministic corrections where landmark geometry contaminated a building footprint."
+  },
+  "street_level_facades": {
+    "buildings": 78,
+    "halls": 2,
+    "windows": 2844,
+    "sills": 2844,
+    "hall_ribs": 181
   },
   "official_trees": {
     "selected_records": 8236,

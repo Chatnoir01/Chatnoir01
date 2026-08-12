@@ -1,0 +1,91 @@
+name: Temporary Bourse MultiMesh Fix
+
+on:
+  push:
+    branches: ["integration/bourse-footprint-aware-facades"]
+    paths:
+      - ".github/workflows/tmp-bourse-multimesh-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/bourse-footprint-aware-facades
+      - name: Apply verified MultiMesh attachment-order fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/game/scripts/osm_city_builder.gd')
+          text = path.read_text(encoding='utf-8')
+          old = '''        var windows := MultiMesh.new()
+        windows.transform_format = MultiMesh.TRANSFORM_3D
+        windows.mesh = window_mesh
+        windows.instance_count = _window_transforms.size()
+        for index: int in range(_window_transforms.size()):
+            windows.set_instance_transform(index, _window_transforms[index])
+        var window_instance := MultiMeshInstance3D.new()
+        window_instance.name = "CorridorFacadeWindows"
+        window_instance.multimesh = windows
+        root.add_child(window_instance)
+'''
+          new = '''        var window_instance := MultiMeshInstance3D.new()
+        window_instance.name = "CorridorFacadeWindows"
+        var windows := MultiMesh.new()
+        window_instance.multimesh = windows
+        root.add_child(window_instance)
+        windows.transform_format = MultiMesh.TRANSFORM_3D
+        windows.mesh = window_mesh
+        windows.instance_count = _window_transforms.size()
+        windows.visible_instance_count = _window_transforms.size()
+        for index: int in range(_window_transforms.size()):
+            windows.set_instance_transform(index, _window_transforms[index])
+        if windows.get_instance_transform(0).origin.distance_to(_window_transforms[0].origin) > 0.001:
+            push_error("Facade window MultiMesh failed to retain instance transforms")
+'''
+          old_shops = '''        var shops := MultiMesh.new()
+        shops.transform_format = MultiMesh.TRANSFORM_3D
+        shops.mesh = shop_mesh
+        shops.instance_count = _shop_transforms.size()
+        for index: int in range(_shop_transforms.size()):
+            shops.set_instance_transform(index, _shop_transforms[index])
+        var shop_instance := MultiMeshInstance3D.new()
+        shop_instance.name = "CorridorShopfronts"
+        shop_instance.multimesh = shops
+        root.add_child(shop_instance)
+'''
+          new_shops = '''        var shop_instance := MultiMeshInstance3D.new()
+        shop_instance.name = "CorridorShopfronts"
+        var shops := MultiMesh.new()
+        shop_instance.multimesh = shops
+        root.add_child(shop_instance)
+        shops.transform_format = MultiMesh.TRANSFORM_3D
+        shops.mesh = shop_mesh
+        shops.instance_count = _shop_transforms.size()
+        shops.visible_instance_count = _shop_transforms.size()
+        for index: int in range(_shop_transforms.size()):
+            shops.set_instance_transform(index, _shop_transforms[index])
+        if shops.get_instance_transform(0).origin.distance_to(_shop_transforms[0].origin) > 0.001:
+            push_error("Shopfront MultiMesh failed to retain instance transforms")
+'''
+          if old not in text:
+              raise SystemExit('window MultiMesh block not found exactly')
+          if old_shops not in text:
+              raise SystemExit('shop MultiMesh block not found exactly')
+          text = text.replace(old, new, 1).replace(old_shops, new_shops, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit correction and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/tmp-bourse-multimesh-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/game/scripts/osm_city_builder.gd .github/workflows/tmp-bourse-multimesh-fix.yml
+          git commit -m "fix: retain facade MultiMesh instance transforms"
+          git push origin HEAD:integration/bourse-footprint-aware-facades

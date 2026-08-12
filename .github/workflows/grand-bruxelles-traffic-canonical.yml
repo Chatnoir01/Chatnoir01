@@ -5,6 +5,7 @@ on:
     branches:
       - "integration/traffic-canonical-core-v4"
       - "integration/traffic-canonical-vehicle-core"
+      - "integration/traffic-canonical-manager-foundation"
     paths:
       - "grand-bruxelles-game/game/scripts/traffic_*.gd"
       - "grand-bruxelles-game/game/scripts/vehicle_damage_model.gd"
@@ -52,3 +53,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_canonical_vehicle_core_test.gd 2>&1 | tee /tmp/traffic-vehicle-core.log
           if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CANONICAL_VEHICLE_FAIL" /tmp/traffic-vehicle-core.log; then exit 1; fi
           grep -q "TRAFFIC_CANONICAL_VEHICLE_OK" /tmp/traffic-vehicle-core.log
+      - name: Canonical traffic manager foundation test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_canonical_manager_foundation_test.gd 2>&1 | tee /tmp/traffic-manager-foundation.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_MANAGER_FOUNDATION_FAIL" /tmp/traffic-manager-foundation.log; then exit 1; fi
+          grep -q "TRAFFIC_MANAGER_FOUNDATION_OK" /tmp/traffic-manager-foundation.log

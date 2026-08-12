@@ -1,4 +1,4 @@
-name: Expand Ixelles by one contiguous official cell
+name: Expand Ixelles by one edge-contiguous official cell
 
 on:
   push:
@@ -43,26 +43,50 @@ jobs:
             tests.test_build_remaining_brussels_coverage \
             tests.test_capture_urbis_orthophoto -v
 
-      - name: Refresh Ixelles grid and choose an adjacent cell
+      - name: Refresh Ixelles grid and choose next candidate
         working-directory: grand-bruxelles-game
         run: |
           python tools/bootstrap_remaining_brussels.py --zone ixelles --output-root data/processed/remaining_brussels
           python tools/select_zone_seed_cell.py \
             --manifest data/processed/remaining_brussels/cells/ixelles.json \
-            --anchor-e 149250 --anchor-n 169750 \
+            --anchor-e 149750 --anchor-n 169250 \
             --exclude-existing-root data/urbis/remaining_brussels/cells \
             --output /tmp/ixelles-next.json
+
+      - name: Enforce true edge continuity with existing Ixelles coverage
+        working-directory: grand-bruxelles-game
+        run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          s=json.loads(Path('/tmp/ixelles-next.json').read_text())
-          c=s['cells'][0]
-          e,n,_,_=c['bbox']
-          assert s['cell_count']==1
-          assert abs(e-149000.0)<=500.0 and abs(n-169500.0)<=500.0, (c['id'], c['bbox'])
-          assert not (e==149000.0 and n==169500.0)
-          Path('/tmp/cell-id').write_text(c['id'])
-          print('CONTIGUOUS_IXELLES_CELL', c['id'], c['bbox'])
+
+          selection = json.loads(Path('/tmp/ixelles-next.json').read_text())
+          assert selection['cell_count'] == 1, selection
+          candidate = selection['cells'][0]
+          e, n, e2, n2 = candidate['bbox']
+          assert e2 - e == 500 and n2 - n == 500, candidate
+
+          coverage = json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          ixelles = next(z for z in coverage['zones'] if z['zone_id'] == 'ixelles')
+          existing = []
+          root = Path('data/urbis/remaining_brussels/cells')
+          for cid in ixelles['materialized_cell_ids']:
+              manifest = json.loads((root / cid / 'manifest.json').read_text())
+              pe, pn, pe2, pn2 = manifest['bbox']
+              existing.append((cid, pe, pn, pe2, pn2))
+
+          neighbours = []
+          for cid, pe, pn, pe2, pn2 in existing:
+              horizontal = (e == pe2 or e2 == pe) and not (n2 <= pn or n >= pn2)
+              vertical = (n == pn2 or n2 == pn) and not (e2 <= pe or e >= pe2)
+              if horizontal or vertical:
+                  neighbours.append(cid)
+
+          assert neighbours, (candidate['id'], candidate['bbox'], existing)
+          assert candidate['id'] not in {cid for cid, *_ in existing}
+          Path('/tmp/cell-id').write_text(candidate['id'])
+          Path('/tmp/neighbours').write_text('\n'.join(neighbours))
+          print('EDGE_CONTIGUOUS_IXELLES_CELL', candidate['id'], candidate['bbox'], 'neighbours=', neighbours)
           PY
 
       - name: Materialize and index official UrbIS data
@@ -76,7 +100,7 @@ jobs:
             --output data/urbis/remaining_brussels/runtime_index.json
           python tools/build_remaining_brussels_coverage.py --output data/processed/remaining_brussels/coverage_report.json
 
-      - name: Capture matching official orthophoto and verify
+      - name: Capture matching official orthophoto and verify source fidelity
         working-directory: grand-bruxelles-game
         run: |
           CELL=$(cat /tmp/cell-id)
@@ -102,22 +126,24 @@ jobs:
           cov=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
           ortho=json.loads(Path(f'data/processed/remaining_brussels/references/ixelles_{cid}_orthophoto.json').read_text())
           z=next(x for x in cov['zones'] if x['zone_id']=='ixelles')
+          assert m['crs']=='EPSG:31370'
           assert g['stats']['buildings']>0 and g['stats']['street_surfaces']>0
           assert n['stats']['street_segments']>0
           assert cid in {x['cell_id'] for x in idx['cells']}
-          assert cid in z['materialized_cell_ids'] and z['materialized_cells']>=2
+          assert cid in z['materialized_cell_ids'] and z['materialized_cells']>=4
           assert ortho['bbox']==c['bbox'] and ortho['provider']=='Paradigm / UrbIS' and ortho['download']['bytes']>1000
-          print('IXELLES_CONTIGUOUS_VALIDATED', cid, g['stats'], n['stats'], z['coverage_percent'])
+          assert Path('/tmp/neighbours').read_text().strip()
+          print('IXELLES_EDGE_CONTIGUOUS_VALIDATED', cid, g['stats'], n['stats'], z['coverage_percent'])
           PY
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ixelles-contiguous-official-orthophoto
+          name: ixelles-edge-contiguous-official-orthophoto
           path: /tmp/ixelles-next-ortho/*.png
           retention-days: 14
           if-no-files-found: error
 
-      - name: Commit validated contiguous cell
+      - name: Commit validated edge-contiguous cell
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+Chatnoir01@users.noreply.github.com'
@@ -126,7 +152,7 @@ jobs:
             grand-bruxelles-game/data/urbis/remaining_brussels
           git diff --cached --name-only
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'data: extend Ixelles with contiguous official UrbIS cell'
+          git commit -m 'data: extend Ixelles with edge-contiguous official UrbIS cell'
           git reset --hard HEAD
           git clean -fd
           git push origin HEAD:zone-reste-bruxelles-clean

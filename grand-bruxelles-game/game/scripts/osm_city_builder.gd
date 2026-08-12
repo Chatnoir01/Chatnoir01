@@ -354,12 +354,12 @@ func _flush_facade_details(root: Node3D) -> void:
         windows.transform_format = MultiMesh.TRANSFORM_3D
         windows.mesh = window_mesh
         windows.instance_count = _window_transforms.size()
-        for index: int in range(_window_transforms.size()):
-            windows.set_instance_transform(index, _window_transforms[index])
         var window_instance := MultiMeshInstance3D.new()
         window_instance.name = "CorridorFacadeWindows"
         window_instance.multimesh = windows
         root.add_child(window_instance)
+        for index: int in range(_window_transforms.size()):
+            window_instance.multimesh.set_instance_transform(index, _window_transforms[index])
 
     if not _shop_transforms.is_empty():
         var shop_mesh := BoxMesh.new()
@@ -369,12 +369,12 @@ func _flush_facade_details(root: Node3D) -> void:
         shops.transform_format = MultiMesh.TRANSFORM_3D
         shops.mesh = shop_mesh
         shops.instance_count = _shop_transforms.size()
-        for index: int in range(_shop_transforms.size()):
-            shops.set_instance_transform(index, _shop_transforms[index])
         var shop_instance := MultiMeshInstance3D.new()
         shop_instance.name = "CorridorShopfronts"
         shop_instance.multimesh = shops
         root.add_child(shop_instance)
+        for index: int in range(_shop_transforms.size()):
+            shop_instance.multimesh.set_instance_transform(index, _shop_transforms[index])
 
 
 func _build_rails(railways: Array, root: Node3D) -> int:

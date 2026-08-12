@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless \
             --path grand-bruxelles-game \
             --script res://game/tests/npc_behavior_smoke_test.gd 2>&1 | tee /tmp/npc-smoke.log
@@ -57,3 +57,29 @@ jobs:
             exit 1
           fi
           grep -q "NPC_BEHAVIOR_SMOKE_OK" /tmp/npc-smoke.log
+
+      - name: Pedestrian context behavior test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_pedestrian_context_test.gd 2>&1 | tee /tmp/npc-pedestrian.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_PEDESTRIAN_CONTEXT_FAIL" /tmp/npc-pedestrian.log; then
+            exit 1
+          fi
+          grep -q "NPC_PEDESTRIAN_CONTEXT_OK" /tmp/npc-pedestrian.log
+
+      - name: Runtime agent context test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_agent_context_test.gd 2>&1 | tee /tmp/npc-agent-context.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_AGENT_CONTEXT_FAIL" /tmp/npc-agent-context.log; then
+            exit 1
+          fi
+          grep -q "NPC_AGENT_CONTEXT_OK" /tmp/npc-agent-context.log

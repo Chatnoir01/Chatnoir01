@@ -1,4 +1,5 @@
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -68,6 +69,36 @@ class IxellesBuildingHeightStatsTest(unittest.TestCase):
         self.assertEqual(diagnostics["dtm_max_m"], 53.0)
         self.assertEqual(diagnostics["height_p50_m"], 11.0)
         self.assertEqual(diagnostics["identical_dsm_dtm_fraction"], 0.0)
+
+    def test_open_mosaic_preserves_values_with_extreme_float32_nodata(self):
+        import rasterio
+        from rasterio.transform import from_origin
+
+        nodata = np.float32(-3.4028234663852886e38)
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            paths = []
+            for i, (north, values) in enumerate(((2.0, [[60.0, 61.0], [62.0, 63.0]]), (4.0, [[70.0, 71.0], [72.0, 73.0]]))):
+                path = root / f"tile-{i}.tif"
+                with rasterio.open(
+                    path,
+                    "w",
+                    driver="GTiff",
+                    width=2,
+                    height=2,
+                    count=1,
+                    dtype="float32",
+                    transform=from_origin(0.0, north, 1.0, 1.0),
+                    nodata=float(nodata),
+                ) as dst:
+                    dst.write(np.asarray(values, dtype=np.float32), 1)
+                paths.append(path)
+            mosaic, _transform, out_nodata = derive.open_mosaic(paths)
+            self.assertEqual(mosaic.shape, (4, 2))
+            self.assertTrue(np.isnan(out_nodata))
+            self.assertAlmostEqual(float(np.nanmin(mosaic)), 60.0)
+            self.assertAlmostEqual(float(np.nanmax(mosaic)), 73.0)
+            self.assertGreater(float(np.nanmax(mosaic) - np.nanmin(mosaic)), 10.0)
 
     def test_realistic_mosaic_variation_passes_quality_gate(self):
         x = np.linspace(55.0, 62.0, 32)

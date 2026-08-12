@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "format": "grand-bruxelles-height-tile-plan-v1",
+  "source_crs": "EPSG:31370",
+  "materialized_cells": [
+    "bxl-e149000-n169000-s500",
+    "bxl-e149000-n169500-s500",
+    "bxl-e149500-n168500-s500",
+    "bxl-e149500-n169000-s500",
+    "bxl-e149500-n169500-s500"
+  ],
+  "bbox_epsg31370": [149000, 168500, 150000, 170000],
+  "expected_1km_tile_codes": ["149168", "149169"],
+  "official_sources": {
+    "dsm": {
+      "name": "Paradigm UrbIS Digital Surface Model 2021",
+      "dataset_id": "8c2d921e-6a53-11ed-bfb5-010101010000",
+      "atom_feed": "https://urbisdownload.datastore.brussels/atomfeed/8c2d921e-6a53-11ed-bfb5-010101010000-en.xml"
+    },
+    "dtm": {
+      "name": "Paradigm UrbIS Digital Terrain Model 2021",
+      "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
+      "atom_feed": "https://urbisdownload.datastore.brussels/atomfeed/1d7bd49d-fe83-4388-af85-6f5dc8ec7909-en.xml"
+    }
+  },
+  "height_method_target": "DSM minus DTM sampled inside official UrbIS building footprints",
+  "status": "tile_plan_ready_source_archives_not_yet_resolved",
+  "notes": "The five currently materialized Ixelles cells occupy only the 149168 and 149169 UrbIS kilometre raster tiles. This file does not claim that the archives have been downloaded or validated yet. The next step must resolve each code from the official Atom feeds, hash the exact archives, align DSM/DTM grids and derive per-building heights with quality metrics."
+}

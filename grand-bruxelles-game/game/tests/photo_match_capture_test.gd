@@ -4,6 +4,7 @@ const WIDTH := 1280
 const HEIGHT := 960
 const WARMUP_FRAMES := 90
 const MANIFEST_PATH := "res://data/qa/photo_match/manifest.json"
+const CAMERA_EVIDENCE_PATH := "res://data/qa/photo_match/bourse_camera_evidence.json"
 const OUTPUT_PATH := "res://artifacts/photo-match/bourse_2024_cc0_01.png"
 const REFERENCE_ID := "bourse_2024_cc0_01"
 
@@ -14,19 +15,33 @@ func _fail(message: String) -> void:
     push_error("PHOTO_MATCH_CAPTURE_FAIL: %s" % message)
     quit(1)
 
-func _read_manifest_reference() -> Dictionary:
-    if not FileAccess.file_exists(MANIFEST_PATH):
+func _read_dictionary(path: String) -> Dictionary:
+    if not FileAccess.file_exists(path):
         return {}
-    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(MANIFEST_PATH))
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
     if typeof(parsed) != TYPE_DICTIONARY:
         return {}
-    for raw_reference: Variant in (parsed as Dictionary).get("references", []):
+    return parsed as Dictionary
+
+func _read_manifest_reference() -> Dictionary:
+    var parsed := _read_dictionary(MANIFEST_PATH)
+    for raw_reference: Variant in parsed.get("references", []):
         if typeof(raw_reference) != TYPE_DICTIONARY:
             continue
         var reference := raw_reference as Dictionary
         if str(reference.get("id", "")) == REFERENCE_ID:
             return reference
     return {}
+
+func _read_camera_evidence() -> Dictionary:
+    var evidence := _read_dictionary(CAMERA_EVIDENCE_PATH)
+    if str(evidence.get("schema", "")) != "grand-bruxelles-bourse-camera-evidence-v1":
+        return {}
+    if str(evidence.get("reference_id", "")) != REFERENCE_ID:
+        return {}
+    if bool(evidence.get("runtime_approved", true)) or bool(evidence.get("realism_complete", true)):
+        return {}
+    return evidence
 
 func _vector3(raw: Variant) -> Vector3:
     if typeof(raw) != TYPE_ARRAY:
@@ -64,10 +79,14 @@ func _run() -> void:
     if reference.is_empty():
         _fail("reference %s is missing from manifest" % REFERENCE_ID)
         return
-    var viewpoint: Dictionary = reference.get("viewpoint", {})
-    var camera_transform: Dictionary = viewpoint.get("game_camera_transform", {})
+    var evidence := _read_camera_evidence()
+    if evidence.is_empty():
+        _fail("bounded Bourse camera evidence is missing, invalid or over-approved")
+        return
+    var candidate_policy: Dictionary = evidence.get("candidate_policy", {})
+    var camera_transform: Dictionary = candidate_policy.get("camera_transform", {})
     if camera_transform.is_empty():
-        _fail("reference has no game_camera_transform")
+        _fail("camera evidence has no candidate transform")
         return
 
     var packed := load("res://game/main.tscn") as PackedScene
@@ -102,8 +121,8 @@ func _run() -> void:
     camera.position = _vector3(camera_transform.get("position", []))
     camera.rotation_degrees = _vector3(camera_transform.get("rotation_degrees", []))
     camera.keep_aspect = Camera3D.KEEP_HEIGHT
-    var manifest_horizontal_fov := float(camera_transform.get("fov_degrees", 69.4))
-    var vertical_fov := _horizontal_to_vertical_fov(manifest_horizontal_fov, float(WIDTH) / float(HEIGHT))
+    var evidence_horizontal_fov := float(camera_transform.get("fov_degrees", -1.0))
+    var vertical_fov := _horizontal_to_vertical_fov(evidence_horizontal_fov, float(WIDTH) / float(HEIGHT))
     if vertical_fov <= 0.0:
         _fail("invalid horizontal FOV/aspect conversion")
         return
@@ -111,8 +130,8 @@ func _run() -> void:
     camera.current = true
     scene.add_child(camera)
     print(
-        "PHOTO_MATCH_CAMERA: horizontal_fov=%.4f, vertical_fov=%.4f, viewport=%dx%d" %
-        [manifest_horizontal_fov, vertical_fov, WIDTH, HEIGHT]
+        "PHOTO_MATCH_CAMERA: evidence=%s, horizontal_fov=%.4f, vertical_fov=%.4f, position=%s, rotation=%s, viewport=%dx%d" %
+        [CAMERA_EVIDENCE_PATH, evidence_horizontal_fov, vertical_fov, str(camera.position), str(camera.rotation_degrees), WIDTH, HEIGHT]
     )
 
     for _frame: int in range(WARMUP_FRAMES):

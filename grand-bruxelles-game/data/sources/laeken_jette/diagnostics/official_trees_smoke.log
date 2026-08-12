@@ -1,0 +1,30 @@
+Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
+
+LAEKEN_TERRAIN_READY: source=res://data/terrain/laeken_jette/phase1_dtm.game.json 360x620 valid=223200 holes=0 height_range=[-37.09, 24.27]m atomium_abs=52.58m
+LAEKEN_JETTE_ZONE_READY: {"buildings":9518,"street_axes":955,"street_surfaces":3572,"train_network":326,"tram_network":326}
+WARNING: LaekenBuildingHeightPass: height records missing or misaligned; preserving original building mesh
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _build_height_mesh (res://game/zones/laeken_jette/laeken_building_height_pass.gd:142)
+LAEKEN_REALISM_READY: axis_distance=5.85 trees=0 lamps=0 dashes=3
+LAEKEN_ATOMIUM_CORRIDOR_READY: axis_distance=5.85 trees=36 lamps=28 dashes=51
+LAEKEN_DTM_DRAPE_READY: roads=280848 buildings=754735 tram=50404 train=50404 terrain_y=[-36.68, 24.02]
+WARNING: LaekenOrthophotoPass: official orthophoto texture missing
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _apply (res://game/zones/laeken_jette/laeken_orthophoto_pass.gd:25)
+LAEKEN_BUILDING_VISUAL_READY: active=true ortho_roofs=false
+SCRIPT ERROR: Invalid call 'String' constructor: Point
+          at: _build_official_trees (res://game/zones/laeken_jette/laeken_official_trees.gd:211)
+          GDScript backtrace (most recent call first):
+              [0] _build_official_trees (res://game/zones/laeken_jette/laeken_official_trees.gd:211)
+WARNING: LaekenBuildingDSMMaterialBridge: source or DSM target missing
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _bridge (res://game/zones/laeken_jette/laeken_building_dsm_material_bridge.gd:23)
+ERROR: LAEKEN_OFFICIAL_TREES_FAIL: official tree population did not load
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _fail (res://game/tests/laeken_official_trees_smoke_test.gd:11)
+       [1] _run (res://game/tests/laeken_official_trees_smoke_test.gd:33)
+godot_exit_status=1

@@ -26,6 +26,16 @@ TRAM_PATH = ROOT / "data/urbis/laeken_jette/tram_network.game.json"
 TRAIN_PATH = ROOT / "data/urbis/laeken_jette/train_network.game.json"
 AUDIT_PATH = ROOT / "data/sources/laeken_jette/rail_layer_overlap_audit.json"
 COMPARE_PROPERTIES = ("INSPIRE_ID", "TYPE", "LVL", "LENGTH")
+STABLE_RESULT_KEYS = (
+    "tram_feature_count",
+    "train_feature_count",
+    "semantic_signature_match_count",
+    "distinct_tram_signatures",
+    "distinct_train_signatures",
+    "tram_types",
+    "train_types",
+    "collections_semantically_identical",
+)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -34,10 +44,6 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return value
-
-
-def normalized_geometry(geometry: Any) -> str:
-    return json.dumps(geometry, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def feature_signature(feature: dict[str, Any]) -> str:
@@ -133,12 +139,13 @@ def build_audit() -> dict[str, Any]:
 
 
 def stable_projection(audit: dict[str, Any]) -> dict[str, Any]:
-    """Fields required to remain equal to the committed fixture."""
+    """Compare meaning, not JSON serialization details used only for diagnostics."""
+    result = audit.get("result") or {}
     return {
         "schema": audit.get("schema"),
         "source": audit.get("source"),
         "comparison": audit.get("comparison"),
-        "result": audit.get("result"),
+        "result": {key: result.get(key) for key in STABLE_RESULT_KEYS},
         "runtime_policy": audit.get("runtime_policy"),
     }
 

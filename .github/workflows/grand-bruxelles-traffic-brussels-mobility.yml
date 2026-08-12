@@ -37,19 +37,19 @@ jobs:
             'https://data.mobility.brussels/traffic/api/counts/?request=devices&outputFormat=json' \
             -o /tmp/bm-traffic-devices.json
           curl --fail --location --retry 3 --compressed \
-            'https://data.mobility.brussels/traffic/api/counts/?request=live&interval=60&includeLanes=false&singleValue=true' \
+            'https://data.mobility.brussels/traffic/api/counts/?request=live&interval=1&includeLanes=false&singleValue=true' \
             -o /tmp/bm-traffic-live.json
           curl --fail --location --retry 3 --compressed \
             'https://data.mobility.brussels/geoserver/bm_traffic/wfs?service=wfs&version=1.1.0&request=GetFeature&typeName=bm_traffic:traffic_live_geom&outputFormat=json&srsName=EPSG:31370' \
             -o /tmp/bm-traffic-geometry.json
           python3 - <<'PY'
           import json
-          paths = ['/tmp/bm-traffic-devices.json', '/tmp/bm-traffic-live.json', '/tmp/bm-traffic-geometry.json']
-          for p in paths:
-              value = json.load(open(p, encoding='utf-8'))
-              print('\n===', p, type(value).__name__, len(value) if hasattr(value, '__len__') else 'n/a', '===')
-              text = json.dumps(value, ensure_ascii=False, indent=2)
-              print(text[:6000])
+          devices = json.load(open('/tmp/bm-traffic-devices.json', encoding='utf-8'))
+          live = json.load(open('/tmp/bm-traffic-live.json', encoding='utf-8'))
+          geometry = json.load(open('/tmp/bm-traffic-geometry.json', encoding='utf-8'))
+          print('devices_features=', len(devices.get('features', [])))
+          print('live_traverses=', len(live.get('data', {})))
+          print('geometry_features=', len(geometry.get('features', [])))
           PY
 
       - name: Build official Brussels Mobility traffic snapshot
@@ -60,9 +60,9 @@ jobs:
             --geometry-file /tmp/bm-traffic-geometry.json \
             --output grand-bruxelles-game/data/traffic/brussels_mobility_snapshot.json \
             --min-geometry-sensors 5 \
-            --min-measured-sensors 1
+            --min-fresh-measured-sensors 1
 
-      - name: Validate provenance and coordinate contract
+      - name: Validate provenance, freshness and coordinate contract
         run: |
           python3 - <<'PY'
           import json
@@ -72,13 +72,17 @@ jobs:
           assert data['format'] == 'grand-bruxelles-brussels-mobility-traffic-v1'
           assert data['source']['license'] == 'CC0-1.0'
           assert data['source']['geometry_crs'] == 'EPSG:31370'
+          assert data['source']['measurement_interval'] == '1m'
           assert data['coordinate_system']['source_crs'] == 'EPSG:31370'
           assert len(data['raw_sha256']['devices']) == 64
           assert len(data['raw_sha256']['live']) == 64
           assert len(data['raw_sha256']['geometry']) == 64
           assert data['stats']['geometry_sensor_count'] >= 5
-          assert data['stats']['measured_sensor_count'] >= 1
-          assert data['sensors']
+          assert data['stats']['fresh_measured_sensor_count'] >= 1
+          fresh = [s for s in data['sensors'] if s['measurement'].get('fresh')]
+          assert fresh
+          assert all(s['measurement'].get('duration_minutes') == 1.0 for s in fresh)
+          assert all('speed' not in s['measurement'] for s in data['sensors'])
           print('BRUSSELS_MOBILITY_TRAFFIC_PROVENANCE_OK', data['stats'])
           PY
 

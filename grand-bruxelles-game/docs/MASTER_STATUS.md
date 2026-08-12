@@ -6,180 +6,139 @@ Last coordinated review: 2026-08-12 Europe/Brussels
 
 ## Current main baseline
 
-- `main` used by the Bourse LoD2 cycle: `a52114ba1e396e5c7f29694a0f86d248a00c196b` (`qa: gate Bourse hero runtime approvals on evidence`), merged as #84 after the #83 footprint correction.
-- Clean integrations completed since the previous master snapshot:
-  - #74 exact live civilian routine recovery after incidents;
-  - #75 versioned Midi→Centre mission state snapshot contract;
-  - #76 versioned atomic save store with integrity/recovery;
-  - #77 mission save coordinator binding mission state to the save store;
-  - #79 restore civilians to the current live daily schedule after incidents, including schedule-transition recovery.
-- Open current-main gameplay handoff: #80 `integration/global-save-transaction-current`.
-- Open long-lived specialist drafts: #2 Laeken/Jette and #11 rest of Brussels. Both are extraction-only.
-- Web export is healthy. Public GitHub Pages remains an external repository-configuration issue, not a Godot export blocker.
+- Current integrated `main`: `b3d7dc1587fdad3ff5e0e34adbd781fe2738bad1` (`web: publish playable Grand Bruxelles build [skip ci]`) after merged PR #93.
+- Recent clean integrations now include:
+  - #82 hardened transactional multi-domain save coordinator;
+  - #83 required Bourse hero footprint preserved in the 140-building playable budget;
+  - #84 machine-readable Bourse hero evidence/runtime-approval contract;
+  - #86 live Ixelles UrbIS 3D `BuildingFaces` schema profiling;
+  - #87 authoritative Bourse UrbIS 3D LoD2 silhouette, 645 semantic faces / 1,818 triangles / 40.1553 m source-backed vertical extent;
+  - #89 deterministic civilian walking-pace variation consumed by runtime;
+  - #92 mathematically correct horizontal-to-vertical Bourse photo-match FOV conversion;
+  - #93 contextual Bourse streetscape detail zone enabling the existing sidewalk/facade-context pass around Place de la Bourse.
+- Open long-lived specialist drafts: #2 Laeken/Jette and #11 rest of Brussels. Both are extraction-only and currently non-mergeable.
+- Web export and automatic publication are healthy.
 
 ## DAY-1 MATURITY CHECK
 
 | Foundation | State | Day-1 direction |
 |---|---|---|
-| Repository structure | AMBER | Domain folders/workflows are usable, but branch inventory and unrelated repository-root history remain large. Keep integration path-scoped. |
-| Branch discipline | RED/AMBER | Small integration lots are strongly gated and working. Specialist branches continue to diverge too fast and must not be merge units. |
-| Authoritative data pipeline | STRONG FOUNDATION | UrbIS-first discovery, source hashing, EPSG validation, DSM/DTM evidence and official Ixelles 3D proof exist. Per-building approval remains pending. |
-| Coordinate system integrity | STABLE FOUNDATION | EPSG:31370 / Belgian Lambert 72 remains authoritative source truth; local Godot metres derive from it. |
-| Godot project health | STRONG FOUNDATION | Godot 4.7.1 main scene, canonical traffic, PNJ runtime, rendered checks and Web export function in CI. |
-| Automated tests | STRONG FOUNDATION | General, domain, PNJ, traffic, branch-hygiene, asset-provenance, save, rendered-performance and photo-match gates are active. City-scale stress remains missing. |
-| Web preview | BUILD GREEN / PUBLICATION SETTING BLOCKER | Build works; initial Pages activation is external configuration. |
-| Performance baseline | AMBER | Deterministic rendered regression exists, but real GPU budgets, streaming/LOD and city-scale load are not production-proven. |
-| Asset/license provenance | STABLE FOUNDATION | Existing binary assets are registered and unregistered binary assets are rejected in CI. The art library is still mostly placeholder-level. |
-| First playable vertical slice | PLAYABLE PROTOTYPE | Midi→Centre runs with traffic, PNJ and a first mission. Bourse/Centre remains visibly generic and fails realism completion. |
-| Branch integration health | RED/AMBER | Current-main extraction lots integrate well; specialist production still outruns integration truth. |
+| Repository structure | AMBER | Domain folders/workflows are usable; branch inventory and repository-root history remain large. |
+| Branch discipline | RED/AMBER | New integration lots are small/current-main and strongly gated. Specialist branches remain too large and divergent. |
+| Authoritative data pipeline | STRONG FOUNDATION | UrbIS-first discovery, source hashing, EPSG validation, DSM/DTM evidence, official UrbIS 3D hero extraction and Ixelles 3D schema proof exist. |
+| Coordinate integrity | STABLE FOUNDATION | EPSG:31370 / Belgian Lambert 72 remains source truth; local Godot metres derive from it. |
+| Godot project health | STRONG FOUNDATION | Godot 4.7.1 main scene, traffic, PNJ, saves, rendered QA and Web export function in CI. |
+| Automated tests | STRONG FOUNDATION | General, domain, PNJ, traffic, save, branch-hygiene, provenance, performance, photo-match and Bourse detail gates are active. City-scale stress remains missing. |
+| Web preview | GREEN | Automatic playable Web publication runs after integrations. |
+| Performance baseline | AMBER | Deterministic regression exists; real GPU, LOD/streaming and whole-city budgets are not proven. |
+| Asset/license provenance | STABLE FOUNDATION | Binary asset provenance is gated; many visible assets remain prototype quality. |
+| First playable vertical slice | PLAYABLE PROTOTYPE | Midi→Centre is playable with traffic, PNJ, mission/save foundations and a source-backed Bourse hero, but Centre realism is not complete. |
+| Branch integration health | RED/AMBER | Small PRs integrate well; specialist production still outruns clean extraction. |
 
 ## Branch hygiene alerts
 
 ### PR #2 — `zone-laeken-jette`
-- draft, base `main`, mergeable at GitHub metadata level but structurally unsafe as a merge unit;
-- measured against current `main`: **499 ahead / 155 behind**;
-- about 499 commits in the specialist history;
-- contains valuable Atomium/Heysel/Palais 5/Jette data, DTM/DSM, trees, photo-match and standalone zone work, but too much unrelated specialist history to integrate safely;
-- **never merge/rebase wholesale**. Extract one source-backed hero/data/runtime lot onto a fresh current-main branch.
+- draft, base `main`, currently non-mergeable;
+- 519 commits / 209 changed files in the PR snapshot;
+- valuable Atomium/Heysel/Palais 5/Jette geometry, terrain, photo-match and provenance work;
+- **workspace/evidence store only**: never merge or rebase wholesale. Extract one source-backed hero/data/runtime lot onto a fresh current-main branch.
 
 ### PR #11 — `zone-reste-bruxelles-clean`
-- draft, base `main`, mergeable at GitHub metadata level but structurally unsafe as a merge unit;
-- measured against current `main`: **112 ahead / 125 behind**;
-- branch has continued broad mapping despite the Day-1 freeze;
-- valuable Ixelles/terrain/municipality evidence remains useful as a source store;
-- **do not add broad geography on this base**. Extract only small current-main Ixelles/cell contracts.
-
-### PR #80 — `integration/global-save-transaction-current`
-- clean small current-main gameplay lot; no geography, PNJ/police, traffic, `main.tscn` or `project.godot` ownership;
-- latest head `d29c328caf8b6ea5f827fa2733aff1e5abac646f`;
-- Branch Hygiene, Game CI, general tests and Photo Match are green on the latest head;
-- dedicated Game State Save gate is currently **RED**: `GAME_STATE_SAVE_COORDINATOR_FAIL: transaction rollback failed`;
-- Performance Baseline was still running at this review;
-- **do not merge until rollback is fixed and every gate is green**.
+- draft, base `main`, currently non-mergeable;
+- 112 commits / 502 changed files in the PR snapshot;
+- useful Ixelles/terrain/municipality evidence, but far too broad for an integration unit;
+- **workspace/evidence store only**: do not resume broad Brussels expansion on this base.
 
 ## 1. Main / integration
 
 Stable enough to build on:
 - canonical traffic manager and vehicle runtime;
-- official Brussels Mobility density evidence;
-- PNJ population/crossing runtime;
-- police de-escalation, custody and foot-patrol runtime foundations;
-- civilian routine recovery plus live daily-schedule resumption;
-- mission state snapshots, atomic versioned save store and mission-save round trip;
+- PNJ population/crossing/recovery foundations;
+- police de-escalation/custody/foot-patrol foundations;
+- mission state + atomic/versioned saves + transactional multi-domain coordinator;
 - branch quarantine/current-main gates;
 - asset provenance gate;
-- deterministic rendered performance/visual regression;
-- Bourse/Atomium/Miroir photo-match registry and serious-mismatch evidence gate;
-- official Ixelles UrbIS 3D second-source discovery.
+- deterministic rendered performance and photo-match QA;
+- official UrbIS 3D Bourse hero extraction/runtime path;
+- official Ixelles UrbIS 3D schema evidence.
 
-Highest-priority resume candidate is #80 because it is a clean interrupted current-main handoff. It must remain blocked from merge until its transaction rollback regression is green. After this small save foundation lot, the highest-value visual priority is Bourse.
+The next integration priority is visual/source truth rather than another generic framework layer.
 
 ## 2. Centre / Bourse
 
-The current compact Midi→Centre runtime is sufficient for a prototype but not a faithful Centre reconstruction. PR #83 preserves the real Bourse footprint inside the fixed 140-building runtime budget. The current small LoD2 integration lot replaces its 6.3 m flat OSM fallback with 645 official UrbIS 3D semantic faces, including the recognizable dome and stepped roof mass. Deterministic geometry and capture evidence now close the missing-silhouette blocker, while frontage and street proportions remain visibly wrong.
+Completed evidence/runtime improvements:
+1. real Bourse footprint retained in the playable compact slice (#83);
+2. component-level runtime-approval evidence gate (#84);
+3. official UrbIS 3D LoD2 hero silhouette/roof/height in runtime (#87);
+4. corrected photo-match FOV axis (#92);
+5. contextual sidewalks/facade-window/shopfront detail enabled around Bourse (#93).
 
-The current Centre strategy remains source-backed hero correction:
-1. keep the authoritative Bourse footprint/LoD2 silhouette and provenance contract green;
-2. validate the forecourt, street and sidewalk geometry;
-3. replace generic frontage massing with original modular architecture informed by lawful references;
-4. refine the provisional camera side-by-side with the CC0 benchmark;
-5. score the fixed photo-match before adding micro-detail.
+Open photo-match blockers remain:
+- surrounding frontage/building rhythm is still generic/provisional;
+- forecourt, street width and curb/sidewalk proportions are not yet authoritatively validated;
+- Bourse facade articulation, columns/openings and materials remain generic;
+- neighboring massing/materials/clutter still need Brussels-specific evidence;
+- final camera pose and eleven-dimension scoring remain pending.
 
-Do not broaden Centre coverage until this benchmark visibly improves.
+**Precise next Centre lot:** measure/validate immediate Place de la Bourse forecourt + street + sidewalk geometry from authoritative UrbIS/orthophoto evidence, correct one major mismatch only, then rerender the exact fixed photo-match viewpoint. Do not broaden Centre coverage first.
 
 ## 3. Laeken + Jette
 
-PR #2 is now a source/evidence store only. Continue only work that produces an extractable hero result. The next integration should be one tiny current-main extraction containing source/provenance + one hero component + deterministic test/capture, preferably Atomium ground-oblique or Palais 5. Avoid importing its Web pipeline, workflows or broad branch history.
+PR #2 remains extraction-only. Next integration should be one tiny current-main hero package (Atomium ground-oblique or Palais 5) containing provenance, one bounded source-backed component, deterministic test and repeatable capture. Do not import its standalone Web pipeline or branch history.
 
 ## 4. Rest of Brussels / Ixelles
 
-The broad specialist branch must no longer drive sequencing.
+#86 proved the live official `BuildingFaces` schema without inventing semantics. Next safe lot:
+- use observed stable identifiers or explicit spatial matching to compare one Ixelles cell against corrected DSM-DTM building-height candidates;
+- derive ground/roof evidence, uncertainty and outliers;
+- approve only proven heights; uncertain cases remain `runtime_approved=false`.
 
-Next safe current-main lot:
-- spatially match Ixelles building candidates to official UrbIS 3D `BuildingFaces`;
-- derive ground/roof evidence, uncertainty and outlier distributions;
-- approve only proven building heights; all uncertain cases remain `runtime_approved=false`.
-
-Then generate/validate the 2 m DTM terrain package for the same five cells, quantifying seams, normals, collisions, render cost and streaming cost. Keep the 1 m terrain only as a justified hero/photo-match fallback.
+Then validate the 2 m DTM terrain candidate for the same cells: seams, normals, collisions, visual quality, render and streaming cost. Keep 1 m only as justified hero/photo-match fallback.
 
 ## 5. PNJ / police / civilians
 
-Completed foundation now includes:
-- crowd response/memory;
-- police response, de-escalation and custody;
-- foot-patrol planning and live runtime consumption;
-- civilian gradual recovery;
-- exact walking/ambient/transit routine recovery;
-- live daily-schedule recovery after incidents, including schedule transitions (#79).
-
-Next PNJ realism lots after the current save handoff:
-- varied pedestrian walk speeds and curb dwell;
-- crowd spacing/avoidance and deterministic deadlock recovery;
-- low-synchronization ambient timing;
-- visual consumption of patrol look bias/animation metadata without inventing art assumptions.
+Stable foundation includes exact routine recovery, daily-schedule recovery and deterministic civilian pace variation consumed by runtime. Next realism lot: bounded curb dwell/re-evaluation at crossings without weakening traffic safe-gap ownership, then crowd spacing/avoidance and deadlock recovery.
 
 ## 6. Vehicles / traffic
 
-Traffic foundation includes cars, scooters/motorcycles, routing, crossings, priority/right-of-way, time-of-day density, parking, deliveries, collision/wreck metadata and tow lifecycle plus official Brussels Mobility density evidence.
+Core cars/scooters/routing/crossings/priority/density/parking/collision metadata are foundations. Next safe lot remains offline corridor/time-bucket calibration against official Brussels Mobility evidence, then separate STIB/intersection/parking-garage/accident-recovery lots.
 
-Next safe traffic lot: offline corridor/time-bucket evaluation against official Brussels Mobility evidence. After calibration evidence exists, proceed in separate small lots for STIB road interaction, intersection behavior, parking/garage behavior and accident/recovery depth. Do not mix these with PNJ or geographic ownership.
+## 7. Gameplay / economy / interiors / environment
 
-## 7. Gameplay / missions / economy / interiors / environment
+Stable foundations: first Midi→Centre mission, mission state, atomic save store, mission-save coordinator and transactional multi-domain game-state coordinator.
 
-Stable foundations:
-- first Midi→Centre driving mission;
-- versioned mission state export/restore;
-- atomic versioned save store;
-- mission save coordinator.
+Still prototype/missing: save UI/autosave/checkpoint policy, richer mission chains, economy, shops, activities, garages, interiors, weather/day-night, Brussels lighting, spatial audio, UI polish, broad collision coverage and city-wide streaming/LOD.
 
-Current interrupted foundation:
-- #80 transactional multi-domain game-state save coordinator; rollback regression red.
-
-Still prototype or missing:
-- save UI/autosave/checkpoint policy and real scene wiring;
-- multiple mission chains and world-state consequences;
-- economy, shops, activities and garages/repair gameplay;
-- interiors framework;
-- weather/day-night and Brussels-specific lighting;
-- spatial audio/ambient soundscape;
-- UI polish;
-- collision coverage;
-- city-wide LOD/streaming and stress validation.
-
-After the save coordinator is stable, visual/geographic blockers take priority over adding more gameplay frameworks. Then preferred playable sequence: weather/day-night/lighting → spatial audio → shops/interiors framework → richer activities/garages.
+Do not let these systems displace the current Bourse visual/source blocker.
 
 ## 8. Direction / Assistant
 
-1. **Discuss with user now:** no gameplay decision blocks progress. GitHub Pages activation is optional only.
-2. **Recommendation:** finish/fix the tiny #80 save handoff, then stop adding foundation layers and obtain a visible Bourse realism win before broader expansion.
-3. **Can continue autonomously:** #80 diagnosis/fix workflow, Bourse authoritative geometry audit, Ixelles 3D comparison, one Laeken hero extraction, traffic calibration, PNJ movement realism, cell-readiness tooling.
-4. **Single biggest risk:** specialist production outpacing integration truth. Day-1 branches at 499-ahead and 112-ahead are already expensive evidence stores rather than maintainable development branches.
-5. **Strategic idea worth testing:** require every runtime geographic cell/hero anchor to pass a promotion machine: `candidate → source_verified → runtime_validated → photo_matched → runtime_approved`; expansion consumes only approved or explicitly provisional cells.
-6. **Concrete realism action:** replace the generic Palais de la Bourse silhouette/roofline and immediate frontage/street massing using authoritative data, then rerun the exact fixed reference capture.
-7. **Concrete organization action:** enforce a hard `workspace-only` state for quarantined specialist branches; new geographic production starts from current `main` and extracts only one coherent cell/hero lot.
-8. **Maturity:** prototype = visible art, broad gameplay, interiors/economy/weather/audio, city streaming and most Brussels-wide coverage. Stable foundation = coordinates, source pipeline, CI, canonical traffic, PNJ core, save primitives, provenance, performance/photo-match and extraction workflow. Production-ready = nothing yet.
+1. **Discuss with user now:** no gameplay decision blocks progress.
+2. **Recommendation:** hold the expansion freeze and convert the Bourse photo-match from monument-only correctness to correct immediate urban proportions.
+3. **Can continue autonomously:** Bourse forecourt/street evidence, Ixelles per-building validation, one Laeken hero extraction, PNJ curb dwell, traffic calibration and cell-readiness tooling.
+4. **Single biggest risk:** long-lived specialist workspaces accumulating hundreds of commits/files faster than current-main extraction can absorb them.
+5. **Strategic idea worth testing:** enforce geographic promotion `candidate → source_verified → runtime_validated → photo_matched → runtime_approved`; only promoted cells/heroes count as completed coverage.
+6. **Concrete realism action:** validate Place de la Bourse forecourt, carriageway and sidewalk dimensions from authoritative geometry, correct the largest mismatch, then rerender the fixed reference.
+7. **Concrete organization action:** treat quarantined specialist branches as immutable evidence stores for integration purposes; every new deliverable starts from current `main` and owns one narrow component/cell.
+8. **Maturity:** prototype = visible art, broad gameplay depth, interiors/economy/weather/audio, streaming and most city coverage. Stable = coordinates, source pipeline, CI, traffic core, PNJ core, save core, provenance, performance/photo-match and Bourse LoD2. Production-ready = nothing yet.
 
 ## Living master backlog
 
-1. Fix #80 transaction rollback regression; merge only when all gates are green and branch is 0 behind `main`.
-2. Bourse source-backed silhouette/roof/frontage/street geometry correction + fixed photo-match comparison.
-3. Ixelles per-building UrbIS 3D comparison → confidence/outlier gate → runtime height approval only for proven cases.
-4. Ixelles 2 m terrain runtime package: seams, normals, collisions, streaming/render cost.
-5. Extract one source-backed Palais 5/Atomium hero package from Laeken onto current main.
-6. PNJ movement/crowd realism: walk-speed variance, curb dwell, spacing, deadlock recovery.
-7. Traffic official calibration evaluation, then STIB/intersection/parking/garage/accident lots.
+1. Bourse authoritative forecourt/street/sidewalk geometry + exact photo-match rerender.
+2. Bourse frontage/façade articulation/materials after geometry proportions are validated.
+3. Ixelles per-building UrbIS 3D cross-check → confidence/outlier gate → selective runtime height approval.
+4. Ixelles 2 m terrain runtime validation: seams, normals, collisions, streaming/render cost.
+5. Extract one current-main Atomium/Palais 5 hero package from Laeken evidence.
+6. PNJ curb dwell/re-evaluation, crowd spacing and deadlock recovery.
+7. Traffic official calibration, then STIB/intersection/parking-garage/accident lots.
 8. Cell-readiness promotion state machine and hero-anchor coverage contract.
 9. Weather/day-night + Brussels lighting and spatial audio.
 10. Shops/activities/interiors/garages framework; Brussels-wide expansion only after repeatable cell promotion.
 
 ## Exact handoff
 
-- Current `main`: `f1797ee0d86177ace2bc0b753ec31f405d3394b8`, Web publication immediately after merged #79.
-- #79 is complete and merged: civilians now recover to the current live daily schedule after incidents, including schedule-transition cases.
-- Open clean handoff: PR #80, branch `integration/global-save-transaction-current`, latest head `d29c328caf8b6ea5f827fa2733aff1e5abac646f`.
-- #80 files: `.github/workflows/grand-bruxelles-game-state-save.yml`, `game/scripts/game_state_save_coordinator.gd`, `game/tests/game_state_save_coordinator_test.gd`.
-- #80 current failure: dedicated Game State Save workflow, transactional test, `GAME_STATE_SAVE_COORDINATOR_FAIL: transaction rollback failed`; do not merge.
-- #80 other observed gates on this head: Branch Hygiene GREEN, Game CI GREEN, general tests GREEN, Photo Match GREEN; Performance still running at review time.
-- Open quarantined specialists: #2 (`499 ahead / 155 behind`) and #11 (`112 ahead / 125 behind`); both extraction-only.
-- Current `MASTER_STATUS.md` on `main` was stale before this coordination pass; this update reconstructs it from exact `main`.
-- Precise next coordinator action: finish/fix #80 rollback contract on its small current-main gameplay branch; if its branch becomes stale, recreate the same three-file lot from the new exact `main` rather than forcing a merge. Once green and integrated, immediately resume Bourse source-backed geometry/photo-match as the main visual priority.
+- Current `main`: `b3d7dc1587fdad3ff5e0e34adbd781fe2738bad1` after automatic Web publication following merged #93.
+- #93 complete: Bourse now receives the existing contextual sidewalk/facade detail pass inside a bounded 180 m zone; dedicated Bourse Context Detail, Branch Hygiene, Game CI, general tests, Photo Match QA and Performance Baseline were green before merge.
+- Bourse `realism_complete=false`; the remaining blocker is authoritative surrounding frontage/forecourt/street proportions plus final camera alignment.
+- Open quarantined specialists: #2 and #11, both draft/non-mergeable/extraction-only.
+- Precise next coordinator action: create one small current-main Centre branch that records authoritative forecourt/street/sidewalk evidence around the Bourse, adds a deterministic regression for the selected dimension, changes only the proven geometry, and reruns the exact photo-match viewpoint before any broader expansion.

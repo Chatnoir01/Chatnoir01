@@ -1,0 +1,26 @@
+name: Grand Bruxelles Bourse Geotagged Camera Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-geotagged-camera.yml"
+      - "grand-bruxelles-game/data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json"
+      - "grand-bruxelles-game/tests/test_bourse_geotagged_camera_evidence.py"
+  push:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-geotagged-camera.yml"
+      - "grand-bruxelles-game/data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json"
+      - "grand-bruxelles-game/tests/test_bourse_geotagged_camera_evidence.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate geotagged Bourse camera evidence
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_bourse_geotagged_camera_evidence

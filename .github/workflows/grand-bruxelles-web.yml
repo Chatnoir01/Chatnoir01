@@ -73,6 +73,27 @@ jobs:
           test -f "$WEB_DIR/index.js"
           du -h "$WEB_DIR"/*
 
+      - name: Wire direct Bourse test spawn
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("grand-bruxelles-game/web-preview/index.html")
+          text = path.read_text(encoding="utf-8")
+          needle = "const GODOT_THREADS_ENABLED = false;"
+          injection = """const DIRECT_SPAWN = new URLSearchParams(window.location.search).get('spawn');
+          if (DIRECT_SPAWN === 'bourse') {
+          \tGODOT_CONFIG.args = ['--', 'spawn=bourse'];
+          }
+          
+          """
+          if needle not in text:
+              raise SystemExit("Godot Web template marker missing")
+          text = text.replace(needle, injection + needle, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+          grep -F "GODOT_CONFIG.args = ['--', 'spawn=bourse'];" grand-bruxelles-game/web-preview/index.html
+
       - name: Verify Web files are servable
         run: |
           python3 -m http.server 8765 --directory grand-bruxelles-game/web-preview >/tmp/web-server.log 2>&1 &

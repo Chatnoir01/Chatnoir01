@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -75,6 +76,32 @@ def parse_osm_stadium(xml_bytes: bytes) -> tuple[Polygon, dict[str, Any]]:
     return polygon, metadata
 
 
+def oriented_rectangle_metrics(geometry: Any) -> dict[str, float] | None:
+    if geometry is None or geometry.is_empty:
+        return None
+    rectangle = geometry.minimum_rotated_rectangle
+    if rectangle.is_empty or not hasattr(rectangle, "exterior"):
+        return None
+    coordinates = list(rectangle.exterior.coords)
+    if len(coordinates) < 5:
+        return None
+    edges: list[tuple[float, float, float]] = []
+    for index in range(4):
+        x0, y0 = coordinates[index]
+        x1, y1 = coordinates[index + 1]
+        dx = float(x1 - x0)
+        dy = float(y1 - y0)
+        edges.append((math.hypot(dx, dy), dx, dy))
+    longest = max(edges, key=lambda edge: edge[0])
+    shortest = min(edges, key=lambda edge: edge[0])
+    return {
+        "length_m": longest[0],
+        "width_m": shortest[0],
+        "long_axis_angle_deg_lambert": math.degrees(math.atan2(longest[2], longest[1])) % 180.0,
+        "rectangle_area_m2": float(rectangle.area),
+    }
+
+
 def build_overlap_audit(
     feature_collection: dict[str, Any], stadium_polygon: Polygon, osm_metadata: dict[str, Any]
 ) -> dict[str, Any]:
@@ -111,6 +138,7 @@ def build_overlap_audit(
     hits.sort(key=lambda item: (-item["intersection_area_m2"], item["feature_index"]))
     clipped_union = unary_union(clipped_geometries) if clipped_geometries else None
     full_union = unary_union(hit_geometries) if hit_geometries else None
+    full_union_oriented = oriented_rectangle_metrics(full_union)
     return {
         "status": "osm_semantic_envelope_vs_urbis_geometry_evidence_only",
         "crs": CRS,
@@ -133,6 +161,11 @@ def build_overlap_audit(
         "full_intersecting_urbis_union_centroid_lambert72": (
             [round(float(full_union.centroid.x), 3), round(float(full_union.centroid.y), 3)]
             if full_union is not None and not full_union.is_empty
+            else None
+        ),
+        "full_intersecting_urbis_union_oriented_rectangle": (
+            {key: round(float(value), 3) for key, value in full_union_oriented.items()}
+            if full_union_oriented is not None
             else None
         ),
         "decision_rule": (

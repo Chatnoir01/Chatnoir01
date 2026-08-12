@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "zone": "laeken_jette",
   "status": "open",
   "policy": "Only discrepancies supported by current source/provenance records are tracked here. Do not close an item from visual intuition alone; require a matching deterministic capture plus authoritative geometry or lawful reference evidence.",
@@ -37,8 +37,8 @@
       "severity": "high",
       "category": "capture_missing",
       "status": "open",
-      "evidence": "reference is registered but deterministic camera and matching in-game screenshot are not yet recorded",
-      "action": "Select a deterministic ground-level camera constrained by official terrain/street geometry and produce the matching 1280x720 capture."
+      "evidence": "Wikimedia Commons publishes the camera location at 50.897467 N, 4.339306 E and photo_match_views.json now records the transformed EPSG:31370/project coordinates; official DTM eye elevation and the matching in-game screenshot are still missing",
+      "action": "Sample official DTM elevation for the source-published camera coordinate, place the benchmark eye at terrain + 1.7 m, target the authoritative Atomium anchor, then produce and compare the deterministic 1280x720 capture before promotion."
     },
     {
       "id": "LJ-PM-005",

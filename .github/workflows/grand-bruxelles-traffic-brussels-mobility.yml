@@ -30,9 +30,31 @@ jobs:
         run: |
           python3 grand-bruxelles-game/tools/test_build_brussels_mobility_traffic_snapshot.py
 
-      - name: Fetch official Brussels Mobility traffic snapshot
+      - name: Download official Brussels Mobility sources
+        run: |
+          set -euxo pipefail
+          curl --fail --location --retry 3 --compressed \
+            'https://data.mobility.brussels/traffic/api/counts/?request=devices&outputFormat=json' \
+            -o /tmp/bm-traffic-devices.json
+          curl --fail --location --retry 3 --compressed \
+            'https://data.mobility.brussels/traffic/api/counts/?request=live&interval=60&includeLanes=false&singleValue=true' \
+            -o /tmp/bm-traffic-live.json
+          curl --fail --location --retry 3 --compressed \
+            'https://data.mobility.brussels/geoserver/bm_traffic/wfs?service=wfs&version=1.1.0&request=GetFeature&typeName=bm_traffic:traffic_live_geom&outputFormat=json&srsName=EPSG:31370' \
+            -o /tmp/bm-traffic-geometry.json
+          python3 - <<'PY'
+          import json
+          for p in ['/tmp/bm-traffic-devices.json', '/tmp/bm-traffic-live.json', '/tmp/bm-traffic-geometry.json']:
+              value = json.load(open(p, encoding='utf-8'))
+              print(p, type(value).__name__, len(value) if hasattr(value, '__len__') else 'n/a')
+          PY
+
+      - name: Build official Brussels Mobility traffic snapshot
         run: |
           python3 grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py \
+            --devices-file /tmp/bm-traffic-devices.json \
+            --live-file /tmp/bm-traffic-live.json \
+            --geometry-file /tmp/bm-traffic-geometry.json \
             --output grand-bruxelles-game/data/traffic/brussels_mobility_snapshot.json \
             --min-geometry-sensors 5 \
             --min-measured-sensors 1

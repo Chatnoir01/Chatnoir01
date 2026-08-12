@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_jette_zone.gd" id="1_zone"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_realism_pass.gd" id="2_realism"]
@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_tree_canopy_refinement.gd" id="11_tree_refine"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_tree_canopy_sync.gd" id="12_tree_sync"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_facade_detail_pass.gd" id="13_facade_detail"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_source_truth_cleanup.gd" id="14_source_cleanup"]
 
 [node name="LaekenJetteZone" type="Node3D"]
 script = ExtResource("1_zone")
@@ -52,3 +53,6 @@ script = ExtResource("11_tree_refine")
 
 [node name="TreeCanopySync" type="Node" parent="."]
 script = ExtResource("12_tree_sync")
+
+[node name="SourceTruthCleanup" type="Node" parent="."]
+script = ExtResource("14_source_cleanup")

@@ -2,8 +2,8 @@ extends SceneTree
 
 const SCENE_PATH := "res://game/zones/laeken_jette/laeken_playtest.tscn"
 const CANDIDATE_PATH := "res://data/reference/laeken_jette/heysel_stadium_camera_candidates.json"
-const OUTPUT_92M := "res://heysel_from_atomium_92m_v1.png"
-const OUTPUT_36M := "res://heysel_from_atomium_36m_v1.png"
+const OUTPUT_92M := "res://heysel_from_atomium_92m_v2.png"
+const OUTPUT_36M := "res://heysel_from_atomium_36m_v2.png"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -101,7 +101,7 @@ func _run() -> void:
         quit(1)
         return
 
-    print("HEYSEL_CAMERA_CAPTURE_OK: rendered 92m and 36m provisional comparison views")
+    print("HEYSEL_CAMERA_CAPTURE_OK: rendered v2 92m and 36m provisional comparison views")
     scene.queue_free()
     await process_frame
     quit(0)

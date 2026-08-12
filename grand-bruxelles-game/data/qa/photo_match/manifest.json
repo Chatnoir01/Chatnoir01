@@ -90,11 +90,11 @@
         "camera_notes": "Wikimedia Commons publishes camera location 50.897467 N, 4.339306 E. Treat this as source-provided metadata, not survey-grade precision. Exact lens focal length, yaw, pitch and crop remain unresolved."
       },
       "viewpoint": {
-        "description": "Deterministic benchmark derived from the specialist Laeken/Jette evidence. Project-local camera X/Z is tied to the source-published Wikimedia coordinate transformed to EPSG:31370; vertical placement is tied to official DTM evidence on the specialist branch. Capture and final orientation remain provisional.",
+        "description": "Evidence-bounded benchmark extracted from specialist Laeken/Jette evidence without importing specialist history. Camera X/Z remains tied to the source-published coordinate transformed through EPSG:31370 and vertical placement remains tied to official DTM evidence. A conservative clearly-visible Atomium witness rejects the stale 50 degree framing and bounds the provisional benchmark to 31.5 degrees; this is not a recovered historical lens.",
         "game_camera_transform": {
           "position": [60.1172, 14.059434659520558, -6808.7279],
           "rotation_degrees": [0.0, 0.0, 0.0],
-          "fov_degrees": 50.0,
+          "fov_degrees": 31.5,
           "status": "provisional"
         },
         "game_screenshot": null
@@ -114,8 +114,14 @@
       },
       "mismatches": [
         {
+          "severity": "major",
+          "action": "The stale 50 degree global benchmark was wider than the conservative source-visible Atomium witness permits. Use the evidence-bounded 31.5 degree benchmark candidate while keeping exact historical lens/yaw/pitch/crop unresolved.",
+          "resolved": true,
+          "resolution_evidence": "data/qa/photo_match/atomium_ground_framing_evidence.json records the EPSG:31370 camera/target geometry, 102 m official height, conservative 58.307% visible-structure witness, maximum consistent FOV 31.661034 degrees and the 31.5 degree benchmark candidate."
+        },
+        {
           "severity": "blocker",
-          "action": "Produce the repeatable 1280x720 in-game capture from the source-geolocated camera and verify runtime terrain elevation against the pinned official DTM evidence before scoring."
+          "action": "Produce a repeatable 1280x720 current-main in-game capture from the source-geolocated camera and verify runtime terrain elevation against the pinned official DTM evidence before scoring. Specialist capture evidence exists but is not substituted for a current-main runtime capture."
         },
         {
           "severity": "blocker",
@@ -123,7 +129,15 @@
         },
         {
           "severity": "major",
-          "action": "Resolve lens/FOV, yaw, pitch and crop by reproducible visual alignment; do not infer unsupported source camera parameters from intuition."
+          "action": "Resolve exact lens/FOV, yaw, pitch and crop only by reproducible alignment; 31.5 degrees is an evidence-bounded benchmark candidate, not a recovered historical camera parameter."
+        },
+        {
+          "severity": "blocker",
+          "action": "Resolve fountain/basin and paved open-space geometry from authoritative UrbIS/Landscape/orthophoto evidence before adding foreground geometry; specialist visual QA identifies this as the largest immediate foreground mismatch after framing improved."
+        },
+        {
+          "severity": "major",
+          "action": "Refine vegetation massing only from official tree inventory and orthophoto evidence; the municipal point inventory is explicitly incomplete and must not be filled by intuition."
         }
       ],
       "realism_complete": false

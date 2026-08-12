@@ -29,6 +29,7 @@ var active := true
 var movement_held := false
 var transit_queue: NpcTransitQueue = null
 var transit_queue_passenger_id: int = -1
+var transit_stop: NpcTransitStop = null
 
 func _ready() -> void:
 	behavior.configure(role, variation_seed, global_position)
@@ -73,12 +74,66 @@ func join_transit_queue(queue: NpcTransitQueue, passenger_id: int) -> int:
 	transit_queue_passenger_id = passenger_id
 	return slot
 
+func join_transit_stop(stop: NpcTransitStop, passenger_id: int, preferred_door: int = -1) -> int:
+	if stop == null or passenger_id < 0:
+		return -1
+	_leave_transit_queue_if_needed()
+	var door_index: int = stop.join_waiting_passenger(passenger_id, preferred_door)
+	if door_index < 0:
+		return -1
+	var queue: NpcTransitQueue = stop.queue_for_door(door_index)
+	var slot: int = join_transit_queue(queue, passenger_id)
+	if slot < 0:
+		stop.leave_waiting_passenger(passenger_id)
+		return -1
+	transit_stop = stop
+	transit_state = TransitState.WAITING
+	ambient_state.set_transit_context(true, false)
+	pedestrian_intent = NpcPedestrianContext.PedestrianIntent.WAIT_FOR_TRANSIT
+	refresh_transit_stop_target()
+	return door_index
+
+func refresh_transit_stop_target() -> Vector3:
+	if transit_stop == null or transit_queue_passenger_id < 0:
+		return get_world_position()
+	var target: Vector3 = transit_stop.queue_target_for(transit_queue_passenger_id)
+	behavior.set_destination(target)
+	var planar_distance: float = Vector2(target.x - get_world_position().x, target.z - get_world_position().z).length()
+	movement_held = planar_distance <= arrival_radius
+	return target
+
+func request_transit_stop_boarding() -> Dictionary:
+	if transit_stop == null or transit_queue_passenger_id < 0:
+		return {"allowed": false, "door_index": -1, "reason": "not_waiting"}
+	var passenger_id: int = transit_queue_passenger_id
+	var result: Dictionary = transit_stop.request_boarding(passenger_id)
+	if bool(result.get("allowed", false)):
+		transit_queue = null
+		transit_queue_passenger_id = -1
+		transit_stop = null
+		transit_state = TransitState.BOARDING
+		ambient_state.set_transit_context(true, true)
+		pedestrian_intent = NpcPedestrianContext.PedestrianIntent.BOARD_TRANSIT
+		movement_held = false
+		var door_position_value: Variant = result.get("door_position", get_world_position())
+		if door_position_value is Vector3:
+			behavior.set_destination(door_position_value as Vector3)
+	else:
+		transit_state = TransitState.WAITING
+		ambient_state.set_transit_context(true, false)
+		refresh_transit_stop_target()
+	return result
+
 func leave_transit_queue() -> bool:
 	if transit_queue == null or transit_queue_passenger_id < 0:
 		return false
-	var removed: bool = transit_queue.leave_queue(transit_queue_passenger_id)
+	var passenger_id: int = transit_queue_passenger_id
+	var removed: bool = transit_queue.leave_queue(passenger_id)
+	if transit_stop != null:
+		removed = transit_stop.leave_waiting_passenger(passenger_id) or removed
 	transit_queue = null
 	transit_queue_passenger_id = -1
+	transit_stop = null
 	return removed
 
 func get_transit_queue_target() -> Vector3:
@@ -170,6 +225,9 @@ func _physics_process(delta: float) -> void:
 		set_physics_process(false)
 		return
 
+	if transit_state == TransitState.WAITING and transit_stop != null:
+		refresh_transit_stop_target()
+
 	if movement_held:
 		velocity.x = move_toward(velocity.x, 0.0, acceleration * delta)
 		velocity.z = move_toward(velocity.z, 0.0, acceleration * delta)
@@ -233,10 +291,15 @@ func _leave_transit_queue_if_needed() -> void:
 	if transit_queue == null or transit_queue_passenger_id < 0:
 		transit_queue = null
 		transit_queue_passenger_id = -1
+		transit_stop = null
 		return
-	transit_queue.leave_queue(transit_queue_passenger_id)
+	var passenger_id: int = transit_queue_passenger_id
+	transit_queue.leave_queue(passenger_id)
+	if transit_stop != null:
+		transit_stop.leave_waiting_passenger(passenger_id)
 	transit_queue = null
 	transit_queue_passenger_id = -1
+	transit_stop = null
 
 func _set_world_position(world_position: Vector3) -> void:
 	if is_inside_tree():

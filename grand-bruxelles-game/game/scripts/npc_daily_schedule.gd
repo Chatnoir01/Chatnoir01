@@ -71,7 +71,7 @@ func _civilian_activity(hour: float) -> Activity:
 
 func _police_activity(hour: float) -> Activity:
 	var shift := int(floor(hour / 8.0))
-	var assigned_shift := abs(seed_value) % 3
+	var assigned_shift: int = int(abs(seed_value)) % 3
 	if shift == assigned_shift:
 		var within_shift := fposmod(hour, 8.0)
 		return Activity.BREAK if within_shift >= 3.75 and within_shift < 4.25 else Activity.PATROL

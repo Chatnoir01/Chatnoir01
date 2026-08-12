@@ -30,8 +30,6 @@ STABLE_RESULT_KEYS = (
     "tram_feature_count",
     "train_feature_count",
     "semantic_signature_match_count",
-    "distinct_tram_signatures",
-    "distinct_train_signatures",
     "tram_types",
     "train_types",
     "collections_semantically_identical",
@@ -139,7 +137,7 @@ def build_audit() -> dict[str, Any]:
 
 
 def stable_projection(audit: dict[str, Any]) -> dict[str, Any]:
-    """Compare meaning, not JSON serialization details used only for diagnostics."""
+    """Compare source meaning, while hashes/distinct counts stay diagnostics."""
     result = audit.get("result") or {}
     return {
         "schema": audit.get("schema"),

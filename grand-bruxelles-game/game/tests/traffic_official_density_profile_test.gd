@@ -115,7 +115,7 @@ func _run() -> void:
 
     var neutral_base := 12
     var high_target := int(density.call("target_vehicle_count", neutral_base, 16.0, roads, Vector3.ZERO))
-    var low_target := int(density.call("target_vehicle_count", neutral_base, 16.0, roads, Vector3(1000.0, 0.0)))
+    var low_target := int(density.call("target_vehicle_count", neutral_base, 16.0, roads, Vector3(1000.0, 0.0, 0.0)))
     var bounded_peak := int(round(float(neutral_base) * 1.42))
     if high_target <= neutral_base:
         _fail("official high-flow evidence is still capped at neutral fleet size")

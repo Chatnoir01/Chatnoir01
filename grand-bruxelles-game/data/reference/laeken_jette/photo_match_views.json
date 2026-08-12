@@ -54,6 +54,13 @@
       "source_camera_to_atomium_ground_distance_m": 304.1145,
       "source_camera_azimuth_from_atomium_deg": 327.1848,
       "coordinate_transform": "WGS84 EPSG:4326 to Belgian Lambert 72 EPSG:31370; project X=east-originE, Z=-(north-originN)",
+      "subject_geometry": {
+        "official_height_m": 102.0,
+        "baseline_y_m": 0.0,
+        "top_y_m": 102.0,
+        "target_y_m": 51.0,
+        "role": "registered official Atomium height used only to audit apparent framing at the source-geolocated camera"
+      },
       "terrain_elevation_evidence": {
         "path": "atomium_ground_oblique_dtm_sample.json",
         "source_runtime": "data/terrain/laeken_jette/phase1_dtm.game.json",
@@ -64,6 +71,12 @@
       },
       "matching_capture": "data/reference/laeken_jette/captures/atomium_ground_oblique_v1.png",
       "capture_resolution": [1280, 720],
+      "framing_geometry_evidence": {
+        "path": "atomium_ground_framing_audit.json",
+        "tool": "tools/audit_atomium_ground_framing.py",
+        "status": "geometry_audited_reference_bbox_pending",
+        "meaning": "At the current 50 degree benchmark FOV, registered geometry predicts that the full 102 m subject occupies only about 35.45% of capture height. This proves the current framing is wide relative to the monument geometry, but does not by itself determine the source lens."
+      },
       "candidate_audit": "atomium_ground_camera_candidates.json",
       "candidate_audit_role": "historical safety audit only; superseded for camera-position selection because the source page publishes camera coordinates and the published point lies outside the previous 60-220 m candidate radius",
       "camera_selection_constraints": {
@@ -74,29 +87,32 @@
           "UrbIS surrounding geometry"
         ],
         "must_resolve": [
-          "documented image-space framing/FOV calibration against the lawful reference without claiming recovered EXIF focal length",
+          "reference-image Atomium bounding-box measurement before changing FOV; geometry-only audit must not be presented as recovered lens metadata",
           "hero-visible fountain/open-space, vegetation and furniture context from authoritative or lawful sources",
           "material/detail mismatch review before any realism-complete claim"
         ],
         "must_not_infer": [
           "survey-grade precision beyond the source-published camera metadata",
-          "lens focal length from visual intuition alone",
+          "lens focal length from visual intuition or geometry-only projection alone",
           "street or path geometry absent from authoritative data"
         ],
         "remaining_unknowns": [
           "exact source lens focal length",
           "exact yaw and pitch after accounting for image crop",
-          "exact source camera orientation metadata"
+          "exact source camera orientation metadata",
+          "measured source-image Atomium bounding box"
         ]
       },
       "fov_degrees": 50.0,
-      "fov_status": "provisional_visual_fit_pending_measurement",
+      "fov_status": "geometry_constrained_reference_bbox_pending",
       "resolution": [1280, 720],
       "reference": {
         "url": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",
         "license": "CC BY-SA 4.0",
         "author": "Horst J. Meuter",
         "source_camera_location": "50.897467 N, 4.339306 E as published on Wikimedia Commons",
+        "source_image_dimensions_px": [960, 638],
+        "source_image_dimensions_evidence": "Wikimedia Commons file page lists the original file as 960 x 638 pixels",
         "usage": "visual reference and source-provided camera-location metadata; source image bytes are not vendored and the published coordinate is not represented as survey-grade"
       },
       "comparison_checks": [

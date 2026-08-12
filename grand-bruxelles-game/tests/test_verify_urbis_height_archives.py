@@ -28,19 +28,26 @@ class HeightArchiveValidationTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 verify.validate_source_url(url)
 
-    def test_zip_rejects_path_traversal_and_finds_single_tiff(self):
+    def test_zip_rejects_path_traversal_and_preserves_sidecars(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             good = root / "good.zip"
             with zipfile.ZipFile(good, "w") as zf:
-                zf.writestr("tile.tif", b"x")
-            self.assertEqual(verify.safe_tiff_members(good), ["tile.tif"])
+                zf.writestr("grid/tile.tif", b"tiff")
+                zf.writestr("grid/tile.tfw", b"0.5\n0\n0\n-0.5\n149000.25\n168999.75\n")
+                zf.writestr("grid/tile.prj", b"EPSG:31370")
+            self.assertEqual(verify.safe_tiff_members(good), ["grid/tile.tif"])
+            extracted = verify.extract_archive_safely(good, root / "out")
+            self.assertEqual({p.name for p in extracted}, {"tile.tif", "tile.tfw", "tile.prj"})
+            self.assertTrue((root / "out" / "grid" / "tile.tfw").is_file())
 
             bad = root / "bad.zip"
             with zipfile.ZipFile(bad, "w") as zf:
                 zf.writestr("../escape.tif", b"x")
             with self.assertRaises(ValueError):
                 verify.safe_tiff_members(bad)
+            with self.assertRaises(ValueError):
+                verify.extract_archive_safely(bad, root / "escape")
 
     def test_metadata_requires_lambert72_and_exact_tile_extent(self):
         valid = {

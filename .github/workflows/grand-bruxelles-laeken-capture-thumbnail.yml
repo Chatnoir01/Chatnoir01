@@ -21,17 +21,17 @@ jobs:
         with:
           ref: zone-laeken-jette
 
-      - name: Build tiny diagnostic thumbnail
+      - name: Build ultra-small diagnostic thumbnail
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends imagemagick
           SRC=grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
           test -s "$SRC"
-          convert "$SRC" -resize 160x90! -strip -quality 38 /tmp/laeken-player-thumb.jpg
+          convert "$SRC" -resize 80x45! -strip -quality 22 /tmp/laeken-player-thumb.jpg
           base64 -w 0 /tmp/laeken-player-thumb.jpg > /tmp/laeken-player-thumb.b64.txt
           BYTES=$(wc -c </tmp/laeken-player-thumb.b64.txt)
-          test "$BYTES" -gt 500
-          test "$BYTES" -lt 25000
+          test "$BYTES" -gt 400
+          test "$BYTES" -lt 1800
           identify /tmp/laeken-player-thumb.jpg
           echo "thumbnail_base64_bytes=$BYTES"
 
@@ -45,5 +45,5 @@ jobs:
           cp /tmp/laeken-player-thumb.b64.txt grand-bruxelles-game/data/reference/laeken_jette/captures/diagnostic/laeken_player_camera_thumb.b64.txt
           git add -f grand-bruxelles-game/data/reference/laeken_jette/captures/diagnostic/laeken_player_camera_thumb.b64.txt
           git diff --cached --quiet && exit 0
-          git commit -m "debug: publish tiny Laeken gameplay thumbnail [skip ci]"
+          git commit -m "debug: publish ultra-small Laeken gameplay thumbnail [skip ci]"
           git push origin HEAD:zone-laeken-jette

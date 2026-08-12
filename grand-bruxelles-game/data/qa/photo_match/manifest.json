@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "score_scale": {
     "min": 0,
     "max": 5,
@@ -23,7 +23,21 @@
         "author": "Bernard Lee",
         "license": "CC0-1.0",
         "distribution_policy": "provenance-only; do not bundle reference image unless explicitly vendored with license record",
-        "camera_notes": "iPhone XR; 26 mm equivalent focal length; standard perspective"
+        "camera_notes": "iPhone XR; 26 mm equivalent focal length; standard perspective; source page does not provide a reliable camera position/bearing in the current registry.",
+        "camera": {
+          "position": {
+            "status": "unknown",
+            "coordinate_system": "WGS84",
+            "latitude": null,
+            "longitude": null
+          },
+          "focal_length_35mm": 26.0,
+          "orientation": {
+            "status": "pending",
+            "heading_degrees": null,
+            "notes": "Recover or measure a defensible ground-level viewpoint and bearing before fixing the matching game camera."
+          }
+        }
       },
       "viewpoint": {
         "description": "Match the reference's ground-level Place de la Bourse framing and facade perspective before scoring.",
@@ -46,7 +60,71 @@
       "mismatches": [
         {
           "severity": "blocker",
-          "action": "Capture and register a matching in-game screenshot from the same effective viewpoint before any realism-complete claim."
+          "action": "Recover a defensible real camera position/bearing, then capture and register a matching in-game screenshot before any realism-complete claim.",
+          "resolved": false
+        }
+      ],
+      "realism_complete": false
+    },
+    {
+      "id": "midi_fonsny_2016_ccby40_01",
+      "hero_location": "Bruxelles-Midi / Brussel-Zuid — Avenue Fonsny / Fonsnylaan",
+      "zone": "midi",
+      "reference": {
+        "source_page": "https://commons.wikimedia.org/wiki/File:20160216_Gare_du_Midi_Avenue_Fonsny.JPG",
+        "captured_at": "2016-02-16T12:19:40+01:00",
+        "author": "Jacquesverlaeken",
+        "license": "CC-BY-SA-4.0",
+        "distribution_policy": "provenance-only benchmark; do not bundle the reference image into distributable game assets unless attribution/share-alike handling is reviewed and registered",
+        "camera_notes": "Panasonic DMC-TZ30; 4.3 mm physical focal length; EXIF reports 24 mm 35mm-equivalent; source page supplies WGS84 camera coordinates but no trustworthy compass bearing.",
+        "camera": {
+          "position": {
+            "status": "known",
+            "coordinate_system": "WGS84",
+            "latitude": 50.835989,
+            "longitude": 4.340519
+          },
+          "focal_length_35mm": 24.0,
+          "orientation": {
+            "status": "pending",
+            "heading_degrees": null,
+            "notes": "Derive heading/pitch from authoritative station geometry and visible landmark alignment; do not infer an arbitrary compass bearing from the photograph alone."
+          }
+        }
+      },
+      "viewpoint": {
+        "description": "National-side entrance of Brussels-South station from Avenue Fonsny. Reproduce the ground-level framing, station facade, South Tower/Tri Postal relationships, roadway/sidewalk proportions and major foreground clutter at an effective 24 mm-equivalent field of view.",
+        "game_camera_transform": null,
+        "game_screenshot": null
+      },
+      "scores": {
+        "silhouette": null,
+        "building_placement": null,
+        "height_roofline": null,
+        "street_width": null,
+        "curb_sidewalk_proportions": null,
+        "landmark_alignment": null,
+        "vegetation": null,
+        "street_furniture": null,
+        "materials": null,
+        "lighting": null,
+        "major_visual_clutter": null
+      },
+      "mismatches": [
+        {
+          "severity": "blocker",
+          "action": "Project the verified WGS84 camera point through the project's Lambert72/game-coordinate pipeline and derive a defensible heading/pitch from authoritative station geometry before locking a deterministic game camera.",
+          "resolved": false
+        },
+        {
+          "severity": "blocker",
+          "action": "Capture the corresponding deterministic in-game Fonsny view and score all eleven photo-match dimensions before changing realism_complete.",
+          "resolved": false
+        },
+        {
+          "severity": "major",
+          "action": "After the first matched capture, correct the largest screen-space geometry mismatch first: station/adjacent-building silhouette and street/curb proportions take priority over decorative detail.",
+          "resolved": false
         }
       ],
       "realism_complete": false

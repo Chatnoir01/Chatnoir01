@@ -1,0 +1,31 @@
+name: Grand Bruxelles Asset Provenance
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/**"
+      - "grand-bruxelles-game/tools/validate_asset_provenance.py"
+      - "grand-bruxelles-game/tests/test_validate_asset_provenance.py"
+      - ".github/workflows/grand-bruxelles-asset-provenance.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/assets/**"
+      - "grand-bruxelles-game/tools/validate_asset_provenance.py"
+      - "grand-bruxelles-game/tests/test_validate_asset_provenance.py"
+      - ".github/workflows/grand-bruxelles-asset-provenance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regression tests
+        run: python3 grand-bruxelles-game/tests/test_validate_asset_provenance.py
+      - name: Validate registry and asset coverage
+        run: python3 grand-bruxelles-game/tools/validate_asset_provenance.py

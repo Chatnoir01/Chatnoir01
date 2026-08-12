@@ -76,6 +76,20 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_foot_patrol_test.gd 2>&1 | tee /tmp/npc-police-foot-patrol.log
           if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_FOOT_PATROL_FAIL" /tmp/npc-police-foot-patrol.log; then exit 1; fi
           grep -q "NPC_POLICE_FOOT_PATROL_OK" /tmp/npc-police-foot-patrol.log
+      - name: Police patrol runtime consumption test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_patrol_runtime_test.gd 2>&1 | tee /tmp/npc-police-patrol-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_PATROL_RUNTIME_FAIL" /tmp/npc-police-patrol-runtime.log; then exit 1; fi
+          grep -q "NPC_POLICE_PATROL_RUNTIME_OK" /tmp/npc-police-patrol-runtime.log
+      - name: Police patrol director integration test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_patrol_director_integration_test.gd 2>&1 | tee /tmp/npc-police-patrol-director.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_PATROL_DIRECTOR_INTEGRATION_FAIL" /tmp/npc-police-patrol-director.log; then exit 1; fi
+          grep -q "NPC_POLICE_PATROL_DIRECTOR_INTEGRATION_OK" /tmp/npc-police-patrol-director.log
       - name: Civilian post-incident recovery test
         shell: bash
         run: |

@@ -22,11 +22,14 @@ var _event_pressure: float = 0.0
 var _traffic_crossing_system: RefCounted = null
 var _traffic_gap_provider: Variant = null
 var _crossing_elapsed_s: float = 0.0
+var _police_patrol_runtimes: Dictionary = {}
+var _police_patrol_base_speeds: Dictionary = {}
 
 func _ready() -> void:
 	_recalculate_effective_budgets()
 
 func _process(delta: float) -> void:
+	update_police_patrol_runtime(delta)
 	if _traffic_crossing_system == null or _traffic_gap_provider == null:
 		return
 	_crossing_elapsed_s += maxf(0.0, delta)
@@ -62,6 +65,67 @@ func update_crossings_at(now_seconds: float) -> void:
 
 func has_crossing_assignment(agent: NpcAgent) -> bool:
 	return is_instance_valid(agent) and crossing_bridge.has_assignment(agent)
+
+func assign_police_patrol_segment(agent: NpcAgent, context: String, segment_index: int, destination: Vector3, pace_scale: float = 1.0) -> Dictionary:
+	if not is_instance_valid(agent) or agent.role != NpcBehaviorModel.Role.POLICE or not _police.has(agent):
+		return {}
+	if agent.police_response.phase != NpcPoliceResponse.Phase.PATROL:
+		return {}
+	var agent_id: int = agent.get_instance_id()
+	var runtime: NpcPolicePatrolRuntime
+	if _police_patrol_runtimes.has(agent_id):
+		runtime = _police_patrol_runtimes[agent_id] as NpcPolicePatrolRuntime
+	else:
+		runtime = NpcPolicePatrolRuntime.new()
+		runtime.configure(agent.variation_seed, pace_scale)
+		_police_patrol_runtimes[agent_id] = runtime
+		_police_patrol_base_speeds[agent_id] = agent.behavior.preferred_speed
+	var plan: Dictionary = runtime.begin_segment(context, segment_index, destination)
+	agent.behavior.set_destination(destination)
+	agent.behavior.preferred_speed = float(plan.get("walk_speed_mps", agent.behavior.preferred_speed))
+	agent.movement_held = false
+	agent.set_meta("police_patrol_look_bias", float(plan.get("look_bias", 0.0)))
+	return plan
+
+func update_police_patrol_runtime(delta_seconds: float) -> void:
+	for agent: NpcAgent in _police.duplicate():
+		if not is_instance_valid(agent):
+			continue
+		var agent_id: int = agent.get_instance_id()
+		if not _police_patrol_runtimes.has(agent_id):
+			continue
+		var runtime: NpcPolicePatrolRuntime = _police_patrol_runtimes[agent_id] as NpcPolicePatrolRuntime
+		if runtime == null:
+			continue
+		var before: Dictionary = runtime.sample(0.0, false, true) if runtime.is_active() else police_patrol_runtime_snapshot(agent)
+		var destination_value: Variant = before.get("destination", agent.behavior.target_position)
+		var destination: Vector3 = destination_value as Vector3 if destination_value is Vector3 else agent.behavior.target_position
+		var planar_distance: float = Vector2(destination.x - agent.get_world_position().x, destination.z - agent.get_world_position().z).length()
+		var arrived: bool = runtime.is_active() and planar_distance <= agent.arrival_radius
+		var patrol_active: bool = agent.police_response.phase == NpcPoliceResponse.Phase.PATROL
+		var state: Dictionary = runtime.sample(delta_seconds, arrived, patrol_active)
+		agent.movement_held = bool(state.get("movement_held", false))
+		if bool(state.get("active", false)):
+			var active_destination_value: Variant = state.get("destination", destination)
+			if active_destination_value is Vector3:
+				agent.behavior.set_destination(active_destination_value as Vector3)
+			agent.behavior.preferred_speed = float(state.get("walk_speed_mps", agent.behavior.preferred_speed))
+			agent.set_meta("police_patrol_look_bias", float(state.get("look_bias", 0.0)))
+		else:
+			_restore_police_patrol_speed(agent)
+			if agent.has_meta("police_patrol_look_bias"):
+				agent.remove_meta("police_patrol_look_bias")
+
+func police_patrol_runtime_snapshot(agent: NpcAgent) -> Dictionary:
+	if not is_instance_valid(agent):
+		return {}
+	var agent_id: int = agent.get_instance_id()
+	if not _police_patrol_runtimes.has(agent_id):
+		return {}
+	var runtime: NpcPolicePatrolRuntime = _police_patrol_runtimes[agent_id] as NpcPolicePatrolRuntime
+	if runtime == null:
+		return {}
+	return runtime.sample(0.0, false, agent.police_response.phase == NpcPoliceResponse.Phase.PATROL)
 
 func set_observer_position(world_position: Vector3) -> void:
 	observer_position = world_position
@@ -100,6 +164,7 @@ func register_agent(agent: NpcAgent) -> bool:
 
 func unregister_agent(agent: NpcAgent) -> void:
 	_clear_crossing_for_agent(agent)
+	_clear_police_patrol_for_agent(agent)
 	_civilians.erase(agent)
 	_police.erase(agent)
 	_pool.erase(agent)
@@ -125,6 +190,7 @@ func collect_inactive_agents() -> int:
 			continue
 		if not agent.active:
 			_clear_crossing_for_agent(agent)
+			_clear_police_patrol_for_agent(agent)
 			_civilians.erase(agent)
 			_police.erase(agent)
 			if not _pool.has(agent):
@@ -165,6 +231,7 @@ func _active_agents() -> Array[NpcAgent]:
 
 func _pool_agent(agent: NpcAgent) -> void:
 	_clear_crossing_for_agent(agent)
+	_clear_police_patrol_for_agent(agent)
 	agent.active = false
 	agent.visible = false
 	agent.set_physics_process(false)
@@ -175,6 +242,24 @@ func _clear_crossing_for_agent(agent: NpcAgent) -> void:
 	if not is_instance_valid(agent) or _traffic_crossing_system == null:
 		return
 	crossing_bridge.clear_agent(agent, _traffic_crossing_system)
+
+func _clear_police_patrol_for_agent(agent: NpcAgent) -> void:
+	if not is_instance_valid(agent):
+		return
+	var agent_id: int = agent.get_instance_id()
+	_restore_police_patrol_speed(agent)
+	_police_patrol_runtimes.erase(agent_id)
+	_police_patrol_base_speeds.erase(agent_id)
+	agent.movement_held = false
+	if agent.has_meta("police_patrol_look_bias"):
+		agent.remove_meta("police_patrol_look_bias")
+
+func _restore_police_patrol_speed(agent: NpcAgent) -> void:
+	if not is_instance_valid(agent):
+		return
+	var agent_id: int = agent.get_instance_id()
+	if _police_patrol_base_speeds.has(agent_id):
+		agent.behavior.preferred_speed = float(_police_patrol_base_speeds[agent_id])
 
 func _clear_crossing_runtime() -> void:
 	if _traffic_crossing_system != null:

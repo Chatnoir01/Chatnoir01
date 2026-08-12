@@ -5,10 +5,8 @@ on:
     branches: ["zone-laeken-jette"]
     paths:
       - "grand-bruxelles-game/game/zones/laeken_jette/**"
-      - "grand-bruxelles-game/game/tests/laeken_terrain_smoke_test.gd"
+      - "grand-bruxelles-game/game/tests/laeken_full_realism_smoke_test.gd"
       - "grand-bruxelles-game/game/tests/laeken_building_heights_smoke_test.gd"
-      - "grand-bruxelles-game/game/tests/laeken_building_visual_smoke_test.gd"
-      - "grand-bruxelles-game/game/tests/laeken_official_trees_smoke_test.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json"
       - "grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json"
       - "grand-bruxelles-game/data/terrain/laeken_jette/**"
@@ -27,7 +25,7 @@ jobs:
   validate-and-release:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
     steps:
       - name: Checkout latest zone branch
         uses: actions/checkout@v4
@@ -63,27 +61,17 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless --path grand-bruxelles-game --editor --quit
 
-      - name: Run full Laeken realism gate
+      - name: Run single-load full realism gate
         shell: bash
         run: |
-          set -euo pipefail
-          run_test() {
-            NAME="$1"
-            SCRIPT="$2"
-            OK_TOKEN="$3"
-            LOG="/tmp/${NAME}.log"
-            /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-              --headless --path grand-bruxelles-game --script "$SCRIPT" 2>&1 | tee "$LOG"
-            if grep -E "SCRIPT ERROR|Parse Error:|_FAIL:" "$LOG"; then
-              echo "FAILURE_MARKER_FOUND in $NAME"
-              exit 1
-            fi
-            grep -q "$OK_TOKEN" "$LOG"
-          }
-          run_test terrain res://game/tests/laeken_terrain_smoke_test.gd LAEKEN_TERRAIN_SMOKE_OK
-          run_test building_visual res://game/tests/laeken_building_visual_smoke_test.gd LAEKEN_BUILDING_VISUAL_OK
-          run_test building_heights res://game/tests/laeken_building_heights_smoke_test.gd LAEKEN_BUILDING_HEIGHTS_OK
-          run_test official_trees res://game/tests/laeken_official_trees_smoke_test.gd LAEKEN_OFFICIAL_TREES_OK
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/laeken_full_realism_smoke_test.gd 2>&1 | tee /tmp/laeken-full-realism.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_FULL_REALISM_FAIL" /tmp/laeken-full-realism.log; then
+            exit 1
+          fi
+          grep -q "LAEKEN_FULL_REALISM_OK" /tmp/laeken-full-realism.log
 
       - name: Select Laeken playtest for Web export
         run: |
@@ -122,7 +110,7 @@ jobs:
             'build':'laeken-full-realism',
             'source_commit':os.environ.get('GITHUB_SHA'),
             'engine':'Godot 4.7.1',
-            'validation':['terrain','orthophoto/building visual','DSM building heights','official City trees'],
+            'validation':['single-load terrain + orthophoto + DSM building heights + official City trees'],
             'building_heights':{
               'feature_count':heights['feature_count'],
               'derived':heights['derived_height_count'],

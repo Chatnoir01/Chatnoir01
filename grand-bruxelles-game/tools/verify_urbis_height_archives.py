@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import shutil
+import stat
 import urllib.parse
 import urllib.request
 import zipfile
@@ -54,30 +55,48 @@ def download_with_sha256(url: str, output: Path, max_bytes: int = 2_000_000_000)
     return total, digest.hexdigest()
 
 
+def _validate_zip_member(info: zipfile.ZipInfo) -> PurePosixPath:
+    path = PurePosixPath(info.filename)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"Unsafe ZIP member: {info.filename}")
+    if info.flag_bits & 0x1:
+        raise ValueError(f"Encrypted ZIP member is unsupported: {info.filename}")
+    unix_mode = (info.external_attr >> 16) & 0xFFFF
+    if unix_mode and stat.S_ISLNK(unix_mode):
+        raise ValueError(f"Symlink ZIP member is unsupported: {info.filename}")
+    return path
+
+
 def safe_tiff_members(archive: Path) -> list[str]:
     with zipfile.ZipFile(archive) as zf:
         members: list[str] = []
         for info in zf.infolist():
-            path = PurePosixPath(info.filename)
-            if path.is_absolute() or ".." in path.parts:
-                raise ValueError(f"Unsafe ZIP member: {info.filename}")
-            if info.flag_bits & 0x1:
-                raise ValueError(f"Encrypted ZIP member is unsupported: {info.filename}")
+            path = _validate_zip_member(info)
             if not info.is_dir() and path.suffix.lower() in (".tif", ".tiff"):
                 members.append(info.filename)
         if not members:
-            raise ValueError(f"No GeoTIFF found in {archive}")
+            raise ValueError(f"No TIFF raster found in {archive}")
         return sorted(members)
 
 
-def extract_member(archive: Path, member: str, destination: Path) -> Path:
+def extract_archive_safely(archive: Path, destination: Path) -> list[Path]:
+    """Extract the complete official package so TIFF sidecars (.tfw/.prj/.aux.xml) remain usable."""
     destination.mkdir(parents=True, exist_ok=True)
+    extracted: list[Path] = []
+    root = destination.resolve()
     with zipfile.ZipFile(archive) as zf:
-        info = zf.getinfo(member)
-        target = destination / Path(PurePosixPath(info.filename).name)
-        with zf.open(info) as src, target.open("wb") as dst:
-            shutil.copyfileobj(src, dst)
-        return target
+        for info in zf.infolist():
+            path = _validate_zip_member(info)
+            if info.is_dir():
+                continue
+            target = (destination / Path(*path.parts)).resolve()
+            if root not in target.parents and target != root:
+                raise ValueError(f"ZIP member escapes extraction root: {info.filename}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(info) as src, target.open("wb") as dst:
+                shutil.copyfileobj(src, dst)
+            extracted.append(target)
+    return extracted
 
 
 def inspect_geotiff(path: Path) -> dict:
@@ -142,8 +161,10 @@ def verify_resolution(resolution_path: Path, work_dir: Path) -> dict:
         size, sha256 = download_with_sha256(url, archive_path)
         members = safe_tiff_members(archive_path)
         if len(members) != 1:
-            raise ValueError(f"{tile}: expected exactly one GeoTIFF, found {members}")
-        tif = extract_member(archive_path, members[0], work_dir / source["kind"] / tile)
+            raise ValueError(f"{tile}: expected exactly one TIFF raster, found {members}")
+        extraction_root = work_dir / source["kind"] / tile
+        extract_archive_safely(archive_path, extraction_root)
+        tif = extraction_root / Path(*PurePosixPath(members[0]).parts)
         meta = inspect_geotiff(tif)
         validate_geotiff_metadata(tile, meta)
         archives.append({"tile": tile, "url": url, "archive_bytes": size, "sha256": sha256, "geotiff": meta})

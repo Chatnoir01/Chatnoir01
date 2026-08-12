@@ -11,7 +11,8 @@ extends CharacterBody3D
 @onready var camera: Camera3D = $CameraPivot/SpringArm3D/Camera3D
 
 const BOURSE_DIRECT_SPAWN_POSITION := Vector3(83.44, 1.05, -663.42)
-const BOURSE_DIRECT_SPAWN_YAW_DEGREES := 0.0
+# Faces the authoritative UrbIS LoD2 Bourse bbox center from the direct-test position.
+const BOURSE_DIRECT_SPAWN_YAW_DEGREES := -84.32
 
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _base_collision_layer: int = 1

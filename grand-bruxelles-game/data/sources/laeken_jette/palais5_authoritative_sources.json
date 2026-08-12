@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "subject": "Brussels Expo Palais 5 / Hall 05",
+  "status": "authoritative_source_identified_geometry_not_yet_resolved",
+  "checked_utc": "2026-08-12T01:32:00Z",
+  "sources": [
+    {
+      "id": "brussels_expo_palais5_official",
+      "authority": "Brussels Expo",
+      "url": "https://www.brussels-expo.com/en/lieu/palais-5/",
+      "role": "official venue identity and technical-data entry point",
+      "redistribution": "reference_metadata_only",
+      "embedded_asset": false,
+      "notes": "Official Palais 5 page links to technical data sheets. No architectural dimensions are copied into the game until the corresponding technical document is retrieved and its reuse/provenance constraints are recorded."
+    },
+    {
+      "id": "brussels_expo_technical_information",
+      "authority": "Brussels Expo",
+      "url": "https://www.brussels-expo.com/en/technical-information/",
+      "role": "official technical-document directory listing Hall 05",
+      "redistribution": "reference_metadata_only",
+      "embedded_asset": false,
+      "notes": "Official directory confirms room-specific technical documents are offered and explicitly lists Hall 05. The direct downloadable document URL was not exposed by the accessible HTML during this audit, so no inferred dimensions are recorded."
+    },
+    {
+      "id": "brussels_expo_hall05_download_landing",
+      "authority": "Brussels Expo",
+      "url": "https://www.brussels-expo.com/en/download/hall-05/",
+      "role": "official Hall 05 download landing page",
+      "redistribution": "reference_metadata_only",
+      "embedded_asset": false,
+      "notes": "Retained as a source-discovery endpoint. Do not treat the absence of parsed dimensions on the landing page as evidence about hall geometry."
+    }
+  ],
+  "current_geometry_evidence": {
+    "primary_geometry_authority": "Paradigm UrbIS Buildings WFS",
+    "semantic_locator": "OpenStreetMap way 143816182; identity/location only",
+    "audit_file": "palais5_nearest_urbis_audit.json",
+    "resolution_status": "needs_finer_authoritative_geometry",
+    "reason": "The single UrbIS component containing the semantic locator is campus/block-scale and fails the broad anti-false-positive hero-footprint screen."
+  },
+  "next_action": "Resolve the direct official Hall 05 technical document or another finer authoritative geometry source, record its licensing/provenance, and only then derive a hall-specific footprint or measured dimensions."
+}

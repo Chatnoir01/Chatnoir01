@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_jette_zone.gd" id="1_zone"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_realism_pass.gd" id="2_realism"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_building_height_pass.gd" id="8_heights"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_building_dsm_material_bridge.gd" id="9_bridge"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_official_trees.gd" id="10_trees"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_tree_canopy_refinement.gd" id="11_tree_refine"]
 
 [node name="LaekenJetteZone" type="Node3D"]
 script = ExtResource("1_zone")
@@ -40,3 +41,6 @@ script = ExtResource("9_bridge")
 
 [node name="OfficialTrees" type="Node3D" parent="."]
 script = ExtResource("10_trees")
+
+[node name="TreeCanopyRefinement" type="Node3D" parent="."]
+script = ExtResource("11_tree_refine")

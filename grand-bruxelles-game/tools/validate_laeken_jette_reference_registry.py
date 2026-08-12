@@ -35,6 +35,36 @@ def explicitly_rejects_surveyed_camera_claim(note: str) -> bool:
     return any(phrase in text for phrase in rejection_phrases)
 
 
+def validate_pending_camera_constraints(view: dict) -> None:
+    """Pending benchmark cameras must be constrained by evidence, never intuition."""
+    constraints = view.get("camera_selection_constraints")
+    assert isinstance(constraints, dict), (
+        f"{view.get('id')}: pending camera needs explicit camera_selection_constraints"
+    )
+    for key in ("authoritative_inputs", "must_resolve", "must_not_infer", "remaining_unknowns"):
+        values = constraints.get(key)
+        assert isinstance(values, list) and values, f"{view.get('id')}: missing {key} camera constraints"
+        assert all(isinstance(value, str) and value.strip() for value in values), (
+            f"{view.get('id')}: {key} must contain non-empty text entries"
+        )
+    joined_inputs = " ".join(constraints["authoritative_inputs"]).lower()
+    assert any(authority in joined_inputs for authority in ("urbis", "dtm", "dsm", "official")), (
+        f"{view.get('id')}: camera selection must depend on authoritative geometry/elevation data"
+    )
+    forbidden = " ".join(constraints["must_not_infer"]).lower()
+    assert "photographer" in forbidden or "gps" in forbidden, (
+        f"{view.get('id')}: pending camera must forbid unsupported photographer-position inference"
+    )
+    unknowns = " ".join(constraints["remaining_unknowns"]).lower()
+    assert "exact" in unknowns, f"{view.get('id')}: remaining camera uncertainty must stay explicit"
+    assert "camera_game_xz" not in view, (
+        f"{view.get('id')}: camera coordinates must not be committed while status is camera_pending"
+    )
+    assert "target_game_xyz" not in view, (
+        f"{view.get('id')}: target coordinates must not be committed while status is camera_pending"
+    )
+
+
 def main() -> int:
     realism = load(REF / "realism_pass1.json")
     jette = load(REF / "jette_photo_references.json")
@@ -43,6 +73,7 @@ def main() -> int:
     heights = load(SRC / "building_height_integration_validation.json")
 
     assert realism["schema"] >= 2
+    assert photo_match["schema"] >= 3
     measured = realism["measured_height_validation"]
     assert measured["status"] == "passed"
     assert measured["source_feature_count"] == heights["source_feature_count"]
@@ -108,6 +139,8 @@ def main() -> int:
             assert "provisional" in uncertainty or "survey" in uncertainty or "no photographer" in uncertainty, (
                 f"{view.get('id')}: uncertain benchmark must explicitly state camera uncertainty"
             )
+        if "camera_pending" in status:
+            validate_pending_camera_constraints(view)
         urls.append(reference["url"])
     assert len(set(urls)) >= 3, "three-view gate must use three independently registered reference pages"
 

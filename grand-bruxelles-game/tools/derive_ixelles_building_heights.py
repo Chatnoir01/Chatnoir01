@@ -142,8 +142,12 @@ def open_mosaic(paths: list[Path]):
     try:
         if any(d.count != 1 for d in datasets):
             raise ValueError("Height rasters must be single-band")
-        mosaic, transform = merge(datasets)
-        return mosaic[0], transform, datasets[0].nodata
+        # UrbIS uses the float32 minimum as nodata. rasterio.merge cannot safely use
+        # that sentinel as a float32 destination fill value and may produce a zeroed
+        # mosaic. Promote the destination to float64 and use NaN as the output nodata;
+        # source masks still honour each TIFF's authoritative nodata value.
+        mosaic, transform = merge(datasets, nodata=np.nan, dtype="float64")
+        return mosaic[0], transform, float("nan")
     finally:
         for dataset in datasets:
             dataset.close()

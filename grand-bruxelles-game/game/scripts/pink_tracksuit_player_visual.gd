@@ -3,13 +3,13 @@ class_name PinkTracksuitPlayerVisual
 
 const CHARACTER_SIGNATURE := "pink_tracksuit_v1"
 const PIPELINE_SIGNATURE := "authored_character_or_procedural_v3"
-const AUTHORED_CHARACTER_CANDIDATES := [
-    "res://assets/characters/player/thandi/Thandi.glb",
+const DEFAULT_AUTHORED_CHARACTER_PATH := "res://assets/characters/player/thandi/Thandi.glb"
+const FALLBACK_AUTHORED_CHARACTER_PATHS := [
     "res://assets/characters/player/thandi/Thandi.fbx",
-    "res://assets/characters/player/player_character.glb",
+    "res://assets/characters/player_character.glb",
 ]
 
-@export_file("*.glb", "*.gltf", "*.fbx", "*.tscn") var authored_scene_path: String = ""
+@export_file("*.glb", "*.gltf", "*.fbx", "*.tscn") var authored_scene_path: String = DEFAULT_AUTHORED_CHARACTER_PATH
 @export var authored_position: Vector3 = Vector3(0.0, -0.90, 0.0)
 @export var authored_rotation_degrees: Vector3 = Vector3(0.0, 180.0, 0.0)
 @export var authored_scale: Vector3 = Vector3.ONE
@@ -64,35 +64,34 @@ func authored_character() -> Node3D:
 func resolved_authored_scene_path() -> String:
     return _resolved_authored_scene_path
 
+func _authored_candidates() -> Array[String]:
+    var candidates: Array[String] = []
+    if not authored_scene_path.is_empty():
+        candidates.append(authored_scene_path)
+    for fallback_path in FALLBACK_AUTHORED_CHARACTER_PATHS:
+        if not candidates.has(fallback_path):
+            candidates.append(fallback_path)
+    return candidates
+
 func _try_load_authored_character() -> bool:
-    for candidate in _authored_scene_candidates():
-        if _try_load_authored_character_at(candidate):
-            _resolved_authored_scene_path = candidate
+    for candidate_path in _authored_candidates():
+        if _try_load_authored_character_path(candidate_path):
             return true
     return false
 
-func _authored_scene_candidates() -> Array[String]:
-    var paths: Array[String] = []
-    if not authored_scene_path.is_empty():
-        paths.append(authored_scene_path)
-    for candidate in AUTHORED_CHARACTER_CANDIDATES:
-        if candidate not in paths:
-            paths.append(candidate)
-    return paths
-
-func _try_load_authored_character_at(path: String) -> bool:
-    if path.is_empty() or not ResourceLoader.exists(path):
+func _try_load_authored_character_path(candidate_path: String) -> bool:
+    if candidate_path.is_empty() or not ResourceLoader.exists(candidate_path):
         return false
 
-    var resource := ResourceLoader.load(path)
+    var resource := ResourceLoader.load(candidate_path)
     if not resource is PackedScene:
-        push_warning("Player authored asset is not a PackedScene: %s" % path)
+        push_warning("Player authored asset is not a PackedScene: %s" % candidate_path)
         return false
 
     var instance := (resource as PackedScene).instantiate()
     if not instance is Node3D:
         instance.queue_free()
-        push_warning("Player authored asset root must be Node3D: %s" % path)
+        push_warning("Player authored asset root must be Node3D: %s" % candidate_path)
         return false
 
     _authored_character = instance as Node3D
@@ -101,6 +100,7 @@ func _try_load_authored_character_at(path: String) -> bool:
     _authored_character.rotation_degrees = authored_rotation_degrees
     _authored_character.scale = authored_scale
     add_child(_authored_character)
+    _resolved_authored_scene_path = candidate_path
     _using_authored_character = true
     return true
 
@@ -118,7 +118,7 @@ func _build_character() -> void:
     var bag_mat := _material(Color(0.36, 0.25, 0.17, 1.0), 0.66)
     var metal := _material(Color(0.78, 0.65, 0.27, 1.0), 0.28)
 
-    # Emergency fallback only. Imported authored character files are always preferred.
+    # Fallback only. Authored Thandi GLB/FBX is the primary rendering path.
     _box("UpperTorso", Vector3(0.66, 0.43, 0.36), Vector3(0, 1.30, 0), pink)
     _box("CropTop", Vector3(0.61, 0.20, 0.365), Vector3(0, 1.09, -0.005), white)
     _box("Waist", Vector3(0.48, 0.18, 0.31), Vector3(0, 0.94, 0), skin)

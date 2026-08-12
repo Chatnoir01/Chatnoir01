@@ -4,11 +4,16 @@
 The municipality layer contains only a small number of features, so this tool
 fetches the full official layer in EPSG:31370 and performs name matching locally.
 That avoids depending on a specific GeoServer property name or CQL schema.
+
+GeoServer-generated top-level feature IDs are deliberately not persisted because
+they are transport identifiers and can change between equivalent WFS responses.
+Authoritative geometry and properties remain untouched.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import unicodedata
 import urllib.parse
@@ -91,6 +96,13 @@ def select_municipality(data: dict[str, Any], name: str) -> dict[str, Any]:
     raise LookupError(f"municipality {name!r} is ambiguous ({len(candidates)} matches)")
 
 
+def stable_feature(feature: dict[str, Any]) -> dict[str, Any]:
+    """Return versionable GeoJSON without GeoServer's volatile transport ID."""
+    result = copy.deepcopy(feature)
+    result.pop("id", None)
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Fetch one official UrbIS municipality polygon")
     parser.add_argument("--name", required=True, help="French or Dutch municipality name")
@@ -98,7 +110,7 @@ def main() -> int:
     args = parser.parse_args()
 
     data = request_all()
-    feature = select_municipality(data, args.name)
+    feature = stable_feature(select_municipality(data, args.name))
     output = {
         "type": "FeatureCollection",
         "name": args.name,

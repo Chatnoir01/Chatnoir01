@@ -1,0 +1,47 @@
+name: Grand Bruxelles Bourse Surface Extract
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/extract_bourse_urbis_surfaces.py"
+      - "grand-bruxelles-game/tests/test_extract_bourse_urbis_surfaces.py"
+      - ".github/workflows/grand-bruxelles-bourse-surface-extract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline extraction regression
+        run: python3 grand-bruxelles-game/tests/test_extract_bourse_urbis_surfaces.py
+      - name: Live official Bourse surface extraction
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/extract_bourse_urbis_surfaces.py --output /tmp/bourse-surfaces.game.json | tee /tmp/bourse-surfaces.log
+          grep -q '"surface_count": 3' /tmp/bourse-surfaces.log
+          grep -q 'streetsurface/22358' /tmp/bourse-surfaces.log
+          grep -q 'streetsurface/151495' /tmp/bourse-surfaces.log
+          grep -q 'streetsurface/152281' /tmp/bourse-surfaces.log
+      - name: Validate runtime refusal
+        run: |
+          python3 - <<'PY'
+          import json
+          data = json.load(open('/tmp/bourse-surfaces.game.json', encoding='utf-8'))
+          assert data['runtime_approved'] is False
+          assert data['realism_complete'] is False
+          assert len(data['surfaces']) == 3
+          assert all(surface['source_rings_epsg31370'] for surface in data['surfaces'])
+          assert all(surface['world_rings_xz'] for surface in data['surfaces'])
+          print('BOURSE_SURFACE_LIVE_EVIDENCE_OK')
+          PY
+      - name: Upload exact Bourse surface evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-official-surface-extraction
+          path: /tmp/bourse-surfaces.game.json
+          if-no-files-found: error

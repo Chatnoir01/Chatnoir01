@@ -3,10 +3,13 @@ extends Node
 ## Rebuild the Laeken building mesh with official remote-sensing-derived heights.
 ## Horizontal footprints are unchanged UrbIS WFS geometry. Per-building height and
 ## ground elevation come from the committed DSM-DTM analysis. Buildings without
-## enough valid DSM/DTM samples keep the explicit 10.5 m fallback.
+## enough valid DSM/DTM samples keep the explicit 10.5 m fallback. A tiny, audited
+## override set can correct landmark-overlap contamination without mutating the raw
+## DSM-derived dataset.
 
 const BUILDINGS_PATH := "res://data/urbis/laeken_jette/buildings.game.json"
 const HEIGHTS_PATH := "res://data/urbis/laeken_jette/building_heights_dsm.game.json"
+const OVERRIDES_PATH := "res://data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
 const FALLBACK_HEIGHT_M := 10.5
 const VALID_QUALITIES := ["high", "medium", "low"]
 
@@ -16,11 +19,13 @@ var fallback_buildings: int = 0
 var high_quality: int = 0
 var medium_quality: int = 0
 var low_quality: int = 0
+var landmark_corrected_buildings: int = 0
 var derived_min_height_m: float = INF
 var derived_max_height_m: float = -INF
 var roof_min_y: float = INF
 var roof_max_y: float = -INF
 var atomium_absolute_elevation_m: float = 0.0
+var _height_overrides: Dictionary = {}
 
 
 func _ready() -> void:
@@ -69,10 +74,33 @@ func _polygon_centroid(points: PackedVector2Array) -> Vector2:
     return sum / float(points.size())
 
 
-func _resolve_record(record: Dictionary, terrain: Node, points: PackedVector2Array) -> Dictionary:
-    var quality := str(record.get("quality", ""))
+func _resolve_record(record: Dictionary, properties: Dictionary, terrain: Node, points: PackedVector2Array) -> Dictionary:
+    var source_quality := str(record.get("quality", ""))
+    var inspire_id := str(properties.get("INSPIRE_ID", ""))
+    if _height_overrides.has(inspire_id):
+        var override = _height_overrides[inspire_id]
+        if override is Dictionary:
+            var corrected_height := float(override.get("height_m", -1.0))
+            if corrected_height >= 2.0 and corrected_height <= 120.0:
+                var ground_abs = record.get("ground_median_abs_m", null)
+                var corrected_base_y: float
+                if ground_abs != null:
+                    corrected_base_y = float(ground_abs) - atomium_absolute_elevation_m
+                else:
+                    var corrected_centroid := _polygon_centroid(points)
+                    corrected_base_y = float(terrain.call("sample_height", corrected_centroid.x, corrected_centroid.y))
+                return {
+                    "derived": true,
+                    "quality": "landmark_corrected",
+                    "source_quality": source_quality,
+                    "height": corrected_height,
+                    "base_y": corrected_base_y,
+                    "landmark_corrected": true,
+                    "override_method": str(override.get("method", "")),
+                }
+
     var raw_height = record.get("height_m", null)
-    if quality in VALID_QUALITIES and raw_height != null:
+    if source_quality in VALID_QUALITIES and raw_height != null:
         var height := float(raw_height)
         if height >= 2.0 and height <= 120.0:
             var ground_abs = record.get("ground_median_abs_m", null)
@@ -84,9 +112,11 @@ func _resolve_record(record: Dictionary, terrain: Node, points: PackedVector2Arr
                 base_y = float(terrain.call("sample_height", centroid.x, centroid.y))
             return {
                 "derived": true,
-                "quality": quality,
+                "quality": source_quality,
+                "source_quality": source_quality,
                 "height": height,
                 "base_y": base_y,
+                "landmark_corrected": false,
             }
 
     var fallback_centroid := _polygon_centroid(points)
@@ -94,8 +124,10 @@ func _resolve_record(record: Dictionary, terrain: Node, points: PackedVector2Arr
     return {
         "derived": false,
         "quality": "fallback",
+        "source_quality": source_quality,
         "height": FALLBACK_HEIGHT_M,
         "base_y": fallback_base,
+        "landmark_corrected": false,
     }
 
 
@@ -133,6 +165,10 @@ func _build_height_mesh() -> void:
     atomium_absolute_elevation_m = float(terrain.get("atomium_absolute_elevation_m"))
     var buildings := _load_json(BUILDINGS_PATH)
     var heights_document := _load_json(HEIGHTS_PATH)
+    var overrides_document := _load_json(OVERRIDES_PATH)
+    var override_value = overrides_document.get("overrides", {})
+    _height_overrides = override_value as Dictionary if override_value is Dictionary else {}
+
     var features = buildings.get("features", [])
     var records = heights_document.get("records", [])
     if not (features is Array) or features.is_empty():
@@ -152,6 +188,9 @@ func _build_height_mesh() -> void:
         var geometry = feature.get("geometry", {})
         if not (geometry is Dictionary):
             continue
+        var properties = feature.get("properties", {})
+        if not (properties is Dictionary):
+            properties = {}
         var record = records[feature_index]
         if not (record is Dictionary):
             record = {}
@@ -164,10 +203,7 @@ func _build_height_mesh() -> void:
         if valid_rings.is_empty():
             continue
 
-        # Height/quality belongs to the complete UrbIS feature. Resolve it once,
-        # then preserve every Polygon/MultiPolygon outer component instead of
-        # dropping all components after the first one.
-        var resolved := _resolve_record(record, terrain, valid_rings[0])
+        var resolved := _resolve_record(record, properties, terrain, valid_rings[0])
         var height := float(resolved["height"])
         var base_y := float(resolved["base_y"])
         var roof_y := base_y + height
@@ -181,7 +217,9 @@ func _build_height_mesh() -> void:
             derived_buildings += 1
             derived_min_height_m = minf(derived_min_height_m, height)
             derived_max_height_m = maxf(derived_max_height_m, height)
-            match str(resolved["quality"]):
+            if bool(resolved.get("landmark_corrected", false)):
+                landmark_corrected_buildings += 1
+            match str(resolved.get("source_quality", resolved["quality"])):
                 "high": high_quality += 1
                 "medium": medium_quality += 1
                 "low": low_quality += 1
@@ -206,9 +244,10 @@ func _build_height_mesh() -> void:
     get_parent().add_child(replacement)
     height_mesh_ready = true
 
-    print("LAEKEN_BUILDING_HEIGHTS_READY: derived=%d fallback=%d quality={high:%d,medium:%d,low:%d} height=[%.2f,%.2f] roof_y=[%.2f,%.2f]" % [
+    print("LAEKEN_BUILDING_HEIGHTS_READY: derived=%d fallback=%d landmark_corrected=%d quality={high:%d,medium:%d,low:%d} height=[%.2f,%.2f] roof_y=[%.2f,%.2f]" % [
         derived_buildings,
         fallback_buildings,
+        landmark_corrected_buildings,
         high_quality,
         medium_quality,
         low_quality,

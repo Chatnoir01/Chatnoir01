@@ -1,7 +1,6 @@
 extends Node
 
-## Canonical traffic manager surface.
-## This file intentionally has no dependency on traffic_manager_core_v*.
+## Canonical traffic manager surface with no legacy core dependency.
 
 const ROOT_TRAFFIC := "TrafficVehicles"
 const ROOT_CROSSINGS := "CrossingPedestrians"

@@ -67,11 +67,12 @@
         },
         {
           "severity": "major",
-          "action": "A Bruxelles-Midi / Brussel-Zuid presentation label is still visible in the Centre capture even when MidiHeroZone is hidden by the QA harness: identify its runtime source and spatially scope location-specific labels so distant hero signage cannot contaminate other districts."
+          "action": "The global LocationLabel was hard-coded to Bruxelles-Midi and contaminated the Centre capture. It is now position-aware in gameplay and explicitly hidden by the geometry-only photo-match harness.",
+          "resolved": true
         },
         {
           "severity": "blocker",
-          "action": "After the geometry and spatial-label leaks are repaired, refine the provisional camera pose side-by-side with the CC0 reference, commit the approved in-game screenshot and score all eleven dimensions."
+          "action": "After the geometry blockers are repaired, refine the provisional camera pose side-by-side with the CC0 reference, commit the approved in-game screenshot and score all eleven dimensions."
         }
       ],
       "realism_complete": false

@@ -1,0 +1,34 @@
+name: Grand Bruxelles Bourse UrbIS Context
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/probe_bourse_urbis_context.py"
+      - "grand-bruxelles-game/tests/test_probe_bourse_urbis_context.py"
+      - ".github/workflows/grand-bruxelles-bourse-urbis-context.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline probe regression
+        run: python3 grand-bruxelles-game/tests/test_probe_bourse_urbis_context.py
+      - name: Live official UrbIS Bourse probe
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/probe_bourse_urbis_context.py --output /tmp/bourse-urbis-context-report.json | tee /tmp/bourse-urbis-context.log
+          grep -q '"street_surfaces"' /tmp/bourse-urbis-context.log
+          grep -q '"street_axes"' /tmp/bourse-urbis-context.log
+          grep -q '"buildings"' /tmp/bourse-urbis-context.log
+      - name: Upload Bourse UrbIS evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-urbis-context-report
+          path: /tmp/bourse-urbis-context-report.json
+          if-no-files-found: error

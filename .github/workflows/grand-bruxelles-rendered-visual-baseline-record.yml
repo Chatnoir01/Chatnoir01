@@ -1,0 +1,60 @@
+name: Grand Bruxelles Rendered Visual Baseline Record
+
+on:
+  push:
+    branches:
+      - "integration/main-visual-baseline-contract"
+    paths:
+      - "grand-bruxelles-game/game/tests/rendered_main_baseline_test.gd"
+      - ".github/workflows/grand-bruxelles-rendered-visual-baseline-record.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  record-visual-fingerprint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/visual-record-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/visual-record-import.log; then exit 1; fi
+      - name: Record deterministic visual fingerprint
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GB_VISUAL_BASELINE_RECORD: "1"
+        run: |
+          set -o pipefail
+          mkdir -p grand-bruxelles-game/artifacts
+          timeout 120s xvfb-run -a \
+            /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --rendering-method gl_compatibility \
+            --script res://game/tests/rendered_main_baseline_test.gd 2>&1 | tee /tmp/visual-record.log
+          if grep -E "SCRIPT ERROR|Parse Error:|RENDERED_MAIN_BASELINE_FAIL" /tmp/visual-record.log; then exit 1; fi
+          grep -q "RENDERED_MAIN_VISUAL_FINGERPRINT_JSON:" /tmp/visual-record.log
+          grep -q "RENDERED_MAIN_BASELINE_OK" /tmp/visual-record.log
+          grep "RENDERED_MAIN_VISUAL_FINGERPRINT_JSON:" /tmp/visual-record.log | sed 's/^.*RENDERED_MAIN_VISUAL_FINGERPRINT_JSON: //' > grand-bruxelles-game/artifacts/rendered-main-fingerprint-candidate.json
+          test -s grand-bruxelles-game/artifacts/rendered-main-baseline.png
+      - name: Upload candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-rendered-visual-baseline-candidate
+          path: |
+            grand-bruxelles-game/artifacts/rendered-main-fingerprint-candidate.json
+            grand-bruxelles-game/artifacts/rendered-main-baseline.png

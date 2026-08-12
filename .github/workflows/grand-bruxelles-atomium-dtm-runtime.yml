@@ -19,6 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
@@ -32,12 +37,18 @@ jobs:
             --headless --path grand-bruxelles-game --editor --quit
 
       - name: Validate Atomium DTM runtime and capture
+        shell: bash
         run: |
+          set -o pipefail
           START=$(date +%s%3N)
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x960 \
             --script res://game/tests/atomium_dtm_runtime_test.gd 2>&1 | tee /tmp/atomium-runtime.log
           END=$(date +%s%3N)
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_DTM_RUNTIME_FAIL" /tmp/atomium-runtime.log; then exit 1; fi
           grep -F "ATOMIUM_DTM_RUNTIME_OK" /tmp/atomium-runtime.log
           echo "atomium_dtm_runtime_ms=$((END-START))" | tee /tmp/atomium-performance.txt
           test -f grand-bruxelles-game/artifacts/atomium/atomium_dtm_ground_oblique.png

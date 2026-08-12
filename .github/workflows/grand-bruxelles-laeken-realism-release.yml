@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/game/tests/laeken_full_realism_smoke_test.gd"
       - "grand-bruxelles-game/game/tests/laeken_building_heights_smoke_test.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
       - "grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json"
       - "grand-bruxelles-game/data/terrain/laeken_jette/**"
       - "grand-bruxelles-game/data/orthophoto/laeken_jette/**"
@@ -103,21 +104,34 @@ jobs:
           python3 - <<'PY'
           import json, os, pathlib
           heights=json.load(open('data/urbis/laeken_jette/building_heights_dsm.game.json',encoding='utf-8'))
+          overrides=json.load(open('data/urbis/laeken_jette/building_height_landmark_overrides.game.json',encoding='utf-8'))
           trees=json.load(open('data/sources/laeken_jette/official_city_trees_provenance.json',encoding='utf-8'))
           terrain=json.load(open('data/terrain/laeken_jette/phase1_dtm.game.json',encoding='utf-8'))
+          correction_items=[]
+          for inspire_id, item in overrides.get('overrides',{}).items():
+            correction_items.append({
+              'inspire_id':inspire_id,
+              'effective_height_m':item['height_m'],
+              'raw_height_m':item.get('source_height_record',{}).get('height_m'),
+              'method':item.get('method'),
+              'reason':item.get('reason'),
+            })
           out={
             'schema':1,
             'build':'laeken-full-realism',
             'source_commit':os.environ.get('GITHUB_SHA'),
             'engine':'Godot 4.7.1',
-            'validation':['single-load terrain + orthophoto + DSM building heights + official City trees'],
+            'validation':['single-load terrain + orthophoto + DSM building heights + landmark contamination corrections + official City trees + multi-lobe canopy replacement'],
             'building_heights':{
               'feature_count':heights['feature_count'],
               'derived':heights['derived_height_count'],
               'fallback':heights['feature_count']-heights['derived_height_count'],
-              'median_m':heights['derived_height_median_m'],
-              'max_m':heights['derived_height_max_m'],
+              'raw_source_median_m':heights['derived_height_median_m'],
+              'raw_source_max_m':heights['derived_height_max_m'],
               'quality':heights['quality_counts'],
+              'landmark_correction_count':len(correction_items),
+              'landmark_corrections':correction_items,
+              'note':'Raw source distribution is preserved for audit; gameplay applies the listed deterministic corrections where landmark geometry contaminated a building footprint.'
             },
             'official_trees':{
               'selected_records':trees['selected_feature_count'],
@@ -125,6 +139,7 @@ jobs:
               'district_counts':trees['district_counts'],
               'license':trees['license'],
               'inventory_warning':trees['completeness_warning'],
+              'visual_canopy':'Broadleaf source positions use three deterministic asymmetric lobes; the former single-sphere crown layer is hidden.'
             },
             'terrain':{
               'grid':[terrain['width'],terrain['height']],

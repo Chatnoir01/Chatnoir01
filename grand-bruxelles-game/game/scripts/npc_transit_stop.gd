@@ -12,6 +12,7 @@ var queue_capacity_per_door: int = 8
 var _queues: Array[NpcTransitQueue] = []
 var _passenger_to_door: Dictionary = {}
 var _door_capacity_remaining := PackedInt32Array()
+var _pending_alighting_per_door := PackedInt32Array()
 var _boarding_open: bool = false
 
 func configure(
@@ -91,25 +92,47 @@ func queue_size_for_door(door_index: int) -> int:
 		return 0
 	return queue.queue_size()
 
-func vehicle_arrived(capacity_per_door: PackedInt32Array) -> void:
+func vehicle_arrived(capacity_per_door: PackedInt32Array, alighting_per_door: PackedInt32Array = PackedInt32Array()) -> void:
 	_door_capacity_remaining.resize(_queues.size())
+	_pending_alighting_per_door.resize(_queues.size())
 	for door_index in range(_queues.size()):
 		var capacity: int = 0
 		if door_index < capacity_per_door.size():
 			capacity = maxi(capacity_per_door[door_index], 0)
 		_door_capacity_remaining[door_index] = capacity
+		var alighting_count: int = 0
+		if door_index < alighting_per_door.size():
+			alighting_count = maxi(alighting_per_door[door_index], 0)
+		_pending_alighting_per_door[door_index] = alighting_count
 	_boarding_open = true
 
 func vehicle_departed() -> void:
 	_boarding_open = false
 	_door_capacity_remaining.resize(_queues.size())
+	_pending_alighting_per_door.resize(_queues.size())
 	for door_index in range(_door_capacity_remaining.size()):
 		_door_capacity_remaining[door_index] = 0
+		_pending_alighting_per_door[door_index] = 0
 
 func remaining_capacity_for_door(door_index: int) -> int:
 	if door_index < 0 or door_index >= _door_capacity_remaining.size():
 		return 0
 	return _door_capacity_remaining[door_index]
+
+func pending_alighting_for_door(door_index: int) -> int:
+	if door_index < 0 or door_index >= _pending_alighting_per_door.size():
+		return 0
+	return _pending_alighting_per_door[door_index]
+
+func register_disembarked(door_index: int) -> bool:
+	if not _boarding_open:
+		return false
+	if door_index < 0 or door_index >= _pending_alighting_per_door.size():
+		return false
+	if _pending_alighting_per_door[door_index] <= 0:
+		return false
+	_pending_alighting_per_door[door_index] -= 1
+	return true
 
 func request_boarding(passenger_id: int) -> Dictionary:
 	var result := {
@@ -125,6 +148,9 @@ func request_boarding(passenger_id: int) -> Dictionary:
 	result["door_position"] = door_anchor(door_index)
 	if not _boarding_open:
 		result["reason"] = "boarding_closed"
+		return result
+	if pending_alighting_for_door(door_index) > 0:
+		result["reason"] = "allow_disembark_first"
 		return result
 	if remaining_capacity_for_door(door_index) <= 0:
 		result["reason"] = "door_full"
@@ -173,6 +199,7 @@ func _rebuild_queues() -> void:
 		queue.configure(door_anchor(door_index), platform_depth_direction, queue_spacing_meters, queue_capacity_per_door)
 		_queues.append(queue)
 	_door_capacity_remaining.resize(_queues.size())
+	_pending_alighting_per_door.resize(_queues.size())
 
 func _normalized_planar_or(value: Vector3, fallback: Vector3) -> Vector3:
 	var planar := Vector3(value.x, 0.0, value.z)

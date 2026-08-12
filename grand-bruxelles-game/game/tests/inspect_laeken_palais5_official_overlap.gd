@@ -25,6 +25,18 @@ func _rings(geometry: Dictionary) -> Array:
                 out.append(polygon[0])
     return out
 
+func _all_polygon_rings(geometry: Dictionary) -> Array:
+    var out: Array = []
+    var kind := String(geometry.get("type", ""))
+    var coords = geometry.get("coordinates", [])
+    if kind == "Polygon" and coords is Array:
+        out.append(coords)
+    elif kind == "MultiPolygon" and coords is Array:
+        for polygon in coords:
+            if polygon is Array:
+                out.append(polygon)
+    return out
+
 func _points(ring: Array) -> PackedVector2Array:
     var out := PackedVector2Array()
     for raw in ring:
@@ -56,6 +68,16 @@ func _inside_share(subject: PackedVector2Array, polygon: PackedVector2Array) -> 
         if Geometry2D.is_point_in_polygon(point, polygon):
             inside += 1
     return float(inside) / float(subject.size())
+
+func _ring_area(points: PackedVector2Array) -> float:
+    if points.size() < 3:
+        return 0.0
+    var twice_area := 0.0
+    for i in range(points.size()):
+        var a := points[i]
+        var b := points[(i + 1) % points.size()]
+        twice_area += a.x * b.y - b.x * a.y
+    return absf(twice_area) * 0.5
 
 func _run() -> void:
     var buildings := _load_json(BUILDINGS_PATH)
@@ -93,9 +115,34 @@ func _run() -> void:
             var candidate_inside := _inside_share(candidate, source)
             var centroid_inside := Geometry2D.is_point_in_polygon(centroid, candidate)
             if source_inside >= 0.05 or candidate_inside >= 0.05 or centroid_inside or box.intersects(source_bbox):
+                var polygon_ring_stats: Array[Dictionary] = []
+                var polygons := _all_polygon_rings(geometry)
+                for polygon_index in range(polygons.size()):
+                    var polygon = polygons[polygon_index]
+                    if not polygon is Array:
+                        continue
+                    var hole_stats: Array[Dictionary] = []
+                    for local_ring_index in range(polygon.size()):
+                        var ring_points := _points(polygon[local_ring_index])
+                        hole_stats.append({
+                            "ring_index": local_ring_index,
+                            "vertices": ring_points.size(),
+                            "area_m2": snappedf(_ring_area(ring_points), 0.001),
+                            "source_inside_share": snappedf(_inside_share(source, ring_points), 0.000001),
+                            "source_centroid_inside": Geometry2D.is_point_in_polygon(centroid, ring_points),
+                            "bbox": [
+                                _bbox(ring_points).position.x,
+                                _bbox(ring_points).position.y,
+                                _bbox(ring_points).end.x,
+                                _bbox(ring_points).end.y,
+                            ],
+                        })
+                    polygon_ring_stats.append({"polygon_index": polygon_index, "rings": hole_stats})
                 matches.append({
                     "feature_index": feature_index,
                     "ring_index": ring_index,
+                    "geometry_type": String(geometry.get("type", "")),
+                    "polygon_ring_stats": polygon_ring_stats,
                     "source_inside_share": snappedf(source_inside, 0.000001),
                     "candidate_inside_share": snappedf(candidate_inside, 0.000001),
                     "centroid_inside": centroid_inside,

@@ -28,6 +28,20 @@ func _init() -> void:
 	_assert(seen.has(NpcAmbientState.State.IDLE), "ambient sequence should include IDLE", failures)
 	_assert(seen.size() >= 3, "ambient sequence should have meaningful variation", failures)
 
+	var wait_tags: Dictionary = {}
+	for cycle_index in range(12):
+		var tag: StringName = first.transit_wait_animation_tag(1, false, cycle_index)
+		wait_tags[tag] = true
+	_assert(wait_tags.size() >= 3, "transit waiting should not loop one pose forever", failures)
+	var deterministic_a: StringName = first.transit_wait_animation_tag(0, false, 4)
+	var deterministic_b: StringName = first.transit_wait_animation_tag(0, false, 4)
+	_assert(deterministic_a == deterministic_b, "same NPC wait pose selection must be deterministic", failures)
+	var rainy_tags: Dictionary = {}
+	for cycle_index in range(12):
+		var rainy_tag: StringName = first.transit_wait_animation_tag(2, true, cycle_index)
+		rainy_tags[rainy_tag] = true
+	_assert(not rainy_tags.has(&"wait_check_phone"), "rain context should avoid prolonged exposed phone-check pose", failures)
+
 	if failures.is_empty():
 		print("NPC_AMBIENT_STATE_OK")
 		quit(0)

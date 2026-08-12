@@ -56,6 +56,24 @@ func advance(is_raining: bool, crowd_is_dense: bool, requested_sequence_index: i
 		current_state = State.IDLE
 	return current_state
 
+func transit_wait_animation_tag(queue_index: int, is_raining: bool, cycle_index: int = 0) -> StringName:
+	var safe_queue_index: int = maxi(queue_index, 0)
+	var mixed: int = absi(variation_seed * 97 + safe_queue_index * 43 + cycle_index * 181 + 17)
+	var variant: int = mixed % 4
+	if safe_queue_index == 0 and mixed % 3 == 0:
+		return &"wait_look_for_vehicle"
+	if is_raining and variant == 2:
+		return &"wait_shift_weight"
+	match variant:
+		0:
+			return &"wait_still"
+		1:
+			return &"wait_look_for_vehicle"
+		2:
+			return &"wait_check_phone"
+		_:
+			return &"wait_shift_weight"
+
 func state_duration_seconds(salt: int = 0) -> float:
 	match current_state:
 		State.WALK:

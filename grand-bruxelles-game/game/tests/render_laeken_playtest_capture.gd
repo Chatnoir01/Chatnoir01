@@ -22,10 +22,22 @@ func _load_view() -> Dictionary:
         push_error("PLAYTEST_CAPTURE_FAIL: photo-match manifest invalid")
         return {}
     var views = parsed.get("views", [])
-    if not (views is Array) or views.is_empty() or not (views[0] is Dictionary):
+    if not (views is Array) or views.is_empty():
         push_error("PLAYTEST_CAPTURE_FAIL: photo-match manifest has no benchmark view")
         return {}
-    return views[0] as Dictionary
+
+    var requested := OS.get_environment("PHOTO_MATCH_VIEW_ID").strip_edges()
+    if requested.is_empty():
+        if views[0] is Dictionary:
+            return views[0] as Dictionary
+        push_error("PLAYTEST_CAPTURE_FAIL: first benchmark view is invalid")
+        return {}
+
+    for item in views:
+        if item is Dictionary and String(item.get("id", "")) == requested:
+            return item as Dictionary
+    push_error("PLAYTEST_CAPTURE_FAIL: requested benchmark view not found: %s" % requested)
+    return {}
 
 
 func _terrain_height(scene: Node, x: float, z: float) -> float:
@@ -57,11 +69,20 @@ func _apply_benchmark_camera(scene: Node, view: Dictionary) -> bool:
 
     var x := float(camera_xz[0])
     var z := float(camera_xz[1])
-    var y := _terrain_height(scene, x, z) + float(view.get("camera_height_above_terrain_m", 1.7))
+    var terrain_y := _terrain_height(scene, x, z)
+    var eye_height := float(view.get("camera_height_above_terrain_m", 1.7))
+    var y := terrain_y + eye_height
+
+    if view.has("camera_game_y_from_atomium_baseline_m"):
+        var pinned_y := float(view["camera_game_y_from_atomium_baseline_m"])
+        if absf(y - pinned_y) > 0.35:
+            push_error("PLAYTEST_CAPTURE_FAIL: runtime terrain disagrees with pinned DTM camera Y: runtime=%.3f pinned=%.3f" % [y, pinned_y])
+            return false
+
     benchmark.global_position = Vector3(x, y, z)
     benchmark.look_at(Vector3(float(target_xyz[0]), float(target_xyz[1]), float(target_xyz[2])), Vector3.UP)
     benchmark.current = true
-    print("PHOTO_MATCH_VIEW: %s camera=(%.3f,%.3f,%.3f) fov=%.1f" % [String(view.get("id", "unnamed")), x, y, z, benchmark.fov])
+    print("PHOTO_MATCH_VIEW: %s camera=(%.3f,%.3f,%.3f) terrain=%.3f fov=%.1f" % [String(view.get("id", "unnamed")), x, y, z, terrain_y, benchmark.fov])
     return true
 
 

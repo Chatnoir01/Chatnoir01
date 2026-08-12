@@ -38,7 +38,7 @@ jobs:
           print('PALAIS5_AUDIT_DSM_READY')
           PY
 
-      - name: Audit precise official footprint component
+      - name: Audit official footprint without accepting campus-scale false positives
         working-directory: grand-bruxelles-game
         run: |
           python3 -m py_compile tools/audit_palais5_nearest_urbis.py
@@ -47,7 +47,7 @@ jobs:
           import json
           p='data/sources/laeken_jette/palais5_nearest_urbis_audit.json'
           d=json.load(open(p,encoding='utf-8'))
-          assert d['schema'] == 2, d
+          assert d['schema'] == 3, d
           assert d['feature_candidate_count'] > 0, d
           assert d['component_candidate_count'] > 0, d
           assert d['containing_component_count'] == 1, d
@@ -55,10 +55,14 @@ jobs:
           assert selected is not None, d
           assert selected['locator_inside'] is True, selected
           assert selected['locator_boundary_distance_m'] == 0.0, selected
-          assert selected['outer_area_m2'] > 1000.0, selected
-          assert 50.0 <= selected['major_span_m'] <= 800.0, selected
-          assert 20.0 <= selected['minor_span_m'] <= 600.0, selected
-          print('PALAIS5_COMPONENT_AUDIT_VALID', selected)
+          screen=d['hero_footprint_screen']
+          # Current UrbIS component is deliberately expected to fail the broad
+          # single-hall screen. A green CI here means the false-positive guard
+          # works; it does NOT mean Palais 5 geometry has been resolved.
+          assert screen['passes'] is False, screen
+          assert d['resolution_status'] == 'needs_finer_authoritative_geometry', d
+          assert screen['failed_checks'], screen
+          print('PALAIS5_FALSE_POSITIVE_GUARD_VALID', selected, screen)
           PY
 
       - name: Publish audit from latest branch head
@@ -72,5 +76,5 @@ jobs:
           cp /tmp/palais5_nearest_urbis_audit.json grand-bruxelles-game/data/sources/laeken_jette/
           git add -f grand-bruxelles-game/data/sources/laeken_jette/palais5_nearest_urbis_audit.json
           git diff --cached --quiet && exit 0
-          git commit -m "data: audit precise Palais 5 UrbIS component [skip ci]"
+          git commit -m "data: flag Palais 5 for finer authoritative geometry [skip ci]"
           git push origin HEAD:zone-laeken-jette

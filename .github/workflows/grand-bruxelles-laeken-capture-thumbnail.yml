@@ -27,7 +27,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends imagemagick
           SRC=grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
           test -s "$SRC"
-          magick "$SRC" -resize 480x270 -strip -quality 68 /tmp/laeken-player-thumb.jpg
+          convert "$SRC" -resize 480x270 -strip -quality 68 /tmp/laeken-player-thumb.jpg
           base64 -w 0 /tmp/laeken-player-thumb.jpg > /tmp/laeken-player-thumb.b64.txt
           test "$(wc -c </tmp/laeken-player-thumb.b64.txt)" -gt 1000
           test "$(wc -c </tmp/laeken-player-thumb.b64.txt)" -lt 500000

@@ -49,7 +49,7 @@ func _init() -> void:
 	_assert(absf(recheck_a - recheck_b) > 0.01, "nearby civilians do not recheck crossing gaps in lockstep")
 	var later_recheck: float = agent.pedestrian_context.curb_recheck_interval_seconds(3)
 	_assert(absf(later_recheck - recheck_a) > 0.01, "one civilian varies recheck cadence across attempts")
-	_assert(agent.pedestrian_context.should_recheck_crossing_gap(recheck_a - 0.01, 0) == false, "civilian waits until its own recheck cadence")
+	_assert(not agent.pedestrian_context.should_recheck_crossing_gap(recheck_a - 0.01, 0), "civilian waits until its own recheck cadence")
 	_assert(agent.pedestrian_context.should_recheck_crossing_gap(recheck_a, 0), "civilian rechecks when its own cadence elapses")
 	var unsafe_intent: int = agent.update_crossing_context(NpcPedestrianContext.CrossingSignal.NONE, false, 30.0)
 	_assert(unsafe_intent == NpcPedestrianContext.PedestrianIntent.WAIT_AT_CURB, "recheck timing never overrides unsafe traffic gap")
@@ -75,7 +75,7 @@ func _init() -> void:
 
 	var board_intent: int = agent.update_transit_context(true, true, 10.0)
 	_assert(board_intent == NpcPedestrianContext.PedestrianIntent.BOARD_TRANSIT, "board transit intent")
-	_assert(agent.transit_state == NpcAgent.PedestrianIntent.BOARD_TRANSIT if false else agent.transit_state == NpcAgent.TransitState.BOARDING, "boarding state is tracked")
+	_assert(agent.transit_state == NpcAgent.TransitState.BOARDING, "boarding state is tracked")
 	_assert(agent.movement_held, "boarding remains externally held")
 	_assert(agent.get_ambient_animation_tag() == &"boarding", "boarding state exposes boarding animation")
 	_assert(agent.confirm_boarded(), "boarding can be confirmed")

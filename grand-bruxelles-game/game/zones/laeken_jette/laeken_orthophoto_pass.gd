@@ -20,13 +20,26 @@ func _ready() -> void:
     call_deferred("_apply")
 
 
+func _load_ortho_texture() -> Texture2D:
+    # In a normal editor/export run the imported Texture2D is preferred. In
+    # headless CI there may be no .godot/imported cache yet, so load the JPEG
+    # bytes directly instead of falsely reporting that the source is missing.
+    if ResourceLoader.exists(ORTHO_PATH):
+        var imported := load(ORTHO_PATH) as Texture2D
+        if imported != null:
+            return imported
+    if not FileAccess.file_exists(ORTHO_PATH):
+        return null
+    var image := Image.load_from_file(ORTHO_PATH)
+    if image == null or image.is_empty():
+        return null
+    return ImageTexture.create_from_image(image)
+
+
 func _apply() -> void:
-    if not ResourceLoader.exists(ORTHO_PATH):
-        push_warning("LaekenOrthophotoPass: official orthophoto texture missing")
-        return
-    var texture := load(ORTHO_PATH) as Texture2D
+    var texture := _load_ortho_texture()
     if texture == null:
-        push_warning("LaekenOrthophotoPass: unable to load official orthophoto")
+        push_warning("LaekenOrthophotoPass: official orthophoto texture missing or unreadable")
         return
 
     var zone := get_parent()

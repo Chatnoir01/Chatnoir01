@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 3,
   "semantic_locator": {
     "source": "OpenStreetMap",
     "osm_way_id": 143816182,
@@ -36,6 +36,22 @@
     "height_quality": "medium",
     "effective_height_m": 15.877
   },
+  "hero_footprint_screen": {
+    "passes": false,
+    "reason": "candidate_requires_finer_authoritative_resolution",
+    "failed_checks": [
+      "major_span_exceeds_single_hall_screen",
+      "minor_span_exceeds_single_hall_screen",
+      "outer_area_exceeds_single_hall_screen"
+    ],
+    "screen_limits": {
+      "max_major_span_m": 500.0,
+      "max_minor_span_m": 300.0,
+      "max_outer_area_m2": 100000.0,
+      "meaning": "anti-false-positive guard only; not claimed Palais 5 dimensions"
+    }
+  },
+  "resolution_status": "needs_finer_authoritative_geometry",
   "nearest_components": [
     {
       "feature_index": 278,
@@ -75,5 +91,5 @@
       "nearest_component_boundary_distance_m": 0.0
     }
   ],
-  "policy": "OSM supplies identity/location only. The selected Palace 5 geometry is the single UrbIS Polygon component containing the named OSM centre. Architectural facade detail remains photo-guided until official drawings are integrated."
+  "policy": "OSM supplies identity/location only. A containing UrbIS component is retained as evidence but is not promoted to Palais 5 hero geometry when the broad anti-false-positive scale screen indicates campus/block geometry. Seek finer authoritative geometry or a separately documented lawful source; never invent a footprint."
 }

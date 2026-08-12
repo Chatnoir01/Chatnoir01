@@ -16,6 +16,28 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Regression-test branch policy
+        run: python3 -m unittest grand-bruxelles-game/tests/test_validate_branch_hygiene.py
+
+      - name: Enforce branch base, ownership and drift hard gate
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_BRANCH" --depth=500 || git fetch origin "$BASE_BRANCH"
+          mapfile -t CHANGED < <(git diff --name-only "origin/$BASE_BRANCH...HEAD")
+          printf '%s\n' "${CHANGED[@]}" > /tmp/grand-bruxelles-changed-files.txt
+          AHEAD=$(git rev-list --count "origin/$BASE_BRANCH..HEAD")
+          BEHIND=$(git rev-list --count "HEAD..origin/$BASE_BRANCH")
+          python3 grand-bruxelles-game/tools/validate_branch_hygiene.py \
+            --head "$HEAD_BRANCH" \
+            --base "$BASE_BRANCH" \
+            --changed-file-list /tmp/grand-bruxelles-changed-files.txt \
+            --ahead "$AHEAD" \
+            --behind "$BEHIND"
+
       - name: Validate specialist branch ownership
         shell: bash
         env:

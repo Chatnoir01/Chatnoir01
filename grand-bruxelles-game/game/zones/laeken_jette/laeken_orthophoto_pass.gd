@@ -57,19 +57,18 @@ func _apply() -> void:
 func _terrain_ortho_material(texture: Texture2D) -> ShaderMaterial:
     var shader := Shader.new()
     shader.code = _shader_prefix() + """
-vec3 compress_aerial_highlights(vec3 colour) {
-    float lum = dot(colour, vec3(0.2126, 0.7152, 0.0722));
-    float highlight = smoothstep(0.56, 0.92, lum);
-    // Orthophotos are captured for cartographic readability and very pale
-    // concrete/plaza surfaces can clip under realtime sun. Preserve hue/detail,
-    // only compress the brightest part of the aerial signal.
-    return colour * mix(1.0, 0.70, highlight);
+vec3 remap_aerial(vec3 colour) {
+    float lum = luminance(colour);
+    float mapped_lum = mix(0.10, 0.50, pow(clamp(lum, 0.0, 1.0), 0.72));
+    vec3 chroma = colour / max(lum, 0.035);
+    chroma = mix(vec3(1.0), chroma, 0.72);
+    return clamp(chroma * mapped_lum, vec3(0.0), vec3(0.62));
 }
 void fragment() {
     vec2 uv = ortho_uv(local_pos.xz);
-    vec3 aerial = compress_aerial_highlights(texture(ortho_texture, uv).rgb);
+    vec3 aerial = remap_aerial(texture(ortho_texture, uv).rgb);
     float slope = 1.0 - clamp(normalize(local_normal).y, 0.0, 1.0);
-    float slope_shade = mix(1.0, 0.82, smoothstep(0.10, 0.55, slope));
+    float slope_shade = mix(1.0, 0.84, smoothstep(0.10, 0.55, slope));
     ALBEDO = aerial * slope_shade;
     ROUGHNESS = 0.96;
     METALLIC = 0.0;
@@ -84,23 +83,23 @@ void fragment() {
 func _road_ortho_material(texture: Texture2D) -> ShaderMaterial:
     var shader := Shader.new()
     shader.code = _shader_prefix() + """
-float luminance(vec3 c) {
-    return dot(c, vec3(0.2126, 0.7152, 0.0722));
-}
-vec3 compress_aerial_highlights(vec3 colour) {
+vec3 remap_aerial(vec3 colour) {
     float lum = luminance(colour);
-    float highlight = smoothstep(0.56, 0.92, lum);
-    return colour * mix(1.0, 0.70, highlight);
+    float mapped_lum = mix(0.12, 0.52, pow(clamp(lum, 0.0, 1.0), 0.72));
+    vec3 chroma = colour / max(lum, 0.035);
+    chroma = mix(vec3(1.0), chroma, 0.68);
+    return clamp(chroma * mapped_lum, vec3(0.0), vec3(0.64));
 }
 void fragment() {
     vec2 uv = ortho_uv(local_pos.xz);
-    vec3 aerial = compress_aerial_highlights(texture(ortho_texture, uv).rgb);
-    float lum = luminance(aerial);
-    // Keep real lane markings, crossings and pavement variation but dampen
-    // bright aerial artefacts so the road still reads as a 3D game surface.
-    vec3 asphalt = vec3(0.105, 0.112, 0.118);
-    float marking_hint = smoothstep(0.48, 0.72, lum);
-    float aerial_weight = mix(0.62, 0.82, marking_hint);
+    vec3 raw_aerial = texture(ortho_texture, uv).rgb;
+    vec3 aerial = remap_aerial(raw_aerial);
+    float raw_lum = luminance(raw_aerial);
+    // Lift the base asphalt so sunlit streets do not read as black voids, while
+    // the original high-resolution aerial signal still drives markings/paving.
+    vec3 asphalt = vec3(0.145, 0.152, 0.160);
+    float marking_hint = smoothstep(0.55, 0.83, raw_lum);
+    float aerial_weight = mix(0.48, 0.74, marking_hint);
     vec3 colour = mix(asphalt, aerial, aerial_weight);
     ALBEDO = colour;
     ROUGHNESS = 0.94;
@@ -127,6 +126,9 @@ const float SOUTH_Z = -4111.37585073803;
 void vertex() {
     local_pos = VERTEX;
     local_normal = NORMAL;
+}
+float luminance(vec3 c) {
+    return dot(c, vec3(0.2126, 0.7152, 0.0722));
 }
 vec2 ortho_uv(vec2 xz) {
     float u = (xz.x - MIN_X) / (MAX_X - MIN_X);

@@ -1,0 +1,79 @@
+name: Grand Bruxelles Laeken Heysel Target DTM
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/data/reference/laeken_jette/heysel_stadium_target_evidence.json"
+      - "grand-bruxelles-game/tools/sample_laeken_dtm_runtime.py"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/phase1_dtm.game.json"
+      - ".github/workflows/grand-bruxelles-laeken-heysel-target-dtm.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-heysel-target-dtm
+  cancel-in-progress: true
+
+jobs:
+  sample:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Compile sampler
+        working-directory: grand-bruxelles-game
+        run: python3 -m py_compile tools/sample_laeken_dtm_runtime.py
+
+      - name: Sample authoritative UrbIS stadium target terrain
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/sample_laeken_dtm_runtime.py \
+            data/terrain/laeken_jette/phase1_dtm.game.json \
+            --e 147572.177 \
+            --n 176160.013 \
+            --eye-height 0.0 \
+            --output data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json
+
+      - name: Validate terrain evidence
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json, math
+          target=json.load(open('data/reference/laeken_jette/heysel_stadium_target_evidence.json',encoding='utf-8'))
+          sample=json.load(open('data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json',encoding='utf-8'))
+          p=target['authoritative_target']['full_urbis_union_centroid_lambert72']
+          assert sample['source_crs']=='EPSG:31370'
+          assert math.isclose(sample['query_epsg31370']['e'], p['e'], abs_tol=1e-6)
+          assert math.isclose(sample['query_epsg31370']['n'], p['n'], abs_tol=1e-6)
+          assert len(sample['bilinear_corners'])==4
+          assert math.isclose(sum(x['weight'] for x in sample['bilinear_corners']),1.0,abs_tol=1e-6)
+          assert 0.0 < sample['terrain_absolute_elevation_m'] < 120.0
+          assert sample['nearest_sample']['valid'] is True
+          print('HEYSEL_TARGET_DTM_EVIDENCE_OK', sample['terrain_absolute_elevation_m'])
+          PY
+
+      - name: Preserve generated evidence
+        run: |
+          mkdir -p /tmp/heysel-target-dtm
+          cp grand-bruxelles-game/data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json /tmp/heysel-target-dtm/
+
+      - name: Publish evidence from latest branch head
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/reference/laeken_jette
+          cp /tmp/heysel-target-dtm/heysel_stadium_target_dtm_sample.json grand-bruxelles-game/data/reference/laeken_jette/
+          git add grand-bruxelles-game/data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: pin Heysel stadium target DTM elevation [skip ci]"
+          git push origin HEAD:zone-laeken-jette

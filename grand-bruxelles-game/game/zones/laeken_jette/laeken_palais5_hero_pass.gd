@@ -222,7 +222,8 @@ func _build_facade(parent: Node3D, facade_width: float, apex: float, statue_heig
     _add_box(parent, "CentralMonumentalPorch", Vector3(central_width, central_height, 5.8), Vector3(0.0, central_height * 0.5, 2.9), _stone_dark)
 
     var pilaster_x := [-20.0, -6.65, 6.65, 20.0]
-    for x in pilaster_x:
+    for raw_x in pilaster_x:
+        var x: float = float(raw_x)
         _add_box(parent, "MonumentalPilaster", Vector3(2.35, central_height + 0.8, 1.30), Vector3(x, (central_height + 0.8) * 0.5, -0.42), _stone)
         facade_pilasters += 1
         _add_statue(parent, x, central_height + 0.55)
@@ -245,9 +246,10 @@ func _build_facade(parent: Node3D, facade_width: float, apex: float, statue_heig
         _add_box(parent, "BronzeEntrance", Vector3(bay_width * 0.72, 4.8, 0.34), Vector3(bay_x, 3.0, -1.36), _bronze)
 
     # Seven low square windows on each lateral body, as described by the heritage inventory.
-    for side_sign in [-1.0, 1.0]:
-        var wing_center := side_sign * (central_width * 0.5 + side_width * 0.5)
-        var usable := side_width * 0.80
+    for raw_side_sign in [-1.0, 1.0]:
+        var side_sign: float = float(raw_side_sign)
+        var wing_center: float = side_sign * (central_width * 0.5 + side_width * 0.5)
+        var usable: float = side_width * 0.80
         for index in range(7):
             var local_offset := lerpf(-usable * 0.5, usable * 0.5, float(index) / 6.0)
             _add_box(parent, "SideLowSquareWindow", Vector3(1.9, 1.9, 0.14), Vector3(wing_center + local_offset, 4.2, -0.08), _glass)

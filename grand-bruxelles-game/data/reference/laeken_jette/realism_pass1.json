@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "zone": "laeken_jette",
   "pass": "realism_01_atomium_heysel",
   "geometry_policy": "Official UrbIS geometry remains authoritative. Photo-guided street furniture is visual-only until replaced by surveyed/open-data positions.",
@@ -23,9 +23,23 @@
       "observations": ["red and brown brick", "stone trim", "balconies", "retail ground floors", "dense perimeter blocks"]
     }
   ],
-  "temporary_visual_rules": {
-    "building_facades": "procedural shader only; building footprints remain UrbIS; facade colour/window pattern is not parcel-specific yet",
+  "current_visual_rules": {
+    "building_facades": "procedural shader remains temporary; building footprints remain UrbIS; facade colour/window pattern is not parcel-specific yet",
     "atomium_approach_furniture": "aligned to nearest official UrbIS StreetAxes geometry; lateral offsets and spacing are photo-guided, not surveyed",
-    "building_heights": "existing pipeline uses source height/levels when present; otherwise default remains temporary pending 3D/LiDAR height pass"
+    "building_heights": "DSM-DTM height pass is active: 9163 of 9518 official building footprints use p75 per-pixel DSM-DTM derived heights; 355 currently use the documented 10.5 m fallback. See building_height_integration_validation.json for tested counts and quality classes.",
+    "building_height_quality_gate": "do not replace DSM-derived heights with generic storey defaults; investigate the 355 fallback footprints progressively using better source coverage",
+    "photo_match": "Atomium benchmark camera is provisional. Jette references may include depicted-place coordinates, but those must never be treated as photographer coordinates unless the source explicitly provides camera position."
+  },
+  "measured_height_validation": {
+    "status": "passed",
+    "source_feature_count": 9518,
+    "derived_height_count": 9163,
+    "fallback_count": 355,
+    "derived_coverage_percent": 96.27,
+    "median_height_m": 11.374515533447266,
+    "min_height_m": 2.0669898986816406,
+    "max_height_m": 51.033287048339844,
+    "method": "p75 of valid DSM-DTM pixel heights whose pixel centres fall inside the official UrbIS building footprint",
+    "validation_file": "data/sources/laeken_jette/building_height_integration_validation.json"
   }
 }

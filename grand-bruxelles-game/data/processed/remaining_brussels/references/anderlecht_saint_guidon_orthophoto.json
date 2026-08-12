@@ -1,0 +1,24 @@
+{
+  "format": "grand-bruxelles-orthophoto-reference-v1",
+  "provider": "Paradigm / UrbIS",
+  "service": "WMS 1.1.0",
+  "endpoint": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms",
+  "layer": "inspire:Ortho",
+  "crs": "EPSG:31370",
+  "bbox": [
+    145500.0,
+    169000.0,
+    146000.0,
+    169500.0
+  ],
+  "width": 1024,
+  "height": 1024,
+  "url": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms?service=WMS&version=1.1.0&request=GetMap&layers=inspire%3AOrtho&styles=&srs=EPSG%3A31370&bbox=145500%2C169000%2C146000%2C169500&width=1024&height=1024&format=image%2Fpng&transparent=false",
+  "purpose": "visual validation/reference only",
+  "download": {
+    "path": "/tmp/saint-guidon-ortho/saint-guidon.png",
+    "bytes": 2402251,
+    "sha256": "193db8ab58c99601e97a57ae67f92782dea3a66246f6afb1b29622031c73aea4",
+    "content_type": "image/png"
+  }
+}

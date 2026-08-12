@@ -57,9 +57,9 @@ func _run() -> void:
     if route_controls.is_empty():
         _fail("traffic signal did not snap to route")
         return
-    var signal: Dictionary = route_controls[0]
-    var green_state: String = str(control_system.call("signal_state_for", signal, Vector3.RIGHT, 0.0))
-    var red_state: String = str(control_system.call("signal_state_for", signal, Vector3.RIGHT, 40.0))
+    var signal_control: Dictionary = route_controls[0]
+    var green_state: String = str(control_system.call("signal_state_for", signal_control, Vector3.RIGHT, 0.0))
+    var red_state: String = str(control_system.call("signal_state_for", signal_control, Vector3.RIGHT, 40.0))
     if green_state != "green" or red_state != "red":
         _fail("deterministic traffic signal phase drifted")
         return

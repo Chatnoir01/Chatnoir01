@@ -26,8 +26,21 @@
         "camera_notes": "iPhone XR; 26 mm equivalent focal length; standard perspective"
       },
       "viewpoint": {
-        "description": "Match the reference's ground-level Place de la Bourse framing and facade perspective before scoring.",
-        "game_camera_transform": null,
+        "description": "Ground-level provisional camera on the west side of Place de la Bourse, facing the Bourse checkpoint. 69.4 degree FOV approximates a 26 mm full-frame-equivalent horizontal framing; exact pose remains subject to side-by-side alignment with the lawful reference.",
+        "game_camera_transform": {
+          "position": [
+            20.0,
+            1.68,
+            -664.58
+          ],
+          "rotation_degrees": [
+            0.0,
+            -90.0,
+            0.0
+          ],
+          "fov_degrees": 69.4,
+          "status": "provisional"
+        },
         "game_screenshot": null
       },
       "scores": {
@@ -46,7 +59,7 @@
       "mismatches": [
         {
           "severity": "blocker",
-          "action": "Capture and register a matching in-game screenshot from the same effective viewpoint before any realism-complete claim."
+          "action": "Run the deterministic Bourse capture, compare it side by side with the CC0 reference, refine the provisional camera pose to the same effective viewpoint, then commit the approved in-game screenshot and score each visual dimension."
         }
       ],
       "realism_complete": false

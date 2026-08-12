@@ -9,8 +9,10 @@ on:
       - "grand-bruxelles-game/game/tests/laeken_terrain_smoke_test.gd"
       - "grand-bruxelles-game/game/tests/laeken_building_visual_smoke_test.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/**"
+      - "grand-bruxelles-game/data/sources/laeken_jette/rail_layer_overlap_audit.json"
       - "grand-bruxelles-game/data/terrain/laeken_jette/**"
       - "grand-bruxelles-game/data/orthophoto/laeken_jette/**"
+      - "grand-bruxelles-game/tools/audit_laeken_rail_layer_overlap.py"
       - ".github/workflows/grand-bruxelles-laeken-realism.yml"
   workflow_dispatch:
 
@@ -26,6 +28,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: zone-laeken-jette
+
+      - name: Audit authoritative rail layer overlap
+        run: |
+          python3 grand-bruxelles-game/tools/audit_laeken_rail_layer_overlap.py --check
 
       - name: Install Godot 4.7.1
         run: |

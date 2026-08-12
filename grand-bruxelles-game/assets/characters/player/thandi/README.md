@@ -24,7 +24,7 @@ The procedural pink character is only an emergency fallback when none of the aut
 
 Once the original source files are committed in `source/` and `textures/`, the workflow `.github/workflows/grand-bruxelles-thandi-build.yml` runs the Blender production script `tools/prepare_thandi_character.py` and generates `Thandi.glb` automatically.
 
-The first production pass is deliberately conservative: it reconnects supplied textures, preserves the rig and facial morphs, normalizes the character to about 1.70 m, removes the zebra colour from the top in favour of the approved hot-pink material, darkens the hair and exports a Godot-friendly GLB with skins, animations and morph targets. The generated GLB is then imported and tested headlessly in Godot before being committed.
+The first production pass reconnects supplied textures, preserves the rig and facial morphs, normalizes the character to about 1.70 m, removes the zebra colour from the top in favour of the approved hot-pink material, darkens the hair and exports a Godot-friendly GLB with skins, animations and morph targets. The generated GLB is then imported and tested headlessly in Godot before being committed.
 
 This automation is **not** a claim that the face already matches the approved reference. Face likeness, hairstyle reshaping, curvier silhouette, white crop-top/shoes and accessories remain authored visual passes after the source asset is active in-engine.
 

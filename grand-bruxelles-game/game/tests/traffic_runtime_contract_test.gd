@@ -28,7 +28,7 @@ func _run() -> void:
     if contract.ACTIVE_LEGACY_BASELINE != "traffic_manager_core_v8":
         _fail("active legacy baseline must remain v8 until parity is proven")
         return
-    if contract.CANONICAL_MANAGER_TARGET.find("_v") >= 0 or contract.CANONICAL_VEHICLE_TARGET.find("_v") >= 0:
+    if contract.CANONICAL_MANAGER_TARGET.find("_core_v") >= 0 or contract.CANONICAL_VEHICLE_TARGET.find("_core_v") >= 0:
         _fail("canonical targets must not introduce another version-suffixed core")
         return
     var incomplete: Node = Node.new()

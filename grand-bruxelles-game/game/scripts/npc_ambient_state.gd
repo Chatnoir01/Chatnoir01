@@ -29,7 +29,7 @@ func set_transit_context(waiting: bool, boarding: bool) -> int:
 		current_state = State.WALK
 	return current_state
 
-func advance(is_raining: bool, crowd_is_dense: bool, requested_sequence_index: int = -1) -> int:
+func advance(is_raining: bool, crowd_is_dense: bool, requested_sequence_index: int = -1, has_social_partner: bool = false) -> int:
 	if current_state == State.WAIT_TRANSIT or current_state == State.BOARDING:
 		return current_state
 	if requested_sequence_index >= 0:
@@ -48,6 +48,10 @@ func advance(is_raining: bool, crowd_is_dense: bool, requested_sequence_index: i
 	var index: int = (sequence_index + offset) % cycle.size()
 	current_state = cycle[index]
 
+	# A social pause needs an actual nearby interaction partner. Without one,
+	# fall back to a solo-compatible glance instead of miming a conversation.
+	if current_state == State.SOCIAL_PAUSE and not has_social_partner:
+		current_state = State.LOOK_AROUND
 	# Dense pedestrian flows should not create long stationary social clusters.
 	if crowd_is_dense and current_state == State.SOCIAL_PAUSE:
 		current_state = State.LOOK_AROUND

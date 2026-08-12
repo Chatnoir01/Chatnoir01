@@ -1,0 +1,2306 @@
+{
+  "format": "grand-bruxelles-brussels-mobility-traffic-v1",
+  "captured_at_utc": "2026-08-12T07:14:26.415343Z",
+  "source": {
+    "name": "Bruxelles Mobilite / Brussels Mobility",
+    "license": "CC0-1.0",
+    "api_docs": "https://data.mobility.brussels/traffic/api/counts/",
+    "devices_url": "https://data.mobility.brussels/traffic/api/counts/?request=devices&outputFormat=json",
+    "live_url": "https://data.mobility.brussels/traffic/api/counts/?request=live&interval=1&includeLanes=false&singleValue=true",
+    "geometry_url": "https://data.mobility.brussels/geoserver/bm_traffic/wfs?service=wfs&version=1.1.0&request=GetFeature&typeName=bm_traffic:traffic_live_geom&outputFormat=json&srsName=EPSG:31370",
+    "geometry_layer": "bm_traffic:traffic_live_geom",
+    "geometry_crs": "EPSG:31370",
+    "measurement_interval": "1m",
+    "fresh_max_age_minutes": 10.0,
+    "notes": [
+      "Calibration uses fresh vehicle counts and occupancy only.",
+      "Vehicle rates are derived from the explicit source measurement window.",
+      "Detector speed values are deliberately excluded because they are not calibrated for absolute speed compliance."
+    ]
+  },
+  "coordinate_system": {
+    "source_crs": "EPSG:31370",
+    "origin_e": 147868.29422791934,
+    "origin_n": 169538.62414926197,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
+  "raw_sha256": {
+    "devices": "30f7e5e6a0ee993c5deff8eced49317bd0600358b7d1b32e71071cbe3a0abfd9",
+    "live": "cc8eda7f9fb43838e2a3dbaac5b28e842bccf818ccd0e91632dbabafc207c821",
+    "geometry": "c965fa17cd9fe724b117250ed1b5a2b9b66e8b5a975d711783ed824f4de15d95"
+  },
+  "stats": {
+    "geometry_sensor_count": 87,
+    "measured_sensor_count": 45,
+    "fresh_measured_sensor_count": 30,
+    "fresh_rate_median_vehicles_per_minute": 15.0,
+    "fresh_rate_p25": 8.5,
+    "fresh_rate_p75": 27.0,
+    "fresh_occupancy_median_pct": 12.0
+  },
+  "sensors": [
+    {
+      "id": "STE_TD3",
+      "description": "TUAVLO_STEB_BAS",
+      "orientation_deg": 370.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        149067.228,
+        169478.621
+      ],
+      "game": [
+        1198.933,
+        60.004
+      ],
+      "measurement": {
+        "count": 8.0,
+        "occupancy_pct": 24.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 8.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "MAD_103",
+      "description": "TUPCKR_MAD__MID",
+      "orientation_deg": 170.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        150015.446,
+        170972.543
+      ],
+      "game": [
+        2147.152,
+        -1433.919
+      ],
+      "measurement": {
+        "count": 46.0,
+        "occupancy_pct": 40.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 46.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "MAD_203",
+      "description": "TUPCKR_MAD__BAS",
+      "orientation_deg": 350.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        150029.286,
+        170939.077
+      ],
+      "game": [
+        2160.991,
+        -1400.453
+      ],
+      "measurement": {
+        "count": 24.0,
+        "occupancy_pct": 13.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 24.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "MON_TD1",
+      "description": "TUGCGR_MON__CAM",
+      "orientation_deg": 195.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        152732.017,
+        169665.871
+      ],
+      "game": [
+        4863.723,
+        -127.247
+      ],
+      "measurement": {
+        "count": 27.0,
+        "occupancy_pct": 18.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 27.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "MON_TD2",
+      "description": "TUGCGR_MON__MEI",
+      "orientation_deg": 375.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        152715.459,
+        169591.839
+      ],
+      "game": [
+        4847.165,
+        -53.215
+      ],
+      "measurement": {
+        "count": 15.0,
+        "occupancy_pct": 11.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 15.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "PNA_103",
+      "description": "TUPCKR_PNA__MID",
+      "orientation_deg": 230.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149550.969,
+        169828.003
+      ],
+      "game": [
+        1682.675,
+        -289.378
+      ],
+      "measurement": {
+        "count": 27.0,
+        "occupancy_pct": 21.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 27.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB020_BBin",
+      "description": "BAUD_HELI_YSER_",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        148623.828,
+        171956.471
+      ],
+      "game": [
+        755.533,
+        -2417.847
+      ],
+      "measurement": {
+        "count": 0.0,
+        "occupancy_pct": 0.0,
+        "from": "2025/04/07 11:42",
+        "to": "2025/04/07 11:43",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 0.0,
+        "age_minutes_at_capture": 708211.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "STE_TD2",
+      "description": "TUAVLO_STEO_CAM",
+      "orientation_deg": 145.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        149062.39,
+        169441.975
+      ],
+      "game": [
+        1194.096,
+        96.649
+      ],
+      "measurement": {
+        "count": 21.0,
+        "occupancy_pct": 8.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 21.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "DEL_103",
+      "description": "TUDELT_E411_CEN",
+      "orientation_deg": 310.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        152770.551,
+        167232.055
+      ],
+      "game": [
+        4902.257,
+        2306.57
+      ],
+      "measurement": {
+        "count": 16.0,
+        "occupancy_pct": 11.5,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 16.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "STE_TD1",
+      "description": "TUAVLO_STEO_CEN",
+      "orientation_deg": 320.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        149054.988,
+        169465.007
+      ],
+      "game": [
+        1186.694,
+        73.617
+      ],
+      "measurement": {
+        "count": 9.0,
+        "occupancy_pct": 15.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 9.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "ROG_TD2",
+      "description": "TUPCKR_ROG__BAS",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        149069.682,
+        171744.828
+      ],
+      "game": [
+        1201.387,
+        -2206.204
+      ],
+      "measurement": {
+        "count": 10.0,
+        "occupancy_pct": 20.0,
+        "from": "2025/10/16 14:54",
+        "to": "2025/10/16 14:55",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 10.0,
+        "age_minutes_at_capture": 431539.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LOI_103",
+      "description": "TUCINQ_MON_CEN",
+      "orientation_deg": 285.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        151272.696,
+        170158.511
+      ],
+      "game": [
+        3404.402,
+        -619.887
+      ],
+      "measurement": {
+        "count": 12.0,
+        "occupancy_pct": 8.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 12.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LOI_109",
+      "description": "TULOI_IN_JOYENT",
+      "orientation_deg": 20.0,
+      "number_of_lanes": 1,
+      "active": true,
+      "lambert72": [
+        151210.629,
+        170098.164
+      ],
+      "game": [
+        3342.334,
+        -559.54
+      ],
+      "measurement": {
+        "count": 0.0,
+        "occupancy_pct": 0.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 0.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LOU_110",
+      "description": "TUPCKR_LOUB_CAM",
+      "orientation_deg": 285.0,
+      "number_of_lanes": 1,
+      "active": true,
+      "lambert72": [
+        149010.206,
+        169466.436
+      ],
+      "game": [
+        1141.912,
+        72.188
+      ],
+      "measurement": {
+        "count": 11.0,
+        "occupancy_pct": 12.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 11.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "PNA_203",
+      "description": "TUPCKR_PNA__BAS",
+      "orientation_deg": 50.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149503.141,
+        169785.175
+      ],
+      "game": [
+        1634.847,
+        -246.551
+      ],
+      "measurement": {
+        "count": 36.0,
+        "occupancy_pct": 23.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 36.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "RCE_TD1",
+      "description": "REYERS_CEN__CEN",
+      "orientation_deg": 244.0,
+      "number_of_lanes": 1,
+      "active": true,
+      "lambert72": [
+        152099.002,
+        170848.696
+      ],
+      "game": [
+        4230.708,
+        -1310.071
+      ],
+      "measurement": {
+        "count": 27.0,
+        "occupancy_pct": 40.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 27.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "RME_TD1",
+      "description": "REYERS_MEI__MEI",
+      "orientation_deg": 310.0,
+      "number_of_lanes": 1,
+      "active": true,
+      "lambert72": [
+        152370.057,
+        171052.012
+      ],
+      "game": [
+        4501.763,
+        -1513.387
+      ],
+      "measurement": {
+        "count": 7.0,
+        "occupancy_pct": 9.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 7.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SGN02_BAout",
+      "description": "CHAR_BEEC_META_",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        145905.002,
+        173163.164
+      ],
+      "game": [
+        -1963.293,
+        -3624.54
+      ],
+      "measurement": {
+        "count": 0.0,
+        "occupancy_pct": 0.0,
+        "from": "2025/04/07 11:42",
+        "to": "2025/04/07 11:43",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 0.0,
+        "age_minutes_at_capture": 708211.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_124",
+      "description": "TULEO_I_STA_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        147694.257,
+        172347.84
+      ],
+      "game": [
+        -174.037,
+        -2809.216
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_207_5",
+      "description": "TULEO_I_EXCLUDE",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        148209.076,
+        172143.973
+      ],
+      "game": [
+        340.781,
+        -2605.349
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SUL62_BA1out",
+      "description": "LORR_HULP_CAPO_",
+      "orientation_deg": 170.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        150985.686,
+        165270.983
+      ],
+      "game": [
+        3117.392,
+        4267.641
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB125_BBout",
+      "description": "BELL_ARLO_TREV_",
+      "orientation_deg": 105.0,
+      "number_of_lanes": 5,
+      "active": false,
+      "lambert72": [
+        150391.336,
+        170099.949
+      ],
+      "game": [
+        2523.042,
+        -561.325
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB121_BBin",
+      "description": "BELL_ARTS_COMM_",
+      "orientation_deg": 105.0,
+      "number_of_lanes": 5,
+      "active": false,
+      "lambert72": [
+        149915.869,
+        170256.758
+      ],
+      "game": [
+        2047.575,
+        -718.134
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_210",
+      "description": "TULEO_I_SCT_BAS",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        148205.013,
+        172133.439
+      ],
+      "game": [
+        336.719,
+        -2594.815
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_204",
+      "description": "TULEO_I_YSE_BAS",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        148461.778,
+        172024.084
+      ],
+      "game": [
+        593.484,
+        -2485.46
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "TEST_ARLON",
+      "description": "TUPCKR_ROG__BAS",
+      "orientation_deg": 100.0,
+      "number_of_lanes": 4,
+      "active": false,
+      "lambert72": [
+        150000.0,
+        150000.0
+      ],
+      "game": [
+        2131.706,
+        19538.624
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SUL62_BHin",
+      "description": "HULP_VIVI_LORR_",
+      "orientation_deg": 100.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        150833.706,
+        165397.9
+      ],
+      "game": [
+        2965.411,
+        4140.724
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SUL62_BHout",
+      "description": "HULP_LORR_SHEE_",
+      "orientation_deg": 100.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        151074.173,
+        165348.72
+      ],
+      "game": [
+        3205.879,
+        4189.904
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SUL62_BDin",
+      "description": "HULP_SHEE_LORR_",
+      "orientation_deg": 280.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        151075.036,
+        165353.055
+      ],
+      "game": [
+        3206.742,
+        4185.569
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_207_12",
+      "description": "TULEO_I_YSE_BAS",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        148208.357,
+        172142.262
+      ],
+      "game": [
+        340.063,
+        -2603.638
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_112",
+      "description": "TULEO_I_BAS_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        146665.688,
+        172811.438
+      ],
+      "game": [
+        -1202.606,
+        -3272.814
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LOU_TD2",
+      "description": "TUPCKR_LOUI_BAS",
+      "orientation_deg": 50.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        149051.922,
+        169486.504
+      ],
+      "game": [
+        1183.627,
+        52.121
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_128",
+      "description": "TULEO_M_OSY_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        147938.82,
+        172254.324
+      ],
+      "game": [
+        70.525,
+        -2715.7
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_117",
+      "description": "TULEO_M_ICB_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        146977.835,
+        172680.886
+      ],
+      "game": [
+        -890.459,
+        -3142.262
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SUL62_BDout",
+      "description": "HULP_LORR_VIVI_",
+      "orientation_deg": 280.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        150834.356,
+        165401.179
+      ],
+      "game": [
+        2966.062,
+        4137.445
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "HAL_292",
+      "description": "TUPCKR_HAL__BAS",
+      "orientation_deg": 110.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        148281.101,
+        169212.453
+      ],
+      "game": [
+        412.807,
+        326.171
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_116",
+      "description": "TULEO_M_ICB_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        146917.956,
+        172707.546
+      ],
+      "game": [
+        -950.338,
+        -3168.922
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_235",
+      "description": "TULEO_O_CHV_BAS",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        146638.602,
+        172842.93
+      ],
+      "game": [
+        -1229.692,
+        -3304.306
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SUL62_BGout",
+      "description": "LORR_HULP_BOIT_",
+      "orientation_deg": 30.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        150967.549,
+        165393.677
+      ],
+      "game": [
+        3099.255,
+        4144.948
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_230",
+      "description": "TULEO_O_BAS_BAS",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        146830.006,
+        172771.022
+      ],
+      "game": [
+        -1038.288,
+        -3232.398
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_129",
+      "description": "TULEO_M_OSY_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        147975.781,
+        172237.968
+      ],
+      "game": [
+        107.487,
+        -2699.343
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_138",
+      "description": "TULEO_O_YSE_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        148402.126,
+        172041.684
+      ],
+      "game": [
+        533.831,
+        -2503.06
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB0246_BAout",
+      "description": "CROI_HEEM_WAND_",
+      "orientation_deg": 305.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        149622.243,
+        175881.055
+      ],
+      "game": [
+        1753.949,
+        -6342.431
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_211",
+      "description": "TULEO_I_SCT_BAS",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        148163.572,
+        172169.598
+      ],
+      "game": [
+        295.278,
+        -2630.973
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SUL62_BGin",
+      "description": "LORR_CAPO_HULP_",
+      "orientation_deg": 350.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        150989.881,
+        165271.829
+      ],
+      "game": [
+        3121.587,
+        4266.795
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LOU_TD1",
+      "description": "TUPCKR_LOUI__MC",
+      "orientation_deg": 230.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        149169.251,
+        169575.125
+      ],
+      "game": [
+        1300.956,
+        -36.501
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_110",
+      "description": "TULEO_I_CHV_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        146636.397,
+        172837.378
+      ],
+      "game": [
+        -1231.898,
+        -3298.754
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "VP_103",
+      "description": "TUVPRA_VP___MEI",
+      "orientation_deg": 190.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        150458.375,
+        174300.5
+      ],
+      "game": [
+        2590.081,
+        -4761.876
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "HAL_191",
+      "description": "TUPCKR_HAL__MID",
+      "orientation_deg": 290.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        148330.07,
+        169206.007
+      ],
+      "game": [
+        461.776,
+        332.617
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_135",
+      "description": "TULEO_O_YSE_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        148159.489,
+        172154.468
+      ],
+      "game": [
+        291.195,
+        -2615.844
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_219",
+      "description": "TULEO_M_OBC_BAS",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        147709.142,
+        172360.671
+      ],
+      "game": [
+        -159.152,
+        -2822.047
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "LEO_131",
+      "description": "TULEO_O_SCT_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 1,
+      "active": false,
+      "lambert72": [
+        148092.797,
+        172176.424
+      ],
+      "game": [
+        224.503,
+        -2637.8
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB0246_BXout",
+      "description": "PRAE_ARAU_CVIL_",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        149615.126,
+        175813.636
+      ],
+      "game": [
+        1746.832,
+        -6275.012
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "NATO_104",
+      "description": "TUOTAN_RING_CEN",
+      "orientation_deg": 250.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        154370.097,
+        174226.253
+      ],
+      "game": [
+        6501.803,
+        -4687.628
+      ],
+      "measurement": {
+        "count": 3.0,
+        "occupancy_pct": 1.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 3.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "NATO_204",
+      "description": "TUOTAN_CEN_RING",
+      "orientation_deg": 70.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        154382.158,
+        174219.016
+      ],
+      "game": [
+        6513.864,
+        -4680.392
+      ],
+      "measurement": {
+        "count": 34.0,
+        "occupancy_pct": 26.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 34.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "VLE_103",
+      "description": "TUAVLO_VLE__CEN",
+      "orientation_deg": 325.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149944.74,
+        168104.528
+      ],
+      "game": [
+        2076.446,
+        1434.096
+      ],
+      "measurement": {
+        "count": 5.0,
+        "occupancy_pct": 9.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 5.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "BET_TD2_6",
+      "description": "TUBELL_UEI__PAR",
+      "orientation_deg": 110.0,
+      "number_of_lanes": 1,
+      "active": true,
+      "lambert72": [
+        151114.484,
+        170195.516
+      ],
+      "game": [
+        3246.189,
+        -656.892
+      ],
+      "measurement": {
+        "count": 1.0,
+        "occupancy_pct": 0.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 1.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "BOT_TD2",
+      "description": "TUPCKR_BOT__BAS",
+      "orientation_deg": 300.0,
+      "number_of_lanes": 2,
+      "active": false,
+      "lambert72": [
+        149880.704,
+        171392.274
+      ],
+      "game": [
+        2012.41,
+        -1853.65
+      ],
+      "measurement": {
+        "count": 44.0,
+        "occupancy_pct": 32.5,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 44.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "RME_TD2",
+      "description": "REYERS_MEI__E40",
+      "orientation_deg": 140.0,
+      "number_of_lanes": 1,
+      "active": true,
+      "lambert72": [
+        152323.289,
+        171063.241
+      ],
+      "game": [
+        4454.995,
+        -1524.617
+      ],
+      "measurement": {
+        "count": 9.0,
+        "occupancy_pct": 9.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 9.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "RMO_TD1",
+      "description": "REYERS_MON__MON",
+      "orientation_deg": 200.0,
+      "number_of_lanes": 1,
+      "active": true,
+      "lambert72": [
+        152389.747,
+        170928.154
+      ],
+      "game": [
+        4521.453,
+        -1389.53
+      ],
+      "measurement": {
+        "count": 14.0,
+        "occupancy_pct": 21.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 14.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "RMO_TD2",
+      "description": "REYERS_MON__E40",
+      "orientation_deg": 360.0,
+      "number_of_lanes": 1,
+      "active": true,
+      "lambert72": [
+        152409.95,
+        170896.887
+      ],
+      "game": [
+        4541.656,
+        -1358.263
+      ],
+      "measurement": {
+        "count": 11.0,
+        "occupancy_pct": 15.0,
+        "from": "2025/10/16 14:55",
+        "to": "2025/10/16 14:56",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 11.0,
+        "age_minutes_at_capture": 431538.44,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB0236_BHout",
+      "description": "PARC_MADR_DYNA_",
+      "orientation_deg": 140.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149212.714,
+        175850.096
+      ],
+      "game": [
+        1344.419,
+        -6311.472
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB0236_BCout",
+      "description": "PARC_MADR_A12__",
+      "orientation_deg": 320.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149215.593,
+        175863.068
+      ],
+      "game": [
+        1347.299,
+        -6324.444
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SGN02_BBout",
+      "description": "CHAR_BEEC_VILL_",
+      "orientation_deg": 295.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        145857.575,
+        173197.65
+      ],
+      "game": [
+        -2010.719,
+        -3659.026
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB020_BDout",
+      "description": "WILL_YSER_BOLI_",
+      "orientation_deg": 20.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        148622.718,
+        171983.198
+      ],
+      "game": [
+        754.424,
+        -2444.574
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB020_BAout",
+      "description": "ANVE_YSER_ANVE_",
+      "orientation_deg": 110.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        148621.84,
+        171931.586
+      ],
+      "game": [
+        753.546,
+        -2392.962
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB1201_BAout",
+      "description": "ARTS_MONT_BELL_",
+      "orientation_deg": 15.0,
+      "number_of_lanes": 4,
+      "active": true,
+      "lambert72": [
+        149860.061,
+        170179.233
+      ],
+      "game": [
+        1991.767,
+        -640.609
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "SB020_BCin",
+      "description": "WILL_VOIR_YSER_",
+      "orientation_deg": 205.0,
+      "number_of_lanes": 3,
+      "active": true,
+      "lambert72": [
+        148593.052,
+        171979.351
+      ],
+      "game": [
+        724.757,
+        -2440.727
+      ],
+      "measurement": {
+        "count": null,
+        "occupancy_pct": null,
+        "from": null,
+        "to": null,
+        "duration_minutes": null,
+        "vehicles_per_minute": null,
+        "age_minutes_at_capture": null,
+        "fresh": false,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "ARL_103",
+      "description": "TUPCKR_ARL__MID",
+      "orientation_deg": 200.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149983.852,
+        170594.438
+      ],
+      "game": [
+        2115.558,
+        -1055.814
+      ],
+      "measurement": {
+        "count": 25.0,
+        "occupancy_pct": 18.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 25.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "ARL_203",
+      "description": "TUPCKR_ARL__BAS",
+      "orientation_deg": 20.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149980.622,
+        170557.302
+      ],
+      "game": [
+        2112.327,
+        -1018.678
+      ],
+      "measurement": {
+        "count": 24.0,
+        "occupancy_pct": 12.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 24.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "BAI_TD1",
+      "description": "TUAVLO_BAI__CEN",
+      "orientation_deg": 325.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149596.4,
+        168639.534
+      ],
+      "game": [
+        1728.106,
+        899.09
+      ],
+      "measurement": {
+        "count": 15.0,
+        "occupancy_pct": 26.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 15.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "BAI_TD2",
+      "description": "TUAVLO_BAI__CAM",
+      "orientation_deg": 145.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149603.678,
+        168614.573
+      ],
+      "game": [
+        1735.384,
+        924.051
+      ],
+      "measurement": {
+        "count": 12.0,
+        "occupancy_pct": 26.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 12.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "BEL_TD4",
+      "description": "TUBELL_AVJE_REY",
+      "orientation_deg": 50.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        151216.462,
+        170323.638
+      ],
+      "game": [
+        3348.167,
+        -785.014
+      ],
+      "measurement": {
+        "count": 10.0,
+        "occupancy_pct": 5.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 10.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "BEL_TD5",
+      "description": "TUBELL_REY__E40",
+      "orientation_deg": 60.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        151829.861,
+        170748.455
+      ],
+      "game": [
+        3961.566,
+        -1209.831
+      ],
+      "measurement": {
+        "count": 24.0,
+        "occupancy_pct": 11.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 24.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "BE_TD1",
+      "description": "TUBELL_IN___ALL",
+      "orientation_deg": 80.0,
+      "number_of_lanes": 3,
+      "active": true,
+      "lambert72": [
+        150851.387,
+        169981.818
+      ],
+      "game": [
+        2983.092,
+        -443.194
+      ],
+      "measurement": {
+        "count": 32.0,
+        "occupancy_pct": 12.333333,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 32.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "BET_TD2_12",
+      "description": "TUBELL_BIF__TER",
+      "orientation_deg": 110.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        151116.18,
+        170198.937
+      ],
+      "game": [
+        3247.886,
+        -660.313
+      ],
+      "measurement": {
+        "count": 7.0,
+        "occupancy_pct": 5.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 7.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "BET_TD3",
+      "description": "TUBELL_CIN__TER",
+      "orientation_deg": 110.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        151251.637,
+        170152.771
+      ],
+      "game": [
+        3383.343,
+        -614.147
+      ],
+      "measurement": {
+        "count": 8.0,
+        "occupancy_pct": 5.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 8.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "CIN_TD1",
+      "description": "TUCINQ_MON_CEN",
+      "orientation_deg": 290.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        151812.742,
+        169979.077
+      ],
+      "game": [
+        3944.448,
+        -440.453
+      ],
+      "measurement": {
+        "count": 7.0,
+        "occupancy_pct": 4.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 7.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "CIN_TD2",
+      "description": "TUBELL_CIN__TER",
+      "orientation_deg": 110.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        151812.351,
+        169968.566
+      ],
+      "game": [
+        3944.057,
+        -429.942
+      ],
+      "measurement": {
+        "count": 10.0,
+        "occupancy_pct": 4.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 10.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "ROG_TD1",
+      "description": "TUPCKR_ROBO_MID",
+      "orientation_deg": 115.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149052.607,
+        171744.867
+      ],
+      "game": [
+        1184.313,
+        -2206.243
+      ],
+      "measurement": {
+        "count": 34.0,
+        "occupancy_pct": 24.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 34.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "TER_TD1",
+      "description": "TUGCGR_TER__CEN",
+      "orientation_deg": 290.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        152762.838,
+        169665.482
+      ],
+      "game": [
+        4894.543,
+        -126.857
+      ],
+      "measurement": {
+        "count": 28.0,
+        "occupancy_pct": 18.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 28.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "TER_TD2",
+      "description": "TUGCGR_TER__TER",
+      "orientation_deg": 110.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        152706.254,
+        169675.624
+      ],
+      "game": [
+        4837.96,
+        -137.0
+      ],
+      "measurement": {
+        "count": 2.0,
+        "occupancy_pct": 3.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 2.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "TRO_203",
+      "description": "TUPCKR_TRO__BEL",
+      "orientation_deg": 45.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149779.142,
+        170001.386
+      ],
+      "game": [
+        1910.848,
+        -462.762
+      ],
+      "measurement": {
+        "count": 14.0,
+        "occupancy_pct": 11.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 14.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "TRO_TD1",
+      "description": "TUPCKR_TRO__MID",
+      "orientation_deg": 200.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149861.827,
+        170226.894
+      ],
+      "game": [
+        1993.533,
+        -688.27
+      ],
+      "measurement": {
+        "count": 28.0,
+        "occupancy_pct": 19.5,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 28.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "TRO_TD2",
+      "description": "TUPCKR_TRO__BAS",
+      "orientation_deg": 20.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149848.403,
+        170161.539
+      ],
+      "game": [
+        1980.109,
+        -622.915
+      ],
+      "measurement": {
+        "count": 27.0,
+        "occupancy_pct": 17.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 27.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "VLE_203",
+      "description": "TUAVLO_VLE__CAM",
+      "orientation_deg": 145.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        149910.075,
+        168145.389
+      ],
+      "game": [
+        2041.78,
+        1393.236
+      ],
+      "measurement": {
+        "count": 6.0,
+        "occupancy_pct": 11.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 6.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    },
+    {
+      "id": "VP_203",
+      "description": "TUVPRA_VP___A12",
+      "orientation_deg": 10.0,
+      "number_of_lanes": 2,
+      "active": true,
+      "lambert72": [
+        150464.058,
+        174252.517
+      ],
+      "game": [
+        2595.764,
+        -4713.893
+      ],
+      "measurement": {
+        "count": 4.0,
+        "occupancy_pct": 1.0,
+        "from": "2026/08/12 09:13",
+        "to": "2026/08/12 09:14",
+        "duration_minutes": 1.0,
+        "vehicles_per_minute": 4.0,
+        "age_minutes_at_capture": 0.0,
+        "fresh": true,
+        "source": "counts_api"
+      }
+    }
+  ]
+}

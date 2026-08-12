@@ -2,6 +2,7 @@ extends SceneTree
 
 const HEIGHTS_PATH := "res://data/urbis/laeken_jette/building_heights_dsm.game.json"
 const OVERRIDES_PATH := "res://data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
+const PALAIS5_OUTLINE_PATH := "res://data/sources/laeken_jette/palais5_osm_outline.game.json"
 const MAX_READY_FRAMES := 90
 
 
@@ -15,7 +16,7 @@ func _fail(message: String) -> void:
 
 
 func _run() -> void:
-    for required in [HEIGHTS_PATH, OVERRIDES_PATH]:
+    for required in [HEIGHTS_PATH, OVERRIDES_PATH, PALAIS5_OUTLINE_PATH]:
         if not FileAccess.file_exists(required):
             _fail("required building-height data missing: %s" % required)
             return
@@ -52,6 +53,9 @@ func _run() -> void:
     var derived := int(height_pass.get("derived_buildings"))
     var fallback := int(height_pass.get("fallback_buildings"))
     var corrected := int(height_pass.get("landmark_corrected_buildings"))
+    var official_holes := int(height_pass.get("official_hole_rings"))
+    var palais5_cutouts := int(height_pass.get("palais5_cutouts"))
+    var roof_triangles := int(height_pass.get("hole_aware_roof_triangles"))
     var high := int(height_pass.get("high_quality"))
     var medium := int(height_pass.get("medium_quality"))
     var low := int(height_pass.get("low_quality"))
@@ -63,6 +67,15 @@ func _run() -> void:
         return
     if corrected != 1:
         _fail("expected exactly one audited landmark-overlap correction, got %d" % corrected)
+        return
+    if official_holes < 14:
+        _fail("official UrbIS interior rings were lost: holes=%d" % official_holes)
+        return
+    if palais5_cutouts != 1:
+        _fail("Palais 5 must be cut from exactly one Expo aggregate polygon, got %d" % palais5_cutouts)
+        return
+    if roof_triangles <= 0:
+        _fail("hole-aware roof triangulation emitted no triangles")
         return
     if high != 7357 or medium != 1136 or low != 670:
         _fail("source quality accounting changed: high=%d medium=%d low=%d" % [high, medium, low])
@@ -93,7 +106,7 @@ func _run() -> void:
         _fail("DSM mesh final ShaderMaterial missing")
         return
 
-    print("LAEKEN_BUILDING_HEIGHTS_OK: ready_frame=%d derived=%d fallback=%d landmark_corrected=%d quality={high:%d,medium:%d,low:%d} height=[%.2f,%.2f] mesh_vertical=%.2fm" % [ready_frame, derived, fallback, corrected, high, medium, low, min_height, max_height, bounds.size.y])
+    print("LAEKEN_BUILDING_HEIGHTS_OK: ready_frame=%d derived=%d fallback=%d landmark_corrected=%d holes=%d palais5_cutouts=%d roof_triangles=%d quality={high:%d,medium:%d,low:%d} height=[%.2f,%.2f] mesh_vertical=%.2fm" % [ready_frame, derived, fallback, corrected, official_holes, palais5_cutouts, roof_triangles, high, medium, low, min_height, max_height, bounds.size.y])
     scene.queue_free()
     await process_frame
     quit(0)

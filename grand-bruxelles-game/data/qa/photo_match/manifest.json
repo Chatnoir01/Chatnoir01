@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "score_scale": {
+    "min": 0,
+    "max": 5,
+    "passing_average": 4.0,
+    "critical_fields": [
+      "silhouette",
+      "building_placement",
+      "height_roofline",
+      "street_width",
+      "landmark_alignment"
+    ]
+  },
+  "references": [
+    {
+      "id": "bourse_2024_cc0_01",
+      "hero_location": "Place de la Bourse / Beursplein",
+      "zone": "centre",
+      "reference": {
+        "source_page": "https://commons.wikimedia.org/wiki/File:Place_de_la_Bourse_(6).jpg",
+        "captured_at": "2024-08-22T14:31:11+02:00",
+        "author": "Bernard Lee",
+        "license": "CC0-1.0",
+        "distribution_policy": "provenance-only; do not bundle reference image unless explicitly vendored with license record",
+        "camera_notes": "iPhone XR; 26 mm equivalent focal length; standard perspective"
+      },
+      "viewpoint": {
+        "description": "Match the reference's ground-level Place de la Bourse framing and facade perspective before scoring.",
+        "game_camera_transform": null,
+        "game_screenshot": null
+      },
+      "scores": {
+        "silhouette": null,
+        "building_placement": null,
+        "height_roofline": null,
+        "street_width": null,
+        "curb_sidewalk_proportions": null,
+        "landmark_alignment": null,
+        "vegetation": null,
+        "street_furniture": null,
+        "materials": null,
+        "lighting": null,
+        "major_visual_clutter": null
+      },
+      "mismatches": [
+        {
+          "severity": "blocker",
+          "action": "Capture and register a matching in-game screenshot from the same effective viewpoint before any realism-complete claim."
+        }
+      ],
+      "realism_complete": false
+    }
+  ]
+}

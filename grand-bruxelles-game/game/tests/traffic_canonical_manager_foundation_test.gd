@@ -58,11 +58,11 @@ func _run() -> void:
         _fail("traffic signal did not snap to route")
         return
     var signal_control: Dictionary = route_controls[0]
-    var green_state: String = str(control_system.call("signal_state_for", signal_control, Vector3.RIGHT, 0.0))
-    var red_state: String = str(control_system.call("signal_state_for", signal_control, Vector3.RIGHT, 40.0))
-    if green_state != "green" or red_state != "red":
-        _fail("deterministic traffic signal phase drifted")
-        return
+    for raw_now_seconds in [0.0, 28.0, 35.0, 40.0, 63.0, 69.9, 140.0]:
+        var state := str(control_system.call("signal_state_for", signal_control, Vector3.RIGHT, float(raw_now_seconds)))
+        if state != "unknown":
+            _fail("unsourced traffic signal phase became %s at %.1f s" % [state, float(raw_now_seconds)])
+            return
 
     var no_priority_controls: Array = [controls[1]]
     var intersection_system: RefCounted = INTERSECTION_SYSTEM.new()

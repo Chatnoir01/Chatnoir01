@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "asset": "Palais 5 / Grand Palais hero-detail pass",
+  "identity_outline": {
+    "source": "OpenStreetMap way 143816182, validated against aggregate UrbIS feature 278",
+    "runtime_file": "res://data/sources/laeken_jette/palais5_osm_outline.game.json"
+  },
+  "authoritative_complex_anchor": {
+    "source": "Paradigm UrbIS Buildings WFS",
+    "feature_index": 278,
+    "inspire_id": "https://databrussels.be/id/building/1635598"
+  },
+  "architectural_facts": {
+    "hall_height_m": 31.0,
+    "structural_span_m": 86.0,
+    "approx_historic_length_m": 165.0,
+    "arch_count": 12,
+    "arch_spacing_m": 12.0,
+    "front_pilaster_count": 4,
+    "transport_statue_count": 4,
+    "transport_statue_height_m": 4.3,
+    "main_entrance_bay_count": 3,
+    "side_low_window_count_each": 7,
+    "style": "Art Deco",
+    "architect": "Joseph Van Neck",
+    "engineer": "Louis Baes",
+    "year": 1935
+  },
+  "fact_sources": [
+    {
+      "name": "Inventaire du patrimoine architectural - Palais des Expositions du Heysel",
+      "url": "https://monument.heritage.brussels/fr/buildings/38321",
+      "used_for": ["31 m height", "86 m span", "12 arches", "12 m arch spacing", "4 pilasters", "4.3 m transport statues", "3 entrance bays", "side-window rhythm", "Art Deco historical description"]
+    },
+    {
+      "name": "Bureau International des Expositions - Expo 1935 Brussels",
+      "url": "https://www.bie-paris.org/site/en/1935-brussels",
+      "used_for": ["31 m height", "over 150 m length", "86 m structural span"]
+    }
+  ],
+  "visual_policy": "Geometry uses sourced dimensions where available. Decorative sculpture bodies, exact bay widths, step dimensions and minor facade setbacks are simplified/photo-guided game geometry and must not be presented as surveyed measurements. No reference photograph is copied as a texture."
+}

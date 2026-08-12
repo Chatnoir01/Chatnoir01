@@ -1,0 +1,27 @@
+{
+  "schema": "grand-bruxelles-bourse-frontage-lod2-evidence-v1",
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "dataset_id": "e9ec2aa4-cffd-11ee-bccc-00090ffe0001",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "selection_source": "official UrbIS WFS Buildings nearest-feature probe in the locked 180 m Bourse bbox",
+    "workflow_artifact_digest": "sha256:a7dd5de629555a514a5ba26742475c365730d279c546a8695aa2449edb9617ea",
+    "accessed_at": "2026-08-12"
+  },
+  "candidates": [
+    {"building_id":"https://databrussels.be/id/building/1597163","solid_ids":["https://databrussels.be/id/buildingsolid/567444","https://databrussels.be/id/buildingsolid/578671"],"solid_count":2,"bbox":[148636.38,170821.0,148653.414,170836.113],"height_m":23.612,"faces":31,"triangles":92},
+    {"building_id":"https://databrussels.be/id/building/1597237","solid_ids":["https://databrussels.be/id/buildingsolid/582202"],"solid_count":1,"bbox":[148628.61,170808.93,148645.37,170823.608],"height_m":24.357,"faces":26,"triangles":82},
+    {"building_id":"https://databrussels.be/id/building/1608860","solid_ids":["https://databrussels.be/id/buildingsolid/567449","https://databrussels.be/id/buildingsolid/567828"],"solid_count":2,"bbox":[148625.278,170801.14,148643.71,170817.43],"height_m":26.318,"faces":30,"triangles":86},
+    {"building_id":"https://databrussels.be/id/building/1638842","solid_ids":["https://databrussels.be/id/buildingsolid/564014"],"solid_count":1,"bbox":[148585.71,170827.999,148605.448,170842.94],"height_m":23.707,"faces":20,"triangles":66},
+    {"building_id":"https://databrussels.be/id/building/1643317","solid_ids":["https://databrussels.be/id/buildingsolid/572513"],"solid_count":1,"bbox":[148588.71,170823.032,148602.302,170835.15],"height_m":23.222,"faces":14,"triangles":42},
+    {"building_id":"https://databrussels.be/id/building/1645565","solid_ids":["https://databrussels.be/id/buildingsolid/573898","https://databrussels.be/id/buildingsolid/578495"],"solid_count":2,"bbox":[148632.664,170816.826,148648.62,170829.19],"height_m":24.646,"faces":23,"triangles":70},
+    {"building_id":"https://databrussels.be/id/building/1645621","solid_ids":["https://databrussels.be/id/buildingsolid/558134","https://databrussels.be/id/buildingsolid/573935"],"solid_count":2,"bbox":[148597.025,170842.871,148619.222,170858.977],"height_m":24.789,"faces":37,"triangles":96}
+  ],
+  "wfs_buildings_without_matching_3d_solids": ["https://databrussels.be/id/building/1645724"],
+  "runtime_approved": false,
+  "approval_note": "Exact source-backed neighboring massing evidence only. Runtime replacement requires explicit OSM/UrbIS footprint matching, deterministic capture and performance validation."
+}

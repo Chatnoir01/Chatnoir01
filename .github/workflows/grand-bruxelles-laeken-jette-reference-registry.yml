@@ -7,12 +7,14 @@ on:
       - "grand-bruxelles-game/data/reference/laeken_jette/**"
       - "grand-bruxelles-game/data/sources/laeken_jette/building_height_integration_validation.json"
       - "grand-bruxelles-game/tools/validate_laeken_jette_reference_registry.py"
+      - "grand-bruxelles-game/tests/test_laeken_photo_match_consistency.py"
       - ".github/workflows/grand-bruxelles-laeken-jette-reference-registry.yml"
   pull_request:
     paths:
       - "grand-bruxelles-game/data/reference/laeken_jette/**"
       - "grand-bruxelles-game/data/sources/laeken_jette/building_height_integration_validation.json"
       - "grand-bruxelles-game/tools/validate_laeken_jette_reference_registry.py"
+      - "grand-bruxelles-game/tests/test_laeken_photo_match_consistency.py"
       - ".github/workflows/grand-bruxelles-laeken-jette-reference-registry.yml"
   workflow_dispatch:
 
@@ -27,3 +29,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate realism provenance and measured-state claims
         run: python3 grand-bruxelles-game/tools/validate_laeken_jette_reference_registry.py
+      - name: Lock photo-match capture/finding consistency
+        run: python3 -m unittest grand-bruxelles-game/tests/test_laeken_photo_match_consistency.py

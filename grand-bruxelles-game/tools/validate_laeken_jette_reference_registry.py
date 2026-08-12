@@ -48,7 +48,7 @@ def main() -> int:
     assert len(miroir["source_game_xz_depicted_place"]) == 2
     note = miroir["source_coordinate_note"].lower()
     assert "not photographer" in note
-    assert "surveyed camera" not in miroir["source_coordinate_note"].lower()
+    assert "not a surveyed camera position" in note
 
     origin = jette["project_origin"]
     e, n = miroir["source_epsg31370_depicted_place"]

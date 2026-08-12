@@ -190,6 +190,16 @@ func confirm_boarded() -> bool:
 	velocity = Vector3.ZERO
 	return true
 
+func begin_disembark_from_stop(stop: NpcTransitStop, door_index: int, exit_sequence_index: int) -> bool:
+	if stop == null or transit_state != TransitState.ONBOARD:
+		return false
+	if door_index < 0 or door_index >= stop.door_count():
+		return false
+	var started: bool = begin_disembark(stop.disembark_position_for(door_index, exit_sequence_index))
+	if started and stop.pending_alighting_for_door(door_index) > 0:
+		stop.register_disembarked(door_index)
+	return started
+
 func begin_disembark(exit_position: Vector3) -> bool:
 	if transit_state != TransitState.ONBOARD:
 		return false

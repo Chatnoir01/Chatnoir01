@@ -71,7 +71,12 @@ def main() -> int:
         output = extractor.build_output(payload, "abc123", evidence)
         assert output["runtime_approved"] is False
         assert output["realism_complete"] is False
+        assert output["next_runtime_step"].startswith("acquire adjacent official street surfaces")
         assert len(output["surfaces"]) == 3
+        assert output["source"]["license"] == "CC0-1.0"
+        assert output["source"]["request_bbox_epsg31370"] == list(extractor.probe_bbox())
+
+    assert extractor.transform_source_label(extractor.AXIS_EVIDENCE) == "data/urbis/bourse_street_axes.game.json"
 
     missing_payload = {"type": "FeatureCollection", "features": payload["features"][:-2]}
     try:

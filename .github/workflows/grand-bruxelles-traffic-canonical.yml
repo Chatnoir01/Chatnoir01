@@ -7,6 +7,7 @@ on:
       - "integration/traffic-canonical-vehicle-core"
       - "integration/traffic-canonical-manager-foundation"
       - "integration/traffic-canonical-manager-core"
+      - "integration/traffic-tow-extension"
     paths:
       - "grand-bruxelles-game/game/scripts/traffic_*.gd"
       - "grand-bruxelles-game/game/scripts/vehicle_damage_model.gd"
@@ -68,3 +69,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_canonical_manager_core_test.gd 2>&1 | tee /tmp/traffic-manager-core.log
           if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CANONICAL_MANAGER_FAIL" /tmp/traffic-manager-core.log; then exit 1; fi
           grep -q "TRAFFIC_CANONICAL_MANAGER_OK" /tmp/traffic-manager-core.log
+      - name: Optional traffic tow extension test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_tow_extension_test.gd 2>&1 | tee /tmp/traffic-tow-extension.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_TOW_EXTENSION_FAIL" /tmp/traffic-tow-extension.log; then exit 1; fi
+          grep -q "TRAFFIC_TOW_EXTENSION_OK" /tmp/traffic-tow-extension.log

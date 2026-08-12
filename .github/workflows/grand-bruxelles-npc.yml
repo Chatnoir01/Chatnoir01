@@ -135,3 +135,16 @@ jobs:
             exit 1
           fi
           grep -q "NPC_TRANSIT_QUEUE_OK" /tmp/npc-transit-queue.log
+
+      - name: Transit stop orchestration test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_transit_stop_test.gd 2>&1 | tee /tmp/npc-transit-stop.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_TRANSIT_STOP_FAIL" /tmp/npc-transit-stop.log; then
+            exit 1
+          fi
+          grep -q "NPC_TRANSIT_STOP_OK" /tmp/npc-transit-stop.log

@@ -6,6 +6,8 @@ on:
     paths:
       - "grand-bruxelles-game/tools/derive_ixelles_building_heights.py"
       - "grand-bruxelles-game/tests/test_derive_ixelles_building_heights.py"
+      - "grand-bruxelles-game/tools/inspect_ixelles_height_values.py"
+      - "grand-bruxelles-game/tests/test_inspect_ixelles_height_values.py"
       - "grand-bruxelles-game/tools/verify_urbis_height_archives.py"
       - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_height_tile_plan.json"
       - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_dsm_sources.json"
@@ -35,9 +37,11 @@ jobs:
       - name: Install raster dependencies
         run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3" "rasterio>=1.3,<2"
 
-      - name: Run derivation unit tests
+      - name: Run derivation and diagnostic unit tests
         working-directory: grand-bruxelles-game
-        run: python3 -m unittest -v tests.test_derive_ixelles_building_heights
+        run: |
+          python3 -m unittest -v tests.test_derive_ixelles_building_heights
+          python3 -m unittest -v tests.test_inspect_ixelles_height_values
 
       - name: Download and revalidate official height rasters
         working-directory: grand-bruxelles-game
@@ -49,6 +53,25 @@ jobs:
             --work-dir /tmp/ixelles-height-work \
             --dsm-output /tmp/ixelles_dsm_archive_validation.json \
             --dtm-output /tmp/ixelles_dtm_archive_validation.json
+
+      - name: Inspect real paired raster value distributions
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/inspect_ixelles_height_values.py \
+            --raster-root /tmp/ixelles-height-work \
+            --tiles 149168 149169 \
+            --output /tmp/ixelles_height_value_diagnostics.json
+
+      - name: Upload raster value diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-height-value-diagnostics
+          path: |
+            /tmp/ixelles_height_value_diagnostics.json
+            /tmp/ixelles_dsm_archive_validation.json
+            /tmp/ixelles_dtm_archive_validation.json
+          if-no-files-found: warn
 
       - name: Derive per-building DSM-DTM statistics
         working-directory: grand-bruxelles-game
@@ -72,6 +95,10 @@ jobs:
           assert p['raster_shape']==[4000,2000]
           assert p['building_memberships']>0 and p['unique_building_ids']>0
           assert sum(p['confidence_counts'].values())==p['building_memberships']
+          q=p['mosaic_quality_gate']
+          assert q['valid_sample_count']>0
+          assert q['dtm_range_m']>=0.25
+          assert q['height_p95_m']>0.5
           for b in p['buildings']:
               h=b['height_stats']
               assert h['confidence'] in ('high','medium','insufficient')
@@ -82,7 +109,7 @@ jobs:
           assert len(rows)==p['building_memberships']
           summary=json.load(open('/tmp/ixelles_building_height_summary.json',encoding='utf-8'))
           assert 'buildings' not in summary and summary['building_memberships']==len(rows)
-          print('IXELLES_BUILDING_HEIGHT_GATE_VALID',p['building_memberships'],p['unique_building_ids'],p['confidence_counts'])
+          print('IXELLES_BUILDING_HEIGHT_GATE_VALID',p['building_memberships'],p['unique_building_ids'],p['confidence_counts'],q)
           PY
 
       - name: Upload full height statistics artifact

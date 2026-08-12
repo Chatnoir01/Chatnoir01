@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-import io
+import importlib.util
 import json
 import urllib.parse
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from grand_bruxelles_game_test_support import import_tool
-
-FETCH = import_tool("fetch_urbis_wfs_bbox")
+SCRIPT = Path(__file__).resolve().parents[1] / "tools" / "fetch_urbis_wfs_bbox.py"
+SPEC = importlib.util.spec_from_file_location("fetch_urbis_wfs_bbox", SCRIPT)
+assert SPEC is not None and SPEC.loader is not None
+FETCH = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(FETCH)
 
 
 class FakeResponse:

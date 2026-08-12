@@ -81,6 +81,70 @@ def selected_bounds(features: list[dict[str, Any]]) -> list[float]:
     return [round(min(xs), 2), round(min(zs), 2), round(max(xs), 2), round(max(zs), 2)]
 
 
+def select_buildings(
+    source_buildings: list[dict[str, Any]],
+    anchors: list[tuple[float, float]],
+    building_radius: float,
+    max_buildings: int,
+    required_osm_ids: list[int],
+) -> list[dict[str, Any]]:
+    """Select a compact corridor set without dropping declared hero buildings."""
+    candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    for building in source_buildings:
+        footprint = building.get("footprint", [])
+        if not footprint:
+            continue
+        center = (
+            sum(float(point[0]) for point in footprint) / len(footprint),
+            sum(float(point[1]) for point in footprint) / len(footprint),
+        )
+        distance = corridor_distance(center, anchors)
+        if distance <= building_radius:
+            key = (
+                round(distance, 4),
+                -float(building.get("area", 0.0)),
+                int(building.get("osm_id") or 0),
+            )
+            candidates.append((key, building))
+    candidates.sort(key=lambda item: item[0])
+
+    required_ids = list(dict.fromkeys(int(osm_id) for osm_id in required_osm_ids))
+    if len(required_ids) > max_buildings:
+        raise ValueError(
+            f"{len(required_ids)} required hero buildings exceed max-buildings={max_buildings}"
+        )
+
+    candidates_by_id = {
+        int(building.get("osm_id") or 0): (key, building)
+        for key, building in candidates
+    }
+    missing = [osm_id for osm_id in required_ids if osm_id not in candidates_by_id]
+    if missing:
+        raise ValueError(
+            "required OSM hero buildings are absent from the source/corridor: "
+            + ", ".join(str(osm_id) for osm_id in missing)
+        )
+
+    required_set = set(required_ids)
+    selected = [candidates_by_id[osm_id] for osm_id in required_ids]
+    selected.extend(
+        item for item in candidates
+        if int(item[1].get("osm_id") or 0) not in required_set
+    )
+    selected = selected[:max_buildings]
+    selected.sort(key=lambda item: item[0])
+    return [item[1] for item in selected]
+
+
+def required_hero_building_ids(controls: dict[str, Any]) -> list[int]:
+    ids: list[int] = []
+    for record in controls.get("required_buildings", []):
+        if not isinstance(record, dict) or "osm_id" not in record:
+            raise ValueError("required_buildings entries must contain osm_id")
+        ids.append(int(record["osm_id"]))
+    return list(dict.fromkeys(ids))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Make compact Midi-to-Grand-Place runtime OSM slice")
     parser.add_argument("--input", type=Path, required=True)
@@ -131,25 +195,17 @@ def main() -> int:
     road_candidates.sort(key=lambda item: item[0])
     roads = [item[1] for item in road_candidates[: args.max_roads]]
 
-    building_candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
-    for building in full.get("buildings", []):
-        footprint = building.get("footprint", [])
-        if not footprint:
-            continue
-        center = (
-            sum(float(p[0]) for p in footprint) / len(footprint),
-            sum(float(p[1]) for p in footprint) / len(footprint),
+    try:
+        required_building_ids = required_hero_building_ids(controls)
+        buildings = select_buildings(
+            full.get("buildings", []),
+            anchors,
+            args.building_radius,
+            args.max_buildings,
+            required_building_ids,
         )
-        distance = corridor_distance(center, anchors)
-        if distance <= args.building_radius:
-            key = (
-                round(distance, 4),
-                -float(building.get("area", 0.0)),
-                int(building.get("osm_id") or 0),
-            )
-            building_candidates.append((key, building))
-    building_candidates.sort(key=lambda item: item[0])
-    buildings = [item[1] for item in building_candidates[: args.max_buildings]]
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
 
     rail_candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     for railway in full.get("railways", []):
@@ -170,6 +226,7 @@ def main() -> int:
         "corridor": {
             "name": "Midi -> Anneessens -> Bourse -> Grand-Place",
             "anchors": anchor_records,
+            "required_buildings": controls.get("required_buildings", []),
             "selection_radius_m": {
                 "roads": args.road_radius,
                 "buildings": args.building_radius,

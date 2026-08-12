@@ -38,6 +38,9 @@ jobs:
       - name: Validate Python tools
         run: python3 -m py_compile grand-bruxelles-game/tools/*.py
 
+      - name: Test hero-building runtime selection
+        run: python3 -m unittest discover -s grand-bruxelles-game/tests -p 'test_make_runtime_slice.py' -v
+
       - name: Validate Lambert72 to game conversion
         run: |
           cat > /tmp/lambert72.geojson <<'JSON'

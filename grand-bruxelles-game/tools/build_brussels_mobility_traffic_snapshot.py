@@ -310,7 +310,11 @@ def build_snapshot(devices: Any, live: Any, geometry: Any, captured_at: datetime
         )
 
     measured = [sensor for sensor in sensors if sensor["measurement"].get("count") is not None]
-    fresh = [sensor for sensor in sensors if bool(sensor["measurement"].get("fresh"))]
+    fresh = [
+        sensor
+        for sensor in sensors
+        if bool(sensor.get("active", False)) and bool(sensor["measurement"].get("fresh"))
+    ]
     rates = [float(sensor["measurement"]["vehicles_per_minute"]) for sensor in fresh if sensor["measurement"].get("vehicles_per_minute") is not None]
     occupancies = [float(sensor["measurement"]["occupancy_pct"]) for sensor in fresh if sensor["measurement"].get("occupancy_pct") is not None and float(sensor["measurement"]["occupancy_pct"]) >= 0.0]
 
@@ -329,7 +333,7 @@ def build_snapshot(devices: Any, live: Any, geometry: Any, captured_at: datetime
             "measurement_interval": "1m",
             "fresh_max_age_minutes": FRESH_MAX_AGE_MINUTES,
             "notes": [
-                "Calibration uses fresh vehicle counts and occupancy only.",
+                "Calibration aggregates use only fresh measurements from sensors marked active by official geometry.",
                 "Vehicle rates are derived from the explicit source measurement window.",
                 "Detector speed values are deliberately excluded because they are not calibrated for absolute speed compliance.",
             ],

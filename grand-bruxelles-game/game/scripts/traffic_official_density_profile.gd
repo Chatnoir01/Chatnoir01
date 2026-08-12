@@ -39,9 +39,9 @@ func configure(snapshot: Dictionary) -> bool:
         if typeof(raw_sensor) != TYPE_DICTIONARY:
             continue
         var sensor: Dictionary = raw_sensor
+        if sensor.has("active") and not bool(sensor.get("active", false)):
+            continue
         var measurement: Dictionary = sensor.get("measurement", {})
-        # "fresh" means fresh at capture time. Once committed, the snapshot is a
-        # calibration profile, never represented as current live traffic.
         if not bool(measurement.get("fresh", false)):
             continue
         var raw_game: Variant = sensor.get("game", null)
@@ -56,7 +56,7 @@ func configure(snapshot: Dictionary) -> bool:
             "position": Vector3(float(raw_game[0]), 0.0, float(raw_game[1])),
             "vehicles_per_minute": rate,
             "occupancy_pct": occupancy,
-            "active_at_capture": bool(sensor.get("active", false)),
+            "active_at_capture": bool(sensor.get("active", true)),
             "source": str(measurement.get("source", "")),
         })
 
@@ -164,9 +164,6 @@ func calibration_for(
     if total_weight <= 0.0:
         return _empty_calibration()
 
-    # A detector near the edge of the radius is useful regional evidence, not a
-    # precise local measurement. The square-root taper keeps a smooth transition:
-    # 1.0 at the sensor, 0.0 at the radius, with modest influence near the edge.
     var normalized_margin := clampf(1.0 - nearest_distance / radius, 0.0, 1.0)
     var distance_confidence := sqrt(normalized_margin)
     return {

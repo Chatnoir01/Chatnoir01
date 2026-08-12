@@ -37,14 +37,20 @@ jobs:
         run: |
           python3 grand-bruxelles-game/tools/test_select_urbis_distribution.py
           python3 grand-bruxelles-game/tools/test_inspect_urbis_3d_gpkg_safe.py
-      - name: Discover current official UrbIS distributions
+      - name: Discover only the official UrbIS 3D feed
         run: |
-          python3 grand-bruxelles-game/tools/discover_urbis_sources.py --output /tmp/urbis-discovered.json
           python3 - <<'PY'
-          import json
-          data=json.load(open('/tmp/urbis-discovered.json',encoding='utf-8'))
-          feed=next((x for x in data.get('feeds',[]) if x.get('source_id')=='urbis_3d_constructions'),None)
-          assert feed and feed.get('entry_count',0)>0
+          import importlib.util, json
+          from pathlib import Path
+          module_path=Path('grand-bruxelles-game/tools/discover_urbis_sources.py')
+          spec=importlib.util.spec_from_file_location('discover_urbis_sources', module_path)
+          assert spec and spec.loader
+          module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+          source_id='urbis_3d_constructions'
+          feed=module.parse_feed(source_id, module.DEFAULT_FEEDS[source_id])
+          assert feed.get('entry_count',0)>0
+          data={'schema':1,'purpose':'Ixelles UrbIS 3D second-source proof','feeds':[feed]}
+          Path('/tmp/urbis-discovered.json').write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           print('URBIS_3D_DISCOVERY_OK',feed.get('feed_updated'),feed.get('entry_count'))
           PY
       - name: Select latest Ixelles EPSG:31370 GeoPackage

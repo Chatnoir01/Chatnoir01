@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/game/zones/laeken_jette/laeken_palais5_hero_pass.gd"
       - "grand-bruxelles-game/game/zones/laeken_jette/laeken_jette.tscn"
       - "grand-bruxelles-game/game/tests/laeken_palais5_hero_smoke_test.gd"
+      - "grand-bruxelles-game/game/tests/render_laeken_palais5_facade_qa.gd"
       - "grand-bruxelles-game/data/sources/laeken_jette/palais5_hero_provenance.json"
       - "grand-bruxelles-game/data/sources/laeken_jette/palais5_osm_outline.game.json"
       - "grand-bruxelles-game/data/terrain/laeken_jette/**"
@@ -17,6 +18,7 @@ on:
       - "grand-bruxelles-game/game/zones/laeken_jette/laeken_palais5_hero_pass.gd"
       - "grand-bruxelles-game/game/zones/laeken_jette/laeken_jette.tscn"
       - "grand-bruxelles-game/game/tests/laeken_palais5_hero_smoke_test.gd"
+      - "grand-bruxelles-game/game/tests/render_laeken_palais5_facade_qa.gd"
       - "grand-bruxelles-game/data/sources/laeken_jette/palais5_hero_provenance.json"
       - "grand-bruxelles-game/data/sources/laeken_jette/palais5_osm_outline.game.json"
       - "grand-bruxelles-game/data/terrain/laeken_jette/**"
@@ -29,7 +31,7 @@ permissions:
 jobs:
   validate-palais5-hero:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - name: Install Godot 4.7.1
@@ -50,3 +52,18 @@ jobs:
           timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/laeken_palais5_hero_smoke_test.gd 2>&1 | tee /tmp/palais5-hero.log
           if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_PALAIS5_HERO_FAIL" /tmp/palais5-hero.log; then exit 1; fi
           grep -q "LAEKEN_PALAIS5_HERO_OK" /tmp/palais5-hero.log
+      - name: Render Palais 5 facade QA capture
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/render_laeken_palais5_facade_qa.gd 2>&1 | tee /tmp/palais5-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_PALAIS5_CAPTURE_FAIL" /tmp/palais5-capture.log; then exit 1; fi
+          grep -q "LAEKEN_PALAIS5_CAPTURE_OK" /tmp/palais5-capture.log
+          test -s grand-bruxelles-game/palais5_facade_qa.png
+      - name: Upload Palais 5 facade QA capture
+        uses: actions/upload-artifact@v4
+        with:
+          name: laeken-palais5-facade-qa
+          path: grand-bruxelles-game/palais5_facade_qa.png
+          if-no-files-found: error
+          retention-days: 14

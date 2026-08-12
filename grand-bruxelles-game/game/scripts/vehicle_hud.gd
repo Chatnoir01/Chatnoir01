@@ -2,14 +2,17 @@ extends Label
 
 @export var car_path: NodePath = NodePath("../PrototypeCar")
 @export var traffic_manager_path: NodePath = NodePath("../TrafficManager")
+@export var vehicle_service_system_path: NodePath = NodePath("../VehicleServiceSystem")
 
 var car: Node = null
 var traffic_manager: Node = null
+var vehicle_service_system: Node = null
 
 
 func _ready() -> void:
     car = get_node_or_null(car_path)
     traffic_manager = get_node_or_null(traffic_manager_path)
+    vehicle_service_system = get_node_or_null(vehicle_service_system_path)
     _refresh()
 
 
@@ -49,23 +52,12 @@ func _refresh() -> void:
             disabled = bool(car.call("is_vehicle_disabled"))
 
         var state := "IMMOBILISÉ" if disabled else "%d%%" % int(round(health))
-        var recovery_line := ""
-        if disabled and car.has_method("get_recovery_state"):
-            var recovery_state := str(car.call("get_recovery_state"))
-            if recovery_state == "requested":
-                var remaining := 0.0
-                var quote := 0.0
-                if car.has_method("get_recovery_remaining_seconds"):
-                    remaining = float(car.call("get_recovery_remaining_seconds"))
-                if car.has_method("get_recovery_quote_eur"):
-                    quote = float(car.call("get_recovery_quote_eur"))
-                recovery_line = "\nDÉPANNEUSE · %.1fs · devis %.0f €" % [remaining, quote]
-            else:
-                recovery_line = "\nR · appeler la dépanneuse"
+        var action_line := _recovery_line(disabled)
+        var service_line := _service_line(health)
 
         text = (
-            "VÉHICULE · %03d km/h · ÉTAT %s%s\nTRAFIC · %d · %s" %
-            [int(round(speed)), state, recovery_line, traffic_count, mix_text]
+            "VÉHICULE · %03d km/h · ÉTAT %s%s%s\nTRAFIC · %d · %s" %
+            [int(round(speed)), state, action_line, service_line, traffic_count, mix_text]
         )
         return
 
@@ -74,3 +66,59 @@ func _refresh() -> void:
         mix_text,
         default_limit,
     ]
+
+
+func _recovery_line(disabled: bool) -> String:
+    if not disabled or car == null or not car.has_method("get_recovery_state"):
+        return ""
+    var recovery_state := str(car.call("get_recovery_state"))
+    if recovery_state == "requested":
+        var remaining := 0.0
+        var quote := 0.0
+        if car.has_method("get_recovery_remaining_seconds"):
+            remaining = float(car.call("get_recovery_remaining_seconds"))
+        if car.has_method("get_recovery_quote_eur"):
+            quote = float(car.call("get_recovery_quote_eur"))
+        return "\nDÉPANNEUSE · %.1fs · devis %.0f €" % [remaining, quote]
+    return "\nR · appeler la dépanneuse"
+
+
+func _service_line(health: float) -> String:
+    if vehicle_service_system == null:
+        return ""
+
+    if vehicle_service_system.has_method("get_service_state"):
+        var service_state := str(vehicle_service_system.call("get_service_state"))
+        if service_state == "requested":
+            var remaining := 0.0
+            var quote := 0.0
+            var service_name := "Garage"
+            if vehicle_service_system.has_method("get_service_remaining_seconds"):
+                remaining = float(vehicle_service_system.call("get_service_remaining_seconds"))
+            if vehicle_service_system.has_method("get_service_quote_eur"):
+                quote = float(vehicle_service_system.call("get_service_quote_eur"))
+            if vehicle_service_system.has_method("get_service_name"):
+                service_name = str(vehicle_service_system.call("get_service_name"))
+            return "\nGARAGE · %s · %.1fs · devis %.0f €" % [service_name, remaining, quote]
+
+    if not vehicle_service_system.has_method("get_nearest_service_for_vehicle"):
+        return ""
+    var nearest_variant: Variant = vehicle_service_system.call("get_nearest_service_for_vehicle")
+    if typeof(nearest_variant) != TYPE_DICTIONARY:
+        return ""
+    var nearest: Dictionary = nearest_variant
+    if nearest.is_empty():
+        return ""
+    var distance := float(nearest.get("distance_m", INF))
+    if distance > 80.0:
+        return ""
+
+    var name := str(nearest.get("name", "Service auto"))
+    var kind := str(nearest.get("kind", ""))
+    if kind == "garage":
+        if distance <= 14.0 and health < 99.99:
+            return "\nGARAGE · %s · %.0fm · G pour demander réparation" % [name, distance]
+        return "\nGARAGE · %s · %.0fm" % [name, distance]
+    if kind == "tyres":
+        return "\nPNEUS · %s · %.0fm" % [name, distance]
+    return "\nSERVICE AUTO · %s · %.0fm" % [name, distance]

@@ -1,5 +1,7 @@
 extends SceneTree
 
+# Validation generation 4: requires corrected Tube* Atomium detection and full
+# 8,332-segment / 16,664-rail UrbIS tram preservation before Web publication.
 const HEIGHTS_PATH := "res://data/urbis/laeken_jette/building_heights_dsm.game.json"
 const OVERRIDES_PATH := "res://data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
 const TREES_PATH := "res://data/environment/laeken_jette/official_city_trees.game.json"

@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -10,6 +10,9 @@
 [ext_resource type="Script" path="res://game/scripts/urbis_midi_builder.gd" id="8_urbis"]
 [ext_resource type="Script" path="res://game/scripts/osm_midi_mask.gd" id="9_mask"]
 [ext_resource type="Script" path="res://game/scripts/traffic_manager_tow_extension.gd" id="10_traffic"]
+[ext_resource type="Script" path="res://game/scripts/humanoid_visual.gd" id="11_humanoid"]
+[ext_resource type="Script" path="res://game/scripts/midi_urban_life.gd" id="12_urban_life"]
+[ext_resource type="Script" path="res://game/scripts/civilian_vehicle_visual.gd" id="13_civil_visual"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -23,16 +26,43 @@ height = 1.8
 albedo_color = Color(0.18, 0.22, 0.27, 1)
 roughness = 0.72
 
+[sub_resource type="ProceduralSkyMaterial" id="SkyMaterial_main"]
+sky_top_color = Color(0.19, 0.27, 0.38, 1)
+sky_horizon_color = Color(0.70, 0.73, 0.72, 1)
+ground_bottom_color = Color(0.08, 0.075, 0.07, 1)
+ground_horizon_color = Color(0.38, 0.37, 0.35, 1)
+sun_angle_max = 18.0
+sun_curve = 0.12
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("SkyMaterial_main")
+process_mode = 2
+radiance_size = 3
+
 [sub_resource type="Environment" id="Environment_main"]
-background_mode = 1
-background_color = Color(0.48, 0.55, 0.62, 1)
+background_mode = 2
+sky = SubResource("Sky_main")
+background_energy_multiplier = 0.86
 ambient_light_source = 3
-ambient_light_color = Color(0.72, 0.75, 0.79, 1)
-ambient_light_energy = 0.72
+ambient_light_color = Color(0.73, 0.76, 0.80, 1)
+ambient_light_energy = 0.66
+reflected_light_source = 2
+tonemap_mode = 2
+tonemap_exposure = 1.05
+adjustment_enabled = true
+adjustment_brightness = 1.01
+adjustment_contrast = 1.08
+adjustment_saturation = 0.92
+fog_enabled = true
+fog_light_color = Color(0.70, 0.72, 0.73, 1)
+fog_light_energy = 0.54
+fog_density = 0.0028
+fog_sky_affect = 0.62
 
 [sub_resource type="StandardMaterial3D" id="Material_ground"]
-albedo_color = Color(0.18, 0.19, 0.18, 1)
-roughness = 1.0
+albedo_color = Color(0.135, 0.14, 0.14, 1)
+metallic = 0.03
+roughness = 0.88
 
 [sub_resource type="BoxShape3D" id="BoxShape_car"]
 size = Vector3(1.9, 0.9, 4.2)
@@ -51,10 +81,11 @@ roughness = 0.32
 environment = SubResource("Environment_main")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-48, -28, 0)
-light_color = Color(1, 0.94, 0.84, 1)
-light_energy = 1.15
+rotation_degrees = Vector3(-42, -32, 0)
+light_color = Color(1, 0.925, 0.79, 1)
+light_energy = 1.06
 shadow_enabled = true
+directional_shadow_max_distance = 320.0
 
 [node name="Ground" type="CSGBox3D" parent="."]
 position = Vector3(0, -0.23, 0)
@@ -74,6 +105,9 @@ script = ExtResource("9_mask")
 [node name="MidiHeroZone" type="Node3D" parent="."]
 script = ExtResource("7_midi")
 
+[node name="MidiUrbanLife" type="Node3D" parent="."]
+script = ExtResource("12_urban_life")
+
 [node name="TrafficManager" type="Node3D" parent="."]
 script = ExtResource("10_traffic")
 
@@ -89,16 +123,19 @@ shape = SubResource("CapsuleShape_player")
 mesh = SubResource("CapsuleMesh_player")
 material_override = SubResource("Material_player")
 
+[node name="VisualUpgrade" type="Node3D" parent="Player"]
+script = ExtResource("11_humanoid")
+
 [node name="CameraPivot" type="Node3D" parent="Player"]
 position = Vector3(0, 0.65, 0)
 
 [node name="SpringArm3D" type="SpringArm3D" parent="Player/CameraPivot"]
-spring_length = 5.5
-margin = 0.15
+spring_length = 4.9
+margin = 0.18
 
 [node name="Camera3D" type="Camera3D" parent="Player/CameraPivot/SpringArm3D"]
 current = true
-fov = 72.0
+fov = 69.0
 
 [node name="PrototypeCar" type="CharacterBody3D" parent="." groups=["vehicle"]]
 position = Vector3(-659, 0.58, 624)
@@ -118,44 +155,62 @@ size = Vector3(1.55, 0.72, 1.9)
 material = SubResource("Material_car")
 use_collision = false
 
+[node name="VisualUpgrade" type="Node3D" parent="PrototypeCar"]
+script = ExtResource("13_civil_visual")
+
 [node name="CameraPivot" type="Node3D" parent="PrototypeCar"]
-position = Vector3(0, 1.45, 0)
-rotation_degrees = Vector3(-9, 0, 0)
+position = Vector3(0, 1.32, 0.15)
+rotation_degrees = Vector3(-8, 0, 0)
 
 [node name="SpringArm3D" type="SpringArm3D" parent="PrototypeCar/CameraPivot"]
-spring_length = 6.5
-margin = 0.15
+spring_length = 6.1
+margin = 0.18
 
 [node name="Camera3D" type="Camera3D" parent="PrototypeCar/CameraPivot/SpringArm3D"]
 current = false
-fov = 75.0
+fov = 72.0
 
 [node name="MissionDriveToCenter" type="Node" parent="."]
 script = ExtResource("4_mission")
 
+[node name="LocationLabel" type="Label" parent="."]
+offset_left = 24.0
+offset_top = 20.0
+offset_right = 520.0
+offset_bottom = 48.0
+theme_override_colors/font_color = Color(0.92, 0.93, 0.92, 0.90)
+theme_override_colors/font_shadow_color = Color(0.0, 0.0, 0.0, 0.72)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 14
+text = "BRUXELLES-MIDI · BRUSSEL-ZUID"
+
 [node name="MissionLabel" type="Label" parent="."]
-offset_left = 20.0
-offset_top = 18.0
-offset_right = 720.0
-offset_bottom = 86.0
-theme_override_colors/font_color = Color(1, 0.84, 0.23, 1)
-theme_override_font_sizes/font_size = 22
-text = "MISSION 01 · MIDI → CENTRE\nMonte dans la voiture · E"
+offset_left = 24.0
+offset_top = 49.0
+offset_right = 630.0
+offset_bottom = 103.0
+theme_override_colors/font_color = Color(0.96, 0.82, 0.33, 0.96)
+theme_override_colors/font_shadow_color = Color(0.0, 0.0, 0.0, 0.75)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 18
+text = "MIDI → CENTRE\nTrouve un véhicule · E"
 
 [node name="PrototypeLabel" type="Label" parent="."]
+visible = false
 offset_left = 20.0
 offset_top = 92.0
 offset_right = 980.0
 offset_bottom = 150.0
-theme_override_colors/font_color = Color(0.92, 0.92, 0.90, 1)
-theme_override_font_sizes/font_size = 14
-text = "GRAND BRUXELLES · MIDI 0.8 · emprises officielles UrbIS + hero zone Bruxelles-Midi"
+text = "debug"
 
 [node name="MiniMap" type="Control" parent="."]
-offset_left = 1000.0
-offset_top = 18.0
-offset_right = 1260.0
-offset_bottom = 278.0
+offset_left = 1030.0
+offset_top = 24.0
+offset_right = 1252.0
+offset_bottom = 246.0
+modulate = Color(1, 1, 1, 0.88)
 script = ExtResource("5_minimap")
 
 [node name="MobileControls" type="Control" parent="."]

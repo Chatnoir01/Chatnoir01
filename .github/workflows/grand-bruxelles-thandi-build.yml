@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/rigged-player-glb-pipeline
     paths:
       - "grand-bruxelles-game/assets/characters/player/thandi/source/**"
       - "grand-bruxelles-game/assets/characters/player/thandi/textures/**"
@@ -22,7 +21,7 @@ concurrency:
 jobs:
   build-thandi-glb:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,29 +58,42 @@ jobs:
             grand-bruxelles-game/assets/characters/player/thandi/Thandi.glb
           test -s grand-bruxelles-game/assets/characters/player/thandi/Thandi.glb
 
-      - name: Verify Godot import
+      - name: Setup Godot 4.7.1 with export templates
         if: steps.source.outputs.present == 'true'
         uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.7.1
           use-dotnet: false
+          include-templates: true
 
-      - name: Import authored character in Godot
+      - name: Import and test authored character in Godot
         if: steps.source.outputs.present == 'true'
         run: |
           godot --headless --path grand-bruxelles-game --editor --quit-after 5
           godot --headless --path grand-bruxelles-game --script res://game/tests/pink_tracksuit_player_visual_test.gd
 
-      - name: Commit generated GLB
+      - name: Export playable Web build with Thandi
+        if: steps.source.outputs.present == 'true'
+        run: |
+          rm -rf grand-bruxelles-game/web-preview
+          mkdir -p grand-bruxelles-game/web-preview
+          godot --headless --path grand-bruxelles-game --export-release Web web-preview/index.html
+          test -s grand-bruxelles-game/web-preview/index.html
+          test -s grand-bruxelles-game/web-preview/index.wasm
+          test -s grand-bruxelles-game/web-preview/index.pck
+          touch grand-bruxelles-game/web-preview/.nojekyll
+
+      - name: Commit generated GLB and playable Web build
         if: steps.source.outputs.present == 'true'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f grand-bruxelles-game/assets/characters/player/thandi/Thandi.glb
+          git add -f grand-bruxelles-game/web-preview
           if git diff --cached --quiet; then
-            echo "Thandi GLB is already up to date"
+            echo "Thandi GLB and Web build are already up to date"
             exit 0
           fi
-          git commit -m "Build Thandi authored player GLB"
-          git push
+          git commit -m "Build Thandi player and playable Web preview [skip ci]"
+          git push origin HEAD:main

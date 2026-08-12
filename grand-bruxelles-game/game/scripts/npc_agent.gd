@@ -81,8 +81,6 @@ func confirm_boarded() -> bool:
 	transit_state = TransitState.ONBOARD
 	movement_held = true
 	velocity = Vector3.ZERO
-	visible = false
-	set_physics_process(false)
 	return true
 
 func begin_disembark(exit_position: Vector3) -> bool:
@@ -91,9 +89,7 @@ func begin_disembark(exit_position: Vector3) -> bool:
 	transit_state = TransitState.DISEMBARKING
 	global_position = exit_position
 	velocity = Vector3.ZERO
-	visible = true
 	movement_held = true
-	set_physics_process(true)
 	return true
 
 func complete_disembark() -> bool:

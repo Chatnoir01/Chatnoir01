@@ -350,11 +350,11 @@ func _queue_facade_details(footprint: Array, height: float) -> void:
         var b := Vector2(float(raw_b[0]), float(raw_b[1]))
         var edge := b - a
         var edge_length := edge.length()
-        if edge_length < 4.0 or edge_length > 46.0:
+        if edge_length < 4.0:
             continue
 
         var direction := edge / edge_length
-        var module_count := clampi(int(edge_length / 3.2), 1, 9)
+        var module_count := clampi(int(edge_length / 3.2), 1, 24)
         var step := edge_length / float(module_count + 1)
         var window_width := clampf(step * 0.58, 1.05, 1.85)
         var angle := atan2(-direction.y, direction.x)

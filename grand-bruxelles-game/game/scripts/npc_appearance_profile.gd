@@ -25,7 +25,7 @@ var footwear: StringName = &"everyday"
 var palette_family: StringName = &"neutral"
 
 func configure(seed_value: int, role: NpcBehaviorModel.Role, weather: WeatherContext = WeatherContext.MILD) -> void:
-	age_band = AgeBand(_index(seed_value, 13, 4))
+	age_band = _index(seed_value, 13, 4)
 	stature_scale = lerpf(0.92, 1.08, _unit(seed_value, 19))
 	shoulder_scale = lerpf(0.92, 1.07, _unit(seed_value, 23))
 	palette_family = _pick_palette(seed_value)

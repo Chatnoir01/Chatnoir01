@@ -28,16 +28,8 @@
       "viewpoint": {
         "description": "Ground-level provisional camera on the west side of Place de la Bourse, facing the Bourse checkpoint. 69.4 degree FOV approximates a 26 mm full-frame-equivalent horizontal framing; exact pose remains subject to side-by-side alignment with the lawful reference.",
         "game_camera_transform": {
-          "position": [
-            20.0,
-            1.68,
-            -664.58
-          ],
-          "rotation_degrees": [
-            0.0,
-            -90.0,
-            0.0
-          ],
+          "position": [20.0, 1.68, -664.58],
+          "rotation_degrees": [0.0, -90.0, 0.0],
           "fov_degrees": 69.4,
           "status": "provisional"
         },
@@ -73,6 +65,101 @@
         {
           "severity": "blocker",
           "action": "After the geometry blockers are repaired, refine the provisional camera pose side-by-side with the CC0 reference, commit the approved in-game screenshot and score all eleven dimensions."
+        }
+      ],
+      "realism_complete": false
+    },
+    {
+      "id": "atomium_ground_oblique_v1",
+      "hero_location": "Atomium — ground-level oblique",
+      "zone": "laeken_jette",
+      "source_branch": "zone-laeken-jette",
+      "reference": {
+        "source_page": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",
+        "captured_at": "unknown; exact capture timestamp is not asserted by the extracted specialist registry",
+        "author": "Horst J. Meuter",
+        "license": "CC BY-SA 4.0",
+        "distribution_policy": "provenance-only; source image bytes are not vendored in the global QA registry",
+        "camera_notes": "Wikimedia Commons publishes camera location 50.897467 N, 4.339306 E. Treat this as source-provided metadata, not survey-grade precision. Exact lens focal length, yaw, pitch and crop remain unresolved."
+      },
+      "viewpoint": {
+        "description": "Deterministic benchmark derived from the specialist Laeken/Jette evidence. Project-local camera X/Z is tied to the source-published Wikimedia coordinate transformed to EPSG:31370; vertical placement is tied to official DTM evidence on the specialist branch. Capture and final orientation remain provisional.",
+        "game_camera_transform": {
+          "position": [60.1172, 14.059434659520558, -6808.7279],
+          "rotation_degrees": [0.0, 0.0, 0.0],
+          "fov_degrees": 50.0,
+          "status": "provisional"
+        },
+        "game_screenshot": null
+      },
+      "scores": {
+        "silhouette": null,
+        "building_placement": null,
+        "height_roofline": null,
+        "street_width": null,
+        "curb_sidewalk_proportions": null,
+        "landmark_alignment": null,
+        "vegetation": null,
+        "street_furniture": null,
+        "materials": null,
+        "lighting": null,
+        "major_visual_clutter": null
+      },
+      "mismatches": [
+        {
+          "severity": "blocker",
+          "action": "Produce the repeatable 1280x720 in-game capture from the source-geolocated camera and verify runtime terrain elevation against the pinned official DTM evidence before scoring."
+        },
+        {
+          "severity": "blocker",
+          "action": "Compare Atomium silhouette, support-leg orientation, sphere/tube foreshortening and ground-to-lowest-sphere relationship side-by-side with the lawful Commons reference; do not mark realism complete while any obvious scale or alignment mismatch remains."
+        },
+        {
+          "severity": "major",
+          "action": "Resolve lens/FOV, yaw, pitch and crop by reproducible visual alignment; do not infer unsupported source camera parameters from intuition."
+        }
+      ],
+      "realism_complete": false
+    },
+    {
+      "id": "miroir_commons_2011",
+      "hero_location": "Place Reine Astrid / Place du Miroir",
+      "zone": "laeken_jette",
+      "source_branch": "zone-laeken-jette",
+      "reference": {
+        "source_page": "https://commons.wikimedia.org/wiki/File:Jette_central_square.jpg",
+        "captured_at": "2011; exact capture timestamp is not asserted by the extracted specialist registry",
+        "author": "Soman",
+        "license": "CC BY-SA 3.0",
+        "distribution_policy": "provenance-only; any future redistributed derivative requires its own attribution and license record",
+        "camera_notes": "Commons coordinates describe the depicted place, not photographer GPS. They must never be used as a surveyed camera position."
+      },
+      "viewpoint": {
+        "description": "Reference viewpoint is intentionally unpinned. The source provides depicted-place coordinates only; a deterministic in-game camera must be selected against official UrbIS square geometry and remain provisional until a defensible camera position is established.",
+        "game_camera_transform": null,
+        "game_screenshot": null
+      },
+      "scores": {
+        "silhouette": null,
+        "building_placement": null,
+        "height_roofline": null,
+        "street_width": null,
+        "curb_sidewalk_proportions": null,
+        "landmark_alignment": null,
+        "vegetation": null,
+        "street_furniture": null,
+        "materials": null,
+        "lighting": null,
+        "major_visual_clutter": null
+      },
+      "mismatches": [
+        {
+          "severity": "blocker",
+          "action": "Select and document a repeatable in-game camera without treating depicted-place coordinates as photographer GPS; record the reasoning and preserve uncertainty."
+        },
+        {
+          "severity": "blocker",
+          "action": "Capture the square and compare frontage rhythm, Sainte-Madeleine church alignment, paving, street width, curb/sidewalk proportions, vegetation, furniture and visual clutter against the lawful Commons reference."
         }
       ],
       "realism_complete": false

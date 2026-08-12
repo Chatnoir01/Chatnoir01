@@ -1,0 +1,24 @@
+{
+  "format": "grand-bruxelles-orthophoto-reference-v1",
+  "provider": "Paradigm / UrbIS",
+  "service": "WMS 1.1.0",
+  "endpoint": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms",
+  "layer": "inspire:Ortho",
+  "crs": "EPSG:31370",
+  "bbox": [
+    150000.0,
+    172000.0,
+    150500.0,
+    172500.0
+  ],
+  "width": 1024,
+  "height": 1024,
+  "url": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms?service=WMS&version=1.1.0&request=GetMap&layers=inspire%3AOrtho&styles=&srs=EPSG%3A31370&bbox=150000%2C172000%2C150500%2C172500&width=1024&height=1024&format=image%2Fpng&transparent=false",
+  "purpose": "visual validation/reference only",
+  "download": {
+    "path": "/tmp/schaerbeek-frontier-ortho/bxl-e150000-n172000-s500.png",
+    "bytes": 2424246,
+    "sha256": "9663568af68668a25d7c2eedb187bea4eb015b6b5764d16bab6820658c778db6",
+    "content_type": "image/png"
+  }
+}

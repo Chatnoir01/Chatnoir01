@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://game/scripts/osm_midi_mask.gd" id="9_mask"]
 [ext_resource type="Script" path="res://game/scripts/traffic_manager.gd" id="10_traffic"]
 [ext_resource type="Script" path="res://game/scripts/vehicle_hud.gd" id="11_vehicle_hud"]
+[ext_resource type="Script" path="res://game/scripts/vehicle_service_system.gd" id="12_vehicle_services"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -135,6 +136,9 @@ spawn_radius_m = 520.0
 despawn_radius_m = 760.0
 default_speed_kmh = 30.0
 
+[node name="VehicleServiceSystem" type="Node" parent="."]
+script = ExtResource("12_vehicle_services")
+
 [node name="MissionDriveToCenter" type="Node" parent="."]
 script = ExtResource("4_mission")
 
@@ -159,8 +163,8 @@ text = "GRAND BRUXELLES · MIDI 0.9 · UrbIS + OSM · trafic civil OSM actif"
 [node name="VehicleHUD" type="Label" parent="."]
 offset_left = 20.0
 offset_top = 152.0
-offset_right = 720.0
-offset_bottom = 210.0
+offset_right = 900.0
+offset_bottom = 238.0
 theme_override_colors/font_color = Color(0.78, 0.90, 0.95, 1)
 theme_override_font_sizes/font_size = 16
 text = "TRAFIC CIVIL"

@@ -2,7 +2,7 @@ extends RefCounted
 
 const LOCAL_RADIUS_M := 150.0
 const OFFICIAL_PROFILE_SCRIPT := preload("res://game/scripts/traffic_official_density_profile.gd")
-const DEFAULT_OFFICIAL_RADIUS_M := 1800.0
+const DEFAULT_OFFICIAL_RADIUS_M := 2000.0
 const DEFAULT_OFFICIAL_BLEND_WEIGHT := 0.72
 const MIN_SPATIAL_FACTOR := 0.58
 const MAX_SPATIAL_FACTOR := 1.42
@@ -95,7 +95,9 @@ func spatial_factor(roads: Array[Dictionary], position: Vector3) -> float:
     if not bool(calibration.get("available", false)):
         return heuristic
     var official := float(calibration.get("factor", 1.0))
-    return clampf(lerpf(heuristic, official, _official_blend_weight), MIN_SPATIAL_FACTOR, MAX_SPATIAL_FACTOR)
+    var distance_confidence := clampf(float(calibration.get("distance_confidence", 0.0)), 0.0, 1.0)
+    var effective_blend := _official_blend_weight * distance_confidence
+    return clampf(lerpf(heuristic, official, effective_blend), MIN_SPATIAL_FACTOR, MAX_SPATIAL_FACTOR)
 
 func density_factor(hour: float, roads: Array[Dictionary], position: Vector3) -> float:
     return time_factor(hour) * spatial_factor(roads, position)

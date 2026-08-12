@@ -12,7 +12,7 @@ func _run() -> void:
     if contract_script == null:
         _fail("contract script did not load")
         return
-    var contract := contract_script.new()
+    var contract: TrafficRuntimeContract = contract_script.new()
     if contract.MANAGER_METHODS.size() < 17:
         _fail("manager contract lost required v8 behavior")
         return
@@ -31,7 +31,7 @@ func _run() -> void:
     if contract.CANONICAL_MANAGER_TARGET.find("_v") >= 0 or contract.CANONICAL_VEHICLE_TARGET.find("_v") >= 0:
         _fail("canonical targets must not introduce another version-suffixed core")
         return
-    var incomplete := Node.new()
+    var incomplete: Node = Node.new()
     var missing: PackedStringArray = contract.validate_manager(incomplete)
     if missing.size() != contract.MANAGER_METHODS.size():
         _fail("missing-method detector is not deterministic")

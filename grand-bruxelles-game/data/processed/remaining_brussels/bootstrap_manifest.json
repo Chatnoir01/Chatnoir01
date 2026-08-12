@@ -5,28 +5,28 @@
   "cell_size_m": 500.0,
   "zones": [
     {
-      "id": "ixelles",
-      "name": "Ixelles",
+      "id": "etterbeek",
+      "name": "Etterbeek",
       "commands": [
         [
           "/opt/hostedtoolcache/Python/3.12.13/x64/bin/python",
           "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/fetch_urbis_municipality.py",
           "--name",
-          "Ixelles",
+          "Etterbeek",
           "--output",
-          "data/processed/remaining_brussels/boundaries/ixelles.geojson"
+          "data/processed/remaining_brussels/boundaries/etterbeek.geojson"
         ],
         [
           "/opt/hostedtoolcache/Python/3.12.13/x64/bin/python",
           "/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/tools/make_zone_cells.py",
           "--boundary",
-          "data/processed/remaining_brussels/boundaries/ixelles.geojson",
+          "data/processed/remaining_brussels/boundaries/etterbeek.geojson",
           "--zone-id",
-          "ixelles",
+          "etterbeek",
           "--cell-size",
           "500.0",
           "--output",
-          "data/processed/remaining_brussels/cells/ixelles.json"
+          "data/processed/remaining_brussels/cells/etterbeek.json"
         ]
       ]
     }

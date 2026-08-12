@@ -3,8 +3,10 @@ extends Node3D
 ## Geometry refinement for the authoritative UrbIS tram network.
 ## The centreline comes only from the committed UrbIS layer. The old 1 m-wide
 ## ribbon is hidden and replaced by two lightweight metallic rail heads at the
-## standard 1.435 m gauge. Each rail samples the official DTM independently so
-## crossfall/camber is preserved instead of forcing both rails to one elevation.
+## standard 1.435 m gauge. Each rail samples the official DTM independently when
+## possible. On the two phase-boundary cases where a gauge-offset point falls just
+## outside the terrain grid, the valid centreline DTM sample is used instead of
+## deleting an authoritative UrbIS segment.
 
 const DATA_PATH := "res://data/urbis/laeken_jette/tram_network.game.json"
 const GAUGE_M := 1.435
@@ -19,6 +21,7 @@ var source_segments: int = 0
 var rail_instances: int = 0
 var old_ribbon_hidden: bool = false
 var max_crossfall_delta_m: float = 0.0
+var boundary_fallback_rails: int = 0
 
 var _rail_material: StandardMaterial3D
 
@@ -62,6 +65,13 @@ func _rail_transform(midpoint: Vector2, y: float, yaw: float, length: float) -> 
     return Transform3D(Basis(Vector3.UP, yaw).scaled(scale), Vector3(midpoint.x, y, midpoint.y))
 
 
+func _terrain_y_or_fallback(terrain: Node, point: Vector2, fallback_y: float) -> float:
+    if bool(terrain.call("contains_game_point", point.x, point.y)):
+        return float(terrain.call("sample_height", point.x, point.y)) + RAIL_Y_OFFSET_M
+    boundary_fallback_rails += 1
+    return fallback_y
+
+
 func _build() -> void:
     _make_material()
     var terrain = get_parent().get_node_or_null("LaekenTerrain")
@@ -100,15 +110,14 @@ func _build() -> void:
                 var direction := delta / length
                 var gauge_side := Vector2(-direction.y, direction.x) * (GAUGE_M * 0.5)
                 var midpoint := (a + b) * 0.5
-                var left_midpoint := midpoint + gauge_side
-                var right_midpoint := midpoint - gauge_side
-                if not bool(terrain.call("contains_game_point", left_midpoint.x, left_midpoint.y)):
-                    continue
-                if not bool(terrain.call("contains_game_point", right_midpoint.x, right_midpoint.y)):
+                if not bool(terrain.call("contains_game_point", midpoint.x, midpoint.y)):
                     continue
 
-                var left_y := float(terrain.call("sample_height", left_midpoint.x, left_midpoint.y)) + RAIL_Y_OFFSET_M
-                var right_y := float(terrain.call("sample_height", right_midpoint.x, right_midpoint.y)) + RAIL_Y_OFFSET_M
+                var centre_y := float(terrain.call("sample_height", midpoint.x, midpoint.y)) + RAIL_Y_OFFSET_M
+                var left_midpoint := midpoint + gauge_side
+                var right_midpoint := midpoint - gauge_side
+                var left_y := _terrain_y_or_fallback(terrain, left_midpoint, centre_y)
+                var right_y := _terrain_y_or_fallback(terrain, right_midpoint, centre_y)
                 max_crossfall_delta_m = maxf(max_crossfall_delta_m, absf(left_y - right_y))
                 var yaw := atan2(direction.x, direction.y)
                 transforms.append(_rail_transform(left_midpoint, left_y, yaw, length))
@@ -141,11 +150,12 @@ func _build() -> void:
         old_ribbon_hidden = true
 
     rail_ready = source_segments > 0 and rail_instances == source_segments * 2 and old_ribbon_hidden
-    print("LAEKEN_TRAM_RAILS_READY: features=%d segments=%d rails=%d gauge=%.3f old_ribbon_hidden=%s max_crossfall_delta=%.3f" % [
+    print("LAEKEN_TRAM_RAILS_READY: features=%d segments=%d rails=%d gauge=%.3f old_ribbon_hidden=%s max_crossfall_delta=%.3f boundary_fallback_rails=%d" % [
         source_features,
         source_segments,
         rail_instances,
         GAUGE_M,
         old_ribbon_hidden,
         max_crossfall_delta_m,
+        boundary_fallback_rails,
     ])

@@ -72,9 +72,6 @@ func _initialize() -> void:
 		_fail("civilian must return to walking rather than remain in incident state")
 		return
 
-	# Live-agent recovery must snapshot and restore the actual ambient routine,
-	# not merely the geometric destination. This is intentionally tested at
-	# NpcAgent level so the model contract from #71 cannot pass without runtime wiring.
 	var ambient_civilian := NpcAgent.new()
 	ambient_civilian.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 2301, Vector3.ZERO)
 	ambient_civilian.set_destination(Vector3(-7.0, 0.0, 13.0))
@@ -102,19 +99,8 @@ func _initialize() -> void:
 		_fail("NpcAgent ambient recovery must also restore the exact routine target")
 		return
 
-	# A passenger already waiting at a Brussels transit stop must remain the same
-	# passenger in the same stop/door queue after an incident. Recovery must not
-	# fabricate a new queue or silently convert the passenger to generic walking.
 	var stop := NpcTransitStop.new()
-	stop.configure(
-		"STIB_TEST_STOP",
-		Vector3(12.0, 0.0, -4.0),
-		Vector3(1.0, 0.0, 0.0),
-		Vector3(0.0, 0.0, 1.0),
-		PackedFloat32Array([0.0, 5.0]),
-		0.85,
-		8
-	)
+	stop.configure("STIB_TEST_STOP", Vector3(12.0, 0.0, -4.0), Vector3(1.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), PackedFloat32Array([0.0, 5.0]), 0.85, 8)
 	var transit_civilian := NpcAgent.new()
 	transit_civilian.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 2401, Vector3(11.0, 0.0, -4.0))
 	var assigned_door: int = transit_civilian.join_transit_stop(stop, 42, 0)
@@ -124,6 +110,10 @@ func _initialize() -> void:
 	var queue_before: NpcTransitQueue = transit_civilian.transit_queue
 	var target_before: Vector3 = stop.queue_target_for(42)
 	var transit_plan: Dictionary = transit_civilian.begin_civilian_recovery(0.65, 80.0, "transit_hub")
+	# Reproduce a realistic ownership interruption: the stop controller removes
+	# the passenger while the incident is active. Recovery must restore both the
+	# queue position and the stop->door registration, not only one internal list.
+	stop.leave_waiting_passenger(42)
 	transit_civilian.transit_state = NpcAgent.TransitState.NONE
 	transit_civilian.pedestrian_intent = NpcPedestrianContext.PedestrianIntent.CONTINUE
 	transit_civilian.movement_held = false
@@ -156,9 +146,6 @@ func _initialize() -> void:
 		_fail("recovered transit passenger must return to the live queue target")
 		return
 
-	# Recovery must carry an immutable snapshot of the exact pre-incident
-	# routine so the live agent can restore transit waiting or ambient activity
-	# instead of only recovering a geometric destination.
 	var activity_recovery := CivilianRecovery.new()
 	activity_recovery.configure(2201)
 	var routine_snapshot := {

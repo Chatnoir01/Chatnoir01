@@ -87,17 +87,18 @@
         "author": "Horst J. Meuter",
         "license": "CC BY-SA 4.0",
         "distribution_policy": "provenance-only; source image bytes are not vendored in the global QA registry",
-        "camera_notes": "Wikimedia Commons publishes camera location 50.897467 N, 4.339306 E. Treat this as source-provided metadata, not survey-grade precision. Exact lens focal length, yaw, pitch and crop remain unresolved."
+        "camera_notes": "Wikimedia Commons publishes camera location 50.897467 N, 4.339306 E. Treat this as source-provided metadata, not survey-grade precision. Exact historical focal length, yaw, pitch and crop remain unresolved; the benchmark FOV below is evidence-bounded, not lens metadata."
       },
       "viewpoint": {
-        "description": "Deterministic benchmark derived from the specialist Laeken/Jette evidence. Project-local camera X/Z is tied to the source-published Wikimedia coordinate transformed to EPSG:31370; vertical placement is tied to official DTM evidence on the specialist branch. Capture and final orientation remain provisional.",
+        "description": "Deterministic benchmark derived from specialist Laeken/Jette evidence. The source-visible Atomium witness rejects the former 50 degree provisional FOV as too wide; 31.5 degrees is retained as a conservative evidence-bounded benchmark below the 31.661 degree upper bound, not as a recovered historical lens.",
         "game_camera_transform": {
           "position": [60.1172, 14.059434659520558, -6808.7279],
           "rotation_degrees": [0.0, 0.0, 0.0],
-          "fov_degrees": 50.0,
-          "status": "provisional"
+          "fov_degrees": 31.5,
+          "status": "provisional_evidence_bounded"
         },
-        "game_screenshot": null
+        "game_screenshot": null,
+        "framing_evidence": "data/qa/photo_match/atomium_ground_framing_evidence.json"
       },
       "scores": {
         "silhouette": null,
@@ -115,7 +116,7 @@
       "mismatches": [
         {
           "severity": "blocker",
-          "action": "Produce the repeatable 1280x720 in-game capture from the source-geolocated camera and verify runtime terrain elevation against the pinned official DTM evidence before scoring."
+          "action": "Extract and validate the source-backed fountain/open-space foreground geometry and runtime terrain context before accepting the Atomium ground-oblique benchmark capture."
         },
         {
           "severity": "blocker",
@@ -123,7 +124,9 @@
         },
         {
           "severity": "major",
-          "action": "Resolve lens/FOV, yaw, pitch and crop by reproducible visual alignment; do not infer unsupported source camera parameters from intuition."
+          "action": "The former 50 degree provisional FOV was rejected by a conservative source-visible witness. Keep 31.5 degrees provisional and refine yaw, pitch and crop only with reproducible evidence; do not infer unsupported historical lens metadata from intuition.",
+          "resolved": true,
+          "resolution_evidence": "A 960x638 Commons witness bounds clearly visible Atomium structure to at least 58.307% of frame height after endpoint uncertainty. With the registered 304.114 m camera distance, 14.059 m camera height above baseline and official 102 m monument height, the maximum FOV consistent with that witness is 31.661 degrees. The 31.5 degree benchmark projects 422.071 px / 58.621% at 1280x720 and remains explicitly provisional."
         }
       ],
       "realism_complete": false

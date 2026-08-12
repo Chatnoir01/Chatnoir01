@@ -11,10 +11,10 @@ func _fail(message: String) -> void:
     push_error("TRAFFIC_OFFICIAL_DENSITY_FAIL: %s" % message)
     quit(1)
 
-func _sensor(sensor_id: String, x: float, z: float, rate: float, occupancy: float, fresh: bool = true) -> Dictionary:
+func _sensor(sensor_id: String, x: float, z: float, rate: float, occupancy: float, fresh: bool = true, active: bool = true) -> Dictionary:
     return {
         "id": sensor_id,
-        "active": true,
+        "active": active,
         "game": [x, z],
         "measurement": {
             "vehicles_per_minute": rate,
@@ -41,6 +41,7 @@ func _synthetic_snapshot() -> Dictionary:
             _sensor("HIGH", 0.0, 0.0, 30.0, 20.0),
             _sensor("LOW", 1000.0, 0.0, 3.0, 2.0),
             _sensor("STALE", 2000.0, 0.0, 80.0, 80.0, false),
+            _sensor("INACTIVE_FRESH", 15.0, 0.0, 90.0, 70.0, true, false),
         ],
     }
 
@@ -59,7 +60,7 @@ func _run() -> void:
         _fail("synthetic official profile was rejected")
         return
     if int(profile.call("get_sensor_count")) != 2:
-        _fail("stale sensor was not excluded from the calibration profile")
+        _fail("stale or officially inactive sensor was not excluded from the calibration profile")
         return
     if str(profile.call("get_source_license")) != "CC0-1.0":
         _fail("official source license provenance was lost")
@@ -114,7 +115,7 @@ func _run() -> void:
 
     var neutral_base := 12
     var high_target := int(density.call("target_vehicle_count", neutral_base, 16.0, roads, Vector3.ZERO))
-    var low_target := int(density.call("target_vehicle_count", neutral_base, 16.0, roads, Vector3(1000.0, 0.0, 0.0)))
+    var low_target := int(density.call("target_vehicle_count", neutral_base, 16.0, roads, Vector3(1000.0, 0.0)))
     var bounded_peak := int(round(float(neutral_base) * 1.42))
     if high_target <= neutral_base:
         _fail("official high-flow evidence is still capped at neutral fleet size")
@@ -138,11 +139,11 @@ func _run() -> void:
         _fail("committed Brussels Mobility snapshot was rejected by runtime profile")
         return
     if int(real_profile.call("get_sensor_count")) < 5:
-        _fail("committed snapshot exposes fewer than five fresh calibration sensors")
+        _fail("committed snapshot exposes fewer than five active fresh calibration sensors")
         return
 
     print(
-        "TRAFFIC_OFFICIAL_DENSITY_OK: high %.3f low %.3f edge confidence %.3f, targets %d/%d, real fresh sensors %d" %
+        "TRAFFIC_OFFICIAL_DENSITY_OK: high %.3f low %.3f edge confidence %.3f, targets %d/%d, real active fresh sensors %d" %
         [
             float(high.get("factor", 1.0)),
             float(low.get("factor", 1.0)),

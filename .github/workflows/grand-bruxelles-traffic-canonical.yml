@@ -8,16 +8,19 @@ on:
       - "integration/traffic-canonical-manager-foundation"
       - "integration/traffic-canonical-manager-core"
       - "integration/traffic-tow-extension"
+      - "integration/traffic-main-scene-wiring"
     paths:
       - "grand-bruxelles-game/game/scripts/traffic_*.gd"
       - "grand-bruxelles-game/game/scripts/vehicle_damage_model.gd"
       - "grand-bruxelles-game/game/tests/traffic_*.gd"
+      - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-traffic-canonical.yml"
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/traffic_*.gd"
       - "grand-bruxelles-game/game/scripts/vehicle_damage_model.gd"
       - "grand-bruxelles-game/game/tests/traffic_*.gd"
+      - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-traffic-canonical.yml"
   workflow_dispatch:
 
@@ -76,3 +79,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_tow_extension_test.gd 2>&1 | tee /tmp/traffic-tow-extension.log
           if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_TOW_EXTENSION_FAIL" /tmp/traffic-tow-extension.log; then exit 1; fi
           grep -q "TRAFFIC_TOW_EXTENSION_OK" /tmp/traffic-tow-extension.log
+      - name: Main scene traffic integration test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_main_scene_integration_test.gd 2>&1 | tee /tmp/traffic-main-scene.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_MAIN_SCENE_FAIL" /tmp/traffic-main-scene.log; then exit 1; fi
+          grep -q "TRAFFIC_MAIN_SCENE_OK" /tmp/traffic-main-scene.log

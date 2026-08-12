@@ -10,6 +10,9 @@ extends CharacterBody3D
 @onready var camera_pivot: Node3D = $CameraPivot
 @onready var camera: Camera3D = $CameraPivot/SpringArm3D/Camera3D
 
+const BOURSE_DIRECT_SPAWN_POSITION := Vector3(83.44, 1.05, -663.42)
+const BOURSE_DIRECT_SPAWN_YAW_DEGREES := 0.0
+
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _base_collision_layer: int = 1
 var _base_collision_mask: int = 1
@@ -18,7 +21,19 @@ var _base_collision_mask: int = 1
 func _ready() -> void:
     _base_collision_layer = collision_layer
     _base_collision_mask = collision_mask
+    _apply_direct_spawn_from_user_args(OS.get_cmdline_user_args())
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED
+
+
+func _apply_direct_spawn_from_user_args(args: PackedStringArray) -> void:
+    for arg: String in args:
+        if arg.strip_edges().to_lower() != "spawn=bourse":
+            continue
+        global_position = BOURSE_DIRECT_SPAWN_POSITION
+        rotation_degrees.y = BOURSE_DIRECT_SPAWN_YAW_DEGREES
+        velocity = Vector3.ZERO
+        print("Direct test spawn: Bourse / Beursplein")
+        return
 
 
 func _unhandled_input(event: InputEvent) -> void:

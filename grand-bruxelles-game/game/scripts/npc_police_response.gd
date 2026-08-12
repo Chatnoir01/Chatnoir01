@@ -11,6 +11,7 @@ enum Phase {
 
 const INVESTIGATE_THRESHOLD := 0.25
 const PURSUIT_THRESHOLD := 0.70
+const PURSUIT_DOWNGRADE_HOLD_SECONDS := 1.5
 const DEESCALATE_AFTER_SECONDS := 5.0
 const RETURN_AFTER_SECONDS := 15.0
 const VEHICLE_SUPPORT_DISTANCE_METERS := 50.0
@@ -22,6 +23,7 @@ var current_incident_id: int = -1
 var threat_visible := false
 var threat_level := 0.0
 var calm_seconds := 0.0
+var pursuit_downgrade_seconds := 0.0
 var variation_seed := 0
 
 func configure(seed_value: int, anchor: Vector3) -> void:
@@ -32,6 +34,7 @@ func configure(seed_value: int, anchor: Vector3) -> void:
 	threat_visible = false
 	threat_level = 0.0
 	calm_seconds = 0.0
+	pursuit_downgrade_seconds = 0.0
 	phase = Phase.PATROL
 
 func report_incident(world_position: Vector3, severity: float, incident_id: int) -> Phase:
@@ -40,6 +43,7 @@ func report_incident(world_position: Vector3, severity: float, incident_id: int)
 	threat_level = clampf(severity, 0.0, 1.0)
 	threat_visible = threat_level > 0.0
 	calm_seconds = 0.0
+	pursuit_downgrade_seconds = 0.0
 	if threat_level >= PURSUIT_THRESHOLD:
 		phase = Phase.PURSUIT
 	elif threat_level >= INVESTIGATE_THRESHOLD:
@@ -55,13 +59,20 @@ func update_threat(is_visible: bool, normalized_threat: float, delta_seconds: fl
 
 	if threat_visible and threat_level >= PURSUIT_THRESHOLD:
 		calm_seconds = 0.0
+		pursuit_downgrade_seconds = 0.0
 		phase = Phase.PURSUIT
 		return phase
 	if threat_visible and threat_level >= INVESTIGATE_THRESHOLD:
 		calm_seconds = 0.0
+		if phase == Phase.PURSUIT:
+			pursuit_downgrade_seconds += elapsed
+			if pursuit_downgrade_seconds < PURSUIT_DOWNGRADE_HOLD_SECONDS:
+				return phase
+		pursuit_downgrade_seconds = 0.0
 		phase = Phase.INVESTIGATE
 		return phase
 
+	pursuit_downgrade_seconds = 0.0
 	calm_seconds += elapsed
 	if current_incident_id < 0:
 		phase = Phase.PATROL
@@ -88,3 +99,4 @@ func arrive_at_patrol_anchor() -> void:
 	threat_visible = false
 	threat_level = 0.0
 	calm_seconds = 0.0
+	pursuit_downgrade_seconds = 0.0

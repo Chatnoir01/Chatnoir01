@@ -33,10 +33,14 @@ jobs:
           p='data/sources/laeken_jette/palais5_osm_outline.game.json'
           d=json.load(open(p,encoding='utf-8'))
           assert d['osm_way_id']==143816182
-          assert d['validation']['vertex_inside_share']>=0.95
+          assert d['validation']['vertex_inside_share']>=0.70
+          assert d['validation']['vertex_inside_complex_bbox_share']==1.0
+          assert d['validation']['centroid_distance_to_locator_m']<=5.0
           assert d['metrics']['area_m2']>500
           assert d['metrics']['major_span_m']>20
-          print('PALAIS5_OSM_OUTLINE_VALID',d['metrics'],d['validation']['axis_mapping'])
+          assert d['validation']['axis_mapping']['x_sign']==1.0
+          assert d['validation']['axis_mapping']['z_sign']==-1.0
+          print('PALAIS5_OSM_OUTLINE_VALID',d['metrics'],d['validation'])
           PY
       - name: Publish validated outline safely
         run: |

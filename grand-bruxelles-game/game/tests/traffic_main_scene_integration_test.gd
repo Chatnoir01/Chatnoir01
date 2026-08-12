@@ -17,9 +17,20 @@ func _run() -> void:
     for _frame: int in range(8):
         await process_frame
 
-    var manager := main.get_node_or_null("TrafficManager") as TrafficManagerOfficialDensityExtension
+    var manager := main.get_node_or_null("TrafficManager") as TrafficManagerNpcCrossingExtension
     if manager == null:
-        _fail("main scene is not wired to TrafficManagerOfficialDensityExtension")
+        _fail("main scene is not wired to TrafficManagerNpcCrossingExtension")
+        return
+    var npc_director := main.get_node_or_null("NpcPopulationDirector") as NpcPopulationDirector
+    if npc_director == null:
+        _fail("main scene is missing the shared NpcPopulationDirector")
+        return
+    var npc_runtime := main.get_node_or_null("NpcRuntimeIntegration") as NpcRuntimeIntegration
+    if npc_runtime == null or not npc_runtime.is_runtime_configured():
+        _fail("main scene NPC runtime did not bind population director to traffic crossing runtime")
+        return
+    if manager.get_npc_crossing_system() == null:
+        _fail("wired traffic manager does not expose the canonical crossing system")
         return
 
     var contract := TrafficRuntimeContract.new()
@@ -97,7 +108,7 @@ func _run() -> void:
         return
 
     print(
-        "TRAFFIC_MAIN_SCENE_OK: %d routes, %d graph edges, %d vehicles, official factor %.3f confidence %.3f from %d local sensors (nearest %s %.1fm)" %
+        "TRAFFIC_MAIN_SCENE_OK: %d routes, %d graph edges, %d vehicles, NPC crossing runtime bound, official factor %.3f confidence %.3f from %d local sensors (nearest %s %.1fm)" %
         [
             manager.get_route_count(),
             manager.get_graph_edge_count(),

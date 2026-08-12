@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_jette_zone.gd" id="1_zone"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_realism_pass.gd" id="2_realism"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_facade_detail_pass.gd" id="13_facade_detail"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_source_truth_cleanup.gd" id="14_source_cleanup"]
 [ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_tram_rail_pass.gd" id="15_tram_rails"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_atomium_visual_refinement.gd" id="16_atomium_visual"]
 
 [node name="LaekenJetteZone" type="Node3D"]
 script = ExtResource("1_zone")
@@ -27,6 +28,9 @@ script = ExtResource("8_heights")
 
 [node name="RealismPass" type="Node3D" parent="."]
 script = ExtResource("2_realism")
+
+[node name="AtomiumVisualRefinement" type="Node" parent="."]
+script = ExtResource("16_atomium_visual")
 
 [node name="AtomiumCorridor" type="Node3D" parent="."]
 script = ExtResource("3_corridor")

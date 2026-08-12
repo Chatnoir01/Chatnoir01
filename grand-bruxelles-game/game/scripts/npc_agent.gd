@@ -35,7 +35,7 @@ func _ready() -> void:
 func set_spawn_context(new_role: NpcBehaviorModel.Role, seed_value: int, spawn_position: Vector3) -> void:
 	role = new_role
 	variation_seed = seed_value
-	global_position = spawn_position
+	_set_world_position(spawn_position)
 	behavior.configure(new_role, seed_value, spawn_position)
 	_configure_pedestrian_context()
 	_configure_appearance()
@@ -87,7 +87,7 @@ func begin_disembark(exit_position: Vector3) -> bool:
 	if transit_state != TransitState.ONBOARD:
 		return false
 	transit_state = TransitState.DISEMBARKING
-	global_position = exit_position
+	_set_world_position(exit_position)
 	velocity = Vector3.ZERO
 	movement_held = true
 	return true
@@ -149,7 +149,7 @@ func _physics_process(delta: float) -> void:
 func reactivate(spawn_position: Vector3) -> void:
 	active = true
 	visible = true
-	global_position = spawn_position
+	_set_world_position(spawn_position)
 	behavior.configure(role, variation_seed, spawn_position)
 	_configure_pedestrian_context()
 	_configure_appearance()
@@ -168,3 +168,9 @@ func _reset_transit_state() -> void:
 	transit_state = TransitState.NONE
 	pedestrian_intent = NpcPedestrianContext.PedestrianIntent.CONTINUE
 	movement_held = false
+
+func _set_world_position(world_position: Vector3) -> void:
+	if is_inside_tree():
+		global_position = world_position
+	else:
+		position = world_position

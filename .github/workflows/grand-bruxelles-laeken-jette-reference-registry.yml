@@ -30,4 +30,4 @@ jobs:
       - name: Validate realism provenance and measured-state claims
         run: python3 grand-bruxelles-game/tools/validate_laeken_jette_reference_registry.py
       - name: Lock photo-match capture/finding consistency
-        run: python3 -m unittest grand-bruxelles-game/tests/test_laeken_photo_match_consistency.py
+        run: python3 grand-bruxelles-game/tests/test_laeken_photo_match_consistency.py

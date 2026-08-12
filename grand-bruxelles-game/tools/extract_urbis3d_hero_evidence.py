@@ -66,14 +66,18 @@ def iter_z(geometry: ogr.Geometry | None) -> Iterable[float]:
                 yield float(point[2])
 
 
-def feature_values(feature: ogr.Feature) -> list[str]:
-    values: list[str] = []
+def feature_properties(feature: ogr.Feature) -> dict[str, str]:
+    properties: dict[str, str] = {}
     definition = feature.GetDefnRef()
     for index in range(definition.GetFieldCount()):
         value = feature.GetField(index)
         if value is not None:
-            values.append(str(value))
-    return values
+            properties[definition.GetFieldDefn(index).GetName()] = str(value)
+    return properties
+
+
+def feature_values(feature: ogr.Feature) -> list[str]:
+    return list(feature_properties(feature).values())
 
 
 def matches_identifier(feature: ogr.Feature, tokens: list[str]) -> bool:
@@ -120,7 +124,7 @@ def extract(root: Path, tokens: list[str], anchor_e: float, anchor_n: float, rad
                     "package_sha256": package["sha256"],
                     "layer": layer_name,
                     "fid": int(feature.GetFID()),
-                    "fields": feature_values(feature),
+                    "properties": feature_properties(feature),
                     "z": summarize_z(z_values),
                     "envelope": None,
                 }
@@ -129,13 +133,12 @@ def extract(root: Path, tokens: list[str], anchor_e: float, anchor_n: float, rad
                     record["envelope"] = [float(value) for value in envelope]
                 if matches_identifier(feature, tokens):
                     identifier_matches.append(record)
-                elif len(nearby_diagnostics) < 40:
+                elif len(nearby_diagnostics) < 80:
                     nearby_diagnostics.append(record)
             layer.SetSpatialFilter(None)
 
     all_z: list[float] = []
     for match in identifier_matches:
-        # Re-open matched features to avoid serializing every vertex in evidence.
         package_path = next((p["path"] for p in packages if p["sha256"] == match["package_sha256"]), None)
         if not package_path:
             continue
@@ -181,7 +184,7 @@ def main() -> int:
     result = extract(args.root, args.identifier, args.anchor_e, args.anchor_n, args.radius_m)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print("URBIS3D_HERO_EVIDENCE", "matches=", result["identifier_match_count"], "z=", result["combined_identifier_z"])
+    print("URBIS3D_HERO_EVIDENCE", "matches=", result["identifier_match_count"], "z=", result["combined_identifier_z"], "nearby=", len(result["nearby_diagnostics"]))
     if args.require_identity and not result["usable_for_runtime_height_review"]:
         raise SystemExit("No source-identified EPSG:31370 3D feature with usable Z span was proven for the hero building")
     return 0

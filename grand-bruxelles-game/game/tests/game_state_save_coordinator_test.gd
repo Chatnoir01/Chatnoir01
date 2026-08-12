@@ -23,6 +23,7 @@ class FakeDomain:
     func restore_state(state: Dictionary) -> bool:
         if fail_restore:
             fail_restore = false
+            value = 999
             return false
         if not can_restore_state(state):
             return false
@@ -68,6 +69,8 @@ func _run() -> void:
         _fail("precheck rejection mutated live state")
         return
 
+    # A failing provider may have partially mutated itself before returning false.
+    # The transaction must restore both the failed domain and every earlier domain.
     player.value = 7
     world.value = 8
     world.fail_restore = true

@@ -3,8 +3,12 @@ extends Node3D
 ## Laeken + Jette isolated zone builder.
 ## Phase 1 consumes only the clipped official UrbIS Bockstael/Heysel/Atomium slice.
 ## It intentionally does not touch main.tscn or the global player/vehicle systems.
+## Polygon topology is preserved: UrbIS interior rings stay empty, and the sourced
+## Palais 5 outline replaces only its matching volume inside the monolithic Expo feature.
 
 const DATA_ROOT := "res://data/urbis/laeken_jette"
+const PALAIS5_OUTLINE_PATH := "res://data/sources/laeken_jette/palais5_osm_outline.game.json"
+const PALAIS5_EXPO_INSPIRE_ID := "https://databrussels.be/id/building/1635598"
 const ATOMIUM_GAME_XZ := Vector2(224.92615906274295, -6553.143077999353)
 const ATOMIUM_TOTAL_HEIGHT_M := 102.0
 const ATOMIUM_SPHERE_DIAMETER_M := 18.0
@@ -23,6 +27,8 @@ var last_stats: Dictionary = {
     "street_axes": 0,
     "tram_network": 0,
     "train_network": 0,
+    "official_polygon_holes": 0,
+    "palais5_source_cutouts": 0,
 }
 
 var _road_material: StandardMaterial3D
@@ -32,12 +38,14 @@ var _tram_material: StandardMaterial3D
 var _ground_material: StandardMaterial3D
 var _atomium_material: StandardMaterial3D
 var _atomium_dark_material: StandardMaterial3D
+var _palais5_cutout := PackedVector2Array()
 
 
 func _ready() -> void:
     _make_materials()
     _build_ground_reference()
     if load_urbis_geometry:
+        _load_palais5_cutout()
         _build_urbis_slice()
     if build_atomium_hero:
         _build_atomium()
@@ -64,15 +72,12 @@ func _make_materials() -> void:
 
 
 func _build_ground_reference() -> void:
-    # The phase-1 official bbox is 1.8 km x 3.1 km. This base is only a walkable
-    # reference plane; street surfaces and buildings are placed from UrbIS above it.
     var mesh := PlaneMesh.new()
     mesh.size = Vector2(1800.0, 3100.0)
     mesh.material = _ground_material
     var instance := MeshInstance3D.new()
     instance.name = "Phase1ReferenceGround"
     instance.mesh = mesh
-    # Lambert bbox centre converted to project-local coordinates.
     instance.position = Vector3(631.70577208066, ground_y - 0.04, -5661.37585073803)
     add_child(instance)
 
@@ -89,15 +94,15 @@ func _build_ground_reference() -> void:
 
 func _load_collection(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):
-        push_warning("Laeken/Jette UrbIS layer missing: %s" % path)
+        push_warning("Laeken/Jette source layer missing: %s" % path)
         return {}
     var file := FileAccess.open(path, FileAccess.READ)
     if file == null:
-        push_warning("Unable to open Laeken/Jette layer: %s" % path)
+        push_warning("Unable to open Laeken/Jette source layer: %s" % path)
         return {}
     var parsed = JSON.parse_string(file.get_as_text())
     if typeof(parsed) != TYPE_DICTIONARY:
-        push_warning("Invalid GeoJSON/JSON collection: %s" % path)
+        push_warning("Invalid GeoJSON/JSON document: %s" % path)
         return {}
     return parsed as Dictionary
 
@@ -126,16 +131,27 @@ func _feature_count(document: Dictionary) -> int:
     return features.size() if features is Array else 0
 
 
-func _outer_rings(geometry: Dictionary) -> Array:
-    var result: Array = []
-    var kind := String(geometry.get("type", ""))
+func _polygon_ring_sets(geometry: Dictionary) -> Array[Dictionary]:
+    var result: Array[Dictionary] = []
+    var kind := str(geometry.get("type", ""))
     var coords = geometry.get("coordinates", [])
-    if kind == "Polygon" and coords is Array and not coords.is_empty():
-        result.append(coords[0])
+    var polygons: Array = []
+    if kind == "Polygon" and coords is Array:
+        polygons.append(coords)
     elif kind == "MultiPolygon" and coords is Array:
-        for polygon in coords:
-            if polygon is Array and not polygon.is_empty():
-                result.append(polygon[0])
+        polygons = coords
+    for polygon in polygons:
+        if not (polygon is Array) or polygon.is_empty():
+            continue
+        var outer := _ring_to_points(polygon[0])
+        if outer.size() < 3:
+            continue
+        var holes: Array[PackedVector2Array] = []
+        for ring_index in range(1, polygon.size()):
+            var hole := _ring_to_points(polygon[ring_index])
+            if hole.size() >= 3:
+                holes.append(hole)
+        result.append({"outer": outer, "holes": holes})
     return result
 
 
@@ -162,6 +178,94 @@ func _ring_to_points(ring: Array) -> PackedVector2Array:
     return points
 
 
+func _polygon_centroid(points: PackedVector2Array) -> Vector2:
+    if points.is_empty():
+        return Vector2.ZERO
+    var total := Vector2.ZERO
+    for point in points:
+        total += point
+    return total / float(points.size())
+
+
+func _point_in_surface(point: Vector2, outer: PackedVector2Array, holes: Array[PackedVector2Array]) -> bool:
+    if not Geometry2D.is_point_in_polygon(point, outer):
+        return false
+    for hole in holes:
+        if Geometry2D.is_point_in_polygon(point, hole):
+            return false
+    return true
+
+
+func _append_flat_polygon(st: SurfaceTool, points: PackedVector2Array, y: float) -> int:
+    var triangles := Geometry2D.triangulate_polygon(points)
+    for index in triangles:
+        var p := points[int(index)]
+        st.set_normal(Vector3.UP)
+        st.add_vertex(Vector3(p.x, y, p.y))
+    return triangles.size() / 3
+
+
+func _append_flat_polygon_with_holes(st: SurfaceTool, outer: PackedVector2Array, holes: Array[PackedVector2Array], y: float) -> int:
+    if holes.is_empty():
+        return _append_flat_polygon(st, outer, y)
+    var vertices := PackedVector2Array()
+    vertices.append_array(outer)
+    for hole in holes:
+        vertices.append_array(hole)
+    var triangles := Geometry2D.triangulate_delaunay(vertices)
+    var accepted := 0
+    for offset in range(0, triangles.size(), 3):
+        if offset + 2 >= triangles.size():
+            break
+        var a := vertices[int(triangles[offset])]
+        var b := vertices[int(triangles[offset + 1])]
+        var c := vertices[int(triangles[offset + 2])]
+        var centroid := (a + b + c) / 3.0
+        if not _point_in_surface(centroid, outer, holes):
+            continue
+        if not _point_in_surface((a + b) * 0.5, outer, holes):
+            continue
+        if not _point_in_surface((b + c) * 0.5, outer, holes):
+            continue
+        if not _point_in_surface((c + a) * 0.5, outer, holes):
+            continue
+        for point in [a, b, c]:
+            st.set_normal(Vector3.UP)
+            st.add_vertex(Vector3(point.x, y, point.y))
+        accepted += 1
+    return accepted
+
+
+func _append_walls(st: SurfaceTool, points: PackedVector2Array, bottom_y: float, top_y: float, reverse_normal: bool = false) -> void:
+    for i in range(points.size()):
+        var a := points[i]
+        var b := points[(i + 1) % points.size()]
+        var edge := b - a
+        if edge.length_squared() < 0.0001:
+            continue
+        var normal := Vector3(edge.y, 0.0, -edge.x).normalized()
+        if reverse_normal:
+            normal = -normal
+        var a0 := Vector3(a.x, bottom_y, a.y)
+        var a1 := Vector3(a.x, top_y, a.y)
+        var b0 := Vector3(b.x, bottom_y, b.y)
+        var b1 := Vector3(b.x, top_y, b.y)
+        for vertex in [a0, b0, b1, a0, b1, a1]:
+            st.set_normal(normal)
+            st.add_vertex(vertex)
+
+
+func _load_palais5_cutout() -> void:
+    _palais5_cutout = PackedVector2Array()
+    var document := _load_collection(PALAIS5_OUTLINE_PATH)
+    var geometry = document.get("geometry", {})
+    if not (geometry is Dictionary):
+        return
+    var sets := _polygon_ring_sets(geometry)
+    if sets.size() == 1:
+        _palais5_cutout = sets[0]["outer"]
+
+
 func _build_polygon_layer(document: Dictionary, node_name: String, material: Material, y: float, vertical_walls: bool) -> void:
     var features = document.get("features", [])
     if not (features is Array) or features.is_empty():
@@ -174,13 +278,15 @@ func _build_polygon_layer(document: Dictionary, node_name: String, material: Mat
         var geometry = feature.get("geometry", {})
         if not (geometry is Dictionary):
             continue
-        for ring in _outer_rings(geometry):
-            var points := _ring_to_points(ring)
-            if points.size() < 3:
-                continue
-            _append_flat_polygon(st, points, y)
+        for polygon_set in _polygon_ring_sets(geometry):
+            var outer: PackedVector2Array = polygon_set["outer"]
+            var holes: Array[PackedVector2Array] = polygon_set["holes"]
+            last_stats["official_polygon_holes"] = int(last_stats["official_polygon_holes"]) + holes.size()
+            _append_flat_polygon_with_holes(st, outer, holes, y)
             if vertical_walls:
-                _append_walls(st, points, ground_y, y)
+                _append_walls(st, outer, ground_y, y)
+                for hole in holes:
+                    _append_walls(st, hole, ground_y, y, true)
     var mesh := st.commit()
     if mesh == null or mesh.get_surface_count() == 0:
         return
@@ -189,31 +295,6 @@ func _build_polygon_layer(document: Dictionary, node_name: String, material: Mat
     instance.name = node_name
     instance.mesh = mesh
     add_child(instance)
-
-
-func _append_flat_polygon(st: SurfaceTool, points: PackedVector2Array, y: float) -> void:
-    var triangles := Geometry2D.triangulate_polygon(points)
-    for index in triangles:
-        var p := points[int(index)]
-        st.set_normal(Vector3.UP)
-        st.add_vertex(Vector3(p.x, y, p.y))
-
-
-func _append_walls(st: SurfaceTool, points: PackedVector2Array, bottom_y: float, top_y: float) -> void:
-    for i in range(points.size()):
-        var a := points[i]
-        var b := points[(i + 1) % points.size()]
-        var edge := b - a
-        if edge.length_squared() < 0.0001:
-            continue
-        var normal := Vector3(edge.y, 0.0, -edge.x).normalized()
-        var a0 := Vector3(a.x, bottom_y, a.y)
-        var a1 := Vector3(a.x, top_y, a.y)
-        var b0 := Vector3(b.x, bottom_y, b.y)
-        var b1 := Vector3(b.x, top_y, b.y)
-        for vertex in [a0, b0, b1, a0, b1, a1]:
-            st.set_normal(normal)
-            st.add_vertex(vertex)
 
 
 func _building_height(properties: Dictionary) -> float:
@@ -246,12 +327,19 @@ func _build_buildings(document: Dictionary) -> void:
         if not (properties is Dictionary):
             properties = {}
         var height := _building_height(properties)
-        for ring in _outer_rings(geometry):
-            var points := _ring_to_points(ring)
-            if points.size() < 3:
-                continue
-            _append_flat_polygon(st, points, ground_y + height)
-            _append_walls(st, points, ground_y, ground_y + height)
+        var inspire_id := str(properties.get("INSPIRE_ID", ""))
+        for polygon_set in _polygon_ring_sets(geometry):
+            var outer: PackedVector2Array = polygon_set["outer"]
+            var holes: Array[PackedVector2Array] = polygon_set["holes"].duplicate()
+            last_stats["official_polygon_holes"] = int(last_stats["official_polygon_holes"]) + holes.size()
+            if inspire_id == PALAIS5_EXPO_INSPIRE_ID and _palais5_cutout.size() >= 3:
+                if Geometry2D.is_point_in_polygon(_polygon_centroid(_palais5_cutout), outer):
+                    holes.append(_palais5_cutout)
+                    last_stats["palais5_source_cutouts"] = int(last_stats["palais5_source_cutouts"]) + 1
+            _append_flat_polygon_with_holes(st, outer, holes, ground_y + height)
+            _append_walls(st, outer, ground_y, ground_y + height)
+            for hole in holes:
+                _append_walls(st, hole, ground_y, ground_y + height, true)
     var mesh := st.commit()
     if mesh == null or mesh.get_surface_count() == 0:
         return
@@ -315,9 +403,6 @@ func _build_atomium() -> void:
     root.position = Vector3(ATOMIUM_GAME_XZ.x, ground_y, ATOMIUM_GAME_XZ.y)
     add_child(root)
 
-    # City of Brussels dimensions: 102 m total, 18 m spheres, 3.30 m tubes,
-    # 9 spheres and 20 tubes. The 8 corners + centre are generated as a true
-    # body-centred cubic lattice with one body diagonal aligned vertically.
     var sphere_centres: Array[Vector3] = [
         Vector3(0.0, 9.0, 0.0),
         Vector3(-34.293, 37.0, 19.799),
@@ -346,8 +431,6 @@ func _build_atomium() -> void:
     for i in range(8):
         _add_atomium_tube(root, sphere_centres[i], sphere_centres[8], ATOMIUM_TUBE_DIAMETER_M)
 
-    # Three deterministic bipod supports under the three lower lateral spheres.
-    # Exact base-foot azimuths will be refined against the next LiDAR/orthophoto pass.
     for i in [1, 2, 3]:
         var centre := sphere_centres[i]
         _add_atomium_tube(root, Vector3(centre.x - 8.0, 0.0, centre.z - 5.0), centre, 2.4, _atomium_dark_material)

@@ -56,16 +56,43 @@ def main() -> int:
     assert close(x, e - origin["epsg31370_e"])
     assert close(z, -(n - origin["epsg31370_n"]))
 
-    for view in photo_match["views"]:
+    gate = photo_match.get("quality_gate", {})
+    minimum_views = int(gate.get("minimum_reference_views", 0))
+    views = photo_match["views"]
+    assert minimum_views >= 3, "photo-match gate must require at least three reference views"
+    assert len(views) >= minimum_views, (
+        f"photo-match registry has {len(views)} views but gate requires {minimum_views}"
+    )
+    ids = [view.get("id") for view in views]
+    assert len(ids) == len(set(ids)), "photo-match benchmark IDs must be unique"
+    urls = []
+    for view in views:
         status = view.get("status", "")
         reference = view.get("reference", {})
         assert reference.get("url"), f"{view.get('id')}: missing reference URL"
         assert reference.get("license"), f"{view.get('id')}: missing reference license"
-        if "provisional" in status:
-            usage = reference.get("usage", "").lower()
-            assert "provisional" in usage or "survey" in usage, (
-                f"{view.get('id')}: provisional benchmark must state camera uncertainty"
+        assert reference.get("usage"), f"{view.get('id')}: missing reference usage policy"
+        assert len(view.get("comparison_checks", [])) >= 5, (
+            f"{view.get('id')}: photo-match benchmark needs at least five visual checks"
+        )
+        assert view.get("resolution") == [1280, 720], (
+            f"{view.get('id')}: benchmark capture resolution must stay deterministic"
+        )
+        assert 35.0 <= float(view.get("fov_degrees", 0.0)) <= 75.0, (
+            f"{view.get('id')}: implausible benchmark FOV"
+        )
+        if "provisional" in status or "pending" in status:
+            uncertainty = " ".join(
+                [
+                    str(view.get("camera_claim", "")),
+                    str(reference.get("usage", "")),
+                ]
+            ).lower()
+            assert "provisional" in uncertainty or "survey" in uncertainty or "no photographer" in uncertainty, (
+                f"{view.get('id')}: uncertain benchmark must explicitly state camera uncertainty"
             )
+        urls.append(reference["url"])
+    assert len(set(urls)) >= 3, "three-view gate must use three independently registered reference pages"
 
     policy = jette["reference_policy"]
     assert "never infer" in policy["camera_claim_rule"].lower()
@@ -73,7 +100,7 @@ def main() -> int:
 
     print(
         "LAEKEN_JETTE_REFERENCE_REGISTRY_OK: "
-        f"height_coverage={coverage:.2f}% refs={len(refs)} benchmarks={len(photo_match['views'])}"
+        f"height_coverage={coverage:.2f}% refs={len(refs)} benchmarks={len(views)}"
     )
     return 0
 

@@ -1,0 +1,27 @@
+{
+  "schema": "grand-bruxelles-atomium-dtm-evidence-v1",
+  "target": "Atomium ground context",
+  "source_branch": "zone-laeken-jette",
+  "source_path": "grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json",
+  "source_git_blob_sha": "929df36d09a1e62a76fa6b3ca7071c39e348bca2",
+  "official_raster": {
+    "provider": "Paradigm UrbIS",
+    "product": "Digital Terrain Model 2021",
+    "crs": "EPSG:31370",
+    "download_url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_148176_20211009_50.zip",
+    "source_sha256": "b689d20567223125aea2a8fb9c720a79c42be20ca5e5e7167080a39df2fd107f"
+  },
+  "locked_grid": {
+    "width": 257,
+    "height": 257,
+    "sample_spacing_m": 3.8910505836538505,
+    "atomium_absolute_elevation_m": 52.57776641845703,
+    "absolute_elevation_min_m": 46.17759704589844,
+    "absolute_elevation_max_m": 76.80229187011719,
+    "valid_sample_count": 65577,
+    "invalid_sample_count": 472
+  },
+  "runtime_approved": false,
+  "realism_complete": false,
+  "interpretation": "Exact specialist-branch DTM evidence copied into current-main history without granting runtime approval. Runtime terrain still requires seam, normal, collision, performance and deterministic visual validation before use."
+}

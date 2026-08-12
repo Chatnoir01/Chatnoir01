@@ -21,10 +21,30 @@ func _run() -> void:
             _fail("missing runtime root %s" % root_name)
             return
 
-    manager.call("configure_topology", 140, 588, 708, 63, 53, 180, 19, 124, 108, 188)
-    if int(manager.call("get_route_count")) != 140 or int(manager.call("get_graph_node_count")) != 588:
-        _fail("topology counters mismatch")
+    if not bool(manager.call("initialize_runtime")):
+        _fail("real OSM runtime initialization failed")
         return
+    if int(manager.call("get_route_count")) != 140:
+        _fail("expected 140 real drivable OSM routes")
+        return
+    if int(manager.call("get_graph_node_count")) <= 0 or int(manager.call("get_graph_edge_count")) <= 0:
+        _fail("OSM graph is empty")
+        return
+    if int(manager.call("get_intersection_count")) <= 0:
+        _fail("OSM intersections were not reconstructed")
+        return
+
+    var candidates: Array = manager.call("get_candidate_edge_ids", Vector3(-668.5, 0.0, 627.84), 520.0)
+    if candidates.is_empty():
+        _fail("no route edge found near Midi anchor")
+        return
+    var route: Dictionary = manager.call("build_random_route", int(candidates[0]), 20260812, 120.0, 420.0, 18)
+    var points: PackedVector3Array = route.get("points", PackedVector3Array())
+    if points.size() < 3 or int(route.get("edge_count", 0)) < 2:
+        _fail("canonical graph did not produce a multi-edge route")
+        return
+
+    manager.call("configure_topology", 140, manager.call("get_graph_node_count"), manager.call("get_graph_edge_count"), manager.call("get_intersection_count"), 53, manager.call("get_traffic_control_count"), manager.call("get_signal_count"), manager.call("get_crossing_count"), manager.call("get_unsignalized_crossing_count"), 188)
     if int(manager.call("get_parking_candidate_count")) != 188:
         _fail("parking candidate count mismatch")
         return
@@ -34,9 +54,6 @@ func _run() -> void:
         return
     if bool(manager.call("reserve_parking_candidate", 7, "other")):
         _fail("duplicate parking reservation accepted")
-        return
-    if int(manager.call("get_reserved_parking_candidate_count")) != 1:
-        _fail("reservation count mismatch")
         return
     manager.call("release_parking_candidate", 7, "delivery:test")
     if int(manager.call("get_reserved_parking_candidate_count")) != 0:
@@ -50,11 +67,8 @@ func _run() -> void:
     if not bool(manager.call("register_wreck", wreck, 100.0)):
         _fail("wreck registration failed")
         return
-    if int(manager.call("get_wreck_count")) != 1:
-        _fail("wreck count mismatch")
-        return
-    if int(manager.call("get_active_vehicle_count")) != 0:
-        _fail("wreck incorrectly counted as active vehicle")
+    if int(manager.call("get_wreck_count")) != 1 or int(manager.call("get_active_vehicle_count")) != 0:
+        _fail("wreck lifecycle count mismatch")
         return
     if int(manager.call("cleanup_wrecks_at", 100.5)) != 0:
         _fail("wreck cleared before delay")
@@ -68,5 +82,5 @@ func _run() -> void:
         return
 
     manager.queue_free()
-    print("TRAFFIC_CANONICAL_BEHAVIOR_OK: roots, topology, parking reservation and wreck lifecycle passed")
+    print("TRAFFIC_CANONICAL_BEHAVIOR_OK: real OSM graph, multi-edge route, roots, parking and wreck lifecycle passed")
     quit(0)

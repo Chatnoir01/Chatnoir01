@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "reference_id": "atomium_ground_oblique_v1",
+  "source_branch": "zone-laeken-jette",
+  "source_policy": "evidence extraction only; no specialist history merged",
+  "reference": {
+    "source_page": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",
+    "author": "Horst J. Meuter",
+    "license": "CC BY-SA 4.0",
+    "image_width_px": 960,
+    "image_height_px": 638,
+    "published_camera_lat": 50.897467,
+    "published_camera_lon": 4.339306,
+    "lens_focal_length_status": "not_available"
+  },
+  "geometry": {
+    "atomium_official_height_m": 102.0,
+    "camera_to_target_horizontal_distance_m": 304.114,
+    "camera_height_above_atomium_baseline_m": 14.059,
+    "project_crs": "EPSG:31370"
+  },
+  "framing_witness": {
+    "minimum_visible_atomium_height_px": 372,
+    "uncertainty_px_each_endpoint": 5,
+    "minimum_visible_frame_height_ratio": 0.58307,
+    "maximum_compatible_vertical_fov_degrees": 31.661,
+    "selected_provisional_vertical_fov_degrees": 31.5,
+    "selected_status": "evidence_bounded_provisional",
+    "historical_lens_claimed": false
+  },
+  "runtime_approved": false,
+  "realism_complete": false,
+  "remaining_blockers": [
+    "source-backed basin/fountain and open-space foreground geometry",
+    "Atomium support-leg orientation and sphere/tube foreshortening",
+    "terrain-to-lowest-sphere visual relationship",
+    "source-backed vegetation/furniture/paving context",
+    "final yaw/pitch/crop and eleven-dimension photo-match scoring"
+  ]
+}

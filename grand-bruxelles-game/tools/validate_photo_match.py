@@ -157,6 +157,19 @@ def validate_manifest(manifest_path: Path) -> tuple[int, int]:
                 fail(f"{context} is incomplete but has no actionable mismatch")
             continue
 
+        unresolved_serious = [
+            mismatch
+            for mismatch in mismatches
+            if mismatch.get("severity") in {"major", "blocker"}
+            and not mismatch.get("resolved", False)
+        ]
+        if unresolved_serious:
+            severities = sorted({str(mismatch.get("severity")) for mismatch in unresolved_serious})
+            fail(
+                f"{context} marked complete with unresolved "
+                f"{'/'.join(severities)} mismatch"
+            )
+
         camera_transform = viewpoint.get("game_camera_transform")
         screenshot = viewpoint.get("game_screenshot")
         if camera_transform is None:
@@ -196,13 +209,6 @@ def validate_manifest(manifest_path: Path) -> tuple[int, int]:
                     f"{numeric_scores[critical_field]:.2f} is below {passing_average:.2f}"
                 )
 
-        unresolved_blockers = [
-            mismatch
-            for mismatch in mismatches
-            if mismatch.get("severity") == "blocker" and not mismatch.get("resolved", False)
-        ]
-        if unresolved_blockers:
-            fail(f"{context} marked complete with unresolved blocker mismatch")
         complete_count += 1
 
     return len(references), complete_count

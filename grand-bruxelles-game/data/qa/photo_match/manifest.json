@@ -60,7 +60,8 @@
         {
           "severity": "major",
           "action": "The global LocationLabel was hard-coded to Bruxelles-Midi and contaminated the Centre capture. It is now position-aware in gameplay and explicitly hidden by the geometry-only photo-match harness.",
-          "resolved": true
+          "resolved": true,
+          "resolution_evidence": "PR #56 added position-aware location labels plus a deterministic Godot regression test and hid the HUD in geometry-only photo-match captures; the Photo Match QA workflow subsequently rendered the Bourse capture successfully with that path."
         },
         {
           "severity": "blocker",

@@ -31,11 +31,36 @@ func _run() -> void:
     if contract.CANONICAL_MANAGER_TARGET.find("_core_v") >= 0 or contract.CANONICAL_VEHICLE_TARGET.find("_core_v") >= 0:
         _fail("canonical targets must not introduce another version-suffixed core")
         return
+
+    var manager_script: Script = load("res://game/scripts/%s" % contract.CANONICAL_MANAGER_TARGET)
+    if manager_script == null:
+        _fail("canonical manager target does not load")
+        return
+    var manager: Node = manager_script.new()
+    var manager_missing: PackedStringArray = contract.validate_manager(manager)
+    if not manager_missing.is_empty():
+        _fail("canonical manager missing methods: %s" % [manager_missing])
+        manager.free()
+        return
+    manager.free()
+
+    var vehicle_script: Script = load("res://game/scripts/%s" % contract.CANONICAL_VEHICLE_TARGET)
+    if vehicle_script == null:
+        _fail("canonical vehicle target does not load")
+        return
+    var vehicle: Node = vehicle_script.new()
+    var vehicle_missing: PackedStringArray = contract.validate_vehicle(vehicle)
+    if not vehicle_missing.is_empty():
+        _fail("canonical vehicle missing methods: %s" % [vehicle_missing])
+        vehicle.free()
+        return
+    vehicle.free()
+
     var incomplete: Node = Node.new()
     var missing: PackedStringArray = contract.validate_manager(incomplete)
     if missing.size() != contract.MANAGER_METHODS.size():
         _fail("missing-method detector is not deterministic")
         return
     incomplete.free()
-    print("TRAFFIC_RUNTIME_CONTRACT_OK: %d manager methods, %d vehicle methods, %d optional tow methods" % [contract.MANAGER_METHODS.size(), contract.VEHICLE_METHODS.size(), contract.OPTIONAL_TOW_METHODS.size()])
+    print("TRAFFIC_RUNTIME_CONTRACT_OK: canonical pair loaded; %d manager methods, %d vehicle methods, %d optional tow methods" % [contract.MANAGER_METHODS.size(), contract.VEHICLE_METHODS.size(), contract.OPTIONAL_TOW_METHODS.size()])
     quit(0)

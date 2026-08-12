@@ -1,0 +1,58 @@
+name: Grand Bruxelles Laeken Palais 5 Match
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/resolve_palais5_urbis_footprint.py"
+      - ".github/workflows/grand-bruxelles-laeken-palais5-match.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install pyproj
+        run: |
+          python3 -m pip install --quiet pyproj
+
+      - name: Resolve named OSM feature to UrbIS geometry
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/resolve_palais5_urbis_footprint.py
+          python3 tools/resolve_palais5_urbis_footprint.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/palais5_urbis_match.json'
+          d=json.load(open(p,encoding='utf-8'))
+          selected=d['selected_urbis_feature']
+          assert selected['area_m2'] >= 1000,selected
+          assert selected['centroid_distance_to_osm_m'] <= 160,selected
+          assert 50 <= selected['major_span_m'] <= 500,selected
+          assert 20 <= selected['minor_span_m'] <= 300,selected
+          print('PALAIS5_MATCH_VALID',selected)
+          PY
+
+      - name: Publish match from latest branch head
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/palais5_urbis_match.json /tmp/palais5_urbis_match.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/palais5_urbis_match.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add -f grand-bruxelles-game/data/sources/laeken_jette/palais5_urbis_match.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: resolve Palais 5 to UrbIS footprint [skip ci]"
+          git push origin HEAD:zone-laeken-jette

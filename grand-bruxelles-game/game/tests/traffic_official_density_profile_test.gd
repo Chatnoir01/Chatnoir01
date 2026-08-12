@@ -67,6 +67,7 @@ func _run() -> void:
 
     var high: Dictionary = profile.call("calibration_for", Vector3.ZERO, 220.0, 4)
     var low: Dictionary = profile.call("calibration_for", Vector3(1000.0, 0.0, 0.0), 220.0, 4)
+    var edge: Dictionary = profile.call("calibration_for", Vector3(190.0, 0.0, 0.0), 220.0, 1)
     var uncovered: Dictionary = profile.call("calibration_for", Vector3(5000.0, 0.0, 0.0), 220.0, 4)
     if not bool(high.get("available", false)) or float(high.get("factor", 0.0)) < 1.30:
         _fail("high-flow sensor did not raise the relative spatial factor")
@@ -74,8 +75,20 @@ func _run() -> void:
     if not bool(low.get("available", false)) or float(low.get("factor", 1.0)) > 0.75:
         _fail("low-flow sensor did not lower the relative spatial factor")
         return
+    if not bool(edge.get("available", false)):
+        _fail("near-edge sensor was unexpectedly excluded")
+        return
+    var edge_confidence := float(edge.get("distance_confidence", 0.0))
+    if edge_confidence < 0.30 or edge_confidence > 0.40:
+        _fail("distance-confidence taper drifted near coverage edge: %.3f" % edge_confidence)
+        return
     if bool(uncovered.get("available", true)) or float(uncovered.get("factor", 0.0)) != 1.0:
         _fail("uncovered area did not return a neutral official factor")
+        return
+
+    var nearest: Dictionary = profile.call("nearest_sample", Vector3(5000.0, 0.0, 0.0))
+    if not bool(nearest.get("available", false)) or str(nearest.get("id", "")).is_empty():
+        _fail("nearest-sensor diagnostic disappeared outside coverage")
         return
 
     var density: RefCounted = DENSITY_SCRIPT.new()
@@ -115,7 +128,12 @@ func _run() -> void:
         return
 
     print(
-        "TRAFFIC_OFFICIAL_DENSITY_OK: synthetic high %.3f low %.3f, real fresh sensors %d" %
-        [float(high.get("factor", 1.0)), float(low.get("factor", 1.0)), int(real_profile.call("get_sensor_count"))]
+        "TRAFFIC_OFFICIAL_DENSITY_OK: high %.3f low %.3f edge confidence %.3f, real fresh sensors %d" %
+        [
+            float(high.get("factor", 1.0)),
+            float(low.get("factor", 1.0)),
+            edge_confidence,
+            int(real_profile.call("get_sensor_count")),
+        ]
     )
     quit(0)

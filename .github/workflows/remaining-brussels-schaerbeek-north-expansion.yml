@@ -1,4 +1,4 @@
-name: Remaining Brussels Schaerbeek Saint-Josse compact connection
+name: Remaining Brussels Schaerbeek Saint-Josse compact connection pass 2
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: remaining-brussels-schaerbeek-saint-josse-compact
+  group: remaining-brussels-schaerbeek-saint-josse-compact-v2
   cancel-in-progress: false
 
 jobs:
@@ -72,7 +72,7 @@ jobs:
                       ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
 
           existing={cid for cid in cells if (root/cid/'manifest.json').exists()}
-          assert len(existing) >= 11, ('expected validated west Schaerbeek checkpoint', len(existing))
+          assert len(existing) >= 15, ('expected validated Schaerbeek Saint-Josse checkpoint', len(existing))
           selected=[]
           connected=set(existing)
 
@@ -103,7 +103,7 @@ jobs:
 
           payload={
               'format':'grand-bruxelles-zone-cells-v2',
-              'zone_id':'schaerbeek-saint-josse-compact-connection',
+              'zone_id':'schaerbeek-saint-josse-compact-connection-pass-2',
               'crs':'EPSG:31370',
               'cell_size_m':500.0,
               'cell_count':len(selected),
@@ -112,12 +112,12 @@ jobs:
                   'preexisting_ids':sorted(existing),
                   'ordered_ids':[c['id'] for c in selected],
                   'saint_josse_overlap_ids':[c['id'] for c in selected if c['id'] in sj_ids],
-                  'strategy':'compact edge-contiguous frontier prioritizing shared Saint-Josse cells'
+                  'strategy':'second compact edge-contiguous pass prioritizing remaining shared Saint-Josse cells'
               }
           }
           Path('/tmp/schaerbeek-frontier.json').write_text(json.dumps(payload,indent=2)+'\n')
           Path('/tmp/schaerbeek-frontier.tsv').write_text('\n'.join(f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in selected)+'\n')
-          print('SCHAERBEEK_SAINT_JOSSE_SELECTION', payload['continuity'])
+          print('SCHAERBEEK_SAINT_JOSSE_PASS2_SELECTION', payload['continuity'])
           PY
 
       - name: Materialize authoritative UrbIS geometry and transport networks
@@ -172,27 +172,27 @@ jobs:
           sc=next(z for z in coverage['zones'] if z['zone_id']=='schaerbeek')
           sj=next(z for z in coverage['zones'] if z['zone_id']=='saint-josse')
           assert set(ids)<=set(sc['materialized_cell_ids'])
-          assert sc['materialized_cells']>=15
+          assert sc['materialized_cells']>=19
           runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
           assert set(ids)<={c['cell_id'] for c in runtime['cells']}
           overlap=set(selection['continuity']['saint_josse_overlap_ids'])
           if overlap:
               assert overlap<=set(sj['materialized_cell_ids'])
-          print('SCHAERBEEK_SAINT_JOSSE_COMPACT_VALIDATED', ids, sc['materialized_cells'], sc['coverage_percent'], sj['materialized_cells'], sj['coverage_percent'], sorted(overlap))
+          print('SCHAERBEEK_SAINT_JOSSE_PASS2_VALIDATED', ids, sc['materialized_cells'], sc['coverage_percent'], sj['materialized_cells'], sj['coverage_percent'], sorted(overlap))
           PY
 
       - uses: actions/upload-artifact@v4
         with:
-          name: schaerbeek-saint-josse-compact-official-orthophotos
+          name: schaerbeek-saint-josse-pass2-official-orthophotos
           path: /tmp/schaerbeek-frontier-ortho/*.png
           retention-days: 14
           if-no-files-found: error
 
-      - name: Commit validated Schaerbeek Saint-Josse connection
+      - name: Commit validated Schaerbeek Saint-Josse second compact pass
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+Chatnoir01@users.noreply.github.com'
           git add grand-bruxelles-game/data/processed/remaining_brussels grand-bruxelles-game/data/urbis/remaining_brussels
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'data: strengthen Schaerbeek Saint-Josse contiguous connection'
+          git commit -m 'data: continue Schaerbeek Saint-Josse compact connection'
           git push origin HEAD:zone-reste-bruxelles-clean

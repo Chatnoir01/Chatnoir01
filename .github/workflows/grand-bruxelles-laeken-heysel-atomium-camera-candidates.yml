@@ -60,17 +60,17 @@ jobs:
             --script res://game/tests/render_heysel_atomium_camera_candidates.gd 2>&1 | tee /tmp/heysel-camera.log
           if grep -E "SCRIPT ERROR|Parse Error:|HEYSEL_CAMERA_CAPTURE_FAIL" /tmp/heysel-camera.log; then exit 1; fi
           grep -q "HEYSEL_CAMERA_CAPTURE_OK" /tmp/heysel-camera.log
-          test -s grand-bruxelles-game/heysel_from_atomium_92m_v1.png
-          test -s grand-bruxelles-game/heysel_from_atomium_36m_v1.png
-          identify grand-bruxelles-game/heysel_from_atomium_92m_v1.png
-          identify grand-bruxelles-game/heysel_from_atomium_36m_v1.png
+          test -s grand-bruxelles-game/heysel_from_atomium_92m_v2.png
+          test -s grand-bruxelles-game/heysel_from_atomium_36m_v2.png
+          identify grand-bruxelles-game/heysel_from_atomium_92m_v2.png
+          identify grand-bruxelles-game/heysel_from_atomium_36m_v2.png
 
       - name: Upload comparison captures
         uses: actions/upload-artifact@v4
         with:
-          name: heysel-atomium-camera-candidates
+          name: heysel-atomium-camera-candidates-v2
           path: |
-            grand-bruxelles-game/heysel_from_atomium_92m_v1.png
-            grand-bruxelles-game/heysel_from_atomium_36m_v1.png
+            grand-bruxelles-game/heysel_from_atomium_92m_v2.png
+            grand-bruxelles-game/heysel_from_atomium_36m_v2.png
           if-no-files-found: error
           retention-days: 14

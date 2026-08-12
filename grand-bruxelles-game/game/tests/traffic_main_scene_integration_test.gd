@@ -55,9 +55,17 @@ func _run() -> void:
     if manager.get_official_density_nearest_distance_m() > manager.official_density_radius_m:
         _fail("nearest official density source lies outside the configured coverage radius")
         return
+
     var official_factor := manager.get_official_density_factor()
+    var distance_confidence := manager.get_official_density_distance_confidence()
     if official_factor < 0.58 or official_factor > 1.48:
         _fail("official density factor escaped its conservative calibration bounds")
+        return
+    if distance_confidence <= 0.0 or distance_confidence > 1.0:
+        _fail("official density distance confidence is outside 0..1")
+        return
+    if nearest_any_distance > 1800.0 and distance_confidence >= 0.35:
+        _fail("distant official sensor is being trusted too strongly for Bruxelles-Midi")
         return
 
     if manager.get_route_count() <= 0:
@@ -89,14 +97,14 @@ func _run() -> void:
         return
 
     print(
-        "TRAFFIC_MAIN_SCENE_OK: %d routes, %d graph edges, %d vehicles, official factor %.3f from %d local sensors (nearest %.1fm, nearest-any %s %.1fm)" %
+        "TRAFFIC_MAIN_SCENE_OK: %d routes, %d graph edges, %d vehicles, official factor %.3f confidence %.3f from %d local sensors (nearest %s %.1fm)" %
         [
             manager.get_route_count(),
             manager.get_graph_edge_count(),
             manager.get_active_vehicle_count(),
             official_factor,
+            distance_confidence,
             manager.get_official_density_sample_count(),
-            manager.get_official_density_nearest_distance_m(),
             nearest_any_id,
             nearest_any_distance,
         ]

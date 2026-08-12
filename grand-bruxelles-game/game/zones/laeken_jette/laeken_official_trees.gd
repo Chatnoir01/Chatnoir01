@@ -66,7 +66,7 @@ func _tree_class(species: String) -> String:
 
 
 func _seed_for(feature: Dictionary, species: String) -> int:
-    var id_text := String(feature.get("id", ""))
+    var id_text := str(feature.get("id", ""))
     return absi((id_text + "|" + species).hash())
 
 
@@ -190,7 +190,7 @@ func _build_official_trees() -> void:
             skipped_count += 1
             continue
         var geometry = feature.get("geometry", {})
-        if not (geometry is Dictionary) or String(geometry.get("type", "")) != "Point":
+        if not (geometry is Dictionary) or str(geometry.get("type", "")) != "Point":
             skipped_count += 1
             continue
         var coordinates = geometry.get("coordinates", [])
@@ -208,7 +208,7 @@ func _build_official_trees() -> void:
         var properties = feature.get("properties", {})
         if not (properties is Dictionary):
             properties = {}
-        var species := String(properties.get("species", ""))
+        var species := str(properties.get("species", ""))
         var tree_class := _tree_class(species)
         var seed := _seed_for(feature, species)
         var dims := _dimensions(tree_class, seed)

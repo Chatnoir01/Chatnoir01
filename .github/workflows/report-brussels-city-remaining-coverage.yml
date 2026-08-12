@@ -1,0 +1,65 @@
+name: Report Brussels City remaining coverage
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/report-brussels-city-remaining-coverage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  report:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test City coverage accounting
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests.test_build_brussels_city_remaining_coverage -v
+      - name: Build measured City coverage report
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/build_brussels_city_remaining_coverage.py \
+            --output data/processed/brussels_city_remaining/coverage_report.json
+      - name: Validate named subzone milestone
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('data/processed/brussels_city_remaining/coverage_report.json').read_text())
+          assert d['format']=='grand-bruxelles-city-remaining-coverage-v1'
+          assert d['production_subzone_grids_ready']==6,d
+          assert d['production_subzones_with_materialized_cell']==6,d
+          assert d['reservation_only']['subzone_id']=='laeken'
+          assert d['reservation_only']['grid_ready'] is True
+          assert d['reservation_only']['materialized_by_this_branch']==[],d['reservation_only']
+          assert d['known_remaining_scope']['still_requires_separate_polygon_or_ownership_difference']==['pentagon-outside-main-corridor']
+          print('Named production subzones:',d['production_subzones_with_materialized_cell'],'/',d['production_subzones_total'])
+          print('Unique planned City cells:',d['unique_planned_production_cells'])
+          print('Materialized City cells:',d['materialized_production_cells'])
+          print('Named City grid coverage:',d['production_grid_coverage_percent'],'%')
+          print('Total streamable cells:',d.get('runtime',{}).get('streamable_cells_total'))
+          PY
+      - name: Commit coverage report
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/processed/brussels_city_remaining/coverage_report.json
+          if git diff --cached --quiet; then
+            echo 'City coverage report unchanged.'
+            exit 0
+          fi
+          git commit -m 'data: report measured Brussels City remaining coverage'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

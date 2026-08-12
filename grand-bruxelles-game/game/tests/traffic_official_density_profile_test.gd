@@ -112,6 +112,20 @@ func _run() -> void:
         _fail("heuristic fallback changed outside official sensor coverage")
         return
 
+    var neutral_base := 12
+    var high_target := int(density.call("target_vehicle_count", neutral_base, 16.0, roads, Vector3.ZERO))
+    var low_target := int(density.call("target_vehicle_count", neutral_base, 16.0, roads, Vector3(1000.0, 0.0, 0.0)))
+    var bounded_peak := int(round(float(neutral_base) * 1.42))
+    if high_target <= neutral_base:
+        _fail("official high-flow evidence is still capped at neutral fleet size")
+        return
+    if high_target > bounded_peak:
+        _fail("official high-flow target exceeded bounded 1.42 spatial ceiling: %d" % high_target)
+        return
+    if low_target >= neutral_base:
+        _fail("official low-flow evidence did not stay below neutral fleet size")
+        return
+
     if not FileAccess.file_exists(REAL_SNAPSHOT_PATH):
         _fail("committed Brussels Mobility snapshot is missing")
         return
@@ -128,11 +142,13 @@ func _run() -> void:
         return
 
     print(
-        "TRAFFIC_OFFICIAL_DENSITY_OK: high %.3f low %.3f edge confidence %.3f, real fresh sensors %d" %
+        "TRAFFIC_OFFICIAL_DENSITY_OK: high %.3f low %.3f edge confidence %.3f, targets %d/%d, real fresh sensors %d" %
         [
             float(high.get("factor", 1.0)),
             float(low.get("factor", 1.0)),
             edge_confidence,
+            high_target,
+            low_target,
             int(real_profile.call("get_sensor_count")),
         ]
     )

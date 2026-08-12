@@ -1,8 +1,9 @@
 extends Node
 
 ## Building visual pass grounded in official data.
-## Footprints and positions remain UrbIS. Heights remain explicitly provisional
-## until UrbIS Landscape SKP heights are extracted. Horizontal/roof-facing
+## Footprints and positions remain UrbIS. The replacement mesh uses DSM-DTM
+## derived heights for 9,163 / 9,518 buildings, with the explicit fallback kept
+## only where remote-sensing samples are insufficient. Horizontal/roof-facing
 ## surfaces sample the official 2024 orthophoto by the exact phase bbox; vertical
 ## facades remain a procedural Brussels-material approximation.
 
@@ -16,16 +17,26 @@ func _ready() -> void:
     call_deferred("_apply")
 
 
+func _load_ortho_texture() -> Texture2D:
+    if ResourceLoader.exists(ORTHO_PATH):
+        var imported := load(ORTHO_PATH) as Texture2D
+        if imported != null:
+            return imported
+    if not FileAccess.file_exists(ORTHO_PATH):
+        return null
+    var image := Image.load_from_file(ORTHO_PATH)
+    if image == null or image.is_empty():
+        return null
+    return ImageTexture.create_from_image(image)
+
+
 func _apply() -> void:
     var buildings := get_parent().get_node_or_null("OfficialBuildings") as MeshInstance3D
     if buildings == null:
         push_warning("LaekenBuildingVisualPass: OfficialBuildings missing")
         return
 
-    var ortho: Texture2D = null
-    if ResourceLoader.exists(ORTHO_PATH):
-        ortho = load(ORTHO_PATH) as Texture2D
-
+    var ortho := _load_ortho_texture()
     var material := _building_material(ortho)
     buildings.material_override = material
     building_visual_active = true

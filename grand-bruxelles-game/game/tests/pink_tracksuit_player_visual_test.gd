@@ -31,6 +31,7 @@ func _test_fallback_character() -> bool:
     var visual := VISUAL_SCRIPT.new() as PinkTracksuitPlayerVisual
     visual.name = "VisualUpgrade"
     visual.authored_scene_path = "res://assets/characters/player/does-not-exist.glb"
+    visual.allow_authored_fallback_paths = false
     actor.add_child(visual)
     await process_frame
 

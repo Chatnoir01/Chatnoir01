@@ -76,3 +76,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_foot_patrol_test.gd 2>&1 | tee /tmp/npc-police-foot-patrol.log
           if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_FOOT_PATROL_FAIL" /tmp/npc-police-foot-patrol.log; then exit 1; fi
           grep -q "NPC_POLICE_FOOT_PATROL_OK" /tmp/npc-police-foot-patrol.log
+      - name: Civilian post-incident recovery test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_civilian_recovery_test.gd 2>&1 | tee /tmp/npc-civilian-recovery.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_CIVILIAN_RECOVERY_FAIL" /tmp/npc-civilian-recovery.log; then exit 1; fi
+          grep -q "NPC_CIVILIAN_RECOVERY_OK" /tmp/npc-civilian-recovery.log

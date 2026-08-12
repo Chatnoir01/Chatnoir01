@@ -121,6 +121,23 @@ func _run() -> void:
         _fail("hero broadleaf LOD is not denser than standard LOD")
         return
 
+    var refinement = scene.get_node_or_null("TreeCanopyRefinement")
+    if refinement == null or not bool(refinement.get("refinement_ready")):
+        _fail("tree canopy refinement did not become ready")
+        return
+    if not bool(refinement.get("primary_broadleaf_replaced")):
+        _fail("standard broadleaf primary crowns were not replaced")
+        return
+    if hero > 0 and not bool(refinement.get("hero_primary_broadleaf_replaced")):
+        _fail("Atomium hero broadleaf primary crowns were not replaced")
+        return
+    if broadleaf_node.visible:
+        _fail("standard broadleaf primary crowns remain visible under replacement lobes")
+        return
+    if hero > 0 and hero_broadleaf_node.visible:
+        _fail("Atomium hero broadleaf primary crowns remain visible under replacement lobes")
+        return
+
     var approach := scene.get_node_or_null("AtomiumApproachPhotoGuided")
     var fake_trees := 0
     if approach != null:

@@ -29,12 +29,45 @@ func _run() -> void:
     if hero == null:
         _fail("Palais5HeroGeometry root missing")
         return
+    var terrain = scene.get_node_or_null("LaekenTerrain")
+    if terrain == null or not bool(terrain.get("terrain_loaded")):
+        _fail("Laeken terrain unavailable")
+        return
 
     # Diagnostic QA camera only. It is derived from the built facade transform and
     # is not claimed to reproduce any historical or contemporary source photo.
     var outward := -hero.global_transform.basis.z.normalized()
-    var camera_position := hero.global_position + outward * 92.0 + Vector3.UP * 18.0
+    var camera_ground_point := hero.global_position + outward * 92.0
+    var camera_ground_y := float(terrain.call("sample_height", camera_ground_point.x, camera_ground_point.z))
+    var camera_position := Vector3(camera_ground_point.x, maxf(camera_ground_y + 8.0, hero.global_position.y + 18.0), camera_ground_point.z)
     var target_position := hero.global_position + hero.global_transform.basis.z.normalized() * 9.0 + Vector3.UP * 14.0
+
+    # Neutral QA-only illumination so dark back-facing materials are inspectable.
+    # This does not modify the runtime zone lighting or material values.
+    var environment := Environment.new()
+    environment.background_mode = Environment.BG_COLOR
+    environment.background_color = Color(0.55, 0.58, 0.62, 1.0)
+    environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+    environment.ambient_light_color = Color(0.88, 0.90, 0.94, 1.0)
+    environment.ambient_light_energy = 1.35
+    var world_environment := WorldEnvironment.new()
+    world_environment.name = "Palais5QAEnvironment"
+    world_environment.environment = environment
+    scene.add_child(world_environment)
+
+    var key_light := DirectionalLight3D.new()
+    key_light.name = "Palais5QAKeyLight"
+    key_light.light_energy = 1.8
+    key_light.shadow_enabled = true
+    key_light.rotation_degrees = Vector3(-42.0, -28.0, 0.0)
+    scene.add_child(key_light)
+
+    var fill_light := DirectionalLight3D.new()
+    fill_light.name = "Palais5QAFillLight"
+    fill_light.light_energy = 0.85
+    fill_light.shadow_enabled = false
+    fill_light.rotation_degrees = Vector3(-30.0, 145.0, 0.0)
+    scene.add_child(fill_light)
 
     var camera := Camera3D.new()
     camera.name = "Palais5FacadeQACamera"
@@ -64,7 +97,7 @@ func _run() -> void:
         _fail("save_png failed: %s" % error)
         return
 
-    print("LAEKEN_PALAIS5_CAPTURE_OK: output=%s camera=%s target=%s fov=%.1f" % [OUTPUT_PATH, camera_position, target_position, camera.fov])
+    print("LAEKEN_PALAIS5_CAPTURE_OK: output=%s camera=%s camera_ground=%.3f target=%s fov=%.1f" % [OUTPUT_PATH, camera_position, camera_ground_y, target_position, camera.fov])
     scene.queue_free()
     await process_frame
     quit(0)

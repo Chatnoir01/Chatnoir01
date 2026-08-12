@@ -6,6 +6,9 @@ on:
     paths:
       - "grand-bruxelles-game/web-preview/**"
       - ".github/workflows/grand-bruxelles-pages.yml"
+  workflow_run:
+    workflows: ["Grand Bruxelles Playable Web Build"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -19,15 +22,22 @@ concurrency:
 
 jobs:
   deploy:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
+      - name: Checkout latest published main
         uses: actions/checkout@v6
+        with:
+          # The Web Build workflow commits web-preview after its original head SHA.
+          # Always deploy the resulting main, not workflow_run.head_sha.
+          ref: main
 
-      - name: Configure and enable GitHub Pages
+      - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
         with:
           enablement: true
@@ -39,6 +49,7 @@ jobs:
           test -f grand-bruxelles-game/web-preview/index.js
           test -f grand-bruxelles-game/web-preview/index.wasm
           test -f grand-bruxelles-game/web-preview/index.pck
+          grep -q 'index.pck' grand-bruxelles-game/web-preview/index.html
 
       - name: Upload playable build
         uses: actions/upload-pages-artifact@v4

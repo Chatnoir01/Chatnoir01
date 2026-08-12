@@ -30,7 +30,10 @@ SOURCE_NAME = "Bruxelles Mobilite / Brussels Mobility"
 FRESH_MAX_AGE_MINUTES = 10.0
 
 DEVICES_URL = "https://data.mobility.brussels/traffic/api/counts/?request=devices&outputFormat=json"
-LIVE_URL = "https://data.mobility.brussels/traffic/api/counts/?request=live&interval=1&includeLanes=false&singleValue=true"
+LIVE_URL = (
+    "https://data.mobility.brussels/traffic/api/counts/"
+    "?request=live&interval=1&includeLanes=false&singleValue=true"
+)
 WFS_URL = (
     "https://data.mobility.brussels/geoserver/bm_traffic/wfs"
     "?service=wfs&version=1.1.0&request=GetFeature"
@@ -47,9 +50,16 @@ def sha256_json(value: Any) -> str:
 
 
 def fetch_json(url: str, timeout: float = 45.0) -> Any:
-    request = urllib.request.Request(url, headers={"User-Agent": "Grand-Bruxelles-Game/traffic-calibration (+GitHub Chatnoir01)", "Accept": "application/json, application/geo+json;q=0.9, */*;q=0.1"})
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Grand-Bruxelles-Game/traffic-calibration (+GitHub Chatnoir01)",
+            "Accept": "application/json, application/geo+json;q=0.9, */*;q=0.1",
+        },
+    )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         raw = response.read()
+        # The counts API may return gzip even when urllib does not transparently decode it.
         if raw[:2] == b"\x1f\x8b":
             import gzip
             raw = gzip.decompress(raw)
@@ -173,7 +183,12 @@ def device_index(document: Any) -> dict[str, dict[str, Any]]:
         if not name:
             continue
         props = feature_properties(feature)
-        result[name] = {"description": description(props), "orientation_deg": as_float(props.get("orientation")), "number_of_lanes": as_int(props.get("number_of_lanes")), "detectors": list(props.get("detectors", [])) if isinstance(props.get("detectors"), list) else []}
+        result[name] = {
+            "description": description(props),
+            "orientation_deg": as_float(props.get("orientation")),
+            "number_of_lanes": as_int(props.get("number_of_lanes")),
+            "detectors": list(props.get("detectors", [])) if isinstance(props.get("detectors"), list) else [],
+        }
     return result
 
 
@@ -191,8 +206,9 @@ def live_index(document: Any, interval_key: str = "1m") -> dict[str, dict[str, A
         if not isinstance(results, dict):
             continue
         measurement = results.get(interval_key)
-        if isinstance(measurement, dict):
-            result[str(name)] = normalize_measurement(measurement)
+        if not isinstance(measurement, dict):
+            continue
+        result[str(name)] = normalize_measurement(measurement)
     return result
 
 
@@ -202,13 +218,30 @@ def normalize_measurement(raw: dict[str, Any]) -> dict[str, Any]:
     start = raw.get("start_time", raw.get("from"))
     end = raw.get("end_time", raw.get("to"))
     window = duration_minutes(start, end)
-    rate = round(count / window, 3) if count is not None and count >= 0.0 and window is not None and window > 0.0 else None
-    return {"count": count, "occupancy_pct": occupancy, "from": None if start in (None, "-") else str(start), "to": None if end in (None, "-") else str(end), "duration_minutes": window, "vehicles_per_minute": rate}
+    rate = None
+    if count is not None and count >= 0.0 and window is not None and window > 0.0:
+        rate = round(count / window, 3)
+    return {
+        "count": count,
+        "occupancy_pct": occupancy,
+        "from": None if start in (None, "-") else str(start),
+        "to": None if end in (None, "-") else str(end),
+        "duration_minutes": window,
+        "vehicles_per_minute": rate,
+    }
 
 
 def wfs_measurement(props: dict[str, Any], interval_key: str = "1m") -> dict[str, Any]:
+    # Use the newest A slot. B is the previous source slot and is retained only by the source hash.
     suffix = f"{interval_key}_a"
-    return normalize_measurement({"count": props.get(f"count_{suffix}"), "occupancy": props.get(f"occupancy_{suffix}"), "start_time": props.get(f"start_time_{suffix}"), "end_time": props.get(f"end_time_{suffix}")})
+    return normalize_measurement(
+        {
+            "count": props.get(f"count_{suffix}"),
+            "occupancy": props.get(f"occupancy_{suffix}"),
+            "start_time": props.get(f"start_time_{suffix}"),
+            "end_time": props.get(f"end_time_{suffix}"),
+        }
+    )
 
 
 def choose_measurement(api_measurement: dict[str, Any] | None, wfs_value: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -250,7 +283,12 @@ def build_snapshot(devices: Any, live: Any, geometry: Any, captured_at: datetime
         device = devices_by_name.get(name, {})
         measurement, measurement_source = choose_measurement(live_by_name.get(name), wfs_measurement(props, "1m"))
         age = measurement_age_minutes(measurement.get("to"), captured)
-        fresh = bool(measurement.get("count") is not None and measurement.get("duration_minutes") is not None and age is not None and age <= FRESH_MAX_AGE_MINUTES)
+        fresh = bool(
+            measurement.get("count") is not None
+            and measurement.get("duration_minutes") is not None
+            and age is not None
+            and age <= FRESH_MAX_AGE_MINUTES
+        )
         measurement["age_minutes_at_capture"] = age
         measurement["fresh"] = fresh
         measurement["source"] = measurement_source
@@ -258,10 +296,25 @@ def build_snapshot(devices: Any, live: Any, geometry: Any, captured_at: datetime
         lanes = device.get("number_of_lanes")
         if lanes is None:
             lanes = as_int(props.get("num_lanes"))
-        sensors.append({"id": name, "description": device.get("description") or description(props), "orientation_deg": device.get("orientation_deg") if device.get("orientation_deg") is not None else as_float(props.get("orientation")), "number_of_lanes": lanes, "active": bool(as_int(props.get("is_active")) == 1), "lambert72": [round(east, 3), round(north, 3)], "game": game_position(east, north), "measurement": measurement})
+        sensors.append(
+            {
+                "id": name,
+                "description": device.get("description") or description(props),
+                "orientation_deg": device.get("orientation_deg") if device.get("orientation_deg") is not None else as_float(props.get("orientation")),
+                "number_of_lanes": lanes,
+                "active": bool(as_int(props.get("is_active")) == 1),
+                "lambert72": [round(east, 3), round(north, 3)],
+                "game": game_position(east, north),
+                "measurement": measurement,
+            }
+        )
 
     measured = [sensor for sensor in sensors if sensor["measurement"].get("count") is not None]
-    fresh = [sensor for sensor in sensors if bool(sensor.get("active", False)) and bool(sensor["measurement"].get("fresh"))]
+    fresh = [
+        sensor
+        for sensor in sensors
+        if bool(sensor.get("active", False)) and bool(sensor["measurement"].get("fresh"))
+    ]
     rates = [float(sensor["measurement"]["vehicles_per_minute"]) for sensor in fresh if sensor["measurement"].get("vehicles_per_minute") is not None]
     occupancies = [float(sensor["measurement"]["occupancy_pct"]) for sensor in fresh if sensor["measurement"].get("occupancy_pct") is not None and float(sensor["measurement"]["occupancy_pct"]) >= 0.0]
 
@@ -285,8 +338,18 @@ def build_snapshot(devices: Any, live: Any, geometry: Any, captured_at: datetime
                 "Detector speed values are deliberately excluded because they are not calibrated for absolute speed compliance.",
             ],
         },
-        "coordinate_system": {"source_crs": "EPSG:31370", "origin_e": ORIGIN_E, "origin_n": ORIGIN_N, "axes": "X=east, Y=up, Z=south", "units": "metres"},
-        "raw_sha256": {"devices": sha256_json(devices), "live": sha256_json(live), "geometry": sha256_json(geometry)},
+        "coordinate_system": {
+            "source_crs": "EPSG:31370",
+            "origin_e": ORIGIN_E,
+            "origin_n": ORIGIN_N,
+            "axes": "X=east, Y=up, Z=south",
+            "units": "metres",
+        },
+        "raw_sha256": {
+            "devices": sha256_json(devices),
+            "live": sha256_json(live),
+            "geometry": sha256_json(geometry),
+        },
         "stats": {
             "geometry_sensor_count": len(sensors),
             "measured_sensor_count": len(measured),
@@ -323,8 +386,19 @@ def main() -> int:
     if int(stats["geometry_sensor_count"]) < args.min_geometry_sensors:
         raise SystemExit(f"Brussels Mobility geometry gate failed: {stats['geometry_sensor_count']} < {args.min_geometry_sensors}")
     if int(stats["fresh_measured_sensor_count"]) < args.min_fresh_measured_sensors:
-        raise SystemExit("Brussels Mobility fresh-live gate failed: %s < %s" % (stats["fresh_measured_sensor_count"], args.min_fresh_measured_sensors))
-    print("BRUSSELS_MOBILITY_TRAFFIC_SNAPSHOT_OK: %d sensors, %d fresh live, median %.3f veh/min -> %s" % (stats["geometry_sensor_count"], stats["fresh_measured_sensor_count"], float(stats["fresh_rate_median_vehicles_per_minute"] or 0.0), args.output))
+        raise SystemExit(
+            "Brussels Mobility fresh-live gate failed: %s < %s"
+            % (stats["fresh_measured_sensor_count"], args.min_fresh_measured_sensors)
+        )
+    print(
+        "BRUSSELS_MOBILITY_TRAFFIC_SNAPSHOT_OK: %d sensors, %d fresh live, median %.3f veh/min -> %s"
+        % (
+            stats["geometry_sensor_count"],
+            stats["fresh_measured_sensor_count"],
+            float(stats["fresh_rate_median_vehicles_per_minute"] or 0.0),
+            args.output,
+        )
+    )
     return 0
 
 

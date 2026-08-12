@@ -432,9 +432,17 @@ func _flush_facade_details(root: Node3D) -> void:
         root.add_child(shop_instance)
 
 
+func _railway_surface_visible(railway: Dictionary) -> bool:
+    if railway.has("surface_visible"):
+        return bool(railway.get("surface_visible", true))
+    return true
+
+
 func _build_rails(railways: Array, root: Node3D) -> int:
     var count: int = 0
     for railway: Dictionary in railways:
+        if not _railway_surface_visible(railway):
+            continue
         var points: Array = railway.get("points", [])
         for index: int in range(points.size() - 1):
             if count >= 400:

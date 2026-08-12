@@ -5,8 +5,12 @@ on:
     branches: ["zone-laeken-jette"]
     paths:
       - "grand-bruxelles-game/game/zones/laeken_jette/laeken_jette_zone.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/laeken_building_height_pass.gd"
       - "grand-bruxelles-game/game/tests/laeken_jette_smoke_test.gd"
+      - "grand-bruxelles-game/game/tests/laeken_building_heights_smoke_test.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/buildings.game.json"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
       - "grand-bruxelles-game/data/urbis/laeken_jette/street_surfaces.game.json"
       - "grand-bruxelles-game/data/sources/laeken_jette/palais5_osm_outline.game.json"
       - ".github/workflows/grand-bruxelles-laeken-source-topology.yml"
@@ -47,15 +51,28 @@ jobs:
             exit 1
           fi
 
-      - name: Prove UrbIS holes and Palais 5 cutout
+      - name: Prove UrbIS source holes and Palais 5 cutout
         shell: bash
         run: |
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless --path grand-bruxelles-game \
-            --script res://game/tests/laeken_jette_smoke_test.gd 2>&1 | tee /tmp/laeken-topology.log
-          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_JETTE_SMOKE_FAIL" /tmp/laeken-topology.log; then
+            --script res://game/tests/laeken_jette_smoke_test.gd 2>&1 | tee /tmp/laeken-topology-source.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_JETTE_SMOKE_FAIL" /tmp/laeken-topology-source.log; then
             exit 1
           fi
-          grep -q "LAEKEN_JETTE_SMOKE_OK" /tmp/laeken-topology.log
-          grep -Eq "holes=[1-9][0-9]* palais5_cutouts=1" /tmp/laeken-topology.log
+          grep -q "LAEKEN_JETTE_SMOKE_OK" /tmp/laeken-topology-source.log
+          grep -Eq "holes=[1-9][0-9]* palais5_cutouts=1" /tmp/laeken-topology-source.log
+
+      - name: Prove final DSM roof keeps every Expo void empty
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/laeken_building_heights_smoke_test.gd 2>&1 | tee /tmp/laeken-topology-dsm.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_BUILDING_HEIGHTS_FAIL" /tmp/laeken-topology-dsm.log; then
+            exit 1
+          fi
+          grep -q "LAEKEN_BUILDING_HEIGHTS_OK" /tmp/laeken-topology-dsm.log
+          grep -Eq "expo_roofs=[1-9][0-9]* .*forbidden_overlap=0" /tmp/laeken-topology-dsm.log

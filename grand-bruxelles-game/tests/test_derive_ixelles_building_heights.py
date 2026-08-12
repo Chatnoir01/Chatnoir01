@@ -51,6 +51,24 @@ class IxellesBuildingHeightStatsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "degenerate"):
             derive.validate_height_mosaics(dsm, dtm, None, None)
 
+    def test_mosaic_quality_uses_only_pixels_valid_in_both_rasters(self):
+        nodata = -9999.0
+        dtm = np.array([[50.0, nodata, 52.0, 53.0]])
+        dsm = np.array([[60.0, 61.0, nodata, 65.0]])
+        diagnostics = derive.validate_height_mosaics(
+            dsm,
+            dtm,
+            nodata,
+            nodata,
+            min_dtm_range_m=0.1,
+            min_positive_height_fraction=0.5,
+        )
+        self.assertEqual(diagnostics["valid_sample_count"], 2)
+        self.assertEqual(diagnostics["dtm_min_m"], 50.0)
+        self.assertEqual(diagnostics["dtm_max_m"], 53.0)
+        self.assertEqual(diagnostics["height_p50_m"], 11.0)
+        self.assertEqual(diagnostics["identical_dsm_dtm_fraction"], 0.0)
+
     def test_realistic_mosaic_variation_passes_quality_gate(self):
         x = np.linspace(55.0, 62.0, 32)
         dtm = np.repeat(x[np.newaxis, :], 32, axis=0)

@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Build a deterministic, offline traffic-calibration snapshot from Brussels Mobility.
+"""Build an offline, source-backed Brussels Mobility traffic calibration snapshot.
 
-Sources are official Brussels Mobility open data:
-- traffic counts API (devices + live measurements)
-- WFS bm_traffic:traffic_live_geom in EPSG:31370
+The snapshot is intentionally generated outside Godot. Runtime gameplay reads a committed
+JSON snapshot and therefore never depends on the network. Official detector geometry is
+requested in EPSG:31370 and converted to the project's local metre coordinate system.
 
-The runtime never needs network access. This tool captures source data, converts official
-Lambert 72 coordinates to Grand Bruxelles local metres, preserves measurement windows,
-and records SHA-256 hashes/provenance. Speed is intentionally not promoted to a gameplay
-speed truth because Brussels Mobility documents that those speed values are not calibrated
-for absolute speed-limit compliance.
+Brussels Mobility documents traffic counts and occupancy as useful measurements, while
+its detector speed values are not calibrated for absolute speed-limit compliance. Speed is
+therefore deliberately excluded from this calibration artifact.
 """
 
 from __future__ import annotations
@@ -19,19 +17,22 @@ import hashlib
 import json
 import math
 import statistics
-import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 ORIGIN_E = 147868.29422791934
 ORIGIN_N = 169538.62414926197
+FORMAT = "grand-bruxelles-brussels-mobility-traffic-v1"
+LICENSE = "CC0-1.0"
+SOURCE_NAME = "Bruxelles Mobilite / Brussels Mobility"
+FRESH_MAX_AGE_MINUTES = 10.0
 
 DEVICES_URL = "https://data.mobility.brussels/traffic/api/counts/?request=devices&outputFormat=json"
 LIVE_URL = (
     "https://data.mobility.brussels/traffic/api/counts/"
-    "?request=live&interval=60&includeLanes=false&singleValue=true"
+    "?request=live&interval=1&includeLanes=false&singleValue=true"
 )
 WFS_URL = (
     "https://data.mobility.brussels/geoserver/bm_traffic/wfs"
@@ -39,32 +40,16 @@ WFS_URL = (
     "&typeName=bm_traffic:traffic_live_geom&outputFormat=json&srsName=EPSG:31370"
 )
 
-FORMAT = "grand-bruxelles-brussels-mobility-traffic-v1"
-SOURCE_NAME = "Bruxelles Mobilite / Brussels Mobility"
-LICENSE = "CC0-1.0"
 
-ID_KEYS = (
-    "featureid", "feature_id", "featureID", "id", "name", "code", "device",
-    "traverse", "traverse_id", "site", "site_id", "fid",
-)
-DESCRIPTION_KEYS = ("descr", "description", "libelle", "label", "street", "road")
-ORIENTATION_KEYS = ("orientation", "orientation_deg", "bearing")
-LANE_KEYS = ("number_of_lanes", "lanes", "lane_count", "nlanes")
-COUNT_KEYS = ("count", "volume", "vehicles", "vehicules")
-OCCUPANCY_KEYS = ("occupancy", "occupation", "occupancy_pct")
-FROM_KEYS = ("from", "start", "start_time", "from_timestamp")
-TO_KEYS = ("to", "end", "end_time", "to_timestamp")
-
-
-def _canonical_bytes(value: Any) -> bytes:
+def canonical_bytes(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def _sha256(value: Any) -> str:
-    return hashlib.sha256(_canonical_bytes(value)).hexdigest()
+def sha256_json(value: Any) -> str:
+    return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
-def _fetch_json(url: str, timeout: float = 45.0) -> Any:
+def fetch_json(url: str, timeout: float = 45.0) -> Any:
     request = urllib.request.Request(
         url,
         headers={
@@ -73,47 +58,36 @@ def _fetch_json(url: str, timeout: float = 45.0) -> Any:
         },
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
+        raw = response.read()
+        # The counts API may return gzip even when urllib does not transparently decode it.
+        if raw[:2] == b"\x1f\x8b":
+            import gzip
+            raw = gzip.decompress(raw)
         charset = response.headers.get_content_charset() or "utf-8"
-        return json.loads(response.read().decode(charset))
+        return json.loads(raw.decode(charset))
 
 
-def _load_or_fetch(path: Path | None, url: str) -> Any:
-    if path is None:
-        return _fetch_json(url)
-    return json.loads(path.read_text(encoding="utf-8"))
+def load_or_fetch(path: Path | None, url: str) -> Any:
+    return json.loads(path.read_text(encoding="utf-8")) if path else fetch_json(url)
 
 
-def _first(mapping: dict[str, Any], keys: Iterable[str], default: Any = None) -> Any:
-    for key in keys:
-        if key in mapping and mapping[key] not in (None, ""):
-            return mapping[key]
-    lowered = {str(k).lower(): v for k, v in mapping.items()}
-    for key in keys:
-        candidate = lowered.get(str(key).lower())
-        if candidate not in (None, ""):
-            return candidate
-    return default
-
-
-def _to_float(value: Any) -> float | None:
+def as_float(value: Any) -> float | None:
     if value is None or isinstance(value, bool):
         return None
     try:
-        number = float(value)
+        result = float(value)
     except (TypeError, ValueError):
         return None
-    return number if math.isfinite(number) else None
+    return result if math.isfinite(result) else None
 
 
-def _to_int(value: Any) -> int | None:
-    number = _to_float(value)
-    if number is None:
-        return None
-    return int(round(number))
+def as_int(value: Any) -> int | None:
+    number = as_float(value)
+    return None if number is None else int(round(number))
 
 
-def _parse_time(value: Any) -> datetime | None:
-    if value in (None, ""):
+def parse_time(value: Any) -> datetime | None:
+    if value in (None, "", "-"):
         return None
     text = str(value).strip()
     if text.endswith("Z"):
@@ -121,193 +95,166 @@ def _parse_time(value: Any) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError:
+        parsed = None
+    if parsed is None:
+        for pattern in ("%Y/%m/%d %H:%M", "%Y/%m/%d %H:%M:%S"):
+            try:
+                parsed = datetime.strptime(str(value).strip(), pattern)
+                break
+            except ValueError:
+                continue
+    if parsed is None:
         return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
 
 
-def _duration_minutes(start: Any, end: Any) -> float | None:
-    start_dt = _parse_time(start)
-    end_dt = _parse_time(end)
+def duration_minutes(start: Any, end: Any) -> float | None:
+    start_dt = parse_time(start)
+    end_dt = parse_time(end)
     if start_dt is None or end_dt is None or end_dt <= start_dt:
         return None
     return round((end_dt - start_dt).total_seconds() / 60.0, 3)
 
 
-def _extract_point(geometry: Any) -> tuple[float, float] | None:
-    if not isinstance(geometry, dict):
+def measurement_age_minutes(end: Any, captured_at: datetime) -> float | None:
+    end_dt = parse_time(end)
+    if end_dt is None:
         return None
-    geometry_type = geometry.get("type")
-    coordinates = geometry.get("coordinates")
-    if geometry_type == "Point" and isinstance(coordinates, list) and len(coordinates) >= 2:
-        east = _to_float(coordinates[0])
-        north = _to_float(coordinates[1])
-        if east is not None and north is not None:
-            return east, north
-    if geometry_type == "MultiPoint" and isinstance(coordinates, list) and coordinates:
-        first = coordinates[0]
-        if isinstance(first, list) and len(first) >= 2:
-            east = _to_float(first[0])
-            north = _to_float(first[1])
-            if east is not None and north is not None:
-                return east, north
-    return None
+    age = (captured_at - end_dt).total_seconds() / 60.0
+    return round(max(0.0, age), 3)
 
 
-def _game_position(east: float, north: float) -> list[float]:
+def game_position(east: float, north: float) -> list[float]:
     return [round(east - ORIGIN_E, 3), round(-(north - ORIGIN_N), 3)]
 
 
-def _feature_identifier(feature: dict[str, Any]) -> str:
-    properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
-    value = _first(properties, ID_KEYS)
-    if value not in (None, ""):
-        return str(value)
-    if feature.get("id") not in (None, ""):
-        return str(feature["id"]).split(".")[-1]
+def feature_properties(feature: Any) -> dict[str, Any]:
+    if not isinstance(feature, dict):
+        return {}
+    props = feature.get("properties")
+    return props if isinstance(props, dict) else {}
+
+
+def traverse_name(feature: Any) -> str:
+    props = feature_properties(feature)
+    for key in ("traverse_name", "name", "featureID", "feature_id"):
+        value = props.get(key)
+        if value not in (None, ""):
+            return str(value)
     return ""
 
 
-def _geometry_records(document: Any) -> list[dict[str, Any]]:
-    if not isinstance(document, dict):
+def description(props: dict[str, Any]) -> str:
+    for key in ("descr_fr", "descr_nl", "descr_en", "descr", "description"):
+        value = props.get(key)
+        if value not in (None, ""):
+            return str(value)
+    return ""
+
+
+def point_coordinates(feature: Any) -> tuple[float, float] | None:
+    if not isinstance(feature, dict):
+        return None
+    geometry = feature.get("geometry")
+    if not isinstance(geometry, dict) or geometry.get("type") != "Point":
+        return None
+    coordinates = geometry.get("coordinates")
+    if not isinstance(coordinates, list) or len(coordinates) < 2:
+        return None
+    east = as_float(coordinates[0])
+    north = as_float(coordinates[1])
+    if east is None or north is None:
+        return None
+    return east, north
+
+
+def geojson_features(document: Any) -> list[dict[str, Any]]:
+    if not isinstance(document, dict) or not isinstance(document.get("features"), list):
         return []
-    features = document.get("features")
-    if not isinstance(features, list):
-        return []
-    result: list[dict[str, Any]] = []
-    for feature in features:
-        if not isinstance(feature, dict):
+    return [feature for feature in document["features"] if isinstance(feature, dict)]
+
+
+def device_index(document: Any) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for feature in geojson_features(document):
+        name = traverse_name(feature)
+        if not name:
             continue
-        point = _extract_point(feature.get("geometry"))
-        if point is None:
-            continue
-        props = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
-        identifier = _feature_identifier(feature)
-        east, north = point
-        result.append(
-            {
-                "id": identifier,
-                "lambert72": [round(east, 3), round(north, 3)],
-                "game": _game_position(east, north),
-                "description": str(_first(props, DESCRIPTION_KEYS, "")),
-                "orientation_deg": _to_float(_first(props, ORIENTATION_KEYS)),
-                "number_of_lanes": _to_int(_first(props, LANE_KEYS)),
-                "properties": props,
-            }
-        )
+        props = feature_properties(feature)
+        result[name] = {
+            "description": description(props),
+            "orientation_deg": as_float(props.get("orientation")),
+            "number_of_lanes": as_int(props.get("number_of_lanes")),
+            "detectors": list(props.get("detectors", [])) if isinstance(props.get("detectors"), list) else [],
+        }
     return result
 
 
-def _device_records(document: Any) -> list[dict[str, Any]]:
-    # The public API has used both list-shaped and keyed object-shaped responses.
-    root = document
-    if isinstance(document, dict):
-        for key in ("devices", "traverses", "features", "data"):
-            if key in document and isinstance(document[key], (list, dict)):
-                root = document[key]
-                break
-    result: list[dict[str, Any]] = []
-    if isinstance(root, dict):
-        iterator = root.items()
-    elif isinstance(root, list):
-        iterator = ((str(index), item) for index, item in enumerate(root))
-    else:
-        return result
-    for fallback_id, raw in iterator:
+def live_index(document: Any, interval_key: str = "1m") -> dict[str, dict[str, Any]]:
+    if not isinstance(document, dict):
+        return {}
+    data = document.get("data")
+    if not isinstance(data, dict):
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for name, raw in data.items():
         if not isinstance(raw, dict):
             continue
-        identifier = str(_first(raw, ID_KEYS, fallback_id))
-        result.append(
-            {
-                "id": identifier,
-                "description": str(_first(raw, DESCRIPTION_KEYS, "")),
-                "orientation_deg": _to_float(_first(raw, ORIENTATION_KEYS)),
-                "number_of_lanes": _to_int(_first(raw, LANE_KEYS)),
-            }
-        )
+        results = raw.get("results")
+        if not isinstance(results, dict):
+            continue
+        measurement = results.get(interval_key)
+        if not isinstance(measurement, dict):
+            continue
+        result[str(name)] = normalize_measurement(measurement)
     return result
 
 
-def _looks_like_measurement(mapping: dict[str, Any]) -> bool:
-    return _first(mapping, COUNT_KEYS) is not None and (
-        _first(mapping, FROM_KEYS) is not None or _first(mapping, TO_KEYS) is not None
+def normalize_measurement(raw: dict[str, Any]) -> dict[str, Any]:
+    count = as_float(raw.get("count"))
+    occupancy = as_float(raw.get("occupancy"))
+    start = raw.get("start_time", raw.get("from"))
+    end = raw.get("end_time", raw.get("to"))
+    window = duration_minutes(start, end)
+    rate = None
+    if count is not None and count >= 0.0 and window is not None and window > 0.0:
+        rate = round(count / window, 3)
+    return {
+        "count": count,
+        "occupancy_pct": occupancy,
+        "from": None if start in (None, "-") else str(start),
+        "to": None if end in (None, "-") else str(end),
+        "duration_minutes": window,
+        "vehicles_per_minute": rate,
+    }
+
+
+def wfs_measurement(props: dict[str, Any], interval_key: str = "1m") -> dict[str, Any]:
+    # Use the newest A slot. B is the previous source slot and is retained only by the source hash.
+    suffix = f"{interval_key}_a"
+    return normalize_measurement(
+        {
+            "count": props.get(f"count_{suffix}"),
+            "occupancy": props.get(f"occupancy_{suffix}"),
+            "start_time": props.get(f"start_time_{suffix}"),
+            "end_time": props.get(f"end_time_{suffix}"),
+        }
     )
 
 
-def _live_records(document: Any) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
-
-    def walk(node: Any, path: list[str]) -> None:
-        if isinstance(node, dict):
-            if _looks_like_measurement(node):
-                explicit_id = _first(node, ID_KEYS)
-                meaningful_path = [p for p in path if p.lower() not in {"live", "data", "values", "t1", "t2", "latest"}]
-                identifier = str(explicit_id if explicit_id not in (None, "") else (meaningful_path[-1] if meaningful_path else ""))
-                start = _first(node, FROM_KEYS)
-                end = _first(node, TO_KEYS)
-                count = _to_float(_first(node, COUNT_KEYS))
-                occupancy = _to_float(_first(node, OCCUPANCY_KEYS))
-                records.append(
-                    {
-                        "id": identifier,
-                        "count": count,
-                        "occupancy_pct": occupancy,
-                        "from": None if start is None else str(start),
-                        "to": None if end is None else str(end),
-                        "duration_minutes": _duration_minutes(start, end),
-                    }
-                )
-                return
-            for key, value in node.items():
-                walk(value, path + [str(key)])
-        elif isinstance(node, list):
-            for index, value in enumerate(node):
-                walk(value, path + [str(index)])
-
-    walk(document, [])
-    # Keep one latest-ish record per identifier, preferring a valid end timestamp.
-    grouped: dict[str, dict[str, Any]] = {}
-    for record in records:
-        identifier = record["id"]
-        previous = grouped.get(identifier)
-        if previous is None:
-            grouped[identifier] = record
-            continue
-        previous_end = _parse_time(previous.get("to"))
-        current_end = _parse_time(record.get("to"))
-        if current_end is not None and (previous_end is None or current_end >= previous_end):
-            grouped[identifier] = record
-    return list(grouped.values())
+def choose_measurement(api_measurement: dict[str, Any] | None, wfs_value: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    if api_measurement and api_measurement.get("count") is not None and api_measurement.get("to"):
+        return dict(api_measurement), "counts_api"
+    if wfs_value.get("count") is not None and wfs_value.get("to"):
+        return dict(wfs_value), "wfs_live_geom"
+    if api_measurement:
+        return dict(api_measurement), "counts_api"
+    return dict(wfs_value), "wfs_live_geom"
 
 
-def _norm_id(value: str) -> str:
-    return "".join(ch.lower() for ch in value if ch.isalnum())
-
-
-def _index_by_id(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    result: dict[str, dict[str, Any]] = {}
-    for record in records:
-        identifier = str(record.get("id", ""))
-        if identifier:
-            result[_norm_id(identifier)] = record
-    return result
-
-
-def _nearest_name_match(identifier: str, candidates: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
-    key = _norm_id(identifier)
-    if not key:
-        return None
-    if key in candidates:
-        return candidates[key]
-    # WFS IDs may carry workspace/table prefixes while API IDs do not.
-    for candidate_key, candidate in candidates.items():
-        if candidate_key and (candidate_key.endswith(key) or key.endswith(candidate_key)):
-            return candidate
-    return None
-
-
-def _quantile(values: list[float], fraction: float) -> float | None:
+def quantile(values: list[float], fraction: float) -> float | None:
     if not values:
         return None
     ordered = sorted(values)
@@ -318,41 +265,54 @@ def _quantile(values: list[float], fraction: float) -> float | None:
     upper = math.ceil(index)
     if lower == upper:
         return round(ordered[lower], 3)
-    value = ordered[lower] + (ordered[upper] - ordered[lower]) * (index - lower)
-    return round(value, 3)
+    return round(ordered[lower] + (ordered[upper] - ordered[lower]) * (index - lower), 3)
 
 
 def build_snapshot(devices: Any, live: Any, geometry: Any, captured_at: datetime | None = None) -> dict[str, Any]:
     captured = (captured_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    geometry_records = _geometry_records(geometry)
-    device_index = _index_by_id(_device_records(devices))
-    live_index = _index_by_id(_live_records(live))
-
+    devices_by_name = device_index(devices)
+    live_by_name = live_index(live, "1m")
     sensors: list[dict[str, Any]] = []
-    for geo in geometry_records:
-        identifier = str(geo.get("id", ""))
-        device = _nearest_name_match(identifier, device_index) or {}
-        measurement = _nearest_name_match(identifier, live_index) or {}
-        sensor = {
-            "id": identifier,
-            "description": device.get("description") or geo.get("description") or "",
-            "orientation_deg": device.get("orientation_deg") if device.get("orientation_deg") is not None else geo.get("orientation_deg"),
-            "number_of_lanes": device.get("number_of_lanes") if device.get("number_of_lanes") is not None else geo.get("number_of_lanes"),
-            "lambert72": geo["lambert72"],
-            "game": geo["game"],
-            "measurement": {
-                "count": measurement.get("count"),
-                "occupancy_pct": measurement.get("occupancy_pct"),
-                "from": measurement.get("from"),
-                "to": measurement.get("to"),
-                "duration_minutes": measurement.get("duration_minutes"),
-            },
-        }
-        sensors.append(sensor)
 
-    counts = [float(s["measurement"]["count"]) for s in sensors if s["measurement"]["count"] is not None and float(s["measurement"]["count"]) >= 0.0]
-    occupancies = [float(s["measurement"]["occupancy_pct"]) for s in sensors if s["measurement"]["occupancy_pct"] is not None and float(s["measurement"]["occupancy_pct"]) >= 0.0]
-    measured = sum(1 for sensor in sensors if sensor["measurement"]["count"] is not None)
+    for feature in geojson_features(geometry):
+        name = traverse_name(feature)
+        point = point_coordinates(feature)
+        if not name or point is None:
+            continue
+        props = feature_properties(feature)
+        device = devices_by_name.get(name, {})
+        measurement, measurement_source = choose_measurement(live_by_name.get(name), wfs_measurement(props, "1m"))
+        age = measurement_age_minutes(measurement.get("to"), captured)
+        fresh = bool(
+            measurement.get("count") is not None
+            and measurement.get("duration_minutes") is not None
+            and age is not None
+            and age <= FRESH_MAX_AGE_MINUTES
+        )
+        measurement["age_minutes_at_capture"] = age
+        measurement["fresh"] = fresh
+        measurement["source"] = measurement_source
+        east, north = point
+        lanes = device.get("number_of_lanes")
+        if lanes is None:
+            lanes = as_int(props.get("num_lanes"))
+        sensors.append(
+            {
+                "id": name,
+                "description": device.get("description") or description(props),
+                "orientation_deg": device.get("orientation_deg") if device.get("orientation_deg") is not None else as_float(props.get("orientation")),
+                "number_of_lanes": lanes,
+                "active": bool(as_int(props.get("is_active")) == 1),
+                "lambert72": [round(east, 3), round(north, 3)],
+                "game": game_position(east, north),
+                "measurement": measurement,
+            }
+        )
+
+    measured = [sensor for sensor in sensors if sensor["measurement"].get("count") is not None]
+    fresh = [sensor for sensor in sensors if bool(sensor["measurement"].get("fresh"))]
+    rates = [float(sensor["measurement"]["vehicles_per_minute"]) for sensor in fresh if sensor["measurement"].get("vehicles_per_minute") is not None]
+    occupancies = [float(sensor["measurement"]["occupancy_pct"]) for sensor in fresh if sensor["measurement"].get("occupancy_pct") is not None and float(sensor["measurement"]["occupancy_pct"]) >= 0.0]
 
     return {
         "format": FORMAT,
@@ -366,10 +326,12 @@ def build_snapshot(devices: Any, live: Any, geometry: Any, captured_at: datetime
             "geometry_url": WFS_URL,
             "geometry_layer": "bm_traffic:traffic_live_geom",
             "geometry_crs": "EPSG:31370",
+            "measurement_interval": "1m",
+            "fresh_max_age_minutes": FRESH_MAX_AGE_MINUTES,
             "notes": [
-                "Live counts are retained with their source measurement window; no hourly rate is assumed.",
-                "Occupancy may be used as a congestion signal.",
-                "Source speed values are deliberately excluded from calibration because they are not calibrated for absolute speed compliance.",
+                "Calibration uses fresh vehicle counts and occupancy only.",
+                "Vehicle rates are derived from the explicit source measurement window.",
+                "Detector speed values are deliberately excluded because they are not calibrated for absolute speed compliance.",
             ],
         },
         "coordinate_system": {
@@ -380,17 +342,18 @@ def build_snapshot(devices: Any, live: Any, geometry: Any, captured_at: datetime
             "units": "metres",
         },
         "raw_sha256": {
-            "devices": _sha256(devices),
-            "live": _sha256(live),
-            "geometry": _sha256(geometry),
+            "devices": sha256_json(devices),
+            "live": sha256_json(live),
+            "geometry": sha256_json(geometry),
         },
         "stats": {
             "geometry_sensor_count": len(sensors),
-            "measured_sensor_count": measured,
-            "count_median": None if not counts else round(statistics.median(counts), 3),
-            "count_p25": _quantile(counts, 0.25),
-            "count_p75": _quantile(counts, 0.75),
-            "occupancy_median_pct": None if not occupancies else round(statistics.median(occupancies), 3),
+            "measured_sensor_count": len(measured),
+            "fresh_measured_sensor_count": len(fresh),
+            "fresh_rate_median_vehicles_per_minute": None if not rates else round(statistics.median(rates), 3),
+            "fresh_rate_p25": quantile(rates, 0.25),
+            "fresh_rate_p75": quantile(rates, 0.75),
+            "fresh_occupancy_median_pct": None if not occupancies else round(statistics.median(occupancies), 3),
         },
         "sensors": sensors,
     }
@@ -403,26 +366,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--geometry-file", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--min-geometry-sensors", type=int, default=1)
-    parser.add_argument("--min-measured-sensors", type=int, default=1)
+    parser.add_argument("--min-fresh-measured-sensors", type=int, default=1)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    devices = _load_or_fetch(args.devices_file, DEVICES_URL)
-    live = _load_or_fetch(args.live_file, LIVE_URL)
-    geometry = _load_or_fetch(args.geometry_file, WFS_URL)
+    devices = load_or_fetch(args.devices_file, DEVICES_URL)
+    live = load_or_fetch(args.live_file, LIVE_URL)
+    geometry = load_or_fetch(args.geometry_file, WFS_URL)
     snapshot = build_snapshot(devices, live, geometry)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     stats = snapshot["stats"]
     if int(stats["geometry_sensor_count"]) < args.min_geometry_sensors:
         raise SystemExit(f"Brussels Mobility geometry gate failed: {stats['geometry_sensor_count']} < {args.min_geometry_sensors}")
-    if int(stats["measured_sensor_count"]) < args.min_measured_sensors:
-        raise SystemExit(f"Brussels Mobility live-match gate failed: {stats['measured_sensor_count']} < {args.min_measured_sensors}")
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if int(stats["fresh_measured_sensor_count"]) < args.min_fresh_measured_sensors:
+        raise SystemExit(
+            "Brussels Mobility fresh-live gate failed: %s < %s"
+            % (stats["fresh_measured_sensor_count"], args.min_fresh_measured_sensors)
+        )
     print(
-        "BRUSSELS_MOBILITY_TRAFFIC_SNAPSHOT_OK: %d geometry sensors, %d live matched -> %s"
-        % (stats["geometry_sensor_count"], stats["measured_sensor_count"], args.output)
+        "BRUSSELS_MOBILITY_TRAFFIC_SNAPSHOT_OK: %d sensors, %d fresh live, median %.3f veh/min -> %s"
+        % (
+            stats["geometry_sensor_count"],
+            stats["fresh_measured_sensor_count"],
+            float(stats["fresh_rate_median_vehicles_per_minute"] or 0.0),
+            args.output,
+        )
     )
     return 0
 

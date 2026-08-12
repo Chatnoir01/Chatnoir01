@@ -1,0 +1,179 @@
+name: Grand Bruxelles Ixelles UrbIS 3D Second Source
+
+on:
+  push:
+    branches:
+      - "integration/ixelles-urbis3d-second-source"
+    paths:
+      - "grand-bruxelles-game/tools/inspect_urbis_3d_gpkg_safe.py"
+      - "grand-bruxelles-game/tools/test_inspect_urbis_3d_gpkg_safe.py"
+      - ".github/workflows/grand-bruxelles-ixelles-urbis3d-second-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove-official-3d-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install read-only GeoPackage tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal unzip
+          ogrinfo --version
+
+      - name: Regression-test 3D evidence inspector
+        run: |
+          python3 grand-bruxelles-game/tools/test_inspect_urbis_3d_gpkg_safe.py
+
+      - name: Discover current official UrbIS distributions
+        run: |
+          python3 grand-bruxelles-game/tools/discover_urbis_sources.py \
+            --output /tmp/urbis-discovered.json
+          python3 - <<'PY'
+          import json
+          data = json.load(open('/tmp/urbis-discovered.json', encoding='utf-8'))
+          feed = next((item for item in data.get('feeds', []) if item.get('source_id') == 'urbis_3d_constructions'), None)
+          assert feed is not None, 'urbis_3d_constructions feed missing'
+          assert feed.get('entry_count', 0) > 0, 'official 3D feed has no entries'
+          print('URBIS_3D_DISCOVERY_OK', 'feed_updated=', feed.get('feed_updated'), 'entries=', feed.get('entry_count'))
+          PY
+
+      - name: Select official EPSG:31370 GeoPackage distribution
+        run: |
+          python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
+            /tmp/urbis-discovered.json \
+            /tmp/urbis-3d-selected.json \
+            --source-id urbis_3d_constructions \
+            --token 31370 \
+            --token GPKG
+          python3 - <<'PY'
+          import json
+          from urllib.parse import urlparse
+          data = json.load(open('/tmp/urbis-3d-selected.json', encoding='utf-8'))
+          selected = data.get('selected', {})
+          url = str(selected.get('href', ''))
+          assert url.startswith('https://'), f'non-HTTPS distribution URL: {url!r}'
+          host = (urlparse(url).hostname or '').lower()
+          allowed = (
+              'datastore.brussels',
+              'urbisdownload.datastore.brussels',
+              'geoservices-urbis.irisnet.be',
+              'gis.urban.brussels',
+              'urban.brussels',
+          )
+          assert any(host == item or host.endswith('.' + item) for item in allowed), f'untrusted distribution host: {host}'
+          print('URBIS_3D_SELECTION_OK', data.get('matched_entry_title'), url)
+          PY
+
+      - name: Download selected official distribution
+        run: |
+          set -euo pipefail
+          URL="$(python3 - <<'PY'
+          import json
+          print(json.load(open('/tmp/urbis-3d-selected.json', encoding='utf-8'))['selected']['href'])
+          PY
+          )"
+          curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
+            --user-agent 'GrandBruxellesGame/ixelles-second-source (+github.com/Chatnoir01/Chatnoir01)' \
+            "$URL" -o /tmp/urbis-3d-distribution
+          test -s /tmp/urbis-3d-distribution
+          sha256sum /tmp/urbis-3d-distribution | tee /tmp/urbis-3d-distribution.sha256
+          file /tmp/urbis-3d-distribution
+
+      - name: Safely extract nested archives
+        run: |
+          python3 - <<'PY'
+          import shutil
+          import zipfile
+          from pathlib import Path
+
+          source = Path('/tmp/urbis-3d-distribution')
+          root = Path('/tmp/urbis-3d-extracted')
+          root.mkdir(parents=True, exist_ok=True)
+
+          def safe_extract(archive: Path, destination: Path) -> None:
+              destination.mkdir(parents=True, exist_ok=True)
+              destination_resolved = destination.resolve()
+              with zipfile.ZipFile(archive) as handle:
+                  for member in handle.infolist():
+                      target = (destination / member.filename).resolve()
+                      if destination_resolved not in target.parents and target != destination_resolved:
+                          raise SystemExit(f'unsafe ZIP path: {member.filename}')
+                  handle.extractall(destination)
+
+          if zipfile.is_zipfile(source):
+              safe_extract(source, root / 'level0')
+          else:
+              shutil.copy2(source, root / 'selected-source.gpkg')
+
+          seen = set()
+          for depth in range(1, 4):
+              archives = [path for path in root.rglob('*.zip') if path.resolve() not in seen]
+              if not archives:
+                  break
+              for index, archive in enumerate(archives):
+                  seen.add(archive.resolve())
+                  safe_extract(archive, archive.parent / f'{archive.stem}-nested-{depth}-{index}')
+
+          gpkg = sorted(root.rglob('*.gpkg'))
+          print('URBIS_3D_EXTRACTION_OK', 'gpkg_count=', len(gpkg))
+          for path in gpkg[:30]:
+              print(path, path.stat().st_size)
+          if not gpkg:
+              raise SystemExit('selected official distribution contains no GeoPackage')
+          PY
+
+      - name: Inspect actual CRS and Z coordinates
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/ixelles-urbis3d
+          cp /tmp/urbis-discovered.json grand-bruxelles-game/artifacts/ixelles-urbis3d/discovered.json
+          cp /tmp/urbis-3d-selected.json grand-bruxelles-game/artifacts/ixelles-urbis3d/selected.json
+          cp /tmp/urbis-3d-distribution.sha256 grand-bruxelles-game/artifacts/ixelles-urbis3d/distribution.sha256
+          python3 grand-bruxelles-game/tools/inspect_urbis_3d_gpkg_safe.py \
+            --root /tmp/urbis-3d-extracted \
+            --selected-source /tmp/urbis-3d-selected.json \
+            --output grand-bruxelles-game/artifacts/ixelles-urbis3d/inventory.json \
+            --sample-features 250 \
+            --max-coords-per-feature 4000 \
+            --require-usable
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('grand-bruxelles-game/artifacts/ixelles-urbis3d/inventory.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          assert data['schema'] == 'grand-bruxelles-urbis-3d-gpkg-inventory-v1'
+          assert data['gpkg_count'] >= 1
+          assert data['candidate_layer_count'] >= 1
+          assert data['usable_as_second_height_source'] is True
+          candidates = [
+              layer
+              for package in data['packages']
+              for layer in package['layers']
+              if layer.get('candidate_for_height_validation')
+          ]
+          assert candidates
+          assert all(layer.get('epsg') == '31370' for layer in candidates)
+          assert all(layer.get('declared_has_z') for layer in candidates)
+          assert all(layer.get('sample_z', {}).get('actual_has_nonzero_z') for layer in candidates)
+          print('URBIS_3D_SECOND_SOURCE_PROVEN', [
+              {
+                  'layer': layer['name'],
+                  'feature_count': layer['feature_count_fast'],
+                  'z_min': layer['sample_z']['min'],
+                  'z_max': layer['sample_z']['max'],
+              }
+              for layer in candidates
+          ])
+          PY
+
+      - name: Upload evidence only (never raw GeoPackage)
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-ixelles-urbis3d-second-source-evidence
+          path: grand-bruxelles-game/artifacts/ixelles-urbis3d/
+          if-no-files-found: error

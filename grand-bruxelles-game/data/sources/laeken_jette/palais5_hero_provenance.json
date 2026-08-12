@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "asset": "Palais 5 / Grand Palais hero-detail pass",
   "identity_outline": {
     "source": "OpenStreetMap way 143816182, validated against aggregate UrbIS feature 278",
@@ -21,6 +21,10 @@
     "transport_statue_height_m": 4.3,
     "main_entrance_bay_count": 3,
     "side_low_window_count_each": 7,
+    "front_material": "blue stone",
+    "roof_front_return": "stacked continuous horizontal window bands under copper gutters",
+    "rear_facade": "flat concrete grid with central glazing",
+    "side_facades": "low brick elevations with a thin horizontal window band and three doors; central doors connect to covered passages toward Palais 4 and Palais 6",
     "style": "Art Deco",
     "architect": "Joseph Van Neck",
     "engineer": "Louis Baes",
@@ -30,7 +34,22 @@
     {
       "name": "Inventaire du patrimoine architectural - Palais des Expositions du Heysel",
       "url": "https://monument.heritage.brussels/fr/buildings/38321",
-      "used_for": ["31 m height", "86 m span", "12 arches", "12 m arch spacing", "4 pilasters", "4.3 m transport statues", "3 entrance bays", "side-window rhythm", "Art Deco historical description"]
+      "used_for": [
+        "31 m height",
+        "86 m span",
+        "12 arches",
+        "12 m arch spacing",
+        "4 pilasters",
+        "4.3 m transport statues",
+        "3 entrance bays",
+        "side-window rhythm",
+        "blue-stone monumental front",
+        "continuous front roof window bands",
+        "copper gutters",
+        "flat gridded rear facade with central glazing",
+        "low brick side elevations and thin window band",
+        "Art Deco historical description"
+      ]
     },
     {
       "name": "Bureau International des Expositions - Expo 1935 Brussels",
@@ -38,5 +57,5 @@
       "used_for": ["31 m height", "over 150 m length", "86 m structural span"]
     }
   ],
-  "visual_policy": "Geometry uses sourced dimensions where available. Decorative sculpture bodies, exact bay widths, step dimensions and minor facade setbacks are simplified/photo-guided game geometry and must not be presented as surveyed measurements. No reference photograph is copied as a texture."
+  "visual_policy": "Geometry uses sourced dimensions where available. Decorative sculpture bodies, exact bay widths, step dimensions, minor facade setbacks, envelope skin thicknesses, window-band heights, gutter sizes and exact door/window placement remain simplified/photo-guided game geometry and must not be presented as surveyed measurements. Material families and facade organization are source-backed. No reference photograph is copied as a texture."
 }

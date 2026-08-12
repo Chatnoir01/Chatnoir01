@@ -1,0 +1,29 @@
+name: Grand Bruxelles Laeken Jette Reference Registry
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/data/reference/laeken_jette/**"
+      - "grand-bruxelles-game/data/sources/laeken_jette/building_height_integration_validation.json"
+      - "grand-bruxelles-game/tools/validate_laeken_jette_reference_registry.py"
+      - ".github/workflows/grand-bruxelles-laeken-jette-reference-registry.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/reference/laeken_jette/**"
+      - "grand-bruxelles-game/data/sources/laeken_jette/building_height_integration_validation.json"
+      - "grand-bruxelles-game/tools/validate_laeken_jette_reference_registry.py"
+      - ".github/workflows/grand-bruxelles-laeken-jette-reference-registry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-reference-registry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate realism provenance and measured-state claims
+        run: python3 grand-bruxelles-game/tools/validate_laeken_jette_reference_registry.py

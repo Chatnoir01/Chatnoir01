@@ -32,6 +32,19 @@ func _init() -> void:
 	_assert(green_intent == NpcPedestrianContext.PedestrianIntent.CROSS, "green crossing intent")
 	_assert(not agent.movement_held, "green crossing releases movement")
 
+	var queue := NpcTransitQueue.new()
+	queue.configure(Vector3(2.0, 0.0, 3.0), Vector3(0.0, 0.0, 1.0), 0.8, 3)
+	var blocker := NpcAgent.new()
+	root.add_child(blocker)
+	blocker.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 88, Vector3.ZERO)
+	_assert(blocker.join_transit_queue(queue, 8800) == 0, "first passenger joins queue head")
+	_assert(agent.join_transit_queue(queue, 7700) == 1, "second passenger joins second slot")
+	_assert(agent.get_transit_queue_target() == queue.position_for(7700), "agent exposes assigned queue slot target")
+	_assert(not agent.can_board_from_queue(2), "non-head passenger cannot board")
+	_assert(blocker.can_board_from_queue(2), "queue head can board")
+	_assert(blocker.leave_transit_queue(), "queue head leaves after boarding")
+	_assert(agent.can_board_from_queue(1), "next passenger becomes boardable after compaction")
+
 	var wait_intent: int = agent.update_transit_context(false, false, 10.0)
 	_assert(wait_intent == NpcPedestrianContext.PedestrianIntent.WAIT_FOR_TRANSIT, "wait transit intent")
 	_assert(agent.transit_state == NpcAgent.TransitState.WAITING, "waiting state is tracked")
@@ -65,6 +78,7 @@ func _init() -> void:
 	_assert(not agent.movement_held, "clear hold")
 
 	print("NPC_AGENT_CONTEXT_OK")
+	blocker.queue_free()
 	agent.queue_free()
 	quit(0)
 

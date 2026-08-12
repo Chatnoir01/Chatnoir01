@@ -65,25 +65,32 @@ func _refine() -> void:
             continue
         var instance := child as MeshInstance3D
         var node_name := str(instance.name)
-        if node_name.begins_with("Sphere") and instance.mesh is SphereMesh:
+
+        if instance.mesh is SphereMesh:
             var sphere := instance.mesh as SphereMesh
             sphere.radial_segments = 48
             sphere.rings = 24
             instance.material_override = _metal
             refined_spheres += 1
-        elif node_name.begins_with("Tube") and instance.mesh is CylinderMesh:
-            # Godot auto-renames duplicate Tube nodes (Tube2, Tube3, ...), so the
-            # prefix is the stable semantic identity for all structural links and
-            # support cylinders created by the authoritative zone builder.
-            var tube := instance.mesh as CylinderMesh
-            tube.radial_segments = 24
-            instance.material_override = _metal if tube.bottom_radius >= 1.55 else _dark_metal
-            refined_tubes += 1
-        elif node_name == "BasePavilion26m" and instance.mesh is CylinderMesh:
-            var base := instance.mesh as CylinderMesh
-            base.radial_segments = 72
+            continue
+
+        if not instance.mesh is CylinderMesh:
+            continue
+        var cylinder := instance.mesh as CylinderMesh
+
+        # The authoritative AtomiumHero builder contains only structural/support
+        # cylinders plus this explicitly named pavilion cylinder. Duplicate tube
+        # nodes are added without force_readable_name, so Godot may rename them to
+        # internal @MeshInstance3D@... names. Mesh role is therefore the stable
+        # discriminator; node-name prefix matching is not.
+        if node_name == "BasePavilion26m":
+            cylinder.radial_segments = 72
             instance.material_override = _dark_metal
             refined_base_parts += 1
+        else:
+            cylinder.radial_segments = 24
+            instance.material_override = _metal if cylinder.bottom_radius >= 1.55 else _dark_metal
+            refined_tubes += 1
 
     var base_detail := get_parent().get_node_or_null("AtomiumBaseRealism")
     if base_detail != null:
@@ -91,8 +98,8 @@ func _refine() -> void:
             if child is MeshInstance3D:
                 var mesh_instance := child as MeshInstance3D
                 if mesh_instance.mesh is CylinderMesh:
-                    var cylinder := mesh_instance.mesh as CylinderMesh
-                    cylinder.radial_segments = 72
+                    var base_cylinder := mesh_instance.mesh as CylinderMesh
+                    base_cylinder.radial_segments = 72
                     refined_base_parts += 1
 
     refinement_ready = refined_spheres == 9 and refined_tubes >= 20

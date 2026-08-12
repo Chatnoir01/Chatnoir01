@@ -1,0 +1,162 @@
+name: Remaining Brussels Saint-Josse compact completion
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - ".github/workflows/remaining-brussels-saint-josse-completion.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-saint-josse-completion
+  cancel-in-progress: false
+
+jobs:
+  expand:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate Saint-Josse official grid and mapping pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest \
+            tests.test_make_zone_cells \
+            tests.test_materialize_zone_cells \
+            tests.test_build_urbis_cell \
+            tests.test_make_urbis_cell_runtime \
+            tests.test_make_urbis_network_cell_runtime \
+            tests.test_build_urbis_runtime_index \
+            tests.test_build_remaining_brussels_coverage \
+            tests.test_capture_urbis_orthophoto -v
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          grid=json.loads(Path('data/processed/remaining_brussels/cells/saint-josse.json').read_text())
+          boundary=json.loads(Path('data/processed/remaining_brussels/boundaries/saint-josse.geojson').read_text())
+          assert grid['format']=='grand-bruxelles-zone-cells-v2'
+          assert grid['zone_id']=='saint-josse' and grid['crs']=='EPSG:31370' and grid['cell_count']==12
+          assert boundary['source']['layer']=='urbisvector:Municipalities'
+          print('SAINT_JOSSE_OFFICIAL_GRID_VALID', grid['cell_count'])
+          PY
+
+      - name: Select four missing edge-contiguous Saint-Josse cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          grid=json.loads(Path('data/processed/remaining_brussels/cells/saint-josse.json').read_text())
+          cells={c['id']:c for c in grid['cells']}
+          root=Path('data/urbis/remaining_brussels/cells')
+
+          def edge(a,b):
+              ae,an,ae2,an2=a; be,bn,be2,bn2=b
+              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or
+                      ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
+
+          existing={cid for cid in cells if (root/cid/'manifest.json').exists()}
+          assert len(existing)>=7, ('expected Saint-Josse connection checkpoint', len(existing))
+          selected=[]
+          connected=set(existing)
+          for _ in range(min(4, len(cells)-len(existing))):
+              frontier=[]
+              for c in cells.values():
+                  if c['id'] in connected:
+                      continue
+                  neighbours=[cid for cid in connected if edge(c['bbox'],cells[cid]['bbox'])]
+                  if not neighbours:
+                      continue
+                  e,n,e2,n2=c['bbox']
+                  cx=(e+e2)/2.0; cy=(n+n2)/2.0
+                  frontier.append((len(neighbours),-abs(cx-150000.0),-abs(cy-171500.0),c))
+              assert frontier, ('Saint-Josse missing cells are not edge-reachable from checkpoint', sorted(connected))
+              frontier.sort(reverse=True,key=lambda x:x[:-1])
+              chosen=frontier[0][-1]
+              selected.append(chosen)
+              connected.add(chosen['id'])
+
+          assert selected
+          payload={
+              'format':'grand-bruxelles-zone-cells-v2','zone_id':'saint-josse-compact-completion',
+              'crs':'EPSG:31370','cell_size_m':500.0,'cell_count':len(selected),'cells':selected,
+              'continuity':{'preexisting_ids':sorted(existing),'ordered_ids':[c['id'] for c in selected]}
+          }
+          Path('/tmp/saint-josse-frontier.json').write_text(json.dumps(payload,indent=2)+'\n')
+          Path('/tmp/saint-josse-frontier.tsv').write_text('\n'.join(f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in selected)+'\n')
+          print('SAINT_JOSSE_SELECTION', payload['continuity']['ordered_ids'])
+          PY
+
+      - name: Materialize authoritative UrbIS geometry and transport networks
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_zone_cells.py --manifest /tmp/saint-josse-frontier.json --output-root data/urbis/remaining_brussels/cells --force
+          python tools/build_urbis_runtime_index.py --source-root data/urbis/remaining_brussels/cells --resource-prefix res://data/urbis/remaining_brussels/cells --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture official UrbIS orthophoto evidence
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/saint-josse-ortho data/processed/remaining_brussels/references
+          while IFS=$'\t' read -r CELL BBOX; do
+            python tools/capture_urbis_orthophoto.py \
+              --bbox "$BBOX" --width 1024 --height 1024 \
+              --output "/tmp/saint-josse-ortho/${CELL}.png" \
+              --metadata "data/processed/remaining_brussels/references/saint_josse_${CELL}_orthophoto.json"
+          done < /tmp/saint-josse-frontier.tsv
+
+      - name: Validate fidelity continuity and runtime inclusion
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          sel=json.loads(Path('/tmp/saint-josse-frontier.json').read_text())
+          root=Path('data/urbis/remaining_brussels/cells')
+          ids=[]
+          for cell in sel['cells']:
+              cid=cell['id']; ids.append(cid)
+              m=json.loads((root/cid/'manifest.json').read_text())
+              assert m['crs']=='EPSG:31370'
+              g=json.loads((root/cid/m['runtime']['geometry_file']).read_text())
+              n=json.loads((root/cid/m['runtime']['network_file']).read_text())
+              assert g['stats']['buildings']>0 and g['stats']['street_surfaces']>0
+              assert n['stats']['street_segments']>0
+              ortho=json.loads(Path(f'data/processed/remaining_brussels/references/saint_josse_{cid}_orthophoto.json').read_text())
+              assert ortho['provider']=='Paradigm / UrbIS' and ortho['bbox']==m['bbox'] and ortho['download']['bytes']>1000
+          coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          sj=next(z for z in coverage['zones'] if z['zone_id']=='saint-josse')
+          assert set(ids)<=set(sj['materialized_cell_ids'])
+          assert sj['materialized_cells']>=11
+          runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          assert set(ids)<={c['cell_id'] for c in runtime['cells']}
+          print('SAINT_JOSSE_COMPACT_VALIDATED', ids, sj['materialized_cells'], sj['coverage_percent'])
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saint-josse-compact-official-orthophotos
+          path: /tmp/saint-josse-ortho/*.png
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Commit validated Saint-Josse completion lot
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+Chatnoir01@users.noreply.github.com'
+          git add grand-bruxelles-game/data/processed/remaining_brussels grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'data: fill Saint-Josse with authoritative contiguous cells'
+          git push origin HEAD:zone-reste-bruxelles-clean

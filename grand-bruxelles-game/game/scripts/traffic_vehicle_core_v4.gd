@@ -3,6 +3,7 @@ extends "res://game/scripts/traffic_vehicle_core_v3.gd"
 signal traffic_disabled(vehicle: Node)
 
 @export var traffic_impact_cooldown_ms: int = 450
+@export_range(0.1, 1.0, 0.05) var transmitted_impact_factor: float = 0.78
 
 const DAMAGE_MODEL_SCRIPT := preload("res://game/scripts/vehicle_damage_model.gd")
 
@@ -63,6 +64,51 @@ func _register_traffic_collision(impact_speed_kmh: float, forward_direction: Vec
     _traffic_next_impact_ms = Time.get_ticks_msec() + traffic_impact_cooldown_ms
     _apply_damage_performance()
     _emit_disabled_if_needed()
+    _transmit_collision_damage(impact_speed_kmh, alignment)
+
+
+func _transmit_collision_damage(impact_speed_kmh: float, alignment: float) -> void:
+    var seen := {}
+    for index: int in range(get_slide_collision_count()):
+        var collision := get_slide_collision(index)
+        if collision == null:
+            continue
+        var collider: Object = collision.get_collider()
+        if collider == null or collider == self:
+            continue
+        var collider_id := collider.get_instance_id()
+        if seen.has(collider_id):
+            continue
+        seen[collider_id] = true
+        _transmit_impact_to_collider(
+            collider,
+            impact_speed_kmh * transmitted_impact_factor,
+            alignment
+        )
+
+
+func _transmit_impact_to_collider(collider: Object, speed_kmh: float, alignment: float) -> bool:
+    if collider == null or collider == self:
+        return false
+    if collider.has_method("apply_external_impact"):
+        collider.call("apply_external_impact", speed_kmh, alignment)
+        return true
+    if collider.has_method("apply_external_vehicle_impact"):
+        collider.call("apply_external_vehicle_impact", speed_kmh, alignment)
+        return true
+    return false
+
+
+func apply_external_impact(speed_kmh: float, alignment: float = 1.0) -> Dictionary:
+    if _traffic_damage_model == null:
+        _traffic_damage_model = DAMAGE_MODEL_SCRIPT.new()
+    if Time.get_ticks_msec() < _traffic_next_impact_ms:
+        return {"ignored_cooldown": true, "health": get_traffic_vehicle_health()}
+    var result: Dictionary = _traffic_damage_model.call("register_impact", speed_kmh, alignment)
+    _traffic_next_impact_ms = Time.get_ticks_msec() + traffic_impact_cooldown_ms
+    _apply_damage_performance()
+    _emit_disabled_if_needed()
+    return result
 
 
 func _apply_damage_performance() -> void:

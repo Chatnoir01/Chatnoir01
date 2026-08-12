@@ -15,6 +15,9 @@ assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+ogr.UseExceptions()
+osr.UseExceptions()
+
 
 def create_fixture(path: Path, epsg: int, with_z: bool) -> None:
     driver = ogr.GetDriverByName("GPKG")
@@ -26,7 +29,10 @@ def create_fixture(path: Path, epsg: int, with_z: bool) -> None:
     layer = dataset.CreateLayer("constructions", spatial_ref, geometry_type)
     assert layer is not None
     feature = ogr.Feature(layer.GetLayerDefn())
-    ring = ogr.Geometry(ogr.wkbLinearRing25D if with_z else ogr.wkbLinearRing)
+
+    ring = ogr.Geometry(ogr.wkbLinearRing)
+    if with_z:
+        ring.SetCoordinateDimension(3)
     points = [
         (148000.0, 169000.0, 24.0),
         (148010.0, 169000.0, 24.0),
@@ -39,11 +45,13 @@ def create_fixture(path: Path, epsg: int, with_z: bool) -> None:
             ring.AddPoint(x, y, z)
         else:
             ring.AddPoint_2D(x, y)
-    polygon = ogr.Geometry(ogr.wkbPolygon25D if with_z else ogr.wkbPolygon)
+
+    polygon = ogr.Geometry(geometry_type)
     polygon.AddGeometry(ring)
     feature.SetGeometry(polygon)
-    assert layer.CreateFeature(feature) == 0
+    layer.CreateFeature(feature)
     feature = None
+    layer = None
     dataset = None
 
 

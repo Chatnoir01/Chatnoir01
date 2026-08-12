@@ -1,0 +1,180 @@
+name: Remaining Brussels Ixelles to Etterbeek bridge
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - ".github/workflows/remaining-brussels-ixelles-etterbeek-bridge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-ixelles-etterbeek-bridge
+  cancel-in-progress: false
+
+jobs:
+  materialize-bridge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate mapping pipeline before writes
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest \
+            tests.test_make_zone_cells \
+            tests.test_materialize_zone_cells \
+            tests.test_build_urbis_cell \
+            tests.test_make_urbis_cell_runtime \
+            tests.test_make_urbis_network_cell_runtime \
+            tests.test_build_urbis_runtime_index \
+            tests.test_build_remaining_brussels_coverage \
+            tests.test_capture_urbis_orthophoto -v
+
+      - name: Refresh official Ixelles and Etterbeek grids
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/bootstrap_remaining_brussels.py --zone ixelles --output-root data/processed/remaining_brussels
+          python tools/bootstrap_remaining_brussels.py --zone etterbeek --output-root data/processed/remaining_brussels
+
+      - name: Build deterministic contiguous bridge selection
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('data/processed/remaining_brussels/cells')
+          ix = json.loads((root/'ixelles.json').read_text())
+          et = json.loads((root/'etterbeek.json').read_text())
+          by_ix = {c['id']: c for c in ix['cells']}
+          by_et = {c['id']: c for c in et['cells']}
+          ids = ['bxl-e150000-n169000-s500', 'bxl-e150500-n169000-s500']
+          assert ids[0] in by_ix, ids[0]
+          assert ids[1] in by_ix and ids[1] in by_et, ids[1]
+          assert by_ix[ids[0]]['bbox'] == [150000.0,169000.0,150500.0,169500.0]
+          assert by_ix[ids[1]]['bbox'] == [150500.0,169000.0,151000.0,169500.0]
+
+          existing = Path('data/urbis/remaining_brussels/cells')
+          west = json.loads((existing/'bxl-e149500-n169000-s500'/'manifest.json').read_text())
+          assert west['bbox'] == [149500.0,169000.0,150000.0,169500.0]
+
+          selection = {
+            'format': 'grand-bruxelles-zone-cells-selection-v1',
+            'zone_id': 'ixelles-etterbeek-bridge',
+            'crs': 'EPSG:31370',
+            'cell_count': 2,
+            'cells': [by_ix[i] for i in ids],
+            'continuity': {
+              'west_existing': 'bxl-e149500-n169000-s500',
+              'bridge_cell': ids[0],
+              'cross_municipality_cell': ids[1],
+              'target_zone': 'etterbeek'
+            }
+          }
+          Path('/tmp/bridge.json').write_text(json.dumps(selection, indent=2) + '\n')
+          print('BRIDGE_SELECTION', ids)
+          PY
+
+      - name: Materialize authoritative UrbIS geometry and network
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_zone_cells.py \
+            --manifest /tmp/bridge.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --force
+          python tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture official orthophoto evidence for bridge cells
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/bridge-ortho data/processed/remaining_brussels/references
+          python tools/capture_urbis_orthophoto.py \
+            --bbox 150000,169000,150500,169500 --width 1024 --height 1024 \
+            --output /tmp/bridge-ortho/bxl-e150000-n169000-s500.png \
+            --metadata data/processed/remaining_brussels/references/ixelles_bxl-e150000-n169000-s500_orthophoto.json
+          python tools/capture_urbis_orthophoto.py \
+            --bbox 150500,169000,151000,169500 --width 1024 --height 1024 \
+            --output /tmp/bridge-ortho/bxl-e150500-n169000-s500.png \
+            --metadata data/processed/remaining_brussels/references/ixelles_etterbeek_bxl-e150500-n169000-s500_orthophoto.json
+
+      - name: Validate source fidelity, continuity and coverage
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          ids = ['bxl-e150000-n169000-s500', 'bxl-e150500-n169000-s500']
+          root = Path('data/urbis/remaining_brussels/cells')
+          bboxes = []
+          for cid in ids:
+              manifest = json.loads((root/cid/'manifest.json').read_text())
+              assert manifest['crs'] == 'EPSG:31370'
+              geometry = json.loads((root/cid/manifest['runtime']['geometry_file']).read_text())
+              network = json.loads((root/cid/manifest['runtime']['network_file']).read_text())
+              assert geometry['stats']['buildings'] > 0, (cid, geometry['stats'])
+              assert geometry['stats']['street_surfaces'] > 0, (cid, geometry['stats'])
+              assert network['stats']['street_segments'] > 0, (cid, network['stats'])
+              bboxes.append(manifest['bbox'])
+
+          west = json.loads((root/'bxl-e149500-n169000-s500'/'manifest.json').read_text())['bbox']
+          assert west[2] == bboxes[0][0] and bboxes[0][2] == bboxes[1][0]
+          assert west[1:4:2] == bboxes[0][1:4:2] == bboxes[1][1:4:2]
+
+          refs = [
+            Path('data/processed/remaining_brussels/references/ixelles_bxl-e150000-n169000-s500_orthophoto.json'),
+            Path('data/processed/remaining_brussels/references/ixelles_etterbeek_bxl-e150500-n169000-s500_orthophoto.json')
+          ]
+          for ref in refs:
+              meta = json.loads(ref.read_text())
+              assert meta['provider'] == 'Paradigm / UrbIS'
+              assert meta['download']['bytes'] > 1000
+
+          coverage = json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          zones = {z['zone_id']: z for z in coverage['zones']}
+          assert ids[0] in zones['ixelles']['materialized_cell_ids']
+          assert ids[1] in zones['ixelles']['materialized_cell_ids']
+          assert ids[1] in zones['etterbeek']['materialized_cell_ids']
+          assert zones['ixelles']['materialized_cells'] >= 7
+          assert zones['etterbeek']['materialized_cells'] >= 1
+          runtime = json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          streamable = {c['cell_id'] for c in runtime['cells']}
+          assert set(ids) <= streamable
+          print('IXELLES_ETTERBEEK_BRIDGE_VALIDATED', zones['ixelles']['coverage_percent'], zones['etterbeek']['coverage_percent'])
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-etterbeek-bridge-official-orthophotos
+          path: /tmp/bridge-ortho/*.png
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Commit validated bridge mapping data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+Chatnoir01@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/remaining_brussels \
+            grand-bruxelles-game/data/urbis/remaining_brussels
+          git diff --cached --name-only
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'data: bridge Ixelles to Etterbeek with authoritative UrbIS cells'
+          git push origin HEAD:zone-reste-bruxelles-clean

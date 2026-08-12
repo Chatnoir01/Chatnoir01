@@ -46,7 +46,7 @@ func _init() -> void:
 	var exit_position := Vector3(4.0, 0.0, -3.0)
 	_assert(agent.begin_disembark(exit_position), "onboard passenger can begin disembarking")
 	_assert(agent.transit_state == NpcAgent.TransitState.DISEMBARKING, "disembarking state is tracked")
-	_assert(agent.global_position == exit_position, "disembarking uses external vehicle exit position")
+	_assert(agent.get_world_position() == exit_position, "disembarking uses external vehicle exit position")
 	_assert(agent.movement_held, "disembarking remains held until external completion")
 	_assert(agent.complete_disembark(), "disembarking can complete")
 	_assert(agent.transit_state == NpcAgent.TransitState.NONE, "transit state clears after disembarking")

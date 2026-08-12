@@ -1,0 +1,30 @@
+name: Grand Bruxelles Photo Match QA
+
+on:
+  push:
+    branches: ["integration/photo-match-qa"]
+    paths:
+      - "grand-bruxelles-game/data/qa/photo_match/**"
+      - "grand-bruxelles-game/tools/validate_photo_match.py"
+      - "grand-bruxelles-game/docs/PHOTO_MATCH_QA.md"
+      - ".github/workflows/grand-bruxelles-photo-match-qa.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/photo_match/**"
+      - "grand-bruxelles-game/tools/validate_photo_match.py"
+      - "grand-bruxelles-game/docs/PHOTO_MATCH_QA.md"
+      - "grand-bruxelles-game/game/**"
+      - ".github/workflows/grand-bruxelles-photo-match-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-photo-match:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate photo-match registry and completion claims
+        run: python3 grand-bruxelles-game/tools/validate_photo_match.py

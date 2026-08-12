@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/game/tests/traffic_*"
       - "grand-bruxelles-game/game/tests/vehicle_*"
       - "grand-bruxelles-game/data/traffic/**"
+      - "grand-bruxelles-game/data/vehicle_services/**"
       - ".github/workflows/grand-bruxelles-traffic-crossings.yml"
   workflow_dispatch:
 
@@ -102,6 +103,18 @@ jobs:
             exit 1
           fi
           grep -q "VEHICLE_RECOVERY_OK" /tmp/recovery.log
+
+      - name: OSM garage service test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/vehicle_service_test.gd 2>&1 | tee /tmp/service.log
+          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_SERVICE_FAIL" /tmp/service.log; then
+            exit 1
+          fi
+          grep -q "VEHICLE_SERVICE_OK" /tmp/service.log
 
       - name: Live traffic smoke test
         shell: bash

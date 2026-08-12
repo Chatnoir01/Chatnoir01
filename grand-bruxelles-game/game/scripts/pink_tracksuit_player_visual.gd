@@ -2,10 +2,14 @@ extends Node3D
 class_name PinkTracksuitPlayerVisual
 
 const CHARACTER_SIGNATURE := "pink_tracksuit_v1"
-const PIPELINE_SIGNATURE := "authored_glb_or_procedural_v2"
-const DEFAULT_AUTHORED_CHARACTER_PATH := "res://assets/characters/player/aria_pink_v1.glb"
+const PIPELINE_SIGNATURE := "authored_character_or_procedural_v3"
+const AUTHORED_CHARACTER_CANDIDATES := [
+    "res://assets/characters/player/thandi/Thandi.glb",
+    "res://assets/characters/player/thandi/Thandi.fbx",
+    "res://assets/characters/player/player_character.glb",
+]
 
-@export_file("*.glb", "*.gltf", "*.tscn") var authored_scene_path: String = DEFAULT_AUTHORED_CHARACTER_PATH
+@export_file("*.glb", "*.gltf", "*.fbx", "*.tscn") var authored_scene_path: String = ""
 @export var authored_position: Vector3 = Vector3(0.0, -0.90, 0.0)
 @export var authored_rotation_degrees: Vector3 = Vector3(0.0, 180.0, 0.0)
 @export var authored_scale: Vector3 = Vector3.ONE
@@ -19,6 +23,7 @@ var _right_leg: MeshInstance3D
 var _phase := 0.0
 var _authored_character: Node3D
 var _using_authored_character := false
+var _resolved_authored_scene_path := ""
 
 func _ready() -> void:
     var actor := get_parent() as Node3D
@@ -56,21 +61,38 @@ func is_using_authored_character() -> bool:
 func authored_character() -> Node3D:
     return _authored_character
 
+func resolved_authored_scene_path() -> String:
+    return _resolved_authored_scene_path
+
 func _try_load_authored_character() -> bool:
-    if authored_scene_path.is_empty():
-        return false
-    if not ResourceLoader.exists(authored_scene_path):
+    for candidate in _authored_scene_candidates():
+        if _try_load_authored_character_at(candidate):
+            _resolved_authored_scene_path = candidate
+            return true
+    return false
+
+func _authored_scene_candidates() -> Array[String]:
+    var paths: Array[String] = []
+    if not authored_scene_path.is_empty():
+        paths.append(authored_scene_path)
+    for candidate in AUTHORED_CHARACTER_CANDIDATES:
+        if candidate not in paths:
+            paths.append(candidate)
+    return paths
+
+func _try_load_authored_character_at(path: String) -> bool:
+    if path.is_empty() or not ResourceLoader.exists(path):
         return false
 
-    var resource := ResourceLoader.load(authored_scene_path)
+    var resource := ResourceLoader.load(path)
     if not resource is PackedScene:
-        push_warning("Player authored asset is not a PackedScene: %s" % authored_scene_path)
+        push_warning("Player authored asset is not a PackedScene: %s" % path)
         return false
 
     var instance := (resource as PackedScene).instantiate()
     if not instance is Node3D:
         instance.queue_free()
-        push_warning("Player authored asset root must be Node3D: %s" % authored_scene_path)
+        push_warning("Player authored asset root must be Node3D: %s" % path)
         return false
 
     _authored_character = instance as Node3D
@@ -96,7 +118,7 @@ func _build_character() -> void:
     var bag_mat := _material(Color(0.36, 0.25, 0.17, 1.0), 0.66)
     var metal := _material(Color(0.78, 0.65, 0.27, 1.0), 0.28)
 
-    # Fallback only. The authored GLB path above is now the primary rendering path.
+    # Emergency fallback only. Imported authored character files are always preferred.
     _box("UpperTorso", Vector3(0.66, 0.43, 0.36), Vector3(0, 1.30, 0), pink)
     _box("CropTop", Vector3(0.61, 0.20, 0.365), Vector3(0, 1.09, -0.005), white)
     _box("Waist", Vector3(0.48, 0.18, 0.31), Vector3(0, 0.94, 0), skin)

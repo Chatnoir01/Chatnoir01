@@ -3,6 +3,12 @@ extends SceneTree
 const BOURSE_ROUTE_ANCHOR := Vector2(81.54, -664.58)
 const BOURSE_URBIS_CENTER := Vector2(172.5915, -672.2825)
 const DETAIL_RADIUS_M := 180.0
+const OFFICIAL_AXIS_ENDPOINTS: Array[Vector2] = [
+    Vector2(94.07228826064966, -679.7570927080197),
+    Vector2(98.96090281064971, -687.1860766580177),
+    Vector2(114.20618808065774, -710.3535770180134),
+    Vector2(129.03463705067406, -732.889563668021),
+]
 
 
 func _initialize() -> void:
@@ -26,6 +32,22 @@ func _run() -> void:
     var scene := packed.instantiate()
     root.add_child(scene)
     await process_frame
+
+    var official_axis := scene.get_node_or_null("UrbISBourseAxisContext")
+    if official_axis == null:
+        _fail("official UrbIS Bourse axis context is missing from main scene")
+        return
+    if not official_axis.has_method("official_segment_count") or not official_axis.has_method("official_axis_endpoint_error_max_m"):
+        _fail("official Bourse axis diagnostics are missing")
+        return
+    var official_segment_count := int(official_axis.official_segment_count())
+    if official_segment_count != 3:
+        _fail("expected exactly 3 source-backed Place de la Bourse axis segments; got %d" % official_segment_count)
+        return
+    var endpoint_error := float(official_axis.official_axis_endpoint_error_max_m(OFFICIAL_AXIS_ENDPOINTS))
+    if endpoint_error > 0.01:
+        _fail("official Bourse axis endpoints drifted by %.4f m" % endpoint_error)
+        return
 
     var roads := scene.get_node_or_null("BrusselsOSM/GeneratedRoads") as Node3D
     if roads == null:
@@ -53,8 +75,8 @@ func _run() -> void:
     var bourse_urbis_windows := int(city_builder.facade_window_count_near(BOURSE_URBIS_CENTER, DETAIL_RADIUS_M))
     var bounds: Rect2 = city_builder.facade_window_bounds()
     print(
-        "BOURSE_CONTEXT_DIAGNOSTIC: logical_bounds=[%.2f,%.2f]-[%.2f,%.2f] urbis_hits=%d" %
-        [bounds.position.x, bounds.position.y, bounds.end.x, bounds.end.y, bourse_urbis_windows]
+        "BOURSE_CONTEXT_DIAGNOSTIC: official_segments=%d endpoint_error=%.4f logical_bounds=[%.2f,%.2f]-[%.2f,%.2f] urbis_hits=%d" %
+        [official_segment_count, endpoint_error, bounds.position.x, bounds.position.y, bounds.end.x, bounds.end.y, bourse_urbis_windows]
     )
 
     if bourse_urbis_windows < 1:
@@ -65,7 +87,7 @@ func _run() -> void:
         return
 
     print(
-        "BOURSE_CONTEXT_DETAIL_OK: %d sidewalks, %d logical facade windows inside %.0f m of UrbIS Bourse center; quantitative frontage-density blocker remains open" %
+        "BOURSE_CONTEXT_DETAIL_OK: 3 official axis segments exact to source endpoints, %d sidewalks, %d logical facade windows inside %.0f m; full surface polygons remain the next geometry blocker" %
         [bourse_sidewalks, bourse_urbis_windows, DETAIL_RADIUS_M]
     )
     scene.queue_free()

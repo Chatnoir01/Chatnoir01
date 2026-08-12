@@ -1,0 +1,54 @@
+{
+  "schema": "grand-bruxelles-urbis-bourse-axis-v1",
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "service": "UrbIS WFS",
+    "url": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "layer": "urbisvector:StreetAxes",
+    "crs": "EPSG:31370",
+    "accessed_at": "2026-08-12"
+  },
+  "target": "Place de la Bourse / Beursplein",
+  "world_coordinate_evidence": {
+    "transform_source": "data/urbis/heroes/bourse_lod2.game.json",
+    "lambert72_origin": [147868.29422791934, 169538.62414926197],
+    "world_origin_xz": [-668.5, 627.84]
+  },
+  "visual_strip_width_m": 8.8,
+  "visual_strip_width_evidence": {
+    "role": "nominal ground-context strip only; not asserted as carriageway, curb-to-curb or sidewalk width",
+    "source_surface_examples": [
+      {"inspire_id": "https://databrussels.be/id/streetsurface/23037", "type_uninterpreted": "S", "area_m2": 243, "paired_axis_length_m": 26.9769085144543, "area_over_length_m": 9.0077},
+      {"inspire_id": "https://databrussels.be/id/streetsurface/22982", "type_uninterpreted": "S", "area_m2": 240, "paired_axis_length_m": 27.7335860604406, "area_over_length_m": 8.6538}
+    ],
+    "selected_nominal_m": 8.8
+  },
+  "axes": [
+    {
+      "inspire_id": "https://databrussels.be/id/streetaxe/96722",
+      "type_uninterpreted": "I",
+      "source_length_m": 8.893163368154,
+      "world_points_xz": [[94.07228826064966, -679.7570927080197], [98.96090281064971, -687.1860766580177]]
+    },
+    {
+      "inspire_id": "https://databrussels.be/id/streetaxe/96733",
+      "type_uninterpreted": "S",
+      "source_length_m": 27.7335860604406,
+      "world_points_xz": [[98.96090281064971, -687.1860766580177], [114.20618808065774, -710.3535770180134]]
+    },
+    {
+      "inspire_id": "https://databrussels.be/id/streetaxe/96712",
+      "type_uninterpreted": "S",
+      "source_length_m": 26.9769085144543,
+      "world_points_xz": [[114.20618808065774, -710.3535770180134], [129.03463705067406, -732.889563668021]]
+    }
+  ],
+  "runtime_approved": false,
+  "realism_complete": false,
+  "remaining_major_mismatches": [
+    "full source-backed Place de la Bourse surface polygons and pedestrianized Boulevard Anspach context",
+    "section-specific curb/sidewalk boundaries",
+    "tram/road markings only after source semantics are verified",
+    "street furniture, paving and material fidelity"
+  ]
+}

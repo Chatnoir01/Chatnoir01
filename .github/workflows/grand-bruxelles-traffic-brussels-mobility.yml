@@ -1,0 +1,71 @@
+name: Grand Bruxelles Brussels Mobility Traffic Calibration
+
+on:
+  push:
+    branches:
+      - "integration/traffic-brussels-mobility-calibration"
+    paths:
+      - "grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py"
+      - "grand-bruxelles-game/tools/test_build_brussels_mobility_traffic_snapshot.py"
+      - ".github/workflows/grand-bruxelles-traffic-brussels-mobility.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py"
+      - "grand-bruxelles-game/tools/test_build_brussels_mobility_traffic_snapshot.py"
+      - "grand-bruxelles-game/data/traffic/brussels_mobility_snapshot.json"
+      - ".github/workflows/grand-bruxelles-traffic-brussels-mobility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-official-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Offline normalizer regression test
+        run: |
+          python3 grand-bruxelles-game/tools/test_build_brussels_mobility_traffic_snapshot.py
+
+      - name: Fetch official Brussels Mobility traffic snapshot
+        run: |
+          python3 grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py \
+            --output grand-bruxelles-game/data/traffic/brussels_mobility_snapshot.json \
+            --min-geometry-sensors 5 \
+            --min-measured-sensors 1
+
+      - name: Validate provenance and coordinate contract
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('grand-bruxelles-game/data/traffic/brussels_mobility_snapshot.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          assert data['format'] == 'grand-bruxelles-brussels-mobility-traffic-v1'
+          assert data['source']['license'] == 'CC0-1.0'
+          assert data['source']['geometry_crs'] == 'EPSG:31370'
+          assert data['coordinate_system']['source_crs'] == 'EPSG:31370'
+          assert len(data['raw_sha256']['devices']) == 64
+          assert len(data['raw_sha256']['live']) == 64
+          assert len(data['raw_sha256']['geometry']) == 64
+          assert data['stats']['geometry_sensor_count'] >= 5
+          assert data['stats']['measured_sensor_count'] >= 1
+          assert data['sensors']
+          print('BRUSSELS_MOBILITY_TRAFFIC_PROVENANCE_OK', data['stats'])
+          PY
+
+      - name: Commit live official snapshot on calibration branch
+        if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/traffic/brussels_mobility_snapshot.json
+          if git diff --cached --quiet; then
+            echo "Official traffic snapshot already unchanged."
+          else
+            git commit -m "data(traffic): capture Brussels Mobility calibration [skip ci]"
+            git push origin HEAD:integration/traffic-brussels-mobility-calibration
+          fi

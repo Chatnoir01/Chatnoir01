@@ -44,9 +44,12 @@ jobs:
             -o /tmp/bm-traffic-geometry.json
           python3 - <<'PY'
           import json
-          for p in ['/tmp/bm-traffic-devices.json', '/tmp/bm-traffic-live.json', '/tmp/bm-traffic-geometry.json']:
+          paths = ['/tmp/bm-traffic-devices.json', '/tmp/bm-traffic-live.json', '/tmp/bm-traffic-geometry.json']
+          for p in paths:
               value = json.load(open(p, encoding='utf-8'))
-              print(p, type(value).__name__, len(value) if hasattr(value, '__len__') else 'n/a')
+              print('\n===', p, type(value).__name__, len(value) if hasattr(value, '__len__') else 'n/a', '===')
+              text = json.dumps(value, ensure_ascii=False, indent=2)
+              print(text[:6000])
           PY
 
       - name: Build official Brussels Mobility traffic snapshot

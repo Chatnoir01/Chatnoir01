@@ -21,6 +21,9 @@ func build_candidates(roads: Array[Dictionary], controls: Array) -> Array[Dictio
     var control_positions := _control_positions(controls)
     var serial := 0
     for road: Dictionary in roads:
+        var evidence := _approved_parking_evidence(road)
+        if evidence.is_empty():
+            continue
         var road_class := str(road.get("class", ""))
         if not PARKING_CLASSES.has(road_class):
             continue
@@ -59,6 +62,8 @@ func build_candidates(roads: Array[Dictionary], controls: Array) -> Array[Dictio
                     "road_name": str(road.get("name", "")),
                     "osm_id": int(road.get("osm_id", 0)),
                     "simulated_occupancy": true,
+                    "parking_evidence_source": str(evidence.get("source", "")),
+                    "parking_evidence_runtime_approved": true,
                 })
                 serial += 1
     return candidates
@@ -71,6 +76,17 @@ func candidates_near(candidates: Array[Dictionary], position: Vector3, radius_m:
         if candidate_position.distance_to(position) <= radius:
             result.append(candidate)
     return result
+
+func _approved_parking_evidence(road: Dictionary) -> Dictionary:
+    var raw_evidence: Variant = road.get("parking_evidence", null)
+    if typeof(raw_evidence) != TYPE_DICTIONARY:
+        return {}
+    var evidence: Dictionary = raw_evidence
+    if not bool(evidence.get("runtime_approved", false)):
+        return {}
+    if str(evidence.get("source", "")).strip_edges().is_empty():
+        return {}
+    return evidence
 
 func _control_positions(controls: Array) -> Array[Vector3]:
     var result: Array[Vector3] = []

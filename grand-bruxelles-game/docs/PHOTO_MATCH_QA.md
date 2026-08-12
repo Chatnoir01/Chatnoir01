@@ -60,3 +60,9 @@ The validator enforces the existing completion conditions. An intentionally inco
 ## First benchmark: Place de la Bourse
 
 The initial Bourse benchmark uses the CC0 2024 photograph `Place de la Bourse (6).jpg` by Bernard Lee. Wikimedia Commons records the original as 4032x3024, captured with an iPhone XR at 4.25 mm / 26 mm full-frame equivalent and released under CC0 1.0. The current game camera is intentionally marked provisional: it is a repeatable ground-level west-side starting pose facing the Bourse checkpoint with a 69.4 degree FOV approximation. CI must first produce a stable capture from that pose; the next realism pass then aligns the pose side-by-side with the reference, commits the accepted game screenshot, scores all dimensions and converts visible discrepancies into concrete scene/material/lighting tasks. Until that happens, `realism_complete` remains false.
+
+### Current Bourse geometry status
+
+The generic 6.3 m OSM fallback is replaced at runtime by the official UrbIS 3D geometry for building `https://databrussels.be/id/building/1751663`. The committed derived mesh contains 645 semantic LoD2 faces and 1,818 triangles, with an audited source Z range of 18.2459–58.4012 m. Its package URL, CC0-1.0 license, EPSG:31370 coordinates and package/component SHA-256 values are pinned in `data/urbis/heroes/bourse_lod2.game.json`.
+
+This closes only the missing-landmark massing blocker. `runtime_approved` and `realism_complete` remain false because the provisional camera, frontage, forecourt/street proportions, materials and neighboring streetscape have not passed side-by-side photo-match review.

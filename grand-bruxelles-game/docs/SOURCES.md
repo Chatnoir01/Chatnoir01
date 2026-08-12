@@ -16,6 +16,14 @@ La majorité des datasets produits par la Ville de Bruxelles sont annoncés sous
 
 Source officielle : https://opendata.brussels.be/
 
+## UrbIS - Constructions 3D
+
+Usage : géométrie sémantique LoD2 des bâtiments et ouvrages, en EPSG:31370. La Bourse est extraite depuis les `BuildingFaces` officielles, son enregistrement agrégé `BuildingSolids` étant un `Null Shape` valide dans la distribution SHP auditée.
+
+Licence : CC0 1.0, vérifiée le 2026-08-12 dans les métadonnées officielles de Bruxelles. La géométrie dérivée conserve l’URL exacte du paquet, la date, les identifiants UrbIS et les SHA-256 du paquet et des composants sources.
+
+Source officielle : https://datastore.brussels/web/data/dataset/e9ec2aa4-cffd-11ee-bccc-00090ffe0001
+
 ## Wikimedia Commons
 
 Usage : références photographiques, architecture, matériaux et éventuellement textures lorsque la licence du fichier autorise clairement la réutilisation prévue.

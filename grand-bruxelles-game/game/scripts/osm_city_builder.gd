@@ -5,6 +5,7 @@ extends Node3D
 @export var max_road_segments: int = 850
 @export var build_collisions: bool = true
 @export var midi_detail_radius_m: float = 300.0
+@export_file("*.json") var hero_manifest_path: String = "res://data/urbis/heroes/manifest.json"
 
 const MIDI_ANCHOR := Vector2(-668.5, 627.84)
 const MAJOR_ROADS := ["primary", "secondary", "tertiary"]
@@ -89,7 +90,9 @@ func _build_from_file() -> void:
     add_child(details_root)
 
     var road_segments: int = _build_roads(city_data.get("roads", []), roads_root)
-    var building_count: int = _build_buildings(city_data.get("buildings", []), buildings_root)
+    var building_count: int = _build_buildings(
+        city_data.get("buildings", []), buildings_root, _validated_hero_replacements()
+    )
     var rail_segments: int = _build_rails(city_data.get("railways", []), rails_root)
     _flush_facade_details(details_root)
 
@@ -221,11 +224,42 @@ func _building_material_for(building: Dictionary) -> StandardMaterial3D:
     return _building_materials[osm_id % _building_materials.size()]
 
 
-func _build_buildings(buildings: Array, root: Node3D) -> int:
+func _validated_hero_replacements() -> Dictionary:
+    var replacements := {}
+    if not FileAccess.file_exists(hero_manifest_path):
+        return replacements
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(hero_manifest_path))
+    if typeof(parsed) != TYPE_DICTIONARY:
+        push_error("Invalid UrbIS hero manifest: %s" % hero_manifest_path)
+        return replacements
+    var manifest: Dictionary = parsed
+    if str(manifest.get("schema", "")) != "grand-bruxelles-urbis-hero-manifest-v1":
+        push_error("Unsupported UrbIS hero manifest schema: %s" % hero_manifest_path)
+        return replacements
+    for raw_entry: Variant in manifest.get("heroes", []):
+        if typeof(raw_entry) != TYPE_DICTIONARY:
+            continue
+        var entry: Dictionary = raw_entry
+        var geometry_path := str(entry.get("geometry_path", ""))
+        if geometry_path.is_empty() or not FileAccess.file_exists(geometry_path):
+            push_error("UrbIS hero replacement geometry missing: %s" % geometry_path)
+            continue
+        var geometry: Variant = JSON.parse_string(FileAccess.get_file_as_string(geometry_path))
+        if typeof(geometry) != TYPE_DICTIONARY or str(geometry.get("schema", "")) != "grand-bruxelles-urbis-hero-mesh-v1":
+            push_error("Invalid UrbIS hero replacement geometry: %s" % geometry_path)
+            continue
+        for raw_osm_id: Variant in entry.get("replaces_osm_ids", []):
+            replacements[int(raw_osm_id)] = true
+    return replacements
+
+
+func _build_buildings(buildings: Array, root: Node3D, replacement_ids: Dictionary = {}) -> int:
     var count: int = 0
     for building: Dictionary in buildings:
         if count >= max_buildings:
             break
+        if replacement_ids.has(int(building.get("osm_id", 0))):
+            continue
         var footprint: Array = building.get("footprint", [])
         if footprint.size() < 3:
             continue

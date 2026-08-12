@@ -51,7 +51,13 @@
       "mismatches": [
         {
           "severity": "blocker",
-          "action": "Rendered evidence from the deterministic current-main capture does not show a recognizable Palais de la Bourse silhouette: audit the Centre UrbIS footprint/height coverage and add only source-backed landmark massing/roofline detail before scoring silhouette, placement or landmark alignment."
+          "action": "Rendered evidence from the deterministic current-main capture did not show a recognizable Palais de la Bourse silhouette: audit the Centre UrbIS footprint/height coverage and add only source-backed landmark massing/roofline detail before scoring silhouette, placement or landmark alignment.",
+          "resolved": true,
+          "resolution_evidence": "The audited UrbIS 3D tile now supplies 645 semantic LoD2 faces (413 walls, 231 roofs, one ground), 1,818 deterministic runtime triangles and a 40.1553 m source-backed vertical extent for building 1751663. The fixed deterministic capture shows the central dome and stepped roof mass where current main showed only the 6.3 m OSM fallback; the dedicated Godot geometry test keeps runtime_approved=false."
+        },
+        {
+          "severity": "major",
+          "action": "The authoritative LoD2 massing is now visible, but facade articulation, columns, openings and materials remain generic; derive an original optimized frontage kit from lawful references without altering the source-backed silhouette."
         },
         {
           "severity": "blocker",

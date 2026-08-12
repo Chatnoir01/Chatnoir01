@@ -9,7 +9,7 @@
       "osm_id": 13494623,
       "osm_type": "way",
       "anchor_id": "bourse",
-      "role": "hero_landmark_fallback",
+      "role": "hero_landmark_authoritative_lod2",
       "name": "Bourse - Beurs",
       "source_url": "https://www.openstreetmap.org/way/13494623",
       "source_license": "ODbL-1.0",
@@ -20,8 +20,8 @@
       "cross_check_accessed_at": "2026-08-12",
       "runtime_approval": {
         "footprint": true,
-        "height": false,
-        "roof": false,
+        "height": true,
+        "roof": true,
         "frontage": false
       },
       "evidence": {
@@ -33,11 +33,30 @@
           "area_m2": 3368,
           "accessed_at": "2026-08-12"
         },
-        "height": null,
-        "roof": null,
+        "height": {
+          "source": "official_urbis_3d_building_faces",
+          "dataset_id": "e9ec2aa4-cffd-11ee-bccc-00090ffe0001",
+          "building_solid_id": "https://databrussels.be/id/buildingsolid/617669",
+          "crs": "EPSG:31370",
+          "source_ground_z_m": 18.2459,
+          "source_apex_z_m": 58.4012,
+          "vertical_extent_m": 40.1553,
+          "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+          "accessed_at": "2026-08-12"
+        },
+        "roof": {
+          "source": "official_urbis_3d_building_faces",
+          "dataset_id": "e9ec2aa4-cffd-11ee-bccc-00090ffe0001",
+          "building_solid_id": "https://databrussels.be/id/buildingsolid/617669",
+          "crs": "EPSG:31370",
+          "semantic_face_type": "ROOFSURFACE",
+          "roof_face_count": 231,
+          "building_faces_shp_sha256": "5371b8dfc65bb0565677ccbbeb0936444d827daba81a7e508de3d5f530536997",
+          "accessed_at": "2026-08-12"
+        },
         "frontage": null
       },
-      "status": "OSM fallback footprint cross-checked against official UrbIS plan geometry; height, roof and frontage are not runtime-approved"
+      "status": "Official UrbIS footprint plus audited LoD2 height/roof geometry are runtime-approved; frontage remains provisional and global realism_complete remains false"
     }
   ],
   "points": [

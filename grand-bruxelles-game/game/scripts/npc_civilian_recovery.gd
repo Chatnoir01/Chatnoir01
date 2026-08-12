@@ -7,14 +7,17 @@ var _severity: float = 0.0
 var _settle_seconds: float = 1.0
 var _recovery_seconds: float = 4.0
 var _active: bool = false
+var _routine_snapshot: Dictionary = {}
 
 func configure(seed_value: int) -> void:
 	_seed = seed_value if seed_value != 0 else 1
 	_active = false
+	_routine_snapshot.clear()
 
-func begin_recovery(normalized_severity: float, started_at_seconds: float, context: String = "street") -> Dictionary:
+func begin_recovery(normalized_severity: float, started_at_seconds: float, context: String = "street", routine_snapshot: Dictionary = {}) -> Dictionary:
 	_severity = clampf(normalized_severity, 0.0, 1.0)
 	_started_at = started_at_seconds
+	_routine_snapshot = routine_snapshot.duplicate(true)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _mixed_seed(context)
 
@@ -37,6 +40,7 @@ func plan() -> Dictionary:
 		"settle_seconds": _settle_seconds,
 		"recovery_seconds": _recovery_seconds,
 		"severity": _severity,
+		"routine_snapshot_captured": not _routine_snapshot.is_empty(),
 	}
 
 func sample(now_seconds: float, threat_active: bool) -> Dictionary:
@@ -74,12 +78,15 @@ func sample(now_seconds: float, threat_active: bool) -> Dictionary:
 	var finished := progress >= 1.0
 	if finished:
 		_active = false
-	return {
+	var result := {
 		"alertness": alertness,
 		"movement_scale": movement_scale,
 		"resume_routine": finished,
 		"progress": progress,
 	}
+	if finished and not _routine_snapshot.is_empty():
+		result["routine_snapshot"] = _routine_snapshot.duplicate(true)
+	return result
 
 func is_active() -> bool:
 	return _active

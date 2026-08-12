@@ -33,12 +33,12 @@ jobs:
         working-directory: grand-bruxelles-game
         run: python3 -m unittest -v tests.test_verify_urbis_height_archives
 
-      - name: Install GeoTIFF validator
+      - name: Install raster validator
         run: |
           python3 -m pip install --disable-pip-version-check "rasterio>=1.3,<2"
           python3 -c "import rasterio; print('RASTERIO_VERSION', rasterio.__version__)"
 
-      - name: Download, hash and validate official DSM-DTM GeoTIFFs
+      - name: Download, hash and validate official DSM-DTM rasters
         working-directory: grand-bruxelles-game
         run: |
           rm -rf /tmp/ixelles-height-work
@@ -57,13 +57,14 @@ jobs:
               p=json.load(open(f'/tmp/ixelles_{kind}_archive_validation.json',encoding='utf-8'))
               assert p['source_crs']=='EPSG:31370'
               assert p['expected_1km_tile_codes']==['149168','149169']
-              assert p['status']=='official_archives_hashed_and_geotiffs_validated'
+              assert p['status']=='official_archives_hashed_and_rasters_validated'
               assert len(p['archives'])==2
               for item in p['archives']:
                   assert len(item['sha256'])==64
                   assert item['archive_bytes']>0
-                  g=item['geotiff']
+                  g=item['raster']
                   assert g['crs_epsg']==31370
+                  assert g['crs_basis'] in ('embedded_raster','authoritative_source_manifest')
                   assert g['width']>0 and g['height']>0 and g['count']>0
                   assert g['resolution'][0]>0 and g['resolution'][1]>0
               print('IXELLES_HEIGHT_ARCHIVE_GATE_VALID',kind)
@@ -78,7 +79,7 @@ jobs:
             /tmp/ixelles_dtm_archive_validation.json
           if-no-files-found: error
 
-      - name: Publish hashes and GeoTIFF metadata
+      - name: Publish hashes and raster metadata
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -1,0 +1,76 @@
+name: Grand Bruxelles Laeken Atomium Foreground Audit
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/audit_atomium_ground_foreground.py"
+      - "grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json"
+      - "grand-bruxelles-game/data/reference/laeken_jette/photo_match_views.json"
+      - ".github/workflows/grand-bruxelles-laeken-atomium-foreground-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-atomium-foreground-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Audit source-grounded foreground tree coverage
+        run: |
+          cd grand-bruxelles-game
+          python3 tools/audit_atomium_ground_foreground.py \
+            --output /tmp/atomium_ground_foreground_inventory.json
+          python3 - <<'PY'
+          import json
+          p='/tmp/atomium_ground_foreground_inventory.json'
+          doc=json.load(open(p, encoding='utf-8'))
+          assert doc['view_id']=='atomium_ground_oblique_v1'
+          assert doc['known_tree_count'] >= 0
+          assert sum(doc['distance_bands'].values()) == doc['known_tree_count']
+          assert any('incomplete' in item for item in doc['limitations'])
+          print('ATOMIUM_FOREGROUND_AUDIT_OK', {
+              'known_tree_count': doc['known_tree_count'],
+              'bands': doc['distance_bands'],
+              'top_species': doc['top_species'][:5],
+          })
+          PY
+
+      - name: Preserve generated evidence
+        run: |
+          mkdir -p /tmp/atomium-foreground
+          cp /tmp/atomium_ground_foreground_inventory.json /tmp/atomium-foreground/
+
+      - name: Upload foreground audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-ground-foreground-source-audit
+          path: /tmp/atomium-foreground/atomium_ground_foreground_inventory.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish deterministic foreground evidence
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/reference/laeken_jette
+          cp /tmp/atomium-foreground/atomium_ground_foreground_inventory.json \
+            grand-bruxelles-game/data/reference/laeken_jette/atomium_ground_foreground_inventory.json
+          git add grand-bruxelles-game/data/reference/laeken_jette/atomium_ground_foreground_inventory.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: record Atomium foreground source coverage [skip ci]"
+          git push origin HEAD:zone-laeken-jette

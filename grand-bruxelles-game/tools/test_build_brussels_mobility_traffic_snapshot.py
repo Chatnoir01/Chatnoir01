@@ -64,11 +64,12 @@ def main() -> int:
     devices = {
         "requestDate": "2026/08/12 09:10:00",
         "type": "FeatureCollection",
-        "totalFeatures": 3,
+        "totalFeatures": 4,
         "features": [
             _device("MAD_103", "Synthetic fresh API counter", 260, 2),
             _device("MAD_203", "Synthetic WFS fallback counter", 80, 1),
             _device("STE_TD3", "Synthetic stale counter", 100, 2),
+            _device("OFF_001", "Synthetic fresh but inactive counter", 140, 2),
         ],
     }
     live = {
@@ -85,7 +86,6 @@ def main() -> int:
                     }
                 }
             },
-            # API has no valid count, so the builder must fall back to WFS 1m A.
             "MAD_203": {
                 "results": {
                     "1m": {
@@ -105,6 +105,17 @@ def main() -> int:
                         "occupancy": 24.0,
                         "start_time": "2025-10-16T12:55:00Z",
                         "end_time": "2025-10-16T12:56:00Z",
+                    }
+                }
+            },
+            "OFF_001": {
+                "results": {
+                    "1m": {
+                        "count": 90,
+                        "speed": 28.0,
+                        "occupancy": 70.0,
+                        "start_time": "2026-08-12T07:08:00Z",
+                        "end_time": "2026-08-12T07:09:00Z",
                     }
                 }
             },
@@ -143,6 +154,16 @@ def main() -> int:
                 start="2025-10-16T12:55:00Z",
                 end="2025-10-16T12:56:00Z",
             ),
+            _geometry(
+                "OFF_001",
+                module.ORIGIN_E + 20.0,
+                module.ORIGIN_N - 10.0,
+                active=0,
+                count=90,
+                occupancy=70.0,
+                start="2026-08-12T07:08:00Z",
+                end="2026-08-12T07:09:00Z",
+            ),
         ],
     }
 
@@ -152,8 +173,8 @@ def main() -> int:
     assert snapshot["source"]["license"] == "CC0-1.0"
     assert snapshot["source"]["geometry_crs"] == "EPSG:31370"
     assert snapshot["source"]["measurement_interval"] == "1m"
-    assert snapshot["stats"]["geometry_sensor_count"] == 3
-    assert snapshot["stats"]["measured_sensor_count"] == 3
+    assert snapshot["stats"]["geometry_sensor_count"] == 4
+    assert snapshot["stats"]["measured_sensor_count"] == 4
     assert snapshot["stats"]["fresh_measured_sensor_count"] == 2
     assert snapshot["stats"]["fresh_rate_median_vehicles_per_minute"] == 36.5
     assert len(snapshot["raw_sha256"]["live"]) == 64
@@ -175,7 +196,7 @@ def main() -> int:
 
     second = snapshot["sensors"][1]
     assert second["game"] == [-25.0, -75.0]
-    assert second["number_of_lanes"] == 1  # devices API takes precedence over WFS num_lanes.
+    assert second["number_of_lanes"] == 1
     assert second["measurement"]["count"] == 37.0
     assert second["measurement"]["source"] == "wfs_live_geom"
     assert second["measurement"]["fresh"] is True
@@ -185,6 +206,11 @@ def main() -> int:
     assert stale["measurement"]["fresh"] is False
     assert stale["measurement"]["age_minutes_at_capture"] > module.FRESH_MAX_AGE_MINUTES
     assert "speed" not in stale["measurement"]
+
+    inactive_fresh = snapshot["sensors"][3]
+    assert inactive_fresh["active"] is False
+    assert inactive_fresh["measurement"]["fresh"] is True
+    assert inactive_fresh["measurement"]["vehicles_per_minute"] == 90.0
 
     print("BRUSSELS_MOBILITY_TRAFFIC_SNAPSHOT_TEST_OK")
     return 0

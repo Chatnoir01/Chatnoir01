@@ -76,8 +76,8 @@ shadow_enabled = true
 [node name="LaekenJetteZone" parent="." instance=ExtResource("1_zone")]
 
 [node name="Player" type="CharacterBody3D" parent="."]
-position = Vector3(225, 1.05, -6455)
-rotation_degrees = Vector3(0, 0, 0)
+position = Vector3(60.1172, 1.05, -6808.7279)
+rotation_degrees = Vector3(0, -147.1848, 0)
 script = ExtResource("2_player")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
@@ -101,8 +101,8 @@ fov = 65.0
 far = 15000.0
 
 [node name="PrototypeCar" type="CharacterBody3D" parent="." groups=["vehicle"]]
-position = Vector3(217, 0.58, -6450)
-rotation_degrees = Vector3(0, 20, 0)
+position = Vector3(52.5, 0.58, -6802.5)
+rotation_degrees = Vector3(0, -147.1848, 0)
 script = ExtResource("3_vehicle")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PrototypeCar"]
@@ -141,7 +141,7 @@ offset_right = 520.0
 offset_bottom = 46.0
 theme_override_colors/font_color = Color(0.94, 0.94, 0.91, 0.90)
 theme_override_font_sizes/font_size = 16
-text = "LAEKEN · HEYSEL · PLAYTEST"
+text = "LAEKEN · ATOMIUM · PLAYTEST"
 
 [node name="Help" type="Label" parent="."]
 offset_left = 18.0

@@ -1,0 +1,41 @@
+name: Grand Bruxelles Bourse Front Roofline Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-front-roofline.yml"
+      - "grand-bruxelles-game/data/urbis/heroes/bourse_lod2.game.json"
+      - "grand-bruxelles-game/data/qa/bourse_portico_articulation_candidate.json"
+      - "grand-bruxelles-game/tools/analyze_bourse_front_roofline.py"
+      - "grand-bruxelles-game/tests/test_bourse_front_roofline.py"
+  push:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-front-roofline.yml"
+      - "grand-bruxelles-game/tools/analyze_bourse_front_roofline.py"
+      - "grand-bruxelles-game/tests/test_bourse_front_roofline.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure source-backed Bourse front roofline
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/analyze_bourse_front_roofline.py \
+            --hero data/urbis/heroes/bourse_lod2.game.json \
+            --candidate data/qa/bourse_portico_articulation_candidate.json \
+            --output /tmp/bourse-front-roofline-evidence.json
+      - name: Gate roofline measurement and non-approval
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_bourse_front_roofline
+      - name: Upload measured roofline evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-front-roofline-evidence
+          path: /tmp/bourse-front-roofline-evidence.json
+          if-no-files-found: error

@@ -4,6 +4,9 @@ extends Node3D
 ## The base OfficialTrees pass provides cheap source-grounded crowns. For
 ## broadleaf trees this pass replaces the single primary sphere with three
 ## deterministic asymmetric lobes, while source X/Z and DTM grounding stay exact.
+## When the Atomium benchmark promotes known official trees to a denser primary
+## mesh, that primary hero sphere is hidden too: the replacement lobes already
+## represent the same source tree and must not create a second artificial crown.
 
 const DATA_PATH := "res://data/environment/laeken_jette/official_city_trees.game.json"
 const CONIFER_TOKENS := [
@@ -14,6 +17,7 @@ const COLUMNAR_TOKENS := ["fastigiata", "columnaris", "populus nigra", "cupressu
 
 var refinement_ready: bool = false
 var primary_broadleaf_replaced: bool = false
+var hero_primary_broadleaf_replaced: bool = false
 var broadleaf_lobe_instances: int = 0
 var conifer_tier_instances: int = 0
 var columnar_lobe_instances: int = 0
@@ -128,8 +132,6 @@ func _append_broadleaf_lobes(target: Array[Transform3D], origin: Vector3, yaw: f
     var side_offset := radius * 0.52
     var front_offset := radius * asymmetry
 
-    # Central lobe is deliberately smaller and vertically offset so the crown
-    # does not reconstruct the single-sphere silhouette we are replacing.
     target.append(_transform(
         origin + perpendicular * front_offset + Vector3(0.0, height * 0.11, 0.0),
         yaw + 0.11,
@@ -217,18 +219,24 @@ func _build_refinement() -> void:
     _make_multimesh(_cone_mesh(_conifer_material), conifer, "ConiferLowerTiers")
     _make_multimesh(_sphere_mesh(_columnar_material, 6), columnar, "ColumnarUpperLobes")
 
-    # Remove only the old broadleaf crown geometry; trunks, conifers, columnar
-    # crowns, source positions and species classification remain untouched.
+    # Broadleaf replacement lobes are generated for every official broadleaf
+    # source record, including the 17 Atomium benchmark trees. Hide both primary
+    # broadleaf buckets so those trees are represented exactly once by this pass.
     var primary_broadleaf := get_parent().get_node_or_null("OfficialTrees/OfficialBroadleafCrowns") as MultiMeshInstance3D
     if primary_broadleaf != null:
         primary_broadleaf.visible = false
         primary_broadleaf_replaced = true
+    var hero_primary_broadleaf := get_parent().get_node_or_null("OfficialTrees/AtomiumHeroBroadleafCrowns") as MultiMeshInstance3D
+    if hero_primary_broadleaf != null:
+        hero_primary_broadleaf.visible = false
+        hero_primary_broadleaf_replaced = true
 
     refinement_ready = refined_tree_count > 0 and primary_broadleaf_replaced
-    print("LAEKEN_TREE_CANOPY_REFINED: trees=%d broadleaf_lobes=%d conifer_tiers=%d columnar_lobes=%d primary_broadleaf_replaced=%s" % [
+    print("LAEKEN_TREE_CANOPY_REFINED: trees=%d broadleaf_lobes=%d conifer_tiers=%d columnar_lobes=%d primary_broadleaf_replaced=%s hero_primary_broadleaf_replaced=%s" % [
         refined_tree_count,
         broadleaf_lobe_instances,
         conifer_tier_instances,
         columnar_lobe_instances,
         primary_broadleaf_replaced,
+        hero_primary_broadleaf_replaced,
     ])

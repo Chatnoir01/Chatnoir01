@@ -2,21 +2,31 @@ name: Grand Bruxelles Traffic NPC Crossing Bridge
 
 on:
   push:
-    branches: ["integration/traffic-npc-crossing-bridge"]
+    branches:
+      - "integration/traffic-npc-crossing-bridge"
+      - "integration/npc-crossing-runtime-orchestration"
     paths:
       - "grand-bruxelles-game/game/scripts/traffic_crossing_system.gd"
       - "grand-bruxelles-game/game/scripts/traffic_npc_crossing_bridge.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_manager_npc_crossing_extension.gd"
       - "grand-bruxelles-game/game/scripts/npc_agent.gd"
+      - "grand-bruxelles-game/game/scripts/npc_population_director.gd"
       - "grand-bruxelles-game/game/tests/traffic_npc_crossing_bridge_test.gd"
+      - "grand-bruxelles-game/game/tests/npc_crossing_runtime_orchestration_test.gd"
       - "grand-bruxelles-game/game/tests/fixtures/fake_npc_crossing_agent.gd"
+      - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-traffic-npc-crossing.yml"
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/traffic_crossing_system.gd"
       - "grand-bruxelles-game/game/scripts/traffic_npc_crossing_bridge.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_manager_npc_crossing_extension.gd"
       - "grand-bruxelles-game/game/scripts/npc_agent.gd"
+      - "grand-bruxelles-game/game/scripts/npc_population_director.gd"
       - "grand-bruxelles-game/game/tests/traffic_npc_crossing_bridge_test.gd"
+      - "grand-bruxelles-game/game/tests/npc_crossing_runtime_orchestration_test.gd"
       - "grand-bruxelles-game/game/tests/fixtures/fake_npc_crossing_agent.gd"
+      - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-traffic-npc-crossing.yml"
   workflow_dispatch:
 
@@ -47,3 +57,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_npc_crossing_bridge_test.gd 2>&1 | tee /tmp/traffic-npc-crossing.log
           if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_NPC_CROSSING_BRIDGE_FAIL" /tmp/traffic-npc-crossing.log; then exit 1; fi
           grep -q "TRAFFIC_NPC_CROSSING_BRIDGE_OK" /tmp/traffic-npc-crossing.log
+      - name: Real NPC crossing runtime orchestration
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_crossing_runtime_orchestration_test.gd 2>&1 | tee /tmp/npc-crossing-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_CROSSING_RUNTIME_FAIL" /tmp/npc-crossing-runtime.log; then exit 1; fi
+          grep -q "NPC_CROSSING_RUNTIME_OK" /tmp/npc-crossing-runtime.log

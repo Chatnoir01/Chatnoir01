@@ -1,0 +1,60 @@
+name: Grand Bruxelles Web Export
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "grand-bruxelles-game/game/**"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-web-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-web-export
+  cancel-in-progress: true
+
+jobs:
+  export-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Godot 4.7.1 with export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+          include-templates: true
+
+      - name: Verify project imports
+        run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
+
+      - name: Export playable Web build
+        run: |
+          rm -rf grand-bruxelles-game/web-preview
+          mkdir -p grand-bruxelles-game/web-preview
+          godot --headless --path grand-bruxelles-game --export-release Web web-preview/index.html
+          test -s grand-bruxelles-game/web-preview/index.html
+          test -s grand-bruxelles-game/web-preview/index.wasm
+          test -s grand-bruxelles-game/web-preview/index.pck
+
+      - name: Add no-Jekyll marker
+        run: touch grand-bruxelles-game/web-preview/.nojekyll
+
+      - name: Commit refreshed playable build
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f grand-bruxelles-game/web-preview
+          if git diff --cached --quiet; then
+            echo "Web build already up to date"
+            exit 0
+          fi
+          git commit -m "Refresh Grand Bruxelles playable web build"
+          git push

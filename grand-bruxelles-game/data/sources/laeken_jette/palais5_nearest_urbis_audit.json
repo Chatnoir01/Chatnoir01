@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "semantic_locator": {
+    "source": "OpenStreetMap",
+    "osm_way_id": 143816182,
+    "latitude": 50.89969,
+    "longitude": 4.33721,
+    "local_x": -87.23317646887153,
+    "local_z": -7056.078922991641
+  },
+  "geometry_source": "Paradigm UrbIS Buildings WFS",
+  "candidate_count": 1,
+  "nearest_candidates": [
+    {
+      "feature_index": 278,
+      "inspire_id": "https://databrussels.be/id/building/1635598",
+      "block_id": "https://databrussels.be/id/block/23739",
+      "area_m2": 148416.0,
+      "raw_height_m": 15.877,
+      "height_quality": "medium",
+      "effective_height_m": 15.877,
+      "centroid_x": -8.386,
+      "centroid_z": -7044.215,
+      "min_x": -407.188,
+      "max_x": 230.766,
+      "min_z": -7305.272,
+      "max_z": -6822.634,
+      "bbox_distance_to_locator_m": 0.0,
+      "centroid_distance_to_locator_m": 79.734,
+      "pca_angle_deg": -29.001,
+      "major_span_m": 653.043,
+      "minor_span_m": 461.62
+    }
+  ],
+  "strong_candidate_count": 1,
+  "selected_if_unambiguous": {
+    "feature_index": 278,
+    "inspire_id": "https://databrussels.be/id/building/1635598",
+    "block_id": "https://databrussels.be/id/block/23739",
+    "area_m2": 148416.0,
+    "raw_height_m": 15.877,
+    "height_quality": "medium",
+    "effective_height_m": 15.877,
+    "centroid_x": -8.386,
+    "centroid_z": -7044.215,
+    "min_x": -407.188,
+    "max_x": 230.766,
+    "min_z": -7305.272,
+    "max_z": -6822.634,
+    "bbox_distance_to_locator_m": 0.0,
+    "centroid_distance_to_locator_m": 79.734,
+    "pca_angle_deg": -29.001,
+    "major_span_m": 653.043,
+    "minor_span_m": 461.62
+  },
+  "policy": "OSM supplies identity/location only. A hero model may use an UrbIS footprint only when this audit yields one unambiguous major-hall candidate; otherwise keep investigating rather than guessing."
+}

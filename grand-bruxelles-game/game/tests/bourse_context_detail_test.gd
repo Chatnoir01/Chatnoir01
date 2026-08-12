@@ -1,6 +1,7 @@
 extends SceneTree
 
-const BOURSE_ANCHOR := Vector2(81.54, -664.58)
+const BOURSE_ROUTE_ANCHOR := Vector2(81.54, -664.58)
+const BOURSE_URBIS_CENTER := Vector2(172.5915, -672.2825)
 const DETAIL_RADIUS_M := 180.0
 
 
@@ -13,8 +14,8 @@ func _fail(message: String) -> void:
     quit(1)
 
 
-func _near_bourse(position: Vector3) -> bool:
-    return Vector2(position.x, position.z).distance_to(BOURSE_ANCHOR) <= DETAIL_RADIUS_M
+func _near(position: Vector3, anchor: Vector2) -> bool:
+    return Vector2(position.x, position.z).distance_to(anchor) <= DETAIL_RADIUS_M
 
 
 func _run() -> void:
@@ -35,23 +36,37 @@ func _run() -> void:
     for child in roads.get_children():
         if child is CSGBox3D:
             var box := child as CSGBox3D
-            if absf(box.size.y - 0.12) < 0.001 and _near_bourse(box.position):
+            if absf(box.size.y - 0.12) < 0.001 and _near(box.position, BOURSE_ROUTE_ANCHOR):
                 bourse_sidewalks += 1
     if bourse_sidewalks < 2:
         _fail("expected source-aligned Bourse road context to generate sidewalks; got %d" % bourse_sidewalks)
         return
 
-    var windows_node := scene.get_node_or_null("BrusselsOSM/GeneratedFacadeDetails/CorridorFacadeWindows") as MultiMeshInstance3D
-    var bourse_windows := 0
-    if windows_node != null and windows_node.multimesh != null:
-        for index in range(windows_node.multimesh.instance_count):
-            var transform := windows_node.multimesh.get_instance_transform(index)
-            if _near_bourse(transform.origin):
-                bourse_windows += 1
+    var city_builder := scene.get_node_or_null("BrusselsOSM")
+    if city_builder == null:
+        _fail("OSM city builder is missing")
+        return
+    if not city_builder.has_method("facade_window_count_near") or not city_builder.has_method("facade_window_bounds"):
+        _fail("logical facade placement diagnostics are missing")
+        return
+
+    var bourse_urbis_windows := int(city_builder.facade_window_count_near(BOURSE_URBIS_CENTER, DETAIL_RADIUS_M))
+    var bounds: Rect2 = city_builder.facade_window_bounds()
+    print(
+        "BOURSE_CONTEXT_DIAGNOSTIC: logical_bounds=[%.2f,%.2f]-[%.2f,%.2f] urbis_hits=%d" %
+        [bounds.position.x, bounds.position.y, bounds.end.x, bounds.end.y, bourse_urbis_windows]
+    )
+
+    if bourse_urbis_windows < 1:
+        _fail(
+            "source-backed facade generation contains no logical window placements around the authoritative UrbIS Bourse center; " +
+            "do not treat streetscape detail as visually populated"
+        )
+        return
 
     print(
-        "BOURSE_CONTEXT_DETAIL_OK: %d sidewalks, %d existing facade windows inside %.0f m; frontage-density blocker remains open" %
-        [bourse_sidewalks, bourse_windows, DETAIL_RADIUS_M]
+        "BOURSE_CONTEXT_DETAIL_OK: %d sidewalks, %d logical facade windows inside %.0f m of UrbIS Bourse center; quantitative frontage-density blocker remains open" %
+        [bourse_sidewalks, bourse_urbis_windows, DETAIL_RADIUS_M]
     )
     scene.queue_free()
     quit(0)

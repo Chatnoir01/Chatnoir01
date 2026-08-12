@@ -1,0 +1,124 @@
+name: Grand Bruxelles Ixelles Semantic Building Match
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/match_ixelles_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/test_match_ixelles_urbis3d_semantic_heights.py"
+      - ".github/workflows/grand-bruxelles-ixelles-semantic-building-match.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-building-match:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install read-only GeoPackage tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal unzip
+          ogrinfo --version
+      - name: Run deterministic synthetic regression
+        run: python3 grand-bruxelles-game/tools/test_match_ixelles_urbis3d_semantic_heights.py
+      - name: Select latest official Ixelles EPSG 31370 GPKG
+        run: |
+          python3 - <<'PY'
+          import importlib.util,json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/tools/discover_urbis_sources.py')
+          spec=importlib.util.spec_from_file_location('discover',p); assert spec and spec.loader
+          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          source_id='urbis_3d_constructions'
+          feed=m.parse_feed(source_id,m.DEFAULT_FEEDS[source_id])
+          Path('/tmp/discovered.json').write_text(json.dumps({'schema':1,'feeds':[feed]},indent=2)+'\n')
+          PY
+          python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
+            /tmp/discovered.json /tmp/selected.json \
+            --source-id urbis_3d_constructions \
+            --token 31370 --token GPKG \
+            --candidate-token 31370 --candidate-token GPKG --candidate-token 21009 \
+            --prefer-latest
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/selected.json')); s=p['selected']; u=s['href'].casefold()
+          assert s.get('title','').casefold()=='ixelles'
+          assert '31370' in u and 'gpkg' in u and '21009' in u
+          assert p['selected_embedded_date'] >= '20260808'
+          print('IXELLES_OFFICIAL_SELECTION',p['selected_embedded_date'],s['href'])
+          PY
+      - name: Download and verify official package
+        run: |
+          set -euo pipefail
+          URL="$(python3 - <<'PY'
+          import json
+          print(json.load(open('/tmp/selected.json'))['selected']['href'])
+          PY
+          )"
+          curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
+            --user-agent 'GrandBruxellesGame/ixelles-semantic-match (+github.com/Chatnoir01/Chatnoir01)' \
+            "$URL" -o /tmp/urbis-3d-distribution
+          DIST_SHA="$(sha256sum /tmp/urbis-3d-distribution | awk '{print $1}')"
+          test "$DIST_SHA" = "090f4a6aada5c7c19609860d7ee3956ce0f06379c991533975bcf1ddb848dfaa"
+          printf '%s  %s\n' "$DIST_SHA" /tmp/urbis-3d-distribution | tee /tmp/distribution.sha256
+          python3 - <<'PY'
+          import shutil,zipfile
+          from pathlib import Path
+          source=Path('/tmp/urbis-3d-distribution'); root=Path('/tmp/extracted'); root.mkdir(parents=True,exist_ok=True)
+          def extract(a,d):
+              d.mkdir(parents=True,exist_ok=True); base=d.resolve()
+              with zipfile.ZipFile(a) as z:
+                  for member in z.infolist():
+                      target=(d/member.filename).resolve()
+                      if base not in target.parents and target != base: raise SystemExit('unsafe ZIP path')
+                  z.extractall(d)
+          if zipfile.is_zipfile(source): extract(source,root/'level0')
+          elif source.read_bytes()[:16].startswith(b'SQLite format 3'): shutil.copy2(source,root/'selected.gpkg')
+          else: raise SystemExit('unsupported official distribution container')
+          for depth in range(1,4):
+              archives=list(root.rglob('*.zip'))
+              for i,p in enumerate(archives):
+                  dest=p.parent/f'{p.stem}-nested-{depth}-{i}'
+                  if not dest.exists(): extract(p,dest)
+          packages=list(root.rglob('*.gpkg')); assert packages
+          print('\n'.join(str(p) for p in packages))
+          PY
+          GPKG="$(find /tmp/extracted -type f -name '*.gpkg' -print -quit)"
+          test -n "$GPKG"
+          GPKG_SHA="$(sha256sum "$GPKG" | awk '{print $1}')"
+          test "$GPKG_SHA" = "2aa3057da9d0cfd656baf684fe53d343629b1539a648fbb69fff983327993c78"
+          printf '%s  %s\n' "$GPKG_SHA" "$GPKG" | tee /tmp/gpkg.sha256
+      - name: Build real seed-cell semantic match evidence
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/ixelles-semantic-building-match
+          python3 grand-bruxelles-game/tools/match_ixelles_urbis3d_semantic_heights.py \
+            --root /tmp/extracted \
+            --buildings grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/raw/buildings.geojson \
+            --bbox 149000 169000 149500 169500 \
+            --output grand-bruxelles-game/artifacts/ixelles-semantic-building-match/evidence.json
+          cp /tmp/selected.json grand-bruxelles-game/artifacts/ixelles-semantic-building-match/selected.json
+          cp /tmp/distribution.sha256 grand-bruxelles-game/artifacts/ixelles-semantic-building-match/distribution.sha256
+          cp /tmp/gpkg.sha256 grand-bruxelles-game/artifacts/ixelles-semantic-building-match/gpkg.sha256
+          python3 - <<'PY'
+          import json
+          p=json.load(open('grand-bruxelles-game/artifacts/ixelles-semantic-building-match/evidence.json'))
+          assert p['cell']=='bxl-e149000-n169000-s500'
+          assert p['bbox_epsg31370']==[149000.0,169000.0,149500.0,169500.0]
+          assert p['counts']['urbis_2d_buildings']==788
+          assert p['counts']['building_solids_in_bbox']>0
+          assert p['counts'].get('matched_semantic_evidence',0)>0
+          assert p['policy']['dsm_dtm_comparison_performed'] is False
+          assert p['policy']['runtime_approval'] is False
+          assert all(m['runtime_approved'] is False for m in p['matches'])
+          print('IXELLES_REAL_MATCH_COUNTS',json.dumps(p['counts'],sort_keys=True))
+          print('IXELLES_REAL_HEIGHT_SUMMARY',json.dumps(p['semantic_height_summary_m'],sort_keys=True))
+          PY
+      - name: Upload compact evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-ixelles-semantic-building-match-evidence
+          path: grand-bruxelles-game/artifacts/ixelles-semantic-building-match/
+          if-no-files-found: error

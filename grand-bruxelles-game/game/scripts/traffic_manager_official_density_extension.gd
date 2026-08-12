@@ -3,12 +3,13 @@ class_name TrafficManagerOfficialDensityExtension
 
 @export var official_density_enabled: bool = true
 @export_file("*.json") var official_density_snapshot_path: String = "res://data/traffic/brussels_mobility_snapshot.json"
-@export var official_density_radius_m: float = 1800.0
+@export var official_density_radius_m: float = 2000.0
 @export_range(0.0, 1.0, 0.01) var official_density_blend_weight: float = 0.72
 
 var _official_density_loaded: bool = false
 var _current_official_density_available: bool = false
 var _current_official_density_factor: float = 1.0
+var _current_official_density_distance_confidence: float = 0.0
 var _current_official_density_sample_count: int = 0
 var _current_official_density_nearest_distance_m: float = INF
 var _current_official_density_sensor_ids := PackedStringArray()
@@ -84,6 +85,7 @@ func _update_current_official_calibration(anchor: Vector3) -> void:
     if not _current_official_density_available:
         return
     _current_official_density_factor = float(calibration.get("factor", 1.0))
+    _current_official_density_distance_confidence = clampf(float(calibration.get("distance_confidence", 0.0)), 0.0, 1.0)
     _current_official_density_sample_count = int(calibration.get("sample_count", 0))
     _current_official_density_nearest_distance_m = float(calibration.get("nearest_distance_m", INF))
     var raw_ids: Variant = calibration.get("sensor_ids", PackedStringArray())
@@ -107,6 +109,7 @@ func _update_nearest_any_official_calibration(anchor: Vector3) -> void:
 func _reset_current_official_calibration() -> void:
     _current_official_density_available = false
     _current_official_density_factor = 1.0
+    _current_official_density_distance_confidence = 0.0
     _current_official_density_sample_count = 0
     _current_official_density_nearest_distance_m = INF
     _current_official_density_sensor_ids = PackedStringArray()
@@ -134,6 +137,9 @@ func get_official_density_capture_timestamp() -> String:
 
 func get_official_density_factor() -> float:
     return _current_official_density_factor
+
+func get_official_density_distance_confidence() -> float:
+    return _current_official_density_distance_confidence
 
 func get_official_density_sample_count() -> int:
     return _current_official_density_sample_count

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const HEIGHTS_PATH := "res://data/urbis/laeken_jette/building_heights_dsm.game.json"
+const OVERRIDES_PATH := "res://data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
 const TREES_PATH := "res://data/environment/laeken_jette/official_city_trees.game.json"
 const ORTHO_PATH := "res://data/orthophoto/laeken_jette/phase1_ortho.jpg"
 const MAX_READY_FRAMES := 120
@@ -16,7 +17,7 @@ func _fail(message: String) -> void:
 
 
 func _run() -> void:
-    for path in [HEIGHTS_PATH, TREES_PATH, ORTHO_PATH]:
+    for path in [HEIGHTS_PATH, OVERRIDES_PATH, TREES_PATH, ORTHO_PATH]:
         if not FileAccess.file_exists(path):
             _fail("required realism asset missing: %s" % path)
             return
@@ -69,7 +70,6 @@ func _run() -> void:
         ])
         return
 
-    # Terrain / georeferenced surface.
     if int(terrain.get("width")) != 360 or int(terrain.get("height")) != 620:
         _fail("unexpected phase-1 terrain grid: %dx%d" % [int(terrain.get("width")), int(terrain.get("height"))])
         return
@@ -86,11 +86,14 @@ func _run() -> void:
         _fail("orthophoto shader missing from terrain or roads")
         return
 
-    # DSM-DTM buildings.
     var derived := int(height_pass.get("derived_buildings"))
     var fallback := int(height_pass.get("fallback_buildings"))
+    var corrected := int(height_pass.get("landmark_corrected_buildings"))
     if derived != 9163 or fallback != 355:
         _fail("building height accounting changed: derived=%d fallback=%d" % [derived, fallback])
+        return
+    if corrected != 1:
+        _fail("Atomium-overlap correction missing or duplicated: %d" % corrected)
         return
     var old_mesh := scene.get_node_or_null("OfficialBuildings") as MeshInstance3D
     var dsm_mesh := scene.get_node_or_null("OfficialBuildingsDSM") as MeshInstance3D
@@ -104,7 +107,6 @@ func _run() -> void:
         _fail("final DSM building ShaderMaterial missing")
         return
 
-    # Official known public-tree population + visual crown refinement.
     var tree_total := int(trees.get("official_tree_count"))
     var grounded := int(trees.get("terrain_grounded_count"))
     var skipped := int(trees.get("skipped_count"))
@@ -130,11 +132,12 @@ func _run() -> void:
         _fail("broadleaf refinement MultiMesh count mismatch")
         return
 
-    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d} trees={total:%d,skipped:%d,lobes:%d,conifer_tiers:%d} ortho=true" % [
+    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d} trees={total:%d,skipped:%d,lobes:%d,conifer_tiers:%d} ortho=true" % [
         ready_frame,
         terrain_range,
         derived,
         fallback,
+        corrected,
         tree_total,
         skipped,
         broadleaf_lobes,

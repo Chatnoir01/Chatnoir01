@@ -1,0 +1,935 @@
+{
+  "format": "grand-bruxelles-opendata-boundary-probe-v1",
+  "source": "https://opendata.brussels.be/api/explore/v2.1/catalog/datasets",
+  "targets": [
+    "pentagone",
+    "vijfhoek"
+  ],
+  "max_records": 2500,
+  "candidate_count_probed": 23,
+  "datasets_with_polygon_match_by_target": {
+    "pentagone": [
+      "ppas",
+      "grands_quartiers_vbx"
+    ],
+    "vijfhoek": [
+      "ppas",
+      "grands_quartiers_vbx"
+    ]
+  },
+  "production_approved_datasets": {},
+  "production_gate": "manual semantic/CRS/license validation required after polygon-name proof",
+  "results": [
+    {
+      "dataset_id": "quartiers-du-monitoring-des-quartiers-ibsa-perspective-rbc",
+      "title": "Quartiers du \"Monitoring des Quartiers\" (IBSA / perspective.brussels) en Région de Bruxelles-Capitale",
+      "license": "CC0 1.0",
+      "total_records": 145,
+      "records_downloaded": 145,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "arrets-waterbus",
+      "title": "Arrêts Waterbus",
+      "license": "CC0 1.0",
+      "total_records": 7,
+      "records_downloaded": 7,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "bruxelles_centre_administratif_et_bureaux_de_liaison",
+      "title": "Centre administratif « Brucity » et bureaux de liaison de la Ville de Bruxelles",
+      "license": "CC BY 4.0",
+      "total_records": 5,
+      "records_downloaded": 5,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "maisons-de-quartier-ville-de-bruxelles-buurthuizen-stad-brussel",
+      "title": "Infrastructures gérées par les Maisons de Quartier de la Ville de Bruxelles",
+      "license": "CC0 1.0",
+      "total_records": 25,
+      "records_downloaded": 25,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "places-de-parking-boxes-securises-velos-et-velos-cargo-geres-par-cycloparking",
+      "title": "Places de parking et boxes sécurisés pour vélos et vélos cargo gérés par Cycloparking (Région de Bruxelles-Capitale)",
+      "license": "CC BY 4.0",
+      "total_records": 911,
+      "records_downloaded": 911,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "ppas",
+      "title": "Plans Particuliers d'Affectation du Sol (PPAS) de la Ville de Bruxelles",
+      "license": "CC0 1.0",
+      "total_records": 45,
+      "records_downloaded": 45,
+      "matched_polygon_targets": [
+        "pentagone",
+        "vijfhoek"
+      ],
+      "target_matches": {
+        "pentagone": [
+          {
+            "record_index": 1,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.353755408,
+                  50.8500797108,
+                  4.3601317621,
+                  50.8535341312
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 2,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3542853044,
+                  50.8450658744,
+                  4.3574268585,
+                  50.8478886117
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 4,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3462714607,
+                  50.8387256505,
+                  4.3519101258,
+                  50.8418671501
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 7,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3444167451,
+                  50.8555038469,
+                  4.3530272736,
+                  50.8583281109
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 8,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3558784833,
+                  50.8522749215,
+                  4.3583614305,
+                  50.8539480025
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 14,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "MultiPolygon",
+                "bbox": [
+                  4.3491222856,
+                  50.8360233545,
+                  4.3513279902,
+                  50.8385949422
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 16,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3413704276,
+                  50.8374504794,
+                  4.3467598067,
+                  50.8409852669
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 17,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3476966043,
+                  50.8354749808,
+                  4.3499076294,
+                  50.8367451096
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 20,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3520821066,
+                  50.8354102342,
+                  4.3543282626,
+                  50.8368550362
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 23,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.346266101,
+                  50.8447589407,
+                  4.3496159982,
+                  50.8471165316
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 25,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3508798191,
+                  50.8389125911,
+                  4.3528907948,
+                  50.8399165296
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 31,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3534268914,
+                  50.8388334264,
+                  4.3577392593,
+                  50.8425416395
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 32,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3566576842,
+                  50.8523772667,
+                  4.3631642953,
+                  50.8554879961
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 37,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3510387219,
+                  50.8489904614,
+                  4.3529741772,
+                  50.8503420856
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 40,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3483509822,
+                  50.8338278828,
+                  4.352011957,
+                  50.8361318781
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 42,
+            "matching_fields": {
+              "territory_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3621888927,
+                  50.8476234174,
+                  4.3663411462,
+                  50.8523965411
+                ]
+              }
+            ]
+          }
+        ],
+        "vijfhoek": [
+          {
+            "record_index": 1,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.353755408,
+                  50.8500797108,
+                  4.3601317621,
+                  50.8535341312
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 2,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3542853044,
+                  50.8450658744,
+                  4.3574268585,
+                  50.8478886117
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 4,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3462714607,
+                  50.8387256505,
+                  4.3519101258,
+                  50.8418671501
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 7,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3444167451,
+                  50.8555038469,
+                  4.3530272736,
+                  50.8583281109
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 8,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3558784833,
+                  50.8522749215,
+                  4.3583614305,
+                  50.8539480025
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 14,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "MultiPolygon",
+                "bbox": [
+                  4.3491222856,
+                  50.8360233545,
+                  4.3513279902,
+                  50.8385949422
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 16,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3413704276,
+                  50.8374504794,
+                  4.3467598067,
+                  50.8409852669
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 17,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3476966043,
+                  50.8354749808,
+                  4.3499076294,
+                  50.8367451096
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 20,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3520821066,
+                  50.8354102342,
+                  4.3543282626,
+                  50.8368550362
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 23,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.346266101,
+                  50.8447589407,
+                  4.3496159982,
+                  50.8471165316
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 25,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3508798191,
+                  50.8389125911,
+                  4.3528907948,
+                  50.8399165296
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 31,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3534268914,
+                  50.8388334264,
+                  4.3577392593,
+                  50.8425416395
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 32,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3566576842,
+                  50.8523772667,
+                  4.3631642953,
+                  50.8554879961
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 37,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3510387219,
+                  50.8489904614,
+                  4.3529741772,
+                  50.8503420856
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 40,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3483509822,
+                  50.8338278828,
+                  4.352011957,
+                  50.8361318781
+                ]
+              }
+            ]
+          },
+          {
+            "record_index": 42,
+            "matching_fields": {
+              "territory_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3621888927,
+                  50.8476234174,
+                  4.3663411462,
+                  50.8523965411
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "points-de-collecte-compost-composts-de-quartier-worms-vbx",
+      "title": "Points de collecte compost / composts de quartier de l'asbl Worms (Région de Bruxelles-Capitale)",
+      "license": "CC BY 4.0",
+      "total_records": 23,
+      "records_downloaded": 23,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "grands_quartiers_vbx",
+      "title": "Quartiers de la Ville de Bruxelles",
+      "license": "CC0 1.0",
+      "total_records": 7,
+      "records_downloaded": 7,
+      "matched_polygon_targets": [
+        "pentagone",
+        "vijfhoek"
+      ],
+      "target_matches": {
+        "pentagone": [
+          {
+            "record_index": 4,
+            "matching_fields": {
+              "name_fr": "Pentagone"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3354740551,
+                  50.8326056852,
+                  4.3697226777,
+                  50.8587363886
+                ]
+              }
+            ]
+          }
+        ],
+        "vijfhoek": [
+          {
+            "record_index": 4,
+            "matching_fields": {
+              "name_nl": "Vijfhoek"
+            },
+            "polygon_geometries": [
+              {
+                "path": "$.geo_shape.geometry",
+                "type": "Polygon",
+                "bbox": [
+                  4.3354740551,
+                  50.8326056852,
+                  4.3697226777,
+                  50.8587363886
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "arrets-collecto0",
+      "title": "Arrêts de taxis collectifs \"Collecto\" situés sur le territoire de la Ville de Bruxelles",
+      "license": "CC BY 4.0",
+      "total_records": 40,
+      "records_downloaded": 40,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "bureaux-accueil-primo-arrivants-vbx",
+      "title": "Bureaux d'accueil pour les primo-arrivants situés sur le territoire de la Ville de Bruxelles",
+      "license": "CC BY 4.0",
+      "total_records": 2,
+      "records_downloaded": 2,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "open-data-catalog-city-of-brussels",
+      "title": "Inventaire des jeux de données publiés sur le portail Open Data de la Ville de Bruxelles",
+      "license": "CC0 1.0",
+      "total_records": 207,
+      "records_downloaded": 207,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "limites-administratives-des-communes-en-region-de-bruxelles-capitale",
+      "title": "Limites administratives des communes en Région de Bruxelles-Capitale",
+      "license": "CC0 1.0",
+      "total_records": 19,
+      "records_downloaded": 19,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "menages_rbc_statbel",
+      "title": "Nombre de ménages par type, année et commune en Région de Bruxelles-Capitale (Statbel)",
+      "license": "Statbel Open Data",
+      "total_records": 680,
+      "records_downloaded": 680,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "pandemie-covid-19-statistiques-hospitalisations-traitement-arretees-au-27-juin-2023",
+      "title": "Pandémie COVID-19 : statistiques hospitalisations / traitement arrêtées au 27 juin 2023 (Belgique)",
+      "license": "CC BY 4.0",
+      "total_records": 13256,
+      "status": "skipped_record_limit",
+      "matched_polygon_targets": []
+    },
+    {
+      "dataset_id": "pandemie-covid-19-statistiques-mondiales-arretees-au-31-mars-2023",
+      "title": "Pandémie COVID-19 : statistiques mondiales arrêtées au 31 mars 2023",
+      "license": "CC BY 4.0",
+      "total_records": 33228,
+      "status": "skipped_record_limit",
+      "matched_polygon_targets": []
+    },
+    {
+      "dataset_id": "places-de-parking-kiss-and-ride-recencees-par-bruxelles-mobilite-vbx",
+      "title": "Places de parking Kiss and Ride recensées par Bruxelles Mobilité (Ville de Bruxelles)",
+      "license": "CC0 1.0",
+      "total_records": 16,
+      "records_downloaded": 16,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "population-par-groupe-de-nationalite-d-origine",
+      "title": "Population par groupe de nationalité d'origine (Ville de Bruxelles)",
+      "license": "Statbel Open Data",
+      "total_records": 100,
+      "records_downloaded": 100,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "pop_vbx_prenoms_naissances",
+      "title": "Prénoms les plus populaires des nouveaux-nés (Ville de Bruxelles)",
+      "license": "Statbel Open Data",
+      "total_records": 1037,
+      "records_downloaded": 1037,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "bxl_demographie_140306_annee",
+      "title": "Statistiques démographiques",
+      "license": "CC0 1.0",
+      "total_records": 15,
+      "records_downloaded": 15,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "2005_2021_pop_vbx_revenus_source_statbel",
+      "title": "Statistiques fiscales relatives aux habitants de la Ville de Bruxelles",
+      "license": "Statbel Open Data",
+      "total_records": 17,
+      "records_downloaded": 17,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "statistiques-sur-les-produits-et-services-delivres-aux-citoyens-par-la-ville-de-",
+      "title": "Statistiques sur les produits et services délivrés aux citoyens par la Ville de Bruxelles",
+      "license": "CC0 1.0",
+      "total_records": 43,
+      "records_downloaded": 43,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "prenoms-les-plus-populaires-ville-de-bruxelles",
+      "title": "Top 20 des prénoms les plus populaires (Ville de Bruxelles)",
+      "license": "Statbel Open Data",
+      "total_records": 601,
+      "records_downloaded": 601,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    },
+    {
+      "dataset_id": "evolution-moyenne-annuelle-demandeurs-d-emploi-inoccupes-par-commune-genre-niveau-etudes-rbc",
+      "title": "Évolution de la moyenne annuelle des demandeurs d'emploi inoccupés en Région de Bruxelles-Capitale par commune bruxelloise, par genre et par niveau d'études",
+      "license": "CC BY 4.0",
+      "total_records": 285,
+      "records_downloaded": 285,
+      "matched_polygon_targets": [],
+      "target_matches": {
+        "pentagone": [],
+        "vijfhoek": []
+      },
+      "status": "inspected"
+    }
+  ]
+}

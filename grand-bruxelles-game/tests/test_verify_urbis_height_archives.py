@@ -35,10 +35,9 @@ class HeightArchiveValidationTest(unittest.TestCase):
             with zipfile.ZipFile(good, "w") as zf:
                 zf.writestr("grid/tile.tif", b"tiff")
                 zf.writestr("grid/tile.tfw", b"0.5\n0\n0\n-0.5\n149000.25\n168999.75\n")
-                zf.writestr("grid/tile.prj", b"EPSG:31370")
             self.assertEqual(verify.safe_tiff_members(good), ["grid/tile.tif"])
             extracted = verify.extract_archive_safely(good, root / "out")
-            self.assertEqual({p.name for p in extracted}, {"tile.tif", "tile.tfw", "tile.prj"})
+            self.assertEqual({p.name for p in extracted}, {"tile.tif", "tile.tfw"})
             self.assertTrue((root / "out" / "grid" / "tile.tfw").is_file())
 
             bad = root / "bad.zip"
@@ -52,35 +51,25 @@ class HeightArchiveValidationTest(unittest.TestCase):
     def test_metadata_requires_lambert72_and_exact_tile_extent(self):
         valid = {
             "crs_epsg": 31370,
-            "width": 20000,
-            "height": 20000,
+            "width": 2000,
+            "height": 2000,
             "count": 1,
             "bounds": [149000.0, 168000.0, 150000.0, 169000.0],
-            "resolution": [0.05, 0.05],
+            "resolution": [0.5, 0.5],
         }
-        verify.validate_geotiff_metadata("149168", valid)
-
+        verify.validate_raster_metadata("149168", valid)
         with self.assertRaises(ValueError):
-            verify.validate_geotiff_metadata("149168", dict(valid, crs_epsg=4326))
+            verify.validate_raster_metadata("149168", dict(valid, crs_epsg=4326))
         with self.assertRaises(ValueError):
-            verify.validate_geotiff_metadata(
-                "149168", dict(valid, bounds=[149100.0, 168000.0, 150100.0, 169000.0])
-            )
+            verify.validate_raster_metadata("149168", dict(valid, bounds=[149100.0, 168000.0, 150100.0, 169000.0]))
 
     def test_pair_alignment_rejects_dsm_dtm_grid_drift(self):
-        base = {
-            "width": 10,
-            "height": 10,
-            "crs_epsg": 31370,
-            "bounds": [149000, 168000, 150000, 169000],
-            "resolution": [100, 100],
-            "transform": [100, 0, 149000, 0, -100, 169000],
-        }
-        dsm = {"archives": [{"tile": "149168", "geotiff": base}]}
-        dtm = {"archives": [{"tile": "149168", "geotiff": dict(base)}]}
+        base = {"width": 10, "height": 10, "crs_epsg": 31370, "bounds": [149000, 168000, 150000, 169000],
+                "resolution": [100, 100], "transform": [100, 0, 149000, 0, -100, 169000]}
+        dsm = {"archives": [{"tile": "149168", "raster": base}]}
+        dtm = {"archives": [{"tile": "149168", "raster": dict(base)}]}
         verify.validate_pair_alignment(dsm, dtm)
-
-        dtm["archives"][0]["geotiff"] = dict(base, resolution=[50, 50])
+        dtm["archives"][0]["raster"] = dict(base, resolution=[50, 50])
         with self.assertRaises(ValueError):
             verify.validate_pair_alignment(dsm, dtm)
 

@@ -1,0 +1,33 @@
+name: Grand Bruxelles Bourse Runtime Gap
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/measure_bourse_runtime_gap.py"
+      - "grand-bruxelles-game/tests/test_measure_bourse_runtime_gap.py"
+      - ".github/workflows/grand-bruxelles-bourse-runtime-gap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline measurement regression
+        run: python3 grand-bruxelles-game/tests/test_measure_bourse_runtime_gap.py
+      - name: Live official-to-runtime comparison
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/measure_bourse_runtime_gap.py --output /tmp/bourse-runtime-gap.json | tee /tmp/bourse-runtime-gap.log
+          grep -q '"axis_vertex_error_p95_m"' /tmp/bourse-runtime-gap.log
+          grep -q '"official_surface_p95_minus_runtime_outer_half_width_m"' /tmp/bourse-runtime-gap.log
+      - name: Upload measured gap
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-runtime-gap
+          path: /tmp/bourse-runtime-gap.json
+          if-no-files-found: error

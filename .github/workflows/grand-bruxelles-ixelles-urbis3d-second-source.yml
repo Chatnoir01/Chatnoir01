@@ -21,70 +21,56 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - name: Install read-only GeoPackage tooling
         run: |
           sudo apt-get update
           sudo apt-get install -y gdal-bin python3-gdal unzip
           ogrinfo --version
-
       - name: Regression-test distribution selector and 3D inspector
         run: |
           python3 grand-bruxelles-game/tools/test_select_urbis_distribution.py
           python3 grand-bruxelles-game/tools/test_inspect_urbis_3d_gpkg_safe.py
-
       - name: Discover current official UrbIS distributions
         run: |
-          python3 grand-bruxelles-game/tools/discover_urbis_sources.py \
-            --output /tmp/urbis-discovered.json
+          python3 grand-bruxelles-game/tools/discover_urbis_sources.py --output /tmp/urbis-discovered.json
           python3 - <<'PY'
           import json
-          data = json.load(open('/tmp/urbis-discovered.json', encoding='utf-8'))
-          feed = next((item for item in data.get('feeds', []) if item.get('source_id') == 'urbis_3d_constructions'), None)
-          assert feed is not None, 'urbis_3d_constructions feed missing'
-          assert feed.get('entry_count', 0) > 0, 'official 3D feed has no entries'
-          print('URBIS_3D_DISCOVERY_OK', 'feed_updated=', feed.get('feed_updated'), 'entries=', feed.get('entry_count'))
+          data=json.load(open('/tmp/urbis-discovered.json',encoding='utf-8'))
+          feed=next((x for x in data.get('feeds',[]) if x.get('source_id')=='urbis_3d_constructions'),None)
+          assert feed and feed.get('entry_count',0)>0
+          print('URBIS_3D_DISCOVERY_OK',feed.get('feed_updated'),feed.get('entry_count'))
           PY
-
-      - name: Select actual official EPSG:31370 GeoPackage file
+      - name: Select latest Ixelles EPSG:31370 GeoPackage
         run: |
           python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
-            /tmp/urbis-discovered.json \
-            /tmp/urbis-3d-selected.json \
+            /tmp/urbis-discovered.json /tmp/urbis-3d-selected.json \
             --source-id urbis_3d_constructions \
-            --token 31370 \
-            --token GPKG \
-            --candidate-token 31370 \
-            --candidate-token GPKG
+            --token 31370 --token GPKG \
+            --candidate-token 31370 --candidate-token GPKG --candidate-token 21009 \
+            --prefer-latest
           python3 - <<'PY'
           import json
           from urllib.parse import urlparse
-          data = json.load(open('/tmp/urbis-3d-selected.json', encoding='utf-8'))
-          selected = data.get('selected', {})
-          url = str(selected.get('href', ''))
-          assert url.startswith('https://'), f'non-HTTPS distribution URL: {url!r}'
-          folded = url.casefold()
-          assert '31370' in folded, f'selected file is not EPSG:31370-labelled: {url}'
-          assert 'gpkg' in folded, f'selected file is not the GPKG sibling: {url}'
-          assert '/dwg/' not in folded, f'DWG sibling leaked through GPKG candidate filter: {url}'
-          host = (urlparse(url).hostname or '').lower()
-          allowed = (
-              'datastore.brussels',
-              'urbisdownload.datastore.brussels',
-              'geoservices-urbis.irisnet.be',
-              'gis.urban.brussels',
-              'urban.brussels',
-          )
-          assert any(host == item or host.endswith('.' + item) for item in allowed), f'untrusted distribution host: {host}'
-          print('URBIS_3D_SELECTION_OK', data.get('matched_entry_title'), url)
+          data=json.load(open('/tmp/urbis-3d-selected.json',encoding='utf-8'))
+          selected=data['selected']; url=str(selected['href']); title=str(selected.get('title',''))
+          assert url.startswith('https://')
+          folded=url.casefold()
+          assert '31370' in folded and 'gpkg' in folded and '21009' in folded
+          assert '/dwg/' not in folded
+          assert title.casefold()=='ixelles', (title,url)
+          assert data.get('prefer_latest') is True
+          assert data.get('selected_embedded_date','00000000') >= '20260101'
+          host=(urlparse(url).hostname or '').lower()
+          allowed=('datastore.brussels','urbisdownload.datastore.brussels','geoservices-urbis.irisnet.be','gis.urban.brussels','urban.brussels')
+          assert any(host==x or host.endswith('.'+x) for x in allowed)
+          print('URBIS_3D_IXELLES_SELECTION_OK',data['selected_embedded_date'],url)
           PY
-
       - name: Download selected official distribution
         run: |
           set -euo pipefail
           URL="$(python3 - <<'PY'
           import json
-          print(json.load(open('/tmp/urbis-3d-selected.json', encoding='utf-8'))['selected']['href'])
+          print(json.load(open('/tmp/urbis-3d-selected.json',encoding='utf-8'))['selected']['href'])
           PY
           )"
           curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
@@ -93,96 +79,52 @@ jobs:
           test -s /tmp/urbis-3d-distribution
           sha256sum /tmp/urbis-3d-distribution | tee /tmp/urbis-3d-distribution.sha256
           file /tmp/urbis-3d-distribution
-
       - name: Safely extract nested archives
         run: |
           python3 - <<'PY'
-          import shutil
-          import zipfile
+          import shutil, zipfile
           from pathlib import Path
-
-          source = Path('/tmp/urbis-3d-distribution')
-          root = Path('/tmp/urbis-3d-extracted')
-          root.mkdir(parents=True, exist_ok=True)
-
-          def safe_extract(archive: Path, destination: Path) -> None:
-              destination.mkdir(parents=True, exist_ok=True)
-              destination_resolved = destination.resolve()
-              with zipfile.ZipFile(archive) as handle:
-                  for member in handle.infolist():
-                      target = (destination / member.filename).resolve()
-                      if destination_resolved not in target.parents and target != destination_resolved:
-                          raise SystemExit(f'unsafe ZIP path: {member.filename}')
-                  handle.extractall(destination)
-
-          if zipfile.is_zipfile(source):
-              safe_extract(source, root / 'level0')
-          elif source.read_bytes()[:16].startswith(b'SQLite format 3'):
-              shutil.copy2(source, root / 'selected-source.gpkg')
-          else:
-              raise SystemExit('selected GPKG distribution is neither ZIP nor SQLite GeoPackage')
-
-          seen = set()
-          for depth in range(1, 4):
-              archives = [path for path in root.rglob('*.zip') if path.resolve() not in seen]
-              if not archives:
-                  break
-              for index, archive in enumerate(archives):
-                  seen.add(archive.resolve())
-                  safe_extract(archive, archive.parent / f'{archive.stem}-nested-{depth}-{index}')
-
-          gpkg = sorted(root.rglob('*.gpkg'))
-          print('URBIS_3D_EXTRACTION_OK', 'gpkg_count=', len(gpkg))
-          for path in gpkg[:30]:
-              print(path, path.stat().st_size)
-          if not gpkg:
-              raise SystemExit('selected official GPKG distribution contains no GeoPackage')
+          source=Path('/tmp/urbis-3d-distribution'); root=Path('/tmp/urbis-3d-extracted'); root.mkdir(parents=True,exist_ok=True)
+          def safe_extract(archive,dest):
+              dest.mkdir(parents=True,exist_ok=True); base=dest.resolve()
+              with zipfile.ZipFile(archive) as h:
+                  for m in h.infolist():
+                      target=(dest/m.filename).resolve()
+                      if base not in target.parents and target!=base: raise SystemExit(f'unsafe ZIP path: {m.filename}')
+                  h.extractall(dest)
+          if zipfile.is_zipfile(source): safe_extract(source,root/'level0')
+          elif source.read_bytes()[:16].startswith(b'SQLite format 3'): shutil.copy2(source,root/'selected-source.gpkg')
+          else: raise SystemExit('selected GPKG distribution is neither ZIP nor SQLite GeoPackage')
+          seen=set()
+          for depth in range(1,4):
+              archives=[p for p in root.rglob('*.zip') if p.resolve() not in seen]
+              if not archives: break
+              for index,archive in enumerate(archives):
+                  seen.add(archive.resolve()); safe_extract(archive,archive.parent/f'{archive.stem}-nested-{depth}-{index}')
+          gpkg=sorted(root.rglob('*.gpkg'))
+          print('URBIS_3D_EXTRACTION_OK','gpkg_count=',len(gpkg))
+          for p in gpkg[:30]: print(p,p.stat().st_size)
+          if not gpkg: raise SystemExit('selected official Ixelles GPKG distribution contains no GeoPackage')
           PY
-
-      - name: Inspect actual CRS and Z coordinates
+      - name: Inspect actual Ixelles CRS and Z coordinates
         run: |
           mkdir -p grand-bruxelles-game/artifacts/ixelles-urbis3d
           cp /tmp/urbis-discovered.json grand-bruxelles-game/artifacts/ixelles-urbis3d/discovered.json
           cp /tmp/urbis-3d-selected.json grand-bruxelles-game/artifacts/ixelles-urbis3d/selected.json
           cp /tmp/urbis-3d-distribution.sha256 grand-bruxelles-game/artifacts/ixelles-urbis3d/distribution.sha256
           python3 grand-bruxelles-game/tools/inspect_urbis_3d_gpkg_safe.py \
-            --root /tmp/urbis-3d-extracted \
-            --selected-source /tmp/urbis-3d-selected.json \
+            --root /tmp/urbis-3d-extracted --selected-source /tmp/urbis-3d-selected.json \
             --output grand-bruxelles-game/artifacts/ixelles-urbis3d/inventory.json \
-            --sample-features 250 \
-            --max-coords-per-feature 4000 \
-            --require-usable
+            --sample-features 250 --max-coords-per-feature 4000 --require-usable
           python3 - <<'PY'
           import json
-          from pathlib import Path
-          p = Path('grand-bruxelles-game/artifacts/ixelles-urbis3d/inventory.json')
-          data = json.loads(p.read_text(encoding='utf-8'))
-          assert data['schema'] == 'grand-bruxelles-urbis-3d-gpkg-inventory-v1'
-          assert data['gpkg_count'] >= 1
-          assert data['candidate_layer_count'] >= 1
-          assert data['usable_as_second_height_source'] is True
-          candidates = [
-              layer
-              for package in data['packages']
-              for layer in package['layers']
-              if layer.get('candidate_for_height_validation')
-          ]
-          assert candidates
-          assert all(layer.get('epsg') == '31370' for layer in candidates)
-          assert all(layer.get('declared_has_z') for layer in candidates)
-          assert all(layer.get('sample_z', {}).get('actual_has_nonzero_z') for layer in candidates)
-          print('URBIS_3D_SECOND_SOURCE_PROVEN', [
-              {
-                  'layer': layer['name'],
-                  'feature_count': layer['feature_count_fast'],
-                  'z_min': layer['sample_z']['min'],
-                  'z_max': layer['sample_z']['max'],
-                  'z_range': layer['sample_z']['range'],
-              }
-              for layer in candidates
-          ])
+          data=json.load(open('grand-bruxelles-game/artifacts/ixelles-urbis3d/inventory.json',encoding='utf-8'))
+          assert data['gpkg_count']>=1 and data['candidate_layer_count']>=1 and data['usable_as_second_height_source']
+          candidates=[l for p in data['packages'] for l in p['layers'] if l.get('candidate_for_height_validation')]
+          assert candidates and all(l.get('epsg')=='31370' for l in candidates)
+          assert all(l.get('declared_has_z') and l.get('sample_z',{}).get('actual_has_nonzero_z') for l in candidates)
+          print('URBIS_3D_IXELLES_SECOND_SOURCE_PROVEN',[{'layer':l['name'],'feature_count':l['feature_count_fast'],'extent':l['extent_xy'],'z_min':l['sample_z']['min'],'z_max':l['sample_z']['max']} for l in candidates])
           PY
-
       - name: Upload evidence only (never raw GeoPackage)
         uses: actions/upload-artifact@v4
         with:

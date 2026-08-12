@@ -10,6 +10,7 @@ REFERENCE_ROOT = PROJECT_ROOT / "data" / "reference" / "laeken_jette"
 VIEWS_PATH = REFERENCE_ROOT / "photo_match_views.json"
 FINDINGS_PATH = REFERENCE_ROOT / "photo_match_findings.json"
 FRAMING_AUDIT_PATH = REFERENCE_ROOT / "atomium_ground_framing_audit.json"
+FRAMING_WITNESS_PATH = REFERENCE_ROOT / "atomium_ground_reference_witness.json"
 FRAMING_TOOL_PATH = PROJECT_ROOT / "tools" / "audit_atomium_ground_framing.py"
 
 SPEC = importlib.util.spec_from_file_location("audit_atomium_ground_framing", FRAMING_TOOL_PATH)
@@ -24,6 +25,7 @@ class LaekenPhotoMatchConsistencyTests(unittest.TestCase):
         cls.views_doc = json.loads(VIEWS_PATH.read_text(encoding="utf-8"))
         cls.findings_doc = json.loads(FINDINGS_PATH.read_text(encoding="utf-8"))
         cls.framing_audit = json.loads(FRAMING_AUDIT_PATH.read_text(encoding="utf-8"))
+        cls.framing_witness = json.loads(FRAMING_WITNESS_PATH.read_text(encoding="utf-8"))
         cls.views = {view["id"]: view for view in cls.views_doc["views"]}
         cls.findings = cls.findings_doc["findings"]
 
@@ -70,10 +72,11 @@ class LaekenPhotoMatchConsistencyTests(unittest.TestCase):
         self.assertEqual(evidence.get("path"), "atomium_ground_framing_audit.json")
         self.assertEqual(evidence.get("status"), "geometry_audited_reference_bbox_pending")
 
-        regenerated = FRAMING_TOOL.audit_view(view)
+        regenerated = FRAMING_TOOL.audit_view(view, self.framing_witness)
         persisted = self.framing_audit
         self.assertEqual(persisted.get("view_id"), view["id"])
         self.assertEqual(persisted.get("render_resolution_px"), view["resolution"])
+        self.assertEqual(persisted.get("schema"), 2)
         self.assertTrue(math.isclose(persisted["current_fov_degrees"], view["fov_degrees"], abs_tol=1e-9))
         self.assertTrue(
             math.isclose(
@@ -108,13 +111,50 @@ class LaekenPhotoMatchConsistencyTests(unittest.TestCase):
         self.assertLess(fraction, 0.5)
         self.assertTrue(math.isclose(fraction, 0.35454757387279306, rel_tol=1e-12, abs_tol=1e-9))
 
-    def test_geometry_audit_cannot_claim_recovered_source_lens(self) -> None:
+    def test_reference_visible_witness_proves_current_fov_is_too_wide(self) -> None:
+        view = self.views["atomium_ground_oblique_v1"]
+        witness = self.framing_witness
+        self.assertEqual(witness["view_id"], view["id"])
+        self.assertEqual(witness["source_image_dimensions_px"], [960, 638])
+        self.assertEqual(witness["vertical_visible_witness_y_px"], [58, 440])
+        self.assertEqual(witness["endpoint_uncertainty_px"], 5)
+        self.assertEqual(witness["conservative_min_visible_witness_height_px"], 372)
+        expected_min_fraction = 372.0 / 638.0
+        self.assertTrue(
+            math.isclose(
+                witness["conservative_min_visible_witness_frame_fraction"],
+                expected_min_fraction,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            )
+        )
+
+        regenerated = FRAMING_TOOL.audit_view(view, witness)["reference_visible_witness"]
+        persisted = self.framing_audit["reference_visible_witness"]
+        self.assertTrue(persisted["current_fov_is_too_wide"])
+        self.assertTrue(regenerated["current_fov_is_too_wide"])
+        self.assertGreater(view["fov_degrees"], persisted["maximum_fov_consistent_with_visible_witness_deg"])
+        self.assertTrue(
+            math.isclose(
+                persisted["maximum_fov_consistent_with_visible_witness_deg"],
+                regenerated["maximum_fov_consistent_with_visible_witness_deg"],
+                rel_tol=1e-12,
+                abs_tol=1e-9,
+            )
+        )
+        self.assertGreater(persisted["maximum_fov_consistent_with_visible_witness_deg"], 31.0)
+        self.assertLess(persisted["maximum_fov_consistent_with_visible_witness_deg"], 32.0)
+
+    def test_reference_witness_is_not_presented_as_recovered_lens(self) -> None:
         view = self.views["atomium_ground_oblique_v1"]
         unknowns = view.get("camera_selection_constraints", {}).get("remaining_unknowns", [])
         forbidden = view.get("camera_selection_constraints", {}).get("must_not_infer", [])
+        witness_forbidden = self.framing_witness.get("must_not_infer", [])
         self.assertTrue(any("lens focal length" in item for item in unknowns))
         self.assertTrue(any("geometry-only" in item for item in forbidden))
-        self.assertIn("cannot recover the historical lens", self.framing_audit.get("interpretation", ""))
+        self.assertTrue(any("historical focal length" in item for item in witness_forbidden))
+        self.assertIn("does not claim", self.framing_witness.get("measurement_role", ""))
+        self.assertIn("does not recover", self.framing_audit.get("interpretation", ""))
 
 
 if __name__ == "__main__":

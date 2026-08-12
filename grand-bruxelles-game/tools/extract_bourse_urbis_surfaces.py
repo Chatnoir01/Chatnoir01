@@ -41,6 +41,13 @@ def load_world_transform(path: Path = AXIS_EVIDENCE) -> tuple[float, float, floa
     return lambert_e, lambert_n, world_x, world_z
 
 
+def transform_source_label(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(ROOT.resolve()))
+    except ValueError:
+        return str(path)
+
+
 def to_world_xz(east: float, north: float, transform: tuple[float, float, float, float]) -> list[float]:
     lambert_e, lambert_n, world_x, world_z = transform
     return [east - lambert_e + world_x, -(north - lambert_n) + world_z]
@@ -145,7 +152,7 @@ def build_output(payload: dict[str, Any], response_sha256: str, transform_path: 
         "target": "Place de la Bourse / Beursplein",
         "target_inspire_ids": sorted(TARGET_IDS),
         "world_coordinate_evidence": {
-            "transform_source": str(transform_path.relative_to(ROOT)),
+            "transform_source": transform_source_label(transform_path),
             "lambert72_origin": [transform[0], transform[1]],
             "world_origin_xz": [transform[2], transform[3]],
         },

@@ -57,6 +57,15 @@
       "status": "open",
       "evidence": "355 of 9518 official building footprints still use the documented 10.5 m fallback",
       "action": "Prioritize fallback buildings visible from hero views and replace fallback heights only when better DSM/LiDAR/source coverage supports the change."
+    },
+    {
+      "id": "LJ-PM-007",
+      "view_id": "heysel_stadium_context_v1",
+      "severity": "high",
+      "category": "landmark_geometry",
+      "status": "open",
+      "evidence": "palais5_nearest_urbis_audit.json identifies one containing UrbIS component around the Palais 5 semantic locator, but its campus-scale span/area fails the anti-false-positive hero-footprint screen and resolution_status remains needs_finer_authoritative_geometry",
+      "action": "Keep the broad UrbIS Expo geometry as context only. Resolve Palais 5 from finer authoritative geometry or another lawful, explicitly documented source before using a hall-specific footprint in hero-view validation."
     }
   ]
 }

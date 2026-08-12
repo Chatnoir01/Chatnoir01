@@ -10,10 +10,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   record-visual-fingerprint:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -50,11 +51,48 @@ jobs:
           grep -q "RENDERED_MAIN_VISUAL_FINGERPRINT_JSON:" /tmp/visual-record.log
           grep -q "RENDERED_MAIN_BASELINE_OK" /tmp/visual-record.log
           grep "RENDERED_MAIN_VISUAL_FINGERPRINT_JSON:" /tmp/visual-record.log | sed 's/^.*RENDERED_MAIN_VISUAL_FINGERPRINT_JSON: //' > grand-bruxelles-game/artifacts/rendered-main-fingerprint-candidate.json
+          test -s grand-bruxelles-game/artifacts/rendered-main-fingerprint-candidate.json
           test -s grand-bruxelles-game/artifacts/rendered-main-baseline.png
+
+      - name: Build versioned baseline JSON
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          candidate = Path('grand-bruxelles-game/artifacts/rendered-main-fingerprint-candidate.json')
+          output = Path('grand-bruxelles-game/data/qa/rendered_main_baseline.json')
+          data = json.loads(candidate.read_text(encoding='utf-8'))
+          data['established_from'] = {
+              'git_sha': os.environ['SOURCE_SHA'],
+              'godot': '4.7.1',
+              'rendering_method': 'gl_compatibility',
+              'software_renderer': 'Mesa llvmpipe',
+              'capture': 'game/main.tscn after 120 warmup + 120 sample frames',
+              'review_contract': 'docs/RENDERED_VISUAL_BASELINE.md',
+          }
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print('VISUAL_BASELINE_JSON_READY', output, os.environ['SOURCE_SHA'])
+          PY
+
       - name: Upload candidate evidence
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-rendered-visual-baseline-candidate
           path: |
-            grand-bruxelles-game/artifacts/rendered-main-fingerprint-candidate.json
+            grand-bruxelles-game/data/qa/rendered_main_baseline.json
             grand-bruxelles-game/artifacts/rendered-main-baseline.png
+
+      - name: Commit lightweight visual baseline
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/qa/rendered_main_baseline.json
+          if git diff --cached --quiet; then
+            echo "Visual baseline JSON already matches this capture."
+          else
+            git commit -m "qa: establish rendered main visual fingerprint baseline"
+            git push origin HEAD:integration/main-visual-baseline-contract
+          fi

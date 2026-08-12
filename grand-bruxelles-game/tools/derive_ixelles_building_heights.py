@@ -17,12 +17,66 @@ MIN_VALID_PIXELS = 16
 MIN_PLAUSIBLE_FRACTION = 0.60
 PLAUSIBLE_MIN_M = -0.50
 PLAUSIBLE_MAX_M = 250.0
+MIN_DTM_RANGE_M = 0.25
+MIN_POSITIVE_HEIGHT_FRACTION = 0.005
 
 
 def percentile(values: np.ndarray, q: float) -> float | None:
     if values.size == 0:
         return None
     return round(float(np.percentile(values, q)), 3)
+
+
+def _valid_values(values: np.ndarray, nodata: float | None) -> np.ndarray:
+    flat = np.asarray(values, dtype=np.float64).reshape(-1)
+    valid = np.isfinite(flat)
+    if nodata is not None and math.isfinite(float(nodata)):
+        valid &= flat != float(nodata)
+    return flat[valid]
+
+
+def validate_height_mosaics(dsm: np.ndarray, dtm: np.ndarray, nodata_dsm: float | None, nodata_dtm: float | None) -> dict:
+    """Reject technically aligned but semantically degenerate height rasters.
+
+    Archive hashes, dimensions and transforms are not sufficient proof that the sampled
+    elevation values are usable. This gate prevents an all-zero or DSM==DTM mosaic from
+    being promoted as high-confidence building-height evidence.
+    """
+    if dsm.shape != dtm.shape:
+        raise ValueError("DSM/DTM mosaics have different shapes")
+    dsm_values = _valid_values(dsm, nodata_dsm)
+    dtm_values = _valid_values(dtm, nodata_dtm)
+    if dsm_values.size == 0 or dtm_values.size == 0:
+        raise ValueError("Height mosaics are degenerate: no valid elevation samples")
+    if dsm_values.size != dtm_values.size:
+        # Mosaics are aligned, so differing valid sample counts indicate a nodata mismatch
+        # that must be investigated before deriving building evidence.
+        raise ValueError("Height mosaics are degenerate: DSM/DTM valid-sample counts differ")
+
+    dtm_range = float(np.max(dtm_values) - np.min(dtm_values))
+    diff = dsm_values - dtm_values
+    positive_fraction = float(np.count_nonzero(diff > 0.5) / diff.size)
+    height_p95 = float(np.percentile(diff, 95))
+    identical_fraction = float(np.count_nonzero(np.isclose(diff, 0.0, atol=1e-4)) / diff.size)
+
+    if dtm_range < MIN_DTM_RANGE_M:
+        raise ValueError(f"Height mosaics are degenerate: DTM range is only {dtm_range:.4f} m")
+    if positive_fraction < MIN_POSITIVE_HEIGHT_FRACTION or height_p95 <= 0.5:
+        raise ValueError(
+            "Height mosaics are degenerate: DSM-DTM contains no credible above-ground signal "
+            f"(positive_fraction={positive_fraction:.6f}, p95={height_p95:.3f} m)"
+        )
+
+    return {
+        "dtm_min_m": round(float(np.min(dtm_values)), 3),
+        "dtm_max_m": round(float(np.max(dtm_values)), 3),
+        "dtm_range_m": round(dtm_range, 3),
+        "height_p50_m": round(float(np.percentile(diff, 50)), 3),
+        "height_p95_m": round(height_p95, 3),
+        "positive_height_fraction": round(positive_fraction, 6),
+        "identical_dsm_dtm_fraction": round(identical_fraction, 6),
+        "valid_sample_count": int(diff.size),
+    }
 
 
 def summarize_height_samples(dsm: np.ndarray, dtm: np.ndarray, nodata_dsm: float | None, nodata_dtm: float | None) -> dict:
@@ -122,6 +176,7 @@ def derive(plan_path: Path, cell_root: Path, raster_root: Path) -> dict:
     dtm, dtm_transform, dtm_nodata = open_mosaic(find_rasters(raster_root, "dtm", tiles))
     if dsm.shape != dtm.shape or tuple(dsm_transform) != tuple(dtm_transform):
         raise ValueError("DSM and DTM mosaics are not exactly aligned")
+    mosaic_diagnostics = validate_height_mosaics(dsm, dtm, dsm_nodata, dtm_nodata)
     records, unique_ids = [], set()
     confidence_counts, duplicate_memberships = Counter(), 0
     for cell_id in plan["materialized_cells"]:
@@ -151,12 +206,13 @@ def derive(plan_path: Path, cell_root: Path, raster_root: Path) -> dict:
                             "terrain_elevation_m_p50": percentile(terrain_valid.astype(np.float64), 50),
                             "height_stats": stats})
     return {
-        "schema": 1, "format": "grand-bruxelles-ixelles-building-height-stats-v1",
+        "schema": 1, "format": "grand-bruxelles-ixelles-building-height-stats-v2",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source_crs": EXPECTED_CRS,
         "method": "DSM minus DTM sampled at 0.5 m pixel centers inside official UrbIS building footprints",
         "selection_policy": "No runtime height is baked here. p50/p75/p90 and diagnostics are retained; insufficient samples remain explicit.",
         "plausibility_window_m": [PLAUSIBLE_MIN_M, PLAUSIBLE_MAX_M],
+        "mosaic_quality_gate": mosaic_diagnostics,
         "confidence_policy": {"minimum_plausible_pixels": MIN_VALID_PIXELS,
                               "minimum_plausible_fraction": MIN_PLAUSIBLE_FRACTION,
                               "high": "at least 64 plausible pixels and at least 90% of valid samples plausible",
@@ -217,7 +273,7 @@ def main() -> int:
         args.summary_output.write_text(json.dumps(compact_summary(result), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     if args.csv_output:
         write_csv(result, args.csv_output)
-    print("IXELLES_BUILDING_HEIGHT_STATS_READY", result["building_memberships"], result["unique_building_ids"], result["confidence_counts"])
+    print("IXELLES_BUILDING_HEIGHT_STATS_READY", result["building_memberships"], result["unique_building_ids"], result["confidence_counts"], result["mosaic_quality_gate"])
     return 0
 
 

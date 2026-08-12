@@ -1,0 +1,101 @@
+name: Recover clean remaining-Brussels mapping tooling
+
+on:
+  push:
+    branches: [zone-reste-bruxelles-clean]
+    paths:
+      - '.github/workflows/remaining-brussels-clean-tooling-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-clean-tooling-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover-mapping-tooling:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore only mapping-owned files from last clean checkpoint
+        run: |
+          SOURCE_SHA=d401e52aa555a512b71aa7201e15f9cfc1e4feb6
+          git cat-file -e "$SOURCE_SHA^{commit}"
+          git checkout "$SOURCE_SHA" -- \
+            grand-bruxelles-game/tools/bootstrap_remaining_brussels.py \
+            grand-bruxelles-game/tools/fetch_urbis_municipality.py \
+            grand-bruxelles-game/tools/make_zone_cells.py \
+            grand-bruxelles-game/tools/select_zone_seed_cell.py \
+            grand-bruxelles-game/tools/materialize_zone_cells.py \
+            grand-bruxelles-game/tools/build_urbis_cell.py \
+            grand-bruxelles-game/tools/make_urbis_cell_runtime.py \
+            grand-bruxelles-game/tools/make_urbis_network_cell_runtime.py \
+            grand-bruxelles-game/tools/build_urbis_runtime_index.py \
+            grand-bruxelles-game/tools/build_remaining_brussels_coverage.py \
+            grand-bruxelles-game/tools/capture_urbis_orthophoto.py \
+            grand-bruxelles-game/tests/test_bootstrap_remaining_brussels.py \
+            grand-bruxelles-game/tests/test_fetch_urbis_municipality.py \
+            grand-bruxelles-game/tests/test_make_zone_cells.py \
+            grand-bruxelles-game/tests/test_select_zone_seed_cell.py \
+            grand-bruxelles-game/tests/test_materialize_zone_cells.py \
+            grand-bruxelles-game/tests/test_build_urbis_cell.py \
+            grand-bruxelles-game/tests/test_make_urbis_cell_runtime.py \
+            grand-bruxelles-game/tests/test_make_urbis_network_cell_runtime.py \
+            grand-bruxelles-game/tests/test_build_urbis_runtime_index.py \
+            grand-bruxelles-game/tests/test_build_remaining_brussels_coverage.py \
+            grand-bruxelles-game/tests/test_capture_urbis_orthophoto.py
+
+      - name: Enforce mapping-only ownership
+        run: |
+          CHANGED=$(git diff --name-only HEAD)
+          printf '%s\n' "$CHANGED"
+          test -n "$CHANGED"
+          if printf '%s\n' "$CHANGED" | grep -E '(^|/)(game/main\.tscn|game/scripts/(npc_|police_|wanted_|vehicle_|traffic_)|game/vehicles/|assets/.*police)'; then
+            echo 'Forbidden cross-workstream file detected.' >&2
+            exit 1
+          fi
+          if printf '%s\n' "$CHANGED" | grep -Ev '^grand-bruxelles-game/(tools|tests)/'; then
+            echo 'Recovery touched a non tooling/test path.' >&2
+            exit 1
+          fi
+
+      - name: Validate recovered mapping tooling
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest \
+            tests.test_bootstrap_remaining_brussels \
+            tests.test_fetch_urbis_municipality \
+            tests.test_make_zone_cells \
+            tests.test_select_zone_seed_cell \
+            tests.test_materialize_zone_cells \
+            tests.test_build_urbis_cell \
+            tests.test_make_urbis_cell_runtime \
+            tests.test_make_urbis_network_cell_runtime \
+            tests.test_build_urbis_runtime_index \
+            tests.test_build_remaining_brussels_coverage \
+            tests.test_capture_urbis_orthophoto -v
+
+      - name: Commit recovered tooling
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/tools grand-bruxelles-game/tests
+          if git diff --cached --quiet; then
+            echo 'Mapping tooling already restored.'
+            exit 0
+          fi
+          git commit -m 'tools: recover clean remaining-Brussels mapping pipeline'
+          git pull --rebase origin zone-reste-bruxelles-clean
+          git push origin HEAD:zone-reste-bruxelles-clean

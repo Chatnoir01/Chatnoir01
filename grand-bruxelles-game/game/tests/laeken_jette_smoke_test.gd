@@ -33,10 +33,12 @@ func _run() -> void:
         _fail("Atomium must have 9 spheres, got %d" % sphere_count)
         return
 
-    if scene.get_node_or_null("OfficialStreetSurfaces") == null:
+    var streets := scene.get_node_or_null("OfficialStreetSurfaces") as MeshInstance3D
+    var buildings := scene.get_node_or_null("OfficialBuildings") as MeshInstance3D
+    if streets == null or streets.mesh == null:
         _fail("official UrbIS street surface mesh missing")
         return
-    if scene.get_node_or_null("OfficialBuildings") == null:
+    if buildings == null or buildings.mesh == null:
         _fail("official UrbIS building mesh missing")
         return
     if scene.get_node_or_null("OfficialTramNetwork") == null:
@@ -57,7 +59,20 @@ func _run() -> void:
         _fail("tram layer empty: %s" % stats)
         return
 
-    print("LAEKEN_JETTE_SMOKE_OK: official geometry + Atomium hero loaded %s" % JSON.stringify(stats))
+    var official_holes := int(stats.get("official_polygon_holes", 0))
+    var palais5_cutouts := int(stats.get("palais5_source_cutouts", 0))
+    if official_holes < 14:
+        _fail("UrbIS polygon interior rings were discarded: %s" % stats)
+        return
+    if palais5_cutouts != 1:
+        _fail("Palais 5 must be subtracted from exactly one Expo aggregate polygon: %s" % stats)
+        return
+
+    if streets.mesh.get_surface_count() <= 0 or buildings.mesh.get_surface_count() <= 0:
+        _fail("topology-aware source meshes have no surfaces")
+        return
+
+    print("LAEKEN_JETTE_SMOKE_OK: official geometry + Atomium hero loaded; holes=%d palais5_cutouts=%d %s" % [official_holes, palais5_cutouts, JSON.stringify(stats)])
     scene.queue_free()
     await process_frame
     quit(0)

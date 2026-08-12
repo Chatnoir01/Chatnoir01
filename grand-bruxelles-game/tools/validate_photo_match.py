@@ -166,6 +166,8 @@ def validate_manifest(manifest_path: Path) -> tuple[int, int]:
         for transform_key in ("position", "rotation_degrees", "fov_degrees"):
             if transform_key not in camera_transform:
                 fail(f"{context}.viewpoint.game_camera_transform missing {transform_key}")
+        if str(camera_transform.get("status", "approved")).strip().lower() == "provisional":
+            fail(f"{context} marked complete with provisional game_camera_transform")
 
         if not isinstance(screenshot, str) or not screenshot.strip():
             fail(f"{context} marked complete without game_screenshot")

@@ -17,7 +17,9 @@ The machine-readable registry is `data/qa/photo_match/manifest.json`. `tools/val
 
 For each benchmark, reproduce the real reference viewpoint in Godot as closely as practical. Record the in-game camera position, rotation and FOV in the manifest. Camera height and effective focal length matter: changing them to make geometry look correct defeats the benchmark.
 
-Commit the corresponding in-game screenshot under:
+The Bourse benchmark now has an automated capture gate. `game/tests/photo_match_capture_test.gd` reads the camera transform from the manifest, instantiates the real `main.tscn`, suppresses prototype UI/player noise, disables automatic traffic spawning for a geometry-focused comparison, and writes a deterministic 1280x960 PNG. CI publishes that PNG as the `bourse-photo-match-capture` artifact on every relevant PR.
+
+The manifest transform may be marked `status: provisional` while viewpoint alignment is still being refined. A provisional transform is useful for repeatability but is not proof of a match. Once side-by-side alignment is accepted, commit the approved in-game screenshot under:
 
 `data/qa/photo_match/game_screenshots/<reference-id>.png`
 
@@ -47,14 +49,14 @@ Every incomplete reference must contain at least one actionable mismatch. Use se
 
 A reference may set `realism_complete: true` only when:
 
-- its camera transform is recorded;
+- its camera transform is recorded and no longer provisional;
 - the registered game screenshot exists in the repository;
 - all eleven scores are numeric and valid;
 - the average and every critical score meet the threshold;
 - no unresolved blocker remains.
 
-The validator enforces these conditions. An intentionally incomplete benchmark is valid CI state; an unsupported completion claim is not.
+The validator enforces the existing completion conditions. An intentionally incomplete benchmark is valid CI state; an unsupported completion claim is not.
 
 ## First benchmark: Place de la Bourse
 
-The initial Bourse benchmark records an openly licensed 2024 reference and camera metadata, but deliberately has no in-game screenshot or score yet. It therefore remains `realism_complete: false`. The next visual pass must reproduce that viewpoint, capture the game frame, fill the scorecard and convert each observed difference into a concrete scene/material/lighting task.
+The initial Bourse benchmark uses the CC0 2024 photograph `Place de la Bourse (6).jpg` by Bernard Lee. Wikimedia Commons records the original as 4032x3024, captured with an iPhone XR at 4.25 mm / 26 mm full-frame equivalent and released under CC0 1.0. The current game camera is intentionally marked provisional: it is a repeatable ground-level west-side starting pose facing the Bourse checkpoint with a 69.4 degree FOV approximation. CI must first produce a stable capture from that pose; the next realism pass then aligns the pose side-by-side with the reference, commits the accepted game screenshot, scores all dimensions and converts visible discrepancies into concrete scene/material/lighting tasks. Until that happens, `realism_complete` remains false.

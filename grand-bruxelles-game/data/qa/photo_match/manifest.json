@@ -26,8 +26,21 @@
         "camera_notes": "iPhone XR; 26 mm equivalent focal length; standard perspective"
       },
       "viewpoint": {
-        "description": "Match the reference's ground-level Place de la Bourse framing and facade perspective before scoring.",
-        "game_camera_transform": null,
+        "description": "Ground-level provisional camera on the west side of Place de la Bourse, facing the Bourse checkpoint. 69.4 degree FOV approximates a 26 mm full-frame-equivalent horizontal framing; exact pose remains subject to side-by-side alignment with the lawful reference.",
+        "game_camera_transform": {
+          "position": [
+            20.0,
+            1.68,
+            -664.58
+          ],
+          "rotation_degrees": [
+            0.0,
+            -90.0,
+            0.0
+          ],
+          "fov_degrees": 69.4,
+          "status": "provisional"
+        },
         "game_screenshot": null
       },
       "scores": {
@@ -46,7 +59,19 @@
       "mismatches": [
         {
           "severity": "blocker",
-          "action": "Capture and register a matching in-game screenshot from the same effective viewpoint before any realism-complete claim."
+          "action": "Rendered evidence from the deterministic current-main capture does not show a recognizable Palais de la Bourse silhouette: audit the Centre UrbIS footprint/height coverage and add only source-backed landmark massing/roofline detail before scoring silhouette, placement or landmark alignment."
+        },
+        {
+          "severity": "blocker",
+          "action": "The current capture shows sparse/generic streetscape massing and proportions instead of the dense Place de la Bourse frontage: verify street width, building placement, facade rhythm and forecourt geometry against authoritative geometry and the lawful reference before accepting this viewpoint."
+        },
+        {
+          "severity": "major",
+          "action": "A Bruxelles-Midi / Brussel-Zuid presentation label is still visible in the Centre capture even when MidiHeroZone is hidden by the QA harness: identify its runtime source and spatially scope location-specific labels so distant hero signage cannot contaminate other districts."
+        },
+        {
+          "severity": "blocker",
+          "action": "After the geometry and spatial-label leaks are repaired, refine the provisional camera pose side-by-side with the CC0 reference, commit the approved in-game screenshot and score all eleven dimensions."
         }
       ],
       "realism_complete": false

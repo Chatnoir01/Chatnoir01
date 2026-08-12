@@ -4,7 +4,7 @@ const HEIGHTS_PATH := "res://data/urbis/laeken_jette/building_heights_dsm.game.j
 const OVERRIDES_PATH := "res://data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
 const TREES_PATH := "res://data/environment/laeken_jette/official_city_trees.game.json"
 const ORTHO_PATH := "res://data/orthophoto/laeken_jette/phase1_ortho.jpg"
-const MAX_READY_FRAMES := 180
+const MAX_READY_FRAMES := 220
 
 
 func _initialize() -> void:
@@ -37,7 +37,8 @@ func _run() -> void:
     var facade_detail = scene.get_node_or_null("FacadeDetailPass")
     var trees = scene.get_node_or_null("OfficialTrees")
     var canopy = scene.get_node_or_null("TreeCanopyRefinement")
-    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or facade_detail == null or trees == null or canopy == null:
+    var cleanup = scene.get_node_or_null("SourceTruthCleanup")
+    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or facade_detail == null or trees == null or canopy == null or cleanup == null:
         _fail("one or more required realism nodes are missing")
         return
 
@@ -53,13 +54,14 @@ func _run() -> void:
             and bool(facade_detail.get("detail_ready"))
             and bool(trees.get("trees_loaded"))
             and bool(canopy.get("refinement_ready"))
+            and bool(cleanup.get("cleanup_ready"))
         )
         if all_ready:
             ready_frame = frame_index
             break
         await process_frame
     if ready_frame < 0:
-        _fail("realism stack not ready within %d frames terrain=%s heights=%s bridge=%s ortho=%s building_visual=%s ortho_roofs=%s facade_detail=%s trees=%s canopy=%s" % [
+        _fail("realism stack not ready within %d frames terrain=%s heights=%s bridge=%s ortho=%s building_visual=%s ortho_roofs=%s facade_detail=%s trees=%s canopy=%s cleanup=%s" % [
             MAX_READY_FRAMES,
             bool(terrain.get("terrain_loaded")),
             bool(height_pass.get("height_mesh_ready")),
@@ -70,6 +72,7 @@ func _run() -> void:
             bool(facade_detail.get("detail_ready")),
             bool(trees.get("trees_loaded")),
             bool(canopy.get("refinement_ready")),
+            bool(cleanup.get("cleanup_ready")),
         ])
         return
 
@@ -134,6 +137,29 @@ func _run() -> void:
         _fail("hall rib MultiMesh count mismatch")
         return
 
+    var legacy_hidden := bool(cleanup.get("hidden_legacy_approach"))
+    var removed_synthetic_trees := int(cleanup.get("removed_corridor_trees"))
+    var removed_synthetic_dashes := int(cleanup.get("removed_corridor_dashes"))
+    var kept_lamps := int(cleanup.get("kept_corridor_lamps"))
+    if not legacy_hidden or removed_synthetic_trees <= 0 or removed_synthetic_dashes <= 0:
+        _fail("legacy approach cleanup incomplete: hidden=%s trees=%d dashes=%d" % [legacy_hidden, removed_synthetic_trees, removed_synthetic_dashes])
+        return
+    if kept_lamps <= 0:
+        _fail("provisional sourced-axis lamps unexpectedly missing after cleanup")
+        return
+    var legacy_root := scene.get_node_or_null("RealismPass/AtomiumApproachPhotoGuided") as Node3D
+    if legacy_root == null or legacy_root.visible:
+        _fail("legacy duplicate approach root is still visible")
+        return
+    var corridor := scene.get_node_or_null("AtomiumCorridor")
+    if corridor == null:
+        _fail("Atomium corridor missing")
+        return
+    for child in corridor.get_children():
+        if str(child.name) in ["PhotoGuidedTree", "LaneDash"]:
+            _fail("synthetic corridor duplicate survived cleanup: %s" % str(child.name))
+            return
+
     var tree_total := int(trees.get("official_tree_count"))
     var grounded := int(trees.get("terrain_grounded_count"))
     var skipped := int(trees.get("skipped_count"))
@@ -167,7 +193,7 @@ func _run() -> void:
         _fail("broadleaf replacement MultiMesh count mismatch")
         return
 
-    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d,street_detail:%d,windows:%d,halls:%d,ribs:%d} trees={total:%d,skipped:%d,replacement_lobes:%d,conifer_tiers:%d,primary_replaced:%s} ortho=true" % [
+    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d,street_detail:%d,windows:%d,halls:%d,ribs:%d} source_cleanup={trees:%d,dashes:%d,lamps:%d} trees={total:%d,skipped:%d,replacement_lobes:%d,conifer_tiers:%d,primary_replaced:%s} ortho=true" % [
         ready_frame,
         terrain_range,
         derived,
@@ -177,6 +203,9 @@ func _run() -> void:
         facade_windows,
         facade_halls,
         hall_ribs,
+        removed_synthetic_trees,
+        removed_synthetic_dashes,
+        kept_lamps,
         tree_total,
         skipped,
         broadleaf_lobes,

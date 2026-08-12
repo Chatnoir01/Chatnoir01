@@ -73,8 +73,8 @@
       "severity": "high",
       "category": "framing_lens",
       "status": "open",
-      "evidence": "The first source-geolocated Godot capture at the provisional 50 degree FOV shows the Atomium occupying much less of the image than the lawful 960x638 reference. The source metadata does not publish focal length, so the current FOV cannot be treated as source-derived.",
-      "action": "Measure source and in-game landmark image-space bounds and solve a documented benchmark framing/FOV calibration while preserving that it is a visual-fit parameter, not recovered EXIF focal length."
+      "evidence": "The first source-geolocated Godot capture at the provisional 50 degree FOV shows the Atomium occupying much less of the image than the lawful 960x638 reference. The source metadata does not publish focal length. The deterministic geometry audit now predicts that the registered 102 m subject occupies 35.454757% of the 720 px capture height at 50 degrees, but source-image landmark bounds are still unmeasured so that audit cannot recover the historical lens.",
+      "action": "Measure the Atomium bounding box in the lawful 960x638 source image and compare it with the deterministic geometry/capture bounds. Only then tune a documented benchmark FOV as a visual-fit parameter; never represent it as recovered EXIF focal length."
     },
     {
       "id": "LJ-PM-009",
@@ -82,8 +82,8 @@
       "severity": "high",
       "category": "foreground_context",
       "status": "open",
-      "evidence": "The lawful reference visibly includes the large fountain basin/water jets, dense flanking tree walls, lamp posts, parked cars, benches and pedestrians. The first deterministic in-game capture instead shows broad simplified ground/road surfaces and sparse generic context.",
-      "action": "Resolve the fountain/open-space footprint and hero-visible vegetation/furniture from authoritative or lawful sources, then rebuild the foreground before claiming realism completion."
+      "evidence": "The lawful reference includes the fountain/open space and dense flanking vegetation plus furniture/vehicles/people. atomium_ground_foreground_inventory.json now proves 17 City of Brussels public-tree records inside a +/-70 m camera-to-Atomium corridor (7 within the first 100 m, 3 from 100-220 m, 7 near the Atomium context). Those exact source IDs now receive denser hero LOD and the Godot smoke/capture gates pass. The City inventory is explicitly incomplete and does not establish fountain, benches, lamp posts, parked cars or pedestrians, so the broader mismatch remains open.",
+      "action": "Keep the 17 known public trees source-positioned and seek orthophoto/lawful-reference evidence for canopy gaps plus fountain/open-space and street-furniture geometry. Do not fill inventory gaps by intuition; rerun the deterministic hero capture after every evidence-backed foreground lot."
     },
     {
       "id": "LJ-PM-010",
@@ -91,8 +91,8 @@
       "severity": "high",
       "category": "materials_detail",
       "status": "open",
-      "evidence": "The first deterministic capture shows simplified flat road/ground materials, coarse tree forms and generic facade blocks, while the reference contains reflective Atomium metal, detailed vegetation, paved foreground, vehicles and street furniture.",
-      "action": "Prioritize hero-view material/vegetation/detail replacement using source-backed classes and measured placement; do not hide the mismatch with generic clutter."
+      "evidence": "The deterministic capture still contains simplified flat road/ground materials and generic facade blocks. The 17 source-audited public trees now use denser hero meshes, which improves geometry density without changing their source positions/species, but their dimensions remain deterministic approximations and the reference still contains reflective Atomium metal, paved foreground, vehicles and street furniture not yet matched.",
+      "action": "Continue source-backed material/detail replacement: first reflective Atomium/paved foreground classes and evidenced vegetation structure, then lawful furniture/vehicle context. Do not hide remaining mismatches with generic clutter."
     }
   ]
 }

@@ -2,14 +2,18 @@ name: Grand Bruxelles Traffic Canonical
 
 on:
   push:
-    branches: ["integration/traffic-canonical-core-v4"]
+    branches:
+      - "integration/traffic-canonical-core-v4"
+      - "integration/traffic-canonical-vehicle-core"
     paths:
       - "grand-bruxelles-game/game/scripts/traffic_*.gd"
+      - "grand-bruxelles-game/game/scripts/vehicle_damage_model.gd"
       - "grand-bruxelles-game/game/tests/traffic_*.gd"
       - ".github/workflows/grand-bruxelles-traffic-canonical.yml"
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/traffic_*.gd"
+      - "grand-bruxelles-game/game/scripts/vehicle_damage_model.gd"
       - "grand-bruxelles-game/game/tests/traffic_*.gd"
       - ".github/workflows/grand-bruxelles-traffic-canonical.yml"
   workflow_dispatch:
@@ -41,3 +45,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_runtime_contract_test.gd 2>&1 | tee /tmp/traffic-contract.log
           if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_RUNTIME_CONTRACT_FAIL" /tmp/traffic-contract.log; then exit 1; fi
           grep -q "TRAFFIC_RUNTIME_CONTRACT_OK" /tmp/traffic-contract.log
+      - name: Canonical traffic vehicle core test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_canonical_vehicle_core_test.gd 2>&1 | tee /tmp/traffic-vehicle-core.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CANONICAL_VEHICLE_FAIL" /tmp/traffic-vehicle-core.log; then exit 1; fi
+          grep -q "TRAFFIC_CANONICAL_VEHICLE_OK" /tmp/traffic-vehicle-core.log

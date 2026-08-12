@@ -59,16 +59,19 @@ func _terrain_ortho_material(texture: Texture2D) -> ShaderMaterial:
     shader.code = _shader_prefix() + """
 vec3 remap_aerial(vec3 colour) {
     float lum = luminance(colour);
-    float mapped_lum = mix(0.10, 0.50, pow(clamp(lum, 0.0, 1.0), 0.72));
+    // Ground-camera QA showed the aerial's dark vegetation/shadow signal was
+    // collapsing to a near-black foreground while pale plaza surfaces clipped.
+    // Compress both ends while retaining hue relationships from the source.
+    float mapped_lum = mix(0.18, 0.46, pow(clamp(lum, 0.0, 1.0), 0.62));
     vec3 chroma = colour / max(lum, 0.035);
-    chroma = mix(vec3(1.0), chroma, 0.72);
-    return clamp(chroma * mapped_lum, vec3(0.0), vec3(0.62));
+    chroma = mix(vec3(1.0), chroma, 0.66);
+    return clamp(chroma * mapped_lum, vec3(0.14), vec3(0.56));
 }
 void fragment() {
     vec2 uv = ortho_uv(local_pos.xz);
     vec3 aerial = remap_aerial(texture(ortho_texture, uv).rgb);
     float slope = 1.0 - clamp(normalize(local_normal).y, 0.0, 1.0);
-    float slope_shade = mix(1.0, 0.84, smoothstep(0.10, 0.55, slope));
+    float slope_shade = mix(1.0, 0.90, smoothstep(0.10, 0.55, slope));
     ALBEDO = aerial * slope_shade;
     ROUGHNESS = 0.96;
     METALLIC = 0.0;
@@ -85,23 +88,23 @@ func _road_ortho_material(texture: Texture2D) -> ShaderMaterial:
     shader.code = _shader_prefix() + """
 vec3 remap_aerial(vec3 colour) {
     float lum = luminance(colour);
-    float mapped_lum = mix(0.12, 0.52, pow(clamp(lum, 0.0, 1.0), 0.72));
+    float mapped_lum = mix(0.16, 0.46, pow(clamp(lum, 0.0, 1.0), 0.66));
     vec3 chroma = colour / max(lum, 0.035);
-    chroma = mix(vec3(1.0), chroma, 0.68);
-    return clamp(chroma * mapped_lum, vec3(0.0), vec3(0.64));
+    chroma = mix(vec3(1.0), chroma, 0.62);
+    return clamp(chroma * mapped_lum, vec3(0.14), vec3(0.52));
 }
 void fragment() {
     vec2 uv = ortho_uv(local_pos.xz);
     vec3 raw_aerial = texture(ortho_texture, uv).rgb;
     vec3 aerial = remap_aerial(raw_aerial);
     float raw_lum = luminance(raw_aerial);
-    // Lift the base asphalt so sunlit streets do not read as black voids, while
-    // the original high-resolution aerial signal still drives markings/paving.
-    vec3 asphalt = vec3(0.145, 0.152, 0.160);
-    float marking_hint = smoothstep(0.55, 0.83, raw_lum);
-    float aerial_weight = mix(0.48, 0.74, marking_hint);
+    // Preserve markings and material variation, but keep the road in a believable
+    // mid-grey range instead of alternating between black void and white plaza.
+    vec3 asphalt = vec3(0.175, 0.182, 0.190);
+    float marking_hint = smoothstep(0.58, 0.86, raw_lum);
+    float aerial_weight = mix(0.44, 0.64, marking_hint);
     vec3 colour = mix(asphalt, aerial, aerial_weight);
-    ALBEDO = colour;
+    ALBEDO = clamp(colour, vec3(0.16), vec3(0.48));
     ROUGHNESS = 0.94;
     METALLIC = 0.0;
 }

@@ -3,6 +3,7 @@ extends SceneTree
 const BUILDINGS_PATH := "res://data/urbis/laeken_jette/buildings.game.json"
 const PALAIS5_OUTLINE_PATH := "res://data/sources/laeken_jette/palais5_osm_outline.game.json"
 const PALAIS5_EXPO_INSPIRE_ID := "https://databrussels.be/id/building/1635598"
+const SOURCE_BUILDER := preload("res://game/zones/laeken_jette/laeken_jette_zone.gd")
 const ROOF_Y_EPSILON := 0.001
 const OVERLAP_AREA_EPSILON_M2 := 0.0001
 
@@ -182,15 +183,12 @@ func _verify(mesh: Mesh) -> Dictionary:
 
 
 func _run() -> void:
-    var packed := load("res://game/zones/laeken_jette/laeken_jette.tscn") as PackedScene
-    if packed == null:
-        _fail("Laeken/Jette scene failed to load")
-        return
-    var scene := packed.instantiate()
-    root.add_child(scene)
+    var builder := SOURCE_BUILDER.new() as Node3D
+    builder.build_atomium_hero = false
+    root.add_child(builder)
     await process_frame
 
-    var source_mesh := scene.get_node_or_null("OfficialBuildings") as MeshInstance3D
+    var source_mesh := builder.get_node_or_null("OfficialBuildings") as MeshInstance3D
     if source_mesh == null or source_mesh.mesh == null or source_mesh.mesh.get_surface_count() == 0:
         _fail("OfficialBuildings source mesh missing")
         return
@@ -204,6 +202,6 @@ func _run() -> void:
         int(proof["forbidden_overlap_triangles"]),
         int(proof["official_holes"]),
     ])
-    scene.queue_free()
+    builder.queue_free()
     await process_frame
     quit(0)

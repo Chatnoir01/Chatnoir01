@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 3,
   "zone": "laeken_jette",
   "crs": "project-local metres derived from EPSG:31370",
   "policy": "Deterministic in-game benchmark viewpoints tied to lawful visual references. Camera coordinates are benchmark camera placements only and must never be represented as photographer GPS unless a source explicitly provides a surveyed camera position. UrbIS/LiDAR remain authoritative for city geometry.",
@@ -45,6 +45,28 @@
       "status": "reference_registered_camera_pending",
       "camera_claim": "No photographer position is claimed. A deterministic in-game camera must be selected against official terrain/street geometry before capture.",
       "camera_height_above_terrain_m": 1.7,
+      "camera_selection_constraints": {
+        "authoritative_inputs": [
+          "UrbIS street and pedestrian-space geometry",
+          "official DTM terrain elevation",
+          "official Atomium geometry anchor"
+        ],
+        "must_resolve": [
+          "walkable ground-level camera point outside building footprints",
+          "terrain-derived camera elevation plus 1.7 m eye height",
+          "unobstructed broad Atomium target direction"
+        ],
+        "must_not_infer": [
+          "photographer GPS from depicted-place metadata",
+          "lens pose from visual intuition alone",
+          "street or path geometry absent from authoritative data"
+        ],
+        "remaining_unknowns": [
+          "exact photographer position",
+          "exact source lens focal length",
+          "exact yaw and pitch"
+        ]
+      },
       "fov_degrees": 50.0,
       "resolution": [1280, 720],
       "reference": {
@@ -67,6 +89,29 @@
       "subject": "Heysel / King Baudouin Stadium context viewed from Atomium",
       "status": "reference_registered_camera_pending",
       "camera_claim": "The source states the image was taken from the Atomium, but no exact observation point, lens pose or survey-grade camera coordinates are claimed. In-game camera must therefore remain explicitly provisional.",
+      "camera_selection_constraints": {
+        "authoritative_inputs": [
+          "official Atomium geometry anchor and documented monument dimensions",
+          "UrbIS Heysel/stadium/block geometry",
+          "official DTM/DSM elevation context where available"
+        ],
+        "must_resolve": [
+          "an explicit provisional observation point within the Atomium model",
+          "target direction from authoritative stadium/Heysel geometry",
+          "horizon relationship from measured terrain/elevation context"
+        ],
+        "must_not_infer": [
+          "exact observation sphere or window without source evidence",
+          "photographer GPS",
+          "lens focal length or crop from intuition alone",
+          "Palais 5 hall footprint from the rejected campus-scale UrbIS component"
+        ],
+        "remaining_unknowns": [
+          "exact Atomium observation point",
+          "exact source focal length",
+          "exact yaw, pitch and crop"
+        ]
+      },
       "fov_degrees": 50.0,
       "resolution": [1280, 720],
       "reference": {

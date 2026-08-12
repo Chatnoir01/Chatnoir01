@@ -98,6 +98,33 @@ func get_median_rate() -> float:
 func get_median_occupancy() -> float:
     return _median_occupancy
 
+func nearest_sample(position: Vector3) -> Dictionary:
+    if not is_configured():
+        return _empty_nearest_sample()
+    var flat_position := Vector3(position.x, 0.0, position.z)
+    var best_sample: Dictionary = {}
+    var best_distance := INF
+    for sample: Dictionary in _samples:
+        var sample_position: Vector3 = sample.get("position", Vector3.ZERO)
+        var distance := flat_position.distance_to(sample_position)
+        if distance < best_distance:
+            best_distance = distance
+            best_sample = sample
+    if best_sample.is_empty():
+        return _empty_nearest_sample()
+    return {
+        "available": true,
+        "id": str(best_sample.get("id", "")),
+        "distance_m": best_distance,
+        "position": best_sample.get("position", Vector3.ZERO),
+        "factor": _sample_factor(best_sample),
+        "vehicles_per_minute": float(best_sample.get("vehicles_per_minute", 0.0)),
+        "occupancy_pct": float(best_sample.get("occupancy_pct", -1.0)),
+        "captured_at_utc": _captured_at_utc,
+        "source_name": _source_name,
+        "source_license": _source_license,
+    }
+
 func calibration_for(
     position: Vector3,
     max_radius_m: float = DEFAULT_MAX_RADIUS_M,
@@ -177,6 +204,20 @@ func _median_of_samples(key: String, ignore_negative: bool = false) -> float:
     if values.size() % 2 == 1:
         return values[middle]
     return (values[middle - 1] + values[middle]) * 0.5
+
+func _empty_nearest_sample() -> Dictionary:
+    return {
+        "available": false,
+        "id": "",
+        "distance_m": INF,
+        "position": Vector3.ZERO,
+        "factor": 1.0,
+        "vehicles_per_minute": 0.0,
+        "occupancy_pct": -1.0,
+        "captured_at_utc": _captured_at_utc,
+        "source_name": _source_name,
+        "source_license": _source_license,
+    }
 
 func _empty_calibration() -> Dictionary:
     return {

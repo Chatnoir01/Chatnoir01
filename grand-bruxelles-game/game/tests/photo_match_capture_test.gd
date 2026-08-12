@@ -43,7 +43,7 @@ func _hide_generated_labels(node: Node) -> void:
         _hide_generated_labels(child)
 
 func _hide_capture_noise(scene: Node) -> void:
-    for node_path: String in ["MissionLabel", "PrototypeLabel", "MiniMap", "MobileControls"]:
+    for node_path: String in ["LocationLabel", "MissionLabel", "PrototypeLabel", "MiniMap", "MobileControls"]:
         var item := scene.get_node_or_null(node_path) as CanvasItem
         if item != null:
             item.visible = false

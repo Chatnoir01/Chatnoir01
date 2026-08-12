@@ -65,11 +65,41 @@ def validate_pending_camera_constraints(view: dict) -> None:
     )
 
 
+def validate_heysel_candidate_audit(audit: dict) -> None:
+    assert audit.get("view_id") == "heysel_stadium_context_v1"
+    assert audit.get("status") == "candidate_observation_levels_resolved_exact_pose_pending"
+    reference = audit.get("reference_file", {})
+    assert reference.get("published_camera_coordinates") is None
+    assert reference.get("published_focal_length") is None
+    assert reference.get("current_pixels") == [494, 370]
+    assert reference.get("earlier_pixels") == [640, 480]
+    assert "crop" in str(reference.get("current_file_edit_note", "")).lower()
+    official = audit.get("official_atomium_observation_context", {})
+    assert official.get("source_url", "").startswith("https://atomium.be/")
+    upper = official.get("upper_sphere_panorama", {})
+    lateral = official.get("lateral_sphere_viewpoint", {})
+    assert close(float(upper.get("altitude_m", -1.0)), 92.0, 0.001)
+    assert int(upper.get("view_degrees", 0)) == 360
+    assert close(float(lateral.get("altitude_m", -1.0)), 36.0, 0.001)
+    assert int(lateral.get("view_degrees", 0)) == 150
+    candidates = audit.get("candidate_assessment", [])
+    assert isinstance(candidates, list) and len(candidates) == 2
+    assert {item.get("id") for item in candidates} == {"upper_panorama_92m", "lateral_viewpoint_36m"}
+    assert all(item.get("status") == "plausible_not_proven" for item in candidates)
+    unknowns = " ".join(audit.get("hard_unknowns", [])).lower()
+    for token in ("exact", "focal", "crop", "yaw"):
+        assert token in unknowns, f"Heysel candidate audit must preserve uncertainty about {token}"
+    gate = audit.get("next_evidence_gate", [])
+    assert isinstance(gate, list) and len(gate) >= 4
+    assert any("urbis" in str(item).lower() for item in gate), "Heysel next gate must depend on UrbIS target geometry"
+
+
 def main() -> int:
     realism = load(REF / "realism_pass1.json")
     jette = load(REF / "jette_photo_references.json")
     photo_match = load(REF / "photo_match_views.json")
     findings = load(REF / "photo_match_findings.json")
+    heysel_audit = load(REF / "heysel_camera_candidate_audit.json")
     heights = load(SRC / "building_height_integration_validation.json")
 
     assert realism["schema"] >= 2
@@ -103,6 +133,8 @@ def main() -> int:
     x, z = miroir["source_game_xz_depicted_place"]
     assert close(x, e - origin["epsg31370_e"])
     assert close(z, -(n - origin["epsg31370_n"]))
+
+    validate_heysel_candidate_audit(heysel_audit)
 
     gate = photo_match.get("quality_gate", {})
     minimum_views = int(gate.get("minimum_reference_views", 0))
@@ -173,7 +205,7 @@ def main() -> int:
     print(
         "LAEKEN_JETTE_REFERENCE_REGISTRY_OK: "
         f"height_coverage={coverage:.2f}% refs={len(refs)} benchmarks={len(views)} "
-        f"findings={len(finding_items)} open_high={open_high}"
+        f"findings={len(finding_items)} open_high={open_high} heysel_candidates=2"
     )
     return 0
 

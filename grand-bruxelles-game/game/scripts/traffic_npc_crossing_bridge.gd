@@ -77,6 +77,8 @@ func _try_assign(agent: Node, crossing_system: RefCounted) -> void:
                 "far_side": far_side,
                 "phase": &"approach",
                 "wait_started_s": -1.0,
+                "last_gap_check_s": -1.0,
+                "gap_check_attempt": 0,
             }
     if best.is_empty() or int(best.get("crossing_id", 0)) <= 0:
         return
@@ -99,14 +101,26 @@ func _advance_assignment(agent: Node, crossing_system: RefCounted, traffic_gap_p
         crossing_system.call("register_waiting", crossing_id, agent_id)
         assignment["phase"] = &"waiting"
         assignment["wait_started_s"] = now_seconds
+        assignment["last_gap_check_s"] = now_seconds
+        assignment["gap_check_attempt"] = 0
         _assignments[agent_id] = assignment
         if agent.has_method("update_crossing_context"):
             agent.call("update_crossing_context", 0, false, 0.0)
         return
 
     if phase == &"waiting":
-        var waited := maxf(0.0, now_seconds - float(assignment.get("wait_started_s", now_seconds)))
-        var gap_safe := waited >= minimum_wait_seconds and _gap_is_safe(traffic_gap_provider, crossing_id, position)
+        var wait_started_s := float(assignment.get("wait_started_s", now_seconds))
+        var waited := maxf(0.0, now_seconds - wait_started_s)
+        var last_gap_check_s := float(assignment.get("last_gap_check_s", wait_started_s))
+        var attempt := int(assignment.get("gap_check_attempt", 0))
+        var recheck_interval := _agent_gap_recheck_interval(agent, attempt)
+        var recheck_due := waited >= minimum_wait_seconds and now_seconds - last_gap_check_s >= recheck_interval
+        var gap_safe := false
+        if recheck_due:
+            gap_safe = _gap_is_safe(traffic_gap_provider, crossing_id, position)
+            assignment["last_gap_check_s"] = now_seconds
+            assignment["gap_check_attempt"] = attempt + 1
+            _assignments[agent_id] = assignment
         if agent.has_method("update_crossing_context"):
             agent.call("update_crossing_context", 0, gap_safe, waited)
         if not gap_safe:
@@ -128,6 +142,19 @@ func _advance_assignment(agent: Node, crossing_system: RefCounted, traffic_gap_p
             agent.call("clear_pedestrian_hold")
         agent.call("set_destination", assignment.get("original_target", position))
         _assignments.erase(agent_id)
+
+func _agent_gap_recheck_interval(agent: Node, attempt_index: int) -> float:
+    if _object_has_property(agent, &"pedestrian_context"):
+        var pedestrian_context: Variant = agent.get("pedestrian_context")
+        if pedestrian_context != null and pedestrian_context.has_method("curb_recheck_interval_seconds"):
+            return maxf(0.05, float(pedestrian_context.call("curb_recheck_interval_seconds", attempt_index)))
+    return minimum_wait_seconds
+
+func _object_has_property(object: Object, property_name: StringName) -> bool:
+    for raw_property: Dictionary in object.get_property_list():
+        if StringName(raw_property.get("name", &"")) == property_name:
+            return true
+    return false
 
 func _gap_is_safe(provider: Variant, crossing_id: int, position: Vector3) -> bool:
     if provider == null:

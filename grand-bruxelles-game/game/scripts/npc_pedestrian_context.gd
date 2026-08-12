@@ -26,16 +26,24 @@ func configure(seed_value: int, base_speed: float = 1.35) -> void:
 	curb_patience_seconds = lerpf(3.5, 11.0, _unit(17))
 	transit_patience_seconds = lerpf(75.0, 360.0, _unit(29))
 
-func crossing_intent(signal_value: int, traffic_gap_safe: bool, waiting_seconds: float) -> int:
+func crossing_intent(signal_value: int, traffic_gap_safe: bool, _waiting_seconds: float) -> int:
 	if signal_value == CrossingSignal.GREEN:
 		return PedestrianIntent.CROSS
 	if signal_value == CrossingSignal.RED:
 		return PedestrianIntent.WAIT_AT_CURB
 	if traffic_gap_safe:
 		return PedestrianIntent.CROSS
-	if waiting_seconds >= curb_patience_seconds:
-		return PedestrianIntent.WAIT_AT_CURB
 	return PedestrianIntent.WAIT_AT_CURB
+
+func curb_recheck_interval_seconds(attempt_index: int) -> float:
+	var attempt: int = maxi(attempt_index, 0)
+	var salt: int = 71 + attempt * 19
+	var individual_base: float = lerpf(0.72, 1.42, _unit(salt))
+	var patience_bias: float = remap(curb_patience_seconds, 3.5, 11.0, 0.90, 1.10)
+	return clampf(individual_base * patience_bias, 0.55, 1.65)
+
+func should_recheck_crossing_gap(elapsed_since_check_seconds: float, attempt_index: int) -> bool:
+	return maxf(elapsed_since_check_seconds, 0.0) >= curb_recheck_interval_seconds(attempt_index)
 
 func transit_intent(vehicle_arrived: bool, has_capacity: bool, waiting_seconds: float) -> int:
 	if vehicle_arrived and has_capacity:

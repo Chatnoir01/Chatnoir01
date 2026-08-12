@@ -3,7 +3,9 @@ extends SceneTree
 class FakeGapProvider:
     extends RefCounted
     var safe: bool = false
+    var checks: int = 0
     func is_crossing_gap_safe(_crossing_id: int, _agent_position: Vector3) -> bool:
+        checks += 1
         return safe
 
 func _initialize() -> void:
@@ -72,14 +74,29 @@ func _run() -> void:
         _fail("NPC did not enter held curb-wait state")
         return
 
+    bridge.call("update_agents", [npc], system, gap_provider, 0.4)
+    if gap_provider.checks != 0:
+        _fail("traffic gap was polled before the curb recheck cadence elapsed")
+        return
+
     bridge.call("update_agents", [npc], system, gap_provider, 0.8)
+    if gap_provider.checks != 1:
+        _fail("traffic gap was not polled when the fallback cadence elapsed")
+        return
     if int((system.call("get_crossing_state", 100) as Dictionary).get("crossing", 0)) != 0:
         _fail("NPC crossed while traffic gap provider reported unsafe")
         return
 
     gap_provider.safe = true
     bridge.call("update_agents", [npc], system, gap_provider, 1.0)
+    if gap_provider.checks != 1:
+        _fail("traffic gap was repolled every frame instead of respecting cadence")
+        return
+    bridge.call("update_agents", [npc], system, gap_provider, 1.3)
     var active_state: Dictionary = system.call("get_crossing_state", 100)
+    if gap_provider.checks != 2:
+        _fail("traffic gap was not repolled at the next cadence boundary")
+        return
     if int(active_state.get("waiting", 0)) != 0 or int(active_state.get("crossing", 0)) != 1:
         _fail("NPC did not transition from curb wait to crossing after safe gap")
         return
@@ -92,7 +109,7 @@ func _run() -> void:
         return
 
     npc.global_position = far_side
-    bridge.call("update_agents", [npc], system, gap_provider, 1.2)
+    bridge.call("update_agents", [npc], system, gap_provider, 1.5)
     if bool(bridge.call("has_assignment", npc)):
         _fail("NPC crossing assignment remained after exit")
         return
@@ -104,5 +121,5 @@ func _run() -> void:
         _fail("NPC original destination was not restored")
         return
 
-    print("TRAFFIC_NPC_CROSSING_BRIDGE_OK: same-side filtering, curb wait, traffic-gap gating, crossing and destination restoration passed")
+    print("TRAFFIC_NPC_CROSSING_BRIDGE_OK: curb gap checks are cadence-gated; unsafe traffic blocks; safe gap releases; destination restored")
     quit(0)

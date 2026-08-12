@@ -1,0 +1,37 @@
+name: Clean mapping Python cache artifacts
+
+on:
+  push:
+    branches: [zone-reste-bruxelles-clean]
+    paths:
+      - 'grand-bruxelles-game/.gitignore'
+      - '.github/workflows/remaining-brussels-pycache-cleanup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - name: Remove tracked Python caches only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+Chatnoir01@users.noreply.github.com'
+          TRACKED=$(git ls-files 'grand-bruxelles-game/**/__pycache__/*' 'grand-bruxelles-game/**/*.pyc')
+          if test -z "$TRACKED"; then
+            echo 'No tracked Python cache artifacts.'
+            exit 0
+          fi
+          printf '%s\n' "$TRACKED"
+          printf '%s\n' "$TRACKED" | xargs -d '\n' git rm --
+          git diff --cached --name-only
+          git commit -m 'chore: remove generated Python cache artifacts'
+          git push origin HEAD:zone-reste-bruxelles-clean

@@ -71,9 +71,10 @@ jobs:
           assert west['bbox'] == [149500.0,169000.0,150000.0,169500.0]
 
           selection = {
-            'format': 'grand-bruxelles-zone-cells-selection-v1',
+            'format': 'grand-bruxelles-zone-cells-v2',
             'zone_id': 'ixelles-etterbeek-bridge',
             'crs': 'EPSG:31370',
+            'cell_size_m': 500.0,
             'cell_count': 2,
             'cells': [by_ix[i] for i in ids],
             'continuity': {
@@ -136,7 +137,8 @@ jobs:
 
           west = json.loads((root/'bxl-e149500-n169000-s500'/'manifest.json').read_text())['bbox']
           assert west[2] == bboxes[0][0] and bboxes[0][2] == bboxes[1][0]
-          assert west[1:4:2] == bboxes[0][1:4:2] == bboxes[1][1:4:2]
+          assert west[1] == bboxes[0][1] == bboxes[1][1]
+          assert west[3] == bboxes[0][3] == bboxes[1][3]
 
           refs = [
             Path('data/processed/remaining_brussels/references/ixelles_bxl-e150000-n169000-s500_orthophoto.json'),

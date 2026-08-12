@@ -1,0 +1,36 @@
+{
+  "schema": "grand-bruxelles.laeken-jette.rail-layer-overlap-audit.v1",
+  "source": {
+    "provider": "Paradigm / Brussels UrbIS vector WFS",
+    "crs": "EPSG:31370",
+    "bbox": [147300.0, 173650.0, 149100.0, 176750.0],
+    "fetch_date": "2026-08-12",
+    "tram_layer": "urbisvector:TramNetwork",
+    "train_layer": "urbisvector:TrainNetwork",
+    "tram_path": "data/urbis/laeken_jette/tram_network.game.json",
+    "train_path": "data/urbis/laeken_jette/train_network.game.json"
+  },
+  "comparison": {
+    "ignored_fields": ["feature.id"],
+    "properties": ["INSPIRE_ID", "TYPE", "LVL", "LENGTH"],
+    "geometry_compared": true
+  },
+  "result": {
+    "tram_feature_count": 326,
+    "train_feature_count": 326,
+    "semantic_signature_match_count": 326,
+    "tram_types": ["TW"],
+    "train_types": ["TW"],
+    "collections_semantically_identical": true
+  },
+  "runtime_policy": {
+    "preserve_both_source_files": true,
+    "hide_second_visual_only_when_semantically_identical": true,
+    "future_distinct_source_requires_review": true
+  },
+  "notes": [
+    "This fixture records the committed 2026-08-12 Laeken/Jette UrbIS WFS slice, not a claim that TramNetwork and TrainNetwork are globally equivalent datasets.",
+    "The source files remain untouched for provenance. The runtime suppresses the second visual only while a complete semantic comparison confirms equivalence.",
+    "Any future source refresh that produces distinct rail semantics must fail the audit and be reviewed before rendering policy changes."
+  ]
+}

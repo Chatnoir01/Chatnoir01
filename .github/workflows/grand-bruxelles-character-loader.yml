@@ -1,0 +1,33 @@
+name: Grand Bruxelles Character Loader
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/pink_tracksuit_player_visual.gd"
+      - "grand-bruxelles-game/game/tests/pink_tracksuit_player_visual_test.gd"
+      - "grand-bruxelles-game/game/tests/fixtures/rigged_character_fixture.tscn"
+      - ".github/workflows/grand-bruxelles-character-loader.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  character-loader-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Godot 4.7.1
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+
+      - name: Verify project imports
+        run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
+
+      - name: Run rigged player loader test
+        run: godot --headless --path grand-bruxelles-game --script res://game/tests/pink_tracksuit_player_visual_test.gd

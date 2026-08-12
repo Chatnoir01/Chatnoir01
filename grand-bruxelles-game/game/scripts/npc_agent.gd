@@ -11,7 +11,9 @@ extends CharacterBody3D
 
 var behavior := NpcBehaviorModel.new()
 var pedestrian_context := NpcPedestrianContext.new()
+var appearance := NpcAppearanceProfile.new()
 var pedestrian_intent: int = NpcPedestrianContext.PedestrianIntent.CONTINUE
+var weather_context: int = NpcAppearanceProfile.WeatherContext.MILD
 var observer_position := Vector3.ZERO
 var active := true
 var movement_held := false
@@ -19,6 +21,7 @@ var movement_held := false
 func _ready() -> void:
 	behavior.configure(role, variation_seed, global_position)
 	_configure_pedestrian_context()
+	_configure_appearance()
 
 func set_spawn_context(new_role: NpcBehaviorModel.Role, seed_value: int, spawn_position: Vector3) -> void:
 	role = new_role
@@ -26,6 +29,14 @@ func set_spawn_context(new_role: NpcBehaviorModel.Role, seed_value: int, spawn_p
 	global_position = spawn_position
 	behavior.configure(new_role, seed_value, spawn_position)
 	_configure_pedestrian_context()
+	_configure_appearance()
+
+func set_weather_context(new_weather_context: int) -> void:
+	weather_context = clampi(new_weather_context, NpcAppearanceProfile.WeatherContext.MILD, NpcAppearanceProfile.WeatherContext.COLD)
+	_configure_appearance()
+
+func get_appearance_profile() -> Dictionary:
+	return appearance.as_dictionary().duplicate(true)
 
 func set_destination(destination: Vector3) -> void:
 	behavior.set_destination(destination)
@@ -98,9 +109,13 @@ func reactivate(spawn_position: Vector3) -> void:
 	global_position = spawn_position
 	behavior.configure(role, variation_seed, spawn_position)
 	_configure_pedestrian_context()
+	_configure_appearance()
 	set_physics_process(true)
 
 func _configure_pedestrian_context() -> void:
 	pedestrian_context.configure(variation_seed, behavior.preferred_speed)
 	pedestrian_intent = NpcPedestrianContext.PedestrianIntent.CONTINUE
 	movement_held = false
+
+func _configure_appearance() -> void:
+	appearance.configure(variation_seed, role, weather_context)

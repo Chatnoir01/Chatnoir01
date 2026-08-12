@@ -2,18 +2,18 @@
   "camera_pitch_to_registered_target_deg": 6.925747989867316,
   "camera_to_target_horizontal_distance_m": 304.1144426436321,
   "camera_y_from_atomium_baseline_m": 14.059434659520559,
-  "current_fov_degrees": 50.0,
-  "interpretation": "The current projection is deterministic. A conservative source-visible witness may reject an excessively wide FOV, but neither geometry nor the witness recovers the historical lens.",
+  "current_fov_degrees": 31.5,
+  "interpretation": "The current projection is deterministic. A conservative source-visible witness may bound an excessively wide FOV, but neither geometry nor the witness recovers the historical lens. The current 31.5 degree benchmark is an evidence-bounded capture candidate below the conservative maximum, not a historical focal-length claim.",
   "method": "perspective projection from registered camera/target geometry; optional conservative source-visible witness bound; no source focal-length recovery",
   "predicted_subject_bbox_y_px": [
-    234.92508818425114,
-    490.19934137266216
+    153.20086084053614,
+    575.2718824592081
   ],
-  "predicted_subject_frame_height_fraction": 0.35454757387279306,
-  "predicted_subject_height_px": 255.27425318841102,
+  "predicted_subject_frame_height_fraction": 0.5862097522481555,
+  "predicted_subject_height_px": 422.071021618672,
   "reference_visible_witness": {
     "conservative_min_visible_witness_frame_fraction": 0.5830721003134797,
-    "current_fov_is_too_wide": true,
+    "current_fov_is_too_wide": false,
     "endpoint_uncertainty_px": 5,
     "logic": "The witness encloses only clearly visible Atomium structure, so the full 102 m monument must occupy at least this fraction of the source frame. This yields an upper bound on FOV, not an exact lens estimate.",
     "maximum_fov_consistent_with_visible_witness_deg": 31.66103407870215,

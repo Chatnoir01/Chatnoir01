@@ -52,6 +52,23 @@ func _init() -> void:
 		_fail("incident/investigation phases must immediately suspend routine patrol")
 		return
 
+	var resumed: Dictionary = runtime.sample(0.0, false, true)
+	if not bool(resumed.get("movement_held", false)):
+		_fail("returning from an incident must hold briefly for post-incident observation before routine patrol resumes")
+		return
+	var recovery_seconds := float(resumed.get("post_incident_observation_remaining_seconds", 0.0))
+	if recovery_seconds < 2.0 or recovery_seconds > 6.0:
+		_fail("post-incident observation must be short, physically plausible and explicitly exposed")
+		return
+	var mid_recovery: Dictionary = runtime.sample(recovery_seconds * 0.5, false, true)
+	if not bool(mid_recovery.get("movement_held", false)):
+		_fail("officer must remain stationary while post-incident observation time remains")
+		return
+	var recovered: Dictionary = runtime.sample(recovery_seconds + 0.1, false, true)
+	if bool(recovered.get("movement_held", true)) or float(recovered.get("post_incident_observation_remaining_seconds", -1.0)) != 0.0:
+		_fail("routine patrol must become available once the short post-incident observation completes")
+		return
+
 	print("NPC_POLICE_PATROL_RUNTIME_OK")
 	quit(0)
 

@@ -99,6 +99,27 @@ class PhotoMatchValidatorTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 1)
         self.assertIn("unresolved major mismatch", stderr.getvalue())
 
+    def test_rejects_resolved_major_mismatch_without_resolution_evidence(self) -> None:
+        manifest = complete_manifest(
+            mismatches=[
+                {
+                    "severity": "major",
+                    "action": "Correct the wrong visual element.",
+                    "resolved": True,
+                }
+            ]
+        )
+
+        with tempfile.TemporaryDirectory(dir=PROJECT_ROOT) as temp_dir:
+            manifest_path = Path(temp_dir) / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            stderr = StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+                VALIDATOR.validate_manifest(manifest_path)
+
+        self.assertEqual(raised.exception.code, 1)
+        self.assertIn("resolution_evidence must be a non-empty string", stderr.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

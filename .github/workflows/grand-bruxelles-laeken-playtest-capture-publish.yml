@@ -1,11 +1,11 @@
-name: Grand Bruxelles Laeken Published Capture
+name: Grand Bruxelles Laeken Published Gameplay Capture
 
 on:
   push:
     branches: ["zone-laeken-jette"]
     paths:
       - "grand-bruxelles-game/game/zones/laeken_jette/**"
-      - "grand-bruxelles-game/game/tests/render_laeken_playtest_capture.gd"
+      - "grand-bruxelles-game/game/tests/render_laeken_player_camera_capture.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json"
       - "grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json"
       - "grand-bruxelles-game/data/terrain/laeken_jette/**"
@@ -44,7 +44,7 @@ jobs:
         run: |
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
 
-      - name: Render actual player camera
+      - name: Render actual gameplay Camera3D
         shell: bash
         run: |
           set -o pipefail
@@ -52,28 +52,28 @@ jobs:
             /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --path grand-bruxelles-game \
             --rendering-method gl_compatibility \
-            --script res://game/tests/render_laeken_playtest_capture.gd 2>&1 | tee /tmp/capture.log
-          if grep -E "SCRIPT ERROR|Parse Error:|PLAYTEST_CAPTURE_FAIL" /tmp/capture.log; then
+            --script res://game/tests/render_laeken_player_camera_capture.gd 2>&1 | tee /tmp/capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PLAYER_CAMERA_CAPTURE_FAIL" /tmp/capture.log; then
             exit 1
           fi
-          grep -q "PLAYTEST_CAPTURE_OK" /tmp/capture.log
+          grep -q "PLAYER_CAMERA_CAPTURE_OK" /tmp/capture.log
           grep -q "LAEKEN_BUILDING_HEIGHTS_READY" /tmp/capture.log
           grep -q "LAEKEN_OFFICIAL_TREES_READY" /tmp/capture.log
           grep -q "LAEKEN_ORTHOPHOTO_READY: active=true" /tmp/capture.log
-          test -s grand-bruxelles-game/laeken_playtest_current.png
+          test -s grand-bruxelles-game/laeken_player_camera_current.png
 
-      - name: Publish capture from latest branch head
+      - name: Publish gameplay capture from latest branch head
         run: |
           mkdir -p /tmp/laeken-capture
-          cp grand-bruxelles-game/laeken_playtest_current.png /tmp/laeken-capture/laeken_playtest_current.png
+          cp grand-bruxelles-game/laeken_player_camera_current.png /tmp/laeken-capture/laeken_player_camera_current.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin zone-laeken-jette
           git reset --hard origin/zone-laeken-jette
           mkdir -p grand-bruxelles-game/data/reference/laeken_jette/captures
-          cp /tmp/laeken-capture/laeken_playtest_current.png \
-            grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_playtest_current.png
-          git add -f grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_playtest_current.png
+          cp /tmp/laeken-capture/laeken_player_camera_current.png \
+            grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
+          git add -f grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
           git diff --cached --quiet && exit 0
-          git commit -m "visual: publish current Laeken player-camera capture [skip ci]"
+          git commit -m "visual: publish true Laeken gameplay-camera capture [skip ci]"
           git push origin HEAD:zone-laeken-jette

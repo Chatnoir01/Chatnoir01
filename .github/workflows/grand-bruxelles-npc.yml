@@ -148,3 +148,16 @@ jobs:
             exit 1
           fi
           grep -q "NPC_TRANSIT_STOP_OK" /tmp/npc-transit-stop.log
+
+      - name: Agent transit stop integration test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_agent_transit_stop_test.gd 2>&1 | tee /tmp/npc-agent-transit-stop.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_AGENT_TRANSIT_STOP_FAIL" /tmp/npc-agent-transit-stop.log; then
+            exit 1
+          fi
+          grep -q "NPC_AGENT_TRANSIT_STOP_OK" /tmp/npc-agent-transit-stop.log

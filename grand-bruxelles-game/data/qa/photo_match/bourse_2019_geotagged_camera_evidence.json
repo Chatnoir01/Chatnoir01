@@ -1,0 +1,53 @@
+{
+  "schema": "grand-bruxelles-bourse-geotagged-camera-evidence-v1",
+  "reference": {
+    "source_page": "https://commons.wikimedia.org/wiki/File:Palais_de_la_bourse_de_Bruxelles.jpg",
+    "title": "Palais de la bourse de Bruxelles.jpg",
+    "author": "Fawaz.tairou",
+    "captured_at": "2019-09-05T17:25:35+02:00",
+    "license": "CC BY-SA 4.0",
+    "distribution_policy": "provenance-only; reference image bytes are not vendored",
+    "source_dimensions_px": [4032, 3024],
+    "camera_model": "Apple iPhone 6s Plus",
+    "camera_location_wgs84": [50.848544, 4.349422],
+    "image_direction_true_degrees": 135.21993255901,
+    "lens_focal_length_mm": 4.15,
+    "focal_length_35mm_equivalent_mm": 29.0,
+    "accessed_at": "2026-08-12"
+  },
+  "project_transform": {
+    "source_crs": "EPSG:4326",
+    "project_crs": "EPSG:31370",
+    "lambert72_camera_e_n_m": [148638.7034428724, 170904.85375726316],
+    "lambert72_origin_e_n_m": [147868.29422791934, 169538.62414926197],
+    "world_origin_x_z_m": [-668.5, 627.84],
+    "game_camera_x_z_m": [101.90921495304792, -738.3896080011874],
+    "conversion_note": "WGS84 point transformed to EPSG:31370, then mapped with game_x = world_x + (E-origin_E) and game_z = world_z - (N-origin_N)."
+  },
+  "hero_witness": {
+    "authoritative_source": "Paradigm / Brussels-Capital Region UrbIS 3D Constructions",
+    "hero_building_id": "https://databrussels.be/id/building/1751663",
+    "hero_source_bbox_epsg31370": [148665.846, 170800.642, 148752.922, 170876.851],
+    "hero_bbox_center_game_x_z_m": [172.58977208065335, -672.2823507380346],
+    "camera_to_hero_horizontal_distance_m": 96.77763490975263,
+    "camera_to_hero_true_bearing_degrees": 133.08511295753942,
+    "published_heading_delta_degrees": 2.134819601470582
+  },
+  "optics": {
+    "horizontal_fov_from_35mm_equivalent_degrees": 63.65489315334623,
+    "derivation": "2*atan(36/(2*29)) on a 36 mm full-frame-equivalent horizontal sensor dimension",
+    "aspect_ratio": "4:3"
+  },
+  "candidate_game_camera_transform": {
+    "position": [101.90921495304792, 1.68, -738.3896080011874],
+    "rotation_degrees": [0.0, -135.21993255901, 0.0],
+    "horizontal_fov_degrees": 63.65489315334623,
+    "x_z_status": "source_position_locked",
+    "yaw_status": "source_true_heading_locked",
+    "fov_status": "source_35mm_equivalent_derived",
+    "y_status": "provisional_eye_height_not_source_altitude"
+  },
+  "runtime_approved": false,
+  "realism_complete": false,
+  "approval_note": "This locks a defensible camera-position/heading/lens witness only. The 1.68 m camera Y remains provisional; visual capture must pass before this viewpoint becomes the active Bourse benchmark or neighboring frontage geometry is promoted."
+}

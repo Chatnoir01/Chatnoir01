@@ -35,6 +35,18 @@ jobs:
         run: |
           cd grand-bruxelles-game
           python3 tools/audit_atomium_ground_framing.py --output /tmp/atomium_ground_framing_audit.json
-          diff -u data/reference/laeken_jette/atomium_ground_framing_audit.json /tmp/atomium_ground_framing_audit.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          committed = json.loads(Path('data/reference/laeken_jette/atomium_ground_framing_audit.json').read_text(encoding='utf-8'))
+          regenerated = json.loads(Path('/tmp/atomium_ground_framing_audit.json').read_text(encoding='utf-8'))
+          if committed != regenerated:
+              print('ATOMIUM_FRAMING_EVIDENCE_STALE')
+              print('committed=', json.dumps(committed, indent=2, sort_keys=True))
+              print('regenerated=', json.dumps(regenerated, indent=2, sort_keys=True))
+              raise SystemExit(1)
+          print('ATOMIUM_FRAMING_EVIDENCE_OK')
+          PY
       - name: Lock photo-match capture/finding consistency
         run: python3 grand-bruxelles-game/tests/test_laeken_photo_match_consistency.py

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download, hash, and validate official UrbIS DSM/DTM GeoTIFF archives."""
+"""Download, hash, and validate official UrbIS DSM/DTM raster archives."""
 from __future__ import annotations
 
 import argparse
@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 
 USER_AGENT = "Grand-Bruxelles-Game/1.0 (authoritative height archive validation)"
 ALLOWED_HOST = "urbisdownload.datastore.brussels"
+EXPECTED_CRS_EPSG = 31370
 
 
 def tile_bbox(tile: str) -> tuple[int, int, int, int]:
@@ -80,7 +81,7 @@ def safe_tiff_members(archive: Path) -> list[str]:
 
 
 def extract_archive_safely(archive: Path, destination: Path) -> list[Path]:
-    """Extract the complete official package so TIFF sidecars (.tfw/.prj/.aux.xml) remain usable."""
+    """Extract the complete official package so external georeferencing sidecars remain usable."""
     destination.mkdir(parents=True, exist_ok=True)
     extracted: list[Path] = []
     root = destination.resolve()
@@ -99,29 +100,39 @@ def extract_archive_safely(archive: Path, destination: Path) -> list[Path]:
     return extracted
 
 
-def inspect_geotiff(path: Path) -> dict:
+def inspect_raster(path: Path, authoritative_crs_epsg: int) -> dict:
     try:
         import rasterio  # type: ignore
     except ImportError as exc:
-        raise RuntimeError("rasterio is required for GeoTIFF validation") from exc
+        raise RuntimeError("rasterio is required for TIFF validation") from exc
     with rasterio.open(path) as src:
+        embedded_crs = src.crs.to_epsg() if src.crs else None
+        if embedded_crs is not None and embedded_crs != authoritative_crs_epsg:
+            raise ValueError(
+                f"Raster embeds EPSG:{embedded_crs}, contradicting authoritative EPSG:{authoritative_crs_epsg}: {path.name}"
+            )
+        transform = [float(v) for v in src.transform[:6]]
+        if transform == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]:
+            raise ValueError(f"Raster has no usable embedded/sidecar transform: {path.name}")
         return {
             "filename": path.name,
             "width": src.width,
             "height": src.height,
             "count": src.count,
             "dtype": src.dtypes[0] if src.dtypes else None,
-            "crs_epsg": src.crs.to_epsg() if src.crs else None,
+            "embedded_crs_epsg": embedded_crs,
+            "crs_epsg": embedded_crs or authoritative_crs_epsg,
+            "crs_basis": "embedded_raster" if embedded_crs is not None else "authoritative_source_manifest",
             "bounds": [float(src.bounds.left), float(src.bounds.bottom), float(src.bounds.right), float(src.bounds.top)],
             "resolution": [abs(float(src.transform.a)), abs(float(src.transform.e))],
             "nodata": src.nodata,
-            "transform": [float(v) for v in src.transform[:6]],
+            "transform": transform,
         }
 
 
-def validate_geotiff_metadata(tile: str, meta: dict, tolerance_m: float = 0.25) -> None:
-    if meta.get("crs_epsg") != 31370:
-        raise ValueError(f"{tile}: expected EPSG:31370, got {meta.get('crs_epsg')}")
+def validate_raster_metadata(tile: str, meta: dict, tolerance_m: float = 0.25) -> None:
+    if meta.get("crs_epsg") != EXPECTED_CRS_EPSG:
+        raise ValueError(f"{tile}: expected EPSG:{EXPECTED_CRS_EPSG}, got {meta.get('crs_epsg')}")
     if int(meta.get("width", 0)) <= 0 or int(meta.get("height", 0)) <= 0 or int(meta.get("count", 0)) <= 0:
         raise ValueError(f"{tile}: invalid raster dimensions/bands: {meta}")
     rx, ry = [float(x) for x in meta["resolution"]]
@@ -142,7 +153,7 @@ def validate_pair_alignment(dsm: dict, dtm: dict) -> None:
     if set(dsm_by_tile) != set(dtm_by_tile):
         raise ValueError("DSM/DTM tile sets differ")
     for tile in sorted(dsm_by_tile):
-        a, b = dsm_by_tile[tile]["geotiff"], dtm_by_tile[tile]["geotiff"]
+        a, b = dsm_by_tile[tile]["raster"], dtm_by_tile[tile]["raster"]
         for key in ("width", "height", "crs_epsg", "bounds", "resolution", "transform"):
             if a[key] != b[key]:
                 raise ValueError(f"{tile}: DSM/DTM {key} mismatch: {a[key]} != {b[key]}")
@@ -150,7 +161,7 @@ def validate_pair_alignment(dsm: dict, dtm: dict) -> None:
 
 def verify_resolution(resolution_path: Path, work_dir: Path) -> dict:
     source = json.loads(resolution_path.read_text(encoding="utf-8"))
-    if source.get("source_crs") != "EPSG:31370":
+    if source.get("source_crs") != f"EPSG:{EXPECTED_CRS_EPSG}":
         raise ValueError(f"Unexpected source CRS: {source.get('source_crs')}")
     archives = []
     for item in source["resolved_archives"]:
@@ -165,14 +176,14 @@ def verify_resolution(resolution_path: Path, work_dir: Path) -> dict:
         extraction_root = work_dir / source["kind"] / tile
         extract_archive_safely(archive_path, extraction_root)
         tif = extraction_root / Path(*PurePosixPath(members[0]).parts)
-        meta = inspect_geotiff(tif)
-        validate_geotiff_metadata(tile, meta)
-        archives.append({"tile": tile, "url": url, "archive_bytes": size, "sha256": sha256, "geotiff": meta})
+        meta = inspect_raster(tif, EXPECTED_CRS_EPSG)
+        validate_raster_metadata(tile, meta)
+        archives.append({"tile": tile, "url": url, "archive_bytes": size, "sha256": sha256, "raster": meta})
     if [x["tile"] for x in archives] != list(source["expected_1km_tile_codes"]):
         raise ValueError("Verified archive order/tile set differs from resolution")
     return {
         "schema": 1,
-        "format": "grand-bruxelles-height-archive-validation-v1",
+        "format": "grand-bruxelles-height-archive-validation-v2",
         "kind": source["kind"],
         "source": source["source"],
         "dataset_id": source["dataset_id"],
@@ -182,7 +193,7 @@ def verify_resolution(resolution_path: Path, work_dir: Path) -> dict:
         "license": source["license"],
         "validated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "archives": archives,
-        "status": "official_archives_hashed_and_geotiffs_validated",
+        "status": "official_archives_hashed_and_rasters_validated",
     }
 
 
@@ -206,7 +217,14 @@ def main() -> int:
         output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for kind, payload in (("dsm", dsm), ("dtm", dtm)):
         for item in payload["archives"]:
-            print("IXELLES_HEIGHT_ARCHIVE_VALID", kind, item["tile"], item["sha256"], item["geotiff"]["resolution"])
+            print(
+                "IXELLES_HEIGHT_ARCHIVE_VALID",
+                kind,
+                item["tile"],
+                item["sha256"],
+                item["raster"]["resolution"],
+                item["raster"]["crs_basis"],
+            )
     return 0
 
 

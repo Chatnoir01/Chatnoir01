@@ -4,8 +4,12 @@ extends Node3D
 ## Positions + species come from City of Brussels Open Data (CC BY 4.0).
 ## Per-tree dimensions are deterministic visual approximations because the City
 ## aggregation does not guarantee dimensional fields for every source record.
+## The lawful Atomium ground-oblique benchmark has a deterministic source audit;
+## only those already-official tree records receive a denser hero mesh. No tree
+## position is invented to fill gaps in the explicitly incomplete inventory.
 
 const DATA_PATH := "res://data/environment/laeken_jette/official_city_trees.game.json"
+const HERO_AUDIT_PATH := "res://data/reference/laeken_jette/atomium_ground_foreground_inventory.json"
 const CONIFER_TOKENS := [
     "abies", "cedrus", "chamaecyparis", "cryptomeria", "cupress", "juniper",
     "larix", "picea", "pinus", "pseudotsuga", "sequo", "taxus", "thuja",
@@ -14,6 +18,8 @@ const COLUMNAR_TOKENS := ["fastigiata", "columnaris", "populus nigra", "cupressu
 
 var trees_loaded: bool = false
 var official_tree_count: int = 0
+var hero_tree_count: int = 0
+var hero_tree_expected_count: int = 0
 var broadleaf_count: int = 0
 var conifer_count: int = 0
 var columnar_count: int = 0
@@ -44,14 +50,33 @@ func _make_materials() -> void:
     _columnar_material = _material(Color(0.085, 0.19, 0.075, 1.0), 0.94)
 
 
-func _load_document() -> Dictionary:
-    if not FileAccess.file_exists(DATA_PATH):
+func _load_json(path: String) -> Dictionary:
+    if not FileAccess.file_exists(path):
         return {}
-    var file := FileAccess.open(DATA_PATH, FileAccess.READ)
+    var file := FileAccess.open(path, FileAccess.READ)
     if file == null:
         return {}
     var parsed = JSON.parse_string(file.get_as_text())
     return parsed as Dictionary if typeof(parsed) == TYPE_DICTIONARY else {}
+
+
+func _load_document() -> Dictionary:
+    return _load_json(DATA_PATH)
+
+
+func _load_hero_tree_ids() -> Dictionary:
+    var document := _load_json(HERO_AUDIT_PATH)
+    var ids := {}
+    var rows = document.get("known_trees", [])
+    if not (rows is Array):
+        return ids
+    hero_tree_expected_count = int(document.get("known_tree_count", rows.size()))
+    for row in rows:
+        if row is Dictionary:
+            var id_text := str(row.get("id", ""))
+            if not id_text.is_empty():
+                ids[id_text] = true
+    return ids
 
 
 func _tree_class(species: String) -> String:
@@ -103,44 +128,44 @@ func _dimensions(tree_class: String, seed: int) -> Dictionary:
             }
 
 
-func _create_trunk_mesh() -> CylinderMesh:
+func _create_trunk_mesh(hero: bool = false) -> CylinderMesh:
     var mesh := CylinderMesh.new()
     mesh.top_radius = 1.0
     mesh.bottom_radius = 1.12
     mesh.height = 1.0
-    mesh.radial_segments = 6
+    mesh.radial_segments = 12 if hero else 6
     mesh.rings = 1
     mesh.material = _trunk_material
     return mesh
 
 
-func _create_broadleaf_mesh() -> SphereMesh:
+func _create_broadleaf_mesh(hero: bool = false) -> SphereMesh:
     var mesh := SphereMesh.new()
     mesh.radius = 1.0
     mesh.height = 2.0
-    mesh.radial_segments = 8
-    mesh.rings = 5
+    mesh.radial_segments = 18 if hero else 8
+    mesh.rings = 10 if hero else 5
     mesh.material = _broadleaf_material
     return mesh
 
 
-func _create_conifer_mesh() -> CylinderMesh:
+func _create_conifer_mesh(hero: bool = false) -> CylinderMesh:
     var mesh := CylinderMesh.new()
     mesh.top_radius = 0.08
     mesh.bottom_radius = 1.0
     mesh.height = 2.0
-    mesh.radial_segments = 8
+    mesh.radial_segments = 18 if hero else 8
     mesh.rings = 1
     mesh.material = _conifer_material
     return mesh
 
 
-func _create_columnar_mesh() -> SphereMesh:
+func _create_columnar_mesh(hero: bool = false) -> SphereMesh:
     var mesh := SphereMesh.new()
     mesh.radius = 1.0
     mesh.height = 2.0
-    mesh.radial_segments = 7
-    mesh.rings = 5
+    mesh.radial_segments = 14 if hero else 7
+    mesh.rings = 8 if hero else 5
     mesh.material = _columnar_material
     return mesh
 
@@ -180,10 +205,18 @@ func _build_official_trees() -> void:
         push_warning("LaekenOfficialTrees: official DTM terrain unavailable")
         return
 
+    var hero_tree_ids := _load_hero_tree_ids()
+    if hero_tree_ids.is_empty():
+        push_warning("LaekenOfficialTrees: Atomium hero-tree audit unavailable; retaining standard LOD for all official trees")
+
     var trunk_transforms: Array[Transform3D] = []
     var broadleaf_transforms: Array[Transform3D] = []
     var conifer_transforms: Array[Transform3D] = []
     var columnar_transforms: Array[Transform3D] = []
+    var hero_trunk_transforms: Array[Transform3D] = []
+    var hero_broadleaf_transforms: Array[Transform3D] = []
+    var hero_conifer_transforms: Array[Transform3D] = []
+    var hero_columnar_transforms: Array[Transform3D] = []
 
     for feature in features:
         if not (feature is Dictionary):
@@ -217,31 +250,53 @@ func _build_official_trees() -> void:
         var crown_radius := float(dims["crown_radius"])
         var crown_height := float(dims["crown_height"])
         var yaw := deg_to_rad(float(seed % 360))
+        var feature_id := str(feature.get("id", ""))
+        var is_hero := hero_tree_ids.has(feature_id)
 
-        trunk_transforms.append(_transform_for(
+        var trunk_transform := _transform_for(
             Vector3(x, y + trunk_height * 0.5, z),
             yaw,
             Vector3(trunk_radius, trunk_height, trunk_radius)
-        ))
+        )
+        if is_hero:
+            hero_trunk_transforms.append(trunk_transform)
+            hero_tree_count += 1
+        else:
+            trunk_transforms.append(trunk_transform)
+
         var crown_base := maxf(trunk_height * 0.72, float(dims["height"]) - crown_height)
         var crown_origin := Vector3(x, y + crown_base + crown_height * 0.5, z)
         var crown_scale := Vector3(crown_radius, crown_height * 0.5, crown_radius)
+        var crown_transform := _transform_for(crown_origin, yaw, crown_scale)
         match tree_class:
             "conifer":
-                conifer_transforms.append(_transform_for(crown_origin, yaw, crown_scale))
+                if is_hero:
+                    hero_conifer_transforms.append(crown_transform)
+                else:
+                    conifer_transforms.append(crown_transform)
                 conifer_count += 1
             "columnar":
-                columnar_transforms.append(_transform_for(crown_origin, yaw, crown_scale))
+                if is_hero:
+                    hero_columnar_transforms.append(crown_transform)
+                else:
+                    columnar_transforms.append(crown_transform)
                 columnar_count += 1
             _:
-                broadleaf_transforms.append(_transform_for(crown_origin, yaw, crown_scale))
+                if is_hero:
+                    hero_broadleaf_transforms.append(crown_transform)
+                else:
+                    broadleaf_transforms.append(crown_transform)
                 broadleaf_count += 1
         official_tree_count += 1
 
-    _make_multimesh(_create_trunk_mesh(), trunk_transforms, "OfficialTreeTrunks")
-    _make_multimesh(_create_broadleaf_mesh(), broadleaf_transforms, "OfficialBroadleafCrowns")
-    _make_multimesh(_create_conifer_mesh(), conifer_transforms, "OfficialConiferCrowns")
-    _make_multimesh(_create_columnar_mesh(), columnar_transforms, "OfficialColumnarCrowns")
+    _make_multimesh(_create_trunk_mesh(false), trunk_transforms, "OfficialTreeTrunks")
+    _make_multimesh(_create_broadleaf_mesh(false), broadleaf_transforms, "OfficialBroadleafCrowns")
+    _make_multimesh(_create_conifer_mesh(false), conifer_transforms, "OfficialConiferCrowns")
+    _make_multimesh(_create_columnar_mesh(false), columnar_transforms, "OfficialColumnarCrowns")
+    _make_multimesh(_create_trunk_mesh(true), hero_trunk_transforms, "AtomiumHeroTreeTrunks")
+    _make_multimesh(_create_broadleaf_mesh(true), hero_broadleaf_transforms, "AtomiumHeroBroadleafCrowns")
+    _make_multimesh(_create_conifer_mesh(true), hero_conifer_transforms, "AtomiumHeroConiferCrowns")
+    _make_multimesh(_create_columnar_mesh(true), hero_columnar_transforms, "AtomiumHeroColumnarCrowns")
 
     trees_loaded = official_tree_count > 0
     if trees_loaded:
@@ -255,8 +310,10 @@ func _build_official_trees() -> void:
                 if child.name == "ApproachTree":
                     child.queue_free()
 
-    print("LAEKEN_OFFICIAL_TREES_READY: total=%d terrain=%d broadleaf=%d conifer=%d columnar=%d skipped=%d" % [
+    print("LAEKEN_OFFICIAL_TREES_READY: total=%d hero=%d/%d terrain=%d broadleaf=%d conifer=%d columnar=%d skipped=%d" % [
         official_tree_count,
+        hero_tree_count,
+        hero_tree_expected_count,
         terrain_grounded_count,
         broadleaf_count,
         conifer_count,

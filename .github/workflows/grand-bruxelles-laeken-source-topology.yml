@@ -48,6 +48,7 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/laeken-topology-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/laeken-topology-import.log; then
+            tail -n 40 /tmp/laeken-topology-import.log | sed 's/^/::error::/'
             exit 1
           fi
 
@@ -59,10 +60,13 @@ jobs:
             --headless --path grand-bruxelles-game \
             --script res://game/tests/laeken_jette_smoke_test.gd 2>&1 | tee /tmp/laeken-topology-source.log
           if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_JETTE_SMOKE_FAIL" /tmp/laeken-topology-source.log; then
+            tail -n 60 /tmp/laeken-topology-source.log | sed 's/^/::error::/'
             exit 1
           fi
-          grep -q "LAEKEN_JETTE_SMOKE_OK" /tmp/laeken-topology-source.log
-          grep -Eq "holes=[1-9][0-9]* palais5_cutouts=1" /tmp/laeken-topology-source.log
+          if ! grep -q "LAEKEN_JETTE_SMOKE_OK" /tmp/laeken-topology-source.log || ! grep -Eq "holes=[1-9][0-9]* palais5_cutouts=1" /tmp/laeken-topology-source.log; then
+            tail -n 60 /tmp/laeken-topology-source.log | sed 's/^/::error::/'
+            exit 1
+          fi
 
       - name: Prove final DSM roof keeps every Expo void empty
         shell: bash
@@ -72,7 +76,10 @@ jobs:
             --headless --path grand-bruxelles-game \
             --script res://game/tests/laeken_building_heights_smoke_test.gd 2>&1 | tee /tmp/laeken-topology-dsm.log
           if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_BUILDING_HEIGHTS_FAIL" /tmp/laeken-topology-dsm.log; then
+            tail -n 80 /tmp/laeken-topology-dsm.log | sed 's/^/::error::/'
             exit 1
           fi
-          grep -q "LAEKEN_BUILDING_HEIGHTS_OK" /tmp/laeken-topology-dsm.log
-          grep -Eq "expo_roofs=[1-9][0-9]* .*forbidden_overlap=0" /tmp/laeken-topology-dsm.log
+          if ! grep -q "LAEKEN_BUILDING_HEIGHTS_OK" /tmp/laeken-topology-dsm.log || ! grep -Eq "expo_roofs=[1-9][0-9]* .*forbidden_overlap=0" /tmp/laeken-topology-dsm.log; then
+            tail -n 80 /tmp/laeken-topology-dsm.log | sed 's/^/::error::/'
+            exit 1
+          fi

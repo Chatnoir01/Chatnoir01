@@ -87,21 +87,37 @@ jobs:
           grep -q "LAEKEN_FACADE_DETAIL_READY" /tmp/capture.log
           grep -q "LAEKEN_OFFICIAL_TREES_READY" /tmp/capture.log
           grep -q "LAEKEN_TREE_CANOPY_REFINED" /tmp/capture.log
+          grep -q "LAEKEN_TRAM_RAILS_READY" /tmp/capture.log
           grep -q "LAEKEN_ORTHOPHOTO_READY: active=true" /tmp/capture.log
           test -s grand-bruxelles-game/laeken_player_camera_current.png
 
-      - name: Publish gameplay capture from latest branch head
+      - name: Publish gameplay capture safely on moving zone branch
         run: |
+          set -euo pipefail
           mkdir -p /tmp/laeken-capture
           cp grand-bruxelles-game/laeken_player_camera_current.png /tmp/laeken-capture/laeken_player_camera_current.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin zone-laeken-jette
-          git reset --hard origin/zone-laeken-jette
-          mkdir -p grand-bruxelles-game/data/reference/laeken_jette/captures
-          cp /tmp/laeken-capture/laeken_player_camera_current.png \
-            grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
-          git add -f grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
-          git diff --cached --quiet && exit 0
-          git commit -m "visual: publish true Laeken gameplay-camera capture [skip ci]"
-          git push origin HEAD:zone-laeken-jette
+
+          for ATTEMPT in 1 2 3 4 5; do
+            echo "Capture publish attempt $ATTEMPT/5"
+            git fetch origin zone-laeken-jette
+            git reset --hard origin/zone-laeken-jette
+            mkdir -p grand-bruxelles-game/data/reference/laeken_jette/captures
+            cp /tmp/laeken-capture/laeken_player_camera_current.png \
+              grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
+            git add -f grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
+            if git diff --cached --quiet; then
+              echo "Gameplay capture already matches latest branch head"
+              exit 0
+            fi
+            git commit -m "visual: publish true Laeken gameplay-camera capture [skip ci]"
+            if git push origin HEAD:zone-laeken-jette; then
+              echo "Gameplay capture published on attempt $ATTEMPT"
+              exit 0
+            fi
+            echo "Branch moved during capture publish; retrying"
+            sleep 2
+          done
+          echo "Unable to publish gameplay capture after 5 branch-safe retries" >&2
+          exit 1

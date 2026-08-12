@@ -10,6 +10,9 @@ var _stage: int = 0
 var _marker: CSGCylinder3D
 var _marker_material: StandardMaterial3D
 
+const MISSION_ID: String = "midi_to_centre_01"
+const STATE_SCHEMA_VERSION: int = 1
+
 const CHECKPOINTS: Array[Dictionary] = [
     {
         "name": "Place Anneessens",
@@ -88,6 +91,37 @@ func _update_ui() -> void:
     _marker.global_position = target["position"]
     _marker.visible = true
     mission_label.text = "MISSION 01 · MIDI → CENTRE\nRejoins %s" % str(target["name"])
+
+
+func export_state() -> Dictionary:
+    return {
+        "schema_version": STATE_SCHEMA_VERSION,
+        "mission_id": MISSION_ID,
+        "stage": _stage,
+        "stage_count": get_stage_count(),
+    }
+
+
+func restore_state(state: Dictionary) -> bool:
+    if int(state.get("schema_version", -1)) != STATE_SCHEMA_VERSION:
+        return false
+    if str(state.get("mission_id", "")) != MISSION_ID:
+        return false
+    if not state.has("stage"):
+        return false
+
+    var restored_stage: int = int(state["stage"])
+    if restored_stage < 0 or restored_stage > get_stage_count():
+        return false
+
+    _stage = restored_stage
+    if is_instance_valid(_marker) and is_instance_valid(mission_label):
+        _update_ui()
+    return true
+
+
+func get_mission_id() -> String:
+    return MISSION_ID
 
 
 func get_stage() -> int:

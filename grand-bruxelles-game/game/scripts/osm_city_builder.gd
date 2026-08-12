@@ -116,6 +116,61 @@ func _is_detail_zone(point: Vector3) -> bool:
     )
 
 
+func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
+    var segment := finish - start
+    var length_squared := segment.length_squared()
+    if length_squared <= 0.000001:
+        return point.distance_to(start)
+    var amount := clampf((point - start).dot(segment) / length_squared, 0.0, 1.0)
+    return point.distance_to(start + segment * amount)
+
+
+func _footprint_intersects_detail_zone(footprint: Array) -> bool:
+    if footprint.is_empty():
+        return false
+    for raw: Variant in footprint:
+        var vertex := Vector2(float(raw[0]), float(raw[1]))
+        if (
+            vertex.distance_to(MIDI_ANCHOR) <= midi_detail_radius_m
+            or vertex.distance_to(BOURSE_ANCHOR) <= bourse_detail_radius_m
+        ):
+            return true
+    for edge_index: int in range(footprint.size()):
+        var raw_start: Variant = footprint[edge_index]
+        var raw_finish: Variant = footprint[(edge_index + 1) % footprint.size()]
+        var start := Vector2(float(raw_start[0]), float(raw_start[1]))
+        var finish := Vector2(float(raw_finish[0]), float(raw_finish[1]))
+        if (
+            _point_segment_distance(MIDI_ANCHOR, start, finish) <= midi_detail_radius_m
+            or _point_segment_distance(BOURSE_ANCHOR, start, finish) <= bourse_detail_radius_m
+        ):
+            return true
+    return false
+
+
+func facade_window_count_near(anchor: Vector2, radius_m: float) -> int:
+    var count := 0
+    for transform: Transform3D in _window_transforms:
+        if Vector2(transform.origin.x, transform.origin.z).distance_to(anchor) <= radius_m:
+            count += 1
+    return count
+
+
+func facade_window_bounds() -> Rect2:
+    if _window_transforms.is_empty():
+        return Rect2()
+    var first := _window_transforms[0].origin
+    var min_point := Vector2(first.x, first.z)
+    var max_point := min_point
+    for transform: Transform3D in _window_transforms:
+        var point := Vector2(transform.origin.x, transform.origin.z)
+        min_point.x = minf(min_point.x, point.x)
+        min_point.y = minf(min_point.y, point.y)
+        max_point.x = maxf(max_point.x, point.x)
+        max_point.y = maxf(max_point.y, point.y)
+    return Rect2(min_point, max_point - min_point)
+
+
 func _road_width_for(road: Dictionary) -> float:
     var width := float(road.get("width", 4.5))
     var road_class := str(road.get("class", ""))
@@ -297,7 +352,7 @@ func _build_buildings(buildings: Array, root: Node3D, replacement_ids: Dictionar
         root.add_child(roof)
 
         var world_center := Vector3(center.x, 0.0, center.y)
-        if _is_detail_zone(world_center):
+        if _is_detail_zone(world_center) or _footprint_intersects_detail_zone(footprint):
             _queue_facade_details(footprint, height)
 
         count += 1
@@ -318,11 +373,11 @@ func _queue_facade_details(footprint: Array, height: float) -> void:
         var b := Vector2(float(raw_b[0]), float(raw_b[1]))
         var edge := b - a
         var edge_length := edge.length()
-        if edge_length < 4.0 or edge_length > 46.0:
+        if edge_length < 4.0:
             continue
 
         var direction := edge / edge_length
-        var module_count := clampi(int(edge_length / 3.2), 1, 9)
+        var module_count := clampi(int(edge_length / 3.2), 1, 24)
         var step := edge_length / float(module_count + 1)
         var window_width := clampf(step * 0.58, 1.05, 1.85)
         var angle := atan2(-direction.y, direction.x)
@@ -354,12 +409,12 @@ func _flush_facade_details(root: Node3D) -> void:
         windows.transform_format = MultiMesh.TRANSFORM_3D
         windows.mesh = window_mesh
         windows.instance_count = _window_transforms.size()
+        for index: int in range(_window_transforms.size()):
+            windows.set_instance_transform(index, _window_transforms[index])
         var window_instance := MultiMeshInstance3D.new()
         window_instance.name = "CorridorFacadeWindows"
         window_instance.multimesh = windows
         root.add_child(window_instance)
-        for index: int in range(_window_transforms.size()):
-            window_instance.multimesh.set_instance_transform(index, _window_transforms[index])
 
     if not _shop_transforms.is_empty():
         var shop_mesh := BoxMesh.new()
@@ -369,12 +424,12 @@ func _flush_facade_details(root: Node3D) -> void:
         shops.transform_format = MultiMesh.TRANSFORM_3D
         shops.mesh = shop_mesh
         shops.instance_count = _shop_transforms.size()
+        for index: int in range(_shop_transforms.size()):
+            shops.set_instance_transform(index, _shop_transforms[index])
         var shop_instance := MultiMeshInstance3D.new()
         shop_instance.name = "CorridorShopfronts"
         shop_instance.multimesh = shops
         root.add_child(shop_instance)
-        for index: int in range(_shop_transforms.size()):
-            shop_instance.multimesh.set_instance_transform(index, _shop_transforms[index])
 
 
 func _build_rails(railways: Array, root: Node3D) -> int:

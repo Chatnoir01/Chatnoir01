@@ -154,7 +154,7 @@ class LaekenPhotoMatchConsistencyTests(unittest.TestCase):
         self.assertTrue(any("geometry-only" in item for item in forbidden))
         self.assertTrue(any("historical focal length" in item for item in witness_forbidden))
         self.assertIn("does not claim", self.framing_witness.get("measurement_role", ""))
-        self.assertIn("does not recover", self.framing_audit.get("interpretation", ""))
+        self.assertIn("neither geometry nor the witness recovers", self.framing_audit.get("interpretation", ""))
 
 
 if __name__ == "__main__":

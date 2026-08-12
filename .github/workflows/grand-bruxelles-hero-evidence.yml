@@ -1,0 +1,31 @@
+name: Grand Bruxelles Hero Evidence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/vertical_slice_control_points.json"
+      - "grand-bruxelles-game/tools/validate_hero_building_evidence.py"
+      - "grand-bruxelles-game/tests/test_validate_hero_building_evidence.py"
+      - ".github/workflows/grand-bruxelles-hero-evidence.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/data/vertical_slice_control_points.json"
+      - "grand-bruxelles-game/tools/validate_hero_building_evidence.py"
+      - "grand-bruxelles-game/tests/test_validate_hero_building_evidence.py"
+      - ".github/workflows/grand-bruxelles-hero-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hero-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regression-test hero evidence contract
+        run: python3 -m unittest discover -s grand-bruxelles-game/tests -p 'test_validate_hero_building_evidence.py' -v
+      - name: Validate committed hero evidence
+        run: python3 grand-bruxelles-game/tools/validate_hero_building_evidence.py grand-bruxelles-game/data/vertical_slice_control_points.json

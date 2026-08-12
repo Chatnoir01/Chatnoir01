@@ -5,9 +5,11 @@ extends Node3D
 @export var max_road_segments: int = 850
 @export var build_collisions: bool = true
 @export var midi_detail_radius_m: float = 300.0
+@export var bourse_detail_radius_m: float = 180.0
 @export_file("*.json") var hero_manifest_path: String = "res://data/urbis/heroes/manifest.json"
 
 const MIDI_ANCHOR := Vector2(-668.5, 627.84)
+const BOURSE_ANCHOR := Vector2(81.54, -664.58)
 const MAJOR_ROADS := ["primary", "secondary", "tertiary"]
 
 var _road_material: StandardMaterial3D
@@ -106,8 +108,12 @@ func _point(raw: Variant) -> Vector3:
     return Vector3(float(raw[0]), 0.0, float(raw[1]))
 
 
-func _is_midi_detail(point: Vector3) -> bool:
-    return Vector2(point.x, point.z).distance_to(MIDI_ANCHOR) <= midi_detail_radius_m
+func _is_detail_zone(point: Vector3) -> bool:
+    var point_2d := Vector2(point.x, point.z)
+    return (
+        point_2d.distance_to(MIDI_ANCHOR) <= midi_detail_radius_m
+        or point_2d.distance_to(BOURSE_ANCHOR) <= bourse_detail_radius_m
+    )
 
 
 func _road_width_for(road: Dictionary) -> float:
@@ -151,7 +157,7 @@ func _build_roads(roads: Array, root: Node3D) -> int:
             root.add_child(segment)
 
             var midpoint := (start + finish) * 0.5
-            if _is_midi_detail(midpoint) and bool(road.get("drivable", false)):
+            if _is_detail_zone(midpoint) and bool(road.get("drivable", false)):
                 _add_sidewalks(root, start, finish, width, road_class)
                 if road_class in MAJOR_ROADS:
                     _add_lane_markings(root, start, finish)
@@ -291,7 +297,7 @@ func _build_buildings(buildings: Array, root: Node3D, replacement_ids: Dictionar
         root.add_child(roof)
 
         var world_center := Vector3(center.x, 0.0, center.y)
-        if _is_midi_detail(world_center):
+        if _is_detail_zone(world_center):
             _queue_facade_details(footprint, height)
 
         count += 1
@@ -351,7 +357,7 @@ func _flush_facade_details(root: Node3D) -> void:
         for index: int in range(_window_transforms.size()):
             windows.set_instance_transform(index, _window_transforms[index])
         var window_instance := MultiMeshInstance3D.new()
-        window_instance.name = "MidiFacadeWindows"
+        window_instance.name = "CorridorFacadeWindows"
         window_instance.multimesh = windows
         root.add_child(window_instance)
 
@@ -366,7 +372,7 @@ func _flush_facade_details(root: Node3D) -> void:
         for index: int in range(_shop_transforms.size()):
             shops.set_instance_transform(index, _shop_transforms[index])
         var shop_instance := MultiMeshInstance3D.new()
-        shop_instance.name = "MidiShopfronts"
+        shop_instance.name = "CorridorShopfronts"
         shop_instance.multimesh = shops
         root.add_child(shop_instance)
 
@@ -398,7 +404,7 @@ func _build_rails(railways: Array, root: Node3D) -> int:
                 rail.use_collision = false
                 root.add_child(rail)
 
-            if _is_midi_detail((start + finish) * 0.5):
+            if _is_detail_zone((start + finish) * 0.5):
                 _add_sleepers(root, start, finish)
             count += 1
     return count

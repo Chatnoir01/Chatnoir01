@@ -47,7 +47,7 @@ func _hide_capture_noise(scene: Node) -> void:
         var item := scene.get_node_or_null(node_path) as CanvasItem
         if item != null:
             item.visible = false
-    for node_path: String in ["Player", "PrototypeCar"]:
+    for node_path: String in ["Player", "PrototypeCar", "MidiHeroZone"]:
         var spatial := scene.get_node_or_null(node_path) as Node3D
         if spatial != null:
             spatial.visible = false

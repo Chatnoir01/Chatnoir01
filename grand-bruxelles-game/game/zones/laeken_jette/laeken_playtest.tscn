@@ -31,16 +31,16 @@ metallic = 0.35
 roughness = 0.32
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSky_laeken"]
-sky_top_color = Color(0.22, 0.41, 0.66, 1)
-sky_horizon_color = Color(0.76, 0.82, 0.87, 1)
-sky_curve = 0.12
-sky_energy_multiplier = 1.0
-ground_bottom_color = Color(0.11, 0.12, 0.105, 1)
-ground_horizon_color = Color(0.59, 0.61, 0.58, 1)
-ground_curve = 0.06
-ground_energy_multiplier = 0.78
-sun_angle_max = 8.0
-sun_curve = 0.08
+sky_top_color = Color(0.30, 0.48, 0.69, 1)
+sky_horizon_color = Color(0.78, 0.83, 0.87, 1)
+sky_curve = 0.14
+sky_energy_multiplier = 0.96
+ground_bottom_color = Color(0.15, 0.16, 0.14, 1)
+ground_horizon_color = Color(0.61, 0.63, 0.61, 1)
+ground_curve = 0.07
+ground_energy_multiplier = 0.86
+sun_angle_max = 7.0
+sun_curve = 0.09
 use_debanding = true
 
 [sub_resource type="Sky" id="Sky_laeken"]
@@ -51,15 +51,15 @@ sky_material = SubResource("ProceduralSky_laeken")
 background_mode = 2
 sky = SubResource("Sky_laeken")
 ambient_light_source = 3
-ambient_light_color = Color(0.79, 0.82, 0.85, 1)
-ambient_light_energy = 0.76
-ambient_light_sky_contribution = 0.72
+ambient_light_color = Color(0.86, 0.88, 0.90, 1)
+ambient_light_energy = 0.95
+ambient_light_sky_contribution = 0.84
 fog_enabled = true
-fog_light_color = Color(0.73, 0.77, 0.80, 1)
-fog_light_energy = 0.72
-fog_density = 0.00045
-fog_sky_affect = 0.18
-fog_sun_scatter = 0.08
+fog_light_color = Color(0.78, 0.81, 0.84, 1)
+fog_light_energy = 0.68
+fog_density = 0.00028
+fog_sky_affect = 0.13
+fog_sun_scatter = 0.055
 
 [node name="LaekenPlaytest" type="Node3D"]
 script = ExtResource("5_spawn")
@@ -68,9 +68,9 @@ script = ExtResource("5_spawn")
 environment = SubResource("Environment_playtest")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-48, -28, 0)
-light_color = Color(1, 0.95, 0.86, 1)
-light_energy = 1.35
+rotation_degrees = Vector3(-52, -36, 0)
+light_color = Color(0.98, 0.96, 0.92, 1)
+light_energy = 1.16
 shadow_enabled = true
 
 [node name="LaekenJetteZone" parent="." instance=ExtResource("1_zone")]
@@ -88,16 +88,16 @@ mesh = SubResource("CapsuleMesh_player")
 material_override = SubResource("Material_player")
 
 [node name="CameraPivot" type="Node3D" parent="Player"]
-position = Vector3(0, 0.65, 0)
-rotation_degrees = Vector3(-6, 0, 0)
+position = Vector3(0, 0.78, 0)
+rotation_degrees = Vector3(-7, 0, 0)
 
 [node name="SpringArm3D" type="SpringArm3D" parent="Player/CameraPivot"]
-spring_length = 5.8
+spring_length = 4.9
 margin = 0.15
 
 [node name="Camera3D" type="Camera3D" parent="Player/CameraPivot/SpringArm3D"]
 current = true
-fov = 70.0
+fov = 65.0
 far = 15000.0
 
 [node name="PrototypeCar" type="CharacterBody3D" parent="." groups=["vehicle"]]
@@ -119,38 +119,38 @@ material = SubResource("Material_car")
 use_collision = false
 
 [node name="CameraPivot" type="Node3D" parent="PrototypeCar"]
-position = Vector3(0, 1.45, 0)
+position = Vector3(0, 1.50, 0)
 rotation_degrees = Vector3(-9, 0, 0)
 
 [node name="SpringArm3D" type="SpringArm3D" parent="PrototypeCar/CameraPivot"]
-spring_length = 6.5
+spring_length = 6.0
 margin = 0.15
 
 [node name="Camera3D" type="Camera3D" parent="PrototypeCar/CameraPivot/SpringArm3D"]
 current = false
-fov = 75.0
+fov = 70.0
 far = 15000.0
 
 [node name="PlaytestVisualPass" type="Node" parent="."]
 script = ExtResource("6_visuals")
 
 [node name="Title" type="Label" parent="."]
-offset_left = 20.0
-offset_top = 18.0
-offset_right = 760.0
-offset_bottom = 82.0
-theme_override_colors/font_color = Color(1, 0.86, 0.28, 1)
-theme_override_font_sizes/font_size = 22
-text = "LAEKEN · PLAYTEST URBIS + DTM\nAtomium / Heysel · relief officiel phase 1"
+offset_left = 18.0
+offset_top = 16.0
+offset_right = 520.0
+offset_bottom = 46.0
+theme_override_colors/font_color = Color(0.94, 0.94, 0.91, 0.90)
+theme_override_font_sizes/font_size = 16
+text = "LAEKEN · HEYSEL · PLAYTEST"
 
 [node name="Help" type="Label" parent="."]
-offset_left = 20.0
-offset_top = 92.0
-offset_right = 760.0
-offset_bottom = 148.0
-theme_override_colors/font_color = Color(0.96, 0.96, 0.94, 1)
-theme_override_font_sizes/font_size = 14
-text = "PC: ZQSD/WASD · Shift courir · E voiture · Espace sauter | Mobile: commandes tactiles"
+offset_left = 18.0
+offset_top = 48.0
+offset_right = 690.0
+offset_bottom = 74.0
+theme_override_colors/font_color = Color(0.88, 0.89, 0.90, 0.82)
+theme_override_font_sizes/font_size = 12
+text = "ZQSD/WASD · Shift courir · E voiture · Espace sauter"
 
 [node name="MobileControls" type="Control" parent="."]
 layout_mode = 3

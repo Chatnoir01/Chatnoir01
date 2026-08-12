@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/probe_bourse_urbis_context.py"
+      - "grand-bruxelles-game/tools/extract_bourse_urbis_surfaces.py"
       - "grand-bruxelles-game/tests/test_probe_bourse_urbis_context.py"
       - ".github/workflows/grand-bruxelles-bourse-urbis-context.yml"
   workflow_dispatch:
@@ -26,9 +27,13 @@ jobs:
           grep -q '"street_surfaces"' /tmp/bourse-urbis-context.log
           grep -q '"street_axes"' /tmp/bourse-urbis-context.log
           grep -q '"buildings"' /tmp/bourse-urbis-context.log
+      - name: Extract selected official Bourse surfaces
+        run: python3 grand-bruxelles-game/tools/extract_bourse_urbis_surfaces.py --output /tmp/bourse-urbis-surfaces.json
       - name: Upload Bourse UrbIS evidence
         uses: actions/upload-artifact@v4
         with:
           name: bourse-urbis-context-report
-          path: /tmp/bourse-urbis-context-report.json
+          path: |
+            /tmp/bourse-urbis-context-report.json
+            /tmp/bourse-urbis-surfaces.json
           if-no-files-found: error

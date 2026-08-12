@@ -21,9 +21,6 @@ func _ready() -> void:
 
 
 func _load_ortho_texture() -> Texture2D:
-    # In a normal editor/export run the imported Texture2D is preferred. In
-    # headless CI there may be no .godot/imported cache yet, so load the JPEG
-    # bytes directly instead of falsely reporting that the source is missing.
     if ResourceLoader.exists(ORTHO_PATH):
         var imported := load(ORTHO_PATH) as Texture2D
         if imported != null:
@@ -60,9 +57,17 @@ func _apply() -> void:
 func _terrain_ortho_material(texture: Texture2D) -> ShaderMaterial:
     var shader := Shader.new()
     shader.code = _shader_prefix() + """
+vec3 compress_aerial_highlights(vec3 colour) {
+    float lum = dot(colour, vec3(0.2126, 0.7152, 0.0722));
+    float highlight = smoothstep(0.56, 0.92, lum);
+    // Orthophotos are captured for cartographic readability and very pale
+    // concrete/plaza surfaces can clip under realtime sun. Preserve hue/detail,
+    // only compress the brightest part of the aerial signal.
+    return colour * mix(1.0, 0.70, highlight);
+}
 void fragment() {
     vec2 uv = ortho_uv(local_pos.xz);
-    vec3 aerial = texture(ortho_texture, uv).rgb;
+    vec3 aerial = compress_aerial_highlights(texture(ortho_texture, uv).rgb);
     float slope = 1.0 - clamp(normalize(local_normal).y, 0.0, 1.0);
     float slope_shade = mix(1.0, 0.82, smoothstep(0.10, 0.55, slope));
     ALBEDO = aerial * slope_shade;
@@ -82,15 +87,20 @@ func _road_ortho_material(texture: Texture2D) -> ShaderMaterial:
 float luminance(vec3 c) {
     return dot(c, vec3(0.2126, 0.7152, 0.0722));
 }
+vec3 compress_aerial_highlights(vec3 colour) {
+    float lum = luminance(colour);
+    float highlight = smoothstep(0.56, 0.92, lum);
+    return colour * mix(1.0, 0.70, highlight);
+}
 void fragment() {
     vec2 uv = ortho_uv(local_pos.xz);
-    vec3 aerial = texture(ortho_texture, uv).rgb;
+    vec3 aerial = compress_aerial_highlights(texture(ortho_texture, uv).rgb);
     float lum = luminance(aerial);
     // Keep real lane markings, crossings and pavement variation but dampen
     // bright aerial artefacts so the road still reads as a 3D game surface.
     vec3 asphalt = vec3(0.105, 0.112, 0.118);
-    float marking_hint = smoothstep(0.58, 0.88, lum);
-    float aerial_weight = mix(0.62, 0.86, marking_hint);
+    float marking_hint = smoothstep(0.48, 0.72, lum);
+    float aerial_weight = mix(0.62, 0.82, marking_hint);
     vec3 colour = mix(asphalt, aerial, aerial_weight);
     ALBEDO = colour;
     ROUGHNESS = 0.94;

@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/zones/laeken_jette/**"
       - "grand-bruxelles-game/game/tests/render_laeken_player_camera_capture.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
       - "grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json"
       - "grand-bruxelles-game/data/terrain/laeken_jette/**"
       - "grand-bruxelles-game/data/orthophoto/laeken_jette/**"
@@ -32,21 +33,28 @@ jobs:
           ref: zone-laeken-jette
           fetch-depth: 0
 
-      - name: Self-heal validated DSM runtime for capture
+      - name: Self-heal validated DSM and Atomium override for capture
         run: |
           set -euo pipefail
-          VALIDATED_COMMIT=3583c352cb2896b3cff7f76909db5a7dcf07410a
+          HEIGHT_COMMIT=3583c352cb2896b3cff7f76909db5a7dcf07410a
+          OVERRIDE_COMMIT=f99a54bc403fc4ce54ebbcfb034c7194e6410713
           HEIGHT_PATH=grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json
+          OVERRIDE_PATH=grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json
           mkdir -p "$(dirname "$HEIGHT_PATH")"
           if test ! -s "$HEIGHT_PATH"; then
-            git show "$VALIDATED_COMMIT:$HEIGHT_PATH" > "$HEIGHT_PATH"
+            git show "$HEIGHT_COMMIT:$HEIGHT_PATH" > "$HEIGHT_PATH"
+          fi
+          if test ! -s "$OVERRIDE_PATH"; then
+            git show "$OVERRIDE_COMMIT:$OVERRIDE_PATH" > "$OVERRIDE_PATH"
           fi
           python3 - <<'PY'
           import json
-          p='grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json'
-          d=json.load(open(p,encoding='utf-8'))
-          assert d['feature_count']==9518 and len(d['records'])==9518 and d['derived_height_count']==9163
-          print('CAPTURE_DSM_READY')
+          h=json.load(open('grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json',encoding='utf-8'))
+          o=json.load(open('grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json',encoding='utf-8'))
+          assert h['feature_count']==9518 and len(h['records'])==9518 and h['derived_height_count']==9163
+          item=o['overrides']['https://databrussels.be/id/building/1637983']
+          assert abs(float(item['height_m'])-4.231)<0.0001
+          print('CAPTURE_DSM_AND_OVERRIDE_READY')
           PY
 
       - name: Install render dependencies
@@ -76,6 +84,7 @@ jobs:
           fi
           grep -q "PLAYER_CAMERA_CAPTURE_OK" /tmp/capture.log
           grep -q "LAEKEN_BUILDING_HEIGHTS_READY" /tmp/capture.log
+          grep -q "LAEKEN_FACADE_DETAIL_READY" /tmp/capture.log
           grep -q "LAEKEN_OFFICIAL_TREES_READY" /tmp/capture.log
           grep -q "LAEKEN_TREE_CANOPY_REFINED" /tmp/capture.log
           grep -q "LAEKEN_ORTHOPHOTO_READY: active=true" /tmp/capture.log

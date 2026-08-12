@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3]
+[gd_scene load_steps=27 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://game/scripts/civilian_vehicle_visual.gd" id="13_civil_visual"]
 [ext_resource type="Script" path="res://game/scripts/npc_population_director.gd" id="14_npc_director"]
 [ext_resource type="Script" path="res://game/scripts/npc_runtime_integration.gd" id="15_npc_runtime"]
+[ext_resource type="Script" path="res://game/scripts/location_label_controller.gd" id="16_location"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -192,6 +193,7 @@ theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 14
 text = "BRUXELLES-MIDI · BRUSSEL-ZUID"
+script = ExtResource("16_location")
 
 [node name="MissionLabel" type="Label" parent="."]
 offset_left = 24.0

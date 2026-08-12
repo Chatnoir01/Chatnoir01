@@ -107,6 +107,19 @@ jobs:
           grep -q "Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS mask:" /tmp/godot-run.log
 
+      - name: Dynamic corridor location label test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/location_label_controller_test.gd 2>&1 | tee /tmp/location-label.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LOCATION_LABEL_FAIL" /tmp/location-label.log; then
+            exit 1
+          fi
+          grep -q "LOCATION_LABEL_OK" /tmp/location-label.log
+
       - name: Vehicle enter-exit smoke test
         shell: bash
         run: |

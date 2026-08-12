@@ -22,7 +22,7 @@ var transit_patience_seconds: float = 180.0
 
 func configure(seed_value: int, base_speed: float = 1.35) -> void:
 	variation_seed = seed_value
-	preferred_speed = clampf(base_speed * _speed_factor(), 0.75, 1.75)
+	preferred_speed = clampf(base_speed, 0.75, 1.75)
 	curb_patience_seconds = lerpf(3.5, 11.0, _unit(17))
 	transit_patience_seconds = lerpf(75.0, 360.0, _unit(29))
 
@@ -64,9 +64,6 @@ func lateral_personal_space_meters(crowd_density: float) -> float:
 	var density: float = clampf(crowd_density, 0.0, 1.0)
 	var relaxed: float = lerpf(0.55, 0.95, _unit(41))
 	return lerpf(relaxed, 0.28, density)
-
-func _speed_factor() -> float:
-	return lerpf(0.88, 1.12, _unit(11))
 
 func _unit(salt: int) -> float:
 	var mixed: int = absi(variation_seed * 1103515245 + salt * 12345)

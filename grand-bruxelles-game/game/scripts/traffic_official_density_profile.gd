@@ -39,6 +39,12 @@ func configure(snapshot: Dictionary) -> bool:
         if typeof(raw_sensor) != TYPE_DICTIONARY:
             continue
         var sensor: Dictionary = raw_sensor
+        # Current snapshots carry the official WFS is_active state. Explicitly
+        # inactive detectors remain in the evidence payload for provenance but
+        # must never calibrate runtime density. Legacy payloads without this key
+        # remain readable rather than being silently discarded.
+        if sensor.has("active") and not bool(sensor.get("active", false)):
+            continue
         var measurement: Dictionary = sensor.get("measurement", {})
         # "fresh" means fresh at capture time. Once committed, the snapshot is a
         # calibration profile, never represented as current live traffic.
@@ -56,7 +62,7 @@ func configure(snapshot: Dictionary) -> bool:
             "position": Vector3(float(raw_game[0]), 0.0, float(raw_game[1])),
             "vehicles_per_minute": rate,
             "occupancy_pct": occupancy,
-            "active_at_capture": bool(sensor.get("active", false)),
+            "active_at_capture": bool(sensor.get("active", true)),
             "source": str(measurement.get("source", "")),
         })
 

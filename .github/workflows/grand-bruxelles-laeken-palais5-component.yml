@@ -1,0 +1,60 @@
+name: Grand Bruxelles Laeken Palais 5 Component
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/extract_palais5_urbis_component.py"
+      - ".github/workflows/grand-bruxelles-laeken-palais5-component.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+          fetch-depth: 0
+      - name: Restore validated DSM runtime if another workflow removed it
+        run: |
+          P=grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json
+          if test ! -s "$P"; then git show 3583c352cb2896b3cff7f76909db5a7dcf07410a:$P > "$P"; fi
+      - name: Extract exact point-containing UrbIS component
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/extract_palais5_urbis_component.py
+          python3 tools/extract_palais5_urbis_component.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/palais5_urbis_component.json'
+          d=json.load(open(p,encoding='utf-8'))
+          s=d['selected_component']
+          assert s['contains_palais5_locator'] is True
+          assert s['outer_vertex_count'] >= 4
+          assert s['outer_area_m2'] > 100
+          print('PALAIS5_COMPONENT_VALID',s)
+          PY
+      - name: Publish audited component safely
+        run: |
+          set -euo pipefail
+          cp grand-bruxelles-game/data/sources/laeken_jette/palais5_urbis_component.json /tmp/palais5.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3 4 5; do
+            git fetch origin zone-laeken-jette
+            git reset --hard origin/zone-laeken-jette
+            mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+            cp /tmp/palais5.json grand-bruxelles-game/data/sources/laeken_jette/palais5_urbis_component.json
+            git add -f grand-bruxelles-game/data/sources/laeken_jette/palais5_urbis_component.json
+            git diff --cached --quiet && exit 0
+            git commit -m "data: publish audited Palais 5 UrbIS component [skip ci]"
+            git push origin HEAD:zone-laeken-jette && exit 0
+            sleep 2
+          done
+          exit 1

@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "view_id": "atomium_ground_oblique_v1",
+  "reference_url": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",
+  "reference_license": "CC BY-SA 4.0",
+  "reference_author": "Horst J. Meuter",
+  "source_image_dimensions_px": [960, 638],
+  "measurement_role": "conservative visible-subject witness only; not a full monument bounding box and not recovered lens metadata",
+  "annotation_method": "manual visual measurement against the lawful 960x638 Commons reference; coordinates intentionally bound only clearly visible Atomium structure and exclude the flag, fountain spray and uncertain occluded base",
+  "vertical_visible_witness_y_px": [58, 440],
+  "endpoint_uncertainty_px": 5,
+  "nominal_visible_witness_height_px": 382,
+  "conservative_min_visible_witness_height_px": 372,
+  "nominal_visible_witness_frame_fraction": 0.5987460815047022,
+  "conservative_min_visible_witness_frame_fraction": 0.5830721003134797,
+  "logic": "Because this witness covers only a clearly visible subset of the Atomium, the projected full 102 m monument must occupy at least the conservative witness fraction of the source image. The witness can therefore reject an excessively wide benchmark FOV without claiming the exact historical lens or the exact full-subject bounding box.",
+  "must_not_infer": [
+    "exact historical focal length",
+    "exact full Atomium bounding box where the base is occluded by the fountain",
+    "exact crop, yaw or pitch metadata",
+    "survey-grade precision from this manual image annotation"
+  ]
+}

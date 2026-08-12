@@ -45,8 +45,7 @@ class LaekenPhotoMatchConsistencyTests(unittest.TestCase):
             self.assertTrue(capture, f"{view_id} closed capture finding lacks matching_capture")
             capture_path = PROJECT_ROOT / capture
             self.assertTrue(capture_path.is_file(), f"{view_id} capture does not exist: {capture}")
-            resolution = view.get("capture_resolution")
-            self.assertEqual(resolution, view.get("resolution"))
+            self.assertEqual(view.get("capture_resolution"), view.get("resolution"))
 
     def test_open_high_severity_findings_block_benchmark_completion(self) -> None:
         high_open_by_view: dict[str, list[dict]] = {}
@@ -56,9 +55,9 @@ class LaekenPhotoMatchConsistencyTests(unittest.TestCase):
         self.assertIn("atomium_ground_oblique_v1", high_open_by_view)
         view = self.views["atomium_ground_oblique_v1"]
         self.assertNotIn(str(view.get("status", "")), {"realism_complete", "photo_match_complete"})
-        self.assertEqual(view.get("fov_status"), "geometry_constrained_reference_bbox_pending")
+        self.assertEqual(view.get("fov_status"), "reference_visible_witness_bounded_candidate_not_lens_recovery")
         must_resolve = view.get("camera_selection_constraints", {}).get("must_resolve", [])
-        self.assertTrue(any("bounding-box" in item or "FOV" in item or "framing" in item for item in must_resolve))
+        self.assertTrue(any("31.5" in item or "capture" in item or "framing" in item for item in must_resolve))
 
     def test_ground_oblique_framing_audit_matches_registered_geometry(self) -> None:
         view = self.views["atomium_ground_oblique_v1"]
@@ -70,14 +69,15 @@ class LaekenPhotoMatchConsistencyTests(unittest.TestCase):
 
         evidence = view.get("framing_geometry_evidence", {})
         self.assertEqual(evidence.get("path"), "atomium_ground_framing_audit.json")
-        self.assertEqual(evidence.get("status"), "geometry_audited_reference_bbox_pending")
+        self.assertEqual(evidence.get("status"), "reference_visible_witness_bounded_candidate")
 
         regenerated = FRAMING_TOOL.audit_view(view, self.framing_witness)
         persisted = self.framing_audit
         self.assertEqual(persisted.get("view_id"), view["id"])
         self.assertEqual(persisted.get("render_resolution_px"), view["resolution"])
         self.assertEqual(persisted.get("schema"), 2)
-        self.assertTrue(math.isclose(persisted["current_fov_degrees"], view["fov_degrees"], abs_tol=1e-9))
+        self.assertTrue(math.isclose(persisted["current_fov_degrees"], 31.5, abs_tol=1e-9))
+        self.assertTrue(math.isclose(view["fov_degrees"], 31.5, abs_tol=1e-9))
         self.assertTrue(
             math.isclose(
                 persisted["camera_to_target_horizontal_distance_m"],
@@ -100,18 +100,17 @@ class LaekenPhotoMatchConsistencyTests(unittest.TestCase):
                 f"stale framing evidence for {field}",
             )
 
-        self.assertEqual(len(persisted["predicted_subject_bbox_y_px"]), 2)
         for expected, actual in zip(
             persisted["predicted_subject_bbox_y_px"], regenerated["predicted_subject_bbox_y_px"], strict=True
         ):
             self.assertTrue(math.isclose(float(expected), float(actual), rel_tol=1e-12, abs_tol=1e-9))
 
         fraction = float(persisted["predicted_subject_frame_height_fraction"])
-        self.assertGreater(fraction, 0.0)
-        self.assertLess(fraction, 0.5)
-        self.assertTrue(math.isclose(fraction, 0.35454757387279306, rel_tol=1e-12, abs_tol=1e-9))
+        self.assertTrue(math.isclose(fraction, 0.5862097522481555, rel_tol=1e-12, abs_tol=1e-9))
+        self.assertGreater(fraction, self.framing_witness["conservative_min_visible_witness_frame_fraction"])
+        self.assertLess(fraction, 0.7)
 
-    def test_reference_visible_witness_proves_current_fov_is_too_wide(self) -> None:
+    def test_reference_visible_witness_bounds_candidate_and_rejects_old_50deg(self) -> None:
         view = self.views["atomium_ground_oblique_v1"]
         witness = self.framing_witness
         self.assertEqual(witness["view_id"], view["id"])
@@ -131,30 +130,35 @@ class LaekenPhotoMatchConsistencyTests(unittest.TestCase):
 
         regenerated = FRAMING_TOOL.audit_view(view, witness)["reference_visible_witness"]
         persisted = self.framing_audit["reference_visible_witness"]
-        self.assertTrue(persisted["current_fov_is_too_wide"])
-        self.assertTrue(regenerated["current_fov_is_too_wide"])
-        self.assertGreater(view["fov_degrees"], persisted["maximum_fov_consistent_with_visible_witness_deg"])
+        maximum = float(persisted["maximum_fov_consistent_with_visible_witness_deg"])
+        self.assertFalse(persisted["current_fov_is_too_wide"])
+        self.assertFalse(regenerated["current_fov_is_too_wide"])
+        self.assertLessEqual(float(view["fov_degrees"]), maximum)
+        self.assertLess(maximum, 32.0)
+        self.assertGreater(maximum, 31.0)
+        self.assertGreater(50.0, maximum, "the former 50 degree benchmark must remain proven too wide")
         self.assertTrue(
             math.isclose(
-                persisted["maximum_fov_consistent_with_visible_witness_deg"],
+                maximum,
                 regenerated["maximum_fov_consistent_with_visible_witness_deg"],
                 rel_tol=1e-12,
                 abs_tol=1e-9,
             )
         )
-        self.assertGreater(persisted["maximum_fov_consistent_with_visible_witness_deg"], 31.0)
-        self.assertLess(persisted["maximum_fov_consistent_with_visible_witness_deg"], 32.0)
 
-    def test_reference_witness_is_not_presented_as_recovered_lens(self) -> None:
+    def test_reference_witness_and_candidate_are_not_presented_as_recovered_lens(self) -> None:
         view = self.views["atomium_ground_oblique_v1"]
         unknowns = view.get("camera_selection_constraints", {}).get("remaining_unknowns", [])
         forbidden = view.get("camera_selection_constraints", {}).get("must_not_infer", [])
         witness_forbidden = self.framing_witness.get("must_not_infer", [])
         self.assertTrue(any("lens focal length" in item for item in unknowns))
-        self.assertTrue(any("geometry-only" in item for item in forbidden))
+        self.assertTrue(any("exact lens focal length" in item for item in forbidden))
         self.assertTrue(any("historical focal length" in item for item in witness_forbidden))
         self.assertIn("does not claim", self.framing_witness.get("measurement_role", ""))
         self.assertIn("neither geometry nor the witness recovers", self.framing_audit.get("interpretation", ""))
+        selection = view.get("reference_visible_witness_evidence", {}).get("selection_policy", "")
+        self.assertIn("do not present", selection)
+        self.assertIn("historical focal-length", selection)
 
 
 if __name__ == "__main__":

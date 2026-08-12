@@ -24,6 +24,14 @@
     }
   },
   "height_method_target": "DSM minus DTM sampled inside official UrbIS building footprints",
-  "status": "tile_plan_ready_source_archives_not_yet_resolved",
-  "notes": "The five currently materialized Ixelles cells occupy only the 149168 and 149169 UrbIS kilometre raster tiles. This file does not claim that the archives have been downloaded or validated yet. The next step must resolve each code from the official Atom feeds, hash the exact archives, align DSM/DTM grids and derive per-building heights with quality metrics."
+  "status": "official_rasters_validated_building_statistics_ready_runtime_selection_pending",
+  "evidence": {
+    "archive_validation": [
+      "ixelles_dsm_archive_validation.json",
+      "ixelles_dtm_archive_validation.json"
+    ],
+    "building_height_summary": "ixelles_building_height_summary.json",
+    "building_height_rows": "ixelles_building_heights.csv"
+  },
+  "notes": "The five currently materialized Ixelles cells occupy only the 149168 and 149169 UrbIS kilometre raster tiles. The four official DSM/DTM archives are SHA-256 recorded and their 0.5 m grids are aligned. Per-building p50/p75/p90 DSM-DTM statistics and confidence are now derived. No single runtime height has been selected yet: the next gate is to define and test a conservative height-selection policy, keep insufficient buildings explicit, and derive terrain/relief for the same five cells before any further geographic expansion."
 }

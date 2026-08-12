@@ -35,11 +35,13 @@ func _run() -> void:
     var ortho = scene.get_node_or_null("OrthophotoPass")
     var visual = scene.get_node_or_null("BuildingVisualPass")
     var facade_detail = scene.get_node_or_null("FacadeDetailPass")
+    var tram = scene.get_node_or_null("TramRailPass")
+    var atomium_visual = scene.get_node_or_null("AtomiumVisualRefinement")
     var trees = scene.get_node_or_null("OfficialTrees")
     var canopy = scene.get_node_or_null("TreeCanopyRefinement")
     var cleanup = scene.get_node_or_null("SourceTruthCleanup")
     var corridor = scene.get_node_or_null("AtomiumCorridor")
-    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or facade_detail == null or trees == null or canopy == null or cleanup == null or corridor == null:
+    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or facade_detail == null or tram == null or atomium_visual == null or trees == null or canopy == null or cleanup == null or corridor == null:
         _fail("one or more required realism nodes are missing")
         return
 
@@ -53,6 +55,8 @@ func _run() -> void:
             and bool(visual.get("building_visual_active"))
             and bool(visual.get("orthophoto_roof_active"))
             and bool(facade_detail.get("detail_ready"))
+            and bool(tram.get("rail_ready"))
+            and bool(atomium_visual.get("refinement_ready"))
             and bool(trees.get("trees_loaded"))
             and bool(canopy.get("refinement_ready"))
             and bool(cleanup.get("cleanup_ready"))
@@ -62,7 +66,7 @@ func _run() -> void:
             break
         await process_frame
     if ready_frame < 0:
-        _fail("realism stack not ready within %d frames terrain=%s heights=%s bridge=%s ortho=%s building_visual=%s ortho_roofs=%s facade_detail=%s trees=%s canopy=%s cleanup=%s" % [
+        _fail("realism stack not ready within %d frames terrain=%s heights=%s bridge=%s ortho=%s building_visual=%s ortho_roofs=%s facade_detail=%s tram=%s atomium=%s trees=%s canopy=%s cleanup=%s" % [
             MAX_READY_FRAMES,
             bool(terrain.get("terrain_loaded")),
             bool(height_pass.get("height_mesh_ready")),
@@ -71,6 +75,8 @@ func _run() -> void:
             bool(visual.get("building_visual_active")),
             bool(visual.get("orthophoto_roof_active")),
             bool(facade_detail.get("detail_ready")),
+            bool(tram.get("rail_ready")),
+            bool(atomium_visual.get("refinement_ready")),
             bool(trees.get("trees_loaded")),
             bool(canopy.get("refinement_ready")),
             bool(cleanup.get("cleanup_ready")),
@@ -138,6 +144,30 @@ func _run() -> void:
         _fail("hall rib MultiMesh count mismatch")
         return
 
+    var tram_features := int(tram.get("source_features"))
+    var tram_segments := int(tram.get("source_segments"))
+    var tram_rails := int(tram.get("rail_instances"))
+    var boundary_fallbacks := int(tram.get("boundary_fallback_rails"))
+    if tram_features != 326 or tram_segments != 8332 or tram_rails != 16664:
+        _fail("authoritative tram rail accounting changed: features=%d segments=%d rails=%d" % [tram_features, tram_segments, tram_rails])
+        return
+    if not bool(tram.get("old_ribbon_hidden")):
+        _fail("old flat tram ribbon is still visible")
+        return
+    if boundary_fallbacks > 8:
+        _fail("too many tram rail terrain-boundary fallbacks: %d" % boundary_fallbacks)
+        return
+    var rail_mesh := scene.get_node_or_null("TramRailPass/OfficialTwinTramRails") as MultiMeshInstance3D
+    if rail_mesh == null or rail_mesh.multimesh == null or rail_mesh.multimesh.instance_count != 16664:
+        _fail("twin tram rail MultiMesh count mismatch")
+        return
+
+    var atomium_spheres := int(atomium_visual.get("refined_spheres"))
+    var atomium_tubes := int(atomium_visual.get("refined_tubes"))
+    if atomium_spheres != 9 or atomium_tubes < 20:
+        _fail("Atomium hero refinement incomplete: spheres=%d tubes=%d" % [atomium_spheres, atomium_tubes])
+        return
+
     var legacy_hidden := bool(cleanup.get("hidden_legacy_approach"))
     var synthetic_trees := int(cleanup.get("corridor_synthetic_trees"))
     var synthetic_dashes := int(cleanup.get("corridor_synthetic_dashes"))
@@ -192,7 +222,7 @@ func _run() -> void:
         _fail("broadleaf replacement MultiMesh count mismatch")
         return
 
-    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d,street_detail:%d,windows:%d,halls:%d,ribs:%d} source_truth={synthetic_trees:%d,synthetic_dashes:%d,lamps:%d} trees={total:%d,skipped:%d,replacement_lobes:%d,conifer_tiers:%d,primary_replaced:%s} ortho=true" % [
+    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d,street_detail:%d,windows:%d,halls:%d,ribs:%d} atomium={spheres:%d,tubes:%d} tram={features:%d,segments:%d,rails:%d,boundary_fallbacks:%d} source_truth={synthetic_trees:%d,synthetic_dashes:%d,lamps:%d} trees={total:%d,skipped:%d,replacement_lobes:%d,conifer_tiers:%d,primary_replaced:%s} ortho=true" % [
         ready_frame,
         terrain_range,
         derived,
@@ -202,6 +232,12 @@ func _run() -> void:
         facade_windows,
         facade_halls,
         hall_ribs,
+        atomium_spheres,
+        atomium_tubes,
+        tram_features,
+        tram_segments,
+        tram_rails,
+        boundary_fallbacks,
         synthetic_trees,
         synthetic_dashes,
         kept_lamps,

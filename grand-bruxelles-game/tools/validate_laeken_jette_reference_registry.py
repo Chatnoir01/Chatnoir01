@@ -94,6 +94,29 @@ def validate_heysel_candidate_audit(audit: dict) -> None:
     assert any("urbis" in str(item).lower() for item in gate), "Heysel next gate must depend on UrbIS target geometry"
 
 
+def validate_evidence_bounded_fov(view: dict) -> None:
+    """Narrow hero FOVs are legal only when explicit source evidence bounds them."""
+    fov = float(view.get("fov_degrees", 0.0))
+    assert 20.0 <= fov <= 75.0, f"{view.get('id')}: implausible benchmark FOV"
+    if fov >= 35.0:
+        return
+    witness = view.get("reference_visible_witness_evidence")
+    assert isinstance(witness, dict), f"{view.get('id')}: narrow FOV requires explicit witness evidence"
+    assert witness.get("path") == "atomium_ground_reference_witness.json"
+    maximum = float(witness.get("maximum_fov_consistent_with_visible_witness_deg", 0.0))
+    assert 20.0 <= fov <= maximum, (
+        f"{view.get('id')}: narrow FOV {fov} exceeds evidence bound {maximum}"
+    )
+    policy = str(witness.get("selection_policy", "")).lower()
+    assert "not" in policy and "historical" in policy and "focal" in policy, (
+        f"{view.get('id')}: evidence-bounded FOV must reject historical-lens claims"
+    )
+    status = str(view.get("fov_status", "")).lower()
+    assert "bounded" in status and "not_lens_recovery" in status, (
+        f"{view.get('id')}: narrow FOV status must preserve evidence/uncertainty semantics"
+    )
+
+
 def main() -> int:
     realism = load(REF / "realism_pass1.json")
     jette = load(REF / "jette_photo_references.json")
@@ -158,9 +181,7 @@ def main() -> int:
         assert view.get("resolution") == [1280, 720], (
             f"{view.get('id')}: benchmark capture resolution must stay deterministic"
         )
-        assert 35.0 <= float(view.get("fov_degrees", 0.0)) <= 75.0, (
-            f"{view.get('id')}: implausible benchmark FOV"
-        )
+        validate_evidence_bounded_fov(view)
         if "provisional" in status or "pending" in status:
             uncertainty = " ".join(
                 [

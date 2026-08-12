@@ -1,7 +1,6 @@
 extends CharacterBody3D
 
-## Canonical traffic vehicle surface.
-## This file intentionally has no dependency on traffic_vehicle_core_v*.
+## Canonical traffic vehicle surface with no legacy core dependency.
 
 @export var acceleration_mps2: float = 3.4
 @export var braking_mps2: float = 7.5

@@ -1,5 +1,5 @@
 {
-  "schema": 4,
+  "schema": 5,
   "zone": "laeken_jette",
   "crs": "project-local metres derived from EPSG:31370",
   "policy": "Deterministic in-game benchmark viewpoints tied to lawful visual references. Camera coordinates are benchmark camera placements only unless a source explicitly publishes the camera location. Published source coordinates are recorded as source metadata and must not be upgraded to survey-grade accuracy without independent evidence. UrbIS/LiDAR remain authoritative for city geometry and terrain.",
@@ -43,7 +43,7 @@
       "id": "atomium_ground_oblique_v1",
       "subject": "Atomium ground-level oblique silhouette",
       "status": "captured_mismatch_review_open",
-      "camera_claim": "The Wikimedia Commons source explicitly publishes a camera location at 50.897467 N, 4.339306 E. This is preserved as source-provided camera metadata, not promoted to survey-grade accuracy. Official phase-1 UrbIS DTM sampling resolves the vertical placement and a deterministic 1280x720 in-game capture is now registered. Benchmark promotion remains blocked by unresolved framing/lens and foreground/material mismatches.",
+      "camera_claim": "The Wikimedia Commons source explicitly publishes a camera location at 50.897467 N, 4.339306 E. This is preserved as source-provided camera metadata, not promoted to survey-grade accuracy. Official phase-1 UrbIS DTM sampling resolves vertical placement. A conservative visible-subject witness from the lawful 960x638 source proves the former 50 degree benchmark was too wide; 31.5 degrees is now used only as an evidence-bounded benchmark candidate below the 31.661 degree maximum consistent with that witness, not as recovered historical lens metadata.",
       "camera_height_above_terrain_m": 1.7,
       "camera_game_xz": [60.1172, -6808.7279],
       "camera_game_y_from_atomium_baseline_m": 14.059434659520558,
@@ -74,8 +74,17 @@
       "framing_geometry_evidence": {
         "path": "atomium_ground_framing_audit.json",
         "tool": "tools/audit_atomium_ground_framing.py",
-        "status": "geometry_audited_reference_bbox_pending",
-        "meaning": "At the current 50 degree benchmark FOV, registered geometry predicts that the full 102 m subject occupies only about 35.45% of capture height. This proves the current framing is wide relative to the monument geometry, but does not by itself determine the source lens."
+        "status": "reference_visible_witness_bounded_candidate",
+        "meaning": "The former 50 degree FOV projected the full 102 m subject to only about 35.45% of capture height. A conservative visible-subject witness in the lawful source occupies at least 58.31% of source height, proving 50 degrees was too wide. The 31.5 degree benchmark is selected just below the computed 31.661 degree maximum consistent with the conservative witness; this is a bounded capture candidate, not exact lens recovery."
+      },
+      "reference_visible_witness_evidence": {
+        "path": "atomium_ground_reference_witness.json",
+        "source_image_dimensions_px": [960, 638],
+        "vertical_visible_witness_y_px": [58, 440],
+        "endpoint_uncertainty_px": 5,
+        "conservative_min_visible_witness_frame_fraction": 0.5830721003134797,
+        "maximum_fov_consistent_with_visible_witness_deg": 31.66103407870215,
+        "selection_policy": "use 31.5 degrees as the widest half-degree benchmark below the conservative maximum; do not present it as historical focal-length recovery"
       },
       "candidate_audit": "atomium_ground_camera_candidates.json",
       "candidate_audit_role": "historical safety audit only; superseded for camera-position selection because the source page publishes camera coordinates and the published point lies outside the previous 60-220 m candidate radius",
@@ -84,27 +93,28 @@
           "source-published Wikimedia Commons camera coordinates",
           "official DTM terrain elevation",
           "official Atomium geometry anchor",
-          "UrbIS surrounding geometry"
+          "UrbIS surrounding geometry",
+          "conservative visible-subject witness measured from the lawful source image"
         ],
         "must_resolve": [
-          "reference-image Atomium bounding-box measurement before changing FOV; geometry-only audit must not be presented as recovered lens metadata",
+          "validate the new 31.5 degree bounded candidate capture side-by-side against the source composition; do not present it as recovered lens metadata",
           "hero-visible fountain/open-space, vegetation and furniture context from authoritative or lawful sources",
           "material/detail mismatch review before any realism-complete claim"
         ],
         "must_not_infer": [
           "survey-grade precision beyond the source-published camera metadata",
-          "lens focal length from visual intuition or geometry-only projection alone",
+          "exact lens focal length from the conservative witness or geometry-only projection",
           "street or path geometry absent from authoritative data"
         ],
         "remaining_unknowns": [
           "exact source lens focal length",
           "exact yaw and pitch after accounting for image crop",
           "exact source camera orientation metadata",
-          "measured source-image Atomium bounding box"
+          "exact full-subject Atomium bounding box because the base is partially occluded by the fountain"
         ]
       },
-      "fov_degrees": 50.0,
-      "fov_status": "geometry_constrained_reference_bbox_pending",
+      "fov_degrees": 31.5,
+      "fov_status": "reference_visible_witness_bounded_candidate_not_lens_recovery",
       "resolution": [1280, 720],
       "reference": {
         "url": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",

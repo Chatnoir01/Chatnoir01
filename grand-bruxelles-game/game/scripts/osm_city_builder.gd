@@ -116,6 +116,38 @@ func _is_detail_zone(point: Vector3) -> bool:
     )
 
 
+func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
+    var segment := finish - start
+    var length_squared := segment.length_squared()
+    if length_squared <= 0.000001:
+        return point.distance_to(start)
+    var amount := clampf((point - start).dot(segment) / length_squared, 0.0, 1.0)
+    return point.distance_to(start + segment * amount)
+
+
+func _footprint_intersects_detail_zone(footprint: Array) -> bool:
+    if footprint.is_empty():
+        return false
+    for raw: Variant in footprint:
+        var vertex := Vector2(float(raw[0]), float(raw[1]))
+        if (
+            vertex.distance_to(MIDI_ANCHOR) <= midi_detail_radius_m
+            or vertex.distance_to(BOURSE_ANCHOR) <= bourse_detail_radius_m
+        ):
+            return true
+    for edge_index: int in range(footprint.size()):
+        var raw_start: Variant = footprint[edge_index]
+        var raw_finish: Variant = footprint[(edge_index + 1) % footprint.size()]
+        var start := Vector2(float(raw_start[0]), float(raw_start[1]))
+        var finish := Vector2(float(raw_finish[0]), float(raw_finish[1]))
+        if (
+            _point_segment_distance(MIDI_ANCHOR, start, finish) <= midi_detail_radius_m
+            or _point_segment_distance(BOURSE_ANCHOR, start, finish) <= bourse_detail_radius_m
+        ):
+            return true
+    return false
+
+
 func _road_width_for(road: Dictionary) -> float:
     var width := float(road.get("width", 4.5))
     var road_class := str(road.get("class", ""))
@@ -297,7 +329,7 @@ func _build_buildings(buildings: Array, root: Node3D, replacement_ids: Dictionar
         root.add_child(roof)
 
         var world_center := Vector3(center.x, 0.0, center.y)
-        if _is_detail_zone(world_center):
+        if _is_detail_zone(world_center) or _footprint_intersects_detail_zone(footprint):
             _queue_facade_details(footprint, height)
 
         count += 1

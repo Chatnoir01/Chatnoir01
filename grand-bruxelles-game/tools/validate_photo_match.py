@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Validate Grand Bruxelles photo-match QA manifests.
 
-This gate intentionally allows references to remain incomplete while work is in
-progress. A reference may only be marked ``realism_complete`` when its matching
-in-game capture, quantitative scores and mismatch resolution prove that claim.
+The registry is deliberately strict about camera provenance. A reference may stay
+incomplete, but its real-world camera facts must be explicit: known WGS84
+coordinates are recorded numerically, unknown coordinates are declared unknown,
+and orientation uncertainty is never silently guessed. A reference may only be
+marked ``realism_complete`` when a matching in-game capture, quantitative scores
+and mismatch resolution prove that claim.
 """
 
 from __future__ import annotations
@@ -54,13 +57,81 @@ def require_text(obj: dict[str, Any], key: str, context: str) -> str:
     return value.strip()
 
 
-def validate_score(value: Any, context: str) -> float:
+def require_finite_number(value: Any, context: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         fail(f"{context} must be numeric")
-    score = float(value)
-    if not math.isfinite(score) or not 0.0 <= score <= 5.0:
+    number = float(value)
+    if not math.isfinite(number):
+        fail(f"{context} must be finite")
+    return number
+
+
+def validate_score(value: Any, context: str) -> float:
+    score = require_finite_number(value, context)
+    if not 0.0 <= score <= 5.0:
         fail(f"{context} must be within 0..5")
     return score
+
+
+def validate_reference_camera(camera: Any, context: str) -> None:
+    if not isinstance(camera, dict):
+        fail(f"{context}.camera must be an object")
+
+    position = camera.get("position")
+    if not isinstance(position, dict):
+        fail(f"{context}.camera.position must be an object")
+    status = require_text(position, "status", f"{context}.camera.position")
+    if status not in {"known", "unknown"}:
+        fail(f"{context}.camera.position.status must be known or unknown")
+    coordinate_system = require_text(
+        position, "coordinate_system", f"{context}.camera.position"
+    )
+    if coordinate_system != "WGS84":
+        fail(f"{context}.camera.position.coordinate_system must be WGS84")
+    latitude = position.get("latitude")
+    longitude = position.get("longitude")
+    if status == "known":
+        lat = require_finite_number(latitude, f"{context}.camera.position.latitude")
+        lon = require_finite_number(longitude, f"{context}.camera.position.longitude")
+        if not -90.0 <= lat <= 90.0:
+            fail(f"{context}.camera.position.latitude must be within -90..90")
+        if not -180.0 <= lon <= 180.0:
+            fail(f"{context}.camera.position.longitude must be within -180..180")
+    elif latitude is not None or longitude is not None:
+        fail(
+            f"{context}.camera.position coordinates must be null when status is unknown"
+        )
+
+    focal_length = require_finite_number(
+        camera.get("focal_length_35mm"), f"{context}.camera.focal_length_35mm"
+    )
+    if not 8.0 <= focal_length <= 300.0:
+        fail(f"{context}.camera.focal_length_35mm is outside a plausible 8..300 mm range")
+
+    orientation = camera.get("orientation")
+    if not isinstance(orientation, dict):
+        fail(f"{context}.camera.orientation must be an object")
+    orientation_status = require_text(
+        orientation, "status", f"{context}.camera.orientation"
+    )
+    if orientation_status not in {"known", "estimated", "pending"}:
+        fail(
+            f"{context}.camera.orientation.status must be known, estimated or pending"
+        )
+    require_text(orientation, "notes", f"{context}.camera.orientation")
+    if orientation_status == "known":
+        heading = require_finite_number(
+            orientation.get("heading_degrees"),
+            f"{context}.camera.orientation.heading_degrees",
+        )
+        if not 0.0 <= heading < 360.0:
+            fail(
+                f"{context}.camera.orientation.heading_degrees must be within 0..<360"
+            )
+    elif orientation.get("heading_degrees") is not None:
+        fail(
+            f"{context}.camera.orientation.heading_degrees must be null unless orientation is known"
+        )
 
 
 def resolve_project_root(manifest_path: Path) -> Path:
@@ -74,8 +145,8 @@ def resolve_project_root(manifest_path: Path) -> Path:
 
 def validate_manifest(manifest_path: Path) -> tuple[int, int]:
     manifest = load_json(manifest_path)
-    if manifest.get("schema_version") != 1:
-        fail("schema_version must be 1")
+    if manifest.get("schema_version") != 2:
+        fail("schema_version must be 2")
 
     scale = manifest.get("score_scale")
     if not isinstance(scale, dict):
@@ -120,6 +191,7 @@ def validate_manifest(manifest_path: Path) -> tuple[int, int]:
         require_text(source, "license", f"{context}.reference")
         require_text(source, "distribution_policy", f"{context}.reference")
         require_text(source, "camera_notes", f"{context}.reference")
+        validate_reference_camera(source.get("camera"), f"{context}.reference")
 
         viewpoint = raw_reference.get("viewpoint")
         if not isinstance(viewpoint, dict):

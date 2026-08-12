@@ -1,0 +1,63 @@
+name: Probe Brussels Pentagon polygon
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/probe-brussels-pentagon.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Require official catalog discovery
+        working-directory: grand-bruxelles-game
+        run: test -s data/processed/brussels_city_remaining/opendata_boundary_candidates.json
+      - name: Probe Pentagone and Vijfhoek named polygons
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/probe_brussels_opendata_boundaries.py \
+            --discovery data/processed/brussels_city_remaining/opendata_boundary_candidates.json \
+            --target pentagone \
+            --target vijfhoek \
+            --max-records 2500 \
+            --max-candidates 25 \
+            --output data/processed/brussels_city_remaining/opendata_pentagon_probe.json
+      - name: Validate probe evidence only
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('data/processed/brussels_city_remaining/opendata_pentagon_probe.json').read_text())
+          assert d['format']=='grand-bruxelles-opendata-boundary-probe-v1'
+          assert d['production_approved_datasets']=={}
+          assert d['candidate_count_probed']>0
+          print('Pentagone datasets:',d['datasets_with_polygon_match_by_target'].get('pentagone',[]))
+          print('Vijfhoek datasets:',d['datasets_with_polygon_match_by_target'].get('vijfhoek',[]))
+          PY
+      - name: Commit Pentagon probe evidence
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/processed/brussels_city_remaining/opendata_pentagon_probe.json
+          if git diff --cached --quiet; then
+            echo 'Pentagon probe unchanged.'
+            exit 0
+          fi
+          git commit -m 'data: probe official Brussels Pentagon polygon'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

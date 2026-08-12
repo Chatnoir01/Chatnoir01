@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/zones/laeken_jette/**"
       - "grand-bruxelles-game/game/tests/render_laeken_playtest_capture.gd"
       - "grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json"
+      - "grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json"
       - "grand-bruxelles-game/data/terrain/laeken_jette/**"
       - "grand-bruxelles-game/data/orthophoto/laeken_jette/**"
       - ".github/workflows/grand-bruxelles-laeken-playtest-capture-publish.yml"
@@ -39,6 +40,10 @@ jobs:
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
 
+      - name: Import project resources
+        run: |
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+
       - name: Render actual player camera
         shell: bash
         run: |
@@ -53,6 +58,8 @@ jobs:
           fi
           grep -q "PLAYTEST_CAPTURE_OK" /tmp/capture.log
           grep -q "LAEKEN_BUILDING_HEIGHTS_READY" /tmp/capture.log
+          grep -q "LAEKEN_OFFICIAL_TREES_READY" /tmp/capture.log
+          grep -q "LAEKEN_ORTHOPHOTO_READY: active=true" /tmp/capture.log
           test -s grand-bruxelles-game/laeken_playtest_current.png
 
       - name: Publish capture from latest branch head

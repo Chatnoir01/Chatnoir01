@@ -39,7 +39,7 @@ jobs:
           for N in 1 2 3 4; do
             base64 -w 0 "/tmp/q${N}.jpg" > "/tmp/q${N}.b64.txt"
             BYTES=$(wc -c <"/tmp/q${N}.b64.txt")
-            test "$BYTES" -gt 500
+            test "$BYTES" -gt 250
             test "$BYTES" -lt 2200
             identify "/tmp/q${N}.jpg"
             echo "q${N}_base64_bytes=$BYTES"

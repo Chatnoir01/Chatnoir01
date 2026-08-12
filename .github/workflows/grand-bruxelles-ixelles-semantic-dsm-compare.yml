@@ -1,0 +1,97 @@
+name: Grand Bruxelles Ixelles Semantic DSM Compare
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/compare_ixelles_semantic_dsm_heights.py"
+      - "grand-bruxelles-game/tools/test_compare_ixelles_semantic_dsm_heights.py"
+      - ".github/workflows/grand-bruxelles-ixelles-semantic-dsm-compare.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compare-seed-cell:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run deterministic comparison regression
+        run: python3 grand-bruxelles-game/tools/test_compare_ixelles_semantic_dsm_heights.py
+
+      - name: Recover exact merged #101 semantic evidence artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/semantic
+          gh run download 31608697531 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name grand-bruxelles-ixelles-semantic-building-match-evidence \
+            --dir /tmp/semantic
+          test -f /tmp/semantic/evidence.json
+          test -f /tmp/semantic/distribution.sha256
+          test -f /tmp/semantic/gpkg.sha256
+          grep -q '^090f4a6aada5c7c19609860d7ee3956ce0f06379c991533975bcf1ddb848dfaa ' /tmp/semantic/distribution.sha256
+          grep -q '^2aa3057da9d0cfd656baf684fe53d343629b1539a648fbb69fff983327993c78 ' /tmp/semantic/gpkg.sha256
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/semantic/evidence.json'))
+          assert p['cell']=='bxl-e149000-n169000-s500'
+          assert p['bbox_epsg31370']==[149000.0,169000.0,149500.0,169500.0]
+          assert p['policy']['crs']=='EPSG:31370'
+          assert p['policy']['runtime_approval'] is False
+          assert p['counts']['urbis_2d_buildings']==788
+          assert p['counts']['matched_semantic_evidence']==471
+          print('SEMANTIC_EVIDENCE_LOCK_VALID', p['counts'])
+          PY
+
+      - name: Recover provenance-locked corrected DSM-DTM evidence from specialist branch
+        run: |
+          set -euo pipefail
+          PATH_IN_BRANCH='grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_building_heights.csv'
+          git fetch --no-tags --depth=1 origin zone-reste-bruxelles-clean:refs/remotes/origin/zone-reste-bruxelles-clean
+          BLOB="$(git rev-parse "origin/zone-reste-bruxelles-clean:$PATH_IN_BRANCH")"
+          test "$BLOB" = 'fe5df2040a0fb41f6374e90826a56472f38b1116'
+          git show "origin/zone-reste-bruxelles-clean:$PATH_IN_BRANCH" > /tmp/ixelles_building_heights.csv
+          python3 - <<'PY'
+          import csv
+          rows=list(csv.DictReader(open('/tmp/ixelles_building_heights.csv',encoding='utf-8')))
+          cell=[r for r in rows if r['cell_id']=='bxl-e149000-n169000-s500']
+          assert cell
+          assert all(r['building_id'].startswith('https://databrussels.be/id/building/') for r in cell)
+          print('DSM_DTM_EVIDENCE_LOCK_VALID',len(cell))
+          PY
+
+      - name: Compare semantic UrbIS 3D against corrected DSM-DTM candidates
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/ixelles-semantic-dsm-compare
+          python3 grand-bruxelles-game/tools/compare_ixelles_semantic_dsm_heights.py \
+            --semantic /tmp/semantic/evidence.json \
+            --dsm-csv /tmp/ixelles_building_heights.csv \
+            --output grand-bruxelles-game/artifacts/ixelles-semantic-dsm-compare/evidence.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('grand-bruxelles-game/artifacts/ixelles-semantic-dsm-compare/evidence.json'))
+          assert p['source_crs']=='EPSG:31370'
+          assert p['cell']=='bxl-e149000-n169000-s500'
+          assert p['runtime_approved'] is False
+          assert p['counts']['semantic_matched_inputs']==471
+          assert p['counts']['joined_comparisons'] > 0
+          assert p['counts']['joined_comparisons'] + p['counts'].get('dsm_missing',0) + p['counts'].get('dsm_insufficient',0) + p['counts'].get('semantic_invalid',0) == 471
+          assert all(r['runtime_approved'] is False for r in p['records'])
+          print('IXELLES_SEMANTIC_DSM_REAL_EVIDENCE',json.dumps({'counts':p['counts'],'delta_summary_m':p['delta_summary_m']},sort_keys=True))
+          PY
+
+      - name: Upload compact comparison evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-ixelles-semantic-dsm-comparison
+          path: grand-bruxelles-game/artifacts/ixelles-semantic-dsm-compare/evidence.json
+          if-no-files-found: error
+          retention-days: 90

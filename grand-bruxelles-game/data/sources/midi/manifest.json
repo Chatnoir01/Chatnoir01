@@ -57,11 +57,13 @@
       "provider": "Paradigm / Brussels Mobility attributes",
       "dataset_id": "af847c40-848b-11ee-9a1f-00090ffe0001",
       "title": "UrbIS - Transport networks",
-      "role": ["street_axes", "intersections", "rail_network"],
-      "update_checked": "2026-06-16",
+      "role": ["street_surfaces", "street_axes", "intersections", "rail_network"],
+      "update_checked": "2026-08-12",
       "allowed_use": "production_candidate",
-      "license_status": "verify_distribution_metadata_before_asset_release",
-      "landing_page": "https://datastore.brussels/web/data/dataset/af847c40-848b-11ee-9a1f-00090ffe0001"
+      "license_status": "CC0-1.0 verified from official Brussels metadata API on 2026-08-12",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+      "landing_page": "https://datastore.brussels/web/data/dataset/af847c40-848b-11ee-9a1f-00090ffe0001",
+      "notes": "Bourse runtime ground context is derived from the official StreetSurfaces WFS response for bbox [148440.23351135076,170649.88213200308,148800.23351135076,171009.88213200308] in EPSG:31370. The response SHA-256, exact selection rule and non-approved realism status are pinned in data/urbis/bourse_street_surfaces.game.json."
     },
     {
       "id": "urbis_dsm",

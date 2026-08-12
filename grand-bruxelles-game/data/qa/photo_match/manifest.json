@@ -61,7 +61,8 @@
         },
         {
           "severity": "blocker",
-          "action": "The current capture shows sparse/generic streetscape massing and proportions instead of the dense Place de la Bourse frontage: verify street width, building placement, facade rhythm and forecourt geometry against authoritative geometry and the lawful reference before accepting this viewpoint."
+          "action": "The current capture shows sparse/generic streetscape massing and proportions instead of the dense Place de la Bourse frontage: verify street width, building placement, facade rhythm and forecourt geometry against authoritative geometry and the lawful reference before accepting this viewpoint.",
+          "progress_evidence": "The immediate forecourt context now consumes the three exact official UrbIS StreetSurfaces extracted and locked by #117 (151495, 152281 and 22358): two SW and one I source-code polygons totalling 459 source m2 and 81 deterministic runtime triangles. This replaces the three nominal axis strips, but does not resolve the wider streetscape, curb elevations, frontage density, materials or camera alignment; the blocker remains open."
         },
         {
           "severity": "major",

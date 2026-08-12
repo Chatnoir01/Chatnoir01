@@ -18,6 +18,10 @@ ROOT = Path(__file__).resolve().parents[1]
 WFS_URL = "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
 LAYER = "urbisvector:StreetSurfaces"
 CRS = "EPSG:31370"
+TRANSPORT_DATASET_ID = "af847c40-848b-11ee-9a1f-00090ffe0001"
+LICENSE = "CC0-1.0"
+LICENSE_URL = "https://creativecommons.org/publicdomain/zero/1.0/legalcode"
+ACCESSED_AT = "2026-08-12"
 BOURSE_CENTER = (148620.23351135076, 170829.88213200308)
 RADIUS_M = 180.0
 TARGET_IDS = {
@@ -43,7 +47,7 @@ def load_world_transform(path: Path = AXIS_EVIDENCE) -> tuple[float, float, floa
 
 def transform_source_label(path: Path) -> str:
     try:
-        return str(path.resolve().relative_to(ROOT.resolve()))
+        return path.resolve().relative_to(ROOT.resolve()).as_posix()
     except ValueError:
         return str(path)
 
@@ -142,10 +146,18 @@ def build_output(payload: dict[str, Any], response_sha256: str, transform_path: 
         "schema": "grand-bruxelles-urbis-bourse-surfaces-v1",
         "source": {
             "provider": "Paradigm / Brussels-Capital Region",
+            "dataset": "UrbIS - Transport networks",
+            "dataset_id": TRANSPORT_DATASET_ID,
+            "dataset_url": f"https://datastore.brussels/web/data/dataset/{TRANSPORT_DATASET_ID}",
             "service": "UrbIS WFS",
             "url": WFS_URL,
             "layer": LAYER,
             "crs": CRS,
+            "request_bbox_epsg31370": list(probe_bbox()),
+            "license": LICENSE,
+            "license_url": LICENSE_URL,
+            "accessed_at": ACCESSED_AT,
+            "metadata_revision": "2026-06-05",
             "response_sha256": response_sha256,
             "response_hash_note": "raw WFS response hash is request evidence only; ephemeral feature IDs/order may change",
         },
@@ -159,7 +171,7 @@ def build_output(payload: dict[str, Any], response_sha256: str, transform_path: 
         "surfaces": surfaces,
         "runtime_approved": False,
         "realism_complete": False,
-        "next_runtime_step": "consume these exact polygons as bounded visual ground context, then rerender the fixed Bourse photo-match camera",
+        "next_runtime_step": "acquire adjacent official street surfaces and source-backed curb geometry, then rerender the fixed Bourse photo-match camera",
     }
 
 

@@ -42,6 +42,8 @@ jobs:
         run: |
           python3 -m unittest discover -s grand-bruxelles-game/tests -p 'test_make_runtime_slice.py' -v
           python3 grand-bruxelles-game/tests/test_extract_urbis_3d_hero.py
+          python3 grand-bruxelles-game/tests/test_extract_bourse_urbis_surfaces.py
+          python3 grand-bruxelles-game/tests/test_bourse_surface_runtime_data.py
 
       - name: Validate Lambert72 to game conversion
         run: |
@@ -81,6 +83,19 @@ jobs:
           assert urbis['stats']['buildings'] >= 2500, urbis['stats']
           assert urbis['stats']['street_surfaces'] >= 1200, urbis['stats']
           print('Committed UrbIS Midi runtime stats:', urbis['stats'])
+
+          bourse_surface_path = 'grand-bruxelles-game/data/urbis/bourse_street_surfaces.game.json'
+          bourse_surfaces = json.load(open(bourse_surface_path, encoding='utf-8'))
+          assert bourse_surfaces['source']['license'] == 'CC0-1.0'
+          assert len(bourse_surfaces['surfaces']) == 3
+          assert set(bourse_surfaces['target_inspire_ids']) == {
+              'https://databrussels.be/id/streetsurface/22358',
+              'https://databrussels.be/id/streetsurface/151495',
+              'https://databrussels.be/id/streetsurface/152281',
+          }
+          assert bourse_surfaces['runtime_approved'] is False
+          assert bourse_surfaces['realism_complete'] is False
+          print('Committed Bourse surface ids:', bourse_surfaces['target_inspire_ids'])
           PY
 
       - name: Import project headless
@@ -109,6 +124,7 @@ jobs:
           fi
           grep -q "Grand Bruxelles visual pass:" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS hero: bourse" /tmp/godot-run.log
+          grep -q "Bourse UrbIS exact surfaces: 3 polygons" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS Midi exact-plan:" /tmp/godot-run.log
           grep -q "Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS mask:" /tmp/godot-run.log
@@ -125,6 +141,19 @@ jobs:
             exit 1
           fi
           grep -q "URBIS_HERO_GEOMETRY_OK" /tmp/urbis-hero.log
+
+      - name: Authoritative Bourse surface test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/bourse_surface_runtime_test.gd 2>&1 | tee /tmp/bourse-surface.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_SURFACE_RUNTIME_FAIL" /tmp/bourse-surface.log; then
+            exit 1
+          fi
+          grep -q "BOURSE_SURFACE_RUNTIME_OK" /tmp/bourse-surface.log
 
       - name: Dynamic corridor location label test
         shell: bash

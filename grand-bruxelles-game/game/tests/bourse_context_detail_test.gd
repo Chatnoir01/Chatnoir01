@@ -87,7 +87,7 @@ func _run() -> void:
         return
 
     print(
-        "BOURSE_CONTEXT_DETAIL_OK: 3 official axis segments exact to source endpoints, %d sidewalks, %d logical facade windows inside %.0f m; full surface polygons remain the next geometry blocker" %
+        "BOURSE_CONTEXT_DETAIL_OK: 3 official axis segments exact to source endpoints, %d procedural sidewalks, %d logical facade windows inside %.0f m; exact ground surfaces are validated separately" %
         [bourse_sidewalks, bourse_urbis_windows, DETAIL_RADIUS_M]
     )
     scene.queue_free()

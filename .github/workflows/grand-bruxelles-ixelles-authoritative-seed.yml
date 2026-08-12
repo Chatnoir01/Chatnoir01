@@ -1,0 +1,56 @@
+name: Grand Bruxelles Ixelles Authoritative Seed
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/**'
+      - 'grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_bxl-e149000-n169000-s500_orthophoto.json'
+      - '.github/workflows/grand-bruxelles-ixelles-authoritative-seed.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate authoritative Ixelles seed package
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('grand-bruxelles-game')
+          cell = root / 'data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500'
+          manifest = json.loads((cell / 'manifest.json').read_text())
+          assert manifest['format'] == 'grand-bruxelles-urbis-built-cell-v1'
+          assert manifest['cell_id'] == 'bxl-e149000-n169000-s500'
+          assert manifest['crs'] == 'EPSG:31370'
+          assert manifest['bbox'] == [149000.0, 169000.0, 149500.0, 169500.0]
+
+          expected = {
+              'buildings': 'urbisvector:Buildings',
+              'street_surfaces': 'urbisvector:StreetSurfaces',
+              'street_axes': 'urbisvector:StreetAxes',
+              'tram_network': 'urbisvector:TramNetwork',
+              'train_network': 'urbisvector:TrainNetwork',
+          }
+          for key, wfs_name in expected.items():
+              layer = manifest['layers'][key]
+              assert layer['wfs_name'] == wfs_name
+              path = cell / layer['file']
+              assert path.is_file(), path
+              data = json.loads(path.read_text())
+              assert data.get('type') == 'FeatureCollection'
+              assert len(data.get('features', [])) == layer['features']
+
+          ortho_path = root / 'data/processed/remaining_brussels/references/ixelles_bxl-e149000-n169000-s500_orthophoto.json'
+          ortho = json.loads(ortho_path.read_text())
+          assert ortho['provider'] == 'Paradigm / UrbIS'
+          assert ortho['crs'] == 'EPSG:31370'
+          assert ortho['bbox'] == manifest['bbox']
+          assert ortho['purpose'] == 'visual validation/reference only'
+          assert ortho['download']['sha256'] == '44491b6ef8196b99c0878c3d707c792767c305c2a58c20c2923c650133e45d2f'
+
+          assert not (cell / 'runtime').exists()
+          print('Ixelles authoritative seed package: PASS')
+          PY

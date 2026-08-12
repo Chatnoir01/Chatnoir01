@@ -1,0 +1,21 @@
+name: Grand Bruxelles Ixelles Height Policy Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_height_policy_review.json"
+      - "grand-bruxelles-game/tests/test_ixelles_height_policy_review.py"
+      - ".github/workflows/grand-bruxelles-ixelles-height-policy-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review-five-locked-cells:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recompute five-cell policy evidence
+        run: python3 grand-bruxelles-game/tests/test_ixelles_height_policy_review.py

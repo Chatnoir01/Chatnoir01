@@ -143,7 +143,7 @@ def collect_solids(layer: ogr.Layer, bbox: tuple[float, float, float, float]) ->
 
 def score_match(ground: ogr.Geometry, building: ogr.Geometry) -> dict[str, float] | None:
     intersection = ground.Intersection(building)
-    if intersection is None or intersection.IsEmpty():
+    if intersection is None or intersection.IsEmpty() or intersection.GetDimension() < 2:
         return None
     intersection_area = float(intersection.GetArea())
     ground_area = float(ground.GetArea())

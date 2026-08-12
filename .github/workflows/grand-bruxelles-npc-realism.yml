@@ -1,0 +1,71 @@
+name: Grand Bruxelles NPC Realism
+
+on:
+  push:
+    branches: ["systems-npc-police-civilians-refresh"]
+    paths:
+      - "grand-bruxelles-game/game/scripts/npc_*.gd"
+      - "grand-bruxelles-game/game/tests/npc_*.gd"
+      - ".github/workflows/grand-bruxelles-npc-realism.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/npc_*.gd"
+      - "grand-bruxelles-game/game/tests/npc_*.gd"
+      - ".github/workflows/grand-bruxelles-npc-realism.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-realism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import NPC scripts headless
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/npc-realism-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/npc-realism-import.log; then exit 1; fi
+      - name: Existing crowd reaction regression
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_crowd_reaction_test.gd 2>&1 | tee /tmp/npc-crowd-regression.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_CROWD_REACTION_FAIL" /tmp/npc-crowd-regression.log; then exit 1; fi
+          grep -q "NPC_CROWD_REACTION_OK" /tmp/npc-crowd-regression.log
+      - name: Crowd reaction memory test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_crowd_reaction_memory_test.gd 2>&1 | tee /tmp/npc-crowd-memory.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_CROWD_REACTION_MEMORY_FAIL" /tmp/npc-crowd-memory.log; then exit 1; fi
+          grep -q "NPC_CROWD_REACTION_MEMORY_OK" /tmp/npc-crowd-memory.log
+      - name: Existing police response regression
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_response_test.gd 2>&1 | tee /tmp/npc-police-response.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_RESPONSE_FAIL" /tmp/npc-police-response.log; then exit 1; fi
+          grep -q "NPC_POLICE_RESPONSE_OK" /tmp/npc-police-response.log
+      - name: Police custody request test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_custody_request_test.gd 2>&1 | tee /tmp/npc-police-custody.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_CUSTODY_REQUEST_FAIL" /tmp/npc-police-custody.log; then exit 1; fi
+          grep -q "NPC_POLICE_CUSTODY_REQUEST_OK" /tmp/npc-police-custody.log
+      - name: Police custody lifecycle coordinator test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_custody_coordinator_test.gd 2>&1 | tee /tmp/npc-police-custody-coordinator.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_CUSTODY_COORDINATOR_FAIL" /tmp/npc-police-custody-coordinator.log; then exit 1; fi
+          grep -q "NPC_POLICE_CUSTODY_COORDINATOR_OK" /tmp/npc-police-custody-coordinator.log

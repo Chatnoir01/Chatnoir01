@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "view_id": "heysel_stadium_context_v1",
-  "status": "urbis_target_resolved_camera_comparison_pending",
+  "status": "urbis_target_3d_resolved_camera_comparison_pending",
   "crs": "EPSG:31370",
   "authoritative_target": {
     "geometry_source": "UrbIS Buildings",
@@ -39,6 +39,15 @@
       "width_m": 199.724,
       "long_axis_angle_deg_lambert": 128.635,
       "rectangle_area_m2": 57592.085
+    },
+    "terrain_elevation": {
+      "source": "committed 5 m UrbIS DTM runtime",
+      "runtime_path": "data/terrain/laeken_jette/phase1_dtm.game.json",
+      "sample_evidence_path": "data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json",
+      "runtime_sha256": "51faec9dc2dc9d899af81e82ea38282adc5a90cb769ff3c47a47434dac7727f7",
+      "absolute_elevation_m": 55.228502048974015,
+      "relative_to_atomium_baseline_m": 2.653119816308,
+      "method": "Bilinear interpolation of four valid committed 5 m UrbIS DTM runtime samples; no extrapolation or NoData substitution."
     }
   },
   "semantic_cross_check": {
@@ -80,7 +89,8 @@
     "published_reference_camera_coordinates": null,
     "published_reference_focal_length": null,
     "target_horizontal_position_resolved": true,
-    "target_vertical_position_status": "dtm_sample_pending",
+    "target_vertical_position_status": "resolved_from_committed_urbis_dtm_runtime",
+    "target_ground_absolute_elevation_m": 55.228502048974015,
     "candidate_observation_levels_m": [92.0, 36.0],
     "candidate_levels_status": "plausible_not_proven",
     "rule": "Render both official Atomium observation-level candidates toward this UrbIS-derived stadium target without claiming either candidate as the 2007 photographer position. Preserve provisional FOV/crop status until visual comparison is complete."
@@ -90,6 +100,7 @@
     "OSM is used only as a semantic selector/cross-check and is separately attributed under ODbL 1.0.",
     "Official stadium dimensions are used only to detect gross semantic mismatches.",
     "The frozen 2024 official orthophoto covers the target and is used for visual cross-checking.",
-    "No manual geometry was introduced to force agreement between sources."
+    "The target ground elevation is derived only from the committed UrbIS DTM runtime and its pinned bilinear sample evidence.",
+    "No manual geometry or elevation was introduced to force agreement between sources."
   ]
 }

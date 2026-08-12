@@ -10,6 +10,7 @@ import argparse
 import importlib.util
 import json
 import math
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ HERO_PATH = HERE / "extract_urbis_3d_hero.py"
 spec = importlib.util.spec_from_file_location("urbis_hero", HERO_PATH)
 hero = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
+sys.modules[spec.name] = hero
 spec.loader.exec_module(hero)
 
 

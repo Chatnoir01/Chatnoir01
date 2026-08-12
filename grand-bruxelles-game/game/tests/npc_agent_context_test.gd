@@ -5,6 +5,11 @@ func _init() -> void:
 	root.add_child(agent)
 	agent.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 77, Vector3.ZERO)
 
+	var behavior_speed: float = agent.behavior.preferred_speed
+	var contextual_speed: float = agent.pedestrian_context.preferred_speed
+	_assert(absf(contextual_speed - behavior_speed) > 0.01, "pedestrian context provides a distinct deterministic civilian pace")
+	_assert(is_equal_approx(agent.get_runtime_walking_speed(), contextual_speed), "civilian runtime consumes contextual walking pace")
+
 	var initial_appearance: Dictionary = agent.get_appearance_profile()
 	_assert(initial_appearance["clothing_base"] != &"police_uniform", "civilian appearance stays civilian")
 	_assert(initial_appearance["stature_scale"] >= 0.92 and initial_appearance["stature_scale"] <= 1.08, "stature variation is bounded")
@@ -22,6 +27,7 @@ func _init() -> void:
 	var police_appearance: Dictionary = agent.get_appearance_profile()
 	_assert(police_appearance["clothing_base"] == &"police_uniform", "police role selects uniform base")
 	_assert(police_appearance["outer_layer"] == &"police_rain_layer", "police appearance preserves active weather context")
+	_assert(is_equal_approx(agent.get_runtime_walking_speed(), agent.behavior.preferred_speed), "police runtime keeps patrol speed ownership outside civilian pacing")
 
 	agent.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 77, Vector3.ZERO)
 	var red_intent: int = agent.update_crossing_context(NpcPedestrianContext.CrossingSignal.RED, true, 20.0)

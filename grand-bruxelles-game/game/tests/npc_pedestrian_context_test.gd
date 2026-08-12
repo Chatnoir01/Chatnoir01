@@ -15,6 +15,12 @@ func _init() -> void:
 	var other := NpcPedestrianContext.new()
 	other.configure(43, 1.35)
 	_assert(context.idle_duration_seconds(0) != other.idle_duration_seconds(0), "seeded idle variation")
+	_assert(context.idle_phase_offset_seconds(30.0) >= 0.0 and context.idle_phase_offset_seconds(30.0) < 30.0, "idle phase stays inside cycle")
+	_assert(context.idle_phase_offset_seconds(30.0) != other.idle_phase_offset_seconds(30.0), "agents do not share one idle phase")
+	_assert(context.idle_phase_offset_seconds(0.0) == 0.0, "zero idle cycle stays stable")
+	_assert(context.idle_variant_index(0, 4) >= 0 and context.idle_variant_index(0, 4) < 4, "idle variant stays in bounds")
+	_assert(context.idle_variant_index(2, 4) != context.idle_variant_index(3, 4), "idle sequence can vary animation choice")
+	_assert(context.idle_variant_index(0, 0) == -1, "empty idle variant set is safe")
 	_assert(context.lateral_personal_space_meters(0.0) > context.lateral_personal_space_meters(1.0), "crowd spacing contracts")
 
 	print("NPC_PEDESTRIAN_CONTEXT_OK")

@@ -49,7 +49,12 @@ func _terrain_height(scene: Node, x: float, z: float) -> float:
 
 func _hide_benchmark_ui(node: Node, under_canvas_layer: bool = false) -> void:
     var in_ui := under_canvas_layer or node is CanvasLayer
-    if under_canvas_layer and node is CanvasItem:
+    # The playtest scene currently owns root-level Labels/Controls rather than a
+    # CanvasLayer. Photo-match evidence must contain world pixels only, so hide
+    # all Control-derived UI plus any CanvasItems nested under a CanvasLayer.
+    if node is Control:
+        (node as Control).visible = false
+    elif under_canvas_layer and node is CanvasItem:
         (node as CanvasItem).visible = false
     for child in node.get_children():
         _hide_benchmark_ui(child, in_ui)

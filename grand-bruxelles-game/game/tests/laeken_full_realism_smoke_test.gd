@@ -38,7 +38,8 @@ func _run() -> void:
     var trees = scene.get_node_or_null("OfficialTrees")
     var canopy = scene.get_node_or_null("TreeCanopyRefinement")
     var cleanup = scene.get_node_or_null("SourceTruthCleanup")
-    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or facade_detail == null or trees == null or canopy == null or cleanup == null:
+    var corridor = scene.get_node_or_null("AtomiumCorridor")
+    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or facade_detail == null or trees == null or canopy == null or cleanup == null or corridor == null:
         _fail("one or more required realism nodes are missing")
         return
 
@@ -138,27 +139,25 @@ func _run() -> void:
         return
 
     var legacy_hidden := bool(cleanup.get("hidden_legacy_approach"))
-    var removed_synthetic_trees := int(cleanup.get("removed_corridor_trees"))
-    var removed_synthetic_dashes := int(cleanup.get("removed_corridor_dashes"))
+    var synthetic_trees := int(cleanup.get("corridor_synthetic_trees"))
+    var synthetic_dashes := int(cleanup.get("corridor_synthetic_dashes"))
     var kept_lamps := int(cleanup.get("kept_corridor_lamps"))
-    if not legacy_hidden or removed_synthetic_trees <= 0 or removed_synthetic_dashes <= 0:
-        _fail("legacy approach cleanup incomplete: hidden=%s trees=%d dashes=%d" % [legacy_hidden, removed_synthetic_trees, removed_synthetic_dashes])
+    if not legacy_hidden or synthetic_trees != 0 or synthetic_dashes != 0:
+        _fail("source-truth corridor invariant failed: hidden=%s trees=%d dashes=%d" % [legacy_hidden, synthetic_trees, synthetic_dashes])
         return
     if kept_lamps <= 0:
-        _fail("provisional sourced-axis lamps unexpectedly missing after cleanup")
+        _fail("provisional sourced-axis lamps unexpectedly missing")
         return
-    var legacy_root := scene.get_node_or_null("RealismPass/AtomiumApproachPhotoGuided") as Node3D
-    if legacy_root == null or legacy_root.visible:
+    var legacy_root := scene.get_node_or_null("AtomiumApproachPhotoGuided") as Node3D
+    if legacy_root != null and legacy_root.visible:
         _fail("legacy duplicate approach root is still visible")
         return
-    var corridor := scene.get_node_or_null("AtomiumCorridor")
-    if corridor == null:
-        _fail("Atomium corridor missing")
+    if int(corridor.get("generated_trees")) != 0 or int(corridor.get("generated_dashes")) != 0:
+        _fail("Atomium corridor generated synthetic source duplicates")
         return
-    for child in corridor.get_children():
-        if str(child.name) in ["PhotoGuidedTree", "LaneDash"]:
-            _fail("synthetic corridor duplicate survived cleanup: %s" % str(child.name))
-            return
+    if int(corridor.get("generated_lamps")) != kept_lamps:
+        _fail("lamp accounting mismatch")
+        return
 
     var tree_total := int(trees.get("official_tree_count"))
     var grounded := int(trees.get("terrain_grounded_count"))
@@ -193,7 +192,7 @@ func _run() -> void:
         _fail("broadleaf replacement MultiMesh count mismatch")
         return
 
-    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d,street_detail:%d,windows:%d,halls:%d,ribs:%d} source_cleanup={trees:%d,dashes:%d,lamps:%d} trees={total:%d,skipped:%d,replacement_lobes:%d,conifer_tiers:%d,primary_replaced:%s} ortho=true" % [
+    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d,street_detail:%d,windows:%d,halls:%d,ribs:%d} source_truth={synthetic_trees:%d,synthetic_dashes:%d,lamps:%d} trees={total:%d,skipped:%d,replacement_lobes:%d,conifer_tiers:%d,primary_replaced:%s} ortho=true" % [
         ready_frame,
         terrain_range,
         derived,
@@ -203,8 +202,8 @@ func _run() -> void:
         facade_windows,
         facade_halls,
         hall_ribs,
-        removed_synthetic_trees,
-        removed_synthetic_dashes,
+        synthetic_trees,
+        synthetic_dashes,
         kept_lamps,
         tree_total,
         skipped,

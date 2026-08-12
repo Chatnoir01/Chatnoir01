@@ -103,7 +103,7 @@ jobs:
           rm -f "$OUT/ixelles_building_height_stats.json"
           cp /tmp/ixelles_building_height_summary.json "$OUT/ixelles_building_height_summary.json"
           cp /tmp/ixelles_building_heights.csv "$OUT/ixelles_building_heights.csv"
-          git add -A "$OUT/ixelles_building_height_stats.json" "$OUT/ixelles_building_height_summary.json" "$OUT/ixelles_building_heights.csv"
+          git add -A "$OUT"
           git diff --cached --quiet && exit 0
           git commit -m "data: compact Ixelles building height evidence [skip ci]"
           git push origin HEAD:zone-reste-bruxelles-clean

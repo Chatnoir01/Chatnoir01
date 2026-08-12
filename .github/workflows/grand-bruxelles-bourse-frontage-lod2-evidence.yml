@@ -1,0 +1,87 @@
+name: Grand Bruxelles Bourse Frontage LoD2 Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-frontage-lod2-evidence.yml"
+      - "grand-bruxelles-game/tools/extract_urbis_3d_hero.py"
+      - "grand-bruxelles-game/tests/test_probe_bourse_urbis_context.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract-nearest-frontages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download audited official UrbIS 3D tile
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
+          EXPECTED="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148170_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source_root.txt
+
+      - name: Extract eight nearest official Bourse building candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"
+          OUT=/tmp/bourse-frontage-lod2
+          mkdir -p "$OUT"
+          IDS=(1597237 1645565 1608860 1638842 1645724 1645621 1597163 1643317)
+          for ID in "${IDS[@]}"; do
+            python3 grand-bruxelles-game/tools/extract_urbis_3d_hero.py \
+              --source-root "$ROOT" \
+              --prefix UrbISBuildings3D_148170 \
+              --building-id "https://databrussels.be/id/building/$ID" \
+              --hero-id "bourse_context_$ID" \
+              --name "Bourse context building $ID" \
+              --package-url "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip" \
+              --package-sha256 "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2" \
+              --package-revision "2026-08-08" \
+              --accessed-at "2026-08-12" \
+              --origin-e 147868.29422791934 \
+              --origin-n 169538.62414926197 \
+              --world-x -668.5 \
+              --world-z 627.84 \
+              --output "$OUT/$ID.game.json"
+          done
+          python3 - <<'PY'
+          import json, pathlib
+          root=pathlib.Path('/tmp/bourse-frontage-lod2')
+          rows=[]
+          for path in sorted(root.glob('*.game.json')):
+              data=json.loads(path.read_text())
+              rows.append({
+                  'building_id': data['source']['building_2d_id'],
+                  'solid_id': data['source']['building_solid_id'],
+                  'bbox': data['evidence']['source_bbox_xy'],
+                  'height_m': data['evidence']['height_m'],
+                  'faces': data['evidence']['face_count'],
+                  'triangles': data['evidence']['triangle_count'],
+                  'types': data['evidence']['face_type_counts'],
+                  'runtime_approved': data['runtime_approved'],
+              })
+          pathlib.Path('/tmp/bourse-frontage-lod2-summary.json').write_text(json.dumps({'schema':'grand-bruxelles-bourse-frontage-lod2-evidence-v1','candidates':rows,'runtime_approved':False},indent=2)+'\n')
+          print(json.dumps(rows, indent=2))
+          PY
+
+      - name: Upload exact LoD2 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-frontage-lod2-evidence
+          path: |
+            /tmp/bourse-frontage-lod2/*.game.json
+            /tmp/bourse-frontage-lod2-summary.json
+          if-no-files-found: error

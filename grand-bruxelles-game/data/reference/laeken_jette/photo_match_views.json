@@ -42,19 +42,22 @@
     {
       "id": "atomium_ground_oblique_v1",
       "subject": "Atomium ground-level oblique silhouette",
-      "status": "reference_registered_camera_pending",
-      "camera_claim": "No photographer position is claimed. A deterministic in-game camera must be selected against official terrain/street geometry before capture.",
+      "status": "authoritative_candidate_audit_ready_capture_pending",
+      "camera_claim": "No photographer position is claimed. Candidate benchmark points have been derived deterministically from UrbIS street surfaces, UrbIS building footprints and official DTM coverage; a final in-game benchmark camera remains pending visual comparison.",
       "camera_height_above_terrain_m": 1.7,
+      "candidate_audit": "atomium_ground_camera_candidates.json",
       "camera_selection_constraints": {
         "authoritative_inputs": [
           "UrbIS street and pedestrian-space geometry",
+          "UrbIS building footprints",
           "official DTM terrain elevation",
           "official Atomium geometry anchor"
         ],
         "must_resolve": [
-          "walkable ground-level camera point outside building footprints",
+          "select one audited walkable ground-level camera point outside building footprints",
           "terrain-derived camera elevation plus 1.7 m eye height",
-          "unobstructed broad Atomium target direction"
+          "unobstructed broad Atomium target direction",
+          "repeatable 1280x720 visual comparison before promotion"
         ],
         "must_not_infer": [
           "photographer GPS from depicted-place metadata",

@@ -19,7 +19,7 @@ class FetchUrbisMunicipalityTests(unittest.TestCase):
             "features": [
                 {
                     "type": "Feature",
-                    "id": "Municipalities.1",
+                    "id": "Municipalities.fid-volatile-1",
                     "properties": {
                         "NAME_FRE": "Anderlecht",
                         "NAME_DUT": "Anderlecht",
@@ -29,7 +29,7 @@ class FetchUrbisMunicipalityTests(unittest.TestCase):
                 },
                 {
                     "type": "Feature",
-                    "id": "Municipalities.2",
+                    "id": "Municipalities.fid-volatile-2",
                     "properties": {
                         "NAME_FRE": "Molenbeek-Saint-Jean",
                         "NAME_DUT": "Sint-Jans-Molenbeek",
@@ -55,6 +55,22 @@ class FetchUrbisMunicipalityTests(unittest.TestCase):
     def test_unknown_name_is_rejected(self) -> None:
         with self.assertRaises(LookupError):
             MODULE.select_municipality(self.data, "Atlantis")
+
+    def test_stable_feature_removes_only_volatile_top_level_id(self) -> None:
+        source = self.data["features"][1]
+        stable = MODULE.stable_feature(source)
+        self.assertNotIn("id", stable)
+        self.assertEqual(stable["properties"], source["properties"])
+        self.assertEqual(stable["geometry"], source["geometry"])
+        self.assertIn("id", source, "source payload must not be mutated")
+
+    def test_different_transport_ids_serialize_to_same_stable_feature(self) -> None:
+        a = self.data["features"][0]
+        b = {
+            **a,
+            "id": "Municipalities.fid-completely-different",
+        }
+        self.assertEqual(MODULE.stable_feature(a), MODULE.stable_feature(b))
 
 
 if __name__ == "__main__":

@@ -78,9 +78,23 @@ def check(head: str, base: str, changed: list[str], ahead: int = 0, behind: int 
         )
     if kind != "integration" and behind > 15:
         errors.append(f"{head} is {behind} commits behind {base}; refresh/extract before integration")
-    if kind == "integration" and (ahead > 30 or behind > 5):
+
+    # Integration branches are the final promotion boundary. They must be built on
+    # the exact current main so a technically mergeable but stale lot cannot bypass
+    # conflicts or validation introduced after its base commit.
+    if kind == "integration" and behind > 0:
+        errors.append(
+            f"integration branch {head!r} is {behind} commits behind {base}; "
+            "refresh onto current main and rerun all gates before merge"
+        )
+    if kind == "integration" and ahead > 20:
+        errors.append(
+            f"integration branch {head!r} is {ahead} commits ahead of {base}; "
+            "split it into smaller coherent promotion lots"
+        )
+    elif kind == "integration" and ahead > 10:
         warnings.append(
-            f"integration branch drift is high ({ahead} ahead/{behind} behind); keep integration lots short-lived"
+            f"integration branch is {ahead} commits ahead of {base}; keep promotion lots short-lived"
         )
 
     return Result(tuple(dict.fromkeys(errors)), tuple(dict.fromkeys(warnings)))

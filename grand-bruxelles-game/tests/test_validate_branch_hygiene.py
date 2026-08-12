@@ -33,5 +33,15 @@ class BranchHygieneTests(unittest.TestCase):
         result = MOD.check("integration/photo-match-qa-v2", "main", ["grand-bruxelles-game/tools/foo.py"], ahead=3, behind=0)
         self.assertTrue(result.ok)
 
+    def test_rejects_stale_integration_lot(self):
+        result = MOD.check("integration/npc-recovery", "main", ["grand-bruxelles-game/game/scripts/npc_agent.gd"], ahead=1, behind=1)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("behind main" in error for error in result.errors))
+
+    def test_rejects_oversized_integration_lot(self):
+        result = MOD.check("integration/shared-core-bundle", "main", ["grand-bruxelles-game/game/scripts/foo.gd"], ahead=21, behind=0)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("smaller coherent promotion lots" in error for error in result.errors))
+
 if __name__ == "__main__":
     unittest.main()

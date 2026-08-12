@@ -1,0 +1,42 @@
+name: Grand Bruxelles Mission Save Contract
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/mission_save_coordinator.gd"
+      - "grand-bruxelles-game/game/scripts/save_game_store.gd"
+      - "grand-bruxelles-game/game/scripts/mission_drive_to_center.gd"
+      - "grand-bruxelles-game/game/tests/mission_save_coordinator_test.gd"
+      - ".github/workflows/grand-bruxelles-mission-save.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/game/scripts/mission_save_coordinator.gd"
+      - "grand-bruxelles-game/game/scripts/save_game_store.gd"
+      - "grand-bruxelles-game/game/scripts/mission_drive_to_center.gd"
+      - "grand-bruxelles-game/game/tests/mission_save_coordinator_test.gd"
+      - ".github/workflows/grand-bruxelles-mission-save.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mission-save-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log
+      - name: Mission persistence round-trip
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mission_save_coordinator_test.gd 2>&1 | tee /tmp/mission-save.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|MISSION_SAVE_COORDINATOR_FAIL" /tmp/mission-save.log
+          grep -q "MISSION_SAVE_COORDINATOR_OK" /tmp/mission-save.log

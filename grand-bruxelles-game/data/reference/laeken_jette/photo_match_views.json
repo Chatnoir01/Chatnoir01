@@ -1,12 +1,22 @@
 {
-  "schema": 1,
+  "schema": 2,
   "zone": "laeken_jette",
   "crs": "project-local metres derived from EPSG:31370",
-  "policy": "These are deterministic in-game benchmark viewpoints tied to lawful reference sources. They do not claim survey-grade replication of the photographer position unless explicitly stated. Geometry remains UrbIS/LiDAR authoritative.",
+  "policy": "Deterministic in-game benchmark viewpoints tied to lawful visual references. Camera coordinates are benchmark camera placements only and must never be represented as photographer GPS unless a source explicitly provides a surveyed camera position. UrbIS/LiDAR remain authoritative for city geometry.",
+  "quality_gate": {
+    "minimum_reference_views": 3,
+    "required_for_realism_complete": [
+      "lawful reference metadata",
+      "deterministic in-game camera notes",
+      "matching in-game screenshot",
+      "actionable mismatch record",
+      "no unresolved high-severity silhouette/scale/alignment mismatch"
+    ]
+  },
   "views": [
     {
       "id": "atomium_approach_south_v1",
-      "subject": "Atomium approach",
+      "subject": "Atomium approach from the south",
       "status": "provisional_photo_match_benchmark",
       "camera_game_xz": [224.92615906274295, -6455.0],
       "camera_height_above_terrain_m": 1.7,
@@ -27,6 +37,51 @@
         "lamp-post rhythm",
         "major visual clutter and parked-vehicle presence",
         "daylight direction and atmospheric contrast"
+      ]
+    },
+    {
+      "id": "atomium_ground_oblique_v1",
+      "subject": "Atomium ground-level oblique silhouette",
+      "status": "reference_registered_camera_pending",
+      "camera_claim": "No photographer position is claimed. A deterministic in-game camera must be selected against official terrain/street geometry before capture.",
+      "camera_height_above_terrain_m": 1.7,
+      "fov_degrees": 50.0,
+      "resolution": [1280, 720],
+      "reference": {
+        "url": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",
+        "license": "CC BY-SA 4.0",
+        "author": "Horst J. Meuter",
+        "usage": "visual reference only; source supplies the depicted monument but no survey-grade photographer position"
+      },
+      "comparison_checks": [
+        "oblique Atomium silhouette",
+        "support-leg orientation",
+        "sphere/tube foreshortening",
+        "ground-to-lowest-sphere relationship",
+        "foreground vegetation and open-space proportions",
+        "material reflectance under daylight"
+      ]
+    },
+    {
+      "id": "heysel_stadium_context_v1",
+      "subject": "Heysel / King Baudouin Stadium context viewed from Atomium",
+      "status": "reference_registered_camera_pending",
+      "camera_claim": "The source states the image was taken from the Atomium, but no exact observation point, lens pose or survey-grade camera coordinates are claimed. In-game camera must therefore remain explicitly provisional.",
+      "fov_degrees": 50.0,
+      "resolution": [1280, 720],
+      "reference": {
+        "url": "https://commons.wikimedia.org/wiki/File:Heysel_from_Atomium.JPG",
+        "license": "CC BY-SA 2.5 / GFDL as stated by source",
+        "author": "Oldelpaso",
+        "usage": "visual context reference; no source image bytes are vendored"
+      },
+      "comparison_checks": [
+        "stadium massing and orientation relative to Atomium",
+        "major Heysel block alignment",
+        "open-space proportions",
+        "tree canopy distribution",
+        "road and parking footprint relationships",
+        "distant skyline and horizon relationship"
       ]
     }
   ]

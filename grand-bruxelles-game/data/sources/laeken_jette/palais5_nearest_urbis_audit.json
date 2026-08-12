@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "semantic_locator": {
     "source": "OpenStreetMap",
     "osm_way_id": 143816182,
@@ -9,49 +9,71 @@
     "local_z": -7056.078922991641
   },
   "geometry_source": "Paradigm UrbIS Buildings WFS",
-  "candidate_count": 1,
-  "nearest_candidates": [
-    {
-      "feature_index": 278,
-      "inspire_id": "https://databrussels.be/id/building/1635598",
-      "block_id": "https://databrussels.be/id/block/23739",
-      "area_m2": 148416.0,
-      "raw_height_m": 15.877,
-      "height_quality": "medium",
-      "effective_height_m": 15.877,
-      "centroid_x": -8.386,
-      "centroid_z": -7044.215,
-      "min_x": -407.188,
-      "max_x": 230.766,
-      "min_z": -7305.272,
-      "max_z": -6822.634,
-      "bbox_distance_to_locator_m": 0.0,
-      "centroid_distance_to_locator_m": 79.734,
-      "pca_angle_deg": -29.001,
-      "major_span_m": 653.043,
-      "minor_span_m": 461.62
-    }
-  ],
-  "strong_candidate_count": 1,
-  "selected_if_unambiguous": {
+  "feature_candidate_count": 1,
+  "component_candidate_count": 1,
+  "containing_component_count": 1,
+  "selected_component_if_unambiguous": {
     "feature_index": 278,
+    "component_index": 0,
     "inspire_id": "https://databrussels.be/id/building/1635598",
     "block_id": "https://databrussels.be/id/block/23739",
-    "area_m2": 148416.0,
-    "raw_height_m": 15.877,
-    "height_quality": "medium",
-    "effective_height_m": 15.877,
-    "centroid_x": -8.386,
-    "centroid_z": -7044.215,
+    "feature_area_m2": 148416.0,
+    "centroid_x": 10.899,
+    "centroid_z": -7031.516,
     "min_x": -407.188,
     "max_x": 230.766,
     "min_z": -7305.272,
     "max_z": -6822.634,
-    "bbox_distance_to_locator_m": 0.0,
-    "centroid_distance_to_locator_m": 79.734,
-    "pca_angle_deg": -29.001,
-    "major_span_m": 653.043,
-    "minor_span_m": 461.62
+    "outer_area_m2": 164085.193,
+    "pca_angle_rad": -0.547,
+    "pca_angle_deg": -31.369,
+    "major_span_m": 656.984,
+    "minor_span_m": 460.813,
+    "locator_inside": true,
+    "locator_boundary_distance_m": 0.0,
+    "locator_centroid_distance_m": 101.16,
+    "raw_height_m": 15.877,
+    "height_quality": "medium",
+    "effective_height_m": 15.877
   },
-  "policy": "OSM supplies identity/location only. A hero model may use an UrbIS footprint only when this audit yields one unambiguous major-hall candidate; otherwise keep investigating rather than guessing."
+  "nearest_components": [
+    {
+      "feature_index": 278,
+      "component_index": 0,
+      "inspire_id": "https://databrussels.be/id/building/1635598",
+      "block_id": "https://databrussels.be/id/block/23739",
+      "feature_area_m2": 148416.0,
+      "centroid_x": 10.899,
+      "centroid_z": -7031.516,
+      "min_x": -407.188,
+      "max_x": 230.766,
+      "min_z": -7305.272,
+      "max_z": -6822.634,
+      "outer_area_m2": 164085.193,
+      "pca_angle_rad": -0.547,
+      "pca_angle_deg": -31.369,
+      "major_span_m": 656.984,
+      "minor_span_m": 460.813,
+      "locator_inside": true,
+      "locator_boundary_distance_m": 0.0,
+      "locator_centroid_distance_m": 101.16,
+      "raw_height_m": 15.877,
+      "height_quality": "medium",
+      "effective_height_m": 15.877
+    }
+  ],
+  "nearby_features": [
+    {
+      "feature_index": 278,
+      "inspire_id": "https://databrussels.be/id/building/1635598",
+      "block_id": "https://databrussels.be/id/block/23739",
+      "feature_area_m2": 148416.0,
+      "raw_height_m": 15.877,
+      "height_quality": "medium",
+      "effective_height_m": 15.877,
+      "nearest_component_index": 0,
+      "nearest_component_boundary_distance_m": 0.0
+    }
+  ],
+  "policy": "OSM supplies identity/location only. The selected Palace 5 geometry is the single UrbIS Polygon component containing the named OSM centre. Architectural facade detail remains photo-guided until official drawings are integrated."
 }

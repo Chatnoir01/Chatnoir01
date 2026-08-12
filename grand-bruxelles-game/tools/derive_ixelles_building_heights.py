@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""Derive auditable Ixelles building-height statistics from official UrbIS DSM-DTM.
-
-This tool intentionally records robust statistics and confidence rather than baking a
-single guessed height into runtime data. Inputs remain in EPSG:31370 / Belgian
-Lambert 72. The authoritative building key is the UrbIS INSPIRE_ID when present.
-"""
+"""Derive auditable Ixelles building-height statistics from official UrbIS DSM-DTM."""
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 from collections import Counter
@@ -30,7 +26,6 @@ def percentile(values: np.ndarray, q: float) -> float | None:
 
 
 def summarize_height_samples(dsm: np.ndarray, dtm: np.ndarray, nodata_dsm: float | None, nodata_dtm: float | None) -> dict:
-    """Summarize co-located DSM/DTM samples without hiding suspicious observations."""
     if dsm.shape != dtm.shape:
         raise ValueError("DSM/DTM sample shapes differ")
     dsm = np.asarray(dsm, dtype=np.float64).reshape(-1)
@@ -60,14 +55,10 @@ def summarize_height_samples(dsm: np.ndarray, dtm: np.ndarray, nodata_dsm: float
         "raw_difference_m": {
             "min": round(float(diff.min()), 3) if valid_count else None,
             "max": round(float(diff.max()), 3) if valid_count else None,
-            "p50": percentile(diff, 50),
-            "p75": percentile(diff, 75),
-            "p90": percentile(diff, 90),
+            "p50": percentile(diff, 50), "p75": percentile(diff, 75), "p90": percentile(diff, 90),
         },
         "plausible_difference_m": {
-            "p50": percentile(plausible, 50),
-            "p75": percentile(plausible, 75),
-            "p90": percentile(plausible, 90),
+            "p50": percentile(plausible, 50), "p75": percentile(plausible, 75), "p90": percentile(plausible, 90),
         },
         "confidence": confidence,
     }
@@ -88,51 +79,36 @@ def open_mosaic(paths: list[Path]):
     from rasterio.merge import merge
     datasets = [rasterio.open(path) for path in paths]
     try:
-        grid = [(d.width, d.height, tuple(d.transform), d.count) for d in datasets]
         if any(d.count != 1 for d in datasets):
             raise ValueError("Height rasters must be single-band")
         mosaic, transform = merge(datasets)
-        nodata = datasets[0].nodata
-        return mosaic[0], transform, nodata
+        return mosaic[0], transform, datasets[0].nodata
     finally:
         for dataset in datasets:
             dataset.close()
 
 
 def polygon_samples(array: np.ndarray, transform, geometry: dict) -> tuple[np.ndarray, np.ndarray]:
-    """Return raster rows/cols whose pixel centers fall inside one GeoJSON geometry."""
     from rasterio.features import geometry_mask, geometry_window
     from rasterio.io import MemoryFile
     import rasterio
-
-    profile = {
-        "driver": "GTiff",
-        "height": array.shape[0],
-        "width": array.shape[1],
-        "count": 1,
-        "dtype": str(array.dtype),
-        "transform": transform,
-        "crs": "EPSG:31370",
-    }
+    profile = {"driver": "GTiff", "height": array.shape[0], "width": array.shape[1], "count": 1,
+               "dtype": str(array.dtype), "transform": transform, "crs": EXPECTED_CRS}
     with MemoryFile() as memfile:
         with memfile.open(**profile) as dataset:
             try:
                 window = geometry_window(dataset, [geometry], pad_x=0, pad_y=0)
             except Exception:
                 return np.array([], dtype=np.int64), np.array([], dtype=np.int64)
-            row0, col0 = int(window.row_off), int(window.col_off)
-            h, w = int(window.height), int(window.width)
-            if h <= 0 or w <= 0:
-                return np.array([], dtype=np.int64), np.array([], dtype=np.int64)
-            row0 = max(0, row0)
-            col0 = max(0, col0)
-            row1 = min(array.shape[0], row0 + h)
-            col1 = min(array.shape[1], col0 + w)
+            row0, col0 = max(0, int(window.row_off)), max(0, int(window.col_off))
+            row1 = min(array.shape[0], int(window.row_off + window.height))
+            col1 = min(array.shape[1], int(window.col_off + window.width))
             if row1 <= row0 or col1 <= col0:
                 return np.array([], dtype=np.int64), np.array([], dtype=np.int64)
             win = rasterio.windows.Window(col0, row0, col1 - col0, row1 - row0)
             win_transform = rasterio.windows.transform(win, transform)
-            mask = geometry_mask([geometry], out_shape=(row1 - row0, col1 - col0), transform=win_transform, invert=True, all_touched=False)
+            mask = geometry_mask([geometry], out_shape=(row1-row0, col1-col0), transform=win_transform,
+                                 invert=True, all_touched=False)
             rr, cc = np.nonzero(mask)
             return rr + row0, cc + col0
 
@@ -146,11 +122,8 @@ def derive(plan_path: Path, cell_root: Path, raster_root: Path) -> dict:
     dtm, dtm_transform, dtm_nodata = open_mosaic(find_rasters(raster_root, "dtm", tiles))
     if dsm.shape != dtm.shape or tuple(dsm_transform) != tuple(dtm_transform):
         raise ValueError("DSM and DTM mosaics are not exactly aligned")
-
-    records = []
-    unique_ids = set()
-    confidence_counts = Counter()
-    duplicate_memberships = 0
+    records, unique_ids = [], set()
+    confidence_counts, duplicate_memberships = Counter(), 0
     for cell_id in plan["materialized_cells"]:
         buildings_path = cell_root / cell_id / "raw" / "buildings.geojson"
         collection = json.loads(buildings_path.read_text(encoding="utf-8"))
@@ -173,41 +146,54 @@ def derive(plan_path: Path, cell_root: Path, raster_root: Path) -> dict:
             terrain_valid = terrain_valid[np.isfinite(terrain_valid)]
             if dtm_nodata is not None and terrain_valid.size:
                 terrain_valid = terrain_valid[terrain_valid != dtm_nodata]
-            records.append({
-                "cell_id": cell_id,
-                "building_id": stable_id,
-                "inspire_id": inspire_id,
-                "source_feature_id": feature.get("id"),
-                "area_m2_urbis": props.get("AREA"),
-                "terrain_elevation_m_p50": percentile(terrain_valid.astype(np.float64), 50),
-                "height_stats": stats,
-            })
-
+            records.append({"cell_id": cell_id, "building_id": stable_id, "inspire_id": inspire_id,
+                            "source_feature_id": feature.get("id"), "area_m2_urbis": props.get("AREA"),
+                            "terrain_elevation_m_p50": percentile(terrain_valid.astype(np.float64), 50),
+                            "height_stats": stats})
     return {
-        "schema": 1,
-        "format": "grand-bruxelles-ixelles-building-height-stats-v1",
+        "schema": 1, "format": "grand-bruxelles-ixelles-building-height-stats-v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source_crs": EXPECTED_CRS,
         "method": "DSM minus DTM sampled at 0.5 m pixel centers inside official UrbIS building footprints",
-        "selection_policy": "No runtime building height is baked here. p50/p75/p90 and quality diagnostics are retained for review; insufficient samples remain explicit.",
+        "selection_policy": "No runtime height is baked here. p50/p75/p90 and diagnostics are retained; insufficient samples remain explicit.",
         "plausibility_window_m": [PLAUSIBLE_MIN_M, PLAUSIBLE_MAX_M],
-        "confidence_policy": {
-            "minimum_plausible_pixels": MIN_VALID_PIXELS,
-            "minimum_plausible_fraction": MIN_PLAUSIBLE_FRACTION,
-            "high": "at least 64 plausible pixels and at least 90% of valid samples plausible",
-            "medium": "minimum thresholds met but high threshold not met",
-            "insufficient": "minimum thresholds not met",
-        },
-        "materialized_cells": plan["materialized_cells"],
-        "expected_1km_tile_codes": tiles,
-        "raster_shape": list(dsm.shape),
-        "raster_transform": [float(v) for v in dsm_transform[:6]],
-        "building_memberships": len(records),
-        "unique_building_ids": len(unique_ids),
+        "confidence_policy": {"minimum_plausible_pixels": MIN_VALID_PIXELS,
+                              "minimum_plausible_fraction": MIN_PLAUSIBLE_FRACTION,
+                              "high": "at least 64 plausible pixels and at least 90% of valid samples plausible",
+                              "medium": "minimum thresholds met but high threshold not met",
+                              "insufficient": "minimum thresholds not met"},
+        "materialized_cells": plan["materialized_cells"], "expected_1km_tile_codes": tiles,
+        "raster_shape": list(dsm.shape), "raster_transform": [float(v) for v in dsm_transform[:6]],
+        "building_memberships": len(records), "unique_building_ids": len(unique_ids),
         "duplicate_cell_memberships": duplicate_memberships,
-        "confidence_counts": dict(sorted(confidence_counts.items())),
-        "buildings": records,
+        "confidence_counts": dict(sorted(confidence_counts.items())), "buildings": records,
     }
+
+
+def compact_summary(result: dict) -> dict:
+    return {k: v for k, v in result.items() if k != "buildings"} | {
+        "detail_storage": "Per-building rows are published as CSV; full nested JSON remains a CI artifact only."
+    }
+
+
+def write_csv(result: dict, path: Path) -> None:
+    fields = ["cell_id", "building_id", "area_m2_urbis", "terrain_elevation_m_p50", "confidence",
+              "pixel_count_valid", "pixel_count_plausible", "plausible_fraction_of_valid",
+              "height_p50_m", "height_p75_m", "height_p90_m", "negative_below_noise_count", "over_250m_count"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        for b in result["buildings"]:
+            h, p = b["height_stats"], b["height_stats"]["plausible_difference_m"]
+            writer.writerow({"cell_id": b["cell_id"], "building_id": b["building_id"],
+                             "area_m2_urbis": b["area_m2_urbis"], "terrain_elevation_m_p50": b["terrain_elevation_m_p50"],
+                             "confidence": h["confidence"], "pixel_count_valid": h["pixel_count_valid"],
+                             "pixel_count_plausible": h["pixel_count_plausible"],
+                             "plausible_fraction_of_valid": h["plausible_fraction_of_valid"],
+                             "height_p50_m": p["p50"], "height_p75_m": p["p75"], "height_p90_m": p["p90"],
+                             "negative_below_noise_count": h["negative_below_noise_count"],
+                             "over_250m_count": h["over_250m_count"]})
 
 
 def parse_args() -> argparse.Namespace:
@@ -215,7 +201,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--cell-root", type=Path, required=True)
     parser.add_argument("--raster-root", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True, help="Full nested JSON, normally kept as CI artifact")
+    parser.add_argument("--summary-output", type=Path)
+    parser.add_argument("--csv-output", type=Path)
     return parser.parse_args()
 
 
@@ -223,7 +211,12 @@ def main() -> int:
     args = parse_args()
     result = derive(args.plan, args.cell_root, args.raster_root)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    args.output.write_text(json.dumps(result, separators=(",", ":"), ensure_ascii=False) + "\n", encoding="utf-8")
+    if args.summary_output:
+        args.summary_output.parent.mkdir(parents=True, exist_ok=True)
+        args.summary_output.write_text(json.dumps(compact_summary(result), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    if args.csv_output:
+        write_csv(result, args.csv_output)
     print("IXELLES_BUILDING_HEIGHT_STATS_READY", result["building_memberships"], result["unique_building_ids"], result["confidence_counts"])
     return 0
 

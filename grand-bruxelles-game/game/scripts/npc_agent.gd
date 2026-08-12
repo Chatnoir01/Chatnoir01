@@ -21,6 +21,8 @@ var behavior := NpcBehaviorModel.new()
 var pedestrian_context := NpcPedestrianContext.new()
 var appearance := NpcAppearanceProfile.new()
 var ambient_state := NpcAmbientState.new()
+var police_response := NpcPoliceResponse.new()
+var crowd_reaction := NpcCrowdReaction.new()
 var pedestrian_intent: int = NpcPedestrianContext.PedestrianIntent.CONTINUE
 var weather_context: int = NpcAppearanceProfile.WeatherContext.MILD
 var transit_state: int = TransitState.NONE
@@ -36,6 +38,7 @@ func _ready() -> void:
 	_configure_pedestrian_context()
 	_configure_appearance()
 	_configure_ambient_state()
+	_configure_response_models(global_position)
 
 func set_spawn_context(new_role: NpcBehaviorModel.Role, seed_value: int, spawn_position: Vector3) -> void:
 	_leave_transit_queue_if_needed()
@@ -46,6 +49,7 @@ func set_spawn_context(new_role: NpcBehaviorModel.Role, seed_value: int, spawn_p
 	_configure_pedestrian_context()
 	_configure_appearance()
 	_configure_ambient_state()
+	_configure_response_models(spawn_position)
 	_reset_transit_state()
 
 func set_weather_context(new_weather_context: int) -> void:
@@ -157,6 +161,48 @@ func set_destination(destination: Vector3) -> void:
 func react_to_event(intensity: float, world_position: Vector3) -> void:
 	behavior.apply_stimulus(intensity, world_position)
 
+func apply_local_crowd_stimulus(stimulus_position: Vector3, normalized_intensity: float, sheltered_or_occluded: bool = false) -> Dictionary:
+	var result: Dictionary = crowd_reaction.reaction_for(
+		get_world_position(),
+		stimulus_position,
+		normalized_intensity,
+		sheltered_or_occluded
+	)
+	if role != NpcBehaviorModel.Role.CIVILIAN:
+		return result
+	var action: StringName = StringName(result.get("action", &"observe"))
+	var response_intensity: float = float(result.get("intensity", 0.0))
+	if action == &"flee":
+		behavior.apply_stimulus(maxf(60.0, response_intensity * 100.0), stimulus_position)
+	elif action == &"avoid":
+		behavior.apply_stimulus(maxf(22.0, response_intensity * 100.0), stimulus_position)
+	elif response_intensity > 0.05:
+		behavior.apply_stimulus(minf(15.0, response_intensity * 20.0), stimulus_position)
+	return result
+
+func report_police_incident(world_position: Vector3, severity: float, incident_id: int) -> int:
+	if role != NpcBehaviorModel.Role.POLICE:
+		return NpcPoliceResponse.Phase.PATROL
+	var phase: int = police_response.report_incident(world_position, severity, incident_id)
+	_sync_police_response_to_behavior()
+	return phase
+
+func update_police_threat(is_visible: bool, normalized_threat: float, delta_seconds: float) -> int:
+	if role != NpcBehaviorModel.Role.POLICE:
+		return NpcPoliceResponse.Phase.PATROL
+	var phase: int = police_response.update_threat(is_visible, normalized_threat, delta_seconds)
+	_sync_police_response_to_behavior()
+	return phase
+
+func police_requires_vehicle_support(distance_to_incident_meters: float) -> bool:
+	return role == NpcBehaviorModel.Role.POLICE and police_response.should_request_vehicle_support(distance_to_incident_meters)
+
+func mark_police_patrol_anchor_reached() -> void:
+	if role != NpcBehaviorModel.Role.POLICE:
+		return
+	police_response.arrive_at_patrol_anchor()
+	_sync_police_response_to_behavior()
+
 func set_observer_position(world_position: Vector3) -> void:
 	observer_position = world_position
 
@@ -227,7 +273,8 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector3.ZERO
 		return
 
-	behavior.calm_down(calm_rate * delta)
+	if role != NpcBehaviorModel.Role.POLICE or police_response.phase == NpcPoliceResponse.Phase.PATROL:
+		behavior.calm_down(calm_rate * delta)
 	if behavior.should_despawn(observer_position, despawn_distance):
 		_leave_transit_queue_if_needed()
 		active = false
@@ -255,6 +302,8 @@ func _physics_process(delta: float) -> void:
 	if planar.length() <= arrival_radius:
 		velocity.x = move_toward(velocity.x, 0.0, acceleration * delta)
 		velocity.z = move_toward(velocity.z, 0.0, acceleration * delta)
+		if role == NpcBehaviorModel.Role.POLICE and police_response.phase == NpcPoliceResponse.Phase.RETURN_TO_PATROL:
+			mark_police_patrol_anchor_reached()
 		move_and_slide()
 		return
 
@@ -277,6 +326,7 @@ func reactivate(spawn_position: Vector3) -> void:
 	_configure_pedestrian_context()
 	_configure_appearance()
 	_configure_ambient_state()
+	_configure_response_models(spawn_position)
 	_reset_transit_state()
 	set_physics_process(true)
 
@@ -290,6 +340,28 @@ func _configure_appearance() -> void:
 
 func _configure_ambient_state() -> void:
 	ambient_state.configure(variation_seed)
+
+func _configure_response_models(spawn_position: Vector3) -> void:
+	crowd_reaction.configure(variation_seed)
+	police_response.configure(variation_seed, spawn_position)
+	if role == NpcBehaviorModel.Role.POLICE:
+		_sync_police_response_to_behavior()
+
+func _sync_police_response_to_behavior() -> void:
+	behavior.target_position = police_response.target_position()
+	match police_response.phase:
+		NpcPoliceResponse.Phase.PATROL:
+			behavior.state = NpcBehaviorModel.State.PATROLLING
+			behavior.alert_level = 0.0
+		NpcPoliceResponse.Phase.INVESTIGATE:
+			behavior.state = NpcBehaviorModel.State.INVESTIGATING
+			behavior.alert_level = maxf(behavior.alert_level, NpcBehaviorModel.POLICE_INVESTIGATE_THRESHOLD)
+		NpcPoliceResponse.Phase.PURSUIT:
+			behavior.state = NpcBehaviorModel.State.PURSUING
+			behavior.alert_level = maxf(behavior.alert_level, NpcBehaviorModel.POLICE_PURSUIT_THRESHOLD)
+		NpcPoliceResponse.Phase.DEESCALATE, NpcPoliceResponse.Phase.RETURN_TO_PATROL:
+			behavior.state = NpcBehaviorModel.State.RETURNING
+			behavior.alert_level = minf(behavior.alert_level, NpcBehaviorModel.POLICE_INVESTIGATE_THRESHOLD - 1.0)
 
 func _reset_transit_state() -> void:
 	transit_state = TransitState.NONE

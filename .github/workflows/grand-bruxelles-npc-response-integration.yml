@@ -1,0 +1,58 @@
+name: Grand Bruxelles NPC Response Integration
+
+on:
+  push:
+    branches: ["integration/npc-response-clean"]
+    paths:
+      - "grand-bruxelles-game/game/scripts/npc_agent.gd"
+      - "grand-bruxelles-game/game/scripts/npc_police_response.gd"
+      - "grand-bruxelles-game/game/scripts/npc_police_action_request.gd"
+      - "grand-bruxelles-game/game/scripts/npc_crowd_reaction.gd"
+      - "grand-bruxelles-game/game/tests/npc_agent_response_integration_test.gd"
+      - "grand-bruxelles-game/game/tests/npc_police_action_request_test.gd"
+      - ".github/workflows/grand-bruxelles-npc-response-integration.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/npc_agent.gd"
+      - "grand-bruxelles-game/game/scripts/npc_police_response.gd"
+      - "grand-bruxelles-game/game/scripts/npc_police_action_request.gd"
+      - "grand-bruxelles-game/game/scripts/npc_crowd_reaction.gd"
+      - "grand-bruxelles-game/game/tests/npc_agent_response_integration_test.gd"
+      - "grand-bruxelles-game/game/tests/npc_police_action_request_test.gd"
+      - ".github/workflows/grand-bruxelles-npc-response-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-response-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import NPC response runtime headless
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/npc-response-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/npc-response-import.log; then exit 1; fi
+      - name: Agent police and crowd response integration test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_agent_response_integration_test.gd 2>&1 | tee /tmp/npc-response-integration.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_AGENT_RESPONSE_INTEGRATION_FAIL" /tmp/npc-response-integration.log; then exit 1; fi
+          grep -q "NPC_AGENT_RESPONSE_INTEGRATION_OK" /tmp/npc-response-integration.log
+      - name: Police action request interface test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_action_request_test.gd 2>&1 | tee /tmp/npc-police-action-request.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_ACTION_REQUEST_FAIL" /tmp/npc-police-action-request.log; then exit 1; fi
+          grep -q "NPC_POLICE_ACTION_REQUEST_OK" /tmp/npc-police-action-request.log

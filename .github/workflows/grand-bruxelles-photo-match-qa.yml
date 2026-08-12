@@ -63,7 +63,7 @@ jobs:
             --resolution 1280x960 \
             --script res://game/tests/photo_match_capture_test.gd 2>&1 | tee /tmp/photo-match-capture.log
           if grep -E "SCRIPT ERROR|Parse Error:|PHOTO_MATCH_CAPTURE_FAIL" /tmp/photo-match-capture.log; then exit 1; fi
-          grep -q "PHOTO_MATCH_CAPTURE_OK" /tmp/photo-match-capture.log
+          grep -q "PHOTO_MATCH_CAPTURE_OK: bourse_2024_cc0_01 .* (1280x960)" /tmp/photo-match-capture.log
           test -f grand-bruxelles-game/artifacts/photo-match/bourse_2024_cc0_01.png
       - name: Upload Bourse capture artifact
         uses: actions/upload-artifact@v4

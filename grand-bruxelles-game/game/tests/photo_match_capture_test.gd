@@ -60,7 +60,6 @@ func _hide_capture_noise(scene: Node) -> void:
     _hide_generated_labels(scene)
 
 func _run() -> void:
-    root.size = Vector2i(WIDTH, HEIGHT)
     var reference := _read_manifest_reference()
     if reference.is_empty():
         _fail("reference %s is missing from manifest" % REFERENCE_ID)
@@ -80,11 +79,19 @@ func _run() -> void:
         _fail("main scene did not instantiate")
         return
 
+    var capture_viewport := SubViewport.new()
+    capture_viewport.name = "PhotoMatchViewport"
+    capture_viewport.size = Vector2i(WIDTH, HEIGHT)
+    capture_viewport.own_world_3d = true
+    capture_viewport.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
+    capture_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+    root.add_child(capture_viewport)
+
     var traffic_manager := scene.get_node_or_null("TrafficManager")
     if traffic_manager != null:
         traffic_manager.set("auto_spawn_runtime", false)
     _hide_capture_noise(scene)
-    root.add_child(scene)
+    capture_viewport.add_child(scene)
 
     var existing_camera := scene.get_viewport().get_camera_3d()
     if existing_camera != null:
@@ -114,9 +121,15 @@ func _run() -> void:
     RenderingServer.force_draw()
     await process_frame
 
-    var image := root.get_texture().get_image()
+    var image := capture_viewport.get_texture().get_image()
     if image == null or image.is_empty():
         _fail("captured viewport is empty")
+        return
+    if image.get_width() != WIDTH or image.get_height() != HEIGHT:
+        _fail(
+            "captured viewport is %dx%d, expected %dx%d" %
+            [image.get_width(), image.get_height(), WIDTH, HEIGHT]
+        )
         return
     var absolute_output := ProjectSettings.globalize_path(OUTPUT_PATH)
     var dir_error := DirAccess.make_dir_recursive_absolute(absolute_output.get_base_dir())
@@ -128,6 +141,9 @@ func _run() -> void:
         _fail("could not save screenshot: %s" % error_string(save_error))
         return
 
-    print("PHOTO_MATCH_CAPTURE_OK: %s -> %s" % [REFERENCE_ID, OUTPUT_PATH])
-    scene.queue_free()
+    print(
+        "PHOTO_MATCH_CAPTURE_OK: %s -> %s (%dx%d)" %
+        [REFERENCE_ID, OUTPUT_PATH, image.get_width(), image.get_height()]
+    )
+    capture_viewport.queue_free()
     quit(0)

@@ -17,7 +17,7 @@ The machine-readable registry is `data/qa/photo_match/manifest.json`. `tools/val
 
 For each benchmark, reproduce the real reference viewpoint in Godot as closely as practical. Record the in-game camera position, rotation and FOV in the manifest. Camera height and effective focal length matter: changing them to make geometry look correct defeats the benchmark.
 
-The Bourse benchmark now has an automated capture gate. `game/tests/photo_match_capture_test.gd` reads the camera transform from the manifest, instantiates the real `main.tscn`, suppresses prototype UI/player noise, disables automatic traffic spawning for a geometry-focused comparison, and writes a deterministic 1280x960 PNG. CI publishes that PNG as the `bourse-photo-match-capture` artifact on every relevant PR.
+The Bourse benchmark now has an automated capture gate. `game/tests/photo_match_capture_test.gd` reads the camera transform from the manifest, instantiates the real `main.tscn`, suppresses prototype UI/player noise, disables automatic traffic spawning for a geometry-focused comparison, and writes a deterministic 1280x960 PNG. The render uses a dedicated 1280x960 `SubViewport`, independently of the playable window's 1280x720 override; the script fails if the saved dimensions drift, and CI requires the exact size marker before publishing the `bourse-photo-match-capture` artifact.
 
 The manifest transform may be marked `status: provisional` while viewpoint alignment is still being refined. A provisional transform is useful for repeatability but is not proof of a match. Once side-by-side alignment is accepted, commit the approved in-game screenshot under:
 

@@ -2,7 +2,7 @@ extends RefCounted
 class_name TrafficOfficialDensityProfile
 
 const EXPECTED_FORMAT := "grand-bruxelles-brussels-mobility-traffic-v1"
-const DEFAULT_MAX_RADIUS_M := 1800.0
+const DEFAULT_MAX_RADIUS_M := 2000.0
 const DEFAULT_NEAREST_LIMIT := 4
 const MIN_WEIGHT_DISTANCE_M := 90.0
 const MIN_SAMPLE_FACTOR := 0.58
@@ -134,9 +134,9 @@ func calibration_for(
         return _empty_calibration()
     var candidates: Array[Dictionary] = []
     var radius := maxf(1.0, max_radius_m)
+    var flat_position := Vector3(position.x, 0.0, position.z)
     for sample: Dictionary in _samples:
         var sample_position: Vector3 = sample.get("position", Vector3.ZERO)
-        var flat_position := Vector3(position.x, 0.0, position.z)
         var distance := flat_position.distance_to(sample_position)
         if distance <= radius:
             candidates.append({"sample": sample, "distance_m": distance})
@@ -163,9 +163,16 @@ func calibration_for(
         ids.append(str(sample.get("id", "")))
     if total_weight <= 0.0:
         return _empty_calibration()
+
+    # A detector near the edge of the radius is useful regional evidence, not a
+    # precise local measurement. The square-root taper keeps a smooth transition:
+    # 1.0 at the sensor, 0.0 at the radius, with modest influence near the edge.
+    var normalized_margin := clampf(1.0 - nearest_distance / radius, 0.0, 1.0)
+    var distance_confidence := sqrt(normalized_margin)
     return {
         "available": true,
         "factor": clampf(weighted_factor / total_weight, MIN_SAMPLE_FACTOR, MAX_SAMPLE_FACTOR),
+        "distance_confidence": distance_confidence,
         "sample_count": used,
         "nearest_distance_m": nearest_distance,
         "sensor_ids": ids,
@@ -223,6 +230,7 @@ func _empty_calibration() -> Dictionary:
     return {
         "available": false,
         "factor": 1.0,
+        "distance_confidence": 0.0,
         "sample_count": 0,
         "nearest_distance_m": INF,
         "sensor_ids": PackedStringArray(),

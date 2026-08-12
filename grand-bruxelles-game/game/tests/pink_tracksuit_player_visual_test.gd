@@ -15,7 +15,7 @@ func _run() -> void:
         return
     if not await _test_authored_character_loader():
         return
-    print("PINK_TRACKSUIT_VISUAL_OK: fallback remains valid and authored rigged FBX/GLB scene loads as the primary player visual")
+    print("PINK_TRACKSUIT_VISUAL_OK: fallback remains valid and authored Thandi FBX/GLB scene loads as the primary player visual")
     quit(0)
 
 func _test_fallback_character() -> bool:

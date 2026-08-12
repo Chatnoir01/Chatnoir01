@@ -1,4 +1,4 @@
-name: Remaining Brussels Schaerbeek north expansion
+name: Remaining Brussels Schaerbeek compact frontier expansion
 
 on:
   push:
@@ -11,14 +11,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: remaining-brussels-schaerbeek-north-expansion
+  group: remaining-brussels-schaerbeek-compact-frontier
   cancel-in-progress: false
 
 jobs:
   expand:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 22
+    timeout-minutes: 28
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,46 +52,89 @@ jobs:
           print('SCHAERBEEK_COMMITTED_GRID_VALID', grid['cell_count'])
           PY
 
-      - name: Select two north-biased edge-contiguous Schaerbeek cells
+      - name: Select four compact edge-contiguous Schaerbeek frontier cells
         working-directory: grand-bruxelles-game
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
+
           grid=json.loads(Path('data/processed/remaining_brussels/cells/schaerbeek.json').read_text())
-          cells={c['id']:c for c in grid['cells']}; root=Path('data/urbis/remaining_brussels/cells')
-          seed_id='bxl-e151500-n170000-s500'
-          assert seed_id in cells and (root/seed_id/'manifest.json').exists()
+          cells={c['id']:c for c in grid['cells']}
+          root=Path('data/urbis/remaining_brussels/cells')
+
           def edge(a,b):
               ae,an,ae2,an2=a; be,bn,be2,bn2=b
-              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
-          existing={p.parent.name for p in root.glob('*/manifest.json')}
-          firsts=[c for c in cells.values() if c['id'] not in existing and edge(cells[seed_id]['bbox'],c['bbox'])]
-          assert firsts
-          first=max(firsts,key=lambda c:(c['bbox'][1],-abs(c['bbox'][0]-cells[seed_id]['bbox'][0])))
-          seconds=[c for c in cells.values() if c['id'] not in existing and c['id']!=first['id'] and edge(first['bbox'],c['bbox'])]
-          assert seconds
-          second=max(seconds,key=lambda c:(c['bbox'][1],-abs(c['bbox'][0]-first['bbox'][0])))
-          payload={'format':'grand-bruxelles-zone-cells-v2','zone_id':'schaerbeek-north-expansion','crs':'EPSG:31370','cell_size_m':500.0,'cell_count':2,'cells':[first,second],'continuity':{'seed':seed_id,'ordered_ids':[first['id'],second['id']]}}
-          Path('/tmp/schaerbeek-north.json').write_text(json.dumps(payload,indent=2)+'\n')
-          Path('/tmp/schaerbeek-north.tsv').write_text('\n'.join(f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in payload['cells'])+'\n')
-          print('SCHAERBEEK_NORTH_SELECTION', payload['continuity']['ordered_ids'])
+              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or
+                      ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
+
+          existing={cid for cid in cells if (root/cid/'manifest.json').exists()}
+          assert 'bxl-e151500-n171000-s500' in existing, 'expected Schaerbeek handoff seed missing'
+          selected=[]
+          connected=set(existing)
+
+          def centre(c):
+              e,n,e2,n2=c['bbox']
+              return ((e+e2)/2.0,(n+n2)/2.0)
+
+          for _ in range(4):
+              frontier=[]
+              for c in cells.values():
+                  if c['id'] in connected:
+                      continue
+                  neighbours=[cid for cid in connected if edge(c['bbox'],cells[cid]['bbox'])]
+                  if not neighbours:
+                      continue
+                  same_zone_neighbours=sum(1 for other in cells.values() if other['id']!=c['id'] and edge(c['bbox'],other['bbox']) and other['id'] in connected)
+                  x,y=centre(c)
+                  connected_centres=[centre(cells[cid]) for cid in connected]
+                  cx=sum(p[0] for p in connected_centres)/len(connected_centres)
+                  cy=sum(p[1] for p in connected_centres)/len(connected_centres)
+                  compact_distance=abs(x-cx)+abs(y-cy)
+                  frontier.append((same_zone_neighbours,-compact_distance,y,-abs(x-151750.0),c))
+              assert frontier, ('no contiguous Schaerbeek frontier remains', sorted(connected))
+              frontier.sort(reverse=True,key=lambda item:item[:-1])
+              chosen=frontier[0][-1]
+              selected.append(chosen)
+              connected.add(chosen['id'])
+
+          payload={
+              'format':'grand-bruxelles-zone-cells-v2',
+              'zone_id':'schaerbeek-compact-frontier-expansion',
+              'crs':'EPSG:31370',
+              'cell_size_m':500.0,
+              'cell_count':len(selected),
+              'cells':selected,
+              'continuity':{
+                  'seed':'bxl-e151500-n171000-s500',
+                  'preexisting_ids':sorted(existing),
+                  'ordered_ids':[c['id'] for c in selected]
+              }
+          }
+          Path('/tmp/schaerbeek-frontier.json').write_text(json.dumps(payload,indent=2)+'\n')
+          Path('/tmp/schaerbeek-frontier.tsv').write_text('\n'.join(
+              f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in selected
+          )+'\n')
+          print('SCHAERBEEK_COMPACT_SELECTION', payload['continuity']['ordered_ids'])
           PY
 
       - name: Materialize authoritative UrbIS geometry and transport networks
         working-directory: grand-bruxelles-game
         run: |
-          python tools/materialize_zone_cells.py --manifest /tmp/schaerbeek-north.json --output-root data/urbis/remaining_brussels/cells --force
+          python tools/materialize_zone_cells.py --manifest /tmp/schaerbeek-frontier.json --output-root data/urbis/remaining_brussels/cells --force
           python tools/build_urbis_runtime_index.py --source-root data/urbis/remaining_brussels/cells --resource-prefix res://data/urbis/remaining_brussels/cells --output data/urbis/remaining_brussels/runtime_index.json
           python tools/build_remaining_brussels_coverage.py --output data/processed/remaining_brussels/coverage_report.json
 
       - name: Capture official UrbIS orthophoto evidence
         working-directory: grand-bruxelles-game
         run: |
-          mkdir -p /tmp/schaerbeek-north-ortho data/processed/remaining_brussels/references
+          mkdir -p /tmp/schaerbeek-frontier-ortho data/processed/remaining_brussels/references
           while IFS=$'\t' read -r CELL BBOX; do
-            python tools/capture_urbis_orthophoto.py --bbox "$BBOX" --width 1024 --height 1024 --output "/tmp/schaerbeek-north-ortho/${CELL}.png" --metadata "data/processed/remaining_brussels/references/schaerbeek_${CELL}_orthophoto.json"
-          done < /tmp/schaerbeek-north.tsv
+            python tools/capture_urbis_orthophoto.py \
+              --bbox "$BBOX" --width 1024 --height 1024 \
+              --output "/tmp/schaerbeek-frontier-ortho/${CELL}.png" \
+              --metadata "data/processed/remaining_brussels/references/schaerbeek_${CELL}_orthophoto.json"
+          done < /tmp/schaerbeek-frontier.tsv
 
       - name: Validate fidelity continuity and runtime inclusion
         working-directory: grand-bruxelles-game
@@ -99,29 +142,43 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          selection=json.loads(Path('/tmp/schaerbeek-north.json').read_text()); root=Path('data/urbis/remaining_brussels/cells')
+          selection=json.loads(Path('/tmp/schaerbeek-frontier.json').read_text())
+          root=Path('data/urbis/remaining_brussels/cells')
+
           def edge(a,b):
               ae,an,ae2,an2=a; be,bn,be2,bn2=b
-              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
-          prev=json.loads((root/selection['continuity']['seed']/'manifest.json').read_text())['bbox']; ids=[]
+              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or
+                      ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
+
+          connected=set(selection['continuity']['preexisting_ids'])
+          ids=[]
           for cell in selection['cells']:
-              cid=cell['id']; ids.append(cid); m=json.loads((root/cid/'manifest.json').read_text())
-              assert m['crs']=='EPSG:31370' and edge(prev,m['bbox'])
-              g=json.loads((root/cid/m['runtime']['geometry_file']).read_text()); n=json.loads((root/cid/m['runtime']['network_file']).read_text())
-              assert g['stats']['buildings']>0 and g['stats']['street_surfaces']>0 and n['stats']['street_segments']>0
+              cid=cell['id']; ids.append(cid)
+              m=json.loads((root/cid/'manifest.json').read_text())
+              assert m['crs']=='EPSG:31370'
+              assert any(edge(m['bbox'],json.loads((root/other/'manifest.json').read_text())['bbox']) for other in connected if (root/other/'manifest.json').exists()), cid
+              g=json.loads((root/cid/m['runtime']['geometry_file']).read_text())
+              n=json.loads((root/cid/m['runtime']['network_file']).read_text())
+              assert g['stats']['buildings']>0, (cid,g['stats'])
+              assert g['stats']['street_surfaces']>0, (cid,g['stats'])
+              assert n['stats']['street_segments']>0, (cid,n['stats'])
               o=json.loads(Path(f'data/processed/remaining_brussels/references/schaerbeek_{cid}_orthophoto.json').read_text())
               assert o['provider']=='Paradigm / UrbIS' and o['bbox']==m['bbox'] and o['download']['bytes']>1000
-              prev=m['bbox']
-          coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text()); sc=next(z for z in coverage['zones'] if z['zone_id']=='schaerbeek')
-          assert set(ids)<=set(sc['materialized_cell_ids']) and sc['materialized_cells']>=3
-          runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text()); assert set(ids)<={c['cell_id'] for c in runtime['cells']}
-          print('SCHAERBEEK_NORTH_VALIDATED', ids, sc['materialized_cells'], sc['coverage_percent'])
+              connected.add(cid)
+
+          coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
+          sc=next(z for z in coverage['zones'] if z['zone_id']=='schaerbeek')
+          assert set(ids)<=set(sc['materialized_cell_ids'])
+          assert sc['materialized_cells']>=7
+          runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          assert set(ids)<={c['cell_id'] for c in runtime['cells']}
+          print('SCHAERBEEK_COMPACT_VALIDATED', ids, sc['materialized_cells'], sc['coverage_percent'])
           PY
 
       - uses: actions/upload-artifact@v4
         with:
-          name: schaerbeek-north-official-orthophotos
-          path: /tmp/schaerbeek-north-ortho/*.png
+          name: schaerbeek-compact-frontier-official-orthophotos
+          path: /tmp/schaerbeek-frontier-ortho/*.png
           retention-days: 14
           if-no-files-found: error
 
@@ -131,5 +188,5 @@ jobs:
           git config user.email '41898282+Chatnoir01@users.noreply.github.com'
           git add grand-bruxelles-game/data/processed/remaining_brussels grand-bruxelles-game/data/urbis/remaining_brussels
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'data: expand Schaerbeek north with authoritative UrbIS cells'
+          git commit -m 'data: compact Schaerbeek frontier with authoritative UrbIS cells'
           git push origin HEAD:zone-reste-bruxelles-clean

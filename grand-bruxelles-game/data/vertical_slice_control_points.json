@@ -18,6 +18,25 @@
       "urbis_crs": "EPSG:31370",
       "urbis_area_m2": 3368,
       "cross_check_accessed_at": "2026-08-12",
+      "runtime_approval": {
+        "footprint": true,
+        "height": false,
+        "roof": false,
+        "frontage": false
+      },
+      "evidence": {
+        "footprint": {
+          "source": "official_urbis_plan",
+          "inspire_id": "https://databrussels.be/id/building/1751663",
+          "reference": "8186511",
+          "crs": "EPSG:31370",
+          "area_m2": 3368,
+          "accessed_at": "2026-08-12"
+        },
+        "height": null,
+        "roof": null,
+        "frontage": null
+      },
       "status": "OSM fallback footprint cross-checked against official UrbIS plan geometry; height, roof and frontage are not runtime-approved"
     }
   ],

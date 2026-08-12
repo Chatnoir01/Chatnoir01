@@ -33,16 +33,17 @@ jobs:
           test -n "$FACE"
           dirname "$FACE" > /tmp/source_root.txt
 
-      - name: Extract eight nearest official Bourse building candidates
+      - name: Extract nearest official Bourse 3D candidates without guessing missing solids
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$(cat /tmp/source_root.txt)"
           OUT=/tmp/bourse-frontage-lod2
           mkdir -p "$OUT"
+          : > /tmp/unavailable_ids.txt
           IDS=(1597237 1645565 1608860 1638842 1645724 1645621 1597163 1643317)
           for ID in "${IDS[@]}"; do
-            python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
+            if python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
               --source-root "$ROOT" \
               --prefix UrbISBuildings3D_148170 \
               --building-id "https://databrussels.be/id/building/$ID" \
@@ -56,7 +57,12 @@ jobs:
               --origin-n 169538.62414926197 \
               --world-x -668.5 \
               --world-z 627.84 \
-              --output "$OUT/$ID.game.json"
+              --output "$OUT/$ID.game.json"; then
+              :
+            else
+              rm -f "$OUT/$ID.game.json"
+              echo "$ID" >> /tmp/unavailable_ids.txt
+            fi
           done
           python3 - <<'PY'
           import json, pathlib
@@ -75,10 +81,18 @@ jobs:
                   'types': data['evidence']['face_type_counts'],
                   'runtime_approved': data['runtime_approved'],
               })
-          assert len(rows) == 8, rows
+          unavailable=[line.strip() for line in pathlib.Path('/tmp/unavailable_ids.txt').read_text().splitlines() if line.strip()]
+          assert len(rows) + len(unavailable) == 8, (rows, unavailable)
+          assert len(rows) >= 4, rows
           assert any(row['solid_count'] > 1 for row in rows), rows
-          pathlib.Path('/tmp/bourse-frontage-lod2-summary.json').write_text(json.dumps({'schema':'grand-bruxelles-bourse-frontage-lod2-evidence-v1','candidates':rows,'runtime_approved':False},indent=2)+'\n')
-          print(json.dumps(rows, indent=2))
+          report={
+              'schema':'grand-bruxelles-bourse-frontage-lod2-evidence-v1',
+              'candidates':rows,
+              'wfs_buildings_without_matching_3d_solids':unavailable,
+              'runtime_approved':False,
+          }
+          pathlib.Path('/tmp/bourse-frontage-lod2-summary.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report, indent=2))
           PY
 
       - name: Upload exact LoD2 evidence

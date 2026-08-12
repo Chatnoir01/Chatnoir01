@@ -106,6 +106,7 @@ jobs:
           grep -q "Grand Bruxelles UrbIS Midi exact-plan:" /tmp/godot-run.log
           grep -q "Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS mask:" /tmp/godot-run.log
+          grep -q "Grand Bruxelles realism layer:" /tmp/godot-run.log
 
       - name: Vehicle enter-exit smoke test
         shell: bash
@@ -158,6 +159,19 @@ jobs:
             exit 1
           fi
           grep -q "POLICE_PURSUIT_SMOKE_OK" /tmp/police-pursuit-smoke.log
+
+      - name: Visual realism and street-life smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/visual_realism_smoke_test.gd 2>&1 | tee /tmp/visual-realism-smoke.log
+          if grep -E "SCRIPT ERROR|Parse Error:|VISUAL_REALISM_SMOKE_FAIL" /tmp/visual-realism-smoke.log; then
+            exit 1
+          fi
+          grep -q "VISUAL_REALISM_SMOKE_OK" /tmp/visual-realism-smoke.log
 
       - name: Mission Midi to Grand-Place smoke test
         shell: bash

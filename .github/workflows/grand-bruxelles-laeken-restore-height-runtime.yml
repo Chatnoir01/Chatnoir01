@@ -45,6 +45,8 @@ jobs:
           cp /tmp/building_heights_dsm.game.json /tmp/validated-heights.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Re-anchor on the branch head immediately before publication so an
+          # older workflow cannot silently erase newer Laeken work.
           git fetch origin zone-laeken-jette
           git reset --hard origin/zone-laeken-jette
           mkdir -p grand-bruxelles-game/data/urbis/laeken_jette

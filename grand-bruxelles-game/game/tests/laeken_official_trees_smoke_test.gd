@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TREE_DATA := "res://data/environment/laeken_jette/official_city_trees.game.json"
+const HERO_AUDIT := "res://data/reference/laeken_jette/atomium_ground_foreground_inventory.json"
 
 
 func _initialize() -> void:
@@ -12,9 +13,16 @@ func _fail(message: String) -> void:
     quit(1)
 
 
+func _instance_count(node: MultiMeshInstance3D) -> int:
+    return node.multimesh.instance_count if node != null and node.multimesh != null else 0
+
+
 func _run() -> void:
     if not FileAccess.file_exists(TREE_DATA):
         _fail("official City of Brussels tree runtime missing")
+        return
+    if not FileAccess.file_exists(HERO_AUDIT):
+        _fail("Atomium source-tree hero audit missing")
         return
     var packed := load("res://game/zones/laeken_jette/laeken_jette.tscn") as PackedScene
     if packed == null:
@@ -34,6 +42,8 @@ func _run() -> void:
         return
 
     var total := int(tree_pass.get("official_tree_count"))
+    var hero := int(tree_pass.get("hero_tree_count"))
+    var hero_expected := int(tree_pass.get("hero_tree_expected_count"))
     var grounded := int(tree_pass.get("terrain_grounded_count"))
     var broadleaf := int(tree_pass.get("broadleaf_count"))
     var conifer := int(tree_pass.get("conifer_count"))
@@ -45,6 +55,12 @@ func _run() -> void:
         return
     if grounded != total:
         _fail("rendered tree / terrain-grounded mismatch: %d vs %d" % [total, grounded])
+        return
+    if hero_expected != 17:
+        _fail("unexpected Atomium hero-tree evidence count: %d" % hero_expected)
+        return
+    if hero != hero_expected:
+        _fail("not all source-audited Atomium hero trees rendered: %d/%d" % [hero, hero_expected])
         return
     if broadleaf < 5000:
         _fail("broadleaf population unexpectedly small: %d" % broadleaf)
@@ -60,19 +76,49 @@ func _run() -> void:
         return
 
     var trunks := scene.get_node_or_null("OfficialTrees/OfficialTreeTrunks") as MultiMeshInstance3D
+    var hero_trunks := scene.get_node_or_null("OfficialTrees/AtomiumHeroTreeTrunks") as MultiMeshInstance3D
     var broadleaf_node := scene.get_node_or_null("OfficialTrees/OfficialBroadleafCrowns") as MultiMeshInstance3D
+    var hero_broadleaf_node := scene.get_node_or_null("OfficialTrees/AtomiumHeroBroadleafCrowns") as MultiMeshInstance3D
     var conifer_node := scene.get_node_or_null("OfficialTrees/OfficialConiferCrowns") as MultiMeshInstance3D
     if trunks == null or trunks.multimesh == null:
-        _fail("trunk MultiMesh missing")
+        _fail("standard trunk MultiMesh missing")
+        return
+    if hero_trunks == null or hero_trunks.multimesh == null:
+        _fail("Atomium hero trunk MultiMesh missing")
         return
     if broadleaf_node == null or broadleaf_node.multimesh == null:
         _fail("broadleaf crown MultiMesh missing")
         return
+    if hero_broadleaf_node == null or hero_broadleaf_node.multimesh == null:
+        _fail("Atomium hero broadleaf crown MultiMesh missing")
+        return
     if conifer_node == null or conifer_node.multimesh == null:
         _fail("conifer crown MultiMesh missing")
         return
-    if trunks.multimesh.instance_count != total:
-        _fail("trunk MultiMesh instance count mismatch: %d != %d" % [trunks.multimesh.instance_count, total])
+    if _instance_count(trunks) + _instance_count(hero_trunks) != total:
+        _fail("combined trunk MultiMesh count mismatch: %d + %d != %d" % [
+            _instance_count(trunks), _instance_count(hero_trunks), total
+        ])
+        return
+    if _instance_count(hero_trunks) != hero:
+        _fail("hero trunk instance count mismatch: %d != %d" % [_instance_count(hero_trunks), hero])
+        return
+
+    var standard_trunk_mesh := trunks.multimesh.mesh as CylinderMesh
+    var hero_trunk_mesh := hero_trunks.multimesh.mesh as CylinderMesh
+    var standard_crown_mesh := broadleaf_node.multimesh.mesh as SphereMesh
+    var hero_crown_mesh := hero_broadleaf_node.multimesh.mesh as SphereMesh
+    if standard_trunk_mesh == null or hero_trunk_mesh == null:
+        _fail("trunk mesh types invalid")
+        return
+    if standard_crown_mesh == null or hero_crown_mesh == null:
+        _fail("broadleaf crown mesh types invalid")
+        return
+    if hero_trunk_mesh.radial_segments <= standard_trunk_mesh.radial_segments:
+        _fail("hero trunk LOD is not denser than standard LOD")
+        return
+    if hero_crown_mesh.radial_segments <= standard_crown_mesh.radial_segments or hero_crown_mesh.rings <= standard_crown_mesh.rings:
+        _fail("hero broadleaf LOD is not denser than standard LOD")
         return
 
     var approach := scene.get_node_or_null("AtomiumApproachPhotoGuided")
@@ -85,7 +131,9 @@ func _run() -> void:
         _fail("photo-guided placeholder trees still visible after official tree import: %d" % fake_trees)
         return
 
-    print("LAEKEN_OFFICIAL_TREES_OK: total=%d grounded=%d broadleaf=%d conifer=%d columnar=%d skipped=%d" % [total, grounded, broadleaf, conifer, columnar, skipped])
+    print("LAEKEN_OFFICIAL_TREES_OK: total=%d hero=%d/%d grounded=%d broadleaf=%d conifer=%d columnar=%d skipped=%d" % [
+        total, hero, hero_expected, grounded, broadleaf, conifer, columnar, skipped
+    ])
     scene.queue_free()
     await process_frame
     quit(0)

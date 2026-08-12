@@ -1,0 +1,61 @@
+class_name NpcPedestrianContext
+extends RefCounted
+
+enum CrossingSignal {
+	NONE,
+	GREEN,
+	RED,
+}
+
+enum PedestrianIntent {
+	CONTINUE,
+	WAIT_AT_CURB,
+	CROSS,
+	WAIT_FOR_TRANSIT,
+	BOARD_TRANSIT,
+}
+
+var variation_seed: int = 0
+var preferred_speed: float = 1.35
+var curb_patience_seconds: float = 6.0
+var transit_patience_seconds: float = 180.0
+
+func configure(seed_value: int, base_speed: float = 1.35) -> void:
+	variation_seed = seed_value
+	preferred_speed = clampf(base_speed * _speed_factor(), 0.75, 1.75)
+	curb_patience_seconds = lerpf(3.5, 11.0, _unit(17))
+	transit_patience_seconds = lerpf(75.0, 360.0, _unit(29))
+
+func crossing_intent(signal_value: int, traffic_gap_safe: bool, waiting_seconds: float) -> int:
+	if signal_value == CrossingSignal.GREEN:
+		return PedestrianIntent.CROSS
+	if signal_value == CrossingSignal.RED:
+		return PedestrianIntent.WAIT_AT_CURB
+	if traffic_gap_safe:
+		return PedestrianIntent.CROSS
+	if waiting_seconds >= curb_patience_seconds:
+		return PedestrianIntent.WAIT_AT_CURB
+	return PedestrianIntent.WAIT_AT_CURB
+
+func transit_intent(vehicle_arrived: bool, has_capacity: bool, waiting_seconds: float) -> int:
+	if vehicle_arrived and has_capacity:
+		return PedestrianIntent.BOARD_TRANSIT
+	if waiting_seconds <= transit_patience_seconds:
+		return PedestrianIntent.WAIT_FOR_TRANSIT
+	return PedestrianIntent.CONTINUE
+
+func idle_duration_seconds(sequence_index: int) -> float:
+	var mix: int = absi(variation_seed * 31 + sequence_index * 73)
+	return lerpf(1.2, 8.5, float(mix % 1000) / 1000.0)
+
+func lateral_personal_space_meters(crowd_density: float) -> float:
+	var density: float = clampf(crowd_density, 0.0, 1.0)
+	var relaxed: float = lerpf(0.55, 0.95, _unit(41))
+	return lerpf(relaxed, 0.28, density)
+
+func _speed_factor() -> float:
+	return lerpf(0.88, 1.12, _unit(11))
+
+func _unit(salt: int) -> float:
+	var mixed: int = absi(variation_seed * 1103515245 + salt * 12345)
+	return float(mixed % 10000) / 10000.0

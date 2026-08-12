@@ -1,169 +1,166 @@
 # Grand Bruxelles Game — Master Status
 
-Last coordinated review: 2026-08-12 08:25 Europe/Brussels
+Last coordinated review: 2026-08-12 09:25 Europe/Brussels
 
-This is the live Day-1 integration/direction snapshot. Specialist documentation remains authoritative for implementation details; this file defines current gates, integration order and recovery priorities.
+This is the live Day-1 integration/direction snapshot. Specialist branches are evidence and workspaces; `main` plus small current-base extraction PRs define integration truth.
 
 ## Current main baseline
 
-- `main`: `11a83fb0c3f0e64b497cf4ffcf2bc331b88d70f2` (`web: publish playable Grand Bruxelles build [skip ci]`).
-- Functional parent: `8339916accea4c3074a54c658824237c90555454` (`traffic: establish canonical runtime parity contract`, PR #29).
-- PR #29 is merged. Its five gates were green on the final head: Traffic Canonical, Game CI, Branch Hygiene, general `test`, Performance Baseline.
-- First authoritative Ixelles 500 m seed cell remains intentionally only `data_ready`; its manifest blocks promotion while terrain/heights/collisions/streaming/per-cell performance remain unproven.
-- PNJ stop orchestration, disembark-first behavior, step-free access, local crowd reactions and police de-escalation foundations are integrated.
-- Headless performance regression baseline remains available; rendered GPU/frame-pacing budgets are still missing.
-- Web preview/export machinery is healthy; preview success is not a realism certificate.
+- `main`: `809e5b99b80c6807ad777c2fc45f1eefa9abe7f9` (`ci: enforce Day-1 extract-only branch quarantine`).
+- Latest playable-content parent: `f6ced2b07f9ebd89bba04d63e06d14691f138ee5` (`traffic: add NPC crossing bridge`).
+- Automatic Web export republished that playable parent at `393927072d755ff9595a7bf8fd8c9a88ae2548bf`.
+- Recent clean integrations: canonical traffic runtime + tow + main-scene wiring, visual realism pass, PNJ/police response wiring, Brussels Mobility calibration snapshot, NPC/traffic crossing bridge, branch quarantine gate.
+- Obsolete traffic draft PR #30 is closed; its branch remains evidence/history only.
+- Open specialist drafts are PR #2 (Laeken/Jette) and PR #11 (rest of Brussels). Neither is an integration unit.
 
-## Day-1 maturity check
+## DAY-1 MATURITY CHECK
 
-| Area | State | Direction |
+| Foundation | State | Day-1 direction |
 |---|---|---|
-| Repository structure | WORKING FOUNDATION | Ownership domains are clear, but stale/intermediate branches remain numerous. Keep them out of integration paths. |
-| Branch discipline | ACTIVE REPAIR / RED-AMBER | Extraction-first is mandatory. One traffic freeze was violated by a new v10 core, proving long-lived specialist branches cannot be trusted as integration paths. |
-| EPSG:31370 / Lambert 72 | STABLE FOUNDATION | Preserve Lambert 72 as source truth and project-local metre conversion only at runtime/export boundaries. |
-| UrbIS / official data pipeline | STABLE FOUNDATION | Strong geometry/provenance base; raster semantics now repaired on Ixelles but secondary validation is still required before runtime promotion. |
-| OSM complementary data | WORKING PROTOTYPE | Keep secondary to authoritative Brussels geometry and preserve ODbL provenance. |
-| Godot project health | WORKING | Main CI is green on the latest functional integration; specialist heads remain independently gated. |
-| Automated tests / CI | WORKING | Domain gates catch real regressions, including two traffic contract-test defects this run. Visual/runtime coverage still needs expansion. |
-| Web preview | WORKING PREVIEW | Build/export exists; not a production or realism gate. |
-| Performance baseline | USABLE HEADLESS BASELINE | Good regression guard; rendered benchmark still required. |
-| Asset/license provenance | PARTIAL | Strong in mapping/photo-match lanes, incomplete project-wide. |
-| Photo-match validation | REAL BUT EARLY | Atomium ground-oblique now has source position + DTM eye elevation + deterministic capture; mismatch closure remains open. |
-| First playable vertical slice | INCOMPLETE | Midi → Grand-Place remains the integration benchmark and is not production-quality yet. |
-| Branch integration health | RED/AMBER | Current weakest foundation dimension; specialist production still outpaces safe absorption. |
+| Repository structure | WORKING FOUNDATION | Clear domain folders exist, but branch count is high. Prefer small extraction branches and retire superseded PRs. |
+| Branch discipline | ACTIVE REPAIR | Extract-only quarantine is now machine-enforced for heavily drifted specialist PRs. |
+| Authoritative data pipeline | STABLE FOUNDATION / PARTIAL RUNTIME | UrbIS-first, Lambert 72, provenance and deterministic processing are strong; terrain/heights still need runtime approval gates. |
+| Coordinate system integrity | STABLE FOUNDATION | EPSG:31370 / Belgian Lambert 72 remains source truth; local Godot metres must derive from it, never replace it. |
+| Godot project health | WORKING | Canonical traffic and PNJ bridge load in the real main scene; Web export remains healthy. |
+| Automated tests | WORKING | General, domain and integration tests catch regressions; visual screenshot diff and rendered performance remain weak. |
+| Web preview | WORKING PLAYABLE PREVIEW | Auto-export succeeds after gameplay changes; this is not a realism certificate. |
+| Performance baseline | USABLE HEADLESS BASELINE | Headless regression guard exists; GPU/rendered frame-time budgets and streaming stress are still missing. |
+| Asset/license provenance | PARTIAL | Strongest for mapping/photo-match/traffic data; project-wide asset registry still incomplete. |
+| First playable vertical slice | INCOMPLETE BUT ACTIVE | Midi → Centre is playable and now has traffic + PNJ hooks, but geometry, visuals, missions, interiors, audio and systemic depth are not production quality. |
+| Branch integration health | RED/AMBER → IMPROVING | Long-lived specialist branches are heavily diverged; new CI prevents accidental wholesale integration. |
 
-## Active workstreams
+## 1. Main / integration
 
-### 1. Main / integration
+### Completed / stable enough to build on
+- one canonical unversioned traffic manager + vehicle core integrated in small lots;
+- tow-service extension integrated;
+- canonical traffic wired into `main.tscn` and tested by instantiating the real scene;
+- visual realism pass merged without replacing canonical traffic;
+- PNJ/police response integration recovered onto current main;
+- Brussels Mobility official traffic calibration snapshot/pipeline integrated without silently changing runtime behavior;
+- NPC crossing bridge integrated as a modular adapter;
+- extract-only branch quarantine CI integrated.
 
-Latest completed:
-- PR #29 canonical traffic parity contract integrated into `main`;
-- contract protects 17 manager methods, 9 vehicle methods, v8 wreck lifecycle and v9 tow behavior as an optional extension;
-- canonical target names are now unversioned (`traffic_manager_core.gd`, `traffic_vehicle_core.gd`);
-- two CI/test defects were found and fixed before merge: GDScript type inference and an over-broad `_v` filename check.
+### Highest-priority next lot
+Create a small current-main vertical-slice hardening branch that adds **rendered main-scene performance + screenshot/photo-match evidence** without adding new geography. Day 1 now has enough systems that the next major risk is visually plausible but unmeasured runtime complexity.
 
-Active recovery branch:
-- `integration/traffic-canonical-runtime`;
-- fast-forwarded to current `main` head `11a83fb0...`;
-- no implementation commit yet;
-- target is exactly one canonical manager and one canonical vehicle core, with no `main.tscn` wiring until isolated parity is green.
+### Do not do yet
+- do not merge large geographic specialist branches;
+- do not create new versioned traffic cores;
+- do not broaden Brussels coverage before terrain/height/runtime cell promotion is repeatable;
+- do not treat Web build success as visual fidelity proof.
 
-Highest-priority resume:
-- write the red parity test for the canonical manager/vehicle pair;
-- inventory validated behavior from legacy v8, v9, v10 and vehicle-v4 tests;
-- flatten only behavior that has evidence/tests; no `core_v*` imports.
+## 2. Laeken + Jette — PR #2
 
-### 2. Laeken + Jette — PR #2
-
-- Draft, base `main`, currently diverged/non-mergeable.
 - Branch: `zone-laeken-jette`.
-- Head: `4c73c33428a5c519a738f2349a25e503892439c3`.
-- Drift: **292 ahead / 51 behind `main`**.
-- 292 commits.
-- Ownership remains geographic/zone-specific; no wholesale merge.
-- Atomium ground-oblique now has lawful source coordinates, official DTM eye elevation (~66.63 m including 1.70 m eye height) and deterministic 1280x720 capture.
-- Current realism resume: correct the largest mismatches in that capture, then resolve/render both Heysel candidate viewpoints; Palais 5 remains unresolved until sufficiently fine authoritative geometry exists.
-- Next integration must be a small extraction recreated from current `main`, never this branch.
+- PR: draft, base `main`, **non-mergeable**.
+- Current measured drift: **337 commits ahead / 70 behind `main`**.
+- Current PR size: 337 commits, 181 changed files.
+- Ownership: geographic/zone-specific; no shared-main integration should be added here.
+- Strong evidence already exists: official UrbIS geometry, DTM/DSM work, trees, orthophoto metadata, Atomium hero tooling, deterministic capture infrastructure, Jette phase 2.
+- Atomium hero view is still prototype realism: landmark framing/silhouette, foreground surfaces, vegetation, furniture, basin/fountain context, facade specificity and materials remain visibly weak.
+- Heysel reference candidates are not yet proven camera positions.
 
-### 3. Rest of Brussels — PR #11
+**Resume next:** use the existing deterministic Atomium ground-oblique capture as a mismatch queue. Fix the largest screen-space discrepancies first, then render both Heysel candidates against source-backed geometry. No additional commune breadth until one hero view passes a repeatable photo-match review.
 
-- Draft, base `main`, currently diverged/non-mergeable.
+**Integration rule:** extract only one coherent data/runtime/visual package onto a new branch from current `main`; never rebase/merge the 337-commit branch wholesale.
+
+## 3. Rest of Brussels — PR #11
+
 - Branch: `zone-reste-bruxelles-clean`.
-- Head: `afeeba6b12e738c8aa83e8f69f05f46b9f8ef704`.
-- Drift: **75 ahead / 21 behind `main`**.
-- 75 commits.
-- Ownership remains mapping/data/tooling only; do not merge wholesale.
-- Previous all-zero DSM/DTM evidence was invalidated; root cause was extreme float32 NoData interacting with raster mosaicking.
-- Corrected pipeline now produces plausible Ixelles terrain/elevation distributions and conservative height candidates, but all candidates remain `runtime_approved=false` pending secondary validation.
-- DTM 1/2/4/8 m LOD/error evidence exists; no new municipality until a measured terrain candidate and second-source height validation are accepted.
+- PR: draft, base `main`, **non-mergeable**.
+- Current measured drift: **79 commits ahead / 40 behind `main`**.
+- Ownership remains mapping/data/tooling only.
+- Official Ixelles DSM/DTM zero-mosaic bug is resolved; the cause was unsafe float32 NoData behavior during mosaicking.
+- DTM evidence selects **2 m** as current runtime terrain candidate (worst-cell p95 ~0.137 m), with 1 m retained for hero fallback.
+- Building height candidates remain `runtime_approved=false` pending second-source validation.
 
-### 4. PNJ / police / civilians
+**Resume next:** cross-check Ixelles building heights against a second authoritative source, preferably UrbIS 3D Constructions; then generate a 2 m terrain runtime package for the existing five-cell block and measure seams, normals, collision behavior, streaming memory and rendered cost. No new municipality until that gate is green.
 
-Integrated foundation on `main` includes:
-- contextual population/crossings/stops;
-- deterministic appearance/runtime hooks;
-- ambient state variation;
-- queues and stop orchestration;
-- disembark-first behavior;
-- step-free-access door constraints;
-- local crowd-reaction model;
-- police de-escalation / return-to-patrol model.
+**Integration rule:** only extract a small evidence/runtime checkpoint onto current `main` after the terrain + second-source height gates pass.
 
-Next safe specialist lot:
-- wire police response and crowd reaction into `NpcAgent` runtime with red-to-green tests;
-- preserve narrow pursuit/arrest interfaces that do not take ownership of traffic or mapping.
+## 4. Systems / gameplay
 
-### 5. Vehicles & traffic — PR #3
+### PNJ / police / civilians
+Integrated foundation now includes population/crossing/stop context, deterministic appearances, ambient variation, queues, disembark-first behavior, accessibility hooks, local crowd reactions, police de-escalation/return-to-patrol and clean `NpcAgent` response integration.
 
-- Draft, base `main`, technically mergeable at the moment but structurally quarantined.
-- Branch: `vehicles-traffic`.
-- Current drift: **157 ahead / 35 behind `main`**.
-- 74 changed files.
-- HARD GATE VIOLATION: `traffic_manager_core_v10.gd` was added despite the explicit freeze against any `core_v10`.
-- v10 extends v9 and adds an NPC-crossing bridge; this behavior is now only a candidate for canonical recovery, not integration truth.
-- Structural debt now includes `traffic_manager_core.gd` plus v2-v10, `traffic_vehicle_core.gd` plus v2-v4, shared `main.tscn`, `vehicle_controller.gd` and shared CI changes.
-- PR #3 body has been updated: the branch is evidence/source only. No further runtime implementation belongs there.
-- Approved implementation path: `integration/traffic-canonical-runtime` only.
+Next safe lot: connect the new traffic crossing bridge to real runtime PNJ selection/orchestration in the Midi vertical slice and prove that pedestrians wait at curbs, cross only on valid gaps/signals and restore destinations without deadlocks. Keep arrest/pursuit interfaces narrow and independent of traffic ownership.
+
+### Vehicles / traffic
+Canonical runtime is now the integration truth. The old `vehicles-traffic` branch remains quarantined evidence only. Current canonical main includes cars/scooters/motorcycles, graph routing, Brussels-style controls/right-priority handling, crossings, time-of-day density, parking, deliveries, wreck lifecycle, towing and the modular PNJ crossing bridge.
+
+Recent realism improvement: official Brussels Mobility 1-minute calibration snapshot/pipeline is integrated with provenance and Lambert 72 conversion. Runtime density behavior should only be recalibrated after controlled comparison, not by directly copying snapshot values.
+
+Next safe lot: build an **offline calibration evaluation** comparing canonical simulated counts/speeds against the Brussels Mobility snapshot by corridor/time bucket, then tune parameters behind deterministic tests. Do not mix this with vehicle art, police pursuit or main-scene visual changes.
+
+### Other vertical-slice backlog
+Still prototype/incomplete: missions, economy, shops/activities, interiors framework, garages/repair, save/load, weather/day-night, spatial audio, UI/HUD, collision coverage, STIB-specific road interactions, accidents/recovery depth, streaming/LOD and rendered performance.
+
+Sequence these behind the current vertical slice rather than creating parallel city-wide breadth: saves + mission state, weather/day-night + lighting, spatial audio, then shops/interiors framework and richer activities.
+
+## 5. Direction / Assistant
+
+### 1. What should be discussed with the user now
+No blocking decision is required. Continue autonomously. The only strategic choice worth surfacing later is whether the first realism benchmark should remain Midi → Bourse/Grand-Place or move to a hero Laeken view; recommendation: keep **Midi → Centre as gameplay benchmark** and use **Atomium as visual benchmark**, because they test different failure modes.
+
+### 2. Recommendation
+Stop measuring progress by area covered. For the rest of Day 1, optimize for repeatable green integration: one visual benchmark, one runtime-performance benchmark, one authoritative terrain/height promotion path and one stable gameplay slice.
+
+### 3. What can continue autonomously
+- rendered main-scene performance baseline;
+- photo-match mismatch tracking;
+- Ixelles second-source heights + 2 m terrain runtime gate;
+- PNJ crossing runtime orchestration;
+- traffic calibration evaluation;
+- provenance/license audit and branch retirement.
+
+### 4. Single biggest risk
+**Specialist production outpacing integration truth.** Large branches can accumulate impressive work while becoming expensive or impossible to merge, creating multiple competing versions of Brussels and core systems.
+
+### 5. Next strategic idea worth testing
+Introduce a machine-readable `CELL_READINESS` / evidence manifest that ties each 500 m cell to source hashes, terrain resolution, height confidence, collision coverage, streaming budget, photo-match viewpoints and runtime approval. Expansion should consume only cells that satisfy the same contract.
+
+### 6. Concrete realism action
+For the Midi hero corridor and Atomium view, capture fixed 1280×720 in-game screenshots and rank the top 10 mismatches by screen-space impact: silhouette/height, street width, curb/sidewalk geometry, tram/road markings, facade proportions, vegetation masses, furniture/signage, materials/weathering, lighting and clutter. Fix the largest mismatch before adding detail elsewhere.
+
+### 7. Concrete organization action
+Keep `main.tscn`, `project.godot`, shared controllers and canonical traffic cores owned only by small integration branches. The new quarantine CI must remain a blocking merge gate for long-lived specialist sources.
+
+### 8. Maturity assessment
+- **Prototype:** most visuals, weather/audio/interiors/economy/activities, pursuit depth, city-wide streaming, rendered performance and most Brussels coverage.
+- **Stable foundation:** EPSG:31370 convention, UrbIS-first pipeline, provenance habits, Godot CI, Web export, headless performance harness, cell-maturity concept, canonical traffic runtime, modular PNJ response/crossing interfaces, extraction-first branch policy.
+- **Production-ready:** nothing yet. No hero area or subsystem currently satisfies realism + provenance + performance + QA simultaneously.
 
 ## Branch hygiene alerts
 
-- #2 `zone-laeken-jette`: RED/AMBER — 292 ahead / 51 behind. Extract only.
-- #3 `vehicles-traffic`: RED — 157 ahead / 35 behind, shared-scene/controller/CI contamination, v2-v10 manager generations, and an explicit freeze violation. Evidence only.
-- #11 `zone-reste-bruxelles-clean`: AMBER/RED — 75 ahead / 21 behind; ownership clean, but only small evidence/runtime packages may be extracted.
-- Historical `zone-reste-bruxelles` remains quarantined and is not an integration source.
-- Stale/ambiguous branches remain visible: old police stages, old performance branches, NPC rebases, recovery/checkpoint and merged extraction branches. Do not reuse without dependency verification.
+- `zone-laeken-jette`: RED — 337 ahead / 70 behind; non-mergeable; extract only.
+- `zone-reste-bruxelles-clean`: RED/AMBER — 79 ahead / 40 behind; non-mergeable; extract only after runtime evidence gates.
+- `integration/traffic-canonical-runtime`: superseded/diverged; PR #30 closed, evidence only.
+- `vehicles-traffic`: quarantined evidence only; versioned core generations and shared-scene ownership are forbidden integration patterns.
+- `zone-reste-bruxelles`: historical contaminated source, do not integrate.
+- numerous old agent/performance/recovery branches remain; reuse only after explicit dependency verification.
 
 ## Living master backlog
 
-1. **Traffic canonical runtime** on `integration/traffic-canonical-runtime`: red parity test, then one manager + one vehicle core; no shared scene wiring yet.
-2. **Ixelles secondary validation**: select terrain LOD from measured error/performance and cross-check building-height candidates against a second authoritative source before runtime approval.
-3. **Laeken/Jette photo-match closure**: Atomium mismatch ranking/fixes, then Heysel two-candidate render comparison; no raw geographic breadth.
-4. **PNJ/police runtime wiring**: integrate crowd reactions + de-escalation into `NpcAgent`, behind clean interfaces.
-5. **Cell maturity hardening**: machine-checkable hashes/references for terrain, heights, collisions, streaming, photo-match and per-cell performance.
-6. **Vertical slice**: collisions, traffic interfaces, save/load, weather/day-night, spatial audio hooks, UI, shops/activities and interiors framework.
-7. **Brussels-wide expansion** only after the above foundations can be integrated repeatedly without branch debt.
-
-## Photo-match status
-
-- Atomium ground-oblique: lawful source coordinates, authoritative DTM eye elevation and deterministic 1280x720 capture are complete.
-- That capture is not realism-complete: landmark scale/cadrage, foreground surfaces, vegetation, furniture, basin/fountain context, facade specificity and materials remain visibly weak.
-- Heysel: lawful reference registered; 92 m top-sphere and 36 m lateral viewpoint remain plausible candidates, not proven camera positions. Next step is UrbIS stadium target geometry + two renders + mismatch comparison.
-- Palais 5 remains blocked pending hall-specific authoritative geometry.
-
-## Direction / Assistant
-
-### 1. What should be discussed with the user now
-No blocking decision is required. Continue autonomously.
-
-### 2. Recommendation
-For the next several runs, judge progress by **small green integrations into `main`** and by reduction of uncertainty, not specialist commit count or area coverage.
-
-### 3. What can continue autonomously
-Traffic canonical runtime, Ixelles second-source validation/DTM LOD choice, Atomium/Heysel photo-match closure, PNJ runtime wiring, provenance QA and cell-maturity evidence hardening.
-
-### 4. Single biggest risk
-Long-lived specialist branches continuing to evolve after quarantine instructions, producing competing truths faster than `main` can absorb them.
-
-### 5. Next strategic idea worth testing
-Add a machine-enforced `integration_source` / `quarantined_source_only` metadata gate for specialist PRs/branches so CI can fail when a quarantined branch creates a forbidden `core_v*` generation or modifies shared scene/controller files.
-
-### 6. Concrete realism action
-For hero views, fix the largest screen-space discrepancies first: landmark scale/alignment, silhouette/rooflines, road width, sidewalk/curb proportions, terrain and major vegetation masses before small material polish.
-
-### 7. Concrete organization action
-Promote quarantine from documentation to CI: fail specialist traffic pushes that add `traffic_manager_core_v[0-9]+` or touch shared `main.tscn`/controller files after the freeze point.
-
-### 8. Maturity assessment
-- **Prototype:** full traffic breadth on specialist branch, advanced crowd/police behavior, most facade/material/weather/audio/interior/economy breadth, rendered-performance testing.
-- **Stable foundation:** EPSG:31370 convention, UrbIS-first policy, deterministic data tooling, main Godot CI, branch ownership gates, Web export, headless performance harness, first authoritative Ixelles data cell, cell maturity contract, canonical traffic API contract.
-- **Production-ready:** nothing yet; no hero area or major gameplay subsystem meets full realism + provenance + QA + performance definition of done.
+1. Rendered performance baseline + deterministic main-scene screenshot benchmark.
+2. Ixelles second-source building-height validation + source-faithful 2 m terrain runtime gate.
+3. Atomium mismatch closure + Heysel candidate comparison.
+4. Real PNJ crossing orchestration using the integrated bridge.
+5. Brussels Mobility traffic calibration evaluation, then tested parameter tuning.
+6. Cell evidence/readiness manifest hardening for terrain/heights/collisions/streaming/photo-match/performance.
+7. Save/load + mission-state contract for the Midi vertical slice.
+8. Weather/day-night + Brussels-specific lighting; then spatial audio.
+9. Shops/activities/interiors framework, garages and accident/recovery gameplay.
+10. Brussels-wide expansion only when the same cell/integration contract is repeatable.
 
 ## Exact handoff
 
-- `main`: `11a83fb0c3f0e64b497cf4ffcf2bc331b88d70f2`.
-- Integrated this pass: PR #29 canonical traffic parity contract (`8339916a...`), followed by automatic Web publish (`11a83fb0...`).
-- Active traffic implementation branch: `integration/traffic-canonical-runtime`, exactly aligned to current `main` and still code-empty.
-- PR #3 is evidence/source only; v10 freeze violation is recorded and must not be propagated automatically.
-- Exact next action: on `integration/traffic-canonical-runtime`, write a failing parity test that requires the unversioned canonical manager/vehicle pair, then implement the smallest behaviorally complete pair by flattening only validated v8/v9/v10 + vehicle-v4 behavior without `main.tscn`.
-- #11 next: second-source height validation + measured terrain LOD decision, no new municipality.
-- #2 next: Atomium mismatch closure, then Heysel candidate renders.
+- Current integration head at review start: `809e5b99b80c6807ad777c2fc45f1eefa9abe7f9`.
+- Playable Web content corresponds to `f6ced2b0...` and was republished automatically at `39392707...`.
+- Integrated during this coordination pass: PR #44 branch quarantine gate (`809e5b99...`).
+- Cleaned during this pass: obsolete draft PR #30 closed with a superseded-integration note; branch retained for evidence/history.
+- Open specialist drafts: PR #2 Laeken/Jette (non-mergeable) and PR #11 rest of Brussels (non-mergeable).
+- Exact next coordinator action: create a current-main rendered-performance/screenshot-baseline lot; keep it free of new geography and gameplay breadth.
+- Laeken/Jette next: Atomium mismatch fixes, then Heysel two-view comparison.
+- Rest Brussels next: second-source Ixelles heights, then 2 m terrain runtime/seam/collision/streaming validation.
+- Systems next: wire real PNJ crossing orchestration and separately evaluate traffic calibration against official snapshot.

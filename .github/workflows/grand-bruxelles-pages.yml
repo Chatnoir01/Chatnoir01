@@ -27,11 +27,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Configure GitHub Pages
+      - name: Configure and enable GitHub Pages
         uses: actions/configure-pages@v6
+        with:
+          enablement: true
 
       - name: Verify playable Godot export
         run: |
+          set -euo pipefail
           test -f grand-bruxelles-game/web-preview/index.html
           test -f grand-bruxelles-game/web-preview/index.js
           test -f grand-bruxelles-game/web-preview/index.wasm

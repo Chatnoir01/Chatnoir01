@@ -48,6 +48,18 @@ func idle_duration_seconds(sequence_index: int) -> float:
 	var mix: int = absi(variation_seed * 31 + sequence_index * 73)
 	return lerpf(1.2, 8.5, float(mix % 1000) / 1000.0)
 
+func idle_phase_offset_seconds(cycle_seconds: float) -> float:
+	var cycle: float = maxf(cycle_seconds, 0.0)
+	if cycle <= 0.0:
+		return 0.0
+	return cycle * _unit(53)
+
+func idle_variant_index(sequence_index: int, variant_count: int) -> int:
+	if variant_count <= 0:
+		return -1
+	var mixed: int = absi(variation_seed * 97 + sequence_index * 193 + 61)
+	return mixed % variant_count
+
 func lateral_personal_space_meters(crowd_density: float) -> float:
 	var density: float = clampf(crowd_density, 0.0, 1.0)
 	var relaxed: float = lerpf(0.55, 0.95, _unit(41))

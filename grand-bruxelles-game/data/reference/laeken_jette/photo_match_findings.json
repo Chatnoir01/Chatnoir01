@@ -36,9 +36,9 @@
       "view_id": "atomium_ground_oblique_v1",
       "severity": "high",
       "category": "capture_missing",
-      "status": "open",
-      "evidence": "Wikimedia Commons publishes the camera location at 50.897467 N, 4.339306 E and photo_match_views.json now records the transformed EPSG:31370/project coordinates; official DTM eye elevation and the matching in-game screenshot are still missing",
-      "action": "Sample official DTM elevation for the source-published camera coordinate, place the benchmark eye at terrain + 1.7 m, target the authoritative Atomium anchor, then produce and compare the deterministic 1280x720 capture before promotion."
+      "status": "closed",
+      "evidence": "atomium_ground_oblique_dtm_sample.json pins four valid 5 m UrbIS DTM samples at the source-published camera coordinate and the dedicated Godot workflow produced a validated 1280x720 atomium_ground_oblique_v1 capture",
+      "action": "Capture gate is satisfied; keep the capture deterministic and address the remaining visual mismatches below before benchmark promotion."
     },
     {
       "id": "LJ-PM-005",
@@ -66,6 +66,33 @@
       "status": "open",
       "evidence": "palais5_nearest_urbis_audit.json identifies one containing UrbIS component around the Palais 5 semantic locator, but its campus-scale span/area fails the anti-false-positive hero-footprint screen and resolution_status remains needs_finer_authoritative_geometry",
       "action": "Keep the broad UrbIS Expo geometry as context only. Resolve Palais 5 from finer authoritative geometry or another lawful, explicitly documented source before using a hall-specific footprint in hero-view validation."
+    },
+    {
+      "id": "LJ-PM-008",
+      "view_id": "atomium_ground_oblique_v1",
+      "severity": "high",
+      "category": "framing_lens",
+      "status": "open",
+      "evidence": "The first source-geolocated Godot capture at the provisional 50 degree FOV shows the Atomium occupying much less of the image than the lawful 960x638 reference. The source metadata does not publish focal length, so the current FOV cannot be treated as source-derived.",
+      "action": "Measure source and in-game landmark image-space bounds and solve a documented benchmark framing/FOV calibration while preserving that it is a visual-fit parameter, not recovered EXIF focal length."
+    },
+    {
+      "id": "LJ-PM-009",
+      "view_id": "atomium_ground_oblique_v1",
+      "severity": "high",
+      "category": "foreground_context",
+      "status": "open",
+      "evidence": "The lawful reference visibly includes the large fountain basin/water jets, dense flanking tree walls, lamp posts, parked cars, benches and pedestrians. The first deterministic in-game capture instead shows broad simplified ground/road surfaces and sparse generic context.",
+      "action": "Resolve the fountain/open-space footprint and hero-visible vegetation/furniture from authoritative or lawful sources, then rebuild the foreground before claiming realism completion."
+    },
+    {
+      "id": "LJ-PM-010",
+      "view_id": "atomium_ground_oblique_v1",
+      "severity": "high",
+      "category": "materials_detail",
+      "status": "open",
+      "evidence": "The first deterministic capture shows simplified flat road/ground materials, coarse tree forms and generic facade blocks, while the reference contains reflective Atomium metal, detailed vegetation, paved foreground, vehicles and street furniture.",
+      "action": "Prioritize hero-view material/vegetation/detail replacement using source-backed classes and measured placement; do not hide the mismatch with generic clutter."
     }
   ]
 }

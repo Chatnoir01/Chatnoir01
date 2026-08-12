@@ -19,12 +19,14 @@ var variation_seed: int = 0
 var preferred_speed: float = 1.35
 var curb_patience_seconds: float = 6.0
 var transit_patience_seconds: float = 180.0
+var transit_boarding_dwell_seconds: float = 2.5
 
 func configure(seed_value: int, base_speed: float = 1.35) -> void:
 	variation_seed = seed_value
 	preferred_speed = clampf(base_speed, 0.75, 1.75)
 	curb_patience_seconds = lerpf(3.5, 11.0, _unit(17))
 	transit_patience_seconds = lerpf(75.0, 360.0, _unit(29))
+	transit_boarding_dwell_seconds = lerpf(1.8, 3.8, _unit(43))
 
 func crossing_intent(signal_value: int, traffic_gap_safe: bool, _waiting_seconds: float) -> int:
 	if signal_value == CrossingSignal.GREEN:
@@ -46,9 +48,10 @@ func should_recheck_crossing_gap(elapsed_since_check_seconds: float, attempt_ind
 	return maxf(elapsed_since_check_seconds, 0.0) >= curb_recheck_interval_seconds(attempt_index)
 
 func transit_intent(vehicle_arrived: bool, has_capacity: bool, waiting_seconds: float) -> int:
-	if vehicle_arrived and has_capacity:
+	var elapsed_wait: float = maxf(waiting_seconds, 0.0)
+	if vehicle_arrived and has_capacity and elapsed_wait >= transit_boarding_dwell_seconds:
 		return PedestrianIntent.BOARD_TRANSIT
-	if waiting_seconds <= transit_patience_seconds:
+	if elapsed_wait <= transit_patience_seconds:
 		return PedestrianIntent.WAIT_FOR_TRANSIT
 	return PedestrianIntent.CONTINUE
 

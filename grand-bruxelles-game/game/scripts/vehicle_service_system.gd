@@ -70,10 +70,10 @@ func configure_data(service_data: Dictionary, playable_bounds: Array) -> void:
         if typeof(raw_service) != TYPE_DICTIONARY:
             continue
         var service: Dictionary = (raw_service as Dictionary).duplicate(true)
-        var point := _service_position(service)
-        if point == null:
+        if not _service_has_position(service):
             continue
-        service["runtime_active"] = _point_inside_bounds(point as Vector3)
+        var point: Vector3 = _service_position(service)
+        service["runtime_active"] = _point_inside_bounds(point)
         _services.append(service)
         if bool(service["runtime_active"]):
             _active_services.append(service)
@@ -88,10 +88,13 @@ func _read_json(path: String) -> Dictionary:
     return parsed as Dictionary
 
 
-func _service_position(service: Dictionary) -> Variant:
+func _service_has_position(service: Dictionary) -> bool:
     var raw_point: Variant = service.get("point", null)
-    if raw_point == null or not raw_point is Array or raw_point.size() < 2:
-        return null
+    return raw_point is Array and raw_point.size() >= 2
+
+
+func _service_position(service: Dictionary) -> Vector3:
+    var raw_point: Array = service.get("point", [])
     return Vector3(float(raw_point[0]), 0.68, float(raw_point[1]))
 
 
@@ -112,10 +115,10 @@ func nearest_active_service(position: Vector3, kind: String = "") -> Dictionary:
     for service: Dictionary in _active_services:
         if not kind.is_empty() and str(service.get("kind", "")) != kind:
             continue
-        var raw_position := _service_position(service)
-        if raw_position == null:
+        if not _service_has_position(service):
             continue
-        var distance := position.distance_to(raw_position as Vector3)
+        var service_position := _service_position(service)
+        var distance := position.distance_to(service_position)
         if distance < best_distance:
             best_distance = distance
             best = service.duplicate(true)

@@ -146,7 +146,7 @@ func disembark_position_for(door_index: int, exit_sequence_index: int) -> Vector
 	if exit_sequence_index <= 0:
 		return base + curb_direction * 0.75
 	var side: float = -1.0 if exit_sequence_index % 2 == 0 else 1.0
-	var rank: int = (exit_sequence_index + 1) / 2
+	var rank: int = int((exit_sequence_index + 1) / 2.0)
 	return base + curb_direction * (0.75 + float(rank) * 0.85) * side
 
 func _select_door(preferred_door: int) -> int:

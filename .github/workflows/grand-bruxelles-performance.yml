@@ -104,9 +104,11 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|RENDERED_MAIN_BASELINE_FAIL" /tmp/rendered-main-baseline.log; then
             exit 1
           fi
+          grep -q "RENDERED_MAIN_VISUAL_FINGERPRINT_JSON:" /tmp/rendered-main-baseline.log
           grep -q "RENDERED_MAIN_BASELINE_JSON:" /tmp/rendered-main-baseline.log
           grep -q "RENDERED_MAIN_BASELINE_OK" /tmp/rendered-main-baseline.log
           grep "RENDERED_MAIN_BASELINE_JSON:" /tmp/rendered-main-baseline.log | sed 's/^.*RENDERED_MAIN_BASELINE_JSON: //' > grand-bruxelles-game/artifacts/rendered-main-baseline.json
+          test -s grand-bruxelles-game/artifacts/rendered-main-fingerprint.json
           test -s grand-bruxelles-game/artifacts/rendered-main-baseline.png
 
       - name: Upload rendered baseline artifacts
@@ -115,4 +117,5 @@ jobs:
           name: grand-bruxelles-rendered-main-baseline
           path: |
             grand-bruxelles-game/artifacts/rendered-main-baseline.json
+            grand-bruxelles-game/artifacts/rendered-main-fingerprint.json
             grand-bruxelles-game/artifacts/rendered-main-baseline.png

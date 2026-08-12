@@ -1,0 +1,74 @@
+[gd_scene load_steps=7 format=3]
+
+[sub_resource type="BoxMesh" id="BarrierMesh"]
+size = Vector3(2.2, 0.72, 0.24)
+
+[sub_resource type="BoxShape3D" id="BarrierShape"]
+size = Vector3(2.2, 0.72, 0.24)
+
+[sub_resource type="StandardMaterial3D" id="BarrierWhite"]
+albedo_color = Color(0.92, 0.92, 0.9, 1)
+roughness = 0.72
+
+[sub_resource type="StandardMaterial3D" id="BarrierRed"]
+albedo_color = Color(0.78, 0.045, 0.035, 1)
+roughness = 0.62
+
+[sub_resource type="CylinderMesh" id="ConeMesh"]
+top_radius = 0.05
+bottom_radius = 0.24
+height = 0.58
+radial_segments = 14
+
+[sub_resource type="StandardMaterial3D" id="ConeMaterial"]
+albedo_color = Color(0.94, 0.29, 0.035, 1)
+roughness = 0.68
+
+[node name="PoliceRoadblock" type="StaticBody3D" groups=["police_roadblock"]]
+
+[node name="BarrierLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-1.85, 0.58, 0)
+mesh = SubResource("BarrierMesh")
+material_override = SubResource("BarrierWhite")
+
+[node name="BarrierLeftStripe" type="MeshInstance3D" parent="."]
+position = Vector3(-1.85, 0.58, -0.13)
+scale = Vector3(0.38, 0.78, 0.08)
+mesh = SubResource("BarrierMesh")
+material_override = SubResource("BarrierRed")
+
+[node name="BarrierLeftCollision" type="CollisionShape3D" parent="."]
+position = Vector3(-1.85, 0.58, 0)
+shape = SubResource("BarrierShape")
+
+[node name="BarrierRight" type="MeshInstance3D" parent="."]
+position = Vector3(1.85, 0.58, 0)
+mesh = SubResource("BarrierMesh")
+material_override = SubResource("BarrierWhite")
+
+[node name="BarrierRightStripe" type="MeshInstance3D" parent="."]
+position = Vector3(1.85, 0.58, -0.13)
+scale = Vector3(0.38, 0.78, 0.08)
+mesh = SubResource("BarrierMesh")
+material_override = SubResource("BarrierRed")
+
+[node name="BarrierRightCollision" type="CollisionShape3D" parent="."]
+position = Vector3(1.85, 0.58, 0)
+shape = SubResource("BarrierShape")
+
+[node name="ConeLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-3.4, 0.29, 0.55)
+mesh = SubResource("ConeMesh")
+material_override = SubResource("ConeMaterial")
+
+[node name="ConeRight" type="MeshInstance3D" parent="."]
+position = Vector3(3.4, 0.29, 0.55)
+mesh = SubResource("ConeMesh")
+material_override = SubResource("ConeMaterial")
+
+[node name="PoliceLabel" type="Label3D" parent="."]
+position = Vector3(0, 1.28, 0)
+font_size = 58
+outline_size = 5
+modulate = Color(0.05, 0.16, 0.62, 1)
+text = "POLICE · POLITIE"

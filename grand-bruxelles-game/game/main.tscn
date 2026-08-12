@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3]
+[gd_scene load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -16,6 +16,7 @@
 [ext_resource type="PackedScene" path="res://game/vehicles/police_bab_van.tscn" id="14_bab"]
 [ext_resource type="Script" path="res://game/scripts/wanted_system.gd" id="15_wanted"]
 [ext_resource type="Script" path="res://game/scripts/police_dispatch.gd" id="16_dispatch"]
+[ext_resource type="Script" path="res://game/scripts/police_road_router.gd" id="17_router"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -148,6 +149,9 @@ rotation_degrees = Vector3(0, 39, 0)
 [node name="WantedSystem" type="Node" parent="." groups=["wanted_system"]]
 script = ExtResource("15_wanted")
 
+[node name="PoliceRoadRouter" type="Node" parent="." groups=["police_road_router"]]
+script = ExtResource("17_router")
+
 [node name="PoliceDispatch" type="Node3D" parent="."]
 script = ExtResource("16_dispatch")
 
@@ -177,7 +181,7 @@ offset_right = 980.0
 offset_bottom = 150.0
 theme_override_colors/font_color = Color(0.92, 0.92, 0.90, 1)
 theme_override_font_sizes/font_size = 14
-text = "GRAND BRUXELLES · UrbIS streamé · véhicules police + poursuite dynamique"
+text = "GRAND BRUXELLES · UrbIS streamé · poursuites police routières + renforts"
 
 [node name="WantedLabel" type="Label" parent="."]
 offset_left = 20.0
@@ -195,7 +199,7 @@ offset_right = 980.0
 offset_bottom = 214.0
 theme_override_colors/font_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/font_size = 13
-text = "E entrer/sortir · voler un véhicule police déclenche une recherche · G gyrophares"
+text = "Niveau 2+ : poursuite véhicule · niveau 4+ : barrage · niveau 5 : renfort BAB"
 
 [node name="MiniMap" type="Control" parent="."]
 offset_left = 1000.0

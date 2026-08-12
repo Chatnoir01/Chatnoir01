@@ -44,7 +44,7 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          for zone, expected in [('schaerbeek',49), ('saint-josse-ten-noode',12)]:
+          for zone, expected in [('schaerbeek',49), ('saint-josse',12)]:
               grid=json.loads(Path(f'data/processed/remaining_brussels/cells/{zone}.json').read_text())
               boundary=json.loads(Path(f'data/processed/remaining_brussels/boundaries/{zone}.geojson').read_text())
               assert grid['format']=='grand-bruxelles-zone-cells-v2' and grid['zone_id']==zone
@@ -61,7 +61,7 @@ jobs:
           from pathlib import Path
 
           sc=json.loads(Path('data/processed/remaining_brussels/cells/schaerbeek.json').read_text())
-          sj=json.loads(Path('data/processed/remaining_brussels/cells/saint-josse-ten-noode.json').read_text())
+          sj=json.loads(Path('data/processed/remaining_brussels/cells/saint-josse.json').read_text())
           cells={c['id']:c for c in sc['cells']}
           sj_ids={c['id'] for c in sj['cells']}
           root=Path('data/urbis/remaining_brussels/cells')
@@ -94,14 +94,7 @@ jobs:
                   x,y=centre(c)
                   compact_distance=abs(x-cx)+abs(y-cy)
                   saint_josse_overlap=1 if c['id'] in sj_ids else 0
-                  frontier.append((
-                      saint_josse_overlap,
-                      len(neighbours),
-                      -x,
-                      -compact_distance,
-                      -abs(y-171500.0),
-                      c,
-                  ))
+                  frontier.append((saint_josse_overlap,len(neighbours),-x,-compact_distance,-abs(y-171500.0),c))
               assert frontier, ('no contiguous Schaerbeek frontier remains', sorted(connected))
               frontier.sort(reverse=True,key=lambda item:item[:-1])
               chosen=frontier[0][-1]
@@ -123,9 +116,7 @@ jobs:
               }
           }
           Path('/tmp/schaerbeek-frontier.json').write_text(json.dumps(payload,indent=2)+'\n')
-          Path('/tmp/schaerbeek-frontier.tsv').write_text('\n'.join(
-              f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in selected
-          )+'\n')
+          Path('/tmp/schaerbeek-frontier.tsv').write_text('\n'.join(f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in selected)+'\n')
           print('SCHAERBEEK_SAINT_JOSSE_SELECTION', payload['continuity'])
           PY
 
@@ -179,7 +170,7 @@ jobs:
 
           coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
           sc=next(z for z in coverage['zones'] if z['zone_id']=='schaerbeek')
-          sj=next(z for z in coverage['zones'] if z['zone_id']=='saint-josse-ten-noode')
+          sj=next(z for z in coverage['zones'] if z['zone_id']=='saint-josse')
           assert set(ids)<=set(sc['materialized_cell_ids'])
           assert sc['materialized_cells']>=15
           runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())

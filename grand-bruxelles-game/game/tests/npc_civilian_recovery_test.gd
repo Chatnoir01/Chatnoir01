@@ -72,6 +72,37 @@ func _initialize() -> void:
 		_fail("civilian must return to walking rather than remain in incident state")
 		return
 
+	# Live-agent recovery must snapshot and restore the actual ambient routine,
+	# not merely the geometric destination. This is intentionally tested at
+	# NpcAgent level so the model contract from #71 cannot pass without runtime wiring.
+	var ambient_civilian := NpcAgent.new()
+	ambient_civilian.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 2301, Vector3.ZERO)
+	ambient_civilian.set_destination(Vector3(-7.0, 0.0, 13.0))
+	ambient_civilian.ambient_state.current_state = NpcAmbientState.State.CHECK_PHONE
+	ambient_civilian.ambient_state.sequence_index = 6
+	var ambient_plan: Dictionary = ambient_civilian.begin_civilian_recovery(0.55, 60.0, "commercial_street")
+	if not bool(ambient_plan.get("routine_snapshot_captured", false)):
+		_fail("NpcAgent must capture its real pre-incident routine when recovery begins")
+		return
+	# Simulate incident behavior overwriting the normal ambient activity.
+	ambient_civilian.ambient_state.current_state = NpcAmbientState.State.IDLE
+	ambient_civilian.ambient_state.sequence_index = 99
+	ambient_civilian.behavior.set_destination(Vector3(80.0, 0.0, 80.0))
+	var ambient_total := float(ambient_plan.get("settle_seconds", 0.0)) + float(ambient_plan.get("recovery_seconds", 0.0))
+	var ambient_finished: Dictionary = ambient_civilian.update_civilian_recovery(60.0 + ambient_total + 0.2, false)
+	if not bool(ambient_finished.get("resume_routine", false)):
+		_fail("ambient civilian recovery must complete")
+		return
+	if ambient_civilian.ambient_state.current_state != NpcAmbientState.State.CHECK_PHONE:
+		_fail("NpcAgent must restore the exact pre-incident ambient state")
+		return
+	if ambient_civilian.ambient_state.sequence_index != 6:
+		_fail("NpcAgent must restore ambient sequence progress")
+		return
+	if ambient_civilian.behavior.target_position != Vector3(-7.0, 0.0, 13.0):
+		_fail("NpcAgent ambient recovery must also restore the exact routine target")
+		return
+
 	# Recovery must carry an immutable snapshot of the exact pre-incident
 	# routine so the live agent can restore transit waiting or ambient activity
 	# instead of only recovering a geometric destination.

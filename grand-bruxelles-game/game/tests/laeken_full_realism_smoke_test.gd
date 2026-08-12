@@ -4,7 +4,7 @@ const HEIGHTS_PATH := "res://data/urbis/laeken_jette/building_heights_dsm.game.j
 const OVERRIDES_PATH := "res://data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
 const TREES_PATH := "res://data/environment/laeken_jette/official_city_trees.game.json"
 const ORTHO_PATH := "res://data/orthophoto/laeken_jette/phase1_ortho.jpg"
-const MAX_READY_FRAMES := 120
+const MAX_READY_FRAMES := 180
 
 
 func _initialize() -> void:
@@ -34,9 +34,10 @@ func _run() -> void:
     var bridge = scene.get_node_or_null("BuildingDSMMaterialBridge")
     var ortho = scene.get_node_or_null("OrthophotoPass")
     var visual = scene.get_node_or_null("BuildingVisualPass")
+    var facade_detail = scene.get_node_or_null("FacadeDetailPass")
     var trees = scene.get_node_or_null("OfficialTrees")
     var canopy = scene.get_node_or_null("TreeCanopyRefinement")
-    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or trees == null or canopy == null:
+    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or facade_detail == null or trees == null or canopy == null:
         _fail("one or more required realism nodes are missing")
         return
 
@@ -49,6 +50,7 @@ func _run() -> void:
             and bool(ortho.get("orthophoto_active"))
             and bool(visual.get("building_visual_active"))
             and bool(visual.get("orthophoto_roof_active"))
+            and bool(facade_detail.get("detail_ready"))
             and bool(trees.get("trees_loaded"))
             and bool(canopy.get("refinement_ready"))
         )
@@ -57,7 +59,7 @@ func _run() -> void:
             break
         await process_frame
     if ready_frame < 0:
-        _fail("realism stack not ready within %d frames terrain=%s heights=%s bridge=%s ortho=%s building_visual=%s ortho_roofs=%s trees=%s canopy=%s" % [
+        _fail("realism stack not ready within %d frames terrain=%s heights=%s bridge=%s ortho=%s building_visual=%s ortho_roofs=%s facade_detail=%s trees=%s canopy=%s" % [
             MAX_READY_FRAMES,
             bool(terrain.get("terrain_loaded")),
             bool(height_pass.get("height_mesh_ready")),
@@ -65,6 +67,7 @@ func _run() -> void:
             bool(ortho.get("orthophoto_active")),
             bool(visual.get("building_visual_active")),
             bool(visual.get("orthophoto_roof_active")),
+            bool(facade_detail.get("detail_ready")),
             bool(trees.get("trees_loaded")),
             bool(canopy.get("refinement_ready")),
         ])
@@ -107,6 +110,30 @@ func _run() -> void:
         _fail("final DSM building ShaderMaterial missing")
         return
 
+    var facade_buildings := int(facade_detail.get("detailed_buildings"))
+    var facade_halls := int(facade_detail.get("detailed_halls"))
+    var facade_windows := int(facade_detail.get("window_instances"))
+    var facade_sills := int(facade_detail.get("sill_instances"))
+    var hall_ribs := int(facade_detail.get("hall_rib_instances"))
+    if facade_buildings < 20 or facade_windows < 250 or facade_sills < 250:
+        _fail("street-level residential facade detail too sparse: buildings=%d windows=%d sills=%d" % [facade_buildings, facade_windows, facade_sills])
+        return
+    if facade_halls < 1 or hall_ribs < 20:
+        _fail("Heysel hall facade detail missing: halls=%d ribs=%d" % [facade_halls, hall_ribs])
+        return
+    var glass_panels := scene.get_node_or_null("FacadeDetailPass/FacadeGlassPanels") as MultiMeshInstance3D
+    var stone_sills := scene.get_node_or_null("FacadeDetailPass/FacadeStoneSills") as MultiMeshInstance3D
+    var rib_mesh := scene.get_node_or_null("FacadeDetailPass/HallVerticalRibs") as MultiMeshInstance3D
+    if glass_panels == null or glass_panels.multimesh == null or glass_panels.multimesh.instance_count != facade_windows:
+        _fail("facade glazing MultiMesh count mismatch")
+        return
+    if stone_sills == null or stone_sills.multimesh == null or stone_sills.multimesh.instance_count != facade_sills:
+        _fail("facade sill MultiMesh count mismatch")
+        return
+    if rib_mesh == null or rib_mesh.multimesh == null or rib_mesh.multimesh.instance_count != hall_ribs:
+        _fail("hall rib MultiMesh count mismatch")
+        return
+
     var tree_total := int(trees.get("official_tree_count"))
     var grounded := int(trees.get("terrain_grounded_count"))
     var skipped := int(trees.get("skipped_count"))
@@ -140,12 +167,16 @@ func _run() -> void:
         _fail("broadleaf replacement MultiMesh count mismatch")
         return
 
-    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d} trees={total:%d,skipped:%d,replacement_lobes:%d,conifer_tiers:%d,primary_replaced:%s} ortho=true" % [
+    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d,street_detail:%d,windows:%d,halls:%d,ribs:%d} trees={total:%d,skipped:%d,replacement_lobes:%d,conifer_tiers:%d,primary_replaced:%s} ortho=true" % [
         ready_frame,
         terrain_range,
         derived,
         fallback,
         corrected,
+        facade_buildings,
+        facade_windows,
+        facade_halls,
+        hall_ribs,
         tree_total,
         skipped,
         broadleaf_lobes,

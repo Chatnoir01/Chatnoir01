@@ -10,6 +10,7 @@ extends CharacterBody3D
 @export var exit_distance: float = 2.7
 @export var mouse_sensitivity: float = 0.0022
 @export var impact_cooldown_ms: int = 350
+@export_range(0.1, 1.0, 0.05) var transmitted_impact_factor: float = 0.78
 @export var recovery_delay_s: float = 4.0
 
 const DAMAGE_MODEL_SCRIPT := preload("res://game/scripts/vehicle_damage_model.gd")
@@ -130,6 +131,59 @@ func _register_wall_impact(impact_speed_kmh: float, forward_vector: Vector3) -> 
 
     _damage_model.call("register_impact", impact_speed_kmh, best_alignment)
     _next_impact_ms = Time.get_ticks_msec() + impact_cooldown_ms
+    _transmit_wall_impact(impact_speed_kmh, best_alignment)
+
+
+func _transmit_wall_impact(impact_speed_kmh: float, alignment: float) -> void:
+    var seen := {}
+    for index: int in range(get_slide_collision_count()):
+        var collision := get_slide_collision(index)
+        if collision == null:
+            continue
+        var collider: Object = collision.get_collider()
+        if collider == null or collider == self:
+            continue
+        var collider_id := collider.get_instance_id()
+        if seen.has(collider_id):
+            continue
+        seen[collider_id] = true
+        _transmit_impact_to_collider(
+            collider,
+            impact_speed_kmh * transmitted_impact_factor,
+            alignment
+        )
+
+
+func _transmit_impact_to_collider(collider: Object, speed_kmh: float, alignment: float) -> bool:
+    if collider == null or collider == self:
+        return false
+    if collider.has_method("apply_external_impact"):
+        collider.call("apply_external_impact", speed_kmh, alignment)
+        return true
+    if collider.has_method("apply_external_vehicle_impact"):
+        collider.call("apply_external_vehicle_impact", speed_kmh, alignment)
+        return true
+    return false
+
+
+func apply_external_vehicle_impact(speed_kmh: float, alignment: float = 1.0) -> Dictionary:
+    if _damage_model == null:
+        _damage_model = DAMAGE_MODEL_SCRIPT.new()
+    if Time.get_ticks_msec() < _next_impact_ms:
+        return {"ignored_cooldown": true, "health": get_vehicle_health()}
+    var result: Dictionary = _damage_model.call("register_impact", speed_kmh, alignment)
+    _next_impact_ms = Time.get_ticks_msec() + impact_cooldown_ms
+    if is_vehicle_disabled():
+        speed = 0.0
+        velocity = Vector3.ZERO
+    else:
+        var performance := get_vehicle_performance_factor()
+        speed = clampf(
+            speed,
+            -max_reverse_speed * maxf(0.55, performance),
+            max_forward_speed * performance
+        )
+    return result
 
 
 func _process_recovery() -> void:

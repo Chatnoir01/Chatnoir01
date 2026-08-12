@@ -6,15 +6,19 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/npc_agent.gd"
       - "grand-bruxelles-game/game/scripts/npc_police_response.gd"
+      - "grand-bruxelles-game/game/scripts/npc_police_action_request.gd"
       - "grand-bruxelles-game/game/scripts/npc_crowd_reaction.gd"
       - "grand-bruxelles-game/game/tests/npc_agent_response_integration_test.gd"
+      - "grand-bruxelles-game/game/tests/npc_police_action_request_test.gd"
       - ".github/workflows/grand-bruxelles-npc-response-integration.yml"
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/npc_agent.gd"
       - "grand-bruxelles-game/game/scripts/npc_police_response.gd"
+      - "grand-bruxelles-game/game/scripts/npc_police_action_request.gd"
       - "grand-bruxelles-game/game/scripts/npc_crowd_reaction.gd"
       - "grand-bruxelles-game/game/tests/npc_agent_response_integration_test.gd"
+      - "grand-bruxelles-game/game/tests/npc_police_action_request_test.gd"
       - ".github/workflows/grand-bruxelles-npc-response-integration.yml"
   workflow_dispatch:
 
@@ -45,3 +49,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_agent_response_integration_test.gd 2>&1 | tee /tmp/npc-response-integration.log
           if grep -E "SCRIPT ERROR|Parse Error:|NPC_AGENT_RESPONSE_INTEGRATION_FAIL" /tmp/npc-response-integration.log; then exit 1; fi
           grep -q "NPC_AGENT_RESPONSE_INTEGRATION_OK" /tmp/npc-response-integration.log
+      - name: Police action request interface test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_action_request_test.gd 2>&1 | tee /tmp/npc-police-action-request.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_ACTION_REQUEST_FAIL" /tmp/npc-police-action-request.log; then exit 1; fi
+          grep -q "NPC_POLICE_ACTION_REQUEST_OK" /tmp/npc-police-action-request.log

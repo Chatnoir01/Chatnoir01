@@ -39,7 +39,7 @@ func _load_json(path: String) -> Dictionary:
 
 func _outer_rings(geometry: Dictionary) -> Array:
     var result: Array = []
-    var kind := String(geometry.get("type", ""))
+    var kind := str(geometry.get("type", ""))
     var coords = geometry.get("coordinates", [])
     if kind == "Polygon" and coords is Array and not coords.is_empty():
         result.append(coords[0])
@@ -70,7 +70,7 @@ func _polygon_centroid(points: PackedVector2Array) -> Vector2:
 
 
 func _resolve_record(record: Dictionary, terrain: Node, points: PackedVector2Array) -> Dictionary:
-    var quality := String(record.get("quality", ""))
+    var quality := str(record.get("quality", ""))
     var raw_height = record.get("height_m", null)
     if quality in VALID_QUALITIES and raw_height != null:
         var height := float(raw_height)
@@ -156,33 +156,37 @@ func _build_height_mesh() -> void:
         if not (record is Dictionary):
             record = {}
 
+        var valid_rings: Array[PackedVector2Array] = []
         for ring in _outer_rings(geometry):
             var points := _ring_to_points(ring)
-            if points.size() < 3:
-                continue
-            var resolved := _resolve_record(record, terrain, points)
-            var height := float(resolved["height"])
-            var base_y := float(resolved["base_y"])
-            var roof_y := base_y + height
+            if points.size() >= 3:
+                valid_rings.append(points)
+        if valid_rings.is_empty():
+            continue
+
+        # Height/quality belongs to the complete UrbIS feature. Resolve it once,
+        # then preserve every Polygon/MultiPolygon outer component instead of
+        # dropping all components after the first one.
+        var resolved := _resolve_record(record, terrain, valid_rings[0])
+        var height := float(resolved["height"])
+        var base_y := float(resolved["base_y"])
+        var roof_y := base_y + height
+        for points in valid_rings:
             _append_flat_polygon(surface, points, roof_y)
             _append_walls(surface, points, base_y, roof_y)
-            roof_min_y = minf(roof_min_y, roof_y)
-            roof_max_y = maxf(roof_max_y, roof_y)
 
-            if bool(resolved["derived"]):
-                derived_buildings += 1
-                derived_min_height_m = minf(derived_min_height_m, height)
-                derived_max_height_m = maxf(derived_max_height_m, height)
-                match String(resolved["quality"]):
-                    "high": high_quality += 1
-                    "medium": medium_quality += 1
-                    "low": low_quality += 1
-            else:
-                fallback_buildings += 1
-            # Each official feature in this dataset is represented by one outer
-            # footprint in normal cases. Count height quality once per feature,
-            # not once per MultiPolygon component.
-            break
+        roof_min_y = minf(roof_min_y, roof_y)
+        roof_max_y = maxf(roof_max_y, roof_y)
+        if bool(resolved["derived"]):
+            derived_buildings += 1
+            derived_min_height_m = minf(derived_min_height_m, height)
+            derived_max_height_m = maxf(derived_max_height_m, height)
+            match str(resolved["quality"]):
+                "high": high_quality += 1
+                "medium": medium_quality += 1
+                "low": low_quality += 1
+        else:
+            fallback_buildings += 1
 
     var mesh := surface.commit()
     if mesh == null or mesh.get_surface_count() == 0:

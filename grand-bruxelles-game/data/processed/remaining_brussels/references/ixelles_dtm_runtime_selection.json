@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "format": "grand-bruxelles-ixelles-dtm-runtime-selection-v1",
+  "source_crs": "EPSG:31370",
+  "source_evidence": "ixelles_dtm_lod_evidence.json",
+  "status": "terrain_resolution_selected_height_validation_still_required",
+  "runtime_approved": false,
+  "selected_resolution_m": 2.0,
+  "hero_view_fallback_resolution_m": 1.0,
+  "selection_policy": {
+    "primary_quality_bar": "prefer the coarsest candidate whose worst-cell p95 vertical reconstruction error remains <= 0.15 m",
+    "reason": "2 m meets the realism threshold on all five cells while reducing grid vertices by 4x versus 1 m; 4 m exceeds the threshold",
+    "height_runtime_gate": "building heights remain blocked until second-authoritative-source validation"
+  },
+  "aggregate_metrics": {
+    "1.0": {"worst_cell_p95_abs_error_m": 0.06332, "worst_cell_rmse_m": 0.07164, "grid_vertices_per_500m_cell": 250000},
+    "2.0": {"worst_cell_p95_abs_error_m": 0.13703, "worst_cell_rmse_m": 0.11227, "grid_vertices_per_500m_cell": 62500},
+    "4.0": {"worst_cell_p95_abs_error_m": 0.31708, "worst_cell_rmse_m": 0.18763, "grid_vertices_per_500m_cell": 15625},
+    "8.0": {"worst_cell_p95_abs_error_m": 0.67990, "worst_cell_rmse_m": 0.33211, "grid_vertices_per_500m_cell": 3844}
+  },
+  "notes": [
+    "The selected 2 m resolution is a terrain candidate only; it does not approve DSM-DTM building heights.",
+    "Maximum single-pixel errors remain several metres near sharp discontinuities, so hero/photo-match locations may request the 1 m fallback when visual comparison demonstrates need.",
+    "No terrain or height is invented where the official source is NoData."
+  ]
+}

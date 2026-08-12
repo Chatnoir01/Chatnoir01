@@ -27,41 +27,52 @@ def percentile(values: np.ndarray, q: float) -> float | None:
     return round(float(np.percentile(values, q)), 3)
 
 
-def _valid_values(values: np.ndarray, nodata: float | None) -> np.ndarray:
-    flat = np.asarray(values, dtype=np.float64).reshape(-1)
-    valid = np.isfinite(flat)
-    if nodata is not None and math.isfinite(float(nodata)):
-        valid &= flat != float(nodata)
-    return flat[valid]
+def _paired_valid_mask(dsm: np.ndarray, dtm: np.ndarray, nodata_dsm: float | None, nodata_dtm: float | None) -> np.ndarray:
+    if dsm.shape != dtm.shape:
+        raise ValueError("DSM/DTM sample shapes differ")
+    dsm_arr = np.asarray(dsm, dtype=np.float64)
+    dtm_arr = np.asarray(dtm, dtype=np.float64)
+    valid = np.isfinite(dsm_arr) & np.isfinite(dtm_arr)
+    if nodata_dsm is not None and math.isfinite(float(nodata_dsm)):
+        valid &= dsm_arr != float(nodata_dsm)
+    if nodata_dtm is not None and math.isfinite(float(nodata_dtm)):
+        valid &= dtm_arr != float(nodata_dtm)
+    return valid
 
 
-def validate_height_mosaics(dsm: np.ndarray, dtm: np.ndarray, nodata_dsm: float | None, nodata_dtm: float | None) -> dict:
+def validate_height_mosaics(
+    dsm: np.ndarray,
+    dtm: np.ndarray,
+    nodata_dsm: float | None,
+    nodata_dtm: float | None,
+    *,
+    min_dtm_range_m: float = MIN_DTM_RANGE_M,
+    min_positive_height_fraction: float = MIN_POSITIVE_HEIGHT_FRACTION,
+) -> dict:
     """Reject technically aligned but semantically degenerate height rasters.
 
-    Archive hashes, dimensions and transforms are not sufficient proof that the sampled
-    elevation values are usable. This gate prevents an all-zero or DSM==DTM mosaic from
-    being promoted as high-confidence building-height evidence.
+    Diagnostics are computed only where both DSM and DTM pixels are valid at the same
+    position. This avoids silently pairing unrelated samples when nodata masks differ.
     """
     if dsm.shape != dtm.shape:
         raise ValueError("DSM/DTM mosaics have different shapes")
-    dsm_values = _valid_values(dsm, nodata_dsm)
-    dtm_values = _valid_values(dtm, nodata_dtm)
-    if dsm_values.size == 0 or dtm_values.size == 0:
-        raise ValueError("Height mosaics are degenerate: no valid elevation samples")
-    if dsm_values.size != dtm_values.size:
-        # Mosaics are aligned, so differing valid sample counts indicate a nodata mismatch
-        # that must be investigated before deriving building evidence.
-        raise ValueError("Height mosaics are degenerate: DSM/DTM valid-sample counts differ")
+    dsm_arr = np.asarray(dsm, dtype=np.float64)
+    dtm_arr = np.asarray(dtm, dtype=np.float64)
+    valid = _paired_valid_mask(dsm_arr, dtm_arr, nodata_dsm, nodata_dtm)
+    if not np.any(valid):
+        raise ValueError("Height mosaics are degenerate: no paired valid elevation samples")
 
+    dsm_values = dsm_arr[valid]
+    dtm_values = dtm_arr[valid]
     dtm_range = float(np.max(dtm_values) - np.min(dtm_values))
     diff = dsm_values - dtm_values
     positive_fraction = float(np.count_nonzero(diff > 0.5) / diff.size)
     height_p95 = float(np.percentile(diff, 95))
     identical_fraction = float(np.count_nonzero(np.isclose(diff, 0.0, atol=1e-4)) / diff.size)
 
-    if dtm_range < MIN_DTM_RANGE_M:
+    if dtm_range < min_dtm_range_m:
         raise ValueError(f"Height mosaics are degenerate: DTM range is only {dtm_range:.4f} m")
-    if positive_fraction < MIN_POSITIVE_HEIGHT_FRACTION or height_p95 <= 0.5:
+    if positive_fraction < min_positive_height_fraction or height_p95 <= 0.5:
         raise ValueError(
             "Height mosaics are degenerate: DSM-DTM contains no credible above-ground signal "
             f"(positive_fraction={positive_fraction:.6f}, p95={height_p95:.3f} m)"
@@ -84,11 +95,7 @@ def summarize_height_samples(dsm: np.ndarray, dtm: np.ndarray, nodata_dsm: float
         raise ValueError("DSM/DTM sample shapes differ")
     dsm = np.asarray(dsm, dtype=np.float64).reshape(-1)
     dtm = np.asarray(dtm, dtype=np.float64).reshape(-1)
-    valid = np.isfinite(dsm) & np.isfinite(dtm)
-    if nodata_dsm is not None and math.isfinite(float(nodata_dsm)):
-        valid &= dsm != float(nodata_dsm)
-    if nodata_dtm is not None and math.isfinite(float(nodata_dtm)):
-        valid &= dtm != float(nodata_dtm)
+    valid = _paired_valid_mask(dsm, dtm, nodata_dsm, nodata_dtm)
     diff = dsm[valid] - dtm[valid]
     plausible_mask = (diff >= PLAUSIBLE_MIN_M) & (diff <= PLAUSIBLE_MAX_M)
     plausible = diff[plausible_mask]
@@ -197,10 +204,9 @@ def derive(plan_path: Path, cell_root: Path, raster_root: Path) -> dict:
                 duplicate_memberships += 1
             unique_ids.add(stable_id)
             confidence_counts[stats["confidence"]] += 1
-            terrain_valid = dtm[rows, cols]
-            terrain_valid = terrain_valid[np.isfinite(terrain_valid)]
-            if dtm_nodata is not None and terrain_valid.size:
-                terrain_valid = terrain_valid[terrain_valid != dtm_nodata]
+            terrain = np.asarray(dtm[rows, cols], dtype=np.float64)
+            paired_valid = _paired_valid_mask(np.asarray(dsm[rows, cols], dtype=np.float64), terrain, dsm_nodata, dtm_nodata)
+            terrain_valid = terrain[paired_valid]
             records.append({"cell_id": cell_id, "building_id": stable_id, "inspire_id": inspire_id,
                             "source_feature_id": feature.get("id"), "area_m2_urbis": props.get("AREA"),
                             "terrain_elevation_m_p50": percentile(terrain_valid.astype(np.float64), 50),

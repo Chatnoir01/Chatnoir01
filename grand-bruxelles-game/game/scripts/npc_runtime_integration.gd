@@ -241,7 +241,8 @@ func _apply_crowd_detour(agent: NpcAgent, peer: NpcAgent) -> void:
         original_target,
         peer.get_world_position(),
         agent.variation_seed,
-        peer.variation_seed
+        peer.variation_seed,
+        peer.behavior.target_position
     )
     _crowd_detours[agent_id] = {"original": original_target, "detour": detour}
     agent.behavior.set_destination(detour)

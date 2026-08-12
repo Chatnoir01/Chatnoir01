@@ -8,7 +8,7 @@ import importlib.util
 import json
 import math
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 PROBE_PATH = ROOT / "tools" / "probe_bourse_urbis_context.py"
@@ -20,6 +20,7 @@ _spec.loader.exec_module(probe)
 CITY_PATH = ROOT / "data" / "osm" / "vertical_slice_01.game.json"
 HERO_PATH = ROOT / "data" / "urbis" / "heroes" / "bourse_lod2.game.json"
 TARGET_STREET = "Place de la Bourse"
+ALIGNMENT_WITNESS_M = 12.0
 
 
 def point_segment_distance(point: tuple[float, float], start: tuple[float, float], end: tuple[float, float]) -> float:
@@ -168,16 +169,15 @@ def build_report() -> dict[str, Any]:
         raise RuntimeError("runtime OSM slice contains no road segments")
 
     axis_vertices = [point for item in official_axis_features for point in item["world_points"]]
-    vertex_runtime_errors: list[float] = []
-    for point in axis_vertices:
-        vertex_runtime_errors.append(min(point_segment_distance(point, segment["start"], segment["end"]) for segment in runtime_segments))
+    vertex_runtime_errors = [
+        min(point_segment_distance(point, segment["start"], segment["end"]) for segment in runtime_segments)
+        for point in axis_vertices
+    ]
 
     ranked_runtime_roads: dict[str, dict[str, Any]] = {}
     for segment in runtime_segments:
         road = segment["road"]
         distance = min(point_segment_distance(point, segment["start"], segment["end"]) for point in axis_vertices)
-        if distance > 12.0:
-            continue
         road_key = str(road.get("osm_id", road.get("name", "unknown")))
         candidate = {
             "osm_id": road.get("osm_id"),
@@ -187,6 +187,7 @@ def build_report() -> dict[str, Any]:
             "runtime_road_width_m": runtime_width(road),
             "procedural_outer_half_width_m": procedural_outer_half_width(road),
             "nearest_official_axis_vertex_m": distance,
+            "within_alignment_witness": distance <= ALIGNMENT_WITNESS_M,
         }
         previous = ranked_runtime_roads.get(road_key)
         if previous is None or distance < float(previous["nearest_official_axis_vertex_m"]):
@@ -194,8 +195,9 @@ def build_report() -> dict[str, Any]:
 
     nearby_roads = sorted(ranked_runtime_roads.values(), key=lambda item: float(item["nearest_official_axis_vertex_m"]))[:12]
     if not nearby_roads:
-        raise RuntimeError("no runtime road segment lies within 12 m of official Place de la Bourse axis vertices")
+        raise RuntimeError("runtime OSM slice contains no rankable road segments")
 
+    closest_runtime_road_m = float(nearby_roads[0]["nearest_official_axis_vertex_m"])
     runtime_outer_half_max = max(float(item["procedural_outer_half_width_m"]) for item in nearby_roads)
     official_p95 = percentile(surface_vertex_offsets, 0.95)
     return {
@@ -214,11 +216,15 @@ def build_report() -> dict[str, Any]:
             "axis_vertex_error_p50_m": percentile(vertex_runtime_errors, 0.50),
             "axis_vertex_error_p95_m": percentile(vertex_runtime_errors, 0.95),
             "axis_vertex_error_max_m": max(vertex_runtime_errors),
+            "closest_runtime_road_to_official_axis_m": closest_runtime_road_m,
+            "alignment_witness_m": ALIGNMENT_WITNESS_M,
+            "has_runtime_road_within_alignment_witness": closest_runtime_road_m <= ALIGNMENT_WITNESS_M,
             "nearby_roads": nearby_roads,
             "procedural_outer_half_width_max_m": runtime_outer_half_max,
         },
         "diagnostic": {
             "official_surface_p95_minus_runtime_outer_half_width_m": (official_p95 - runtime_outer_half_max) if official_p95 is not None else None,
+            "alignment_status": "within_witness" if closest_runtime_road_m <= ALIGNMENT_WITNESS_M else "displaced_beyond_witness",
             "interpretation_limit": "Diagnostic envelope only. UrbIS TYPE codes are preserved but not semantically re-labelled; do not interpret this value as curb or carriageway width without a source-backed TYPE definition and section-specific geometry validation.",
         },
         "runtime_approved": False,

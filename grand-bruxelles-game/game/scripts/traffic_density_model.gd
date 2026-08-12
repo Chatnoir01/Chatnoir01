@@ -106,7 +106,10 @@ func target_vehicle_count(base_max: int, hour: float, roads: Array[Dictionary], 
     if base_max <= 0:
         return 0
     var factor := density_factor(hour, roads, position)
-    return clampi(int(round(float(base_max) * factor)), 1, base_max)
+    # base_max is the neutral fleet size, not a hard ceiling. The density factor is already
+    # bounded by MAX_SPATIAL_FACTOR and time_factor() <= 1.0, so official high-flow evidence
+    # can raise the runtime population without allowing unbounded spawning.
+    return maxi(1, int(round(float(base_max) * factor)))
 
 func nearest_sector(anchors: Array, position: Vector3) -> String:
     var best_name := "corridor"

@@ -14,6 +14,7 @@ class BourseDirectSpawnRegression(unittest.TestCase):
         self.assertIn('spawn=bourse', text)
         self.assertIn('BOURSE_DIRECT_SPAWN_POSITION', text)
         self.assertIn('Vector3(83.44, 1.05, -663.42)', text)
+        self.assertIn('BOURSE_DIRECT_SPAWN_YAW_DEGREES := -84.32', text)
 
     def test_web_query_is_wired_as_user_argument(self) -> None:
         text = WEB_WORKFLOW.read_text(encoding="utf-8")

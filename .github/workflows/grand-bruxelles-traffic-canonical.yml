@@ -57,3 +57,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_canonical_vehicle_core_test.gd 2>&1 | tee /tmp/traffic-vehicle.log
           if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CANONICAL_VEHICLE_FAIL" /tmp/traffic-vehicle.log; then exit 1; fi
           grep -q "TRAFFIC_CANONICAL_VEHICLE_OK" /tmp/traffic-vehicle.log
+      - name: Canonical visual tow lifecycle parity test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_canonical_tow_test.gd 2>&1 | tee /tmp/traffic-tow.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CANONICAL_TOW_FAIL" /tmp/traffic-tow.log; then exit 1; fi
+          grep -q "TRAFFIC_CANONICAL_TOW_OK" /tmp/traffic-tow.log

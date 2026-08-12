@@ -1,15 +1,18 @@
 extends Node
 
 ## Rebuild the Laeken building mesh with official remote-sensing-derived heights.
-## Horizontal footprints are unchanged UrbIS WFS geometry. Per-building height and
-## ground elevation come from the committed DSM-DTM analysis. Buildings without
-## enough valid DSM/DTM samples keep the explicit 10.5 m fallback. A tiny, audited
-## override set can correct landmark-overlap contamination without mutating the raw
-## DSM-derived dataset.
+## Horizontal footprints remain UrbIS WFS geometry, including official interior rings.
+## Per-building height and ground elevation come from the committed DSM-DTM analysis.
+## Buildings without enough valid DSM/DTM samples keep the explicit 10.5 m fallback.
+## A tiny, audited override set can correct landmark-overlap contamination without
+## mutating the raw DSM-derived dataset. Palais 5 is cut out only from the monolithic
+## Brussels Expo UrbIS feature so its sourced hero geometry can replace that volume.
 
 const BUILDINGS_PATH := "res://data/urbis/laeken_jette/buildings.game.json"
 const HEIGHTS_PATH := "res://data/urbis/laeken_jette/building_heights_dsm.game.json"
 const OVERRIDES_PATH := "res://data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
+const PALAIS5_OUTLINE_PATH := "res://data/sources/laeken_jette/palais5_osm_outline.game.json"
+const PALAIS5_EXPO_INSPIRE_ID := "https://databrussels.be/id/building/1635598"
 const FALLBACK_HEIGHT_M := 10.5
 const VALID_QUALITIES := ["high", "medium", "low"]
 
@@ -20,12 +23,16 @@ var high_quality: int = 0
 var medium_quality: int = 0
 var low_quality: int = 0
 var landmark_corrected_buildings: int = 0
+var official_hole_rings: int = 0
+var palais5_cutouts: int = 0
+var hole_aware_roof_triangles: int = 0
 var derived_min_height_m: float = INF
 var derived_max_height_m: float = -INF
 var roof_min_y: float = INF
 var roof_max_y: float = -INF
 var atomium_absolute_elevation_m: float = 0.0
 var _height_overrides: Dictionary = {}
+var _palais5_cutout := PackedVector2Array()
 
 
 func _ready() -> void:
@@ -42,16 +49,27 @@ func _load_json(path: String) -> Dictionary:
     return parsed as Dictionary if typeof(parsed) == TYPE_DICTIONARY else {}
 
 
-func _outer_rings(geometry: Dictionary) -> Array:
-    var result: Array = []
+func _polygon_ring_sets(geometry: Dictionary) -> Array[Dictionary]:
+    var result: Array[Dictionary] = []
     var kind := str(geometry.get("type", ""))
     var coords = geometry.get("coordinates", [])
-    if kind == "Polygon" and coords is Array and not coords.is_empty():
-        result.append(coords[0])
+    var polygons: Array = []
+    if kind == "Polygon" and coords is Array:
+        polygons.append(coords)
     elif kind == "MultiPolygon" and coords is Array:
-        for polygon in coords:
-            if polygon is Array and not polygon.is_empty():
-                result.append(polygon[0])
+        polygons = coords
+    for polygon in polygons:
+        if not (polygon is Array) or polygon.is_empty():
+            continue
+        var outer := _ring_to_points(polygon[0])
+        if outer.size() < 3:
+            continue
+        var holes: Array[PackedVector2Array] = []
+        for ring_index in range(1, polygon.size()):
+            var hole := _ring_to_points(polygon[ring_index])
+            if hole.size() >= 3:
+                holes.append(hole)
+        result.append({"outer": outer, "holes": holes})
     return result
 
 
@@ -131,15 +149,55 @@ func _resolve_record(record: Dictionary, properties: Dictionary, terrain: Node, 
     }
 
 
-func _append_flat_polygon(st: SurfaceTool, points: PackedVector2Array, y: float) -> void:
+func _point_in_surface(point: Vector2, outer: PackedVector2Array, holes: Array[PackedVector2Array]) -> bool:
+    if not Geometry2D.is_point_in_polygon(point, outer):
+        return false
+    for hole in holes:
+        if Geometry2D.is_point_in_polygon(point, hole):
+            return false
+    return true
+
+
+func _append_flat_polygon(st: SurfaceTool, points: PackedVector2Array, y: float) -> int:
     var triangles := Geometry2D.triangulate_polygon(points)
     for index in triangles:
         var p := points[int(index)]
         st.set_normal(Vector3.UP)
         st.add_vertex(Vector3(p.x, y, p.y))
+    return triangles.size() / 3
 
 
-func _append_walls(st: SurfaceTool, points: PackedVector2Array, bottom_y: float, top_y: float) -> void:
+func _append_flat_polygon_with_holes(st: SurfaceTool, outer: PackedVector2Array, holes: Array[PackedVector2Array], y: float) -> int:
+    if holes.is_empty():
+        return _append_flat_polygon(st, outer, y)
+    var vertices := PackedVector2Array()
+    vertices.append_array(outer)
+    for hole in holes:
+        vertices.append_array(hole)
+    var triangles := Geometry2D.triangulate_delaunay(vertices)
+    var accepted := 0
+    for offset in range(0, triangles.size(), 3):
+        if offset + 2 >= triangles.size():
+            break
+        var a := vertices[int(triangles[offset])]
+        var b := vertices[int(triangles[offset + 1])]
+        var c := vertices[int(triangles[offset + 2])]
+        var centroid := (a + b + c) / 3.0
+        var ab := (a + b) * 0.5
+        var bc := (b + c) * 0.5
+        var ca := (c + a) * 0.5
+        if not _point_in_surface(centroid, outer, holes):
+            continue
+        if not _point_in_surface(ab, outer, holes) or not _point_in_surface(bc, outer, holes) or not _point_in_surface(ca, outer, holes):
+            continue
+        for point in [a, b, c]:
+            st.set_normal(Vector3.UP)
+            st.add_vertex(Vector3(point.x, y, point.y))
+        accepted += 1
+    return accepted
+
+
+func _append_walls(st: SurfaceTool, points: PackedVector2Array, bottom_y: float, top_y: float, reverse_normal: bool = false) -> void:
     for index in range(points.size()):
         var a := points[index]
         var b := points[(index + 1) % points.size()]
@@ -147,6 +205,8 @@ func _append_walls(st: SurfaceTool, points: PackedVector2Array, bottom_y: float,
         if edge.length_squared() < 0.0001:
             continue
         var normal := Vector3(edge.y, 0.0, -edge.x).normalized()
+        if reverse_normal:
+            normal = -normal
         var a0 := Vector3(a.x, bottom_y, a.y)
         var a1 := Vector3(a.x, top_y, a.y)
         var b0 := Vector3(b.x, bottom_y, b.y)
@@ -154,6 +214,18 @@ func _append_walls(st: SurfaceTool, points: PackedVector2Array, bottom_y: float,
         for vertex in [a0, b0, b1, a0, b1, a1]:
             st.set_normal(normal)
             st.add_vertex(vertex)
+
+
+func _load_palais5_cutout() -> void:
+    _palais5_cutout = PackedVector2Array()
+    var document := _load_json(PALAIS5_OUTLINE_PATH)
+    var geometry = document.get("geometry", {})
+    if not (geometry is Dictionary):
+        return
+    var sets := _polygon_ring_sets(geometry)
+    if sets.size() != 1:
+        return
+    _palais5_cutout = sets[0]["outer"]
 
 
 func _build_height_mesh() -> void:
@@ -168,6 +240,7 @@ func _build_height_mesh() -> void:
     var overrides_document := _load_json(OVERRIDES_PATH)
     var override_value = overrides_document.get("overrides", {})
     _height_overrides = override_value as Dictionary if override_value is Dictionary else {}
+    _load_palais5_cutout()
 
     var features = buildings.get("features", [])
     var records = heights_document.get("records", [])
@@ -195,21 +268,30 @@ func _build_height_mesh() -> void:
         if not (record is Dictionary):
             record = {}
 
-        var valid_rings: Array[PackedVector2Array] = []
-        for ring in _outer_rings(geometry):
-            var points := _ring_to_points(ring)
-            if points.size() >= 3:
-                valid_rings.append(points)
-        if valid_rings.is_empty():
+        var polygon_sets := _polygon_ring_sets(geometry)
+        if polygon_sets.is_empty():
             continue
 
-        var resolved := _resolve_record(record, properties, terrain, valid_rings[0])
+        var first_outer: PackedVector2Array = polygon_sets[0]["outer"]
+        var resolved := _resolve_record(record, properties, terrain, first_outer)
         var height := float(resolved["height"])
         var base_y := float(resolved["base_y"])
         var roof_y := base_y + height
-        for points in valid_rings:
-            _append_flat_polygon(surface, points, roof_y)
-            _append_walls(surface, points, base_y, roof_y)
+        var inspire_id := str(properties.get("INSPIRE_ID", ""))
+
+        for polygon_set in polygon_sets:
+            var outer: PackedVector2Array = polygon_set["outer"]
+            var holes: Array[PackedVector2Array] = polygon_set["holes"].duplicate()
+            official_hole_rings += holes.size()
+            if inspire_id == PALAIS5_EXPO_INSPIRE_ID and _palais5_cutout.size() >= 3:
+                var cutout_centroid := _polygon_centroid(_palais5_cutout)
+                if Geometry2D.is_point_in_polygon(cutout_centroid, outer):
+                    holes.append(_palais5_cutout)
+                    palais5_cutouts += 1
+            hole_aware_roof_triangles += _append_flat_polygon_with_holes(surface, outer, holes, roof_y)
+            _append_walls(surface, outer, base_y, roof_y)
+            for hole in holes:
+                _append_walls(surface, hole, base_y, roof_y, true)
 
         roof_min_y = minf(roof_min_y, roof_y)
         roof_max_y = maxf(roof_max_y, roof_y)
@@ -244,10 +326,13 @@ func _build_height_mesh() -> void:
     get_parent().add_child(replacement)
     height_mesh_ready = true
 
-    print("LAEKEN_BUILDING_HEIGHTS_READY: derived=%d fallback=%d landmark_corrected=%d quality={high:%d,medium:%d,low:%d} height=[%.2f,%.2f] roof_y=[%.2f,%.2f]" % [
+    print("LAEKEN_BUILDING_HEIGHTS_READY: derived=%d fallback=%d landmark_corrected=%d holes=%d palais5_cutouts=%d roof_triangles=%d quality={high:%d,medium:%d,low:%d} height=[%.2f,%.2f] roof_y=[%.2f,%.2f]" % [
         derived_buildings,
         fallback_buildings,
         landmark_corrected_buildings,
+        official_hole_rings,
+        palais5_cutouts,
+        hole_aware_roof_triangles,
         high_quality,
         medium_quality,
         low_quality,

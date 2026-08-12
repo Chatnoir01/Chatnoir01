@@ -1,0 +1,50 @@
+import importlib.util
+import unittest
+from pathlib import Path
+
+import numpy as np
+
+TOOL = Path(__file__).resolve().parents[1] / "tools" / "derive_ixelles_building_heights.py"
+SPEC = importlib.util.spec_from_file_location("derive_ixelles_building_heights", TOOL)
+derive = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(derive)
+
+
+class IxellesBuildingHeightStatsTest(unittest.TestCase):
+    def test_robust_percentiles_are_recorded_without_baking_one_height(self):
+        dtm = np.full(100, 50.0)
+        dsm = dtm + np.arange(100, dtype=float) / 10.0
+        stats = derive.summarize_height_samples(dsm, dtm, None, None)
+        self.assertEqual(stats["pixel_count_valid"], 100)
+        self.assertEqual(stats["confidence"], "high")
+        self.assertAlmostEqual(stats["plausible_difference_m"]["p50"], 4.95, places=2)
+        self.assertAlmostEqual(stats["plausible_difference_m"]["p75"], 7.425, places=3)
+        self.assertAlmostEqual(stats["plausible_difference_m"]["p90"], 8.91, places=2)
+
+    def test_nodata_and_suspicious_samples_remain_auditable(self):
+        nodata = -9999.0
+        dtm = np.array([50.0, 50.0, 50.0, 50.0, nodata, 50.0])
+        dsm = np.array([60.0, 49.0, 400.0, 61.0, 60.0, nodata])
+        stats = derive.summarize_height_samples(dsm, dtm, nodata, nodata)
+        self.assertEqual(stats["pixel_count_valid"], 4)
+        self.assertEqual(stats["pixel_count_plausible"], 2)
+        self.assertEqual(stats["negative_below_noise_count"], 1)
+        self.assertEqual(stats["over_250m_count"], 1)
+        self.assertEqual(stats["confidence"], "insufficient")
+        self.assertEqual(stats["plausible_difference_m"]["p50"], 10.5)
+
+    def test_shape_mismatch_is_rejected(self):
+        with self.assertRaises(ValueError):
+            derive.summarize_height_samples(np.zeros(3), np.zeros(4), None, None)
+
+    def test_tiny_footprint_never_claims_high_confidence(self):
+        dtm = np.full(8, 50.0)
+        dsm = np.full(8, 62.0)
+        stats = derive.summarize_height_samples(dsm, dtm, None, None)
+        self.assertEqual(stats["pixel_count_plausible"], 8)
+        self.assertEqual(stats["confidence"], "insufficient")
+
+
+if __name__ == "__main__":
+    unittest.main()

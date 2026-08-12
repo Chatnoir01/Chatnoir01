@@ -147,6 +147,8 @@ def validate_manifest(manifest_path: Path) -> tuple[int, int]:
             resolved = mismatch.get("resolved", False)
             if not isinstance(resolved, bool):
                 fail(f"{mismatch_context}.resolved must be boolean when present")
+            if resolved and severity in {"major", "blocker"}:
+                require_text(mismatch, "resolution_evidence", mismatch_context)
 
         realism_complete = raw_reference.get("realism_complete")
         if not isinstance(realism_complete, bool):

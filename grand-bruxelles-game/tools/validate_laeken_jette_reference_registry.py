@@ -25,6 +25,7 @@ def main() -> int:
     realism = load(REF / "realism_pass1.json")
     jette = load(REF / "jette_photo_references.json")
     photo_match = load(REF / "photo_match_views.json")
+    findings = load(REF / "photo_match_findings.json")
     heights = load(SRC / "building_height_integration_validation.json")
 
     assert realism["schema"] >= 2
@@ -94,13 +95,36 @@ def main() -> int:
         urls.append(reference["url"])
     assert len(set(urls)) >= 3, "three-view gate must use three independently registered reference pages"
 
+    finding_items = findings.get("findings", [])
+    assert findings.get("status") == "open", "photo-match findings registry must remain open while blockers exist"
+    assert finding_items, "photo-match findings registry must contain actionable discrepancies"
+    finding_ids = [item.get("id") for item in finding_items]
+    assert len(finding_ids) == len(set(finding_ids)), "photo-match finding IDs must be unique"
+    valid_view_ids = set(ids) | {"zone_wide"}
+    open_high = 0
+    covered_views = set()
+    for item in finding_items:
+        assert item.get("view_id") in valid_view_ids, f"{item.get('id')}: unknown benchmark view"
+        assert item.get("status") in {"open", "closed"}, f"{item.get('id')}: invalid status"
+        assert item.get("severity") in {"low", "medium", "high"}, f"{item.get('id')}: invalid severity"
+        assert item.get("category"), f"{item.get('id')}: missing category"
+        assert item.get("evidence"), f"{item.get('id')}: missing evidence"
+        assert item.get("action"), f"{item.get('id')}: missing action"
+        if item.get("view_id") != "zone_wide":
+            covered_views.add(item["view_id"])
+        if item.get("status") == "open" and item.get("severity") == "high":
+            open_high += 1
+    assert set(ids).issubset(covered_views), "every benchmark view must have at least one tracked discrepancy until validated"
+    assert open_high > 0, "realism gate must not report completion while high-severity discrepancies remain"
+
     policy = jette["reference_policy"]
     assert "never infer" in policy["camera_claim_rule"].lower()
     assert policy["geometry_authority"][0] == "UrbIS WFS"
 
     print(
         "LAEKEN_JETTE_REFERENCE_REGISTRY_OK: "
-        f"height_coverage={coverage:.2f}% refs={len(refs)} benchmarks={len(views)}"
+        f"height_coverage={coverage:.2f}% refs={len(refs)} benchmarks={len(views)} "
+        f"findings={len(finding_items)} open_high={open_high}"
     )
     return 0
 

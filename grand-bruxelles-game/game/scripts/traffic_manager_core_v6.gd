@@ -12,6 +12,7 @@ var _parking_candidates: Array[Dictionary] = []
 var _parking_root: Node3D
 var _parking_rng := RandomNumberGenerator.new()
 var _parking_elapsed: float = 0.0
+var _reserved_parking_candidate_ids: Dictionary = {}
 
 
 func _ready() -> void:
@@ -49,11 +50,9 @@ func _replenish_parked_vehicles() -> void:
     if nearby.is_empty():
         return
 
-    var occupied := {}
-    for child: Node in _parking_root.get_children():
-        if child.is_queued_for_deletion():
-            continue
-        occupied[int(child.get_meta("parking_candidate_id", -1))] = true
+    var occupied := _occupied_parking_candidate_ids()
+    for raw_id: Variant in _reserved_parking_candidate_ids.keys():
+        occupied[int(raw_id)] = true
 
     var attempts := 0
     while get_parked_vehicle_count() < max_parked_vehicles and attempts < nearby.size() * 3:
@@ -64,6 +63,42 @@ func _replenish_parked_vehicles() -> void:
             continue
         _spawn_parked_vehicle(candidate)
         occupied[candidate_id] = true
+
+
+func _occupied_parking_candidate_ids() -> Dictionary:
+    var occupied := {}
+    if _parking_root == null:
+        return occupied
+    for child: Node in _parking_root.get_children():
+        if child.is_queued_for_deletion():
+            continue
+        occupied[int(child.get_meta("parking_candidate_id", -1))] = true
+    return occupied
+
+
+func reserve_parking_candidate(candidate_id: int, reservation_owner: String) -> bool:
+    if candidate_id < 0 or reservation_owner.is_empty():
+        return false
+    if _reserved_parking_candidate_ids.has(candidate_id):
+        return str(_reserved_parking_candidate_ids[candidate_id]) == reservation_owner
+    if _occupied_parking_candidate_ids().has(candidate_id):
+        return false
+    _reserved_parking_candidate_ids[candidate_id] = reservation_owner
+    return true
+
+
+func release_parking_candidate(candidate_id: int, reservation_owner: String = "") -> void:
+    if not _reserved_parking_candidate_ids.has(candidate_id):
+        return
+    if not reservation_owner.is_empty() and str(_reserved_parking_candidate_ids[candidate_id]) != reservation_owner:
+        return
+    _reserved_parking_candidate_ids.erase(candidate_id)
+
+
+func is_parking_candidate_available(candidate_id: int) -> bool:
+    if candidate_id < 0 or _reserved_parking_candidate_ids.has(candidate_id):
+        return false
+    return not _occupied_parking_candidate_ids().has(candidate_id)
 
 
 func _spawn_parked_vehicle(candidate: Dictionary) -> void:
@@ -118,3 +153,7 @@ func get_parked_vehicle_count() -> int:
         if not child.is_queued_for_deletion():
             count += 1
     return count
+
+
+func get_reserved_parking_candidate_count() -> int:
+    return _reserved_parking_candidate_ids.size()

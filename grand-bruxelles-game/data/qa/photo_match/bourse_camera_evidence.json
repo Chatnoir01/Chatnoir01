@@ -1,0 +1,47 @@
+{
+  "schema": "grand-bruxelles-bourse-camera-evidence-v1",
+  "reference_id": "bourse_2024_cc0_01",
+  "reference": {
+    "source_page": "https://commons.wikimedia.org/wiki/File:Place_de_la_Bourse_(6).jpg",
+    "author": "Bernard Lee",
+    "captured_at": "2024-08-22T14:31:11+02:00",
+    "license": "CC0-1.0",
+    "image_size_px": [4032, 3024],
+    "camera_model": "iPhone XR",
+    "focal_length_35mm_equivalent_mm": 26,
+    "horizontal_fov_degrees": 69.4,
+    "source_note": "Commons exposes the 4:3 image dimensions and 26 mm 35mm-equivalent EXIF; exact photographer GPS is not published and is not asserted."
+  },
+  "official_hero": {
+    "dataset": "UrbIS - 3D Constructions",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0",
+    "building_id": "https://databrussels.be/id/building/1751663",
+    "source_bbox_xy": [148665.846, 170800.642, 148752.922, 170876.851],
+    "height_m": 40.1553,
+    "lambert72_origin": [147868.29422791934, 169538.62414926197],
+    "world_origin_xz": [-668.5, 627.84],
+    "derived_world_west_face_x": 129.05177208065288,
+    "derived_world_frontage_center_z": -672.28235073802,
+    "derived_world_frontage_span_m": 76.20900000000256
+  },
+  "rejected_camera": {
+    "position": [20.0, 1.68, -664.58],
+    "rotation_degrees": [0.0, -90.0, 0.0],
+    "reason": "The source-backed frontage pair tested in PR #132 lies between this provisional camera and the Bourse and occludes the hero, proving the old pose is not defensible once true context is rendered."
+  },
+  "candidate_policy": {
+    "horizontal_bbox_occupancy_fraction": 0.95,
+    "derivation": "Use the official north-south hero bbox span as a conservative frontage-width bound and choose the west-side standoff whose angular width is 95% of the lawful reference's registered 69.4 degree horizontal FOV. Center Z on the same official bbox. Pitch centers the official 0..40.1553 m vertical extent around a 1.68 m eye height.",
+    "standoff_m": 58.75432849571322,
+    "camera_transform": {
+      "position": [70.29744358493966, 1.68, -672.28235073802],
+      "rotation_degrees": [-15.790477415185817, -90.0, 0.0],
+      "fov_degrees": 69.4,
+      "status": "provisional_evidence_bounded"
+    }
+  },
+  "runtime_approved": false,
+  "realism_complete": false,
+  "approval_note": "This is a reproducible camera benchmark, not recovered photographer GPS. Accept only after deterministic capture inspection; do not move official geometry to satisfy the camera."
+}

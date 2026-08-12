@@ -33,8 +33,6 @@ void vertex() {
 
 void fragment() {
     vec3 n = normalize(local_normal);
-    // Subtle deterministic breakup prevents the landmark reading as one flat
-    // chrome colour while staying neutral enough for different daylight angles.
     float brushed = sin((local_pos.x + local_pos.z) * 1.55 + local_pos.y * 0.42) * 0.018;
     float vertical = sin(local_pos.y * 0.23) * 0.010;
     float facing = 0.5 + 0.5 * abs(dot(n, normalize(vec3(0.32, 0.74, 0.59))));
@@ -73,7 +71,10 @@ func _refine() -> void:
             sphere.rings = 24
             instance.material_override = _metal
             refined_spheres += 1
-        elif node_name == "Tube" and instance.mesh is CylinderMesh:
+        elif node_name.begins_with("Tube") and instance.mesh is CylinderMesh:
+            # Godot auto-renames duplicate Tube nodes (Tube2, Tube3, ...), so the
+            # prefix is the stable semantic identity for all structural links and
+            # support cylinders created by the authoritative zone builder.
             var tube := instance.mesh as CylinderMesh
             tube.radial_segments = 24
             instance.material_override = _metal if tube.bottom_radius >= 1.55 else _dark_metal
@@ -84,8 +85,6 @@ func _refine() -> void:
             instance.material_override = _dark_metal
             refined_base_parts += 1
 
-    # The secondary entrance/canopy pass is created alongside the hero by the
-    # realism node. Refine it if it is already present without depending on it.
     var base_detail := get_parent().get_node_or_null("AtomiumBaseRealism")
     if base_detail != null:
         for child in base_detail.get_children():

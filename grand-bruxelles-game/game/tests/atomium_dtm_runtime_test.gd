@@ -82,16 +82,20 @@ func _run() -> void:
     var camera := Camera3D.new()
     camera.position = terrain.atomium_game_position + Vector3(-210.0, 115.0, 260.0)
     camera.fov = 52.0
-    camera.look_at(terrain.atomium_game_position + Vector3(0.0, 8.0, 0.0), Vector3.UP)
     camera.current = true
     world.add_child(camera)
+    camera.look_at(terrain.atomium_game_position + Vector3(0.0, 8.0, 0.0), Vector3.UP)
 
     for _frame: int in range(12):
         await process_frame
     RenderingServer.force_draw()
     await process_frame
 
-    var image := viewport.get_texture().get_image()
+    var texture := viewport.get_texture()
+    if texture == null:
+        _fail("capture texture missing")
+        return
+    var image := texture.get_image()
     if image == null or image.is_empty() or image.get_width() != WIDTH or image.get_height() != HEIGHT:
         _fail("capture invalid")
         return

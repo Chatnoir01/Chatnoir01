@@ -114,7 +114,7 @@ func _run() -> void:
     var limits := PackedFloat32Array([30.0, 30.0, 20.0])
     var controls: Array = [{"kind": "crossing", "osm_id": 100}]
     var intersections: Array = [{"id": 7, "priority_to_right": true}]
-    vehicle.call("configure_route_profile", route, limits, "Rue de Test", 987654, 2, controls, intersections)
+    vehicle.call("configure_route_profile", route, limits, "Rue de Test", 987654, 2, controls, null, intersections, null)
     if int(vehicle.call("get_route_point_count")) != 3 or int(vehicle.call("get_route_edge_count")) != 2:
         _fail("canonical vehicle route metrics mismatch")
         return
@@ -124,7 +124,7 @@ func _run() -> void:
     if str(vehicle.call("get_road_name")) != "Rue de Test" or int(vehicle.call("get_source_osm_id")) != 987654:
         _fail("canonical vehicle road provenance mismatch")
         return
-    vehicle.call("set_test_speed_kmh", 18.0)
+    vehicle.set("speed_mps", 5.0)
     if absf(float(vehicle.call("get_speed_kmh")) - 18.0) > 0.01:
         _fail("canonical vehicle speed telemetry mismatch")
         return

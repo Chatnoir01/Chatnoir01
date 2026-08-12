@@ -69,3 +69,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_custody_coordinator_test.gd 2>&1 | tee /tmp/npc-police-custody-coordinator.log
           if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_CUSTODY_COORDINATOR_FAIL" /tmp/npc-police-custody-coordinator.log; then exit 1; fi
           grep -q "NPC_POLICE_CUSTODY_COORDINATOR_OK" /tmp/npc-police-custody-coordinator.log
+      - name: Police foot patrol realism test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_police_foot_patrol_test.gd 2>&1 | tee /tmp/npc-police-foot-patrol.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_FOOT_PATROL_FAIL" /tmp/npc-police-foot-patrol.log; then exit 1; fi
+          grep -q "NPC_POLICE_FOOT_PATROL_OK" /tmp/npc-police-foot-patrol.log

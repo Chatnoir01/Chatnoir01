@@ -1,0 +1,299 @@
+name: Materialize Brussels City east-south sectors
+
+on:
+  push:
+    branches: [zone-reste-bruxelles]
+    paths:
+      - '.github/workflows/materialize-brussels-city-east-south.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-brussels-city-east-south
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install geometry-only pipeline dependencies
+        run: python -m pip install --disable-pip-version-check --quiet pyproj shapely
+
+      - name: Validate extraction, reprojection and clipping pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Require proven and license-approved official dataset
+        working-directory: grand-bruxelles-game
+        run: |
+          test -s data/processed/brussels_city_remaining/opendata_dataset_selection.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('data/processed/brussels_city_remaining/opendata_dataset_selection.json').read_text())
+          assert d['format']=='grand-bruxelles-opendata-dataset-selection-v1'
+          assert d['polygon_name_proof'] is True
+          assert d['license_gate']['production_geometry_allowed'] is True,d
+          assert d['dataset_id']
+          print('Approved geometry dataset:',d['dataset_id'])
+          print('License:',d['license'])
+          PY
+
+      - name: Extract four proven named polygon areas and reproject to Lambert72
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/extract_brussels_opendata_subzones.py \
+            --probe data/processed/brussels_city_remaining/opendata_boundary_probe.json \
+            --target 'quartier européen' \
+            --target 'louise' \
+            --target 'roosevelt' \
+            --target 'bois de la cambre' \
+            --max-records 2500 \
+            --output-dir data/processed/brussels_city_remaining/opendata_boundaries_raw
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          selection=json.loads(Path('data/processed/brussels_city_remaining/opendata_dataset_selection.json').read_text())
+          manifest_path=Path('data/processed/brussels_city_remaining/opendata_boundaries_raw/opendata_manifest.json')
+          manifest=json.loads(manifest_path.read_text())
+          assert manifest['dataset_id']==selection['dataset_id']
+          assert selection['license_gate']['production_geometry_allowed'] is True
+          manifest['license_validation']={
+              'selection_file':'data/processed/brussels_city_remaining/opendata_dataset_selection.json',
+              'license':selection['license'],
+              'publisher':selection['publisher'],
+              'production_geometry_allowed':True,
+          }
+          manifest['production_gate']['license_still_requires_dataset_metadata_validation']=False
+          manifest['production_gate']['license_validated_by_selection_file']=True
+          manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+
+      - name: Build isolated official Ville de Bruxelles municipality catalog
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import copy,json
+          from pathlib import Path
+          source=json.loads(Path('data/remaining_brussels_zones.json').read_text())
+          template=copy.deepcopy(next(zone for zone in source['zones'] if zone['id']=='molenbeek'))
+          replacements={
+              'Molenbeek-Saint-Jean':'Bruxelles',
+              'Sint-Jans-Molenbeek':'Brussel',
+              'Molenbeek':'Bruxelles',
+          }
+          def transform(v):
+              if isinstance(v,str):
+                  for old,new in replacements.items(): v=v.replace(old,new)
+                  return v
+              if isinstance(v,list): return [transform(x) for x in v]
+              if isinstance(v,dict): return {k:transform(x) for k,x in v.items()}
+              return v
+          city=transform(template)
+          city['id']='brussels-city'
+          city['name']='Ville de Bruxelles / Stad Brussel'
+          city['wave']='CITY-OWNERSHIP'
+          city['priority']=1
+          catalog={**{k:v for k,v in source.items() if k!='zones'},'zones':[city]}
+          Path('/tmp/brussels-city-catalog.json').write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print(json.dumps(city,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Fetch official Ville de Bruxelles ownership boundary
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/bootstrap_remaining_brussels.py \
+            --catalog /tmp/brussels-city-catalog.json \
+            --zone brussels-city \
+            --output-root data/processed/brussels_city_remaining/municipality
+          test -s data/processed/brussels_city_remaining/municipality/boundaries/brussels-city.geojson
+
+      - name: Clip all four areas strictly to Ville de Bruxelles ownership
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p data/processed/brussels_city_remaining/boundaries_clipped
+          for pair in \
+            'quartier-europeen:Quartier Européen' \
+            'louise:Louise' \
+            'roosevelt:Roosevelt' \
+            'bois-de-la-cambre:Bois de la Cambre'; do
+            key="${pair%%:*}"; label="${pair#*:}"
+            python tools/clip_geojson_to_boundary.py \
+              --source "data/processed/brussels_city_remaining/opendata_boundaries_raw/${key}.geojson" \
+              --boundary data/processed/brussels_city_remaining/municipality/boundaries/brussels-city.geojson \
+              --source-name "$label" \
+              --boundary-name 'Ville de Bruxelles / Stad Brussel' \
+              --output "data/processed/brussels_city_remaining/boundaries_clipped/${key}.geojson"
+          done
+
+      - name: Validate clipped ownership areas are non-empty Lambert72 polygons
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for key in ['quartier-europeen','louise','roosevelt','bois-de-la-cambre']:
+              d=json.loads(Path(f'data/processed/brussels_city_remaining/boundaries_clipped/{key}.geojson').read_text())
+              assert d['type']=='FeatureCollection' and d['features']
+              assert '31370' in d['crs']['properties']['name']
+              stats=d['grand_bruxelles_clip']
+              assert stats['clipped_area_m2']>0
+              assert 0<stats['retained_area_percent']<=100
+              assert all(f['geometry']['type'] in {'Polygon','MultiPolygon'} for f in d['features'])
+              print(key,stats)
+          PY
+
+      - name: Generate exact 500m global cell grids for clipped City sectors
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p data/processed/brussels_city_remaining/cells
+          python tools/make_zone_cells.py --boundary data/processed/brussels_city_remaining/boundaries_clipped/quartier-europeen.geojson --zone-id brussels-city-european-quarter --cell-size 500 --output data/processed/brussels_city_remaining/cells/quartier-europeen.json
+          python tools/make_zone_cells.py --boundary data/processed/brussels_city_remaining/boundaries_clipped/louise.geojson --zone-id brussels-city-louise --cell-size 500 --output data/processed/brussels_city_remaining/cells/louise.json
+          python tools/make_zone_cells.py --boundary data/processed/brussels_city_remaining/boundaries_clipped/roosevelt.geojson --zone-id brussels-city-roosevelt --cell-size 500 --output data/processed/brussels_city_remaining/cells/roosevelt.json
+          python tools/make_zone_cells.py --boundary data/processed/brussels_city_remaining/boundaries_clipped/bois-de-la-cambre.geojson --zone-id brussels-city-bois-de-la-cambre --cell-size 500 --output data/processed/brussels_city_remaining/cells/bois-de-la-cambre.json
+
+      - name: Sync main branch global cell reservations
+        working-directory: grand-bruxelles-game
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          python tools/sync_external_branch_reservations.py \
+            --ref origin/main \
+            --output data/urbis/remaining_brussels/main_branch_reservations.json
+
+      - name: Select four unique new City-sector cells outside all ownership reservations
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json,sys
+          from pathlib import Path
+          sys.path.insert(0,'tools')
+          from select_zone_seed_cell import load_existing_cell_ids,load_manifest,select_seed
+          from select_uncovered_zone_seeds import grid_center
+          existing=load_existing_cell_ids(Path('data/urbis/remaining_brussels/cells'))
+          reserved={'bxl-e147500-n169500-s500'}
+          for path in [Path('data/urbis/remaining_brussels/northwest_reserved_cells.json'),Path('data/urbis/remaining_brussels/main_branch_reservations.json')]:
+              if path.exists(): reserved.update(json.loads(path.read_text()).get('reserved_cell_ids',[]))
+          forbidden=set(existing)|reserved
+          definitions=[
+              ('brussels-city-european-quarter','quartier-europeen.json'),
+              ('brussels-city-louise','louise.json'),
+              ('brussels-city-roosevelt','roosevelt.json'),
+              ('brussels-city-bois-de-la-cambre','bois-de-la-cambre.json'),
+          ]
+          seeds=[]
+          for zone_id,grid_file in definitions:
+              grid=load_manifest(Path('data/processed/brussels_city_remaining/cells')/grid_file)
+              ae,an=grid_center(grid)
+              chosen=select_seed(grid,ae,an,excluded_cell_ids=forbidden)
+              forbidden.add(chosen['id'])
+              seeds.append({'zone_id':zone_id,'zone_name':zone_id,'wave':'CITY-EAST-SOUTH','priority':len(seeds)+1,'cell_id':chosen['id'],'bbox':chosen['bbox'],'distance_m':chosen['seed_distance_m'],'anchor':[ae,an],'anchor_kind':'clipped_official_area_bbox_center'})
+          batch={'format':'grand-bruxelles-wave-seeds-v1','crs':'EPSG:31370','cell_size_m':500,'wave':'CITY-EAST-SOUTH','seed_count':len(seeds),'seeds':seeds}
+          Path('/tmp/city-east-south-seeds.json').write_text(json.dumps(batch,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          assert len({s['cell_id'] for s in seeds})==4
+          assert not ({s['cell_id'] for s in seeds}&reserved)
+          print(json.dumps(batch,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Materialize four official clipped City sector cells sequentially
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_wave_seeds.py \
+            --seeds /tmp/city-east-south-seeds.json \
+            --output-root data/urbis/remaining_brussels/cells \
+            --retries 3
+
+      - name: Rebuild runtime index and municipal coverage
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/build_urbis_runtime_index.py \
+            --source-root data/urbis/remaining_brussels/cells \
+            --resource-prefix res://data/urbis/remaining_brussels/cells \
+            --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py \
+            --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture four official orthophoto references
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/city-east-south-orthos data/processed/brussels_city_remaining/references
+          python - <<'PY'
+          import json,subprocess,sys
+          from pathlib import Path
+          batch=json.loads(Path('/tmp/city-east-south-seeds.json').read_text())
+          for seed in batch['seeds']:
+              short=seed['zone_id'].replace('brussels-city-','')
+              bbox=','.join(str(v) for v in seed['bbox'])
+              subprocess.run([sys.executable,'tools/capture_urbis_orthophoto.py','--bbox',bbox,'--width','768','--height','768','--output',f'/tmp/city-east-south-orthos/{short}.png','--metadata',f'data/processed/brussels_city_remaining/references/{short}_seed_orthophoto.json'],check=True)
+          PY
+
+      - name: Verify four new cells and no reserved ownership leakage
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('data/urbis/remaining_brussels/cells')
+          batch=json.loads(Path('/tmp/city-east-south-seeds.json').read_text())
+          selected={s['cell_id'] for s in batch['seeds']}
+          index=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
+          streamed={item['cell_id'] for item in index['cells']}
+          reserved={'bxl-e147500-n169500-s500'}
+          for p in [Path('data/urbis/remaining_brussels/northwest_reserved_cells.json'),Path('data/urbis/remaining_brussels/main_branch_reservations.json')]:
+              if p.exists(): reserved.update(json.loads(p.read_text()).get('reserved_cell_ids',[]))
+          assert selected.issubset(streamed)
+          assert not (streamed&reserved),sorted(streamed&reserved)
+          for seed in batch['seeds']:
+              cell=root/seed['cell_id']; manifest=json.loads((cell/'manifest.json').read_text())
+              geometry=json.loads((cell/manifest['runtime']['geometry_file']).read_text())
+              network=json.loads((cell/manifest['runtime']['network_file']).read_text())
+              useful=geometry['stats']['buildings']+geometry['stats']['street_surfaces']+network['stats']['street_segments']+network['stats']['tram_segments']+network['stats']['train_segments']
+              assert useful>0,(seed['zone_id'],seed['cell_id'])
+              assert all(item['type'].startswith('TW') for item in network['tram_network'])
+              assert all(item['type'].startswith('RW') for item in network['train_network'])
+              short=seed['zone_id'].replace('brussels-city-','')
+              md=json.loads(Path(f'data/processed/brussels_city_remaining/references/{short}_seed_orthophoto.json').read_text())
+              assert md['provider']=='Paradigm / UrbIS' and md['bbox']==seed['bbox'] and md['download']['bytes']>1000
+              print(seed['zone_id'],seed['cell_id'],geometry['stats'],network['stats'])
+          print('City east/south cells:',sorted(selected))
+          print('Total streamable:',len(streamed))
+          PY
+
+      - name: Upload east/south orthophoto validation previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-city-east-south-official-orthophotos
+          path: /tmp/city-east-south-orthos/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit official clipped boundaries, grids, cells and provenance
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/data/processed/brussels_city_remaining \
+            grand-bruxelles-game/data/processed/remaining_brussels/coverage_report.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels/main_branch_reservations.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels/runtime_index.json \
+            grand-bruxelles-game/data/urbis/remaining_brussels/cells
+          if git diff --cached --quiet; then
+            echo 'No east/south changes to commit.'
+            exit 0
+          fi
+          git commit -m 'data: materialize clipped Brussels City east-south sectors'
+          git pull --rebase origin zone-reste-bruxelles
+          git push origin HEAD:zone-reste-bruxelles

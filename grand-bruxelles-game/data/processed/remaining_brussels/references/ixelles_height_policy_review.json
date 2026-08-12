@@ -1,0 +1,101 @@
+{
+  "authoritative_sources": {
+    "multicell_validation": {
+      "artifact_digest": "sha256:2e201d33d5c110dfbb27aea9f6af7673e1e311a698ef655b8f3604a6b9e33170",
+      "artifact_id": 9150296131,
+      "head_sha": "50795bf56482ab1ca1e99e18c9ffcaee895b1d17",
+      "workflow_run_id": 31618566525
+    },
+    "seed_calibration": {
+      "artifact_digest": "sha256:4e5dca00c28a084e242b67044574ea4ea0e8058fb07d56449482801d98f2f467",
+      "artifact_id": 9147757824,
+      "head_sha": "59ca66a1d4c44e782f9e2b2f180b0a4e2ff6ce3f",
+      "workflow_run_id": 31612429394
+    },
+    "urbis_3d_distribution_sha256": "090f4a6aada5c7c19609860d7ee3956ce0f06379c991533975bcf1ddb848dfaa",
+    "urbis_3d_gpkg_sha256": "2aa3057da9d0cfd656baf684fe53d343629b1539a648fbb69fff983327993c78"
+  },
+  "cells": [
+    {
+      "bbox_epsg31370": [149000.0,169000.0,149500.0,169500.0],
+      "best_tested_statistic": "p50",
+      "cell": "bxl-e149000-n169000-s500",
+      "runtime_approved": false,
+      "variant_metrics": {
+        "dsm_height_p50_m": {"abs_median_m":1.3425000042915496,"abs_p90_m":5.751099999999996,"mae_m":2.2029329520295104,"n":468,"outliers_gt_8m":16,"signed_mean_m":0.1745517026612179,"signed_median_m":-0.3674999999999997,"within_2m_fraction":0.6581196581196581,"within_4m_fraction":0.8376068376068376},
+        "dsm_height_p75_m": {"abs_median_m":1.5980000000000052,"abs_p90_m":7.516800000000007,"mae_m":2.7284339500036783,"n":468,"outliers_gt_8m":38,"signed_mean_m":1.8789341812936966,"signed_median_m":1.0944999999999991,"within_2m_fraction":0.6004273504273504,"within_4m_fraction":0.7692307692307693},
+        "dsm_height_p90_m": {"abs_median_m":2.0335000000000036,"abs_p90_m":8.472700000000009,"mae_m":3.2471143947479844,"n":468,"outliers_gt_8m":53,"signed_mean_m":2.737479053088568,"signed_median_m":1.8495000000000008,"within_2m_fraction":0.49786324786324787,"within_4m_fraction":0.717948717948718},
+        "dsm_policy_candidate_m": {"abs_median_m":1.573999999999998,"abs_p90_m":7.4498999999999995,"mae_m":2.7094254029951315,"n":468,"outliers_gt_8m":37,"signed_mean_m":1.8461777710372862,"signed_median_m":1.082000009536749,"within_2m_fraction":0.6047008547008547,"within_4m_fraction":0.7692307692307693}
+      }
+    },
+    {
+      "bbox_epsg31370": [149000.0,169500.0,149500.0,170000.0],
+      "best_tested_statistic": "p75",
+      "cell": "bxl-e149000-n169500-s500",
+      "runtime_approved": false,
+      "variant_metrics": {
+        "dsm_height_p50_m": {"abs_median_m":1.7799999999999994,"abs_p90_m":7.122000001239785,"mae_m":2.8615090138347306,"n":100,"outliers_gt_8m":8,"signed_mean_m":-1.4081670540224014,"signed_median_m":-1.2090000052449987,"within_2m_fraction":0.59,"within_4m_fraction":0.78},
+        "dsm_height_p75_m": {"abs_median_m":1.637499999999994,"abs_p90_m":7.54224999999118,"mae_m":2.8554617920830596,"n":100,"outliers_gt_8m":10,"signed_mean_m":1.2881929459775983,"signed_median_m":0.3194999976158499,"within_2m_fraction":0.59,"within_4m_fraction":0.76},
+        "dsm_height_p90_m": {"abs_median_m":1.7440301887988712,"abs_p90_m":8.596409999999995,"mae_m":3.2740514181723355,"n":100,"outliers_gt_8m":11,"signed_mean_m":2.4578129459775986,"signed_median_m":1.3385000000000025,"within_2m_fraction":0.56,"within_4m_fraction":0.73},
+        "dsm_policy_candidate_m": {"abs_median_m":1.637499999999994,"abs_p90_m":7.54224999999118,"mae_m":2.865081792083059,"n":100,"outliers_gt_8m":10,"signed_mean_m":1.2785729459775985,"signed_median_m":0.3194999976158499,"within_2m_fraction":0.59,"within_4m_fraction":0.76}
+      }
+    },
+    {
+      "bbox_epsg31370": [149500.0,168500.0,150000.0,169000.0],
+      "best_tested_statistic": "p50",
+      "cell": "bxl-e149500-n168500-s500",
+      "runtime_approved": false,
+      "variant_metrics": {
+        "dsm_height_p50_m": {"abs_median_m":1.3502499999999993,"abs_p90_m":4.355040000000005,"mae_m":1.9419734288077362,"n":494,"outliers_gt_8m":7,"signed_mean_m":-0.3307216766294554,"signed_median_m":-0.7834999999999992,"within_2m_fraction":0.6417004048582996,"within_4m_fraction":0.8765182186234818},
+        "dsm_height_p75_m": {"abs_median_m":1.4495000000000071,"abs_p90_m":5.625399999999993,"mae_m":2.1833492263613485,"n":494,"outliers_gt_8m":13,"signed_mean_m":1.0822985662855245,"signed_median_m":0.5754999999999937,"within_2m_fraction":0.659919028340081,"within_4m_fraction":0.840080971659919},
+        "dsm_height_p90_m": {"abs_median_m":1.7970000000000095,"abs_p90_m":6.645399999999999,"mae_m":2.6088767567585394,"n":494,"outliers_gt_8m":26,"signed_mean_m":1.9650212383503016,"signed_median_m":1.458499999999999,"within_2m_fraction":0.5465587044534413,"within_4m_fraction":0.8097165991902834},
+        "dsm_policy_candidate_m": {"abs_median_m":1.4539999999999935,"abs_p90_m":5.705699999999995,"mae_m":2.1799508457829635,"n":494,"outliers_gt_8m":13,"signed_mean_m":1.0407216432086013,"signed_median_m":0.5259999999999985,"within_2m_fraction":0.6619433198380567,"within_4m_fraction":0.8421052631578947}
+      }
+    },
+    {
+      "bbox_epsg31370": [149500.0,169000.0,150000.0,169500.0],
+      "best_tested_statistic": "p50",
+      "cell": "bxl-e149500-n169000-s500",
+      "runtime_approved": false,
+      "variant_metrics": {
+        "dsm_height_p50_m": {"abs_median_m":1.357999999999996,"abs_p90_m":4.9728000000000065,"mae_m":2.045898696417966,"n":988,"outliers_gt_8m":31,"signed_mean_m":-0.07253938457111589,"signed_median_m":-0.688000001430499,"within_2m_fraction":0.6771255060728745,"within_4m_fraction":0.8623481781376519},
+        "dsm_height_p75_m": {"abs_median_m":1.3542499999999997,"abs_p90_m":6.682760000000178,"mae_m":2.4018038551244825,"n":988,"outliers_gt_8m":59,"signed_mean_m":1.5420517085462928,"signed_median_m":0.7770000000000001,"within_2m_fraction":0.6518218623481782,"within_4m_fraction":0.805668016194332},
+        "dsm_height_p90_m": {"abs_median_m":1.6749999999999927,"abs_p90_m":7.7859600000001885,"mae_m":2.8352306027202725,"n":988,"outliers_gt_8m":91,"signed_mean_m":2.328982882635362,"signed_median_m":1.5048500000000082,"within_2m_fraction":0.569838056680162,"within_4m_fraction":0.7682186234817814},
+        "dsm_policy_candidate_m": {"abs_median_m":1.366999999999999,"abs_p90_m":6.682760000000178,"mae_m":2.4095609401447255,"n":988,"outliers_gt_8m":59,"signed_mean_m":1.5228189150240257,"signed_median_m":0.7770000000000001,"within_2m_fraction":0.6477732793522267,"within_4m_fraction":0.8046558704453441}
+      }
+    },
+    {
+      "bbox_epsg31370": [149500.0,169500.0,150000.0,170000.0],
+      "best_tested_statistic": "p50",
+      "cell": "bxl-e149500-n169500-s500",
+      "runtime_approved": false,
+      "variant_metrics": {
+        "dsm_height_p50_m": {"abs_median_m":1.2410000000000032,"abs_p90_m":4.41994594650268,"mae_m":1.9117821808209332,"n":627,"outliers_gt_8m":20,"signed_mean_m":-0.42851911436175066,"signed_median_m":-0.7653999999926011,"within_2m_fraction":0.722488038277512,"within_4m_fraction":0.8883572567783095},
+        "dsm_height_p75_m": {"abs_median_m":1.2619999999999933,"abs_p90_m":5.965799999999989,"mae_m":2.196962416845911,"n":627,"outliers_gt_8m":30,"signed_mean_m":1.4769641392267663,"signed_median_m":0.7650000000000006,"within_2m_fraction":0.6842105263157895,"within_4m_fraction":0.8229665071770335},
+        "dsm_height_p90_m": {"abs_median_m":1.684000000000001,"abs_p90_m":7.299519992828361,"mae_m":2.7880102988110407,"n":627,"outliers_gt_8m":48,"signed_mean_m":2.413959354537771,"signed_median_m":1.6320000000000014,"within_2m_fraction":0.5661881977671451,"within_4m_fraction":0.7559808612440191},
+        "dsm_policy_candidate_m": {"abs_median_m":1.2619999999999933,"abs_p90_m":5.965799999999989,"mae_m":2.1995908060006166,"n":627,"outliers_gt_8m":30,"signed_mean_m":1.468287903182109,"signed_median_m":0.7600000000000016,"within_2m_fraction":0.6842105263157895,"within_4m_fraction":0.8229665071770335}
+      }
+    }
+  ],
+  "decision": {
+    "best_cell_count": {"p50":4,"p75":1,"p90":0},
+    "policy_status": "cross_cell_candidate",
+    "pooled_p50_mae_gain_vs_p75_m": 0.33433384148596446,
+    "pooled_p50_outlier_reduction_vs_p75": 68,
+    "promote_runtime": false,
+    "reason": "Across all five locked cells, p50 wins four cells and materially improves pooled MAE, bias, agreement and >8 m outliers. The only p75 cell win is ~6 mm in MAE and is treated as negligible. This validates p50 as the next height-policy candidate, not as runtime authorization; terrain/runtime and building-level promotion gates remain separate.",
+    "recommended_statistic": "p50",
+    "runtime_approved": false,
+    "single_p75_win_margin_m": 0.006047221751670939
+  },
+  "pooled_metrics": {
+    "dsm_height_p50_m": {"n":2677,"outliers_gt_8m":82,"weighted_mae_m":2.0532288891296155,"weighted_signed_mean_m":-0.21025529080045624,"weighted_within_2m_fraction":0.674635786327979,"weighted_within_4m_fraction":0.8636533432947329},
+    "dsm_height_p75_m": {"n":2677,"outliers_gt_8m":150,"weighted_mae_m":2.38756273061558,"weighted_signed_mean_m":1.4913782542126182,"weighted_within_2m_fraction":0.6496077698916698,"weighted_within_4m_fraction":0.807994023160254},
+    "dsm_height_p90_m": {"n":2677,"outliers_gt_8m":229,"weighted_mae_m":2.870799435651909,"weighted_signed_mean_m":2.3579490424083596,"weighted_within_2m_fraction":0.5517370190511767,"weighted_within_4m_fraction":0.7627941725812477},
+    "dsm_policy_candidate_m": {"n":2677,"outliers_gt_8m":149,"weighted_mae_m":2.387450366026218,"weighted_signed_mean_m":1.468489572852887,"weighted_within_2m_fraction":0.6492342174075457,"weighted_within_4m_fraction":0.807994023160254}
+  },
+  "runtime_approved": false,
+  "schema": "grand-bruxelles-ixelles-height-policy-review-v1",
+  "scope": "exactly five previously validated 500 m Ixelles cells; no geographic expansion",
+  "source_crs": "EPSG:31370"
+}

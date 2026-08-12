@@ -47,6 +47,14 @@ func _terrain_height(scene: Node, x: float, z: float) -> float:
     return 0.0
 
 
+func _hide_benchmark_ui(node: Node, under_canvas_layer: bool = false) -> void:
+    var in_ui := under_canvas_layer or node is CanvasLayer
+    if under_canvas_layer and node is CanvasItem:
+        (node as CanvasItem).visible = false
+    for child in node.get_children():
+        _hide_benchmark_ui(child, in_ui)
+
+
 func _apply_benchmark_camera(scene: Node, view: Dictionary) -> bool:
     var camera_xz = view.get("camera_game_xz", [])
     var target_xyz = view.get("target_game_xyz", [])
@@ -107,6 +115,7 @@ func _run() -> void:
 
     var scene: Node = packed.instantiate()
     root.add_child(scene)
+    _hide_benchmark_ui(scene)
 
     # Allow DTM, UrbIS drape, height/material passes and corridor geometry to settle.
     for _i in range(60):

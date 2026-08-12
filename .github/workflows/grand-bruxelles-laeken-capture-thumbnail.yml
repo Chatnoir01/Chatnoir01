@@ -1,0 +1,47 @@
+name: Grand Bruxelles Laeken Capture Thumbnail
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - ".github/workflows/grand-bruxelles-laeken-capture-thumbnail.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  thumbnail:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout latest zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Build compact diagnostic thumbnail
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends imagemagick
+          SRC=grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
+          test -s "$SRC"
+          magick "$SRC" -resize 480x270 -strip -quality 68 /tmp/laeken-player-thumb.jpg
+          base64 -w 0 /tmp/laeken-player-thumb.jpg > /tmp/laeken-player-thumb.b64.txt
+          test "$(wc -c </tmp/laeken-player-thumb.b64.txt)" -gt 1000
+          test "$(wc -c </tmp/laeken-player-thumb.b64.txt)" -lt 500000
+          identify /tmp/laeken-player-thumb.jpg
+
+      - name: Publish diagnostic thumbnail text
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/reference/laeken_jette/captures/diagnostic
+          cp /tmp/laeken-player-thumb.b64.txt grand-bruxelles-game/data/reference/laeken_jette/captures/diagnostic/laeken_player_camera_thumb.b64.txt
+          git add -f grand-bruxelles-game/data/reference/laeken_jette/captures/diagnostic/laeken_player_camera_thumb.b64.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "debug: publish readable Laeken gameplay thumbnail [skip ci]"
+          git push origin HEAD:zone-laeken-jette

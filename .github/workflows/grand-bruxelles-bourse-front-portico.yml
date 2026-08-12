@@ -1,0 +1,41 @@
+name: Grand Bruxelles Bourse Front Portico Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-front-portico.yml"
+      - "grand-bruxelles-game/data/urbis/heroes/bourse_lod2.game.json"
+      - "grand-bruxelles-game/data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json"
+      - "grand-bruxelles-game/tools/derive_bourse_front_portico.py"
+      - "grand-bruxelles-game/tests/test_bourse_front_portico.py"
+  push:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-front-portico.yml"
+      - "grand-bruxelles-game/tools/derive_bourse_front_portico.py"
+      - "grand-bruxelles-game/tests/test_bourse_front_portico.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Derive camera-facing authoritative portico envelope
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/derive_bourse_front_portico.py \
+            --hero data/urbis/heroes/bourse_lod2.game.json \
+            --camera data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json \
+            --output /tmp/bourse-front-portico-evidence.json
+      - name: Gate portico derivation and provenance
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_bourse_front_portico
+      - name: Upload derived front-envelope evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-front-portico-evidence
+          path: /tmp/bourse-front-portico-evidence.json
+          if-no-files-found: error

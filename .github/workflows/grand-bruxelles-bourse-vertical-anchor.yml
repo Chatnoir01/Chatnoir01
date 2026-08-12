@@ -1,0 +1,40 @@
+name: Grand Bruxelles Bourse Vertical Anchor Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-vertical-anchor.yml"
+      - "grand-bruxelles-game/data/urbis/heroes/bourse_lod2.game.json"
+      - "grand-bruxelles-game/tools/analyze_bourse_vertical_anchor.py"
+      - "grand-bruxelles-game/tests/test_bourse_vertical_anchor.py"
+  push:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-vertical-anchor.yml"
+      - "grand-bruxelles-game/data/urbis/heroes/bourse_lod2.game.json"
+      - "grand-bruxelles-game/tools/analyze_bourse_vertical_anchor.py"
+      - "grand-bruxelles-game/tests/test_bourse_vertical_anchor.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure authoritative Bourse vertical anchor
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/analyze_bourse_vertical_anchor.py \
+            --input data/urbis/heroes/bourse_lod2.game.json \
+            --output /tmp/bourse-vertical-anchor-evidence.json
+      - name: Gate vertical anchor semantics
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_bourse_vertical_anchor
+      - name: Upload measured evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-vertical-anchor-evidence
+          path: /tmp/bourse-vertical-anchor-evidence.json
+          if-no-files-found: error

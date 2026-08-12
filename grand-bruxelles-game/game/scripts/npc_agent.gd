@@ -189,7 +189,7 @@ func begin_civilian_recovery(normalized_severity: float, started_at_seconds: flo
 	if role != NpcBehaviorModel.Role.CIVILIAN:
 		return {"settle_seconds": 0.0, "recovery_seconds": 0.0, "severity": 0.0}
 	civilian_recovery_movement_scale = 0.42
-	return civilian_recovery.begin_recovery(normalized_severity, started_at_seconds, context)
+	return civilian_recovery.begin_recovery(normalized_severity, started_at_seconds, context, _capture_civilian_routine_snapshot())
 
 func update_civilian_recovery(now_seconds: float, threat_active: bool) -> Dictionary:
 	if role != NpcBehaviorModel.Role.CIVILIAN:
@@ -200,7 +200,11 @@ func update_civilian_recovery(now_seconds: float, threat_active: bool) -> Dictio
 		behavior.alert_level = maxf(behavior.alert_level, float(result.get("alertness", 0.0)) * 100.0)
 	elif bool(result.get("resume_routine", false)):
 		behavior.alert_level = 0.0
-		behavior.set_destination(civilian_routine_target)
+		var routine_snapshot_value: Variant = result.get("routine_snapshot", null)
+		if routine_snapshot_value is Dictionary:
+			_restore_civilian_routine_snapshot(routine_snapshot_value as Dictionary)
+		else:
+			behavior.set_destination(civilian_routine_target)
 		civilian_recovery_movement_scale = 1.0
 	else:
 		behavior.alert_level = clampf(float(result.get("alertness", 0.0)) * 100.0, 0.0, 100.0)
@@ -379,6 +383,88 @@ func _configure_response_models(spawn_position: Vector3) -> void:
 	civilian_routine_target = behavior.target_position
 	if role == NpcBehaviorModel.Role.POLICE:
 		_sync_police_response_to_behavior()
+
+func _capture_civilian_routine_snapshot() -> Dictionary:
+	var activity_kind: StringName = &"walking"
+	if transit_state == TransitState.WAITING:
+		activity_kind = &"transit_wait"
+	elif transit_state == TransitState.BOARDING:
+		activity_kind = &"transit_boarding"
+	elif transit_state == TransitState.ONBOARD:
+		activity_kind = &"transit_onboard"
+	elif transit_state == TransitState.DISEMBARKING:
+		activity_kind = &"transit_disembarking"
+	elif ambient_state.current_state != NpcAmbientState.State.WALK:
+		activity_kind = &"ambient"
+	var transit_door_index: int = -1
+	if transit_stop != null and transit_queue_passenger_id >= 0:
+		transit_door_index = transit_stop.assigned_door_for(transit_queue_passenger_id)
+	return {
+		"activity_kind": activity_kind,
+		"transit_state": transit_state,
+		"passenger_id": transit_queue_passenger_id,
+		"transit_door_index": transit_door_index,
+		"transit_queue": transit_queue,
+		"transit_stop": transit_stop,
+		"ambient_state": ambient_state.current_state,
+		"ambient_sequence_index": ambient_state.sequence_index,
+		"pedestrian_intent": pedestrian_intent,
+		"movement_held": movement_held,
+		"routine_target": civilian_routine_target,
+	}
+
+func _restore_civilian_routine_snapshot(snapshot: Dictionary) -> void:
+	var routine_target_value: Variant = snapshot.get("routine_target", civilian_routine_target)
+	if routine_target_value is Vector3:
+		civilian_routine_target = routine_target_value as Vector3
+	ambient_state.current_state = int(snapshot.get("ambient_state", NpcAmbientState.State.WALK))
+	ambient_state.sequence_index = int(snapshot.get("ambient_sequence_index", ambient_state.sequence_index))
+	pedestrian_intent = int(snapshot.get("pedestrian_intent", NpcPedestrianContext.PedestrianIntent.CONTINUE))
+	var restored_transit_state: int = int(snapshot.get("transit_state", TransitState.NONE))
+	var activity_kind: StringName = StringName(snapshot.get("activity_kind", &"walking"))
+	if activity_kind == &"transit_wait":
+		var queue_value: Variant = snapshot.get("transit_queue", null)
+		var stop_value: Variant = snapshot.get("transit_stop", null)
+		var passenger_id: int = int(snapshot.get("passenger_id", -1))
+		var preferred_door: int = int(snapshot.get("transit_door_index", -1))
+		transit_queue = queue_value as NpcTransitQueue if queue_value is NpcTransitQueue else null
+		transit_stop = stop_value as NpcTransitStop if stop_value is NpcTransitStop else null
+		transit_queue_passenger_id = passenger_id
+		if transit_stop != null and passenger_id >= 0:
+			var assigned_door: int = transit_stop.assigned_door_for(passenger_id)
+			if assigned_door < 0:
+				assigned_door = transit_stop.join_waiting_passenger(passenger_id, preferred_door)
+			if assigned_door >= 0:
+				transit_queue = transit_stop.queue_for_door(assigned_door)
+			else:
+				transit_queue = null
+				transit_stop = null
+				transit_queue_passenger_id = -1
+				restored_transit_state = TransitState.NONE
+		elif transit_queue != null and passenger_id >= 0 and transit_queue.position_index_for(passenger_id) < 0:
+			if transit_queue.join_queue(passenger_id) < 0:
+				transit_queue = null
+				transit_queue_passenger_id = -1
+				restored_transit_state = TransitState.NONE
+		if transit_queue != null and transit_queue_passenger_id >= 0:
+			transit_state = TransitState.WAITING
+			ambient_state.set_transit_context(true, false)
+			pedestrian_intent = NpcPedestrianContext.PedestrianIntent.WAIT_FOR_TRANSIT
+			if transit_stop != null:
+				refresh_transit_stop_target()
+			else:
+				behavior.set_destination(transit_queue.position_for(transit_queue_passenger_id))
+			return
+	transit_state = restored_transit_state if restored_transit_state in [TransitState.NONE, TransitState.BOARDING, TransitState.ONBOARD, TransitState.DISEMBARKING] else TransitState.NONE
+	if transit_state == TransitState.NONE:
+		transit_queue = null
+		transit_stop = null
+		transit_queue_passenger_id = -1
+	behavior.set_destination(civilian_routine_target)
+	if activity_kind == &"ambient":
+		movement_held = ambient_state.movement_scale() <= 0.0
+	else:
+		movement_held = bool(snapshot.get("movement_held", false))
 
 func _sync_police_response_to_behavior() -> void:
 	behavior.target_position = police_response.target_position()

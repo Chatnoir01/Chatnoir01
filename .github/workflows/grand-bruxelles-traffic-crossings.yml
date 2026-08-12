@@ -49,6 +49,14 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CROSSING_FAIL" /tmp/crossing.log; then exit 1; fi
           grep -q "TRAFFIC_CROSSING_OK" /tmp/crossing.log
 
+      - name: Real NPC crossing bridge test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_npc_crossing_bridge_test.gd 2>&1 | tee /tmp/npc-crossing.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_NPC_CROSSING_FAIL" /tmp/npc-crossing.log; then exit 1; fi
+          grep -q "TRAFFIC_NPC_CROSSING_OK" /tmp/npc-crossing.log
+
       - name: Traffic density model test
         shell: bash
         run: |

@@ -57,7 +57,7 @@ func _physics_process(delta: float) -> void:
     if not is_on_floor():
         velocity.y -= gravity * delta
 
-    var mobile := _mobile_controls()
+    var mobile: Node = _mobile_controls()
     var touch_jump: bool = mobile != null and bool(mobile.get("jump_pressed"))
     if (Input.is_key_pressed(KEY_SPACE) or touch_jump) and is_on_floor():
         velocity.y = jump_velocity
@@ -111,6 +111,8 @@ func try_enter_vehicle() -> void:
             continue
         if vehicle.has_method("has_driver") and bool(vehicle.call("has_driver")):
             continue
+        if vehicle.has_method("is_ai_controlled") and bool(vehicle.call("is_ai_controlled")):
+            continue
         var distance: float = global_position.distance_to(vehicle.global_position)
         if distance <= nearest_distance:
             nearest_vehicle = vehicle
@@ -118,7 +120,7 @@ func try_enter_vehicle() -> void:
 
     if nearest_vehicle != null:
         if nearest_vehicle.is_in_group("police_vehicle"):
-            var wanted := get_tree().get_first_node_in_group("wanted_system")
+            var wanted: Node = get_tree().get_first_node_in_group("wanted_system")
             if wanted != null and wanted.has_method("report_offence"):
                 wanted.call("report_offence", 28.0, "police_vehicle_theft")
         nearest_vehicle.call("enter_driver", self)
@@ -145,6 +147,18 @@ func get_gameplay_position() -> Vector3:
     if is_instance_valid(_active_vehicle):
         return _active_vehicle.global_position
     return global_position
+
+
+func get_gameplay_velocity() -> Vector3:
+    if is_instance_valid(_active_vehicle) and _active_vehicle is CharacterBody3D:
+        return (_active_vehicle as CharacterBody3D).velocity
+    return velocity
+
+
+func get_gameplay_forward() -> Vector3:
+    if is_instance_valid(_active_vehicle):
+        return -_active_vehicle.global_transform.basis.z.normalized()
+    return -global_transform.basis.z.normalized()
 
 
 func is_in_vehicle() -> bool:

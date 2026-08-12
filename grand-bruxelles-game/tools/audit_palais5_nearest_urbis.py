@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Resolve OSM Palace 5 to the precise Polygon component inside the Brussels Expo UrbIS feature.
+"""Audit the UrbIS geometry around the semantic location of Brussels Expo Palais 5.
 
-OSM way 143816182 supplies only semantic identity/location. The selected geometry
-is the Polygon component from Paradigm UrbIS Buildings that contains or is nearest
-to the OSM centre. No new footprint is invented.
+OSM way 143816182 is used only to locate the named hall. Paradigm UrbIS remains
+the authoritative geometry source. A containing UrbIS polygon is *not* promoted
+to a Palais 5 hero footprint merely because it contains the locator: campus-scale
+geometry is explicitly flagged for finer authoritative resolution.
 """
 
 from __future__ import annotations
@@ -22,6 +23,14 @@ PALAIS5_LOCAL_Z = -7056.078922991641
 OSM_LAT = 50.89969
 OSM_LON = 4.33721
 OSM_WAY_ID = 143816182
+
+# Safety gate only: these limits are deliberately broad and are NOT claimed
+# architectural dimensions for Palais 5. Their role is to reject a campus/block
+# polygon as a single-hall hero footprint. Any rejected candidate must be resolved
+# using finer authoritative geometry or a separately documented lawful source.
+HERO_SCREEN_MAX_MAJOR_SPAN_M = 500.0
+HERO_SCREEN_MAX_MINOR_SPAN_M = 300.0
+HERO_SCREEN_MAX_OUTER_AREA_M2 = 100000.0
 
 
 def ring_points(ring):
@@ -112,6 +121,32 @@ def iter_feature_polygons(geometry):
             yield index,polygon
 
 
+def hero_screen(candidate):
+    if candidate is None:
+        return {
+            "passes": False,
+            "reason": "no_single_containing_urbis_component",
+        }
+    failures=[]
+    if candidate["major_span_m"] > HERO_SCREEN_MAX_MAJOR_SPAN_M:
+        failures.append("major_span_exceeds_single_hall_screen")
+    if candidate["minor_span_m"] > HERO_SCREEN_MAX_MINOR_SPAN_M:
+        failures.append("minor_span_exceeds_single_hall_screen")
+    if candidate["outer_area_m2"] > HERO_SCREEN_MAX_OUTER_AREA_M2:
+        failures.append("outer_area_exceeds_single_hall_screen")
+    return {
+        "passes": not failures,
+        "reason": "candidate_requires_finer_authoritative_resolution" if failures else "candidate_passes_broad_scale_screen",
+        "failed_checks": failures,
+        "screen_limits": {
+            "max_major_span_m": HERO_SCREEN_MAX_MAJOR_SPAN_M,
+            "max_minor_span_m": HERO_SCREEN_MAX_MINOR_SPAN_M,
+            "max_outer_area_m2": HERO_SCREEN_MAX_OUTER_AREA_M2,
+            "meaning": "anti-false-positive guard only; not claimed Palais 5 dimensions",
+        },
+    }
+
+
 def main() -> int:
     buildings=json.loads(BUILDINGS.read_text(encoding="utf-8"))
     heights=json.loads(HEIGHTS.read_text(encoding="utf-8"))
@@ -170,8 +205,10 @@ def main() -> int:
         selected["height_quality"]=record.get("quality") if isinstance(record,dict) else None
         selected["effective_height_m"]=(override or {}).get("height_m",selected["raw_height_m"]) if isinstance(override,dict) else selected["raw_height_m"]
 
+    screen=hero_screen(selected)
+    resolution_status="resolved_to_urbis_component" if screen["passes"] else "needs_finer_authoritative_geometry"
     out={
-        "schema":2,
+        "schema":3,
         "semantic_locator":{
             "source":"OpenStreetMap","osm_way_id":OSM_WAY_ID,
             "latitude":OSM_LAT,"longitude":OSM_LON,
@@ -182,13 +219,15 @@ def main() -> int:
         "component_candidate_count":len(component_candidates),
         "containing_component_count":len(containing),
         "selected_component_if_unambiguous":selected,
+        "hero_footprint_screen":screen,
+        "resolution_status":resolution_status,
         "nearest_components":component_candidates[:20],
         "nearby_features":feature_candidates[:12],
-        "policy":"OSM supplies identity/location only. The selected Palace 5 geometry is the single UrbIS Polygon component containing the named OSM centre. Architectural facade detail remains photo-guided until official drawings are integrated.",
+        "policy":"OSM supplies identity/location only. A containing UrbIS component is retained as evidence but is not promoted to Palais 5 hero geometry when the broad anti-false-positive scale screen indicates campus/block geometry. Seek finer authoritative geometry or a separately documented lawful source; never invent a footprint.",
     }
     OUTPUT.parent.mkdir(parents=True,exist_ok=True)
     OUTPUT.write_text(json.dumps(out,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
-    print("PALAIS5_COMPONENT_AUDIT_OK",json.dumps({"containing":len(containing),"selected":selected},ensure_ascii=False))
+    print("PALAIS5_COMPONENT_AUDIT_OK",json.dumps({"containing":len(containing),"resolution_status":resolution_status,"screen":screen},ensure_ascii=False))
     return 0
 
 if __name__=="__main__": raise SystemExit(main())

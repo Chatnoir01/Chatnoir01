@@ -2,7 +2,9 @@ name: Grand Bruxelles Photo Match QA
 
 on:
   push:
-    branches: ["integration/photo-match-qa"]
+    branches:
+      - "integration/photo-match-qa"
+      - "integration/photo-match-midi-fonsny-reference"
     paths:
       - "grand-bruxelles-game/data/qa/photo_match/**"
       - "grand-bruxelles-game/tools/validate_photo_match.py"

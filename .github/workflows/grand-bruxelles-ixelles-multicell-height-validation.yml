@@ -1,0 +1,196 @@
+name: Grand Bruxelles Ixelles Multicell Height Validation
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/validate_ixelles_multicell_heights.py"
+      - "grand-bruxelles-game/tools/test_validate_ixelles_multicell_heights.py"
+      - ".github/workflows/grand-bruxelles-ixelles-multicell-height-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-four-remaining-cells:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install read-only GeoPackage tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal unzip
+          ogrinfo --version
+
+      - name: Run deterministic scope/calibration regression
+        run: python3 grand-bruxelles-game/tools/test_validate_ixelles_multicell_heights.py
+
+      - name: Select latest official Ixelles EPSG 31370 UrbIS 3D package
+        run: |
+          python3 - <<'PY'
+          import importlib.util,json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/tools/discover_urbis_sources.py')
+          spec=importlib.util.spec_from_file_location('discover',p); assert spec and spec.loader
+          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          source_id='urbis_3d_constructions'
+          feed=m.parse_feed(source_id,m.DEFAULT_FEEDS[source_id])
+          Path('/tmp/discovered.json').write_text(json.dumps({'schema':1,'feeds':[feed]},indent=2)+'\n')
+          PY
+          python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
+            /tmp/discovered.json /tmp/selected.json \
+            --source-id urbis_3d_constructions \
+            --token 31370 --token GPKG \
+            --candidate-token 31370 --candidate-token GPKG --candidate-token 21009 \
+            --prefer-latest
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/selected.json')); s=p['selected']; u=s['href'].casefold()
+          assert s.get('title','').casefold()=='ixelles'
+          assert '31370' in u and 'gpkg' in u and '21009' in u
+          assert p['selected_embedded_date'] >= '20260808'
+          print('IXELLES_OFFICIAL_SELECTION',p['selected_embedded_date'],s['href'])
+          PY
+
+      - name: Download and hash-lock official package
+        run: |
+          set -euo pipefail
+          URL="$(python3 - <<'PY'
+          import json
+          print(json.load(open('/tmp/selected.json'))['selected']['href'])
+          PY
+          )"
+          curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
+            --user-agent 'GrandBruxellesGame/ixelles-multicell-validation (+github.com/Chatnoir01/Chatnoir01)' \
+            "$URL" -o /tmp/urbis-3d-distribution
+          DIST_SHA="$(sha256sum /tmp/urbis-3d-distribution | awk '{print $1}')"
+          test "$DIST_SHA" = "090f4a6aada5c7c19609860d7ee3956ce0f06379c991533975bcf1ddb848dfaa"
+          printf '%s  %s\n' "$DIST_SHA" /tmp/urbis-3d-distribution | tee /tmp/distribution.sha256
+          python3 - <<'PY'
+          import shutil,zipfile
+          from pathlib import Path
+          source=Path('/tmp/urbis-3d-distribution'); root=Path('/tmp/extracted'); root.mkdir(parents=True,exist_ok=True)
+          def extract(a,d):
+              d.mkdir(parents=True,exist_ok=True); base=d.resolve()
+              with zipfile.ZipFile(a) as z:
+                  for member in z.infolist():
+                      target=(d/member.filename).resolve()
+                      if base not in target.parents and target != base: raise SystemExit('unsafe ZIP path')
+                  z.extractall(d)
+          if zipfile.is_zipfile(source): extract(source,root/'level0')
+          elif source.read_bytes()[:16].startswith(b'SQLite format 3'): shutil.copy2(source,root/'selected.gpkg')
+          else: raise SystemExit('unsupported official distribution container')
+          for depth in range(1,4):
+              for i,p in enumerate(list(root.rglob('*.zip'))):
+                  dest=p.parent/f'{p.stem}-nested-{depth}-{i}'
+                  if not dest.exists(): extract(p,dest)
+          assert list(root.rglob('*.gpkg'))
+          PY
+          GPKG="$(find /tmp/extracted -type f -name '*.gpkg' -print -quit)"
+          GPKG_SHA="$(sha256sum "$GPKG" | awk '{print $1}')"
+          test "$GPKG_SHA" = "2aa3057da9d0cfd656baf684fe53d343629b1539a648fbb69fff983327993c78"
+          printf '%s  %s\n' "$GPKG_SHA" "$GPKG" | tee /tmp/gpkg.sha256
+
+      - name: Recover only provenance-locked specialist evidence
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin zone-reste-bruxelles-clean:refs/remotes/origin/zone-reste-bruxelles-clean
+          mkdir -p /tmp/ixelles-inputs
+          extract_locked() {
+            path="$1"; expected="$2"; out="$3"
+            blob="$(git rev-parse "origin/zone-reste-bruxelles-clean:$path")"
+            test "$blob" = "$expected"
+            git show "origin/zone-reste-bruxelles-clean:$path" > "$out"
+            printf '%s  %s\n' "$blob" "$path"
+          }
+          extract_locked \
+            grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_building_heights.csv \
+            fe5df2040a0fb41f6374e90826a56472f38b1116 \
+            /tmp/ixelles-inputs/ixelles_building_heights.csv
+          extract_locked \
+            grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/raw/buildings.geojson \
+            f1fb2586a99bc55d011cc03558feffc9786695ae \
+            /tmp/ixelles-inputs/bxl-e149000-n169500-s500.geojson
+          extract_locked \
+            grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149500-n168500-s500/raw/buildings.geojson \
+            20f70d7416f05439f0fe845a3b1c29d6b52610f0 \
+            /tmp/ixelles-inputs/bxl-e149500-n168500-s500.geojson
+          extract_locked \
+            grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/raw/buildings.geojson \
+            d010fbedf330cba6c79d4d1681f28119385e6092 \
+            /tmp/ixelles-inputs/bxl-e149500-n169000-s500.geojson
+          extract_locked \
+            grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149500-n169500-s500/raw/buildings.geojson \
+            01947bcdf28e9fbef7f0375fa88a52bacaa96700 \
+            /tmp/ixelles-inputs/bxl-e149500-n169500-s500.geojson
+
+      - name: Validate four remaining locked cells
+        run: |
+          set -euo pipefail
+          OUT=grand-bruxelles-game/artifacts/ixelles-multicell-height-validation
+          mkdir -p "$OUT"
+          for CELL in \
+            bxl-e149000-n169500-s500 \
+            bxl-e149500-n168500-s500 \
+            bxl-e149500-n169000-s500 \
+            bxl-e149500-n169500-s500
+          do
+            python3 grand-bruxelles-game/tools/validate_ixelles_multicell_heights.py \
+              --root /tmp/extracted \
+              --buildings "/tmp/ixelles-inputs/${CELL}.geojson" \
+              --dsm-csv /tmp/ixelles-inputs/ixelles_building_heights.csv \
+              --cell "$CELL" \
+              --output "$OUT/${CELL}.json"
+          done
+          cp /tmp/selected.json "$OUT/selected.json"
+          cp /tmp/distribution.sha256 "$OUT/distribution.sha256"
+          cp /tmp/gpkg.sha256 "$OUT/gpkg.sha256"
+
+      - name: Aggregate uncertainty without runtime promotion
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('grand-bruxelles-game/artifacts/ixelles-multicell-height-validation')
+          cells=[]
+          for p in sorted(root.glob('bxl-*.json')):
+              x=json.load(open(p))
+              assert x['semantic']['policy']['crs']=='EPSG:31370'
+              assert x['semantic']['policy']['runtime_approval'] is False
+              assert x['comparison']['runtime_approved'] is False
+              assert x['calibration']['runtime_approved'] is False
+              assert x['calibration']['decision']['promote_runtime'] is False
+              assert x['comparison']['counts']['joined_comparisons'] > 0
+              cells.append({
+                  'cell':x['calibration']['cell'],
+                  'bbox_epsg31370':x['calibration']['bbox_epsg31370'],
+                  'semantic_counts':x['semantic']['counts'],
+                  'comparison_counts':x['comparison']['counts'],
+                  'delta_summary_m':x['comparison']['delta_summary_m'],
+                  'variant_metrics':x['calibration']['variant_metrics'],
+                  'best_tested_statistic':x['calibration']['decision']['best_tested_statistic'],
+                  'runtime_approved':False,
+              })
+          assert len(cells)==4
+          summary={
+              'schema':'grand-bruxelles-ixelles-multicell-summary-v1',
+              'source_crs':'EPSG:31370',
+              'cells':cells,
+              'p50_best_cells':sum(c['best_tested_statistic']=='p50' for c in cells),
+              'runtime_approved':False,
+              'decision':'Evidence only. Do not promote heights until consistency is reviewed across all five locked cells and a separate runtime gate is passed.'
+          }
+          (root/'summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('IXELLES_MULTICELL_SUMMARY',json.dumps(summary,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-ixelles-multicell-height-validation
+          path: grand-bruxelles-game/artifacts/ixelles-multicell-height-validation/
+          if-no-files-found: error
+          retention-days: 90

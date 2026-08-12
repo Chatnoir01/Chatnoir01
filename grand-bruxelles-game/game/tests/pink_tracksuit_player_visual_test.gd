@@ -15,7 +15,7 @@ func _run() -> void:
         return
     if not await _test_authored_character_loader():
         return
-    print("PINK_TRACKSUIT_VISUAL_OK: fallback remains valid and authored rigged scene loads as the primary player visual")
+    print("PINK_TRACKSUIT_VISUAL_OK: fallback remains valid and authored rigged FBX/GLB scene loads as the primary player visual")
     quit(0)
 
 func _test_fallback_character() -> bool:
@@ -30,14 +30,14 @@ func _test_fallback_character() -> bool:
 
     var visual := VISUAL_SCRIPT.new() as PinkTracksuitPlayerVisual
     visual.name = "VisualUpgrade"
-    visual.authored_scene_path = ""
+    visual.authored_scene_path = "res://assets/characters/player/does-not-exist.glb"
     actor.add_child(visual)
     await process_frame
 
     if visual.character_signature() != "pink_tracksuit_v1":
         _fail("unexpected character signature")
         return false
-    if visual.pipeline_signature() != "authored_glb_or_procedural_v2":
+    if visual.pipeline_signature() != "authored_character_or_procedural_v3":
         _fail("unexpected render pipeline signature")
         return false
     if visual.is_using_authored_character():
@@ -75,6 +75,9 @@ func _test_authored_character_loader() -> bool:
 
     if not visual.is_using_authored_character():
         _fail("authored character fixture was not selected")
+        return false
+    if visual.resolved_authored_scene_path() != AUTHORED_FIXTURE:
+        _fail("authored fixture path was not recorded")
         return false
     if legacy.visible:
         _fail("legacy capsule must stay hidden with authored character")

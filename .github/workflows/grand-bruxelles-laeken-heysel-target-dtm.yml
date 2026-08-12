@@ -4,6 +4,7 @@ on:
   push:
     branches: ["zone-laeken-jette"]
     paths:
+      - "grand-bruxelles-game/data/reference/laeken_jette/anchors.json"
       - "grand-bruxelles-game/data/reference/laeken_jette/heysel_stadium_target_evidence.json"
       - "grand-bruxelles-game/data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json"
       - "grand-bruxelles-game/tools/sample_laeken_dtm_runtime.py"
@@ -48,12 +49,24 @@ jobs:
           python3 - <<'PY'
           import json, math, pathlib
           target=json.load(open('data/reference/laeken_jette/heysel_stadium_target_evidence.json',encoding='utf-8'))
+          anchors=json.load(open('data/reference/laeken_jette/anchors.json',encoding='utf-8'))
           committed=json.load(open('data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json',encoding='utf-8'))
           generated=json.load(open('/tmp/heysel_stadium_target_dtm_sample.json',encoding='utf-8'))
           p=target['authoritative_target']['full_urbis_union_centroid_lambert72']
+          game=target['authoritative_target']['full_urbis_union_game_xz']
+          transform=target['project_transform']
           terrain=target['authoritative_target']['terrain_elevation']
           camera=target['camera_policy']
+          canonical=anchors['project_origin']
           assert target['status']=='urbis_target_3d_resolved_camera_comparison_pending'
+          assert target['crs']=='EPSG:31370'
+          assert transform['axes']==canonical['axes']=='X=east, Y=up, Z=south'
+          assert math.isclose(transform['origin_e'], canonical['e'], abs_tol=1e-9)
+          assert math.isclose(transform['origin_n'], canonical['n'], abs_tol=1e-9)
+          expected_x=p['e']-canonical['e']
+          expected_z=canonical['n']-p['n']
+          assert math.isclose(game['x'], expected_x, abs_tol=1e-9)
+          assert math.isclose(game['z'], expected_z, abs_tol=1e-9)
           assert committed['source_crs']=='EPSG:31370'
           assert math.isclose(committed['query_epsg31370']['e'], p['e'], abs_tol=1e-6)
           assert math.isclose(committed['query_epsg31370']['n'], p['n'], abs_tol=1e-6)
@@ -68,7 +81,7 @@ jobs:
           assert camera['target_vertical_position_status']=='resolved_from_committed_urbis_dtm_runtime'
           assert math.isclose(camera['target_ground_absolute_elevation_m'], committed['terrain_absolute_elevation_m'], abs_tol=1e-9)
           assert pathlib.Path(terrain['sample_evidence_path']).as_posix()=='data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json'
-          print('HEYSEL_TARGET_3D_EVIDENCE_OK', committed['terrain_absolute_elevation_m'])
+          print('HEYSEL_TARGET_3D_EVIDENCE_OK', game['x'], game['z'], committed['terrain_absolute_elevation_m'])
           PY
 
       - name: Preserve generated evidence

@@ -1,0 +1,135 @@
+name: Remaining Brussels Schaerbeek north expansion
+
+on:
+  push:
+    branches: ["zone-reste-bruxelles-clean"]
+    paths:
+      - ".github/workflows/remaining-brussels-schaerbeek-north-expansion.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remaining-brussels-schaerbeek-north-expansion
+  cancel-in-progress: false
+
+jobs:
+  expand:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-reste-bruxelles-clean
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate Schaerbeek official grid and mapping pipeline
+        working-directory: grand-bruxelles-game
+        run: |
+          python -m compileall -q tools tests
+          python -m unittest \
+            tests.test_make_zone_cells \
+            tests.test_materialize_zone_cells \
+            tests.test_build_urbis_cell \
+            tests.test_make_urbis_cell_runtime \
+            tests.test_make_urbis_network_cell_runtime \
+            tests.test_build_urbis_runtime_index \
+            tests.test_build_remaining_brussels_coverage \
+            tests.test_capture_urbis_orthophoto -v
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          grid=json.loads(Path('data/processed/remaining_brussels/cells/schaerbeek.json').read_text())
+          boundary=json.loads(Path('data/processed/remaining_brussels/boundaries/schaerbeek.geojson').read_text())
+          assert grid['format']=='grand-bruxelles-zone-cells-v2' and grid['zone_id']=='schaerbeek'
+          assert grid['crs']=='EPSG:31370' and grid['cell_count']==49
+          assert boundary['source']['layer']=='urbisvector:Municipalities'
+          print('SCHAERBEEK_COMMITTED_GRID_VALID', grid['cell_count'])
+          PY
+
+      - name: Select two north-biased edge-contiguous Schaerbeek cells
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          grid=json.loads(Path('data/processed/remaining_brussels/cells/schaerbeek.json').read_text())
+          cells={c['id']:c for c in grid['cells']}; root=Path('data/urbis/remaining_brussels/cells')
+          seed_id='bxl-e151500-n170000-s500'
+          assert seed_id in cells and (root/seed_id/'manifest.json').exists()
+          def edge(a,b):
+              ae,an,ae2,an2=a; be,bn,be2,bn2=b
+              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
+          existing={p.parent.name for p in root.glob('*/manifest.json')}
+          firsts=[c for c in cells.values() if c['id'] not in existing and edge(cells[seed_id]['bbox'],c['bbox'])]
+          assert firsts
+          first=max(firsts,key=lambda c:(c['bbox'][1],-abs(c['bbox'][0]-cells[seed_id]['bbox'][0])))
+          seconds=[c for c in cells.values() if c['id'] not in existing and c['id']!=first['id'] and edge(first['bbox'],c['bbox'])]
+          assert seconds
+          second=max(seconds,key=lambda c:(c['bbox'][1],-abs(c['bbox'][0]-first['bbox'][0])))
+          payload={'format':'grand-bruxelles-zone-cells-v2','zone_id':'schaerbeek-north-expansion','crs':'EPSG:31370','cell_size_m':500.0,'cell_count':2,'cells':[first,second],'continuity':{'seed':seed_id,'ordered_ids':[first['id'],second['id']]}}
+          Path('/tmp/schaerbeek-north.json').write_text(json.dumps(payload,indent=2)+'\n')
+          Path('/tmp/schaerbeek-north.tsv').write_text('\n'.join(f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in payload['cells'])+'\n')
+          print('SCHAERBEEK_NORTH_SELECTION', payload['continuity']['ordered_ids'])
+          PY
+
+      - name: Materialize authoritative UrbIS geometry and transport networks
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/materialize_zone_cells.py --manifest /tmp/schaerbeek-north.json --output-root data/urbis/remaining_brussels/cells --force
+          python tools/build_urbis_runtime_index.py --source-root data/urbis/remaining_brussels/cells --resource-prefix res://data/urbis/remaining_brussels/cells --output data/urbis/remaining_brussels/runtime_index.json
+          python tools/build_remaining_brussels_coverage.py --output data/processed/remaining_brussels/coverage_report.json
+
+      - name: Capture official UrbIS orthophoto evidence
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/schaerbeek-north-ortho data/processed/remaining_brussels/references
+          while IFS=$'\t' read -r CELL BBOX; do
+            python tools/capture_urbis_orthophoto.py --bbox "$BBOX" --width 1024 --height 1024 --output "/tmp/schaerbeek-north-ortho/${CELL}.png" --metadata "data/processed/remaining_brussels/references/schaerbeek_${CELL}_orthophoto.json"
+          done < /tmp/schaerbeek-north.tsv
+
+      - name: Validate fidelity continuity and runtime inclusion
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          selection=json.loads(Path('/tmp/schaerbeek-north.json').read_text()); root=Path('data/urbis/remaining_brussels/cells')
+          def edge(a,b):
+              ae,an,ae2,an2=a; be,bn,be2,bn2=b
+              return (((ae2==be or be2==ae) and max(an,bn)<min(an2,bn2)) or ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
+          prev=json.loads((root/selection['continuity']['seed']/'manifest.json').read_text())['bbox']; ids=[]
+          for cell in selection['cells']:
+              cid=cell['id']; ids.append(cid); m=json.loads((root/cid/'manifest.json').read_text())
+              assert m['crs']=='EPSG:31370' and edge(prev,m['bbox'])
+              g=json.loads((root/cid/m['runtime']['geometry_file']).read_text()); n=json.loads((root/cid/m['runtime']['network_file']).read_text())
+              assert g['stats']['buildings']>0 and g['stats']['street_surfaces']>0 and n['stats']['street_segments']>0
+              o=json.loads(Path(f'data/processed/remaining_brussels/references/schaerbeek_{cid}_orthophoto.json').read_text())
+              assert o['provider']=='Paradigm / UrbIS' and o['bbox']==m['bbox'] and o['download']['bytes']>1000
+              prev=m['bbox']
+          coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text()); sc=next(z for z in coverage['zones'] if z['zone_id']=='schaerbeek')
+          assert set(ids)<=set(sc['materialized_cell_ids']) and sc['materialized_cells']>=3
+          runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text()); assert set(ids)<={c['cell_id'] for c in runtime['cells']}
+          print('SCHAERBEEK_NORTH_VALIDATED', ids, sc['materialized_cells'], sc['coverage_percent'])
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: schaerbeek-north-official-orthophotos
+          path: /tmp/schaerbeek-north-ortho/*.png
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Commit validated Schaerbeek expansion
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+Chatnoir01@users.noreply.github.com'
+          git add grand-bruxelles-game/data/processed/remaining_brussels grand-bruxelles-game/data/urbis/remaining_brussels
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'data: expand Schaerbeek north with authoritative UrbIS cells'
+          git push origin HEAD:zone-reste-bruxelles-clean

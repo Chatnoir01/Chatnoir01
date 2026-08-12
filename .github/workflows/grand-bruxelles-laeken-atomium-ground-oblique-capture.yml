@@ -1,0 +1,101 @@
+name: Grand Bruxelles Laeken Atomium Ground Oblique Capture
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/data/reference/laeken_jette/photo_match_views.json"
+      - "grand-bruxelles-game/data/reference/laeken_jette/atomium_ground_oblique_dtm_sample.json"
+      - "grand-bruxelles-game/game/tests/render_laeken_playtest_capture.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/**"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/**"
+      - ".github/workflows/grand-bruxelles-laeken-atomium-ground-oblique-capture.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-atomium-ground-oblique-capture
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Render source-geolocated Atomium benchmark
+        shell: bash
+        env:
+          PHOTO_MATCH_VIEW_ID: atomium_ground_oblique_v1
+        run: |
+          set -o pipefail
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --rendering-method gl_compatibility \
+            --script res://game/tests/render_laeken_playtest_capture.gd 2>&1 | tee /tmp/atomium-ground-oblique.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PLAYTEST_CAPTURE_FAIL" /tmp/atomium-ground-oblique.log; then
+            exit 1
+          fi
+          grep -q "PLAYTEST_CAPTURE_OK" /tmp/atomium-ground-oblique.log
+          grep -q "view=atomium_ground_oblique_v1" /tmp/atomium-ground-oblique.log
+          test -s grand-bruxelles-game/laeken_playtest_current.png
+
+      - name: Validate PNG dimensions
+        run: |
+          file grand-bruxelles-game/laeken_playtest_current.png
+          python3 - <<'PY'
+          import struct
+          p='grand-bruxelles-game/laeken_playtest_current.png'
+          with open(p,'rb') as f:
+              sig=f.read(24)
+          assert sig[:8]==b'\x89PNG\r\n\x1a\n'
+          w,h=struct.unpack('>II',sig[16:24])
+          assert (w,h)==(1280,720),(w,h)
+          print('ATOMIUM_GROUND_OBLIQUE_PNG_OK',w,h)
+          PY
+
+      - name: Upload photo-match capture
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-ground-oblique-v1
+          path: grand-bruxelles-game/laeken_playtest_current.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve generated capture
+        run: |
+          mkdir -p /tmp/atomium-ground-oblique
+          cp grand-bruxelles-game/laeken_playtest_current.png /tmp/atomium-ground-oblique/atomium_ground_oblique_v1.png
+
+      - name: Publish capture from latest branch head
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/reference/laeken_jette/captures
+          cp /tmp/atomium-ground-oblique/atomium_ground_oblique_v1.png grand-bruxelles-game/data/reference/laeken_jette/captures/
+          git add grand-bruxelles-game/data/reference/laeken_jette/captures/atomium_ground_oblique_v1.png
+          git diff --cached --quiet && exit 0
+          git commit -m "art: add Atomium ground-oblique benchmark capture [skip ci]"
+          git push origin HEAD:zone-laeken-jette

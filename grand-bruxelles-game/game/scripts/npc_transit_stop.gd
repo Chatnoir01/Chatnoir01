@@ -6,6 +6,7 @@ var anchor := Vector3.ZERO
 var curb_direction := Vector3(1.0, 0.0, 0.0)
 var platform_depth_direction := Vector3(0.0, 0.0, 1.0)
 var door_offsets_meters := PackedFloat32Array()
+var step_free_door_indices := PackedInt32Array()
 var queue_spacing_meters: float = 0.85
 var queue_capacity_per_door: int = 8
 
@@ -22,7 +23,8 @@ func configure(
 	new_platform_depth_direction: Vector3,
 	new_door_offsets_meters: PackedFloat32Array,
 	queue_spacing: float = 0.85,
-	queue_capacity: int = 8
+	queue_capacity: int = 8,
+	new_step_free_door_indices: PackedInt32Array = PackedInt32Array()
 ) -> void:
 	stop_id = new_stop_id
 	anchor = stop_anchor
@@ -33,6 +35,7 @@ func configure(
 	door_offsets_meters = new_door_offsets_meters.duplicate()
 	if door_offsets_meters.is_empty():
 		door_offsets_meters = PackedFloat32Array([0.0])
+	step_free_door_indices = _sanitize_door_indices(new_step_free_door_indices)
 	queue_spacing_meters = clampf(queue_spacing, 0.65, 1.4)
 	queue_capacity_per_door = maxi(queue_capacity, 1)
 	_rebuild_queues()
@@ -46,13 +49,16 @@ func door_anchor(door_index: int) -> Vector3:
 		return anchor
 	return anchor + curb_direction * door_offsets_meters[door_index]
 
-func join_waiting_passenger(passenger_id: int, preferred_door: int = -1) -> int:
+func is_step_free_door(door_index: int) -> bool:
+	return step_free_door_indices.has(door_index)
+
+func join_waiting_passenger(passenger_id: int, preferred_door: int = -1, requires_step_free: bool = false) -> int:
 	if passenger_id < 0 or _queues.is_empty():
 		return -1
 	if _passenger_to_door.has(passenger_id):
 		return int(_passenger_to_door[passenger_id])
 
-	var door_index: int = _select_door(preferred_door)
+	var door_index: int = _select_door(preferred_door, requires_step_free)
 	if door_index < 0:
 		return -1
 	var slot: int = _queues[door_index].join_queue(passenger_id)
@@ -175,14 +181,16 @@ func disembark_position_for(door_index: int, exit_sequence_index: int) -> Vector
 	var rank: int = int((exit_sequence_index + 1) / 2.0)
 	return base + curb_direction * (0.75 + float(rank) * 0.85) * side
 
-func _select_door(preferred_door: int) -> int:
+func _select_door(preferred_door: int, requires_step_free: bool = false) -> int:
 	if preferred_door >= 0 and preferred_door < _queues.size():
-		if _queues[preferred_door].queue_size() < queue_capacity_per_door:
+		if (not requires_step_free or is_step_free_door(preferred_door)) and _queues[preferred_door].queue_size() < queue_capacity_per_door:
 			return preferred_door
 
 	var selected: int = -1
 	var selected_size: int = 2147483647
 	for door_index in range(_queues.size()):
+		if requires_step_free and not is_step_free_door(door_index):
+			continue
 		var size: int = _queues[door_index].queue_size()
 		if size >= queue_capacity_per_door:
 			continue
@@ -190,6 +198,15 @@ func _select_door(preferred_door: int) -> int:
 			selected = door_index
 			selected_size = size
 	return selected
+
+func _sanitize_door_indices(indices: PackedInt32Array) -> PackedInt32Array:
+	var result := PackedInt32Array()
+	for door_index in indices:
+		if door_index < 0 or door_index >= door_offsets_meters.size():
+			continue
+		if not result.has(door_index):
+			result.append(door_index)
+	return result
 
 func _rebuild_queues() -> void:
 	_queues.clear()

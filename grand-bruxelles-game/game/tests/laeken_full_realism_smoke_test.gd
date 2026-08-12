@@ -3,7 +3,7 @@ extends SceneTree
 const HEIGHTS_PATH := "res://data/urbis/laeken_jette/building_heights_dsm.game.json"
 const TREES_PATH := "res://data/environment/laeken_jette/official_city_trees.game.json"
 const ORTHO_PATH := "res://data/orthophoto/laeken_jette/phase1_ortho.jpg"
-const MAX_READY_FRAMES := 100
+const MAX_READY_FRAMES := 120
 
 
 func _initialize() -> void:
@@ -34,7 +34,8 @@ func _run() -> void:
     var ortho = scene.get_node_or_null("OrthophotoPass")
     var visual = scene.get_node_or_null("BuildingVisualPass")
     var trees = scene.get_node_or_null("OfficialTrees")
-    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or trees == null:
+    var canopy = scene.get_node_or_null("TreeCanopyRefinement")
+    if terrain == null or height_pass == null or bridge == null or ortho == null or visual == null or trees == null or canopy == null:
         _fail("one or more required realism nodes are missing")
         return
 
@@ -48,13 +49,14 @@ func _run() -> void:
             and bool(visual.get("building_visual_active"))
             and bool(visual.get("orthophoto_roof_active"))
             and bool(trees.get("trees_loaded"))
+            and bool(canopy.get("refinement_ready"))
         )
         if all_ready:
             ready_frame = frame_index
             break
         await process_frame
     if ready_frame < 0:
-        _fail("realism stack not ready within %d frames terrain=%s heights=%s bridge=%s ortho=%s building_visual=%s ortho_roofs=%s trees=%s" % [
+        _fail("realism stack not ready within %d frames terrain=%s heights=%s bridge=%s ortho=%s building_visual=%s ortho_roofs=%s trees=%s canopy=%s" % [
             MAX_READY_FRAMES,
             bool(terrain.get("terrain_loaded")),
             bool(height_pass.get("height_mesh_ready")),
@@ -63,6 +65,7 @@ func _run() -> void:
             bool(visual.get("building_visual_active")),
             bool(visual.get("orthophoto_roof_active")),
             bool(trees.get("trees_loaded")),
+            bool(canopy.get("refinement_ready")),
         ])
         return
 
@@ -101,7 +104,7 @@ func _run() -> void:
         _fail("final DSM building ShaderMaterial missing")
         return
 
-    # Official known public-tree population.
+    # Official known public-tree population + visual crown refinement.
     var tree_total := int(trees.get("official_tree_count"))
     var grounded := int(trees.get("terrain_grounded_count"))
     var skipped := int(trees.get("skipped_count"))
@@ -113,13 +116,29 @@ func _run() -> void:
         _fail("official tree MultiMesh/trunk count mismatch")
         return
 
-    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d} trees={total:%d,skipped:%d} ortho=true" % [
+    var refined_trees := int(canopy.get("refined_tree_count"))
+    var broadleaf_lobes := int(canopy.get("broadleaf_lobe_instances"))
+    var conifer_tiers := int(canopy.get("conifer_tier_instances"))
+    if refined_trees < 8200:
+        _fail("tree canopy refinement skipped too many sourced trees: %d" % refined_trees)
+        return
+    if broadleaf_lobes < 12000 or conifer_tiers < 1200:
+        _fail("tree canopy refinement too sparse: broadleaf_lobes=%d conifer_tiers=%d" % [broadleaf_lobes, conifer_tiers])
+        return
+    var lobes := scene.get_node_or_null("TreeCanopyRefinement/BroadleafSecondaryLobes") as MultiMeshInstance3D
+    if lobes == null or lobes.multimesh == null or lobes.multimesh.instance_count != broadleaf_lobes:
+        _fail("broadleaf refinement MultiMesh count mismatch")
+        return
+
+    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d} trees={total:%d,skipped:%d,lobes:%d,conifer_tiers:%d} ortho=true" % [
         ready_frame,
         terrain_range,
         derived,
         fallback,
         tree_total,
         skipped,
+        broadleaf_lobes,
+        conifer_tiers,
     ])
     scene.queue_free()
     await process_frame

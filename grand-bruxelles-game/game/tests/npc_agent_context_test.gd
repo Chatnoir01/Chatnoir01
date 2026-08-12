@@ -8,7 +8,10 @@ func _init() -> void:
 	var behavior_speed: float = agent.behavior.preferred_speed
 	var contextual_speed: float = agent.pedestrian_context.preferred_speed
 	_assert(absf(contextual_speed - behavior_speed) > 0.01, "pedestrian context provides a distinct deterministic civilian pace")
-	_assert(is_equal_approx(agent.get_runtime_walking_speed(), contextual_speed), "civilian runtime consumes contextual walking pace")
+	var director := NpcPopulationDirector.new()
+	root.add_child(director)
+	_assert(director.register_agent(agent), "civilian registers with population director")
+	_assert(is_equal_approx(agent.behavior.preferred_speed, contextual_speed), "population runtime consumes contextual civilian walking pace")
 
 	var initial_appearance: Dictionary = agent.get_appearance_profile()
 	_assert(initial_appearance["clothing_base"] != &"police_uniform", "civilian appearance stays civilian")
@@ -23,11 +26,15 @@ func _init() -> void:
 	_assert(rain_appearance["outer_layer"] in [&"rain_jacket", &"hooded_coat", &"light_coat", &"waterproof_shell"], "rain selects weather-appropriate civilian outerwear")
 	_assert(rain_appearance["stature_scale"] == initial_appearance["stature_scale"], "weather does not change body proportions")
 
+	director.unregister_agent(agent)
 	agent.set_spawn_context(NpcBehaviorModel.Role.POLICE, 77, Vector3.ZERO)
+	var police_speed: float = agent.behavior.preferred_speed
 	var police_appearance: Dictionary = agent.get_appearance_profile()
 	_assert(police_appearance["clothing_base"] == &"police_uniform", "police role selects uniform base")
 	_assert(police_appearance["outer_layer"] == &"police_rain_layer", "police appearance preserves active weather context")
-	_assert(is_equal_approx(agent.get_runtime_walking_speed(), agent.behavior.preferred_speed), "police runtime keeps patrol speed ownership outside civilian pacing")
+	_assert(director.register_agent(agent), "police registers with population director")
+	_assert(is_equal_approx(agent.behavior.preferred_speed, police_speed), "police patrol speed ownership remains unchanged")
+	director.unregister_agent(agent)
 
 	agent.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 77, Vector3.ZERO)
 	var red_intent: int = agent.update_crossing_context(NpcPedestrianContext.CrossingSignal.RED, true, 20.0)
@@ -85,6 +92,7 @@ func _init() -> void:
 
 	print("NPC_AGENT_CONTEXT_OK")
 	blocker.queue_free()
+	director.queue_free()
 	agent.queue_free()
 	quit(0)
 

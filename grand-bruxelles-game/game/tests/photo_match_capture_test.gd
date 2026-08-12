@@ -36,6 +36,12 @@ func _vector3(raw: Variant) -> Vector3:
         return Vector3.ZERO
     return Vector3(float(values[0]), float(values[1]), float(values[2]))
 
+func _horizontal_to_vertical_fov(horizontal_degrees: float, aspect: float) -> float:
+    if horizontal_degrees <= 0.0 or horizontal_degrees >= 179.0 or aspect <= 0.0:
+        return -1.0
+    var horizontal_radians := deg_to_rad(horizontal_degrees)
+    return rad_to_deg(2.0 * atan(tan(horizontal_radians * 0.5) / aspect))
+
 func _hide_generated_labels(node: Node) -> void:
     if node is Label3D:
         (node as Label3D).visible = false
@@ -88,9 +94,19 @@ func _run() -> void:
     camera.name = "PhotoMatchCaptureCamera"
     camera.position = _vector3(camera_transform.get("position", []))
     camera.rotation_degrees = _vector3(camera_transform.get("rotation_degrees", []))
-    camera.fov = float(camera_transform.get("fov_degrees", 69.4))
+    camera.keep_aspect = Camera3D.KEEP_HEIGHT
+    var manifest_horizontal_fov := float(camera_transform.get("fov_degrees", 69.4))
+    var vertical_fov := _horizontal_to_vertical_fov(manifest_horizontal_fov, float(WIDTH) / float(HEIGHT))
+    if vertical_fov <= 0.0:
+        _fail("invalid horizontal FOV/aspect conversion")
+        return
+    camera.fov = vertical_fov
     camera.current = true
     scene.add_child(camera)
+    print(
+        "PHOTO_MATCH_CAMERA: horizontal_fov=%.4f, vertical_fov=%.4f, viewport=%dx%d" %
+        [manifest_horizontal_fov, vertical_fov, WIDTH, HEIGHT]
+    )
 
     for _frame: int in range(WARMUP_FRAMES):
         await process_frame

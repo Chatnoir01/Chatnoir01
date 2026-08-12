@@ -1,4 +1,4 @@
-name: Remaining Brussels Schaerbeek compact frontier expansion
+name: Remaining Brussels Schaerbeek west compact expansion
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: remaining-brussels-schaerbeek-compact-frontier
+  group: remaining-brussels-schaerbeek-west-compact
   cancel-in-progress: false
 
 jobs:
@@ -52,7 +52,7 @@ jobs:
           print('SCHAERBEEK_COMMITTED_GRID_VALID', grid['cell_count'])
           PY
 
-      - name: Select four compact edge-contiguous Schaerbeek frontier cells
+      - name: Select four west-biased compact Schaerbeek frontier cells
         working-directory: grand-bruxelles-game
         run: |
           python - <<'PY'
@@ -69,7 +69,7 @@ jobs:
                       ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
 
           existing={cid for cid in cells if (root/cid/'manifest.json').exists()}
-          assert 'bxl-e151500-n171000-s500' in existing, 'expected Schaerbeek handoff seed missing'
+          assert len(existing) >= 7, ('expected prior compact Schaerbeek checkpoint', len(existing))
           selected=[]
           connected=set(existing)
 
@@ -79,19 +79,24 @@ jobs:
 
           for _ in range(4):
               frontier=[]
+              connected_centres=[centre(cells[cid]) for cid in connected]
+              cx=sum(p[0] for p in connected_centres)/len(connected_centres)
+              cy=sum(p[1] for p in connected_centres)/len(connected_centres)
               for c in cells.values():
                   if c['id'] in connected:
                       continue
                   neighbours=[cid for cid in connected if edge(c['bbox'],cells[cid]['bbox'])]
                   if not neighbours:
                       continue
-                  same_zone_neighbours=sum(1 for other in cells.values() if other['id']!=c['id'] and edge(c['bbox'],other['bbox']) and other['id'] in connected)
                   x,y=centre(c)
-                  connected_centres=[centre(cells[cid]) for cid in connected]
-                  cx=sum(p[0] for p in connected_centres)/len(connected_centres)
-                  cy=sum(p[1] for p in connected_centres)/len(connected_centres)
                   compact_distance=abs(x-cx)+abs(y-cy)
-                  frontier.append((same_zone_neighbours,-compact_distance,y,-abs(x-151750.0),c))
+                  frontier.append((
+                      -x,
+                      len(neighbours),
+                      -abs(y-171750.0),
+                      -compact_distance,
+                      c,
+                  ))
               assert frontier, ('no contiguous Schaerbeek frontier remains', sorted(connected))
               frontier.sort(reverse=True,key=lambda item:item[:-1])
               chosen=frontier[0][-1]
@@ -100,22 +105,22 @@ jobs:
 
           payload={
               'format':'grand-bruxelles-zone-cells-v2',
-              'zone_id':'schaerbeek-compact-frontier-expansion',
+              'zone_id':'schaerbeek-west-compact-expansion',
               'crs':'EPSG:31370',
               'cell_size_m':500.0,
               'cell_count':len(selected),
               'cells':selected,
               'continuity':{
-                  'seed':'bxl-e151500-n171000-s500',
                   'preexisting_ids':sorted(existing),
-                  'ordered_ids':[c['id'] for c in selected]
+                  'ordered_ids':[c['id'] for c in selected],
+                  'strategy':'west-biased compact frontier toward Saint-Josse connection'
               }
           }
           Path('/tmp/schaerbeek-frontier.json').write_text(json.dumps(payload,indent=2)+'\n')
           Path('/tmp/schaerbeek-frontier.tsv').write_text('\n'.join(
               f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in selected
           )+'\n')
-          print('SCHAERBEEK_COMPACT_SELECTION', payload['continuity']['ordered_ids'])
+          print('SCHAERBEEK_WEST_COMPACT_SELECTION', payload['continuity']['ordered_ids'])
           PY
 
       - name: Materialize authoritative UrbIS geometry and transport networks
@@ -169,15 +174,15 @@ jobs:
           coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
           sc=next(z for z in coverage['zones'] if z['zone_id']=='schaerbeek')
           assert set(ids)<=set(sc['materialized_cell_ids'])
-          assert sc['materialized_cells']>=7
+          assert sc['materialized_cells']>=11
           runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
           assert set(ids)<={c['cell_id'] for c in runtime['cells']}
-          print('SCHAERBEEK_COMPACT_VALIDATED', ids, sc['materialized_cells'], sc['coverage_percent'])
+          print('SCHAERBEEK_WEST_COMPACT_VALIDATED', ids, sc['materialized_cells'], sc['coverage_percent'])
           PY
 
       - uses: actions/upload-artifact@v4
         with:
-          name: schaerbeek-compact-frontier-official-orthophotos
+          name: schaerbeek-west-compact-official-orthophotos
           path: /tmp/schaerbeek-frontier-ortho/*.png
           retention-days: 14
           if-no-files-found: error
@@ -188,5 +193,5 @@ jobs:
           git config user.email '41898282+Chatnoir01@users.noreply.github.com'
           git add grand-bruxelles-game/data/processed/remaining_brussels grand-bruxelles-game/data/urbis/remaining_brussels
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'data: compact Schaerbeek frontier with authoritative UrbIS cells'
+          git commit -m 'data: extend Schaerbeek west with authoritative UrbIS cells'
           git push origin HEAD:zone-reste-bruxelles-clean

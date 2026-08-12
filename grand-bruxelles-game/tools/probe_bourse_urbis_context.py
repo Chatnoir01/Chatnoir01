@@ -41,6 +41,44 @@ def iter_xy(value: Any) -> Iterable[tuple[float, float]]:
         yield from iter_xy(child)
 
 
+def coordinate_bounds(coords: list[tuple[float, float]]) -> list[float] | None:
+    if not coords:
+        return None
+    xs = [point[0] for point in coords]
+    ys = [point[1] for point in coords]
+    return [min(xs), min(ys), max(xs), max(ys)]
+
+
+def primitive_properties(properties: Any, limit: int = 20) -> dict[str, Any]:
+    if not isinstance(properties, dict):
+        return {}
+    result: dict[str, Any] = {}
+    for key in sorted(properties):
+        value = properties[key]
+        if value is None or isinstance(value, (str, int, float, bool)):
+            result[str(key)] = value
+        if len(result) >= limit:
+            break
+    return result
+
+
+def feature_summary(feature: dict[str, Any], center: tuple[float, float]) -> dict[str, Any] | None:
+    geometry = feature.get("geometry")
+    if not isinstance(geometry, dict):
+        return None
+    coords = list(iter_xy(geometry.get("coordinates")))
+    if not coords:
+        return None
+    nearest_m = min(math.hypot(x - center[0], y - center[1]) for x, y in coords)
+    return {
+        "id": feature.get("id"),
+        "geometry_type": geometry.get("type"),
+        "nearest_coordinate_to_bourse_m": nearest_m,
+        "coordinate_bounds": coordinate_bounds(coords),
+        "properties": primitive_properties(feature.get("properties")),
+    }
+
+
 def summarize_geojson(data: dict[str, Any], center: tuple[float, float] = BOURSE_CENTER) -> dict[str, Any]:
     if data.get("type") != "FeatureCollection":
         raise ValueError(f"expected FeatureCollection, got {data.get('type')!r}")
@@ -50,30 +88,29 @@ def summarize_geojson(data: dict[str, Any], center: tuple[float, float] = BOURSE
 
     geometry_types: Counter[str] = Counter()
     coords: list[tuple[float, float]] = []
+    nearest_features: list[dict[str, Any]] = []
     for feature in features:
         geometry = feature.get("geometry") if isinstance(feature, dict) else None
         if not isinstance(geometry, dict):
             continue
         geometry_types[str(geometry.get("type", "unknown"))] += 1
         coords.extend(iter_xy(geometry.get("coordinates")))
+        summary = feature_summary(feature, center)
+        if summary is not None:
+            nearest_features.append(summary)
 
     if features and not coords:
         raise ValueError("features contain no numeric EPSG:31370 coordinates")
 
-    bounds = None
-    nearest_m = None
-    if coords:
-        xs = [point[0] for point in coords]
-        ys = [point[1] for point in coords]
-        bounds = [min(xs), min(ys), max(xs), max(ys)]
-        nearest_m = min(math.hypot(x - center[0], y - center[1]) for x, y in coords)
-
+    nearest_features.sort(key=lambda item: float(item["nearest_coordinate_to_bourse_m"]))
+    nearest_m = nearest_features[0]["nearest_coordinate_to_bourse_m"] if nearest_features else None
     return {
         "features": len(features),
         "geometry_types": dict(sorted(geometry_types.items())),
         "coordinate_count": len(coords),
-        "coordinate_bounds": bounds,
+        "coordinate_bounds": coordinate_bounds(coords),
         "nearest_coordinate_to_bourse_m": nearest_m,
+        "nearest_features": nearest_features[:8],
     }
 
 

@@ -55,16 +55,23 @@ def main() -> None:
     if not close(float(geom.get("horizontal_anchor_to_target_distance_m", -1.0)), distance, 1e-5):
         fail("declared Atomium-to-stadium distance is inconsistent")
 
+    official_radius = float(geom.get("official_atomium_sphere_radius_m", -1.0))
+    clearance = float(geom.get("render_clearance_m", -1.0))
     offset = float(geom.get("observation_offset_toward_target_m", -1.0))
-    if not (0.0 < offset < 9.0):
-        fail("provisional camera offset must remain within documented 9 m sphere radius")
+    if not close(official_radius, 9.0):
+        fail("official Atomium sphere radius must remain 9 m from the documented 18 m diameter")
+    if not (0.1 <= clearance <= 1.0):
+        fail("render clearance must remain a small technical margin")
+    if not close(offset, official_radius + clearance):
+        fail("camera offset must equal official sphere radius plus render clearance")
+
     ux = (target_x - anchor_x) / distance
     uz = (target_z - anchor_z) / distance
     expected_x = anchor_x + ux * offset
     expected_z = anchor_z + uz * offset
     declared_cam = geom.get("provisional_camera_game_xz", [])
     if len(declared_cam) != 2 or not close(float(declared_cam[0]), expected_x, 1e-6) or not close(float(declared_cam[1]), expected_z, 1e-6):
-        fail("provisional camera X/Z is not the documented inward-safe offset")
+        fail("provisional camera X/Z is not the documented rendering-safe offset")
 
     candidates = cameras.get("candidates", [])
     if len(candidates) != 2:
@@ -92,7 +99,7 @@ def main() -> None:
     if "which Atomium observation level was used by the 2007 photographer" not in forbidden:
         fail("uncertainty guardrail missing")
 
-    print(f"HEYSEL_CAMERA_CANDIDATES_OK: target=({target_x:.3f},{target_y:.3f},{target_z:.3f}) distance={distance:.3f} levels={levels}")
+    print(f"HEYSEL_CAMERA_CANDIDATES_OK: target=({target_x:.3f},{target_y:.3f},{target_z:.3f}) distance={distance:.3f} radius={official_radius:.1f} clearance={clearance:.1f} levels={levels}")
 
 
 if __name__ == "__main__":

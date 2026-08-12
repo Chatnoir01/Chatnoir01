@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://game/scripts/midi_hero_zone.gd" id="7_midi"]
 [ext_resource type="Script" path="res://game/scripts/urbis_midi_builder.gd" id="8_urbis"]
 [ext_resource type="Script" path="res://game/scripts/osm_midi_mask.gd" id="9_mask"]
+[ext_resource type="Script" path="res://game/scripts/traffic_manager_tow_extension.gd" id="10_traffic"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -72,6 +73,9 @@ script = ExtResource("9_mask")
 
 [node name="MidiHeroZone" type="Node3D" parent="."]
 script = ExtResource("7_midi")
+
+[node name="TrafficManager" type="Node3D" parent="."]
+script = ExtResource("10_traffic")
 
 [node name="Player" type="CharacterBody3D" parent="."]
 position = Vector3(-652, 1.05, 621)

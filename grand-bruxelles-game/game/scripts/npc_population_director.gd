@@ -5,21 +5,63 @@ extends Node
 @export var police_budget: int = 10
 @export var activation_distance: float = 110.0
 @export var despawn_distance: float = 180.0
+@export var crossing_update_interval_s: float = 0.10
 
 var _civilians: Array[NpcAgent] = []
 var _police: Array[NpcAgent] = []
 var _pool: Array[NpcAgent] = []
 var observer_position := Vector3.ZERO
 var population_context := NpcPopulationContext.new()
+var crossing_bridge := TrafficNpcCrossingBridge.new()
 var _effective_civilian_budget: int = -1
 var _effective_police_budget: int = -1
 var _urban_context: NpcPopulationContext.UrbanContext = NpcPopulationContext.UrbanContext.GENERIC
 var _hour: float = 12.0
 var _weather_factor: float = 1.0
 var _event_pressure: float = 0.0
+var _traffic_crossing_system: RefCounted = null
+var _traffic_gap_provider: Variant = null
+var _crossing_elapsed_s: float = 0.0
 
 func _ready() -> void:
 	_recalculate_effective_budgets()
+
+func _process(delta: float) -> void:
+	if _traffic_crossing_system == null or _traffic_gap_provider == null:
+		return
+	_crossing_elapsed_s += maxf(0.0, delta)
+	if _crossing_elapsed_s < maxf(0.02, crossing_update_interval_s):
+		return
+	_crossing_elapsed_s = 0.0
+	update_crossings_at(float(Time.get_ticks_msec()) / 1000.0)
+
+func configure_traffic_crossing_runtime(traffic_manager: Variant) -> bool:
+	if traffic_manager == null:
+		_clear_crossing_runtime()
+		return false
+	if not traffic_manager.has_method("get_npc_crossing_system") or not traffic_manager.has_method("is_crossing_gap_safe"):
+		_clear_crossing_runtime()
+		return false
+	var crossing_system: Variant = traffic_manager.call("get_npc_crossing_system")
+	if crossing_system == null or not crossing_system is RefCounted:
+		_clear_crossing_runtime()
+		return false
+	_traffic_crossing_system = crossing_system as RefCounted
+	_traffic_gap_provider = traffic_manager
+	_crossing_elapsed_s = 0.0
+	return true
+
+func update_crossings_at(now_seconds: float) -> void:
+	if _traffic_crossing_system == null or _traffic_gap_provider == null:
+		return
+	var agents: Array = []
+	for agent: NpcAgent in _civilians:
+		if is_instance_valid(agent):
+			agents.append(agent)
+	crossing_bridge.update_agents(agents, _traffic_crossing_system, _traffic_gap_provider, now_seconds)
+
+func has_crossing_assignment(agent: NpcAgent) -> bool:
+	return is_instance_valid(agent) and crossing_bridge.has_assignment(agent)
 
 func set_observer_position(world_position: Vector3) -> void:
 	observer_position = world_position
@@ -57,6 +99,7 @@ func register_agent(agent: NpcAgent) -> bool:
 	return true
 
 func unregister_agent(agent: NpcAgent) -> void:
+	_clear_crossing_for_agent(agent)
 	_civilians.erase(agent)
 	_police.erase(agent)
 	_pool.erase(agent)
@@ -81,6 +124,7 @@ func collect_inactive_agents() -> int:
 			unregister_agent(agent)
 			continue
 		if not agent.active:
+			_clear_crossing_for_agent(agent)
 			_civilians.erase(agent)
 			_police.erase(agent)
 			if not _pool.has(agent):
@@ -120,11 +164,26 @@ func _active_agents() -> Array[NpcAgent]:
 	return result
 
 func _pool_agent(agent: NpcAgent) -> void:
+	_clear_crossing_for_agent(agent)
 	agent.active = false
 	agent.visible = false
 	agent.set_physics_process(false)
 	if not _pool.has(agent):
 		_pool.append(agent)
+
+func _clear_crossing_for_agent(agent: NpcAgent) -> void:
+	if not is_instance_valid(agent) or _traffic_crossing_system == null:
+		return
+	crossing_bridge.clear_agent(agent, _traffic_crossing_system)
+
+func _clear_crossing_runtime() -> void:
+	if _traffic_crossing_system != null:
+		for agent: NpcAgent in _civilians:
+			if is_instance_valid(agent):
+				crossing_bridge.clear_agent(agent, _traffic_crossing_system)
+	_traffic_crossing_system = null
+	_traffic_gap_provider = null
+	_crossing_elapsed_s = 0.0
 
 func _recalculate_effective_budgets() -> void:
 	var civilian_factor: float = population_context.civilian_density_factor(_urban_context, _hour, _weather_factor)

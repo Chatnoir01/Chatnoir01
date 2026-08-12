@@ -1,4 +1,4 @@
-name: Remaining Brussels Schaerbeek west compact expansion
+name: Remaining Brussels Schaerbeek Saint-Josse compact connection
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: remaining-brussels-schaerbeek-west-compact
+  group: remaining-brussels-schaerbeek-saint-josse-compact
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate Schaerbeek official grid and mapping pipeline
+      - name: Validate Schaerbeek and Saint-Josse official grids and mapping pipeline
         working-directory: grand-bruxelles-game
         run: |
           python -m compileall -q tools tests
@@ -44,23 +44,26 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          grid=json.loads(Path('data/processed/remaining_brussels/cells/schaerbeek.json').read_text())
-          boundary=json.loads(Path('data/processed/remaining_brussels/boundaries/schaerbeek.geojson').read_text())
-          assert grid['format']=='grand-bruxelles-zone-cells-v2' and grid['zone_id']=='schaerbeek'
-          assert grid['crs']=='EPSG:31370' and grid['cell_count']==49
-          assert boundary['source']['layer']=='urbisvector:Municipalities'
-          print('SCHAERBEEK_COMMITTED_GRID_VALID', grid['cell_count'])
+          for zone, expected in [('schaerbeek',49), ('saint-josse-ten-noode',12)]:
+              grid=json.loads(Path(f'data/processed/remaining_brussels/cells/{zone}.json').read_text())
+              boundary=json.loads(Path(f'data/processed/remaining_brussels/boundaries/{zone}.geojson').read_text())
+              assert grid['format']=='grand-bruxelles-zone-cells-v2' and grid['zone_id']==zone
+              assert grid['crs']=='EPSG:31370' and grid['cell_count']==expected
+              assert boundary['source']['layer']=='urbisvector:Municipalities'
+              print('OFFICIAL_GRID_VALID', zone, grid['cell_count'])
           PY
 
-      - name: Select four west-biased compact Schaerbeek frontier cells
+      - name: Select four compact Schaerbeek frontier cells favoring Saint-Josse overlap
         working-directory: grand-bruxelles-game
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
 
-          grid=json.loads(Path('data/processed/remaining_brussels/cells/schaerbeek.json').read_text())
-          cells={c['id']:c for c in grid['cells']}
+          sc=json.loads(Path('data/processed/remaining_brussels/cells/schaerbeek.json').read_text())
+          sj=json.loads(Path('data/processed/remaining_brussels/cells/saint-josse-ten-noode.json').read_text())
+          cells={c['id']:c for c in sc['cells']}
+          sj_ids={c['id'] for c in sj['cells']}
           root=Path('data/urbis/remaining_brussels/cells')
 
           def edge(a,b):
@@ -69,7 +72,7 @@ jobs:
                       ((an2==bn or bn2==an) and max(ae,be)<min(ae2,be2)))
 
           existing={cid for cid in cells if (root/cid/'manifest.json').exists()}
-          assert len(existing) >= 7, ('expected prior compact Schaerbeek checkpoint', len(existing))
+          assert len(existing) >= 11, ('expected validated west Schaerbeek checkpoint', len(existing))
           selected=[]
           connected=set(existing)
 
@@ -90,11 +93,13 @@ jobs:
                       continue
                   x,y=centre(c)
                   compact_distance=abs(x-cx)+abs(y-cy)
+                  saint_josse_overlap=1 if c['id'] in sj_ids else 0
                   frontier.append((
-                      -x,
+                      saint_josse_overlap,
                       len(neighbours),
-                      -abs(y-171750.0),
+                      -x,
                       -compact_distance,
+                      -abs(y-171500.0),
                       c,
                   ))
               assert frontier, ('no contiguous Schaerbeek frontier remains', sorted(connected))
@@ -105,7 +110,7 @@ jobs:
 
           payload={
               'format':'grand-bruxelles-zone-cells-v2',
-              'zone_id':'schaerbeek-west-compact-expansion',
+              'zone_id':'schaerbeek-saint-josse-compact-connection',
               'crs':'EPSG:31370',
               'cell_size_m':500.0,
               'cell_count':len(selected),
@@ -113,14 +118,15 @@ jobs:
               'continuity':{
                   'preexisting_ids':sorted(existing),
                   'ordered_ids':[c['id'] for c in selected],
-                  'strategy':'west-biased compact frontier toward Saint-Josse connection'
+                  'saint_josse_overlap_ids':[c['id'] for c in selected if c['id'] in sj_ids],
+                  'strategy':'compact edge-contiguous frontier prioritizing shared Saint-Josse cells'
               }
           }
           Path('/tmp/schaerbeek-frontier.json').write_text(json.dumps(payload,indent=2)+'\n')
           Path('/tmp/schaerbeek-frontier.tsv').write_text('\n'.join(
               f"{c['id']}\t{','.join(str(v) for v in c['bbox'])}" for c in selected
           )+'\n')
-          print('SCHAERBEEK_WEST_COMPACT_SELECTION', payload['continuity']['ordered_ids'])
+          print('SCHAERBEEK_SAINT_JOSSE_SELECTION', payload['continuity'])
           PY
 
       - name: Materialize authoritative UrbIS geometry and transport networks
@@ -141,7 +147,7 @@ jobs:
               --metadata "data/processed/remaining_brussels/references/schaerbeek_${CELL}_orthophoto.json"
           done < /tmp/schaerbeek-frontier.tsv
 
-      - name: Validate fidelity continuity and runtime inclusion
+      - name: Validate fidelity continuity runtime inclusion and cross-municipality connection
         working-directory: grand-bruxelles-game
         run: |
           python - <<'PY'
@@ -173,25 +179,29 @@ jobs:
 
           coverage=json.loads(Path('data/processed/remaining_brussels/coverage_report.json').read_text())
           sc=next(z for z in coverage['zones'] if z['zone_id']=='schaerbeek')
+          sj=next(z for z in coverage['zones'] if z['zone_id']=='saint-josse-ten-noode')
           assert set(ids)<=set(sc['materialized_cell_ids'])
-          assert sc['materialized_cells']>=11
+          assert sc['materialized_cells']>=15
           runtime=json.loads(Path('data/urbis/remaining_brussels/runtime_index.json').read_text())
           assert set(ids)<={c['cell_id'] for c in runtime['cells']}
-          print('SCHAERBEEK_WEST_COMPACT_VALIDATED', ids, sc['materialized_cells'], sc['coverage_percent'])
+          overlap=set(selection['continuity']['saint_josse_overlap_ids'])
+          if overlap:
+              assert overlap<=set(sj['materialized_cell_ids'])
+          print('SCHAERBEEK_SAINT_JOSSE_COMPACT_VALIDATED', ids, sc['materialized_cells'], sc['coverage_percent'], sj['materialized_cells'], sj['coverage_percent'], sorted(overlap))
           PY
 
       - uses: actions/upload-artifact@v4
         with:
-          name: schaerbeek-west-compact-official-orthophotos
+          name: schaerbeek-saint-josse-compact-official-orthophotos
           path: /tmp/schaerbeek-frontier-ortho/*.png
           retention-days: 14
           if-no-files-found: error
 
-      - name: Commit validated Schaerbeek expansion
+      - name: Commit validated Schaerbeek Saint-Josse connection
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+Chatnoir01@users.noreply.github.com'
           git add grand-bruxelles-game/data/processed/remaining_brussels grand-bruxelles-game/data/urbis/remaining_brussels
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'data: extend Schaerbeek west with authoritative UrbIS cells'
+          git commit -m 'data: strengthen Schaerbeek Saint-Josse contiguous connection'
           git push origin HEAD:zone-reste-bruxelles-clean

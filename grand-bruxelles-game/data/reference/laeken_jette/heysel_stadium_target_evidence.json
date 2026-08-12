@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "view_id": "heysel_stadium_context_v1",
+  "status": "urbis_target_resolved_camera_comparison_pending",
+  "crs": "EPSG:31370",
+  "authoritative_target": {
+    "geometry_source": "UrbIS Buildings",
+    "geometry_role": "final target geometry basis",
+    "selected_features": [
+      {
+        "inspire_id": "https://databrussels.be/id/building/1707292",
+        "block_id": "https://databrussels.be/id/block/25568",
+        "area_m2": 23832.524,
+        "osm_semantic_envelope_intersection_m2": 23832.005,
+        "feature_inside_osm_semantic_envelope_ratio": 0.999978
+      },
+      {
+        "inspire_id": "https://databrussels.be/id/building/1701261",
+        "block_id": "https://databrussels.be/id/block/25568",
+        "area_m2": 4987.627,
+        "osm_semantic_envelope_intersection_m2": 4966.565,
+        "feature_inside_osm_semantic_envelope_ratio": 0.995777
+      }
+    ],
+    "selection_reason": "The live OSM stadium semantic envelope intersects exactly these two versioned UrbIS construction features by more than 1 m2. Both are almost entirely inside that semantic envelope and share the same official UrbIS block. OSM is used only to identify the semantic stadium envelope; the selected geometry and target centroid remain UrbIS-derived.",
+    "full_urbis_union_centroid_lambert72": {
+      "e": 147572.177,
+      "n": 176160.013
+    },
+    "full_urbis_union_game_xz": {
+      "x": -296.11739780724747,
+      "z": -6996.067008908547,
+      "origin_e": 147868.29439780724,
+      "origin_n": 183156.08000890855,
+      "conversion": "x = e - origin_e; z = n - origin_n"
+    },
+    "full_urbis_union_oriented_rectangle": {
+      "length_m": 288.358,
+      "width_m": 199.724,
+      "long_axis_angle_deg_lambert": 128.635,
+      "rectangle_area_m2": 57592.085
+    }
+  },
+  "semantic_cross_check": {
+    "source": "OpenStreetMap",
+    "role": "semantic envelope complement only; never final game geometry",
+    "way_id": 253875451,
+    "way_version": 21,
+    "way_timestamp": "2026-01-12T20:19:53Z",
+    "license": "ODbL 1.0",
+    "source_url": "https://www.openstreetmap.org/way/253875451",
+    "projected_envelope_area_m2": 47538.819,
+    "projected_envelope_centroid_lambert72": {
+      "e": 147565.392,
+      "n": 176154.566
+    },
+    "selected_urbis_union_coverage_of_osm_envelope_ratio": 0.605791
+  },
+  "official_dimension_cross_check": {
+    "source": "King Baudouin Stadium official website — The Stadium in figures",
+    "source_url": "https://kingbaudouinstadium.be/index.php/the-stadium/?lang=en",
+    "role": "validation only; dimensions do not replace UrbIS geometry",
+    "stadium_length_m": 217.5,
+    "stadium_width_m": 137.5,
+    "roof_height_m": 36.0,
+    "uncertainty": "The selected UrbIS construction union has a larger oriented rectangle than the official stadium dimensions. This is retained as an explicit semantic/footprint mismatch rather than manually shrinking or reshaping authoritative geometry."
+  },
+  "orthophoto_cross_check": {
+    "source": "Paradigm / Brussels-Capital Region official raster WMS",
+    "layer": "Ortho",
+    "frozen_year": 2024,
+    "crs": "EPSG:31370",
+    "bbox_epsg31370": [147300.0, 173650.0, 149100.0, 176750.0],
+    "sha256": "c23ab90490d78acb6accc0d4ce8a1bad5821b8b478b3643744382c4f13f57d95",
+    "license": "CC0",
+    "runtime_path": "data/orthophoto/laeken_jette/phase1_ortho.jpg",
+    "target_inside_frozen_orthophoto": true
+  },
+  "camera_policy": {
+    "published_reference_camera_coordinates": null,
+    "published_reference_focal_length": null,
+    "target_horizontal_position_resolved": true,
+    "target_vertical_position_status": "dtm_sample_pending",
+    "candidate_observation_levels_m": [92.0, 36.0],
+    "candidate_levels_status": "plausible_not_proven",
+    "rule": "Render both official Atomium observation-level candidates toward this UrbIS-derived stadium target without claiming either candidate as the 2007 photographer position. Preserve provisional FOV/crop status until visual comparison is complete."
+  },
+  "provenance_notes": [
+    "UrbIS remains the authoritative geometry source.",
+    "OSM is used only as a semantic selector/cross-check and is separately attributed under ODbL 1.0.",
+    "Official stadium dimensions are used only to detect gross semantic mismatches.",
+    "The frozen 2024 official orthophoto covers the target and is used for visual cross-checking.",
+    "No manual geometry was introduced to force agreement between sources."
+  ]
+}

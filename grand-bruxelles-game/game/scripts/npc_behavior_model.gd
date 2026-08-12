@@ -60,7 +60,9 @@ func set_destination(destination: Vector3) -> void:
 		if state != State.PURSUING and state != State.INVESTIGATING:
 			state = State.PATROLLING
 	else:
-		if state != State.FLEEING:
+		# A stale incident state must not block normal navigation once alertness
+		# has actually returned to calm.
+		if state != State.FLEEING or alert_level <= 5.0:
 			state = State.WALKING
 
 func should_despawn(observer_position: Vector3, max_distance: float) -> bool:

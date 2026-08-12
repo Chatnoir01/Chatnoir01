@@ -1,0 +1,36 @@
+name: Grand Bruxelles Cell Maturity
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/cell_manifests/**'
+      - 'grand-bruxelles-game/tools/validate_cell_manifest.py'
+      - 'grand-bruxelles-game/tools/test_validate_cell_manifest.py'
+      - '.github/workflows/grand-bruxelles-cell-maturity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'grand-bruxelles-game/data/cell_manifests/**'
+      - 'grand-bruxelles-game/tools/validate_cell_manifest.py'
+      - 'grand-bruxelles-game/tools/test_validate_cell_manifest.py'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        working-directory: grand-bruxelles-game/tools
+        run: python3 -m unittest -v test_validate_cell_manifest.py
+      - name: Validate registered cell manifests
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          manifests=(grand-bruxelles-game/data/cell_manifests/*.json)
+          if [ ${#manifests[@]} -eq 0 ]; then
+            echo 'No cell manifests registered' >&2
+            exit 1
+          fi
+          for manifest in "${manifests[@]}"; do
+            python3 grand-bruxelles-game/tools/validate_cell_manifest.py "$manifest"
+          done

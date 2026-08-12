@@ -23,6 +23,7 @@ var appearance := NpcAppearanceProfile.new()
 var ambient_state := NpcAmbientState.new()
 var police_response := NpcPoliceResponse.new()
 var crowd_reaction := NpcCrowdReaction.new()
+var civilian_recovery := NpcCivilianRecovery.new()
 var pedestrian_intent: int = NpcPedestrianContext.PedestrianIntent.CONTINUE
 var weather_context: int = NpcAppearanceProfile.WeatherContext.MILD
 var transit_state: int = TransitState.NONE
@@ -32,6 +33,8 @@ var movement_held := false
 var transit_queue: NpcTransitQueue = null
 var transit_queue_passenger_id: int = -1
 var transit_stop: NpcTransitStop = null
+var civilian_routine_target := Vector3.ZERO
+var civilian_recovery_movement_scale: float = 1.0
 
 func _ready() -> void:
 	behavior.configure(role, variation_seed, global_position)
@@ -156,6 +159,8 @@ func get_world_position() -> Vector3:
 	return position
 
 func set_destination(destination: Vector3) -> void:
+	if role == NpcBehaviorModel.Role.CIVILIAN:
+		civilian_routine_target = destination
 	behavior.set_destination(destination)
 
 func react_to_event(intensity: float, world_position: Vector3) -> void:
@@ -178,6 +183,29 @@ func apply_local_crowd_stimulus(stimulus_position: Vector3, normalized_intensity
 		behavior.apply_stimulus(maxf(22.0, response_intensity * 100.0), stimulus_position)
 	elif response_intensity > 0.05:
 		behavior.apply_stimulus(minf(15.0, response_intensity * 20.0), stimulus_position)
+	return result
+
+func begin_civilian_recovery(normalized_severity: float, started_at_seconds: float, context: String = "street") -> Dictionary:
+	if role != NpcBehaviorModel.Role.CIVILIAN:
+		return {"settle_seconds": 0.0, "recovery_seconds": 0.0, "severity": 0.0}
+	civilian_recovery_movement_scale = 0.42
+	return civilian_recovery.begin_recovery(normalized_severity, started_at_seconds, context)
+
+func update_civilian_recovery(now_seconds: float, threat_active: bool) -> Dictionary:
+	if role != NpcBehaviorModel.Role.CIVILIAN:
+		return {"alertness": 0.0, "movement_scale": 1.0, "resume_routine": false, "progress": 0.0}
+	var result: Dictionary = civilian_recovery.sample(now_seconds, threat_active)
+	civilian_recovery_movement_scale = clampf(float(result.get("movement_scale", 1.0)), 0.0, 1.0)
+	if threat_active:
+		behavior.alert_level = maxf(behavior.alert_level, float(result.get("alertness", 0.0)) * 100.0)
+	elif bool(result.get("resume_routine", false)):
+		behavior.alert_level = 0.0
+		behavior.set_destination(civilian_routine_target)
+		civilian_recovery_movement_scale = 1.0
+	else:
+		behavior.alert_level = clampf(float(result.get("alertness", 0.0)) * 100.0, 0.0, 100.0)
+		if behavior.state == NpcBehaviorModel.State.FLEEING or behavior.state == NpcBehaviorModel.State.AVOIDING:
+			behavior.state = NpcBehaviorModel.State.OBSERVING
 	return result
 
 func report_police_incident(world_position: Vector3, severity: float, incident_id: int) -> int:
@@ -274,7 +302,8 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if role != NpcBehaviorModel.Role.POLICE or police_response.phase == NpcPoliceResponse.Phase.PATROL:
-		behavior.calm_down(calm_rate * delta)
+		if role != NpcBehaviorModel.Role.CIVILIAN or not civilian_recovery.is_active():
+			behavior.calm_down(calm_rate * delta)
 	if behavior.should_despawn(observer_position, despawn_distance):
 		_leave_transit_queue_if_needed()
 		active = false
@@ -307,7 +336,8 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	var desired: Vector3 = planar.normalized() * behavior.preferred_speed
+	var speed_scale := civilian_recovery_movement_scale if role == NpcBehaviorModel.Role.CIVILIAN else 1.0
+	var desired: Vector3 = planar.normalized() * behavior.preferred_speed * speed_scale
 	velocity.x = move_toward(velocity.x, desired.x, acceleration * delta)
 	velocity.z = move_toward(velocity.z, desired.z, acceleration * delta)
 	move_and_slide()
@@ -344,6 +374,9 @@ func _configure_ambient_state() -> void:
 func _configure_response_models(spawn_position: Vector3) -> void:
 	crowd_reaction.configure(variation_seed)
 	police_response.configure(variation_seed, spawn_position)
+	civilian_recovery.configure(variation_seed)
+	civilian_recovery_movement_scale = 1.0
+	civilian_routine_target = behavior.target_position
 	if role == NpcBehaviorModel.Role.POLICE:
 		_sync_police_response_to_behavior()
 

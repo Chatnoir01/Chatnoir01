@@ -108,7 +108,7 @@ jobs:
           print('URBIS_3D_EXTRACTION_OK','gpkg_count=',len(gpkg))
           if not gpkg: raise SystemExit('official distribution contains no GeoPackage')
           PY
-      - name: Extract source-identified Bourse Z evidence
+      - name: Extract Bourse Z evidence and diagnostics
         run: |
           mkdir -p grand-bruxelles-game/artifacts/bourse-urbis3d
           cp /tmp/urbis-discovered.json grand-bruxelles-game/artifacts/bourse-urbis3d/discovered.json
@@ -119,11 +119,19 @@ jobs:
             --identifier 8186511 --identifier 1751663 \
             --anchor-e 148620.23351135076 --anchor-n 170829.88213200308 \
             --radius-m 100 \
-            --output grand-bruxelles-game/artifacts/bourse-urbis3d/evidence.json \
-            --require-identity
+            --output grand-bruxelles-game/artifacts/bourse-urbis3d/evidence.json
       - name: Upload evidence only
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-bourse-urbis3d-evidence
           path: grand-bruxelles-game/artifacts/bourse-urbis3d/
           if-no-files-found: error
+      - name: Enforce source identity before height use
+        run: |
+          python3 - <<'PY'
+          import json
+          data=json.load(open('grand-bruxelles-game/artifacts/bourse-urbis3d/evidence.json',encoding='utf-8'))
+          print('BOURSE_URBIS3D_DIAGNOSTIC','matches=',data['identifier_match_count'],'nearby=',len(data['nearby_diagnostics']))
+          if not data['usable_for_runtime_height_review']:
+              raise SystemExit('Bourse 3D identity is not proven yet; inspect uploaded nearby diagnostics instead of guessing')
+          PY

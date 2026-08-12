@@ -36,6 +36,12 @@ func _vector3(raw: Variant) -> Vector3:
         return Vector3.ZERO
     return Vector3(float(values[0]), float(values[1]), float(values[2]))
 
+func _hide_generated_labels(node: Node) -> void:
+    if node is Label3D:
+        (node as Label3D).visible = false
+    for child: Node in node.get_children():
+        _hide_generated_labels(child)
+
 func _hide_capture_noise(scene: Node) -> void:
     for node_path: String in ["MissionLabel", "PrototypeLabel", "MiniMap", "MobileControls"]:
         var item := scene.get_node_or_null(node_path) as CanvasItem
@@ -45,6 +51,7 @@ func _hide_capture_noise(scene: Node) -> void:
         var spatial := scene.get_node_or_null(node_path) as Node3D
         if spatial != null:
             spatial.visible = false
+    _hide_generated_labels(scene)
 
 func _run() -> void:
     root.size = Vector2i(WIDTH, HEIGHT)
@@ -87,6 +94,7 @@ func _run() -> void:
 
     for _frame: int in range(WARMUP_FRAMES):
         await process_frame
+    _hide_capture_noise(scene)
     RenderingServer.force_draw()
     await process_frame
 

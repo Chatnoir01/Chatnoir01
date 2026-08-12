@@ -93,6 +93,7 @@ func _spawn_delivery_vehicle(candidate: Dictionary, reservation_owner: String) -
     )
 
     var collision := CollisionShape3D.new()
+    collision.name = "CollisionShape3D"
     var shape := BoxShape3D.new()
     shape.size = DELIVERY_VAN_SIZE
     collision.shape = shape

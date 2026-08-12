@@ -10,6 +10,7 @@ const FALLBACK_AUTHORED_CHARACTER_PATHS := [
 ]
 
 @export_file("*.glb", "*.gltf", "*.fbx", "*.tscn") var authored_scene_path: String = DEFAULT_AUTHORED_CHARACTER_PATH
+@export var allow_authored_fallback_paths := true
 @export var authored_position: Vector3 = Vector3(0.0, -0.90, 0.0)
 @export var authored_rotation_degrees: Vector3 = Vector3(0.0, 180.0, 0.0)
 @export var authored_scale: Vector3 = Vector3.ONE
@@ -68,9 +69,10 @@ func _authored_candidates() -> Array[String]:
     var candidates: Array[String] = []
     if not authored_scene_path.is_empty():
         candidates.append(authored_scene_path)
-    for fallback_path in FALLBACK_AUTHORED_CHARACTER_PATHS:
-        if not candidates.has(fallback_path):
-            candidates.append(fallback_path)
+    if allow_authored_fallback_paths:
+        for fallback_path in FALLBACK_AUTHORED_CHARACTER_PATHS:
+            if not candidates.has(fallback_path):
+                candidates.append(fallback_path)
     return candidates
 
 func _try_load_authored_character() -> bool:

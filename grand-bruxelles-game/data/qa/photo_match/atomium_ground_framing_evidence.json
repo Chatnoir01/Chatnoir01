@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "view_id": "atomium_ground_oblique_v1",
+  "source_workspace": {
+    "branch": "zone-laeken-jette",
+    "evidence_commit": "5525ad370ff4ddc1d34b02ab82cc3fbba3f56cb7",
+    "policy": "evidence-only; no branch history imported"
+  },
+  "reference": {
+    "source_page": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",
+    "author": "Horst J. Meuter",
+    "license": "CC BY-SA 4.0",
+    "source_dimensions_px": [960, 638],
+    "published_camera_wgs84": [4.339306, 50.897467],
+    "camera_metadata_policy": "Source-published location is preserved as metadata; exact lens, yaw, pitch and crop are not asserted."
+  },
+  "coordinate_contract": {
+    "crs": "EPSG:31370",
+    "project_origin_epsg31370": [147868.29422791934, 169538.62414926197],
+    "axes": "X=east, Y=up, Z=south",
+    "camera_epsg31370": [147928.4114, 176347.3521],
+    "camera_game_xz": [60.1172, -6808.7279],
+    "atomium_epsg31370": [148093.22038698208, 176091.76722726133],
+    "atomium_game_xz": [224.92615906274295, -6553.143077999353],
+    "camera_to_target_horizontal_distance_m": 304.1144426436321,
+    "camera_y_from_atomium_baseline_m": 14.059434659520559,
+    "subject_official_height_m": 102.0
+  },
+  "framing_bound": {
+    "method": "Perspective projection from registered camera/target geometry plus a conservative clearly-visible Atomium witness; this constrains an upper FOV bound and does not recover the historical lens.",
+    "source_visible_witness_y_px": [58, 440],
+    "endpoint_uncertainty_px": 5,
+    "minimum_visible_subject_frame_fraction": 0.5830721003134797,
+    "maximum_fov_consistent_with_witness_deg": 31.66103407870215,
+    "benchmark_fov_degrees": 31.5,
+    "predicted_subject_height_px_at_1280x720": 422.0710216186719,
+    "predicted_subject_frame_height_fraction": 0.5862097522481555,
+    "status": "evidence-bounded provisional"
+  },
+  "capture_evidence": {
+    "scope": "specialist-workspace deterministic Godot capture; not a current-main runtime capture",
+    "workflow_run_id": 31597045638,
+    "artifact_id": 9141524732,
+    "artifact_name": "atomium-ground-oblique-v1",
+    "artifact_sha256": "0518081013066bad1304b29ad2613fa82a73c7127e375f716b384f2adb15c247",
+    "render_resolution_px": [1280, 720],
+    "source_commit": "78f82747f593f8edef4f876d0cdc2ba650415397"
+  },
+  "reality_status": {
+    "realism_complete": false,
+    "resolved_by_this_lot": "Reject the stale 50 degree global benchmark as too wide; adopt 31.5 degrees only as a conservative evidence-bounded candidate.",
+    "remaining_blockers": [
+      "Current-main deterministic Atomium runtime capture is still absent.",
+      "Exact yaw, pitch, crop and historical lens remain unresolved.",
+      "Fountain/basin and paved open-space geometry remain the largest immediate source-to-game foreground mismatch.",
+      "Vegetation massing remains incomplete relative to the lawful reference.",
+      "Atomium support-leg orientation and sphere/tube foreshortening still require side-by-side runtime validation."
+    ]
+  }
+}

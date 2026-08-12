@@ -51,7 +51,19 @@ def create_buildings(path: Path) -> None:
     path.write_text(json.dumps(payload),encoding="utf-8")
 
 
+def assert_line_contact_does_not_request_area() -> None:
+    class LinearIntersection:
+        def IsEmpty(self): return False
+        def GetDimension(self): return 1
+        def GetArea(self): raise AssertionError("line-only intersection must never request area")
+    class Ground:
+        def Intersection(self, _building): return LinearIntersection()
+        def GetArea(self): raise AssertionError("ground area must not be requested after line-only rejection")
+    assert module.score_match(Ground(), object()) is None
+
+
 def main() -> int:
+    assert_line_contact_does_not_request_area()
     with tempfile.TemporaryDirectory() as td:
         root=Path(td); gpkg=root/"ixelles.gpkg"; buildings_path=root/"buildings.geojson"
         create_gpkg(gpkg); create_buildings(buildings_path)

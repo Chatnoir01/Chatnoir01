@@ -1,1 +1,1 @@
-extends "res://game/scripts/traffic_manager_core_v7.gd"
+extends "res://game/scripts/traffic_manager_core_v8.gd"

@@ -5,9 +5,9 @@
   "municipalities_total": 17,
   "municipality_grids_ready": 7,
   "unique_planned_cells_known": 256,
-  "materialized_cells_total": 13,
-  "materialized_cells_in_known_grids": 13,
-  "known_grid_coverage_percent": 5.08,
+  "materialized_cells_total": 15,
+  "materialized_cells_in_known_grids": 15,
+  "known_grid_coverage_percent": 5.86,
   "shared_cross_municipality_cell_count": 38,
   "shared_cross_municipality_cells": {
     "bxl-e146500-n168500-s500": [
@@ -244,9 +244,11 @@
       "priority": 6,
       "grid_ready": true,
       "planned_cells": 49,
-      "materialized_cells": 0,
-      "coverage_percent": 0.0,
-      "materialized_cell_ids": []
+      "materialized_cells": 1,
+      "coverage_percent": 2.04,
+      "materialized_cell_ids": [
+        "bxl-e151500-n170000-s500"
+      ]
     },
     {
       "zone_id": "etterbeek",
@@ -255,12 +257,14 @@
       "priority": 7,
       "grid_ready": true,
       "planned_cells": 21,
-      "materialized_cells": 3,
-      "coverage_percent": 14.29,
+      "materialized_cells": 5,
+      "coverage_percent": 23.81,
       "materialized_cell_ids": [
         "bxl-e150500-n169000-s500",
         "bxl-e151000-n169000-s500",
-        "bxl-e151500-n169000-s500"
+        "bxl-e151500-n169000-s500",
+        "bxl-e151500-n169500-s500",
+        "bxl-e151500-n170000-s500"
       ]
     },
     {
@@ -376,7 +380,7 @@
   ],
   "runtime": {
     "format": "grand-bruxelles-urbis-runtime-index-v2",
-    "streamable_cells": 13,
+    "streamable_cells": 15,
     "excluded_cells": 0
   }
 }

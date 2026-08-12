@@ -1,0 +1,24 @@
+{
+  "format": "grand-bruxelles-orthophoto-reference-v1",
+  "provider": "Paradigm / UrbIS",
+  "service": "WMS 1.1.0",
+  "endpoint": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms",
+  "layer": "inspire:Ortho",
+  "crs": "EPSG:31370",
+  "bbox": [
+    151500.0,
+    169500.0,
+    152000.0,
+    170000.0
+  ],
+  "width": 1024,
+  "height": 1024,
+  "url": "https://geoservices-urbis.irisnet.be/geoserver/inspire/wms?service=WMS&version=1.1.0&request=GetMap&layers=inspire%3AOrtho&styles=&srs=EPSG%3A31370&bbox=151500%2C169500%2C152000%2C170000&width=1024&height=1024&format=image%2Fpng&transparent=false",
+  "purpose": "visual validation/reference only",
+  "download": {
+    "path": "/tmp/et-sc-ortho/bxl-e151500-n169500-s500.png",
+    "bytes": 2306767,
+    "sha256": "4a70bb2fdcdb20e6c6a3e21d0914e41f0e4d921bbda0548b26d4564eedf6f17f",
+    "content_type": "image/png"
+  }
+}

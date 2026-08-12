@@ -41,3 +41,10 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_runtime_contract_test.gd 2>&1 | tee /tmp/traffic-contract.log
           if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_RUNTIME_CONTRACT_FAIL" /tmp/traffic-contract.log; then exit 1; fi
           grep -q "TRAFFIC_RUNTIME_CONTRACT_OK" /tmp/traffic-contract.log
+      - name: Canonical traffic behavior test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_canonical_behavior_test.gd 2>&1 | tee /tmp/traffic-behavior.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CANONICAL_BEHAVIOR_FAIL" /tmp/traffic-behavior.log; then exit 1; fi
+          grep -q "TRAFFIC_CANONICAL_BEHAVIOR_OK" /tmp/traffic-behavior.log

@@ -72,6 +72,54 @@ func _initialize() -> void:
 		_fail("civilian must return to walking rather than remain in incident state")
 		return
 
+	# Recovery must carry an immutable snapshot of the exact pre-incident
+	# routine so the live agent can restore transit waiting or ambient activity
+	# instead of only recovering a geometric destination.
+	var activity_recovery := CivilianRecovery.new()
+	activity_recovery.configure(2201)
+	var routine_snapshot := {
+		"activity_kind": &"transit_wait",
+		"transit_state": NpcAgent.TransitState.WAITING,
+		"passenger_id": 42,
+		"ambient_state": NpcAmbientState.State.WAIT_TRANSIT,
+		"ambient_sequence_index": 7,
+		"routine_target": Vector3(4.0, 0.0, -9.0),
+	}
+	var activity_plan: Dictionary = activity_recovery.begin_recovery(0.6, 40.0, "transit_hub", routine_snapshot)
+	if not bool(activity_plan.get("routine_snapshot_captured", false)):
+		_fail("recovery plan must report that a pre-incident routine snapshot was captured")
+		return
+	# Mutating the caller-owned dictionary after begin_recovery must not corrupt
+	# the stored recovery handoff.
+	routine_snapshot["passenger_id"] = 99
+	routine_snapshot["activity_kind"] = &"corrupted"
+	var activity_total := float(activity_plan.get("settle_seconds", 0.0)) + float(activity_plan.get("recovery_seconds", 0.0))
+	var activity_held: Dictionary = activity_recovery.sample(40.0 + activity_total * 0.4, true)
+	if activity_held.has("routine_snapshot"):
+		_fail("routine snapshot must not be exposed while the threat remains active")
+		return
+	var activity_finished: Dictionary = activity_recovery.sample(40.0 + activity_total + 0.2, false)
+	var restored_snapshot_value: Variant = activity_finished.get("routine_snapshot", null)
+	if not (restored_snapshot_value is Dictionary):
+		_fail("finished recovery must return the captured routine snapshot")
+		return
+	var restored_snapshot: Dictionary = restored_snapshot_value as Dictionary
+	if StringName(restored_snapshot.get("activity_kind", &"")) != &"transit_wait":
+		_fail("recovery must preserve the original activity kind")
+		return
+	if int(restored_snapshot.get("passenger_id", -1)) != 42:
+		_fail("recovery snapshot must be isolated from caller mutation")
+		return
+	if int(restored_snapshot.get("ambient_state", -1)) != NpcAmbientState.State.WAIT_TRANSIT:
+		_fail("recovery must preserve transit ambient state")
+		return
+	if int(restored_snapshot.get("ambient_sequence_index", -1)) != 7:
+		_fail("recovery must preserve ambient sequence progress")
+		return
+	if restored_snapshot.get("routine_target", Vector3.ZERO) != Vector3(4.0, 0.0, -9.0):
+		_fail("recovery must preserve the exact routine target")
+		return
+
 	print("NPC_CIVILIAN_RECOVERY_OK")
 	quit(0)
 

@@ -45,6 +45,22 @@ class IxellesBuildingHeightStatsTest(unittest.TestCase):
         self.assertEqual(stats["pixel_count_plausible"], 8)
         self.assertEqual(stats["confidence"], "insufficient")
 
+    def test_degenerate_zero_mosaics_are_rejected_before_height_evidence(self):
+        dtm = np.zeros((32, 32), dtype=float)
+        dsm = np.zeros((32, 32), dtype=float)
+        with self.assertRaisesRegex(ValueError, "degenerate"):
+            derive.validate_height_mosaics(dsm, dtm, None, None)
+
+    def test_realistic_mosaic_variation_passes_quality_gate(self):
+        x = np.linspace(55.0, 62.0, 32)
+        dtm = np.repeat(x[np.newaxis, :], 32, axis=0)
+        dsm = dtm.copy()
+        dsm[8:24, 8:24] += 14.0
+        diagnostics = derive.validate_height_mosaics(dsm, dtm, None, None)
+        self.assertGreater(diagnostics["dtm_range_m"], 5.0)
+        self.assertGreater(diagnostics["positive_height_fraction"], 0.1)
+        self.assertGreater(diagnostics["height_p95_m"], 10.0)
+
 
 if __name__ == "__main__":
     unittest.main()

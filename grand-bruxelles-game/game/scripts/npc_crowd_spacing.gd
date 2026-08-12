@@ -12,16 +12,28 @@ func needs_spacing(agent_position: Vector3, peer_position: Vector3) -> bool:
 func spacing_released(agent_position: Vector3, peer_position: Vector3) -> bool:
 	return _planar_distance(agent_position, peer_position) >= maxf(personal_space_m, release_space_m)
 
-func detour_target(agent_position: Vector3, destination: Vector3, peer_position: Vector3, seed: int, peer_seed: int) -> Vector3:
-	var forward := destination - agent_position
-	forward.y = 0.0
-	if forward.length_squared() < 0.0001:
-		forward = Vector3(0.0, 0.0, -1.0)
-	else:
-		forward = forward.normalized()
+func detour_target(agent_position: Vector3, destination: Vector3, peer_position: Vector3, seed: int, peer_seed: int, peer_destination: Vector3 = Vector3.INF) -> Vector3:
+	var forward := _planar_direction(agent_position, destination)
 	var lateral := Vector3(-forward.z, 0.0, forward.x)
 	var side := _side_sign(agent_position, peer_position, seed, peer_seed)
+	if peer_destination.is_finite():
+		var peer_forward := _planar_direction(peer_position, peer_destination)
+		if forward.dot(peer_forward) <= -0.5:
+			side = _shared_pair_side_sign(seed, peer_seed)
 	return agent_position + forward * maxf(0.2, detour_forward_m) + lateral * maxf(0.2, detour_side_m) * side
+
+func _planar_direction(origin: Vector3, destination: Vector3) -> Vector3:
+	var forward := destination - origin
+	forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		return Vector3(0.0, 0.0, -1.0)
+	return forward.normalized()
+
+func _shared_pair_side_sign(seed: int, peer_seed: int) -> float:
+	var low := mini(seed, peer_seed)
+	var high := maxi(seed, peer_seed)
+	var mixed := absi(low * 1103515245 + high * 12345 + 97)
+	return -1.0 if (mixed & 1) == 0 else 1.0
 
 func _side_sign(agent_position: Vector3, peer_position: Vector3, seed: int, peer_seed: int) -> float:
 	if seed != peer_seed:

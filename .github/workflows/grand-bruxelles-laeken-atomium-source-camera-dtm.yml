@@ -1,0 +1,78 @@
+name: Grand Bruxelles Laeken Atomium Source Camera DTM
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/sample_laeken_dtm_runtime.py"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/phase1_dtm.game.json"
+      - ".github/workflows/grand-bruxelles-laeken-atomium-source-camera-dtm.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-atomium-source-camera-dtm
+  cancel-in-progress: true
+
+jobs:
+  sample:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Compile sampler
+        working-directory: grand-bruxelles-game
+        run: python3 -m py_compile tools/sample_laeken_dtm_runtime.py
+
+      - name: Sample published Atomium reference camera terrain
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/sample_laeken_dtm_runtime.py \
+            data/terrain/laeken_jette/phase1_dtm.game.json \
+            --e 147928.411 \
+            --n 176347.352 \
+            --eye-height 1.70 \
+            --output data/reference/laeken_jette/atomium_ground_oblique_dtm_sample.json
+
+      - name: Validate source-faithful camera terrain evidence
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json, math
+          p='data/reference/laeken_jette/atomium_ground_oblique_dtm_sample.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['source_crs']=='EPSG:31370'
+          assert abs(d['query_epsg31370']['e']-147928.411)<1e-6
+          assert abs(d['query_epsg31370']['n']-176347.352)<1e-6
+          assert len(d['bilinear_corners'])==4
+          assert abs(sum(x['weight'] for x in d['bilinear_corners'])-1.0)<1e-6
+          assert 0.0 < d['terrain_absolute_elevation_m'] < 120.0
+          assert math.isclose(d['camera_eye_absolute_elevation_m'], d['terrain_absolute_elevation_m']+1.70, abs_tol=1e-8)
+          assert d['nearest_sample']['valid'] is True
+          print('ATOMIUM_SOURCE_CAMERA_DTM_EVIDENCE_OK', d['terrain_absolute_elevation_m'], d['camera_eye_absolute_elevation_m'])
+          PY
+
+      - name: Preserve generated evidence
+        run: |
+          mkdir -p /tmp/atomium-camera-dtm
+          cp grand-bruxelles-game/data/reference/laeken_jette/atomium_ground_oblique_dtm_sample.json /tmp/atomium-camera-dtm/
+
+      - name: Publish evidence from latest branch head
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/reference/laeken_jette
+          cp /tmp/atomium-camera-dtm/atomium_ground_oblique_dtm_sample.json grand-bruxelles-game/data/reference/laeken_jette/
+          git add grand-bruxelles-game/data/reference/laeken_jette/atomium_ground_oblique_dtm_sample.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: pin Atomium source camera DTM elevation [skip ci]"
+          git push origin HEAD:zone-laeken-jette

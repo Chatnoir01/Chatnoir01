@@ -1,6 +1,7 @@
 extends SceneTree
 
 const HEIGHTS_PATH := "res://data/urbis/laeken_jette/building_heights_dsm.game.json"
+const MAX_READY_FRAMES := 90
 
 
 func _initialize() -> void:
@@ -22,15 +23,28 @@ func _run() -> void:
         return
     var scene := packed.instantiate()
     root.add_child(scene)
-    for _i in range(12):
-        await process_frame
 
     var height_pass = scene.get_node_or_null("BuildingHeightPass")
+    var bridge = scene.get_node_or_null("BuildingDSMMaterialBridge")
     if height_pass == null:
         _fail("BuildingHeightPass missing")
         return
-    if not bool(height_pass.get("height_mesh_ready")):
-        _fail("DSM building replacement mesh did not finish")
+    if bridge == null:
+        _fail("BuildingDSMMaterialBridge missing")
+        return
+
+    var ready_frame := -1
+    for frame_index in range(MAX_READY_FRAMES):
+        if bool(height_pass.get("height_mesh_ready")) and bool(bridge.get("material_bridged")):
+            ready_frame = frame_index
+            break
+        await process_frame
+    if ready_frame < 0:
+        _fail("DSM mesh/material did not become ready within %d frames; height_ready=%s material_bridged=%s" % [
+            MAX_READY_FRAMES,
+            bool(height_pass.get("height_mesh_ready")),
+            bool(bridge.get("material_bridged")),
+        ])
         return
 
     var derived := int(height_pass.get("derived_buildings"))
@@ -75,16 +89,11 @@ func _run() -> void:
     if bounds.size.y < 50.0:
         _fail("DSM building mesh still lacks meaningful vertical variation: AABB %.3fm" % bounds.size.y)
         return
-
-    var bridge = scene.get_node_or_null("BuildingDSMMaterialBridge")
-    if bridge == null or not bool(bridge.get("material_bridged")):
-        _fail("validated facade/roof material was not bridged to DSM mesh")
-        return
     if not dsm_mesh.material_override is ShaderMaterial:
         _fail("DSM mesh final ShaderMaterial missing")
         return
 
-    print("LAEKEN_BUILDING_HEIGHTS_OK: derived=%d fallback=%d quality={high:%d,medium:%d,low:%d} height=[%.2f,%.2f] mesh_vertical=%.2fm" % [derived, fallback, high, medium, low, min_height, max_height, bounds.size.y])
+    print("LAEKEN_BUILDING_HEIGHTS_OK: ready_frame=%d derived=%d fallback=%d quality={high:%d,medium:%d,low:%d} height=[%.2f,%.2f] mesh_vertical=%.2fm" % [ready_frame, derived, fallback, high, medium, low, min_height, max_height, bounds.size.y])
     scene.queue_free()
     await process_frame
     quit(0)

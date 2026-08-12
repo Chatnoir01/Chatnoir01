@@ -1,0 +1,62 @@
+name: Grand Bruxelles Official Traffic Density
+
+on:
+  push:
+    branches:
+      - "integration/traffic-density-official-calibration"
+    paths:
+      - "grand-bruxelles-game/game/scripts/traffic_official_density_profile.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_density_model.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_manager_official_density_extension.gd"
+      - "grand-bruxelles-game/game/tests/traffic_official_density_profile_test.gd"
+      - "grand-bruxelles-game/game/tests/traffic_main_scene_integration_test.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/traffic/brussels_mobility_snapshot.json"
+      - ".github/workflows/grand-bruxelles-traffic-official-density.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/traffic_official_density_profile.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_density_model.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_manager_official_density_extension.gd"
+      - "grand-bruxelles-game/game/tests/traffic_official_density_profile_test.gd"
+      - "grand-bruxelles-game/game/tests/traffic_main_scene_integration_test.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/data/traffic/brussels_mobility_snapshot.json"
+      - ".github/workflows/grand-bruxelles-traffic-official-density.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-official-density:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import official density runtime headless
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/official-density-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/official-density-import.log; then exit 1; fi
+      - name: Official Brussels Mobility density profile test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_official_density_profile_test.gd 2>&1 | tee /tmp/official-density-test.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_OFFICIAL_DENSITY_FAIL" /tmp/official-density-test.log; then exit 1; fi
+          grep -q "TRAFFIC_OFFICIAL_DENSITY_OK" /tmp/official-density-test.log
+      - name: Main scene integration test when wired
+        if: hashFiles('grand-bruxelles-game/game/tests/traffic_main_scene_integration_test.gd') != ''
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_main_scene_integration_test.gd 2>&1 | tee /tmp/official-density-main.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_MAIN_SCENE_FAIL" /tmp/official-density-main.log; then exit 1; fi
+          grep -q "TRAFFIC_MAIN_SCENE_OK" /tmp/official-density-main.log

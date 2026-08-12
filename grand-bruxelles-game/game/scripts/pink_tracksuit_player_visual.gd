@@ -2,7 +2,13 @@ extends Node3D
 class_name PinkTracksuitPlayerVisual
 
 const CHARACTER_SIGNATURE := "pink_tracksuit_v1"
+const PIPELINE_SIGNATURE := "authored_glb_or_procedural_v2"
+const DEFAULT_AUTHORED_CHARACTER_PATH := "res://assets/characters/player/aria_pink_v1.glb"
 
+@export_file("*.glb", "*.gltf", "*.tscn") var authored_scene_path: String = DEFAULT_AUTHORED_CHARACTER_PATH
+@export var authored_position: Vector3 = Vector3(0.0, -0.90, 0.0)
+@export var authored_rotation_degrees: Vector3 = Vector3(0.0, 180.0, 0.0)
+@export var authored_scale: Vector3 = Vector3.ONE
 @export var accent_color: Color = Color(0.93, 0.12, 0.58, 1.0)
 @export var skin_color: Color = Color(0.43, 0.25, 0.17, 1.0)
 
@@ -11,15 +17,21 @@ var _right_arm: MeshInstance3D
 var _left_leg: MeshInstance3D
 var _right_leg: MeshInstance3D
 var _phase := 0.0
+var _authored_character: Node3D
+var _using_authored_character := false
 
 func _ready() -> void:
     var actor := get_parent() as Node3D
     if actor == null:
         return
     _hide_legacy_visuals(actor)
+    if _try_load_authored_character():
+        return
     _build_character()
 
 func _process(delta: float) -> void:
+    if _using_authored_character:
+        return
     var actor := get_parent() as CharacterBody3D
     if actor == null:
         return
@@ -35,6 +47,41 @@ func _process(delta: float) -> void:
 func character_signature() -> String:
     return CHARACTER_SIGNATURE
 
+func pipeline_signature() -> String:
+    return PIPELINE_SIGNATURE
+
+func is_using_authored_character() -> bool:
+    return _using_authored_character
+
+func authored_character() -> Node3D:
+    return _authored_character
+
+func _try_load_authored_character() -> bool:
+    if authored_scene_path.is_empty():
+        return false
+    if not ResourceLoader.exists(authored_scene_path):
+        return false
+
+    var resource := ResourceLoader.load(authored_scene_path)
+    if not resource is PackedScene:
+        push_warning("Player authored asset is not a PackedScene: %s" % authored_scene_path)
+        return false
+
+    var instance := (resource as PackedScene).instantiate()
+    if not instance is Node3D:
+        instance.queue_free()
+        push_warning("Player authored asset root must be Node3D: %s" % authored_scene_path)
+        return false
+
+    _authored_character = instance as Node3D
+    _authored_character.name = "AuthoredCharacter"
+    _authored_character.position = authored_position
+    _authored_character.rotation_degrees = authored_rotation_degrees
+    _authored_character.scale = authored_scale
+    add_child(_authored_character)
+    _using_authored_character = true
+    return true
+
 func _hide_legacy_visuals(actor: Node3D) -> void:
     for path in ["MeshInstance3D", "Body", "Vest", "PoliceLabel"]:
         var legacy := actor.get_node_or_null(path)
@@ -49,7 +96,7 @@ func _build_character() -> void:
     var bag_mat := _material(Color(0.36, 0.25, 0.17, 1.0), 0.66)
     var metal := _material(Color(0.78, 0.65, 0.27, 1.0), 0.28)
 
-    # Curvier, game-readable silhouette based on the approved visual reference.
+    # Fallback only. The authored GLB path above is now the primary rendering path.
     _box("UpperTorso", Vector3(0.66, 0.43, 0.36), Vector3(0, 1.30, 0), pink)
     _box("CropTop", Vector3(0.61, 0.20, 0.365), Vector3(0, 1.09, -0.005), white)
     _box("Waist", Vector3(0.48, 0.18, 0.31), Vector3(0, 0.94, 0), skin)
@@ -71,13 +118,11 @@ func _build_character() -> void:
     _sphere("HairBun", Vector3(0.17, 0.16, 0.17), Vector3(0, 1.99, 0.22), hair)
     _box("FaceStrand", Vector3(0.035, 0.43, 0.035), Vector3(-0.20, 1.75, -0.18), hair)
 
-    # White side stripes reinforce the approved tracksuit read without shipping third-party logos.
     _box("LeftSleeveStripe", Vector3(0.025, 0.62, 0.225), Vector3(-0.535, 1.23, 0), white)
     _box("RightSleeveStripe", Vector3(0.025, 0.62, 0.225), Vector3(0.535, 1.23, 0), white)
     _box("LeftTrouserStripe", Vector3(0.025, 0.71, 0.33), Vector3(-0.355, 0.29, 0), white)
     _box("RightTrouserStripe", Vector3(0.025, 0.71, 0.33), Vector3(0.355, 0.29, 0), white)
 
-    # Shoulder bag, necklace and phone are separate pieces so they can later be swapped for authored assets.
     _box("ShoulderBag", Vector3(0.30, 0.24, 0.13), Vector3(-0.53, 0.94, 0.03), bag_mat)
     var strap := _box("BagStrap", Vector3(0.035, 0.90, 0.035), Vector3(-0.22, 1.29, 0.01), bag_mat)
     strap.rotation.z = -0.58

@@ -1,0 +1,87 @@
+name: Grand Bruxelles Thandi Build
+
+on:
+  push:
+    branches:
+      - main
+      - feature/rigged-player-glb-pipeline
+    paths:
+      - "grand-bruxelles-game/assets/characters/player/thandi/source/**"
+      - "grand-bruxelles-game/assets/characters/player/thandi/textures/**"
+      - "grand-bruxelles-game/tools/prepare_thandi_character.py"
+      - ".github/workflows/grand-bruxelles-thandi-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-thandi-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-thandi-glb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check source package
+        id: source
+        shell: bash
+        run: |
+          FBX="grand-bruxelles-game/assets/characters/player/thandi/source/Thandi.fbx"
+          if [ ! -s "$FBX" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "Thandi source FBX is not in this branch yet; nothing to build."
+            exit 0
+          fi
+          echo "present=true" >> "$GITHUB_OUTPUT"
+          test -s grand-bruxelles-game/assets/characters/player/thandi/textures/Thandi_Body_Diffuse.png
+          test -s grand-bruxelles-game/assets/characters/player/thandi/textures/Thandi_Hair_Diffuse.png
+          test -s grand-bruxelles-game/assets/characters/player/thandi/textures/Thandi_Top_Diffuse.png
+
+      - name: Install Blender
+        if: steps.source.outputs.present == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+          blender --version
+
+      - name: Build authored Thandi GLB
+        if: steps.source.outputs.present == 'true'
+        run: |
+          blender --background \
+            --python grand-bruxelles-game/tools/prepare_thandi_character.py \
+            -- \
+            grand-bruxelles-game/assets/characters/player/thandi/source/Thandi.fbx \
+            grand-bruxelles-game/assets/characters/player/thandi/Thandi.glb
+          test -s grand-bruxelles-game/assets/characters/player/thandi/Thandi.glb
+
+      - name: Verify Godot import
+        if: steps.source.outputs.present == 'true'
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+
+      - name: Import authored character in Godot
+        if: steps.source.outputs.present == 'true'
+        run: |
+          godot --headless --path grand-bruxelles-game --editor --quit-after 5
+          godot --headless --path grand-bruxelles-game --script res://game/tests/pink_tracksuit_player_visual_test.gd
+
+      - name: Commit generated GLB
+        if: steps.source.outputs.present == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f grand-bruxelles-game/assets/characters/player/thandi/Thandi.glb
+          if git diff --cached --quiet; then
+            echo "Thandi GLB is already up to date"
+            exit 0
+          fi
+          git commit -m "Build Thandi authored player GLB"
+          git push

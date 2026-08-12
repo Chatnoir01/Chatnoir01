@@ -5,13 +5,13 @@ func _init() -> void:
 	root.add_child(agent)
 	agent.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 77, Vector3.ZERO)
 
-	var behavior_speed: float = agent.behavior.preferred_speed
-	var contextual_speed: float = agent.pedestrian_context.preferred_speed
-	_assert(absf(contextual_speed - behavior_speed) > 0.01, "pedestrian context provides a distinct deterministic civilian pace")
-	var director := NpcPopulationDirector.new()
-	root.add_child(director)
-	_assert(director.register_agent(agent), "civilian registers with population director")
-	_assert(is_equal_approx(agent.behavior.preferred_speed, contextual_speed), "population runtime consumes contextual civilian walking pace")
+	var expected_civilian_speed: float = _expected_civilian_speed(77)
+	_assert(is_equal_approx(agent.behavior.preferred_speed, expected_civilian_speed), "civilian runtime uses deterministic contextual walking pace")
+	_assert(is_equal_approx(agent.pedestrian_context.preferred_speed, expected_civilian_speed), "pedestrian context and runtime share one walking pace")
+	var second_agent := NpcAgent.new()
+	root.add_child(second_agent)
+	second_agent.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 78, Vector3.ZERO)
+	_assert(absf(second_agent.behavior.preferred_speed - agent.behavior.preferred_speed) > 0.01, "nearby civilians do not receive synchronized walking speeds")
 
 	var initial_appearance: Dictionary = agent.get_appearance_profile()
 	_assert(initial_appearance["clothing_base"] != &"police_uniform", "civilian appearance stays civilian")
@@ -26,15 +26,11 @@ func _init() -> void:
 	_assert(rain_appearance["outer_layer"] in [&"rain_jacket", &"hooded_coat", &"light_coat", &"waterproof_shell"], "rain selects weather-appropriate civilian outerwear")
 	_assert(rain_appearance["stature_scale"] == initial_appearance["stature_scale"], "weather does not change body proportions")
 
-	director.unregister_agent(agent)
 	agent.set_spawn_context(NpcBehaviorModel.Role.POLICE, 77, Vector3.ZERO)
-	var police_speed: float = agent.behavior.preferred_speed
 	var police_appearance: Dictionary = agent.get_appearance_profile()
 	_assert(police_appearance["clothing_base"] == &"police_uniform", "police role selects uniform base")
 	_assert(police_appearance["outer_layer"] == &"police_rain_layer", "police appearance preserves active weather context")
-	_assert(director.register_agent(agent), "police registers with population director")
-	_assert(is_equal_approx(agent.behavior.preferred_speed, police_speed), "police patrol speed ownership remains unchanged")
-	director.unregister_agent(agent)
+	_assert(is_equal_approx(agent.pedestrian_context.preferred_speed, agent.behavior.preferred_speed), "police context preserves patrol speed ownership")
 
 	agent.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 77, Vector3.ZERO)
 	var red_intent: int = agent.update_crossing_context(NpcPedestrianContext.CrossingSignal.RED, true, 20.0)
@@ -92,9 +88,16 @@ func _init() -> void:
 
 	print("NPC_AGENT_CONTEXT_OK")
 	blocker.queue_free()
-	director.queue_free()
+	second_agent.queue_free()
 	agent.queue_free()
 	quit(0)
+
+func _expected_civilian_speed(seed_value: int) -> float:
+	var normalized: float = float(abs(seed_value * 37) % 1000) / 1000.0
+	var base_speed: float = lerpf(1.0, 1.55, normalized)
+	var pace_mix: int = absi(seed_value * 1103515245 + 11 * 12345)
+	var pace_factor: float = lerpf(0.88, 1.12, float(pace_mix % 10000) / 10000.0)
+	return clampf(base_speed * pace_factor, 0.75, 1.75)
 
 func _assert(condition: bool, label: String) -> void:
 	if condition:

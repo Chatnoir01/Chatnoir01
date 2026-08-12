@@ -84,7 +84,6 @@ func _initialize() -> void:
 	if not bool(ambient_plan.get("routine_snapshot_captured", false)):
 		_fail("NpcAgent must capture its real pre-incident routine when recovery begins")
 		return
-	# Simulate incident behavior overwriting the normal ambient activity.
 	ambient_civilian.ambient_state.current_state = NpcAmbientState.State.IDLE
 	ambient_civilian.ambient_state.sequence_index = 99
 	ambient_civilian.behavior.set_destination(Vector3(80.0, 0.0, 80.0))
@@ -101,6 +100,60 @@ func _initialize() -> void:
 		return
 	if ambient_civilian.behavior.target_position != Vector3(-7.0, 0.0, 13.0):
 		_fail("NpcAgent ambient recovery must also restore the exact routine target")
+		return
+
+	# A passenger already waiting at a Brussels transit stop must remain the same
+	# passenger in the same stop/door queue after an incident. Recovery must not
+	# fabricate a new queue or silently convert the passenger to generic walking.
+	var stop := NpcTransitStop.new()
+	stop.configure(
+		"STIB_TEST_STOP",
+		Vector3(12.0, 0.0, -4.0),
+		Vector3(1.0, 0.0, 0.0),
+		Vector3(0.0, 0.0, 1.0),
+		PackedFloat32Array([0.0, 5.0]),
+		0.85,
+		8
+	)
+	var transit_civilian := NpcAgent.new()
+	transit_civilian.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 2401, Vector3(11.0, 0.0, -4.0))
+	var assigned_door: int = transit_civilian.join_transit_stop(stop, 42, 0)
+	if assigned_door != 0:
+		_fail("test setup must assign the passenger to the requested transit door")
+		return
+	var queue_before: NpcTransitQueue = transit_civilian.transit_queue
+	var target_before: Vector3 = stop.queue_target_for(42)
+	var transit_plan: Dictionary = transit_civilian.begin_civilian_recovery(0.65, 80.0, "transit_hub")
+	transit_civilian.transit_state = NpcAgent.TransitState.NONE
+	transit_civilian.pedestrian_intent = NpcPedestrianContext.PedestrianIntent.CONTINUE
+	transit_civilian.movement_held = false
+	transit_civilian.ambient_state.current_state = NpcAmbientState.State.IDLE
+	transit_civilian.behavior.set_destination(Vector3(90.0, 0.0, 90.0))
+	var transit_total := float(transit_plan.get("settle_seconds", 0.0)) + float(transit_plan.get("recovery_seconds", 0.0))
+	var transit_finished: Dictionary = transit_civilian.update_civilian_recovery(80.0 + transit_total + 0.2, false)
+	if not bool(transit_finished.get("resume_routine", false)):
+		_fail("transit-wait recovery must complete")
+		return
+	if transit_civilian.transit_state != NpcAgent.TransitState.WAITING:
+		_fail("transit passenger must return to WAITING rather than generic walking")
+		return
+	if transit_civilian.transit_queue_passenger_id != 42:
+		_fail("transit passenger identity must survive incident recovery")
+		return
+	if transit_civilian.transit_queue != queue_before or transit_civilian.transit_stop != stop:
+		_fail("recovery must preserve existing stop and queue ownership")
+		return
+	if stop.assigned_door_for(42) != 0 or queue_before.position_index_for(42) < 0:
+		_fail("recovered passenger must remain registered in the original stop queue")
+		return
+	if transit_civilian.ambient_state.current_state != NpcAmbientState.State.WAIT_TRANSIT:
+		_fail("recovered transit passenger must restore the waiting ambient state")
+		return
+	if transit_civilian.pedestrian_intent != NpcPedestrianContext.PedestrianIntent.WAIT_FOR_TRANSIT:
+		_fail("recovered transit passenger must restore transit waiting intent")
+		return
+	if transit_civilian.behavior.target_position != target_before:
+		_fail("recovered transit passenger must return to the live queue target")
 		return
 
 	# Recovery must carry an immutable snapshot of the exact pre-incident
@@ -120,8 +173,6 @@ func _initialize() -> void:
 	if not bool(activity_plan.get("routine_snapshot_captured", false)):
 		_fail("recovery plan must report that a pre-incident routine snapshot was captured")
 		return
-	# Mutating the caller-owned dictionary after begin_recovery must not corrupt
-	# the stored recovery handoff.
 	routine_snapshot["passenger_id"] = 99
 	routine_snapshot["activity_kind"] = &"corrupted"
 	var activity_total := float(activity_plan.get("settle_seconds", 0.0)) + float(activity_plan.get("recovery_seconds", 0.0))

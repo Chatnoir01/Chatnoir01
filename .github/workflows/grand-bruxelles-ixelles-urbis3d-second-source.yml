@@ -5,6 +5,8 @@ on:
     branches:
       - "integration/ixelles-urbis3d-second-source"
     paths:
+      - "grand-bruxelles-game/tools/select_urbis_distribution.py"
+      - "grand-bruxelles-game/tools/test_select_urbis_distribution.py"
       - "grand-bruxelles-game/tools/inspect_urbis_3d_gpkg_safe.py"
       - "grand-bruxelles-game/tools/test_inspect_urbis_3d_gpkg_safe.py"
       - ".github/workflows/grand-bruxelles-ixelles-urbis3d-second-source.yml"
@@ -26,8 +28,9 @@ jobs:
           sudo apt-get install -y gdal-bin python3-gdal unzip
           ogrinfo --version
 
-      - name: Regression-test 3D evidence inspector
+      - name: Regression-test distribution selector and 3D inspector
         run: |
+          python3 grand-bruxelles-game/tools/test_select_urbis_distribution.py
           python3 grand-bruxelles-game/tools/test_inspect_urbis_3d_gpkg_safe.py
 
       - name: Discover current official UrbIS distributions
@@ -43,14 +46,16 @@ jobs:
           print('URBIS_3D_DISCOVERY_OK', 'feed_updated=', feed.get('feed_updated'), 'entries=', feed.get('entry_count'))
           PY
 
-      - name: Select official EPSG:31370 GeoPackage distribution
+      - name: Select actual official EPSG:31370 GeoPackage file
         run: |
           python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
             /tmp/urbis-discovered.json \
             /tmp/urbis-3d-selected.json \
             --source-id urbis_3d_constructions \
             --token 31370 \
-            --token GPKG
+            --token GPKG \
+            --candidate-token 31370 \
+            --candidate-token GPKG
           python3 - <<'PY'
           import json
           from urllib.parse import urlparse
@@ -58,6 +63,10 @@ jobs:
           selected = data.get('selected', {})
           url = str(selected.get('href', ''))
           assert url.startswith('https://'), f'non-HTTPS distribution URL: {url!r}'
+          folded = url.casefold()
+          assert '31370' in folded, f'selected file is not EPSG:31370-labelled: {url}'
+          assert 'gpkg' in folded, f'selected file is not the GPKG sibling: {url}'
+          assert '/dwg/' not in folded, f'DWG sibling leaked through GPKG candidate filter: {url}'
           host = (urlparse(url).hostname or '').lower()
           allowed = (
               'datastore.brussels',
@@ -108,8 +117,10 @@ jobs:
 
           if zipfile.is_zipfile(source):
               safe_extract(source, root / 'level0')
-          else:
+          elif source.read_bytes()[:16].startswith(b'SQLite format 3'):
               shutil.copy2(source, root / 'selected-source.gpkg')
+          else:
+              raise SystemExit('selected GPKG distribution is neither ZIP nor SQLite GeoPackage')
 
           seen = set()
           for depth in range(1, 4):
@@ -125,7 +136,7 @@ jobs:
           for path in gpkg[:30]:
               print(path, path.stat().st_size)
           if not gpkg:
-              raise SystemExit('selected official distribution contains no GeoPackage')
+              raise SystemExit('selected official GPKG distribution contains no GeoPackage')
           PY
 
       - name: Inspect actual CRS and Z coordinates
@@ -166,6 +177,7 @@ jobs:
                   'feature_count': layer['feature_count_fast'],
                   'z_min': layer['sample_z']['min'],
                   'z_max': layer['sample_z']['max'],
+                  'z_range': layer['sample_z']['range'],
               }
               for layer in candidates
           ])

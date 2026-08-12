@@ -187,3 +187,16 @@ jobs:
             exit 1
           fi
           grep -q "NPC_TRANSIT_ALIGHTING_PRIORITY_OK" /tmp/npc-transit-alighting.log
+
+      - name: Transit accessibility test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_transit_accessibility_test.gd 2>&1 | tee /tmp/npc-transit-accessibility.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_TRANSIT_ACCESSIBILITY_FAIL" /tmp/npc-transit-accessibility.log; then
+            exit 1
+          fi
+          grep -q "NPC_TRANSIT_ACCESSIBILITY_OK" /tmp/npc-transit-accessibility.log

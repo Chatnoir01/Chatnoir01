@@ -1,8 +1,8 @@
 {
-  "schema": 3,
+  "schema": 4,
   "zone": "laeken_jette",
   "crs": "project-local metres derived from EPSG:31370",
-  "policy": "Deterministic in-game benchmark viewpoints tied to lawful visual references. Camera coordinates are benchmark camera placements only and must never be represented as photographer GPS unless a source explicitly provides a surveyed camera position. UrbIS/LiDAR remain authoritative for city geometry.",
+  "policy": "Deterministic in-game benchmark viewpoints tied to lawful visual references. Camera coordinates are benchmark camera placements only unless a source explicitly publishes the camera location. Published source coordinates are recorded as source metadata and must not be upgraded to survey-grade accuracy without independent evidence. UrbIS/LiDAR remain authoritative for city geometry and terrain.",
   "quality_gate": {
     "minimum_reference_views": 3,
     "required_for_realism_complete": [
@@ -42,32 +42,39 @@
     {
       "id": "atomium_ground_oblique_v1",
       "subject": "Atomium ground-level oblique silhouette",
-      "status": "authoritative_candidate_audit_ready_capture_pending",
-      "camera_claim": "No photographer position is claimed. Candidate benchmark points have been derived deterministically from UrbIS street surfaces, UrbIS building footprints and official DTM coverage; a final in-game benchmark camera remains pending visual comparison.",
+      "status": "source_geolocation_resolved_dtm_elevation_pending",
+      "camera_claim": "The Wikimedia Commons source explicitly publishes a camera location at 50.897467 N, 4.339306 E. This is preserved as source-provided camera metadata, not promoted to survey-grade accuracy. Official DTM sampling and a matching 1280x720 capture remain required before benchmark promotion.",
       "camera_height_above_terrain_m": 1.7,
+      "source_camera_wgs84": [4.339306, 50.897467],
+      "source_camera_epsg31370": [147928.4114, 176347.3521],
+      "source_camera_game_xz": [60.1172, -6808.7279],
+      "source_camera_to_atomium_ground_distance_m": 304.1145,
+      "source_camera_azimuth_from_atomium_deg": 327.1848,
+      "coordinate_transform": "WGS84 EPSG:4326 to Belgian Lambert 72 EPSG:31370; project X=east-originE, Z=-(north-originN)",
       "candidate_audit": "atomium_ground_camera_candidates.json",
+      "candidate_audit_role": "historical safety audit only; superseded for camera-position selection because the source page publishes camera coordinates and the published point lies outside the previous 60-220 m candidate radius",
       "camera_selection_constraints": {
         "authoritative_inputs": [
-          "UrbIS street and pedestrian-space geometry",
-          "UrbIS building footprints",
+          "source-published Wikimedia Commons camera coordinates",
           "official DTM terrain elevation",
-          "official Atomium geometry anchor"
+          "official Atomium geometry anchor",
+          "UrbIS surrounding geometry"
         ],
         "must_resolve": [
-          "select one audited walkable ground-level camera point outside building footprints",
-          "terrain-derived camera elevation plus 1.7 m eye height",
-          "unobstructed broad Atomium target direction",
+          "sample official DTM elevation at or defensibly near the source-published camera coordinate",
+          "terrain-derived eye elevation plus 1.7 m eye height",
+          "target direction from the authoritative Atomium anchor",
           "repeatable 1280x720 visual comparison before promotion"
         ],
         "must_not_infer": [
-          "photographer GPS from depicted-place metadata",
-          "lens pose from visual intuition alone",
+          "survey-grade precision beyond the source-published camera metadata",
+          "lens focal length from visual intuition alone",
           "street or path geometry absent from authoritative data"
         ],
         "remaining_unknowns": [
-          "exact photographer position",
+          "exact vertical camera elevation until official DTM sampling is complete",
           "exact source lens focal length",
-          "exact yaw and pitch"
+          "exact yaw and pitch after accounting for image crop"
         ]
       },
       "fov_degrees": 50.0,
@@ -76,7 +83,8 @@
         "url": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",
         "license": "CC BY-SA 4.0",
         "author": "Horst J. Meuter",
-        "usage": "visual reference only; source supplies the depicted monument but no survey-grade photographer position"
+        "source_camera_location": "50.897467 N, 4.339306 E as published on Wikimedia Commons",
+        "usage": "visual reference and source-provided camera-location metadata; source image bytes are not vendored and the published coordinate is not represented as survey-grade"
       },
       "comparison_checks": [
         "oblique Atomium silhouette",

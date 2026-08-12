@@ -32,6 +32,32 @@ jobs:
       - name: Regression-test hero extractor
         working-directory: grand-bruxelles-game/tools
         run: python3 test_extract_urbis3d_hero_evidence.py
+      - name: Fetch official UrbIS 2D Bourse footprint window
+        run: |
+          python3 - <<'PY'
+          import importlib.util, json
+          from pathlib import Path
+          module_path=Path('grand-bruxelles-game/tools/fetch_urbis_wfs_bbox.py')
+          spec=importlib.util.spec_from_file_location('fetch_urbis_wfs_bbox', module_path)
+          assert spec and spec.loader
+          module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+          bbox=(148500.0,170600.0,148800.0,170900.0)
+          data=module.request_layer(module.DEFAULT_LAYERS['buildings'],bbox,4)
+          path=Path('/tmp/bourse-buildings.geojson')
+          path.write_text(json.dumps(data,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
+          tokens=('8186511','1751663')
+          matches=[]
+          for feature in data.get('features',[]):
+              props=feature.get('properties') or {}
+              text=' '.join(str(v) for v in props.values() if v is not None)
+              if any(token in text for token in tokens): matches.append(feature)
+          print('URBIS_2D_BOURSE_WINDOW_OK','features=',len(data.get('features',[])),'matches=',len(matches))
+          if len(matches)!=1:
+              sample=[f.get('properties',{}) for f in data.get('features',[])[:3]]
+              print('URBIS_2D_SAMPLE_PROPERTIES',json.dumps(sample,ensure_ascii=False)[:4000])
+              raise SystemExit(f'expected one official Bourse building in WFS window, got {len(matches)}')
+          print('URBIS_2D_BOURSE_PROPERTIES',json.dumps(matches[0].get('properties',{}),ensure_ascii=False,sort_keys=True))
+          PY
       - name: Discover official UrbIS 3D feed
         run: |
           python3 - <<'PY'
@@ -108,30 +134,24 @@ jobs:
           print('URBIS_3D_EXTRACTION_OK','gpkg_count=',len(gpkg))
           if not gpkg: raise SystemExit('official distribution contains no GeoPackage')
           PY
-      - name: Extract Bourse Z evidence and diagnostics
+      - name: Bridge official Bourse 2D footprint to 3D solid
         run: |
           mkdir -p grand-bruxelles-game/artifacts/bourse-urbis3d
+          cp /tmp/bourse-buildings.geojson grand-bruxelles-game/artifacts/bourse-urbis3d/buildings-wfs-window.geojson
           cp /tmp/urbis-discovered.json grand-bruxelles-game/artifacts/bourse-urbis3d/discovered.json
           cp /tmp/urbis-3d-selected.json grand-bruxelles-game/artifacts/bourse-urbis3d/selected.json
           cp /tmp/urbis-3d-distribution.sha256 grand-bruxelles-game/artifacts/bourse-urbis3d/distribution.sha256
           python3 grand-bruxelles-game/tools/extract_urbis3d_hero_evidence.py \
             --root /tmp/urbis-3d-extracted \
+            --footprint-geojson /tmp/bourse-buildings.geojson \
             --identifier 8186511 --identifier 1751663 \
-            --anchor-e 148620.23351135076 --anchor-n 170829.88213200308 \
-            --radius-m 100 \
-            --output grand-bruxelles-game/artifacts/bourse-urbis3d/evidence.json
+            --output grand-bruxelles-game/artifacts/bourse-urbis3d/evidence.json \
+            --require-identity
+      - name: Validate global photo-match contract remains strict
+        run: python3 grand-bruxelles-game/tools/validate_photo_match.py
       - name: Upload evidence only
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-bourse-urbis3d-evidence
           path: grand-bruxelles-game/artifacts/bourse-urbis3d/
           if-no-files-found: error
-      - name: Enforce source identity before height use
-        run: |
-          python3 - <<'PY'
-          import json
-          data=json.load(open('grand-bruxelles-game/artifacts/bourse-urbis3d/evidence.json',encoding='utf-8'))
-          print('BOURSE_URBIS3D_DIAGNOSTIC','matches=',data['identifier_match_count'],'nearby=',len(data['nearby_diagnostics']))
-          if not data['usable_for_runtime_height_review']:
-              raise SystemExit('Bourse 3D identity is not proven yet; inspect uploaded nearby diagnostics instead of guessing')
-          PY

@@ -1,0 +1,22 @@
+name: Grand Bruxelles Atomium DTM Evidence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json"
+      - "grand-bruxelles-game/data/qa/photo_match/atomium_dtm_evidence.json"
+      - "grand-bruxelles-game/tests/test_atomium_dtm_evidence.py"
+      - ".github/workflows/grand-bruxelles-atomium-dtm-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate exact Atomium DTM evidence and runtime refusal
+        run: python3 grand-bruxelles-game/tests/test_atomium_dtm_evidence.py

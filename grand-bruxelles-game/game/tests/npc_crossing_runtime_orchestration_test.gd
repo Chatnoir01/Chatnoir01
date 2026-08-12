@@ -88,7 +88,9 @@ func _run() -> void:
         _fail("civilian did not enter curb-wait state")
         return
 
-    director.update_crossings_at(1.00)
+    var first_recheck: float = agent.pedestrian_context.curb_recheck_interval_seconds(0)
+    var first_check_at: float = maxf(0.10 + 0.8, 0.10 + first_recheck)
+    director.update_crossings_at(first_check_at)
     state = crossing_system.call("get_crossing_state", 901)
     if int(state.get("waiting", 0)) != 1 or int(state.get("crossing", 0)) != 0:
         _fail("civilian entered roadway while an approaching vehicle was inside stopping envelope")
@@ -98,10 +100,19 @@ func _run() -> void:
     if not manager.is_crossing_gap_safe(901, agent.get_world_position()):
         _fail("a yielded stationary vehicle outside minimum clearance still blocked forever")
         return
-    director.update_crossings_at(1.10)
+
+    var second_recheck: float = agent.pedestrian_context.curb_recheck_interval_seconds(1)
+    director.update_crossings_at(first_check_at + second_recheck - 0.02)
+    state = crossing_system.call("get_crossing_state", 901)
+    if int(state.get("waiting", 0)) != 1 or int(state.get("crossing", 0)) != 0:
+        _fail("civilian rechecked yielded traffic before its personal cadence elapsed")
+        return
+
+    var crossing_start_at: float = first_check_at + second_recheck + 0.02
+    director.update_crossings_at(crossing_start_at)
     state = crossing_system.call("get_crossing_state", 901)
     if int(state.get("waiting", 0)) != 0 or int(state.get("crossing", 0)) != 1:
-        _fail("civilian did not begin crossing after traffic yielded")
+        _fail("civilian did not begin crossing at the next personal recheck after traffic yielded")
         return
     if agent.movement_held:
         _fail("civilian movement hold was not released for safe crossing")
@@ -111,7 +122,7 @@ func _run() -> void:
         return
 
     agent.global_position = far_side
-    director.update_crossings_at(1.20)
+    director.update_crossings_at(crossing_start_at + 0.10)
     state = crossing_system.call("get_crossing_state", 901)
     if int(state.get("waiting", 0)) != 0 or int(state.get("crossing", 0)) != 0:
         _fail("crossing occupancy was not cleared after exit")
@@ -123,7 +134,7 @@ func _run() -> void:
         _fail("original pedestrian destination was not restored")
         return
 
-    print("NPC_CROSSING_RUNTIME_OK: approaching traffic blocks; yielded traffic releases; destination restored")
+    print("NPC_CROSSING_RUNTIME_OK: unsafe traffic blocks; personal curb cadence staggers rechecks; yielded traffic releases; destination restored")
     agent.queue_free()
     director.queue_free()
     manager.queue_free()

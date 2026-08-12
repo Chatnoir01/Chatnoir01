@@ -37,8 +37,17 @@ func _run() -> void:
     if manager.get_official_density_capture_timestamp().is_empty():
         _fail("official density capture timestamp provenance is missing")
         return
+
+    var nearest_any_distance := manager.get_official_density_nearest_any_distance_m()
+    var nearest_any_id := manager.get_official_density_nearest_any_sensor_id()
+    if not is_finite(nearest_any_distance) or nearest_any_id.is_empty():
+        _fail("nearest official fresh density sensor diagnostic is unavailable")
+        return
     if not manager.is_official_density_available_here():
-        _fail("Bruxelles-Midi player anchor is outside official density calibration coverage")
+        _fail(
+            "Bruxelles-Midi player anchor is outside official density calibration coverage: nearest fresh sensor %s at %.1fm, configured radius %.1fm" %
+            [nearest_any_id, nearest_any_distance, manager.official_density_radius_m]
+        )
         return
     if manager.get_official_density_sample_count() <= 0:
         _fail("official density calibration has no local source samples at Bruxelles-Midi")
@@ -80,7 +89,7 @@ func _run() -> void:
         return
 
     print(
-        "TRAFFIC_MAIN_SCENE_OK: %d routes, %d graph edges, %d vehicles, official factor %.3f from %d local sensors (nearest %.1fm)" %
+        "TRAFFIC_MAIN_SCENE_OK: %d routes, %d graph edges, %d vehicles, official factor %.3f from %d local sensors (nearest %.1fm, nearest-any %s %.1fm)" %
         [
             manager.get_route_count(),
             manager.get_graph_edge_count(),
@@ -88,6 +97,8 @@ func _run() -> void:
             official_factor,
             manager.get_official_density_sample_count(),
             manager.get_official_density_nearest_distance_m(),
+            nearest_any_id,
+            nearest_any_distance,
         ]
     )
     main.queue_free()

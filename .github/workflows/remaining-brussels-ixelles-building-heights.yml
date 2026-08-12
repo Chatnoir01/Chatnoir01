@@ -33,8 +33,7 @@ jobs:
           ref: zone-reste-bruxelles-clean
 
       - name: Install raster dependencies
-        run: |
-          python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3" "rasterio>=1.3,<2"
+        run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3" "rasterio>=1.3,<2"
 
       - name: Run derivation unit tests
         working-directory: grand-bruxelles-game
@@ -58,52 +57,53 @@ jobs:
             --plan data/processed/remaining_brussels/references/ixelles_height_tile_plan.json \
             --cell-root data/urbis/remaining_brussels/cells \
             --raster-root /tmp/ixelles-height-work \
-            --output /tmp/ixelles_building_height_stats.json
+            --output /tmp/ixelles_building_height_stats_full.json \
+            --summary-output /tmp/ixelles_building_height_summary.json \
+            --csv-output /tmp/ixelles_building_heights.csv
 
       - name: Enforce height quality report gate
         run: |
           python3 - <<'PY'
-          import json
-          p=json.load(open('/tmp/ixelles_building_height_stats.json',encoding='utf-8'))
+          import csv,json
+          p=json.load(open('/tmp/ixelles_building_height_stats_full.json',encoding='utf-8'))
           assert p['source_crs']=='EPSG:31370'
-          assert p['materialized_cells']==[
-            'bxl-e149000-n169000-s500',
-            'bxl-e149000-n169500-s500',
-            'bxl-e149500-n168500-s500',
-            'bxl-e149500-n169000-s500',
-            'bxl-e149500-n169500-s500',
-          ]
+          assert p['materialized_cells']==['bxl-e149000-n169000-s500','bxl-e149000-n169500-s500','bxl-e149500-n168500-s500','bxl-e149500-n169000-s500','bxl-e149500-n169500-s500']
           assert p['expected_1km_tile_codes']==['149168','149169']
           assert p['raster_shape']==[4000,2000]
-          assert p['building_memberships']>0
-          assert p['unique_building_ids']>0
+          assert p['building_memberships']>0 and p['unique_building_ids']>0
           assert sum(p['confidence_counts'].values())==p['building_memberships']
           for b in p['buildings']:
               h=b['height_stats']
-              assert h['pixel_count_valid']>=0
               assert h['confidence'] in ('high','medium','insufficient')
               for key in ('p50','p75','p90'):
                   v=h['plausible_difference_m'][key]
                   assert v is None or -0.5 <= v <= 250.0
+          rows=list(csv.DictReader(open('/tmp/ixelles_building_heights.csv',encoding='utf-8')))
+          assert len(rows)==p['building_memberships']
+          summary=json.load(open('/tmp/ixelles_building_height_summary.json',encoding='utf-8'))
+          assert 'buildings' not in summary and summary['building_memberships']==len(rows)
           print('IXELLES_BUILDING_HEIGHT_GATE_VALID',p['building_memberships'],p['unique_building_ids'],p['confidence_counts'])
           PY
 
-      - name: Upload height statistics artifact
+      - name: Upload full height statistics artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ixelles-building-height-statistics
-          path: /tmp/ixelles_building_height_stats.json
+          name: ixelles-building-height-statistics-full
+          path: /tmp/ixelles_building_height_stats_full.json
           if-no-files-found: error
 
-      - name: Publish auditable height statistics
+      - name: Publish compact auditable reports
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin zone-reste-bruxelles-clean
           git reset --hard origin/zone-reste-bruxelles-clean
-          mkdir -p grand-bruxelles-game/data/processed/remaining_brussels/references
-          cp /tmp/ixelles_building_height_stats.json grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_building_height_stats.json
-          git add grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_building_height_stats.json
+          OUT=grand-bruxelles-game/data/processed/remaining_brussels/references
+          mkdir -p "$OUT"
+          rm -f "$OUT/ixelles_building_height_stats.json"
+          cp /tmp/ixelles_building_height_summary.json "$OUT/ixelles_building_height_summary.json"
+          cp /tmp/ixelles_building_heights.csv "$OUT/ixelles_building_heights.csv"
+          git add -A "$OUT/ixelles_building_height_stats.json" "$OUT/ixelles_building_height_summary.json" "$OUT/ixelles_building_heights.csv"
           git diff --cached --quiet && exit 0
-          git commit -m "data: derive Ixelles DSM-DTM building height stats [skip ci]"
+          git commit -m "data: compact Ixelles building height evidence [skip ci]"
           git push origin HEAD:zone-reste-bruxelles-clean

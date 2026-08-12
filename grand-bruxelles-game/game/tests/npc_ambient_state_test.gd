@@ -26,7 +26,21 @@ func _init() -> void:
 		var state: int = first.advance(false, false, i)
 		seen[state] = true
 	_assert(seen.has(NpcAmbientState.State.IDLE), "ambient sequence should include IDLE", failures)
+	_assert(not seen.has(NpcAmbientState.State.SOCIAL_PAUSE), "solo ambient sequence must not mime a social interaction", failures)
 	_assert(seen.size() >= 3, "ambient sequence should have meaningful variation", failures)
+
+	var social_seen := false
+	for i in range(12):
+		if first.advance(false, false, i, true) == NpcAmbientState.State.SOCIAL_PAUSE:
+			social_seen = true
+			break
+	_assert(social_seen, "social pause remains available when an interaction partner exists", failures)
+	var dense_social_seen := false
+	for i in range(12):
+		if first.advance(false, true, i, true) == NpcAmbientState.State.SOCIAL_PAUSE:
+			dense_social_seen = true
+			break
+	_assert(not dense_social_seen, "dense flow still suppresses stationary social clusters", failures)
 
 	var wait_tags: Dictionary = {}
 	for cycle_index in range(12):

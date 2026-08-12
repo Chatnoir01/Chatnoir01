@@ -18,6 +18,8 @@ var _configured: bool = false
 var _agents: Array[NpcAgent] = []
 var _crowd_spacing := NpcCrowdSpacing.new()
 var _crowd_detours: Dictionary = {}
+var _ambient_elapsed_s: Dictionary = {}
+var _ambient_holds: Dictionary = {}
 
 func _ready() -> void:
     _crowd_spacing.personal_space_m = crowd_personal_space_m
@@ -42,6 +44,7 @@ func _process(delta: float) -> void:
     var safe_delta := maxf(0.0, delta)
     _observer_elapsed_s += safe_delta
     _crowd_elapsed_s += safe_delta
+    _update_ambient_cadence(safe_delta)
     if _crowd_elapsed_s >= maxf(0.05, crowd_spacing_interval_s):
         _crowd_elapsed_s = 0.0
         _update_crowd_spacing()
@@ -88,6 +91,8 @@ func _on_node_removed(node: Node) -> void:
     if is_instance_valid(node):
         var agent := node as NpcAgent
         _cancel_crowd_detour(agent, false)
+        _release_ambient_hold(agent)
+        _ambient_elapsed_s.erase(agent.get_instance_id())
         _agents.erase(agent)
         _director.unregister_agent(agent)
 
@@ -102,6 +107,75 @@ func _register_agent(agent: NpcAgent) -> void:
     var accepted := _director.register_agent(agent)
     if accepted and not _agents.has(agent):
         _agents.append(agent)
+
+func _update_ambient_cadence(delta_seconds: float) -> void:
+    _agents = _agents.filter(func(agent: NpcAgent) -> bool: return is_instance_valid(agent))
+    for agent: NpcAgent in _agents:
+        update_ambient_cadence_for_agent(agent, delta_seconds, _crowd_is_dense(agent))
+
+func update_ambient_cadence_for_agent(agent: NpcAgent, delta_seconds: float, crowd_is_dense: bool = false) -> int:
+    if not is_instance_valid(agent):
+        return NpcAmbientState.State.WALK
+    var agent_id := agent.get_instance_id()
+    if not _eligible_for_ambient_cadence(agent):
+        _release_ambient_hold(agent)
+        _ambient_elapsed_s.erase(agent_id)
+        return agent.ambient_state.current_state
+
+    var elapsed := float(_ambient_elapsed_s.get(agent_id, 0.0)) + maxf(0.0, delta_seconds)
+    var duration := maxf(0.25, agent.ambient_state.state_duration_seconds(agent.ambient_state.sequence_index))
+    if elapsed < duration:
+        _ambient_elapsed_s[agent_id] = elapsed
+        return agent.ambient_state.current_state
+
+    _ambient_elapsed_s[agent_id] = 0.0
+    var state := agent.advance_ambient_state(crowd_is_dense)
+    if agent.ambient_state.movement_scale() <= 0.0:
+        _ambient_holds[agent_id] = true
+        agent.movement_held = true
+    else:
+        _release_ambient_hold(agent)
+    return state
+
+func _eligible_for_ambient_cadence(agent: NpcAgent) -> bool:
+    if not is_instance_valid(agent) or not agent.active or agent.role != NpcBehaviorModel.Role.CIVILIAN:
+        return false
+    if agent.transit_state != NpcAgent.TransitState.NONE:
+        return false
+    if agent.pedestrian_intent != NpcPedestrianContext.PedestrianIntent.CONTINUE:
+        return false
+    if agent.civilian_recovery.is_active() or agent.behavior.alert_level > 0.01:
+        return false
+    var agent_id := agent.get_instance_id()
+    if agent.movement_held and not _ambient_holds.has(agent_id):
+        return false
+    if _director != null and _director.has_crossing_assignment(agent):
+        return false
+    return true
+
+func _release_ambient_hold(agent: NpcAgent) -> void:
+    if not is_instance_valid(agent):
+        return
+    var agent_id := agent.get_instance_id()
+    if not _ambient_holds.has(agent_id):
+        return
+    _ambient_holds.erase(agent_id)
+    if agent.transit_state == NpcAgent.TransitState.NONE and agent.pedestrian_intent == NpcPedestrianContext.PedestrianIntent.CONTINUE:
+        agent.movement_held = false
+
+func _crowd_is_dense(agent: NpcAgent) -> bool:
+    var origin := agent.get_world_position()
+    var nearby := 0
+    for peer: NpcAgent in _agents:
+        if peer == agent or not is_instance_valid(peer) or not peer.active:
+            continue
+        var delta := peer.get_world_position() - origin
+        delta.y = 0.0
+        if delta.length_squared() <= 6.25:
+            nearby += 1
+            if nearby >= 3:
+                return true
+    return false
 
 func _update_crowd_spacing() -> void:
     _crowd_spacing.personal_space_m = maxf(0.4, crowd_personal_space_m)

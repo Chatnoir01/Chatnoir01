@@ -59,7 +59,19 @@
       "mismatches": [
         {
           "severity": "blocker",
-          "action": "Run the deterministic Bourse capture, compare it side by side with the CC0 reference, refine the provisional camera pose to the same effective viewpoint, then commit the approved in-game screenshot and score each visual dimension."
+          "action": "Rendered evidence from the deterministic current-main capture does not show a recognizable Palais de la Bourse silhouette: audit the Centre UrbIS footprint/height coverage and add only source-backed landmark massing/roofline detail before scoring silhouette, placement or landmark alignment."
+        },
+        {
+          "severity": "blocker",
+          "action": "The current capture shows sparse/generic streetscape massing and proportions instead of the dense Place de la Bourse frontage: verify street width, building placement, facade rhythm and forecourt geometry against authoritative geometry and the lawful reference before accepting this viewpoint."
+        },
+        {
+          "severity": "major",
+          "action": "A Bruxelles-Midi / Brussel-Zuid presentation label is still visible in the Centre capture even when MidiHeroZone is hidden by the QA harness: identify its runtime source and spatially scope location-specific labels so distant hero signage cannot contaminate other districts."
+        },
+        {
+          "severity": "blocker",
+          "action": "After the geometry and spatial-label leaks are repaired, refine the provisional camera pose side-by-side with the CC0 reference, commit the approved in-game screenshot and score all eleven dimensions."
         }
       ],
       "realism_complete": false

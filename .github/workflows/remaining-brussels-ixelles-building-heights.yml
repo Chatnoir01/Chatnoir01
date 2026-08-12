@@ -62,27 +62,33 @@ jobs:
             --tiles 149168 149169 \
             --output /tmp/ixelles_height_value_diagnostics.json
 
-      - name: Upload raster value diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ixelles-height-value-diagnostics
-          path: |
-            /tmp/ixelles_height_value_diagnostics.json
-            /tmp/ixelles_dsm_archive_validation.json
-            /tmp/ixelles_dtm_archive_validation.json
-          if-no-files-found: warn
-
       - name: Derive per-building DSM-DTM statistics
         working-directory: grand-bruxelles-game
         run: |
+          set +e
           python3 tools/derive_ixelles_building_heights.py \
             --plan data/processed/remaining_brussels/references/ixelles_height_tile_plan.json \
             --cell-root data/urbis/remaining_brussels/cells \
             --raster-root /tmp/ixelles-height-work \
             --output /tmp/ixelles_building_height_stats_full.json \
             --summary-output /tmp/ixelles_building_height_summary.json \
-            --csv-output /tmp/ixelles_building_heights.csv
+            --csv-output /tmp/ixelles_building_heights.csv \
+            > /tmp/ixelles_height_derivation.log 2>&1
+          code=$?
+          cat /tmp/ixelles_height_derivation.log
+          exit $code
+
+      - name: Upload raster diagnostics and derivation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-height-diagnostics
+          path: |
+            /tmp/ixelles_height_value_diagnostics.json
+            /tmp/ixelles_dsm_archive_validation.json
+            /tmp/ixelles_dtm_archive_validation.json
+            /tmp/ixelles_height_derivation.log
+          if-no-files-found: warn
 
       - name: Enforce height quality report gate
         run: |

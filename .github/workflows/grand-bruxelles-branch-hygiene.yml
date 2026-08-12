@@ -1,0 +1,89 @@
+name: Grand Bruxelles Branch Hygiene
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  branch-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate specialist branch ownership
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_BRANCH" --depth=1
+          mapfile -t CHANGED < <(git diff --name-only "origin/$BASE_BRANCH...HEAD")
+          printf '%s\n' "${CHANGED[@]}" > /tmp/grand-bruxelles-changed-files.txt
+          echo "Checking ${#CHANGED[@]} changed files on $HEAD_BRANCH -> $BASE_BRANCH"
+
+          fail_matches() {
+            local label="$1"
+            shift
+            local found=0
+            for path in "${CHANGED[@]}"; do
+              for pattern in "$@"; do
+                if [[ "$path" =~ $pattern ]]; then
+                  echo "::error file=$path::Branch ownership violation ($label): $path"
+                  found=1
+                  break
+                fi
+              done
+            done
+            return "$found"
+          }
+
+          violations=0
+
+          case "$HEAD_BRANCH" in
+            zone-reste-bruxelles|zone-laeken-jette)
+              fail_matches "geographic branch contains gameplay-system files" \
+                '^grand-bruxelles-game/game/police/' \
+                '^grand-bruxelles-game/game/vehicles/police_' \
+                '^grand-bruxelles-game/game/scripts/police_' \
+                '^grand-bruxelles-game/game/scripts/wanted_system\.gd$' \
+                '^grand-bruxelles-game/game/scripts/npc_' \
+                '^grand-bruxelles-game/game/scripts/traffic_' \
+                '^grand-bruxelles-game/data/traffic/' || violations=1
+              ;;
+
+            vehicles-traffic|systems-vehicles-traffic)
+              fail_matches "vehicle/traffic branch contains geographic reconstruction files" \
+                '^grand-bruxelles-game/game/zones/' \
+                '^grand-bruxelles-game/data/urbis/(laeken_jette|remaining_brussels)/' \
+                '^grand-bruxelles-game/data/processed/remaining_brussels/' \
+                '^grand-bruxelles-game/tools/(bootstrap_remaining_brussels|build_urbis_cell|materialize_zone_cells|make_zone_cells)\.py$' || violations=1
+              fail_matches "vehicle/traffic branch contains police/NPC ownership files" \
+                '^grand-bruxelles-game/game/police/' \
+                '^grand-bruxelles-game/game/scripts/police_' \
+                '^grand-bruxelles-game/game/scripts/wanted_system\.gd$' || violations=1
+              ;;
+
+            systems-npc-police-civilians|systems-police-vehicles)
+              fail_matches "NPC/police branch contains geographic reconstruction files" \
+                '^grand-bruxelles-game/game/zones/' \
+                '^grand-bruxelles-game/data/urbis/(laeken_jette|remaining_brussels)/' \
+                '^grand-bruxelles-game/data/processed/remaining_brussels/' || violations=1
+              fail_matches "NPC/police branch contains traffic-core ownership files" \
+                '^grand-bruxelles-game/game/scripts/traffic_' \
+                '^grand-bruxelles-game/data/traffic/' || violations=1
+              ;;
+          esac
+
+          if [[ "$violations" -ne 0 ]]; then
+            echo "Branch hygiene failed. Move the flagged files to their owning workstream before integration."
+            exit 1
+          fi
+
+          echo "Branch ownership OK for $HEAD_BRANCH"

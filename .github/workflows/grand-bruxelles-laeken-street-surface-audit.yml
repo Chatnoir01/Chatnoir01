@@ -1,0 +1,51 @@
+name: Grand Bruxelles Laeken Street Surface Audit
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/audit_laeken_street_surface_properties.py"
+      - ".github/workflows/grand-bruxelles-laeken-street-surface-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Audit committed UrbIS street surface properties
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/audit_laeken_street_surface_properties.py
+          python3 tools/audit_laeken_street_surface_properties.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/street_surface_property_audit.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['feature_count']==3572
+          assert d['property_keys']
+          print('LAEKEN_STREET_SURFACE_AUDIT_VALID',[(x['key'],x['distinct_count']) for x in d['property_keys']])
+          PY
+
+      - name: Publish audit from latest branch head
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/street_surface_property_audit.json /tmp/street_surface_property_audit.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/street_surface_property_audit.json grand-bruxelles-game/data/sources/laeken_jette/street_surface_property_audit.json
+          git add -f grand-bruxelles-game/data/sources/laeken_jette/street_surface_property_audit.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: publish Laeken street-surface semantic audit [skip ci]"
+          git push origin HEAD:zone-laeken-jette

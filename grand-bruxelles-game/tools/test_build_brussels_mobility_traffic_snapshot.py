@@ -29,7 +29,17 @@ def _device(name: str, description: str, orientation: int, lanes: int) -> dict:
     }
 
 
-def _geometry(name: str, east: float, north: float, *, active: int, count: float | None, occupancy: float | None, start: str | None, end: str | None) -> dict:
+def _geometry(
+    name: str,
+    east: float,
+    north: float,
+    *,
+    active: int,
+    count: float | None,
+    occupancy: float | None,
+    start: str | None,
+    end: str | None,
+) -> dict:
     return {
         "type": "Feature",
         "id": "traffic_live_geom.synthetic",
@@ -65,19 +75,96 @@ def main() -> int:
     live = {
         "requestDate": "2026/08/12 09:10:00",
         "data": {
-            "MAD_103": {"results": {"1m": {"count": 36, "speed": 39.5, "occupancy": 27.5, "start_time": "2026-08-12T07:08:00Z", "end_time": "2026-08-12T07:09:00Z"}}},
-            "MAD_203": {"results": {"1m": {"count": None, "speed": None, "occupancy": None, "start_time": "-", "end_time": "-"}}},
-            "STE_TD3": {"results": {"1m": {"count": 8, "speed": 82.0, "occupancy": 24.0, "start_time": "2025-10-16T12:55:00Z", "end_time": "2025-10-16T12:56:00Z"}}},
-            "OFF_001": {"results": {"1m": {"count": 90, "speed": 28.0, "occupancy": 70.0, "start_time": "2026-08-12T07:08:00Z", "end_time": "2026-08-12T07:09:00Z"}}},
+            "MAD_103": {
+                "results": {
+                    "1m": {
+                        "count": 36,
+                        "speed": 39.5,
+                        "occupancy": 27.5,
+                        "start_time": "2026-08-12T07:08:00Z",
+                        "end_time": "2026-08-12T07:09:00Z",
+                    }
+                }
+            },
+            # API has no valid count, so the builder must fall back to WFS 1m A.
+            "MAD_203": {
+                "results": {
+                    "1m": {
+                        "count": None,
+                        "speed": None,
+                        "occupancy": None,
+                        "start_time": "-",
+                        "end_time": "-",
+                    }
+                }
+            },
+            "STE_TD3": {
+                "results": {
+                    "1m": {
+                        "count": 8,
+                        "speed": 82.0,
+                        "occupancy": 24.0,
+                        "start_time": "2025-10-16T12:55:00Z",
+                        "end_time": "2025-10-16T12:56:00Z",
+                    }
+                }
+            },
+            "OFF_001": {
+                "results": {
+                    "1m": {
+                        "count": 90,
+                        "speed": 28.0,
+                        "occupancy": 70.0,
+                        "start_time": "2026-08-12T07:08:00Z",
+                        "end_time": "2026-08-12T07:09:00Z",
+                    }
+                }
+            },
         },
     }
     geometry = {
         "type": "FeatureCollection",
         "features": [
-            _geometry("MAD_103", module.ORIGIN_E + 100.0, module.ORIGIN_N - 50.0, active=1, count=35, occupancy=26.0, start="2026-08-12T07:08:00Z", end="2026-08-12T07:09:00Z"),
-            _geometry("MAD_203", module.ORIGIN_E - 25.0, module.ORIGIN_N + 75.0, active=1, count=37, occupancy=22.0, start="2026-08-12T07:08:00Z", end="2026-08-12T07:09:00Z"),
-            _geometry("STE_TD3", module.ORIGIN_E + 12.0, module.ORIGIN_N + 18.0, active=0, count=8, occupancy=24.0, start="2025-10-16T12:55:00Z", end="2025-10-16T12:56:00Z"),
-            _geometry("OFF_001", module.ORIGIN_E + 20.0, module.ORIGIN_N - 10.0, active=0, count=90, occupancy=70.0, start="2026-08-12T07:08:00Z", end="2026-08-12T07:09:00Z"),
+            _geometry(
+                "MAD_103",
+                module.ORIGIN_E + 100.0,
+                module.ORIGIN_N - 50.0,
+                active=1,
+                count=35,
+                occupancy=26.0,
+                start="2026-08-12T07:08:00Z",
+                end="2026-08-12T07:09:00Z",
+            ),
+            _geometry(
+                "MAD_203",
+                module.ORIGIN_E - 25.0,
+                module.ORIGIN_N + 75.0,
+                active=1,
+                count=37,
+                occupancy=22.0,
+                start="2026-08-12T07:08:00Z",
+                end="2026-08-12T07:09:00Z",
+            ),
+            _geometry(
+                "STE_TD3",
+                module.ORIGIN_E + 12.0,
+                module.ORIGIN_N + 18.0,
+                active=0,
+                count=8,
+                occupancy=24.0,
+                start="2025-10-16T12:55:00Z",
+                end="2025-10-16T12:56:00Z",
+            ),
+            _geometry(
+                "OFF_001",
+                module.ORIGIN_E + 20.0,
+                module.ORIGIN_N - 10.0,
+                active=0,
+                count=90,
+                occupancy=70.0,
+                start="2026-08-12T07:08:00Z",
+                end="2026-08-12T07:09:00Z",
+            ),
         ],
     }
 
@@ -110,7 +197,7 @@ def main() -> int:
 
     second = snapshot["sensors"][1]
     assert second["game"] == [-25.0, -75.0]
-    assert second["number_of_lanes"] == 1
+    assert second["number_of_lanes"] == 1  # devices API takes precedence over WFS num_lanes.
     assert second["measurement"]["count"] == 37.0
     assert second["measurement"]["source"] == "wfs_live_geom"
     assert second["measurement"]["fresh"] is True

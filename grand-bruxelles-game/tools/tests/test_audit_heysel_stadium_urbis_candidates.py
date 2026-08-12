@@ -70,8 +70,8 @@ def main() -> None:
         {
             "type": "MultiPolygon",
             "coordinates": [
-                [[_square(100.0, 100.0, 5.0)]],
-                [[_square(120.0, 100.0, 5.0)]],
+                [_square(100.0, 100.0, 5.0)],
+                [_square(120.0, 100.0, 5.0)],
             ],
         }
     )

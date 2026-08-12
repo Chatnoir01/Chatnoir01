@@ -1,12 +1,12 @@
 # Grand Bruxelles Game — Master Status
 
-Last coordinated review: 2026-08-12 14:22 Europe/Brussels
+Last coordinated review: 2026-08-12 Europe/Brussels
 
 `main` plus small branches created from the exact current `main` define integration truth. Long-lived specialist branches are evidence/workspaces only; never merge them wholesale.
 
 ## Current main baseline
 
-- `main`: `f1797ee0d86177ace2bc0b753ec31f405d3394b8` (`web: publish playable Grand Bruxelles build [skip ci]`), automatically published after #79.
+- `main` used by the Bourse LoD2 cycle: `a52114ba1e396e5c7f29694a0f86d248a00c196b` (`qa: gate Bourse hero runtime approvals on evidence`), merged as #84 after the #83 footprint correction.
 - Clean integrations completed since the previous master snapshot:
   - #74 exact live civilian routine recovery after incidents;
   - #75 versioned Midi→Centre mission state snapshot contract;
@@ -76,14 +76,14 @@ Highest-priority resume candidate is #80 because it is a clean interrupted curre
 
 ## 2. Centre / Bourse
 
-The current compact Midi→Centre runtime is sufficient for a prototype but not a faithful Centre reconstruction. Existing photo-match evidence still reports a non-recognizable Palais de la Bourse silhouette, generic frontage/massing and street proportions that do not match the real reference.
+The current compact Midi→Centre runtime is sufficient for a prototype but not a faithful Centre reconstruction. PR #83 preserves the real Bourse footprint inside the fixed 140-building runtime budget. The current small LoD2 integration lot replaces its 6.3 m flat OSM fallback with 645 official UrbIS 3D semantic faces, including the recognizable dome and stepped roof mass. Deterministic geometry and capture evidence now close the missing-silhouette blocker, while frontage and street proportions remain visibly wrong.
 
-The current Centre strategy must change from generic procedural enhancement to source-backed hero correction:
-1. identify the real Palais de la Bourse footprint in authoritative UrbIS data;
-2. obtain defensible height/roof evidence from UrbIS 3D and/or official DSM/LiDAR evidence;
-3. validate the forecourt, street and sidewalk geometry;
-4. replace the major silhouette/roofline mismatch;
-5. rerun the fixed photo-match capture before adding micro-detail.
+The current Centre strategy remains source-backed hero correction:
+1. keep the authoritative Bourse footprint/LoD2 silhouette and provenance contract green;
+2. validate the forecourt, street and sidewalk geometry;
+3. replace generic frontage massing with original modular architecture informed by lawful references;
+4. refine the provisional camera side-by-side with the CC0 benchmark;
+5. score the fixed photo-match before adding micro-detail.
 
 Do not broaden Centre coverage until this benchmark visibly improves.
 

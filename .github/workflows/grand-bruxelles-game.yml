@@ -39,7 +39,9 @@ jobs:
         run: python3 -m py_compile grand-bruxelles-game/tools/*.py
 
       - name: Test hero-building runtime selection
-        run: python3 -m unittest discover -s grand-bruxelles-game/tests -p 'test_make_runtime_slice.py' -v
+        run: |
+          python3 -m unittest discover -s grand-bruxelles-game/tests -p 'test_make_runtime_slice.py' -v
+          python3 grand-bruxelles-game/tests/test_extract_urbis_3d_hero.py
 
       - name: Validate Lambert72 to game conversion
         run: |
@@ -106,9 +108,23 @@ jobs:
             exit 1
           fi
           grep -q "Grand Bruxelles visual pass:" /tmp/godot-run.log
+          grep -q "Grand Bruxelles UrbIS hero: bourse" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS Midi exact-plan:" /tmp/godot-run.log
           grep -q "Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS mask:" /tmp/godot-run.log
+
+      - name: Authoritative Bourse geometry test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/urbis_hero_geometry_test.gd 2>&1 | tee /tmp/urbis-hero.log
+          if grep -E "SCRIPT ERROR|Parse Error:|URBIS_HERO_GEOMETRY_FAIL" /tmp/urbis-hero.log; then
+            exit 1
+          fi
+          grep -q "URBIS_HERO_GEOMETRY_OK" /tmp/urbis-hero.log
 
       - name: Dynamic corridor location label test
         shell: bash

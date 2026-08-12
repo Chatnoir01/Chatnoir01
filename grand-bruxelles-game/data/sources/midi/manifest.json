@@ -19,10 +19,11 @@
       "preferred_format": "GPKG",
       "update_frequency": "monthly",
       "allowed_use": "production_candidate",
-      "license_status": "official_free_download; verify exact distribution metadata before asset release",
-      "landing_page": "https://data.europa.eu/data/datasets/e9ec2aa4-cffd-11ee-bccc-00090ffe0001?locale=en",
+      "license_status": "CC0-1.0 verified from official Brussels metadata API on 2026-08-12",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+      "landing_page": "https://datastore.brussels/web/data/dataset/e9ec2aa4-cffd-11ee-bccc-00090ffe0001",
       "atom_feed": "https://urbisdownload.datastore.brussels/atomfeed/e9ec2aa4-cffd-11ee-bccc-00090ffe0001-fr.xml",
-      "notes": "Preferred source for detailed 3D building/structure geometry. Official distributions include GPKG, SHP, DWG and SKP; use EPSG:31370 GPKG when possible."
+      "notes": "Preferred source for detailed 3D building/structure geometry. Official distributions include GPKG, SHP, DWG and SKP. The Bourse hero uses the audited EPSG:31370 SHP tile because its 645 semantic BuildingFaces are present even though its aggregate BuildingSolids SHP record is a permitted null shape. Package and component SHA-256 values are pinned in the generated hero JSON."
     },
     {
       "id": "urbis_landscape",

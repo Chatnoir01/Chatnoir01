@@ -1,6 +1,15 @@
 extends RefCounted
 
 const LOCAL_RADIUS_M := 150.0
+const OFFICIAL_PROFILE_SCRIPT := preload("res://game/scripts/traffic_official_density_profile.gd")
+const DEFAULT_OFFICIAL_RADIUS_M := 1800.0
+const DEFAULT_OFFICIAL_BLEND_WEIGHT := 0.72
+const MIN_SPATIAL_FACTOR := 0.58
+const MAX_SPATIAL_FACTOR := 1.42
+
+var _official_profile: RefCounted = OFFICIAL_PROFILE_SCRIPT.new()
+var _official_radius_m: float = DEFAULT_OFFICIAL_RADIUS_M
+var _official_blend_weight: float = DEFAULT_OFFICIAL_BLEND_WEIGHT
 
 func time_factor(hour: float) -> float:
     var h := fposmod(hour, 24.0)
@@ -17,6 +26,30 @@ func time_factor(hour: float) -> float:
     if h < 22.0:
         return 0.70
     return 0.46
+
+func configure_official_snapshot(
+    snapshot: Dictionary,
+    max_radius_m: float = DEFAULT_OFFICIAL_RADIUS_M,
+    blend_weight: float = DEFAULT_OFFICIAL_BLEND_WEIGHT
+) -> bool:
+    _official_radius_m = maxf(1.0, max_radius_m)
+    _official_blend_weight = clampf(blend_weight, 0.0, 1.0)
+    return bool(_official_profile.call("configure", snapshot))
+
+func clear_official_snapshot() -> void:
+    _official_profile.call("clear")
+
+func has_official_calibration() -> bool:
+    return bool(_official_profile.call("is_configured"))
+
+func get_official_sensor_count() -> int:
+    return int(_official_profile.call("get_sensor_count"))
+
+func get_official_capture_timestamp() -> String:
+    return str(_official_profile.call("get_captured_at_utc"))
+
+func official_calibration_for(position: Vector3) -> Dictionary:
+    return _official_profile.call("calibration_for", position, _official_radius_m)
 
 func local_capacity_factor(roads: Array[Dictionary], position: Vector3) -> float:
     var weighted_sum := 0.0
@@ -51,10 +84,23 @@ func local_capacity_factor(roads: Array[Dictionary], position: Vector3) -> float
         return 0.85
     return clampf(weighted_sum / float(samples), 0.62, 1.15)
 
+func spatial_factor(roads: Array[Dictionary], position: Vector3) -> float:
+    var heuristic := local_capacity_factor(roads, position)
+    if not has_official_calibration() or _official_blend_weight <= 0.0:
+        return heuristic
+    var calibration := official_calibration_for(position)
+    if not bool(calibration.get("available", false)):
+        return heuristic
+    var official := float(calibration.get("factor", 1.0))
+    return clampf(lerpf(heuristic, official, _official_blend_weight), MIN_SPATIAL_FACTOR, MAX_SPATIAL_FACTOR)
+
+func density_factor(hour: float, roads: Array[Dictionary], position: Vector3) -> float:
+    return time_factor(hour) * spatial_factor(roads, position)
+
 func target_vehicle_count(base_max: int, hour: float, roads: Array[Dictionary], position: Vector3) -> int:
     if base_max <= 0:
         return 0
-    var factor := time_factor(hour) * local_capacity_factor(roads, position)
+    var factor := density_factor(hour, roads, position)
     return clampi(int(round(float(base_max) * factor)), 1, base_max)
 
 func nearest_sector(anchors: Array, position: Vector3) -> String:

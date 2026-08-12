@@ -27,6 +27,23 @@ func _init() -> void:
 		_fail("same seeds and geometry must produce deterministic spacing")
 		return
 
+	var head_a_pos := Vector3(0.0, 0.0, 0.0)
+	var head_b_pos := Vector3(0.55, 0.0, -0.20)
+	var head_a_target := Vector3(0.0, 0.0, -8.0)
+	var head_b_target := Vector3(0.55, 0.0, 8.0)
+	var head_a_detour := spacing.detour_target(head_a_pos, head_a_target, head_b_pos, 11, 22, head_b_target)
+	var head_b_detour := spacing.detour_target(head_b_pos, head_b_target, head_a_pos, 22, 11, head_a_target)
+	if absf(head_a_detour.x - head_b_detour.x) < 0.9:
+		_fail("head-on civilians must choose opposite world-side detours")
+		return
+	if head_a_detour.z >= head_a_pos.z or head_b_detour.z <= head_b_pos.z:
+		_fail("head-on spacing must preserve each pedestrian's forward progress")
+		return
+	var head_repeat := spacing.detour_target(head_a_pos, head_a_target, head_b_pos, 11, 22, head_b_target)
+	if head_repeat != head_a_detour:
+		_fail("head-on pair choice must remain deterministic")
+		return
+
 	var far_peer := Vector3(2.0, 0.0, 0.0)
 	if spacing.needs_spacing(a_pos, far_peer):
 		_fail("agents outside personal-space threshold must not be detoured")

@@ -144,10 +144,17 @@ func _advance_assignment(agent: Node, crossing_system: RefCounted, traffic_gap_p
         _assignments.erase(agent_id)
 
 func _agent_gap_recheck_interval(agent: Node, attempt_index: int) -> float:
-    var pedestrian_context: Variant = agent.get("pedestrian_context")
-    if pedestrian_context != null and pedestrian_context.has_method("curb_recheck_interval_seconds"):
-        return maxf(0.05, float(pedestrian_context.call("curb_recheck_interval_seconds", attempt_index)))
+    if _object_has_property(agent, &"pedestrian_context"):
+        var pedestrian_context: Variant = agent.get("pedestrian_context")
+        if pedestrian_context != null and pedestrian_context.has_method("curb_recheck_interval_seconds"):
+            return maxf(0.05, float(pedestrian_context.call("curb_recheck_interval_seconds", attempt_index)))
     return minimum_wait_seconds
+
+func _object_has_property(object: Object, property_name: StringName) -> bool:
+    for raw_property: Dictionary in object.get_property_list():
+        if StringName(raw_property.get("name", &"")) == property_name:
+            return true
+    return false
 
 func _gap_is_safe(provider: Variant, crossing_id: int, position: Vector3) -> bool:
     if provider == null:

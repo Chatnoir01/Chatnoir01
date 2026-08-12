@@ -1,0 +1,59 @@
+name: Grand Bruxelles Ixelles DSM Policy Calibration
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/calibrate_ixelles_dsm_policy.py"
+      - "grand-bruxelles-game/tools/test_calibrate_ixelles_dsm_policy.py"
+      - ".github/workflows/grand-bruxelles-ixelles-dsm-policy-calibration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  calibrate-seed-cell:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regression test
+        run: python3 grand-bruxelles-game/tools/test_calibrate_ixelles_dsm_policy.py
+      - name: Recover locked semantic evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/semantic /tmp/comparison
+          gh run download 31608697531 --repo "$GITHUB_REPOSITORY" --name grand-bruxelles-ixelles-semantic-building-match-evidence --dir /tmp/semantic
+          gh run download 31610029266 --repo "$GITHUB_REPOSITORY" --name grand-bruxelles-ixelles-semantic-dsm-comparison --dir /tmp/comparison
+          grep -q '^090f4a6aada5c7c19609860d7ee3956ce0f06379c991533975bcf1ddb848dfaa ' /tmp/semantic/distribution.sha256
+          grep -q '^2aa3057da9d0cfd656baf684fe53d343629b1539a648fbb69fff983327993c78 ' /tmp/semantic/gpkg.sha256
+          sha256sum /tmp/comparison/evidence.json
+      - name: Calibrate tested statistics
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/ixelles-dsm-policy-calibration
+          python3 grand-bruxelles-game/tools/calibrate_ixelles_dsm_policy.py \
+            --comparison /tmp/comparison/evidence.json \
+            --semantic /tmp/semantic/evidence.json \
+            --output grand-bruxelles-game/artifacts/ixelles-dsm-policy-calibration/evidence.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('grand-bruxelles-game/artifacts/ixelles-dsm-policy-calibration/evidence.json'))
+          assert p['cell']=='bxl-e149000-n169000-s500'
+          assert p['source_crs']=='EPSG:31370'
+          assert p['runtime_approved'] is False
+          assert p['counts']['joined']==468
+          assert p['counts']['current_conflicts_gt_4m']==108
+          assert p['counts']['current_severe_gt_8m']==37
+          assert p['decision']['best_tested_statistic']=='p50'
+          assert p['decision']['promote_runtime'] is False
+          assert p['variant_metrics']['dsm_height_p50_m']['mae_m'] < p['variant_metrics']['dsm_policy_candidate_m']['mae_m']
+          print('IXELLES_DSM_POLICY_REAL_EVIDENCE',json.dumps(p,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-ixelles-dsm-policy-calibration
+          path: grand-bruxelles-game/artifacts/ixelles-dsm-policy-calibration/evidence.json
+          retention-days: 90

@@ -4,6 +4,23 @@
     "local_axes": "x=east, y=up, z=north-negative",
     "note": "Local meter coordinates are approximate control points for blockout only; final roads/buildings come from cleaned geodata."
   },
+  "required_buildings": [
+    {
+      "osm_id": 13494623,
+      "osm_type": "way",
+      "anchor_id": "bourse",
+      "role": "hero_landmark_fallback",
+      "name": "Bourse - Beurs",
+      "source_url": "https://www.openstreetmap.org/way/13494623",
+      "source_license": "ODbL-1.0",
+      "urbis_inspire_id": "https://databrussels.be/id/building/1751663",
+      "urbis_ref": "8186511",
+      "urbis_crs": "EPSG:31370",
+      "urbis_area_m2": 3368,
+      "cross_check_accessed_at": "2026-08-12",
+      "status": "OSM fallback footprint cross-checked against official UrbIS plan geometry; height, roof and frontage are not runtime-approved"
+    }
+  ],
   "points": [
     {
       "id": "midi",

@@ -1,4 +1,4 @@
-[gd_scene load_steps=28 format=3]
+[gd_scene load_steps=29 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://game/scripts/npc_runtime_integration.gd" id="15_npc_runtime"]
 [ext_resource type="Script" path="res://game/scripts/location_label_controller.gd" id="16_location"]
 [ext_resource type="Script" path="res://game/scripts/urbis_hero_builder.gd" id="17_heroes"]
+[ext_resource type="Script" path="res://game/scripts/urbis_bourse_axis_context.gd" id="18_bourse_axis"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -99,6 +100,9 @@ use_collision = true
 
 [node name="BrusselsOSM" type="Node3D" parent="."]
 script = ExtResource("2_city")
+
+[node name="UrbISBourseAxisContext" type="Node3D" parent="."]
+script = ExtResource("18_bourse_axis")
 
 [node name="UrbISHeroGeometry" type="Node3D" parent="."]
 script = ExtResource("17_heroes")

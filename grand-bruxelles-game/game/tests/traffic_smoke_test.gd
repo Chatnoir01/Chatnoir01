@@ -22,8 +22,10 @@ func _run() -> void:
     manager.set("max_vehicles", 4)
     manager.set("density_enabled", false)
     manager.set("max_crossing_pedestrians", 3)
+    manager.set("max_parked_vehicles", 4)
     manager.set("spawn_radius_m", 2000.0)
     manager.set("crossing_spawn_radius_m", 2000.0)
+    manager.set("parking_spawn_radius_m", 2000.0)
     manager.set("despawn_radius_m", 3000.0)
     manager.set("traffic_seed", 42)
     root.add_child(manager)
@@ -43,6 +45,8 @@ func _run() -> void:
         "get_crossing_count",
         "get_unsignalized_crossing_count",
         "get_active_crossing_pedestrian_count",
+        "get_parking_candidate_count",
+        "get_parked_vehicle_count",
         "get_active_vehicle_count",
     ]:
         if not manager.has_method(method_name):
@@ -90,21 +94,38 @@ func _run() -> void:
 
     var active_count := int(manager.call("get_active_vehicle_count"))
     var active_pedestrians := int(manager.call("get_active_crossing_pedestrian_count"))
+    var parking_candidates := int(manager.call("get_parking_candidate_count"))
+    var parked_count := int(manager.call("get_parked_vehicle_count"))
     if active_count != 4:
         _fail("expected 4 spawned traffic vehicles, got %d" % active_count)
         return
     if active_pedestrians != 3:
         _fail("expected 3 crossing pedestrians, got %d" % active_pedestrians)
         return
+    if parking_candidates <= 0:
+        _fail("current OSM roads produced no safe parking candidates")
+        return
+    if parked_count != 4:
+        _fail("expected 4 simulated parked vehicles, got %d" % parked_count)
+        return
 
     var traffic_root := manager.get_node_or_null("TrafficVehicles")
     var pedestrian_root := manager.get_node_or_null("CrossingPedestrians")
+    var parking_root := manager.get_node_or_null("ParkedVehicles")
     if traffic_root == null:
         _fail("TrafficVehicles root missing")
         return
     if pedestrian_root == null:
         _fail("CrossingPedestrians root missing")
         return
+    if parking_root == null:
+        _fail("ParkedVehicles root missing")
+        return
+
+    for parked: Node in parking_root.get_children():
+        if not bool(parked.get_meta("simulated_occupancy", false)):
+            _fail("parked vehicle is not explicitly labelled simulated occupancy")
+            return
 
     var first_vehicle: Node = null
     for child: Node in traffic_root.get_children():
@@ -145,7 +166,7 @@ func _run() -> void:
         return
 
     print(
-        "TRAFFIC_SMOKE_OK: %d ways, %d nodes, %d edges, %d intersections (%d right-priority), %d controls, %d signals, %d crossings (%d unsignalized), %d vehicles, %d crossing pedestrians" %
+        "TRAFFIC_SMOKE_OK: %d ways, %d nodes, %d edges, %d intersections (%d right-priority), %d controls, %d signals, %d crossings (%d unsignalized), %d moving vehicles, %d crossing pedestrians, %d/%d parked vehicles/candidates" %
         [
             route_count,
             graph_nodes,
@@ -158,6 +179,8 @@ func _run() -> void:
             unsignalized_crossing_count,
             active_count,
             active_pedestrians,
+            parked_count,
+            parking_candidates,
         ]
     )
     manager.queue_free()

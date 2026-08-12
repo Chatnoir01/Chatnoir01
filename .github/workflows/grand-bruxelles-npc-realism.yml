@@ -48,6 +48,13 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_crowd_spacing_test.gd 2>&1 | tee /tmp/npc-crowd-spacing.log
           if grep -E "SCRIPT ERROR|Parse Error:|NPC_CROWD_SPACING_FAIL" /tmp/npc-crowd-spacing.log; then exit 1; fi
           grep -q "NPC_CROWD_SPACING_OK" /tmp/npc-crowd-spacing.log
+      - name: Civilian ambient runtime cadence regression
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_ambient_runtime_cadence_test.gd 2>&1 | tee /tmp/npc-ambient-runtime-cadence.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_AMBIENT_RUNTIME_CADENCE_FAIL" /tmp/npc-ambient-runtime-cadence.log; then exit 1; fi
+          grep -q "NPC_AMBIENT_RUNTIME_CADENCE_OK" /tmp/npc-ambient-runtime-cadence.log
       - name: Crowd reaction memory test
         shell: bash
         run: |

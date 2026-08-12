@@ -38,7 +38,7 @@ jobs:
           print('PALAIS5_AUDIT_DSM_READY')
           PY
 
-      - name: Audit nearest official footprints
+      - name: Audit precise official footprint component
         working-directory: grand-bruxelles-game
         run: |
           python3 -m py_compile tools/audit_palais5_nearest_urbis.py
@@ -47,8 +47,18 @@ jobs:
           import json
           p='data/sources/laeken_jette/palais5_nearest_urbis_audit.json'
           d=json.load(open(p,encoding='utf-8'))
-          assert d['candidate_count'] > 0
-          print('PALAIS5_URBIS_AUDIT_VALID',d['strong_candidate_count'],d['selected_if_unambiguous'])
+          assert d['schema'] == 2, d
+          assert d['feature_candidate_count'] > 0, d
+          assert d['component_candidate_count'] > 0, d
+          assert d['containing_component_count'] == 1, d
+          selected=d['selected_component_if_unambiguous']
+          assert selected is not None, d
+          assert selected['locator_inside'] is True, selected
+          assert selected['locator_boundary_distance_m'] == 0.0, selected
+          assert selected['outer_area_m2'] > 1000.0, selected
+          assert 50.0 <= selected['major_span_m'] <= 800.0, selected
+          assert 20.0 <= selected['minor_span_m'] <= 600.0, selected
+          print('PALAIS5_COMPONENT_AUDIT_VALID', selected)
           PY
 
       - name: Publish audit from latest branch head
@@ -62,5 +72,5 @@ jobs:
           cp /tmp/palais5_nearest_urbis_audit.json grand-bruxelles-game/data/sources/laeken_jette/
           git add -f grand-bruxelles-game/data/sources/laeken_jette/palais5_nearest_urbis_audit.json
           git diff --cached --quiet && exit 0
-          git commit -m "data: audit Palais 5 against UrbIS footprints [skip ci]"
+          git commit -m "data: audit precise Palais 5 UrbIS component [skip ci]"
           git push origin HEAD:zone-laeken-jette

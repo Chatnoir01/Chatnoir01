@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "view_id": "heysel_stadium_context_v1",
+  "status": "provisional_atomium_observation_candidates_ready_for_capture",
+  "policy": "These cameras are deterministic comparison cameras only. The reference says the photograph was taken from the Atomium but does not identify the observation sphere/window, exact camera coordinates, focal length, yaw, pitch or crop. Both candidates therefore remain explicitly provisional and must not be represented as the photographer position.",
+  "sources": {
+    "target_evidence": "data/reference/laeken_jette/heysel_stadium_target_evidence.json",
+    "atomium_anchor": "data/reference/laeken_jette/anchors.json",
+    "visual_reference": "https://commons.wikimedia.org/wiki/File:Heysel_from_Atomium.JPG"
+  },
+  "geometry": {
+    "atomium_anchor_game_xz": [224.92615906274295, -6553.143077999353],
+    "stadium_target_game_xz": [-296.11722791934153, -6621.3888507380325],
+    "stadium_target_ground_y_from_atomium_baseline_m": 2.653119816308,
+    "horizontal_anchor_to_target_distance_m": 525.4937645819041,
+    "observation_offset_toward_target_m": 7.0,
+    "observation_offset_basis": "A 7 m inward-safe comparison offset is less than the official 9 m sphere radius implied by the documented 18 m Atomium sphere diameter. It prevents placing the benchmark camera at the landmark center while remaining explicitly non-surveyed.",
+    "provisional_camera_game_xz": [217.98544167520845, -6554.052166634403]
+  },
+  "candidates": [
+    {
+      "id": "heysel_from_atomium_92m_v1",
+      "observation_level_y_from_atomium_baseline_m": 92.0,
+      "level_status": "plausible_not_proven",
+      "camera_game_xyz": [217.98544167520845, 92.0, -6554.052166634403],
+      "target_game_xyz": [-296.11722791934153, 2.653119816308, -6621.3888507380325],
+      "fov_degrees": 50.0,
+      "resolution": [1280, 720]
+    },
+    {
+      "id": "heysel_from_atomium_36m_v1",
+      "observation_level_y_from_atomium_baseline_m": 36.0,
+      "level_status": "plausible_not_proven",
+      "camera_game_xyz": [217.98544167520845, 36.0, -6554.052166634403],
+      "target_game_xyz": [-296.11722791934153, 2.653119816308, -6621.3888507380325],
+      "fov_degrees": 50.0,
+      "resolution": [1280, 720]
+    }
+  ],
+  "must_not_infer": [
+    "which Atomium observation level was used by the 2007 photographer",
+    "exact observation window or sphere",
+    "source focal length",
+    "source crop",
+    "photographer GPS"
+  ]
+}

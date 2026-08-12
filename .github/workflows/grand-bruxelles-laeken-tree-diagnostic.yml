@@ -1,0 +1,56 @@
+name: Grand Bruxelles Laeken Tree Diagnostic
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - ".github/workflows/grand-bruxelles-laeken-tree-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Run test and preserve exact output
+        shell: bash
+        run: |
+          set +e
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/laeken_official_trees_smoke_test.gd > /tmp/laeken-tree-diagnostic.log 2>&1
+          STATUS=$?
+          echo "godot_exit_status=$STATUS" >> /tmp/laeken-tree-diagnostic.log
+          cat /tmp/laeken-tree-diagnostic.log
+          cp /tmp/laeken-tree-diagnostic.log /tmp/laeken-tree-diagnostic-copy.log
+          exit 0
+
+      - name: Publish diagnostic from latest branch head
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette/diagnostics
+          cp /tmp/laeken-tree-diagnostic-copy.log grand-bruxelles-game/data/sources/laeken_jette/diagnostics/official_trees_smoke.log
+          git add -f grand-bruxelles-game/data/sources/laeken_jette/diagnostics/official_trees_smoke.log
+          git diff --cached --quiet && exit 0
+          git commit -m "debug: capture official tree smoke output [skip ci]"
+          git push origin HEAD:zone-laeken-jette

@@ -47,7 +47,7 @@ jobs:
           violations=0
 
           case "$HEAD_BRANCH" in
-            zone-reste-bruxelles|zone-laeken-jette)
+            zone-reste-bruxelles|zone-reste-bruxelles-clean|zone-laeken-jette)
               fail_matches "geographic branch contains gameplay-system files" \
                 '^grand-bruxelles-game/game/police/' \
                 '^grand-bruxelles-game/game/vehicles/police_' \
@@ -87,3 +87,41 @@ jobs:
           fi
 
           echo "Branch ownership OK for $HEAD_BRANCH"
+
+      - name: Report branch drift and shared-file integration risk
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_BRANCH" --depth=200 || git fetch origin "$BASE_BRANCH"
+
+          AHEAD=$(git rev-list --count "origin/$BASE_BRANCH..HEAD")
+          BEHIND=$(git rev-list --count "HEAD..origin/$BASE_BRANCH")
+          SHARED=$(git diff --name-only "origin/$BASE_BRANCH...HEAD" | grep -E '^(grand-bruxelles-game/game/main\.tscn|grand-bruxelles-game/project\.godot|\.github/workflows/grand-bruxelles-game\.yml)$' || true)
+
+          {
+            echo "### Grand Bruxelles integration-risk report"
+            echo "- branch: \`$HEAD_BRANCH\` -> \`$BASE_BRANCH\`"
+            echo "- commits ahead: **$AHEAD**"
+            echo "- commits behind: **$BEHIND**"
+            if [[ -n "$SHARED" ]]; then
+              echo "- shared integration files touched:"
+              while IFS= read -r path; do
+                [[ -n "$path" ]] && echo "  - \`$path\`"
+              done <<< "$SHARED"
+            else
+              echo "- shared integration files touched: none"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if (( AHEAD > 50 )); then
+            echo "::warning::Branch is $AHEAD commits ahead of $BASE_BRANCH. Treat it as a specialist source and extract a small current-base integration branch rather than merging wholesale."
+          fi
+          if (( BEHIND > 15 )); then
+            echo "::warning::Branch is $BEHIND commits behind $BASE_BRANCH. Do not stack unrelated work or assume technical mergeability means safe integration."
+          fi
+          if [[ -n "$SHARED" ]]; then
+            echo "::warning::Shared integration files are modified. Review for duplicated main-scene/CI ownership before merge."
+          fi

@@ -20,6 +20,7 @@ enum TransitState {
 var behavior := NpcBehaviorModel.new()
 var pedestrian_context := NpcPedestrianContext.new()
 var appearance := NpcAppearanceProfile.new()
+var ambient_state := NpcAmbientState.new()
 var pedestrian_intent: int = NpcPedestrianContext.PedestrianIntent.CONTINUE
 var weather_context: int = NpcAppearanceProfile.WeatherContext.MILD
 var transit_state: int = TransitState.NONE
@@ -31,6 +32,7 @@ func _ready() -> void:
 	behavior.configure(role, variation_seed, global_position)
 	_configure_pedestrian_context()
 	_configure_appearance()
+	_configure_ambient_state()
 
 func set_spawn_context(new_role: NpcBehaviorModel.Role, seed_value: int, spawn_position: Vector3) -> void:
 	role = new_role
@@ -39,6 +41,7 @@ func set_spawn_context(new_role: NpcBehaviorModel.Role, seed_value: int, spawn_p
 	behavior.configure(new_role, seed_value, spawn_position)
 	_configure_pedestrian_context()
 	_configure_appearance()
+	_configure_ambient_state()
 	_reset_transit_state()
 
 func set_weather_context(new_weather_context: int) -> void:
@@ -47,6 +50,13 @@ func set_weather_context(new_weather_context: int) -> void:
 
 func get_appearance_profile() -> Dictionary:
 	return appearance.as_dictionary().duplicate(true)
+
+func get_ambient_animation_tag() -> StringName:
+	return ambient_state.animation_tag()
+
+func advance_ambient_state(crowd_is_dense: bool, sequence_index: int = -1) -> int:
+	var is_raining: bool = weather_context == NpcAppearanceProfile.WeatherContext.RAIN
+	return ambient_state.advance(is_raining, crowd_is_dense, sequence_index)
 
 func get_world_position() -> Vector3:
 	if is_inside_tree():
@@ -73,10 +83,13 @@ func update_transit_context(vehicle_arrived: bool, has_capacity: bool, waiting_s
 	pedestrian_intent = pedestrian_context.transit_intent(vehicle_arrived, has_capacity, waiting_seconds)
 	if pedestrian_intent == NpcPedestrianContext.PedestrianIntent.WAIT_FOR_TRANSIT:
 		transit_state = TransitState.WAITING
+		ambient_state.set_transit_context(true, false)
 	elif pedestrian_intent == NpcPedestrianContext.PedestrianIntent.BOARD_TRANSIT:
 		transit_state = TransitState.BOARDING
+		ambient_state.set_transit_context(true, true)
 	else:
 		transit_state = TransitState.NONE
+		ambient_state.set_transit_context(false, false)
 	movement_held = transit_state == TransitState.WAITING or transit_state == TransitState.BOARDING
 	return pedestrian_intent
 
@@ -108,6 +121,7 @@ func clear_pedestrian_hold() -> void:
 	movement_held = false
 	if transit_state == TransitState.WAITING or transit_state == TransitState.BOARDING:
 		transit_state = TransitState.NONE
+		ambient_state.set_transit_context(false, false)
 
 func _physics_process(delta: float) -> void:
 	if not active:
@@ -158,6 +172,7 @@ func reactivate(spawn_position: Vector3) -> void:
 	behavior.configure(role, variation_seed, spawn_position)
 	_configure_pedestrian_context()
 	_configure_appearance()
+	_configure_ambient_state()
 	_reset_transit_state()
 	set_physics_process(true)
 
@@ -169,10 +184,14 @@ func _configure_pedestrian_context() -> void:
 func _configure_appearance() -> void:
 	appearance.configure(variation_seed, role, weather_context)
 
+func _configure_ambient_state() -> void:
+	ambient_state.configure(variation_seed)
+
 func _reset_transit_state() -> void:
 	transit_state = TransitState.NONE
 	pedestrian_intent = NpcPedestrianContext.PedestrianIntent.CONTINUE
 	movement_held = false
+	ambient_state.set_transit_context(false, false)
 
 func _set_world_position(world_position: Vector3) -> void:
 	if is_inside_tree():

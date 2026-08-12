@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for parent-entry vs actual-file UrbIS distribution filtering."""
+"""Regression tests for file-format, municipality and freshness filtering."""
 
 from __future__ import annotations
 
@@ -15,35 +15,29 @@ spec.loader.exec_module(module)
 
 def main() -> int:
     candidates = [
-        {
-            "href": "https://urbisdownload.datastore.brussels/3D/31370/DWG/UrbISBuildings3D_31370_DWG_141167_20250116.zip",
-            "type": "application/zip",
-            "title": "UrbISBuildings3D DWG",
-        },
-        {
-            "href": "https://urbisdownload.datastore.brussels/3D/31370/GPKG/UrbISBuildings3D_31370_GPKG_141167_20250116.zip",
-            "type": "application/zip",
-            "title": "UrbISBuildings3D GPKG",
-        },
-        {
-            "href": "https://urbisdownload.datastore.brussels/3D/4326/GPKG/UrbISBuildings3D_4326_GPKG_141167_20250116.zip",
-            "type": "application/zip",
-            "title": "UrbISBuildings3D GPKG 4326",
-        },
+        {"href": "https://x/31370/DWG/UrbISBuildings3D_31370_DWG_21009_20260808.zip", "title": "Ixelles", "type": "application/zip"},
+        {"href": "https://x/31370/GPKG/UrbISBuildings3D_31370_GPKG_21001_20260808.zip", "title": "Anderlecht", "type": "application/geopackage+sqlite3"},
+        {"href": "https://x/31370/GPKG/UrbISBuildings3D_31370_GPKG_21009_20250116.zip", "title": "Ixelles", "type": "application/geopackage+sqlite3"},
+        {"href": "https://x/31370/GPKG/UrbISBuildings3D_31370_GPKG_21009_20260704.zip", "title": "Ixelles", "type": "application/geopackage+sqlite3"},
+        {"href": "https://x/31370/GPKG/UrbISBuildings3D_31370_GPKG_21009_20260808.zip", "title": "Ixelles", "type": "application/geopackage+sqlite3"},
+        {"href": "https://x/4326/GPKG/UrbISBuildings3D_4326_GPKG_21009_20260808.zip", "title": "Ixelles", "type": "application/geopackage+sqlite3"},
     ]
 
-    exact = module.filter_candidates(candidates, ["31370", "GPKG"])
-    assert len(exact) == 1
-    assert "/31370/GPKG/" in exact[0]["href"]
-    assert "DWG" not in exact[0]["href"]
+    exact = module.filter_candidates(candidates, ["31370", "GPKG", "21009"])
+    assert len(exact) == 3
+    assert all("/GPKG/" in item["href"] for item in exact)
+    assert all("21009" in item["href"] for item in exact)
+    assert all("DWG" not in item["href"] for item in exact)
 
-    gpkg_any_crs = module.filter_candidates(candidates, ["GPKG"])
-    assert len(gpkg_any_crs) == 2
+    latest = module.choose_candidate(exact, True)
+    assert latest is not None
+    assert module.candidate_date(latest) == "20260808"
+    assert latest["href"].endswith("UrbISBuildings3D_31370_GPKG_21009_20260808.zip")
 
-    untouched = module.filter_candidates(candidates, [])
-    assert untouched == candidates
+    non_latest = module.choose_candidate(exact, False)
+    assert non_latest is not None
 
-    missing = module.filter_candidates(candidates, ["31370", "SHP"])
+    missing = module.filter_candidates(candidates, ["31370", "GPKG", "99999"])
     assert missing == []
 
     print("URBIS_DISTRIBUTION_SELECTOR_TEST_OK")

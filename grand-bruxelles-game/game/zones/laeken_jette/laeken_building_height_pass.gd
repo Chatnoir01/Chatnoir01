@@ -15,6 +15,7 @@ const PALAIS5_OUTLINE_PATH := "res://data/sources/laeken_jette/palais5_osm_outli
 const PALAIS5_EXPO_INSPIRE_ID := "https://databrussels.be/id/building/1635598"
 const FALLBACK_HEIGHT_M := 10.5
 const VALID_QUALITIES := ["high", "medium", "low"]
+const TRIANGLE_AREA_EPSILON_M2 := 0.001
 
 var height_mesh_ready: bool = false
 var derived_buildings: int = 0
@@ -90,6 +91,39 @@ func _polygon_centroid(points: PackedVector2Array) -> Vector2:
     for point in points:
         sum += point
     return sum / float(points.size())
+
+
+func _polygon_area(points: PackedVector2Array) -> float:
+    if points.size() < 3:
+        return 0.0
+    var twice_area := 0.0
+    for index in range(points.size()):
+        var a := points[index]
+        var b := points[(index + 1) % points.size()]
+        twice_area += a.x * b.y - b.x * a.y
+    return absf(twice_area) * 0.5
+
+
+func _intersection_area(a: PackedVector2Array, b: PackedVector2Array) -> float:
+    var total := 0.0
+    for polygon in Geometry2D.intersect_polygons(a, b):
+        total += _polygon_area(polygon)
+    return total
+
+
+func _triangle_fits_surface(a: Vector2, b: Vector2, c: Vector2, outer: PackedVector2Array, holes: Array[PackedVector2Array]) -> bool:
+    var triangle := PackedVector2Array([a, b, c])
+    var triangle_area := _polygon_area(triangle)
+    if triangle_area <= TRIANGLE_AREA_EPSILON_M2:
+        return false
+    var tolerance := maxf(TRIANGLE_AREA_EPSILON_M2, triangle_area * 0.000001)
+    var inside_outer_area := _intersection_area(triangle, outer)
+    if inside_outer_area < triangle_area - tolerance:
+        return false
+    for hole in holes:
+        if _intersection_area(triangle, hole) > tolerance:
+            return false
+    return true
 
 
 func _resolve_record(record: Dictionary, properties: Dictionary, terrain: Node, points: PackedVector2Array) -> Dictionary:
@@ -189,6 +223,8 @@ func _append_flat_polygon_with_holes(st: SurfaceTool, outer: PackedVector2Array,
         if not _point_in_surface(centroid, outer, holes):
             continue
         if not _point_in_surface(ab, outer, holes) or not _point_in_surface(bc, outer, holes) or not _point_in_surface(ca, outer, holes):
+            continue
+        if not _triangle_fits_surface(a, b, c, outer, holes):
             continue
         for point in [a, b, c]:
             st.set_normal(Vector3.UP)

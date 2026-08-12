@@ -108,4 +108,7 @@ func _pick_speed(seed_value: int, for_role: Role) -> float:
 	var normalized := float(abs(seed_value * 37) % 1000) / 1000.0
 	if for_role == Role.POLICE:
 		return lerpf(1.25, 1.55, normalized)
-	return lerpf(1.0, 1.55, normalized)
+	var base_speed: float = lerpf(1.0, 1.55, normalized)
+	var pace_mix: int = absi(seed_value * 1103515245 + 11 * 12345)
+	var pace_factor: float = lerpf(0.88, 1.12, float(pace_mix % 10000) / 10000.0)
+	return clampf(base_speed * pace_factor, 0.75, 1.75)

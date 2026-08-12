@@ -200,3 +200,16 @@ jobs:
             exit 1
           fi
           grep -q "NPC_TRANSIT_ACCESSIBILITY_OK" /tmp/npc-transit-accessibility.log
+
+      - name: Police de-escalation and patrol return test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_police_response_test.gd 2>&1 | tee /tmp/npc-police-response.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POLICE_RESPONSE_FAIL" /tmp/npc-police-response.log; then
+            exit 1
+          fi
+          grep -q "NPC_POLICE_RESPONSE_OK" /tmp/npc-police-response.log

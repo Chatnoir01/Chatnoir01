@@ -49,8 +49,15 @@ func _run() -> void:
             if _near_bourse(transform.origin):
                 bourse_windows += 1
 
+    if bourse_windows < 1:
+        _fail(
+            "source-aligned Bourse context contains no facade-window instances; " +
+            "do not treat streetscape detail as visually populated"
+        )
+        return
+
     print(
-        "BOURSE_CONTEXT_DETAIL_OK: %d sidewalks, %d existing facade windows inside %.0f m; frontage-density blocker remains open" %
+        "BOURSE_CONTEXT_DETAIL_OK: %d sidewalks, %d facade windows inside %.0f m; quantitative frontage-density blocker remains open" %
         [bourse_sidewalks, bourse_windows, DETAIL_RADIUS_M]
     )
     scene.queue_free()

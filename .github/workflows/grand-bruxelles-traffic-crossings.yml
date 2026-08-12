@@ -48,82 +48,70 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
             --script res://game/tests/traffic_crossing_test.gd 2>&1 | tee /tmp/crossing.log
-          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CROSSING_FAIL" /tmp/crossing.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CROSSING_FAIL" /tmp/crossing.log; then exit 1; fi
           grep -q "TRAFFIC_CROSSING_OK" /tmp/crossing.log
 
       - name: Traffic density model test
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
             --script res://game/tests/traffic_density_test.gd 2>&1 | tee /tmp/density.log
-          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_DENSITY_FAIL" /tmp/density.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_DENSITY_FAIL" /tmp/density.log; then exit 1; fi
           grep -q "TRAFFIC_DENSITY_OK" /tmp/density.log
 
       - name: Mixed vehicle archetype test
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
             --script res://game/tests/traffic_vehicle_mix_test.gd 2>&1 | tee /tmp/mix.log
-          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_MIX_FAIL" /tmp/mix.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_MIX_FAIL" /tmp/mix.log; then exit 1; fi
           grep -q "TRAFFIC_MIX_OK" /tmp/mix.log
+
+      - name: Safe curb parking test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
+            --script res://game/tests/traffic_parking_test.gd 2>&1 | tee /tmp/parking.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_PARKING_FAIL" /tmp/parking.log; then exit 1; fi
+          grep -q "TRAFFIC_PARKING_OK" /tmp/parking.log
 
       - name: Vehicle impact damage test
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
             --script res://game/tests/vehicle_damage_test.gd 2>&1 | tee /tmp/damage.log
-          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_DAMAGE_FAIL" /tmp/damage.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_DAMAGE_FAIL" /tmp/damage.log; then exit 1; fi
           grep -q "VEHICLE_DAMAGE_OK" /tmp/damage.log
 
       - name: Roadside recovery test
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
             --script res://game/tests/vehicle_recovery_test.gd 2>&1 | tee /tmp/recovery.log
-          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_RECOVERY_FAIL" /tmp/recovery.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_RECOVERY_FAIL" /tmp/recovery.log; then exit 1; fi
           grep -q "VEHICLE_RECOVERY_OK" /tmp/recovery.log
 
       - name: OSM garage service test
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
             --script res://game/tests/vehicle_service_test.gd 2>&1 | tee /tmp/service.log
-          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_SERVICE_FAIL" /tmp/service.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_SERVICE_FAIL" /tmp/service.log; then exit 1; fi
           grep -q "VEHICLE_SERVICE_OK" /tmp/service.log
 
       - name: Live traffic smoke test
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
             --script res://game/tests/traffic_smoke_test.gd 2>&1 | tee /tmp/traffic.log
-          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_SMOKE_FAIL" /tmp/traffic.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_SMOKE_FAIL" /tmp/traffic.log; then exit 1; fi
           grep -q "TRAFFIC_SMOKE_OK" /tmp/traffic.log

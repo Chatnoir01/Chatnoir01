@@ -5,9 +5,9 @@
   "municipalities_total": 17,
   "municipality_grids_ready": 7,
   "unique_planned_cells_known": 256,
-  "materialized_cells_total": 21,
-  "materialized_cells_in_known_grids": 21,
-  "known_grid_coverage_percent": 8.2,
+  "materialized_cells_total": 25,
+  "materialized_cells_in_known_grids": 25,
+  "known_grid_coverage_percent": 9.77,
   "shared_cross_municipality_cell_count": 38,
   "shared_cross_municipality_cells": {
     "bxl-e146500-n168500-s500": [
@@ -233,9 +233,13 @@
       "priority": 5,
       "grid_ready": true,
       "planned_cells": 12,
-      "materialized_cells": 1,
-      "coverage_percent": 8.33,
+      "materialized_cells": 5,
+      "coverage_percent": 41.67,
       "materialized_cell_ids": [
+        "bxl-e149500-n171500-s500",
+        "bxl-e150000-n171500-s500",
+        "bxl-e150500-n171000-s500",
+        "bxl-e150500-n171500-s500",
         "bxl-e151000-n171000-s500"
       ]
     },
@@ -246,9 +250,13 @@
       "priority": 6,
       "grid_ready": true,
       "planned_cells": 49,
-      "materialized_cells": 7,
-      "coverage_percent": 14.29,
+      "materialized_cells": 11,
+      "coverage_percent": 22.45,
       "materialized_cell_ids": [
+        "bxl-e149500-n171500-s500",
+        "bxl-e150000-n171500-s500",
+        "bxl-e150500-n171000-s500",
+        "bxl-e150500-n171500-s500",
         "bxl-e151000-n170500-s500",
         "bxl-e151000-n171000-s500",
         "bxl-e151500-n170000-s500",
@@ -388,7 +396,7 @@
   ],
   "runtime": {
     "format": "grand-bruxelles-urbis-runtime-index-v2",
-    "streamable_cells": 21,
+    "streamable_cells": 25,
     "excluded_cells": 0
   }
 }

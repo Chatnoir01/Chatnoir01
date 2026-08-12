@@ -7,6 +7,9 @@ on:
       - ".github/workflows/grand-bruxelles-laeken-capture-thumbnail.yml"
   workflow_dispatch:
 
+env:
+  REALISM_SNAPSHOT: atomium-height-corrected
+
 permissions:
   contents: write
 
@@ -23,6 +26,7 @@ jobs:
 
       - name: Build four readable capture quadrants after latest realism pass
         run: |
+          echo "snapshot=$REALISM_SNAPSHOT"
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends imagemagick
           SRC=grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png

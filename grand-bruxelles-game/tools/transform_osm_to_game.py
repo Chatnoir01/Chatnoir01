@@ -62,6 +62,32 @@ def numeric_tag(tags: dict[str, Any], key: str) -> float | None:
         return None
 
 
+def truthy_osm_tag(tags: dict[str, Any], key: str) -> bool:
+    raw = tags.get(key)
+    if raw is None:
+        return False
+    return str(raw).strip().lower() not in {"", "0", "false", "no", "none"}
+
+
+def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:
+    """Preserve OSM vertical-topology evidence instead of flattening every rail to y=0.
+
+    `surface_visible` is a conservative runtime hint derived only from explicit OSM
+    vertical tags. It does not invent depth; tunnel/covered or negative-layer ways
+    must not be drawn as surface track by a renderer that understands this field.
+    """
+    tunnel = truthy_osm_tag(tags, "tunnel")
+    covered = truthy_osm_tag(tags, "covered")
+    raw_layer = numeric_tag(tags, "layer")
+    layer = 0.0 if raw_layer is None else raw_layer
+    return {
+        "tunnel": tunnel,
+        "covered": covered,
+        "layer": layer,
+        "surface_visible": not tunnel and not covered and layer >= 0.0,
+    }
+
+
 def building_height(tags: dict[str, Any]) -> float:
     direct = numeric_tag(tags, "height")
     if direct and 2.0 <= direct <= 250.0:
@@ -143,6 +169,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
                 "osm_id": element.get("id"),
                 "name": tags.get("name", ""),
                 "class": railway,
+                **railway_vertical_metadata(tags),
                 "points": points,
             })
 

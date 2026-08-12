@@ -83,3 +83,29 @@ jobs:
             exit 1
           fi
           grep -q "NPC_AGENT_CONTEXT_OK" /tmp/npc-agent-context.log
+
+      - name: Population context profile test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_population_context_test.gd 2>&1 | tee /tmp/npc-population-context.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_POPULATION_CONTEXT_FAIL" /tmp/npc-population-context.log; then
+            exit 1
+          fi
+          grep -q "NPC_POPULATION_CONTEXT_OK" /tmp/npc-population-context.log
+
+      - name: Appearance variation profile test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/npc_appearance_profile_test.gd 2>&1 | tee /tmp/npc-appearance-profile.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_APPEARANCE_PROFILE_FAIL" /tmp/npc-appearance-profile.log; then
+            exit 1
+          fi
+          grep -q "NPC_APPEARANCE_PROFILE_OK" /tmp/npc-appearance-profile.log

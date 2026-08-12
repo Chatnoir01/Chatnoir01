@@ -48,6 +48,11 @@ func set_weather_context(new_weather_context: int) -> void:
 func get_appearance_profile() -> Dictionary:
 	return appearance.as_dictionary().duplicate(true)
 
+func get_world_position() -> Vector3:
+	if is_inside_tree():
+		return global_position
+	return position
+
 func set_destination(destination: Vector3) -> void:
 	behavior.set_destination(destination)
 

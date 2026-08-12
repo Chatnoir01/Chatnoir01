@@ -1,0 +1,43 @@
+{
+  "schema": "grand-bruxelles-ixelles-dtm-2m-candidate-v1",
+  "source_crs": "EPSG:31370",
+  "runtime_approved": false,
+  "promote_runtime": false,
+  "candidate_resolution_m": 2.0,
+  "hero_fallback_resolution_m": 1.0,
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS Digital Terrain Model 2021",
+    "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
+    "source_pixel_size_m": 0.5,
+    "license": "CC0 per project-recorded official metadata",
+    "specialist_branch": "zone-reste-bruxelles-clean",
+    "specialist_lod_blob": "aa9741161103137841f5e0b789474071773d82d7",
+    "specialist_selection_blob": "9e20c2bea563db7c98464ddef5bcf65bbde22c06",
+    "specialist_archive_validation_blob": "9e192ebcd25b75bf8d831cee0b94d85d386584ba",
+    "archives": [
+      {"tile":"149168","sha256":"f0277df26876c6c7cd3e00050e3d3a44b420b2df4bf4271e680717adeabb09b4"},
+      {"tile":"149169","sha256":"c8135aa8456a5f2de8efb2e05dbf9c993ae9c97e4aa7f4d56c6c331345bac4f8"}
+    ]
+  },
+  "selection_policy": {
+    "p95_vertical_error_limit_m": 0.15,
+    "reason": "2 m is the coarsest tested candidate whose worst-cell p95 reconstruction error remains within 0.15 m on all five validated cells; 4 m fails.",
+    "grid_vertices_per_500m_cell": 62500,
+    "vertex_reduction_vs_1m": 4.0
+  },
+  "cells": [
+    {"cell_id":"bxl-e149000-n169000-s500","bbox_epsg31370":[149000,169000,149500,169500],"p95_abs_error_m":0.10094,"rmse_m":0.09489,"max_abs_error_m":3.83353},
+    {"cell_id":"bxl-e149000-n169500-s500","bbox_epsg31370":[149000,169500,149500,170000],"p95_abs_error_m":0.09094,"rmse_m":0.11227,"max_abs_error_m":5.52855},
+    {"cell_id":"bxl-e149500-n168500-s500","bbox_epsg31370":[149500,168500,150000,169000],"p95_abs_error_m":0.13703,"rmse_m":0.10698,"max_abs_error_m":3.6711},
+    {"cell_id":"bxl-e149500-n169000-s500","bbox_epsg31370":[149500,169000,150000,169500],"p95_abs_error_m":0.08159,"rmse_m":0.06534,"max_abs_error_m":3.46059},
+    {"cell_id":"bxl-e149500-n169500-s500","bbox_epsg31370":[149500,169500,150000,170000],"p95_abs_error_m":0.07023,"rmse_m":0.07911,"max_abs_error_m":3.61441}
+  ],
+  "aggregate": {
+    "worst_cell_p95_abs_error_m": 0.13703,
+    "worst_cell_rmse_m": 0.11227,
+    "four_m_worst_cell_p95_abs_error_m": 0.31708
+  },
+  "required_runtime_gates": ["shared-edge seam equality","mesh normals","collision agreement","streaming/render cost","deterministic visual fidelity"],
+  "status": "candidate_selection_locked_runtime_validation_not_yet_performed"
+}

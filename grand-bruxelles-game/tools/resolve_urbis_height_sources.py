@@ -9,7 +9,6 @@ import re
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
 from pathlib import Path
 
 USER_AGENT = "Grand-Bruxelles-Game/1.0 (authoritative height source resolution)"
@@ -69,10 +68,7 @@ def crawl(start: str, max_depth: int = 2) -> tuple[list[dict], set[str]]:
 def resolve_links(links: set[str], expected_tiles: list[str]) -> dict[str, str]:
     resolved: dict[str, str] = {}
     for tile in expected_tiles:
-        matches = sorted({
-            url for url in links
-            if url.lower().endswith(".zip") and tile in Path(urllib.parse.urlparse(url).path).name
-        })
+        matches = sorted({url for url in links if url.lower().endswith(".zip") and tile in Path(urllib.parse.urlparse(url).path).name})
         if len(matches) != 1:
             raise ValueError(f"Expected exactly one official archive for tile {tile}, found {matches}")
         resolved[tile] = matches[0]
@@ -95,7 +91,6 @@ def build_resolution(plan: dict, kind: str, feeds: list[dict], links: set[str]) 
         "source_crs": plan["source_crs"],
         "bbox_epsg31370": plan["bbox_epsg31370"],
         "expected_1km_tile_codes": expected,
-        "fetched_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "feeds_crawled": feeds,
         "resolved_archives": [{"tile": tile, "url": resolved[tile]} for tile in expected],
         "license": "CC0 per official Paradigm/Geobru metadata recorded by the project",

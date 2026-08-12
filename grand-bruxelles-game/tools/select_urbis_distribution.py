@@ -3,11 +3,14 @@
 
 Example:
   python select_urbis_distribution.py discovered.json out.json \
-    --source-id urbis_3d_constructions --token 31370 --token GPKG
+    --source-id urbis_3d_constructions \
+    --token 31370 --token GPKG \
+    --candidate-token 31370 --candidate-token GPKG
 
-The selector searches discovered feed entries by title, then follows XML/Atom links
-when the matching entry is itself a distribution feed. It prefers direct ZIP/GPKG
-links and records the complete resolution chain for reproducibility.
+`--token` filters the parent Atom entry title. `--candidate-token` filters the actual
+resolved downloadable file (href/title/type). Keeping the two scopes separate avoids a
+subtle failure where a parent title advertises "DWG,GPKG,SHP,SKP" but the first direct
+file is a DWG archive.
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-USER_AGENT = "GrandBruxellesGame/0.7 distribution-selector (+github.com/Chatnoir01/Chatnoir01)"
+USER_AGENT = "GrandBruxellesGame/0.8 distribution-selector (+github.com/Chatnoir01/Chatnoir01)"
 DIRECT_SUFFIXES = (".zip", ".gpkg")
 
 
@@ -77,6 +80,27 @@ def direct_score(link: dict[str, str]) -> tuple[int, int]:
     return (suffix_score, rel_score)
 
 
+def candidate_haystack(link: dict[str, str]) -> str:
+    return " ".join(
+        str(link.get(key, ""))
+        for key in ("href", "title", "type", "rel")
+    ).casefold()
+
+
+def filter_candidates(
+    candidates: list[dict[str, str]],
+    candidate_tokens: list[str],
+) -> list[dict[str, str]]:
+    folded_tokens = [token.casefold() for token in candidate_tokens if token.strip()]
+    if not folded_tokens:
+        return candidates
+    return [
+        candidate
+        for candidate in candidates
+        if all(token in candidate_haystack(candidate) for token in folded_tokens)
+    ]
+
+
 def resolve_links(initial_links: list[dict[str, str]], max_depth: int = 3) -> dict[str, Any]:
     queue: list[tuple[str, int]] = []
     visited: set[str] = set()
@@ -126,6 +150,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("output", type=Path)
     parser.add_argument("--source-id", required=True)
     parser.add_argument("--token", action="append", default=[])
+    parser.add_argument(
+        "--candidate-token",
+        action="append",
+        default=[],
+        help="Require this token in the actual resolved downloadable candidate (repeatable).",
+    )
     return parser.parse_args()
 
 
@@ -152,23 +182,28 @@ def main() -> int:
     matches.sort(key=lambda item: len(str(item.get("title") or "")))
     chosen_entry = matches[0]
     resolved = resolve_links(chosen_entry.get("links", []))
-    candidates = resolved["direct_candidates"]
+    all_candidates = resolved["direct_candidates"]
+    candidates = filter_candidates(all_candidates, args.candidate_token)
     if not candidates:
         raise SystemExit(
-            "Matched distribution entry but no direct ZIP/GPKG link was found. "
-            f"Entry links={chosen_entry.get('links')!r}; chain={resolved['resolution_chain']!r}"
+            "Matched distribution entry but no direct ZIP/GPKG link satisfied the candidate filters. "
+            f"candidate_tokens={args.candidate_token!r}; "
+            f"all_candidates={[item.get('href') for item in all_candidates]!r}; "
+            f"chain={resolved['resolution_chain']!r}"
         )
 
     output = {
-        "schema": 1,
+        "schema": 2,
         "source_id": args.source_id,
         "tokens": args.token,
+        "candidate_tokens": args.candidate_token,
         "feed_url": feed.get("feed_url"),
         "matched_entry_title": chosen_entry.get("title"),
         "matched_entry_updated": chosen_entry.get("updated"),
         "matched_entry_links": chosen_entry.get("links", []),
         "selected": candidates[0],
-        "direct_candidates": candidates,
+        "direct_candidates": all_candidates,
+        "filtered_candidates": candidates,
         "resolution_chain": resolved["resolution_chain"],
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

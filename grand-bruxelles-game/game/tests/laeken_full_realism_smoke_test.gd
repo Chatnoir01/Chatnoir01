@@ -121,18 +121,26 @@ func _run() -> void:
     var refined_trees := int(canopy.get("refined_tree_count"))
     var broadleaf_lobes := int(canopy.get("broadleaf_lobe_instances"))
     var conifer_tiers := int(canopy.get("conifer_tier_instances"))
+    var primary_replaced := bool(canopy.get("primary_broadleaf_replaced"))
     if refined_trees < 8200:
         _fail("tree canopy refinement skipped too many sourced trees: %d" % refined_trees)
         return
-    if broadleaf_lobes < 12000 or conifer_tiers < 1200:
+    if not primary_replaced:
+        _fail("single-sphere primary broadleaf crowns were not replaced")
+        return
+    if broadleaf_lobes < 19000 or conifer_tiers < 1200:
         _fail("tree canopy refinement too sparse: broadleaf_lobes=%d conifer_tiers=%d" % [broadleaf_lobes, conifer_tiers])
         return
-    var lobes := scene.get_node_or_null("TreeCanopyRefinement/BroadleafSecondaryLobes") as MultiMeshInstance3D
+    var primary_broadleaf := scene.get_node_or_null("OfficialTrees/OfficialBroadleafCrowns") as MultiMeshInstance3D
+    if primary_broadleaf == null or primary_broadleaf.visible:
+        _fail("old single-sphere broadleaf crown layer is still visible")
+        return
+    var lobes := scene.get_node_or_null("TreeCanopyRefinement/BroadleafReplacementLobes") as MultiMeshInstance3D
     if lobes == null or lobes.multimesh == null or lobes.multimesh.instance_count != broadleaf_lobes:
-        _fail("broadleaf refinement MultiMesh count mismatch")
+        _fail("broadleaf replacement MultiMesh count mismatch")
         return
 
-    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d} trees={total:%d,skipped:%d,lobes:%d,conifer_tiers:%d} ortho=true" % [
+    print("LAEKEN_FULL_REALISM_OK: ready_frame=%d terrain=360x620 relief=%.2fm buildings={derived:%d,fallback:%d,landmark_corrected:%d} trees={total:%d,skipped:%d,replacement_lobes:%d,conifer_tiers:%d,primary_replaced:%s} ortho=true" % [
         ready_frame,
         terrain_range,
         derived,
@@ -142,6 +150,7 @@ func _run() -> void:
         skipped,
         broadleaf_lobes,
         conifer_tiers,
+        primary_replaced,
     ])
     scene.queue_free()
     await process_frame

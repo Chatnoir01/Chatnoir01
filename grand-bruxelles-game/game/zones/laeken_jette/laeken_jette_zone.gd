@@ -13,6 +13,7 @@ const ATOMIUM_GAME_XZ := Vector2(224.92615906274295, -6553.143077999353)
 const ATOMIUM_TOTAL_HEIGHT_M := 102.0
 const ATOMIUM_SPHERE_DIAMETER_M := 18.0
 const ATOMIUM_TUBE_DIAMETER_M := 3.3
+const TRIANGLE_AREA_EPSILON_M2 := 0.001
 
 @export var load_urbis_geometry := true
 @export var build_atomium_hero := true
@@ -187,6 +188,38 @@ func _polygon_centroid(points: PackedVector2Array) -> Vector2:
     return total / float(points.size())
 
 
+func _polygon_area(points: PackedVector2Array) -> float:
+    if points.size() < 3:
+        return 0.0
+    var twice_area := 0.0
+    for index in range(points.size()):
+        var a := points[index]
+        var b := points[(index + 1) % points.size()]
+        twice_area += a.x * b.y - b.x * a.y
+    return absf(twice_area) * 0.5
+
+
+func _intersection_area(a: PackedVector2Array, b: PackedVector2Array) -> float:
+    var total := 0.0
+    for polygon in Geometry2D.intersect_polygons(a, b):
+        total += _polygon_area(polygon)
+    return total
+
+
+func _triangle_fits_surface(a: Vector2, b: Vector2, c: Vector2, outer: PackedVector2Array, holes: Array[PackedVector2Array]) -> bool:
+    var triangle := PackedVector2Array([a, b, c])
+    var triangle_area := _polygon_area(triangle)
+    if triangle_area <= TRIANGLE_AREA_EPSILON_M2:
+        return false
+    var tolerance := maxf(TRIANGLE_AREA_EPSILON_M2, triangle_area * 0.000001)
+    if _intersection_area(triangle, outer) < triangle_area - tolerance:
+        return false
+    for hole in holes:
+        if _intersection_area(triangle, hole) > tolerance:
+            return false
+    return true
+
+
 func _point_in_surface(point: Vector2, outer: PackedVector2Array, holes: Array[PackedVector2Array]) -> bool:
     if not Geometry2D.is_point_in_polygon(point, outer):
         return false
@@ -228,6 +261,8 @@ func _append_flat_polygon_with_holes(st: SurfaceTool, outer: PackedVector2Array,
         if not _point_in_surface((b + c) * 0.5, outer, holes):
             continue
         if not _point_in_surface((c + a) * 0.5, outer, holes):
+            continue
+        if not _triangle_fits_surface(a, b, c, outer, holes):
             continue
         for point in [a, b, c]:
             st.set_normal(Vector3.UP)

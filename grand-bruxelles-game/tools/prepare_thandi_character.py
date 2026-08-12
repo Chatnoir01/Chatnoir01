@@ -1,12 +1,13 @@
 """Prepare the Thandi source FBX as the authored Grand Bruxelles player GLB.
 
-Run with Blender 4.x:
+Run with Blender 3.6+ / 4.x:
     blender --background --python tools/prepare_thandi_character.py -- \
       assets/characters/player/thandi/source/Thandi.fbx \
       assets/characters/player/thandi/Thandi.glb
 
 The script deliberately performs only safe, reversible production changes:
 - imports the original rigged FBX with animation and shape keys,
+- reconnects the supplied external textures by filename,
 - normalizes the character to a game-sized height,
 - replaces the zebra top colour path with the approved hot-pink material,
 - darkens hair while keeping its normal/opacity structure,
@@ -18,12 +19,11 @@ It does not sculpt the source face. Face likeness work remains a separate author
 
 from __future__ import annotations
 
-import math
-import os
 import sys
 from pathlib import Path
 
 import bpy
+from mathutils import Vector
 
 TARGET_HEIGHT_M = 1.70
 TARGET_PINK = (0.93, 0.055, 0.46, 1.0)
@@ -54,6 +54,13 @@ def _import_fbx(source: Path) -> None:
         use_anim=True,
         use_custom_normals=True,
     )
+
+    texture_dir = source.parent.parent / "textures"
+    if texture_dir.is_dir():
+        try:
+            bpy.ops.file.find_missing_files(directory=str(texture_dir))
+        except RuntimeError as exc:
+            print(f"THANDI_WARN: Blender could not reconnect every external texture: {exc}")
 
 
 def _find_object(*names: str):
@@ -97,18 +104,16 @@ def _tint_material_slots(obj, color, roughness: float, disconnect_base_texture: 
             rough.default_value = roughness
 
 
-def _mesh_world_bounds():
+def _mesh_world_bounds() -> tuple[float, float]:
     points = []
     for obj in bpy.context.scene.objects:
         if obj.type != "MESH":
             continue
         for corner in obj.bound_box:
-            points.append(obj.matrix_world @ __import__("mathutils").Vector(corner))
+            points.append(obj.matrix_world @ Vector(corner))
     if not points:
         raise RuntimeError("Imported FBX contains no mesh geometry")
-    min_z = min(p.z for p in points)
-    max_z = max(p.z for p in points)
-    return min_z, max_z
+    return min(p.z for p in points), max(p.z for p in points)
 
 
 def _normalize_height() -> float:

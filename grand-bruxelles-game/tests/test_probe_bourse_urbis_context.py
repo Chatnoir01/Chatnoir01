@@ -24,19 +24,21 @@ def main() -> int:
         "features": [
             {
                 "type": "Feature",
+                "id": "building.near",
                 "geometry": {
                     "type": "Polygon",
                     "coordinates": [[[east - 10, north - 4], [east + 8, north - 4], [east + 8, north + 6], [east - 10, north - 4]]],
                 },
-                "properties": {},
+                "properties": {"INSPIRE_ID": "https://databrussels.be/id/building/near", "TYPE": "synthetic"},
             },
             {
                 "type": "Feature",
+                "id": "building.far",
                 "geometry": {
                     "type": "LineString",
                     "coordinates": [[east + 20, north], [east + 30, north]],
                 },
-                "properties": {},
+                "properties": {"INSPIRE_ID": "https://databrussels.be/id/building/far"},
             },
         ],
     }
@@ -47,6 +49,10 @@ def main() -> int:
     assert summary["coordinate_bounds"] == [east - 10, north - 4, east + 30, north + 6]
     assert summary["nearest_coordinate_to_bourse_m"] is not None
     assert summary["nearest_coordinate_to_bourse_m"] < 11.0
+    assert len(summary["nearest_features"]) == 2
+    assert summary["nearest_features"][0]["id"] == "building.near"
+    assert summary["nearest_features"][0]["properties"]["INSPIRE_ID"] == "https://databrussels.be/id/building/near"
+    assert summary["nearest_features"][1]["id"] == "building.far"
 
     try:
         probe.summarize_geojson({"type": "Feature", "features": []})

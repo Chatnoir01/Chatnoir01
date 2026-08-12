@@ -2,7 +2,6 @@ extends RefCounted
 
 const SIGNAL_CLUSTER_RADIUS_M := 22.0
 const ROUTE_CONTROL_SNAP_M := 6.5
-const SIGNAL_CYCLE_S := 70.0
 
 var _controls: Array[Dictionary] = []
 var _signal_clusters: Array[Dictionary] = []
@@ -102,26 +101,13 @@ func _point_segment_distance(point: Vector3, start: Vector3, finish: Vector3) ->
     flat.y = nearest.y
     return flat.distance_to(nearest)
 
-func signal_state_for(control: Dictionary, approach_direction: Vector3, now_seconds: float = -1.0) -> String:
+func signal_state_for(control: Dictionary, _approach_direction: Vector3, _now_seconds: float = -1.0) -> String:
     if str(control.get("kind", "")) != "traffic_signals":
         return "green"
-    if now_seconds < 0.0:
-        now_seconds = float(Time.get_ticks_msec()) / 1000.0
-    var cluster_id := maxi(0, int(control.get("cluster_id", 0)))
-    var phase_offset := fmod(float(cluster_id * 11), SIGNAL_CYCLE_S)
-    var phase := fmod(now_seconds + phase_offset, SIGNAL_CYCLE_S)
-    var x_axis := absf(approach_direction.x) >= absf(approach_direction.z)
-    if x_axis:
-        if phase < 28.0:
-            return "green"
-        if phase < 32.0:
-            return "amber"
-        return "red"
-    if phase >= 35.0 and phase < 63.0:
-        return "green"
-    if phase >= 63.0 and phase < 67.0:
-        return "amber"
-    return "red"
+    # Canonical controls currently prove signal location, not a source-backed live phase
+    # programme or timing. Keep the state unresolved instead of fabricating Brussels
+    # priority behaviour. Vehicle control only acts on explicit red/amber states.
+    return "unknown"
 
 func get_control_count() -> int:
     return _controls.size()

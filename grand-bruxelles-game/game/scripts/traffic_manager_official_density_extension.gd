@@ -12,6 +12,9 @@ var _current_official_density_factor: float = 1.0
 var _current_official_density_sample_count: int = 0
 var _current_official_density_nearest_distance_m: float = INF
 var _current_official_density_sensor_ids := PackedStringArray()
+var _nearest_any_official_density_distance_m: float = INF
+var _nearest_any_official_density_sensor_id: String = ""
+var _nearest_any_official_density_factor: float = 1.0
 
 func _ready() -> void:
     super._ready()
@@ -23,6 +26,7 @@ func _ready() -> void:
 func reload_official_density_calibration() -> bool:
     _official_density_loaded = false
     _reset_current_official_calibration()
+    _reset_nearest_any_official_calibration()
     if _density_model == null:
         return false
     if not official_density_enabled:
@@ -59,6 +63,7 @@ func _apply_density_now() -> void:
         _current_density_factor = 1.0
         _current_sector = str(_density_model.call("nearest_sector", _corridor_anchors, anchor))
         _reset_current_official_calibration()
+        _update_nearest_any_official_calibration(anchor)
         return
 
     var time_component := float(_density_model.call("time_factor", simulation_hour))
@@ -67,6 +72,7 @@ func _apply_density_now() -> void:
     _current_sector = str(_density_model.call("nearest_sector", _corridor_anchors, anchor))
     max_vehicles = int(_density_model.call("target_vehicle_count", _base_max_vehicles, simulation_hour, _roads, anchor))
     _update_current_official_calibration(anchor)
+    _update_nearest_any_official_calibration(anchor)
     _trim_excess_traffic(max_vehicles)
 
 func _update_current_official_calibration(anchor: Vector3) -> void:
@@ -87,12 +93,28 @@ func _update_current_official_calibration(anchor: Vector3) -> void:
         for raw_id: Variant in raw_ids:
             _current_official_density_sensor_ids.append(str(raw_id))
 
+func _update_nearest_any_official_calibration(anchor: Vector3) -> void:
+    _reset_nearest_any_official_calibration()
+    if not _official_density_loaded or _density_model == null:
+        return
+    var nearest: Dictionary = _density_model.call("nearest_official_sample", anchor)
+    if not bool(nearest.get("available", false)):
+        return
+    _nearest_any_official_density_distance_m = float(nearest.get("distance_m", INF))
+    _nearest_any_official_density_sensor_id = str(nearest.get("id", ""))
+    _nearest_any_official_density_factor = float(nearest.get("factor", 1.0))
+
 func _reset_current_official_calibration() -> void:
     _current_official_density_available = false
     _current_official_density_factor = 1.0
     _current_official_density_sample_count = 0
     _current_official_density_nearest_distance_m = INF
     _current_official_density_sensor_ids = PackedStringArray()
+
+func _reset_nearest_any_official_calibration() -> void:
+    _nearest_any_official_density_distance_m = INF
+    _nearest_any_official_density_sensor_id = ""
+    _nearest_any_official_density_factor = 1.0
 
 func is_official_density_loaded() -> bool:
     return _official_density_loaded
@@ -121,3 +143,15 @@ func get_official_density_nearest_distance_m() -> float:
 
 func get_official_density_sensor_ids() -> PackedStringArray:
     return _current_official_density_sensor_ids.duplicate()
+
+func get_official_density_nearest_any_distance_m() -> float:
+    return _nearest_any_official_density_distance_m
+
+func get_official_density_nearest_any_sensor_id() -> String:
+    return _nearest_any_official_density_sensor_id
+
+func get_official_density_nearest_any_factor() -> float:
+    return _nearest_any_official_density_factor
+
+func is_official_density_fallback_active_here() -> bool:
+    return _official_density_loaded and not _current_official_density_available

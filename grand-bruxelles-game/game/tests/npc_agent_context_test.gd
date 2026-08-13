@@ -71,7 +71,7 @@ func _init() -> void:
 	_assert(wait_intent == NpcPedestrianContext.PedestrianIntent.WAIT_FOR_TRANSIT, "wait transit intent")
 	_assert(agent.transit_state == NpcAgent.TransitState.WAITING, "waiting state is tracked")
 	_assert(agent.movement_held, "transit wait holds movement")
-	_assert(agent.get_ambient_animation_tag() == &"wait_transit", "waiting state exposes transit animation")
+	_assert(agent.get_ambient_animation_tag() in [&"wait_still", &"wait_look_for_vehicle", &"wait_check_phone", &"wait_shift_weight"], "waiting state exposes a concrete transit wait animation")
 
 	var board_intent: int = agent.update_transit_context(true, true, 10.0)
 	_assert(board_intent == NpcPedestrianContext.PedestrianIntent.BOARD_TRANSIT, "board transit intent")

@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3]
+[gd_scene load_steps=36 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -24,6 +24,7 @@
 [ext_resource type="Script" path="res://game/scripts/bourse_portico_articulation.gd" id="22_bourse_portico"]
 [ext_resource type="Script" path="res://game/scripts/urbis_bourse_geotagged_frontage.gd" id="23_bourse_geotagged_frontage"]
 [ext_resource type="Script" path="res://game/scripts/bourse_front_wall_reveal.gd" id="24_bourse_front_wall_reveal"]
+[ext_resource type="Script" path="res://game/scripts/mission_quick_save.gd" id="25_mission_quick_save"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -216,6 +217,9 @@ fov = 72.0
 [node name="MissionDriveToCenter" type="Node" parent="."]
 script = ExtResource("4_mission")
 
+[node name="MissionQuickSave" type="Node" parent="."]
+script = ExtResource("25_mission_quick_save")
+
 [node name="LocationLabel" type="Label" parent="."]
 offset_left = 24.0
 offset_top = 20.0
@@ -240,6 +244,18 @@ theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 18
 text = "MIDI → CENTRE\nTrouve un véhicule · E"
+
+[node name="SaveStatusLabel" type="Label" parent="."]
+visible = false
+offset_left = 24.0
+offset_top = 108.0
+offset_right = 520.0
+offset_bottom = 136.0
+theme_override_colors/font_shadow_color = Color(0.0, 0.0, 0.0, 0.72)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 14
+text = "MISSION SAUVEGARDÉE · F9 pour charger"
 
 [node name="PrototypeLabel" type="Label" parent="."]
 visible = false

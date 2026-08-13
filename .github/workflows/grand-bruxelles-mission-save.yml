@@ -5,7 +5,10 @@ on:
       - "grand-bruxelles-game/game/scripts/mission_save_coordinator.gd"
       - "grand-bruxelles-game/game/scripts/save_game_store.gd"
       - "grand-bruxelles-game/game/scripts/mission_drive_to_center.gd"
+      - "grand-bruxelles-game/game/scripts/mission_quick_save.gd"
       - "grand-bruxelles-game/game/tests/mission_save_coordinator_test.gd"
+      - "grand-bruxelles-game/game/tests/mission_quick_save_test.gd"
+      - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-mission-save.yml"
   push:
     branches: ["main"]
@@ -13,7 +16,10 @@ on:
       - "grand-bruxelles-game/game/scripts/mission_save_coordinator.gd"
       - "grand-bruxelles-game/game/scripts/save_game_store.gd"
       - "grand-bruxelles-game/game/scripts/mission_drive_to_center.gd"
+      - "grand-bruxelles-game/game/scripts/mission_quick_save.gd"
       - "grand-bruxelles-game/game/tests/mission_save_coordinator_test.gd"
+      - "grand-bruxelles-game/game/tests/mission_quick_save_test.gd"
+      - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-mission-save.yml"
   workflow_dispatch:
 permissions:
@@ -40,3 +46,9 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mission_save_coordinator_test.gd 2>&1 | tee /tmp/mission-save.log
           ! grep -E "SCRIPT ERROR|Parse Error:|MISSION_SAVE_COORDINATOR_FAIL" /tmp/mission-save.log
           grep -q "MISSION_SAVE_COORDINATOR_OK" /tmp/mission-save.log
+      - name: Player-facing mission quicksave
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mission_quick_save_test.gd 2>&1 | tee /tmp/mission-quicksave.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|MISSION_QUICK_SAVE_FAIL" /tmp/mission-quicksave.log
+          grep -q "MISSION_QUICK_SAVE_OK" /tmp/mission-quicksave.log

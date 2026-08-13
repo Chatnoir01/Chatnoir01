@@ -9,13 +9,20 @@ on:
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/export_presets.cfg"
       - ".github/workflows/grand-bruxelles-web-export.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/**"
+      - "grand-bruxelles-game/assets/characters/player/**"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-web-export.yml"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: grand-bruxelles-web-export
+  group: grand-bruxelles-web-export-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -36,26 +43,23 @@ jobs:
       - name: Verify project imports
         run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
 
-      - name: Export playable Web build
+      - name: Validate playable Web export without publishing
         run: |
-          rm -rf grand-bruxelles-game/web-preview
-          mkdir -p grand-bruxelles-game/web-preview
-          godot --headless --path grand-bruxelles-game --export-release Web web-preview/index.html
-          test -s grand-bruxelles-game/web-preview/index.html
-          test -s grand-bruxelles-game/web-preview/index.wasm
-          test -s grand-bruxelles-game/web-preview/index.pck
+          WEB_DIR="$RUNNER_TEMP/grand-bruxelles-web-export"
+          rm -rf "$WEB_DIR"
+          mkdir -p "$WEB_DIR"
+          godot --headless --path grand-bruxelles-game --export-release Web "$WEB_DIR/index.html"
+          test -s "$WEB_DIR/index.html"
+          test -s "$WEB_DIR/index.wasm"
+          test -s "$WEB_DIR/index.pck"
+          test -s "$WEB_DIR/index.js"
+          du -h "$WEB_DIR"/*
 
-      - name: Add no-Jekyll marker
-        run: touch grand-bruxelles-game/web-preview/.nojekyll
-
-      - name: Commit refreshed playable build
+      - name: Confirm validation did not modify production preview
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f grand-bruxelles-game/web-preview
-          if git diff --cached --quiet; then
-            echo "Web build already up to date"
-            exit 0
+          if ! git diff --quiet -- grand-bruxelles-game/web-preview; then
+            echo "Validation-only Web Export modified tracked production preview files."
+            git diff -- grand-bruxelles-game/web-preview
+            exit 1
           fi
-          git commit -m "Refresh Grand Bruxelles playable web build"
-          git push
+          echo "Secondary Web export validated without writing to main or web-preview."

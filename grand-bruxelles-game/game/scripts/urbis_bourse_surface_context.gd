@@ -1,7 +1,9 @@
 extends Node3D
 
-@export_file("*.json") var data_path: String = "res://data/urbis/bourse_street_surfaces.game.json"
-
+const DATA_PATHS := PackedStringArray([
+    "res://data/urbis/bourse_street_surfaces.game.json",
+    "res://data/urbis/bourse_street_surfaces_adjacent_22982.game.json",
+])
 const SUPPORTED_TYPES := ["I", "P", "S", "SW"]
 const PRESENTATION_Y_OFFSET_M := 0.17
 
@@ -79,7 +81,7 @@ func _commit_tool(tool: SurfaceTool, surface_type: String) -> void:
     add_child(instance)
 
 
-func _build() -> void:
+func _append_data_file(data_path: String, tools: Dictionary) -> void:
     if not FileAccess.file_exists(data_path):
         push_error("Bourse UrbIS surface data missing: %s" % data_path)
         return
@@ -92,15 +94,13 @@ func _build() -> void:
         push_error("Unsupported Bourse surface schema: %s" % data_path)
         return
 
-    var tools: Dictionary = {}
-    for surface_type: String in SUPPORTED_TYPES:
-        tools[surface_type] = _new_tool(surface_type)
-        _type_counts[surface_type] = 0
-
     for raw_surface: Variant in data.get("surfaces", []):
         if typeof(raw_surface) != TYPE_DICTIONARY:
             continue
         var surface: Dictionary = raw_surface
+        if int(surface.get("level", 999)) != 0:
+            push_error("Bourse runtime rejects non-surface LVL: %s" % str(surface.get("inspire_id", "unknown")))
+            continue
         var surface_type := str(surface.get("type_uninterpreted", ""))
         if not tools.has(surface_type):
             continue
@@ -118,6 +118,16 @@ func _build() -> void:
         _runtime_vertex_count += polygon.size()
         _source_area_m2 += float(surface.get("area_m2", 0.0))
         _type_counts[surface_type] = int(_type_counts[surface_type]) + 1
+
+
+func _build() -> void:
+    var tools: Dictionary = {}
+    for surface_type: String in SUPPORTED_TYPES:
+        tools[surface_type] = _new_tool(surface_type)
+        _type_counts[surface_type] = 0
+
+    for data_path: String in DATA_PATHS:
+        _append_data_file(data_path, tools)
 
     for surface_type: String in SUPPORTED_TYPES:
         _commit_tool(tools[surface_type], surface_type)

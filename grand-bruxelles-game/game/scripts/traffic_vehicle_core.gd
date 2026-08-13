@@ -34,7 +34,6 @@ var _control_system: RefCounted = null
 var _intersection_system: RefCounted = null
 var _crossing_system: RefCounted = null
 var _handled_controls: Dictionary = {}
-var _stop_hold_until_s: float = 0.0
 var _finishing: bool = false
 var _traffic_damage_model: RefCounted = null
 var _traffic_next_impact_ms: int = 0
@@ -114,7 +113,6 @@ func configure_route_profile(
     _control_system = new_control_system
     _intersection_system = new_intersection_system
     _handled_controls.clear()
-    _stop_hold_until_s = 0.0
     _finishing = false
     _traffic_disabled_emitted = false
 
@@ -225,9 +223,6 @@ func _traffic_control_speed_cap(base_speed: float) -> float:
     if route_controls.is_empty():
         return base_speed
     var cap: float = base_speed
-    var now_seconds: float = float(Time.get_ticks_msec()) / 1000.0
-    if now_seconds < _stop_hold_until_s:
-        return 0.0
     for control_variant: Variant in route_controls:
         if typeof(control_variant) != TYPE_DICTIONARY:
             continue
@@ -267,7 +262,6 @@ func _traffic_control_speed_cap(base_speed: float) -> float:
             cap = minf(cap, _safe_approach_speed(distance, 2.2))
             if distance <= 2.8 and speed_mps <= 0.45:
                 _handled_controls[control_id] = true
-                _stop_hold_until_s = now_seconds + 0.8
                 cap = 0.0
     return cap
 

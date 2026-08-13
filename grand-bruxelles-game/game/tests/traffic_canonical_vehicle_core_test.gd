@@ -36,6 +36,26 @@ func _run() -> void:
         _fail("road provenance metadata parity failed")
         return
 
+    # A STOP requires a complete stop, but no source-backed rule in the runtime
+    # justifies adding an arbitrary fixed dwell after that stop has been made.
+    var stop_controls: Array = [{
+        "kind": "stop",
+        "osm_id": 9001,
+        "route_index": 1,
+        "route_position": Vector3.ZERO,
+    }]
+    vehicle.configure_route_profile(route, limits, "STOP evidence test", 123457, 2, stop_controls)
+    vehicle.global_position = Vector3.ZERO
+    vehicle.speed_mps = 0.40
+    var first_stop_cap: float = float(vehicle.call("_traffic_control_speed_cap", 6.0))
+    if not is_zero_approx(first_stop_cap):
+        _fail("STOP did not require complete immobilization before being handled")
+        return
+    var immediate_release_cap: float = float(vehicle.call("_traffic_control_speed_cap", 6.0))
+    if immediate_release_cap < 5.99:
+        _fail("STOP introduced an unsourced fixed dwell after complete immobilization")
+        return
+
     vehicle.set_crossing_system(RefCounted.new())
 
     for _impact: int in range(5):
@@ -51,5 +71,5 @@ func _run() -> void:
         return
 
     vehicle.queue_free()
-    print("TRAFFIC_CANONICAL_VEHICLE_OK: contract, route metadata, archetype and damage lifecycle")
+    print("TRAFFIC_CANONICAL_VEHICLE_OK: contract, route metadata, evidence-gated STOP release, archetype and damage lifecycle")
     quit(0)

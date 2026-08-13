@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json"
       - "grand-bruxelles-game/tests/test_bourse_geotagged_camera_evidence.py"
       - "grand-bruxelles-game/game/tests/bourse_geotagged_camera_capture_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_geotagged_layer_hide_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/game/scripts/urbis_bourse_geotagged_frontage.gd"
       - "grand-bruxelles-game/data/urbis/bourse_geotagged_context/**"
@@ -16,6 +17,7 @@ on:
       - "grand-bruxelles-game/data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json"
       - "grand-bruxelles-game/tests/test_bourse_geotagged_camera_evidence.py"
       - "grand-bruxelles-game/game/tests/bourse_geotagged_camera_capture_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_geotagged_layer_hide_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/game/scripts/urbis_bourse_geotagged_frontage.gd"
       - "grand-bruxelles-game/data/urbis/bourse_geotagged_context/**"
@@ -64,6 +66,27 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GEOTAGGED_CAPTURE_FAIL" /tmp/bourse-geotagged-camera.log; then exit 1; fi
           grep -F "BOURSE_GEOTAGGED_CAPTURE_OK" /tmp/bourse-geotagged-camera.log
           test -f grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png
+          mkdir -p grand-bruxelles-game/artifacts/photo-match/bourse-layer-diagnostic
+          cp grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png \
+            grand-bruxelles-game/artifacts/photo-match/bourse-layer-diagnostic/baseline.png
+
+      - name: Render Bourse layer-isolation witnesses
+        shell: bash
+        run: |
+          set -o pipefail
+          for NODE in UrbISHeroGeometry BoursePorticoArticulation BrusselsOSM UrbISBourseGeotaggedFrontage; do
+            export BOURSE_DIAGNOSTIC_HIDE="$NODE"
+            xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+              --path grand-bruxelles-game \
+              --display-driver x11 \
+              --rendering-method gl_compatibility \
+              --resolution 1280x960 \
+              --script res://game/tests/bourse_geotagged_layer_hide_test.gd 2>&1 | tee "/tmp/bourse-layer-${NODE}.log"
+            if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GEOTAGGED_CAPTURE_FAIL" "/tmp/bourse-layer-${NODE}.log"; then exit 1; fi
+            grep -F "BOURSE_LAYER_HIDE: ${NODE}" "/tmp/bourse-layer-${NODE}.log"
+            cp grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png \
+              "grand-bruxelles-game/artifacts/photo-match/bourse-layer-diagnostic/no-${NODE}.png"
+          done
 
       - name: Upload geotagged Bourse capture
         uses: actions/upload-artifact@v4
@@ -71,5 +94,7 @@ jobs:
           name: bourse-geotagged-camera-evidence
           path: |
             grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png
+            grand-bruxelles-game/artifacts/photo-match/bourse-layer-diagnostic/*.png
             /tmp/bourse-geotagged-camera.log
+            /tmp/bourse-layer-*.log
           if-no-files-found: error

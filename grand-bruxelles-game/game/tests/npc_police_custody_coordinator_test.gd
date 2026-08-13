@@ -60,8 +60,22 @@ func _run() -> void:
 	if not coordinator.confirm_transfer_complete():
 		_fail("transfer completion should be accepted only from pending state")
 		return
+	if coordinator.state != NpcPoliceCustodyCoordinator.State.TRANSFERRED:
+		_fail("completed transfer should retain a brief TRANSFERRED handoff state")
+		return
+	if coordinator.subject_id != 42 or coordinator.incident_id != 7:
+		_fail("transfer handoff should retain subject and incident identity")
+		return
+	if coordinator.is_movement_restricted():
+		_fail("transferred subject should no longer be movement-restricted by this coordinator")
+		return
+	coordinator.advance(NpcPoliceCustodyCoordinator.TRANSFER_HANDOFF_SECONDS - 0.1, true, true, false)
+	if coordinator.state != NpcPoliceCustodyCoordinator.State.TRANSFERRED:
+		_fail("transfer handoff should not clear before its continuity window elapses")
+		return
+	coordinator.advance(0.2, true, true, false)
 	if coordinator.state != NpcPoliceCustodyCoordinator.State.CLEAR or coordinator.subject_id != -1:
-		_fail("completed transfer should clear custody lifecycle")
+		_fail("transfer handoff should clear after its continuity window")
 		return
 
 	print("NPC_POLICE_CUSTODY_COORDINATOR_OK")

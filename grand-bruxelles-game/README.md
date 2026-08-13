@@ -16,6 +16,8 @@ Sur clavier, `F5` sauvegarde la partie et `F9` la recharge. La mission crée aus
 
 La première mission verse une récompense de 350 € à Grand-Place. Le portefeuille affiché sous la mini-carte est conservé par les quicksaves et autosaves.
 
+Après cette arrivée, descendre à Grand-Place puis appuyer sur `F` lance **Retour Express**, une seconde mission vers la Bourse récompensée 120 €. Son avancement est lui aussi sauvegardé.
+
 ## Objectif
 
 Reproduire progressivement une Bruxelles reconnaissable et jouable, sans copier GTA ni ses éléments protégés. Le projet vise une identité originale : circulation, piétons, conduite, exploration, missions, police, météo et cycle jour/nuit dans une ville construite à partir de données urbaines et de références visuelles légalement réutilisables.

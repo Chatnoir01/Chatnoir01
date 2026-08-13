@@ -6,6 +6,7 @@ const GameStateSaveCoordinator = preload("res://game/scripts/game_state_save_coo
 @export var feedback_duration_seconds := 3.0
 
 @onready var mission: Node = get_node("../MissionDriveToCenter")
+@onready var return_mission: Node = get_node("../MissionReturnToBourse")
 @onready var gameplay_state: Node = get_node("../RuntimeGameplayState")
 @onready var status_label: Label = get_node("../SaveStatusLabel")
 @onready var wallet: Node = get_node("../Wallet")
@@ -18,6 +19,7 @@ var _resumed_from_autosave := false
 
 func _ready() -> void:
     mission.checkpoint_reached.connect(_on_checkpoint_reached)
+    return_mission.state_changed.connect(_on_return_mission_state_changed)
     if not _running_from_test_script():
         call_deferred("resume_autosave")
 
@@ -38,6 +40,7 @@ func _unhandled_input(event: InputEvent) -> void:
             _resumed_from_autosave = false
             wallet.call("reset")
             mission.call("restart_mission")
+            return_mission.call("restart_campaign")
             _show_feedback("NOUVELLE PARTIE · Bruxelles-Midi", false)
         else:
             _show_feedback("NOUVELLE PARTIE IMPOSSIBLE", true)
@@ -75,6 +78,10 @@ func clear_autosave() -> bool:
 
 
 func _on_checkpoint_reached(_completed_stage: int, checkpoint_name: String) -> void:
+    call_deferred("_save_checkpoint", checkpoint_name)
+
+
+func _on_return_mission_state_changed(checkpoint_name: String) -> void:
     call_deferred("_save_checkpoint", checkpoint_name)
 
 

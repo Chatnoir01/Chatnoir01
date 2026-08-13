@@ -145,6 +145,8 @@ script = ExtResource("12_urban_life")
 
 [node name="TrafficManager" type="Node3D" parent="."]
 script = ExtResource("10_traffic")
+scooter_share = 0.0
+motorcycle_share = 0.0
 
 [node name="NpcPopulationDirector" type="Node" parent="."]
 script = ExtResource("14_npc_director")

@@ -25,20 +25,20 @@ func _run() -> void:
         _fail("official Bourse surface node is missing")
         return
     var counts: Dictionary = surfaces.official_type_counts()
-    var expected := {"I": 1, "P": 1, "S": 1, "SW": 2}
+    var expected := {"I": 1, "P": 2, "S": 1, "SW": 2}
     if counts != expected:
         _fail("official type counts drifted: %s" % str(counts))
         return
-    if int(surfaces.official_surface_count()) != 5:
-        _fail("expected exactly 5 official Bourse surface polygons")
+    if int(surfaces.official_surface_count()) != 6:
+        _fail("expected exactly 6 official Bourse surface polygons")
         return
-    if int(surfaces.official_runtime_vertex_count()) != 132:
-        _fail("expected exactly 132 runtime polygon vertices")
+    if int(surfaces.official_runtime_vertex_count()) != 181:
+        _fail("expected exactly 181 runtime polygon vertices")
         return
-    if absf(float(surfaces.official_source_area_m2()) - 1310.0) > 0.01:
+    if absf(float(surfaces.official_source_area_m2()) - 2082.0) > 0.01:
         _fail("source area drifted")
         return
-    if int(surfaces.official_triangle_count()) != 122:
+    if int(surfaces.official_triangle_count()) != 169:
         _fail("official surface triangle count drifted")
         return
 
@@ -51,7 +51,7 @@ func _run() -> void:
         return
 
     print(
-        "BOURSE_SURFACE_RUNTIME_OK: 5 source-backed polygons, %d triangles, %.0f m2; StreetSurface 41098 added at LVL=0" %
+        "BOURSE_SURFACE_RUNTIME_OK: 6 source-backed polygons, %d triangles, %.0f m2; StreetSurface 41084 added at LVL=0" %
         [surfaces.official_triangle_count(), surfaces.official_source_area_m2()]
     )
     scene.queue_free()

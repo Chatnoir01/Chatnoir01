@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "asset_family": "fauquenberg_yellow_brick",
+  "scope": "shared_visual_material",
+  "status": {
+    "source_identity_resolved": true,
+    "source_module_dimensions_resolved": true,
+    "runtime_integrated": true,
+    "exact_spectral_color_resolved": false,
+    "exact_surface_roughness_resolved": false
+  },
+  "source": {
+    "publisher": "urban.brussels / Inventaire du patrimoine architectural",
+    "title": "Gare du Midi et bâtiments annexes — Avenue Fonsny 47, 48, 49",
+    "url": "https://monument.heritage.brussels/fr/Saint-Gilles/Avenue_Fonsny/47/9423",
+    "accessed_utc": "2026-08-13T22:50:00Z",
+    "facts": {
+      "brick_description": "yellow smooth facing brick known as Fauquenberg brick",
+      "brick_length_m": 0.24,
+      "brick_height_m": 0.04,
+      "brick_depth_m": 0.09,
+      "joint_width_m": 0.02,
+      "blue_stone_use": "bases and horizontal bands",
+      "concrete_use": "opening frames and canopies"
+    }
+  },
+  "authored_runtime_contract": {
+    "texture_is_original": true,
+    "copyrighted_photo_texture_used": false,
+    "bond": "deterministic running-bond approximation",
+    "tile_width_m": 0.52,
+    "tile_height_m": 0.12,
+    "roughness": 0.92,
+    "metallic": 0.0,
+    "notes": "Brick and joint dimensions are source-backed. RGB values, roughness and running-bond phase are authored presentation choices because the heritage record does not provide calibrated spectral/PBR measurements."
+  },
+  "reuse_targets": [
+    "Bruxelles-Midi / Brussel-Zuid Fonsny frontage",
+    "other source-confirmed Fauquenberg-brick buildings only"
+  ]
+}

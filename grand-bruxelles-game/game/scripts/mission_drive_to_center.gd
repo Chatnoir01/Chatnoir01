@@ -1,9 +1,11 @@
 extends Node
 
 signal checkpoint_reached(completed_stage: int, checkpoint_name: String)
+signal mission_completed(reward_cents: int)
 
 @export var checkpoint_radius: float = 22.0
 @export var time_limit_seconds: float = 240.0
+@export var completion_reward_cents: int = 35000
 
 @onready var player: CharacterBody3D = get_node("../Player")
 @onready var car: CharacterBody3D = get_node("../PrototypeCar")
@@ -12,6 +14,7 @@ signal checkpoint_reached(completed_stage: int, checkpoint_name: String)
 var _stage: int = 0
 var _time_remaining: float = 0.0
 var _failed: bool = false
+var _reward_claimed: bool = false
 var _marker: CSGCylinder3D
 var _marker_material: StandardMaterial3D
 var _player_spawn_transform: Transform3D
@@ -99,6 +102,9 @@ func _physics_process(delta: float) -> void:
         _stage += 1
         _update_ui()
         checkpoint_reached.emit(completed_stage, checkpoint_name)
+        if _stage > CHECKPOINTS.size() and not _reward_claimed:
+            _reward_claimed = true
+            mission_completed.emit(maxi(completion_reward_cents, 0))
 
 
 func _update_ui() -> void:
@@ -117,8 +123,8 @@ func _update_ui() -> void:
 
     if _stage > CHECKPOINTS.size():
         mission_label.text = (
-            "MISSION TERMINÉE · BIENVENUE À GRAND-PLACE\nTemps restant · %s" %
-            _format_time(_time_remaining)
+            "MISSION TERMINÉE · BIENVENUE À GRAND-PLACE\nTemps restant · %s · Récompense %d €" %
+            [_format_time(_time_remaining), completion_reward_cents / 100]
         )
         _marker.visible = false
         return
@@ -155,6 +161,7 @@ func restart_mission() -> void:
     car.set("speed", 0.0)
     _stage = 0
     _failed = false
+    _reward_claimed = false
     _time_remaining = maxf(time_limit_seconds, 1.0)
     _update_ui()
 
@@ -172,6 +179,7 @@ func export_state() -> Dictionary:
         "stage_count": get_stage_count(),
         "time_remaining": _time_remaining,
         "failed": _failed,
+        "reward_claimed": _reward_claimed,
     }
 
 
@@ -204,6 +212,13 @@ func can_restore_state(state: Dictionary) -> bool:
     if restored_failed and (restored_stage == 0 or restored_stage > CHECKPOINTS.size()):
         return false
 
+    if state.has("reward_claimed"):
+        if not state["reward_claimed"] is bool:
+            return false
+        var reward_claimed := bool(state["reward_claimed"])
+        if reward_claimed and restored_stage <= CHECKPOINTS.size():
+            return false
+
     return true
 
 
@@ -214,6 +229,7 @@ func restore_state(state: Dictionary) -> bool:
     _stage = int(state["stage"])
     _time_remaining = float(state.get("time_remaining", maxf(time_limit_seconds, 1.0)))
     _failed = bool(state.get("failed", false))
+    _reward_claimed = _stage > CHECKPOINTS.size() or bool(state.get("reward_claimed", false))
     if is_instance_valid(_marker) and is_instance_valid(mission_label):
         _update_ui()
     return true

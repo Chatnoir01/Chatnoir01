@@ -14,6 +14,8 @@ La build Web comprend aussi des contrôles tactiles pour téléphone/tablette : 
 
 Sur clavier, `F5` sauvegarde la partie et `F9` la recharge. La mission crée aussi un autosave séparé après chaque checkpoint. Au prochain démarrage, cet autosave est repris automatiquement ; `N` permet alors de repartir de Bruxelles-Midi.
 
+La première mission verse une récompense de 350 € à Grand-Place. Le portefeuille affiché sous la mini-carte est conservé par les quicksaves et autosaves.
+
 ## Objectif
 
 Reproduire progressivement une Bruxelles reconnaissable et jouable, sans copier GTA ni ses éléments protégés. Le projet vise une identité originale : circulation, piétons, conduite, exploration, missions, police, météo et cycle jour/nuit dans une ville construite à partir de données urbaines et de références visuelles légalement réutilisables.

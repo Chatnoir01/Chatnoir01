@@ -94,6 +94,8 @@ func _run() -> void:
         _fail("cold resume feedback is missing")
         return
 
+    var wallet: Node = resumed_scene.get_node("Wallet")
+    wallet.call("credit", 12500)
     var new_game_event := InputEventKey.new()
     new_game_event.keycode = KEY_N
     new_game_event.pressed = true
@@ -103,6 +105,9 @@ func _run() -> void:
         return
     if int(mission.call("get_stage")) != 0 or bool(vehicle.call("has_driver")):
         _fail("new game did not reset the mission and driver")
+        return
+    if int(wallet.call("get_cash_cents")) != 0:
+        _fail("new game did not reset the wallet")
         return
     if not status_label.text.contains("NOUVELLE PARTIE · Bruxelles-Midi"):
         _fail("new game feedback is missing")

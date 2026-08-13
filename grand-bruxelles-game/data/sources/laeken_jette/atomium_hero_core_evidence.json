@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "hero": "Atomium",
+  "crs": "EPSG:31370",
+  "status": {
+    "runtime_approved": false,
+    "realism_complete": false,
+    "support_pillars_resolved": false,
+    "orientation_resolved": false
+  },
+  "authoritative_dimensions": {
+    "total_height_m": 102.0,
+    "sphere_count": 9,
+    "sphere_diameter_m": 18.0,
+    "connecting_tube_count": 20,
+    "tube_diameter_m": 3.3,
+    "support_pillar_count": 3
+  },
+  "authoritative_source": {
+    "publisher": "City of Brussels",
+    "title": "Atomium",
+    "url": "https://www.brussels.be/atomium",
+    "accessed_utc": "2026-08-12T21:45:00Z",
+    "notes": "City of Brussels publishes 102 m total height, 9 spheres, 18 m sphere diameter, 20 connecting tubes, 3.30 m tube diameter and 3 supporting pillars."
+  },
+  "official_atomium_site_source": {
+    "publisher": "Atomium",
+    "title": "Interior architecture",
+    "url": "https://atomium.be/atomium_interior_architecture",
+    "accessed_utc": "2026-08-12T21:45:00Z",
+    "notes": "Official Atomium site independently confirms 18 m stainless-steel sphere diameter."
+  },
+  "workspace_geometry_handoff": {
+    "branch": "zone-laeken-jette",
+    "path": "grand-bruxelles-game/game/zones/laeken_jette/laeken_jette_zone.gd",
+    "blob_sha": "c5242d80a0463d4a59030b2f6f8308cb2a37c6c0",
+    "use": "sphere-centre topology candidate only",
+    "warning": "Long-lived workspace branch is evidence-only and must never be merged wholesale. Support-foot orientation was explicitly provisional in PR #2."
+  },
+  "core_sphere_centres_m": [
+    [0.0, 9.0, 0.0],
+    [-34.293, 37.0, 19.799],
+    [0.0, 37.0, -39.598],
+    [34.293, 37.0, 19.799],
+    [-34.293, 65.0, -19.799],
+    [0.0, 65.0, 39.598],
+    [34.293, 65.0, -19.799],
+    [0.0, 93.0, 0.0],
+    [0.0, 51.0, 0.0]
+  ],
+  "connecting_tubes": [
+    [0, 1], [0, 2], [0, 3],
+    [1, 4], [1, 5], [2, 4], [2, 6], [3, 5], [3, 6],
+    [4, 7], [5, 7], [6, 7],
+    [0, 8], [1, 8], [2, 8], [3, 8], [4, 8], [5, 8], [6, 8], [7, 8]
+  ],
+  "integration_contract": {
+    "terrain_component": "res://game/zones/laeken_jette/atomium_dtm_terrain.gd",
+    "anchor": "terrain.atomium_game_position",
+    "height_extent_m": [0.0, 102.0],
+    "no_support_geometry_without_source": true,
+    "capture_required": true
+  },
+  "remaining_major_mismatches": [
+    "exact global yaw/orientation against orthophoto or survey evidence",
+    "three support pillar geometry and foot locations",
+    "entrance/base pavilion geometry",
+    "tube end transitions and sphere facade segmentation",
+    "photo-matched material/lighting"
+  ]
+}

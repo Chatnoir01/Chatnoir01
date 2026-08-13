@@ -70,8 +70,8 @@ func _run() -> void:
     if int(intersection_system.call("get_intersection_count")) < 1:
         _fail("four-way intersection was not detected")
         return
-    if int(intersection_system.call("get_right_priority_count")) < 1:
-        _fail("uncontrolled Brussels intersection lost priority-to-right classification")
+    if int(intersection_system.call("get_right_priority_count")) != 0:
+        _fail("missing control evidence fabricated priority-to-right classification")
         return
 
     var crossing_system: RefCounted = CROSSING_SYSTEM.new()
@@ -130,5 +130,5 @@ func _run() -> void:
             _fail("parking candidate violated control clearance")
             return
 
-    print("TRAFFIC_MANAGER_FOUNDATION_OK: graph, controls, priority, crossings, density and source-gated parking")
+    print("TRAFFIC_MANAGER_FOUNDATION_OK: graph, controls, evidence-gated priority, crossings, density and source-gated parking")
     quit(0)

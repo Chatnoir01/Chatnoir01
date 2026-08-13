@@ -4,12 +4,16 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/data/urbis/bourse_street_surfaces*.game.json"
+      - "grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json"
       - "grand-bruxelles-game/tools/extract_bourse_urbis_surfaces.py"
       - "grand-bruxelles-game/tests/test_extract_bourse_urbis_surfaces.py"
       - "grand-bruxelles-game/tests/test_bourse_surface_runtime_data.py"
       - "grand-bruxelles-game/game/scripts/urbis_bourse_surface_context.gd"
       - "grand-bruxelles-game/game/scripts/urbis_bourse_surface_mask.gd"
+      - "grand-bruxelles-game/game/scripts/bourse_official_sidewalk_overlay.gd"
+      - "grand-bruxelles-game/game/scripts/bourse_front_wall_reveal.gd"
       - "grand-bruxelles-game/game/tests/bourse_surface_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_sidewalk_runtime_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-bourse-surface-runtime.yml"
   workflow_dispatch:
@@ -55,7 +59,16 @@ jobs:
               assert data['selection_policy']['curb_elevation_resolved'] is False
               assert data['runtime_approved'] is False
               assert data['realism_complete'] is False
-          print('BOURSE_ADJACENT_41098_41084_21944_DATA_OK')
+          sidewalk = json.load(open('grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json', encoding='utf-8'))
+          assert sidewalk['source']['license'] == 'CC0-1.0'
+          assert sidewalk['source']['evidence_artifact_digest'] == 'sha256:1952c9ba82195ce78c75d08f4d8472fc60ea6ee136756a03f4aae1b7d5b5a36a'
+          assert sidewalk['selection']['feature_count'] == 5
+          assert len(sidewalk['sidewalks']) == 5
+          assert sidewalk['curb_elevation_resolved'] is False
+          assert sidewalk['presentation_height_is_renderer_bias_only'] is True
+          assert sidewalk['runtime_approved'] is False
+          assert sidewalk['realism_complete'] is False
+          print('BOURSE_SURFACE_AND_SIDEWALK_DATA_OK')
           PY
 
       - name: Install Godot 4.7.1
@@ -82,3 +95,13 @@ jobs:
             --script res://game/tests/bourse_surface_runtime_test.gd 2>&1 | tee /tmp/surface.log
           if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_SURFACE_RUNTIME_FAIL" /tmp/surface.log; then exit 1; fi
           grep -q "BOURSE_SURFACE_RUNTIME_OK" /tmp/surface.log
+
+      - name: Validate bounded official sidewalk runtime
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/bourse_sidewalk_runtime_test.gd 2>&1 | tee /tmp/sidewalk.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_SIDEWALK_RUNTIME_FAIL" /tmp/sidewalk.log; then exit 1; fi
+          grep -q "BOURSE_SIDEWALK_RUNTIME_OK" /tmp/sidewalk.log

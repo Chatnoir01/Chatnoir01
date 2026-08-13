@@ -10,6 +10,8 @@ on:
       - "grand-bruxelles-game/game/tests/bourse_geotagged_layer_hide_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/game/scripts/urbis_bourse_geotagged_frontage.gd"
+      - "grand-bruxelles-game/game/scripts/urbis_bourse_surface_context.gd"
+      - "grand-bruxelles-game/data/urbis/bourse_street_surfaces*.game.json"
       - "grand-bruxelles-game/data/urbis/bourse_geotagged_context/**"
   push:
     paths:
@@ -20,6 +22,8 @@ on:
       - "grand-bruxelles-game/game/tests/bourse_geotagged_layer_hide_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/game/scripts/urbis_bourse_geotagged_frontage.gd"
+      - "grand-bruxelles-game/game/scripts/urbis_bourse_surface_context.gd"
+      - "grand-bruxelles-game/data/urbis/bourse_street_surfaces*.game.json"
       - "grand-bruxelles-game/data/urbis/bourse_geotagged_context/**"
 
 permissions:

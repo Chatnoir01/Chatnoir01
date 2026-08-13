@@ -5,6 +5,7 @@ const DATA_PATHS := [
     "res://data/urbis/bourse_street_surfaces_adjacent_22982.game.json",
     "res://data/urbis/bourse_street_surfaces_adjacent_41098.game.json",
     "res://data/urbis/bourse_street_surfaces_adjacent_41084.game.json",
+    "res://data/urbis/bourse_street_surfaces_adjacent_21944.game.json",
 ]
 const SUPPORTED_TYPES := ["I", "P", "S", "SW"]
 const PRESENTATION_Y_OFFSET_M := 0.17
@@ -16,11 +17,9 @@ var _source_area_m2: float = 0.0
 var _runtime_vertex_count: int = 0
 var _type_counts: Dictionary = {}
 
-
 func _ready() -> void:
     _make_materials()
     _build()
-
 
 func _material(color: Color, roughness: float) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
@@ -28,7 +27,6 @@ func _material(color: Color, roughness: float) -> StandardMaterial3D:
     material.roughness = roughness
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     return material
-
 
 func _make_materials() -> void:
     _materials = {
@@ -38,13 +36,11 @@ func _make_materials() -> void:
         "P": _material(Color(0.43, 0.405, 0.365, 1.0), 0.96),
     }
 
-
 func _new_tool(surface_type: String) -> SurfaceTool:
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     tool.set_material(_materials[surface_type])
     return tool
-
 
 func _polygon(raw_polygon: Array) -> PackedVector2Array:
     var polygon := PackedVector2Array()
@@ -54,7 +50,6 @@ func _polygon(raw_polygon: Array) -> PackedVector2Array:
     if polygon.size() >= 2 and polygon[0].is_equal_approx(polygon[polygon.size() - 1]):
         polygon.remove_at(polygon.size() - 1)
     return polygon
-
 
 func _append_polygon(tool: SurfaceTool, polygon: PackedVector2Array, height: float) -> int:
     if polygon.size() < 3:
@@ -71,7 +66,6 @@ func _append_polygon(tool: SurfaceTool, polygon: PackedVector2Array, height: flo
         tool.add_vertex(Vector3(point.x, height, point.y))
     return indices.size() / 3
 
-
 func _commit_tool(tool: SurfaceTool, surface_type: String) -> void:
     var mesh := tool.commit()
     if mesh == null or mesh.get_surface_count() == 0:
@@ -81,7 +75,6 @@ func _commit_tool(tool: SurfaceTool, surface_type: String) -> void:
     instance.mesh = mesh
     instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(instance)
-
 
 func _append_data_file(data_path: String, tools: Dictionary) -> void:
     if not FileAccess.file_exists(data_path):
@@ -121,7 +114,6 @@ func _append_data_file(data_path: String, tools: Dictionary) -> void:
         _source_area_m2 += float(surface.get("area_m2", 0.0))
         _type_counts[surface_type] = int(_type_counts[surface_type]) + 1
 
-
 func _build() -> void:
     var tools: Dictionary = {}
     for surface_type: String in SUPPORTED_TYPES:
@@ -138,22 +130,17 @@ func _build() -> void:
         [_surface_count, _triangle_count, _source_area_m2]
     )
 
-
 func official_surface_count() -> int:
     return _surface_count
-
 
 func official_triangle_count() -> int:
     return _triangle_count
 
-
 func official_runtime_vertex_count() -> int:
     return _runtime_vertex_count
 
-
 func official_source_area_m2() -> float:
     return _source_area_m2
-
 
 func official_type_counts() -> Dictionary:
     return _type_counts.duplicate(true)

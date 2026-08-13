@@ -1,0 +1,26 @@
+name: Grand Bruxelles Ixelles DTM 2m Seam Topology
+
+on:
+  push:
+    paths:
+      - "grand-bruxelles-game/data/terrain/ixelles/ixelles_dtm_2m_seam_topology_contract.json"
+      - "grand-bruxelles-game/tests/test_ixelles_dtm_2m_seam_topology_contract.py"
+      - ".github/workflows/grand-bruxelles-ixelles-dtm-2m-seam-topology.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/terrain/ixelles/ixelles_dtm_2m_seam_topology_contract.json"
+      - "grand-bruxelles-game/tests/test_ixelles_dtm_2m_seam_topology_contract.py"
+      - ".github/workflows/grand-bruxelles-ixelles-dtm-2m-seam-topology.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate exact 2 m seam topology contract
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_ixelles_dtm_2m_seam_topology_contract

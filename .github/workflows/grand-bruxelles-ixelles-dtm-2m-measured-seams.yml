@@ -1,0 +1,100 @@
+name: Grand Bruxelles Ixelles DTM 2m Measured Seams
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-ixelles-dtm-2m-measured-seams.yml"
+      - "grand-bruxelles-game/tools/measure_ixelles_dtm_2m_seams.py"
+      - "grand-bruxelles-game/tests/test_measure_ixelles_dtm_2m_seams.py"
+      - "grand-bruxelles-game/data/terrain/ixelles/ixelles_dtm_2m_seam_topology_contract.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measured-seams:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deterministic raster dependencies
+        run: python -m pip install --disable-pip-version-check numpy==2.2.6 rasterio==1.4.3 pytest==8.4.1
+      - name: Run seam unit regressions
+        run: pytest -q grand-bruxelles-game/tests/test_measure_ixelles_dtm_2m_seams.py
+      - name: Download and hash locked official UrbIS DTM archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/ixelles-dtm/149168 /tmp/ixelles-dtm/149169
+          curl -fL --retry 4 --retry-delay 3 -o /tmp/149168.zip https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149168_20211009_50.zip
+          curl -fL --retry 4 --retry-delay 3 -o /tmp/149169.zip https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149169_20211009_50.zip
+          echo "f0277df26876c6c7cd3e00050e3d3a44b420b2df4bf4271e680717adeabb09b4  /tmp/149168.zip" | sha256sum -c -
+          echo "c8135aa8456a5f2de8efb2e05dbf9c993ae9c97e4aa7f4d56c6c331345bac4f8  /tmp/149169.zip" | sha256sum -c -
+          unzip -q /tmp/149168.zip -d /tmp/ixelles-dtm/149168
+          unzip -q /tmp/149169.zip -d /tmp/ixelles-dtm/149169
+          find /tmp/ixelles-dtm -type f | sort
+      - name: Discover readable official raster payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import rasterio
+          out=[]
+          for tile in ('149168','149169'):
+              candidates=[]
+              for p in sorted(Path('/tmp/ixelles-dtm', tile).rglob('*')):
+                  if not p.is_file():
+                      continue
+                  try:
+                      with rasterio.open(p) as ds:
+                          if ds.count >= 1 and ds.width > 0 and ds.height > 0:
+                              candidates.append((p, str(ds.crs), ds.width, ds.height, ds.transform, ds.nodata))
+                  except Exception:
+                      pass
+              if not candidates:
+                  raise SystemExit(f'No readable raster found for {tile}')
+              p, crs, w, h, transform, nodata = candidates[0]
+              print(f'{tile}|{p}|{crs}|{w}x{h}|{transform}|nodata={nodata}')
+              out.append(str(p))
+          Path('/tmp/ixelles-raster-paths.txt').write_text('\n'.join(out)+'\n')
+          PY
+      - name: Generate five global-lattice grids and measure all 1255 seam pairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t RASTERS < /tmp/ixelles-raster-paths.txt
+          test "${#RASTERS[@]}" -eq 2
+          python grand-bruxelles-game/tools/measure_ixelles_dtm_2m_seams.py \
+            --raster "${RASTERS[0]}" "${RASTERS[1]}" \
+            --archive-hash 149168=f0277df26876c6c7cd3e00050e3d3a44b420b2df4bf4271e680717adeabb09b4 \
+            --archive-hash 149169=c8135aa8456a5f2de8efb2e05dbf9c993ae9c97e4aa7f4d56c6c331345bac4f8 \
+            --output /tmp/ixelles_dtm_2m_measured_seams.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/ixelles_dtm_2m_measured_seams.json'))
+          a=d['aggregate']
+          assert a['cell_count'] == 5
+          assert a['grid_samples_per_cell'] == 63001
+          assert a['shared_edge_count'] == 5
+          assert a['shared_edge_pairs'] == 1255
+          assert a['max_abs_shared_edge_delta_m'] == 0.0
+          assert a['nonzero_shared_edge_delta_count'] == 0
+          assert a['seam_gate_pass'] is True
+          assert d['runtime_approved'] is False
+          assert d['promote_runtime'] is False
+          print(json.dumps(a, sort_keys=True))
+          PY
+      - name: Upload measured evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-dtm-2m-measured-seams
+          path: |
+            /tmp/ixelles_dtm_2m_measured_seams.json
+            /tmp/ixelles-raster-paths.txt
+          if-no-files-found: warn

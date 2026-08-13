@@ -92,9 +92,14 @@ func _init() -> void:
 	_assert(bool(second_board.get("allowed", false)), "new queue head can board once its visual compaction is complete", failures)
 	_assert(second.confirm_boarded(), "second cleared agent can confirm vehicle entry", failures)
 	_assert(stop.queue_for_door(0).position_index_for(303) == 0, "third traveler becomes queue head after second boards", failures)
+
+	var third_during_compaction: Dictionary = third.request_transit_stop_boarding()
+	_assert(not bool(third_during_compaction.get("allowed", false)), "successive queue head also waits for its own visual compaction", failures)
+	_assert(String(third_during_compaction.get("reason", "")) == "queue_compacting", "successive compaction uses the same stable denial reason", failures)
+	third.refresh_transit_stop_target(third_delay + 0.01)
 	var third_full: Dictionary = third.request_transit_stop_boarding()
 	_assert(not bool(third_full.get("allowed", false)), "remaining agent waits when vehicle capacity is exhausted", failures)
-	_assert(String(third_full.get("reason", "")) == "door_full", "capacity denial exposes a stable reason", failures)
+	_assert(String(third_full.get("reason", "")) == "door_full", "capacity denial is exposed after visual queue movement is complete", failures)
 
 	stop.vehicle_departed()
 	_assert(third.leave_transit_queue(), "third agent can leave stop queue cleanly after vehicle departure", failures)

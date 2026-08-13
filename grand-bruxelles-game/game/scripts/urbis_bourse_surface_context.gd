@@ -3,6 +3,7 @@ extends Node3D
 const DATA_PATHS := [
     "res://data/urbis/bourse_street_surfaces.game.json",
     "res://data/urbis/bourse_street_surfaces_adjacent_22982.game.json",
+    "res://data/urbis/bourse_street_surfaces_adjacent_41098.game.json",
 ]
 const SUPPORTED_TYPES := ["I", "P", "S", "SW"]
 const PRESENTATION_Y_OFFSET_M := 0.17

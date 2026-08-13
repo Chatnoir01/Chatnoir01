@@ -3,8 +3,7 @@ name: Grand Bruxelles Bourse Surface Runtime
 on:
   pull_request:
     paths:
-      - "grand-bruxelles-game/data/urbis/bourse_street_surfaces.game.json"
-      - "grand-bruxelles-game/data/urbis/bourse_street_surfaces_adjacent_22982.game.json"
+      - "grand-bruxelles-game/data/urbis/bourse_street_surfaces*.game.json"
       - "grand-bruxelles-game/tools/extract_bourse_urbis_surfaces.py"
       - "grand-bruxelles-game/tests/test_extract_bourse_urbis_surfaces.py"
       - "grand-bruxelles-game/tests/test_bourse_surface_runtime_data.py"
@@ -30,6 +29,27 @@ jobs:
           python3 -m py_compile grand-bruxelles-game/tools/extract_bourse_urbis_surfaces.py
           python3 grand-bruxelles-game/tests/test_extract_bourse_urbis_surfaces.py
           python3 grand-bruxelles-game/tests/test_bourse_surface_runtime_data.py
+          python3 - <<'PY'
+          import json
+          path = 'grand-bruxelles-game/data/urbis/bourse_street_surfaces_adjacent_41098.game.json'
+          data = json.load(open(path, encoding='utf-8'))
+          assert data['source']['license'] == 'CC0-1.0'
+          assert data['source']['selection_evidence_pr'] == 198
+          assert data['source']['selection_evidence_artifact_sha256'] == 'cfac245ae497e8cfda49a95c499873d561bbf77048aecf98b910f7b238d179e2'
+          assert data['target_inspire_ids'] == ['https://databrussels.be/id/streetsurface/41098']
+          assert len(data['surfaces']) == 1
+          s = data['surfaces'][0]
+          assert s['level'] == 0
+          assert s['type_uninterpreted'] == 'P'
+          assert s['area_m2'] == 611
+          assert len(s['world_rings_xz']) == 1
+          assert len(s['world_rings_xz'][0]) == 38
+          assert data['selection_policy']['type_semantics_interpreted'] is False
+          assert data['selection_policy']['curb_elevation_resolved'] is False
+          assert data['runtime_approved'] is False
+          assert data['realism_complete'] is False
+          print('BOURSE_ADJACENT_41098_DATA_OK')
+          PY
 
       - name: Install Godot 4.7.1
         run: |

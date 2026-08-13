@@ -110,6 +110,21 @@ jobs:
           assert adjacent['runtime_approved'] is False
           assert adjacent['realism_complete'] is False
           print('Committed Bourse adjacent surface id:', adjacent['target_inspire_ids'][0])
+
+          adjacent_41098_path = 'grand-bruxelles-game/data/urbis/bourse_street_surfaces_adjacent_41098.game.json'
+          adjacent_41098 = json.load(open(adjacent_41098_path, encoding='utf-8'))
+          assert adjacent_41098['source']['license'] == 'CC0-1.0'
+          assert adjacent_41098['source']['selection_evidence_pr'] == 198
+          assert adjacent_41098['target_inspire_ids'] == ['https://databrussels.be/id/streetsurface/41098']
+          assert len(adjacent_41098['surfaces']) == 1
+          assert adjacent_41098['surfaces'][0]['level'] == 0
+          assert adjacent_41098['surfaces'][0]['type_uninterpreted'] == 'P'
+          assert adjacent_41098['surfaces'][0]['area_m2'] == 611
+          assert adjacent_41098['selection_policy']['type_semantics_interpreted'] is False
+          assert adjacent_41098['selection_policy']['curb_elevation_resolved'] is False
+          assert adjacent_41098['runtime_approved'] is False
+          assert adjacent_41098['realism_complete'] is False
+          print('Committed Bourse adjacent surface id:', adjacent_41098['target_inspire_ids'][0])
           PY
 
       - name: Import project headless
@@ -138,7 +153,7 @@ jobs:
           fi
           grep -q "Grand Bruxelles visual pass:" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS hero: bourse" /tmp/godot-run.log
-          grep -q "Bourse UrbIS exact surfaces: 4 polygons" /tmp/godot-run.log
+          grep -q "Bourse UrbIS exact surfaces: 5 polygons" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS Midi exact-plan:" /tmp/godot-run.log
           grep -q "Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS mask:" /tmp/godot-run.log

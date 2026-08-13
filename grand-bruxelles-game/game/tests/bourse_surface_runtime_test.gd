@@ -25,21 +25,21 @@ func _run() -> void:
         _fail("official Bourse surface node is missing")
         return
     var counts: Dictionary = surfaces.official_type_counts()
-    var expected := {"I": 1, "P": 0, "S": 0, "SW": 2}
+    var expected := {"I": 1, "P": 0, "S": 1, "SW": 2}
     if counts != expected:
         _fail("official type counts drifted: %s" % str(counts))
         return
-    if int(surfaces.official_surface_count()) != 3:
-        _fail("expected exactly 3 official forecourt polygons")
+    if int(surfaces.official_surface_count()) != 4:
+        _fail("expected exactly 4 official Bourse surface polygons")
         return
-    if int(surfaces.official_runtime_vertex_count()) != 87:
-        _fail("expected exactly 87 runtime polygon vertices")
+    if int(surfaces.official_runtime_vertex_count()) != 95:
+        _fail("expected exactly 95 runtime polygon vertices")
         return
-    if absf(float(surfaces.official_source_area_m2()) - 459.0) > 0.01:
+    if absf(float(surfaces.official_source_area_m2()) - 699.0) > 0.01:
         _fail("source area drifted")
         return
-    if int(surfaces.official_triangle_count()) != 81:
-        _fail("official forecourt triangle count drifted")
+    if int(surfaces.official_triangle_count()) != 87:
+        _fail("official surface triangle count drifted")
         return
 
     var mask := scene.get_node_or_null("UrbISBourseSurfaceMask")
@@ -51,7 +51,7 @@ func _run() -> void:
         return
 
     print(
-        "BOURSE_SURFACE_RUNTIME_OK: 3 source-backed forecourt polygons, %d triangles, %.0f m2, 3 diagnostic strips replaced" %
+        "BOURSE_SURFACE_RUNTIME_OK: 4 source-backed polygons, %d triangles, %.0f m2; StreetSurface 22982 added at LVL=0" %
         [surfaces.official_triangle_count(), surfaces.official_source_area_m2()]
     )
     scene.queue_free()

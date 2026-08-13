@@ -117,6 +117,11 @@ func update_ambient_cadence_for_agent(agent: NpcAgent, delta_seconds: float, cro
     if not is_instance_valid(agent):
         return NpcAmbientState.State.WALK
     var agent_id := agent.get_instance_id()
+    if agent.transit_state == NpcAgent.TransitState.WAITING:
+        _release_ambient_hold(agent)
+        _ambient_elapsed_s.erase(agent_id)
+        agent.ambient_state.advance_transit_wait_pose(maxf(0.0, delta_seconds))
+        return agent.ambient_state.current_state
     if not _eligible_for_ambient_cadence(agent):
         _release_ambient_hold(agent)
         _ambient_elapsed_s.erase(agent_id)

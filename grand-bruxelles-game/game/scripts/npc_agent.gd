@@ -307,6 +307,10 @@ func update_transit_context(vehicle_arrived: bool, has_capacity: bool, waiting_s
 func confirm_boarded() -> bool:
 	if transit_state != TransitState.BOARDING:
 		return false
+	var door_target: Vector3 = behavior.target_position
+	var planar_distance := Vector2(door_target.x - get_world_position().x, door_target.z - get_world_position().z).length()
+	if planar_distance > arrival_radius:
+		return false
 	_leave_transit_queue_if_needed()
 	transit_state = TransitState.ONBOARD
 	movement_held = true

@@ -1,4 +1,4 @@
-[gd_scene load_steps=33 format=3]
+[gd_scene load_steps=34 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -22,6 +22,7 @@
 [ext_resource type="Script" path="res://game/scripts/urbis_bourse_surface_mask.gd" id="20_bourse_surface_mask"]
 [ext_resource type="Script" path="res://game/scripts/bourse_rail_vertical_mask.gd" id="21_bourse_rail_mask"]
 [ext_resource type="Script" path="res://game/scripts/bourse_portico_articulation.gd" id="22_bourse_portico"]
+[ext_resource type="Script" path="res://game/scripts/urbis_bourse_geotagged_frontage.gd" id="23_bourse_geotagged_frontage"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -104,6 +105,9 @@ use_collision = true
 
 [node name="BrusselsOSM" type="Node3D" parent="."]
 script = ExtResource("2_city")
+
+[node name="UrbISBourseGeotaggedFrontage" type="Node3D" parent="."]
+script = ExtResource("23_bourse_geotagged_frontage")
 
 [node name="UrbISBourseAxisContext" type="Node3D" parent="."]
 script = ExtResource("18_bourse_axis")

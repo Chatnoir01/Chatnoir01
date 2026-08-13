@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "hero": "Atomium",
+  "crs": "EPSG:31370",
+  "source": {
+    "publisher": "urban.brussels / Inventaire du patrimoine architectural",
+    "title": "Atomium — Square de l'Atomium",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Laeken/Square_de_l_Atomium/A001/38328",
+    "accessed_utc": "2026-08-13T04:35:00Z"
+  },
+  "support_constraints": {
+    "count": 3,
+    "supports_lower_spheres": true,
+    "form": "inverted_v_bipod",
+    "approximate_height_m": 30.0,
+    "height_precision": "approximate_text_description",
+    "contains_metal_stairs": true,
+    "exact_foot_positions_resolved": false,
+    "exact_height_resolved": false,
+    "runtime_geometry_allowed": false
+  },
+  "base_pavilion_constraints": {
+    "plan": "circle",
+    "diameter_m": 26.0,
+    "facade": "fully_glazed",
+    "roof": "shed_roof_with_lantern",
+    "north_access": "at_grade",
+    "south_access": "two_parallel_stairs",
+    "height_resolved": false,
+    "runtime_volume_allowed": false
+  },
+  "site_cardinal_constraints": {
+    "post_2004_reception_pavilion_direction": "north_east",
+    "global_crystal_yaw_resolved": false,
+    "support_bearings_resolved": false
+  },
+  "integration_gate": {
+    "runtime_approved": false,
+    "realism_complete": false,
+    "may_infer_global_yaw": false,
+    "may_infer_support_bearings": false,
+    "requires_orthophoto_or_survey_for_pose": true
+  }
+}

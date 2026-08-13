@@ -9,7 +9,7 @@ func _fail(message: String) -> void:
     push_error("TRAFFIC_INTERSECTION_EVIDENCE_FAIL: %s" % message)
     quit(1)
 
-func _roads() -> Array:
+func _roads() -> Array[Dictionary]:
     return [
         {"points": [[-30.0, 0.0], [0.0, 0.0], [30.0, 0.0]]},
         {"points": [[0.0, -30.0], [0.0, 0.0], [0.0, 30.0]]},

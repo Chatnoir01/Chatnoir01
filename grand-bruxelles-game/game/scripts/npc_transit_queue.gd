@@ -45,7 +45,19 @@ func position_for(passenger_id: int) -> Vector3:
 	var index: int = position_index_for(passenger_id)
 	if index < 0:
 		return anchor
-	return anchor + queue_direction * (float(index) * spacing_meters)
+	var longitudinal := anchor + queue_direction * (float(index) * spacing_meters)
+	if index == 0:
+		return longitudinal
+	var lateral := Vector3(-queue_direction.z, 0.0, queue_direction.x)
+	return longitudinal + lateral * _lateral_stagger_for(passenger_id, index)
+
+func _lateral_stagger_for(passenger_id: int, index: int) -> float:
+	if index <= 0:
+		return 0.0
+	var side := -1.0 if posmod(passenger_id + index, 2) == 0 else 1.0
+	var magnitude_bucket := posmod(passenger_id * 7 + index, 3)
+	var magnitude := 0.06 + float(magnitude_bucket) * 0.03
+	return side * magnitude
 
 func can_board(passenger_id: int, vehicle_capacity_remaining: int) -> bool:
 	if vehicle_capacity_remaining <= 0:

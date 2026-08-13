@@ -39,13 +39,14 @@ SOURCE_ARCHIVES = {
 
 
 def bilinear_sample(array: np.ndarray, transform, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:
-    """NaN-aware bilinear sample with a half-pixel, one-sided boundary rule.
+    """NaN-aware bilinear sample with a strict half-pixel outer support strip.
 
-    UrbIS TIFF values live at pixel centres while the runtime lattice includes exact
-    1 km archive boundaries. A vertex exactly on an outer TIFF boundary is therefore
-    half a source pixel beyond the outermost centre. Clamp only that half-pixel strip
-    to the nearest official centre; points farther outside remain NaN. Interior
-    samples keep ordinary bilinear interpolation unchanged.
+    The locked UrbIS TIFFs are 0.5 m rasters whose affine origin is offset by a
+    small sub-pixel amount from the exact 1 km Lambert72 archive grid. Runtime
+    vertices nevertheless live on the exact EPSG:31370 2 m lattice. Samples up to
+    half a source pixel outside the affine raster edge are therefore clamped to the
+    nearest official pixel; points farther out remain NaN. Interior samples keep
+    ordinary bilinear interpolation unchanged.
     """
     if transform.b != 0 or transform.d != 0 or transform.a <= 0 or transform.e >= 0:
         raise ValueError("Expected north-up source raster")
@@ -54,11 +55,14 @@ def bilinear_sample(array: np.ndarray, transform, xs: np.ndarray, ys: np.ndarray
     raw_rows = (ys - transform.f) / transform.e - 0.5
     height, width = array.shape
 
+    # raw pixel-centre coordinates are -0.5 at the affine outer edge. Extend by
+    # exactly another half pixel (-1.0 / dimension) to tolerate only the official
+    # sub-pixel transform offset; never pull values from farther outside.
     supported = (
-        (raw_cols >= -0.5)
-        & (raw_cols <= width - 0.5)
-        & (raw_rows >= -0.5)
-        & (raw_rows <= height - 0.5)
+        (raw_cols >= -1.0)
+        & (raw_cols <= width)
+        & (raw_rows >= -1.0)
+        & (raw_rows <= height)
     )
     out = np.full(xs.shape, np.nan, dtype=np.float64)
     if not np.any(supported):
@@ -261,7 +265,7 @@ def measure(paths: list[Path], archive_hashes: dict[str, str]) -> dict:
         "candidate_resolution_m": SPACING_M,
         "source_archive_sha256": archive_hashes,
         "sampling_method": "NaN-safe bilinear sample of one float64 official-raster mosaic at a global EPSG:31370 2 m lattice; inclusive 500 m cell boundaries",
-        "outer_mosaic_boundary_policy": "exact mosaic bounds only: one-sided clamp across the half-source-pixel gap from outermost official pixel centre to TIFF boundary; no farther extrapolation",
+        "outer_mosaic_boundary_policy": "one-sided nearest-official-pixel clamp limited to at most half a 0.5 m source pixel beyond the affine raster edge, solely to absorb the locked UrbIS TIFF sub-pixel transform offset; no farther extrapolation",
         "crs_policy": "embedded EPSG:31370 accepted; missing TIFF CRS may be attached only for the two locked official UrbIS DTM archives without changing pixels or affine transform; any conflicting embedded CRS is rejected",
         "runtime_approved": False,
         "promote_runtime": False,

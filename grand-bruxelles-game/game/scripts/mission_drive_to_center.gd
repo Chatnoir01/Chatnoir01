@@ -170,7 +170,7 @@ func export_state() -> Dictionary:
     }
 
 
-func restore_state(state: Dictionary) -> bool:
+func can_restore_state(state: Dictionary) -> bool:
     if int(state.get("schema_version", -1)) != STATE_SCHEMA_VERSION:
         return false
     if str(state.get("mission_id", "")) != MISSION_ID:
@@ -199,9 +199,16 @@ func restore_state(state: Dictionary) -> bool:
     if restored_failed and (restored_stage == 0 or restored_stage > CHECKPOINTS.size()):
         return false
 
-    _stage = restored_stage
-    _time_remaining = restored_time
-    _failed = restored_failed
+    return true
+
+
+func restore_state(state: Dictionary) -> bool:
+    if not can_restore_state(state):
+        return false
+
+    _stage = int(state["stage"])
+    _time_remaining = float(state.get("time_remaining", maxf(time_limit_seconds, 1.0)))
+    _failed = bool(state.get("failed", false))
     if is_instance_valid(_marker) and is_instance_valid(mission_label):
         _update_ui()
     return true

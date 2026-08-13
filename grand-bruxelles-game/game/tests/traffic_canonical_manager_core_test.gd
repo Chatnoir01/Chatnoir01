@@ -86,9 +86,9 @@ func _run() -> void:
     manager.set_simulation_hour(3.0)
     var night_target: int = manager.get_density_target_vehicle_count()
     manager.set_simulation_hour(17.0)
-    var peak_target: int = manager.get_density_target_vehicle_count()
-    if peak_target <= night_target:
-        _fail("density model did not increase traffic at peak hour")
+    var evening_target: int = manager.get_density_target_vehicle_count()
+    if evening_target != night_target:
+        _fail("unsourced time-of-day shaping changed canonical manager density target")
         return
 
     manager.auto_spawn_runtime = true
@@ -138,5 +138,5 @@ func _run() -> void:
         return
 
     manager.queue_free()
-    print("TRAFFIC_CANONICAL_MANAGER_OK: v8 parity contract, roots, spawn, density, crossing, source-gated delivery and wreck lifecycle")
+    print("TRAFFIC_CANONICAL_MANAGER_OK: v8 parity contract, roots, spawn, neutral unsourced temporal density, crossing, source-gated delivery and wreck lifecycle")
     quit(0)

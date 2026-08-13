@@ -11,21 +11,10 @@ var _official_profile: RefCounted = OFFICIAL_PROFILE_SCRIPT.new()
 var _official_radius_m: float = DEFAULT_OFFICIAL_RADIUS_M
 var _official_blend_weight: float = DEFAULT_OFFICIAL_BLEND_WEIGHT
 
-func time_factor(hour: float) -> float:
-    var h := fposmod(hour, 24.0)
-    if h < 5.0:
-        return 0.32
-    if h < 6.5:
-        return lerpf(0.32, 0.72, (h - 5.0) / 1.5)
-    if h < 9.5:
-        return 0.95
-    if h < 15.5:
-        return 0.76
-    if h < 19.0:
-        return 1.0
-    if h < 22.0:
-        return 0.70
-    return 0.46
+func time_factor(_hour: float) -> float:
+    # No authoritative corridor/time traffic-volume series is wired into production yet.
+    # Keep temporal shaping neutral rather than manufacturing a Brussels daily profile.
+    return 1.0
 
 func configure_official_snapshot(
     snapshot: Dictionary,

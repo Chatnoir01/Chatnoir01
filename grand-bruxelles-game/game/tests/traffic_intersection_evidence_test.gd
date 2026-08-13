@@ -1,6 +1,7 @@
 extends SceneTree
 
 const INTERSECTION_SCRIPT := preload("res://game/scripts/traffic_intersection_system.gd")
+const DENSITY_SCRIPT := preload("res://game/scripts/traffic_density_model.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -49,5 +50,13 @@ func _run() -> void:
         _fail("signalized intersection was incorrectly marked priority to right")
         return
 
-    print("TRAFFIC_INTERSECTION_EVIDENCE_OK: unknown intersections no longer fabricate priority-to-right behavior")
+    var density: RefCounted = DENSITY_SCRIPT.new()
+    var probe_hours: Array[float] = [0.0, 4.5, 6.0, 8.0, 12.0, 17.0, 20.0, 23.5]
+    for hour: float in probe_hours:
+        var factor := float(density.call("time_factor", hour))
+        if absf(factor - 1.0) > 0.0001:
+            _fail("unsourced hour %.2f changes traffic volume with factor %.3f" % [hour, factor])
+            return
+
+    print("TRAFFIC_INTERSECTION_EVIDENCE_OK: unknown priorities and unsourced temporal traffic volumes remain neutral")
     quit(0)

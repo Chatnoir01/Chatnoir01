@@ -46,7 +46,7 @@ func rebuild(roads: Array[Dictionary], controls: Array) -> void:
             "position": position,
             "degree": neighbors.size(),
             "control_kind": control_kind,
-            "priority_to_right": control_kind == "",
+            "priority_to_right": false,
         })
         serial += 1
 
@@ -276,37 +276,18 @@ func _nearest_route_segment(route: PackedVector3Array, point: Vector3) -> Dictio
         if distance < best_distance:
             best_distance = distance
             best_index = index
-    return {"segment_index": best_index, "distance_m": best_distance}
+    return {"distance_m": best_distance, "segment_index": best_index}
 
-func _point_segment_distance(point: Vector3, start: Vector3, finish: Vector3) -> float:
-    var segment := finish - start
-    segment.y = 0.0
-    var length_squared := segment.length_squared()
-    if length_squared <= 0.0001:
-        var flat_point := point
-        flat_point.y = start.y
-        return flat_point.distance_to(start)
-    var relative := point - start
-    relative.y = 0.0
-    var t := clampf(relative.dot(segment) / length_squared, 0.0, 1.0)
-    var nearest := start + segment * t
-    var flat := point
-    flat.y = nearest.y
-    return flat.distance_to(nearest)
+func _point_segment_distance(point: Vector3, a: Vector3, b: Vector3) -> float:
+    var ab := b - a
+    ab.y = 0.0
+    var ap := point - a
+    ap.y = 0.0
+    var length_squared := ab.length_squared()
+    if length_squared <= 0.001:
+        return ap.length()
+    var t := clampf(ap.dot(ab) / length_squared, 0.0, 1.0)
+    return (ap - ab * t).length()
 
-func get_intersection_count() -> int:
+func intersection_count() -> int:
     return _intersections.size()
-
-func get_right_priority_count() -> int:
-    var count := 0
-    for intersection: Dictionary in _intersections:
-        if bool(intersection.get("priority_to_right", false)):
-            count += 1
-    return count
-
-func get_give_way_intersection_count() -> int:
-    var count := 0
-    for intersection: Dictionary in _intersections:
-        if str(intersection.get("control_kind", "")) == "give_way":
-            count += 1
-    return count

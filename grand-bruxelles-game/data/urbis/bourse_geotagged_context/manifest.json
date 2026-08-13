@@ -1,0 +1,668 @@
+{
+  "schema": "grand-bruxelles-bourse-geotagged-frontage-materialized-v1",
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+  },
+  "camera_evidence_path": "res://data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json",
+  "selection": {
+    "schema": "grand-bruxelles-bourse-geotagged-context-selection-v1",
+    "source_crs": "EPSG:31370",
+    "camera_evidence_schema": "grand-bruxelles-bourse-geotagged-camera-evidence-v1",
+    "camera_e_n": [
+      148638.7034428724,
+      170904.85375726316
+    ],
+    "published_true_heading_degrees": 135.21993255901,
+    "horizontal_fov_degrees": 63.65489315334623,
+    "selection_half_fov_degrees": 31.827446576673115,
+    "selection_margin_degrees": 3.0,
+    "max_camera_distance_m": 180.0,
+    "hero_building_excluded": "https://databrussels.be/id/building/1751663",
+    "wfs_feature_count": 497,
+    "candidate_count": 12,
+    "candidates": [
+      {
+        "building_id": "https://databrussels.be/id/building/1644443",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34ed",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148762.10999955,
+          170771.21000038,
+          148770.4220756,
+          170780.38000008
+        ],
+        "coordinate_count": 8,
+        "nearest_camera_distance_m": 179.10085938848846,
+        "center_epsg31370": [
+          148765.92775004375,
+          170775.84785945626
+        ],
+        "center_true_bearing_degrees": 135.3983760591306,
+        "center_heading_delta_degrees": 0.17844350012060772,
+        "minimum_geometry_heading_delta_degrees": 0.17844350012060772,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1613491",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34ef",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148760.76999954,
+          170774.90000026,
+          148767.47999977,
+          170782.45415102
+        ],
+        "coordinate_count": 6,
+        "nearest_camera_distance_m": 175.3616490509594,
+        "center_epsg31370": [
+          148762.93204641665,
+          170777.98902523168
+        ],
+        "center_true_bearing_degrees": 135.60150337079855,
+        "center_heading_delta_degrees": 0.38157081178854924,
+        "minimum_geometry_heading_delta_degrees": 0.38157081178854924,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1636592",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f2",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148750.517,
+          170779.43999952,
+          148762.21999991,
+          170791.18101022
+        ],
+        "coordinate_count": 7,
+        "nearest_camera_distance_m": 162.00067716423126,
+        "center_epsg31370": [
+          148755.03118376143,
+          170785.4156873943
+        ],
+        "center_true_bearing_degrees": 135.75582793543975,
+        "center_heading_delta_degrees": 0.5358953764297496,
+        "minimum_geometry_heading_delta_degrees": 0.5358953764297496,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1611158",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34fa",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148754.12755639,
+          170788.33480249,
+          148768.541,
+          170806.72936711
+        ],
+        "coordinate_count": 10,
+        "nearest_camera_distance_m": 157.647340830295,
+        "center_epsg31370": [
+          148760.495163154,
+          170797.457003054
+        ],
+        "center_true_bearing_degrees": 131.4060635318497,
+        "center_heading_delta_degrees": 3.813869027160308,
+        "minimum_geometry_heading_delta_degrees": 0.6579304976412743,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1598452",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34e8",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148743.05600028,
+          170757.66999974,
+          148770.67000045,
+          170784.162
+        ],
+        "coordinate_count": 17,
+        "nearest_camera_distance_m": 164.52590017622083,
+        "center_epsg31370": [
+          148759.41449848,
+          170770.77942287884
+        ],
+        "center_true_bearing_degrees": 138.00236423741438,
+        "center_heading_delta_degrees": 2.7824316784043788,
+        "minimum_geometry_heading_delta_degrees": 0.8869498160074443,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1601903",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f3",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148763.88747356,
+          170780.38000008,
+          148778.32799997,
+          170798.54899968
+        ],
+        "coordinate_count": 11,
+        "nearest_camera_distance_m": 172.542811921279,
+        "center_epsg31370": [
+          148768.38530636544,
+          170786.50509687726
+        ],
+        "center_true_bearing_degrees": 132.38381649786658,
+        "center_heading_delta_degrees": 2.8361160611434286,
+        "minimum_geometry_heading_delta_degrees": 0.9303778424716711,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1643351",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f8",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148759.04073,
+          170786.17999953,
+          148771.7,
+          170802.772
+        ],
+        "coordinate_count": 11,
+        "nearest_camera_distance_m": 165.1619702195437,
+        "center_epsg31370": [
+          148763.72756992636,
+          170791.6650853
+        ],
+        "center_true_bearing_degrees": 132.1556336874251,
+        "center_heading_delta_degrees": 3.064298871584896,
+        "minimum_geometry_heading_delta_degrees": 1.143511257977167,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1597257",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f1",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148767.47999977,
+          170778.18834438,
+          148773.41477394,
+          170784.5780879
+        ],
+        "coordinate_count": 9,
+        "nearest_camera_distance_m": 178.34171546567254,
+        "center_epsg31370": [
+          148770.1065591222,
+          170780.92267259335
+        ],
+        "center_true_bearing_degrees": 133.3237900477993,
+        "center_heading_delta_degrees": 1.8961425112107122,
+        "minimum_geometry_heading_delta_degrees": 1.1933115912983112,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1598400",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f7",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148762.75163952,
+          170785.07224329,
+          148774.60900001,
+          170800.58
+        ],
+        "coordinate_count": 10,
+        "nearest_camera_distance_m": 169.00029781506677,
+        "center_epsg31370": [
+          148766.467781737,
+          170790.24756822
+        ],
+        "center_true_bearing_degrees": 131.89249723556665,
+        "center_heading_delta_degrees": 3.3274353234433534,
+        "minimum_geometry_heading_delta_degrees": 1.693495686464047,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1643391",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f5",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148770.38309519,
+          170782.20119314,
+          148781.87999953,
+          170796.0669997
+        ],
+        "coordinate_count": 5,
+        "nearest_camera_distance_m": 177.00162588465133,
+        "center_epsg31370": [
+          148774.877792764,
+          170788.21487371
+        ],
+        "center_true_bearing_degrees": 130.5814024448674,
+        "center_heading_delta_degrees": 4.638530114142611,
+        "minimum_geometry_heading_delta_degrees": 2.8114811000830855,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1599545",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_3507",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148739.926,
+          170741.00000036,
+          148772.75999966,
+          170768.7419999
+        ],
+        "coordinate_count": 24,
+        "nearest_camera_distance_m": 171.5105440781883,
+        "center_epsg31370": [
+          148757.35755732082,
+          170753.6198736296
+        ],
+        "center_true_bearing_degrees": 141.88320504321632,
+        "center_heading_delta_degrees": 6.663272484206317,
+        "minimum_geometry_heading_delta_degrees": 3.629267833553911,
+        "source_type": null
+      },
+      {
+        "building_id": "https://databrussels.be/id/building/1645770",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_353f",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148738.13299972,
+          170754.03999998,
+          148750.7,
+          170762.462
+        ],
+        "coordinate_count": 10,
+        "nearest_camera_distance_m": 174.70380249996197,
+        "center_epsg31370": [
+          148744.410041106,
+          170757.647040196
+        ],
+        "center_true_bearing_degrees": 144.3185261834,
+        "center_heading_delta_degrees": 9.098593624389991,
+        "minimum_geometry_heading_delta_degrees": 7.620001580825374,
+        "source_type": null
+      }
+    ],
+    "runtime_approved": false,
+    "realism_complete": false,
+    "status": "official_2d_camera_frustum_candidates_only_pending_urbis3d_resolution"
+  },
+  "resolved": [
+    {
+      "building_id": "https://databrussels.be/id/building/1597257",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1597257",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f1",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148767.47999977,
+          170778.18834438,
+          148773.41477394,
+          170784.5780879
+        ],
+        "coordinate_count": 9,
+        "nearest_camera_distance_m": 178.34171546567254,
+        "center_epsg31370": [
+          148770.1065591222,
+          170780.92267259335
+        ],
+        "center_true_bearing_degrees": 133.3237900477993,
+        "center_heading_delta_degrees": 1.8961425112107122,
+        "minimum_geometry_heading_delta_degrees": 1.1933115912983112,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1597257.game.json",
+      "height_m": 12.001,
+      "face_count": 10,
+      "triangle_count": 28,
+      "face_type_counts": {
+        "WALLSURFACE": 8,
+        "ROOFSURFACE": 1,
+        "GROUNDSURFACE": 1
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1598400",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1598400",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f7",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148762.75163952,
+          170785.07224329,
+          148774.60900001,
+          170800.58
+        ],
+        "coordinate_count": 10,
+        "nearest_camera_distance_m": 169.00029781506677,
+        "center_epsg31370": [
+          148766.467781737,
+          170790.24756822
+        ],
+        "center_true_bearing_degrees": 131.89249723556665,
+        "center_heading_delta_degrees": 3.3274353234433534,
+        "minimum_geometry_heading_delta_degrees": 1.693495686464047,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1598400.game.json",
+      "height_m": 15.911,
+      "face_count": 17,
+      "triangle_count": 52,
+      "face_type_counts": {
+        "GROUNDSURFACE": 1,
+        "ROOFSURFACE": 4,
+        "WALLSURFACE": 12
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1598452",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1598452",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34e8",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148743.05600028,
+          170757.66999974,
+          148770.67000045,
+          170784.162
+        ],
+        "coordinate_count": 17,
+        "nearest_camera_distance_m": 164.52590017622083,
+        "center_epsg31370": [
+          148759.41449848,
+          170770.77942287884
+        ],
+        "center_true_bearing_degrees": 138.00236423741438,
+        "center_heading_delta_degrees": 2.7824316784043788,
+        "minimum_geometry_heading_delta_degrees": 0.8869498160074443,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1598452.game.json",
+      "height_m": 25.788,
+      "face_count": 53,
+      "triangle_count": 168,
+      "face_type_counts": {
+        "WALLSURFACE": 40,
+        "ROOFSURFACE": 12,
+        "GROUNDSURFACE": 1
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1601903",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1601903",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f3",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148763.88747356,
+          170780.38000008,
+          148778.32799997,
+          170798.54899968
+        ],
+        "coordinate_count": 11,
+        "nearest_camera_distance_m": 172.542811921279,
+        "center_epsg31370": [
+          148768.38530636544,
+          170786.50509687726
+        ],
+        "center_true_bearing_degrees": 132.38381649786658,
+        "center_heading_delta_degrees": 2.8361160611434286,
+        "minimum_geometry_heading_delta_degrees": 0.9303778424716711,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1601903.game.json",
+      "height_m": 16.206,
+      "face_count": 28,
+      "triangle_count": 80,
+      "face_type_counts": {
+        "ROOFSURFACE": 7,
+        "WALLSURFACE": 20,
+        "GROUNDSURFACE": 1
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1611158",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1611158",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34fa",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148754.12755639,
+          170788.33480249,
+          148768.541,
+          170806.72936711
+        ],
+        "coordinate_count": 10,
+        "nearest_camera_distance_m": 157.647340830295,
+        "center_epsg31370": [
+          148760.495163154,
+          170797.457003054
+        ],
+        "center_true_bearing_degrees": 131.4060635318497,
+        "center_heading_delta_degrees": 3.813869027160308,
+        "minimum_geometry_heading_delta_degrees": 0.6579304976412743,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1611158.game.json",
+      "height_m": 21.568,
+      "face_count": 21,
+      "triangle_count": 62,
+      "face_type_counts": {
+        "ROOFSURFACE": 5,
+        "WALLSURFACE": 15,
+        "GROUNDSURFACE": 1
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1613491",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1613491",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34ef",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148760.76999954,
+          170774.90000026,
+          148767.47999977,
+          170782.45415102
+        ],
+        "coordinate_count": 6,
+        "nearest_camera_distance_m": 175.3616490509594,
+        "center_epsg31370": [
+          148762.93204641665,
+          170777.98902523168
+        ],
+        "center_true_bearing_degrees": 135.60150337079855,
+        "center_heading_delta_degrees": 0.38157081178854924,
+        "minimum_geometry_heading_delta_degrees": 0.38157081178854924,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1613491.game.json",
+      "height_m": 12.565,
+      "face_count": 8,
+      "triangle_count": 20,
+      "face_type_counts": {
+        "GROUNDSURFACE": 1,
+        "WALLSURFACE": 5,
+        "ROOFSURFACE": 2
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1636592",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1636592",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f2",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148750.517,
+          170779.43999952,
+          148762.21999991,
+          170791.18101022
+        ],
+        "coordinate_count": 7,
+        "nearest_camera_distance_m": 162.00067716423126,
+        "center_epsg31370": [
+          148755.03118376143,
+          170785.4156873943
+        ],
+        "center_true_bearing_degrees": 135.75582793543975,
+        "center_heading_delta_degrees": 0.5358953764297496,
+        "minimum_geometry_heading_delta_degrees": 0.5358953764297496,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1636592.game.json",
+      "height_m": 21.45,
+      "face_count": 10,
+      "triangle_count": 28,
+      "face_type_counts": {
+        "WALLSURFACE": 7,
+        "GROUNDSURFACE": 1,
+        "ROOFSURFACE": 2
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1643351",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1643351",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f8",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148759.04073,
+          170786.17999953,
+          148771.7,
+          170802.772
+        ],
+        "coordinate_count": 11,
+        "nearest_camera_distance_m": 165.1619702195437,
+        "center_epsg31370": [
+          148763.72756992636,
+          170791.6650853
+        ],
+        "center_true_bearing_degrees": 132.1556336874251,
+        "center_heading_delta_degrees": 3.064298871584896,
+        "minimum_geometry_heading_delta_degrees": 1.143511257977167,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1643351.game.json",
+      "height_m": 17.401,
+      "face_count": 16,
+      "triangle_count": 46,
+      "face_type_counts": {
+        "ROOFSURFACE": 4,
+        "WALLSURFACE": 11,
+        "GROUNDSURFACE": 1
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1643391",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1643391",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34f5",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148770.38309519,
+          170782.20119314,
+          148781.87999953,
+          170796.0669997
+        ],
+        "coordinate_count": 5,
+        "nearest_camera_distance_m": 177.00162588465133,
+        "center_epsg31370": [
+          148774.877792764,
+          170788.21487371
+        ],
+        "center_true_bearing_degrees": 130.5814024448674,
+        "center_heading_delta_degrees": 4.638530114142611,
+        "minimum_geometry_heading_delta_degrees": 2.8114811000830855,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1643391.game.json",
+      "height_m": 16.112,
+      "face_count": 7,
+      "triangle_count": 16,
+      "face_type_counts": {
+        "WALLSURFACE": 4,
+        "GROUNDSURFACE": 1,
+        "ROOFSURFACE": 2
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1644443",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1644443",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_34ed",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148762.10999955,
+          170771.21000038,
+          148770.4220756,
+          170780.38000008
+        ],
+        "coordinate_count": 8,
+        "nearest_camera_distance_m": 179.10085938848846,
+        "center_epsg31370": [
+          148765.92775004375,
+          170775.84785945626
+        ],
+        "center_true_bearing_degrees": 135.3983760591306,
+        "center_heading_delta_degrees": 0.17844350012060772,
+        "minimum_geometry_heading_delta_degrees": 0.17844350012060772,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1644443.game.json",
+      "height_m": 10.165,
+      "face_count": 12,
+      "triangle_count": 36,
+      "face_type_counts": {
+        "GROUNDSURFACE": 1,
+        "WALLSURFACE": 8,
+        "ROOFSURFACE": 3
+      },
+      "runtime_approved": false
+    },
+    {
+      "building_id": "https://databrussels.be/id/building/1645770",
+      "selection": {
+        "building_id": "https://databrussels.be/id/building/1645770",
+        "wfs_feature_id": "Buildings.fid-6b790b0d_19ff70c73f1_353f",
+        "geometry_type": "Polygon",
+        "coordinate_bounds_epsg31370": [
+          148738.13299972,
+          170754.03999998,
+          148750.7,
+          170762.462
+        ],
+        "coordinate_count": 10,
+        "nearest_camera_distance_m": 174.70380249996197,
+        "center_epsg31370": [
+          148744.410041106,
+          170757.647040196
+        ],
+        "center_true_bearing_degrees": 144.3185261834,
+        "center_heading_delta_degrees": 9.098593624389991,
+        "minimum_geometry_heading_delta_degrees": 7.620001580825374,
+        "source_type": null
+      },
+      "geometry_path": "res://data/urbis/bourse_geotagged_context/1645770.game.json",
+      "height_m": 19.203,
+      "face_count": 15,
+      "triangle_count": 44,
+      "face_type_counts": {
+        "ROOFSURFACE": 4,
+        "WALLSURFACE": 10,
+        "GROUNDSURFACE": 1
+      },
+      "runtime_approved": false
+    }
+  ],
+  "unresolved_building_ids": [
+    "https://databrussels.be/id/building/1599545"
+  ],
+  "runtime_approved": false,
+  "realism_complete": false,
+  "approval_note": "Materialized authoritative in-frame geometry evidence only; runtime subset still requires deterministic visual and performance gates."
+}

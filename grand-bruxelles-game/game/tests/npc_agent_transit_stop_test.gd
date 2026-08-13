@@ -47,7 +47,7 @@ func _init() -> void:
 	_assert(third_delay >= 0.15 and third_delay <= 0.60, "every waiting traveler gets a bounded compaction delay", failures)
 	_assert(not is_equal_approx(second_delay, third_delay), "different travelers stagger queue compaction timing deterministically", failures)
 
-	stop.vehicle_arrived(PackedInt32Array([1]))
+	stop.vehicle_arrived(PackedInt32Array([2]))
 	var second_early: Dictionary = second.request_transit_stop_boarding()
 	_assert(not bool(second_early.get("allowed", false)), "second agent cannot skip the queue head", failures)
 	var first_board: Dictionary = first.request_transit_stop_boarding()
@@ -55,6 +55,12 @@ func _init() -> void:
 	_assert(first.transit_state == NpcAgent.TransitState.BOARDING, "cleared agent enters boarding state", failures)
 	_assert(first.confirm_boarded(), "cleared agent can confirm vehicle entry", failures)
 	_assert(first.transit_state == NpcAgent.TransitState.ONBOARD, "confirmed agent becomes onboard", failures)
+
+	_assert(stop.queue_for_door(0).position_index_for(202) == 0, "queue order compacts immediately after the head boards", failures)
+	var second_during_compaction: Dictionary = second.request_transit_stop_boarding()
+	_assert(not bool(second_during_compaction.get("allowed", false)), "new queue head cannot board while still visually occupying its old slot", failures)
+	_assert(String(second_during_compaction.get("reason", "")) == "queue_compacting", "visual compaction denial exposes a stable reason", failures)
+	_assert(second.transit_state == NpcAgent.TransitState.WAITING, "compacting traveler stays in waiting state", failures)
 
 	var second_immediate: Vector3 = second.refresh_transit_stop_target(0.0)
 	var third_immediate: Vector3 = third.refresh_transit_stop_target(0.0)
@@ -80,16 +86,24 @@ func _init() -> void:
 		var second_target_after: Vector3 = second.refresh_transit_stop_target(maxf(0.0, second_delay - shorter_delay + 0.02))
 		_assert(second_target_after.distance_to(first_target) < 0.01, "remaining traveler advances after its own delay", failures)
 
-	_assert(stop.queue_for_door(0).position_index_for(202) == 0, "queue order still compacts immediately for boarding eligibility", failures)
+	_assert(stop.queue_for_door(0).position_index_for(202) == 0, "second traveler remains logical queue head after visual compaction", failures)
 	_assert(stop.queue_for_door(0).position_index_for(303) == 1, "later passenger keeps queue order during visual compaction", failures)
-	var second_full: Dictionary = second.request_transit_stop_boarding()
-	_assert(not bool(second_full.get("allowed", false)), "remaining agent waits when vehicle capacity is exhausted", failures)
-	_assert(String(second_full.get("reason", "")) == "door_full", "capacity denial exposes a stable reason", failures)
+	var second_board: Dictionary = second.request_transit_stop_boarding()
+	_assert(bool(second_board.get("allowed", false)), "new queue head can board once its visual compaction is complete", failures)
+	_assert(second.confirm_boarded(), "second cleared agent can confirm vehicle entry", failures)
+	_assert(stop.queue_for_door(0).position_index_for(303) == 0, "third traveler becomes queue head after second boards", failures)
+
+	var third_during_compaction: Dictionary = third.request_transit_stop_boarding()
+	_assert(not bool(third_during_compaction.get("allowed", false)), "successive queue head also waits for its own visual compaction", failures)
+	_assert(String(third_during_compaction.get("reason", "")) == "queue_compacting", "successive compaction uses the same stable denial reason", failures)
+	third.refresh_transit_stop_target(third_delay + 0.01)
+	var third_full: Dictionary = third.request_transit_stop_boarding()
+	_assert(not bool(third_full.get("allowed", false)), "remaining agent waits when vehicle capacity is exhausted", failures)
+	_assert(String(third_full.get("reason", "")) == "door_full", "capacity denial is exposed after visual queue movement is complete", failures)
 
 	stop.vehicle_departed()
-	_assert(second.leave_transit_queue(), "second agent can leave stop queue cleanly after vehicle departure", failures)
 	_assert(third.leave_transit_queue(), "third agent can leave stop queue cleanly after vehicle departure", failures)
-	_assert(stop.queue_size_for_door(0) == 0, "stop reservation is released with the agents", failures)
+	_assert(stop.queue_size_for_door(0) == 0, "stop reservation is released with the remaining agent", failures)
 
 	first.free()
 	second.free()

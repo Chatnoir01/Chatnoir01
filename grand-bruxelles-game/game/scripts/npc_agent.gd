@@ -146,6 +146,16 @@ func request_transit_stop_boarding() -> Dictionary:
 	if transit_stop == null or transit_queue_passenger_id < 0:
 		return {"allowed": false, "door_index": -1, "reason": "not_waiting"}
 	var passenger_id: int = transit_queue_passenger_id
+	refresh_transit_stop_target(0.0)
+	if _transit_queue_has_pending_target:
+		transit_state = TransitState.WAITING
+		ambient_state.set_transit_context(true, false)
+		pedestrian_intent = NpcPedestrianContext.PedestrianIntent.WAIT_FOR_TRANSIT
+		return {
+			"allowed": false,
+			"door_index": transit_stop.assigned_door_for(passenger_id),
+			"reason": "queue_compacting",
+		}
 	var result: Dictionary = transit_stop.request_boarding(passenger_id)
 	if bool(result.get("allowed", false)):
 		transit_queue = null

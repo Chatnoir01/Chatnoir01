@@ -6,6 +6,10 @@ extends Node3D
 
 @export_file("*.json") var evidence_path := "res://data/sources/laeken_jette/atomium_hero_core_evidence.json"
 
+const SPHERE_RADIAL_SEGMENTS := 48
+const SPHERE_RINGS := 24
+const TUBE_RADIAL_SEGMENTS := 32
+
 var hero_built := false
 var sphere_count := 0
 var tube_count := 0
@@ -91,9 +95,9 @@ func _load_evidence() -> Dictionary:
 
 func _make_materials() -> void:
     _sphere_material = StandardMaterial3D.new()
-    _sphere_material.albedo_color = Color(0.68, 0.72, 0.75, 1.0)
-    _sphere_material.metallic = 0.84
-    _sphere_material.roughness = 0.24
+    _sphere_material.albedo_color = Color(0.82, 0.85, 0.87, 1.0)
+    _sphere_material.metallic = 0.96
+    _sphere_material.roughness = 0.16
     _tube_material = StandardMaterial3D.new()
     _tube_material.albedo_color = Color(0.57, 0.61, 0.64, 1.0)
     _tube_material.metallic = 0.78
@@ -103,8 +107,8 @@ func _add_sphere(node_name: String, centre: Vector3) -> void:
     var sphere := SphereMesh.new()
     sphere.radius = source_sphere_diameter_m * 0.5
     sphere.height = source_sphere_diameter_m
-    sphere.radial_segments = 32
-    sphere.rings = 16
+    sphere.radial_segments = SPHERE_RADIAL_SEGMENTS
+    sphere.rings = SPHERE_RINGS
     sphere.material = _sphere_material
     var instance := MeshInstance3D.new()
     instance.name = node_name
@@ -122,7 +126,7 @@ func _add_tube(a: Vector3, b: Vector3) -> void:
     cylinder.top_radius = source_tube_diameter_m * 0.5
     cylinder.bottom_radius = source_tube_diameter_m * 0.5
     cylinder.height = length
-    cylinder.radial_segments = 20
+    cylinder.radial_segments = TUBE_RADIAL_SEGMENTS
     cylinder.material = _tube_material
     var instance := MeshInstance3D.new()
     instance.name = "Tube_%02d" % tube_count

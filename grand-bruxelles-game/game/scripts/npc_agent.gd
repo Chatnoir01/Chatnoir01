@@ -35,6 +35,11 @@ var transit_queue_passenger_id: int = -1
 var transit_stop: NpcTransitStop = null
 var civilian_routine_target := Vector3.ZERO
 var civilian_recovery_movement_scale: float = 1.0
+var _transit_queue_applied_target := Vector3.ZERO
+var _transit_queue_pending_target := Vector3.ZERO
+var _transit_queue_has_applied_target: bool = false
+var _transit_queue_has_pending_target: bool = false
+var _transit_queue_compaction_remaining_s: float = 0.0
 
 func _ready() -> void:
 	behavior.configure(role, variation_seed, global_position)
@@ -100,14 +105,42 @@ func join_transit_stop(stop: NpcTransitStop, passenger_id: int, preferred_door: 
 	refresh_transit_stop_target()
 	return door_index
 
-func refresh_transit_stop_target() -> Vector3:
+func transit_queue_compaction_delay_seconds() -> float:
+	var passenger_component := maxi(transit_queue_passenger_id, 0)
+	var bucket := posmod(variation_seed * 7 + passenger_component * 3, 5)
+	return 0.18 + float(bucket) * 0.09
+
+func refresh_transit_stop_target(delta_seconds: float = 0.0) -> Vector3:
 	if transit_stop == null or transit_queue_passenger_id < 0:
+		_reset_transit_queue_target_tracking()
 		return get_world_position()
-	var target: Vector3 = transit_stop.queue_target_for(transit_queue_passenger_id)
-	behavior.set_destination(target)
-	var planar_distance: float = Vector2(target.x - get_world_position().x, target.z - get_world_position().z).length()
-	movement_held = planar_distance <= arrival_radius
-	return target
+	var desired_target: Vector3 = transit_stop.queue_target_for(transit_queue_passenger_id)
+	if not _transit_queue_has_applied_target:
+		_apply_transit_queue_target(desired_target)
+		return desired_target
+
+	if desired_target.is_equal_approx(_transit_queue_applied_target):
+		_transit_queue_has_pending_target = false
+		_transit_queue_compaction_remaining_s = 0.0
+		_apply_transit_queue_target(_transit_queue_applied_target)
+		return _transit_queue_applied_target
+
+	if not _transit_queue_has_pending_target:
+		_transit_queue_pending_target = desired_target
+		_transit_queue_has_pending_target = true
+		_transit_queue_compaction_remaining_s = transit_queue_compaction_delay_seconds()
+	elif not desired_target.is_equal_approx(_transit_queue_pending_target):
+		_transit_queue_pending_target = desired_target
+
+	_transit_queue_compaction_remaining_s = maxf(0.0, _transit_queue_compaction_remaining_s - maxf(0.0, delta_seconds))
+	if _transit_queue_compaction_remaining_s <= 0.0:
+		var target_to_apply := _transit_queue_pending_target
+		_transit_queue_has_pending_target = false
+		_apply_transit_queue_target(target_to_apply)
+		return target_to_apply
+
+	_apply_transit_queue_target(_transit_queue_applied_target)
+	return _transit_queue_applied_target
 
 func request_transit_stop_boarding() -> Dictionary:
 	if transit_stop == null or transit_queue_passenger_id < 0:
@@ -118,6 +151,7 @@ func request_transit_stop_boarding() -> Dictionary:
 		transit_queue = null
 		transit_queue_passenger_id = -1
 		transit_stop = null
+		_reset_transit_queue_target_tracking()
 		transit_state = TransitState.BOARDING
 		ambient_state.set_transit_context(true, true)
 		pedestrian_intent = NpcPedestrianContext.PedestrianIntent.BOARD_TRANSIT
@@ -141,6 +175,7 @@ func leave_transit_queue() -> bool:
 	transit_queue = null
 	transit_queue_passenger_id = -1
 	transit_stop = null
+	_reset_transit_queue_target_tracking()
 	return removed
 
 func get_transit_queue_target() -> Vector3:
@@ -316,7 +351,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if transit_state == TransitState.WAITING and transit_stop != null:
-		refresh_transit_stop_target()
+		refresh_transit_stop_target(delta)
 
 	if movement_held:
 		velocity.x = move_toward(velocity.x, 0.0, acceleration * delta)
@@ -453,13 +488,14 @@ func _restore_civilian_routine_snapshot(snapshot: Dictionary) -> void:
 			if transit_stop != null:
 				refresh_transit_stop_target()
 			else:
-				behavior.set_destination(transit_queue.position_for(transit_queue_passenger_id))
+				_apply_transit_queue_target(transit_queue.position_for(transit_queue_passenger_id))
 			return
 	transit_state = restored_transit_state if restored_transit_state in [TransitState.NONE, TransitState.BOARDING, TransitState.ONBOARD, TransitState.DISEMBARKING] else TransitState.NONE
 	if transit_state == TransitState.NONE:
 		transit_queue = null
 		transit_stop = null
 		transit_queue_passenger_id = -1
+		_reset_transit_queue_target_tracking()
 	behavior.set_destination(civilian_routine_target)
 	if activity_kind == &"ambient":
 		movement_held = ambient_state.movement_scale() <= 0.0
@@ -482,17 +518,33 @@ func _sync_police_response_to_behavior() -> void:
 			behavior.state = NpcBehaviorModel.State.RETURNING
 			behavior.alert_level = minf(behavior.alert_level, NpcBehaviorModel.POLICE_INVESTIGATE_THRESHOLD - 1.0)
 
+func _apply_transit_queue_target(target: Vector3) -> void:
+	_transit_queue_applied_target = target
+	_transit_queue_has_applied_target = true
+	behavior.set_destination(target)
+	var planar_distance := Vector2(target.x - get_world_position().x, target.z - get_world_position().z).length()
+	movement_held = planar_distance <= arrival_radius
+
+func _reset_transit_queue_target_tracking() -> void:
+	_transit_queue_applied_target = Vector3.ZERO
+	_transit_queue_pending_target = Vector3.ZERO
+	_transit_queue_has_applied_target = false
+	_transit_queue_has_pending_target = false
+	_transit_queue_compaction_remaining_s = 0.0
+
 func _reset_transit_state() -> void:
 	transit_state = TransitState.NONE
 	pedestrian_intent = NpcPedestrianContext.PedestrianIntent.CONTINUE
 	movement_held = false
 	ambient_state.set_transit_context(false, false)
+	_reset_transit_queue_target_tracking()
 
 func _leave_transit_queue_if_needed() -> void:
 	if transit_queue == null or transit_queue_passenger_id < 0:
 		transit_queue = null
 		transit_queue_passenger_id = -1
 		transit_stop = null
+		_reset_transit_queue_target_tracking()
 		return
 	var passenger_id: int = transit_queue_passenger_id
 	transit_queue.leave_queue(passenger_id)
@@ -501,6 +553,7 @@ func _leave_transit_queue_if_needed() -> void:
 	transit_queue = null
 	transit_queue_passenger_id = -1
 	transit_stop = null
+	_reset_transit_queue_target_tracking()
 
 func _set_world_position(world_position: Vector3) -> void:
 	if is_inside_tree():

@@ -1,4 +1,4 @@
-[gd_scene load_steps=37 format=3]
+[gd_scene load_steps=38 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -26,6 +26,7 @@
 [ext_resource type="Script" path="res://game/scripts/bourse_front_wall_reveal.gd" id="24_bourse_front_wall_reveal"]
 [ext_resource type="Script" path="res://game/scripts/mission_quick_save.gd" id="25_mission_quick_save"]
 [ext_resource type="Script" path="res://game/scripts/runtime_gameplay_state.gd" id="26_runtime_gameplay_state"]
+[ext_resource type="Script" path="res://game/scripts/mission_checkpoint_autosave.gd" id="27_mission_autosave"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -223,6 +224,9 @@ script = ExtResource("26_runtime_gameplay_state")
 
 [node name="MissionQuickSave" type="Node" parent="."]
 script = ExtResource("25_mission_quick_save")
+
+[node name="MissionCheckpointAutosave" type="Node" parent="."]
+script = ExtResource("27_mission_autosave")
 
 [node name="LocationLabel" type="Label" parent="."]
 offset_left = 24.0

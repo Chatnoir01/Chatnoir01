@@ -12,6 +12,8 @@ Cette URL Vercel est désormais la référence permanente du projet. Elle charge
 
 La build Web comprend aussi des contrôles tactiles pour téléphone/tablette : directions, SAUT, RUN et E pour entrer/sortir du véhicule.
 
+Sur clavier, `F5` sauvegarde la partie et `F9` la recharge. La mission crée aussi un autosave séparé après chaque checkpoint. Au prochain démarrage, cet autosave est repris automatiquement ; `N` permet alors de repartir de Bruxelles-Midi.
+
 ## Objectif
 
 Reproduire progressivement une Bruxelles reconnaissable et jouable, sans copier GTA ni ses éléments protégés. Le projet vise une identité originale : circulation, piétons, conduite, exploration, missions, police, météo et cycle jour/nuit dans une ville construite à partir de données urbaines et de références visuelles légalement réutilisables.

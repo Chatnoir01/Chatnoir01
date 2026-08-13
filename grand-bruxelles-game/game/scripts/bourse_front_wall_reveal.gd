@@ -8,6 +8,7 @@ extends Node
 
 var _removed_triangles := 0
 var _kept_triangles := 0
+var _roof_backface_cull_applied := false
 
 func _ready() -> void:
     call_deferred("_apply_reveal")
@@ -45,6 +46,26 @@ func _is_front_facing_triangle(
         return false
     horizontal = horizontal.normalized()
     return absf(horizontal.dot(normal)) >= front_alignment_min
+
+func _apply_bourse_roof_backface_cull(hero: Node) -> bool:
+    var roofs := hero.get_node_or_null("Roofs") as MeshInstance3D
+    if roofs == null or roofs.mesh == null or roofs.mesh.get_surface_count() == 0:
+        push_error("Bourse front reveal: roof mesh missing")
+        return false
+    var source_material := roofs.mesh.surface_get_material(0) as StandardMaterial3D
+    if source_material == null:
+        push_error("Bourse front reveal: roof material missing")
+        return false
+    var roof_material := source_material.duplicate() as StandardMaterial3D
+    if roof_material == null:
+        push_error("Bourse front reveal: roof material duplication failed")
+        return false
+    roof_material.cull_mode = BaseMaterial3D.CULL_BACK
+    roofs.material_override = roof_material
+    roofs.set_meta("bourse_roof_backface_cull", true)
+    roofs.set_meta("bourse_roof_triangle_count_preserved", roofs.mesh.surface_get_array_len(0) / 3)
+    _roof_backface_cull_applied = true
+    return true
 
 func _apply_reveal() -> void:
     if not FileAccess.file_exists(candidate_path):
@@ -123,12 +144,17 @@ func _apply_reveal() -> void:
     walls.set_meta("bourse_front_reveal_source_bounded", true)
     walls.set_meta("bourse_front_reveal_removed_triangles", _removed_triangles)
     walls.set_meta("bourse_front_reveal_kept_triangles", _kept_triangles)
+    if not _apply_bourse_roof_backface_cull(hero):
+        return
     set_meta("runtime_approved", false)
     set_meta("realism_complete", false)
-    print("Bourse front wall reveal: removed=%d kept=%d runtime_approved=false" % [_removed_triangles, _kept_triangles])
+    print("Bourse front wall reveal: removed=%d kept=%d roof_backface_cull=true runtime_approved=false" % [_removed_triangles, _kept_triangles])
 
 func diagnostic_removed_triangles() -> int:
     return _removed_triangles
 
 func diagnostic_kept_triangles() -> int:
     return _kept_triangles
+
+func diagnostic_roof_backface_cull_applied() -> bool:
+    return _roof_backface_cull_applied

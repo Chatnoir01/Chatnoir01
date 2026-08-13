@@ -103,16 +103,32 @@ func _run() -> void:
         return
 
     var parking: RefCounted = PARKING_MODEL.new()
-    var parking_candidates: Array = parking.call("build_candidates", roads, controls)
+    var unsourced_candidates: Array = parking.call("build_candidates", roads, controls)
+    if not unsourced_candidates.is_empty():
+        _fail("unsourced road classes manufactured parking candidates")
+        return
+
+    var approved_roads: Array[Dictionary] = []
+    for source_road: Dictionary in roads:
+        var approved := source_road.duplicate(true)
+        approved["parking_evidence"] = {
+            "runtime_approved": true,
+            "source": "synthetic_test_fixture",
+        }
+        approved_roads.append(approved)
+    var parking_candidates: Array = parking.call("build_candidates", approved_roads, controls)
     if parking_candidates.is_empty():
-        _fail("parking candidate generator produced no safe curb candidates")
+        _fail("explicitly approved parking evidence produced no safe curb candidates")
         return
     for candidate_variant: Variant in parking_candidates:
         var candidate: Dictionary = candidate_variant
+        if str(candidate.get("parking_evidence_source", "")) != "synthetic_test_fixture":
+            _fail("parking candidate lost evidence provenance")
+            return
         var position: Vector3 = candidate.get("road_point", Vector3.ZERO)
         if position.distance_to(Vector3(0.0, 0.68, 0.0)) < 11.9:
             _fail("parking candidate violated control clearance")
             return
 
-    print("TRAFFIC_MANAGER_FOUNDATION_OK: graph, controls, priority, crossings, density and parking")
+    print("TRAFFIC_MANAGER_FOUNDATION_OK: graph, controls, priority, crossings, density and source-gated parking")
     quit(0)

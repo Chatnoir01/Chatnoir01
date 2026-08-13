@@ -18,6 +18,10 @@ func _road(points: Array, osm_id: int, road_class: String = "residential", onewa
         "lanes": lanes,
         "name": "Canonical %d" % osm_id,
         "maxspeed_kmh": 30.0,
+        "parking_evidence": {
+            "runtime_approved": true,
+            "source": "synthetic_test_fixture",
+        },
     }
 
 func _run() -> void:
@@ -76,7 +80,7 @@ func _run() -> void:
         _fail("crossing system parity failed")
         return
     if manager.get_parking_candidate_count() <= 0:
-        _fail("parking candidates were not derived")
+        _fail("source-approved parking candidates were not derived")
         return
 
     manager.set_simulation_hour(3.0)
@@ -112,7 +116,7 @@ func _run() -> void:
 
     manager.call("_replenish_deliveries")
     if manager.get_delivery_vehicle_count() != 1 or manager.get_reserved_parking_candidate_count() != 1:
-        _fail("delivery did not reserve a safe parking candidate")
+        _fail("delivery did not reserve a source-approved parking candidate")
         return
     manager.expire_deliveries_at(1.0e12)
     if manager.get_delivery_vehicle_count() != 0 or manager.get_reserved_parking_candidate_count() != 0:
@@ -134,5 +138,5 @@ func _run() -> void:
         return
 
     manager.queue_free()
-    print("TRAFFIC_CANONICAL_MANAGER_OK: v8 parity contract, roots, spawn, density, crossing, delivery and wreck lifecycle")
+    print("TRAFFIC_CANONICAL_MANAGER_OK: v8 parity contract, roots, spawn, density, crossing, source-gated delivery and wreck lifecycle")
     quit(0)

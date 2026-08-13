@@ -8,6 +8,7 @@ const GameStateSaveCoordinator = preload("res://game/scripts/game_state_save_coo
 @onready var mission: Node = get_node("../MissionDriveToCenter")
 @onready var gameplay_state: Node = get_node("../RuntimeGameplayState")
 @onready var status_label: Label = get_node("../SaveStatusLabel")
+@onready var wallet: Node = get_node("../Wallet")
 
 var _feedback_remaining := 0.0
 var _feedback_text := ""
@@ -35,6 +36,7 @@ func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_N:
         if clear_autosave():
             _resumed_from_autosave = false
+            wallet.call("reset")
             mission.call("restart_mission")
             _show_feedback("NOUVELLE PARTIE · Bruxelles-Midi", false)
         else:

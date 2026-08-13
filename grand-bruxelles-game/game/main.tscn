@@ -1,4 +1,4 @@
-[gd_scene load_steps=38 format=3]
+[gd_scene load_steps=41 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -27,6 +27,9 @@
 [ext_resource type="Script" path="res://game/scripts/mission_quick_save.gd" id="25_mission_quick_save"]
 [ext_resource type="Script" path="res://game/scripts/runtime_gameplay_state.gd" id="26_runtime_gameplay_state"]
 [ext_resource type="Script" path="res://game/scripts/mission_checkpoint_autosave.gd" id="27_mission_autosave"]
+[ext_resource type="Script" path="res://game/scripts/wallet.gd" id="28_wallet"]
+[ext_resource type="Script" path="res://game/scripts/mission_reward_controller.gd" id="29_mission_reward"]
+[ext_resource type="Script" path="res://game/scripts/wallet_hud.gd" id="30_wallet_hud"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -219,6 +222,9 @@ fov = 72.0
 [node name="MissionDriveToCenter" type="Node" parent="."]
 script = ExtResource("4_mission")
 
+[node name="Wallet" type="Node" parent="."]
+script = ExtResource("28_wallet")
+
 [node name="RuntimeGameplayState" type="Node" parent="."]
 script = ExtResource("26_runtime_gameplay_state")
 
@@ -227,6 +233,12 @@ script = ExtResource("25_mission_quick_save")
 
 [node name="MissionCheckpointAutosave" type="Node" parent="."]
 script = ExtResource("27_mission_autosave")
+
+[node name="MissionRewardController" type="Node" parent="."]
+script = ExtResource("29_mission_reward")
+
+[node name="WalletHud" type="Node" parent="."]
+script = ExtResource("30_wallet_hud")
 
 [node name="LocationLabel" type="Label" parent="."]
 offset_left = 24.0
@@ -272,6 +284,19 @@ offset_top = 92.0
 offset_right = 980.0
 offset_bottom = 150.0
 text = "debug"
+
+[node name="WalletLabel" type="Label" parent="."]
+offset_left = 1030.0
+offset_top = 258.0
+offset_right = 1252.0
+offset_bottom = 292.0
+theme_override_colors/font_color = Color(0.63, 1, 0.7, 0.96)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.76)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 20
+text = "0 €"
+horizontal_alignment = 2
 
 [node name="MiniMap" type="Control" parent="."]
 offset_left = 1030.0

@@ -7,6 +7,7 @@ const MAX_LINEAR_VELOCITY := 250.0
 @onready var mission: Node = get_node("../MissionDriveToCenter")
 @onready var player: CharacterBody3D = get_node("../Player")
 @onready var vehicle: CharacterBody3D = get_node("../PrototypeCar")
+@onready var wallet: Node = get_node("../Wallet")
 
 
 func export_state() -> Dictionary:
@@ -25,6 +26,7 @@ func export_state() -> Dictionary:
             "speed": float(vehicle.get("speed")),
             "driver_active": bool(vehicle.call("has_driver")),
         },
+        "wallet": wallet.call("export_state"),
     }
 
 
@@ -39,6 +41,10 @@ func can_restore_state(state: Dictionary) -> bool:
         return false
     if not mission.has_method("can_restore_state") or not bool(mission.call("can_restore_state", mission_state)):
         return false
+    if state.has("wallet"):
+        var wallet_state: Variant = state["wallet"]
+        if not wallet_state is Dictionary or not bool(wallet.call("can_restore_state", wallet_state)):
+            return false
 
     var player_data: Dictionary = player_state
     var vehicle_data: Dictionary = vehicle_state
@@ -101,7 +107,11 @@ func _apply_state(state: Dictionary) -> bool:
     else:
         player.call("set_vehicle_mode", false)
 
-    return bool(mission.call("restore_state", mission_state))
+    var wallet_restored := true
+    if state.has("wallet"):
+        wallet_restored = bool(wallet.call("restore_state", state["wallet"]))
+    var mission_restored := bool(mission.call("restore_state", mission_state))
+    return wallet_restored and mission_restored
 
 
 func _valid_vector(value: Variant, absolute_limit: float) -> bool:

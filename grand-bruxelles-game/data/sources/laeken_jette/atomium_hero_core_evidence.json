@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 3,
   "hero": "Atomium",
   "crs": "EPSG:31370",
   "status": {
@@ -8,7 +8,10 @@
     "support_pillars_resolved": false,
     "orientation_resolved": false,
     "base_pavilion_plan_resolved": true,
-    "base_pavilion_height_resolved": false
+    "base_pavilion_height_resolved": false,
+    "sphere_skin_material_resolved": true,
+    "sphere_panel_topology_semantics_resolved": true,
+    "sphere_panel_exact_runtime_layout_resolved": false
   },
   "authoritative_dimensions": {
     "total_height_m": 102.0,
@@ -32,6 +35,20 @@
     "url": "https://atomium.be/atomium_interior_architecture",
     "accessed_utc": "2026-08-12T21:45:00Z",
     "notes": "Official Atomium site independently confirms 18 m stainless-steel sphere diameter."
+  },
+  "official_restoration_source": {
+    "publisher": "Atomium",
+    "title": "The restoration of the Atomium",
+    "url": "https://atomium.be/restoration_of_the_atomium",
+    "accessed_utc": "2026-08-13T22:36:00Z",
+    "notes": "Official Atomium restoration history states that the original aluminium outer skin was replaced by stainless steel. It also describes triangular cladding panels of 16 m2, each composed of 15 smaller triangles with false joints. This resolves material identity and panel semantics, but not an exact runtime seam layout for every sphere."
+  },
+  "official_construction_source": {
+    "publisher": "Atomium",
+    "title": "Construction of the Atomium",
+    "url": "https://www.atomium.be/construction_of_the_atomium?lang=fr",
+    "accessed_utc": "2026-08-13T22:36:00Z",
+    "notes": "Official construction history describes each sphere skin as 48 equal spherical triangles, each made from 15 smaller triangles, and confirms the intended brilliant exterior appearance. Exact contemporary seam coordinates are not supplied."
   },
   "official_heritage_source": {
     "publisher": "urban.brussels / Inventaire du patrimoine architectural",
@@ -64,6 +81,20 @@
     [4, 7], [5, 7], [6, 7],
     [0, 8], [1, 8], [2, 8], [3, 8], [4, 8], [5, 8], [6, 8], [7, 8]
   ],
+  "rendering_contract": {
+    "sphere_skin_material": "stainless_steel",
+    "sphere_surface_response": "bright_metallic",
+    "sphere_panel_semantics": {
+      "large_spherical_triangles_per_sphere": 48,
+      "small_triangles_per_large_panel": 15,
+      "exact_runtime_seam_layout_allowed": false
+    },
+    "presentation_tessellation": {
+      "sphere_radial_segments_min": 48,
+      "sphere_rings_min": 24,
+      "tube_radial_segments_min": 32
+    }
+  },
   "integration_contract": {
     "terrain_component": "res://game/zones/laeken_jette/atomium_dtm_terrain.gd",
     "anchor": "terrain.atomium_game_position",
@@ -78,13 +109,14 @@
     },
     "no_support_geometry_without_source": true,
     "no_pavilion_volume_without_height_source": true,
+    "no_invented_panel_seams_without_layout_source": true,
     "capture_required": true
   },
   "remaining_major_mismatches": [
     "exact global yaw/orientation against orthophoto or survey evidence",
     "three bipod support geometries and exact foot locations",
     "entrance/base pavilion height and detailed geometry",
-    "tube end transitions and sphere facade segmentation",
-    "photo-matched material/lighting"
+    "exact sphere facade seam layout and tube end transitions",
+    "photo-matched reflection environment and lighting"
   ]
 }

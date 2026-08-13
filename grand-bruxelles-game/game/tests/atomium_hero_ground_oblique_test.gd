@@ -43,6 +43,39 @@ func _run() -> void:
     if hero.unresolved_support_pillars != 3:
         _fail("support-pillar blocker was lost")
         return
+
+    var first_sphere: MeshInstance3D = null
+    var first_tube: MeshInstance3D = null
+    for child: Node in hero.get_children():
+        if child is MeshInstance3D and child.name.begins_with("Sphere_") and first_sphere == null:
+            first_sphere = child as MeshInstance3D
+        elif child is MeshInstance3D and child.name.begins_with("Tube_") and first_tube == null:
+            first_tube = child as MeshInstance3D
+    if first_sphere == null or not first_sphere.mesh is SphereMesh:
+        _fail("sphere presentation mesh missing")
+        return
+    if first_tube == null or not first_tube.mesh is CylinderMesh:
+        _fail("tube presentation mesh missing")
+        return
+    var sphere_mesh := first_sphere.mesh as SphereMesh
+    var tube_mesh := first_tube.mesh as CylinderMesh
+    if sphere_mesh.radial_segments < 48 or sphere_mesh.rings < 24:
+        _fail("sphere tessellation below rendering contract")
+        return
+    if tube_mesh.radial_segments < 32:
+        _fail("tube tessellation below rendering contract")
+        return
+    if not sphere_mesh.material is StandardMaterial3D:
+        _fail("sphere stainless material missing")
+        return
+    var sphere_material := sphere_mesh.material as StandardMaterial3D
+    if sphere_material.metallic < 0.9 or sphere_material.roughness > 0.2:
+        _fail("sphere material no longer reads as bright stainless presentation")
+        return
+    if sphere_material.albedo_color.r < 0.78 or sphere_material.albedo_color.g < 0.78 or sphere_material.albedo_color.b < 0.78:
+        _fail("sphere stainless presentation is too dark")
+        return
+
     var extent := hero.measured_vertical_extent()
     if absf(extent.x) > 0.001 or absf(extent.y - 102.0) > 0.001:
         _fail("hero vertical extent is not 0..102 m: %s" % extent)
@@ -84,5 +117,5 @@ func _run() -> void:
     if image.save_png(absolute_output) != OK:
         _fail("capture save failed")
         return
-    print("ATOMIUM_HERO_GROUND_OBLIQUE_OK: spheres=%d tubes=%d extent=%.3f..%.3f anchor_y=%.3f unresolved_pillars=%d capture=%s" % [hero.sphere_count, hero.tube_count, extent.x, extent.y, hero.anchor_position.y, hero.unresolved_support_pillars, OUTPUT_PATH])
+    print("ATOMIUM_HERO_GROUND_OBLIQUE_OK: spheres=%d tubes=%d extent=%.3f..%.3f anchor_y=%.3f sphere_segments=%d sphere_rings=%d tube_segments=%d metallic=%.2f roughness=%.2f unresolved_pillars=%d capture=%s" % [hero.sphere_count, hero.tube_count, extent.x, extent.y, hero.anchor_position.y, sphere_mesh.radial_segments, sphere_mesh.rings, tube_mesh.radial_segments, sphere_material.metallic, sphere_material.roughness, hero.unresolved_support_pillars, OUTPUT_PATH])
     quit(0)

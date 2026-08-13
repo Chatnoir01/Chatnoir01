@@ -1,0 +1,56 @@
+{
+  "schema": "grand-bruxelles-ixelles-dtm-2m-seam-topology-contract-v1",
+  "source_crs": "EPSG:31370",
+  "runtime_approved": false,
+  "promote_runtime": false,
+  "candidate_resolution_m": 2.0,
+  "source_evidence": {
+    "candidate_path": "data/terrain/ixelles/ixelles_dtm_2m_candidate_evidence.json",
+    "specialist_lod_blob": "aa9741161103137841f5e0b789474071773d82d7",
+    "dataset": "UrbIS Digital Terrain Model 2021",
+    "provider": "Paradigm / Brussels-Capital Region",
+    "source_pixel_size_m": 0.5,
+    "archives": [
+      {"tile": "149168", "sha256": "f0277df26876c6c7cd3e00050e3d3a44b420b2df4bf4271e680717adeabb09b4"},
+      {"tile": "149169", "sha256": "c8135aa8456a5f2de8efb2e05dbf9c993ae9c97e4aa7f4d56c6c331345bac4f8"}
+    ]
+  },
+  "topology_policy": {
+    "global_lattice_origin_epsg31370": [0, 0],
+    "cell_size_m": 500,
+    "spacing_m": 2,
+    "boundary_sampling": "inclusive_both_ends",
+    "vertices_per_axis": 251,
+    "vertices_per_cell_mesh": 63001,
+    "quads_per_cell_mesh": 62500,
+    "triangles_per_cell_mesh": 125000,
+    "selection_benchmark_vertices_per_cell": 62500,
+    "selection_benchmark_note": "The 250x250 / 62,500 count in the resolution-selection evidence measures the candidate sampling grid. A crack-safe runtime cell mesh covering the exact 500 m extent must include both cell boundaries and therefore uses 251x251 vertices. Do not conflate the two counts.",
+    "shared_edge_samples": 251,
+    "required_measured_max_height_delta_m": 0.0,
+    "height_delta_measurement_status": "not_yet_measured_runtime_generation_required"
+  },
+  "cells": [
+    {"cell_id":"bxl-e149000-n169000-s500","bbox_epsg31370":[149000,169000,149500,169500]},
+    {"cell_id":"bxl-e149000-n169500-s500","bbox_epsg31370":[149000,169500,149500,170000]},
+    {"cell_id":"bxl-e149500-n168500-s500","bbox_epsg31370":[149500,168500,150000,169000]},
+    {"cell_id":"bxl-e149500-n169000-s500","bbox_epsg31370":[149500,169000,150000,169500]},
+    {"cell_id":"bxl-e149500-n169500-s500","bbox_epsg31370":[149500,169500,150000,170000]}
+  ],
+  "shared_edges": [
+    {"a":"bxl-e149000-n169000-s500","b":"bxl-e149000-n169500-s500","axis":"north_south","fixed_coordinate":169500,"range":[149000,149500]},
+    {"a":"bxl-e149500-n168500-s500","b":"bxl-e149500-n169000-s500","axis":"north_south","fixed_coordinate":169000,"range":[149500,150000]},
+    {"a":"bxl-e149500-n169000-s500","b":"bxl-e149500-n169500-s500","axis":"north_south","fixed_coordinate":169500,"range":[149500,150000]},
+    {"a":"bxl-e149000-n169000-s500","b":"bxl-e149500-n169000-s500","axis":"east_west","fixed_coordinate":149500,"range":[169000,169500]},
+    {"a":"bxl-e149000-n169500-s500","b":"bxl-e149500-n169500-s500","axis":"east_west","fixed_coordinate":149500,"range":[169500,170000]}
+  ],
+  "aggregate": {
+    "cell_count": 5,
+    "shared_edge_count": 5,
+    "shared_edge_sample_comparisons_required": 1255,
+    "runtime_mesh_vertices_before_cross_cell_dedup": 315005,
+    "runtime_mesh_triangles": 625000
+  },
+  "required_next_gate": "generate every 2 m height from the same source-faithful global EPSG:31370 lattice and measure all 1,255 duplicated shared-edge pairs; any nonzero height delta blocks runtime approval",
+  "status": "topology_contract_locked_height_seams_not_yet_measured"
+}

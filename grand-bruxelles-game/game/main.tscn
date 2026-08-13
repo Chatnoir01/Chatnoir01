@@ -1,4 +1,4 @@
-[gd_scene load_steps=34 format=3]
+[gd_scene load_steps=35 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -23,6 +23,7 @@
 [ext_resource type="Script" path="res://game/scripts/bourse_rail_vertical_mask.gd" id="21_bourse_rail_mask"]
 [ext_resource type="Script" path="res://game/scripts/bourse_portico_articulation.gd" id="22_bourse_portico"]
 [ext_resource type="Script" path="res://game/scripts/urbis_bourse_geotagged_frontage.gd" id="23_bourse_geotagged_frontage"]
+[ext_resource type="Script" path="res://game/scripts/bourse_front_wall_reveal.gd" id="24_bourse_front_wall_reveal"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -126,6 +127,9 @@ script = ExtResource("17_heroes")
 
 [node name="BoursePorticoArticulation" type="Node3D" parent="."]
 script = ExtResource("22_bourse_portico")
+
+[node name="BourseFrontWallReveal" type="Node" parent="."]
+script = ExtResource("24_bourse_front_wall_reveal")
 
 [node name="UrbISMidiExact" type="Node3D" parent="."]
 script = ExtResource("8_urbis")

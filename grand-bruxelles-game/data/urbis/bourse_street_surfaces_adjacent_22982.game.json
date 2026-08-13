@@ -1,0 +1,63 @@
+{
+  "schema": "grand-bruxelles-urbis-bourse-surfaces-v1",
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - Transport networks",
+    "dataset_id": "af847c40-848b-11ee-9a1f-00090ffe0001",
+    "service": "UrbIS WFS",
+    "layer": "urbisvector:StreetSurfaces",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0",
+    "selection_evidence_pr": 198,
+    "selection_evidence_artifact_sha256": "cfac245ae497e8cfda49a95c499873d561bbf77048aecf98b910f7b238d179e2",
+    "accessed_at": "2026-08-13"
+  },
+  "target": "Place de la Bourse / Beursplein",
+  "target_inspire_ids": [
+    "https://databrussels.be/id/streetsurface/22982"
+  ],
+  "selection_policy": {
+    "level_required": 0,
+    "type_semantics_interpreted": false,
+    "curb_elevation_resolved": false,
+    "bulk_neighbor_promotion_allowed": false
+  },
+  "runtime_approved": false,
+  "realism_complete": false,
+  "surfaces": [
+    {
+      "inspire_id": "https://databrussels.be/id/streetsurface/22982",
+      "type_uninterpreted": "S",
+      "area_m2": 240,
+      "level": 0,
+      "street_name_fr": "Place de la Bourse",
+      "street_name_nl": "Beursplein",
+      "source_rings_epsg31370": [
+        [
+          [148654.99082663, 170866.27142979],
+          [148638.41818364, 170877.21102804],
+          [148638.40734496, 170876.37621533],
+          [148638.23139875, 170875.33199466],
+          [148637.89168587, 170874.18164114],
+          [148637.504, 170873.34800035],
+          [148632.81998358, 170866.261786],
+          [148647.58199999, 170855.02000035],
+          [148654.99082663, 170866.27142979]
+        ]
+      ],
+      "world_rings_xz": [
+        [
+          [118.19659871066688, -699.8072805280354],
+          [101.62395572065725, -710.7468787780346],
+          [101.61311704065884, -709.9120660680311],
+          [101.43717083067168, -708.8678453980211],
+          [101.09745795067283, -707.7174918780184],
+          [100.70977208064869, -706.883851088027],
+          [96.02575566066662, -699.7976367380144],
+          [110.78777207067469, -688.5558510880184],
+          [118.19659871066688, -699.8072805280354]
+        ]
+      ]
+    }
+  ]
+}

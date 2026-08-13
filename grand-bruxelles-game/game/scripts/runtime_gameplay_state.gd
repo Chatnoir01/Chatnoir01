@@ -5,6 +5,7 @@ const MAX_WORLD_COORDINATE := 10000.0
 const MAX_LINEAR_VELOCITY := 250.0
 
 @onready var mission: Node = get_node("../MissionDriveToCenter")
+@onready var return_mission: Node = get_node("../MissionReturnToBourse")
 @onready var player: CharacterBody3D = get_node("../Player")
 @onready var vehicle: CharacterBody3D = get_node("../PrototypeCar")
 @onready var wallet: Node = get_node("../Wallet")
@@ -27,6 +28,7 @@ func export_state() -> Dictionary:
             "driver_active": bool(vehicle.call("has_driver")),
         },
         "wallet": wallet.call("export_state"),
+        "return_mission": return_mission.call("export_state"),
     }
 
 
@@ -44,6 +46,16 @@ func can_restore_state(state: Dictionary) -> bool:
     if state.has("wallet"):
         var wallet_state: Variant = state["wallet"]
         if not wallet_state is Dictionary or not bool(wallet.call("can_restore_state", wallet_state)):
+            return false
+    if state.has("return_mission"):
+        var return_state: Variant = state["return_mission"]
+        if not return_state is Dictionary or not bool(return_mission.call("can_restore_state", return_state)):
+            return false
+        var return_data: Dictionary = return_state
+        if (
+            int(return_data.get("state", 0)) > 0
+            and int(mission_state.get("stage", -1)) != int(mission_state.get("stage_count", -2))
+        ):
             return false
 
     var player_data: Dictionary = player_state
@@ -111,7 +123,12 @@ func _apply_state(state: Dictionary) -> bool:
     if state.has("wallet"):
         wallet_restored = bool(wallet.call("restore_state", state["wallet"]))
     var mission_restored := bool(mission.call("restore_state", mission_state))
-    return wallet_restored and mission_restored
+    var return_restored := true
+    if state.has("return_mission"):
+        return_restored = bool(return_mission.call("restore_state", state["return_mission"]))
+    else:
+        return_mission.call("restore_legacy_state", int(mission_state["stage"]) == int(mission_state["stage_count"]))
+    return wallet_restored and mission_restored and return_restored
 
 
 func _valid_vector(value: Variant, absolute_limit: float) -> bool:

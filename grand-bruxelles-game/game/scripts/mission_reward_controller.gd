@@ -1,11 +1,12 @@
 extends Node
 
-@onready var mission: Node = get_node("../MissionDriveToCenter")
 @onready var wallet: Node = get_node("../Wallet")
 
 
 func _ready() -> void:
-    mission.mission_completed.connect(_on_mission_completed)
+    for mission: Node in get_tree().get_nodes_in_group("rewarding_mission"):
+        if mission.has_signal("mission_completed"):
+            mission.connect("mission_completed", _on_mission_completed)
 
 
 func _on_mission_completed(reward_cents: int) -> void:

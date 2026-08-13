@@ -11,10 +11,12 @@ on:
       - "grand-bruxelles-game/game/scripts/wallet.gd"
       - "grand-bruxelles-game/game/scripts/mission_reward_controller.gd"
       - "grand-bruxelles-game/game/scripts/wallet_hud.gd"
+      - "grand-bruxelles-game/game/scripts/mission_return_to_bourse.gd"
       - "grand-bruxelles-game/game/tests/mission_save_coordinator_test.gd"
       - "grand-bruxelles-game/game/tests/mission_quick_save_test.gd"
       - "grand-bruxelles-game/game/tests/mission_checkpoint_autosave_test.gd"
       - "grand-bruxelles-game/game/tests/mission_reward_wallet_test.gd"
+      - "grand-bruxelles-game/game/tests/mission_return_to_bourse_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-mission-save.yml"
   push:
@@ -29,10 +31,12 @@ on:
       - "grand-bruxelles-game/game/scripts/wallet.gd"
       - "grand-bruxelles-game/game/scripts/mission_reward_controller.gd"
       - "grand-bruxelles-game/game/scripts/wallet_hud.gd"
+      - "grand-bruxelles-game/game/scripts/mission_return_to_bourse.gd"
       - "grand-bruxelles-game/game/tests/mission_save_coordinator_test.gd"
       - "grand-bruxelles-game/game/tests/mission_quick_save_test.gd"
       - "grand-bruxelles-game/game/tests/mission_checkpoint_autosave_test.gd"
       - "grand-bruxelles-game/game/tests/mission_reward_wallet_test.gd"
+      - "grand-bruxelles-game/game/tests/mission_return_to_bourse_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-mission-save.yml"
   workflow_dispatch:
@@ -78,3 +82,9 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mission_reward_wallet_test.gd 2>&1 | tee /tmp/mission-reward.log
           ! grep -E "SCRIPT ERROR|Parse Error:|MISSION_REWARD_WALLET_FAIL" /tmp/mission-reward.log
           grep -q "MISSION_REWARD_WALLET_OK" /tmp/mission-reward.log
+      - name: Return Express second mission
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mission_return_to_bourse_test.gd 2>&1 | tee /tmp/mission-return.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|MISSION_RETURN_TO_BOURSE_FAIL" /tmp/mission-return.log
+          grep -q "MISSION_RETURN_TO_BOURSE_OK" /tmp/mission-return.log

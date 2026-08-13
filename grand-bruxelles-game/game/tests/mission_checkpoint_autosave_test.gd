@@ -78,6 +78,7 @@ func _run() -> void:
     await physics_frame
 
     mission = resumed_scene.get_node("MissionDriveToCenter")
+    var return_mission: Node = resumed_scene.get_node("MissionReturnToBourse")
     autosave = resumed_scene.get_node("MissionCheckpointAutosave")
     vehicle = resumed_scene.get_node("PrototypeCar")
     status_label = resumed_scene.get_node("SaveStatusLabel")
@@ -108,6 +109,9 @@ func _run() -> void:
         return
     if int(wallet.call("get_cash_cents")) != 0:
         _fail("new game did not reset the wallet")
+        return
+    if int(return_mission.call("get_state")) != 0:
+        _fail("new game did not reset the return mission")
         return
     if not status_label.text.contains("NOUVELLE PARTIE · Bruxelles-Midi"):
         _fail("new game feedback is missing")

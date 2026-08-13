@@ -1,4 +1,4 @@
-[gd_scene load_steps=41 format=3]
+[gd_scene load_steps=42 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -30,6 +30,7 @@
 [ext_resource type="Script" path="res://game/scripts/wallet.gd" id="28_wallet"]
 [ext_resource type="Script" path="res://game/scripts/mission_reward_controller.gd" id="29_mission_reward"]
 [ext_resource type="Script" path="res://game/scripts/wallet_hud.gd" id="30_wallet_hud"]
+[ext_resource type="Script" path="res://game/scripts/mission_return_to_bourse.gd" id="31_return_mission"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -219,8 +220,11 @@ margin = 0.18
 current = false
 fov = 72.0
 
-[node name="MissionDriveToCenter" type="Node" parent="."]
+[node name="MissionDriveToCenter" type="Node" parent="." groups=["rewarding_mission"]]
 script = ExtResource("4_mission")
+
+[node name="MissionReturnToBourse" type="Node" parent="." groups=["rewarding_mission"]]
+script = ExtResource("31_return_mission")
 
 [node name="Wallet" type="Node" parent="."]
 script = ExtResource("28_wallet")

@@ -16,12 +16,19 @@ func _init() -> void:
 	var first := NpcAgent.new()
 	var second := NpcAgent.new()
 	first.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 101, Vector3.ZERO)
-	second.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 202, Vector3(1.0, 0.0, 0.0))
+	second.set_spawn_context(NpcBehaviorModel.Role.CIVILIAN, 203, Vector3(1.0, 0.0, 0.0))
 
 	_assert(first.join_transit_stop(stop, 101) == 0, "first agent joins the stop", failures)
 	_assert(second.join_transit_stop(stop, 202) == 0, "second agent joins the same door queue", failures)
 	_assert(first.transit_state == NpcAgent.TransitState.WAITING, "first agent enters waiting transit state", failures)
 	_assert(second.transit_state == NpcAgent.TransitState.WAITING, "second agent enters waiting transit state", failures)
+
+	var first_wait_tag := first.get_ambient_animation_tag()
+	var second_wait_tag := second.get_ambient_animation_tag()
+	_assert(first_wait_tag != &"wait_transit", "waiting agents must expose a concrete wait animation instead of one generic synchronized tag", failures)
+	_assert(second_wait_tag != &"wait_transit", "every waiting queue slot must expose a concrete wait animation", failures)
+	_assert(first_wait_tag != second_wait_tag, "different waiting agents/queue slots should deterministically vary their visible wait behavior", failures)
+	_assert(first.get_ambient_animation_tag() == first_wait_tag, "wait animation choice must remain deterministic for the same agent and queue slot", failures)
 
 	var first_target: Vector3 = first.refresh_transit_stop_target()
 	var second_target_before: Vector3 = second.refresh_transit_stop_target()

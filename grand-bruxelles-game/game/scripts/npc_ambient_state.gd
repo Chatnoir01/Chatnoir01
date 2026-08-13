@@ -37,25 +37,14 @@ func advance(is_raining: bool, crowd_is_dense: bool, requested_sequence_index: i
 	else:
 		sequence_index += 1
 
-	var cycle: Array[int] = [
-		State.WALK,
-		State.IDLE,
-		State.LOOK_AROUND,
-		State.CHECK_PHONE,
-		State.SOCIAL_PAUSE,
-	]
+	var cycle: Array[int] = [State.WALK, State.IDLE, State.LOOK_AROUND, State.CHECK_PHONE, State.SOCIAL_PAUSE]
 	var offset: int = absi(variation_seed) % cycle.size()
 	var index: int = (sequence_index + offset) % cycle.size()
 	current_state = cycle[index]
-
-	# A social pause needs an actual nearby interaction partner. Without one,
-	# fall back to a solo-compatible glance instead of miming a conversation.
 	if current_state == State.SOCIAL_PAUSE and not has_social_partner:
 		current_state = State.LOOK_AROUND
-	# Dense pedestrian flows should not create long stationary social clusters.
 	if crowd_is_dense and current_state == State.SOCIAL_PAUSE:
 		current_state = State.LOOK_AROUND
-	# In rain, keep stationary phone use less frequent so flow stays believable.
 	if is_raining and current_state == State.CHECK_PHONE and _unit(71) < 0.6:
 		current_state = State.IDLE
 	return current_state
@@ -116,7 +105,7 @@ func animation_tag() -> StringName:
 		State.SOCIAL_PAUSE:
 			return &"social_pause"
 		State.WAIT_TRANSIT:
-			return &"wait_transit"
+			return transit_wait_animation_tag(0, false, sequence_index)
 		State.BOARDING:
 			return &"boarding"
 	return &"idle"

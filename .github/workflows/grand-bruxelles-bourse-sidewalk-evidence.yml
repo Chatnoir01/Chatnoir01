@@ -1,0 +1,40 @@
+name: Grand Bruxelles Bourse Sidewalk Evidence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/extract_bourse_official_sidewalks.py"
+      - "grand-bruxelles-game/tools/test_extract_bourse_official_sidewalks.py"
+      - ".github/workflows/grand-bruxelles-bourse-sidewalk-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline regression
+        run: python3 grand-bruxelles-game/tools/test_extract_bourse_official_sidewalks.py
+      - name: Extract official Bourse sidewalk slice
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/bourse-sidewalk-evidence
+          python3 grand-bruxelles-game/tools/extract_bourse_official_sidewalks.py --output grand-bruxelles-game/artifacts/bourse-sidewalk-evidence/sidewalks.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/artifacts/bourse-sidewalk-evidence/sidewalks.json').read_text())
+          assert d['selection']['feature_count'] > 0
+          assert d['runtime_approved'] is False
+          assert d['realism_complete'] is False
+          assert d['curb_elevation_resolved'] is False
+          print('feature_count=',d['selection']['feature_count'])
+          print('bbox=',d['selection']['bbox_epsg31370'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bourse-official-sidewalk-evidence
+          path: grand-bruxelles-game/artifacts/bourse-sidewalk-evidence/sidewalks.json

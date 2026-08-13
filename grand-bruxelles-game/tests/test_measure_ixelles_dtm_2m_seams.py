@@ -92,3 +92,17 @@ def test_nonmatching_embedded_crs_is_rejected(tmp_path):
 
     with pytest.raises(ValueError, match="Unexpected CRS"):
         mod.open_locked_source(path)
+
+
+def test_official_subpixel_transform_offset_still_supports_exact_grid_boundary():
+    from rasterio.transform import from_origin
+
+    values = np.arange(16, dtype=np.float64).reshape(4, 4)
+    transform = from_origin(149000.13, 169000.07, 0.5, 0.5)
+    xs = np.array([149000.0, 148999.60], dtype=np.float64)
+    ys = np.array([169000.0, 169000.0], dtype=np.float64)
+
+    sampled = mod.bilinear_sample(values, transform, xs, ys)
+    assert np.isfinite(sampled[0])
+    assert sampled[0] == values[0, 0]
+    assert np.isnan(sampled[1])

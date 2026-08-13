@@ -1,0 +1,43 @@
+name: Grand Bruxelles Bourse Surface Neighbor Inventory
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/inventory_bourse_adjacent_surfaces.py"
+      - "grand-bruxelles-game/tests/test_inventory_bourse_adjacent_surfaces.py"
+      - ".github/workflows/grand-bruxelles-bourse-surface-neighbor-inventory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline neighbor inventory regression
+        run: python3 grand-bruxelles-game/tests/test_inventory_bourse_adjacent_surfaces.py
+      - name: Live official neighbor inventory
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/inventory_bourse_adjacent_surfaces.py \
+            --output /tmp/bourse-surface-neighbors.json | tee /tmp/bourse-surface-neighbors.log
+          python3 - <<'PY'
+          import json
+          data = json.load(open('/tmp/bourse-surface-neighbors.json', encoding='utf-8'))
+          assert data['runtime_approved'] is False
+          assert data['realism_complete'] is False
+          assert len(data['neighbor_inventory']) > 0
+          gaps = [float(row['target_bbox_gap_m']) for row in data['neighbor_inventory']]
+          assert gaps == sorted(gaps)
+          assert not ({row['inspire_id'] for row in data['neighbor_inventory']} & set(data['target_inspire_ids']))
+          print('BOURSE_SURFACE_NEIGHBOR_INVENTORY_OK', len(gaps), gaps[:12])
+          PY
+      - name: Upload official neighbor inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-official-surface-neighbor-inventory
+          path: /tmp/bourse-surface-neighbors.json
+          if-no-files-found: error

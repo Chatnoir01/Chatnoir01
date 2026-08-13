@@ -16,20 +16,20 @@ func _run() -> void:
     root.add_child(scene)
     await process_frame
     await process_frame
-    var surfaces := scene.get_node_or_null("UrbISBourseSurfaceContext")
-    if surfaces == null:
-        _fail("Bourse surface context missing")
+    var overlay := scene.get_node_or_null("BourseFrontWallReveal/OfficialSidewalkOverlay")
+    if overlay == null:
+        _fail("official sidewalk overlay missing")
         return
-    if int(surfaces.official_sidewalk_overlay_count()) != 5:
+    if int(overlay.official_sidewalk_overlay_count()) != 5:
         _fail("expected 5 bounded sidewalk polygons")
         return
-    if int(surfaces.official_sidewalk_overlay_vertex_count()) != 62:
+    if int(overlay.official_sidewalk_overlay_vertex_count()) != 62:
         _fail("expected 62 sidewalk vertices")
         return
-    if int(surfaces.official_sidewalk_overlay_triangle_count()) != 52:
+    if int(overlay.official_sidewalk_overlay_triangle_count()) != 52:
         _fail("expected 52 sidewalk triangles")
         return
-    if not bool(surfaces.sidewalk_overlay_height_is_renderer_bias_only()):
+    if not bool(overlay.sidewalk_overlay_height_is_renderer_bias_only()):
         _fail("overlay must not claim physical curb elevation")
         return
     print("BOURSE_SIDEWALK_RUNTIME_OK: 5 official foreground sidewalk polygons; curb elevation unresolved")

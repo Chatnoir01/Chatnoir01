@@ -92,14 +92,14 @@ func _run() -> void:
 
     var density: RefCounted = DENSITY_MODEL.new()
     var night_factor: float = float(density.call("time_factor", 3.0))
-    var evening_peak: float = float(density.call("time_factor", 17.0))
-    if evening_peak <= night_factor:
-        _fail("time-of-day density no longer distinguishes peak from deep night")
+    var evening_factor: float = float(density.call("time_factor", 17.0))
+    if not is_equal_approx(night_factor, 1.0) or not is_equal_approx(evening_factor, 1.0):
+        _fail("unsourced time-of-day shaping was reintroduced")
         return
-    var peak_target: int = int(density.call("target_vehicle_count", 20, 17.0, roads, Vector3.ZERO))
+    var evening_target: int = int(density.call("target_vehicle_count", 20, 17.0, roads, Vector3.ZERO))
     var night_target: int = int(density.call("target_vehicle_count", 20, 3.0, roads, Vector3.ZERO))
-    if peak_target <= night_target:
-        _fail("density target did not increase at peak hour")
+    if evening_target != night_target:
+        _fail("unsourced time-of-day shaping changed target vehicle count")
         return
 
     var parking: RefCounted = PARKING_MODEL.new()
@@ -130,5 +130,5 @@ func _run() -> void:
             _fail("parking candidate violated control clearance")
             return
 
-    print("TRAFFIC_MANAGER_FOUNDATION_OK: graph, controls, evidence-gated priority, crossings, density and source-gated parking")
+    print("TRAFFIC_MANAGER_FOUNDATION_OK: graph, controls, evidence-gated priority, crossings, neutral unsourced temporal density and source-gated parking")
     quit(0)

@@ -10,6 +10,11 @@ const MIDI: Vector3 = Vector3(-668.5, 0.0, 627.84)
 const FONSNY_AXIS: Vector3 = Vector3(-0.627, 0.0, 0.779)
 const STATION_SIDE: Vector3 = Vector3(-0.779, 0.0, -0.627)
 const ROAD_SIDE: Vector3 = Vector3(0.779, 0.0, 0.627)
+const FAUQUENBERG_BRICK_LENGTH_M := 0.24
+const FAUQUENBERG_BRICK_HEIGHT_M := 0.04
+const FAUQUENBERG_JOINT_WIDTH_M := 0.02
+const FAUQUENBERG_TILE_WIDTH_M := 0.52
+const FAUQUENBERG_TILE_HEIGHT_M := 0.12
 
 var _brick_yellow: StandardMaterial3D
 var _brick_shadow: StandardMaterial3D
@@ -49,11 +54,70 @@ func _material(color: Color, roughness: float = 0.8, metallic: float = 0.0) -> S
     return material
 
 
+func _fill_image_rect(image: Image, x0: int, y0: int, x1: int, y1: int, color: Color) -> void:
+    var min_x: int = clampi(x0, 0, image.get_width())
+    var min_y: int = clampi(y0, 0, image.get_height())
+    var max_x: int = clampi(x1, 0, image.get_width())
+    var max_y: int = clampi(y1, 0, image.get_height())
+    for y: int in range(min_y, max_y):
+        for x: int in range(min_x, max_x):
+            image.set_pixel(x, y, color)
+
+
+func _fauquenberg_texture(shadow: bool) -> ImageTexture:
+    const WIDTH := 256
+    const HEIGHT := 128
+    var image := Image.create_empty(WIDTH, HEIGHT, false, Image.FORMAT_RGBA8)
+    var mortar := Color(0.54, 0.51, 0.43, 1.0) if not shadow else Color(0.40, 0.37, 0.30, 1.0)
+    var brick_a := Color(0.67, 0.58, 0.39, 1.0) if not shadow else Color(0.50, 0.42, 0.28, 1.0)
+    var brick_b := Color(0.61, 0.52, 0.35, 1.0) if not shadow else Color(0.45, 0.37, 0.25, 1.0)
+    image.fill(mortar)
+    var horizontal_joint_px: int = maxi(1, int(round(float(WIDTH) * FAUQUENBERG_JOINT_WIDTH_M / FAUQUENBERG_TILE_WIDTH_M)))
+    var vertical_joint_px: int = maxi(1, int(round(float(HEIGHT) * FAUQUENBERG_JOINT_WIDTH_M / FAUQUENBERG_TILE_HEIGHT_M)))
+    var brick_width_px: int = int(round(float(WIDTH) * FAUQUENBERG_BRICK_LENGTH_M / FAUQUENBERG_TILE_WIDTH_M))
+    var brick_height_px: int = int(round(float(HEIGHT) * FAUQUENBERG_BRICK_HEIGHT_M / FAUQUENBERG_TILE_HEIGHT_M))
+    var course_height_px: int = brick_height_px + vertical_joint_px
+    var half_module_px: int = (brick_width_px + horizontal_joint_px) / 2
+    for course: int in range(2):
+        var y0: int = course * course_height_px
+        var y1: int = y0 + brick_height_px
+        var offset: int = 0 if course == 0 else -half_module_px
+        var brick_index := 0
+        var x: int = offset
+        while x < WIDTH:
+            var color := brick_a if (brick_index + course) % 2 == 0 else brick_b
+            _fill_image_rect(image, x, y0, x + brick_width_px, y1, color)
+            x += brick_width_px + horizontal_joint_px
+            brick_index += 1
+    return ImageTexture.create_from_image(image)
+
+
+func _fauquenberg_material(shadow: bool = false) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color.WHITE
+    material.albedo_texture = _fauquenberg_texture(shadow)
+    material.roughness = 0.95 if shadow else 0.92
+    material.metallic = 0.0
+    material.uv1_triplanar = true
+    material.uv1_world_triplanar = false
+    material.uv1_scale = Vector3(
+        1.0 / FAUQUENBERG_TILE_WIDTH_M,
+        1.0 / FAUQUENBERG_TILE_HEIGHT_M,
+        1.0 / FAUQUENBERG_TILE_WIDTH_M
+    )
+    material.set_meta("source_brick_length_m", FAUQUENBERG_BRICK_LENGTH_M)
+    material.set_meta("source_brick_height_m", FAUQUENBERG_BRICK_HEIGHT_M)
+    material.set_meta("source_joint_width_m", FAUQUENBERG_JOINT_WIDTH_M)
+    material.set_meta("procedural_original_asset", true)
+    return material
+
+
 func _make_materials() -> void:
-    # Heritage inventory: yellow Fauquenberg brick, blue-stone bases/bands,
-    # concrete opening frames and canopies, metal + extensive glazing.
-    _brick_yellow = _material(Color(0.63, 0.54, 0.365, 1.0), 0.94)
-    _brick_shadow = _material(Color(0.47, 0.39, 0.255, 1.0), 0.95)
+    # Heritage inventory: yellow smooth Fauquenberg facing brick in a 24 x 4 x
+    # 9 cm format with 2 cm joints, blue-stone bases/bands, concrete opening
+    # frames and canopies, metal + extensive glazing.
+    _brick_yellow = _fauquenberg_material(false)
+    _brick_shadow = _fauquenberg_material(true)
     _blue_stone = _material(Color(0.235, 0.255, 0.27, 1.0), 0.86)
     _concrete = _material(Color(0.47, 0.48, 0.46, 1.0), 0.90)
     _glass = _material(Color(0.055, 0.085, 0.105, 1.0), 0.18, 0.20)

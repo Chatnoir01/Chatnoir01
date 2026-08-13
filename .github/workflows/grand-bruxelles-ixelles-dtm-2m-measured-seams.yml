@@ -41,10 +41,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t TIFS < <(find /tmp/ixelles-dtm -type f \( -iname '*.tif' -o -iname '*.tiff' \) | sort)
-          test "${#TIFS[@]}" -eq 2
+          TIF_149168=$(find /tmp/ixelles-dtm/149168 -type f \( -iname '*.tif' -o -iname '*.tiff' \) | sort | head -n 1)
+          TIF_149169=$(find /tmp/ixelles-dtm/149169 -type f \( -iname '*.tif' -o -iname '*.tiff' \) | sort | head -n 1)
+          test -n "$TIF_149168"
+          test -n "$TIF_149169"
+          echo "DTM_149168=$TIF_149168"
+          echo "DTM_149169=$TIF_149169"
           python grand-bruxelles-game/tools/measure_ixelles_dtm_2m_seams.py \
-            --raster "${TIFS[0]}" "${TIFS[1]}" \
+            --raster "$TIF_149168" "$TIF_149169" \
             --archive-hash 149168=f0277df26876c6c7cd3e00050e3d3a44b420b2df4bf4271e680717adeabb09b4 \
             --archive-hash 149169=c8135aa8456a5f2de8efb2e05dbf9c993ae9c97e4aa7f4d56c6c331345bac4f8 \
             --output /tmp/ixelles_dtm_2m_measured_seams.json

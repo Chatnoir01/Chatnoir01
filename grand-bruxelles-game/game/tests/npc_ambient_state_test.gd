@@ -25,6 +25,23 @@ func _init() -> void:
 	_assert(duration_a >= 1.0 and duration_a <= 12.0, "ambient durations must remain human-scale", failures)
 	_assert(duration_a != duration_b, "different NPC seeds should desynchronize durations", failures)
 
+	var wait_first := NpcAmbientState.new()
+	var wait_second := NpcAmbientState.new()
+	wait_first.configure(101)
+	wait_second.configure(202)
+	wait_first.set_transit_context(true, false)
+	wait_second.set_transit_context(true, false)
+	var wait_interval_first: float = wait_first.transit_wait_pose_interval_seconds()
+	var wait_interval_second: float = wait_second.transit_wait_pose_interval_seconds()
+	_assert(wait_interval_first >= 4.0 and wait_interval_first <= 12.0, "transit wait pose timing must remain human-scale", failures)
+	_assert(wait_interval_second >= 4.0 and wait_interval_second <= 12.0, "second transit wait pose timing must remain human-scale", failures)
+	_assert(not is_equal_approx(wait_interval_first, wait_interval_second), "different travelers must not share one synchronized wait-pose timer", failures)
+	var shorter_interval: float = minf(wait_interval_first, wait_interval_second) + 0.01
+	var first_changed: bool = wait_first.advance_transit_wait_pose(shorter_interval)
+	var second_changed: bool = wait_second.advance_transit_wait_pose(shorter_interval)
+	_assert(first_changed != second_changed, "only the traveler whose own wait timer elapsed should change pose", failures)
+	_assert(wait_first.advance_transit_wait_pose(0.0) == false, "zero elapsed time must never advance a wait pose", failures)
+
 	var seen: Dictionary = {}
 	for i in range(12):
 		var state: int = first.advance(false, false, i)

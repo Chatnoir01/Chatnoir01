@@ -14,19 +14,26 @@ enum State {
 var variation_seed: int = 0
 var current_state: int = State.WALK
 var sequence_index: int = 0
+var transit_wait_elapsed_seconds: float = 0.0
 
 func configure(seed_value: int) -> void:
 	variation_seed = seed_value
 	sequence_index = 0
+	transit_wait_elapsed_seconds = 0.0
 	current_state = State.WALK
 
 func set_transit_context(waiting: bool, boarding: bool) -> int:
+	var was_waiting: bool = current_state == State.WAIT_TRANSIT
 	if boarding:
 		current_state = State.BOARDING
+		transit_wait_elapsed_seconds = 0.0
 	elif waiting:
 		current_state = State.WAIT_TRANSIT
+		if not was_waiting:
+			transit_wait_elapsed_seconds = 0.0
 	elif current_state == State.WAIT_TRANSIT or current_state == State.BOARDING:
 		current_state = State.WALK
+		transit_wait_elapsed_seconds = 0.0
 	return current_state
 
 func advance(is_raining: bool, crowd_is_dense: bool, requested_sequence_index: int = -1, has_social_partner: bool = false) -> int:
@@ -37,6 +44,7 @@ func advance(is_raining: bool, crowd_is_dense: bool, requested_sequence_index: i
 			sequence_index = requested_sequence_index
 		else:
 			sequence_index += 1
+		transit_wait_elapsed_seconds = 0.0
 		return current_state
 	if requested_sequence_index >= 0:
 		sequence_index = requested_sequence_index
@@ -54,6 +62,25 @@ func advance(is_raining: bool, crowd_is_dense: bool, requested_sequence_index: i
 	if is_raining and current_state == State.CHECK_PHONE and _unit(71) < 0.6:
 		current_state = State.IDLE
 	return current_state
+
+func transit_wait_pose_interval_seconds() -> float:
+	return lerpf(4.0, 12.0, _unit(127 + sequence_index * 17))
+
+func advance_transit_wait_pose(delta_seconds: float) -> bool:
+	if current_state != State.WAIT_TRANSIT or delta_seconds <= 0.0:
+		return false
+	transit_wait_elapsed_seconds += minf(delta_seconds, 60.0)
+	var changed: bool = false
+	var transitions: int = 0
+	while transitions < 16:
+		var interval_seconds: float = transit_wait_pose_interval_seconds()
+		if transit_wait_elapsed_seconds + 0.0001 < interval_seconds:
+			break
+		transit_wait_elapsed_seconds = maxf(0.0, transit_wait_elapsed_seconds - interval_seconds)
+		sequence_index += 1
+		changed = true
+		transitions += 1
+	return changed
 
 func transit_wait_animation_tag(queue_index: int, is_raining: bool, cycle_index: int = 0) -> StringName:
 	var safe_queue_index: int = maxi(queue_index, 0)
@@ -86,7 +113,7 @@ func state_duration_seconds(salt: int = 0) -> float:
 		State.SOCIAL_PAUSE:
 			return lerpf(2.5, 12.0, _unit(113 + salt))
 		State.WAIT_TRANSIT:
-			return lerpf(4.0, 12.0, _unit(127 + salt))
+			return transit_wait_pose_interval_seconds()
 		State.BOARDING:
 			return lerpf(1.0, 3.5, _unit(131 + salt))
 	return 1.0

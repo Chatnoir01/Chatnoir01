@@ -1,0 +1,41 @@
+name: Grand Bruxelles Bourse Pediment Source Gate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-pediment-source-gate.yml"
+      - "grand-bruxelles-game/data/urbis/heroes/bourse_lod2.game.json"
+      - "grand-bruxelles-game/data/qa/bourse_portico_articulation_candidate.json"
+      - "grand-bruxelles-game/tools/derive_bourse_pediment_source_gate.py"
+      - "grand-bruxelles-game/tests/test_bourse_pediment_source_gate.py"
+  push:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-pediment-source-gate.yml"
+      - "grand-bruxelles-game/tools/derive_bourse_pediment_source_gate.py"
+      - "grand-bruxelles-game/tests/test_bourse_pediment_source_gate.py"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Derive source-bounded pediment gate
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/derive_bourse_pediment_source_gate.py \
+            --hero data/urbis/heroes/bourse_lod2.game.json \
+            --candidate data/qa/bourse_portico_articulation_candidate.json \
+            --output /tmp/bourse-pediment-source-gate.json
+      - name: Test source gate and non-approval contract
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests.test_bourse_pediment_source_gate
+      - name: Upload source-gate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-pediment-source-gate
+          path: /tmp/bourse-pediment-source-gate.json
+          if-no-files-found: error

@@ -39,27 +39,57 @@ SOURCE_ARCHIVES = {
 
 
 def bilinear_sample(array: np.ndarray, transform, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:
+    """NaN-aware bilinear sample with a half-pixel, one-sided boundary rule.
+
+    UrbIS TIFF values live at pixel centres while the runtime lattice includes exact
+    1 km archive boundaries. A vertex exactly on an outer TIFF boundary is therefore
+    half a source pixel beyond the outermost centre. Clamp only that half-pixel strip
+    to the nearest official centre; points farther outside remain NaN. Interior
+    samples keep ordinary bilinear interpolation unchanged.
+    """
     if transform.b != 0 or transform.d != 0 or transform.a <= 0 or transform.e >= 0:
         raise ValueError("Expected north-up source raster")
-    cols = (xs - transform.c) / transform.a - 0.5
-    rows = (ys - transform.f) / transform.e - 0.5
+
+    raw_cols = (xs - transform.c) / transform.a - 0.5
+    raw_rows = (ys - transform.f) / transform.e - 0.5
+    height, width = array.shape
+
+    # World coordinates on the raster's exact outer bounds map to -0.5 or
+    # dimension-0.5 in pixel-centre coordinates. Accept exactly that support strip,
+    # but never silently pull values from farther outside the locked source mosaic.
+    supported = (
+        (raw_cols >= -0.5)
+        & (raw_cols <= width - 0.5)
+        & (raw_rows >= -0.5)
+        & (raw_rows <= height - 0.5)
+    )
+    out = np.full(xs.shape, np.nan, dtype=np.float64)
+    if not np.any(supported):
+        return out
+
+    idx = np.where(supported)[0]
+    cols = np.clip(raw_cols[idx], 0.0, width - 1.0)
+    rows = np.clip(raw_rows[idx], 0.0, height - 1.0)
     c0 = np.floor(cols).astype(np.int64)
     r0 = np.floor(rows).astype(np.int64)
+    c1 = np.minimum(c0 + 1, width - 1)
+    r1 = np.minimum(r0 + 1, height - 1)
     dc = cols - c0
     dr = rows - r0
-    out = np.full(xs.shape, np.nan, dtype=np.float64)
-    valid = (r0 >= 0) & (c0 >= 0) & (r0 + 1 < array.shape[0]) & (c0 + 1 < array.shape[1])
-    if not np.any(valid):
-        return out
-    idx = np.where(valid)[0]
-    rr, cc = r0[idx], c0[idx]
-    vals = np.stack([array[rr, cc], array[rr, cc + 1], array[rr + 1, cc], array[rr + 1, cc + 1]], axis=1)
-    weights = np.stack([
-        (1 - dr[idx]) * (1 - dc[idx]),
-        (1 - dr[idx]) * dc[idx],
-        dr[idx] * (1 - dc[idx]),
-        dr[idx] * dc[idx],
-    ], axis=1)
+
+    vals = np.stack(
+        [array[r0, c0], array[r0, c1], array[r1, c0], array[r1, c1]],
+        axis=1,
+    )
+    weights = np.stack(
+        [
+            (1 - dr) * (1 - dc),
+            (1 - dr) * dc,
+            dr * (1 - dc),
+            dr * dc,
+        ],
+        axis=1,
+    )
     finite = np.isfinite(vals)
     denom = np.where(finite, weights, 0.0).sum(axis=1)
     good = denom > 0
@@ -172,6 +202,7 @@ def measure(paths: list[Path], archive_hashes: dict[str, str]) -> dict:
         "candidate_resolution_m": SPACING_M,
         "source_archive_sha256": archive_hashes,
         "sampling_method": "NaN-safe bilinear sample of one float64 official-raster mosaic at a global EPSG:31370 2 m lattice; inclusive 500 m cell boundaries",
+        "outer_mosaic_boundary_policy": "exact mosaic bounds only: one-sided clamp across the half-source-pixel gap from outermost official pixel centre to TIFF boundary; no farther extrapolation",
         "runtime_approved": False,
         "promote_runtime": False,
         "cells": cells_out,

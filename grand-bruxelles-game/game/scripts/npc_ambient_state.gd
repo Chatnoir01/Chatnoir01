@@ -30,7 +30,13 @@ func set_transit_context(waiting: bool, boarding: bool) -> int:
 	return current_state
 
 func advance(is_raining: bool, crowd_is_dense: bool, requested_sequence_index: int = -1, has_social_partner: bool = false) -> int:
-	if current_state == State.WAIT_TRANSIT or current_state == State.BOARDING:
+	if current_state == State.BOARDING:
+		return current_state
+	if current_state == State.WAIT_TRANSIT:
+		if requested_sequence_index >= 0:
+			sequence_index = requested_sequence_index
+		else:
+			sequence_index += 1
 		return current_state
 	if requested_sequence_index >= 0:
 		sequence_index = requested_sequence_index

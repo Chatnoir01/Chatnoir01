@@ -7,8 +7,10 @@ on:
       - "grand-bruxelles-game/game/scripts/mission_drive_to_center.gd"
       - "grand-bruxelles-game/game/scripts/mission_quick_save.gd"
       - "grand-bruxelles-game/game/scripts/runtime_gameplay_state.gd"
+      - "grand-bruxelles-game/game/scripts/mission_checkpoint_autosave.gd"
       - "grand-bruxelles-game/game/tests/mission_save_coordinator_test.gd"
       - "grand-bruxelles-game/game/tests/mission_quick_save_test.gd"
+      - "grand-bruxelles-game/game/tests/mission_checkpoint_autosave_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-mission-save.yml"
   push:
@@ -19,8 +21,10 @@ on:
       - "grand-bruxelles-game/game/scripts/mission_drive_to_center.gd"
       - "grand-bruxelles-game/game/scripts/mission_quick_save.gd"
       - "grand-bruxelles-game/game/scripts/runtime_gameplay_state.gd"
+      - "grand-bruxelles-game/game/scripts/mission_checkpoint_autosave.gd"
       - "grand-bruxelles-game/game/tests/mission_save_coordinator_test.gd"
       - "grand-bruxelles-game/game/tests/mission_quick_save_test.gd"
+      - "grand-bruxelles-game/game/tests/mission_checkpoint_autosave_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - ".github/workflows/grand-bruxelles-mission-save.yml"
   workflow_dispatch:
@@ -54,3 +58,9 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mission_quick_save_test.gd 2>&1 | tee /tmp/mission-quicksave.log
           ! grep -E "SCRIPT ERROR|Parse Error:|MISSION_QUICK_SAVE_FAIL" /tmp/mission-quicksave.log
           grep -q "MISSION_QUICK_SAVE_OK" /tmp/mission-quicksave.log
+      - name: Checkpoint autosave and cold resume
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mission_checkpoint_autosave_test.gd 2>&1 | tee /tmp/mission-autosave.log
+          ! grep -E "SCRIPT ERROR|Parse Error:|MISSION_CHECKPOINT_AUTOSAVE_FAIL" /tmp/mission-autosave.log
+          grep -q "MISSION_CHECKPOINT_AUTOSAVE_OK" /tmp/mission-autosave.log

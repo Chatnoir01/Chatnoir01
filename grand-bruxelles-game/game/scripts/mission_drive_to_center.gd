@@ -1,5 +1,7 @@
 extends Node
 
+signal checkpoint_reached(completed_stage: int, checkpoint_name: String)
+
 @export var checkpoint_radius: float = 22.0
 @export var time_limit_seconds: float = 240.0
 
@@ -92,8 +94,11 @@ func _physics_process(delta: float) -> void:
     )
 
     if distance <= checkpoint_radius:
+        var completed_stage := _stage
+        var checkpoint_name := str(target["name"])
         _stage += 1
         _update_ui()
+        checkpoint_reached.emit(completed_stage, checkpoint_name)
 
 
 func _update_ui() -> void:

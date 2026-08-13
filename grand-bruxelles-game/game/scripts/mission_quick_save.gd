@@ -11,6 +11,7 @@ const MissionSaveCoordinator = preload("res://game/scripts/mission_save_coordina
 @onready var status_label: Label = get_node("../SaveStatusLabel")
 
 var _feedback_remaining: float = 0.0
+var _feedback_text := ""
 
 
 func _ready() -> void:
@@ -21,7 +22,7 @@ func _process(delta: float) -> void:
     if _feedback_remaining <= 0.0:
         return
     _feedback_remaining = maxf(0.0, _feedback_remaining - delta)
-    if _feedback_remaining <= 0.0:
+    if _feedback_remaining <= 0.0 and status_label.text == _feedback_text:
         status_label.visible = false
 
 
@@ -67,6 +68,7 @@ func quick_load() -> bool:
 func _show_feedback(message: String, is_error: bool) -> void:
     status_label.visible = true
     status_label.text = message
+    _feedback_text = message
     status_label.modulate = Color(1.0, 0.52, 0.42, 1.0) if is_error else Color(0.55, 1.0, 0.67, 1.0)
     _feedback_remaining = maxf(feedback_duration_seconds, 0.1)
 

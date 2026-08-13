@@ -6,11 +6,13 @@ enum State {
 	CONTACT,
 	DETAINED,
 	TRANSFER_PENDING,
+	TRANSFERRED,
 	RELEASED,
 }
 
 const CONTACT_TIMEOUT_SECONDS := 12.0
 const CALM_REASSESSMENT_SECONDS := 8.0
+const TRANSFER_HANDOFF_SECONDS := 4.0
 
 var state: State = State.CLEAR
 var subject_id: int = -1
@@ -54,6 +56,11 @@ func advance(delta_seconds: float, legal_basis_still_confirmed: bool, subject_co
 	if state == State.CLEAR or state == State.RELEASED:
 		return state
 
+	if state == State.TRANSFERRED:
+		if elapsed_seconds >= TRANSFER_HANDOFF_SECONDS:
+			reset()
+		return state
+
 	if (state == State.DETAINED or state == State.TRANSFER_PENDING) and not legal_basis_still_confirmed:
 		state = State.RELEASED
 		reassessment_due = false
@@ -82,7 +89,10 @@ func acknowledge_reassessment() -> void:
 func confirm_transfer_complete() -> bool:
 	if state != State.TRANSFER_PENDING:
 		return false
-	reset()
+	state = State.TRANSFERRED
+	elapsed_seconds = 0.0
+	calm_seconds = 0.0
+	reassessment_due = false
 	return true
 
 func is_movement_restricted() -> bool:

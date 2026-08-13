@@ -1,5 +1,7 @@
 extends Node
 
+const SIDEWALK_OVERLAY_SCRIPT := preload("res://game/scripts/bourse_official_sidewalk_overlay.gd")
+
 @export var hero_builder_path: NodePath = NodePath("../UrbISHeroGeometry")
 @export_file("*.json") var candidate_path: String = "res://data/qa/bourse_portico_articulation_candidate.json"
 @export var tangent_margin_m: float = 0.75
@@ -9,9 +11,19 @@ extends Node
 var _removed_triangles := 0
 var _kept_triangles := 0
 var _roof_backface_cull_applied := false
+var _sidewalk_overlay: Node3D
 
 func _ready() -> void:
+    _mount_sidewalk_overlay()
     call_deferred("_apply_reveal")
+
+func _mount_sidewalk_overlay() -> void:
+    _sidewalk_overlay = SIDEWALK_OVERLAY_SCRIPT.new() as Node3D
+    if _sidewalk_overlay == null:
+        push_error("Bourse front reveal: sidewalk overlay script failed to instantiate")
+        return
+    _sidewalk_overlay.name = "OfficialSidewalkOverlay"
+    add_child(_sidewalk_overlay)
 
 func _vec2(raw: Variant) -> Vector2:
     if typeof(raw) != TYPE_ARRAY or raw.size() != 2:

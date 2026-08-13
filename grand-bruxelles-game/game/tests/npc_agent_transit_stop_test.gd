@@ -53,7 +53,11 @@ func _init() -> void:
 	var first_board: Dictionary = first.request_transit_stop_boarding()
 	_assert(bool(first_board.get("allowed", false)), "queue head receives boarding clearance", failures)
 	_assert(first.transit_state == NpcAgent.TransitState.BOARDING, "cleared agent enters boarding state", failures)
-	_assert(first.confirm_boarded(), "cleared agent can confirm vehicle entry", failures)
+	var first_door_position: Variant = first_board.get("door_position", Vector3.ZERO)
+	_assert(first_door_position is Vector3, "first boarding clearance exposes a physical door position", failures)
+	if first_door_position is Vector3:
+		first.position = first_door_position as Vector3
+	_assert(first.confirm_boarded(), "cleared agent can confirm vehicle entry after reaching the door", failures)
 	_assert(first.transit_state == NpcAgent.TransitState.ONBOARD, "confirmed agent becomes onboard", failures)
 
 	_assert(stop.queue_for_door(0).position_index_for(202) == 0, "queue order compacts immediately after the head boards", failures)
@@ -90,7 +94,11 @@ func _init() -> void:
 	_assert(stop.queue_for_door(0).position_index_for(303) == 1, "later passenger keeps queue order during visual compaction", failures)
 	var second_board: Dictionary = second.request_transit_stop_boarding()
 	_assert(bool(second_board.get("allowed", false)), "new queue head can board once its visual compaction is complete", failures)
-	_assert(second.confirm_boarded(), "second cleared agent can confirm vehicle entry", failures)
+	var second_door_position: Variant = second_board.get("door_position", Vector3.ZERO)
+	_assert(second_door_position is Vector3, "second boarding clearance exposes a physical door position", failures)
+	if second_door_position is Vector3:
+		second.position = second_door_position as Vector3
+	_assert(second.confirm_boarded(), "second cleared agent can confirm vehicle entry after reaching the door", failures)
 	_assert(stop.queue_for_door(0).position_index_for(303) == 0, "third traveler becomes queue head after second boards", failures)
 
 	var third_during_compaction: Dictionary = third.request_transit_stop_boarding()

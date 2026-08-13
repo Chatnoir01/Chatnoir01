@@ -54,9 +54,6 @@ def bilinear_sample(array: np.ndarray, transform, xs: np.ndarray, ys: np.ndarray
     raw_rows = (ys - transform.f) / transform.e - 0.5
     height, width = array.shape
 
-    # World coordinates on the raster's exact outer bounds map to -0.5 or
-    # dimension-0.5 in pixel-centre coordinates. Accept exactly that support strip,
-    # but never silently pull values from farther outside the locked source mosaic.
     supported = (
         (raw_cols >= -0.5)
         & (raw_cols <= width - 0.5)
@@ -99,26 +96,79 @@ def bilinear_sample(array: np.ndarray, transform, xs: np.ndarray, ys: np.ndarray
     return out
 
 
-def open_mosaic(paths: list[Path]):
+def open_locked_source(path: Path):
+    """Open a locked UrbIS DTM raster with explicit CRS handling.
+
+    The official 2021 TIFF payloads currently ship with a valid Lambert72 affine
+    transform but no embedded CRS tag. Because the archive URLs and SHA-256 values
+    are locked by this evidence lot, a missing CRS is treated as missing metadata,
+    not as permission to reinterpret pixels. We create an in-memory copy with only
+    EPSG:31370 attached; pixels, dtype, nodata and transform are preserved exactly.
+    Any *present* non-31370 CRS is rejected.
+
+    Returns (dataset, owner, crs_origin). ``owner`` must stay alive for an in-memory
+    dataset and is None for a source that already embeds the expected CRS.
+    """
     import rasterio
+    from rasterio.io import MemoryFile
+
+    src = rasterio.open(path)
+    if src.crs is not None:
+        if str(src.crs) != EXPECTED_CRS:
+            actual = src.crs
+            src.close()
+            raise ValueError(f"Unexpected CRS {actual} for {path}")
+        return src, None, "embedded"
+
+    profile = src.profile.copy()
+    profile.update(crs=EXPECTED_CRS)
+    owner = MemoryFile()
+    locked = owner.open(**profile)
+    try:
+        for band in range(1, src.count + 1):
+            locked.write(src.read(band), band)
+        if src.dataset_mask().size:
+            locked.write_mask(src.dataset_mask())
+        locked.update_tags(**src.tags())
+    except Exception:
+        locked.close()
+        owner.close()
+        src.close()
+        raise
+    src.close()
+    return locked, owner, "assumed_from_locked_urbis_dtm_contract"
+
+
+def open_mosaic(paths: list[Path]):
     from rasterio.merge import merge
 
-    datasets = [rasterio.open(path) for path in paths]
+    datasets = []
+    owners = []
+    crs_origins = []
     try:
-        for ds in datasets:
-            if str(ds.crs) != EXPECTED_CRS:
-                raise ValueError(f"Unexpected CRS {ds.crs} for {ds.name}")
-            if not (math.isclose(abs(ds.transform.a), SOURCE_PIXEL_M) and math.isclose(abs(ds.transform.e), SOURCE_PIXEL_M)):
+        for path in paths:
+            ds, owner, crs_origin = open_locked_source(path)
+            datasets.append(ds)
+            if owner is not None:
+                owners.append(owner)
+            crs_origins.append(crs_origin)
+            if not (
+                math.isclose(abs(ds.transform.a), SOURCE_PIXEL_M)
+                and math.isclose(abs(ds.transform.e), SOURCE_PIXEL_M)
+            ):
                 raise ValueError(f"Unexpected source pixel size for {ds.name}: {ds.transform}")
+
         mosaic, transform = merge(datasets, dtype="float64", nodata=np.nan, masked=False)
         array = mosaic[0].astype(np.float64, copy=False)
         for ds in datasets:
             if ds.nodata is not None and np.isfinite(ds.nodata):
                 array[array == float(ds.nodata)] = np.nan
-        return array, transform
+        return array, transform, crs_origins
     finally:
         for ds in datasets:
             ds.close()
+        for owner in owners:
+            owner.close()
 
 
 def make_grid(array: np.ndarray, transform, bbox: tuple[float, float, float, float]) -> np.ndarray:
@@ -132,10 +182,14 @@ def make_grid(array: np.ndarray, transform, bbox: tuple[float, float, float, flo
 
 
 def edge(grid: np.ndarray, side: str) -> np.ndarray:
-    if side == "north": return grid[-1, :]
-    if side == "south": return grid[0, :]
-    if side == "east": return grid[:, -1]
-    if side == "west": return grid[:, 0]
+    if side == "north":
+        return grid[-1, :]
+    if side == "south":
+        return grid[0, :]
+    if side == "east":
+        return grid[:, -1]
+    if side == "west":
+        return grid[:, 0]
     raise ValueError(side)
 
 
@@ -145,7 +199,7 @@ def hash_grid(grid: np.ndarray) -> str:
 
 
 def measure(paths: list[Path], archive_hashes: dict[str, str]) -> dict:
-    array, transform = open_mosaic(paths)
+    array, transform, crs_origins = open_mosaic(paths)
     finite = array[np.isfinite(array)]
     if finite.size == 0 or float(np.max(finite) - np.min(finite)) < 0.25:
         raise ValueError("Official DTM mosaic is degenerate")
@@ -158,16 +212,18 @@ def measure(paths: list[Path], archive_hashes: dict[str, str]) -> dict:
         finite_grid = grid[np.isfinite(grid)]
         if finite_grid.size != grid.size:
             raise ValueError(f"Non-finite 2 m samples in {cell_id}: {grid.size - finite_grid.size}")
-        cells_out.append({
-            "cell_id": cell_id,
-            "bbox_epsg31370": list(bbox),
-            "shape": [251, 251],
-            "samples": int(grid.size),
-            "min_z_m": round(float(np.min(finite_grid)), 6),
-            "max_z_m": round(float(np.max(finite_grid)), 6),
-            "mean_z_m": round(float(np.mean(finite_grid)), 6),
-            "float64_grid_sha256": hash_grid(grid),
-        })
+        cells_out.append(
+            {
+                "cell_id": cell_id,
+                "bbox_epsg31370": list(bbox),
+                "shape": [251, 251],
+                "samples": int(grid.size),
+                "min_z_m": round(float(np.min(finite_grid)), 6),
+                "max_z_m": round(float(np.max(finite_grid)), 6),
+                "mean_z_m": round(float(np.mean(finite_grid)), 6),
+                "float64_grid_sha256": hash_grid(grid),
+            }
+        )
 
     seams = []
     all_deltas = []
@@ -179,30 +235,34 @@ def measure(paths: list[Path], archive_hashes: dict[str, str]) -> dict:
             raise ValueError(f"Incomplete shared edge {a_id}/{b_id}")
         delta = np.abs(av[finite] - bv[finite])
         all_deltas.append(delta)
-        seams.append({
-            "a": a_id,
-            "a_side": a_side,
-            "b": b_id,
-            "b_side": b_side,
-            "paired_samples": 251,
-            "max_abs_delta_m": float(np.max(delta)),
-            "mean_abs_delta_m": float(np.mean(delta)),
-            "nonzero_delta_count": int(np.count_nonzero(delta)),
-            "a_edge_sha256": hash_grid(av),
-            "b_edge_sha256": hash_grid(bv),
-        })
+        seams.append(
+            {
+                "a": a_id,
+                "a_side": a_side,
+                "b": b_id,
+                "b_side": b_side,
+                "paired_samples": 251,
+                "max_abs_delta_m": float(np.max(delta)),
+                "mean_abs_delta_m": float(np.mean(delta)),
+                "nonzero_delta_count": int(np.count_nonzero(delta)),
+                "a_edge_sha256": hash_grid(av),
+                "b_edge_sha256": hash_grid(bv),
+            }
+        )
     joined = np.concatenate(all_deltas)
     max_delta = float(np.max(joined))
     nonzero = int(np.count_nonzero(joined))
     return {
         "schema": "grand-bruxelles-ixelles-dtm-2m-measured-seams-v1",
         "source_crs": EXPECTED_CRS,
+        "source_crs_origin": crs_origins,
         "dataset": "Paradigm / Brussels-Capital Region UrbIS Digital Terrain Model 2021",
         "source_pixel_size_m": SOURCE_PIXEL_M,
         "candidate_resolution_m": SPACING_M,
         "source_archive_sha256": archive_hashes,
         "sampling_method": "NaN-safe bilinear sample of one float64 official-raster mosaic at a global EPSG:31370 2 m lattice; inclusive 500 m cell boundaries",
         "outer_mosaic_boundary_policy": "exact mosaic bounds only: one-sided clamp across the half-source-pixel gap from outermost official pixel centre to TIFF boundary; no farther extrapolation",
+        "crs_policy": "embedded EPSG:31370 accepted; missing TIFF CRS may be attached only for the two locked official UrbIS DTM archives without changing pixels or affine transform; any conflicting embedded CRS is rejected",
         "runtime_approved": False,
         "promote_runtime": False,
         "cells": cells_out,

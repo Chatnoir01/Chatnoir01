@@ -1,0 +1,151 @@
+name: Grand Bruxelles Bourse Geotagged Frontage Materialize
+
+on:
+  push:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-geotagged-frontage-materialize.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Fetch and select official in-frame buildings
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from tools.fetch_urbis_wfs_bbox import request_layer
+          bbox = (148480.0, 170700.0, 148900.0, 170960.0)
+          data = request_layer("urbisvector:Buildings", bbox, 4)
+          assert data.get("type") == "FeatureCollection"
+          path = Path("/tmp/bourse-geotagged-buildings.geojson")
+          path.write_text(json.dumps(data, ensure_ascii=False) + "\n", encoding="utf-8")
+          print(f"official_buildings={len(data['features'])}")
+          PY
+          python3 tools/select_bourse_geotagged_context.py \
+            --buildings /tmp/bourse-geotagged-buildings.geojson \
+            --camera-evidence data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json \
+            --output /tmp/bourse-geotagged-context-selection.json \
+            --max-distance-m 180 \
+            --margin-degrees 3 \
+            --limit 12
+
+      - name: Download audited UrbIS3D tile
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
+          EXPECTED="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148170_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source_root.txt
+
+      - name: Materialize exact selected LoD2 meshes
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"
+          OUT=data/urbis/bourse_geotagged_context
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          python3 - <<'PY' > /tmp/bourse-geotagged-ids.txt
+          import json
+          data=json.load(open('/tmp/bourse-geotagged-context-selection.json', encoding='utf-8'))
+          for row in data['candidates']:
+              print(row['building_id'])
+          PY
+          : > /tmp/unresolved_ids.txt
+          while IFS= read -r ID; do
+            test -n "$ID" || continue
+            SHORT="${ID##*/}"
+            if python3 tools/extract_urbis_3d_context.py \
+              --source-root "$ROOT" \
+              --prefix UrbISBuildings3D_148170 \
+              --building-id "$ID" \
+              --context-id "bourse_geotagged_$SHORT" \
+              --name "Bourse geotagged context $SHORT" \
+              --package-url "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip" \
+              --package-sha256 "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2" \
+              --package-revision "2026-08-08" \
+              --accessed-at "2026-08-13" \
+              --origin-e 147868.29422791934 \
+              --origin-n 169538.62414926197 \
+              --world-x -668.5 \
+              --world-z 627.84 \
+              --output "$OUT/$SHORT.game.json"; then
+              :
+            else
+              rm -f "$OUT/$SHORT.game.json"
+              echo "$ID" >> /tmp/unresolved_ids.txt
+            fi
+          done < /tmp/bourse-geotagged-ids.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          out=Path('data/urbis/bourse_geotagged_context')
+          selection=json.load(open('/tmp/bourse-geotagged-context-selection.json', encoding='utf-8'))
+          selected={row['building_id']:row for row in selection['candidates']}
+          rows=[]
+          for path in sorted(out.glob('*.game.json')):
+              data=json.loads(path.read_text(encoding='utf-8'))
+              bid=data['source']['building_2d_id']
+              rows.append({
+                  'building_id':bid,
+                  'selection':selected[bid],
+                  'geometry_path':'res://data/urbis/bourse_geotagged_context/'+path.name,
+                  'height_m':data['evidence']['height_m'],
+                  'face_count':data['evidence']['face_count'],
+                  'triangle_count':data['evidence']['triangle_count'],
+                  'face_type_counts':data['evidence']['face_type_counts'],
+                  'runtime_approved':False,
+              })
+          unresolved=[line.strip() for line in Path('/tmp/unresolved_ids.txt').read_text().splitlines() if line.strip()]
+          assert len(rows) >= 2, (rows, unresolved)
+          manifest={
+              'schema':'grand-bruxelles-bourse-geotagged-frontage-materialized-v1',
+              'source':{
+                  'provider':'Paradigm / Brussels-Capital Region',
+                  'dataset':'UrbIS - 3D Constructions',
+                  'crs':'EPSG:31370',
+                  'license':'CC0-1.0',
+                  'package_revision':'2026-08-08',
+                  'package_sha256':'cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2',
+              },
+              'camera_evidence_path':'res://data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json',
+              'selection':selection,
+              'resolved':rows,
+              'unresolved_building_ids':unresolved,
+              'runtime_approved':False,
+              'realism_complete':False,
+              'approval_note':'Materialized authoritative in-frame geometry evidence only; runtime subset still requires deterministic visual and performance gates.'
+          }
+          (out/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
+          print(json.dumps({'resolved_ids':[r['building_id'] for r in rows], 'unresolved':unresolved}, indent=2))
+          PY
+
+      - name: Commit reproducible evidence to this branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/urbis/bourse_geotagged_context
+          if git diff --cached --quiet; then
+            echo "No materialized evidence change"
+            exit 0
+          fi
+          git commit -m "data(bourse): materialize geotagged in-frame frontage evidence [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}

@@ -72,6 +72,13 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_canonical_manager_core_test.gd 2>&1 | tee /tmp/traffic-manager-core.log
           if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_CANONICAL_MANAGER_FAIL" /tmp/traffic-manager-core.log; then exit 1; fi
           grep -q "TRAFFIC_CANONICAL_MANAGER_OK" /tmp/traffic-manager-core.log
+      - name: Traffic intersection evidence test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/traffic_intersection_evidence_test.gd 2>&1 | tee /tmp/traffic-intersection-evidence.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TRAFFIC_INTERSECTION_EVIDENCE_FAIL" /tmp/traffic-intersection-evidence.log; then exit 1; fi
+          grep -q "TRAFFIC_INTERSECTION_EVIDENCE_OK" /tmp/traffic-intersection-evidence.log
       - name: Optional traffic tow extension test
         shell: bash
         run: |

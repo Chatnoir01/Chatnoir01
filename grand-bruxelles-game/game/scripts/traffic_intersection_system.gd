@@ -46,7 +46,7 @@ func rebuild(roads: Array[Dictionary], controls: Array) -> void:
             "position": position,
             "degree": neighbors.size(),
             "control_kind": control_kind,
-            "priority_to_right": control_kind == "",
+            "priority_to_right": false,
         })
         serial += 1
 

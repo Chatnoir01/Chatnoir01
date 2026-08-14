@@ -17,6 +17,7 @@ const BOURSE_DIRECT_SPAWN_YAW_DEGREES := -84.32
 const ATOMIUM_TERRAIN_SCRIPT := preload("res://game/zones/laeken_jette/atomium_dtm_terrain.gd")
 const ATOMIUM_HERO_SCRIPT := preload("res://game/zones/laeken_jette/atomium_hero_core.gd")
 const ATOMIUM_REFLECTION_SCRIPT := preload("res://game/zones/laeken_jette/atomium_hero_reflection_environment.gd")
+const ATOMIUM_STREET_SURFACE_SCRIPT := preload("res://game/zones/laeken_jette/atomium_street_surface_context.gd")
 # Presentation-only visitor viewpoint inside the already validated DTM tile.
 # It does not claim a surveyed camera pose or resolve the Atomium global yaw.
 const ATOMIUM_DIRECT_SPAWN_OFFSET := Vector3(120.0, 0.0, 0.0)
@@ -220,6 +221,13 @@ func _activate_atomium_direct_spawn() -> void:
     await get_tree().process_frame
     if not bool(terrain.get("terrain_loaded")):
         push_error("Atomium direct spawn: official DTM failed to load")
+        return
+
+    var street_context := ATOMIUM_STREET_SURFACE_SCRIPT.new()
+    street_context.name = "AtomiumDirectStreetSurfaceContext"
+    world.add_child(street_context)
+    if not bool(street_context.call("build_on_terrain", terrain)):
+        push_error("Atomium direct spawn: official StreetSurface context failed to build")
         return
 
     var hero := ATOMIUM_HERO_SCRIPT.new()

@@ -5,9 +5,14 @@ extends "res://game/zones/ixelles/ixelles_microslice_draped.gd"
 ## Every emitted triangle is contained in one exact official source polygon and one exact
 ## 2 m DTM render triangle, then receives the existing renderer-only 3.5 cm depth bias.
 
+const STASSART_124_BUILDING_ID := "https://databrussels.be/id/building/1737877"
+const STASSART_124_LEVEL_COUNT := 4.0
+const STASSART_124_CUE_ENV := "GB_IXELLES_STASSART124_CUE"
+
 var street_drape_source_intersection_piece_count := 0
 var street_drape_source_intersection_empty_count := 0
 var street_drape_source_polygon_count := 0
+var stassart_124_blue_stone_cue_built := false
 
 func _emit_bounded_piece(target: SurfaceTool, bounded_piece: PackedVector2Array) -> void:
     if bounded_piece.size() < 3:
@@ -119,3 +124,77 @@ func _build_street_surfaces() -> void:
         street_segment_count = int(stats.get("street_segments", 0))
 
     print("IXELLES_STREET_DRAPE: surfaces=%d source_polygons=%d source_intersections=%d triangles=%d vertices=%d outside_source=%d unsupported=%d min_clearance=%.5f max_leaf_edge=%.3f max_sampler_render_lift=%.5f" % [street_surface_count, street_drape_source_polygon_count, street_drape_source_intersection_piece_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_unsupported_triangle_count, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_sampler_render_lift_m])
+
+func _build_strong_height_candidate_buildings() -> void:
+    super._build_strong_height_candidate_buildings()
+    if OS.get_environment(STASSART_124_CUE_ENV) == "0":
+        return
+    _build_stassart_124_blue_stone_ground_floor()
+
+func _build_stassart_124_blue_stone_ground_floor() -> void:
+    var cell: Dictionary = get_meta("ixelles_cell_contract", {})
+    var height_contract: Dictionary = get_meta("ixelles_height_contract", {})
+    var buildings: Variant = cell.get("buildings", [])
+    var records: Variant = height_contract.get("records", [])
+    if not buildings is Array or not records is Array:
+        return
+
+    var semantic_height := NAN
+    for record: Variant in records:
+        if record is Dictionary and str(record.get("building_id", "")) == STASSART_124_BUILDING_ID:
+            if bool(record.get("visual_runtime_eligible", false)) and not bool(record.get("runtime_approved", true)):
+                semantic_height = float(record.get("semantic_height_m", NAN))
+            break
+    if not is_finite(semantic_height) or semantic_height < 4.0:
+        push_error("Ixelles identity cue: Stassart 124 strong-source height unavailable")
+        return
+
+    var polygon := PackedVector2Array()
+    for feature: Variant in buildings:
+        if feature is Dictionary and str(feature.get("id", "")) == STASSART_124_BUILDING_ID:
+            polygon = _ring(feature.get("footprint", []))
+            break
+    if polygon.size() < 3:
+        push_error("Ixelles identity cue: Stassart 124 footprint unavailable")
+        return
+
+    var centroid := Vector2.ZERO
+    for point: Vector2 in polygon:
+        centroid += point
+    centroid /= float(polygon.size())
+    var base_y := sample_height(centroid.x, centroid.y) + 0.055
+    var cue_top_y := base_y + semantic_height / STASSART_124_LEVEL_COUNT
+
+    var material := _make_material(Color(0.235, 0.275, 0.295, 1.0), 0.88)
+    var tool := SurfaceTool.new()
+    tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+    tool.set_material(material)
+    for index: int in range(polygon.size()):
+        var a := polygon[index]
+        var b := polygon[(index + 1) % polygon.size()]
+        var edge := b - a
+        if edge.length_squared() < 0.01:
+            continue
+        var outward := Vector2(-edge.y, edge.x).normalized() * 0.012
+        var normal := Vector3(outward.x, 0.0, outward.y).normalized()
+        var a0 := Vector3(a.x + outward.x, base_y, a.y + outward.y)
+        var b0 := Vector3(b.x + outward.x, base_y, b.y + outward.y)
+        var a1 := Vector3(a.x + outward.x, cue_top_y, a.y + outward.y)
+        var b1 := Vector3(b.x + outward.x, cue_top_y, b.y + outward.y)
+        for vertex: Vector3 in [a0, b0, b1, a0, b1, a1]:
+            tool.set_normal(normal)
+            tool.add_vertex(vertex)
+    var mesh := tool.commit()
+    if mesh.get_surface_count() == 0:
+        push_error("Ixelles identity cue: Stassart 124 overlay mesh empty")
+        return
+    var instance := MeshInstance3D.new()
+    instance.name = "Stassart124BlueStoneGroundFloor"
+    instance.mesh = mesh
+    instance.set_meta("source_building_id", STASSART_124_BUILDING_ID)
+    instance.set_meta("source_address", "Rue de Stassart 124")
+    instance.set_meta("heritage_record", "https://monument.heritage.brussels/fr/buildings/19193")
+    instance.set_meta("vertical_method", "semantic_height_divided_by_4_source_described_levels_presentation_only")
+    add_child(instance)
+    stassart_124_blue_stone_cue_built = true
+    print("IXELLES_STASSART124_IDENTITY_READY: building=%s levels=4 semantic_height=%.3f cue_height=%.3f material=blue_stone renderer_only=true" % [STASSART_124_BUILDING_ID, semantic_height, semantic_height / STASSART_124_LEVEL_COUNT])

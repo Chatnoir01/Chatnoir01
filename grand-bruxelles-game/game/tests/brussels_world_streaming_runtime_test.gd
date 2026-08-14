@@ -43,6 +43,9 @@ func _collision_present(streamer: Node) -> bool:
     var instance: Node = backend.call("get_instance", CELL_ID)
     return is_instance_valid(instance) and instance.find_child("OfficialIxellesDTMCollision", true, false) != null
 
+func _fast_travel_done(streamer: Node, player: CharacterBody3D, center: Vector3) -> bool:
+    return bool(streamer.call("is_ixelles_active")) and _collision_present(streamer) and player.global_position.distance_to(center) < 400.0
+
 func _ixelles_button_present(mobile: Node) -> bool:
     var panel := mobile.find_child("FastTravelPanel", true, false)
     if panel == null:
@@ -69,6 +72,8 @@ func _run() -> void:
     if not _expect(_ixelles_button_present(mobile), "mobile CARTE does not expose IXELLES / ELSENE"):
         return
 
+    # Freeze automatic player-follow updates while this test drives the observer explicitly.
+    streamer.set_process(false)
     var center: Vector3 = streamer.call("get_ixelles_world_center")
     if not _expect(center.distance_to(Vector3(713.20577208066, 0.0, 916.46414926197)) < 0.1, "Ixelles center drifted from committed EPSG:31370 mapping: %s" % [center]):
         return
@@ -104,9 +109,7 @@ func _run() -> void:
     var travel_started := bool(streamer.call("request_ixelles_fast_travel", player))
     if not _expect(travel_started, "streamed Ixelles fast travel request was rejected"):
         return
-    var fast_travel_done := await _wait_until(func() -> bool:
-        return bool(streamer.call("is_ixelles_active")) and _collision_present(streamer) and player.global_position.distance_to(center) < 400.0
-    , 180)
+    var fast_travel_done := await _wait_until(_fast_travel_done.bind(streamer, player, center), 180)
     if not fast_travel_done:
         _fail("streamed Ixelles fast travel did not place the player in the loaded cell")
         return

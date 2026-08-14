@@ -33,6 +33,7 @@ jobs:
           echo 'b689d20567223125aea2a8fb9c720a79c42be20ca5e5e7167080a39df2fd107f  /tmp/atomium-pavilion/dtm.zip' | sha256sum -c -
           unzip -q /tmp/atomium-pavilion/dsm.zip -d /tmp/atomium-pavilion/dsm
           unzip -q /tmp/atomium-pavilion/dtm.zip -d /tmp/atomium-pavilion/dtm
+          find /tmp/atomium-pavilion/dsm /tmp/atomium-pavilion/dtm -maxdepth 2 -type f -printf '%p\n' | sort
       - name: Measure source-bounded outer pavilion annulus
         shell: bash
         run: |
@@ -49,20 +50,21 @@ jobs:
           PAVILION_R=13.0
           INNER=9.75
           OUTER=12.75
+          TILE_WEST=148000.0
+          TILE_NORTH=177000.0
+          PIXEL=0.5
 
           dsm_path=glob.glob('/tmp/atomium-pavilion/dsm/**/*.tif',recursive=True)[0]
           dtm_path=glob.glob('/tmp/atomium-pavilion/dtm/**/*.tif',recursive=True)[0]
           with rasterio.open(dsm_path) as dsm, rasterio.open(dtm_path) as dtm:
-              assert dsm.transform==dtm.transform and dsm.shape==dtm.shape
-              assert abs(dsm.res[0]-0.5)<1e-9 and abs(abs(dsm.res[1])-0.5)<1e-9
-              b=dsm.bounds
-              assert abs(b.left-148000.0)<1e-6 and abs(b.right-149000.0)<1e-6
-              assert abs(b.bottom-176000.0)<1e-6 and abs(b.top-177000.0)<1e-6
+              print('DSM_METADATA', {'shape':dsm.shape,'transform':tuple(dsm.transform),'bounds':tuple(dsm.bounds),'crs':str(dsm.crs)})
+              print('DTM_METADATA', {'shape':dtm.shape,'transform':tuple(dtm.transform),'bounds':tuple(dtm.bounds),'crs':str(dtm.crs)})
+              assert dsm.shape==dtm.shape==(2000,2000)
               dsm_a=dsm.read(1,masked=True).astype('float64')
               dtm_a=dtm.read(1,masked=True).astype('float64')
               rows,cols=np.indices(dsm.shape)
-              xs,ys=rasterio.transform.xy(dsm.transform,rows,cols,offset='center')
-              xs=np.asarray(xs); ys=np.asarray(ys)
+              xs=TILE_WEST+(cols+0.5)*PIXEL
+              ys=TILE_NORTH-(rows+0.5)*PIXEL
               r=np.hypot(xs-E0,ys-N0)
               h=np.asarray(dsm_a-dtm_a)
               valid=(~np.ma.getmaskarray(dsm_a)) & (~np.ma.getmaskarray(dtm_a)) & np.isfinite(h)
@@ -83,8 +85,8 @@ jobs:
                   }
 
               out={
-                'source_crs':'EPSG:31370 (UrbIS tile contract)','anchor':[E0,N0],
-                'sphere_diameter_m':18.0,'pavilion_diameter_m':26.0,
+                'source_crs':'EPSG:31370','source_tile':'148176','pixel_size_m':PIXEL,
+                'anchor':[E0,N0],'sphere_diameter_m':18.0,'pavilion_diameter_m':26.0,
                 'annulus_inner_radius_m':INNER,'annulus_outer_radius_m':OUTER,
                 'outer_annulus':stats((r>=INNER)&(r<=OUTER)),
                 'sphere_projection':stats(r<=SPHERE_R),

@@ -93,6 +93,14 @@
       "sphere_radial_segments_min": 48,
       "sphere_rings_min": 24,
       "tube_radial_segments_min": 32
+    },
+    "reflection_environment": {
+      "required_for_stainless_readability": true,
+      "source_basis": "official Atomium sources resolve stainless-steel skin and intended brilliant exterior appearance",
+      "calibrated_photometry_available": false,
+      "weather_resolved": false,
+      "sun_pose_resolved": false,
+      "implementation_policy": "deterministic authored presentation values only; do not claim measured sky radiance, exposure, weather or sun pose"
     }
   },
   "integration_contract": {

@@ -1,0 +1,43 @@
+name: Grand Bruxelles Grand-Place StreetSurface Evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-surface-evidence.yml"
+      - "grand-bruxelles-game/tools/extract_grand_place_street_surfaces.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  grand-place-surface-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract live bounded official evidence
+        run: |
+          python3 grand-bruxelles-game/tools/extract_grand_place_street_surfaces.py \
+            --output grand-bruxelles-game/artifacts/grand-place/street_surfaces_evidence.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('grand-bruxelles-game/artifacts/grand-place/street_surfaces_evidence.json')
+          d = json.loads(p.read_text())
+          assert d['schema'] == 'grand-bruxelles-grand-place-street-surface-evidence-v1'
+          assert d['source']['layer'] == 'urbisvector:StreetSurfaces'
+          assert d['source']['crs'] == 'EPSG:31370'
+          assert d['runtime_approved'] is False
+          assert d['realism_complete'] is False
+          assert d['curb_elevation_resolved'] is False
+          assert d['selection']['feature_count'] > 0
+          assert d['selection']['level_zero_count'] > 0
+          print('GRAND_PLACE_SURFACE_EVIDENCE_OK', d['selection'])
+          PY
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-street-surface-evidence
+          path: grand-bruxelles-game/artifacts/grand-place/street_surfaces_evidence.json
+          if-no-files-found: error

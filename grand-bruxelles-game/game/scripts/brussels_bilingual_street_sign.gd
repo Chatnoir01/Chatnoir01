@@ -16,6 +16,7 @@ var display_french := ""
 var display_dutch := ""
 var authored_geometry := true
 var claims_surveyed_mount := false
+var readable_face_local_z_positive := true
 
 var _panel_material: StandardMaterial3D
 var _border_material: StandardMaterial3D
@@ -42,8 +43,9 @@ func build() -> bool:
     _box("PlaqueBorderLeft", Vector3(0.014, 0.29, 0.052), Vector3(-0.37, 0.0, -0.006), _border_material)
     _box("PlaqueBorderRight", Vector3(0.014, 0.29, 0.052), Vector3(0.37, 0.0, -0.006), _border_material)
 
-    _label("FrenchStreetName", display_french, Vector3(0.0, 0.065, -0.031))
-    _label("DutchStreetName", display_dutch, Vector3(0.0, -0.065, -0.031))
+    # Label3D readable face is placed just beyond the panel's authored +Z face.
+    _label("FrenchStreetName", display_french, Vector3(0.0, 0.065, 0.031))
+    _label("DutchStreetName", display_dutch, Vector3(0.0, -0.065, 0.031))
 
     plaque_count = 1
     language_line_count = 2

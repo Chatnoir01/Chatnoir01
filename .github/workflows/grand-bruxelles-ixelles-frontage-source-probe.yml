@@ -1,0 +1,31 @@
+name: Grand Bruxelles Ixelles Frontage Source Probe
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-ixelles-frontage-source-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe Data Brussels candidate resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          for ID in 1737877 1633062; do
+            echo "=== BUILDING $ID ==="
+            for ACCEPT in 'application/ld+json' 'text/turtle' 'application/json'; do
+              echo "--- Accept: $ACCEPT"
+              code=$(curl -L -sS --max-time 20 -H "Accept: $ACCEPT" -o "/tmp/$ID.out" -w '%{http_code}' "https://databrussels.be/id/building/$ID" || true)
+              echo "HTTP $code"
+              head -c 6000 "/tmp/$ID.out" || true
+              echo
+            done
+          done

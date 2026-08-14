@@ -1,200 +1,165 @@
 # Grand Bruxelles — Visual Masterlist
 
-Production truth: GitHub `main` only. This is the current player-facing production backlog, not a completeness claim.
+Production truth: GitHub `main` only. This file is the player-facing priority backlog, not a completeness claim.
 
-Current production checkpoint: `2ad8536960a9a4cf4fde42bd922f2e73d8239ed6` (Web publication head after shipped Atomium reflection environment #226; substantive parent `ae7b29755e34c1bb9005c79fece7ead1dc1cedd1`).
+Current production checkpoint: `6e77f41cf095f83a6b227448322ea31a3526ac94` (publication-only Web commit). Substantive production parent: `bc5bf8282597f7996b42f35b8c397ef2733b07e3`, merged PR #230.
 
 ## North star
 
-For every zone ask: **if a real Brussels photo is beside the game capture, what gives the game away in the first three seconds?**
+For every zone ask: **if a real Brussels photo or observation is beside the game, what gives the game away in the first three seconds?**
 
-Optimize in this order:
+Optimize three horizons:
 
-1. 3-second first impression: silhouette, proportions, materials, obvious placeholders.
-2. 30-second immersion: street identity, signage, movement, lighting, clutter and transport vocabulary.
-3. 10-minute experience: playable continuity, believable traffic/PNJ behavior, missions, saves and performance.
+1. **3 seconds** — silhouette, proportions, materials, unmistakable street/landmark identity, obvious placeholders.
+2. **30 seconds** — street furniture, signage, transport vocabulary, motion, clutter, lighting and atmosphere.
+3. **10 minutes** — playable continuity, believable traffic/PNJ behavior, missions/saves, navigation and performance.
 
-A green technical check is necessary but is not visual approval. Source truth is also a hard gate: a visible authored proxy for unresolved landmark geometry is not production-ready merely because it looks better.
+Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. A green technical check is necessary but never sufficient. Source truth and human player-facing inspection are hard gates.
 
-## Current Director gates — 2026-08-14
+## Director gates — 2026-08-14
 
-- **#225 Bourse official frontage winding**: `technically_green`, `visual_review_needed`, `current_main_rebuild_needed`. Exact-head CI on `c93477c...` is green and the correction preserves all official UrbIS LoD2 vertices/triangles while orienting wall faces outward and roof faces upward. However it originated from production `4c48c48...`; `main` has since shipped Atomium #226. Do not merge stale. Recreate the same bounded payload from exact current `main`, regenerate the deterministic Bourse witness and require direct A/B inspection. Reject if holes/silhouette regressions appear or if impact is negligible.
-- **#221 Ixelles first runtime micro-slice**: `runtime_exists_on_pr`, `capture_rejected`, `keep_draft`. Technical runtime/collision/height/capture gates are green for one cell, 309 StreetSurfaces, 277 StreetAxes and 260 strong-source-height buildings; 460 unresolved-height buildings remain correctly absent. Source-anchored camera/LOS fixed the former centre-filling green wall, but human review still sees irregular green DTM patches bleeding through near-field StreetSurfaces. Stay on the same cell; densify/tessellate only the existing official StreetSurface overlay and resample the same DTM at added renderer vertices before another capture.
-- **#223 Midi blue-stone material**: `source_disciplined`, `visual_impact_rejected`, `keep_draft`. Exact-head CI is green, but the distant 1280x720 witness is difficult to distinguish without A/B. Preserve the reusable family for a closer/source-confirmed reuse case; do not retune merely to increase pixel delta.
-- **#227 Bourse blue-stone foreground**: `source_disciplined`, `visual_impact_rejected`, `closed_without_merge`. The five official sidewalk polygons are correctly bounded and the City source confirms blue-stone use, but the covered band is too small at the hero camera to create an unmistakable player-facing gain. Do not expand material coverage beyond source geometry merely to manufacture impact.
-- **#220 Atomium official city trees**: `source_coverage_rejected`, `closed_without_merge`. Deterministic diagnostics proved the locked 8,236-point payload has `radius420=0`, `dtm_bbox=0`, `intersection=0` against the validated Atomium hero terrain. Do not lower the gate, flip axes, fabricate trees or expand terrain just to force vegetation.
-- **#222 Bourse portico vault**: `capture_visible`, `source_truth_rejected`, `closed_without_merge`. The effect was visible, but authored proxy radii/heights/depth/arch proportions exceeded what the heritage source proves. Preserve as an experiment only.
+- **#230 direct Atomium Web spawn**: `shipped`, `player_access_gain`. `?spawn=atomium` now opens the already-shipped official Atomium DTM + stainless hero + deterministic reflection environment from a presentation-only visitor viewpoint. No Atomium geometry or pose fact was invented.
+- **#229 Bourse official frontage winding**: `technically_green`, `visual_impact_rejected`, `closed_without_merge`. Current-main rebuild preserved official UrbIS LoD2 geometry and fixed face winding, but human A/B found only ~663 pixels above a 3-RGB delta in the 1280×960 witness (~0.054%). Do not reopen this exact micro-correction. Centre must target a larger source-bounded roof/interior/frontage giveaway.
+- **#221 Ixelles first runtime micro-slice**: `keep_draft`, `latest_head_regressed`. Scope remains exactly one cell `bxl-e149000-n169000-s500`, 309 StreetSurfaces, 277 StreetAxes and 260 strong-source-height buildings; 460 unresolved-height buildings remain absent. Latest head `6c94b3dd...` currently fails Branch Hygiene, Micro-slice Runtime and Capture, while general tests, Game CI, Photo Match, Web Export, Performance, Seed and Strong Height gates are green. Do not merge. Fix the same-cell StreetSurface drape/tessellation/runtime regression before any new geography/assets.
+- **#231 shared STIB surface-stop vocabulary**: `technically_green`, `human_visual_accepted`, `placement_source_blocked`, `keep_draft`. Exact-current-main reusable stop pole/timetable/bin/shelter/bench/info family passes dedicated visual, tests, Game CI, Branch Hygiene, Web Export, Photo Match and Performance. Human witness is clearly readable without A/B. However its current Midi witness placement is presentation-only: no independently defensible production stop coordinate + actual shelter presence has been anchored yet. Do not fabricate placement. This is the highest-value near-term shared integration candidate once an official STIB stop anchor and furniture-presence proof are paired.
+- **#223 Midi blue-stone material**: `source_disciplined`, `visual_impact_rejected`, `keep_draft`. Preserve for closer/source-confirmed reuse; do not retune merely to manufacture pixel delta.
+- **#220 Atomium city trees**: `source_coverage_rejected`, `closed_without_merge`. Locked payload had zero valid hero/DTM intersection. Do not revive by weakening gates, flipping axes or fabricating trees.
+- **#222 Bourse portico-vault proxy**: `capture_visible`, `source_truth_rejected`, `closed_without_merge`. Semantics were real but landmark dimensions were authored proxies; not production geometry.
 
-## Latest shipped visual gains
+## Latest shipped player-facing gains
 
-- **Atomium reflection environment #226**: `runtime_exists`, `validated_visually`. Deterministic procedural sky adds reflected-light structure to the shipped stainless spheres while preserving accepted ambient/sun readability, DTM anchoring, geometry/topology and no-seam/no-support invariants.
-- **Bourse white-stone portico #217**: `runtime_exists`, `validated_visually`. Lighter non-metallic stone improves six-column portico separation without obvious clipping or z-fighting.
-- **Midi/Fonsny Fauquenberg brick #215**: `runtime_exists`, `validated_visually`. Source-scaled procedural brick/mortar replaces flat block response on the bounded façade family; no copyrighted photo texture embedded.
-- **Atomium stainless presentation #214**: `runtime_exists`, `validated_visually`. Spheres read brighter/more metallic; presentation tessellation increased while dimensions/topology/DTM anchoring remain unchanged and no panel seams are invented.
-- **Bourse sidewalk boundary #213**: `runtime_exists`, `validated_visually`. Official bounded sidewalk edge is more readable without claiming a physical curb height.
+- **#230 Atomium direct Web spawn** — improves discovery/testability and the 10-minute experience by making the shipped hero directly reachable in-browser.
+- **#226 Atomium deterministic reflection environment** — improves stainless readability without changing geometry/topology/pose.
+- **#217 Bourse white-stone portico** — stronger six-column separation/readability.
+- **#215 Midi/Fonsny Fauquenberg brick** — replaces large flat façade response with source-scaled procedural brick/mortar.
+- **#214 Atomium stainless presentation** — brighter metallic response and stronger tessellation while preserving source-bounded dimensions/topology.
+- **#213 Bourse sidewalk boundary articulation** — improves official sidewalk edge readability without inventing curb height.
 
 ## Current top 5 perceived-quality bottlenecks
 
-1. **Bourse roof/interior volumes + immediate frontage** — `runtime_exists`, `visual_gap_high`. Authored landmark proxies are forbidden. #225 is the best bounded source-derived frontage candidate but must be rebuilt current-main and visually inspected.
-2. **Grand-Place arrival remains visibly sparse** — `runtime_exists`, `visual_gap_high`, `references_needed`. Architecture, paving, roof silhouettes, ground-floor rhythm, signs and street furniture remain far below the real place.
-3. **Ixelles street surface/terrain integration is not yet production-believable** — `runtime_exists_on_pr`, `visual_gap_high`. #221 proves one-cell runtime and source-anchored camera, but near-field DTM bleed still makes the street read like a prototype.
-4. **Midi identity remains incomplete beyond Fauquenberg brick** — `runtime_exists`, `visual_gap_high`. Station frontage, forecourt, tram/bus interface, bilingual signage, retail frontage and street furniture remain insufficient. Material micro-tuning alone is no longer the best lever.
-5. **Atomium hero context still lacks source-backed site structure** — `runtime_exists`, `visual_gap_high`. Stainless + reflections improved strongly, but exact yaw/support feet, pavilion detail and immediate landscape/context remain major giveaways. Tree lot #220 is invalid for the current bounded terrain and must not be revived unchanged.
+1. **Bourse roof/interior volumes + immediate surrounding frontage** — `visual_gap_high`. The hero still reads as prototype in the fixed geotagged witness. #229 proved face-winding is too small a lever; authored landmark proxies remain forbidden.
+2. **Grand-Place arrival is visibly sparse/prototype** — `visual_gap_high`, `references_needed`. Architecture, roof silhouettes, paving, openings, signs, furniture and atmosphere remain far below the real place.
+3. **Ixelles first micro-slice is not integration-ready** — `runtime_exists_on_pr`, `visual_gap_high`, `ci_regression`. Same-cell runtime is valuable, but latest #221 head is red on runtime/capture/hygiene and must be stabilized before it can become the first credible new playable area.
+4. **Midi lacks unmistakable STIB/station/public-space identity** — `visual_gap_high`. Fauquenberg brick is shipped; #231 now proves that shared STIB stop vocabulary can create a clear Brussels cue, but real placement must be anchored before production integration.
+5. **Atomium immediate site context/pavilion/supports remain incomplete** — `visual_gap_high`. Stainless, reflections and direct spawn are shipped, but exact yaw/support feet and detailed pavilion/context remain unresolved; do not fabricate them.
 
-## Ownership map
+## Active ownership map
 
-- **Centre Vertical Slice**: Bourse/Centre/Midi visible slice. #225 owns the current source-derived Bourse frontage-face correction, but its old-base PR must be recreated from current `main` before integration. #165 remains old unresolved pediment evidence; never invent pediment dimensions.
-- **Visual Assets + Atmosphere**: shared materials, furniture, signage, vegetation, lighting/weather/audio. #223 remains impact-rejected; #227 is closed. Pivot to unmistakable high-reuse identity cues: source-backed street furniture/STIB vocabulary, shopfront/window/awning families, or large foreground ground materials where source coverage truly occupies the witness.
-- **Ixelles Runtime Slice**: #221 owns the first visible one-cell runtime micro-slice. Keep exact same cell/source hashes/height policy and fix StreetSurface drape/tessellation before adding assets or geography.
-- **Laeken Hero Impact**: #226 is shipped. #220 is closed as source-coverage incompatible. Next hero work must stay inside validated terrain and use source-bounded pavilion/context or carefully controlled lighting/reflection improvements; do not fabricate support/yaw geometry.
-- **Impact Director maintenance**: Traffic/Living City/gameplay/release only for regressions or unusually high perceived-impact opportunities.
+- **Centre Vertical Slice** — owns Bourse/Centre/Midi visible geography. No current high-impact Bourse runtime PR is integration-ready after #229 rejection. Next lot must be a clearly perceptible, source-bounded roof/interior/adjacent-frontage or Grand-Place/Midi correction; no more tiny face/material deltas.
+- **Visual Assets + Atmosphere** — owns shared PBR/furniture/signage/vegetation/lighting/weather/audio. #231 owns STIB surface-stop vocabulary. Its next step is evidence for a real production stop coordinate and the actual furniture present there, not asset retuning or invented placement.
+- **Ixelles Runtime Slice** — #221 owns the one-cell runtime micro-slice. Do not create competing Ixelles lots or broaden geography. Fix current runtime/capture/hygiene failures and StreetSurface drape/tessellation on the same cell.
+- **Laeken Hero Impact** — #230 is shipped on top of #214/#226. Next work should be source-bounded pavilion/public-realm/context inside validated terrain, not more stainless/reflection polish and not unresolved support geometry.
+- **Impact Director maintenance** — Traffic/Living City/missions/saves/release only for regressions, blockers or unusually high perceived-impact opportunities. None currently outranks the four visual streams.
 
 ## Bourse / Centre
 
-### Strong foundations already in production
+### Production foundations
 
 - UrbIS3D hero mass and six-column portico.
-- Fixed geotagged 1280x960 witness camera.
-- Official StreetSurfaces and bounded official sidewalk geometry.
-- Renderer-only sidewalk boundary articulation.
-- Visually accepted white-stone portico material.
+- Fixed geotagged 1280×960 witness.
+- Official StreetSurfaces and bounded sidewalk geometry.
+- Visually accepted white-stone portico.
+- Source-bounded sidewalk articulation.
 
-### Highest-value remaining work
+### Highest-value next work
 
-- **Source-derived adjacent frontage readability**: #225 is a bounded candidate. Preserve official vertices/triangles; only fix deterministic face orientation/culling if the current-main witness proves a meaningful gain.
-- **Broken/incomplete interior roof/portico volumes**: `visual_gap_high`. #222 proved the visual need but cannot ship authored proxy dimensions. Prefer existing UrbIS/LoD2 surfaces or measurable source constraints.
-- **Roof/pediment silhouette**: `visual_gap_high`. #165 owns unresolved pediment evidence; do not invent dimensions.
-- **Doors, capitals, sculpture/relief and rear peristyle depth**: `references_needed`, `visual_gap_high`.
-- **Street furniture, signs, bins, bollards, poles and café clutter**: `references_needed`, `visual_gap_high`.
-- **Physical curb height** remains `references_needed`; official 2D alignment is not permission to invent vertical height.
-
-### Preferred next Centre lot
-
-Rebuild #225 from exact current `main`, rerun CI/capture, and require human A/B. If it is weak or exposes topology holes, close/pivot instead of spending another lot polishing it.
+- Existing authoritative roof/interior surfaces or measurable envelope constraints that remove the obvious broken/prototype read behind the portico.
+- One immediate adjacent frontage with authoritative geometry/height/opening evidence and a substantial footprint in the witness.
+- Grand-Place deterministic arrival witness, followed by one coherent full-frame architecture/paving/signage pass rather than another isolated micro-detail.
+- Street furniture/signage only when placement is source-defensible and occupies meaningful visual area.
+- #165 remains unresolved pediment evidence: never invent dimensions to close it.
 
 ## Midi → Anneessens
 
 ### Shipped foundation
 
 - Playable mission/checkpoint/save loop.
-- Source-scaled Fauquenberg brick presentation on the bounded Fonsny façade family.
+- Fauquenberg brick presentation on bounded Fonsny façade family.
 
-### Highest-value missing work
+### Highest-value next work
 
-- Station frontage identity and entries: `references_needed`, `visual_gap_high`.
-- Forecourt lanes/curbs/tram-bus interfaces: `references_needed`, `visual_gap_high`.
-- Large bilingual station/STIB/wayfinding elements: `references_needed`.
-- Retail frontage and ground-floor rhythm: `references_needed`, `visual_gap_high`.
-- Street furniture and believable parked/delivery context: `references_needed`.
-- Deterministic station-exit / route / Anneessens cameras: `missing`.
-
-#223 blue-stone character is preserved as a reusable authored material experiment, but it is not the next integration candidate at the current distant witness.
+- **Authentic STIB stop identity**: #231 reusable family is visually accepted. Find an official STIB stop geolocation on the production slice and independently prove which furniture is present (pole-only vs shelter etc.); then integrate only the proven subset.
+- Station frontage identity/entries and bilingual station/wayfinding elements.
+- Forecourt/tram-bus interface geometry and markings only where source-backed.
+- Retail frontage and ground-floor rhythm.
+- One deterministic station/route camera showing a substantial before/after.
 
 ## Grand-Place / Centre arrival
 
 - Gameplay arrival: `runtime_exists`.
-- Architectural and streetscape credibility: `visual_gap_high`, `references_needed`.
-- Next useful proof: one deterministic arrival camera, then make the entire frame coherent before adding more gameplay geography.
-- Priority reference families: façade rhythm, roof silhouettes, paving, openings, signs, furniture and evening/overcast lighting.
-
-## Laeken / Atomium / Heysel
-
-### Shipped foundation
-
-- Official DTM runtime with normals/collision.
-- 9-sphere / 20-tube source-bounded hero core: 102 m total height, 18 m spheres, 3.30 m tubes.
-- Brighter stainless sphere response and higher presentation tessellation (#214).
-- Deterministic reflection environment improving stainless readability (#226).
-- 26 m circular base-pavilion plan evidence.
-
-### Highest-value remaining work
-
-- Exact global crystal yaw: `references_needed`, `visual_gap_high`.
-- Three bipod foot positions/bearings: `references_needed`, `visual_gap_high`.
-- Support geometry: blocked until pose evidence is defensible.
-- Pavilion height, glazing, roof, entries/stairs: partially `references_found`, still `visual_gap_high`.
-- Immediate Heysel landscape/context and furniture: `visual_gap_high`.
-- Additional deterministic hero cameras / source-matched context: `references_needed`.
-
-#220 tree payload must not be reused unchanged: its locked source slice does not intersect the validated hero terrain/radius.
+- Visual credibility: `visual_gap_high`.
+- Next useful lot: lock one deterministic arrival camera and make the whole foreground/midground coherent — façade rhythm, roof silhouette, paving, signs/furniture — before expanding gameplay geography.
 
 ## Ixelles
 
-### Current runtime foundation on #221
+### Locked scope on #221
 
-- One selected cell: `bxl-e149000-n169000-s500`, EPSG:31370 bbox `[149000,169000,149500,169500]`.
+- Cell `bxl-e149000-n169000-s500`, EPSG:31370 bbox `[149000,169000,149500,169500]` only.
 - Validated 2 m DTM/source hashes.
 - 309 authoritative StreetSurfaces.
-- 277 StreetAxes/street segments.
-- 260 buildings with strong source-backed height candidates.
-- 460 unresolved-height buildings remain absent rather than receiving heuristic heights.
-- Runtime/collision/capture gates technically pass.
-- Camera is now source-anchored to Rue de Stassart / Place Stéphanie axes with validated 1.72 m eye height and near-field LOS clearance.
+- 277 StreetAxes.
+- 260 strong source-backed building heights.
+- 460 unresolved-height buildings remain absent.
+- Source-anchored Rue de Stassart → Place Stéphanie witness at pedestrian eye height.
+
+### Current blocker
+
+Latest head `6c94b3dd...` is **not green**: Branch Hygiene, Micro-slice Runtime and Capture fail. Import succeeds; the runtime validation step itself fails. This supersedes earlier green intermediate heads. Do not claim #221 ready.
 
 ### Required next proof
 
-1. Keep exact same cell, DTM hashes, camera anchors and strong-height policy.
-2. Densify/tessellate the existing official StreetSurface overlay inside the exact source polygons.
-3. Resample the same DTM `sample_height()` at the added renderer vertices; keep only renderer depth bias, with no physical road-height claim.
-4. Regenerate the same 1280x960 witness and performance gate.
-5. Require human inspection showing continuous road/street surfaces with no prototype green terrain bleed dominating the near field.
+1. Stay on the exact same cell/source hashes/camera/height policy.
+2. Reproduce and fix the current runtime validation failure first.
+3. Complete the bounded StreetSurface densification/drape so official street polygons remain visually above the DTM in the near-field corridor without claiming physical road height.
+4. Restore Branch Hygiene + Runtime + Capture + Visible Micro-slice green alongside existing tests/Game CI/Photo Match/Performance.
+5. Human-inspect the 1280×960 capture. Road/street surfaces and urban masses must dominate; no green prototype terrain bleed.
 
-No more geography, broad height research or street-furniture work before this passes.
+No new geography, broad height research, furniture or façade work before this passes.
 
-## Shared visual asset priorities
+## Laeken / Atomium
 
-### Priority A — unmistakable Brussels identity
+### Shipped foundation
 
-- source-backed STIB stop poles/shelters and transport vocabulary with lawful branding treatment.
-- bilingual street-name / wayfinding elements.
-- bollards, barriers, railings, bins, benches, bike racks and utility cabinets.
-- shopfront, awning, window/door modules.
-- foreground paving/cobble/asphalt families only where source-confirmed geometry occupies a substantial witness footprint.
-- road/crossing/loading/parking markings only where underlying traffic semantics are sourced.
+- Official DTM with collision/normals.
+- 9-sphere / 20-tube source-bounded core, 102 m / 18 m / 3.30 m.
+- Stainless presentation (#214).
+- Deterministic reflection environment (#226).
+- Direct browser hero entry `?spawn=atomium` (#230), using a presentation-only visitor viewpoint inside the validated DTM tile.
+- 26 m circular pavilion-plan evidence.
 
-### Priority B — living-city credibility
+### Highest-value remaining work
 
-- authored clothing/body/age variation.
-- bags, umbrellas, backpacks, phones/workwear.
-- parked cars/vans/bikes and delivery props only where placement semantics are defensible.
-- café furniture and small street clutter.
-- Brussels-scale vegetation families only when source placement intersects validated terrain/context.
+- Pavilion details only where dimensions/semantics are actually established.
+- Immediate public-realm/context geometry already present in authoritative data.
+- Exact global crystal yaw and three bipod feet remain `references_needed`; support geometry stays blocked.
+- Do not revive #220 tree extraction unchanged.
 
-### Priority C — atmosphere
+## Shared asset priorities
 
-- controlled overcast daylight target.
-- sunny daylight target.
-- wet paving/asphalt response.
-- rain/night exposure and reflections.
-- storefront/window emission.
-- traffic/STIB/crowd/rain ambience library with clear licensing/provenance.
+1. **#231 authentic STIB production placement** — strongest current shared candidate because the family is reusable, visually obvious and technically green. Hard blocker: real stop coordinate + actual furniture presence.
+2. Bilingual street-name/wayfinding elements with source-defensible placement.
+3. Shopfront/window/awning modules demonstrated in a current production witness.
+4. Bollards, barriers, bins, benches, bike racks and utility cabinets where official/reference placement is defensible.
+5. Large foreground paving/cobble/asphalt families only when source-confirmed coverage occupies a substantial witness footprint.
+6. Controlled overcast/wet/night atmosphere after major geometry/street-identity blockers in the chosen witness are under control.
 
-## Reference and production rules
+## Production rules
 
-1. Prefer Paradigm/UrbIS/UrbIS3D, Brussels Mobility, STIB and official orthophoto/DTM/DSM.
-2. Use OSM as complement, not proof for unresolved geometry or traffic semantics.
-3. Record lawful photo-reference URL/metadata, approximate camera pose where known, date if relevant, and exactly what the image proves.
-4. Do not distribute copyrighted reference imagery as game textures unless licensing explicitly permits it.
-5. Acquire references for the exact hero discrepancy or 300–500 m slice being built, not giant random image dumps.
-6. Evidence-only work is acceptable only when it is expected to unlock visible/audible/playable runtime change within one or two lots.
-7. One active lot per exact problem/domain. Re-check `main` and active PRs before push and merge.
-8. A technically green lot can still be rejected for player impact or source truth.
+1. Exact current `main` is the only production truth.
+2. One active lot per exact problem/domain.
+3. Small current-main PRs only; re-check `main` and active PRs immediately before push/PR/merge.
+4. Publication-only commits are not new gameplay/visual truth.
+5. Prefer Paradigm/UrbIS/UrbIS3D, Brussels Mobility, STIB and official orthophoto/DTM/DSM. OSM is complement, not proof for unresolved geometry/traffic semantics.
+6. Preserve lawful provenance/licensing; never distribute reference imagery as textures without permission.
+7. Evidence-only work is allowed only if it can unlock a material player-facing correction within one or two lots.
+8. Green CI can still be rejected for negligible player impact or weak source truth.
+9. Substantive lots require deterministic player-facing evidence, human inspection, relevant tests, branch hygiene and performance when applicable.
+10. Pixel delta is evidence, not the objective. Judge recognition, silhouette, street proportions, material response, atmosphere, legibility, motion and gameplay feel.
 
-## Definition of a visually convincing micro-slice
+## Definition of a convincing micro-slice
 
-A bounded slice is not visually convincing until:
+A bounded slice is not visually convincing until hero/major silhouettes are recognisable, street/ground proportions are defensible, immediate façades are not generic placeholders, key signage/furniture/transport vocabulary is present, materials read at believable scale, deterministic cameras have been compared against references, no huge prototype giveaway survives the first three seconds, and performance remains acceptable.
 
-- hero/major silhouette is recognisable;
-- street/ground/sidewalk proportions are defensible;
-- immediate façades are not generic placeholders;
-- key signage/furniture/transport vocabulary is present;
-- materials have believable scale/roughness/normal response;
-- vegetation and street activity fit the references;
-- deterministic cameras have been compared against real references;
-- top visible discrepancies are fixed or explicitly blocked by missing evidence;
-- performance remains acceptable;
-- a human reviewer does not identify one huge prototype giveaway in the first three seconds.
+## Director next-integration priority
 
-## Direction rule for future lots
-
-Prefer **one obvious player-facing improvement** over several low-visibility evidence additions when both are equally safe and source-backed. Pixel delta is evidence, not the target. Judge recognition, silhouette, material response, atmosphere, legibility, motion and gameplay feel. Never trade source truth for a nicer screenshot.
+**Highest-value near-term candidate: #231 STIB surface-stop vocabulary, but only after the specialist pairs it with an official production stop coordinate and evidence for the actual furniture present at that stop.** If that source anchor cannot be obtained within the next one or two lots, defer it rather than accumulate research and move to the next high-impact visible candidate. #221 Ixelles remains the larger 10-minute milestone but is currently blocked by exact-head runtime/capture/hygiene failures.

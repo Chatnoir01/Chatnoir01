@@ -1,0 +1,33 @@
+name: Grand Bruxelles STIB Suède Source
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/tools/fetch_stib_stop.py"
+      - "grand-bruxelles-game/data/stib/suede_stop.game.json"
+      - "grand-bruxelles-game/game/scripts/stib_suede_runtime.gd"
+      - "grand-bruxelles-game/game/tests/stib_suede_runtime_test.gd"
+      - ".github/workflows/grand-bruxelles-stib-suede-source.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/fetch_stib_stop.py"
+      - "grand-bruxelles-game/data/stib/suede_stop.game.json"
+      - "grand-bruxelles-game/game/scripts/stib_suede_runtime.gd"
+      - "grand-bruxelles-game/game/tests/stib_suede_runtime_test.gd"
+      - ".github/workflows/grand-bruxelles-stib-suede-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch exact official Suède / Zweden stop
+        run: python3 grand-bruxelles-game/tools/fetch_stib_stop.py | tee /tmp/stib-suede.log
+      - name: Require exact source identity and point
+        run: grep -q "STIB_SUEDE_SOURCE_OK=" /tmp/stib-suede.log

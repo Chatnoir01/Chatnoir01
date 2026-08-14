@@ -79,6 +79,9 @@ func _run() -> void:
     var right := camera.global_transform.basis.x.normalized()
     sign.global_position = camera.global_position + forward * 4.2 - right * 1.25 + Vector3(0.0, 0.10, 0.0)
     sign.look_at(camera.global_position, Vector3.UP)
+    # Label3D faces the panel's authored +Z side; turn the presentation rig so
+    # the readable face, not the plaque rear, points toward the camera.
+    sign.rotate_y(PI)
 
     for _frame: int in range(WARMUP_FRAMES):
         await process_frame

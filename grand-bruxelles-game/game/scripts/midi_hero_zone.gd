@@ -261,15 +261,42 @@ func _build_station_entrance() -> void:
 
     _add_box(entrance, "StationTotem", Vector3(0.62, 4.2, 1.55), Vector3(-16.75, 2.30, -11.2), _sign_blue)
 
-    var station_label: Label3D = Label3D.new()
-    station_label.name = "StationName"
-    station_label.text = "BRUXELLES-MIDI  ·  BRUSSEL-ZUID"
-    station_label.font_size = 46
-    station_label.outline_size = 7
-    station_label.modulate = Color(0.96, 0.96, 0.92, 1.0)
-    station_label.position = Vector3(-15.30, 3.55, -1.0)
-    station_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    entrance.add_child(station_label)
+    # SNCB/NMBS resolves the bilingual station identity and Fonsny 47 anchor.
+    # Panel envelope, color and lettering remain authored presentation values.
+    var identity_panel := _add_box(
+        entrance,
+        "StationIdentityPanel",
+        Vector3(0.12, 1.55, 11.5),
+        Vector3(-15.26, 3.48, -1.0),
+        _sign_blue
+    )
+    identity_panel.set_meta("source_station_identity", "SNCB/NMBS Bruxelles-Midi / Brussel-Zuid")
+    identity_panel.set_meta("surveyed_panel_dimensions", false)
+    identity_panel.set_meta("sncb_logo_artwork_embedded", false)
+
+    var station_fr := Label3D.new()
+    station_fr.name = "StationIdentityFR"
+    station_fr.text = "BRUXELLES-MIDI"
+    station_fr.font_size = 48
+    station_fr.pixel_size = 0.012
+    station_fr.outline_size = 5
+    station_fr.modulate = Color(0.97, 0.97, 0.94, 1.0)
+    station_fr.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+    station_fr.rotation_degrees.y = 90.0
+    station_fr.position = Vector3(-0.08, 0.31, 0.0)
+    identity_panel.add_child(station_fr)
+
+    var station_nl := Label3D.new()
+    station_nl.name = "StationIdentityNL"
+    station_nl.text = "BRUSSEL-ZUID"
+    station_nl.font_size = 42
+    station_nl.pixel_size = 0.012
+    station_nl.outline_size = 5
+    station_nl.modulate = Color(0.97, 0.97, 0.94, 1.0)
+    station_nl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+    station_nl.rotation_degrees.y = 90.0
+    station_nl.position = Vector3(-0.08, -0.34, 0.0)
+    identity_panel.add_child(station_nl)
 
 
 func _build_fonsny_forecourt() -> void:

@@ -79,7 +79,10 @@ func _build_surface() -> void:
     material.albedo_color = Color(0.39, 0.385, 0.37, 1.0)
     material.metallic = 0.0
     material.roughness = 0.94
-    material.cull_mode = BaseMaterial3D.CULL_BACK
+    # Ground paving is a planar source surface and has no surveyed thickness.
+    # Disable culling so renderer front-face convention cannot suppress the
+    # authoritative top plane; the generic ground beneath prevents an underside read.
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)

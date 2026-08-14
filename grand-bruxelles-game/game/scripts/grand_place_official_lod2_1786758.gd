@@ -3,6 +3,7 @@ extends Node3D
 const GEOMETRY_PATH := "res://data/urbis/grand_place_lod2/1786758.game.json"
 const BUILDING_ID := "https://databrussels.be/id/building/1786758"
 const PACKAGE_SHA256 := "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+const MATERIAL_IDENTITY_SOURCE := "urban.brussels 31126 + 40020; City of Brussels Grand-Place open data"
 
 var geometry_loaded := false
 var render_triangle_count := 0
@@ -13,6 +14,10 @@ var _masked_nodes: Array[Node3D] = []
 var _masked_visibility: Array[bool] = []
 var _official_visible := true
 var _built := false
+var _wall_instance: MeshInstance3D
+var _neutral_wall_material: StandardMaterial3D
+var _white_stone_wall_material: StandardMaterial3D
+var _white_stone_enabled := true
 
 func _ready() -> void:
     call_deferred("_build_when_scene_ready")
@@ -33,13 +38,20 @@ func _build_when_scene_ready() -> void:
     source_height_m = float((data.get("evidence", {}) as Dictionary).get("height_m", 0.0))
     _mask_replaced_osm(source_bounds)
     _build_geometry(faces)
+    if _wall_instance == null or _neutral_wall_material == null or _white_stone_wall_material == null:
+        push_error("Grand-Place LoD2 1786758 wall presentation failed to initialize")
+        return
+    set_white_stone_presentation(true)
     _built = true
     geometry_loaded = true
     set_meta("building_id", BUILDING_ID)
     set_meta("runtime_approved", false)
     set_meta("realism_complete", false)
     set_meta("presentation_materials_only", true)
-    print("GRAND_PLACE_LOD2_1786758_READY: triangles=%d masked_osm=%d height=%.3f" % [render_triangle_count, masked_osm_count, source_height_m])
+    set_meta("wall_material_identity_source", MATERIAL_IDENTITY_SOURCE)
+    set_meta("white_stone_coarse_lod2_identity", true)
+    set_meta("blue_stone_details_authored", false)
+    print("GRAND_PLACE_LOD2_1786758_READY: triangles=%d masked_osm=%d height=%.3f white_stone=true" % [render_triangle_count, masked_osm_count, source_height_m])
 
 func _read_geometry() -> Dictionary:
     if not FileAccess.file_exists(GEOMETRY_PATH):
@@ -124,16 +136,28 @@ func _mask_replaced_osm(bounds: Rect2) -> void:
         masked_osm_count += 1
 
 func _materials() -> Dictionary:
-    # Reuse the neutral presentation vocabulary from shipped #257; no material identity is asserted.
-    var wall := StandardMaterial3D.new()
-    wall.albedo_color = Color(0.56, 0.54, 0.50, 1.0)
-    wall.roughness = 0.88
-    wall.cull_mode = BaseMaterial3D.CULL_BACK
+    # Neutral baseline retained only for deterministic A/B. Runtime defaults to
+    # the source-backed coarse white-stone identity. Exact RGB/roughness are
+    # authored presentation values, not calibrated photometry.
+    _neutral_wall_material = StandardMaterial3D.new()
+    _neutral_wall_material.albedo_color = Color(0.56, 0.54, 0.50, 1.0)
+    _neutral_wall_material.roughness = 0.88
+    _neutral_wall_material.cull_mode = BaseMaterial3D.CULL_BACK
+
+    _white_stone_wall_material = StandardMaterial3D.new()
+    _white_stone_wall_material.albedo_color = Color(0.84, 0.82, 0.76, 1.0)
+    _white_stone_wall_material.metallic = 0.0
+    _white_stone_wall_material.roughness = 0.76
+    _white_stone_wall_material.cull_mode = BaseMaterial3D.CULL_BACK
+    _white_stone_wall_material.set_meta("material_identity", "white_stone")
+    _white_stone_wall_material.set_meta("material_identity_source", MATERIAL_IDENTITY_SOURCE)
+    _white_stone_wall_material.set_meta("exact_rgb_is_photometric_measurement", false)
+
     var roof := StandardMaterial3D.new()
     roof.albedo_color = Color(0.16, 0.17, 0.18, 1.0)
     roof.roughness = 0.9
     roof.cull_mode = BaseMaterial3D.CULL_BACK
-    return {"WALLSURFACE": wall, "ROOFSURFACE": roof}
+    return {"WALLSURFACE": _white_stone_wall_material, "ROOFSURFACE": roof}
 
 func _building_center(faces: Array) -> Vector3:
     var sum := Vector3.ZERO
@@ -191,6 +215,8 @@ func _build_surface(faces: Array, face_type: String, material: Material, center:
         instance.name = "GrandPlace1786758_%s" % face_type
         instance.mesh = mesh
         add_child(instance)
+        if face_type == "WALLSURFACE":
+            _wall_instance = instance
     return count
 
 func _build_geometry(faces: Array) -> void:
@@ -198,6 +224,19 @@ func _build_geometry(faces: Array) -> void:
     var center := _building_center(faces)
     render_triangle_count = _build_surface(faces, "WALLSURFACE", mats["WALLSURFACE"], center)
     render_triangle_count += _build_surface(faces, "ROOFSURFACE", mats["ROOFSURFACE"], center)
+
+func set_white_stone_presentation(enabled: bool) -> void:
+    _white_stone_enabled = enabled
+    if _wall_instance == null:
+        return
+    _wall_instance.material_override = _white_stone_wall_material if enabled else _neutral_wall_material
+    _wall_instance.set_meta("white_stone_presentation", enabled)
+    _wall_instance.set_meta("wall_material_identity_source", MATERIAL_IDENTITY_SOURCE)
+    _wall_instance.set_meta("geometry_changed", false)
+    _wall_instance.set_meta("openings_authored", false)
+
+func white_stone_presentation_enabled() -> bool:
+    return _white_stone_enabled
 
 func set_official_visible(enabled: bool) -> void:
     _official_visible = enabled

@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "crs": "EPSG:31370",
+  "status": {
+    "runtime_scope": "base_pavilion_glazed_facade_only",
+    "realism_complete": false,
+    "roof_geometry_resolved": false,
+    "support_geometry_resolved": false,
+    "global_yaw_resolved": false
+  },
+  "official_semantics": {
+    "plan_shape": "circular",
+    "diameter_m": 26.0,
+    "facade": "fully_glazed",
+    "north_access": "at_grade",
+    "south_access": "two_parallel_stairs_with_metal_railing",
+    "roof": "shed_roof_with_skylight",
+    "source": "https://monument.heritage.brussels/fr/buildings/39726",
+    "publisher": "urban.brussels / Inventaire du patrimoine architectural"
+  },
+  "measured_vertical_evidence": {
+    "method": "official UrbIS building footprint intersected with 0.5 m DSM-DTM samples",
+    "inspire_id": "https://databrussels.be/id/building/1651628",
+    "feature_index": 497,
+    "footprint_area_m2": 361.0,
+    "footprint_distance_to_atomium_anchor_m": 2.986,
+    "sample_count": 352,
+    "dsm_minus_dtm_p50_m": 4.027,
+    "dsm_minus_dtm_p75_m": 6.701,
+    "dsm_minus_dtm_p85_m": 21.613,
+    "dsm_minus_dtm_p90_m": 30.081,
+    "quality": "lower_surface_median_only_landmark_contaminated",
+    "runtime_facade_height_m": 4.027,
+    "source_workspace_ref": "zone-laeken-jette:grand-bruxelles-game/data/sources/laeken_jette/atomium_neighbor_building_audit.json"
+  },
+  "runtime_policy": {
+    "allowed": [
+      "26 m circular plan",
+      "fully glazed facade",
+      "4.027 m facade top derived from the footprint DSM-DTM median"
+    ],
+    "forbidden": [
+      "invented roof pitch or skylight geometry",
+      "invented door width or access geometry",
+      "invented mullion spacing",
+      "invented support feet or crystal yaw",
+      "treating the contaminated p75/p85/p90 returns as pavilion height"
+    ],
+    "presentation_only": [
+      "glass tint, opacity and roughness"
+    ]
+  },
+  "provenance": {
+    "heritage_source_license_note": "official public heritage description used as factual reference",
+    "urbis_source": "Paradigm / Brussels-Capital Region UrbIS building footprint plus official DSM/DTM diagnostic already frozen in specialist workspace",
+    "workspace_is_evidence_only": true,
+    "workspace_branch_must_not_be_merged": true
+  }
+}

@@ -2,10 +2,10 @@ extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
 const OUTPUT_PATH := "res://artifacts/atomium/atomium_direct_spawn.png"
-const EXPECTED_HORIZONTAL_DISTANCE_M := 71.06335
+const EXPECTED_HORIZONTAL_DISTANCE_M := 142.12670
 const MIN_STANDING_CLEARANCE_M := 0.75
 const MAX_STANDING_CLEARANCE_M := 1.10
-const EXPECTED_CAMERA_PITCH_DEGREES := 24.0
+const EXPECTED_CAMERA_PITCH_DEGREES := 18.0
 # The playable project enforces its production viewport at 1280x720.
 const WIDTH := 1280
 const HEIGHT := 720

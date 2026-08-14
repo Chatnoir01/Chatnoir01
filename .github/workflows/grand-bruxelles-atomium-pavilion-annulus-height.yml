@@ -1,0 +1,97 @@
+name: Grand Bruxelles Atomium Pavilion Annulus Height
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-pavilion-annulus-height.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  annulus-height:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download locked 2021 DSM/DTM tile
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/atomium-pavilion/dsm /tmp/atomium-pavilion/dtm
+          DSM_URL='https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_148176_20211009_50.zip'
+          DTM_URL='https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_148176_20211009_50.zip'
+          curl -fL --retry 3 --retry-delay 2 --max-time 45 "$DSM_URL" -o /tmp/atomium-pavilion/dsm.zip
+          curl -fL --retry 3 --retry-delay 2 --max-time 45 "$DTM_URL" -o /tmp/atomium-pavilion/dtm.zip
+          echo '8a089eec6ea3209d7a933ad6a6106a99f3bf4182bb39991cca802618c513242e  /tmp/atomium-pavilion/dsm.zip' | sha256sum -c -
+          echo 'b689d20567223125aea2a8fb9c720a79c42be20ca5e5e7167080a39df2fd107f  /tmp/atomium-pavilion/dtm.zip' | sha256sum -c -
+          unzip -q /tmp/atomium-pavilion/dsm.zip -d /tmp/atomium-pavilion/dsm
+          unzip -q /tmp/atomium-pavilion/dtm.zip -d /tmp/atomium-pavilion/dtm
+      - name: Measure source-bounded outer pavilion annulus
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet rasterio numpy
+          python3 - <<'PY'
+          import glob, json, math
+          import numpy as np
+          import rasterio
+
+          # Locked source facts already accepted in main:
+          # Atomium anchor EPSG:31370, 18 m base sphere, 26 m circular entry pavilion.
+          E0=148093.22038698208
+          N0=176091.76722726133
+          SPHERE_R=9.0
+          PAVILION_R=13.0
+          INNER=9.75   # 0.75 m safety margin beyond sphere plan projection
+          OUTER=12.75  # 0.25 m safety margin inside documented pavilion edge
+
+          dsm_path=glob.glob('/tmp/atomium-pavilion/dsm/**/*.tif',recursive=True)[0]
+          dtm_path=glob.glob('/tmp/atomium-pavilion/dtm/**/*.tif',recursive=True)[0]
+          with rasterio.open(dsm_path) as dsm, rasterio.open(dtm_path) as dtm:
+              assert dsm.crs.to_epsg()==31370 and dtm.crs.to_epsg()==31370
+              assert dsm.transform==dtm.transform and dsm.shape==dtm.shape
+              dsm_a=dsm.read(1,masked=True).astype('float64')
+              dtm_a=dtm.read(1,masked=True).astype('float64')
+              rows,cols=np.indices(dsm.shape)
+              xs,ys=rasterio.transform.xy(dsm.transform,rows,cols,offset='center')
+              xs=np.asarray(xs); ys=np.asarray(ys)
+              r=np.hypot(xs-E0,ys-N0)
+              h=np.asarray(dsm_a-dtm_a)
+              valid=(~np.ma.getmaskarray(dsm_a)) & (~np.ma.getmaskarray(dtm_a)) & np.isfinite(h)
+
+              def stats(mask):
+                  vals=np.asarray(h[valid & mask],dtype='float64')
+                  if vals.size==0: return {'count':0}
+                  q=np.percentile(vals,[5,10,25,50,75,90,95])
+                  hist,bins=np.histogram(vals,bins=np.arange(-2,32,0.25))
+                  i=int(np.argmax(hist))
+                  return {
+                    'count':int(vals.size),'min':float(vals.min()),'max':float(vals.max()),
+                    'p05':float(q[0]),'p10':float(q[1]),'p25':float(q[2]),'p50':float(q[3]),
+                    'p75':float(q[4]),'p90':float(q[5]),'p95':float(q[6]),
+                    'spread_p90_p10':float(q[5]-q[1]),
+                    'mode_bin_025m':[float(bins[i]),float(bins[i+1])],
+                    'mode_count':int(hist[i]),'mode_share':float(hist[i]/vals.size)
+                  }
+
+              out={
+                'source_crs':'EPSG:31370','anchor':[E0,N0],
+                'sphere_diameter_m':18.0,'pavilion_diameter_m':26.0,
+                'annulus_inner_radius_m':INNER,'annulus_outer_radius_m':OUTER,
+                'outer_annulus':stats((r>=INNER)&(r<=OUTER)),
+                'sphere_projection':stats(r<=SPHERE_R),
+                'full_pavilion_disk':stats(r<=PAVILION_R)
+              }
+              print('ATOMIUM_PAVILION_ANNULUS',json.dumps(out,sort_keys=True))
+              a=out['outer_annulus']
+              if a['count'] < 150:
+                  raise SystemExit('insufficient annulus samples')
+              # Discovery gate only: do not auto-approve a runtime height.
+              # We require a compact low-height cluster before considering a second lot.
+              clean=(1.5 <= a['p50'] <= 8.0 and a['spread_p90_p10'] <= 2.0 and a['mode_share'] >= 0.15)
+              print('ATOMIUM_PAVILION_ANNULUS_CLEAN_CANDIDATE',clean)
+              if not clean:
+                  raise SystemExit('outer pavilion annulus is not a clean vertical source candidate')
+          PY

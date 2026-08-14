@@ -24,6 +24,14 @@ const ATOMIUM_DIRECT_EYE_HEIGHT_M := 1.05
 # Positive X pitch looks upward in this Godot camera rig.
 const ATOMIUM_DIRECT_CAMERA_PITCH_DEGREES := 20.0
 
+const IXELLES_SLICE_SCRIPT := preload("res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd")
+const IXELLES_CAMERA_AXIS_ID := "https://databrussels.be/id/streetaxe/71374:1"
+const IXELLES_TARGET_AXIS_ID := "https://databrussels.be/id/streetaxe/71306:2"
+const IXELLES_CAMERA_AXIS_T := 0.68
+const IXELLES_CAMERA_EYE_HEIGHT_M := 1.72
+const IXELLES_PLAYER_BODY_CENTER_CLEARANCE_M := 0.90
+const IXELLES_CAMERA_PIVOT_HEIGHT_M := IXELLES_CAMERA_EYE_HEIGHT_M - IXELLES_PLAYER_BODY_CENTER_CLEARANCE_M
+
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _base_collision_layer: int = 1
 var _base_collision_mask: int = 1
@@ -48,6 +56,128 @@ func _apply_direct_spawn_from_user_args(args: PackedStringArray) -> void:
         if normalized == "spawn=atomium":
             call_deferred("_activate_atomium_direct_spawn")
             return
+        if normalized == "spawn=ixelles":
+            call_deferred("_activate_ixelles_direct_spawn")
+            return
+
+
+func _ixelles_axis_segment(slice: Node, axis_id: String) -> PackedVector2Array:
+    var network: Dictionary = slice.get_meta("ixelles_network_contract", {})
+    var axes: Variant = network.get("street_axes", [])
+    if not axes is Array:
+        return PackedVector2Array()
+    for raw: Variant in axes:
+        if not raw is Dictionary or str(raw.get("id", "")) != axis_id:
+            continue
+        var points: Variant = raw.get("points", [])
+        if not points is Array or points.size() != 2:
+            return PackedVector2Array()
+        var result := PackedVector2Array()
+        for point: Variant in points:
+            if not point is Array or point.size() < 2:
+                return PackedVector2Array()
+            result.append(Vector2(float(point[0]), float(point[1])))
+        return result
+    return PackedVector2Array()
+
+
+func _ixelles_inside_official_street_surface(slice: Node, point: Vector2) -> bool:
+    var cell: Dictionary = slice.get_meta("ixelles_cell_contract", {})
+    var surfaces: Variant = cell.get("street_surfaces", [])
+    if not surfaces is Array:
+        return false
+    for raw: Variant in surfaces:
+        if not raw is Dictionary:
+            continue
+        var polygon_raw: Variant = raw.get("polygon", [])
+        if not polygon_raw is Array or polygon_raw.size() < 3:
+            continue
+        var polygon := PackedVector2Array()
+        for pair: Variant in polygon_raw:
+            if pair is Array and pair.size() >= 2:
+                polygon.append(Vector2(float(pair[0]), float(pair[1])))
+        if polygon.size() >= 3 and Geometry2D.is_point_in_polygon(point, polygon):
+            return true
+    return false
+
+
+func _activate_ixelles_direct_spawn() -> void:
+    var world := get_parent() as Node3D
+    if world == null:
+        push_error("Ixelles direct spawn: world root unavailable")
+        return
+
+    var slice := IXELLES_SLICE_SCRIPT.new()
+    slice.name = "IxellesDirectMicroSlice"
+    slice.build_collision = true
+    world.add_child(slice)
+    await get_tree().process_frame
+    await get_tree().process_frame
+    if not bool(slice.get("runtime_loaded")):
+        push_error("Ixelles direct spawn: shipped micro-slice failed to load")
+        return
+    if int(slice.get("building_count")) != 260 or int(slice.get("skipped_unapproved_height_buildings")) != 460:
+        push_error("Ixelles direct spawn: strong-height/no-invention contract drifted")
+        return
+
+    var camera_axis := _ixelles_axis_segment(slice, IXELLES_CAMERA_AXIS_ID)
+    var target_axis := _ixelles_axis_segment(slice, IXELLES_TARGET_AXIS_ID)
+    if camera_axis.size() != 2 or target_axis.size() != 2:
+        push_error("Ixelles direct spawn: accepted source StreetAxis witness unavailable")
+        return
+    var camera_xz := camera_axis[0].lerp(camera_axis[1], IXELLES_CAMERA_AXIS_T)
+    var target_xz := target_axis[1]
+    if not _ixelles_inside_official_street_surface(slice, camera_xz):
+        push_error("Ixelles direct spawn: player witness left official StreetSurface")
+        return
+
+    var camera_ground := float(slice.call("sample_height", camera_xz.x, camera_xz.y))
+    var target_ground := float(slice.call("sample_height", target_xz.x, target_xz.y))
+    if not is_finite(camera_ground) or not is_finite(target_ground):
+        push_error("Ixelles direct spawn: terrain witness unavailable")
+        return
+
+    global_position = Vector3(camera_xz.x, camera_ground + IXELLES_PLAYER_BODY_CENTER_CLEARANCE_M, camera_xz.y)
+    var target_position := Vector3(target_xz.x, target_ground + 1.65, target_xz.y)
+    var to_target := target_position - Vector3(global_position.x, target_position.y, global_position.z)
+    rotation_degrees.y = rad_to_deg(atan2(-to_target.x, -to_target.z))
+    camera_pivot.position.y = IXELLES_CAMERA_PIVOT_HEIGHT_M
+    camera_pivot.rotation_degrees.x = 0.0
+    var spring_arm := get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
+    if spring_arm != null:
+        spring_arm.spring_length = 0.0
+    var base_mesh := get_node_or_null("MeshInstance3D") as MeshInstance3D
+    if base_mesh != null:
+        base_mesh.visible = false
+    var visual_upgrade := get_node_or_null("VisualUpgrade") as Node3D
+    if visual_upgrade != null:
+        visual_upgrade.visible = false
+    velocity = Vector3.ZERO
+
+    set_meta("ixelles_direct_camera_axis", IXELLES_CAMERA_AXIS_ID)
+    set_meta("ixelles_direct_target_axis", IXELLES_TARGET_AXIS_ID)
+    set_meta("ixelles_direct_ground_y", camera_ground)
+    set_meta("ixelles_direct_target_position", target_position)
+
+    var location_label := world.get_node_or_null("LocationLabel")
+    if location_label != null and location_label.has_method("set_forced_label"):
+        location_label.call("set_forced_label", "IXELLES · PLACE STÉPHANIE / STEFANIA")
+    elif location_label is Label:
+        (location_label as Label).text = "IXELLES · PLACE STÉPHANIE / STEFANIA"
+    var mission_label := world.get_node_or_null("MissionLabel")
+    if mission_label is CanvasItem:
+        (mission_label as CanvasItem).visible = false
+    var save_label := world.get_node_or_null("SaveStatusLabel")
+    if save_label is CanvasItem:
+        (save_label as CanvasItem).visible = false
+    var wallet_label := world.get_node_or_null("WalletLabel")
+    if wallet_label is CanvasItem:
+        (wallet_label as CanvasItem).visible = false
+    var minimap := world.get_node_or_null("MiniMap")
+    if minimap is CanvasItem:
+        (minimap as CanvasItem).visible = false
+
+    print("Direct test spawn: Ixelles / Place Stephanie")
 
 
 func _activate_atomium_direct_spawn() -> void:
@@ -135,7 +265,7 @@ func _unhandled_input(event: InputEvent) -> void:
         elif event.keycode == KEY_ESCAPE:
             Input.mouse_mode = (
                 Input.MOUSE_MODE_VISIBLE
-                if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+                if Input.mouse_mode == Input.MOUSE_CAPTURED
                 else Input.MOUSE_MODE_CAPTURED
             )
 

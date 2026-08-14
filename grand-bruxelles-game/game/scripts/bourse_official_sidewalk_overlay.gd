@@ -1,6 +1,7 @@
 extends Node3D
 
 const DATA_PATH := "res://data/urbis/bourse_official_sidewalks.game.json"
+const BLUE_STONE_VISUAL := preload("res://game/scripts/blue_stone_visual_material.gd")
 const BASE_SURFACE_Y_M := 0.17
 # Renderer-only depth separation. This is not a measured or claimed curb elevation.
 const PRESENTATION_EPSILON_M := 0.006
@@ -90,10 +91,7 @@ func _append_boundary_segment(tool: SurfaceTool, a: Vector2, b: Vector2) -> bool
     return true
 
 func _build_boundary_mesh(records: Dictionary) -> void:
-    var material := StandardMaterial3D.new()
-    material.albedo_color = Color(0.255, 0.245, 0.225, 1.0)
-    material.roughness = 0.98
-    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    var material := BLUE_STONE_VISUAL.create_boundary_material()
 
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -142,10 +140,11 @@ func _build() -> void:
         return
     _height_is_renderer_bias_only = true
 
-    var material := StandardMaterial3D.new()
-    material.albedo_color = Color(0.48, 0.455, 0.415, 1.0)
-    material.roughness = 0.95
-    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    # City of Brussels public-space documentation resolves bluestone coverage
+    # around the Bourse. Exact color, roughness, finish and module are not
+    # calibrated by that source, so the shared material keeps those values
+    # explicitly authored and does not add slab seams or physical curb claims.
+    var material := BLUE_STONE_VISUAL.create_paving_material()
 
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)

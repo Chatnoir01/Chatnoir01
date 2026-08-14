@@ -30,7 +30,6 @@ const IXELLES_TARGET_AXIS_ID := "https://databrussels.be/id/streetaxe/71306:2"
 const IXELLES_CAMERA_AXIS_T := 0.68
 const IXELLES_CAMERA_EYE_HEIGHT_M := 1.72
 const IXELLES_PLAYER_BODY_CENTER_CLEARANCE_M := 0.90
-const IXELLES_CAMERA_PIVOT_HEIGHT_M := IXELLES_CAMERA_EYE_HEIGHT_M - IXELLES_PLAYER_BODY_CENTER_CLEARANCE_M
 
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _base_collision_layer: int = 1
@@ -101,6 +100,25 @@ func _ixelles_inside_official_street_surface(slice: Node, point: Vector2) -> boo
     return false
 
 
+func _ixelles_collision_ground_y(camera_xz: Vector2, sampled_ground: float) -> float:
+    var query := PhysicsRayQueryParameters3D.create(
+        Vector3(camera_xz.x, sampled_ground + 20.0, camera_xz.y),
+        Vector3(camera_xz.x, sampled_ground - 20.0, camera_xz.y)
+    )
+    query.collision_mask = 1
+    query.exclude = [get_rid()]
+    var hit := get_world_3d().direct_space_state.intersect_ray(query)
+    if hit.is_empty():
+        return NAN
+    var collider: Variant = hit.get("collider")
+    if not collider is Node or not (collider as Node).name.begins_with("OfficialIxellesDTMCollision"):
+        return NAN
+    var position: Variant = hit.get("position")
+    if not position is Vector3:
+        return NAN
+    return (position as Vector3).y
+
+
 func _activate_ixelles_direct_spawn() -> void:
     var world := get_parent() as Node3D
     if world == null:
@@ -112,7 +130,7 @@ func _activate_ixelles_direct_spawn() -> void:
     slice.build_collision = true
     world.add_child(slice)
     await get_tree().process_frame
-    await get_tree().process_frame
+    await get_tree().physics_frame
     if not bool(slice.get("runtime_loaded")):
         push_error("Ixelles direct spawn: shipped micro-slice failed to load")
         return
@@ -136,12 +154,16 @@ func _activate_ixelles_direct_spawn() -> void:
     if not is_finite(camera_ground) or not is_finite(target_ground):
         push_error("Ixelles direct spawn: terrain witness unavailable")
         return
+    var physical_ground := _ixelles_collision_ground_y(camera_xz, camera_ground)
+    if not is_finite(physical_ground):
+        push_error("Ixelles direct spawn: source DTM collision ray did not resolve")
+        return
 
-    global_position = Vector3(camera_xz.x, camera_ground + IXELLES_PLAYER_BODY_CENTER_CLEARANCE_M, camera_xz.y)
+    global_position = Vector3(camera_xz.x, physical_ground + IXELLES_PLAYER_BODY_CENTER_CLEARANCE_M, camera_xz.y)
     var target_position := Vector3(target_xz.x, target_ground + 1.65, target_xz.y)
     var to_target := target_position - Vector3(global_position.x, target_position.y, global_position.z)
     rotation_degrees.y = rad_to_deg(atan2(-to_target.x, -to_target.z))
-    camera_pivot.position.y = IXELLES_CAMERA_PIVOT_HEIGHT_M
+    camera_pivot.position.y = camera_ground + IXELLES_CAMERA_EYE_HEIGHT_M - global_position.y
     camera_pivot.rotation_degrees.x = 0.0
     var spring_arm := get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
     if spring_arm != null:
@@ -156,7 +178,8 @@ func _activate_ixelles_direct_spawn() -> void:
 
     set_meta("ixelles_direct_camera_axis", IXELLES_CAMERA_AXIS_ID)
     set_meta("ixelles_direct_target_axis", IXELLES_TARGET_AXIS_ID)
-    set_meta("ixelles_direct_ground_y", camera_ground)
+    set_meta("ixelles_direct_sampled_ground_y", camera_ground)
+    set_meta("ixelles_direct_physical_ground_y", physical_ground)
     set_meta("ixelles_direct_target_position", target_position)
 
     var location_label := world.get_node_or_null("LocationLabel")

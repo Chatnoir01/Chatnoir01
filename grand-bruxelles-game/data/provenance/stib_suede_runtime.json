@@ -1,0 +1,42 @@
+{
+  "schema": "grand-bruxelles-runtime-provenance-v1",
+  "asset_id": "stib_suede_runtime_identity_2539",
+  "runtime_status": "source_bounded_identity_and_waiting_behavior",
+  "authority": "Brussels Mobility / STIB-MIVB",
+  "historic_source_gate": {
+    "collection": "bm_public_transport:stib_stops",
+    "feature_id": "stib_stops.680",
+    "stop_id": "2539",
+    "name_fr": "Suède",
+    "name_nl": "Zweden",
+    "mode": "Bus",
+    "lines_observed_in_source_gate": "{48,49,50}",
+    "crs": "OGC:CRS84",
+    "coordinates_lon_lat": [4.33581842, 50.83409624],
+    "source_gate_pr": 299,
+    "source_gate_head": "e28c8e85c7b2bab98418e53df2389f23e89fcdd6"
+  },
+  "game_space_derivation": {
+    "world_origin_lon_lat": [4.348, 50.8419],
+    "origin_source": "data/osm/vertical_slice_01.game.json",
+    "method": "existing local tangent/equirectangular project convention",
+    "derived_anchor_xyz_m": [-856.297, 0.16, 868.715],
+    "tolerance_m": 0.05
+  },
+  "authored_presentation": {
+    "identity_marker_geometry": true,
+    "identity_marker_dimensions": "authored for legibility; not surveyed STIB furniture",
+    "colors_and_pbr": "authored; no proprietary logo artwork",
+    "queue_presentation": "uses existing NpcTransitStop/NpcAgent runtime with one behavioral queue anchor"
+  },
+  "explicitly_not_claimed": [
+    "shelter presence or geometry",
+    "timetable contents",
+    "service frequency",
+    "vehicle schedule",
+    "real vehicle door position",
+    "bench/bin/information-display presence",
+    "surveyed stop-pole dimensions or yaw"
+  ],
+  "distribution": "No source photograph, STIB logo artwork, timetable, or proprietary font asset is redistributed."
+}

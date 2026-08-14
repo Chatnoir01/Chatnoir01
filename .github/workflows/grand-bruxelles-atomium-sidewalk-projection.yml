@@ -6,7 +6,7 @@ on:
       - 'grand-bruxelles-game/tools/probe_atomium_sidewalk_context.py'
       - 'grand-bruxelles-game/data/environment/laeken_jette/atomium_sidewalk_context.game.json'
       - 'grand-bruxelles-game/game/zones/laeken_jette/atomium_sidewalk_context.gd'
-      - 'grand-bruxelles-game/game/scripts/player_controller.gd'
+      - 'grand-bruxelles-game/project.godot'
       - 'grand-bruxelles-game/game/tests/atomium_sidewalk_context_test.gd'
       - '.github/workflows/grand-bruxelles-atomium-sidewalk-projection.yml'
   workflow_dispatch:
@@ -21,8 +21,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Probe official sidewalk geometry and accepted player wedge
         run: python3 tools/probe_atomium_sidewalk_context.py
-      - name: Report source-lock scope
-        run: echo 'Exact WFS geometry + accepted #254 player wedge; no runtime material rescue.'
       - uses: actions/upload-artifact@v4
         with:
           name: atomium-sidewalk-source-lock

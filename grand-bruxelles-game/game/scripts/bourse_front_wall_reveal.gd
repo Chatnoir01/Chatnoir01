@@ -12,6 +12,7 @@ const SIDEWALK_OVERLAY_SCRIPT := preload("res://game/scripts/bourse_official_sid
 var _removed_triangles := 0
 var _kept_triangles := 0
 var _roof_backface_cull_applied := false
+var _hero_white_stone_applied := false
 var _portico_white_stone_applied := false
 var _sidewalk_overlay: Node3D
 
@@ -61,6 +62,16 @@ func _is_front_facing_triangle(
     horizontal = horizontal.normalized()
     return absf(horizontal.dot(normal)) >= front_alignment_min
 
+func _white_stone_material() -> StandardMaterial3D:
+    # Heritage inventory 31241 explicitly describes all four façades as white stone.
+    # These RGB/roughness values are presentation values reused from shipped #217,
+    # not measured photometry or invented landmark geometry.
+    var white_stone := StandardMaterial3D.new()
+    white_stone.albedo_color = Color(0.84, 0.82, 0.76, 1.0)
+    white_stone.metallic = 0.0
+    white_stone.roughness = 0.76
+    return white_stone
+
 func _apply_bourse_roof_backface_cull(hero: Node) -> bool:
     var roofs := hero.get_node_or_null("Roofs") as MeshInstance3D
     if roofs == null or roofs.mesh == null or roofs.mesh.get_surface_count() == 0:
@@ -81,19 +92,25 @@ func _apply_bourse_roof_backface_cull(hero: Node) -> bool:
     _roof_backface_cull_applied = true
     return true
 
+func _apply_hero_white_stone_presentation(walls: MeshInstance3D) -> bool:
+    if walls.mesh == null or walls.mesh.get_surface_count() == 0:
+        push_error("Bourse front reveal: hero wall mesh missing for white-stone presentation")
+        return false
+    walls.material_override = _white_stone_material()
+    walls.set_meta("bourse_white_stone_presentation", true)
+    walls.set_meta("bourse_white_stone_source", "urban.brussels heritage inventory 31241")
+    walls.set_meta("bourse_white_stone_authored_pbr", true)
+    walls.set_meta("bourse_white_stone_triangle_count_preserved", walls.mesh.surface_get_array_len(0) / 3)
+    _hero_white_stone_applied = true
+    return true
+
 func _apply_portico_white_stone_presentation() -> bool:
     var portico := get_node_or_null(portico_path)
     if portico == null:
         push_error("Bourse front reveal: portico articulation missing")
         return false
 
-    # Heritage evidence describes the four principal façades as white stone.
-    # RGB/roughness below are authored presentation values, not calibrated photometry.
-    var white_stone := StandardMaterial3D.new()
-    white_stone.albedo_color = Color(0.84, 0.82, 0.76, 1.0)
-    white_stone.metallic = 0.0
-    white_stone.roughness = 0.76
-
+    var white_stone := _white_stone_material()
     var applied := 0
     for child: Node in portico.get_children():
         var name_value := str(child.name)
@@ -199,13 +216,15 @@ func _apply_reveal() -> void:
     walls.set_meta("bourse_front_reveal_source_bounded", true)
     walls.set_meta("bourse_front_reveal_removed_triangles", _removed_triangles)
     walls.set_meta("bourse_front_reveal_kept_triangles", _kept_triangles)
+    if not _apply_hero_white_stone_presentation(walls):
+        return
     if not _apply_bourse_roof_backface_cull(hero):
         return
     if not _apply_portico_white_stone_presentation():
         return
     set_meta("runtime_approved", false)
     set_meta("realism_complete", false)
-    print("Bourse front wall reveal: removed=%d kept=%d roof_backface_cull=true white_stone=true runtime_approved=false" % [_removed_triangles, _kept_triangles])
+    print("Bourse front wall reveal: removed=%d kept=%d roof_backface_cull=true hero_white_stone=true white_stone=true runtime_approved=false" % [_removed_triangles, _kept_triangles])
 
 func diagnostic_removed_triangles() -> int:
     return _removed_triangles
@@ -215,6 +234,9 @@ func diagnostic_kept_triangles() -> int:
 
 func diagnostic_roof_backface_cull_applied() -> bool:
     return _roof_backface_cull_applied
+
+func diagnostic_hero_white_stone_applied() -> bool:
+    return _hero_white_stone_applied
 
 func diagnostic_portico_white_stone_applied() -> bool:
     return _portico_white_stone_applied

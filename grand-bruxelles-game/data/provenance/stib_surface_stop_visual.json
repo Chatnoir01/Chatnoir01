@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "asset_family": "stib_surface_stop_visual",
+  "source": {
+    "publisher": "STIB-MIVB",
+    "title": "Vademecum arrêts / Fiche Mémo Plan de Normes - Arrêts",
+    "landing_url": "https://www.stib-mivb.be/support-client/vademecum-arrets",
+    "memo_url": "https://www.stib-mivb.be/files/live/sites/STIBMIVB/files/Corporate/Fiche-Memo-Arrets.pdf",
+    "plan_url": "https://www.stib-mivb.be/files/live/sites/STIBMIVB/files/Corporate/Plan-norme-arrets-surface-description-principe-plans.pdf",
+    "source_dates": ["2021-02", "2024-03"],
+    "retrieved_on": "2026-08-14"
+  },
+  "source_backed_contract": {
+    "minimum_furniture": ["stop_pole_with_timetable_holder", "bin"],
+    "shelter_standard_equipment": ["bench", "information_panel"],
+    "minimum_clear_path_front_m": 1.5,
+    "minimum_clear_path_rear_m": 1.5,
+    "bus_stop_length_m": 20.0,
+    "tram_stop_length_m": 45.0,
+    "bus_extension_curb_height_m": 0.18,
+    "tram_curb_height_m": 0.31
+  },
+  "authored_presentation_values": {
+    "shelter_envelope_m": [4.8, 2.35, 1.65],
+    "pole_height_m": 3.1,
+    "colors": "authored blue/red/neutral identity palette; not calibrated from official brand files",
+    "materials": "authored roughness/metallic/transparency values",
+    "geometry": "original primitive-mesh interpretation; not a vendor/manufacturer model",
+    "branding": "no embedded STIB/MIVB logo artwork or copyrighted reference image"
+  },
+  "placement_policy": "The asset family is reusable. The deterministic witness placement is presentation-only and does not assert a surveyed stop location. Production geographic placement requires an independently defensible stop anchor.",
+  "license_note": "No source image is redistributed. Only functional constraints and dimensions stated in official public STIB documentation are encoded; visual geometry and materials are newly authored."
+}

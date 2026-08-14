@@ -5,13 +5,16 @@ extends "res://game/zones/ixelles/ixelles_microslice.gd"
 ## and are re-sampled against the same official 2 m DTM used by the base slice.
 
 const STREET_RENDER_BIAS_M := 0.035
-const STREET_MAX_EDGE_M := 2.0
+const STREET_MAX_EDGE_M := 6.0
 const STREET_MIN_CHECK_CLEARANCE_M := 0.004
-const STREET_MAX_SUBDIVISION_DEPTH := 8
+const STREET_MAX_SUBDIVISION_DEPTH := 7
+const STREET_SOURCE_BOUNDARY_EPSILON_M := 0.05
+const STREET_TERRAIN_BOUNDARY_EPSILON_M := 0.25
 
 var street_drape_triangle_count := 0
 var street_drape_vertex_count := 0
 var street_drape_outside_source_vertices := 0
+var street_drape_outside_terrain_vertices := 0
 var street_drape_min_check_clearance_m := INF
 var street_drape_max_leaf_edge_m := 0.0
 var street_drape_max_subdivision_depth := 0
@@ -28,12 +31,33 @@ func _point_in_or_on_polygon(point: Vector2, polygon: PackedVector2Array) -> boo
     if Geometry2D.is_point_in_polygon(point, polygon):
         return true
     for i: int in range(polygon.size()):
-        if _point_segment_distance(point, polygon[i], polygon[(i + 1) % polygon.size()]) <= 0.001:
+        if _point_segment_distance(point, polygon[i], polygon[(i + 1) % polygon.size()]) <= STREET_SOURCE_BOUNDARY_EPSILON_M:
             return true
     return false
 
+func _terrain_clamped_game_point(point: Vector2) -> Vector2:
+    var e := _origin_e + (point.x - _world_anchor_x)
+    var n := _origin_n - (point.y - _world_anchor_z)
+    var clamped_e := clampf(e, _bbox.position.x, _bbox.end.x)
+    var clamped_n := clampf(n, _bbox.position.y, _bbox.end.y)
+    var outside_distance := Vector2(e, n).distance_to(Vector2(clamped_e, clamped_n))
+    if outside_distance > STREET_TERRAIN_BOUNDARY_EPSILON_M:
+        return Vector2(INF, INF)
+    var game := lambert_to_game(clamped_e, clamped_n)
+    return Vector2(game.x, game.z)
+
+func _sample_drape_height(point: Vector2) -> float:
+    var sample_point := _terrain_clamped_game_point(point)
+    if not is_finite(sample_point.x) or not is_finite(sample_point.y):
+        return NAN
+    return sample_height(sample_point.x, sample_point.y)
+
 func _draped_vertex(point: Vector2) -> Vector3:
-    return Vector3(point.x, sample_height(point.x, point.y) + STREET_RENDER_BIAS_M, point.y)
+    var height := _sample_drape_height(point)
+    if not is_finite(height):
+        street_drape_outside_terrain_vertices += 1
+        height = sample_height(point.x, point.y)
+    return Vector3(point.x, height + STREET_RENDER_BIAS_M, point.y)
 
 func _leaf_clearance(a: Vector3, b: Vector3, c: Vector3) -> float:
     var minimum := INF
@@ -42,7 +66,9 @@ func _leaf_clearance(a: Vector3, b: Vector3, c: Vector3) -> float:
     var bc := (b + c) * 0.5
     var ca := (c + a) * 0.5
     for point: Vector3 in [centroid, ab, bc, ca]:
-        var terrain_y := sample_height(point.x, point.z)
+        var terrain_y := _sample_drape_height(Vector2(point.x, point.z))
+        if not is_finite(terrain_y):
+            return -INF
         minimum = minf(minimum, point.y - terrain_y)
     return minimum
 
@@ -121,4 +147,4 @@ func _build_street_surfaces() -> void:
     if stats is Dictionary:
         street_segment_count = int(stats.get("street_segments", 0))
 
-    print("IXELLES_STREET_DRAPE: surfaces=%d triangles=%d vertices=%d outside=%d min_clearance=%.5f max_leaf_edge=%.3f depth=%d" % [street_surface_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_subdivision_depth])
+    print("IXELLES_STREET_DRAPE: surfaces=%d triangles=%d vertices=%d outside_source=%d outside_terrain=%d min_clearance=%.5f max_leaf_edge=%.3f depth=%d" % [street_surface_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_outside_terrain_vertices, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_subdivision_depth])

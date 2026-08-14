@@ -1,0 +1,133 @@
+name: Grand Bruxelles Grand Place LoD2 Frontage
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-lod2-frontage.yml"
+      - "grand-bruxelles-game/tools/extract_urbis_3d_context.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontage-candidates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Query bounded official UrbIS buildings around Grand-Place
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/grand-place-lod2
+          python3 - <<'PY'
+          import json, math, urllib.parse, urllib.request
+          from pathlib import Path
+
+          # Existing project Grand-Place control point mapped from the same locked Bourse Lambert72/world frame.
+          center=(148857.73351135076,170700.48213200308)
+          radius=150.0
+          bbox=(center[0]-radius,center[1]-radius,center[0]+radius,center[1]+radius)
+          params={
+              'service':'WFS','version':'2.0.0','request':'GetFeature',
+              'typeNames':'urbisvector:Buildings','outputFormat':'application/json',
+              'srsName':'EPSG:31370','bbox':f'{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]},EPSG:31370'
+          }
+          url='https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs?'+urllib.parse.urlencode(params)
+          req=urllib.request.Request(url,headers={'User-Agent':'Grand-Bruxelles-Game/1.0','Accept':'application/json'})
+          with urllib.request.urlopen(req,timeout=90) as r: data=json.loads(r.read().decode('utf-8'))
+          assert data.get('type')=='FeatureCollection'
+
+          def rings(geom):
+              gt=geom.get('type'); c=geom.get('coordinates',[])
+              if gt=='Polygon': return c
+              if gt=='MultiPolygon':
+                  out=[]
+                  for p in c: out += p
+                  return out
+              return []
+          def ring_area(r):
+              pts=[p for p in r if isinstance(p,list) and len(p)>=2]
+              if len(pts)<3:return 0.0
+              return abs(sum(pts[i][0]*pts[(i+1)%len(pts)][1]-pts[(i+1)%len(pts)][0]*pts[i][1] for i in range(len(pts))))*0.5
+          def allpts(x):
+              if isinstance(x,list) and len(x)>=2 and isinstance(x[0],(int,float)) and isinstance(x[1],(int,float)):
+                  yield float(x[0]),float(x[1]); return
+              if isinstance(x,list):
+                  for y in x: yield from allpts(y)
+          rows=[]
+          for f in data.get('features',[]):
+              geom=f.get('geometry') or {}; props=f.get('properties') or {}
+              pts=list(allpts(geom.get('coordinates',[])))
+              if not pts: continue
+              area=sum(ring_area(r) for r in rings(geom))
+              cx=sum(x for x,_ in pts)/len(pts); cy=sum(y for _,y in pts)/len(pts)
+              dist=math.hypot(cx-center[0],cy-center[1])
+              inspire=str(props.get('INSPIRE_ID') or props.get('inspire_id') or '')
+              bid=''
+              for v in (inspire,str(props.get('ID','')),str(f.get('id',''))):
+                  tail=v.rstrip('/').split('/')[-1].split('.')[-1]
+                  if tail.isdigit(): bid=tail; break
+              if not bid: continue
+              rows.append({'building_id':bid,'area_m2':round(area,2),'centroid_distance_m':round(dist,2),'properties':{k:props[k] for k in props if k in ('ID','INSPIRE_ID','REFERENCE','REF','TYPE')}})
+          rows.sort(key=lambda r:(-r['area_m2'],r['centroid_distance_m']))
+          Path('/tmp/grand-place-lod2/wfs_candidates.json').write_text(json.dumps({'center_epsg31370':center,'radius_m':radius,'candidates':rows[:30]},indent=2)+'\n')
+          Path('/tmp/candidate_ids.txt').write_text('\n'.join(r['building_id'] for r in rows[:20])+'\n')
+          print('GRAND_PLACE_WFS_CANDIDATES',json.dumps(rows[:20],ensure_ascii=False))
+          PY
+
+      - name: Download audited official UrbIS 3D tile
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
+          EXPECTED="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148170_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source_root.txt
+
+      - name: Extract official LoD2 candidates and rank likely screen-impact massing
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"
+          OUT=/tmp/grand-place-lod2/extracted
+          mkdir -p "$OUT"
+          while read -r ID; do
+            [ -n "$ID" ] || continue
+            python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
+              --source-root "$ROOT" --prefix UrbISBuildings3D_148170 \
+              --building-id "https://databrussels.be/id/building/$ID" \
+              --context-id "grand_place_context_$ID" --name "Grand-Place context building $ID" \
+              --package-url "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip" \
+              --package-sha256 "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2" \
+              --package-revision "2026-08-08" --accessed-at "2026-08-14" \
+              --origin-e 147868.29422791934 --origin-n 169538.62414926197 --world-x -668.5 --world-z 627.84 \
+              --output "$OUT/$ID.game.json" || rm -f "$OUT/$ID.game.json"
+          done < /tmp/candidate_ids.txt
+          python3 - <<'PY'
+          import json, pathlib
+          root=pathlib.Path('/tmp/grand-place-lod2/extracted')
+          rows=[]
+          for p in root.glob('*.game.json'):
+              d=json.loads(p.read_text()); b=d['evidence']['source_bbox_xy']; w=b[2]-b[0]; dep=b[3]-b[1]; h=d['evidence']['height_m']
+              rows.append({'building_id':p.stem.replace('.game',''),'width_m':round(w,2),'depth_m':round(dep,2),'height_m':round(h,2),'faces':d['evidence']['face_count'],'triangles':d['evidence']['triangle_count'],'face_types':d['evidence']['face_type_counts'],'massing_score':round(max(w,dep)*h,1)})
+          rows.sort(key=lambda r:-r['massing_score'])
+          out={'schema':'grand-bruxelles-grand-place-lod2-frontage-candidates-v1','source':'official UrbIS 3D Buildings, EPSG:31370, CC0','candidates':rows,'runtime_approved':False,'realism_complete':False}
+          pathlib.Path('/tmp/grand-place-lod2/lod2_summary.json').write_text(json.dumps(out,indent=2)+'\n')
+          print('GRAND_PLACE_LOD2_SUMMARY',json.dumps(rows,ensure_ascii=False))
+          if not rows: raise SystemExit('no official LoD2 candidates extracted')
+          PY
+
+      - name: Upload bounded evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-lod2-frontage-candidates
+          path: /tmp/grand-place-lod2
+          if-no-files-found: error

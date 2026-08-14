@@ -1,0 +1,42 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://game/scripts/npc_agent.gd" id="1_agent"]
+[ext_resource type="Script" path="res://game/scripts/npc_limbo_pilot_orchestrator.gd" id="2_orchestrator"]
+
+[sub_resource type="CapsuleShape3D" id="CivilianShape"]
+radius = 0.34
+height = 1.75
+
+[sub_resource type="CapsuleShape3D" id="PoliceShape"]
+radius = 0.36
+height = 1.80
+
+[node name="NpcLimboPilot" type="Node3D"]
+
+[node name="Civilian" type="CharacterBody3D" parent="."]
+position = Vector3(-2, 0.9, 0)
+script = ExtResource("1_agent")
+role = 0
+variation_seed = 31
+active = true
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Civilian"]
+shape = SubResource("CivilianShape")
+
+[node name="Police" type="CharacterBody3D" parent="."]
+position = Vector3(2, 0.9, 0)
+script = ExtResource("1_agent")
+role = 1
+variation_seed = 17
+active = true
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Police"]
+shape = SubResource("PoliceShape")
+
+[node name="CivilianLimboPilot" type="Node" parent="."]
+script = ExtResource("2_orchestrator")
+agent_path = NodePath("../Civilian")
+
+[node name="PoliceLimboPilot" type="Node" parent="."]
+script = ExtResource("2_orchestrator")
+agent_path = NodePath("../Police")

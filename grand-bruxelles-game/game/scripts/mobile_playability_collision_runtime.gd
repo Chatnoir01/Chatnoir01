@@ -4,6 +4,7 @@ extends Node
 ## authored as visual/behavior-only nodes. It does not replace crowd spacing;
 ## it gives the player/world a final physical barrier when avoidance fails.
 
+const WORLD_STREAMING_RUNTIME_SCRIPT := preload("res://game/scripts/brussels_world_streaming_runtime.gd")
 const CHARACTER_RADIUS := 0.32
 const CHARACTER_HEIGHT := 1.72
 
@@ -15,6 +16,18 @@ var traffic_shapes_added: int = 0
 func _ready() -> void:
     get_tree().node_added.connect(_on_node_added)
     call_deferred("_initial_scan")
+    call_deferred("_ensure_world_streaming_runtime")
+
+
+func _ensure_world_streaming_runtime() -> void:
+    var world := get_parent()
+    if world == null or world.get_node_or_null("Player") == null:
+        return
+    if world.get_node_or_null("WorldStreamingRuntime") != null:
+        return
+    var runtime := WORLD_STREAMING_RUNTIME_SCRIPT.new()
+    runtime.name = "WorldStreamingRuntime"
+    world.add_child(runtime)
 
 
 func _initial_scan() -> void:

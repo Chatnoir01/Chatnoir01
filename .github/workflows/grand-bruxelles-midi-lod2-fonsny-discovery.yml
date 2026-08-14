@@ -22,6 +22,7 @@ jobs:
           set -euo pipefail
           URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_147169_20260808.zip"
           curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          echo "a760fdff222ae9431113f82fe1c8f942a9fe2bda40e32064c627ae8d3a21110f  /tmp/urbis3d.zip" | sha256sum -c -
           sha256sum /tmp/urbis3d.zip | tee /tmp/package.sha256
           mkdir -p /tmp/urbis3d
           unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
@@ -36,74 +37,81 @@ jobs:
           python3 - "$ROOT" <<'PY' | tee /tmp/fonsny-candidates.txt
           import importlib.util, math, sys
           from pathlib import Path
-
           root = Path(sys.argv[1])
           tool = Path('grand-bruxelles-game/tools/extract_urbis_3d_hero.py')
           spec = importlib.util.spec_from_file_location('urbis_hero', tool)
-          hero = importlib.util.module_from_spec(spec)
-          assert spec.loader is not None
-          sys.modules[spec.name] = hero
-          spec.loader.exec_module(hero)
-
+          hero = importlib.util.module_from_spec(spec); assert spec.loader is not None
+          sys.modules[spec.name] = hero; spec.loader.exec_module(hero)
           prefix = root / 'UrbISBuildings3D_147169'
-          solids_dbf = prefix.with_name(prefix.name + '_BuildingSolids.dbf')
+          solid_to_building = {}; building_solids = {}
+          for _index, row in hero.read_dbf(prefix.with_name(prefix.name + '_BuildingSolids.dbf')):
+              solid_id = row.get('INSPIRE_ID', ''); bu_id = row.get('BU_ID', '')
+              if solid_id and bu_id:
+                  solid_to_building[solid_id] = bu_id; building_solids.setdefault(bu_id, set()).add(solid_id)
+          candidates = {}
           faces_dbf = prefix.with_name(prefix.name + '_BuildingFaces.dbf')
           faces_shp = prefix.with_name(prefix.name + '_BuildingFaces.shp')
           faces_shx = prefix.with_name(prefix.name + '_BuildingFaces.shx')
-
-          ORIGIN_E = 147868.29422791934
-          ORIGIN_N = 169538.62414926197
-
-          # Stable source relationship: BuildingFaces.BUSOLID_ID ->
-          # BuildingSolids.INSPIRE_ID -> BuildingSolids.BU_ID.
-          solid_to_building = {}
-          building_solids = {}
-          for _index, row in hero.read_dbf(solids_dbf):
-              solid_id = row.get('INSPIRE_ID', '')
-              bu_id = row.get('BU_ID', '')
-              if solid_id and bu_id:
-                  solid_to_building[solid_id] = bu_id
-                  building_solids.setdefault(bu_id, set()).add(solid_id)
-
-          candidates = {}
+          E=147868.29422791934; N=169538.62414926197
           for face_index, row in hero.read_dbf(faces_dbf):
-              solid_id = row.get('BUSOLID_ID', '')
-              bu_id = solid_to_building.get(solid_id)
-              if not bu_id:
-                  continue
+              bu_id = solid_to_building.get(row.get('BUSOLID_ID', ''))
+              if not bu_id: continue
               patch = hero.read_multipatch(faces_shp, faces_shx, face_index)
-              minx, miny, maxx, maxy = patch['bbox_xy']
-              # Early face-level reject keeps the pass bounded.
-              nearest_x = min(max(ORIGIN_E, minx), maxx)
-              nearest_y = min(max(ORIGIN_N, miny), maxy)
-              if math.hypot(nearest_x - ORIGIN_E, nearest_y - ORIGIN_N) > 180.0:
-                  continue
-              rec = candidates.setdefault(bu_id, {
-                  'minx': minx, 'miny': miny, 'maxx': maxx, 'maxy': maxy,
-                  'zmin': patch['z_min'], 'zmax': patch['z_max'], 'faces': 0,
-              })
-              rec['minx'] = min(rec['minx'], minx); rec['miny'] = min(rec['miny'], miny)
-              rec['maxx'] = max(rec['maxx'], maxx); rec['maxy'] = max(rec['maxy'], maxy)
-              rec['zmin'] = min(rec['zmin'], patch['z_min']); rec['zmax'] = max(rec['zmax'], patch['z_max'])
-              rec['faces'] += 1
-
-          ranked = []
-          for bu_id, rec in candidates.items():
-              w = rec['maxx'] - rec['minx']; d = rec['maxy'] - rec['miny']; h = rec['zmax'] - rec['zmin']
-              cx = (rec['minx'] + rec['maxx']) * 0.5; cy = (rec['miny'] + rec['maxy']) * 0.5
-              dist = math.hypot(cx - ORIGIN_E, cy - ORIGIN_N)
-              envelope = max(w, d) * max(h, 1.0)
-              score = envelope / max(dist, 20.0)
-              ranked.append((score, bu_id, dist, w, d, h, rec))
+              minx,miny,maxx,maxy=patch['bbox_xy']; nx=min(max(E,minx),maxx); ny=min(max(N,miny),maxy)
+              if math.hypot(nx-E,ny-N)>180.0: continue
+              rec=candidates.setdefault(bu_id,{'minx':minx,'miny':miny,'maxx':maxx,'maxy':maxy,'zmin':patch['z_min'],'zmax':patch['z_max'],'faces':0})
+              rec['minx']=min(rec['minx'],minx); rec['miny']=min(rec['miny'],miny); rec['maxx']=max(rec['maxx'],maxx); rec['maxy']=max(rec['maxy'],maxy)
+              rec['zmin']=min(rec['zmin'],patch['z_min']); rec['zmax']=max(rec['zmax'],patch['z_max']); rec['faces']+=1
+          ranked=[]
+          for bu_id,r in candidates.items():
+              w=r['maxx']-r['minx']; d=r['maxy']-r['miny']; h=r['zmax']-r['zmin']; cx=(r['minx']+r['maxx'])/2; cy=(r['miny']+r['maxy'])/2
+              dist=math.hypot(cx-E,cy-N); score=max(w,d)*max(h,1.0)/max(dist,20.0); ranked.append((score,bu_id,dist,w,d,h,r))
           ranked.sort(reverse=True)
-          print('MIDI_FONSNY_SOURCE_CANDIDATES count=', len(ranked))
-          for rank, item in enumerate(ranked[:20], 1):
-              score, bu_id, dist, w, d, h, rec = item
-              print(f'{rank:02d} score={score:.2f} id={bu_id} dist_m={dist:.2f} envelope_m={w:.2f}x{d:.2f} height_extent_m={h:.2f} solids={len(building_solids.get(bu_id,()))} faces={rec["faces"]} bbox=({rec["minx"]:.2f},{rec["miny"]:.2f},{rec["maxx"]:.2f},{rec["maxy"]:.2f})')
-          assert ranked, 'No official LoD2 candidates found around Midi control point'
-          top = ranked[0]
-          assert max(top[3], top[4]) >= 35.0, 'Top candidate is too small for anti-micro gate'
-          assert top[5] >= 10.0, 'Top candidate lacks meaningful vertical envelope'
+          print('MIDI_FONSNY_SOURCE_CANDIDATES count=',len(ranked))
+          for rank,item in enumerate(ranked[:20],1):
+              score,bu_id,dist,w,d,h,r=item
+              print(f'{rank:02d} score={score:.2f} id={bu_id} dist_m={dist:.2f} envelope_m={w:.2f}x{d:.2f} height_extent_m={h:.2f} solids={len(building_solids.get(bu_id,()))} faces={r["faces"]} bbox=({r["minx"]:.2f},{r["miny"]:.2f},{r["maxx"]:.2f},{r["maxy"]:.2f})')
+          station=[x for x in ranked if x[1].endswith('/1633645')]
+          assert len(station)==1, 'Station-complex building 1633645 not resolved exactly once'
+          s=station[0]; assert s[3]>=500 and s[4]>=600 and s[5]>=10, 'Station source envelope unexpectedly small'
+          PY
+      - name: Extract exact official station-complex LoD2 and estimate normal-view occupancy
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"
+          python3 grand-bruxelles-game/tools/extract_urbis_3d_hero.py \
+            --source-root "$ROOT" --prefix UrbISBuildings3D_147169 \
+            --building-id https://databrussels.be/id/building/1633645 \
+            --hero-id midi_station_1633645 --name "Bruxelles-Midi official LoD2 station complex" \
+            --package-url https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_147169_20260808.zip \
+            --package-sha256 a760fdff222ae9431113f82fe1c8f942a9fe2bda40e32064c627ae8d3a21110f \
+            --package-revision 20260808 --accessed-at 2026-08-14 \
+            --origin-e 147868.29422791934 --origin-n 169538.62414926197 \
+            --world-x -668.5 --world-z 627.84 --output /tmp/midi_station_1633645.game.json
+          python3 - <<'PY' | tee /tmp/fonsny-projection.txt
+          import json, math
+          data=json.load(open('/tmp/midi_station_1633645.game.json'))
+          faces=[f for f in data['faces'] if f['type'] in ('WALLSURFACE','ROOFSURFACE')]
+          pts=[p for f in faces for tri in f['triangles'] for p in tri]
+          cam=(-659.0,5.2,638.5); target=(-681.8,0.35,619.7); fov=math.radians(64.0); aspect=1280/720
+          def norm(v):
+              l=math.sqrt(sum(x*x for x in v)); return tuple(x/l for x in v)
+          forward=norm(tuple(target[i]-cam[i] for i in range(3)))
+          right=norm((forward[2],0.0,-forward[0]))
+          up=(right[1]*forward[2]-right[2]*forward[1], right[2]*forward[0]-right[0]*forward[2], right[0]*forward[1]-right[1]*forward[0])
+          tan_y=math.tan(fov/2); tan_x=tan_y*aspect; projected=[]
+          for p in pts:
+              rel=tuple(p[i]-cam[i] for i in range(3)); z=sum(rel[i]*forward[i] for i in range(3))
+              if z<=0.1: continue
+              x=sum(rel[i]*right[i] for i in range(3))/(z*tan_x); y=sum(rel[i]*up[i] for i in range(3))/(z*tan_y)
+              if -1.2<=x<=1.2 and -1.2<=y<=1.2: projected.append((x,y))
+          assert projected, 'Official station LoD2 has no vertices in locked normal-view witness'
+          minx=max(-1,min(x for x,y in projected)); maxx=min(1,max(x for x,y in projected)); miny=max(-1,min(y for x,y in projected)); maxy=min(1,max(y for x,y in projected))
+          bbox_fraction=max(0,maxx-minx)*max(0,maxy-miny)/4.0
+          print('MIDI_FONSNY_PROJECTION', 'faces=',len(faces),'triangles=',sum(len(f['triangles']) for f in faces),'projected_vertices=',len(projected),'ndc_bbox=',(round(minx,3),round(miny,3),round(maxx,3),round(maxy,3)),'bbox_frame_fraction=',round(bbox_fraction,4))
+          print('SOURCE_EVIDENCE',data['evidence'])
+          assert bbox_fraction>=0.08, f'Projected station LoD2 bbox {bbox_fraction:.3%} is below 8% anti-micro pre-runtime gate'
           PY
       - name: Upload source discovery witness
         if: always()
@@ -113,4 +121,6 @@ jobs:
           path: |
             /tmp/package.sha256
             /tmp/fonsny-candidates.txt
+            /tmp/fonsny-projection.txt
+            /tmp/midi_station_1633645.game.json
           if-no-files-found: warn

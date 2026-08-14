@@ -1,0 +1,40 @@
+{
+  "schema": "grand-bruxelles.ixelles.identity-cue.v1",
+  "cell_id": "bxl-e149000-n169000-s500",
+  "bbox_epsg31370": [149000.0, 169000.0, 149500.0, 169500.0],
+  "runtime_approved": false,
+  "promote_runtime": false,
+  "cue_id": "stassart-124-blue-stone-ground-floor",
+  "source_building_id": "https://databrussels.be/id/building/1737877",
+  "official_address": {
+    "urbis_address_id": "https://databrussels.be/id/address/13690",
+    "street_fr": "Rue de Stassart",
+    "street_nl": "de Stassartstraat",
+    "police_number": "124",
+    "zipcode": "1050",
+    "capakey": "21009A0356/00X004",
+    "urbis_wfs": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "link_method": "urbisvector:Addresses BU_ID exact match"
+  },
+  "heritage": {
+    "authority": "urban.brussels - Inventaire du patrimoine architectural",
+    "record_url": "https://monument.heritage.brussels/fr/buildings/19193",
+    "urban_id": 19193,
+    "description_basis": [
+      "Rue de Stassart 124 forms the corner with Place Stephanie",
+      "the elevation has four levels",
+      "the ground floor is blue stone with continuous rustication"
+    ]
+  },
+  "runtime_interpretation": {
+    "scope": "renderer-only lower-wall overlay on existing strong-source footprint",
+    "material_semantics": "blue stone; authored blue-grey visualization, not measured RGB",
+    "vertical_method": "semantic building height divided by four source-described levels",
+    "vertical_method_is_measured": false,
+    "geometry_changes": false,
+    "collision_changes": false,
+    "camera_changes": false,
+    "terrain_changes": false,
+    "unresolved_buildings_added": 0
+  }
+}

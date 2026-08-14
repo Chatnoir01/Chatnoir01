@@ -1,0 +1,30 @@
+name: Grand Bruxelles Atomium LandCover Candidate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-landcover-candidate.yml"
+      - "grand-bruxelles-game/tools/probe_atomium_landcover_candidate.py"
+      - "grand-bruxelles-game/data/environment/laeken_jette/atomium_landcover_context.game.json"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_landcover_context.gd"
+      - "grand-bruxelles-game/game/tests/atomium_landcover_context_test.gd"
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure exact official GB foreground coverage
+        working-directory: grand-bruxelles-game
+        run: python3 tools/probe_atomium_landcover_candidate.py
+      - name: Upload exact candidate geometry and witness metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-landcover-1038-candidate
+          path: grand-bruxelles-game/artifacts/atomium/landcover_1038_candidate.json
+          if-no-files-found: error

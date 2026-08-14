@@ -43,7 +43,7 @@ func apply_to_player(player: Node, args: PackedStringArray) -> bool:
     # The direct Atomium URL is a presentation witness. Keep the third-person
     # camera position but remove the avatar occluder so the landmark itself is
     # judgeable. This does not alter player collision, movement or world data.
-    var base_visual := player.get_node_or_null(BASE_VISUAL_PATH) as CanvasItem
+    var base_visual := player.get_node_or_null(BASE_VISUAL_PATH) as Node3D
     if base_visual != null:
         base_visual.visible = false
     var upgrade_visual := player.get_node_or_null(UPGRADE_VISUAL_PATH) as Node3D

@@ -71,6 +71,7 @@ jobs:
           assert strong > 5000, 'anti-micro gate: official surface must materially affect witness'
           PY
       - name: Upload visual evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: grand-place-arrival-surface-evidence
@@ -79,4 +80,4 @@ jobs:
             grand-bruxelles-game/artifacts/grand-place/arrival-surface/official_surface.png
             /tmp/grand-place-arrival.log
             /tmp/grand-place-ab.txt
-          if-no-files-found: error
+          if-no-files-found: warn

@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SLICE_SCRIPT := preload("res://game/zones/ixelles/ixelles_microslice_draped_exact.gd")
+const SLICE_SCRIPT := preload("res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd")
 const OUTPUT_PATH := "res://artifacts/ixelles/ixelles_place_stephanie_foundation.png"
 const WIDTH := 1280
 const HEIGHT := 960
@@ -92,8 +92,8 @@ func _run() -> void:
     if not slice.runtime_loaded:
         _fail("runtime slice did not load")
         return
-    if slice.street_drape_outside_source_vertices != 0 or slice.street_drape_invalid_source_partition_triangles != 0 or slice.street_drape_exact_clip_rejections != 0 or slice.street_drape_min_check_clearance_m < -0.001:
-        _fail("StreetSurface exact source/drape guard failed before capture")
+    if slice.street_drape_outside_source_vertices != 0 or slice.street_drape_source_intersection_piece_count <= 0 or slice.street_drape_min_check_clearance_m < -0.001:
+        _fail("StreetSurface source-intersection/drape guard failed before capture")
         return
 
     var stassart_segment := _axis_segment(slice, CAMERA_AXIS_ID)

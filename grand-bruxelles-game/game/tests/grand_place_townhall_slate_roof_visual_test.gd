@@ -73,8 +73,8 @@ func _run() -> void:
     var camera := Camera3D.new()
     camera.fov = CAMERA_FOV
     camera.position = CAMERA_POSITION
-    camera.look_at(CAMERA_TARGET, Vector3.UP)
     root.add_child(camera)
+    camera.look_at(CAMERA_TARGET, Vector3.UP)
     camera.current = true
 
     townhall.call("set_sourced_roof_material", false)

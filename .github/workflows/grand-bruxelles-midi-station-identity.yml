@@ -1,0 +1,34 @@
+name: Grand Bruxelles Midi Station Identity
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-station-identity.yml"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/tests/midi_station_identity_panel_test.gd"
+      - "grand-bruxelles-game/data/sources/visual_assets/bruxelles_midi_station_identity.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  midi-station-identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate physical bilingual station identity
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_station_identity_panel_test.gd 2>&1 | tee /tmp/midi-station-identity.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_STATION_IDENTITY_FAIL" /tmp/midi-station-identity.log; then exit 1; fi
+          grep -F "MIDI_STATION_IDENTITY_OK" /tmp/midi-station-identity.log

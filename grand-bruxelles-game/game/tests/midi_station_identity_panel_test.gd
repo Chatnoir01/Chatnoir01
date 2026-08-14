@@ -36,6 +36,11 @@ func _run() -> void:
         _fail("identity panel is too small to be a meaningful station-scale cue")
         return
 
+    var wall := entrance.get_node_or_null("EntranceBlueStoneWall") as MeshInstance3D
+    if wall == null or panel.position.x <= wall.position.x:
+        _fail("identity panel must remain on the road-facing side of the existing entrance wall")
+        return
+
     var fr := entrance.get_node_or_null("StationIdentityPanel/StationIdentityFR") as Label3D
     var nl := entrance.get_node_or_null("StationIdentityPanel/StationIdentityNL") as Label3D
     if fr == null or nl == null:
@@ -62,5 +67,5 @@ func _run() -> void:
         _fail("legacy floating station-name billboard must be removed")
         return
 
-    print("MIDI_STATION_IDENTITY_OK: physical bilingual panel present and provenance-bounded")
+    print("MIDI_STATION_IDENTITY_OK: physical bilingual panel present, road-facing and provenance-bounded")
     quit(0)

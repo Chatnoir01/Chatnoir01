@@ -16,6 +16,7 @@ const STREET_MAX_EXPECTED_EDGE_M := 2.829
 var street_drape_triangle_count := 0
 var street_drape_vertex_count := 0
 var street_drape_outside_source_vertices := 0
+var street_drape_rejected_outside_triangles := 0
 var street_drape_unsupported_triangle_count := 0
 var street_drape_clearance_refinement_count := 0
 var street_drape_min_check_clearance_m := INF
@@ -130,9 +131,14 @@ func _emit_piece(target: SurfaceTool, source_ring: PackedVector2Array, piece: Pa
         var p0 := piece[indices[offset]]
         var p1 := piece[indices[offset + 1]]
         var p2 := piece[indices[offset + 2]]
+        var source_ok := true
         for point: Vector2 in [p0, p1, p2]:
             if not _point_in_or_on_polygon(point, source_ring):
-                street_drape_outside_source_vertices += 1
+                source_ok = false
+                break
+        if not source_ok:
+            street_drape_rejected_outside_triangles += 1
+            continue
         var v0 := Vector3(p0.x, _draped_height(p0), p0.y)
         var v1 := Vector3(p1.x, _draped_height(p1), p1.y)
         var v2 := Vector3(p2.x, _draped_height(p2), p2.y)
@@ -227,4 +233,4 @@ func _build_street_surfaces() -> void:
     if stats is Dictionary:
         street_segment_count = int(stats.get("street_segments", 0))
 
-    print("IXELLES_STREET_DRAPE: surfaces=%d source_triangles=%d clipped_pieces=%d triangles=%d vertices=%d outside_source=%d unsupported=%d min_clearance=%.5f max_leaf_edge=%.3f max_sampler_render_lift=%.5f" % [street_surface_count, street_drape_source_triangle_count, street_drape_clipped_piece_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_unsupported_triangle_count, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_sampler_render_lift_m])
+    print("IXELLES_STREET_DRAPE: surfaces=%d source_triangles=%d clipped_pieces=%d triangles=%d vertices=%d outside_source=%d rejected_outside=%d unsupported=%d min_clearance=%.5f max_leaf_edge=%.3f max_sampler_render_lift=%.5f" % [street_surface_count, street_drape_source_triangle_count, street_drape_clipped_piece_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_rejected_outside_triangles, street_drape_unsupported_triangle_count, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_sampler_render_lift_m])

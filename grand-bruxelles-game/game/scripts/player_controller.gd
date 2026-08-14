@@ -21,7 +21,8 @@ const ATOMIUM_REFLECTION_SCRIPT := preload("res://game/zones/laeken_jette/atomiu
 # It does not claim a surveyed camera pose or resolve the Atomium global yaw.
 const ATOMIUM_DIRECT_SPAWN_OFFSET := Vector3(-45.0, 0.0, 55.0)
 const ATOMIUM_DIRECT_EYE_HEIGHT_M := 1.05
-const ATOMIUM_DIRECT_CAMERA_PITCH_DEGREES := -24.0
+# Positive X pitch looks upward in this Godot camera rig.
+const ATOMIUM_DIRECT_CAMERA_PITCH_DEGREES := 24.0
 
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _base_collision_layer: int = 1

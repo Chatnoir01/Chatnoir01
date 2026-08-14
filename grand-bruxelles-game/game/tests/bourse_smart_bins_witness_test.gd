@@ -5,8 +5,10 @@ const BIN_SCRIPT := preload("res://game/scripts/bourse_smart_bins_visual.gd")
 const OUTPUT_PATH := "res://artifacts/bourse/bourse_smart_bins_witness.png"
 const WIDTH := 1280
 const HEIGHT := 720
-const CAMERA_POSITION := Vector3(154.0, 1.05, -726.0)
-const CAMERA_TARGET := Vector3(128.0, 0.8, -700.0)
+# Close production-camera witness for the source-backed right-hand Bourse stair bin.
+# Only the witness pose is authored; bin position/scale remain source-bounded/authored as recorded.
+const CAMERA_POSITION := Vector3(129.0, 1.05, -688.0)
+const CAMERA_TARGET := Vector3(125.12, 0.72, -692.04)
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -39,12 +41,21 @@ func _run() -> void:
     if pivot == null:
         _fail("production camera pivot missing")
         return
-    pivot.rotation_degrees.x = -4.0
+    pivot.rotation_degrees.x = -1.0
     var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
     if camera == null:
         _fail("production Camera3D missing")
         return
     camera.current = true
+
+    # Hide only player presentation in the evidence frame so the unchanged
+    # production third-person rig can judge the street furniture silhouette.
+    var player_mesh := player.get_node_or_null("MeshInstance3D") as GeometryInstance3D
+    if player_mesh != null:
+        player_mesh.visible = false
+    var player_visual := player.get_node_or_null("VisualUpgrade") as Node3D
+    if player_visual != null:
+        player_visual.visible = false
 
     for path: String in ["LocationLabel", "MissionLabel", "SaveStatusLabel", "WalletLabel", "MiniMap", "MobileControls"]:
         var hud := main.get_node_or_null(path)

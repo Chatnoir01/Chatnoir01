@@ -1,0 +1,75 @@
+{
+  "schema": "grand-bruxelles-material-identity-v1",
+  "target": {
+    "runtime_node": "GrandPlaceOfficialLod2Next",
+    "urbis_building_id": "https://databrussels.be/id/building/1786758",
+    "role": "Grand-Place L'Etoile + Le Cygne combined official LoD2 mass"
+  },
+  "geometry_source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "crs": "EPSG:31370",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "source_bbox_xy": [148837.034, 170640.5219, 148854.73, 170660.4861],
+    "source_height_m": 29.2844,
+    "license": "CC0-1.0"
+  },
+  "identity_sources": [
+    {
+      "provider": "City of Brussels Open Data",
+      "dataset": "Description des bâtiments de la Grand-Place de Bruxelles",
+      "dataset_id": "description-des-batiments-de-la-grand-place",
+      "license": "CC BY 4.0",
+      "accessed_at": "2026-08-14",
+      "records": [
+        {
+          "name": "Le Cygne",
+          "address": "Grand-Place, 9",
+          "geo_point_wgs84": [4.35243753345387, 50.84630264405441],
+          "derived_point_epsg31370": [148851.01409476768, 170655.47460936662],
+          "total_height_m": 28.0
+        },
+        {
+          "name": "L'Etoile",
+          "address": "Grand-Place, 8",
+          "geo_point_wgs84": [4.3523979709574085, 50.84633820876636],
+          "derived_point_epsg31370": [148848.22868414415, 170659.43144093547],
+          "total_height_m": 19.0
+        }
+      ],
+      "match_note": "Both official City points fall inside the authoritative UrbIS 1786758 XY bbox; the UrbIS vertical extent is consistent with the taller Le Cygne record."
+    },
+    {
+      "provider": "urban.brussels / Inventaire du patrimoine architectural",
+      "record": "L'Etoile - Monument a Charles Buls - 't Serclaes, Urban 31126",
+      "url": "https://monument.heritage.brussels/fr/buildings/31126",
+      "accessed_at": "2026-08-14",
+      "facts": [
+        "L'Etoile forms one habitation with no. 9 Le Cygne.",
+        "L'Etoile is described with white-stone facades, with blue stone used for specific arcades, dripstones and crosses."
+      ]
+    },
+    {
+      "provider": "urban.brussels / Inventaire du patrimoine architectural",
+      "record": "Le Cygne, Urban 40020",
+      "url": "https://monument.heritage.brussels/fr/buildings/40020",
+      "accessed_at": "2026-08-14",
+      "facts": [
+        "Le Cygne's restored principal facade uses Gobertange stone for facings and moulded frames and Euville stone for balcony/cartouche/fronton/statue work.",
+        "Blue stone is documented for crosses and dripstones; these details are not separable in the LoD2 wall surface."
+      ]
+    }
+  ],
+  "presentation_contract": {
+    "applies_to": "WALLSURFACE only",
+    "roof_unchanged": true,
+    "geometry_changed": false,
+    "openings_authored": false,
+    "blue_stone_details_authored": false,
+    "exact_rgb_is_photometric_measurement": false,
+    "coarse_lod2_material_identity_only": true,
+    "runtime_approved": false,
+    "realism_complete": false
+  }
+}

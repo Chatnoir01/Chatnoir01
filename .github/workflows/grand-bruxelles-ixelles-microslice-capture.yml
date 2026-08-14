@@ -1,0 +1,49 @@
+name: Grand Bruxelles Ixelles Micro-slice Capture
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-ixelles-microslice-capture.yml"
+      - "grand-bruxelles-game/game/zones/ixelles/ixelles_microslice.gd"
+      - "grand-bruxelles-game/game/tests/ixelles_microslice_capture_test.gd"
+      - "grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169000-s500_dtm_2m.game.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Render deterministic Place Stephanie foundation witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x960 --script res://game/tests/ixelles_microslice_capture_test.gd 2>&1 | tee /tmp/ixelles-microslice-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|IXELLES_MICROSLICE_CAPTURE_FAIL" /tmp/ixelles-microslice-capture.log; then exit 1; fi
+          grep -F "IXELLES_MICROSLICE_CAPTURE_OK" /tmp/ixelles-microslice-capture.log
+          test -f grand-bruxelles-game/artifacts/ixelles/ixelles_place_stephanie_foundation.png
+      - name: Upload deterministic witness
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-place-stephanie-foundation
+          path: |
+            grand-bruxelles-game/artifacts/ixelles/ixelles_place_stephanie_foundation.png
+            /tmp/ixelles-microslice-capture.log
+          if-no-files-found: warn

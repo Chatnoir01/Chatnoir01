@@ -15,25 +15,32 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Probe official UrbIS address-building linkage
+      - name: Verify candidate IDs against live UrbIS geometry
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs'
-          BBOX='149220,169380,149275,169445,EPSG:31370'
-          for TYPE in urbisvector:Buildings urbisvector:Addresses urbisvector:AddressNumbers; do
-            echo "=== $TYPE ==="
-            ENCODED=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$TYPE")
-            URL="$BASE?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$BBOX")&typeNames=$ENCODED"
-            curl -fLsS --max-time 30 "$URL" -o "/tmp/${TYPE#*:}.json"
+          for ID in 1737877 1633062; do
+            CQL="INSPIRE_ID='https://databrussels.be/id/building/$ID'"
+            Q=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$CQL")
+            URL="$BASE?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&typeNames=urbisvector%3ABuildings&CQL_FILTER=$Q"
+            curl -fLsS --max-time 30 "$URL" -o "/tmp/b$ID.json"
           done
           python3 - <<'PY'
-          import json, math
-          from pathlib import Path
-          for name in ('Buildings','Addresses','AddressNumbers'):
-              d=json.loads(Path('/tmp/'+name+'.json').read_text())
+          import json
+          def flatten(x):
+              if isinstance(x,list) and len(x)>=2 and isinstance(x[0],(int,float)) and isinstance(x[1],(int,float)):
+                  yield float(x[0]),float(x[1])
+              elif isinstance(x,list):
+                  for y in x: yield from flatten(y)
+          for bid in ('1737877','1633062'):
+              d=json.load(open('/tmp/b'+bid+'.json'))
               fs=d.get('features',[])
-              print('LAYER',name,'FEATURE_COUNT',len(fs))
-              for f in fs[:100]:
-                  print('FEATURE',name,f.get('id'),json.dumps(f.get('properties',{}),ensure_ascii=False,sort_keys=True))
+              print('CANDIDATE',bid,'LIVE_COUNT',len(fs))
+              for f in fs:
+                  pts=list(flatten((f.get('geometry') or {}).get('coordinates',[])))
+                  if pts:
+                      bbox=[min(x for x,y in pts),min(y for x,y in pts),max(x for x,y in pts),max(y for x,y in pts)]
+                  else: bbox=[]
+                  print('LIVE_BUILDING',bid,'props',json.dumps(f.get('properties',{}),sort_keys=True),'bbox31370',bbox,'sample',pts[:12])
           PY

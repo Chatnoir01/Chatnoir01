@@ -43,6 +43,8 @@ jobs:
           assert probe['source']['crs'] == locked['source']['crs'] == 'EPSG:31370'
           assert probe['classification']['source_code'] == locked['classification']['source_code'] == 'GB'
           assert probe['geometry'] == locked['geometry'], 'committed GB geometry differs from fresh official WFS'
+          assert locked['source']['license'] == 'CC-BY-4.0'
+          assert locked['source']['attribution'].startswith('Paradigm')
           w=probe['accepted_player_witness']
           assert w['camera_inside_candidate'] and not w['atomium_anchor_inside_candidate']
           assert w['ground_wedge_coverage_fraction'] >= 0.20
@@ -60,11 +62,13 @@ jobs:
           p=pathlib.Path('grand-bruxelles-game/artifacts/atomium/landcover_metadata.xml')
           text=p.read_text(encoding='utf-8',errors='replace')
           normalized=' '.join(re.sub(r'<[^>]+>',' ',text).split())
-          print('ATOMIUM_LANDCOVER_METADATA_PREVIEW', normalized[:2500])
+          print('ATOMIUM_LANDCOVER_METADATA_PREVIEW', normalized[:3000])
           low=normalized.lower()
-          if not any(token in low for token in ('cc0','cc-0','creative commons zero','public domain')):
-              raise SystemExit('official metadata does not establish CC0/public-domain reuse; reject runtime candidate')
-          print('ATOMIUM_LANDCOVER_LICENSE_OK: official metadata establishes CC0/public-domain reuse')
+          required=('creative commons attribution (cc-by)','required citation of data source','https://creativecommons.org/licenses/by/4.0/')
+          missing=[token for token in required if token not in low]
+          if missing:
+              raise SystemExit('official metadata does not establish exact CC-BY-4.0 attribution terms: '+repr(missing))
+          print('ATOMIUM_LANDCOVER_LICENSE_OK: CC-BY-4.0; attribution required to Paradigm data source')
           PY
       - name: Import project
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit

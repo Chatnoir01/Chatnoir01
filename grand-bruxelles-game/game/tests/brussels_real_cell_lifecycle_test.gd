@@ -5,7 +5,7 @@ const BACKEND_SCRIPT := preload("res://game/scripts/brussels_cell_node_backend.g
 const CELL_ID := "bxl-e149000-n169000-s500"
 const MANIFEST_PATH := "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/manifest.json"
 const RUNTIME_CELL_PATH := "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/cell.game.json"
-const IXELLES_SCRIPT_PATH := "res://game/zones/ixelles/ixelles_microslice.gd"
+const IXELLES_STREAMED_SCRIPT_PATH := "res://game/zones/ixelles/ixelles_streamed_microslice.gd"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -61,7 +61,7 @@ func _run() -> void:
     var backend := BACKEND_SCRIPT.new() as BrusselsCellNodeBackend
     root.add_child(backend)
     backend.bind_manager(manager)
-    if not _expect(backend.register_script_cell(CELL_ID, IXELLES_SCRIPT_PATH, {"build_collision": false}), "failed to bind real Ixelles runtime script"):
+    if not _expect(backend.register_script_cell(CELL_ID, IXELLES_STREAMED_SCRIPT_PATH, {"build_collision": false}), "failed to bind streamed Ixelles runtime script"):
         return
     if not _expect(manager.register_manifest_dict(manifest, cell_world_center), "failed to register real Ixelles manifest"):
         return
@@ -71,25 +71,37 @@ func _run() -> void:
     var approach_velocity := Vector3(-100.0, 0.0, 0.0)
     var load_started_ms := Time.get_ticks_msec()
     manager.update_observer(approach, approach_velocity)
-    await process_frame
-    await process_frame
+
+    var ixelles_node: Node = null
+    for _frame_index: int in range(20):
+        await process_frame
+        if backend.has_active_instance(CELL_ID):
+            ixelles_node = backend.get_instance(CELL_ID)
+            if is_instance_valid(ixelles_node) and bool(ixelles_node.get("runtime_loaded")):
+                break
     var load_elapsed_ms := Time.get_ticks_msec() - load_started_ms
 
     if not _expect(backend.has_active_instance(CELL_ID), "predictive approach did not instantiate real Ixelles cell"):
         return
     if not _expect(Vector2(approach.x, approach.z).distance_to(Vector2(cell_world_center.x, cell_world_center.z)) > manager.visual_load_radius_m, "probe did not prove predictive prefetch outside current load radius"):
         return
-
-    var ixelles_node := backend.get_instance(CELL_ID)
     if not _expect(is_instance_valid(ixelles_node), "Ixelles node vanished after activation"):
         return
-    if not _expect(bool(ixelles_node.get("runtime_loaded")), "Ixelles runtime did not complete its source-backed build"):
+    if not _expect(bool(ixelles_node.get("runtime_loaded")), "Ixelles streamed runtime did not complete within 20 frames"):
         return
     if not _expect(int(ixelles_node.get("terrain_triangle_count")) == 125000, "unexpected Ixelles terrain triangle count"):
         return
     if not _expect(int(ixelles_node.get("building_count")) == 260, "unexpected approved Ixelles building count"):
         return
     if not _expect(ixelles_node.find_child("OfficialIxellesDTMCollision", true, false) == null, "visual-prefetch backend unexpectedly built heavy terrain collision"):
+        return
+
+    var phase_ms: Dictionary = ixelles_node.get("stream_phase_ms")
+    var total_stream_ms := int(ixelles_node.get("stream_total_ms"))
+    var max_phase_ms := int(ixelles_node.call("get_max_stream_phase_ms"))
+    if not _expect(phase_ms.size() == 4 and phase_ms.has("contracts_materials") and phase_ms.has("terrain_mesh") and phase_ms.has("street_surfaces") and phase_ms.has("buildings"), "streamed Ixelles build was not split into the four expected visual phases: %s" % [phase_ms]):
+        return
+    if not _expect(max_phase_ms <= total_stream_ms, "max phase time cannot exceed total stream time"):
         return
 
     manager.update_observer(cell_world_center + Vector3(900.0, 0.0, 0.0), Vector3.ZERO)
@@ -105,7 +117,7 @@ func _run() -> void:
     if not _expect(int(scheduler_metrics.get("duplicate_activation_attempts", -1)) == 0, "scheduler duplicated a real cell activation"):
         return
 
-    print("BRUSSELS_REAL_CELL_LIFECYCLE_OK: Ixelles 125000-triangle/260-building cell prefetched outside radius and released; load_ms=%d center=(%.2f, %.2f)" % [load_elapsed_ms, cell_world_center.x, cell_world_center.z])
+    print("BRUSSELS_REAL_CELL_LIFECYCLE_OK: staged Ixelles 125000-triangle/260-building cell prefetched and released; elapsed_ms=%d total_stream_ms=%d max_phase_ms=%d phases=%s center=(%.2f, %.2f)" % [load_elapsed_ms, total_stream_ms, max_phase_ms, phase_ms, cell_world_center.x, cell_world_center.z])
     backend.queue_free()
     manager.queue_free()
     quit(0)

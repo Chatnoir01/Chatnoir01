@@ -13,6 +13,10 @@ var stream_total_ms := 0
 var stream_build_started := false
 var terrain_vertex_chunks := 0
 var terrain_index_chunks := 0
+var streamed_collision_requested := false
+var streamed_collision_enabled := false
+var streamed_collision_enable_count := 0
+var streamed_collision_disable_count := 0
 
 func _ready() -> void:
     call_deferred("_build_streamed")
@@ -36,8 +40,11 @@ func _build_streamed() -> void:
     await get_tree().process_frame
 
     if build_collision:
+        streamed_collision_requested = true
         phase_started = Time.get_ticks_msec()
         _build_collision()
+        streamed_collision_enabled = true
+        streamed_collision_enable_count += 1
         stream_phase_ms["terrain_collision"] = Time.get_ticks_msec() - phase_started
         await get_tree().process_frame
 
@@ -55,7 +62,41 @@ func _build_streamed() -> void:
     runtime_loaded = terrain_triangle_count == 125000 and street_surface_count == 309 and street_segment_count == 277 and building_count == eligible_height_count and building_count == 260 and skipped_unapproved_height_buildings == 460
     stream_total_ms = Time.get_ticks_msec() - total_started
     if runtime_loaded:
+        _apply_streamed_collision_request()
         print("IXELLES_STREAMED_MICROSLICE_READY: cell=%s triangles=%d streets=%d buildings=%d total_ms=%d max_phase_ms=%d vertex_chunks=%d index_chunks=%d" % [cell_id, terrain_triangle_count, street_surface_count, building_count, stream_total_ms, get_max_stream_phase_ms(), terrain_vertex_chunks, terrain_index_chunks])
+
+func set_streamed_collision_enabled(enabled: bool) -> void:
+    streamed_collision_requested = enabled
+    if runtime_loaded:
+        call_deferred("_apply_streamed_collision_request")
+
+func is_streamed_collision_enabled() -> bool:
+    return streamed_collision_enabled
+
+func _apply_streamed_collision_request() -> void:
+    if not runtime_loaded:
+        return
+    var existing := get_node_or_null("OfficialIxellesDTMCollision") as StaticBody3D
+    if streamed_collision_requested:
+        if existing == null:
+            var started := Time.get_ticks_msec()
+            _build_collision()
+            _record_phase_peak("streamed_collision_build", Time.get_ticks_msec() - started)
+            streamed_collision_enable_count += 1
+        streamed_collision_enabled = true
+        return
+    if existing != null:
+        existing.queue_free()
+        streamed_collision_disable_count += 1
+    streamed_collision_enabled = false
+
+func get_streamed_collision_metrics() -> Dictionary:
+    return {
+        "requested": streamed_collision_requested,
+        "enabled": streamed_collision_enabled,
+        "enable_count": streamed_collision_enable_count,
+        "disable_count": streamed_collision_disable_count,
+    }
 
 func _record_phase_peak(phase_name: String, elapsed_ms: int) -> void:
     stream_phase_ms[phase_name] = maxi(int(stream_phase_ms.get(phase_name, 0)), elapsed_ms)

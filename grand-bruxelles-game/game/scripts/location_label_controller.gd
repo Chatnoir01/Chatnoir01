@@ -32,6 +32,7 @@ const LOCATIONS: Array[Dictionary] = [
 var _player: Node3D = null
 var _vehicle: Node3D = null
 var _elapsed: float = 0.0
+var _forced_label: String = ""
 
 func _ready() -> void:
     _player = get_node_or_null(player_path) as Node3D
@@ -69,7 +70,18 @@ func label_for_world_position(world_position: Vector3) -> String:
         return nearest_label
     return "BRUXELLES · BRUSSEL"
 
+func set_forced_label(value: String) -> void:
+    _forced_label = value.strip_edges()
+    _refresh_label()
+
+func clear_forced_label() -> void:
+    _forced_label = ""
+    _refresh_label()
+
 func _refresh_label() -> void:
+    if not _forced_label.is_empty():
+        text = _forced_label
+        return
     text = label_for_world_position(_tracked_position())
 
 func get_current_location_text() -> String:

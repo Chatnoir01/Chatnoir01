@@ -8,6 +8,7 @@ on:
       - ".github/workflows/grand-bruxelles-vehicle-physics-prototype.yml"
       - "grand-bruxelles-game/game/prototypes/vehicle/**"
       - "grand-bruxelles-game/game/tests/vehicle_dynamics_60hz_test.gd"
+      - "grand-bruxelles-game/game/tests/vehicle_dynamics_runtime_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -34,3 +35,10 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/vehicle_dynamics_60hz_test.gd 2>&1 | tee /tmp/vehicle60.log
           if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_DYNAMICS_60HZ_FAIL" /tmp/vehicle60.log; then exit 1; fi
           grep -F "VEHICLE_DYNAMICS_60HZ_OK" /tmp/vehicle60.log
+      - name: Run RigidBody runtime probe
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/vehicle_dynamics_runtime_test.gd 2>&1 | tee /tmp/vehicle-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_DYNAMICS_RUNTIME_FAIL" /tmp/vehicle-runtime.log; then exit 1; fi
+          grep -F "VEHICLE_DYNAMICS_RUNTIME_OK" /tmp/vehicle-runtime.log

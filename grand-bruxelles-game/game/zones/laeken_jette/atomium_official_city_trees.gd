@@ -106,7 +106,7 @@ func _load_dictionary(path: String) -> Dictionary:
     return parsed as Dictionary if typeof(parsed) == TYPE_DICTIONARY else {}
 
 func _presentation_scale(identifier: String) -> float:
-    var bucket := abs(identifier.hash()) % 9
+    var bucket: int = abs(identifier.hash()) % 9
     return 0.84 + float(bucket) * 0.04
 
 func _build_multimeshes(positions: Array[Vector3], scales: Array[float]) -> void:
@@ -140,10 +140,10 @@ func _build_multimeshes(positions: Array[Vector3], scales: Array[float]) -> void
     _crown_multimesh.instance_count = positions.size()
 
     for i: int in range(positions.size()):
-        var p := positions[i]
-        var s := scales[i]
-        var trunk_basis := Basis.from_scale(Vector3(s, s, s))
-        var crown_basis := Basis.from_scale(Vector3(s, s, s))
+        var p: Vector3 = positions[i]
+        var s: float = scales[i]
+        var trunk_basis: Basis = Basis.from_scale(Vector3(s, s, s))
+        var crown_basis: Basis = Basis.from_scale(Vector3(s, s, s))
         _trunk_multimesh.set_instance_transform(i, Transform3D(trunk_basis, p + Vector3(0.0, PRESENTATION_TRUNK_HEIGHT_M * 0.5 * s, 0.0)))
         _crown_multimesh.set_instance_transform(i, Transform3D(crown_basis, p + Vector3(0.0, PRESENTATION_CROWN_Y_M * s, 0.0)))
 
@@ -159,6 +159,6 @@ func _build_multimeshes(positions: Array[Vector3], scales: Array[float]) -> void
 func instance_position(index: int) -> Vector3:
     if _trunk_multimesh == null or index < 0 or index >= _trunk_multimesh.instance_count:
         return Vector3.ZERO
-    var transform := _trunk_multimesh.get_instance_transform(index)
-    var scale_y := transform.basis.get_scale().y
+    var transform: Transform3D = _trunk_multimesh.get_instance_transform(index)
+    var scale_y: float = transform.basis.get_scale().y
     return transform.origin - Vector3(0.0, PRESENTATION_TRUNK_HEIGHT_M * 0.5 * scale_y, 0.0)

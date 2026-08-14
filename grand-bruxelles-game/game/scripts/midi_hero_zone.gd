@@ -282,7 +282,7 @@ func _build_station_entrance() -> void:
     station_fr.outline_size = 5
     station_fr.modulate = Color(0.97, 0.97, 0.94, 1.0)
     station_fr.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-    station_fr.rotation_degrees.y = 90.0
+    station_fr.rotation_degrees.y = -90.0
     station_fr.position = Vector3(0.08, 0.31, 0.0)
     identity_panel.add_child(station_fr)
 
@@ -294,7 +294,7 @@ func _build_station_entrance() -> void:
     station_nl.outline_size = 5
     station_nl.modulate = Color(0.97, 0.97, 0.94, 1.0)
     station_nl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-    station_nl.rotation_degrees.y = 90.0
+    station_nl.rotation_degrees.y = -90.0
     station_nl.position = Vector3(0.08, -0.34, 0.0)
     identity_panel.add_child(station_nl)
 

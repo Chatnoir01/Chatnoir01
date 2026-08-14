@@ -56,7 +56,7 @@ func _read_json(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):
         push_error("IxellesMicroSlice: missing %s" % path)
         return {}
-    var parsed := JSON.parse_string(FileAccess.get_file_as_string(path))
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
     if typeof(parsed) != TYPE_DICTIONARY:
         push_error("IxellesMicroSlice: invalid JSON %s" % path)
         return {}

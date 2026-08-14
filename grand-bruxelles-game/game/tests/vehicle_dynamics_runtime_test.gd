@@ -29,13 +29,17 @@ func _run() -> void:
     car_box.size = Vector3(1.82, 0.72, 4.15)
     car_shape.shape = car_box
     car.add_child(car_shape)
-    car.position = Vector3(0.0, 0.55, 0.0)
+    car.position = Vector3(0.0, 0.78, 0.0)
     world.add_child(car)
 
-    for _i: int in range(60):
+    for _i: int in range(90):
         await physics_frame
-    if car.position.y < 0.25:
-        _fail("prototype vehicle did not settle on floor")
+    if car.position.y < 0.45:
+        _fail("suspended chassis settled too low: %.3f" % car.position.y)
+        return
+    var supported := int(car.call("supported_wheel_count"))
+    if supported < 3:
+        _fail("raycast suspension did not support enough wheels: %d" % supported)
         return
 
     var start := car.position
@@ -55,9 +59,9 @@ func _run() -> void:
     if speed_after_brake > maxf(0.8, speed_before_brake * 0.20):
         _fail("runtime braking insufficient: before=%.3f after=%.3f" % [speed_before_brake, speed_after_brake])
         return
-    if car.position.y < 0.20:
-        _fail("runtime vehicle fell through floor")
+    if car.position.y < 0.35:
+        _fail("runtime suspended chassis collapsed through floor")
         return
 
-    print("VEHICLE_DYNAMICS_RUNTIME_OK: distance=%.2f speed_before=%.2f speed_after=%.2f final_y=%.2f" % [driven_distance, speed_before_brake, speed_after_brake, car.position.y])
+    print("VEHICLE_DYNAMICS_RUNTIME_OK: wheels=%d distance=%.2f speed_before=%.2f speed_after=%.2f final_y=%.2f" % [supported, driven_distance, speed_before_brake, speed_after_brake, car.position.y])
     quit(0)

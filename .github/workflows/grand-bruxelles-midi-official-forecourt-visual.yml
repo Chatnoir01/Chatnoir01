@@ -1,0 +1,69 @@
+name: Grand Bruxelles Midi Official Forecourt Visual
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-official-forecourt-visual.yml"
+      - "grand-bruxelles-game/data/visual/midi_official_forecourt_source_truth.json"
+      - "grand-bruxelles-game/game/scripts/midi_official_forecourt_mask.gd"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
+      - "grand-bruxelles-game/game/tests/midi_official_forecourt_visual_test.gd"
+      - "grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json"
+      - "grand-bruxelles-game/project.godot"
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Render deterministic Midi forecourt A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_official_forecourt_visual_test.gd 2>&1 | tee /tmp/midi-official-forecourt.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_OFFICIAL_FORECOURT_FAIL" /tmp/midi-official-forecourt.log; then exit 1; fi
+          grep -F "MIDI_OFFICIAL_FORECOURT_OK" /tmp/midi-official-forecourt.log
+          test -f grand-bruxelles-game/artifacts/midi/official-forecourt/before.png
+          test -f grand-bruxelles-game/artifacts/midi/official-forecourt/after.png
+      - name: Enforce anti-micro pixel gate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          a=Image.open('grand-bruxelles-game/artifacts/midi/official-forecourt/before.png').convert('RGB')
+          b=Image.open('grand-bruxelles-game/artifacts/midi/official-forecourt/after.png').convert('RGB')
+          assert a.size==(1280,720) and b.size==a.size
+          pa=list(a.getdata()); pb=list(b.getdata())
+          changed=sum(1 for x,y in zip(pa,pb) if max(abs(x[i]-y[i]) for i in range(3))>3)
+          changed8=sum(1 for x,y in zip(pa,pb) if max(abs(x[i]-y[i]) for i in range(3))>8)
+          ratio=changed/(1280*720)
+          ratio8=changed8/(1280*720)
+          print(f'MIDI_OFFICIAL_FORECOURT_PIXEL_GATE changed={changed} ratio={ratio:.6f} changed8={changed8} ratio8={ratio8:.6f}')
+          if changed < 30000 or ratio < 0.03:
+              raise SystemExit('anti-micro gate failed: official forecourt correction is not visually substantive')
+          PY
+      - name: Upload A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-official-forecourt-visual
+          path: |
+            grand-bruxelles-game/artifacts/midi/official-forecourt/before.png
+            grand-bruxelles-game/artifacts/midi/official-forecourt/after.png
+            /tmp/midi-official-forecourt.log
+          if-no-files-found: error

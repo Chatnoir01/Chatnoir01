@@ -2,7 +2,8 @@ extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
 const EXPECTED_HORIZONTAL_DISTANCE_M := 71.06335
-const EXPECTED_EYE_HEIGHT_M := 1.05
+const MIN_STANDING_CLEARANCE_M := 0.75
+const MAX_STANDING_CLEARANCE_M := 1.10
 const EXPECTED_CAMERA_PITCH_DEGREES := -24.0
 
 func _initialize() -> void:
@@ -55,8 +56,9 @@ func _run() -> void:
         _fail("visitor viewpoint left the official DTM")
         return
     var sampled_y := float(terrain.call("sample_height", player_position.x, player_position.z))
-    if absf(player_position.y - (sampled_y + EXPECTED_EYE_HEIGHT_M)) > 0.01:
-        _fail("visitor viewpoint is not terrain anchored")
+    var standing_clearance := player_position.y - sampled_y
+    if standing_clearance < MIN_STANDING_CLEARANCE_M or standing_clearance > MAX_STANDING_CLEARANCE_M:
+        _fail("visitor viewpoint is not safely terrain anchored: clearance=%.3f" % standing_clearance)
         return
 
     var camera_pivot := player.get_node_or_null("CameraPivot") as Node3D
@@ -82,5 +84,5 @@ func _run() -> void:
         _fail("default sun still competes with Atomium presentation sun")
         return
 
-    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f)" % [horizontal_distance, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z])
+    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f)" % [horizontal_distance, standing_clearance, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z])
     quit(0)

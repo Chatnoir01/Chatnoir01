@@ -2,78 +2,66 @@
 
 Production truth: GitHub `main` only. Optimize player-perceived Brussels quality, not commit count.
 
-Current production checkpoint: `428fef342f426ba63067c6453e3319b3bbd347cb` (publication-only Web commit). Latest substantive player-facing merge below it: `ddff90d8f4552c62b8929fdd8c73b2b1cfbd0f5d` (#297 mobile mission/save/campaign access). Other fresh substantive production: `e7f8241db36bcd503e936af62ba388a53b8454b6` (#296 visible Living City/police) and `063bc99f8d45043b5eecb9ab1a8ab4856c991df7` (#293 Bourse collision sync).
+Current production checkpoint: `8dc6c23379bcf2c55c0553dc668f14476571bcae` (publication-only Web commit). Latest substantive production below it: `abb9149f109dd41bba864d42cbfc9a3821a85e1e` (#303 near-player collision tier + warm asset cache). Earlier substantive anchors remain #297 mobile mission/save access, #296 visible Living City/police, #293 Bourse collision sync, #290 mobile/vehicle playability, #289 Atomium context, #287 Bourse structure, #280 Grand-Place granite and prior landmark/material lots.
 
 ## North star
 
-At every zone ask: **what gives the game away beside a real Brussels photo or observation in the first three seconds?**
-
-Optimize three horizons:
-1. **3 seconds** — silhouette, proportions, materials, landmark/street identity, obvious placeholders.
-2. **30 seconds** — signage, transit vocabulary, furniture, vegetation, motion, clutter, lighting and atmosphere.
-3. **10 minutes** — controls, navigation, driving, believable PNJ/police reactions, missions/saves and performance.
+Ask every run: **what gives the game away beside a real Brussels photo or observation in the first three seconds, thirty seconds, and ten minutes?**
 
 Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is necessary but never sufficient.
 
-## Director checkpoint — 2026-08-14 21:09 Brussels
+## Director checkpoint — 2026-08-14 22:06 Brussels
 
 ### Fresh production truth
 
-- **#297 mobile mission/save/campaign access** — `shipped_10min_access_gain`. Existing mission, wallet, quick-save, quick-load and new-game systems are now reachable through the mobile UI instead of remaining keyboard-hidden. This materially improves Web/phone continuity without changing mission economics or save format.
-- **#296 visible Living City + police** — `shipped_30sec_10min_gain`. Existing NPC systems are finally exposed in the real world: bounded civilians and police at Midi/Bourse, real movement/collision, crowd reaction and visible police investigation/pursuit/de-escalation. This is a stronger use of existing systems than adding another hidden AI layer.
-- **#293 Bourse collision sync** — `shipped_blocking_bug_fix`. Collision is rebuilt after the source-bounded wall reveal so invisible stale walls no longer survive where the final visible Bourse mesh is open.
-- **#290 mobile playability + vehicle A/B + collision completion** — `shipped_broad_gameplay_gain`, still under human phone/Web and drive-feel debt. Do not resume broad feature expansion without a concrete regression or unusually high-value opportunity.
-- **#289 Atomium green-block context** — `shipped_major_context_gain`, human accepted. Official Paradigm LandCover improved the direct-player foreground by 14.93% >3 RGB.
-- **#287 Bourse front-depth guard** — `shipped_medium_structure_gain`, final direct witness 4.45% >3 RGB.
+- **#302 predictive Brussels cell streaming** — `shipped_infrastructure_foundation`. Clean-room scheduler, hysteresis, bounded operations and real Ixelles manifest lifecycle were validated. Useful only insofar as it unlocks seamless playable geography.
+- **#303 near-player collision tier + warm asset cache** — `shipped_10min_performance_foundation`. Exact-head test, Cell Streaming Probe, Web, Game CI, Ixelles direct-player, Photo Match, Performance and Branch Hygiene were green. Visual prefetch can remain light while heavy DTM collision activates near the player; warm resources reduce reload churn.
+- **#304** — `closed_superseded_without_merge`; parallel runtime attachment was rebuilt cleanly as #305 after #303 changed the same backend.
+- **#301** — `closed_superseded_without_merge`; roadmap became obsolete after #302/#303 implementation. Keep only as historical context.
+- **#298 Mission GPS** — `closed_without_merge_core_gate_failed`. General gates were green but the dedicated real-road contract repeatedly failed because committed OSM data could not truthfully resolve Grand-Place -> Bourse. Do not fabricate edges or weaken the test.
 
 ### Active Director decisions
 
-- **#298 Mission GPS** — `high_value_blocked`. Scope is compact (workflow + minimap + test) and Game CI/Web/Photo Match/Performance/Branch Hygiene are green, but the dedicated runtime gate fails because the committed OSM graph cannot resolve Grand-Place -> Bourse. Do not fabricate road edges or weaken the test. Repair truthfully or degrade unsupported routes explicitly. Rebuild/rebase on exact current main before integration.
-- **#295 Atomium RoadArea context** — `source_gate_passed_one_runtime_lot_allowed`. Official RoadArea covers **24.28%** of the accepted Atomium player wedge versus the 8% unlock threshold. Evidence question is answered: no more research expansion. Next step must be exact-current-main deterministic runtime A/B and human inspection; reject if it conflicts with #289 or requires invented road/material semantics.
-- **#294 Ixelles Louise trees** — `closed_without_merge_impact_rejected`. Source contract was good, but exact 1280×720 A/B produced only **3,811 meaningful pixels >=12/255**, bbox **113×67**, below required 15,000 pixels and 120×80. Do not rescue by enlarging trees, moving camera or relaxing thresholds.
-- **#288 LimboHSM** — `closed_without_merge_low_visible_value`. Technical compatibility was proven, but #296 now exposes useful police/civilian behavior with the existing authoritative systems. No new dependency until a tiny current-main experiment demonstrates an obvious player-visible behavior advantage.
-
-### Production anchors
-
-#280 Grand-Place granite, #272/#265 white-stone identity, #260/#257 Grand-Place LoD2 masses, #258 Ixelles Stassart frontage, #254 Atomium framing, #243 bilingual plaque, #242 Ixelles direct entry, #241 Bourse roof winding, #239 Ixelles runtime, #230 Atomium direct entry, #226 reflections, #217 Bourse portico, #215 Midi/Fonsny brick and #214 Atomium stainless remain foundations.
-
-Long-lived #2/#11 remain specialist workspaces only; never merge wholesale.
+- **#305 production cell streaming runtime** — `single_high_value_10min_candidate_pending_final_gate`. Exact-current-main small integration attaches the already-validated streamer to the real playable world, follows on-foot/driven-vehicle observer state and streams the shipped Ixelles cell. Dedicated production lifecycle, Mobile Playability, Game CI, Web, Photo Match, tests and Branch Hygiene are green on head `3012b396...`; Performance is still pending at this checkpoint. Do not merge until Performance is green and the final human/runtime sanity check confirms no visible pop/duplicate Ixelles geometry or broken direct spawn.
+- **#299 STIB Suède / Zweden** — `source_gate_finished_runtime_now_or_close`. Official stop identity/point gate is green. No more evidence commits. Next commit must expose the real stop plus visible queue/boarding behavior from existing systems, rebuilt on exact current main; otherwise close.
+- **#295 Atomium RoadArea** — `evidence_clock_expired_runtime_now_or_close`. 24.28% wedge coverage already unlocked one runtime A/B. No more research. Rebuild on exact main, test against shipped #289, human-inspect, then accept/reject immediately.
+- **#11/#2** — long-lived specialist workspaces only; never merge wholesale.
 
 ## Active ownership map
 
-- **Centre Vertical Slice** — owns Bourse/Centre/Midi visible slice. No active Centre visual production PR. Priority remains one materially large authoritative Bourse roof/interior/envelope correction or real Midi station/entrance/STIB/public-space cue.
-- **Visual Assets + Atmosphere** — no active production PR. Next shared lot needs exact visible placement, Brussels-specific recognition and reuse; no generic props or micro-materials.
-- **Ixelles Runtime Slice** — #294 closed for weak impact. Redirect to a larger same-cell identity cue: major frontage/material family, substantial streetscape proportion cue, or unmistakable transport/public-space identity. No more distant micro vegetation.
-- **Laeken Hero Impact** — #295 owns the RoadArea context question. One runtime A/B lot allowed because the source gate passed strongly; then accept/reject and move on.
-- **Impact Director maintenance** — #298 navigation is temporarily Director-owned because it is a high-value 10-minute opportunity with a real blocker. Traffic/Living City/missions/saves otherwise remain maintenance-only after #296/#297.
-- **AI lab** — no active production candidate after #288 closure.
+- **Centre Vertical Slice** — Bourse/Centre/Midi visible slice. No active Centre PR. Healthy but under-producing while infrastructure work dominates. Next Centre lot should target major Midi station/STIB/public-space identity first, large Bourse structure second.
+- **Visual Assets + Atmosphere** — no active production PR. Needs a reusable Brussels-specific cue with exact visible placement; avoid generic props and micro-materials.
+- **Ixelles Runtime Slice** — #305 temporarily owns Ixelles runtime continuity/streaming. No competing Ixelles visual lot until #305 resolves. Afterward choose one large same-cell identity cue, not distant micro vegetation.
+- **Laeken Hero Impact** — #295 owns exactly one remaining RoadArea runtime A/B. No further evidence expansion.
+- **Director maintenance** — streaming integration #305 temporarily owns the 10-minute continuity slot. Navigation #298 is closed; missions/saves/Living City otherwise stabilize rather than broaden.
+- **STIB gameplay** — #299 owns Suède / Zweden stop + boarding flow only.
 
 ## Top 5 perceived-quality bottlenecks
 
-1. **Midi station + STIB/public-space identity** — `3sec_30sec_gap_high`. Fonsny mass/brick and Living City help, but the station entrance/transport identity still reads weakly as Brussels.
-2. **Bourse roof/interior/frontage coherence** — `3sec_visual_gap_high`. #287/#293 fixed real structure/collision defects, but landmark reading remains simplified.
-3. **Truthful mission navigation and spatial continuity** — `10min_gap_high`. #298 is potentially high-value, but current OSM graph cannot truthfully route Grand-Place -> Bourse.
-4. **Ixelles local identity density** — `30sec_identity_gap_medium_high`. Direct access + Stassart remain too sparse; #294 proved distant trees are not enough.
-5. **Grand-Place architectural/detail coherence + human gameplay QA** — `3sec_30sec_10min_gap_medium_high`. Core mass/material/ground are stronger, while secondary façades/edges/furniture remain simplified and #290/#296/#297 still need sustained human Web/phone play review.
+1. **Midi station + STIB/public-space identity** — `3sec_30sec_high`. The living city and Fonsny mass help, but the station still lacks unmistakable Brussels transport identity.
+2. **Bourse roof/interior/frontage coherence** — `3sec_high`. Structural/collision fixes shipped, but landmark reading remains simplified.
+3. **Seamless playable geography + streaming proof** — `10min_high`. #302/#303 are only valuable if #305 makes real travel toward Ixelles stable without pop, duplication or performance regression.
+4. **Ixelles local identity density** — `30sec_medium_high`. Direct access and Stassart remain sparse; #294 proved distant trees were too weak.
+5. **Human gameplay QA + secondary Brussels detail** — `10min_30sec_medium_high`. #290/#296/#297 plus new streaming need sustained Web/phone play review; Grand-Place secondary façades/furniture and reusable transit cues remain simplified.
 
 ## Stream health
 
-- **Centre** — `healthy_idle_high_value_target_available`.
-- **Visual Assets + Atmosphere** — `healthy_idle`.
-- **Ixelles** — `redirected_after_micro_rejection`; source discipline good, impact selection needs improvement.
-- **Laeken** — `productive_but_evidence_clock_running`; #295 must become runtime A/B now or close.
-- **Director maintenance / GPS #298** — `high_value_but_blocked_real_route_gap`.
-- **Living City / missions / saves** — `fresh_player_facing_progress`; #296/#297 are substantive gains, now stabilize rather than broaden.
-- **AI** — `closed_low_visible_value` after #288.
+- **Centre** — `healthy_idle_but_priority_starved`; redirect next free substantive slot here after #305.
+- **Visual Assets + Atmosphere** — `healthy_idle`; no low-impact filler.
+- **Ixelles** — `temporarily_productive_via_streaming`; #305 is useful only if it reaches playable runtime safely.
+- **Laeken** — `drifting_if_more_evidence`; runtime A/B now or close #295.
+- **STIB #299** — `source_gate_productive_but_runtime_due`; runtime now or close.
+- **Director streaming #305** — `high_value_pending_final_acceptance`; do not broaden beyond one real shipped Ixelles cell.
+- **Navigation** — `closed_blocked_truthfully`; #298 may return only as a fresh source-supported lot.
 
 ## Shared priorities
 
-1. **Truthful compact GPS repair for #298** if the existing committed road graph can support it without invented connectivity; otherwise narrow/degrade unsupported routing and do not merge false guidance.
-2. **One large source-backed Centre correction** — Midi identity first if a strong station/STIB cue is available; Bourse structure second.
-3. **#295 exact-current-main Atomium RoadArea runtime A/B**, then immediate accept/reject.
-4. **Ixelles larger same-cell identity cue** after #294 rejection.
-5. **Reusable Brussels transit/signage/furniture/atmosphere cue** with proven visible placement.
-6. **Direct human Web/phone 10-minute play review** across #290/#296/#297 production before adding more gameplay complexity.
+1. **Finish or reject #305** after Performance + final runtime/human sanity. No second streaming feature until this production bridge is proven.
+2. **One large Centre recognition lot** — Midi station/STIB/public-space first; Bourse structure second.
+3. **#299 runtime Suède / Zweden stop + boarding flow**, or close if the player-facing effect cannot land immediately.
+4. **#295 exact-main Atomium RoadArea runtime A/B**, then immediate accept/reject.
+5. **One larger Ixelles identity cue** after #305 resolves.
+6. **Direct 10-minute Web/phone play review** covering movement, mobile UI, Living City/police, vehicle A/B, save/load and streaming transitions.
 
 ## Production rules
 
@@ -82,13 +70,13 @@ Long-lived #2/#11 remain specialist workspaces only; never merge wholesale.
 3. Small current-main PRs only; re-check `main` and active PRs before push/PR/merge.
 4. Publication-only commits are not new gameplay/visual truth.
 5. Never merge long-lived specialist branches wholesale.
-6. Prefer Paradigm/UrbIS/UrbIS3D, Brussels Mobility, STIB and official orthophoto/DTM/DSM. OSM is complement, not proof for unresolved geometry or traffic semantics.
+6. Prefer Paradigm/UrbIS/UrbIS3D, Brussels Mobility, STIB and official orthophoto/DTM/DSM; OSM complements but does not prove unresolved geometry or traffic semantics.
 7. Preserve lawful provenance/licensing.
-8. Evidence-only work is allowed only when it can unlock material player-facing improvement within one or two lots.
-9. Green CI can still be rejected for negligible impact, weak source truth, broad scope or missing human evidence.
-10. Substantive lots require deterministic player-facing evidence, human inspection, relevant tests, branch hygiene and performance when applicable.
-11. Pixel delta is evidence, not the objective; judge recognition, silhouette, street proportions, material response, atmosphere, legibility, motion and gameplay feel.
+8. Evidence-only work must unlock material player-facing improvement within one or two lots.
+9. Green CI can still be rejected for negligible impact, broad scope, weak source truth or missing human evidence.
+10. Substantive lots require player-facing/runtime evidence, human inspection when applicable, affected tests, branch hygiene and performance.
+11. Pixel delta is evidence, not the objective; judge recognition, silhouette, proportions, material response, atmosphere, legibility, motion, continuity and feel.
 
 ## Director next-integration priority
 
-**#298 is currently the single highest-impact next integration candidate because truthful mission navigation compounds the 10-minute value of the newly exposed missions/saves and Living City, but it is NOT mergeable while Grand-Place -> Bourse fails. If that route cannot be supported truthfully from committed source geometry, Centre regains top integration priority with one compact Midi/Bourse recognition gain. #295 gets one runtime A/B lot only; Ixelles must abandon micro-context work.**
+**#305 is the single highest-impact next integration candidate because it converts the already-shipped streaming infrastructure into actual playable continuity toward Ixelles. It is not mergeable until Performance is green and final runtime sanity is positive. If #305 fails or becomes broad, close it and immediately return the substantive slot to a compact high-impact Midi/Bourse recognition lot. #299 and #295 are runtime-now-or-close; no more source-only expansion.**

@@ -26,8 +26,9 @@ jobs:
           mkdir -p /tmp/atomium-topo grand-bruxelles-game/artifacts/atomium
           BASE='https://geoservices-urbis.irisnet.be/geoserver/urbistopo/wfs'
           COMMON='service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=147900%2C175900%2C148300%2C176300%2CEPSG%3A31370'
-          curl -fL --retry 3 --retry-delay 3 "$BASE?$COMMON&typeName=urbistopo%3ATopoLines" -o /tmp/atomium-topo/lines.json
-          curl -fL --retry 3 --retry-delay 3 "$BASE?$COMMON&typeName=urbistopo%3ATopoPolygons" -o /tmp/atomium-topo/polygons.json
+          POLY_COMMON='service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=147950%2C175950%2C148240%2C176240%2CEPSG%3A31370&count=500'
+          curl -fL --retry 3 --retry-delay 3 --max-time 30 "$BASE?$COMMON&typeName=urbistopo%3ATopoLines" -o /tmp/atomium-topo/lines.json
+          curl -fL --retry 2 --retry-delay 2 --max-time 30 "$BASE?$POLY_COMMON&typeName=urbistopo%3ATopoPolygons" -o /tmp/atomium-topo/polygons.json
           python3 - <<'PY'
           import json, math
           from pathlib import Path
@@ -64,7 +65,6 @@ jobs:
               props=f.get('properties',{})
               t=str(props.get('TYPE','')).upper()
               desc=str(props.get('DESCRIPTION','') or props.get('DESCR_FR','') or props.get('DESCR_NL',''))
-              # Bounding-box area is diagnostic only; no geometry/material claim derives from it.
               xs=[p[0] for p in pts]; ys=[p[1] for p in pts]
               bbox_area=(max(xs)-min(xs))*(max(ys)-min(ys))
               nearby.append({'id':str(f.get('id')),'type':t,'description':desc,'min_distance_m':round(d,3),'bbox_area_m2':round(bbox_area,1),'properties':{k:v for k,v in props.items() if k in ('TYPE','DESCRIPTION','DESCR_FR','DESCR_NL','LEVEL','LVL')}})

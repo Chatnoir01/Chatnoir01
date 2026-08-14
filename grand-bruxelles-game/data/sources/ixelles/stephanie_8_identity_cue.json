@@ -28,11 +28,16 @@
     ]
   },
   "frontage_selection": {
-    "source_axis_id": "https://databrussels.be/id/streetaxe/71306:2",
+    "source_axis_id": "https://databrussels.be/id/streetaxe/71306",
+    "source_axis_segment_ids": [
+      "https://databrussels.be/id/streetaxe/71306:0",
+      "https://databrussels.be/id/streetaxe/71306:1",
+      "https://databrussels.be/id/streetaxe/71306:2"
+    ],
     "source_axis_fr": "Place Stéphanie",
     "source_axis_nl": "Stefaniaplein",
-    "source_axis_points_game_xz": [[740.719, 928.006], [735.808, 926.900]],
-    "method": "select the existing strong-source footprint edge with minimum segment-to-segment distance to official Place Stephanie StreetAxis 71306:2",
+    "source_axis_polyline_game_xz": [[767.538, 941.552], [762.251, 932.642], [740.719, 928.006], [735.808, 926.900]],
+    "method": "select the existing strong-source footprint edge with minimum segment-to-segment distance to the complete official Place Stephanie StreetAxis 71306 polyline",
     "whole_building_recolor": false
   },
   "runtime_interpretation": {

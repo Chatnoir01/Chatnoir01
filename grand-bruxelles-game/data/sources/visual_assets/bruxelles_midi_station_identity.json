@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "asset_family": "bruxelles_midi_bilingual_station_identity",
+  "scope": "shared_visual_identity",
+  "status": {
+    "station_identity_resolved": true,
+    "fonsny_station_anchor_resolved": true,
+    "surveyed_panel_dimensions_resolved": false,
+    "exact_panel_color_resolved": false,
+    "official_typeface_resolved": false,
+    "runtime_integrated": true
+  },
+  "source": {
+    "publisher": "SNCB/NMBS",
+    "official_pages": [
+      "https://www.belgiantrain.be/en/station-information/bruxelles-midi",
+      "https://www.belgiantrain.be/fr/station-information/bruxelles-midi",
+      "https://www.belgiantrain.be/nl/station-information/brussel-zuid"
+    ],
+    "accessed_utc": "2026-08-14T11:45:00Z",
+    "facts": {
+      "french_name": "Bruxelles-Midi",
+      "dutch_name": "Brussel-Zuid",
+      "address": "Avenue Fonsny 47 / Fonsnylaan, 1060 Saint-Gilles"
+    }
+  },
+  "authored_runtime_contract": {
+    "physical_panel_width_m": 11.5,
+    "physical_panel_height_m": 1.55,
+    "physical_panel_depth_m": 0.12,
+    "panel_dimensions_are_surveyed": false,
+    "panel_color_is_calibrated": false,
+    "official_sncb_nmbs_typeface_used": false,
+    "sncb_nmbs_logo_artwork_embedded": false,
+    "copyrighted_source_photo_used": false,
+    "notes": "Only the station identity and Fonsny address are source-backed. Panel envelope, dark-blue presentation color, lettering size, PBR response and exact mount offset are authored values constrained to the already-produced Fonsny entrance; they are not represented as SNCB/NMBS signage specifications."
+  },
+  "reuse_targets": [
+    "Bruxelles-Midi / Brussel-Zuid Fonsny entrance",
+    "future station identity panels only where station name and anchor are independently verified"
+  ]
+}

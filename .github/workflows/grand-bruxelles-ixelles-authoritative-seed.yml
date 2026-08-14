@@ -51,6 +51,26 @@ jobs:
           assert ortho['purpose'] == 'visual validation/reference only'
           assert ortho['download']['sha256'] == '44491b6ef8196b99c0878c3d707c792767c305c2a58c20c2923c650133e45d2f'
 
-          assert not (cell / 'runtime').exists()
-          print('Ixelles authoritative seed package: PASS')
+          # The selected seed has intentionally crossed into a bounded runtime
+          # micro-slice. Keep the old broad-runtime prohibition, but allow only
+          # the two source-derived payloads for this exact cell.
+          runtime = cell / 'runtime'
+          assert runtime.is_dir(), 'selected Ixelles runtime payload missing'
+          allowed = {'cell.game.json', 'network.game.json'}
+          actual = {p.name for p in runtime.iterdir() if p.is_file()}
+          assert actual == allowed, (actual, allowed)
+
+          cell_runtime = json.loads((runtime / 'cell.game.json').read_text())
+          network_runtime = json.loads((runtime / 'network.game.json').read_text())
+          assert cell_runtime['cell_id'] == manifest['cell_id']
+          assert network_runtime['cell_id'] == manifest['cell_id']
+          assert cell_runtime['source_bbox'] == manifest['bbox']
+          assert network_runtime['source_bbox'] == manifest['bbox']
+          assert cell_runtime['stats']['buildings'] == 720
+          assert cell_runtime['stats']['street_surfaces'] == 309
+          assert network_runtime['stats']['street_segments'] == 277
+          assert cell_runtime['accuracy']['plan_geometry'] == 'official_urbis'
+          assert cell_runtime['accuracy']['building_heights'] == 'temporary_area_heuristic_pending_urbis_landscape_or_lidar'
+          assert all(b.get('height_source') == 'temporary_area_heuristic' for b in cell_runtime['buildings'])
+          print('Ixelles authoritative seed + bounded runtime payload: PASS')
           PY

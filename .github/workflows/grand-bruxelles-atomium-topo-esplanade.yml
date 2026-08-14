@@ -27,26 +27,33 @@ jobs:
           BASE='https://geoservices-urbis.irisnet.be/geoserver/urbistopo/wfs'
           COMMON='service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=147900%2C175900%2C148300%2C176300%2CEPSG%3A31370'
           curl -fL --retry 3 --retry-delay 3 --max-time 30 "$BASE?$COMMON&typeName=urbistopo%3ATopoLines" -o /tmp/atomium-topo/lines.json
+          curl -fL --retry 3 --retry-delay 3 --max-time 30 "$BASE?$COMMON&typeName=urbistopo%3ATopoShapes" -o /tmp/atomium-topo/shapes.json
           curl -fL --retry 2 --retry-delay 2 --max-time 30 "$BASE?service=WFS&version=2.0.0&request=GetCapabilities" -o /tmp/atomium-topo/capabilities.xml
           python3 - <<'PY'
           import json, math, xml.etree.ElementTree as ET
           from pathlib import Path
+
           anchor=(148093.22038698208,176091.76722726133)
           target={'BB03L','CR39L'}
-          data=json.load(open('/tmp/atomium-topo/lines.json',encoding='utf-8'))
-          selected=[]
+
           def coords(x):
               if isinstance(x,list) and len(x)>=2 and isinstance(x[0],(int,float)) and isinstance(x[1],(int,float)):
                   yield float(x[0]),float(x[1])
               elif isinstance(x,list):
-                  for y in x: yield from coords(y)
+                  for y in x:
+                      yield from coords(y)
+
+          data=json.load(open('/tmp/atomium-topo/lines.json',encoding='utf-8'))
+          selected=[]
           for f in data.get('features',[]):
               props=f.get('properties',{})
               t=str(props.get('TYPE','')).upper()
-              if t not in target: continue
+              if t not in target:
+                  continue
               pts=list(coords(f.get('geometry',{}).get('coordinates',[])))
               d=min((math.hypot(x-anchor[0],y-anchor[1]) for x,y in pts),default=1e9)
-              if d <= 90.0: selected.append((str(f.get('id')),t,d))
+              if d <= 90.0:
+                  selected.append((str(f.get('id')),t,d))
           selected.sort(key=lambda x:x[2])
           snap=json.load(open('grand-bruxelles-game/data/sources/laeken_jette/atomium_topo_esplanade_context.json',encoding='utf-8'))
           locked=sorted((str(f['id']),str(f['topo_type'])) for f in snap['features'])
@@ -63,19 +70,93 @@ jobs:
                           names.append(child.text.strip())
                           break
           names=sorted(set(names))
-          surface_candidates=[n for n in names if any(k in n.lower() for k in ('polygon','surface','area','topo'))]
+
+          shapes=json.load(open('/tmp/atomium-topo/shapes.json',encoding='utf-8'))
+
+          def ring_area(ring):
+              if not isinstance(ring,list) or len(ring) < 3:
+                  return 0.0
+              pts=[]
+              for p in ring:
+                  if isinstance(p,list) and len(p)>=2 and isinstance(p[0],(int,float)) and isinstance(p[1],(int,float)):
+                      pts.append((float(p[0]),float(p[1])))
+              if len(pts) < 3:
+                  return 0.0
+              s=0.0
+              for i,(x1,y1) in enumerate(pts):
+                  x2,y2=pts[(i+1)%len(pts)]
+                  s += x1*y2-x2*y1
+              return abs(s)*0.5
+
+          def polygon_area(geom):
+              gt=str(geom.get('type',''))
+              c=geom.get('coordinates',[])
+              if gt == 'Polygon':
+                  if not c:
+                      return 0.0
+                  return max(0.0, ring_area(c[0]) - sum(ring_area(r) for r in c[1:]))
+              if gt == 'MultiPolygon':
+                  total=0.0
+                  for poly in c:
+                      if not poly:
+                          continue
+                      total += max(0.0, ring_area(poly[0]) - sum(ring_area(r) for r in poly[1:]))
+                  return total
+              return 0.0
+
+          shape_rows=[]
+          prop_keys=set()
+          geometry_types={}
+          type_counts={}
+          for f in shapes.get('features',[]):
+              geom=f.get('geometry') or {}
+              props=f.get('properties') or {}
+              prop_keys.update(map(str,props.keys()))
+              gt=str(geom.get('type','UNKNOWN'))
+              geometry_types[gt]=geometry_types.get(gt,0)+1
+              t=str(props.get('TYPE','')).upper()
+              if t:
+                  type_counts[t]=type_counts.get(t,0)+1
+              pts=list(coords(geom.get('coordinates',[])))
+              d=min((math.hypot(x-anchor[0],y-anchor[1]) for x,y in pts),default=1e9)
+              area=polygon_area(geom)
+              if d <= 150.0:
+                  shape_rows.append({
+                      'id':str(f.get('id')),
+                      'type':t,
+                      'geometry_type':gt,
+                      'min_distance_m':round(d,3),
+                      'area_m2':round(area,3),
+                      'properties':{str(k):props[k] for k in props if str(k) in ('TYPE','ID','LEVEL','LVL','DESCRIPTION','DESCR_FR','DESCR_NL','NATURE')}
+                  })
+          closest=sorted(shape_rows,key=lambda r:r['min_distance_m'])[:30]
+          largest=sorted(shape_rows,key=lambda r:r['area_m2'],reverse=True)[:30]
+          large_near=[r for r in shape_rows if r['area_m2'] >= 500.0 and r['min_distance_m'] <= 100.0]
+
           out={
               'live_selected_count':len(selected),
               'stairs':sum(t=='BB03L' for _,t,_ in selected),
               'benches':sum(t=='CR39L' for _,t,_ in selected),
               'nearest_lines':selected[:10],
               'feature_type_names':names,
-              'surface_candidate_names':surface_candidates
+              'toposhapes_feature_count':len(shapes.get('features',[])),
+              'toposhapes_geometry_types':geometry_types,
+              'toposhapes_property_keys':sorted(prop_keys),
+              'toposhapes_type_counts':dict(sorted(type_counts.items())),
+              'toposhapes_within_150m':len(shape_rows),
+              'toposhapes_closest':closest,
+              'toposhapes_largest_within_150m':largest,
+              'toposhapes_large_near_candidates':large_near
           }
           Path('grand-bruxelles-game/artifacts/atomium/atomium_topo_esplanade_discovery.json').write_text(json.dumps(out,indent=2,ensure_ascii=False)+'\n')
           print('ATOMIUM_TOPO_SOURCE_OK', {'lines':len(selected),'stairs':out['stairs'],'benches':out['benches'],'feature_types':len(names)})
           print('ATOMIUM_TOPO_FEATURE_TYPES', names)
-          print('ATOMIUM_TOPO_SURFACE_CANDIDATES', surface_candidates)
+          print('ATOMIUM_TOPOSHAPES_SUMMARY', {'features':out['toposhapes_feature_count'],'geometry_types':geometry_types,'within_150m':len(shape_rows),'large_near':len(large_near)})
+          print('ATOMIUM_TOPOSHAPES_PROPERTY_KEYS', sorted(prop_keys))
+          print('ATOMIUM_TOPOSHAPES_TYPE_COUNTS', dict(sorted(type_counts.items())))
+          print('ATOMIUM_TOPOSHAPES_CLOSEST', closest[:12])
+          print('ATOMIUM_TOPOSHAPES_LARGEST', largest[:12])
+          print('ATOMIUM_TOPOSHAPES_LARGE_NEAR', large_near)
           PY
       - name: Install Godot 4.7.1
         run: |

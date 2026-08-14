@@ -19,10 +19,10 @@ const ATOMIUM_HERO_SCRIPT := preload("res://game/zones/laeken_jette/atomium_hero
 const ATOMIUM_REFLECTION_SCRIPT := preload("res://game/zones/laeken_jette/atomium_hero_reflection_environment.gd")
 # Presentation-only visitor viewpoint inside the already validated DTM tile.
 # It does not claim a surveyed camera pose or resolve the Atomium global yaw.
-const ATOMIUM_DIRECT_SPAWN_OFFSET := Vector3(-45.0, 0.0, 55.0)
+const ATOMIUM_DIRECT_SPAWN_OFFSET := Vector3(-90.0, 0.0, 110.0)
 const ATOMIUM_DIRECT_EYE_HEIGHT_M := 1.05
 # Positive X pitch looks upward in this Godot camera rig.
-const ATOMIUM_DIRECT_CAMERA_PITCH_DEGREES := 24.0
+const ATOMIUM_DIRECT_CAMERA_PITCH_DEGREES := 18.0
 
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _base_collision_layer: int = 1

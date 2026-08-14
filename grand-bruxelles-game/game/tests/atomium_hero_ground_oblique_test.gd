@@ -2,6 +2,7 @@ extends SceneTree
 
 const TERRAIN_SCRIPT := preload("res://game/zones/laeken_jette/atomium_dtm_terrain.gd")
 const HERO_SCRIPT := preload("res://game/zones/laeken_jette/atomium_hero_core.gd")
+const REFLECTION_ENVIRONMENT_SCRIPT := preload("res://game/zones/laeken_jette/atomium_hero_reflection_environment.gd")
 const OUTPUT_PATH := "res://artifacts/atomium/atomium_hero_ground_oblique.png"
 const WIDTH := 1280
 const HEIGHT := 960
@@ -84,27 +85,39 @@ func _run() -> void:
     if absf(sampled_y - hero.anchor_position.y) > 0.001:
         _fail("hero is not anchored to official DTM")
         return
-    var environment := WorldEnvironment.new()
-    var env := Environment.new()
-    env.background_mode = Environment.BG_COLOR
-    env.background_color = Color(0.62, 0.69, 0.78)
-    env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.ambient_light_color = Color(0.88, 0.90, 0.93)
-    env.ambient_light_energy = 0.62
-    environment.environment = env
-    world.add_child(environment)
-    var sun := DirectionalLight3D.new()
-    sun.rotation_degrees = Vector3(-46.0, -28.0, 0.0)
-    sun.light_energy = 1.25
-    sun.shadow_enabled = true
-    world.add_child(sun)
+
+    var reflection_environment := REFLECTION_ENVIRONMENT_SCRIPT.new()
+    world.add_child(reflection_environment)
+    if not reflection_environment.build():
+        _fail("deterministic reflection environment did not build")
+        return
+    if not reflection_environment.reflection_source_is_sky:
+        _fail("stainless hero reflections are not sourced from the sky")
+        return
+    if not reflection_environment.authored_non_photometric:
+        _fail("reflection environment lost non-photometric presentation disclaimer")
+        return
+    if reflection_environment.world_environment == null or reflection_environment.sun == null:
+        _fail("reflection environment nodes missing")
+        return
+    var env: Environment = reflection_environment.world_environment.environment
+    if env == null or env.background_mode != Environment.BG_SKY:
+        _fail("hero environment no longer uses sky background")
+        return
+    if env.ambient_light_source != Environment.AMBIENT_SOURCE_SKY:
+        _fail("hero ambient light is not sourced from sky")
+        return
+    if env.reflected_light_source != Environment.REFLECTION_SOURCE_SKY:
+        _fail("hero reflected light is not sourced from sky")
+        return
+
     var camera := Camera3D.new()
     camera.position = hero.anchor_position + Vector3(-185.0, 86.0, 235.0)
     camera.fov = 48.0
     camera.current = true
     world.add_child(camera)
     camera.look_at(hero.anchor_position + Vector3(0.0, 50.0, 0.0), Vector3.UP)
-    for _frame: int in range(12):
+    for _frame: int in range(16):
         await process_frame
     RenderingServer.force_draw()
     await process_frame
@@ -117,5 +130,5 @@ func _run() -> void:
     if image.save_png(absolute_output) != OK:
         _fail("capture save failed")
         return
-    print("ATOMIUM_HERO_GROUND_OBLIQUE_OK: spheres=%d tubes=%d extent=%.3f..%.3f anchor_y=%.3f sphere_segments=%d sphere_rings=%d tube_segments=%d metallic=%.2f roughness=%.2f unresolved_pillars=%d capture=%s" % [hero.sphere_count, hero.tube_count, extent.x, extent.y, hero.anchor_position.y, sphere_mesh.radial_segments, sphere_mesh.rings, tube_mesh.radial_segments, sphere_material.metallic, sphere_material.roughness, hero.unresolved_support_pillars, OUTPUT_PATH])
+    print("ATOMIUM_HERO_GROUND_OBLIQUE_OK: spheres=%d tubes=%d extent=%.3f..%.3f anchor_y=%.3f sphere_segments=%d sphere_rings=%d tube_segments=%d metallic=%.2f roughness=%.2f sky_reflection=%s authored_non_photometric=%s unresolved_pillars=%d capture=%s" % [hero.sphere_count, hero.tube_count, extent.x, extent.y, hero.anchor_position.y, sphere_mesh.radial_segments, sphere_mesh.rings, tube_mesh.radial_segments, sphere_material.metallic, sphere_material.roughness, str(reflection_environment.reflection_source_is_sky), str(reflection_environment.authored_non_photometric), hero.unresolved_support_pillars, OUTPUT_PATH])
     quit(0)

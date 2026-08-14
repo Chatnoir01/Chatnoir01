@@ -1,0 +1,38 @@
+{
+  "id": "midi_fonsny_official_forecourt_source_truth",
+  "zone": "Bruxelles-Midi / Brussel-Zuid - avenue Fonsny",
+  "production_action": "mask_authored_forecourt_rectangle_reveal_existing_urbis_street_surfaces",
+  "authoritative_plan_source": {
+    "publisher": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS WFS StreetSurface",
+    "crs": "EPSG:31370",
+    "runtime_file": "res://data/urbis/midi/midi_runtime.game.json",
+    "builder": "res://game/scripts/urbis_midi_builder.gd",
+    "runtime_root": "UrbISMidiExact/UrbISStreetSurfaces",
+    "plan_geometry_status": "official_urbis",
+    "vertical_status": "presentation_only_y_offset_0_075m_not_a_surveyed_elevation"
+  },
+  "rejected_overlay": {
+    "node": "MidiHeroZone/FonsnyStationForecourt",
+    "provenance": "hand_built_visual_reconstruction",
+    "authored_size_m": [18.0, 0.10, 174.0],
+    "horizontal_area_m2": 3132.0,
+    "source_backed_dimensions": false,
+    "reason": "The rectangle can overwrite authoritative StreetSurface boundaries in player-facing pixels; its dimensions are not source truth."
+  },
+  "geometry_contract": {
+    "new_landmark_vertices": 0,
+    "new_landmark_triangles": 0,
+    "invented_openings": 0,
+    "invented_landmark_dimensions": 0,
+    "official_urbis_geometry_modified": false
+  },
+  "acceptance": {
+    "witness": "deterministic 1280x720 Fonsny forecourt A/B",
+    "before": "legacy authored rectangle visible",
+    "after": "legacy rectangle hidden; existing UrbIS StreetSurface layer remains",
+    "minimum_changed_pixels_gt3_rgb": 30000,
+    "minimum_changed_ratio": 0.03,
+    "human_gate": "reject if the revealed official plan creates obvious holes or makes the station approach less readable"
+  }
+}

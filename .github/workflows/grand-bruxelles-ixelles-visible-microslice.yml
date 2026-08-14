@@ -1,0 +1,114 @@
+name: Grand Bruxelles Ixelles Visible Micro-slice
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-ixelles-visible-microslice.yml"
+      - "grand-bruxelles-game/tools/materialize_ixelles_runtime_dtm.py"
+      - "grand-bruxelles-game/tests/test_materialize_ixelles_runtime_dtm.py"
+      - "grand-bruxelles-game/tools/measure_ixelles_dtm_2m_seams.py"
+      - "grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169000-s500_dtm_2m.game.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-selected-cell:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install locked raster dependencies
+        run: python -m pip install --disable-pip-version-check numpy==2.2.6 rasterio==1.4.3 pytest==8.4.1
+      - name: Run materialization regression
+        run: pytest -q grand-bruxelles-game/tests/test_materialize_ixelles_runtime_dtm.py
+      - name: Download and verify the already-locked UrbIS DTM archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/ixelles-dtm/149168 /tmp/ixelles-dtm/149169
+          curl -fL --retry 4 --retry-delay 3 -o /tmp/149168.zip https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149168_20211009_50.zip
+          curl -fL --retry 4 --retry-delay 3 -o /tmp/149169.zip https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149169_20211009_50.zip
+          echo "f0277df26876c6c7cd3e00050e3d3a44b420b2df4bf4271e680717adeabb09b4  /tmp/149168.zip" | sha256sum -c -
+          echo "c8135aa8456a5f2de8efb2e05dbf9c993ae9c97e4aa7f4d56c6c331345bac4f8  /tmp/149169.zip" | sha256sum -c -
+          unzip -q /tmp/149168.zip -d /tmp/ixelles-dtm/149168
+          unzip -q /tmp/149169.zip -d /tmp/ixelles-dtm/149169
+      - name: Discover the two readable official rasters
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import rasterio
+          out=[]
+          for tile in ('149168','149169'):
+              readable=[]
+              for p in sorted(Path('/tmp/ixelles-dtm', tile).rglob('*')):
+                  if not p.is_file():
+                      continue
+                  try:
+                      with rasterio.open(p) as ds:
+                          if ds.count >= 1 and ds.width > 0 and ds.height > 0:
+                              readable.append(str(p))
+                  except Exception:
+                      pass
+              if not readable:
+                  raise SystemExit(f'No readable raster found for {tile}')
+              out.append(readable[0])
+          Path('/tmp/ixelles-raster-paths.txt').write_text('\n'.join(out)+'\n')
+          PY
+      - name: Materialize only the selected 500 m Ixelles 2 m grid
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t RASTERS < /tmp/ixelles-raster-paths.txt
+          test "${#RASTERS[@]}" -eq 2
+          python grand-bruxelles-game/tools/materialize_ixelles_runtime_dtm.py \
+            --raster "${RASTERS[0]}" "${RASTERS[1]}" \
+            --archive-hash 149168=f0277df26876c6c7cd3e00050e3d3a44b420b2df4bf4271e680717adeabb09b4 \
+            --archive-hash 149169=c8135aa8456a5f2de8efb2e05dbf9c993ae9c97e4aa7f4d56c6c331345bac4f8 \
+            --output grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169000-s500_dtm_2m.game.json
+          python - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169000-s500_dtm_2m.game.json'
+          d=json.load(open(p))
+          assert d['cell_id']=='bxl-e149000-n169000-s500'
+          assert d['bbox_epsg31370']==[149000.0,169000.0,149500.0,169500.0]
+          assert d['shape']==[251,251] and d['sample_count']==63001
+          assert len(d['heights_row_major_m'])==63001
+          assert d['runtime_approved'] is False and d['promote_runtime'] is False
+          print(d['grid_float64_sha256'], d['min_z_m'], d['max_z_m'])
+          PY
+      - name: Commit deterministic terrain payload to the PR branch when it changed
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET=grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169000-s500_dtm_2m.game.json
+          if git diff --quiet -- "$TARGET" && git ls-files --error-unmatch "$TARGET" >/dev/null 2>&1; then
+            echo "Selected-cell terrain payload already deterministic"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$TARGET"
+          git commit -m "data(ixelles): materialize locked 2m runtime terrain cell"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+      - name: Upload runtime materialization proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-selected-cell-runtime-dtm
+          path: |
+            grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169000-s500_dtm_2m.game.json
+            /tmp/ixelles-raster-paths.txt
+          if-no-files-found: warn

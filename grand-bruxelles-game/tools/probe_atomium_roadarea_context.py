@@ -1,20 +1,39 @@
 #!/usr/bin/env python3
-import json, math, pathlib, urllib.parse, urllib.request
+import json, math, pathlib, urllib.parse, urllib.request, urllib.error
 
 ANCHOR=(148093.22038698208,176091.76722726133)
 CAMERA=(ANCHOR[0]+120.0,ANCHOR[1])
 HALF_HFOV=math.degrees(math.atan(math.tan(math.radians(48.0/2.0))*(16.0/9.0)))
 BBOX=(147980.0,175930.0,148330.0,176260.0)
-ENDPOINT='https://geoservices-urbis.irisnet.be/geoserver/ows'
-TYPE='inspire:TN.RoadTransportNetwork.RoadArea'
+ROUTES=[
+ ('https://geoservices-urbis.irisnet.be/geoserver/inspirevector/ows','TN.RoadTransportNetwork.RoadArea'),
+ ('https://geoservices-urbis.irisnet.be/geoserver/inspirevector/ows','inspire:TN.RoadTransportNetwork.RoadArea'),
+ ('https://geoservices-urbis.irisnet.be/geoserver/ows','inspire:TN.RoadTransportNetwork.RoadArea'),
+]
+VARIANTS=[('2.0.0','typeNames','application/json','count'),('1.1.0','typeName','application/json','maxFeatures'),('1.1.0','typeName','json','maxFeatures')]
 
-params={'service':'WFS','version':'2.0.0','request':'GetFeature','typeNames':TYPE,
-        'outputFormat':'application/json','srsName':'EPSG:31370',
-        'bbox':','.join(map(str,BBOX))+',EPSG:31370','count':'1000'}
-url=ENDPOINT+'?'+urllib.parse.urlencode(params)
-req=urllib.request.Request(url,headers={'User-Agent':'Grand-Bruxelles-source-gate/1.0','Accept':'application/json'})
-with urllib.request.urlopen(req,timeout=45) as response:
-    payload=json.load(response)
+payload=None; accepted_url=None; attempts=[]
+for endpoint,type_name in ROUTES:
+    for version,type_key,output,count_key in VARIANTS:
+        params={'service':'WFS','version':version,'request':'GetFeature',type_key:type_name,
+                'outputFormat':output,'srsName':'EPSG:31370','bbox':','.join(map(str,BBOX))+',EPSG:31370',count_key:'1000'}
+        url=endpoint+'?'+urllib.parse.urlencode(params)
+        try:
+            req=urllib.request.Request(url,headers={'User-Agent':'Grand-Bruxelles-source-gate/1.1','Accept':'application/json,application/geo+json,*/*'})
+            with urllib.request.urlopen(req,timeout=45) as response:
+                raw=response.read(); ctype=response.headers.get('Content-Type','')
+            attempts.append({'url':url,'content_type':ctype,'bytes':len(raw),'preview':raw[:250].decode('utf-8','replace').replace('\n',' ')})
+            if raw.lstrip().startswith((b'{',b'[')):
+                candidate=json.loads(raw)
+                if isinstance(candidate,dict) and isinstance(candidate.get('features'),list):
+                    payload=candidate; accepted_url=url; break
+        except urllib.error.HTTPError as exc:
+            raw=exc.read(); attempts.append({'url':url,'http_error':exc.code,'preview':raw[:250].decode('utf-8','replace').replace('\n',' ')})
+        except Exception as exc:
+            attempts.append({'url':url,'error':repr(exc)})
+    if payload is not None: break
+if payload is None:
+    raise SystemExit('Official RoadArea WFS did not return GeoJSON: '+json.dumps(attempts,ensure_ascii=False))
 
 def polygons(g):
     if not isinstance(g,dict): return []
@@ -62,9 +81,7 @@ for forward in range(5,121,5):
     while lateral<=half_width+1e-9:
         p=(CAMERA[0]-forward,CAMERA[1]+lateral)
         ids=[f['id'] for f in features if point_in_geom(p,f['geometry'])]
-        road_hits += int(bool(ids))
-        samples.append([round(p[0],3),round(p[1],3),ids])
-        lateral += 5.0
+        road_hits += int(bool(ids)); samples.append([round(p[0],3),round(p[1],3),ids]); lateral += 5.0
 coverage=road_hits/len(samples) if samples else 0.0
 rank=[]
 for f in features:
@@ -73,7 +90,7 @@ for f in features:
     rank.append({'id':f['id'],'area_m2':round(f['area_m2'],3),'bbox_epsg31370':[round(min_e,3),round(min_n,3),round(max_e,3),round(max_n,3)],'properties':f['properties']})
 rank.sort(key=lambda r:-r['area_m2'])
 out={'schema':1,'format':'grand-bruxelles-atomium-roadarea-source-gate-v1',
-     'source':{'organization':'Paradigm','service':'INSPIRE vector Brussels WFS','endpoint':ENDPOINT,'layer':TYPE,'crs':'EPSG:31370','query_url':url},
+     'source':{'organization':'Paradigm','service':'INSPIRE vector Brussels WFS','query_url':accepted_url,'crs':'EPSG:31370','negotiation_attempts':attempts},
      'witness':{'camera_epsg31370':list(CAMERA),'atomium_anchor_epsg31370':list(ANCHOR),'vertical_fov_deg':48.0,'horizontal_half_fov_deg':HALF_HFOV,
                 'sample_spacing_m':5.0,'sample_count':len(samples),'road_hit_count':road_hits,'ground_wedge_coverage_fraction':coverage},
      'feature_count':len(features),'features':rank,'samples':samples,

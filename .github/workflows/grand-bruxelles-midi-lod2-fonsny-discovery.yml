@@ -47,33 +47,45 @@ jobs:
 
           prefix = root / 'UrbISBuildings3D_147169'
           solids_dbf = prefix.with_name(prefix.name + '_BuildingSolids.dbf')
-          solids_shp = prefix.with_name(prefix.name + '_BuildingSolids.shp')
-          solids_shx = prefix.with_name(prefix.name + '_BuildingSolids.shx')
+          faces_dbf = prefix.with_name(prefix.name + '_BuildingFaces.dbf')
+          faces_shp = prefix.with_name(prefix.name + '_BuildingFaces.shp')
+          faces_shx = prefix.with_name(prefix.name + '_BuildingFaces.shx')
 
           ORIGIN_E = 147868.29422791934
           ORIGIN_N = 169538.62414926197
-          # Source-estimate only: normal-distance candidate must be large enough to
-          # matter before any runtime implementation is attempted.
-          candidates = {}
-          for index, row in hero.read_dbf(solids_dbf):
+
+          # Stable source relationship: BuildingFaces.BUSOLID_ID ->
+          # BuildingSolids.INSPIRE_ID -> BuildingSolids.BU_ID.
+          solid_to_building = {}
+          building_solids = {}
+          for _index, row in hero.read_dbf(solids_dbf):
+              solid_id = row.get('INSPIRE_ID', '')
               bu_id = row.get('BU_ID', '')
+              if solid_id and bu_id:
+                  solid_to_building[solid_id] = bu_id
+                  building_solids.setdefault(bu_id, set()).add(solid_id)
+
+          candidates = {}
+          for face_index, row in hero.read_dbf(faces_dbf):
+              solid_id = row.get('BUSOLID_ID', '')
+              bu_id = solid_to_building.get(solid_id)
               if not bu_id:
                   continue
-              patch = hero.read_multipatch(solids_shp, solids_shx, index)
+              patch = hero.read_multipatch(faces_shp, faces_shx, face_index)
               minx, miny, maxx, maxy = patch['bbox_xy']
-              cx = (minx + maxx) * 0.5
-              cy = (miny + maxy) * 0.5
-              dist = math.hypot(cx - ORIGIN_E, cy - ORIGIN_N)
-              if dist > 180.0:
+              # Early face-level reject keeps the pass bounded.
+              nearest_x = min(max(ORIGIN_E, minx), maxx)
+              nearest_y = min(max(ORIGIN_N, miny), maxy)
+              if math.hypot(nearest_x - ORIGIN_E, nearest_y - ORIGIN_N) > 180.0:
                   continue
               rec = candidates.setdefault(bu_id, {
                   'minx': minx, 'miny': miny, 'maxx': maxx, 'maxy': maxy,
-                  'zmin': patch['z_min'], 'zmax': patch['z_max'], 'solids': 0,
+                  'zmin': patch['z_min'], 'zmax': patch['z_max'], 'faces': 0,
               })
               rec['minx'] = min(rec['minx'], minx); rec['miny'] = min(rec['miny'], miny)
               rec['maxx'] = max(rec['maxx'], maxx); rec['maxy'] = max(rec['maxy'], maxy)
               rec['zmin'] = min(rec['zmin'], patch['z_min']); rec['zmax'] = max(rec['zmax'], patch['z_max'])
-              rec['solids'] += 1
+              rec['faces'] += 1
 
           ranked = []
           for bu_id, rec in candidates.items():
@@ -81,24 +93,24 @@ jobs:
               cx = (rec['minx'] + rec['maxx']) * 0.5; cy = (rec['miny'] + rec['maxy']) * 0.5
               dist = math.hypot(cx - ORIGIN_E, cy - ORIGIN_N)
               envelope = max(w, d) * max(h, 1.0)
-              # Ranking favors screen-scale envelope while retaining normal-distance proximity.
               score = envelope / max(dist, 20.0)
               ranked.append((score, bu_id, dist, w, d, h, rec))
           ranked.sort(reverse=True)
           print('MIDI_FONSNY_SOURCE_CANDIDATES count=', len(ranked))
           for rank, item in enumerate(ranked[:20], 1):
               score, bu_id, dist, w, d, h, rec = item
-              print(f'{rank:02d} score={score:.2f} id={bu_id} dist_m={dist:.2f} envelope_m={w:.2f}x{d:.2f} height_extent_m={h:.2f} solids={rec["solids"]} bbox=({rec["minx"]:.2f},{rec["miny"]:.2f},{rec["maxx"]:.2f},{rec["maxy"]:.2f})')
+              print(f'{rank:02d} score={score:.2f} id={bu_id} dist_m={dist:.2f} envelope_m={w:.2f}x{d:.2f} height_extent_m={h:.2f} solids={len(building_solids.get(bu_id,()))} faces={rec["faces"]} bbox=({rec["minx"]:.2f},{rec["miny"]:.2f},{rec["maxx"]:.2f},{rec["maxy"]:.2f})')
           assert ranked, 'No official LoD2 candidates found around Midi control point'
           top = ranked[0]
           assert max(top[3], top[4]) >= 35.0, 'Top candidate is too small for anti-micro gate'
           assert top[5] >= 10.0, 'Top candidate lacks meaningful vertical envelope'
           PY
       - name: Upload source discovery witness
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: midi-lod2-fonsny-discovery
           path: |
             /tmp/package.sha256
             /tmp/fonsny-candidates.txt
-          if-no-files-found: error
+          if-no-files-found: warn

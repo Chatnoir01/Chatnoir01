@@ -1,0 +1,121 @@
+name: Grand Bruxelles Bourse Ground Surface Visibility
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/bourse_ground_surface_visibility.gd"
+      - "grand-bruxelles-game/game/tests/bourse_ground_surface_visibility_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_normal_player_ground_capture_test.gd"
+      - ".github/workflows/grand-bruxelles-bourse-ground-surface-visibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Preserve head-only witnesses
+        run: |
+          cp grand-bruxelles-game/game/tests/bourse_ground_surface_visibility_test.gd /tmp/bourse_ground_surface_visibility_test.gd
+          cp grand-bruxelles-game/game/tests/bourse_normal_player_ground_capture_test.gd /tmp/bourse_normal_player_ground_capture_test.gd
+      - name: Reproduce red regression on exact base
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git checkout --detach "$BASE_SHA"
+          cp /tmp/bourse_ground_surface_visibility_test.gd grand-bruxelles-game/game/tests/bourse_ground_surface_visibility_test.gd
+          cp /tmp/bourse_normal_player_ground_capture_test.gd grand-bruxelles-game/game/tests/bourse_normal_player_ground_capture_test.gd
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit >/tmp/base-import.log 2>&1
+          set +e
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_ground_surface_visibility_test.gd >/tmp/base-red.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "Expected exact base to reproduce visible GROUNDSURFACE regression" >&2
+            exit 1
+          fi
+          grep -F "BOURSE_GROUND_VISIBILITY_FAIL" /tmp/base-red.log
+      - name: Capture exact base normal-player witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/bourse_normal_player_ground_capture_test.gd >/tmp/base-capture.log 2>&1
+          mkdir -p /tmp/bourse-ground-evidence
+          cp grand-bruxelles-game/artifacts/bourse/normal-player-ground/bourse_ground.png /tmp/bourse-ground-evidence/before.png
+      - name: Validate exact head green
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          rm -f grand-bruxelles-game/game/tests/bourse_ground_surface_visibility_test.gd grand-bruxelles-game/game/tests/bourse_normal_player_ground_capture_test.gd
+          git checkout --detach "$HEAD_SHA"
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/head-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/head-import.log; then exit 1; fi
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_ground_surface_visibility_test.gd 2>&1 | tee /tmp/head-green.log
+          grep -F "BOURSE_GROUND_VISIBILITY_OK" /tmp/head-green.log
+      - name: Capture exact head normal-player witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/bourse_normal_player_ground_capture_test.gd >/tmp/head-capture.log 2>&1
+          cp grand-bruxelles-game/artifacts/bourse/normal-player-ground/bourse_ground.png /tmp/bourse-ground-evidence/after.png
+      - name: Enforce anti-micro normal-player impact
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          root=Path('/tmp/bourse-ground-evidence')
+          a=Image.open(root/'before.png').convert('RGB')
+          b=Image.open(root/'after.png').convert('RGB')
+          if a.size != (1280,720) or b.size != (1280,720):
+              raise SystemExit(f'unexpected witness dimensions {a.size} {b.size}')
+          changed3=changed8=0
+          xs=[]; ys=[]
+          for y in range(a.height):
+              for x in range(a.width):
+                  p=a.getpixel((x,y)); q=b.getpixel((x,y))
+                  d=max(abs(p[i]-q[i]) for i in range(3))
+                  if d > 3:
+                      changed3 += 1; xs.append(x); ys.append(y)
+                  if d > 8:
+                      changed8 += 1
+          total=a.width*a.height
+          ratio3=changed3/total
+          ratio8=changed8/total
+          bbox=(min(xs),min(ys),max(xs),max(ys)) if xs else None
+          print(f'BOURSE_GROUND_AB changed_gt3={changed3} ratio_gt3={ratio3:.6%} changed_gt8={changed8} ratio_gt8={ratio8:.6%} bbox={bbox}')
+          if ratio3 < 0.025:
+              raise SystemExit(f'anti-micro reject: {ratio3:.4%} < 2.5%')
+          PY
+      - name: Package A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-ground-surface-normal-player-ab
+          path: |
+            /tmp/bourse-ground-evidence/before.png
+            /tmp/bourse-ground-evidence/after.png
+            /tmp/base-red.log
+            /tmp/head-green.log
+            /tmp/base-capture.log
+            /tmp/head-capture.log
+          if-no-files-found: error

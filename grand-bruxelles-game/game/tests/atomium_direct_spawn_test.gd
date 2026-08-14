@@ -1,11 +1,13 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
+const DIRECT_SPAWN_PRESENTATION_SCRIPT := preload("res://game/scripts/direct_spawn_presentation.gd")
 const OUTPUT_PATH := "res://artifacts/atomium/atomium_direct_spawn.png"
 const EXPECTED_HORIZONTAL_DISTANCE_M := 120.0
 const MIN_STANDING_CLEARANCE_M := 0.75
 const MAX_STANDING_CLEARANCE_M := 1.10
 const EXPECTED_CAMERA_PITCH_DEGREES := 20.0
+const EXPECTED_CAMERA_FOV_DEGREES := 48.0
 # The playable project enforces its production viewport at 1280x720.
 const WIDTH := 1280
 const HEIGHT := 720
@@ -25,6 +27,15 @@ func _run() -> void:
     var player := main.get_node_or_null("Player")
     if player == null:
         _fail("player missing")
+        return
+
+    var presentation := root.get_node_or_null("DirectSpawnPresentation")
+    if presentation == null:
+        presentation = DIRECT_SPAWN_PRESENTATION_SCRIPT.new()
+        presentation.name = "DirectSpawnPresentationTest"
+        root.add_child(presentation)
+    if not bool(presentation.call("apply_to_player", player, PackedStringArray(["spawn=atomium"]))):
+        _fail("Atomium direct presentation framing did not apply")
         return
 
     player.call("_apply_direct_spawn_from_user_args", PackedStringArray(["spawn=atomium"]))
@@ -69,6 +80,10 @@ func _run() -> void:
     if camera_pivot == null or absf(camera_pivot.rotation_degrees.x - EXPECTED_CAMERA_PITCH_DEGREES) > 0.01:
         _fail("camera pitch drifted")
         return
+    var direct_camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
+    if direct_camera == null or absf(direct_camera.fov - EXPECTED_CAMERA_FOV_DEGREES) > 0.01:
+        _fail("camera FOV drifted from accepted Atomium framing: %.3f" % [direct_camera.fov if direct_camera != null else -1.0])
+        return
 
     var location_label := main.get_node_or_null("LocationLabel") as Label
     if location_label == null or location_label.text != "ATOMIUM · HEYSEL / HEIZEL":
@@ -102,5 +117,5 @@ func _run() -> void:
         _fail("direct spawn capture save failed")
         return
 
-    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f) capture=%s size=%dx%d" % [horizontal_distance, standing_clearance, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z, OUTPUT_PATH, WIDTH, HEIGHT])
+    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f fov=%.1f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f) capture=%s size=%dx%d" % [horizontal_distance, standing_clearance, direct_camera.fov, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z, OUTPUT_PATH, WIDTH, HEIGHT])
     quit(0)

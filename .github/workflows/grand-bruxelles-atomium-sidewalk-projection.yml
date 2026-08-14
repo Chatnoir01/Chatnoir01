@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/tools/probe_atomium_sidewalk_context.py'
+      - 'grand-bruxelles-game/tools/verify_atomium_sidewalk_selectors.py'
       - 'grand-bruxelles-game/data/environment/laeken_jette/atomium_sidewalk_context.game.json'
       - 'grand-bruxelles-game/game/zones/laeken_jette/atomium_sidewalk_context.gd'
       - 'grand-bruxelles-game/project.godot'
@@ -11,9 +12,13 @@ on:
       - '.github/workflows/grand-bruxelles-atomium-sidewalk-projection.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  source-lock:
+  source-and-player-ab:
     runs-on: ubuntu-latest
+    timeout-minutes: 18
     defaults:
       run:
         working-directory: grand-bruxelles-game
@@ -21,8 +26,56 @@ jobs:
       - uses: actions/checkout@v4
       - name: Probe official sidewalk geometry and accepted player wedge
         run: python3 tools/probe_atomium_sidewalk_context.py
+      - name: Prove committed DTM selectors from exact WFS geometry
+        run: python3 tools/verify_atomium_sidewalk_selectors.py
+      - name: Install renderer and image-analysis dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --editor --quit
+      - name: Render deterministic actual-player A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path . --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/atomium_sidewalk_context_test.gd 2>&1 | tee /tmp/sidewalk-player.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ATOMIUM_SIDEWALK_CONTEXT_FAIL' /tmp/sidewalk-player.log; then exit 1; fi
+          grep -F 'ATOMIUM_SIDEWALK_CONTEXT_OK' /tmp/sidewalk-player.log
+      - name: Measure player-frame delta without rescue threshold
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          import json
+          a=Image.open('artifacts/atomium/sidewalk_player_before.png').convert('RGB')
+          b=Image.open('artifacts/atomium/sidewalk_player_after.png').convert('RGB')
+          assert a.size == b.size == (1280,720)
+          changed3=changed8=0
+          accum=0
+          max_delta=0
+          for x,y in zip(a.getdata(),b.getdata()):
+              d=max(abs(x[i]-y[i]) for i in range(3))
+              changed3 += d>3
+              changed8 += d>8
+              accum += d
+              max_delta=max(max_delta,d)
+          total=a.width*a.height
+          report={'width':a.width,'height':a.height,'total_pixels':total,'changed_gt3':changed3,'fraction_gt3':changed3/total,'changed_gt8':changed8,'fraction_gt8':changed8/total,'mean_max_channel_delta':accum/total,'max_channel_delta':max_delta}
+          open('artifacts/atomium/sidewalk_player_ab_metrics.json','w').write(json.dumps(report,indent=2))
+          print('ATOMIUM_SIDEWALK_PLAYER_AB',json.dumps(report))
+          PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: atomium-sidewalk-source-lock
-          path: grand-bruxelles-game/artifacts/atomium/atomium_sidewalk_source_lock.game.json
-          if-no-files-found: error
+          name: atomium-sidewalk-player-ab
+          path: |
+            grand-bruxelles-game/artifacts/atomium/atomium_sidewalk_source_lock.game.json
+            grand-bruxelles-game/artifacts/atomium/sidewalk_player_before.png
+            grand-bruxelles-game/artifacts/atomium/sidewalk_player_after.png
+            grand-bruxelles-game/artifacts/atomium/sidewalk_player_ab_metrics.json
+            /tmp/sidewalk-player.log
+          if-no-files-found: ignore

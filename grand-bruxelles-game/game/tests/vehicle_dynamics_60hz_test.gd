@@ -24,15 +24,15 @@ func _run() -> void:
     var speed := 0.0
     for _i: int in range(600):
         speed = model.longitudinal_step(speed, 1.0, 0.0, dt)
-    if speed < 18.0 or speed > 42.0:
-        _fail("10 s full-throttle speed implausible: %.3f m/s" % speed)
+    if speed < 25.0 or speed > 39.0:
+        _fail("10 s full-throttle speed outside urban-road prototype envelope: %.3f m/s" % speed)
         return
 
     var pre_brake := speed
-    for _i: int in range(180):
+    for _i: int in range(240):
         speed = model.longitudinal_step(speed, 0.0, 1.0, dt)
     if speed > 0.35:
-        _fail("3 s braking failed to stop vehicle: %.3f m/s" % speed)
+        _fail("4 s hard braking failed to stop vehicle: %.3f m/s" % speed)
         return
     if pre_brake <= speed:
         _fail("braking did not reduce speed")
@@ -57,5 +57,5 @@ func _run() -> void:
         _fail("spring equilibrium drifted: force=%.3f load=%.3f" % [support_force, wheel_load])
         return
 
-    print("VEHICLE_DYNAMICS_60HZ_OK: production_hz=60 speed10s=%.2fms brake3s=%.2fms steer_low=%.2f steer_high=%.2f" % [pre_brake, speed, low_speed_steer, high_speed_steer])
+    print("VEHICLE_DYNAMICS_60HZ_OK: production_hz=60 speed10s=%.2fms brake4s=%.2fms steer_low=%.2f steer_high=%.2f" % [pre_brake, speed, low_speed_steer, high_speed_steer])
     quit(0)

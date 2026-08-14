@@ -1,0 +1,101 @@
+name: Grand Bruxelles Atomium Pavilion LoD2 Source Gate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-pavilion-lod2-source-gate.yml"
+      - "grand-bruxelles-game/tools/extract_urbis_3d_context.py"
+      - "grand-bruxelles-game/tools/extract_urbis_3d_hero.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pavilion-lod2-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download bounded official UrbIS 3D tile
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/urbis3d grand-bruxelles-game/artifacts/atomium/pavilion-lod2
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148176_20260808.zip"
+          echo "$URL" > /tmp/package-url.txt
+          curl -fL --retry 3 --retry-delay 3 --max-time 90 -o /tmp/urbis3d.zip "$URL"
+          sha256sum /tmp/urbis3d.zip | tee /tmp/package-sha256.txt
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148176_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source-root.txt
+      - name: Extract central Atomium 2D building link as exact LoD2
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source-root.txt)"
+          SHA="$(cut -d' ' -f1 /tmp/package-sha256.txt)"
+          URL="$(cat /tmp/package-url.txt)"
+          python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
+            --source-root "$ROOT" --prefix UrbISBuildings3D_148176 \
+            --building-id "https://databrussels.be/id/building/1651628" \
+            --context-id "atomium_pavilion_candidate_1651628" \
+            --name "Atomium central pavilion LoD2 candidate 1651628" \
+            --package-url "$URL" --package-sha256 "$SHA" \
+            --package-revision "2026-08-08" --accessed-at "2026-08-14" \
+            --origin-e 148093.22038698208 --origin-n 176091.76722726133 \
+            --world-x 0 --world-z 0 \
+            --output grand-bruxelles-game/artifacts/atomium/pavilion-lod2/1651628.game.json
+      - name: Enforce source-confidence and projected-size pre-gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math
+          p='grand-bruxelles-game/artifacts/atomium/pavilion-lod2/1651628.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          e=d['evidence']; bbox=e['source_bbox_xy']
+          w=bbox[2]-bbox[0]; depth=bbox[3]-bbox[1]
+          cx=(bbox[0]+bbox[2])/2; cy=(bbox[1]+bbox[3])/2
+          anchor=(148093.22038698208,176091.76722726133)
+          offset=math.hypot(cx-anchor[0],cy-anchor[1])
+          types=e.get('face_type_counts',{})
+          walls=int(types.get('WALLSURFACE',0)); roofs=int(types.get('ROOFSURFACE',0))
+          height=float(e['height_m'])
+          # 48° vertical FOV, 16:9 direct-player witness. Conservative apparent-area proxy:
+          # treat the source envelope as a front-facing rectangle at 120 m, used only as anti-micro pre-gate.
+          vfov=math.radians(48.0); hfov=2*math.atan(math.tan(vfov/2)*(16/9))
+          distance=120.0
+          frac_w=min(1.0, (2*math.atan(max(w,depth)/(2*distance)))/hfov)
+          frac_h=min(1.0, (2*math.atan(height/(2*distance)))/vfov)
+          area_proxy=frac_w*frac_h
+          out={
+            'building_id':d['source']['building_2d_id'],
+            'bbox_xy':bbox,'envelope_m':[w,depth],'height_m':height,
+            'center_offset_from_atomium_anchor_m':offset,
+            'face_count':e['face_count'],'triangle_count':e['triangle_count'],
+            'face_type_counts':types,'projected_area_proxy_120m_48deg_16x9':area_proxy,
+            'package_url':d['source']['package_url'],'package_sha256':d['source']['package_sha256'],
+            'crs':d['source']['crs'],'license':d['source'].get('license')
+          }
+          print('ATOMIUM_PAVILION_LOD2_SOURCE',json.dumps(out,sort_keys=True))
+          if walls <= 0 or roofs <= 0:
+            raise SystemExit('candidate lacks independent WALLSURFACE+ROOFSURFACE LoD2')
+          if offset > 25.0:
+            raise SystemExit(f'candidate center is not immediate Atomium base context: {offset:.2f} m')
+          if max(w,depth) < 18.0 or height <= 1.0:
+            raise SystemExit('candidate envelope too small to be the source-backed central pavilion mass')
+          if area_proxy < 0.005:
+            raise SystemExit(f'anti-micro pre-gate failed: projected proxy {area_proxy:.6f}')
+          open('grand-bruxelles-game/artifacts/atomium/pavilion-lod2/source-gate.json','w',encoding='utf-8').write(json.dumps(out,indent=2)+'\n')
+          PY
+      - name: Upload exact source gate
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-pavilion-lod2-source-gate
+          path: |
+            grand-bruxelles-game/artifacts/atomium/pavilion-lod2/1651628.game.json
+            grand-bruxelles-game/artifacts/atomium/pavilion-lod2/source-gate.json
+            /tmp/package-sha256.txt
+          if-no-files-found: error

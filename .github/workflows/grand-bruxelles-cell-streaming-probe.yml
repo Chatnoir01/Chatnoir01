@@ -2,7 +2,7 @@ name: Grand Bruxelles Cell Streaming Probe
 
 on:
   push:
-    branches: ["agent/openliberty-cell-streaming-probe", "agent/streamed-collision-and-asset-cache", "agent/production-cell-streaming-runtime"]
+    branches: ["agent/openliberty-cell-streaming-probe", "agent/streamed-collision-and-asset-cache", "agent/production-cell-streaming-runtime", "agent/ixelles-2x2-source-cell-streaming"]
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-cell-streaming-probe.yml"
@@ -10,10 +10,12 @@ on:
       - "grand-bruxelles-game/game/scripts/brussels_cell_node_backend.gd"
       - "grand-bruxelles-game/game/scripts/brussels_asset_cache.gd"
       - "grand-bruxelles-game/game/scripts/brussels_world_streaming_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_source_plan_streamed_cell.gd"
       - "grand-bruxelles-game/game/scripts/mobile_playability_collision_runtime.gd"
       - "grand-bruxelles-game/game/tests/brussels_cell_streaming_probe_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_real_cell_lifecycle_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_production_streaming_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_source_plan_cluster_test.gd"
       - "grand-bruxelles-game/game/zones/ixelles/ixelles_microslice.gd"
       - "grand-bruxelles-game/game/zones/ixelles/ixelles_streamed_microslice.gd"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/**/manifest.json"
@@ -75,3 +77,16 @@ jobs:
           if [ "$status" -ne 0 ]; then exit "$status"; fi
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_PRODUCTION_STREAMING_FAIL" /tmp/production-streaming.log; then exit 1; fi
           grep -F "BRUSSELS_PRODUCTION_STREAMING_OK" /tmp/production-streaming.log
+      - name: Run source-plan cluster probe
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_source_plan_cluster_test.gd 2>&1 | tee /tmp/source-plan-cluster.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -eq 124 ]; then
+            echo "BRUSSELS_SOURCE_PLAN_CLUSTER_FAIL: timed out after 45s"
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_SOURCE_PLAN_CLUSTER_FAIL" /tmp/source-plan-cluster.log; then exit 1; fi
+          grep -F "BRUSSELS_SOURCE_PLAN_CLUSTER_OK" /tmp/source-plan-cluster.log

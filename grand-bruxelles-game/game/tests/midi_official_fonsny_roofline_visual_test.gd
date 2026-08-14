@@ -1,7 +1,7 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
-const OUTPUT_DIR := "res://artifacts/midi/official-arrival-canopy"
+const OUTPUT_DIR := "res://artifacts/midi/official-fonsny-roofline"
 const WIDTH := 1280
 const HEIGHT := 720
 const CAMERA_POSITION := Vector3(-652.0, 2.70, 621.0)
@@ -12,7 +12,7 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _fail(message: String) -> void:
-    push_error("MIDI_OFFICIAL_ARRIVAL_CANOPY_VISUAL_FAIL: %s" % message)
+    push_error("MIDI_OFFICIAL_FONSNY_ROOFLINE_VISUAL_FAIL: %s" % message)
     quit(1)
 
 func _hide_noise(main: Node) -> void:
@@ -43,35 +43,39 @@ func _run() -> void:
     for _frame: int in range(24):
         await process_frame
 
-    var official := root.get_node_or_null("MidiOfficialArrivalCanopy")
+    var official := root.get_node_or_null("MidiOfficialFonsnyRoofline")
     if official == null:
         _fail("autoload missing")
         return
     if not bool(official.get("geometry_loaded")):
-        _fail("source-bounded arrival geometry did not load")
+        _fail("source-bounded roofline geometry did not load")
         return
     if int(official.get("selected_face_count")) <= 0 or int(official.get("render_triangle_count")) <= 0:
-        _fail("no official complete roof faces selected")
+        _fail("no complete official roof faces selected")
         return
     if bool(official.get_meta("source_vertices_moved", true)) or bool(official.get_meta("source_faces_clipped", true)) or bool(official.get_meta("source_triangles_replaced", true)):
         _fail("exact-source invariants lost")
         return
-    if bool(official.get_meta("selection_claims_authoritative_canopy_dimensions", true)):
-        _fail("authored replacement mask was incorrectly promoted to source truth")
+    if bool(official.get_meta("selection_claims_authoritative_roofline_dimensions", true)):
+        _fail("authored replacement mask was promoted to source truth")
         return
 
+    var station := main.get_node_or_null("MidiHeroZone/BruxellesMidiStation")
+    if station == null:
+        _fail("production station missing")
+        return
+    for preserved_name: String in ["StationLowerBrick", "StationLongGlassBand", "FonsnyWingSouth", "FonsnyCentral", "FonsnyWingNorth"]:
+        if station.get_node_or_null(preserved_name) == null:
+            _fail("recognition-bearing authored frontage missing: %s" % preserved_name)
+            return
     var entrance := main.get_node_or_null("MidiHeroZone/MidiMainEntranceFonsny")
     if entrance == null:
         _fail("production Fonsny entrance missing")
         return
-    for preserved_name: String in ["EntranceGlazing", "StationTotem", "StationName"]:
+    for preserved_name: String in ["EntranceBlueStoneWall", "EntranceGlazing", "EntranceConcreteCanopy", "StationTotem", "StationName"]:
         if entrance.get_node_or_null(preserved_name) == null:
-            _fail("recognition-bearing authored element missing: %s" % preserved_name)
+            _fail("recognition-bearing arrival element missing: %s" % preserved_name)
             return
-    var station := main.get_node_or_null("MidiHeroZone/BruxellesMidiStation")
-    if station == null or station.get_node_or_null("FonsnyCentral") == null or station.get_node_or_null("StationLongGlassBand") == null:
-        _fail("readable authored station frontage was not preserved")
-        return
 
     _hide_noise(main)
     var player_camera := main.get_node_or_null("Player/CameraPivot/SpringArm3D/Camera3D") as Camera3D
@@ -82,7 +86,7 @@ func _run() -> void:
         car_camera.current = false
 
     var camera := Camera3D.new()
-    camera.name = "MidiOfficialArrivalNormalPlayerWitness"
+    camera.name = "MidiOfficialFonsnyRooflineNormalPlayerWitness"
     camera.position = CAMERA_POSITION
     camera.fov = CAMERA_FOV
     main.add_child(camera)
@@ -100,8 +104,9 @@ func _run() -> void:
         _fail("after capture failed")
         return
 
-    print("MIDI_OFFICIAL_ARRIVAL_CANOPY_VISUAL_OK: faces=%d triangles=%d ids=%s camera=(%.1f,%.2f,%.1f) target=(%.1f,%.1f,%.1f) fov=%.1f" % [
-        int(official.get("selected_face_count")), int(official.get("render_triangle_count")), str(official.get("selected_face_ids")),
+    var bounds := official.get("selected_bounds") as Rect2
+    print("MIDI_OFFICIAL_FONSNY_ROOFLINE_VISUAL_OK: faces=%d triangles=%d ids=%s bounds=(%.2f,%.2f) camera=(%.1f,%.2f,%.1f) target=(%.1f,%.1f,%.1f) fov=%.1f" % [
+        int(official.get("selected_face_count")), int(official.get("render_triangle_count")), str(official.get("selected_face_ids")), bounds.size.x, bounds.size.y,
         CAMERA_POSITION.x, CAMERA_POSITION.y, CAMERA_POSITION.z,
         CAMERA_TARGET.x, CAMERA_TARGET.y, CAMERA_TARGET.z, CAMERA_FOV
     ])

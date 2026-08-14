@@ -265,7 +265,7 @@ func _unhandled_input(event: InputEvent) -> void:
         elif event.keycode == KEY_ESCAPE:
             Input.mouse_mode = (
                 Input.MOUSE_MODE_VISIBLE
-                if Input.mouse_mode == Input.MOUSE_CAPTURED
+                if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
                 else Input.MOUSE_MODE_CAPTURED
             )
 

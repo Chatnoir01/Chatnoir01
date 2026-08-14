@@ -19,15 +19,20 @@ const STICK_RADIUS := 58.0
 const STICK_DEADZONE := 0.12
 const TOUCH_LOOK_X := 0.0043
 const TOUCH_LOOK_Y := 0.0035
+const NEW_GAME_CONFIRM_MS := 3000
 
 var _stick_base: Panel
 var _stick_knob: Panel
 var _actions: Control
 var _travel_panel: Panel
+var _game_panel: Panel
+var _game_status: Label
+var _new_game_button: Button
 var _action_buttons: Array[Control] = []
 var _stick_touch_id: int = -1
 var _look_touch_id: int = -1
 var _vehicle_view_index: int = 0
+var _new_game_armed_until_ms: int = 0
 
 
 func _ready() -> void:
@@ -40,7 +45,17 @@ func _ready() -> void:
     set_process_input(true)
 
 
+func _process(_delta: float) -> void:
+    if _game_panel != null and _game_panel.visible:
+        _refresh_game_panel()
+    if _new_game_button != null and _new_game_armed_until_ms > 0 and Time.get_ticks_msec() > _new_game_armed_until_ms:
+        _new_game_armed_until_ms = 0
+        _new_game_button.text = "NOUVELLE PARTIE"
+
+
 func _build_controls() -> void:
+    if _actions != null:
+        return
     _stick_base = Panel.new()
     _stick_base.name = "AnalogStickBase"
     _stick_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -78,8 +93,9 @@ func _build_controls() -> void:
     var jump := _make_button("SAUT", Vector2(78, 126), Vector2(82, 72))
     var sprint := _make_button("COURIR", Vector2(176, 126), Vector2(92, 72))
     var view := _make_button("VUE", Vector2(0, 40), Vector2(68, 62))
+    var game := _make_button("PARTIE", Vector2(78, 40), Vector2(82, 62))
     var travel := _make_button("CARTE", Vector2(0, 132), Vector2(68, 62))
-    for button: Button in [interact, jump, sprint, view, travel]:
+    for button: Button in [interact, jump, sprint, view, game, travel]:
         _actions.add_child(button)
         _action_buttons.append(button)
 
@@ -87,8 +103,10 @@ func _build_controls() -> void:
     _bind_hold(jump, "jump_pressed")
     _bind_hold(sprint, "sprint_pressed")
     view.pressed.connect(_cycle_view)
+    game.pressed.connect(_toggle_game_panel)
     travel.pressed.connect(_toggle_travel_panel)
     _build_travel_panel()
+    _build_game_panel()
 
 
 func _build_travel_panel() -> void:
@@ -127,6 +145,64 @@ func _build_travel_panel() -> void:
     center.pressed.connect(_fast_travel.bind("bourse"))
     cars.pressed.connect(_fast_travel.bind("vehicle_ab"))
     close.pressed.connect(_toggle_travel_panel)
+
+
+func _build_game_panel() -> void:
+    _game_panel = Panel.new()
+    _game_panel.name = "GameplayPanel"
+    _game_panel.visible = false
+    _game_panel.anchor_left = 0.5
+    _game_panel.anchor_top = 0.5
+    _game_panel.anchor_right = 0.5
+    _game_panel.anchor_bottom = 0.5
+    _game_panel.offset_left = -180.0
+    _game_panel.offset_top = -164.0
+    _game_panel.offset_right = 180.0
+    _game_panel.offset_bottom = 164.0
+    _game_panel.add_theme_stylebox_override("panel", _rounded_style(Color(0.025, 0.035, 0.05, 0.95), Color(0.75, 0.82, 0.88, 0.38), 18, 2))
+    add_child(_game_panel)
+    _action_buttons.append(_game_panel)
+
+    var title := Label.new()
+    title.position = Vector2(18, 14)
+    title.size = Vector2(324, 30)
+    title.text = "PARTIE & MISSION"
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    title.add_theme_font_size_override("font_size", 19)
+    _game_panel.add_child(title)
+
+    _game_status = Label.new()
+    _game_status.name = "MissionStatus"
+    _game_status.position = Vector2(20, 50)
+    _game_status.size = Vector2(320, 92)
+    _game_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _game_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    _game_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _game_status.add_theme_font_size_override("font_size", 14)
+    _game_panel.add_child(_game_status)
+
+    var save := _travel_button("SAUVEGARDER", Vector2(20, 154), Vector2(152, 54))
+    var load_game := _travel_button("CHARGER", Vector2(188, 154), Vector2(152, 54))
+    _new_game_button = _travel_button("NOUVELLE PARTIE", Vector2(20, 220), Vector2(320, 54))
+    var close := _travel_button("FERMER", Vector2(102, 286), Vector2(156, 34))
+    _game_panel.add_child(save)
+    _game_panel.add_child(load_game)
+    _game_panel.add_child(_new_game_button)
+    _game_panel.add_child(close)
+    save.pressed.connect(quick_save_from_ui)
+    load_game.pressed.connect(quick_load_from_ui)
+    _new_game_button.pressed.connect(_request_new_game)
+    close.pressed.connect(_toggle_game_panel)
+
+
+func _refresh_game_panel() -> void:
+    if _game_status == null:
+        return
+    var mission_label := get_node_or_null("../MissionLabel") as Label
+    var wallet_label := get_node_or_null("../WalletLabel") as Label
+    var mission_text := mission_label.text if mission_label != null else "Mission indisponible"
+    var wallet_text := wallet_label.text if wallet_label != null else ""
+    _game_status.text = "%s\nSOLDE · %s" % [mission_text, wallet_text]
 
 
 func _circle_style(fill: Color, border: Color, width: int) -> StyleBoxFlat:
@@ -189,7 +265,7 @@ func _input(event: InputEvent) -> void:
             if touch.index == _look_touch_id:
                 _look_touch_id = -1
             return
-        if _travel_panel != null and _travel_panel.visible:
+        if _modal_panel_open():
             return
         if _stick_touch_id < 0 and _stick_capture_rect().has_point(touch.position):
             _stick_touch_id = touch.index
@@ -205,6 +281,10 @@ func _input(event: InputEvent) -> void:
             _update_stick(drag.position)
         elif drag.index == _look_touch_id:
             _apply_touch_look(drag.relative)
+
+
+func _modal_panel_open() -> bool:
+    return (_travel_panel != null and _travel_panel.visible) or (_game_panel != null and _game_panel.visible)
 
 
 func _stick_capture_rect() -> Rect2:
@@ -312,10 +392,30 @@ func _cycle_view() -> void:
 func _toggle_travel_panel() -> void:
     if _travel_panel == null:
         return
-    _travel_panel.visible = not _travel_panel.visible
-    if _travel_panel.visible:
+    var opening := not _travel_panel.visible
+    _travel_panel.visible = opening
+    if opening:
+        if _game_panel != null:
+            _game_panel.visible = false
         _release_stick()
         _look_touch_id = -1
+
+
+func _toggle_game_panel() -> void:
+    if _game_panel == null:
+        return
+    var opening := not _game_panel.visible
+    _game_panel.visible = opening
+    if opening:
+        if _travel_panel != null:
+            _travel_panel.visible = false
+        _release_stick()
+        _look_touch_id = -1
+        _refresh_game_panel()
+    else:
+        _new_game_armed_until_ms = 0
+        if _new_game_button != null:
+            _new_game_button.text = "NOUVELLE PARTIE"
 
 
 func _fast_travel(destination: String) -> void:
@@ -323,3 +423,75 @@ func _fast_travel(destination: String) -> void:
         player.call("fast_travel_to", destination)
     if _travel_panel != null:
         _travel_panel.visible = false
+
+
+func quick_save_from_ui() -> bool:
+    var quick_save := get_node_or_null("../MissionQuickSave")
+    if quick_save == null or not quick_save.has_method("quick_save"):
+        return false
+    var result := bool(quick_save.call("quick_save"))
+    _refresh_game_panel()
+    return result
+
+
+func quick_load_from_ui() -> bool:
+    var quick_save := get_node_or_null("../MissionQuickSave")
+    if quick_save == null or not quick_save.has_method("quick_load"):
+        return false
+    var result := bool(quick_save.call("quick_load"))
+    _refresh_game_panel()
+    return result
+
+
+func _request_new_game() -> void:
+    var now := Time.get_ticks_msec()
+    if _new_game_armed_until_ms <= now:
+        _new_game_armed_until_ms = now + NEW_GAME_CONFIRM_MS
+        if _new_game_button != null:
+            _new_game_button.text = "CONFIRMER · TOUT RECOMMENCER"
+        return
+    restart_campaign_from_ui()
+    _new_game_armed_until_ms = 0
+    if _new_game_button != null:
+        _new_game_button.text = "NOUVELLE PARTIE"
+
+
+func restart_campaign_from_ui() -> bool:
+    var autosave := get_node_or_null("../MissionCheckpointAutosave")
+    var wallet := get_node_or_null("../Wallet")
+    var mission := get_node_or_null("../MissionDriveToCenter")
+    var return_mission := get_node_or_null("../MissionReturnToBourse")
+    if autosave == null or wallet == null or mission == null or return_mission == null:
+        return false
+    if not autosave.has_method("clear_autosave") or not bool(autosave.call("clear_autosave")):
+        return false
+    if wallet.has_method("reset"):
+        wallet.call("reset")
+    if mission.has_method("restart_mission"):
+        mission.call("restart_mission")
+    if return_mission.has_method("restart_campaign"):
+        return_mission.call("restart_campaign")
+    _refresh_game_panel()
+    return true
+
+
+func ensure_gameplay_controls_for_test() -> void:
+    visible = true
+    if _actions == null:
+        _build_controls()
+    set_process_input(true)
+
+
+func open_gameplay_panel_for_test() -> void:
+    ensure_gameplay_controls_for_test()
+    if _game_panel != null and not _game_panel.visible:
+        _toggle_game_panel()
+
+
+func gameplay_panel_state_for_test() -> Dictionary:
+    return {
+        "built": _game_panel != null,
+        "visible": _game_panel != null and _game_panel.visible,
+        "status": _game_status.text if _game_status != null else "",
+        "new_game_label": _new_game_button.text if _new_game_button != null else "",
+    }

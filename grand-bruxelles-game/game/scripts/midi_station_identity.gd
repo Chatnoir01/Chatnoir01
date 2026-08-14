@@ -3,6 +3,10 @@ extends Node
 const SOURCE_PATH := "res://data/visual/midi_station_identity.json"
 const FRENCH_NAME := "BRUXELLES-MIDI"
 const DUTCH_NAME := "BRUSSEL-ZUID"
+# Authored presentation offset only: the existing entrance wall is centered at
+# local X=-14.8 with 0.34 m depth, so its road-facing surface is X=-14.63.
+# Keep the labels just roadward of that surface instead of buried behind it.
+const IDENTITY_SURFACE_X := -14.52
 
 var _entrance: Node3D
 var _legacy_label: Label3D
@@ -56,9 +60,11 @@ func _make_identity_label(node_name: String, text_value: String, local_y: float)
     label.pixel_size = 0.018
     label.modulate = Color(0.96, 0.96, 0.92, 1.0)
     label.outline_modulate = Color(0.035, 0.055, 0.075, 0.98)
-    label.position = Vector3(-15.30, local_y, -0.6)
+    label.position = Vector3(IDENTITY_SURFACE_X, local_y, -0.6)
     label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
     label.no_depth_test = false
+    label.set_meta("position_is_authored_presentation", true)
+    label.set_meta("position_is_surveyed_sign_panel", false)
     return label
 
 func set_station_identity_visible(enabled: bool) -> void:

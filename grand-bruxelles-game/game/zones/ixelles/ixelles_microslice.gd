@@ -1,10 +1,11 @@
 extends Node3D
 
 ## First bounded Ixelles runtime micro-slice.
-## Terrain + collision + street surfaces are source-backed. Legacy temporary
-## building-height heuristics are deliberately rejected and never rendered.
+## Terrain, collision, streets and selected building massing are source-backed.
+## Legacy temporary building-height heuristics are never rendered.
 
 @export_file("*.json") var terrain_path := "res://data/terrain/ixelles/bxl-e149000-n169000-s500_dtm_2m.game.json"
+@export_file("*.json") var height_candidates_path := "res://data/terrain/ixelles/bxl-e149000-n169000-s500_strong_heights.game.json"
 @export_file("*.json") var cell_path := "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/cell.game.json"
 @export_file("*.json") var network_path := "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/network.game.json"
 @export var build_collision := true
@@ -16,6 +17,7 @@ var terrain_triangle_count := 0
 var street_surface_count := 0
 var street_segment_count := 0
 var building_count := 0
+var eligible_height_count := 0
 var skipped_unapproved_height_buildings := 0
 var vertical_reference_absolute_m := 0.0
 
@@ -23,7 +25,6 @@ var _width := 0
 var _height := 0
 var _spacing := 0.0
 var _bbox := Rect2()
-var _heights_absolute := PackedFloat32Array()
 var _heights_relative := PackedFloat32Array()
 var _origin_e := 0.0
 var _origin_n := 0.0
@@ -35,6 +36,7 @@ var _road_material: StandardMaterial3D
 var _sidewalk_material: StandardMaterial3D
 var _paved_material: StandardMaterial3D
 var _other_material: StandardMaterial3D
+var _building_materials: Array[StandardMaterial3D] = []
 
 func _ready() -> void:
     if not _load_contracts():
@@ -45,10 +47,10 @@ func _ready() -> void:
     if build_collision:
         _build_collision()
     _build_street_surfaces()
-    _audit_buildings_without_promoting_heuristics()
-    runtime_loaded = terrain_triangle_count == 125000 and street_surface_count == 309 and skipped_unapproved_height_buildings == 720 and building_count == 0
+    _build_strong_height_candidate_buildings()
+    runtime_loaded = terrain_triangle_count == 125000 and street_surface_count == 309 and street_segment_count == 277 and building_count == eligible_height_count and building_count == 260 and skipped_unapproved_height_buildings == 460
     if runtime_loaded:
-        print("IXELLES_MICROSLICE_READY: cell=%s samples=%d triangles=%d streets=%d skipped_heights=%d" % [cell_id, terrain_sample_count, terrain_triangle_count, street_surface_count, skipped_unapproved_height_buildings])
+        print("IXELLES_MICROSLICE_READY: cell=%s samples=%d triangles=%d streets=%d buildings=%d skipped_heights=%d" % [cell_id, terrain_sample_count, terrain_triangle_count, street_surface_count, building_count, skipped_unapproved_height_buildings])
 
 func _read_json(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):
@@ -62,12 +64,13 @@ func _read_json(path: String) -> Dictionary:
 
 func _load_contracts() -> bool:
     var terrain := _read_json(terrain_path)
+    var height_candidates := _read_json(height_candidates_path)
     var cell := _read_json(cell_path)
     var network := _read_json(network_path)
-    if terrain.is_empty() or cell.is_empty() or network.is_empty():
+    if terrain.is_empty() or height_candidates.is_empty() or cell.is_empty() or network.is_empty():
         return false
     cell_id = str(terrain.get("cell_id", ""))
-    if cell_id != "bxl-e149000-n169000-s500" or str(cell.get("cell_id", "")) != cell_id or str(network.get("cell_id", "")) != cell_id:
+    if cell_id != "bxl-e149000-n169000-s500" or str(cell.get("cell_id", "")) != cell_id or str(network.get("cell_id", "")) != cell_id or str(height_candidates.get("cell_id", "")) != cell_id:
         push_error("IxellesMicroSlice: selected cell contract drifted")
         return false
     var bbox_raw: Variant = terrain.get("bbox_epsg31370", [])
@@ -97,7 +100,6 @@ func _load_contracts() -> bool:
     var raw_heights: Variant = terrain.get("heights_row_major_m", [])
     if not raw_heights is Array or raw_heights.size() != terrain_sample_count:
         return false
-    _heights_absolute.resize(terrain_sample_count)
     _heights_relative.resize(terrain_sample_count)
     vertical_reference_absolute_m = float(raw_heights[0])
     for i: int in range(terrain_sample_count):
@@ -105,9 +107,18 @@ func _load_contracts() -> bool:
         if not is_finite(value):
             push_error("IxellesMicroSlice: non-finite terrain sample")
             return false
-        _heights_absolute[i] = value
         _heights_relative[i] = value - vertical_reference_absolute_m
-
+    if bool(height_candidates.get("runtime_approved", true)):
+        push_error("IxellesMicroSlice: strong-height evidence incorrectly globally approved")
+        return false
+    eligible_height_count = int(height_candidates.get("eligible_count", 0))
+    if eligible_height_count != 260:
+        push_error("IxellesMicroSlice: strong-height candidate count drifted")
+        return false
+    var policy: Variant = height_candidates.get("policy", {})
+    if not policy is Dictionary or int(policy.get("source_pr", 0)) != 103 or float(policy.get("max_abs_delta_m", 99.0)) != 2.0 or str(policy.get("required_dsm_confidence", "")) != "high":
+        push_error("IxellesMicroSlice: height evidence policy drifted")
+        return false
     var coords: Variant = cell.get("coordinate_system", {})
     if not coords is Dictionary or not bool(coords.get("coordinates_are_current_game_world", false)):
         push_error("IxellesMicroSlice: current-game-world coordinate contract missing")
@@ -118,6 +129,7 @@ func _load_contracts() -> bool:
     _world_anchor_z = float(coords.get("world_anchor_z", 0.0))
     set_meta("ixelles_cell_contract", cell)
     set_meta("ixelles_network_contract", network)
+    set_meta("ixelles_height_contract", height_candidates)
     return true
 
 func _make_material(color: Color, roughness: float) -> StandardMaterial3D:
@@ -133,6 +145,7 @@ func _make_materials() -> void:
     _sidewalk_material = _make_material(Color(0.45, 0.435, 0.405, 1.0), 0.94)
     _paved_material = _make_material(Color(0.39, 0.375, 0.345, 1.0), 0.95)
     _other_material = _make_material(Color(0.28, 0.285, 0.28, 1.0), 0.95)
+    _building_materials = [_make_material(Color(0.49, 0.34, 0.27, 1.0), 0.92), _make_material(Color(0.62, 0.56, 0.46, 1.0), 0.91), _make_material(Color(0.45, 0.44, 0.41, 1.0), 0.93)]
 
 func _index(row: int, col: int) -> int:
     return row * _width + col
@@ -167,13 +180,17 @@ func _build_terrain() -> void:
             vertices[i] = _grid_game_position(row, col)
             normals[i] = _normal(row, col)
     var indices := PackedInt32Array()
+    indices.resize((_width - 1) * (_height - 1) * 6)
+    var cursor := 0
     for row: int in range(_height - 1):
         for col: int in range(_width - 1):
             var i0 := _index(row, col)
             var i1 := _index(row + 1, col)
             var i2 := _index(row, col + 1)
             var i3 := _index(row + 1, col + 1)
-            indices.append_array(PackedInt32Array([i0, i1, i2, i2, i1, i3]))
+            indices[cursor] = i0; indices[cursor + 1] = i1; indices[cursor + 2] = i2
+            indices[cursor + 3] = i2; indices[cursor + 4] = i1; indices[cursor + 5] = i3
+            cursor += 6
     terrain_triangle_count = indices.size() / 3
     var arrays: Array = []
     arrays.resize(Mesh.ARRAY_MAX)
@@ -210,94 +227,98 @@ func sample_height(game_x: float, game_z: float) -> float:
     var n := _origin_n - (game_z - _world_anchor_z)
     var col_f := (e - _bbox.position.x) / _spacing
     var row_f := (n - _bbox.position.y) / _spacing
-    if col_f < 0.0 or row_f < 0.0 or col_f > float(_width - 1) or row_f > float(_height - 1):
-        return 0.0
-    var c0 := clampi(int(floor(col_f)), 0, _width - 1)
-    var r0 := clampi(int(floor(row_f)), 0, _height - 1)
-    var c1 := mini(c0 + 1, _width - 1)
-    var r1 := mini(r0 + 1, _height - 1)
-    var tx := col_f - float(c0)
-    var ty := row_f - float(r0)
-    var a := lerpf(_heights_relative[_index(r0, c0)], _heights_relative[_index(r0, c1)], tx)
-    var b := lerpf(_heights_relative[_index(r1, c0)], _heights_relative[_index(r1, c1)], tx)
-    return lerpf(a, b, ty)
+    if col_f < 0.0 or row_f < 0.0 or col_f > float(_width - 1) or row_f > float(_height - 1): return 0.0
+    var c0 := clampi(int(floor(col_f)), 0, _width - 1); var r0 := clampi(int(floor(row_f)), 0, _height - 1)
+    var c1 := mini(c0 + 1, _width - 1); var r1 := mini(r0 + 1, _height - 1)
+    var tx := col_f - float(c0); var ty := row_f - float(r0)
+    return lerpf(lerpf(_heights_relative[_index(r0,c0)], _heights_relative[_index(r0,c1)], tx), lerpf(_heights_relative[_index(r1,c0)], _heights_relative[_index(r1,c1)], tx), ty)
 
 func _ring(raw: Variant) -> PackedVector2Array:
     var ring := PackedVector2Array()
-    if not raw is Array:
-        return ring
+    if not raw is Array: return ring
     for item: Variant in raw:
-        if item is Array and item.size() >= 2:
-            ring.append(Vector2(float(item[0]), float(item[1])))
-    if ring.size() >= 2 and ring[0].is_equal_approx(ring[ring.size() - 1]):
-        ring.remove_at(ring.size() - 1)
+        if item is Array and item.size() >= 2: ring.append(Vector2(float(item[0]), float(item[1])))
+    if ring.size() >= 2 and ring[0].is_equal_approx(ring[ring.size()-1]): ring.remove_at(ring.size()-1)
     return ring
 
 func _surface_material(surface_type: String) -> StandardMaterial3D:
-    if surface_type == "S":
-        return _road_material
-    if surface_type == "SW":
-        return _sidewalk_material
-    if surface_type == "P" or surface_type == "I":
-        return _paved_material
+    if surface_type == "S": return _road_material
+    if surface_type == "SW": return _sidewalk_material
+    if surface_type == "P" or surface_type == "I": return _paved_material
     return _other_material
 
 func _build_street_surfaces() -> void:
     var cell: Dictionary = get_meta("ixelles_cell_contract", {})
     var surfaces: Variant = cell.get("street_surfaces", [])
-    if not surfaces is Array:
-        return
+    if not surfaces is Array: return
     var grouped := {}
     for feature: Variant in surfaces:
-        if not feature is Dictionary:
-            continue
-        var ring := _ring(feature.get("polygon", []))
-        if ring.size() < 3:
-            continue
-        var indices := Geometry2D.triangulate_polygon(ring)
-        if indices.size() < 3:
-            continue
+        if not feature is Dictionary: continue
+        var ring := _ring(feature.get("polygon", [])); if ring.size() < 3: continue
+        var indices := Geometry2D.triangulate_polygon(ring); if indices.size() < 3: continue
         var key := str(feature.get("type", ""))
         if not grouped.has(key):
-            var tool := SurfaceTool.new()
-            tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-            tool.set_material(_surface_material(key))
-            grouped[key] = tool
+            var tool := SurfaceTool.new(); tool.begin(Mesh.PRIMITIVE_TRIANGLES); tool.set_material(_surface_material(key)); grouped[key] = tool
         var target: SurfaceTool = grouped[key]
         for raw_index: int in indices:
-            var p := ring[raw_index]
-            target.set_normal(Vector3.UP)
-            target.add_vertex(Vector3(p.x, sample_height(p.x, p.y) + 0.035, p.y))
+            var p := ring[raw_index]; target.set_normal(Vector3.UP); target.add_vertex(Vector3(p.x, sample_height(p.x,p.y)+0.035, p.y))
         street_surface_count += 1
-    var root := Node3D.new()
-    root.name = "OfficialIxellesStreetSurfaces"
-    add_child(root)
+    var root := Node3D.new(); root.name = "OfficialIxellesStreetSurfaces"; add_child(root)
     for key: Variant in grouped.keys():
         var mesh: ArrayMesh = (grouped[key] as SurfaceTool).commit()
-        if mesh.get_surface_count() == 0:
-            continue
-        var instance := MeshInstance3D.new()
-        instance.name = "StreetSurfaces_%s" % str(key)
-        instance.mesh = mesh
-        root.add_child(instance)
+        if mesh.get_surface_count() == 0: continue
+        var instance := MeshInstance3D.new(); instance.name = "StreetSurfaces_%s" % str(key); instance.mesh = mesh; root.add_child(instance)
     var network: Dictionary = get_meta("ixelles_network_contract", {})
-    var stats: Variant = network.get("source_stats", {})
-    if stats is Dictionary:
-        street_segment_count = int(stats.get("street_segments", 0))
+    var stats: Variant = network.get("stats", {})
+    if stats is Dictionary: street_segment_count = int(stats.get("street_segments", 0))
 
-func _audit_buildings_without_promoting_heuristics() -> void:
+func _building_bucket(id_text: String) -> int:
+    var hash_value := 0
+    for character: int in id_text.to_utf8_buffer(): hash_value = (hash_value * 31 + character) & 0x7fffffff
+    return hash_value % _building_materials.size()
+
+func _append_building(tool: SurfaceTool, polygon: PackedVector2Array, semantic_height: float) -> bool:
+    if polygon.size() < 3 or semantic_height < 2.0 or semantic_height > 100.0: return false
+    var centroid := Vector2.ZERO
+    for point: Vector2 in polygon: centroid += point
+    centroid /= float(polygon.size())
+    var base_y := sample_height(centroid.x, centroid.y) + 0.05
+    var top_y := base_y + semantic_height
+    for index: int in range(polygon.size()):
+        var a := polygon[index]; var b := polygon[(index+1)%polygon.size()]; var edge := b-a
+        if edge.length_squared() < 0.01: continue
+        var normal := Vector3(-edge.y,0.0,edge.x).normalized()
+        var a0:=Vector3(a.x,base_y,a.y); var b0:=Vector3(b.x,base_y,b.y); var a1:=Vector3(a.x,top_y,a.y); var b1:=Vector3(b.x,top_y,b.y)
+        for vertex: Vector3 in [a0,b0,b1,a0,b1,a1]: tool.set_normal(normal); tool.add_vertex(vertex)
+    for raw_index: int in Geometry2D.triangulate_polygon(polygon): tool.set_normal(Vector3.UP); tool.add_vertex(Vector3(polygon[raw_index].x,top_y,polygon[raw_index].y))
+    return true
+
+func _build_strong_height_candidate_buildings() -> void:
+    var contract: Dictionary = get_meta("ixelles_height_contract", {})
+    var heights := {}
+    var records: Variant = contract.get("records", [])
+    if records is Array:
+        for record: Variant in records:
+            if not record is Dictionary: continue
+            if not bool(record.get("visual_runtime_eligible",false)) or bool(record.get("runtime_approved",true)): continue
+            if float(record.get("abs_delta_m",99.0))>2.0 or float(record.get("semantic_match_score",0.0))<0.90 or float(record.get("semantic_match_margin",0.0))<0.25: continue
+            heights[str(record.get("building_id",""))] = float(record.get("semantic_height_m",0.0))
+    if heights.size() != eligible_height_count: push_error("IxellesMicroSlice: eligible height map incomplete"); return
+    var tools: Array[SurfaceTool] = []
+    for material: StandardMaterial3D in _building_materials:
+        var tool := SurfaceTool.new(); tool.begin(Mesh.PRIMITIVE_TRIANGLES); tool.set_material(material); tools.append(tool)
     var cell: Dictionary = get_meta("ixelles_cell_contract", {})
     var buildings: Variant = cell.get("buildings", [])
-    if not buildings is Array:
-        return
+    if not buildings is Array: return
     for feature: Variant in buildings:
-        if not feature is Dictionary:
-            continue
-        var source := str(feature.get("height_source", ""))
-        if source == "temporary_area_heuristic" or source.is_empty():
-            skipped_unapproved_height_buildings += 1
-            continue
-        # No height source is currently approved for this production slice.
-        # Keep this explicit fail-closed behavior until a separate source-backed
-        # per-building runtime contract is merged.
-        skipped_unapproved_height_buildings += 1
+        if not feature is Dictionary: continue
+        var id_text := str(feature.get("id",""))
+        if not heights.has(id_text): skipped_unapproved_height_buildings += 1; continue
+        var polygon := _ring(feature.get("footprint",[])); var h := float(heights[id_text]); var bucket := _building_bucket(id_text)
+        if _append_building(tools[bucket],polygon,h): building_count += 1
+        else: skipped_unapproved_height_buildings += 1
+    var root := Node3D.new(); root.name="StrongSourceBackedIxellesBuildings"; add_child(root)
+    for index: int in range(tools.size()):
+        var mesh: ArrayMesh = tools[index].commit()
+        if mesh.get_surface_count()==0: continue
+        var instance:=MeshInstance3D.new(); instance.name="StrongBuildings_%d"%index; instance.mesh=mesh; root.add_child(instance)

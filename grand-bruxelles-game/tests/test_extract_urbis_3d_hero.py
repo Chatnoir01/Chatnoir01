@@ -42,6 +42,46 @@ def test_triangulates_concave_ring_without_fan_leak() -> None:
     assert len(MODULE.triangulate_ring(ring)) == 3
 
 
+def _triangle_area_xy(triangle: list[list[float]]) -> float:
+    a, b, c = triangle
+    return abs(
+        (b[0] - a[0]) * (c[1] - a[1])
+        - (b[1] - a[1]) * (c[0] - a[0])
+    ) * 0.5
+
+
+def test_multipatch_outer_ring_with_inner_ring_preserves_hole_area_and_source_vertices() -> None:
+    outer = [
+        [0.0, 0.0, 2.0],
+        [10.0, 0.0, 2.0],
+        [10.0, 10.0, 2.0],
+        [0.0, 10.0, 2.0],
+        [0.0, 0.0, 2.0],
+    ]
+    hole = [
+        [3.0, 3.0, 2.0],
+        [3.0, 7.0, 2.0],
+        [7.0, 7.0, 2.0],
+        [7.0, 3.0, 2.0],
+        [3.0, 3.0, 2.0],
+    ]
+    patch = {
+        "parts": [0, len(outer)],
+        "part_types": [MODULE.PART_OUTER_RING, MODULE.PART_INNER_RING],
+        "points": outer + hole,
+    }
+
+    triangles = MODULE.multipatch_triangles(patch)
+
+    assert abs(sum(_triangle_area_xy(triangle) for triangle in triangles) - 84.0) <= 1.0e-8
+    source_vertices = {tuple(point) for point in outer[:-1] + hole[:-1]}
+    assert all(tuple(vertex) in source_vertices for triangle in triangles for vertex in triangle)
+    for triangle in triangles:
+        centroid_x = sum(vertex[0] for vertex in triangle) / 3.0
+        centroid_y = sum(vertex[1] for vertex in triangle) / 3.0
+        assert not (3.0 < centroid_x < 7.0 and 3.0 < centroid_y < 7.0)
+
+
 def test_multipatch_triangle_strip_is_deterministic() -> None:
     patch = {
         "parts": [0],
@@ -92,6 +132,7 @@ def test_committed_bourse_source_contract() -> None:
 if __name__ == "__main__":
     test_triangulates_closed_convex_ring()
     test_triangulates_concave_ring_without_fan_leak()
+    test_multipatch_outer_ring_with_inner_ring_preserves_hole_area_and_source_vertices()
     test_multipatch_triangle_strip_is_deterministic()
     test_committed_bourse_source_contract()
     print("test_extract_urbis_3d_hero: PASS")

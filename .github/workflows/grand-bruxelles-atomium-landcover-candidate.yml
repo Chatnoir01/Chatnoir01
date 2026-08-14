@@ -7,7 +7,9 @@ on:
       - "grand-bruxelles-game/tools/probe_atomium_landcover_candidate.py"
       - "grand-bruxelles-game/data/environment/laeken_jette/atomium_landcover_context.game.json"
       - "grand-bruxelles-game/game/zones/laeken_jette/atomium_landcover_context.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_core.gd"
       - "grand-bruxelles-game/game/tests/atomium_landcover_context_test.gd"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,16 +17,93 @@ permissions:
 jobs:
   candidate-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
+      - name: Install renderer and image-analysis dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
       - name: Measure exact official GB foreground coverage
         working-directory: grand-bruxelles-game
         run: python3 tools/probe_atomium_landcover_candidate.py
-      - name: Upload exact candidate geometry and witness metrics
+      - name: Lock committed geometry to fresh official WFS result
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          probe=json.load(open('artifacts/atomium/landcover_1038_candidate.json',encoding='utf-8'))
+          locked=json.load(open('data/environment/laeken_jette/atomium_landcover_context.game.json',encoding='utf-8'))
+          assert probe['source']['feature_id'] == locked['source']['feature_id'] == 'LandCover.1038'
+          assert probe['source']['crs'] == locked['source']['crs'] == 'EPSG:31370'
+          assert probe['classification']['source_code'] == locked['classification']['source_code'] == 'GB'
+          assert probe['geometry'] == locked['geometry'], 'committed GB geometry differs from fresh official WFS'
+          w=probe['accepted_player_witness']
+          assert w['camera_inside_candidate'] and not w['atomium_anchor_inside_candidate']
+          assert w['ground_wedge_coverage_fraction'] >= 0.20
+          print('ATOMIUM_LANDCOVER_SOURCE_LOCK_OK', w['ground_wedge_coverage_fraction'], probe['geometry']['area_m2'])
+          PY
+      - name: Resolve official metadata reuse conditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p grand-bruxelles-game/artifacts/atomium
+          URL='https://geobru-geonetwork.irisnet.be/geonetwork/srv/eng/xml.metadata.get?uuid=b0b92aef-03a4-453e-ade6-0c63ae864c76'
+          curl -fL --retry 3 --retry-delay 3 --max-time 45 "$URL" -o grand-bruxelles-game/artifacts/atomium/landcover_metadata.xml
+          python3 - <<'PY'
+          import pathlib,re
+          p=pathlib.Path('grand-bruxelles-game/artifacts/atomium/landcover_metadata.xml')
+          text=p.read_text(encoding='utf-8',errors='replace')
+          normalized=' '.join(re.sub(r'<[^>]+>',' ',text).split())
+          print('ATOMIUM_LANDCOVER_METADATA_PREVIEW', normalized[:2500])
+          low=normalized.lower()
+          if not any(token in low for token in ('cc0','cc-0','creative commons zero','public domain')):
+              raise SystemExit('official metadata does not establish CC0/public-domain reuse; reject runtime candidate')
+          print('ATOMIUM_LANDCOVER_LICENSE_OK: official metadata establishes CC0/public-domain reuse')
+          PY
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Render deterministic hero and direct-player A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x960 --script res://game/tests/atomium_landcover_context_test.gd 2>&1 | tee /tmp/landcover-visual.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_LANDCOVER_CONTEXT_FAIL" /tmp/landcover-visual.log; then exit 1; fi
+          grep -F "ATOMIUM_LANDCOVER_CONTEXT_OK" /tmp/landcover-visual.log
+      - name: Enforce player-facing anti-micro A/B
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          pairs=[
+            ('hero',Path('artifacts/atomium/landcover_hero_before.png'),Path('artifacts/atomium/landcover_hero_after.png'),0.005),
+            ('player',Path('artifacts/atomium/landcover_player_before.png'),Path('artifacts/atomium/landcover_player_after.png'),0.020),
+          ]
+          for name,a,b,min_frac in pairs:
+              ia=Image.open(a).convert('RGB'); ib=Image.open(b).convert('RGB'); assert ia.size==ib.size
+              changed=sum(1 for x,y in zip(ia.getdata(),ib.getdata()) if max(abs(x[i]-y[i]) for i in range(3))>3)
+              total=ia.width*ia.height; frac=changed/total
+              print(f'ATOMIUM_LANDCOVER_AB {name} changed={changed} total={total} fraction={frac:.6f}')
+              if frac < min_frac:
+                  raise SystemExit(f'{name} anti-micro failed: {frac:.6f} < {min_frac:.6f}')
+          PY
+      - name: Upload exact source and visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: atomium-landcover-1038-candidate
-          path: grand-bruxelles-game/artifacts/atomium/landcover_1038_candidate.json
-          if-no-files-found: error
+          name: atomium-landcover-1038-evidence
+          path: |
+            grand-bruxelles-game/artifacts/atomium/landcover_1038_candidate.json
+            grand-bruxelles-game/artifacts/atomium/landcover_metadata.xml
+            grand-bruxelles-game/artifacts/atomium/landcover_hero_before.png
+            grand-bruxelles-game/artifacts/atomium/landcover_hero_after.png
+            grand-bruxelles-game/artifacts/atomium/landcover_player_before.png
+            grand-bruxelles-game/artifacts/atomium/landcover_player_after.png
+            /tmp/landcover-visual.log
+          if-no-files-found: ignore

@@ -96,14 +96,18 @@ func _run() -> void:
     if not _expect(ixelles_node.find_child("OfficialIxellesDTMCollision", true, false) == null, "visual-prefetch backend unexpectedly built heavy terrain collision"):
         return
 
-    var phase_ms: Dictionary = ixelles_node.get("stream_phase_ms")
+    var phase_ms: Dictionary = (ixelles_node.get("stream_phase_ms") as Dictionary).duplicate(true)
     var total_stream_ms := int(ixelles_node.get("stream_total_ms"))
     var max_phase_ms := int(ixelles_node.call("get_max_stream_phase_ms"))
+    var vertex_chunks := int(ixelles_node.get("terrain_vertex_chunks"))
+    var index_chunks := int(ixelles_node.get("terrain_index_chunks"))
     var required_phases: Array[String] = ["contracts_materials", "terrain_vertices_chunk", "terrain_indices_chunk", "terrain_mesh_commit", "street_surfaces", "buildings"]
     for phase_name: String in required_phases:
         if not _expect(phase_ms.has(phase_name), "missing streamed build telemetry phase '%s': %s" % [phase_name, phase_ms]):
             return
-    if not _expect(int(ixelles_node.get("terrain_vertex_chunks")) > 1 and int(ixelles_node.get("terrain_index_chunks")) > 1, "terrain geometry was not actually chunked across frames"):
+    if not _expect(vertex_chunks > 1 and index_chunks > 1, "terrain geometry was not actually chunked across frames"):
+        return
+    if not _expect(max_phase_ms <= 50, "streaming phase budget regressed above 50 ms: max=%d phases=%s" % [max_phase_ms, phase_ms]):
         return
     if not _expect(max_phase_ms <= total_stream_ms, "max phase time cannot exceed total stream time"):
         return
@@ -121,7 +125,7 @@ func _run() -> void:
     if not _expect(int(scheduler_metrics.get("duplicate_activation_attempts", -1)) == 0, "scheduler duplicated a real cell activation"):
         return
 
-    print("BRUSSELS_REAL_CELL_LIFECYCLE_OK: chunked Ixelles 125000-triangle/260-building cell prefetched and released; elapsed_ms=%d total_stream_ms=%d max_phase_ms=%d vertex_chunks=%d index_chunks=%d phases=%s center=(%.2f, %.2f)" % [load_elapsed_ms, total_stream_ms, max_phase_ms, int(ixelles_node.get("terrain_vertex_chunks")), int(ixelles_node.get("terrain_index_chunks")), phase_ms, cell_world_center.x, cell_world_center.z])
+    print("BRUSSELS_REAL_CELL_LIFECYCLE_OK: chunked Ixelles 125000-triangle/260-building cell prefetched and released; elapsed_ms=%d total_stream_ms=%d max_phase_ms=%d vertex_chunks=%d index_chunks=%d phases=%s center=(%.2f, %.2f)" % [load_elapsed_ms, total_stream_ms, max_phase_ms, vertex_chunks, index_chunks, phase_ms, cell_world_center.x, cell_world_center.z])
     backend.queue_free()
     manager.queue_free()
     quit(0)

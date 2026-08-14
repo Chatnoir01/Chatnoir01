@@ -52,8 +52,9 @@ func _run() -> void:
     if existing_camera != null:
         existing_camera.current = false
     var camera := Camera3D.new()
-    camera.global_position = entrance.to_global(Vector3(-31.0, 4.65, -11.5))
-    camera.look_at(entrance.to_global(Vector3(-15.25, 3.55, -1.0)), Vector3.UP)
+    # Local +X is ROAD_SIDE for the existing Fonsny entrance transform.
+    camera.global_position = entrance.to_global(Vector3(8.0, 4.65, -12.0))
+    camera.look_at(entrance.to_global(Vector3(-14.54, 3.55, -1.0)), Vector3.UP)
     camera.fov = 48.0
     camera.current = true
     scene.add_child(camera)
@@ -73,5 +74,5 @@ func _run() -> void:
     if image.save_png(absolute_output) != OK:
         _fail("capture save failed")
         return
-    print("MIDI_STATION_IDENTITY_WITNESS_OK: %s production_scene=true" % OUTPUT_PATH)
+    print("MIDI_STATION_IDENTITY_WITNESS_OK: %s production_scene=true road_side=true" % OUTPUT_PATH)
     quit(0)

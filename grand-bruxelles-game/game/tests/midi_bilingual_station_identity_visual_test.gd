@@ -8,6 +8,7 @@ const HEIGHT := 720
 const CAMERA_POSITION := Vector3(-650.4785, 1.70, 633.3595)
 const CAMERA_TARGET := Vector3(-672.2905, 2.70, 615.8035)
 const CAMERA_FOV := 61.0
+const ROAD_FACING_WALL_SURFACE_X := -14.63
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -81,8 +82,18 @@ func _run() -> void:
     if identity == null or not bool(identity.call("station_identity_attached")):
         _fail("station identity autoload did not attach")
         return
-    if entrance.get_node_or_null("StationNameFR") == null or entrance.get_node_or_null("StationNameNL") == null:
+    var fr_label := entrance.get_node_or_null("StationNameFR") as Label3D
+    var nl_label := entrance.get_node_or_null("StationNameNL") as Label3D
+    if fr_label == null or nl_label == null:
         _fail("source-backed bilingual identity labels missing")
+        return
+    # Regression for the original red witness: the road-side camera sits at
+    # positive local X, so labels must be roadward of the wall's +X surface.
+    if fr_label.position.x <= ROAD_FACING_WALL_SURFACE_X or nl_label.position.x <= ROAD_FACING_WALL_SURFACE_X:
+        _fail("bilingual labels are buried behind the Fonsny entrance wall")
+        return
+    if not bool(fr_label.get_meta("position_is_authored_presentation", false)) or bool(fr_label.get_meta("position_is_surveyed_sign_panel", true)):
+        _fail("authored label placement provenance drifted")
         return
 
     _hide_noise(main)

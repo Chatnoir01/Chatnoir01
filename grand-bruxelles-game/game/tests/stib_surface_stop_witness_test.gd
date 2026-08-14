@@ -38,10 +38,10 @@ func _run() -> void:
         return
     # Keep the shipped camera rig/FOV while moving the witness operator to a
     # clear oblique inspection pose. Hide only the player's body for evidence.
-    var body_mesh := player.get_node_or_null("MeshInstance3D") as CanvasItem
+    var body_mesh := player.get_node_or_null("MeshInstance3D") as Node3D
     if body_mesh != null:
         body_mesh.visible = false
-    var visual_upgrade := player.get_node_or_null("VisualUpgrade") as CanvasItem
+    var visual_upgrade := player.get_node_or_null("VisualUpgrade") as Node3D
     if visual_upgrade != null:
         visual_upgrade.visible = false
     player.global_position = Vector3(-639.0, 1.05, 632.0)

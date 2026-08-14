@@ -1,0 +1,155 @@
+name: Grand Bruxelles Atomium LandCover Gate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-landcover-gate.yml"
+      - "grand-bruxelles-game/data/environment/laeken_jette/atomium_landcover_context.game.json"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_landcover_context.gd"
+      - "grand-bruxelles-game/game/tests/atomium_landcover_context_test.gd"
+
+permissions:
+  contents: read
+
+jobs:
+  source-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe official Paradigm INSPIRE LandCover in accepted Atomium camera corridor
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json, math, pathlib, urllib.parse, urllib.request
+
+          anchor_e = 148093.22038698208
+          anchor_n = 176091.76722726133
+          camera_e = anchor_e + 120.0
+          camera_n = anchor_n
+          vertical_fov_deg = 48.0
+          aspect = 16.0 / 9.0
+          horizontal_half_fov_deg = math.degrees(math.atan(math.tan(math.radians(vertical_fov_deg/2.0))*aspect))
+          bbox = (147980.0, 175930.0, 148330.0, 176260.0)
+          base = "https://geoservices-urbis.irisnet.be/geoserver/ows"
+          params = {
+              "service": "WFS",
+              "version": "2.0.0",
+              "request": "GetFeature",
+              "typeNames": "inspire:LandCover",
+              "outputFormat": "application/json",
+              "srsName": "EPSG:31370",
+              "bbox": ",".join(map(str, bbox)) + ",EPSG:31370",
+              "count": "500",
+          }
+          url = base + "?" + urllib.parse.urlencode(params)
+          req = urllib.request.Request(url, headers={"User-Agent":"Grand-Bruxelles-source-gate/1.0"})
+          with urllib.request.urlopen(req, timeout=45) as response:
+              payload = json.load(response)
+
+          def rings(geom):
+              if not isinstance(geom, dict):
+                  return []
+              t = geom.get("type")
+              c = geom.get("coordinates", [])
+              if t == "Polygon":
+                  return [c]
+              if t == "MultiPolygon":
+                  return c
+              return []
+
+          def ring_area(r):
+              if len(r) < 4:
+                  return 0.0
+              return abs(sum(r[i][0]*r[i+1][1]-r[i+1][0]*r[i][1] for i in range(len(r)-1))) * 0.5
+
+          def geometry_area(geom):
+              total = 0.0
+              for poly in rings(geom):
+                  if not poly:
+                      continue
+                  total += ring_area(poly[0])
+                  for hole in poly[1:]:
+                      total -= ring_area(hole)
+              return max(0.0, total)
+
+          def points(geom):
+              out=[]
+              for poly in rings(geom):
+                  for ring in poly:
+                      out.extend(p for p in ring if isinstance(p, list) and len(p) >= 2)
+              return out
+
+          rows=[]
+          all_property_keys=set()
+          for feature in payload.get("features", []):
+              props = feature.get("properties") or {}
+              all_property_keys.update(props.keys())
+              geom = feature.get("geometry") or {}
+              pts = points(geom)
+              if not pts:
+                  continue
+              min_e=min(p[0] for p in pts); max_e=max(p[0] for p in pts)
+              min_n=min(p[1] for p in pts); max_n=max(p[1] for p in pts)
+              ce=(min_e+max_e)/2.0; cn=(min_n+max_n)/2.0
+              forward = camera_e - ce  # camera looks due west (-E)
+              lateral = cn - camera_n
+              center_angle = math.degrees(math.atan2(lateral, max(1e-9, forward))) if forward > 0 else 180.0
+              corner_angles=[]
+              if forward > 0:
+                  for e in (min_e,max_e):
+                      for n in (min_n,max_n):
+                          f=camera_e-e; l=n-camera_n
+                          if f > 0:
+                              corner_angles.append(math.degrees(math.atan2(l,f)))
+              min_angle=min(corner_angles) if corner_angles else 180.0
+              max_angle=max(corner_angles) if corner_angles else 180.0
+              visible_horizontal = bool(corner_angles) and max_angle >= -horizontal_half_fov_deg and min_angle <= horizontal_half_fov_deg
+              area=geometry_area(geom)
+              distance=math.hypot(ce-camera_e, cn-camera_n)
+              rows.append({
+                  "id": feature.get("id"),
+                  "properties": props,
+                  "geometry_type": geom.get("type"),
+                  "area_m2": round(area,3),
+                  "bbox_epsg31370": [round(min_e,3),round(min_n,3),round(max_e,3),round(max_n,3)],
+                  "centroid_bbox_epsg31370": [round(ce,3),round(cn,3)],
+                  "camera_distance_m": round(distance,3),
+                  "center_angle_deg": round(center_angle,3),
+                  "angular_span_deg": [round(min_angle,3),round(max_angle,3)],
+                  "intersects_horizontal_fov": visible_horizontal,
+              })
+
+          rows.sort(key=lambda r: (not r["intersects_horizontal_fov"], r["camera_distance_m"], -r["area_m2"]))
+          out={
+              "source": "Paradigm INSPIRE vector Brussels WFS",
+              "source_url": url,
+              "layer": "inspire:LandCover",
+              "crs": "EPSG:31370",
+              "query_bbox_epsg31370": bbox,
+              "atomium_anchor_epsg31370": [anchor_e,anchor_n],
+              "camera_epsg31370": [camera_e,camera_n],
+              "camera_look": "due west toward Atomium anchor",
+              "vertical_fov_deg": vertical_fov_deg,
+              "horizontal_half_fov_deg": horizontal_half_fov_deg,
+              "feature_count": len(rows),
+              "property_keys": sorted(all_property_keys),
+              "features": rows,
+          }
+          pathlib.Path("artifacts/atomium").mkdir(parents=True, exist_ok=True)
+          pathlib.Path("artifacts/atomium/landcover_probe.json").write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
+          print("ATOMIUM_LANDCOVER_PROBE_OK", "features=",len(rows), "keys=",sorted(all_property_keys), "half_hfov=",round(horizontal_half_fov_deg,3))
+          for row in rows[:30]:
+              print("LANDCOVER_CANDIDATE", json.dumps(row, ensure_ascii=False, separators=(",",":")))
+          if not any(r["intersects_horizontal_fov"] and r["area_m2"] >= 500.0 for r in rows):
+              raise SystemExit("No >=500m2 LandCover polygon intersects the accepted horizontal FOV; reject before runtime")
+          PY
+
+      - name: Upload source-gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-landcover-source-gate
+          path: grand-bruxelles-game/artifacts/atomium/landcover_probe.json
+          if-no-files-found: ignore

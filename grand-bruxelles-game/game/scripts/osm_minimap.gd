@@ -322,7 +322,7 @@ func _draw() -> void:
         draw_circle(actor_point, 5.5, _player_color)
         draw_circle(actor_point, 8.5, Color(1.0, 0.82, 0.16, 0.25), false, 1.5)
 
-    var target_value := _active_mission_target()
+    var target_value: Variant = _active_mission_target()
     if target_value is Vector3:
         var target := target_value as Vector3
         var checkpoint_point: Vector2 = _world_to_map(target.x, target.z)

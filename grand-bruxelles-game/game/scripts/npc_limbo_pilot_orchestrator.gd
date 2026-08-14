@@ -11,6 +11,7 @@ const BRANCHES: Array[StringName] = [
     &"return",
 ]
 
+@export var agent_path: NodePath
 @export var perception_sync_hz: float = 10.0
 
 var agent: NpcAgent = null
@@ -37,7 +38,20 @@ func bind_agent(new_agent: NpcAgent) -> bool:
 
 
 func _ready() -> void:
-    if agent == null and get_parent() is NpcAgent:
+    # Bind after the whole pilot scene is ready so NpcAgent has already configured
+    # its authoritative role/behavior model.
+    call_deferred("_bind_exported_agent")
+
+
+func _bind_exported_agent() -> void:
+    if agent != null:
+        return
+    if not agent_path.is_empty():
+        var candidate := get_node_or_null(agent_path)
+        if candidate is NpcAgent:
+            bind_agent(candidate as NpcAgent)
+            return
+    if get_parent() is NpcAgent:
         bind_agent(get_parent() as NpcAgent)
 
 

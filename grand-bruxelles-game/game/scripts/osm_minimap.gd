@@ -4,6 +4,7 @@ extends Control
 @export var padding: float = 12.0
 @export var route_refresh_interval_s: float = 0.65
 @export var route_rebuild_distance_m: float = 18.0
+@export var max_route_connector_m: float = 140.0
 
 @onready var player: CharacterBody3D = get_node("../Player")
 @onready var mission: Node = get_node("../MissionDriveToCenter")
@@ -23,6 +24,7 @@ var _route_color: Color = Color(0.18, 0.74, 1.0, 0.94)
 # direction or live traffic routing.
 var _graph_points: Dictionary = {} # String -> Vector2
 var _graph_neighbors: Dictionary = {} # String -> Dictionary(String -> distance)
+var _graph_components: Dictionary = {} # String -> int
 var _route_world_points: Array[Vector2] = []
 var _route_distance_m: float = 0.0
 var _route_elapsed_s: float = 0.0
@@ -78,6 +80,7 @@ func _load_map_data() -> void:
 func _build_road_graph() -> void:
     _graph_points.clear()
     _graph_neighbors.clear()
+    _graph_components.clear()
     for road_variant: Variant in _roads:
         if typeof(road_variant) != TYPE_DICTIONARY:
             continue
@@ -108,6 +111,31 @@ func _build_road_graph() -> void:
                     _graph_neighbors[key] = current_neighbors
             previous_key = key
             previous_point = point
+    _index_graph_components()
+
+
+func _index_graph_components() -> void:
+    _graph_components.clear()
+    var component_id := 0
+    for key_variant: Variant in _graph_points.keys():
+        var seed := str(key_variant)
+        if _graph_components.has(seed):
+            continue
+        var pending: Array[String] = [seed]
+        while not pending.is_empty():
+            var key := pending.pop_back()
+            if _graph_components.has(key):
+                continue
+            _graph_components[key] = component_id
+            var neighbors_value: Variant = _graph_neighbors.get(key, {})
+            if not neighbors_value is Dictionary:
+                continue
+            var neighbors: Dictionary = neighbors_value
+            for neighbor_variant: Variant in neighbors.keys():
+                var neighbor := str(neighbor_variant)
+                if not _graph_components.has(neighbor):
+                    pending.append(neighbor)
+        component_id += 1
 
 
 func _graph_key(point: Vector2) -> String:
@@ -154,25 +182,59 @@ func _refresh_route(force: bool) -> void:
     _route_distance_m = _polyline_length(_route_world_points)
 
 
-func _nearest_graph_key(point: Vector2) -> String:
-    var best_key := ""
-    var best_distance_sq := INF
+func _best_route_endpoints(start_world: Vector2, target_world: Vector2) -> Dictionary:
+    var per_component: Dictionary = {}
     for key_variant: Variant in _graph_points.keys():
         var key := str(key_variant)
-        var candidate_value: Variant = _graph_points[key]
-        if not candidate_value is Vector2:
+        var point_value: Variant = _graph_points.get(key, null)
+        if not point_value is Vector2:
             continue
-        var distance_sq := point.distance_squared_to(candidate_value as Vector2)
-        if distance_sq < best_distance_sq:
-            best_distance_sq = distance_sq
-            best_key = key
-    return best_key
+        var component_id := int(_graph_components.get(key, -1))
+        if component_id < 0:
+            continue
+        var point := point_value as Vector2
+        var info: Dictionary = per_component.get(component_id, {
+            "start_key": "",
+            "start_dist": INF,
+            "target_key": "",
+            "target_dist": INF,
+        })
+        var start_dist := start_world.distance_to(point)
+        if start_dist < float(info.get("start_dist", INF)):
+            info["start_dist"] = start_dist
+            info["start_key"] = key
+        var target_dist := target_world.distance_to(point)
+        if target_dist < float(info.get("target_dist", INF)):
+            info["target_dist"] = target_dist
+            info["target_key"] = key
+        per_component[component_id] = info
+
+    var best: Dictionary = {}
+    var best_connector_cost := INF
+    for component_variant: Variant in per_component.keys():
+        var info_value: Variant = per_component[component_variant]
+        if not info_value is Dictionary:
+            continue
+        var info: Dictionary = info_value
+        var start_dist := float(info.get("start_dist", INF))
+        var target_dist := float(info.get("target_dist", INF))
+        if start_dist > max_route_connector_m or target_dist > max_route_connector_m:
+            continue
+        var connector_cost := start_dist + target_dist
+        if connector_cost < best_connector_cost:
+            best_connector_cost = connector_cost
+            best = info.duplicate()
+            best["component_id"] = int(component_variant)
+    return best
 
 
 func _compute_route(start_world: Vector2, target_world: Vector2) -> Array[Vector2]:
     var result: Array[Vector2] = []
-    var start_key := _nearest_graph_key(start_world)
-    var target_key := _nearest_graph_key(target_world)
+    var endpoints := _best_route_endpoints(start_world, target_world)
+    if endpoints.is_empty():
+        return result
+    var start_key := str(endpoints.get("start_key", ""))
+    var target_key := str(endpoints.get("target_key", ""))
     if start_key.is_empty() or target_key.is_empty():
         return result
 
@@ -361,6 +423,12 @@ func route_snapshot_for_test() -> Dictionary:
     return {
         "graph_points": _graph_points.size(),
         "graph_nodes_with_neighbors": _graph_neighbors.size(),
+        "graph_components": _graph_components.values().duplicate().reduce(func(accum: Array, value: Variant) -> Array:
+            var component_id := int(value)
+            if not accum.has(component_id):
+                accum.append(component_id)
+            return accum
+        , []).size(),
         "route_points": _route_world_points.duplicate(),
         "distance_m": _route_distance_m,
     }

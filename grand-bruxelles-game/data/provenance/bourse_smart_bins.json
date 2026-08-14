@@ -1,0 +1,92 @@
+{
+  "schema": "grand-bruxelles-source-backed-furniture-v1",
+  "asset_family": "city_of_brussels_smart_waste_bins",
+  "source": {
+    "publisher": "Ville de Bruxelles / Stad Brussel - Data Management",
+    "dataset": "poubellesintelligentes",
+    "dataset_url": "https://opendata.brussels.be/explore/dataset/poubellesintelligentes/",
+    "license": "CC0-1.0",
+    "accessed_at": "2026-08-14",
+    "functional_reference_url": "https://www.bruxelles.be/des-poubelles-intelligentes",
+    "functional_facts": [
+      "photovoltaic panel",
+      "waste compactor",
+      "fill-level telemetry"
+    ]
+  },
+  "transform": {
+    "input_crs": "EPSG:4326",
+    "project_crs": "EPSG:31370",
+    "lambert72_origin": [147868.29422791934, 169538.62414926197],
+    "world_origin": [-668.5, 0.0, 627.84],
+    "mapping": "game_x=world_x+(lambert_x-origin_x); game_z=world_z-(lambert_y-origin_y)",
+    "basis_source": "shipped authoritative Bourse hero transform"
+  },
+  "authored_visual_values": {
+    "enclosure_width_m": 0.72,
+    "enclosure_depth_m": 0.72,
+    "enclosure_height_m": 1.18,
+    "solar_panel_width_m": 0.64,
+    "solar_panel_depth_m": 0.43,
+    "solar_panel_thickness_m": 0.06,
+    "note": "Dimensions, colors, surface roughness, detailed enclosure geometry and yaw are authored presentation values. They are not surveyed manufacturer dimensions. No source photograph or logo artwork is embedded."
+  },
+  "placements": [
+    {
+      "id": "bourse_stairs_right",
+      "source_label": "Stairs at the Stock Exchange - right",
+      "wgs84": [50.8481273980627, 4.34975177049636],
+      "lambert72": [148661.9154645168, 170858.50484973006],
+      "game": [125.12123659744975, 0.0, -692.0407004680857],
+      "yaw_degrees_authored": -34.0
+    },
+    {
+      "id": "bourse_stairs_left",
+      "source_label": "Stairs at the Stock Exchange - left",
+      "wgs84": [50.8482880303669, 4.34989920982172],
+      "lambert72": [148672.3030574775, 170876.3711632928],
+      "game": [135.50882955815177, 0.0, -709.9070140308141],
+      "yaw_degrees_authored": -34.0
+    },
+    {
+      "id": "rue_bourse_anspach",
+      "source_label": "Rue de la Bourse - Anspach | Grand Cafe",
+      "wgs84": [50.8484887092616, 4.34987045824527],
+      "lambert72": [148670.28374177936, 170898.69533820637],
+      "game": [133.4895138600259, 0.0, -732.2311889443919],
+      "yaw_degrees_authored": -20.0
+    },
+    {
+      "id": "anspach_paul_devaux",
+      "source_label": "Anspach - Paul Devaux | Pizza Hut",
+      "wgs84": [50.8485444187267, 4.34981546389315],
+      "lambert72": [148666.41238914814, 170904.8934537908],
+      "game": [129.61816122880555, 0.0, -738.4293045288324],
+      "yaw_degrees_authored": -20.0
+    },
+    {
+      "id": "auguste_orts_bourse",
+      "source_label": "Rue Auguste Orts - Bourse | Exki",
+      "wgs84": [50.8484323107875, 4.34921428168411],
+      "lambert72": [148624.07212770393, 170892.43305336498],
+      "game": [87.27789978458895, 0.0, -725.9689041030034],
+      "yaw_degrees_authored": 70.0
+    },
+    {
+      "id": "paul_devaux_bourse",
+      "source_label": "Rue Paul Devaux - Bourse | right of McDonald's",
+      "wgs84": [50.8487154591863, 4.34949359881136],
+      "lambert72": [148643.75042087768, 170923.9257507939],
+      "game": [106.95619295834331, 0.0, -757.4616015319153],
+      "yaw_degrees_authored": 72.0
+    },
+    {
+      "id": "anspach_henri_maus",
+      "source_label": "Anspach - Henri Maus | Ici Paris XL",
+      "wgs84": [50.8480508986111, 4.34943008895493],
+      "lambert72": [148639.25932692224, 170850.00062664878],
+      "game": [102.46509900290403, 0.0, -683.5364773868024],
+      "yaw_degrees_authored": 8.0
+    }
+  ]
+}

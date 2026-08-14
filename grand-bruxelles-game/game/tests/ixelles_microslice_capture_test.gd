@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SLICE_SCRIPT := preload("res://game/zones/ixelles/ixelles_microslice.gd")
+const SLICE_SCRIPT := preload("res://game/zones/ixelles/ixelles_microslice_draped.gd")
 const OUTPUT_PATH := "res://artifacts/ixelles/ixelles_place_stephanie_foundation.png"
 const WIDTH := 1280
 const HEIGHT := 960
@@ -92,6 +92,9 @@ func _run() -> void:
     if not slice.runtime_loaded:
         _fail("runtime slice did not load")
         return
+    if slice.street_drape_outside_source_vertices != 0 or slice.street_drape_min_check_clearance_m < -0.001:
+        _fail("StreetSurface drape guard failed before capture")
+        return
 
     var stassart_segment := _axis_segment(slice, CAMERA_AXIS_ID)
     var stephanie_segment := _axis_segment(slice, TARGET_AXIS_ID)
@@ -99,8 +102,6 @@ func _run() -> void:
         _fail("source-confirmed Stassart/Place Stephanie StreetAxis segments unavailable")
         return
 
-    # Re-anchor the witness to official StreetAxes instead of free-authored terrain coordinates.
-    # Camera sits on Rue de Stassart, looking toward its source-confirmed junction with Place Stephanie.
     var camera_xz := _point_on_axis(stassart_segment, CAMERA_AXIS_T)
     var target_xz := stephanie_segment[1]
     if camera_xz.distance_to(stassart_segment[1]) < 20.0 or camera_xz.distance_to(target_xz) > 45.0:
@@ -159,5 +160,5 @@ func _run() -> void:
     if image.save_png(absolute_output) != OK:
         _fail("capture save failed")
         return
-    print("IXELLES_MICROSLICE_CAPTURE_OK: cell=%s camera_axis=%s target_axis=%s camera=(%.3f,%.3f,%.3f) camera_ground=%.3f target=(%.3f,%.3f,%.3f) target_ground=%.3f los_min_clearance=%.3f streets=%d buildings=%d skipped=%d capture=%s" % [slice.cell_id, CAMERA_AXIS_ID, TARGET_AXIS_ID, camera.position.x, camera.position.y, camera.position.z, camera_ground, target_position.x, target_position.y, target_position.z, target_ground, los_min_clearance, slice.street_surface_count, slice.building_count, slice.skipped_unapproved_height_buildings, OUTPUT_PATH])
+    print("IXELLES_MICROSLICE_CAPTURE_OK: cell=%s camera_axis=%s target_axis=%s camera=(%.3f,%.3f,%.3f) camera_ground=%.3f target=(%.3f,%.3f,%.3f) target_ground=%.3f los_min_clearance=%.3f drape_triangles=%d drape_min_clearance=%.5f streets=%d buildings=%d skipped=%d capture=%s" % [slice.cell_id, CAMERA_AXIS_ID, TARGET_AXIS_ID, camera.position.x, camera.position.y, camera.position.z, camera_ground, target_position.x, target_position.y, target_position.z, target_ground, los_min_clearance, slice.street_drape_triangle_count, slice.street_drape_min_check_clearance_m, slice.street_surface_count, slice.building_count, slice.skipped_unapproved_height_buildings, OUTPUT_PATH])
     quit(0)

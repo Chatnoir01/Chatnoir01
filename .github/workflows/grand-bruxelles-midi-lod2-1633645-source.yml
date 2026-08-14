@@ -1,0 +1,70 @@
+name: Grand Bruxelles Midi LoD2 1633645 Source
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-lod2-1633645-source.yml"
+      - "grand-bruxelles-game/tools/extract_urbis_3d_hero.py"
+      - "grand-bruxelles-game/tests/test_extract_urbis_3d_hero.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove hole-aware extractor unit contract
+        run: python3 grand-bruxelles-game/tests/test_extract_urbis_3d_hero.py
+      - name: Download audited official UrbIS 3D Midi tile
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_147169_20260808.zip"
+          EXPECTED="a760fdff222ae9431113f82fe1c8f942a9fe2bda40e32064c627ae8d3a21110f"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_147169_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source_root.txt
+      - name: Extract exact station-complex source geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"
+          python3 grand-bruxelles-game/tools/extract_urbis_3d_hero.py \
+            --source-root "$ROOT" --prefix UrbISBuildings3D_147169 \
+            --building-id "https://databrussels.be/id/building/1633645" \
+            --hero-id "midi_fonsny_1633645" --name "Bruxelles-Midi official LoD2 building 1633645" \
+            --package-url "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_147169_20260808.zip" \
+            --package-sha256 "a760fdff222ae9431113f82fe1c8f942a9fe2bda40e32064c627ae8d3a21110f" \
+            --package-revision "2026-08-08" --accessed-at "2026-08-14" \
+            --origin-e 147868.29422791934 --origin-n 169538.62414926197 \
+            --world-x -668.5 --world-z 627.84 \
+            --output /tmp/midi_1633645.game.json
+          python3 - <<'PY'
+          import json
+          p='/tmp/midi_1633645.game.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d['source']['building_2d_id']=='https://databrussels.be/id/building/1633645'
+          assert d['source']['package_sha256']=='a760fdff222ae9431113f82fe1c8f942a9fe2bda40e32064c627ae8d3a21110f'
+          assert d['source']['crs']=='EPSG:31370'
+          assert d['source']['license']=='CC0-1.0'
+          assert d['runtime_approved'] is False
+          assert d['evidence']['face_count'] >= 100
+          assert d['evidence']['triangle_count'] >= 100
+          assert int(d['evidence']['multipatch_part_type_counts'].get('3', 0)) > 0
+          assert d['evidence']['height_m'] > 5.0
+          print('MIDI_1633645_SOURCE_OK', json.dumps(d['evidence'], sort_keys=True))
+          PY
+      - name: Upload exact provenance witness
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-lod2-1633645-source
+          path: /tmp/midi_1633645.game.json
+          if-no-files-found: error

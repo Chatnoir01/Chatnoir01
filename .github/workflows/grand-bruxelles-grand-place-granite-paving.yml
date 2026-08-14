@@ -76,13 +76,35 @@ jobs:
           if r3 < 0.05 or r8 < 0.02:
               raise SystemExit('granite paving is too subtle at normal distance')
           PY
+      - name: Package visual evidence deterministically
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir=/tmp/grand-place-granite-paving-evidence
+          rm -rf "$evidence_dir"
+          mkdir -p "$evidence_dir"
+          cp grand-bruxelles-game/artifacts/grand-place/granite-paving/before.png "$evidence_dir/before.png"
+          cp grand-bruxelles-game/artifacts/grand-place/granite-paving/after.png "$evidence_dir/after.png"
+          cp /tmp/grand-place-granite-paving.log "$evidence_dir/grand-place-granite-paving.log"
+          cp /tmp/grand-place-granite-paving-witness.log "$evidence_dir/grand-place-granite-paving-witness.log"
+          test -s "$evidence_dir/before.png"
+          test -s "$evidence_dir/after.png"
+          test -s "$evidence_dir/grand-place-granite-paving.log"
+          test -s "$evidence_dir/grand-place-granite-paving-witness.log"
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          root=Path('/tmp/grand-place-granite-paving-evidence')
+          for name in ('before.png','after.png'):
+              image=Image.open(root/name)
+              if image.size != (1280,720):
+                  raise SystemExit(f'{name}: unexpected dimensions {image.size}')
+          print('GRAND_PLACE_GRANITE_PAVING_EVIDENCE_OK files=4 png=1280x720')
+          PY
+          find "$evidence_dir" -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
       - name: Upload evidence
         uses: actions/upload-artifact@v4
         with:
           name: grand-place-granite-paving-visual-evidence
-          path: |
-            grand-bruxelles-game/artifacts/grand-place/granite-paving/before.png
-            grand-bruxelles-game/artifacts/grand-place/granite-paving/after.png
-            /tmp/grand-place-granite-paving.log
-            /tmp/grand-place-granite-paving-witness.log
+          path: /tmp/grand-place-granite-paving-evidence/
           if-no-files-found: error

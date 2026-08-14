@@ -1,9 +1,15 @@
 extends CharacterBody3D
 
-@export var walk_speed: float = 6.0
-@export var sprint_speed: float = 10.0
-@export var acceleration: float = 18.0
-@export var jump_velocity: float = 5.5
+const LOCOMOTION_PROFILE_SCRIPT := preload("res://game/scripts/player_locomotion_profile.gd")
+
+@export var walk_speed: float = 5.4
+@export var sprint_speed: float = 8.6
+@export var acceleration: float = 24.0
+@export var deceleration: float = 30.0
+@export var air_acceleration: float = 7.5
+@export var jump_velocity: float = 5.4
+@export var coyote_time_s: float = 0.12
+@export var jump_buffer_s: float = 0.14
 @export var mouse_sensitivity: float = 0.0025
 @export var vehicle_interaction_range: float = 4.0
 
@@ -34,13 +40,28 @@ const IXELLES_PLAYER_BODY_CENTER_CLEARANCE_M := 0.90
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _base_collision_layer: int = 1
 var _base_collision_mask: int = 1
+var _locomotion := LOCOMOTION_PROFILE_SCRIPT.new()
+var _jump_was_pressed: bool = false
 
 
 func _ready() -> void:
     _base_collision_layer = collision_layer
     _base_collision_mask = collision_mask
+    _sync_locomotion_profile()
+    _locomotion.reset_jump_windows(true)
     _apply_direct_spawn_from_user_args(OS.get_cmdline_user_args())
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if DisplayServer.is_touchscreen_available() else Input.MOUSE_MODE_CAPTURED
+
+
+func _sync_locomotion_profile() -> void:
+    _locomotion.walk_speed = walk_speed
+    _locomotion.sprint_speed = sprint_speed
+    _locomotion.ground_acceleration = acceleration
+    _locomotion.ground_deceleration = deceleration
+    _locomotion.air_acceleration = air_acceleration
+    _locomotion.jump_velocity = jump_velocity
+    _locomotion.coyote_time_s = coyote_time_s
+    _locomotion.jump_buffer_s = jump_buffer_s
 
 
 func _apply_direct_spawn_from_user_args(args: PackedStringArray) -> void:
@@ -298,13 +319,20 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-    if not is_on_floor():
+    _sync_locomotion_profile()
+
+    var grounded := is_on_floor()
+    if grounded and velocity.y < 0.0:
+        velocity.y = -0.05
+    elif not grounded:
         velocity.y -= gravity * delta
 
     var mobile := _mobile_controls()
     var touch_jump: bool = mobile != null and bool(mobile.get("jump_pressed"))
-    if (Input.is_key_pressed(KEY_SPACE) or touch_jump) and is_on_floor():
-        velocity.y = jump_velocity
+    var jump_pressed := Input.is_key_pressed(KEY_SPACE) or touch_jump
+    if jump_pressed and not _jump_was_pressed:
+        _locomotion.request_jump()
+    _jump_was_pressed = jump_pressed
 
     var left: bool = Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_Q)
     var right: bool = Input.is_key_pressed(KEY_D)
@@ -319,19 +347,16 @@ func _physics_process(delta: float) -> void:
         backward = backward or bool(mobile.get("backward_pressed"))
         sprint = sprint or bool(mobile.get("sprint_pressed"))
 
-    var input_2d: Vector2 = Vector2(
+    var input_2d := Vector2(
         float(right) - float(left),
         float(backward) - float(forward)
     ).limit_length(1.0)
 
-    var move_direction: Vector3 = Vector3(input_2d.x, 0.0, input_2d.y)
-    move_direction = move_direction.rotated(Vector3.UP, rotation.y).normalized()
+    if _locomotion.tick_jump_window(grounded, delta):
+        velocity.y = jump_velocity
 
-    var target_speed: float = sprint_speed if sprint else walk_speed
-    var target_velocity: Vector3 = move_direction * target_speed
-
-    velocity.x = move_toward(velocity.x, target_velocity.x, acceleration * delta)
-    velocity.z = move_toward(velocity.z, target_velocity.z, acceleration * delta)
+    var target_velocity: Vector3 = _locomotion.target_horizontal_velocity(input_2d, rotation.y, sprint)
+    velocity = _locomotion.approach_horizontal(velocity, target_velocity, grounded, delta)
 
     move_and_slide()
 
@@ -366,6 +391,8 @@ func set_vehicle_mode(enabled: bool) -> void:
     set_physics_process(not enabled)
     set_process_unhandled_input(not enabled)
     velocity = Vector3.ZERO
+    _locomotion.reset_jump_windows(false)
+    _jump_was_pressed = false
 
     if enabled:
         collision_layer = 0

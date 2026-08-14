@@ -6,6 +6,7 @@ extends Node3D
 
 @export_file("*.json") var evidence_path := "res://data/sources/laeken_jette/atomium_hero_core_evidence.json"
 
+const PAVILION_SCRIPT := preload("res://game/zones/laeken_jette/atomium_base_pavilion_runtime.gd")
 const SPHERE_RADIAL_SEGMENTS := 48
 const SPHERE_RINGS := 24
 const TUBE_RADIAL_SEGMENTS := 32
@@ -18,6 +19,7 @@ var source_sphere_diameter_m := 0.0
 var source_tube_diameter_m := 0.0
 var unresolved_support_pillars := 0
 var anchor_position := Vector3.ZERO
+var base_pavilion_built := false
 
 var _sphere_material: StandardMaterial3D
 var _tube_material: StandardMaterial3D
@@ -70,9 +72,18 @@ func build_on_terrain(terrain: Node) -> bool:
             push_error("AtomiumHeroCore: tube edge outside sphere topology")
             return false
         _add_tube(centres[a], centres[b])
-    hero_built = sphere_count == 9 and tube_count == 20
+
+    var pavilion := PAVILION_SCRIPT.new()
+    pavilion.name = "SourceBoundedBasePavilion"
+    add_child(pavilion)
+    base_pavilion_built = bool(pavilion.call("build_on_terrain", terrain, anchor_position))
+    if not base_pavilion_built:
+        push_error("AtomiumHeroCore: source-bounded base pavilion failed to build")
+        return false
+
+    hero_built = sphere_count == 9 and tube_count == 20 and base_pavilion_built
     if hero_built:
-        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars])
+        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d base_pavilion=%s" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars, str(base_pavilion_built)])
     return hero_built
 
 func _load_evidence() -> Dictionary:

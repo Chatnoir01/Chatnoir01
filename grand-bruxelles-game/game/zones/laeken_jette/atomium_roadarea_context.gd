@@ -22,6 +22,7 @@ var collision_resolved := false
 var geometry_exact_from_wfs := false
 
 var _polygons: Array = []
+var _polygon_bounds: Array[Rect2] = []
 
 func build_on_terrain(terrain: Node) -> bool:
     if terrain == null or not bool(terrain.get("terrain_loaded")):
@@ -124,6 +125,7 @@ func _load_source_contract() -> bool:
     if selected_feature_count != 5:
         return false
     _polygons.clear()
+    _polygon_bounds.clear()
     for feature_raw: Variant in features:
         if not feature_raw is Dictionary:
             return false
@@ -134,16 +136,33 @@ func _load_source_contract() -> bool:
         if not coordinates is Array:
             return false
         for polygon_raw: Variant in coordinates as Array:
-            _polygons.append(polygon_raw)
-    return not _polygons.is_empty()
+            if not polygon_raw is Array or (polygon_raw as Array).is_empty() or not (polygon_raw as Array)[0] is Array:
+                return false
+            var polygon := polygon_raw as Array
+            _polygons.append(polygon)
+            _polygon_bounds.append(_ring_bounds(polygon[0] as Array))
+    return not _polygons.is_empty() and _polygons.size() == _polygon_bounds.size()
+
+func _ring_bounds(ring: Array) -> Rect2:
+    var min_x := INF
+    var min_y := INF
+    var max_x := -INF
+    var max_y := -INF
+    for raw: Variant in ring:
+        if raw is Array and raw.size() >= 2:
+            var x := float(raw[0])
+            var y := float(raw[1])
+            min_x = minf(min_x, x)
+            min_y = minf(min_y, y)
+            max_x = maxf(max_x, x)
+            max_y = maxf(max_y, y)
+    return Rect2(Vector2(min_x, min_y), Vector2(max_x - min_x, max_y - min_y))
 
 func _point_in_source_geometry(point: Vector2) -> bool:
-    for polygon_raw: Variant in _polygons:
-        if not polygon_raw is Array:
+    for polygon_index: int in range(_polygons.size()):
+        if not _polygon_bounds[polygon_index].has_point(point):
             continue
-        var polygon := polygon_raw as Array
-        if polygon.is_empty() or not polygon[0] is Array:
-            continue
+        var polygon := _polygons[polygon_index] as Array
         if not _point_in_ring(point, polygon[0] as Array):
             continue
         var inside_hole := false

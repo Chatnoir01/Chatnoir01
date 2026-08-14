@@ -9,6 +9,7 @@ extends Node3D
 const SPHERE_RADIAL_SEGMENTS := 48
 const SPHERE_RINGS := 24
 const TUBE_RADIAL_SEGMENTS := 32
+const TOPO_ESPLANADE_SCRIPT := preload("res://game/zones/laeken_jette/atomium_topo_esplanade_context.gd")
 
 var hero_built := false
 var sphere_count := 0
@@ -18,6 +19,7 @@ var source_sphere_diameter_m := 0.0
 var source_tube_diameter_m := 0.0
 var unresolved_support_pillars := 0
 var anchor_position := Vector3.ZERO
+var topo_esplanade_built := false
 
 var _sphere_material: StandardMaterial3D
 var _tube_material: StandardMaterial3D
@@ -70,9 +72,18 @@ func build_on_terrain(terrain: Node) -> bool:
             push_error("AtomiumHeroCore: tube edge outside sphere topology")
             return false
         _add_tube(centres[a], centres[b])
-    hero_built = sphere_count == 9 and tube_count == 20
+
+    var topo_context := TOPO_ESPLANADE_SCRIPT.new()
+    topo_context.name = "OfficialTopoEsplanadeContext"
+    add_child(topo_context)
+    if not bool(topo_context.call("build_on_terrain", terrain, anchor_position)):
+        push_error("AtomiumHeroCore: source-backed Topo esplanade context failed")
+        return false
+    topo_esplanade_built = true
+
+    hero_built = sphere_count == 9 and tube_count == 20 and topo_esplanade_built
     if hero_built:
-        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars])
+        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d topo_esplanade=%s" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars, str(topo_esplanade_built)])
     return hero_built
 
 func _load_evidence() -> Dictionary:

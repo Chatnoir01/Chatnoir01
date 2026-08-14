@@ -1,11 +1,11 @@
-[gd_scene load_steps=44 format=3]
+[gd_scene load_steps=45 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
 [ext_resource type="Script" path="res://game/scripts/vehicle_controller.gd" id="3_vehicle"]
 [ext_resource type="Script" path="res://game/scripts/mission_drive_to_center.gd" id="4_mission"]
 [ext_resource type="Script" path="res://game/scripts/osm_minimap.gd" id="5_minimap"]
-[ext_resource type="Script" path="res://game/scripts/mobile_controls.gd" id="6_mobile"]
+[ext_resource type="Script" path="res://game/scripts/mobile_controls_streaming_extension.gd" id="6_mobile"]
 [ext_resource type="Script" path="res://game/scripts/midi_hero_zone.gd" id="7_midi"]
 [ext_resource type="Script" path="res://game/scripts/urbis_midi_builder.gd" id="8_urbis"]
 [ext_resource type="Script" path="res://game/scripts/osm_midi_mask.gd" id="9_mask"]
@@ -33,6 +33,7 @@
 [ext_resource type="Script" path="res://game/scripts/mission_return_to_bourse.gd" id="31_return_mission"]
 [ext_resource type="Script" path="res://game/scripts/vehicle_physics_controller.gd" id="32_physical_vehicle"]
 [ext_resource type="Script" path="res://game/scripts/mobile_playability_collision_runtime.gd" id="33_playability_collision"]
+[ext_resource type="Script" path="res://game/scripts/brussels_world_streamer.gd" id="34_world_streamer"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -165,6 +166,9 @@ script = ExtResource("15_npc_runtime")
 
 [node name="MobilePlayabilityCollisionRuntime" type="Node" parent="."]
 script = ExtResource("33_playability_collision")
+
+[node name="BrusselsWorldStreamer" type="Node" parent="."]
+script = ExtResource("34_world_streamer")
 
 [node name="Player" type="CharacterBody3D" parent="."]
 position = Vector3(-652, 1.05, 621)

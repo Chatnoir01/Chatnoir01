@@ -15,17 +15,36 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Probe Data Brussels candidate resources
+      - name: Probe official UrbIS address-building linkage
         shell: bash
         run: |
           set -euo pipefail
-          for ID in 1737877 1633062; do
-            echo "=== BUILDING $ID ==="
-            for ACCEPT in 'application/ld+json' 'text/turtle' 'application/json'; do
-              echo "--- Accept: $ACCEPT"
-              code=$(curl -L -sS --max-time 20 -H "Accept: $ACCEPT" -o "/tmp/$ID.out" -w '%{http_code}' "https://databrussels.be/id/building/$ID" || true)
-              echo "HTTP $code"
-              head -c 6000 "/tmp/$ID.out" || true
-              echo
-            done
-          done
+          BASE='https://geoservices-urbis.irisnet.be/geoserver/urbis/wfs'
+          curl -fLsS --max-time 30 "$BASE?service=WFS&version=2.0.0&request=GetCapabilities" -o /tmp/cap.xml
+          python3 - <<'PY'
+          import re
+          text=open('/tmp/cap.xml',encoding='utf-8').read()
+          names=sorted(set(re.findall(r'<(?:\w+:)?Name>([^<]+)</(?:\w+:)?Name>',text)))
+          relevant=[n for n in names if any(k in n.lower() for k in ('address','building','street','entrance','parcel'))]
+          print('URBIS_RELEVANT_FEATURE_TYPES',relevant)
+          open('/tmp/relevant.txt','w').write('\n'.join(relevant))
+          PY
+          while IFS= read -r TYPE; do
+            [ -n "$TYPE" ] || continue
+            echo "=== $TYPE ==="
+            ENCODED=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$TYPE")
+            URL="$BASE?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=149220%2C169210%2C149270%2C169260%2CEPSG%3A31370&typeNames=$ENCODED"
+            code=$(curl -LsS --max-time 20 -o /tmp/out.json -w '%{http_code}' "$URL" || true)
+            echo "HTTP $code"
+            python3 - <<'PY' || true
+          import json
+          try:
+              d=json.load(open('/tmp/out.json'))
+          except Exception as e:
+              print('PARSE_FAIL',e); raise SystemExit
+          fs=d.get('features',[])
+          print('FEATURE_COUNT',len(fs))
+          for f in fs[:20]:
+              print('FEATURE',f.get('id'),f.get('properties'))
+          PY
+          done < /tmp/relevant.txt

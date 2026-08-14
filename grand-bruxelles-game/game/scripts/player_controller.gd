@@ -98,7 +98,9 @@ func _activate_atomium_direct_spawn() -> void:
     velocity = Vector3.ZERO
 
     var location_label := world.get_node_or_null("LocationLabel")
-    if location_label is Label:
+    if location_label != null and location_label.has_method("set_forced_label"):
+        location_label.call("set_forced_label", "ATOMIUM · HEYSEL / HEIZEL")
+    elif location_label is Label:
         (location_label as Label).text = "ATOMIUM · HEYSEL / HEIZEL"
     var mission_label := world.get_node_or_null("MissionLabel")
     if mission_label is CanvasItem:

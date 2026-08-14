@@ -19,32 +19,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://geoservices-urbis.irisnet.be/geoserver/urbis/wfs'
-          curl -fLsS --max-time 30 "$BASE?service=WFS&version=2.0.0&request=GetCapabilities" -o /tmp/cap.xml
-          python3 - <<'PY'
-          import re
-          text=open('/tmp/cap.xml',encoding='utf-8').read()
-          names=sorted(set(re.findall(r'<(?:\w+:)?Name>([^<]+)</(?:\w+:)?Name>',text)))
-          relevant=[n for n in names if any(k in n.lower() for k in ('address','building','street','entrance','parcel'))]
-          print('URBIS_RELEVANT_FEATURE_TYPES',relevant)
-          open('/tmp/relevant.txt','w').write('\n'.join(relevant))
-          PY
-          while IFS= read -r TYPE; do
-            [ -n "$TYPE" ] || continue
+          BASE='https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs'
+          BBOX='149220,169380,149275,169445,EPSG:31370'
+          for TYPE in urbisvector:Buildings urbisvector:Addresses urbisvector:AddressNumbers; do
             echo "=== $TYPE ==="
             ENCODED=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$TYPE")
-            URL="$BASE?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=149220%2C169210%2C149270%2C169260%2CEPSG%3A31370&typeNames=$ENCODED"
-            code=$(curl -LsS --max-time 20 -o /tmp/out.json -w '%{http_code}' "$URL" || true)
-            echo "HTTP $code"
-            python3 - <<'PY' || true
-          import json
-          try:
-              d=json.load(open('/tmp/out.json'))
-          except Exception as e:
-              print('PARSE_FAIL',e); raise SystemExit
-          fs=d.get('features',[])
-          print('FEATURE_COUNT',len(fs))
-          for f in fs[:20]:
-              print('FEATURE',f.get('id'),f.get('properties'))
+            URL="$BASE?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$BBOX")&typeNames=$ENCODED"
+            curl -fLsS --max-time 30 "$URL" -o "/tmp/${TYPE#*:}.json"
+          done
+          python3 - <<'PY'
+          import json, math
+          from pathlib import Path
+          for name in ('Buildings','Addresses','AddressNumbers'):
+              d=json.loads(Path('/tmp/'+name+'.json').read_text())
+              fs=d.get('features',[])
+              print('LAYER',name,'FEATURE_COUNT',len(fs))
+              for f in fs[:100]:
+                  print('FEATURE',name,f.get('id'),json.dumps(f.get('properties',{}),ensure_ascii=False,sort_keys=True))
           PY
-          done < /tmp/relevant.txt

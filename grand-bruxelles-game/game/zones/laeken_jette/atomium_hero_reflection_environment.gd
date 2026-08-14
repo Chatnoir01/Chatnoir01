@@ -7,13 +7,14 @@ extends Node3D
 ## never measured photometry or landmark geometry.
 ##
 ## Important acceptance constraint: keep the already-validated hero ambient/sun
-## presentation for terrain readability and add the procedural sky only as the
-## stainless reflection/background source. This avoids turning an environment
-## improvement into a terrain-lighting regression.
+## presentation and lower-background readability, then add the procedural sky only
+## as the stainless reflection/upper-background source. This avoids turning an
+## environment improvement into a terrain/background regression.
 
 var environment_built := false
 var reflection_source_is_sky := false
 var ambient_preserves_baseline := false
+var lower_background_preserves_baseline := false
 var authored_non_photometric := true
 var sky_energy := 0.82
 var ambient_energy := 0.62
@@ -28,13 +29,17 @@ func build() -> bool:
     if environment_built:
         return true
 
+    var baseline_background := Color(0.62, 0.69, 0.78, 1.0)
     sky_material = ProceduralSkyMaterial.new()
     sky_material.sky_top_color = Color(0.38, 0.48, 0.62, 1.0)
     sky_material.sky_horizon_color = Color(0.72, 0.76, 0.80, 1.0)
-    sky_material.ground_horizon_color = Color(0.48, 0.49, 0.47, 1.0)
-    sky_material.ground_bottom_color = Color(0.20, 0.21, 0.20, 1.0)
+    # The old witness used one flat background color. Preserve that color below
+    # the horizon because this QA view exposes background through sparse/NoData
+    # terrain areas; a dark procedural ground hemisphere falsely reads as terrain.
+    sky_material.ground_horizon_color = baseline_background
+    sky_material.ground_bottom_color = baseline_background
     sky_material.sky_energy_multiplier = sky_energy
-    sky_material.ground_energy_multiplier = 0.56
+    sky_material.ground_energy_multiplier = 1.0
     sky_material.use_debanding = true
 
     sky = Sky.new()
@@ -65,7 +70,8 @@ func build() -> bool:
 
     reflection_source_is_sky = env.reflected_light_source == Environment.REFLECTION_SOURCE_SKY
     ambient_preserves_baseline = env.ambient_light_source == Environment.AMBIENT_SOURCE_COLOR and absf(env.ambient_light_energy - 0.62) <= 0.001
-    environment_built = reflection_source_is_sky and ambient_preserves_baseline
+    lower_background_preserves_baseline = sky_material.ground_horizon_color.is_equal_approx(baseline_background) and sky_material.ground_bottom_color.is_equal_approx(baseline_background)
+    environment_built = reflection_source_is_sky and ambient_preserves_baseline and lower_background_preserves_baseline
     if environment_built:
-        print("ATOMIUM_REFLECTION_ENVIRONMENT_READY: sky_energy=%.2f ambient=%.2f sun=%.2f sky_reflection=%s baseline_ambient=%s authored_non_photometric=%s" % [sky_energy, ambient_energy, sun_energy, str(reflection_source_is_sky), str(ambient_preserves_baseline), str(authored_non_photometric)])
+        print("ATOMIUM_REFLECTION_ENVIRONMENT_READY: sky_energy=%.2f ambient=%.2f sun=%.2f sky_reflection=%s baseline_ambient=%s baseline_lower_bg=%s authored_non_photometric=%s" % [sky_energy, ambient_energy, sun_energy, str(reflection_source_is_sky), str(ambient_preserves_baseline), str(lower_background_preserves_baseline), str(authored_non_photometric)])
     return environment_built

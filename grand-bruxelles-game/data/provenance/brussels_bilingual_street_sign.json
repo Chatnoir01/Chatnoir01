@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "asset_family": "brussels_bilingual_street_sign",
+  "retrieved_on": "2026-08-14",
+  "source_basis": [
+    {
+      "publisher": "Ville de Bruxelles",
+      "title": "De la ville au musée : les plaques de rue dans la collection",
+      "url": "https://www.bruxelles.be/de-la-ville-au-musee-les-plaques-de-rue-dans-la-collection",
+      "use": "Confirms street-name plaques as a visible municipal urban element in Brussels. No source image is redistributed."
+    },
+    {
+      "publisher": "Ville de Bruxelles / Open Data",
+      "title": "Lieux culturels - Bruxella 1238",
+      "url": "https://opendata.bruxelles.be/",
+      "use": "Confirms the bilingual street pairing Rue de la Bourse / Beursstraat near the Bourse production witness. Only names/factual address pairing are encoded."
+    },
+    {
+      "publisher": "Ville de Bruxelles - In Situ",
+      "title": "Le Mutsaert",
+      "url": "https://insitu.bruxelles.be/oeuvres/le-mutsaert",
+      "use": "Confirms bilingual French/Dutch street plaques are part of Brussels public-space visual language. Its special artwork dimensions/design are NOT generalized to this authored reusable asset."
+    }
+  ],
+  "source_backed_contract": {
+    "languages": ["fr", "nl"],
+    "example_pair": ["RUE DE LA BOURSE", "BEURSSTRAAT"]
+  },
+  "authored_presentation_values": {
+    "panel_envelope_m": [0.78, 0.34, 0.045],
+    "panel_color": "authored dark blue; not calibrated from a municipal specification",
+    "border_and_typography": "authored presentation treatment using the engine default font; no municipal crest/logo artwork embedded",
+    "mounting": "not included in reusable asset; no surveyed wall/pole placement is claimed"
+  },
+  "placement_policy": "Production placement requires an independently defensible street-corner/wall anchor. Deterministic witness placement may be presentation-only and must be labelled as such.",
+  "license_note": "No copyrighted photograph, logo, font file, or museum image is embedded or redistributed. The asset is newly authored from factual bilingual naming and the general public-space cue."
+}

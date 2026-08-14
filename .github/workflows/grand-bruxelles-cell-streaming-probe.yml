@@ -2,12 +2,13 @@ name: Grand Bruxelles Cell Streaming Probe
 
 on:
   push:
-    branches: ["agent/openliberty-cell-streaming-probe"]
+    branches: ["agent/openliberty-cell-streaming-probe", "agent/streamed-collision-and-asset-cache"]
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-cell-streaming-probe.yml"
       - "grand-bruxelles-game/game/scripts/brussels_cell_streaming_manager.gd"
       - "grand-bruxelles-game/game/scripts/brussels_cell_node_backend.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_asset_cache.gd"
       - "grand-bruxelles-game/game/tests/brussels_cell_streaming_probe_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_real_cell_lifecycle_test.gd"
       - "grand-bruxelles-game/game/zones/ixelles/ixelles_microslice.gd"

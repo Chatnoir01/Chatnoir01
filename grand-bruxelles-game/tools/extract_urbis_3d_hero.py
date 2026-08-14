@@ -2,9 +2,9 @@
 """Extract one audited UrbIS 3D building into a compact game mesh.
 
 The official UrbIS Shapefile distribution stores LoD2 faces as MultiPatch
-records.  This tool intentionally uses only the Python standard library: raw
+records. This tool intentionally uses only the Python standard library: raw
 source packages remain outside Git, and no GIS runtime dependency is added to
-the game.  Selection is by the stable UrbIS 2D building identifier, never by a
+the game. Selection is by the stable UrbIS 2D building identifier, never by a
 nearest-feature guess.
 """
 
@@ -86,8 +86,7 @@ def read_dbf(path: Path) -> Iterator[tuple[int, dict[str, str]]]:
 
 
 def find_dbf_records(path: Path, field: str, value: str) -> list[tuple[int, dict[str, str]]]:
-    matches = [(index, row) for index, row in read_dbf(path) if row.get(field) == value]
-    return matches
+    return [(index, row) for index, row in read_dbf(path) if row.get(field) == value]
 
 
 def optional_int(value: str) -> int | None:
@@ -160,11 +159,21 @@ def _normal(points: Sequence[Sequence[float]]) -> tuple[float, float, float]:
     return nx, ny, nz
 
 
-def _project(points: Sequence[Sequence[float]]) -> list[tuple[float, float]]:
+def _projection_axes(points: Sequence[Sequence[float]]) -> tuple[int, int]:
     normal = _normal(points)
     drop_axis = max(range(3), key=lambda index: abs(normal[index]))
     keep = [index for index in range(3) if index != drop_axis]
-    return [(float(point[keep[0]]), float(point[keep[1]])) for point in points]
+    return keep[0], keep[1]
+
+
+def _project_on_axes(
+    points: Sequence[Sequence[float]], axes: tuple[int, int]
+) -> list[tuple[float, float]]:
+    return [(float(point[axes[0]]), float(point[axes[1]])) for point in points]
+
+
+def _project(points: Sequence[Sequence[float]]) -> list[tuple[float, float]]:
+    return _project_on_axes(points, _projection_axes(points))
 
 
 def _area2(points: Sequence[tuple[float, float]]) -> float:
@@ -175,6 +184,16 @@ def _area2(points: Sequence[tuple[float, float]]) -> float:
     )
 
 
+def _cross2(
+    a: tuple[float, float], b: tuple[float, float], c: tuple[float, float]
+) -> float:
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _same_point2(a: tuple[float, float], b: tuple[float, float], epsilon: float = 1.0e-10) -> bool:
+    return abs(a[0] - b[0]) <= epsilon and abs(a[1] - b[1]) <= epsilon
+
+
 def _inside_triangle(
     point: tuple[float, float],
     a: tuple[float, float],
@@ -182,11 +201,151 @@ def _inside_triangle(
     c: tuple[float, float],
     epsilon: float = 1.0e-10,
 ) -> bool:
-    def cross(p: tuple[float, float], q: tuple[float, float], r: tuple[float, float]) -> float:
-        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
-
-    values = (cross(a, b, point), cross(b, c, point), cross(c, a, point))
+    values = (_cross2(a, b, point), _cross2(b, c, point), _cross2(c, a, point))
     return min(values) >= -epsilon or max(values) <= epsilon
+
+
+def _point_on_segment(
+    point: tuple[float, float],
+    a: tuple[float, float],
+    b: tuple[float, float],
+    epsilon: float = 1.0e-10,
+) -> bool:
+    if abs(_cross2(a, b, point)) > epsilon:
+        return False
+    return (
+        min(a[0], b[0]) - epsilon <= point[0] <= max(a[0], b[0]) + epsilon
+        and min(a[1], b[1]) - epsilon <= point[1] <= max(a[1], b[1]) + epsilon
+    )
+
+
+def _segments_intersect(
+    a: tuple[float, float],
+    b: tuple[float, float],
+    c: tuple[float, float],
+    d: tuple[float, float],
+    epsilon: float = 1.0e-10,
+) -> bool:
+    if _same_point2(a, c) or _same_point2(a, d) or _same_point2(b, c) or _same_point2(b, d):
+        return False
+    ab_c = _cross2(a, b, c)
+    ab_d = _cross2(a, b, d)
+    cd_a = _cross2(c, d, a)
+    cd_b = _cross2(c, d, b)
+    if ((ab_c > epsilon and ab_d < -epsilon) or (ab_c < -epsilon and ab_d > epsilon)) and (
+        (cd_a > epsilon and cd_b < -epsilon) or (cd_a < -epsilon and cd_b > epsilon)
+    ):
+        return True
+    return any(
+        (
+            abs(value) <= epsilon
+            and _point_on_segment(point, edge_a, edge_b, epsilon)
+        )
+        for value, point, edge_a, edge_b in (
+            (ab_c, c, a, b),
+            (ab_d, d, a, b),
+            (cd_a, a, c, d),
+            (cd_b, b, c, d),
+        )
+    )
+
+
+def _point_in_polygon(point: tuple[float, float], polygon: Sequence[tuple[float, float]]) -> bool:
+    inside = False
+    for index, a in enumerate(polygon):
+        b = polygon[(index + 1) % len(polygon)]
+        if _point_on_segment(point, a, b):
+            return True
+        if (a[1] > point[1]) != (b[1] > point[1]):
+            x_at_y = a[0] + (point[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1])
+            if point[0] < x_at_y:
+                inside = not inside
+    return inside
+
+
+def _clean_ring(raw_points: Sequence[Sequence[float]]) -> list[list[float]]:
+    ring = [list(point) for point in raw_points]
+    if len(ring) >= 2 and _same_point(ring[0], ring[-1]):
+        ring.pop()
+    return ring
+
+
+def _bridge_is_visible(
+    hole_point: tuple[float, float],
+    boundary_point: tuple[float, float],
+    boundary: Sequence[tuple[float, float]],
+    holes: Sequence[Sequence[tuple[float, float]]],
+    outer: Sequence[tuple[float, float]],
+) -> bool:
+    if _same_point2(hole_point, boundary_point):
+        return False
+    midpoint = (
+        (hole_point[0] + boundary_point[0]) * 0.5,
+        (hole_point[1] + boundary_point[1]) * 0.5,
+    )
+    if not _point_in_polygon(midpoint, outer):
+        return False
+    if any(_point_in_polygon(midpoint, hole) for hole in holes):
+        return False
+    rings = [boundary, *holes]
+    for ring in rings:
+        for index, edge_a in enumerate(ring):
+            edge_b = ring[(index + 1) % len(ring)]
+            if _segments_intersect(hole_point, boundary_point, edge_a, edge_b):
+                return False
+    return True
+
+
+def _merge_hole_into_boundary(
+    boundary_points: list[list[float]],
+    hole_points: list[list[float]],
+    axes: tuple[int, int],
+    outer_projected: Sequence[tuple[float, float]],
+    remaining_holes: Sequence[Sequence[list[float]]],
+) -> list[list[float]]:
+    boundary_projected = _project_on_axes(boundary_points, axes)
+    hole_projected = _project_on_axes(hole_points, axes)
+    other_projected = [_project_on_axes(hole, axes) for hole in remaining_holes]
+    hole_index = max(
+        range(len(hole_projected)),
+        key=lambda index: (hole_projected[index][0], -hole_projected[index][1]),
+    )
+    hole_point = hole_projected[hole_index]
+    candidates = sorted(
+        range(len(boundary_projected)),
+        key=lambda index: (
+            (boundary_projected[index][0] - hole_point[0]) ** 2
+            + (boundary_projected[index][1] - hole_point[1]) ** 2,
+            boundary_projected[index][0],
+            boundary_projected[index][1],
+            index,
+        ),
+    )
+    all_holes = [hole_projected, *other_projected]
+    boundary_index = next(
+        (
+            index
+            for index in candidates
+            if _bridge_is_visible(
+                hole_point,
+                boundary_projected[index],
+                boundary_projected,
+                all_holes,
+                outer_projected,
+            )
+        ),
+        None,
+    )
+    if boundary_index is None:
+        raise ValueError("Could not bridge an UrbIS inner ring without crossing source boundaries")
+
+    ordered_hole = hole_points[hole_index:] + hole_points[: hole_index + 1]
+    return (
+        boundary_points[: boundary_index + 1]
+        + ordered_hole
+        + [boundary_points[boundary_index]]
+        + boundary_points[boundary_index + 1 :]
+    )
 
 
 def triangulate_ring(raw_points: Sequence[Sequence[float]]) -> list[tuple[int, int, int]]:
@@ -199,7 +358,7 @@ def triangulate_ring(raw_points: Sequence[Sequence[float]]) -> list[tuple[int, i
     orientation = 1.0 if _area2(projected) > 0.0 else -1.0
     remaining = list(range(len(points)))
     triangles: list[tuple[int, int, int]] = []
-    guard = len(points) * len(points)
+    guard = len(points) * len(points) * 2
     while len(remaining) > 3 and guard > 0:
         guard -= 1
         clipped = False
@@ -207,13 +366,16 @@ def triangulate_ring(raw_points: Sequence[Sequence[float]]) -> list[tuple[int, i
             previous = remaining[position - 1]
             following = remaining[(position + 1) % len(remaining)]
             a, b, c = projected[previous], projected[current], projected[following]
-            cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
+            cross = _cross2(a, b, c)
             if cross * orientation <= 1.0e-10:
                 continue
             if any(
                 _inside_triangle(projected[other], a, b, c)
                 for other in remaining
                 if other not in (previous, current, following)
+                and not _same_point2(projected[other], a)
+                and not _same_point2(projected[other], b)
+                and not _same_point2(projected[other], c)
             ):
                 continue
             triangles.append((previous, current, following))
@@ -227,16 +389,91 @@ def triangulate_ring(raw_points: Sequence[Sequence[float]]) -> list[tuple[int, i
     return triangles
 
 
+def triangulate_polygon_with_holes(
+    outer_raw: Sequence[Sequence[float]],
+    holes_raw: Sequence[Sequence[Sequence[float]]],
+) -> list[list[list[float]]]:
+    outer = _clean_ring(outer_raw)
+    holes = [_clean_ring(hole) for hole in holes_raw]
+    if len(outer) < 3 or any(len(hole) < 3 for hole in holes):
+        raise ValueError("UrbIS polygon rings must contain at least three distinct vertices")
+    axes = _projection_axes(outer)
+    outer_projected = _project_on_axes(outer, axes)
+    outer_orientation = 1.0 if _area2(outer_projected) > 0.0 else -1.0
+    if outer_orientation < 0.0:
+        outer.reverse()
+        outer_projected = _project_on_axes(outer, axes)
+    normalized_holes: list[list[list[float]]] = []
+    for hole in holes:
+        projected = _project_on_axes(hole, axes)
+        if _area2(projected) > 0.0:
+            hole.reverse()
+        normalized_holes.append(hole)
+
+    boundary = list(outer)
+    ordered_holes = sorted(
+        normalized_holes,
+        key=lambda hole: max(point[axes[0]] for point in hole),
+        reverse=True,
+    )
+    for index, hole in enumerate(ordered_holes):
+        boundary = _merge_hole_into_boundary(
+            boundary,
+            hole,
+            axes,
+            outer_projected,
+            ordered_holes[index + 1 :],
+        )
+
+    indices = triangulate_ring(boundary)
+    triangles = [[boundary[a], boundary[b], boundary[c]] for a, b, c in indices]
+    expected_area = abs(_area2(outer_projected)) * 0.5 - sum(
+        abs(_area2(_project_on_axes(hole, axes))) * 0.5 for hole in normalized_holes
+    )
+    actual_area = sum(
+        abs(_area2(_project_on_axes(triangle, axes))) * 0.5 for triangle in triangles
+    )
+    tolerance = max(1.0e-8, expected_area * 1.0e-8)
+    if expected_area <= 0.0 or abs(actual_area - expected_area) > tolerance:
+        raise ValueError(
+            f"Hole-aware triangulation area mismatch: actual={actual_area}, expected={expected_area}"
+        )
+    source_vertices = {tuple(point) for point in outer}
+    source_vertices.update(tuple(point) for hole in normalized_holes for point in hole)
+    if any(tuple(vertex) not in source_vertices for triangle in triangles for vertex in triangle):
+        raise ValueError("Hole-aware triangulation introduced a non-source vertex")
+    return triangles
+
+
 def multipatch_triangles(patch: dict[str, Any]) -> list[list[list[float]]]:
     parts: list[int] = patch["parts"]
     part_types: list[int] = patch["part_types"]
     points: list[list[float]] = patch["points"]
     triangles: list[list[list[float]]] = []
-    for part_index, start in enumerate(parts):
+    part_index = 0
+    while part_index < len(parts):
+        start = parts[part_index]
         finish = parts[part_index + 1] if part_index + 1 < len(parts) else len(points)
         ring = points[start:finish]
         part_type = part_types[part_index]
-        indices: list[tuple[int, int, int]] = []
+        if part_type == PART_OUTER_RING:
+            holes: list[list[list[float]]] = []
+            next_index = part_index + 1
+            while next_index < len(parts) and part_types[next_index] == PART_INNER_RING:
+                hole_start = parts[next_index]
+                hole_finish = parts[next_index + 1] if next_index + 1 < len(parts) else len(points)
+                holes.append(points[hole_start:hole_finish])
+                next_index += 1
+            if holes:
+                triangles.extend(triangulate_polygon_with_holes(ring, holes))
+            else:
+                clean_ring = _clean_ring(ring)
+                indices = triangulate_ring(clean_ring)
+                triangles.extend([[clean_ring[a], clean_ring[b], clean_ring[c]] for a, b, c in indices])
+            part_index = next_index
+            continue
+        if part_type == PART_INNER_RING:
+            raise ValueError("Orphan UrbIS inner ring without a preceding outer ring")
         if part_type == PART_TRIANGLE_STRIP:
             indices = [
                 (index, index + 1, index + 2) if index % 2 == 0 else (index + 1, index, index + 2)
@@ -244,15 +481,14 @@ def multipatch_triangles(patch: dict[str, Any]) -> list[list[list[float]]]:
             ]
         elif part_type == PART_TRIANGLE_FAN:
             indices = [(0, index, index + 1) for index in range(1, len(ring) - 1)]
-        elif part_type in (PART_OUTER_RING, PART_FIRST_RING, PART_RING):
-            clean_ring = ring[:-1] if len(ring) >= 2 and _same_point(ring[0], ring[-1]) else ring
+        elif part_type in (PART_FIRST_RING, PART_RING):
+            clean_ring = _clean_ring(ring)
             indices = triangulate_ring(clean_ring)
             ring = clean_ring
-        elif part_type == PART_INNER_RING:
-            raise ValueError("Inner rings require hole-aware triangulation and are not silently discarded")
         else:
             raise ValueError(f"Unsupported MultiPatch part type: {part_type}")
         triangles.extend([[ring[a], ring[b], ring[c]] for a, b, c in indices])
+        part_index += 1
     return triangles
 
 
@@ -275,10 +511,10 @@ def extract(args: argparse.Namespace) -> dict[str, Any]:
     solid_matches = find_dbf_records(prefix.with_name(prefix.name + "_BuildingSolids.dbf"), "BU_ID", args.building_id)
     if len(solid_matches) != 1:
         raise ValueError(f"Expected exactly one solid for {args.building_id}, got {len(solid_matches)}")
-    solid_index, solid_row = solid_matches[0]
+    _, solid_row = solid_matches[0]
     solid_id = solid_row["INSPIRE_ID"]
     # The product specification explicitly notes that solid classes are not
-    # supported in every distribution format.  In the official SHP tile the
+    # supported in every distribution format. In the official SHP tile the
     # stable solid row can therefore have a NULL geometry; BuildingFaces are
     # the authoritative LoD2 geometry and reference that stable row ID.
 
@@ -291,15 +527,11 @@ def extract(args: argparse.Namespace) -> dict[str, Any]:
     all_z: list[float] = []
     part_type_counts: dict[str, int] = {}
     for face_index, face_row in face_matches:
-        patch = read_multipatch(
-            faces_shp,
-            faces_shx,
-            face_index,
-        )
-        triangles = multipatch_triangles(patch)
-        all_x.extend(point[0] for triangle in triangles for point in triangle)
-        all_y.extend(point[1] for triangle in triangles for point in triangle)
-        all_z.extend(point[2] for triangle in triangles for point in triangle)
+        patch = read_multipatch(faces_shp, faces_shx, face_index)
+        face_triangles = multipatch_triangles(patch)
+        all_x.extend(point[0] for triangle in face_triangles for point in triangle)
+        all_y.extend(point[1] for triangle in face_triangles for point in triangle)
+        all_z.extend(point[2] for triangle in face_triangles for point in triangle)
         for part_type in patch["part_types"]:
             key = str(part_type)
             part_type_counts[key] = part_type_counts.get(key, 0) + 1
@@ -308,7 +540,7 @@ def extract(args: argparse.Namespace) -> dict[str, Any]:
                 "id": face_row["INSPIRE_ID"],
                 "type": face_row["TYPE"],
                 "details_level": optional_int(face_row["DETAILSLEV"]),
-                "triangles": triangles,
+                "triangles": face_triangles,
             }
         )
     if not all_z or not all(math.isfinite(value) for value in all_z):

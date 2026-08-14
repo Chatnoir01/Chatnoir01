@@ -1,0 +1,36 @@
+{
+  "schema": "grand-bruxelles-material-identity-v1",
+  "target": {
+    "runtime_node": "GrandPlaceOfficialLod2",
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "role": "Grand-Place Hotel de Ville landmark mass"
+  },
+  "geometry_source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "crs": "EPSG:31370",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "license": "CC0-1.0"
+  },
+  "material_identity_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Hotel de ville, Grand-Place 8, Urban 31125",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+    "facts": [
+      "The Grand-Place-facing gothic wings and tower are described as having white-stone facades.",
+      "The restoration history identifies Gobertange and Euville stone among exterior facade stones."
+    ],
+    "accessed_at": "2026-08-14"
+  },
+  "presentation_contract": {
+    "applies_to": "WALLSURFACE only",
+    "roof_unchanged": true,
+    "exact_rgb_is_photometric_measurement": false,
+    "geometry_changed": false,
+    "openings_authored": false,
+    "runtime_approved": false,
+    "realism_complete": false
+  },
+  "identity_note": "The shipped 1655673 LoD2 mass is the dominant 93.024 m Grand-Place tower block at the locked control point; the material cue is applied only because its source geometry/location correspond to the officially inventoried Hotel de Ville."
+}

@@ -16,7 +16,7 @@ var display_french := ""
 var display_dutch := ""
 var authored_geometry := true
 var claims_surveyed_mount := false
-var readable_face_local_z_positive := true
+var readable_face_local_z_negative := true
 
 var _panel_material: StandardMaterial3D
 var _border_material: StandardMaterial3D
@@ -43,9 +43,11 @@ func build() -> bool:
     _box("PlaqueBorderLeft", Vector3(0.014, 0.29, 0.052), Vector3(-0.37, 0.0, -0.006), _border_material)
     _box("PlaqueBorderRight", Vector3(0.014, 0.29, 0.052), Vector3(0.37, 0.0, -0.006), _border_material)
 
-    # Label3D readable face is placed just beyond the panel's authored +Z face.
-    _label("FrenchStreetName", display_french, Vector3(0.0, 0.065, 0.031))
-    _label("DutchStreetName", display_dutch, Vector3(0.0, -0.065, 0.031))
+    # Godot Label3D's readable face is +Z. Place text on the authored -Z
+    # plaque face and turn each label 180 degrees so the visible side reads
+    # normally rather than mirrored from the back.
+    _label("FrenchStreetName", display_french, Vector3(0.0, 0.065, -0.031))
+    _label("DutchStreetName", display_dutch, Vector3(0.0, -0.065, -0.031))
 
     plaque_count = 1
     language_line_count = 2
@@ -57,6 +59,7 @@ func _label(node_name: String, text_value: String, pos: Vector3) -> Label3D:
     label.name = node_name
     label.text = text_value
     label.position = pos
+    label.rotation_degrees.y = 180.0
     label.font_size = 56
     label.pixel_size = 0.0017
     label.modulate = Color(0.96, 0.97, 0.98, 1.0)

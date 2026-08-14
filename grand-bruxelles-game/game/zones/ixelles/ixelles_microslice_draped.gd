@@ -6,18 +6,20 @@ extends "res://game/zones/ixelles/ixelles_microslice.gd"
 
 const STREET_RENDER_BIAS_M := 0.035
 const STREET_MAX_EDGE_M := 6.0
-const STREET_MIN_CHECK_CLEARANCE_M := 0.004
 const STREET_MAX_SUBDIVISION_DEPTH := 7
-const STREET_SOURCE_BOUNDARY_EPSILON_M := 0.05
+const STREET_SOURCE_BOUNDARY_EPSILON_M := 0.25
 const STREET_TERRAIN_BOUNDARY_EPSILON_M := 0.25
 
 var street_drape_triangle_count := 0
 var street_drape_vertex_count := 0
 var street_drape_outside_source_vertices := 0
-var street_drape_outside_terrain_vertices := 0
+var street_drape_unsupported_triangle_count := 0
 var street_drape_min_check_clearance_m := INF
 var street_drape_max_leaf_edge_m := 0.0
 var street_drape_max_subdivision_depth := 0
+
+var _terrain_game_min := Vector2.ZERO
+var _terrain_game_max := Vector2.ZERO
 
 func _point_segment_distance(point: Vector2, a: Vector2, b: Vector2) -> float:
     var edge := b - a
@@ -35,29 +37,17 @@ func _point_in_or_on_polygon(point: Vector2, polygon: PackedVector2Array) -> boo
             return true
     return false
 
-func _terrain_clamped_game_point(point: Vector2) -> Vector2:
-    var e := _origin_e + (point.x - _world_anchor_x)
-    var n := _origin_n - (point.y - _world_anchor_z)
-    var clamped_e := clampf(e, _bbox.position.x, _bbox.end.x)
-    var clamped_n := clampf(n, _bbox.position.y, _bbox.end.y)
-    var outside_distance := Vector2(e, n).distance_to(Vector2(clamped_e, clamped_n))
-    if outside_distance > STREET_TERRAIN_BOUNDARY_EPSILON_M:
-        return Vector2(INF, INF)
-    var game := lambert_to_game(clamped_e, clamped_n)
-    return Vector2(game.x, game.z)
+func _prepare_terrain_game_bounds() -> void:
+    var sw := lambert_to_game(_bbox.position.x, _bbox.position.y)
+    var ne := lambert_to_game(_bbox.end.x, _bbox.end.y)
+    _terrain_game_min = Vector2(minf(sw.x, ne.x), minf(sw.z, ne.z))
+    _terrain_game_max = Vector2(maxf(sw.x, ne.x), maxf(sw.z, ne.z))
 
-func _sample_drape_height(point: Vector2) -> float:
-    var sample_point := _terrain_clamped_game_point(point)
-    if not is_finite(sample_point.x) or not is_finite(sample_point.y):
-        return NAN
-    return sample_height(sample_point.x, sample_point.y)
+func _inside_terrain_game_bounds(point: Vector2) -> bool:
+    return point.x >= _terrain_game_min.x - STREET_TERRAIN_BOUNDARY_EPSILON_M and point.x <= _terrain_game_max.x + STREET_TERRAIN_BOUNDARY_EPSILON_M and point.y >= _terrain_game_min.y - STREET_TERRAIN_BOUNDARY_EPSILON_M and point.y <= _terrain_game_max.y + STREET_TERRAIN_BOUNDARY_EPSILON_M
 
 func _draped_vertex(point: Vector2) -> Vector3:
-    var height := _sample_drape_height(point)
-    if not is_finite(height):
-        street_drape_outside_terrain_vertices += 1
-        height = sample_height(point.x, point.y)
-    return Vector3(point.x, height + STREET_RENDER_BIAS_M, point.y)
+    return Vector3(point.x, sample_height(point.x, point.y) + STREET_RENDER_BIAS_M, point.y)
 
 func _leaf_clearance(a: Vector3, b: Vector3, c: Vector3) -> float:
     var minimum := INF
@@ -66,20 +56,12 @@ func _leaf_clearance(a: Vector3, b: Vector3, c: Vector3) -> float:
     var bc := (b + c) * 0.5
     var ca := (c + a) * 0.5
     for point: Vector3 in [centroid, ab, bc, ca]:
-        var terrain_y := _sample_drape_height(Vector2(point.x, point.z))
-        if not is_finite(terrain_y):
-            return -INF
-        minimum = minf(minimum, point.y - terrain_y)
+        minimum = minf(minimum, point.y - sample_height(point.x, point.z))
     return minimum
 
 func _emit_draped_triangle(target: SurfaceTool, source_ring: PackedVector2Array, a2: Vector2, b2: Vector2, c2: Vector2, depth: int) -> void:
-    var a := _draped_vertex(a2)
-    var b := _draped_vertex(b2)
-    var c := _draped_vertex(c2)
     var max_edge := maxf(a2.distance_to(b2), maxf(b2.distance_to(c2), c2.distance_to(a2)))
-    var clearance := _leaf_clearance(a, b, c)
-    var needs_split := max_edge > STREET_MAX_EDGE_M or clearance < STREET_MIN_CHECK_CLEARANCE_M
-    if needs_split and depth < STREET_MAX_SUBDIVISION_DEPTH:
+    if max_edge > STREET_MAX_EDGE_M and depth < STREET_MAX_SUBDIVISION_DEPTH:
         var ab2 := (a2 + b2) * 0.5
         var bc2 := (b2 + c2) * 0.5
         var ca2 := (c2 + a2) * 0.5
@@ -91,10 +73,23 @@ func _emit_draped_triangle(target: SurfaceTool, source_ring: PackedVector2Array,
 
     street_drape_max_subdivision_depth = maxi(street_drape_max_subdivision_depth, depth)
     street_drape_max_leaf_edge_m = maxf(street_drape_max_leaf_edge_m, max_edge)
-    street_drape_min_check_clearance_m = minf(street_drape_min_check_clearance_m, clearance)
+
+    # A source polygon may cross the selected 500 m cell boundary. We keep the source
+    # geometry untouched, but do not invent terrain heights beyond the selected DTM.
+    # Unsupported leaf triangles are omitted from this bounded presentation slice and
+    # counted explicitly instead of feeding sample_height() out of domain.
+    if not _inside_terrain_game_bounds(a2) or not _inside_terrain_game_bounds(b2) or not _inside_terrain_game_bounds(c2):
+        street_drape_unsupported_triangle_count += 1
+        return
+
     for point2: Vector2 in [a2, b2, c2]:
         if not _point_in_or_on_polygon(point2, source_ring):
             street_drape_outside_source_vertices += 1
+
+    var a := _draped_vertex(a2)
+    var b := _draped_vertex(b2)
+    var c := _draped_vertex(c2)
+    street_drape_min_check_clearance_m = minf(street_drape_min_check_clearance_m, _leaf_clearance(a, b, c))
     for vertex: Vector3 in [a, b, c]:
         target.set_normal(Vector3.UP)
         target.add_vertex(vertex)
@@ -102,6 +97,7 @@ func _emit_draped_triangle(target: SurfaceTool, source_ring: PackedVector2Array,
     street_drape_triangle_count += 1
 
 func _build_street_surfaces() -> void:
+    _prepare_terrain_game_bounds()
     var cell: Dictionary = get_meta("ixelles_cell_contract", {})
     var surfaces: Variant = cell.get("street_surfaces", [])
     if not surfaces is Array:
@@ -124,10 +120,7 @@ func _build_street_surfaces() -> void:
             grouped[key] = tool
         var target: SurfaceTool = grouped[key]
         for offset: int in range(0, indices.size(), 3):
-            var a2 := ring[indices[offset]]
-            var b2 := ring[indices[offset + 1]]
-            var c2 := ring[indices[offset + 2]]
-            _emit_draped_triangle(target, ring, a2, b2, c2, 0)
+            _emit_draped_triangle(target, ring, ring[indices[offset]], ring[indices[offset + 1]], ring[indices[offset + 2]], 0)
         street_surface_count += 1
 
     var root := Node3D.new()
@@ -147,4 +140,4 @@ func _build_street_surfaces() -> void:
     if stats is Dictionary:
         street_segment_count = int(stats.get("street_segments", 0))
 
-    print("IXELLES_STREET_DRAPE: surfaces=%d triangles=%d vertices=%d outside_source=%d outside_terrain=%d min_clearance=%.5f max_leaf_edge=%.3f depth=%d" % [street_surface_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_outside_terrain_vertices, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_subdivision_depth])
+    print("IXELLES_STREET_DRAPE: surfaces=%d triangles=%d vertices=%d outside_source=%d unsupported=%d min_clearance=%.5f max_leaf_edge=%.3f depth=%d terrain_game=[%.3f,%.3f]-[%.3f,%.3f]" % [street_surface_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_unsupported_triangle_count, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_subdivision_depth, _terrain_game_min.x, _terrain_game_min.y, _terrain_game_max.x, _terrain_game_max.y])

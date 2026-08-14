@@ -26,11 +26,10 @@ jobs:
           mkdir -p /tmp/atomium-topo grand-bruxelles-game/artifacts/atomium
           BASE='https://geoservices-urbis.irisnet.be/geoserver/urbistopo/wfs'
           COMMON='service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=147900%2C175900%2C148300%2C176300%2CEPSG%3A31370'
-          POLY_COMMON='service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=147950%2C175950%2C148240%2C176240%2CEPSG%3A31370&count=500'
           curl -fL --retry 3 --retry-delay 3 --max-time 30 "$BASE?$COMMON&typeName=urbistopo%3ATopoLines" -o /tmp/atomium-topo/lines.json
-          curl -fL --retry 2 --retry-delay 2 --max-time 30 "$BASE?$POLY_COMMON&typeName=urbistopo%3ATopoPolygons" -o /tmp/atomium-topo/polygons.json
+          curl -fL --retry 2 --retry-delay 2 --max-time 30 "$BASE?service=WFS&version=2.0.0&request=GetCapabilities" -o /tmp/atomium-topo/capabilities.xml
           python3 - <<'PY'
-          import json, math
+          import json, math, xml.etree.ElementTree as ET
           from pathlib import Path
           anchor=(148093.22038698208,176091.76722726133)
           target={'BB03L','CR39L'}
@@ -55,32 +54,28 @@ jobs:
           if live != locked:
               raise SystemExit('locked bounded Topo snapshot drifted from live WFS')
 
-          polygons=json.load(open('/tmp/atomium-topo/polygons.json',encoding='utf-8'))
-          nearby=[]
-          for f in polygons.get('features',[]):
-              pts=list(coords(f.get('geometry',{}).get('coordinates',[])))
-              if not pts: continue
-              d=min(math.hypot(x-anchor[0],y-anchor[1]) for x,y in pts)
-              if d > 120.0: continue
-              props=f.get('properties',{})
-              t=str(props.get('TYPE','')).upper()
-              desc=str(props.get('DESCRIPTION','') or props.get('DESCR_FR','') or props.get('DESCR_NL',''))
-              xs=[p[0] for p in pts]; ys=[p[1] for p in pts]
-              bbox_area=(max(xs)-min(xs))*(max(ys)-min(ys))
-              nearby.append({'id':str(f.get('id')),'type':t,'description':desc,'min_distance_m':round(d,3),'bbox_area_m2':round(bbox_area,1),'properties':{k:v for k,v in props.items() if k in ('TYPE','DESCRIPTION','DESCR_FR','DESCR_NL','LEVEL','LVL')}})
-          nearby.sort(key=lambda x:(x['min_distance_m'],-x['bbox_area_m2']))
+          root=ET.parse('/tmp/atomium-topo/capabilities.xml').getroot()
+          names=[]
+          for elem in root.iter():
+              if elem.tag.endswith('FeatureType'):
+                  for child in elem:
+                      if child.tag.endswith('Name') and child.text:
+                          names.append(child.text.strip())
+                          break
+          names=sorted(set(names))
+          surface_candidates=[n for n in names if any(k in n.lower() for k in ('polygon','surface','area','topo'))]
           out={
               'live_selected_count':len(selected),
               'stairs':sum(t=='BB03L' for _,t,_ in selected),
               'benches':sum(t=='CR39L' for _,t,_ in selected),
               'nearest_lines':selected[:10],
-              'nearby_polygon_count':len(nearby),
-              'nearby_polygons':nearby[:80]
+              'feature_type_names':names,
+              'surface_candidate_names':surface_candidates
           }
           Path('grand-bruxelles-game/artifacts/atomium/atomium_topo_esplanade_discovery.json').write_text(json.dumps(out,indent=2,ensure_ascii=False)+'\n')
-          print('ATOMIUM_TOPO_SOURCE_OK', {'lines':len(selected),'stairs':out['stairs'],'benches':out['benches'],'nearby_polygons':len(nearby)})
-          for item in nearby[:30]:
-              print('ATOMIUM_TOPO_POLYGON', item['id'], item['type'], item['min_distance_m'], item['bbox_area_m2'], item['description'])
+          print('ATOMIUM_TOPO_SOURCE_OK', {'lines':len(selected),'stairs':out['stairs'],'benches':out['benches'],'feature_types':len(names)})
+          print('ATOMIUM_TOPO_FEATURE_TYPES', names)
+          print('ATOMIUM_TOPO_SURFACE_CANDIDATES', surface_candidates)
           PY
       - name: Install Godot 4.7.1
         run: |

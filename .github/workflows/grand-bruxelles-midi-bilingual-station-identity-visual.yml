@@ -1,0 +1,86 @@
+name: Grand Bruxelles Midi Bilingual Station Identity Visual
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-bilingual-station-identity-visual.yml"
+      - "grand-bruxelles-game/data/visual/midi_station_identity.json"
+      - "grand-bruxelles-game/game/scripts/midi_station_identity.gd"
+      - "grand-bruxelles-game/game/tests/midi_bilingual_station_identity_visual_test.gd"
+      - "grand-bruxelles-game/project.godot"
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate station identity provenance
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/visual/midi_station_identity.json'
+          d=json.load(open(p))
+          facts=d['source']['facts']
+          c=d['presentation_contract']
+          assert d['source']['provider']=='SNCB-NMBS'
+          assert facts['official_french_name']=='Bruxelles-Midi'
+          assert facts['official_dutch_name']=='Brussel-Zuid'
+          assert facts['fonsny_address']=='Avenue Fonsny 47 / Fonsnylaan 47'
+          assert c['existing_entrance_geometry_only'] is True
+          assert c['new_landmark_geometry'] is False
+          assert c['new_openings'] is False
+          assert c['new_measured_dimensions'] is False
+          assert c['new_material_identity_claim'] is False
+          assert c['runtime_approved'] is False
+          assert c['realism_complete'] is False
+          print('MIDI_STATION_IDENTITY_SOURCE_OK')
+          PY
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Render deterministic Midi identity A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_bilingual_station_identity_visual_test.gd 2>&1 | tee /tmp/midi-bilingual-station-identity.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_BILINGUAL_STATION_IDENTITY_FAIL" /tmp/midi-bilingual-station-identity.log; then exit 1; fi
+          grep -F "MIDI_BILINGUAL_STATION_IDENTITY_OK" /tmp/midi-bilingual-station-identity.log
+          test -f grand-bruxelles-game/artifacts/midi/bilingual-station-identity/before.png
+          test -f grand-bruxelles-game/artifacts/midi/bilingual-station-identity/after.png
+      - name: Enforce anti-micro pixel gate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          a=Image.open('grand-bruxelles-game/artifacts/midi/bilingual-station-identity/before.png').convert('RGB')
+          b=Image.open('grand-bruxelles-game/artifacts/midi/bilingual-station-identity/after.png').convert('RGB')
+          assert a.size==(1280,720) and b.size==a.size
+          pa=list(a.getdata()); pb=list(b.getdata())
+          changed=sum(1 for x,y in zip(pa,pb) if max(abs(x[i]-y[i]) for i in range(3))>3)
+          ratio=changed/(1280*720)
+          print(f'MIDI_STATION_IDENTITY_PIXEL_GATE changed={changed} ratio={ratio:.6f}')
+          if changed < 23000 or ratio < 0.025:
+              raise SystemExit('anti-micro gate failed: station identity cue is not visually substantive enough')
+          PY
+      - name: Upload A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-bilingual-station-identity-visual
+          path: |
+            grand-bruxelles-game/artifacts/midi/bilingual-station-identity/before.png
+            grand-bruxelles-game/artifacts/midi/bilingual-station-identity/after.png
+            /tmp/midi-bilingual-station-identity.log
+          if-no-files-found: error

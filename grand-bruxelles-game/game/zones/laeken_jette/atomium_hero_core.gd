@@ -6,6 +6,7 @@ extends Node3D
 
 @export_file("*.json") var evidence_path := "res://data/sources/laeken_jette/atomium_hero_core_evidence.json"
 
+const LANDCOVER_CONTEXT_SCRIPT := preload("res://game/zones/laeken_jette/atomium_landcover_context.gd")
 const SPHERE_RADIAL_SEGMENTS := 48
 const SPHERE_RINGS := 24
 const TUBE_RADIAL_SEGMENTS := 32
@@ -18,6 +19,7 @@ var source_sphere_diameter_m := 0.0
 var source_tube_diameter_m := 0.0
 var unresolved_support_pillars := 0
 var anchor_position := Vector3.ZERO
+var landcover_context: Node3D
 
 var _sphere_material: StandardMaterial3D
 var _tube_material: StandardMaterial3D
@@ -72,8 +74,21 @@ func build_on_terrain(terrain: Node) -> bool:
         _add_tube(centres[a], centres[b])
     hero_built = sphere_count == 9 and tube_count == 20
     if hero_built:
+        _mount_landcover_context(terrain)
         print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars])
     return hero_built
+
+func _mount_landcover_context(terrain: Node) -> void:
+    var world_parent := get_parent()
+    if world_parent == null:
+        return
+    landcover_context = LANDCOVER_CONTEXT_SCRIPT.new()
+    landcover_context.name = "AtomiumLandCoverContext"
+    world_parent.add_child(landcover_context)
+    if not bool(landcover_context.call("build_on_terrain", terrain)):
+        landcover_context.queue_free()
+        landcover_context = null
+        push_warning("AtomiumHeroCore: official LandCover context unavailable; hero remains valid")
 
 func _load_evidence() -> Dictionary:
     if not FileAccess.file_exists(evidence_path):

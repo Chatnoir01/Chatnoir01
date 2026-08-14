@@ -8,6 +8,7 @@ on:
       - ".github/workflows/grand-bruxelles-grand-place-granite-paving.yml"
       - "grand-bruxelles-game/game/scripts/grand_place_granite_paving.gd"
       - "grand-bruxelles-game/game/tests/grand_place_granite_paving_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_granite_paving_witness_test.gd"
       - "grand-bruxelles-game/data/visual/grand_place_granite_paving.json"
       - "grand-bruxelles-game/project.godot"
   pull_request:
@@ -15,6 +16,7 @@ on:
       - ".github/workflows/grand-bruxelles-grand-place-granite-paving.yml"
       - "grand-bruxelles-game/game/scripts/grand_place_granite_paving.gd"
       - "grand-bruxelles-game/game/tests/grand_place_granite_paving_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_granite_paving_witness_test.gd"
       - "grand-bruxelles-game/data/visual/grand_place_granite_paving.json"
       - "grand-bruxelles-game/project.godot"
   workflow_dispatch:
@@ -32,6 +34,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+          python -m pip install --disable-pip-version-check pillow
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -46,3 +49,40 @@ jobs:
           xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/grand_place_granite_paving_test.gd 2>&1 | tee /tmp/grand-place-granite-paving.log
           if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_GRANITE_PAVING_FAIL" /tmp/grand-place-granite-paving.log; then exit 1; fi
           grep -F "GRAND_PLACE_GRANITE_PAVING_OK" /tmp/grand-place-granite-paving.log
+      - name: Capture production witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_granite_paving_witness_test.gd 2>&1 | tee /tmp/grand-place-granite-paving-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_GRANITE_PAVING_WITNESS_FAIL" /tmp/grand-place-granite-paving-witness.log; then exit 1; fi
+          grep -F "GRAND_PLACE_GRANITE_PAVING_WITNESS_OK" /tmp/grand-place-granite-paving-witness.log
+      - name: Enforce normal-distance visual impact
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          a=Image.open('grand-bruxelles-game/artifacts/grand-place/granite-paving/before.png').convert('RGB')
+          b=Image.open('grand-bruxelles-game/artifacts/grand-place/granite-paving/after.png').convert('RGB')
+          if a.size != (1280,720) or b.size != (1280,720):
+              raise SystemExit('unexpected witness dimensions')
+          p3=p8=0
+          n=a.size[0]*a.size[1]
+          for pa,pb in zip(a.getdata(), b.getdata()):
+              d=max(abs(pa[0]-pb[0]),abs(pa[1]-pb[1]),abs(pa[2]-pb[2]))
+              p3 += d > 3
+              p8 += d > 8
+          r3=p3/n
+          r8=p8/n
+          print(f'GRAND_PLACE_GRANITE_PAVING_IMPACT pixels_gt3={p3} ratio_gt3={r3:.6f} pixels_gt8={p8} ratio_gt8={r8:.6f}')
+          if r3 < 0.05 or r8 < 0.02:
+              raise SystemExit('granite paving is too subtle at normal distance')
+          PY
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-granite-paving-visual-evidence
+          path: |
+            grand-bruxelles-game/artifacts/grand-place/granite-paving/before.png
+            grand-bruxelles-game/artifacts/grand-place/granite-paving/after.png
+            /tmp/grand-place-granite-paving.log
+            /tmp/grand-place-granite-paving-witness.log
+          if-no-files-found: error

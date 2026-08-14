@@ -141,14 +141,26 @@ func _perform_ixelles_fast_travel(player: Node) -> void:
         push_error("BrusselsWorldStreamer: source-backed Ixelles spawn unavailable")
         _fast_travel_running = false
         return
-    if player.has_method("fast_travel_to_world_position"):
-        player.call("fast_travel_to_world_position", spawn["position"], float(spawn["yaw_degrees"]), "ixelles")
-    else:
-        push_error("BrusselsWorldStreamer: player does not expose world-position fast travel")
+    if not _place_player(player, spawn["position"], float(spawn["yaw_degrees"])):
+        push_error("BrusselsWorldStreamer: player could not be placed at streamed Ixelles spawn")
         _fast_travel_running = false
         return
     _set_loading_label("IXELLES · PLACE STÉPHANIE / STEFANIA")
     _fast_travel_running = false
+
+func _place_player(player: Node, position: Vector3, yaw_degrees: float) -> bool:
+    if not player is Node3D:
+        return false
+    # Reuse the existing public fast-travel reset path for vehicle exit, camera,
+    # locomotion windows and HUD restoration before applying the sourced target.
+    if player.has_method("fast_travel_to"):
+        player.call("fast_travel_to", "bourse")
+    var player_3d := player as Node3D
+    player_3d.global_position = position
+    player_3d.rotation_degrees.y = yaw_degrees
+    if player is CharacterBody3D:
+        (player as CharacterBody3D).velocity = Vector3.ZERO
+    return true
 
 func _ixelles_source_backed_spawn(instance: Node) -> Dictionary:
     var camera_axis := _axis_segment(instance, IXELLES_CAMERA_AXIS_ID)

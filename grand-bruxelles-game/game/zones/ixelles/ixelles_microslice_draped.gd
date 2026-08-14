@@ -6,7 +6,9 @@ extends "res://game/zones/ixelles/ixelles_microslice.gd"
 
 const STREET_RENDER_BIAS_M := 0.035
 const STREET_MAX_EDGE_M := 6.0
-const STREET_MAX_SUBDIVISION_DEPTH := 7
+const STREET_MIN_CHECK_CLEARANCE_M := 0.004
+const STREET_MAX_EDGE_SUBDIVISION_DEPTH := 7
+const STREET_MAX_CLEARANCE_SUBDIVISION_DEPTH := 9
 const STREET_SOURCE_BOUNDARY_EPSILON_M := 0.25
 const STREET_TERRAIN_BOUNDARY_EPSILON_M := 0.25
 
@@ -14,6 +16,7 @@ var street_drape_triangle_count := 0
 var street_drape_vertex_count := 0
 var street_drape_outside_source_vertices := 0
 var street_drape_unsupported_triangle_count := 0
+var street_drape_clearance_refinement_count := 0
 var street_drape_min_check_clearance_m := INF
 var street_drape_max_leaf_edge_m := 0.0
 var street_drape_max_subdivision_depth := 0
@@ -59,20 +62,20 @@ func _leaf_clearance(a: Vector3, b: Vector3, c: Vector3) -> float:
         minimum = minf(minimum, point.y - sample_height(point.x, point.z))
     return minimum
 
+func _split_draped_triangle(target: SurfaceTool, source_ring: PackedVector2Array, a2: Vector2, b2: Vector2, c2: Vector2, depth: int) -> void:
+    var ab2 := (a2 + b2) * 0.5
+    var bc2 := (b2 + c2) * 0.5
+    var ca2 := (c2 + a2) * 0.5
+    _emit_draped_triangle(target, source_ring, a2, ab2, ca2, depth + 1)
+    _emit_draped_triangle(target, source_ring, ab2, b2, bc2, depth + 1)
+    _emit_draped_triangle(target, source_ring, ca2, bc2, c2, depth + 1)
+    _emit_draped_triangle(target, source_ring, ab2, bc2, ca2, depth + 1)
+
 func _emit_draped_triangle(target: SurfaceTool, source_ring: PackedVector2Array, a2: Vector2, b2: Vector2, c2: Vector2, depth: int) -> void:
     var max_edge := maxf(a2.distance_to(b2), maxf(b2.distance_to(c2), c2.distance_to(a2)))
-    if max_edge > STREET_MAX_EDGE_M and depth < STREET_MAX_SUBDIVISION_DEPTH:
-        var ab2 := (a2 + b2) * 0.5
-        var bc2 := (b2 + c2) * 0.5
-        var ca2 := (c2 + a2) * 0.5
-        _emit_draped_triangle(target, source_ring, a2, ab2, ca2, depth + 1)
-        _emit_draped_triangle(target, source_ring, ab2, b2, bc2, depth + 1)
-        _emit_draped_triangle(target, source_ring, ca2, bc2, c2, depth + 1)
-        _emit_draped_triangle(target, source_ring, ab2, bc2, ca2, depth + 1)
+    if max_edge > STREET_MAX_EDGE_M and depth < STREET_MAX_EDGE_SUBDIVISION_DEPTH:
+        _split_draped_triangle(target, source_ring, a2, b2, c2, depth)
         return
-
-    street_drape_max_subdivision_depth = maxi(street_drape_max_subdivision_depth, depth)
-    street_drape_max_leaf_edge_m = maxf(street_drape_max_leaf_edge_m, max_edge)
 
     # A source polygon may cross the selected 500 m cell boundary. We keep the source
     # geometry untouched, but do not invent terrain heights beyond the selected DTM.
@@ -82,14 +85,25 @@ func _emit_draped_triangle(target: SurfaceTool, source_ring: PackedVector2Array,
         street_drape_unsupported_triangle_count += 1
         return
 
-    for point2: Vector2 in [a2, b2, c2]:
-        if not _point_in_or_on_polygon(point2, source_ring):
-            street_drape_outside_source_vertices += 1
-
     var a := _draped_vertex(a2)
     var b := _draped_vertex(b2)
     var c := _draped_vertex(c2)
-    street_drape_min_check_clearance_m = minf(street_drape_min_check_clearance_m, _leaf_clearance(a, b, c))
+    var clearance := _leaf_clearance(a, b, c)
+
+    # Do not globally force the 309 official polygons to 2 m. Only triangles that the
+    # deterministic DTM check proves would visibly sink are refined further.
+    if clearance < STREET_MIN_CHECK_CLEARANCE_M and depth < STREET_MAX_CLEARANCE_SUBDIVISION_DEPTH:
+        street_drape_clearance_refinement_count += 1
+        _split_draped_triangle(target, source_ring, a2, b2, c2, depth)
+        return
+
+    street_drape_max_subdivision_depth = maxi(street_drape_max_subdivision_depth, depth)
+    street_drape_max_leaf_edge_m = maxf(street_drape_max_leaf_edge_m, max_edge)
+    street_drape_min_check_clearance_m = minf(street_drape_min_check_clearance_m, clearance)
+
+    for point2: Vector2 in [a2, b2, c2]:
+        if not _point_in_or_on_polygon(point2, source_ring):
+            street_drape_outside_source_vertices += 1
     for vertex: Vector3 in [a, b, c]:
         target.set_normal(Vector3.UP)
         target.add_vertex(vertex)
@@ -140,4 +154,4 @@ func _build_street_surfaces() -> void:
     if stats is Dictionary:
         street_segment_count = int(stats.get("street_segments", 0))
 
-    print("IXELLES_STREET_DRAPE: surfaces=%d triangles=%d vertices=%d outside_source=%d unsupported=%d min_clearance=%.5f max_leaf_edge=%.3f depth=%d terrain_game=[%.3f,%.3f]-[%.3f,%.3f]" % [street_surface_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_unsupported_triangle_count, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_subdivision_depth, _terrain_game_min.x, _terrain_game_min.y, _terrain_game_max.x, _terrain_game_max.y])
+    print("IXELLES_STREET_DRAPE: surfaces=%d triangles=%d vertices=%d outside_source=%d unsupported=%d clearance_refinements=%d min_clearance=%.5f max_leaf_edge=%.3f depth=%d terrain_game=[%.3f,%.3f]-[%.3f,%.3f]" % [street_surface_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_unsupported_triangle_count, street_drape_clearance_refinement_count, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_subdivision_depth, _terrain_game_min.x, _terrain_game_min.y, _terrain_game_max.x, _terrain_game_max.y])

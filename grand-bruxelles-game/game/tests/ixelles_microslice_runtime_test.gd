@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SLICE_SCRIPT := preload("res://game/zones/ixelles/ixelles_microslice_draped_exact.gd")
+const SLICE_SCRIPT := preload("res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -32,11 +32,11 @@ func _run() -> void:
     if slice.street_drape_triangle_count > 500000:
         _fail("StreetSurface drape triangle budget exceeded: %d" % slice.street_drape_triangle_count)
         return
-    if slice.street_drape_outside_source_vertices != 0:
-        _fail("densified StreetSurface vertex left its official source partition")
+    if slice.street_drape_source_intersection_piece_count <= 0:
+        _fail("StreetSurface DTM pieces were not intersected with official source polygons")
         return
-    if slice.street_drape_invalid_source_partition_triangles != 0 or slice.street_drape_exact_clip_rejections != 0:
-        _fail("official source partition or exact clip guard rejected geometry")
+    if slice.street_drape_outside_source_vertices != 0:
+        _fail("densified StreetSurface vertex left its official source polygon")
         return
     if not is_finite(slice.street_drape_min_check_clearance_m) or slice.street_drape_min_check_clearance_m < -0.001:
         _fail("DTM-supported StreetSurface still drops beneath rendered terrain: %.6f m" % slice.street_drape_min_check_clearance_m)
@@ -88,5 +88,5 @@ func _run() -> void:
     if slice.vertical_reference_absolute_m < 40.0 or slice.vertical_reference_absolute_m > 100.0:
         _fail("vertical reference is not a plausible official DTM elevation")
         return
-    print("IXELLES_MICROSLICE_RUNTIME_OK: cell=%s samples=%d triangles=%d streets=%d drape_triangles=%d unsupported=%d drape_min_clearance=%.5f max_sampler_render_lift=%.5f buildings=%d skipped=%d reference_z=%.3f" % [slice.cell_id, slice.terrain_sample_count, slice.terrain_triangle_count, slice.street_surface_count, slice.street_drape_triangle_count, slice.street_drape_unsupported_triangle_count, slice.street_drape_min_check_clearance_m, slice.street_drape_max_sampler_render_lift_m, slice.building_count, slice.skipped_unapproved_height_buildings, slice.vertical_reference_absolute_m])
+    print("IXELLES_MICROSLICE_RUNTIME_OK: cell=%s samples=%d triangles=%d streets=%d drape_triangles=%d source_intersections=%d unsupported=%d drape_min_clearance=%.5f max_sampler_render_lift=%.5f buildings=%d skipped=%d reference_z=%.3f" % [slice.cell_id, slice.terrain_sample_count, slice.terrain_triangle_count, slice.street_surface_count, slice.street_drape_triangle_count, slice.street_drape_source_intersection_piece_count, slice.street_drape_unsupported_triangle_count, slice.street_drape_min_check_clearance_m, slice.street_drape_max_sampler_render_lift_m, slice.building_count, slice.skipped_unapproved_height_buildings, slice.vertical_reference_absolute_m])
     quit(0)

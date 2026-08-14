@@ -23,7 +23,7 @@ jobs:
       - name: Install software renderer dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -48,7 +48,7 @@ jobs:
       - name: Measure changed pixels
         run: |
           python3 - <<'PY'
-          from PIL import Image, ImageChops
+          from PIL import Image
           from pathlib import Path
           base = Image.open('grand-bruxelles-game/artifacts/grand-place/arrival-surface/baseline.png').convert('RGB')
           after = Image.open('grand-bruxelles-game/artifacts/grand-place/arrival-surface/official_surface.png').convert('RGB')

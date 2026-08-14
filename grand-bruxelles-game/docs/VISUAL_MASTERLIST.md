@@ -1,8 +1,8 @@
 # Grand Bruxelles — Visual Masterlist
 
-Production truth: GitHub `main` only. This file is the player-facing priority backlog, not a completeness claim.
+Production truth: GitHub `main` only. This is the player-facing direction backlog, not a completeness claim.
 
-Current production checkpoint: `23e00aa33592ef0e6883ea429802336e3490bbc4` (publication-only Web refresh). Latest substantive merge beneath it: `3c2941a11dca4af78f81b4f651365887a8e42f15` (#265 Grand-Place Town Hall white-stone wall presentation), following #260 second official Grand-Place LoD2 mass, #258 Ixelles Stassart 124 frontage and #254 tighter direct Atomium framing.
+Current production checkpoint: `a0540142bfe7bb2490774ba3d5f109aefc2caf57` (Direction/docs only). Latest substantive player-facing merge beneath it remains `3c2941a11dca4af78f81b4f651365887a8e42f15` (#265 Grand-Place Town Hall white-stone walls), with Web publication `23e00aa33592ef0e6883ea429802336e3490bbc4`.
 
 ## North star
 
@@ -16,67 +16,58 @@ Optimize three horizons:
 
 Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is necessary but never sufficient. Source truth and direct player-facing inspection are hard gates.
 
-## Director gates — 2026-08-14 15:09 Brussels
+## Director gates — 2026-08-14 16:13 Brussels
 
-- **#265 Grand-Place Town Hall white-stone walls** — `shipped`, `major_material_identity_gain`. Keeps official UrbIS3D building `1655673` geometry/roof unchanged and applies a white-stone WALLSURFACE presentation only because urban.brussels record 31125 identifies the Grand-Place-facing Hotel de Ville façades as white stone and documents Gobertange/Euville exterior stone. Exact RGB/roughness remain authored presentation values, not photometric measurements. Dedicated 1280×720 A/B passed the anti-micro gate; Director inspection measured 57,970 pixels >3 RGB = 6.2901% of frame, with the change concentrated on the dominant Town Hall wall mass. Human accepted: the civic landmark reads materially lighter/clearer without holes, geometry drift or fake openings.
-- **#260 Grand-Place official LoD2 ensemble mass 1786758** — `shipped`, `ensemble_gain`. Exact official UrbIS3D geometry, 65,125 pixels >3 RGB = 7.0665%; human accepted. #257 remains visible and dominant.
-- **#257 Grand-Place official LoD2 landmark mass 1655673** — `shipped`, `major_silhouette_gain`. Official UrbIS3D building ~43 m from locked control point, ~54.02 × 67.92 m source envelope, 93.024 m vertical extent; ~102,017 pixels >3 RGB = 11.07% of 1280×720.
-- **#258 Ixelles Stassart 124 blue-stone frontage** — `shipped`, `local_identity_gain`. Direct-player A/B: 111,611 pixels >=12/255; one source-backed lower-façade register in the shipped one-cell runtime; 460 unresolved-height buildings remain absent.
-- **#254 Atomium direct FOV framing** — `shipped`, `major_landmark_presentation_gain`. `?spawn=atomium` uses 48° FOV while preserving source-bounded visitor position/pitch; ~43.08% of 1280×720 >8 RGB.
-- **#243 bilingual Brussels street-name plaque** — `shipped`, `shared_identity_gain`.
-- **#242 direct Ixelles player/Web entry** — `shipped`, `player_access_gain`.
-- **#241 Bourse official roof winding** — `shipped`, `source_preserving_roof_gain`.
-- **#239 Ixelles compact visible micro-slice** — `shipped`, `runtime_foundation_gain`.
-- **#261 Ixelles next identity discovery** — `active_draft`, `bounded_evidence_gate`. Exact-current-main probe remains the sole active Ixelles next-cue owner. Discovery artifact confirms all three tested heritage candidates are inside the cell and already among the 260 strong-source rendered buildings: Rue de Stassart 131 / building 1633062 / 22.394 m, Place Stéphanie 8 / building 1737880 / 19.884 m, Rue des Drapiers 31 / building 1618967 / 19.1804 m. This evidence phase is allowed only because the same PR must now select at most one candidate and convert it into a substantial direct-player cue. No second discovery-only PR.
-- **#263 Midi physical bilingual station identity** — `closed_without_merge`. Do not reopen the stale branch; the factual `BRUXELLES-MIDI · BRUSSEL-ZUID` identity remains valuable, but any future implementation must be exact-current-main and visibly stronger than the old floating-label presentation without copying proprietary logo/font artwork.
-- **#262 Atomium pavilion annulus height probe** — `closed_without_merge`. Do not convert a noisy/contaminated DSM-DTM probe into pavilion geometry unless a future clean source establishes the vertical fact.
-- **#252/#247/#244/#220 Laeken context experiments** — rejected/closed; do not revive or inflate.
-- **#231 shared STIB surface-stop vocabulary** — `technically_green`, `human_visual_accepted`, `placement_source_deferred`, `keep_draft`. Asset family remains valuable; production placement still waits for a defensible real stop + furniture subset.
-- **#223 Midi blue-stone material** — `source_disciplined`, `visual_impact_rejected`, `keep_draft`.
+### Shipped anchors
+
+- **#265 Grand-Place Town Hall white-stone walls** — `shipped`, `major_material_identity_gain`. Exact official UrbIS3D geometry/roof retained; source-backed white-stone WALLSURFACE presentation. Director A/B: 57,970 pixels >3 RGB = 6.2901% of 1280×720. Human accepted.
+- **#260 Grand-Place official LoD2 ensemble mass 1786758** — `shipped`, `ensemble_gain`. 65,125 pixels >3 RGB = 7.0665%; human accepted.
+- **#257 Grand-Place official LoD2 landmark mass 1655673** — `shipped`, `major_silhouette_gain`. ~102,017 pixels >3 RGB = 11.07% of 1280×720.
+- **#258 Ixelles Stassart 124 blue-stone frontage** — `shipped`, `local_identity_gain`. Direct-player A/B: 111,611 pixels >=12/255; 460 unresolved-height buildings remain absent.
+- **#254 Atomium direct 48° FOV framing** — `shipped`, `major_landmark_presentation_gain`. Same source-bounded player position/pitch; ~43.08% of 1280×720 >8 RGB.
+- **#243 bilingual Brussels street-name plaque**, **#242 direct Ixelles entry**, **#241 Bourse roof winding**, **#239 Ixelles compact runtime**, **#230 Atomium direct entry**, **#226 Atomium reflections**, **#217 Bourse white-stone portico**, **#215 Midi/Fonsny brick**, **#214 Atomium stainless** remain production foundations.
+
+### Active / newly adjudicated
+
+- **#268 Atomium pavilion official LoD2 source gate** — `active_draft`, `source_gate_passed`, `highest_value_next_runtime_candidate`. Official Paradigm/UrbIS3D building `1651628`, package SHA-256 `ed94f066fc2c869d8b2cb5755a6116d839111ec6d0f03239e1af8a6c9272ddbe`, CC0, EPSG:31370. Exact extraction: 16 WALLSURFACE + 2 ROOFSURFACE + 1 GROUNDSURFACE, 60 triangles, 40.007 × 27.484 m envelope, 6.674 m source height, center ~6.63 m from locked Atomium anchor. Conservative 120 m / 48° / 16:9 apparent-area proxy = 1.637%. This is evidence-only today but directly unlocks one runtime lot: mount exact official geometry on the same PR lineage and require deterministic 1280×960 hero + 1280×720 `?spawn=atomium` A/B. No DSM height, yaw, support feet, vegetation or authored pavilion dimensions.
+- **#267 Midi bilingual station identity** — `active_draft`, `dedicated_visual_red`. Official SNCB/NMBS bilingual naming and Fonsny address are source-backed; general test, Game CI, Branch Hygiene, Web Export, Photo Match and Performance are green. Dedicated 1280×720 A/B currently measures `changed=0`. Keep the 23k/2.5% anti-micro gate. Diagnose visibility/occlusion/local-transform/toggle on this same PR; do not enlarge authored text or move the camera to manufacture impact. Close if a truthful corrected witness remains negligible.
+- **#269 Grand-Place Town Hall slate roof** — `closed_without_merge`, `source_disciplined_but_human_impact_rejected`. Initial zero-delta run was a test-harness bug (`look_at()` before the camera entered the tree); Director fixed the harness only. Corrected exact-head CI then went fully green and measured 31,721 pixels >3 RGB = 3.4419% and 20,746 >8 RGB = 2.2511%. Direct full-frame human review still found the material shift too subtle and mainly readable under cropped A/B, triggering the PR's own rejection rule. Preserve source/helper evidence; do not merge this presentation now.
+- **#261 Ixelles next-identity discovery** — `closed_without_merge`, `evidence_preserved`. Discovery established three eligible in-cell strong-source buildings; later selection work favored Place Stéphanie 8 / building 1737880. Any runtime cue must be rebuilt as a new compact exact-current-main lot; do not revive the stale discovery history.
+- **#231 shared STIB surface-stop vocabulary** — `technically_green`, `human_visual_accepted`, `placement_source_deferred`. Keep draft only while a real stop + actual furniture subset can be proven. Do not infer shelter/bench/info/yaw/curb semantics.
+- **#223 Midi blue-stone** — `source_disciplined`, `visual_impact_rejected`.
 - **#222 Bourse vault proxy** — `source_truth_rejected`, `closed_without_merge`.
-
-## Latest shipped player-facing gains
-
-- **#265 Town Hall white-stone material identity** — turns the dominant Grand-Place civic mass from generic neutral beige into a source-backed white-stone reading over ~6.29% of the frame without changing geometry.
-- **#260 second Grand-Place LoD2 mass** — expands the official architecture ensemble with another immediately visible roofed mass.
-- **#258 Ixelles Stassart 124 frontage** — first strong local material/heritage identity cue inside directly playable Ixelles.
-- **#257 Grand-Place LoD2 mass 1655673** — first major source-backed architecture to dominate the Grand-Place witness.
-- **#254 tighter direct Atomium framing** — stronger 3-second landmark scale/readability without moving world geometry.
-- **#243 bilingual Brussels street-name plaque** — reusable language identity.
-- **#242 direct Ixelles Web/player spawn** — bounded Ixelles slice directly inspectable.
-- **#241 Bourse roof winding normalization** — source-preserving hero roof improvement.
-- **#230 Atomium direct Web spawn**, **#226 deterministic reflections**, **#217 Bourse white-stone portico**, **#215 Midi/Fonsny Fauquenberg brick**, **#214 Atomium stainless presentation**.
-
-## Current top 5 perceived-quality bottlenecks
-
-1. **Grand-Place now has strong massing and one correct material identity, but still lacks a coherent detailed ensemble** — `visual_gap_high_but_improving_fast`. #257 + #260 + #265 prove silhouette + material can move the frame materially. Next gain should add a clearly visible source-backed adjacent identity/frontage/material/paving/context cue only if it increases recognition; do not accumulate small neutral buildings for count.
-2. **Bourse roof/interior volumes + immediate surrounding frontage** — `visual_gap_high`. #241/#217 improved the right layers, but simplified/incomplete structure remains obvious. No proxy pediment or invented landmark dimensions.
-3. **Midi still lacks unmistakable station/STIB/public-space identity** — `visual_gap_high`. #215 brick is strong; #231 remains placement-blocked and #263 closed. Station frontage/entries/wayfinding/transport interface remain high-value opportunities.
-4. **Ixelles is playable and has one strong local frontage but remains sparse/generic beyond it** — `identity_gap_medium_high`. #261 must now become one substantial runtime cue or close.
-5. **Atomium immediate ground/context/pavilion/supports remain generic or unresolved** — `visual_gap_high`. Landmark framing/material/reflections are strong; remaining giveaway is site context.
+- Older Laeken trees/StreetSurface/esplanade/contaminated-height probes remain rejected; long-lived #2/#11 remain evidence/lab only and are never merge units.
 
 ## Active ownership map
 
-- **Centre Vertical Slice** — owns Bourse/Centre/Midi/Grand-Place visible geography. #257/#260/#265 are shipped. A third Grand-Place object-count loop is no longer preferred; next Centre lot should add recognition through one large, source-backed architectural/material/context cue, or pivot to Bourse/Midi if the projected screen impact is weak.
-- **Visual Assets + Atmosphere** — owns shared PBR/furniture/signage/vegetation/lighting/weather/audio. #243 shipped; #231 preserved but placement-deferred. Prioritize unmistakable reusable identity, not generic prop/material micro-deltas.
-- **Ixelles Runtime Slice** — #239/#242/#258 shipped. #261 is the sole active next-identity owner. Same one-cell scope only; discovery must become one high-impact cue within this PR or be closed.
-- **Laeken Hero Impact** — #214/#226/#230/#254 shipped. Landmark presentation is strong; next work is one source-bounded context/pavilion/public-realm correction with obvious screen impact. Rejected context/elevation probes remain rejected.
-- **Impact Director maintenance** — Traffic/Living City/missions/saves/release only for blockers, regressions or unusually high perceived-impact opportunities.
+- **Centre Vertical Slice** — #267 owns the current Midi station-identity question. Grand-Place shipped #257/#260/#265; no active Grand-Place runtime lot after #269 rejection. Next Centre lot must be a materially stronger Grand-Place/Bourse/Midi cue, not another micro-material pass.
+- **Visual Assets + Atmosphere** — shared #231 STIB family remains preserved but placement-deferred. No duplicate station-identity lot while #267 is active.
+- **Ixelles Runtime Slice** — #239/#242/#258 are shipped. #261 is closed; next quality cue requires a fresh current-main compact PR if pursued.
+- **Laeken Hero Impact** — #268 is the sole high-value active Atomium context owner. It has passed the source pre-gate and must now convert to player-facing runtime evidence within one lot or close.
+- **Impact Director maintenance** — Traffic/Living City/missions/saves/release remain maintenance-only unless a blocking regression or unusually high perceived-impact defect appears.
+
+## Current top 5 perceived-quality bottlenecks
+
+1. **Grand-Place coherent detailed recognition** — `visual_gap_high_but_improving_fast`. Massing and Town Hall wall identity are materially better, but roofs/openings/secondary façades/paving/context still read simplified. Reject micro-material deltas that are only visible under crop.
+2. **Bourse roof/interior volumes + immediate frontage** — `visual_gap_high`. Existing improvements are real, but simplified/incomplete structure remains obvious; no proxy pediment or invented landmark dimensions.
+3. **Midi station/STIB/public-space identity** — `visual_gap_high`. #267 is currently red at the player-facing gate; #231 is placement-blocked. A truthful, readable station/transport cue remains valuable if it can survive normal-distance A/B.
+4. **Ixelles local identity density** — `identity_gap_medium_high`. Direct access and Stassart 124 are shipped; the same cell still needs another substantial source-backed cue rather than more infrastructure or micro-signage.
+5. **Atomium immediate pavilion/site context** — `visual_gap_high`, now with a strong source unlock. #268 has found exact official LoD2 pavilion geometry; this is the clearest current opportunity to replace generic base context without inventing dimensions.
 
 ## Stream health
 
-- **Centre** — `highly_productive_now`: #257/#260/#265 delivered ~11.07%, ~7.07% and ~6.29% full-frame visual changes with strong source truth. Keep the anti-micro bar and move from raw mass accumulation toward coherent Grand-Place recognition.
-- **Visual Assets + Atmosphere** — `productive_but_source_blocked_on_stib`: bilingual signage shipped; STIB family remains valuable but placement truth is deferred. Pivot if no genuinely new official placement evidence appears.
-- **Ixelles** — `productive_with_evidence_risk`: runtime/access/frontage are shipped. #261 discovery successfully found three eligible rendered heritage candidates; it must now ship one visible cue or close, not deepen research.
-- **Laeken** — `productive_but_context_blocked`: landmark presentation is strong after #254/#214/#226. Remaining candidates must be rejected early when source coverage or projected screen impact is weak.
+- **Centre** — `productive_but_current_candidate_red`: recent shipped Grand-Place gains were excellent, but #269 was human-rejected and #267 currently has zero visible delta. Pivot rather than lower gates.
+- **Visual Assets + Atmosphere** — `disciplined_but_source_blocked`: shared identity work is useful, but do not keep STIB alive by inertia or duplicate #267.
+- **Ixelles** — `productive_with_no_active_runtime_lot`: shipped runtime/access/frontage are healthy; next change should be one large local identity cue from fresh current main.
+- **Laeken** — `high_confidence_source_unlock`: #268 is the best current specialist lead because it converts a previously unresolved pavilion-height problem into exact official LoD2 geometry with measurable projected area.
 
 ## Shared priorities
 
-1. **Grand-Place coherent recognition after #257 + #260 + #265** — add one more large source-backed recognition cue only if it improves the ensemble, not object count.
-2. **Midi station/STIB identity** through source-backed frontage/entry/wayfinding or a genuinely proven #231 placement.
-3. **Ixelles second local identity cue** through #261 only, inside the shipped cell, with direct-player A/B and anti-micro gate.
-4. **Atomium immediate context** with source-bounded geometry/material visible in the strengthened #254 framing.
-5. Atmosphere/wet/night only after the chosen frame has credible geometry and street identity.
+1. **Atomium pavilion exact LoD2 runtime from #268** — highest confidence/impact next candidate, subject to hero + direct-player A/B and human inspection.
+2. **Grand-Place coherent recognition** — choose a large source-backed cue that is more obvious than the rejected slate pass; no object-count or micro-material loop.
+3. **Midi station identity** — debug #267 without weakening its gate; close if normal-distance impact remains zero/negligible.
+4. **Ixelles second local identity cue** — fresh exact-current-main compact lot only, same shipped cell.
+5. Atmosphere/wet/night only after the selected witness has credible geometry and local identity.
 
 ## Production rules
 
@@ -86,11 +77,11 @@ Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is 
 4. Publication-only commits are not new gameplay/visual truth.
 5. Prefer Paradigm/UrbIS/UrbIS3D, Brussels Mobility, STIB and official orthophoto/DTM/DSM. OSM is complement, not proof for unresolved geometry/traffic semantics.
 6. Preserve lawful provenance/licensing; never distribute reference imagery as textures without permission.
-7. Evidence-only work is allowed only if it can unlock a material player-facing correction within one or two lots.
+7. Evidence-only work is allowed only when it can unlock a material player-facing correction within one or two lots.
 8. Green CI can still be rejected for negligible player impact or weak source truth.
 9. Substantive lots require deterministic player-facing evidence, human inspection, relevant tests, branch hygiene and performance when applicable.
 10. Pixel delta is evidence, not the objective. Judge recognition, silhouette, street proportions, material response, atmosphere, legibility, motion and gameplay feel.
 
 ## Director next-integration priority
 
-**Highest-value next candidate: one additional high-screen-area Grand-Place recognition cue that complements shipped #257/#260/#265, not another neutral mass for count. The preferred target is an adjacent source-backed material/frontage/architectural identity or coherent square context that is obvious in the locked 1280×720 witness. If no such Centre candidate clears the anti-micro/source-truth gate quickly, #261 Ixelles becomes the next candidate only when it converts exactly one of its three eligible heritage buildings into a substantial direct-player cue; otherwise pivot to Midi station identity.**
+**Highest-value next candidate: convert #268's exact official Atomium pavilion LoD2 source gate into a bounded runtime hero/direct-player A/B on the same candidate. The source confidence is high, the envelope is substantial, the candidate is centered on the locked Atomium base, and the projected-area pre-gate clears the anti-micro threshold. No merge until player-facing captures and human inspection pass. If #268 underperforms visually, pivot immediately to a larger Grand-Place/Bourse/Midi cue rather than deepen evidence research.**

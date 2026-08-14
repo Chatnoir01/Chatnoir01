@@ -49,6 +49,12 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_real_cell_lifecycle_test.gd 2>&1 | tee /tmp/real-cell-lifecycle.log
+          timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_real_cell_lifecycle_test.gd 2>&1 | tee /tmp/real-cell-lifecycle.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -eq 124 ]; then
+            echo "BRUSSELS_REAL_CELL_LIFECYCLE_FAIL: timed out after 45s"
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_REAL_CELL_LIFECYCLE_FAIL" /tmp/real-cell-lifecycle.log; then exit 1; fi
           grep -F "BRUSSELS_REAL_CELL_LIFECYCLE_OK" /tmp/real-cell-lifecycle.log

@@ -3,6 +3,8 @@ extends Node3D
 ## Source-positioned public-tree context for the Atomium hero view.
 ## Only point positions/species metadata are authoritative. Mesh dimensions are
 ## deterministic presentation approximations and are deliberately non-physical.
+## Source coordinates remain EPSG:31370 and are converted to the exact local
+## game-space convention used by AtomiumDTMTerrain before filtering/rendering.
 
 @export_file("*.json") var data_path := "res://data/environment/laeken_jette/official_city_trees.game.json"
 @export_file("*.json") var provenance_path := "res://data/sources/laeken_jette/official_city_trees_provenance.json"
@@ -18,6 +20,7 @@ var rendered_tree_count := 0
 var terrain_rejected_count := 0
 var radius_rejected_count := 0
 var source_dimensions_claimed := false
+var source_coordinate_conversion_verified := false
 var collision_created := false
 var _trunk_multimesh: MultiMesh
 var _crown_multimesh: MultiMesh
@@ -47,6 +50,13 @@ func build_on_terrain(terrain: Node) -> bool:
         return false
     source_dimensions_claimed = false
 
+    var origin_e := float(terrain.get("origin_e"))
+    var origin_n := float(terrain.get("origin_n"))
+    if is_zero_approx(origin_e) or is_zero_approx(origin_n):
+        push_error("AtomiumOfficialCityTrees: terrain Lambert origin unavailable")
+        return false
+    source_coordinate_conversion_verified = true
+
     var hero_pos: Vector3 = terrain.get("atomium_game_position")
     var positions: Array[Vector3] = []
     var scales: Array[float] = []
@@ -60,8 +70,11 @@ func build_on_terrain(terrain: Node) -> bool:
         var coords: Variant = (geometry as Dictionary).get("coordinates", [])
         if not coords is Array or coords.size() < 2:
             continue
-        var x := float(coords[0])
-        var z := float(coords[1])
+        var source_e := float(coords[0])
+        var source_n := float(coords[1])
+        var game_horizontal := source_to_game_horizontal(terrain, source_e, source_n)
+        var x := game_horizontal.x
+        var z := game_horizontal.y
         var horizontal := Vector2(x - hero_pos.x, z - hero_pos.z).length()
         if horizontal > hero_radius_m:
             radius_rejected_count += 1
@@ -80,6 +93,11 @@ func build_on_terrain(terrain: Node) -> bool:
     _build_multimeshes(positions, scales)
     print("ATOMIUM_OFFICIAL_TREES_READY: source=%d rendered=%d radius_rejected=%d terrain_rejected=%d" % [source_feature_count, rendered_tree_count, radius_rejected_count, terrain_rejected_count])
     return true
+
+func source_to_game_horizontal(terrain: Node, source_e: float, source_n: float) -> Vector2:
+    var origin_e := float(terrain.get("origin_e"))
+    var origin_n := float(terrain.get("origin_n"))
+    return Vector2(source_e - origin_e, -(source_n - origin_n))
 
 func _load_dictionary(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):

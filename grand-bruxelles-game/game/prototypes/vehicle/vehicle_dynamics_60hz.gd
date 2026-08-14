@@ -6,7 +6,7 @@ class_name GrandBruxellesVehicleDynamics60Hz
 ## Goal: test a more physical car feel without raising the entire open world to 120/240 Hz.
 
 var mass_kg: float = 1450.0
-var engine_force_n: float = 7200.0
+var engine_force_n: float = 5500.0
 var brake_force_n: float = 12500.0
 var rolling_resistance_n: float = 210.0
 var aero_drag_coefficient: float = 0.44

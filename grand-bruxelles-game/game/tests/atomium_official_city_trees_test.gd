@@ -40,8 +40,23 @@ func _run() -> void:
 
     var trees := TREES_SCRIPT.new()
     world.add_child(trees)
+
+    # Regression: public-tree GeoJSON is absolute EPSG:31370, while the DTM
+    # runtime is local metres about game_origin_e/game_origin_n. Prove that the
+    # same conversion maps the Atomium's reconstructed Lambert coordinate back
+    # to the already-validated local anchor before consuming any tree feature.
+    var reconstructed_atomium_e := float(terrain.origin_e) + hero.anchor_position.x
+    var reconstructed_atomium_n := float(terrain.origin_n) - hero.anchor_position.z
+    var converted_anchor := trees.source_to_game_horizontal(terrain, reconstructed_atomium_e, reconstructed_atomium_n)
+    if absf(converted_anchor.x - hero.anchor_position.x) > 0.001 or absf(converted_anchor.y - hero.anchor_position.z) > 0.001:
+        _fail("Lambert-to-local conversion drifted: %s vs hero %s" % [converted_anchor, Vector2(hero.anchor_position.x, hero.anchor_position.z)])
+        return
+
     if not trees.build_on_terrain(terrain):
         _fail("official tree context did not build")
+        return
+    if not trees.source_coordinate_conversion_verified:
+        _fail("source coordinates were not converted from EPSG:31370")
         return
     if trees.source_feature_count != 8236:
         _fail("official source count drifted: %d" % trees.source_feature_count)

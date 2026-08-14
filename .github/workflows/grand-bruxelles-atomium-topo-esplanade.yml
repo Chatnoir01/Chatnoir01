@@ -1,0 +1,94 @@
+name: Grand Bruxelles Atomium Topo Esplanade
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-topo-esplanade.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-topo-esplanade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch bounded official UrbIS Topo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/atomium-topo grand-bruxelles-game/artifacts/atomium
+          BASE='https://geoservices-urbis.irisnet.be/geoserver/urbistopo/wfs'
+          COMMON='service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=147900%2C175900%2C148300%2C176300%2CEPSG%3A31370'
+          curl -fL --retry 3 --retry-delay 3 "$BASE?$COMMON&typeName=urbistopo%3ATopoLines" -o /tmp/atomium-topo/lines.json
+          curl -fL --retry 3 --retry-delay 3 "$BASE?$COMMON&typeName=urbistopo%3ATopoPoints" -o /tmp/atomium-topo/points.json
+          python3 - <<'PY'
+          import json, math
+          from pathlib import Path
+
+          anchor=(148093.22038698208,176091.76722726133)
+          targets={
+              'stairs_line': {'BB03L'},
+              'stairs_point': {'BB0301P','BB0302P','BB0303P'},
+              'furniture_line': {'CR36L','CR39L','CR4001L','CR4002L','CR42L','CR47L'},
+              'furniture_point': {'CR3401P','CR3601P','CR3602P','CR3701P','CR3801P','CR3901P','CR4401P','CR4601P','CR5201P'},
+          }
+
+          def coords(obj):
+              if isinstance(obj,(list,tuple)):
+                  if len(obj)>=2 and isinstance(obj[0],(int,float)) and isinstance(obj[1],(int,float)):
+                      yield float(obj[0]),float(obj[1])
+                  else:
+                      for x in obj: yield from coords(x)
+
+          out={'source':{
+              'provider':'Paradigm / Brussels-Capital Region',
+              'service':'UrbIS Topo WFS',
+              'crs':'EPSG:31370',
+              'bbox':[147900,175900,148300,176300],
+              'license_note':'Verify against official UrbIS metadata before runtime promotion.'
+          },'atomium_anchor_epsg31370':list(anchor),'collections':{},'property_keys':{},'selected':[]}
+
+          for label, fn in [('lines','/tmp/atomium-topo/lines.json'),('points','/tmp/atomium-topo/points.json')]:
+              data=json.load(open(fn,encoding='utf-8'))
+              feats=data.get('features',[])
+              keys=sorted({str(k) for f in feats for k in f.get('properties',{}).keys()})
+              out['property_keys'][label]=keys
+              types={}
+              for f in feats:
+                  props=f.get('properties',{})
+                  type_val=None
+                  for k,v in props.items():
+                      lk=str(k).lower()
+                      if lk in {'type','topo_type','topotype','typecode','type_code'} or lk.endswith('type'):
+                          if isinstance(v,(str,int)):
+                              type_val=str(v).upper()
+                              if type_val.startswith(('BB','CR','BF','BG','BH','BR','BW','BT')):
+                                  break
+                  if type_val:
+                      types[type_val]=types.get(type_val,0)+1
+                  matched=[]
+                  for group,codes in targets.items():
+                      if type_val in codes: matched.append(group)
+                  if not matched: continue
+                  pts=list(coords(f.get('geometry',{}).get('coordinates',[])))
+                  d=min((math.hypot(x-anchor[0],y-anchor[1]) for x,y in pts),default=None)
+                  out['selected'].append({'id':f.get('id'),'groups':matched,'topo_type':type_val,'min_distance_m':d,'geometry':f.get('geometry'),'properties':props})
+              out['collections'][label]={'feature_count':len(feats),'type_counts':dict(sorted(types.items()))}
+
+          out['selected'].sort(key=lambda f:(999999 if f['min_distance_m'] is None else f['min_distance_m'],str(f['id'])))
+          out['selected_count']=len(out['selected'])
+          out['selected_within_160m']=sum(1 for f in out['selected'] if f['min_distance_m'] is not None and f['min_distance_m']<=160)
+          Path('grand-bruxelles-game/artifacts/atomium/atomium_topo_esplanade_discovery.json').write_text(json.dumps(out,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          print('ATOMIUM_TOPO_ESPLANADE_DISCOVERY_OK selected=%d within_160m=%d' % (out['selected_count'],out['selected_within_160m']))
+          print('property_keys=',out['property_keys'])
+          print('nearest=',[(f['topo_type'], round(f['min_distance_m'],2), f['id']) for f in out['selected'][:20]])
+          PY
+      - name: Upload bounded discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-topo-esplanade-discovery
+          path: grand-bruxelles-game/artifacts/atomium/atomium_topo_esplanade_discovery.json
+          if-no-files-found: error

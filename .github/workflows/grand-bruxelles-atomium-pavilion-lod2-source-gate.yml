@@ -60,7 +60,32 @@ jobs:
             --origin-e 148093.22038698208 --origin-n 176091.76722726133 \
             --world-x 0 --world-z 0 \
             --output /tmp/1651628.reextract.json
-          cmp /tmp/1651628.reextract.json grand-bruxelles-game/data/sources/laeken_jette/atomium_pavilion_lod2.game.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          a_path=Path('/tmp/1651628.reextract.json')
+          b_path=Path('grand-bruxelles-game/data/sources/laeken_jette/atomium_pavilion_lod2.game.json')
+          a=json.loads(a_path.read_text(encoding='utf-8'))
+          b=json.loads(b_path.read_text(encoding='utf-8'))
+          def counts(d):
+              out={}
+              for f in d['faces']:
+                  out[f['id']] = (f['type'], len(f.get('triangles', [])))
+              return out
+          print('ATOMIUM_PAVILION_TOPOLOGY_SOURCE', counts(a))
+          print('ATOMIUM_PAVILION_TOPOLOGY_COMMITTED', counts(b))
+          print('ATOMIUM_PAVILION_TRIANGLES_SOURCE', sum(len(f.get('triangles',[])) for f in a['faces']))
+          print('ATOMIUM_PAVILION_TRIANGLES_COMMITTED', sum(len(f.get('triangles',[])) for f in b['faces']))
+          amap={f['id']:f for f in a['faces']}; bmap={f['id']:f for f in b['faces']}
+          for fid in sorted(set(amap)|set(bmap)):
+              af=amap.get(fid); bf=bmap.get(fid)
+              if af != bf:
+                  print('ATOMIUM_PAVILION_FACE_DIFF', fid)
+                  print('SOURCE_FACE', json.dumps(af, separators=(',',':'), ensure_ascii=False))
+                  print('COMMITTED_FACE', json.dumps(bf, separators=(',',':'), ensure_ascii=False))
+          if a != b:
+              raise SystemExit('exact committed pavilion payload differs from deterministic official re-extraction')
+          PY
       - name: Enforce source-confidence and projected-size pre-gate
         shell: bash
         run: |

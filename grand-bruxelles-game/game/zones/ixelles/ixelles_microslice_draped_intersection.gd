@@ -8,11 +8,16 @@ extends "res://game/zones/ixelles/ixelles_microslice_draped.gd"
 const STASSART_124_BUILDING_ID := "https://databrussels.be/id/building/1737877"
 const STASSART_124_LEVEL_COUNT := 4.0
 const STASSART_124_CUE_ENV := "GB_IXELLES_STASSART124_CUE"
+const LOUISE_TREE_SOURCE_PATH := "res://data/sources/ixelles/avenue_louise_alignment_trees.json"
+const LOUISE_TREE_CUE_ENV := "GB_IXELLES_LOUISE_TREES"
+const LOUISE_TREE_TRUNK_RADIUS_M := 0.16
 
 var street_drape_source_intersection_piece_count := 0
 var street_drape_source_intersection_empty_count := 0
 var street_drape_source_polygon_count := 0
 var stassart_124_blue_stone_cue_built := false
+var louise_tree_context_built := false
+var louise_tree_count := 0
 
 func _emit_bounded_piece(target: SurfaceTool, bounded_piece: PackedVector2Array) -> void:
     if bounded_piece.size() < 3:
@@ -127,9 +132,10 @@ func _build_street_surfaces() -> void:
 
 func _build_strong_height_candidate_buildings() -> void:
     super._build_strong_height_candidate_buildings()
-    if OS.get_environment(STASSART_124_CUE_ENV) == "0":
-        return
-    _build_stassart_124_blue_stone_ground_floor()
+    if OS.get_environment(STASSART_124_CUE_ENV) != "0":
+        _build_stassart_124_blue_stone_ground_floor()
+    if OS.get_environment(LOUISE_TREE_CUE_ENV) != "0":
+        _build_louise_tree_context()
 
 func _build_stassart_124_blue_stone_ground_floor() -> void:
     var cell: Dictionary = get_meta("ixelles_cell_contract", {})
@@ -198,3 +204,90 @@ func _build_stassart_124_blue_stone_ground_floor() -> void:
     add_child(instance)
     stassart_124_blue_stone_cue_built = true
     print("IXELLES_STASSART124_IDENTITY_READY: building=%s levels=4 semantic_height=%.3f cue_height=%.3f material=blue_stone renderer_only=true" % [STASSART_124_BUILDING_ID, semantic_height, semantic_height / STASSART_124_LEVEL_COUNT])
+
+func _build_louise_tree_context() -> void:
+    if not FileAccess.file_exists(LOUISE_TREE_SOURCE_PATH):
+        push_error("Ixelles tree context: official source contract missing")
+        return
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(LOUISE_TREE_SOURCE_PATH))
+    if not parsed is Dictionary:
+        push_error("Ixelles tree context: invalid source contract")
+        return
+    var contract := parsed as Dictionary
+    if bool(contract.get("runtime_approved", true)) or bool(contract.get("promote_runtime", true)):
+        push_error("Ixelles tree context: local cue must remain provisional")
+        return
+    var trees: Variant = contract.get("trees", [])
+    if not trees is Array or trees.size() != 21:
+        push_error("Ixelles tree context: source tree count drifted")
+        return
+
+    var root := Node3D.new()
+    root.name = "OfficialLouiseAlignmentTrees"
+    root.set_meta("source_layer", "bm_public_space:trees")
+    root.set_meta("source_crs", "EPSG:31370")
+    root.set_meta("source_license", "CC0")
+    add_child(root)
+
+    var trunk_material := _make_material(Color(0.20, 0.135, 0.085, 1.0), 0.96)
+    var crown_material := _make_material(Color(0.115, 0.285, 0.105, 1.0), 0.98)
+    for raw: Variant in trees:
+        if not raw is Dictionary:
+            continue
+        var tree := raw as Dictionary
+        if str(tree.get("status", "")) != "en vie" or str(tree.get("road", "")) != "Louise (Av.)":
+            continue
+        var e := float(tree.get("e", NAN))
+        var n := float(tree.get("n", NAN))
+        var source_height := float(tree.get("height_m", NAN))
+        var crown_diameter := float(tree.get("crown_diameter_m", NAN))
+        if not is_finite(e) or not is_finite(n) or not is_finite(source_height) or not is_finite(crown_diameter) or source_height <= 1.0 or crown_diameter <= 0.5:
+            continue
+        var game := lambert_to_game(e, n)
+        var base_y := sample_height(game.x, game.z) + 0.045
+        var crown_vertical_radius := minf(crown_diameter * 0.45, source_height * 0.38)
+        var crown_vertical_diameter := crown_vertical_radius * 2.0
+        var crown_center_y := base_y + source_height - crown_vertical_radius
+        var trunk_height := maxf(1.0, source_height - crown_vertical_radius * 1.15)
+
+        var tree_root := Node3D.new()
+        tree_root.name = "LouiseTree_%s" % str(tree.get("numident", tree.get("gid", louise_tree_count)))
+        tree_root.position = Vector3(game.x, 0.0, game.z)
+        tree_root.set_meta("source_gid", int(tree.get("gid", -1)))
+        tree_root.set_meta("source_height_m", source_height)
+        tree_root.set_meta("source_crown_diameter_m", crown_diameter)
+        tree_root.set_meta("source_species", str(tree.get("species", "")))
+        root.add_child(tree_root)
+
+        var trunk_mesh := CylinderMesh.new()
+        trunk_mesh.top_radius = LOUISE_TREE_TRUNK_RADIUS_M
+        trunk_mesh.bottom_radius = LOUISE_TREE_TRUNK_RADIUS_M
+        trunk_mesh.height = trunk_height
+        trunk_mesh.radial_segments = 8
+        trunk_mesh.rings = 1
+        var trunk := MeshInstance3D.new()
+        trunk.name = "TrunkPresentation"
+        trunk.mesh = trunk_mesh
+        trunk.material_override = trunk_material
+        trunk.position.y = base_y + trunk_height * 0.5
+        tree_root.add_child(trunk)
+
+        var crown_mesh := SphereMesh.new()
+        crown_mesh.radius = 0.5
+        crown_mesh.height = 1.0
+        crown_mesh.radial_segments = 12
+        crown_mesh.rings = 6
+        var crown := MeshInstance3D.new()
+        crown.name = "CrownSourceEnvelope"
+        crown.mesh = crown_mesh
+        crown.material_override = crown_material
+        crown.position.y = crown_center_y
+        crown.scale = Vector3(crown_diameter, crown_vertical_diameter, crown_diameter)
+        tree_root.add_child(crown)
+        louise_tree_count += 1
+
+    if louise_tree_count != 21:
+        push_error("Ixelles tree context: not all selected live Louise trees were built")
+        return
+    louise_tree_context_built = true
+    print("IXELLES_LOUISE_TREE_CONTEXT_READY: count=%d source=Bruxelles_Mobilite layer=bm_public_space:trees positions=true heights=true crown_diameters=true renderer_only_profile=true" % louise_tree_count)

@@ -1,0 +1,43 @@
+name: Grand Bruxelles Atomium TopoShapes Semantics
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-toposhapes-semantics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve bounded TopoShapes descriptors
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://geoservices-urbis.irisnet.be/geoserver/urbistopo/wfs'
+          URL="$BASE?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=147900%2C175900%2C148300%2C176300%2CEPSG%3A31370&typeName=urbistopo%3ATopoShapes"
+          curl -fL --retry 3 --retry-delay 2 --max-time 30 "$URL" -o /tmp/shapes.json
+          python3 - <<'PY'
+          import json, math
+          anchor=(148093.22038698208,176091.76722726133)
+          data=json.load(open('/tmp/shapes.json',encoding='utf-8'))
+          def coords(x):
+              if isinstance(x,list) and len(x)>=2 and isinstance(x[0],(int,float)) and isinstance(x[1],(int,float)):
+                  yield float(x[0]),float(x[1])
+              elif isinstance(x,list):
+                  for y in x: yield from coords(y)
+          rows=[]
+          for f in data.get('features',[]):
+              pts=list(coords((f.get('geometry') or {}).get('coordinates',[])))
+              d=min((math.hypot(x-anchor[0],y-anchor[1]) for x,y in pts),default=1e9)
+              if d <= 150.0:
+                  rows.append({'id':f.get('id'),'distance_m':round(d,3),'properties':f.get('properties',{}),'geometry_type':(f.get('geometry') or {}).get('type')})
+          print('ATOMIUM_TOPOSHAPES_SEMANTICS', json.dumps(rows,ensure_ascii=False,sort_keys=True))
+          if not rows:
+              raise SystemExit('no bounded TopoShapes feature near Atomium')
+          PY

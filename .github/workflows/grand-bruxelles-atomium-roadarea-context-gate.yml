@@ -1,0 +1,32 @@
+name: Grand Bruxelles Atomium RoadArea Context Gate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-roadarea-context-gate.yml"
+      - "grand-bruxelles-game/tools/probe_atomium_roadarea_context.py"
+      - "grand-bruxelles-game/data/environment/laeken_jette/atomium_roadarea_context.game.json"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_roadarea_context.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_core.gd"
+      - "grand-bruxelles-game/game/tests/atomium_roadarea_context_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe official INSPIRE RoadArea with exact geometry
+        working-directory: grand-bruxelles-game
+        run: python3 tools/probe_atomium_roadarea_context.py
+      - name: Upload exact source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-roadarea-context-source-gate
+          path: grand-bruxelles-game/artifacts/atomium/roadarea_context_probe.json
+          if-no-files-found: error

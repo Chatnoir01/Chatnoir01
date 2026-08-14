@@ -1,0 +1,41 @@
+{
+  "format": "grand-bruxelles-ixelles-identity-cue-v1",
+  "cell_id": "bxl-e149000-n169000-s500",
+  "epsg": 31370,
+  "source_layer": "Paradigm / UrbIS StreetAxes",
+  "source_runtime_file": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/network.game.json",
+  "cue": "bilingual_street_name_junction_cluster",
+  "axes": [
+    {
+      "id": "https://databrussels.be/id/streetaxe/71374:2",
+      "street_fr": "Rue de Stassart",
+      "street_nl": "de Stassartstraat",
+      "shared_game_endpoint": [735.808, 926.9]
+    },
+    {
+      "id": "https://databrussels.be/id/streetaxe/71306:2",
+      "street_fr": "Place Stéphanie",
+      "street_nl": "Stefaniaplein",
+      "shared_game_endpoint": [735.808, 926.9]
+    }
+  ],
+  "shared_endpoint_tolerance_m": 0.001,
+  "visual_family": "res://game/scripts/brussels_bilingual_street_sign.gd",
+  "source_backed_claims": [
+    "the two factual French/Dutch street-name pairs",
+    "the shared StreetAxis endpoint used as the junction anchor",
+    "the existing Ixelles 2 m DTM used for vertical ground placement"
+  ],
+  "authored_presentation_only": [
+    "support post dimensions and material",
+    "plaque vertical spacing",
+    "witness-facing yaw used to make the shipped plaque family readable from the accepted direct player view"
+  ],
+  "claims_surveyed_permanent_mount": false,
+  "changes_geography": false,
+  "changes_terrain": false,
+  "changes_collision": false,
+  "changes_building_heights": false,
+  "runtime_approved": false,
+  "promote_runtime": false
+}

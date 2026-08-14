@@ -23,7 +23,7 @@ func _run() -> void:
 
     var player := CharacterBody3D.new()
     player.name = "Player"
-    player.global_position = Vector3(-652.0, 1.05, 621.0)
+    player.position = Vector3(-652.0, 1.05, 621.0)
     world.add_child(player)
 
     var playability := PLAYABILITY_RUNTIME_SCRIPT.new()

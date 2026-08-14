@@ -26,7 +26,7 @@ func _run() -> void:
         _fail("Bourse reveal or authoritative Walls mesh missing")
         return
 
-    var removed_triangles := int(reveal.call("diagnostic_removed_triangles"))
+    var removed_triangles: int = int(reveal.call("diagnostic_removed_triangles"))
     if removed_triangles <= 0:
         _fail("front reveal did not remove any source-bounded wall triangles")
         return
@@ -35,13 +35,13 @@ func _run() -> void:
         _fail("Walls collision was not rebuilt after runtime mesh adjustments")
         return
 
-    var visible_vertex_count := walls.mesh.surface_get_array_len(0)
-    var collision_source_vertex_count := int(walls.get_meta("collision_source_vertex_count", -1))
+    var visible_vertex_count: int = int(walls.mesh.surface_get_array_len(0))
+    var collision_source_vertex_count: int = int(walls.get_meta("collision_source_vertex_count", -1))
     if visible_vertex_count <= 0 or collision_source_vertex_count != visible_vertex_count:
         _fail("collision source does not match final visible Walls mesh: collision=%d visible=%d" % [collision_source_vertex_count, visible_vertex_count])
         return
 
-    var collision_bodies := 0
+    var collision_bodies: int = 0
     for child: Node in walls.get_children():
         if child is CollisionObject3D:
             collision_bodies += 1

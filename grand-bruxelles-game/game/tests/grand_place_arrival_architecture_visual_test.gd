@@ -5,11 +5,13 @@ const OUTPUT_DIR := "res://artifacts/grand-place/arrival-architecture"
 const WIDTH := 1280
 const HEIGHT := 720
 const GRAND_PLACE_ANCHOR := Vector2(319.01, -535.2)
-# Presentation witness only. This point is deliberately inside the official Grand-Place
-# surface and aims across the plaza at existing production architecture. It is not a
-# surveyed camera pose and does not establish landmark dimensions.
-const CAMERA_POSITION := Vector3(289.0, 1.72, -563.0)
-const CAMERA_TARGET := Vector3(350.0, 13.0, -505.0)
+# Presentation witness only. Production diagnostics prove the current corridor slice carries
+# its Grand-Place building masses on the west/south-west edge (nearest centres x=269..200,
+# z=-568..-607). This fixed point stays inside the official plaza envelope and looks across
+# the square at those existing masses. It is not a surveyed camera pose and establishes no
+# landmark dimensions.
+const CAMERA_POSITION := Vector3(360.0, 1.72, -505.0)
+const CAMERA_TARGET := Vector3(255.0, 9.0, -578.0)
 const CAMERA_FOV := 62.0
 
 func _initialize() -> void:
@@ -110,23 +112,14 @@ func _run() -> void:
         await process_frame
 
     var nearby := _nearby_architecture(main)
-    var diagnostic: Array[String] = []
-    for index: int in range(mini(nearby.size(), 20)):
-        var entry: Dictionary = nearby[index]
-        var p: Vector3 = entry["position"]
-        diagnostic.append("%s@(%.1f,%.1f,%.1f):%.1fm" % [str(entry["name"]), p.x, p.y, p.z, float(entry["distance"])])
-    print("GRAND_PLACE_NEARBY_ARCH: count=%d nearest=%s" % [nearby.size(), "; ".join(diagnostic)])
-
-    # Always capture the calibrated baseline before enforcing the architecture gate so a
-    # failing witness remains visually diagnosable instead of producing a log-only artifact.
-    surface.call("set_surface_visible", false)
-    if not await _capture(OUTPUT_DIR + "/before.png"):
-        _fail("before capture failed")
-        return
-
     var visible_architecture := _visible_architecture_count(nearby, camera)
     if visible_architecture < 3:
         _fail("witness does not carry enough production architecture: %d visible of %d nearby building masses" % [visible_architecture, nearby.size()])
+        return
+
+    surface.call("set_surface_visible", false)
+    if not await _capture(OUTPUT_DIR + "/before.png"):
+        _fail("before capture failed")
         return
 
     surface.call("set_surface_visible", true)

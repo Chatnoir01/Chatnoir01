@@ -5,13 +5,19 @@ extends Node3D
 ## not provide calibrated sky radiance, sun azimuth, exposure or weather. All
 ## numeric lighting/sky values here are therefore authored presentation values,
 ## never measured photometry or landmark geometry.
+##
+## Important acceptance constraint: keep the already-validated hero ambient/sun
+## presentation for terrain readability and add the procedural sky only as the
+## stainless reflection/background source. This avoids turning an environment
+## improvement into a terrain-lighting regression.
 
 var environment_built := false
 var reflection_source_is_sky := false
+var ambient_preserves_baseline := false
 var authored_non_photometric := true
 var sky_energy := 0.82
-var ambient_energy := 0.58
-var sun_energy := 1.18
+var ambient_energy := 0.62
+var sun_energy := 1.25
 
 var world_environment: WorldEnvironment
 var sun: DirectionalLight3D
@@ -38,10 +44,12 @@ func build() -> bool:
     var env := Environment.new()
     env.background_mode = Environment.BG_SKY
     env.sky = sky
-    env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+    # Preserve the accepted pre-lot ambient presentation exactly. The sky is a
+    # reflection/background source, not a claim about measured ambient radiance.
+    env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+    env.ambient_light_color = Color(0.88, 0.90, 0.93, 1.0)
     env.ambient_light_energy = ambient_energy
     env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-    env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 
     world_environment = WorldEnvironment.new()
     world_environment.name = "AtomiumHeroWorldEnvironment"
@@ -51,13 +59,13 @@ func build() -> bool:
     sun = DirectionalLight3D.new()
     sun.name = "AtomiumHeroSun"
     sun.rotation_degrees = Vector3(-46.0, -28.0, 0.0)
-    sun.light_color = Color(1.0, 0.97, 0.92, 1.0)
     sun.light_energy = sun_energy
     sun.shadow_enabled = true
     add_child(sun)
 
     reflection_source_is_sky = env.reflected_light_source == Environment.REFLECTION_SOURCE_SKY
-    environment_built = reflection_source_is_sky
+    ambient_preserves_baseline = env.ambient_light_source == Environment.AMBIENT_SOURCE_COLOR and absf(env.ambient_light_energy - 0.62) <= 0.001
+    environment_built = reflection_source_is_sky and ambient_preserves_baseline
     if environment_built:
-        print("ATOMIUM_REFLECTION_ENVIRONMENT_READY: sky_energy=%.2f ambient=%.2f sun=%.2f authored_non_photometric=%s" % [sky_energy, ambient_energy, sun_energy, str(authored_non_photometric)])
+        print("ATOMIUM_REFLECTION_ENVIRONMENT_READY: sky_energy=%.2f ambient=%.2f sun=%.2f sky_reflection=%s baseline_ambient=%s authored_non_photometric=%s" % [sky_energy, ambient_energy, sun_energy, str(reflection_source_is_sky), str(ambient_preserves_baseline), str(authored_non_photometric)])
     return environment_built

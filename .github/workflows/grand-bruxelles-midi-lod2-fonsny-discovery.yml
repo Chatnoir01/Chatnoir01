@@ -1,0 +1,104 @@
+name: Grand Bruxelles Midi LoD2 Fonsny Discovery
+
+on:
+  push:
+    branches: ["integration/midi-lod2-fonsny-discovery-live"]
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-lod2-fonsny-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official UrbIS 3D Constructions tile 147169
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_147169_20260808.zip"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          sha256sum /tmp/urbis3d.zip | tee /tmp/package.sha256
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_147169_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source_root.txt
+      - name: Rank source-bounded Fonsny candidates before runtime work
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"
+          python3 - "$ROOT" <<'PY' | tee /tmp/fonsny-candidates.txt
+          import importlib.util, math, sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          tool = Path('grand-bruxelles-game/tools/extract_urbis_3d_hero.py')
+          spec = importlib.util.spec_from_file_location('urbis_hero', tool)
+          hero = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          sys.modules[spec.name] = hero
+          spec.loader.exec_module(hero)
+
+          prefix = root / 'UrbISBuildings3D_147169'
+          solids_dbf = prefix.with_name(prefix.name + '_BuildingSolids.dbf')
+          solids_shp = prefix.with_name(prefix.name + '_BuildingSolids.shp')
+          solids_shx = prefix.with_name(prefix.name + '_BuildingSolids.shx')
+
+          ORIGIN_E = 147868.29422791934
+          ORIGIN_N = 169538.62414926197
+          # Source-estimate only: normal-distance candidate must be large enough to
+          # matter before any runtime implementation is attempted.
+          candidates = {}
+          for index, row in hero.read_dbf(solids_dbf):
+              bu_id = row.get('BU_ID', '')
+              if not bu_id:
+                  continue
+              patch = hero.read_multipatch(solids_shp, solids_shx, index)
+              minx, miny, maxx, maxy = patch['bbox_xy']
+              cx = (minx + maxx) * 0.5
+              cy = (miny + maxy) * 0.5
+              dist = math.hypot(cx - ORIGIN_E, cy - ORIGIN_N)
+              if dist > 180.0:
+                  continue
+              rec = candidates.setdefault(bu_id, {
+                  'minx': minx, 'miny': miny, 'maxx': maxx, 'maxy': maxy,
+                  'zmin': patch['z_min'], 'zmax': patch['z_max'], 'solids': 0,
+              })
+              rec['minx'] = min(rec['minx'], minx); rec['miny'] = min(rec['miny'], miny)
+              rec['maxx'] = max(rec['maxx'], maxx); rec['maxy'] = max(rec['maxy'], maxy)
+              rec['zmin'] = min(rec['zmin'], patch['z_min']); rec['zmax'] = max(rec['zmax'], patch['z_max'])
+              rec['solids'] += 1
+
+          ranked = []
+          for bu_id, rec in candidates.items():
+              w = rec['maxx'] - rec['minx']; d = rec['maxy'] - rec['miny']; h = rec['zmax'] - rec['zmin']
+              cx = (rec['minx'] + rec['maxx']) * 0.5; cy = (rec['miny'] + rec['maxy']) * 0.5
+              dist = math.hypot(cx - ORIGIN_E, cy - ORIGIN_N)
+              envelope = max(w, d) * max(h, 1.0)
+              # Ranking favors screen-scale envelope while retaining normal-distance proximity.
+              score = envelope / max(dist, 20.0)
+              ranked.append((score, bu_id, dist, w, d, h, rec))
+          ranked.sort(reverse=True)
+          print('MIDI_FONSNY_SOURCE_CANDIDATES count=', len(ranked))
+          for rank, item in enumerate(ranked[:20], 1):
+              score, bu_id, dist, w, d, h, rec = item
+              print(f'{rank:02d} score={score:.2f} id={bu_id} dist_m={dist:.2f} envelope_m={w:.2f}x{d:.2f} height_extent_m={h:.2f} solids={rec["solids"]} bbox=({rec["minx"]:.2f},{rec["miny"]:.2f},{rec["maxx"]:.2f},{rec["maxy"]:.2f})')
+          assert ranked, 'No official LoD2 candidates found around Midi control point'
+          top = ranked[0]
+          assert max(top[3], top[4]) >= 35.0, 'Top candidate is too small for anti-micro gate'
+          assert top[5] >= 10.0, 'Top candidate lacks meaningful vertical envelope'
+          PY
+      - name: Upload source discovery witness
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-lod2-fonsny-discovery
+          path: |
+            /tmp/package.sha256
+            /tmp/fonsny-candidates.txt
+          if-no-files-found: error

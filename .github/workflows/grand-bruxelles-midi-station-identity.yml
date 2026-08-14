@@ -6,6 +6,7 @@ on:
       - ".github/workflows/grand-bruxelles-midi-station-identity.yml"
       - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
       - "grand-bruxelles-game/game/tests/midi_station_identity_panel_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_station_identity_witness_test.gd"
       - "grand-bruxelles-game/data/sources/visual_assets/bruxelles_midi_station_identity.json"
   workflow_dispatch:
 
@@ -18,6 +19,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -32,3 +37,20 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_station_identity_panel_test.gd 2>&1 | tee /tmp/midi-station-identity.log
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_STATION_IDENTITY_FAIL" /tmp/midi-station-identity.log; then exit 1; fi
           grep -F "MIDI_STATION_IDENTITY_OK" /tmp/midi-station-identity.log
+      - name: Capture production witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_station_identity_witness_test.gd 2>&1 | tee /tmp/midi-station-identity-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_STATION_IDENTITY_WITNESS_FAIL" /tmp/midi-station-identity-witness.log; then exit 1; fi
+          grep -F "MIDI_STATION_IDENTITY_WITNESS_OK" /tmp/midi-station-identity-witness.log
+          test -f grand-bruxelles-game/artifacts/visual/midi_station_identity_witness.png
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-station-identity-evidence
+          path: |
+            grand-bruxelles-game/artifacts/visual/midi_station_identity_witness.png
+            /tmp/midi-station-identity.log
+            /tmp/midi-station-identity-witness.log
+          if-no-files-found: error

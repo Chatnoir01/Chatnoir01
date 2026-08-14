@@ -15,6 +15,7 @@ var source_height_m := 0.0
 var source_bounds := Rect2()
 var _masked_nodes: Array[Node3D] = []
 var _masked_visibility: Array[bool] = []
+var _official_collision_bodies: Array[CollisionObject3D] = []
 var _official_visible := true
 var _built := false
 var _wall_material: StandardMaterial3D
@@ -49,7 +50,8 @@ func _build_when_scene_ready() -> void:
     set_meta("presentation_materials_only", true)
     set_meta("wall_material_identity", "official_heritage_white_stone")
     set_meta("wall_material_source", MATERIAL_IDENTITY_PATH)
-    print("GRAND_PLACE_LOD2_1655673_READY: triangles=%d masked_osm=%d height=%.3f white_stone=true" % [render_triangle_count, masked_osm_count, source_height_m])
+    set_meta("official_collision_completed", not _official_collision_bodies.is_empty())
+    print("GRAND_PLACE_LOD2_1655673_READY: triangles=%d masked_osm=%d height=%.3f white_stone=true collision_bodies=%d" % [render_triangle_count, masked_osm_count, source_height_m, _official_collision_bodies.size()])
 
 
 func _read_geometry() -> Dictionary:
@@ -216,7 +218,19 @@ func _build_surface(faces: Array, face_type: String, material: Material, center:
         instance.name = "GrandPlace1655673_%s" % face_type
         instance.mesh = mesh
         add_child(instance)
+        if face_type == "WALLSURFACE":
+            _create_official_wall_collision(instance)
     return count
+
+
+func _create_official_wall_collision(instance: MeshInstance3D) -> void:
+    instance.create_trimesh_collision()
+    for child: Node in instance.get_children():
+        if child is CollisionObject3D:
+            var collision := child as CollisionObject3D
+            collision.collision_layer = 1
+            collision.collision_mask = 1
+            _official_collision_bodies.append(collision)
 
 
 func _build_geometry(faces: Array) -> void:
@@ -240,6 +254,10 @@ func sourced_wall_material_enabled() -> bool:
 func set_official_visible(enabled: bool) -> void:
     _official_visible = enabled
     visible = enabled
+    for collision: CollisionObject3D in _official_collision_bodies:
+        if is_instance_valid(collision):
+            collision.collision_layer = 1 if enabled else 0
+            collision.collision_mask = 1 if enabled else 0
     for i: int in range(_masked_nodes.size()):
         var node := _masked_nodes[i]
         if not is_instance_valid(node):

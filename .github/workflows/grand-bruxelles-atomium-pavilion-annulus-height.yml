@@ -1,6 +1,11 @@
 name: Grand Bruxelles Atomium Pavilion Annulus Height
 
 on:
+  push:
+    branches:
+      - "integration/atomium-pavilion-annulus-height-gate-current"
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-pavilion-annulus-height.yml"
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-atomium-pavilion-annulus-height.yml"
@@ -34,18 +39,16 @@ jobs:
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check --quiet rasterio numpy
           python3 - <<'PY'
-          import glob, json, math
+          import glob, json
           import numpy as np
           import rasterio
 
-          # Locked source facts already accepted in main:
-          # Atomium anchor EPSG:31370, 18 m base sphere, 26 m circular entry pavilion.
           E0=148093.22038698208
           N0=176091.76722726133
           SPHERE_R=9.0
           PAVILION_R=13.0
-          INNER=9.75   # 0.75 m safety margin beyond sphere plan projection
-          OUTER=12.75  # 0.25 m safety margin inside documented pavilion edge
+          INNER=9.75
+          OUTER=12.75
 
           dsm_path=glob.glob('/tmp/atomium-pavilion/dsm/**/*.tif',recursive=True)[0]
           dtm_path=glob.glob('/tmp/atomium-pavilion/dtm/**/*.tif',recursive=True)[0]
@@ -88,8 +91,6 @@ jobs:
               a=out['outer_annulus']
               if a['count'] < 150:
                   raise SystemExit('insufficient annulus samples')
-              # Discovery gate only: do not auto-approve a runtime height.
-              # We require a compact low-height cluster before considering a second lot.
               clean=(1.5 <= a['p50'] <= 8.0 and a['spread_p90_p10'] <= 2.0 and a['mode_share'] >= 0.15)
               print('ATOMIUM_PAVILION_ANNULUS_CLEAN_CANDIDATE',clean)
               if not clean:

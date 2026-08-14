@@ -18,7 +18,7 @@ func _run() -> void:
         _fail("official placement provenance missing")
         return
     var runtime_script: Script = load(RUNTIME_PATH)
-    var bins := runtime_script.new()
+    var bins: Node = runtime_script.new()
     root.add_child(bins)
     await process_frame
     if int(bins.get("source_bin_count")) != 7:

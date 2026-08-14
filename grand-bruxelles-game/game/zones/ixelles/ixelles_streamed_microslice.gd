@@ -2,12 +2,17 @@ extends "res://game/zones/ixelles/ixelles_microslice.gd"
 class_name IxellesStreamedMicroSlice
 
 ## Streaming-specific Ixelles adapter.
-## Keeps the proven source-backed builder unchanged, but spreads its major build
-## phases over separate frames so a prefetched cell does not monopolize one frame.
+## Keeps the proven source-backed data contract unchanged while spreading heavy
+## geometry work over multiple frames for Web/mobile-friendly prefetching.
+
+@export var terrain_vertex_rows_per_frame := 24
+@export var terrain_index_rows_per_frame := 40
 
 var stream_phase_ms: Dictionary = {}
 var stream_total_ms := 0
 var stream_build_started := false
+var terrain_vertex_chunks := 0
+var terrain_index_chunks := 0
 
 func _ready() -> void:
     call_deferred("_build_streamed")
@@ -26,9 +31,7 @@ func _build_streamed() -> void:
     stream_phase_ms["contracts_materials"] = Time.get_ticks_msec() - phase_started
     await get_tree().process_frame
 
-    phase_started = Time.get_ticks_msec()
-    _build_terrain()
-    stream_phase_ms["terrain_mesh"] = Time.get_ticks_msec() - phase_started
+    await _build_terrain_over_frames()
     await get_tree().process_frame
 
     if build_collision:
@@ -49,7 +52,75 @@ func _build_streamed() -> void:
     runtime_loaded = terrain_triangle_count == 125000 and street_surface_count == 309 and street_segment_count == 277 and building_count == eligible_height_count and building_count == 260 and skipped_unapproved_height_buildings == 460
     stream_total_ms = Time.get_ticks_msec() - total_started
     if runtime_loaded:
-        print("IXELLES_STREAMED_MICROSLICE_READY: cell=%s triangles=%d streets=%d buildings=%d total_ms=%d max_phase_ms=%d" % [cell_id, terrain_triangle_count, street_surface_count, building_count, stream_total_ms, get_max_stream_phase_ms()])
+        print("IXELLES_STREAMED_MICROSLICE_READY: cell=%s triangles=%d streets=%d buildings=%d total_ms=%d max_phase_ms=%d vertex_chunks=%d index_chunks=%d" % [cell_id, terrain_triangle_count, street_surface_count, building_count, stream_total_ms, get_max_stream_phase_ms(), terrain_vertex_chunks, terrain_index_chunks])
+
+func _record_phase_peak(phase_name: String, elapsed_ms: int) -> void:
+    stream_phase_ms[phase_name] = maxi(int(stream_phase_ms.get(phase_name, 0)), elapsed_ms)
+
+func _build_terrain_over_frames() -> void:
+    var vertices := PackedVector3Array()
+    var normals := PackedVector3Array()
+    vertices.resize(terrain_sample_count)
+    normals.resize(terrain_sample_count)
+
+    var row_start := 0
+    var vertex_chunk_rows := maxi(terrain_vertex_rows_per_frame, 1)
+    while row_start < _height:
+        var started := Time.get_ticks_msec()
+        var row_end := mini(row_start + vertex_chunk_rows, _height)
+        for row: int in range(row_start, row_end):
+            for col: int in range(_width):
+                var i := _index(row, col)
+                vertices[i] = _grid_game_position(row, col)
+                normals[i] = _normal(row, col)
+        terrain_vertex_chunks += 1
+        _record_phase_peak("terrain_vertices_chunk", Time.get_ticks_msec() - started)
+        row_start = row_end
+        if row_start < _height:
+            await get_tree().process_frame
+
+    var indices := PackedInt32Array()
+    indices.resize((_width - 1) * (_height - 1) * 6)
+    var index_chunk_rows := maxi(terrain_index_rows_per_frame, 1)
+    row_start = 0
+    while row_start < _height - 1:
+        var started := Time.get_ticks_msec()
+        var row_end := mini(row_start + index_chunk_rows, _height - 1)
+        for row: int in range(row_start, row_end):
+            var cursor := row * (_width - 1) * 6
+            for col: int in range(_width - 1):
+                var i0 := _index(row, col)
+                var i1 := _index(row + 1, col)
+                var i2 := _index(row, col + 1)
+                var i3 := _index(row + 1, col + 1)
+                indices[cursor] = i0
+                indices[cursor + 1] = i1
+                indices[cursor + 2] = i2
+                indices[cursor + 3] = i2
+                indices[cursor + 4] = i1
+                indices[cursor + 5] = i3
+                cursor += 6
+        terrain_index_chunks += 1
+        _record_phase_peak("terrain_indices_chunk", Time.get_ticks_msec() - started)
+        row_start = row_end
+        if row_start < _height - 1:
+            await get_tree().process_frame
+
+    terrain_triangle_count = indices.size() / 3
+    var commit_started := Time.get_ticks_msec()
+    var arrays: Array = []
+    arrays.resize(Mesh.ARRAY_MAX)
+    arrays[Mesh.ARRAY_VERTEX] = vertices
+    arrays[Mesh.ARRAY_NORMAL] = normals
+    arrays[Mesh.ARRAY_INDEX] = indices
+    var mesh := ArrayMesh.new()
+    mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+    mesh.surface_set_material(0, _terrain_material)
+    var instance := MeshInstance3D.new()
+    instance.name = "OfficialIxellesDTMMesh"
+    instance.mesh = mesh
+    add_child(instance)
+    _record_phase_peak("terrain_mesh_commit", Time.get_ticks_msec() - commit_started)
 
 func get_max_stream_phase_ms() -> int:
     var maximum := 0

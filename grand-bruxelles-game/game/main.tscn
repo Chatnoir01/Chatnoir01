@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3]
+[gd_scene load_steps=44 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -31,6 +31,8 @@
 [ext_resource type="Script" path="res://game/scripts/mission_reward_controller.gd" id="29_mission_reward"]
 [ext_resource type="Script" path="res://game/scripts/wallet_hud.gd" id="30_wallet_hud"]
 [ext_resource type="Script" path="res://game/scripts/mission_return_to_bourse.gd" id="31_return_mission"]
+[ext_resource type="Script" path="res://game/scripts/vehicle_physics_controller.gd" id="32_physical_vehicle"]
+[ext_resource type="Script" path="res://game/scripts/mobile_playability_collision_runtime.gd" id="33_playability_collision"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -161,6 +163,9 @@ script = ExtResource("14_npc_director")
 [node name="NpcRuntimeIntegration" type="Node" parent="."]
 script = ExtResource("15_npc_runtime")
 
+[node name="MobilePlayabilityCollisionRuntime" type="Node" parent="."]
+script = ExtResource("33_playability_collision")
+
 [node name="Player" type="CharacterBody3D" parent="."]
 position = Vector3(-652, 1.05, 621)
 rotation_degrees = Vector3(0, -38, 0)
@@ -208,6 +213,12 @@ use_collision = false
 [node name="VisualUpgrade" type="Node3D" parent="PrototypeCar"]
 script = ExtResource("13_civil_visual")
 
+[node name="ABLabel" type="Label3D" parent="PrototypeCar"]
+position = Vector3(0, 2.0, 0)
+text = "A · CONDUITE ACTUELLE"
+font_size = 30
+outline_size = 8
+
 [node name="CameraPivot" type="Node3D" parent="PrototypeCar"]
 position = Vector3(0, 1.32, 0.15)
 rotation_degrees = Vector3(-8, 0, 0)
@@ -217,6 +228,40 @@ spring_length = 6.1
 margin = 0.18
 
 [node name="Camera3D" type="Camera3D" parent="PrototypeCar/CameraPivot/SpringArm3D"]
+current = false
+fov = 72.0
+
+[node name="PhysicalCarB" type="RigidBody3D" parent="." groups=["vehicle"]]
+position = Vector3(-654.5, 0.78, 627.5)
+rotation_degrees = Vector3(0, 39, 0)
+script = ExtResource("32_physical_vehicle")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PhysicalCarB"]
+shape = SubResource("BoxShape_car")
+
+[node name="Body" type="MeshInstance3D" parent="PhysicalCarB"]
+mesh = SubResource("BoxMesh_car")
+material_override = SubResource("Material_car")
+
+[node name="VisualUpgrade" type="Node3D" parent="PhysicalCarB"]
+script = ExtResource("13_civil_visual")
+paint_color = Color(0.42, 0.07, 0.055, 1)
+
+[node name="ABLabel" type="Label3D" parent="PhysicalCarB"]
+position = Vector3(0, 2.0, 0)
+text = "B · PHYSIQUE 60 HZ"
+font_size = 30
+outline_size = 8
+
+[node name="CameraPivot" type="Node3D" parent="PhysicalCarB"]
+position = Vector3(0, 1.32, 0.15)
+rotation_degrees = Vector3(-8, 0, 0)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="PhysicalCarB/CameraPivot"]
+spring_length = 6.1
+margin = 0.18
+
+[node name="Camera3D" type="Camera3D" parent="PhysicalCarB/CameraPivot/SpringArm3D"]
 current = false
 fov = 72.0
 

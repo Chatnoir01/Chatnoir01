@@ -1,0 +1,36 @@
+name: Grand Bruxelles Player Locomotion Prototype
+
+on:
+  push:
+    branches: ["agent/prototype-player-locomotion"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-player-locomotion-prototype.yml"
+      - "grand-bruxelles-game/game/prototypes/player/**"
+      - "grand-bruxelles-game/game/tests/player_locomotion_profile_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  locomotion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import production project unchanged
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Run locomotion contract
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/player_locomotion_profile_test.gd 2>&1 | tee /tmp/player-locomotion.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PLAYER_LOCOMOTION_PROFILE_FAIL" /tmp/player-locomotion.log; then exit 1; fi
+          grep -F "PLAYER_LOCOMOTION_PROFILE_OK" /tmp/player-locomotion.log

@@ -29,6 +29,7 @@ func _build_streamed() -> void:
         return
     _make_materials()
     stream_phase_ms["contracts_materials"] = Time.get_ticks_msec() - phase_started
+    print("IXELLES_STREAM_PHASE: contracts_materials ms=%d" % int(stream_phase_ms["contracts_materials"]))
     await get_tree().process_frame
 
     await _build_terrain_over_frames()
@@ -43,11 +44,13 @@ func _build_streamed() -> void:
     phase_started = Time.get_ticks_msec()
     _build_street_surfaces()
     stream_phase_ms["street_surfaces"] = Time.get_ticks_msec() - phase_started
+    print("IXELLES_STREAM_PHASE: street_surfaces ms=%d" % int(stream_phase_ms["street_surfaces"]))
     await get_tree().process_frame
 
     phase_started = Time.get_ticks_msec()
     _build_strong_height_candidate_buildings()
     stream_phase_ms["buildings"] = Time.get_ticks_msec() - phase_started
+    print("IXELLES_STREAM_PHASE: buildings ms=%d" % int(stream_phase_ms["buildings"]))
 
     runtime_loaded = terrain_triangle_count == 125000 and street_surface_count == 309 and street_segment_count == 277 and building_count == eligible_height_count and building_count == 260 and skipped_unapproved_height_buildings == 460
     stream_total_ms = Time.get_ticks_msec() - total_started
@@ -78,6 +81,7 @@ func _build_terrain_over_frames() -> void:
         row_start = row_end
         if row_start < _height:
             await get_tree().process_frame
+    print("IXELLES_STREAM_PHASE: terrain_vertices chunks=%d peak_ms=%d" % [terrain_vertex_chunks, int(stream_phase_ms.get("terrain_vertices_chunk", 0))])
 
     var indices := PackedInt32Array()
     indices.resize((_width - 1) * (_height - 1) * 6)
@@ -105,6 +109,7 @@ func _build_terrain_over_frames() -> void:
         row_start = row_end
         if row_start < _height - 1:
             await get_tree().process_frame
+    print("IXELLES_STREAM_PHASE: terrain_indices chunks=%d peak_ms=%d" % [terrain_index_chunks, int(stream_phase_ms.get("terrain_indices_chunk", 0))])
 
     terrain_triangle_count = indices.size() / 3
     var commit_started := Time.get_ticks_msec()
@@ -121,6 +126,7 @@ func _build_terrain_over_frames() -> void:
     instance.mesh = mesh
     add_child(instance)
     _record_phase_peak("terrain_mesh_commit", Time.get_ticks_msec() - commit_started)
+    print("IXELLES_STREAM_PHASE: terrain_mesh_commit ms=%d" % int(stream_phase_ms.get("terrain_mesh_commit", 0)))
 
 func get_max_stream_phase_ms() -> int:
     var maximum := 0

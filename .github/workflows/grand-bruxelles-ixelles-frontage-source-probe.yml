@@ -15,32 +15,30 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Verify candidate IDs against live UrbIS geometry
+      - name: Resolve official addresses for visible candidates
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs'
           for ID in 1737877 1633062; do
-            CQL="INSPIRE_ID='https://databrussels.be/id/building/$ID'"
+            CQL="BU_ID='https://databrussels.be/id/building/$ID'"
             Q=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$CQL")
-            URL="$BASE?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&typeNames=urbisvector%3ABuildings&CQL_FILTER=$Q"
-            curl -fLsS --max-time 30 "$URL" -o "/tmp/b$ID.json"
+            URL="$BASE?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&typeNames=urbisvector%3AAddresses&CQL_FILTER=$Q"
+            curl -fLsS --max-time 30 "$URL" -o "/tmp/a$ID.json"
           done
           python3 - <<'PY'
           import json
-          def flatten(x):
-              if isinstance(x,list) and len(x)>=2 and isinstance(x[0],(int,float)) and isinstance(x[1],(int,float)):
-                  yield float(x[0]),float(x[1])
-              elif isinstance(x,list):
-                  for y in x: yield from flatten(y)
           for bid in ('1737877','1633062'):
-              d=json.load(open('/tmp/b'+bid+'.json'))
+              d=json.load(open('/tmp/a'+bid+'.json'))
               fs=d.get('features',[])
-              print('CANDIDATE',bid,'LIVE_COUNT',len(fs))
+              print('CANDIDATE_ADDRESS_COUNT',bid,len(fs))
+              roots=[]
               for f in fs:
-                  pts=list(flatten((f.get('geometry') or {}).get('coordinates',[])))
-                  if pts:
-                      bbox=[min(x for x,y in pts),min(y for x,y in pts),max(x for x,y in pts),max(y for x,y in pts)]
-                  else: bbox=[]
-                  print('LIVE_BUILDING',bid,'props',json.dumps(f.get('properties',{}),sort_keys=True),'bbox31370',bbox,'sample',pts[:12])
+                  p=f.get('properties',{})
+                  if p.get('PARENTID') is None:
+                      roots.append(p)
+              for p in roots:
+                  print('OFFICIAL_ADDRESS',bid,json.dumps({k:p.get(k) for k in ('INSPIRE_ID','BU_ID','POLICENUM','BOXNUMBER','STRNAMEFRE','STRNAMEDUT','XL72','YL72','CAPAKEY','ZIPCODE')},ensure_ascii=False,sort_keys=True))
+              if not roots:
+                  print('NO_ROOT_ADDRESS',bid)
           PY

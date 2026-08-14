@@ -94,6 +94,9 @@ func _run() -> void:
     if not reflection_environment.reflection_source_is_sky:
         _fail("stainless hero reflections are not sourced from the sky")
         return
+    if not reflection_environment.ambient_preserves_baseline:
+        _fail("hero terrain ambient no longer preserves accepted baseline")
+        return
     if not reflection_environment.authored_non_photometric:
         _fail("reflection environment lost non-photometric presentation disclaimer")
         return
@@ -104,8 +107,11 @@ func _run() -> void:
     if env == null or env.background_mode != Environment.BG_SKY:
         _fail("hero environment no longer uses sky background")
         return
-    if env.ambient_light_source != Environment.AMBIENT_SOURCE_SKY:
-        _fail("hero ambient light is not sourced from sky")
+    if env.ambient_light_source != Environment.AMBIENT_SOURCE_COLOR:
+        _fail("hero ambient light no longer preserves baseline color source")
+        return
+    if absf(env.ambient_light_energy - 0.62) > 0.001:
+        _fail("hero ambient energy drifted from accepted baseline")
         return
     if env.reflected_light_source != Environment.REFLECTION_SOURCE_SKY:
         _fail("hero reflected light is not sourced from sky")
@@ -130,5 +136,5 @@ func _run() -> void:
     if image.save_png(absolute_output) != OK:
         _fail("capture save failed")
         return
-    print("ATOMIUM_HERO_GROUND_OBLIQUE_OK: spheres=%d tubes=%d extent=%.3f..%.3f anchor_y=%.3f sphere_segments=%d sphere_rings=%d tube_segments=%d metallic=%.2f roughness=%.2f sky_reflection=%s authored_non_photometric=%s unresolved_pillars=%d capture=%s" % [hero.sphere_count, hero.tube_count, extent.x, extent.y, hero.anchor_position.y, sphere_mesh.radial_segments, sphere_mesh.rings, tube_mesh.radial_segments, sphere_material.metallic, sphere_material.roughness, str(reflection_environment.reflection_source_is_sky), str(reflection_environment.authored_non_photometric), hero.unresolved_support_pillars, OUTPUT_PATH])
+    print("ATOMIUM_HERO_GROUND_OBLIQUE_OK: spheres=%d tubes=%d extent=%.3f..%.3f anchor_y=%.3f sphere_segments=%d sphere_rings=%d tube_segments=%d metallic=%.2f roughness=%.2f sky_reflection=%s baseline_ambient=%s authored_non_photometric=%s unresolved_pillars=%d capture=%s" % [hero.sphere_count, hero.tube_count, extent.x, extent.y, hero.anchor_position.y, sphere_mesh.radial_segments, sphere_mesh.rings, tube_mesh.radial_segments, sphere_material.metallic, sphere_material.roughness, str(reflection_environment.reflection_source_is_sky), str(reflection_environment.ambient_preserves_baseline), str(reflection_environment.authored_non_photometric), hero.unresolved_support_pillars, OUTPUT_PATH])
     quit(0)

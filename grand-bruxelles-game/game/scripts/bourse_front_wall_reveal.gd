@@ -1,6 +1,7 @@
 extends Node
 
 const SIDEWALK_OVERLAY_SCRIPT := preload("res://game/scripts/bourse_official_sidewalk_overlay.gd")
+const PERISTYLE_VAULT_SCRIPT := preload("res://game/scripts/bourse_peristyle_vault.gd")
 
 @export var hero_builder_path: NodePath = NodePath("../UrbISHeroGeometry")
 @export var portico_path: NodePath = NodePath("../BoursePorticoArticulation")
@@ -14,9 +15,11 @@ var _kept_triangles := 0
 var _roof_backface_cull_applied := false
 var _portico_white_stone_applied := false
 var _sidewalk_overlay: Node3D
+var _peristyle_vault: Node3D
 
 func _ready() -> void:
     _mount_sidewalk_overlay()
+    _mount_peristyle_vault()
     call_deferred("_apply_reveal")
 
 func _mount_sidewalk_overlay() -> void:
@@ -27,23 +30,20 @@ func _mount_sidewalk_overlay() -> void:
     _sidewalk_overlay.name = "OfficialSidewalkOverlay"
     add_child(_sidewalk_overlay)
 
+func _mount_peristyle_vault() -> void:
+    _peristyle_vault = PERISTYLE_VAULT_SCRIPT.new() as Node3D
+    if _peristyle_vault == null:
+        push_error("Bourse front reveal: peristyle vault script failed to instantiate")
+        return
+    _peristyle_vault.name = "SourceBoundedPeristyleInterior"
+    add_child(_peristyle_vault)
+
 func _vec2(raw: Variant) -> Vector2:
     if typeof(raw) != TYPE_ARRAY or raw.size() != 2:
         return Vector2.ZERO
     return Vector2(float(raw[0]), float(raw[1]))
 
-func _is_front_facing_triangle(
-    a: Vector3,
-    b: Vector3,
-    c: Vector3,
-    plane: Vector2,
-    normal: Vector2,
-    tangent: Vector2,
-    t_min: float,
-    t_max: float,
-    y_min: float,
-    y_max: float
-) -> bool:
+func _is_front_facing_triangle(a: Vector3, b: Vector3, c: Vector3, plane: Vector2, normal: Vector2, tangent: Vector2, t_min: float, t_max: float, y_min: float, y_max: float) -> bool:
     var centroid_3d: Vector3 = (a + b + c) / 3.0
     if centroid_3d.y < y_min - vertical_margin_m or centroid_3d.y > y_max + vertical_margin_m:
         return false
@@ -51,7 +51,6 @@ func _is_front_facing_triangle(
     var along: float = (centroid - plane).dot(tangent)
     if along < t_min - tangent_margin_m or along > t_max + tangent_margin_m:
         return false
-
     var face_normal: Vector3 = (b - a).cross(c - a).normalized()
     if not face_normal.is_finite() or face_normal.length_squared() < 0.5:
         return false
@@ -86,23 +85,14 @@ func _apply_portico_white_stone_presentation() -> bool:
     if portico == null:
         push_error("Bourse front reveal: portico articulation missing")
         return false
-
-    # Heritage evidence describes the four principal façades as white stone.
-    # RGB/roughness below are authored presentation values, not calibrated photometry.
     var white_stone := StandardMaterial3D.new()
     white_stone.albedo_color = Color(0.84, 0.82, 0.76, 1.0)
     white_stone.metallic = 0.0
     white_stone.roughness = 0.76
-
     var applied := 0
     for child: Node in portico.get_children():
         var name_value := str(child.name)
-        var is_white_stone_detail := (
-            name_value.begins_with("Column_")
-            or name_value.begins_with("RearPilaster_")
-            or name_value == "PorticoEntablature"
-            or name_value == "RearCentralEntryLintel"
-        )
+        var is_white_stone_detail := name_value.begins_with("Column_") or name_value.begins_with("RearPilaster_") or name_value == "PorticoEntablature" or name_value == "RearCentralEntryLintel"
         if not is_white_stone_detail:
             continue
         if child is MeshInstance3D:
@@ -111,7 +101,6 @@ func _apply_portico_white_stone_presentation() -> bool:
         elif child is CSGBox3D:
             (child as CSGBox3D).material = white_stone
             applied += 1
-
     if applied < 20:
         push_error("Bourse front reveal: white-stone presentation applied to too few details: %d" % applied)
         return false
@@ -145,7 +134,6 @@ func _apply_reveal() -> void:
     if normal.length_squared() < 0.99 or tangent.length_squared() < 0.99 or t_max <= t_min or y_max <= y_min:
         push_error("Bourse front reveal: invalid authoritative front envelope")
         return
-
     var builder := get_node_or_null(hero_builder_path)
     if builder == null:
         push_error("Bourse front reveal: hero builder missing")
@@ -158,19 +146,16 @@ func _apply_reveal() -> void:
     if walls == null or walls.mesh == null or walls.mesh.get_surface_count() == 0:
         push_error("Bourse front reveal: wall mesh missing")
         return
-
     var arrays: Array = walls.mesh.surface_get_arrays(0)
     var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
     if vertices.size() < 3 or vertices.size() % 3 != 0:
         push_error("Bourse front reveal: non-triangle wall mesh")
         return
-
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     var material := walls.mesh.surface_get_material(0)
     if material != null:
         tool.set_material(material)
-
     _removed_triangles = 0
     _kept_triangles = 0
     for index: int in range(0, vertices.size(), 3):
@@ -187,7 +172,6 @@ func _apply_reveal() -> void:
             tool.set_normal(face_normal)
             tool.add_vertex(vertex)
         _kept_triangles += 1
-
     var revealed := tool.commit()
     if revealed == null or revealed.get_surface_count() == 0:
         push_error("Bourse front reveal: filtered wall mesh is empty")
@@ -205,16 +189,15 @@ func _apply_reveal() -> void:
         return
     set_meta("runtime_approved", false)
     set_meta("realism_complete", false)
-    print("Bourse front wall reveal: removed=%d kept=%d roof_backface_cull=true white_stone=true runtime_approved=false" % [_removed_triangles, _kept_triangles])
+    print("Bourse front wall reveal: removed=%d kept=%d roof_backface_cull=true white_stone=true peristyle_vault=true runtime_approved=false" % [_removed_triangles, _kept_triangles])
 
 func diagnostic_removed_triangles() -> int:
     return _removed_triangles
-
 func diagnostic_kept_triangles() -> int:
     return _kept_triangles
-
 func diagnostic_roof_backface_cull_applied() -> bool:
     return _roof_backface_cull_applied
-
 func diagnostic_portico_white_stone_applied() -> bool:
     return _portico_white_stone_applied
+func diagnostic_peristyle_vault_mounted() -> bool:
+    return _peristyle_vault != null

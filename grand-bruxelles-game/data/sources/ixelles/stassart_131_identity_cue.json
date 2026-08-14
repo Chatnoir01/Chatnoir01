@@ -1,0 +1,46 @@
+{
+  "schema": "grand-bruxelles.ixelles.identity-cue.v1",
+  "cell_id": "bxl-e149000-n169000-s500",
+  "bbox_epsg31370": [149000.0, 169000.0, 149500.0, 169500.0],
+  "runtime_approved": false,
+  "promote_runtime": false,
+  "cue_id": "stassart-131-street-facing-light-facades",
+  "source_building_id": "https://databrussels.be/id/building/1633062",
+  "official_address": {
+    "street_fr": "Rue de Stassart",
+    "street_nl": "de Stassartstraat",
+    "police_number": "131",
+    "alternate_address": "Place Stéphanie 12a",
+    "link_method": "official UrbIS Addresses exact address -> BU_ID; previously locked by closed evidence PR #261"
+  },
+  "heritage": {
+    "authority": "urban.brussels - Inventaire du patrimoine architectural",
+    "urban_id": 19362,
+    "record_url": "https://monument.heritage.brussels/fr/buildings/19362",
+    "official_photo_url": "https://monument.heritage.brussels/medias/buildings/10502800_0012A_P01.jpg",
+    "description_basis": [
+      "listed hôtel particulier designed in 1868 by Gustave Saintenoy / Jean-Pierre Cluysenaer",
+      "main façade explicitly faces Place Stéphanie",
+      "lateral façade along Rue de Stassart has five initial bays described as largely blind and treated with continuous rustication",
+      "official 2009 inventory photograph shows the two street-facing elevations as a light/white rendered architectural mass with a dark roof"
+    ]
+  },
+  "runtime_interpretation": {
+    "scope": "renderer-only light façade overlay on exactly the two existing strong-source footprint edges selected against official StreetAxes 71306:2 and 71374:2",
+    "material_semantics": "light/white street-facing façade appearance from official inventory photograph; authored color, not photometric RGB",
+    "roof_changes": false,
+    "opening_changes": false,
+    "geometry_changes": false,
+    "collision_changes": false,
+    "camera_changes": false,
+    "terrain_changes": false,
+    "streaming_changes": false,
+    "unresolved_buildings_added": 0
+  },
+  "selection_contract": {
+    "place_stephanie_axis_id": "https://databrussels.be/id/streetaxe/71306:2",
+    "rue_de_stassart_axis_id": "https://databrussels.be/id/streetaxe/71374:2",
+    "required_selected_edges": 2,
+    "required_distinct_edges": true
+  }
+}

@@ -36,11 +36,15 @@ void vertex() {
 }
 
 void fragment() {
-    float fine = (sin(world_xz.x * 12.7) + sin(world_xz.y * 14.3) + sin((world_xz.x + world_xz.y) * 8.9)) / 3.0;
-    float broad = (sin(world_xz.x * 1.71) + sin(world_xz.y * 1.43)) * 0.25;
-    float variation = clamp(0.5 + fine * 0.18 + broad * 0.10, 0.0, 1.0);
-    vec3 cool_granite = vec3(0.285, 0.285, 0.280);
-    vec3 warm_granite = vec3(0.355, 0.345, 0.325);
+    // Source truth establishes granite, but not unit dimensions or a joint layout.
+    // Keep the authored presentation broad-band only so it reads as mineral tone
+    // at normal player distance without inventing paver seams or aliasing into moire.
+    float n1 = sin(world_xz.x * 0.73 + world_xz.y * 1.09);
+    float n2 = sin(world_xz.x * 1.31 - world_xz.y * 0.91 + 1.7);
+    float n3 = sin(world_xz.x * 0.39 + world_xz.y * 0.47 + 4.1);
+    float variation = clamp(0.5 + n1 * 0.07 + n2 * 0.045 + n3 * 0.055, 0.0, 1.0);
+    vec3 cool_granite = vec3(0.292, 0.291, 0.286);
+    vec3 warm_granite = vec3(0.342, 0.334, 0.318);
     ALBEDO = mix(cool_granite, warm_granite, variation);
     ROUGHNESS = 0.88;
     METALLIC = 0.015;

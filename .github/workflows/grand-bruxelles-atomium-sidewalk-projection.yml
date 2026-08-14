@@ -1,0 +1,28 @@
+name: Grand Bruxelles Atomium Sidewalk Projection
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-sidewalk-projection.yml"
+      - "grand-bruxelles-game/tools/probe_atomium_sidewalk_context.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  projection-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure official sidewalk visibility outside shipped green block
+        working-directory: grand-bruxelles-game
+        run: python3 tools/probe_atomium_sidewalk_context.py
+      - name: Upload projection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-sidewalk-projection
+          path: grand-bruxelles-game/artifacts/atomium/sidewalk_projection_probe.json
+          if-no-files-found: ignore

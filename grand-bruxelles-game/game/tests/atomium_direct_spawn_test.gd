@@ -34,7 +34,8 @@ func _run() -> void:
     var terrain := main.get_node_or_null("AtomiumDirectTerrain")
     var hero := main.get_node_or_null("AtomiumDirectHero")
     var reflection := main.get_node_or_null("AtomiumDirectReflectionEnvironment")
-    if terrain == null or hero == null or reflection == null:
+    var street_context := main.get_node_or_null("AtomiumDirectStreetSurfaceContext")
+    if terrain == null or hero == null or reflection == null or street_context == null:
         _fail("direct runtime nodes were not mounted")
         return
     if not bool(terrain.get("terrain_loaded")):
@@ -48,6 +49,9 @@ func _run() -> void:
         return
     if not bool(reflection.get("environment_built")):
         _fail("reflection environment did not build")
+        return
+    if not bool(street_context.get("context_loaded")) or int(street_context.get("rendered_feature_count")) < 20:
+        _fail("source-bounded StreetSurface context did not mount")
         return
 
     var atomium_anchor: Vector3 = terrain.get("atomium_game_position")
@@ -102,5 +106,5 @@ func _run() -> void:
         _fail("direct spawn capture save failed")
         return
 
-    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f) capture=%s size=%dx%d" % [horizontal_distance, standing_clearance, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z, OUTPUT_PATH, WIDTH, HEIGHT])
+    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f) context_features=%d capture=%s size=%dx%d" % [horizontal_distance, standing_clearance, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z, int(street_context.get("rendered_feature_count")), OUTPUT_PATH, WIDTH, HEIGHT])
     quit(0)

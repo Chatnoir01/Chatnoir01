@@ -1,0 +1,94 @@
+name: Grand Bruxelles Grand Place LoD2 Next Discovery
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-lod2-next-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download audited official UrbIS 3D tile
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
+          EXPECTED="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+      - name: Rank source-bounded Grand-Place LoD2 candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util, json, math
+          from pathlib import Path
+          hero_path=Path('grand-bruxelles-game/tools/extract_urbis_3d_hero.py')
+          spec=importlib.util.spec_from_file_location('hero',hero_path)
+          hero=importlib.util.module_from_spec(spec); spec.loader.exec_module(hero)
+          root=next(Path('/tmp/urbis3d').rglob('UrbISBuildings3D_148170_BuildingFaces.shp')).parent
+          faces_dbf=root/'UrbISBuildings3D_148170_BuildingFaces.dbf'
+          faces_shp=root/'UrbISBuildings3D_148170_BuildingFaces.shp'
+          faces_shx=root/'UrbISBuildings3D_148170_BuildingFaces.shx'
+          solids_dbf=root/'UrbISBuildings3D_148170_BuildingSolids.dbf'
+          solid_to_building={r['INSPIRE_ID']:r['BU_ID'] for _,r in hero.read_dbf(solids_dbf)}
+          rows={}
+          # Locked #257 witness converted back to Lambert72.
+          camera=(148901.79422791934,170671.46414926197,1.72)
+          target=(148816.29422791934,170681.46414926197,38.0)
+          for idx,r in hero.read_dbf(faces_dbf):
+              bid=solid_to_building.get(r.get('BUSOLID_ID',''))
+              if not bid or bid.endswith('/1655673'):
+                  continue
+              patch=hero.read_multipatch(faces_shp,faces_shx,idx)
+              minx,miny,maxx,maxy=patch['bbox_xy']
+              cx=(minx+maxx)/2; cy=(miny+maxy)/2
+              # Bound discovery to immediate ensemble around the witness target.
+              d=math.hypot(cx-target[0],cy-target[1])
+              if d>140:
+                  continue
+              row=rows.setdefault(bid,{'id':bid,'minx':1e99,'miny':1e99,'maxx':-1e99,'maxy':-1e99,'zmin':1e99,'zmax':-1e99,'faces':0,'wall':0,'roof':0})
+              row['minx']=min(row['minx'],minx); row['miny']=min(row['miny'],miny); row['maxx']=max(row['maxx'],maxx); row['maxy']=max(row['maxy'],maxy)
+              row['zmin']=min(row['zmin'],patch['z_min']); row['zmax']=max(row['zmax'],patch['z_max']); row['faces']+=1
+              if r.get('TYPE')=='WALLSURFACE': row['wall']+=1
+              if r.get('TYPE')=='ROOFSURFACE': row['roof']+=1
+          out=[]
+          view_dx=target[0]-camera[0]; view_dy=target[1]-camera[1]; view_len=math.hypot(view_dx,view_dy); ux=view_dx/view_len; uy=view_dy/view_len
+          # horizontal perpendicular in source XY
+          px=-uy; py=ux
+          for r in rows.values():
+              cx=(r['minx']+r['maxx'])/2; cy=(r['miny']+r['maxy'])/2
+              vx=cx-camera[0]; vy=cy-camera[1]
+              forward=vx*ux+vy*uy; lateral=abs(vx*px+vy*py)
+              if forward<=5 or lateral>forward*0.85:
+                  continue
+              width=max(r['maxx']-r['minx'],r['maxy']-r['miny']); depth=min(r['maxx']-r['minx'],r['maxy']-r['miny']); height=r['zmax']-r['zmin']
+              dist=math.hypot(vx,vy)
+              # Approximate screen leverage: envelope width*height divided by squared distance, penalize off-axis.
+              score=(max(width,1)*max(height,1)/(dist*dist))*max(0.2,1-lateral/max(forward,1))
+              out.append({**r,'center':[round(cx,3),round(cy,3)],'distance_camera_m':round(dist,2),'forward_m':round(forward,2),'lateral_m':round(lateral,2),'width_m':round(width,2),'depth_m':round(depth,2),'height_m':round(height,3),'score':round(score,6)})
+          out.sort(key=lambda x:x['score'],reverse=True)
+          print('GRAND_PLACE_NEXT_CANDIDATES',json.dumps(out[:20],ensure_ascii=False))
+          Path('/tmp/grand-place-next-candidates.json').write_text(json.dumps(out[:40],indent=2,ensure_ascii=False)+'\n')
+          if not out:
+              raise SystemExit('no bounded candidate')
+          top=out[0]
+          if top['score']<0.03 or top['width_m']<12 or top['height_m']<10:
+              raise SystemExit('no candidate clears pre-runtime anti-micro envelope gate')
+          print('GRAND_PLACE_NEXT_SELECTED',json.dumps(top,ensure_ascii=False))
+          PY
+      - name: Upload discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-lod2-next-discovery
+          path: /tmp/grand-place-next-candidates.json
+          if-no-files-found: error

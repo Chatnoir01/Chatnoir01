@@ -11,6 +11,7 @@ const SIDEWALK_OVERLAY_SCRIPT := preload("res://game/scripts/bourse_official_sid
 
 var _removed_triangles := 0
 var _kept_triangles := 0
+var _roof_triangles_flipped := 0
 var _roof_backface_cull_applied := false
 var _portico_white_stone_applied := false
 var _sidewalk_overlay: Node3D
@@ -61,10 +62,62 @@ func _is_front_facing_triangle(
     horizontal = horizontal.normalized()
     return absf(horizontal.dot(normal)) >= front_alignment_min
 
+func _reorient_bourse_roof_triangles_upward(roofs: MeshInstance3D) -> bool:
+    if roofs.mesh == null or roofs.mesh.get_surface_count() == 0:
+        push_error("Bourse front reveal: roof mesh missing for winding normalization")
+        return false
+    var arrays: Array = roofs.mesh.surface_get_arrays(0)
+    var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+    if vertices.size() < 3 or vertices.size() % 3 != 0:
+        push_error("Bourse front reveal: non-triangle roof mesh")
+        return false
+
+    var tool := SurfaceTool.new()
+    tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var source_material := roofs.mesh.surface_get_material(0)
+    if source_material != null:
+        tool.set_material(source_material)
+
+    _roof_triangles_flipped = 0
+    var preserved_triangles := 0
+    for index: int in range(0, vertices.size(), 3):
+        var a: Vector3 = vertices[index]
+        var b: Vector3 = vertices[index + 1]
+        var c: Vector3 = vertices[index + 2]
+        var face_normal: Vector3 = (b - a).cross(c - a).normalized()
+        if not face_normal.is_finite() or face_normal.length_squared() < 0.5:
+            push_error("Bourse front reveal: degenerate official roof triangle")
+            return false
+        if face_normal.y < 0.0:
+            var swap := b
+            b = c
+            c = swap
+            face_normal = -face_normal
+            _roof_triangles_flipped += 1
+        for vertex: Vector3 in [a, b, c]:
+            tool.set_normal(face_normal)
+            tool.add_vertex(vertex)
+        preserved_triangles += 1
+
+    var oriented := tool.commit()
+    if oriented == null or oriented.get_surface_count() == 0:
+        push_error("Bourse front reveal: upward-oriented roof mesh is empty")
+        return false
+    if preserved_triangles != vertices.size() / 3:
+        push_error("Bourse front reveal: roof triangle preservation drifted")
+        return false
+    roofs.mesh = oriented
+    roofs.set_meta("bourse_roof_winding_upward", true)
+    roofs.set_meta("bourse_roof_triangles_flipped", _roof_triangles_flipped)
+    roofs.set_meta("bourse_roof_triangle_count_preserved", preserved_triangles)
+    return true
+
 func _apply_bourse_roof_backface_cull(hero: Node) -> bool:
     var roofs := hero.get_node_or_null("Roofs") as MeshInstance3D
     if roofs == null or roofs.mesh == null or roofs.mesh.get_surface_count() == 0:
         push_error("Bourse front reveal: roof mesh missing")
+        return false
+    if not _reorient_bourse_roof_triangles_upward(roofs):
         return false
     var source_material := roofs.mesh.surface_get_material(0) as StandardMaterial3D
     if source_material == null:
@@ -77,7 +130,6 @@ func _apply_bourse_roof_backface_cull(hero: Node) -> bool:
     roof_material.cull_mode = BaseMaterial3D.CULL_BACK
     roofs.material_override = roof_material
     roofs.set_meta("bourse_roof_backface_cull", true)
-    roofs.set_meta("bourse_roof_triangle_count_preserved", roofs.mesh.surface_get_array_len(0) / 3)
     _roof_backface_cull_applied = true
     return true
 
@@ -205,13 +257,16 @@ func _apply_reveal() -> void:
         return
     set_meta("runtime_approved", false)
     set_meta("realism_complete", false)
-    print("Bourse front wall reveal: removed=%d kept=%d roof_backface_cull=true white_stone=true runtime_approved=false" % [_removed_triangles, _kept_triangles])
+    print("Bourse front wall reveal: removed=%d kept=%d roof_flipped=%d roof_backface_cull=true white_stone=true runtime_approved=false" % [_removed_triangles, _kept_triangles, _roof_triangles_flipped])
 
 func diagnostic_removed_triangles() -> int:
     return _removed_triangles
 
 func diagnostic_kept_triangles() -> int:
     return _kept_triangles
+
+func diagnostic_roof_triangles_flipped() -> int:
+    return _roof_triangles_flipped
 
 func diagnostic_roof_backface_cull_applied() -> bool:
     return _roof_backface_cull_applied

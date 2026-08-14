@@ -40,19 +40,32 @@ func _capture(path: String) -> bool:
     DirAccess.make_dir_recursive_absolute(absolute.get_base_dir())
     return image.save_png(absolute) == OK
 
-func _visible_architecture_count(main: Node, camera: Camera3D) -> int:
+func _nearby_architecture(main: Node) -> Array[Dictionary]:
+    var result: Array[Dictionary] = []
     var buildings_root := main.get_node_or_null("BrusselsOSM/GeneratedBuildings")
     if buildings_root == null:
-        return 0
-    var count := 0
+        return result
     for child: Node in buildings_root.get_children():
         if not child is Node3D or not child.name.begins_with("Building_"):
             continue
         var node := child as Node3D
         var xz := Vector2(node.global_position.x, node.global_position.z)
-        if xz.distance_to(GRAND_PLACE_ANCHOR) > 110.0:
+        var distance := xz.distance_to(GRAND_PLACE_ANCHOR)
+        if distance > 150.0:
             continue
-        if camera.is_position_in_frustum(node.global_position):
+        result.append({
+            "name": child.name,
+            "position": node.global_position,
+            "distance": distance,
+        })
+    result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["distance"]) < float(b["distance"]))
+    return result
+
+func _visible_architecture_count(nearby: Array[Dictionary], camera: Camera3D) -> int:
+    var count := 0
+    for entry: Dictionary in nearby:
+        var position: Vector3 = entry["position"]
+        if camera.is_position_in_frustum(position):
             count += 1
     return count
 
@@ -93,16 +106,27 @@ func _run() -> void:
     main.add_child(camera)
     camera.look_at(CAMERA_TARGET, Vector3.UP)
     camera.current = true
-    await process_frame
+    for _frame: int in range(2):
+        await process_frame
 
-    var visible_architecture := _visible_architecture_count(main, camera)
-    if visible_architecture < 3:
-        _fail("witness does not carry enough production architecture: %d visible building masses" % visible_architecture)
-        return
+    var nearby := _nearby_architecture(main)
+    var diagnostic: Array[String] = []
+    for index: int in range(mini(nearby.size(), 20)):
+        var entry: Dictionary = nearby[index]
+        var p: Vector3 = entry["position"]
+        diagnostic.append("%s@(%.1f,%.1f,%.1f):%.1fm" % [str(entry["name"]), p.x, p.y, p.z, float(entry["distance"])])
+    print("GRAND_PLACE_NEARBY_ARCH: count=%d nearest=%s" % [nearby.size(), "; ".join(diagnostic)])
 
+    # Always capture the calibrated baseline before enforcing the architecture gate so a
+    # failing witness remains visually diagnosable instead of producing a log-only artifact.
     surface.call("set_surface_visible", false)
     if not await _capture(OUTPUT_DIR + "/before.png"):
         _fail("before capture failed")
+        return
+
+    var visible_architecture := _visible_architecture_count(nearby, camera)
+    if visible_architecture < 3:
+        _fail("witness does not carry enough production architecture: %d visible of %d nearby building masses" % [visible_architecture, nearby.size()])
         return
 
     surface.call("set_surface_visible", true)
@@ -110,8 +134,8 @@ func _run() -> void:
         _fail("after capture failed")
         return
 
-    print("GRAND_PLACE_ARRIVAL_ARCH_OK: area=%d vertices=%d triangles=%d visible_architecture=%d camera=(%.1f,%.2f,%.1f) target=(%.1f,%.1f,%.1f) fov=%.1f before=%s after=%s" % [
-        int(surface.get("official_area_m2")), int(surface.get("open_vertex_count")), int(surface.get("triangle_count")), visible_architecture,
+    print("GRAND_PLACE_ARRIVAL_ARCH_OK: area=%d vertices=%d triangles=%d visible_architecture=%d nearby=%d camera=(%.1f,%.2f,%.1f) target=(%.1f,%.1f,%.1f) fov=%.1f before=%s after=%s" % [
+        int(surface.get("official_area_m2")), int(surface.get("open_vertex_count")), int(surface.get("triangle_count")), visible_architecture, nearby.size(),
         CAMERA_POSITION.x, CAMERA_POSITION.y, CAMERA_POSITION.z,
         CAMERA_TARGET.x, CAMERA_TARGET.y, CAMERA_TARGET.z,
         CAMERA_FOV, OUTPUT_DIR + "/before.png", OUTPUT_DIR + "/after.png"

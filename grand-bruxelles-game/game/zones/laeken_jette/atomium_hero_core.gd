@@ -12,14 +12,14 @@ const SPHERE_RADIAL_SEGMENTS := 48
 const SPHERE_RINGS := 24
 const TUBE_RADIAL_SEGMENTS := 32
 
-var hero_built = false
-var sphere_count = 0
-var tube_count = 0
-var source_height_m = 0.0
-var source_sphere_diameter_m = 0.0
-var source_tube_diameter_m = 0.0
-var unresolved_support_pillars = 0
-var anchor_position = Vector3.ZERO
+var hero_built := false
+var sphere_count := 0
+var tube_count := 0
+var source_height_m := 0.0
+var source_sphere_diameter_m := 0.0
+var source_tube_diameter_m := 0.0
+var unresolved_support_pillars := 0
+var anchor_position := Vector3.ZERO
 var landcover_context: Node3D
 var roadarea_context: Node3D
 
@@ -169,7 +169,7 @@ func _add_tube(a: Vector3, b: Vector3) -> void:
 func measured_vertical_extent() -> Vector2:
     if not hero_built:
         return Vector2.ZERO
-    var half_diameter := source_sphere_diameter_m * 0.5
+    var half_diameter: float = source_sphere_diameter_m * 0.5
     var min_y := INF
     var max_y := -INF
     for child: Node in get_children():

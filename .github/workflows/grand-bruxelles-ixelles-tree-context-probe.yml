@@ -1,0 +1,54 @@
+name: Grand Bruxelles Ixelles Tree Context Probe
+
+on:
+  push:
+    branches: ["evidence/ixelles-tree-context-probe-20260814"]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query official Brussels Mobility trees in shipped Ixelles cell
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, urllib.parse, urllib.request
+          base='https://data.mobility.brussels/geoserver/bm_public_space/wfs'
+          params={
+            'service':'WFS','version':'1.1.0','request':'GetFeature',
+            'typeName':'bm_public_space:trees','srsName':'EPSG:31370',
+            'outputFormat':'application/json',
+            'bbox':'149000,169000,149500,169500,EPSG:31370',
+          }
+          url=base+'?'+urllib.parse.urlencode(params)
+          req=urllib.request.Request(url,headers={'User-Agent':'Grand-Bruxelles-Game/ixelles-source-probe'})
+          with urllib.request.urlopen(req,timeout=60) as response:
+              payload=json.load(response)
+          feats=payload.get('features',[])
+          print('IXELLES_TREE_SOURCE_URL',url)
+          print('IXELLES_TREE_COUNT',len(feats))
+          rows=[]
+          for f in feats:
+              geom=f.get('geometry') or {}
+              coords=geom.get('coordinates')
+              if geom.get('type')!='Point' or not isinstance(coords,list) or len(coords)<2:
+                  continue
+              props=f.get('properties') or {}
+              row={'id':f.get('id'),'x':float(coords[0]),'y':float(coords[1]),'properties':props}
+              rows.append(row)
+          rows.sort(key=lambda r:(r['x'],r['y'],str(r['id'])))
+          print('IXELLES_TREE_POINTS_JSON='+json.dumps(rows,separators=(',',':'),ensure_ascii=False))
+          open('/tmp/ixelles_tree_points.json','w',encoding='utf-8').write(json.dumps({'source':url,'count':len(rows),'features':rows},indent=2,ensure_ascii=False)+'\n')
+          PY
+      - name: Upload exact source probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-tree-context-probe
+          path: /tmp/ixelles_tree_points.json
+          if-no-files-found: error

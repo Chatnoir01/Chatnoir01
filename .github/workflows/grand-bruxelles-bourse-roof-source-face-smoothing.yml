@@ -1,0 +1,116 @@
+name: Grand Bruxelles Bourse Roof Source-Face Smoothing
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-roof-source-face-smoothing.yml"
+      - "grand-bruxelles-game/game/scripts/bourse_roof_source_face_smoothing.gd"
+      - "grand-bruxelles-game/game/tests/bourse_roof_source_face_smoothing_visual_test.gd"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/data/urbis/heroes/bourse_lod2.game.json"
+      - "grand-bruxelles-game/data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json"
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify locked Bourse source contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/urbis/heroes/bourse_lod2.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['hero_id']=='bourse'
+          assert d['source']['building_2d_id']=='https://databrussels.be/id/building/1751663'
+          assert d['source']['package_sha256']=='cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2'
+          assert d['evidence']['face_type_counts']['ROOFSURFACE']==231
+          source_triangles=sum(len(f.get('triangles',[])) for f in d['faces'] if f.get('type')=='ROOFSURFACE')
+          assert source_triangles>0
+          nonplanar_shared=0
+          for f in d['faces']:
+              if f.get('type')!='ROOFSURFACE':
+                  continue
+              normals_by_vertex={}
+              for tri in f.get('triangles',[]):
+                  if len(tri)!=3: continue
+                  a,b,c=tri
+                  ux,uy,uz=(b[i]-a[i] for i in range(3))
+                  vx,vy,vz=(c[i]-a[i] for i in range(3))
+                  nx=uy*vz-uz*vy; ny=uz*vx-ux*vz; nz=ux*vy-uy*vx
+                  length=(nx*nx+ny*ny+nz*nz)**0.5
+                  if length<1e-8: continue
+                  n=(nx/length,ny/length,nz/length)
+                  if n[1]<0: n=(-n[0],-n[1],-n[2])
+                  for v in tri:
+                      normals_by_vertex.setdefault(tuple(round(x,4) for x in v),[]).append(n)
+              for values in normals_by_vertex.values():
+                  if len(values)<2: continue
+                  base=values[0]
+                  if any(sum(base[i]*n[i] for i in range(3))<0.99999 for n in values[1:]):
+                      nonplanar_shared+=1
+          print(f'BOURSE_ROOF_SOURCE_CONTRACT faces=231 triangles={source_triangles} smoothing_vertices={nonplanar_shared}')
+          if nonplanar_shared<=0:
+              raise SystemExit('red/source gate: official roof faces contain no source-face smoothing opportunity')
+          PY
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Render deterministic normal-eye Bourse A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/bourse_roof_source_face_smoothing_visual_test.gd 2>&1 | tee /tmp/bourse-roof-source-face-smoothing.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_ROOF_SOURCE_FACE_SMOOTHING_VISUAL_FAIL" /tmp/bourse-roof-source-face-smoothing.log; then exit 1; fi
+          grep -F "BOURSE_ROOF_SOURCE_FACE_SMOOTHING_VISUAL_OK" /tmp/bourse-roof-source-face-smoothing.log
+          grep -F "BOURSE_ROOF_SOURCE_FACE_SMOOTHING_OK" /tmp/bourse-roof-source-face-smoothing.log
+      - name: Enforce anti-micro full-frame gate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          a=Image.open('grand-bruxelles-game/artifacts/bourse/roof-source-face-smoothing/before.png').convert('RGB')
+          b=Image.open('grand-bruxelles-game/artifacts/bourse/roof-source-face-smoothing/after.png').convert('RGB')
+          assert a.size==(1280,720) and b.size==a.size
+          pa=list(a.getdata()); pb=list(b.getdata())
+          changed3=[]; changed8=[]
+          for idx,(x,y) in enumerate(zip(pa,pb)):
+              delta=max(abs(x[i]-y[i]) for i in range(3))
+              if delta>3: changed3.append(idx)
+              if delta>8: changed8.append(idx)
+          total=1280*720
+          r3=len(changed3)/total; r8=len(changed8)/total
+          if changed3:
+              xs=[i%1280 for i in changed3]; ys=[i//1280 for i in changed3]
+              bbox=[min(xs),min(ys),max(xs),max(ys)]
+          else: bbox=[]
+          line=f'BOURSE_ROOF_SOURCE_FACE_PIXEL_GATE changed3={len(changed3)} ratio3={r3:.6f} changed8={len(changed8)} ratio8={r8:.6f} bbox={bbox}'
+          print(line)
+          Path('grand-bruxelles-game/artifacts/bourse/roof-source-face-smoothing/metrics.txt').write_text(line+'\n',encoding='utf-8')
+          if len(changed3)<18432 or r3<0.02 or r8<0.01:
+              raise SystemExit('anti-micro gate failed: source-face roof shading is not visually substantive')
+          PY
+      - name: Upload A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-roof-source-face-smoothing
+          path: |
+            grand-bruxelles-game/artifacts/bourse/roof-source-face-smoothing/before.png
+            grand-bruxelles-game/artifacts/bourse/roof-source-face-smoothing/after.png
+            grand-bruxelles-game/artifacts/bourse/roof-source-face-smoothing/metrics.txt
+            /tmp/bourse-roof-source-face-smoothing.log
+          if-no-files-found: error

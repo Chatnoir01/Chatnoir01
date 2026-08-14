@@ -31,7 +31,12 @@ func _run() -> void:
         return
 
     if not bool(civilian_ai.get("extension_available")) or not bool(police_ai.get("extension_available")):
-        _fail("pilot orchestrators did not build real LimboHSM instances")
+        _fail("pilot HSM build failed: civilian_bound=%s civilian_error=%s police_bound=%s police_error=%s" % [
+            civilian_ai.get("agent") != null,
+            str(civilian_ai.get("last_build_error")),
+            police_ai.get("agent") != null,
+            str(police_ai.get("last_build_error")),
+        ])
         return
     if StringName(civilian_ai.get("active_branch")) != &"routine" or StringName(police_ai.get("active_branch")) != &"routine":
         _fail("pilot agents did not begin on authoritative routine branch")

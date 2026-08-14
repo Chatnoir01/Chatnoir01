@@ -12,6 +12,7 @@ var _opening_count := 0
 var _oval_light_count := 0
 var _entablature_count := 0
 var _clock_count := 0
+var _entry_frame_count := 0
 
 
 func _ready() -> void:
@@ -206,6 +207,52 @@ func _build_stair(
         _step_count += 1
 
 
+func _build_entry_frame(
+    name_prefix: String,
+    center: Vector3,
+    width: float,
+    height: float,
+    depth: float,
+    yaw: float
+) -> void:
+    # Heritage source resolves straight-lintel doors/openings and their framed composition.
+    # Frame thickness/depth below are authored presentation ratios from the existing
+    # provisional opening envelope, not claimed survey dimensions.
+    var frame_thickness := minf(width * 0.065, 0.30)
+    var frame_depth := maxf(depth + 0.10, 0.30)
+    if width <= frame_thickness * 2.0 or height <= frame_thickness or frame_thickness <= 0.0:
+        push_error("Invalid Bourse entry-frame presentation envelope")
+        return
+    _front_box(
+        "%s_LeftJamb" % name_prefix,
+        frame_thickness,
+        height,
+        frame_depth,
+        center + Vector3(-width * 0.5 - frame_thickness * 0.5, 0.0, 0.0),
+        yaw,
+        _stone_material
+    )
+    _front_box(
+        "%s_RightJamb" % name_prefix,
+        frame_thickness,
+        height,
+        frame_depth,
+        center + Vector3(width * 0.5 + frame_thickness * 0.5, 0.0, 0.0),
+        yaw,
+        _stone_material
+    )
+    _front_box(
+        "%s_TopFrame" % name_prefix,
+        width + frame_thickness * 2.0,
+        frame_thickness,
+        frame_depth,
+        center + Vector3(0.0, height * 0.5 + frame_thickness * 0.5, 0.0),
+        yaw,
+        _stone_material
+    )
+    _entry_frame_count += 3
+
+
 func _build_clock(center: Vector3, yaw: float, visual: Dictionary) -> void:
     var radius := float(visual.get("clock_radius_m", 1.12))
     var depth_scale := float(visual.get("clock_depth_scale_m", 0.09))
@@ -266,6 +313,14 @@ func _build_rear_facade(
         _opening_material
     )
     _opening_count += 1
+    _build_entry_frame(
+        "RearCentralEntryFrame",
+        rear_center + Vector3(0.0, base_y + central_height * 0.5, 0.0),
+        central_width,
+        central_height,
+        central_depth,
+        yaw
+    )
 
     var raw_side_offsets: Variant = visual.get("side_entry_offsets_m", [])
     if typeof(raw_side_offsets) != TYPE_ARRAY:
@@ -291,6 +346,14 @@ func _build_rear_facade(
             _opening_material
         )
         _opening_count += 1
+        _build_entry_frame(
+            "RearSideEntryFrame_%02d" % index,
+            rear_center + tangent * along + Vector3(0.0, base_y + side_height * 0.5, 0.0),
+            side_width,
+            side_height,
+            side_depth,
+            yaw
+        )
 
     var raw_oval_offsets: Variant = visual.get("oval_light_offsets_m", [])
     if typeof(raw_oval_offsets) != TYPE_ARRAY:
@@ -389,9 +452,12 @@ func _build_candidate() -> void:
     set_meta("rear_oval_light_count", _oval_light_count)
     set_meta("entablature_count", _entablature_count)
     set_meta("clock_count", _clock_count)
+    set_meta("entry_frame_count", _entry_frame_count)
+    set_meta("entry_frame_source", "urban.brussels heritage inventory 31241")
+    set_meta("entry_frame_authored_proportions", true)
     print(
-        "Bourse provisional portico: columns=%d steps=%d pilasters=%d openings=%d ovals=%d entablature=%d clock=%d source_front_span=%.3f m runtime_approved=false" %
-        [_column_count, _step_count, _pilaster_count, _opening_count, _oval_light_count, _entablature_count, _clock_count, span]
+        "Bourse provisional portico: columns=%d steps=%d pilasters=%d openings=%d ovals=%d entablature=%d clock=%d entry_frames=%d source_front_span=%.3f m runtime_approved=false" %
+        [_column_count, _step_count, _pilaster_count, _opening_count, _oval_light_count, _entablature_count, _clock_count, _entry_frame_count, span]
     )
 
 
@@ -418,6 +484,9 @@ func diagnostic_oval_light_count() -> int:
 func diagnostic_entablature_count() -> int:
     return _entablature_count
 
-
 func diagnostic_clock_count() -> int:
     return _clock_count
+
+
+func diagnostic_entry_frame_count() -> int:
+    return _entry_frame_count

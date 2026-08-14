@@ -8,6 +8,7 @@ const SIDEWALK_OVERLAY_SCRIPT := preload("res://game/scripts/bourse_official_sid
 @export var tangent_margin_m: float = 0.75
 @export var front_alignment_min: float = 0.82
 @export var vertical_margin_m: float = 0.25
+@export var front_plane_epsilon_m: float = 0.05
 
 var _removed_triangles := 0
 var _kept_triangles := 0
@@ -60,7 +61,16 @@ func _is_front_facing_triangle(
     if horizontal.length_squared() < 0.25:
         return false
     horizontal = horizontal.normalized()
-    return absf(horizontal.dot(normal)) >= front_alignment_min
+    if absf(horizontal.dot(normal)) < front_alignment_min:
+        return false
+
+    # The authoritative envelope already gives the front plane and camera-side
+    # direction. Only wall triangles on that plane or toward the camera may be
+    # removed to reveal the portico. Aligned official walls behind the plane are
+    # part of the source envelope/interior and must survive. The 5 cm epsilon is
+    # numerical tolerance only, not an authored landmark dimension.
+    var signed_depth: float = (centroid - plane).dot(normal)
+    return signed_depth >= -front_plane_epsilon_m
 
 func _reorient_bourse_roof_triangles_upward(roofs: MeshInstance3D) -> bool:
     if roofs.mesh == null or roofs.mesh.get_surface_count() == 0:

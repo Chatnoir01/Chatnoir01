@@ -1,0 +1,62 @@
+name: Grand Bruxelles LimboAI NPC Prototype
+
+on:
+  push:
+    branches: ["agent/prototype-limboai-npc"]
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-limboai-npc-prototype.yml"
+      - "grand-bruxelles-game/game/prototypes/ai/**"
+      - "grand-bruxelles-game/game/tests/limboai_npc_probe_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Vendor LimboAI v1.8.0 for probe only
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://github.com/limbonaut/limboai/releases/download/v1.8.0/limboai%2Bv1.8.0.gdextension-4.6.zip'
+          EXPECTED='f95ef170ee41cb587cc720bdd1ea5f496ada1d4017456348c01f308495973c40'
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/limboai.zip "$URL"
+          echo "$EXPECTED  /tmp/limboai.zip" | sha256sum -c -
+          rm -rf /tmp/limboai-extract
+          mkdir -p /tmp/limboai-extract grand-bruxelles-game/addons
+          unzip -q /tmp/limboai.zip -d /tmp/limboai-extract
+          EXT_DIR="$(find /tmp/limboai-extract -type d -path '*/addons/limboai' -print -quit)"
+          test -n "$EXT_DIR"
+          cp -R "$EXT_DIR" grand-bruxelles-game/addons/limboai
+          find grand-bruxelles-game/addons/limboai -maxdepth 4 -type f | sort | head -80
+          test -n "$(find grand-bruxelles-game/addons/limboai -name '*.gdextension' -print -quit)"
+          # Keep browser feasibility explicit: the packaged GDExtension must contain Web/WASM payloads.
+          find grand-bruxelles-game/addons/limboai -type f | grep -Eiq '(web|wasm)'
+
+      - name: Import project with LimboAI extension
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/limbo-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GDExtension.*failed|Cannot open dynamic library" /tmp/limbo-import.log; then exit 1; fi
+
+      - name: Validate Brussels NPC behavior contract
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/limboai_npc_probe_test.gd 2>&1 | tee /tmp/limbo-probe.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LIMBOAI_NPC_PROBE_FAIL" /tmp/limbo-probe.log; then exit 1; fi
+          grep -F "LIMBOAI_NPC_PROBE_OK" /tmp/limbo-probe.log

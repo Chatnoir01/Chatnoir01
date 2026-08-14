@@ -1,17 +1,33 @@
 extends Control
 
+## Touch-first controller for Grand Bruxelles.
+## Everything is drawn with Godot Controls/StyleBoxes: no PNG dependency.
+
 var forward_pressed: bool = false
 var backward_pressed: bool = false
 var left_pressed: bool = false
 var right_pressed: bool = false
 var sprint_pressed: bool = false
 var jump_pressed: bool = false
+var movement_vector: Vector2 = Vector2.ZERO
 
 @onready var player: CharacterBody3D = get_node("../Player")
-@onready var car: CharacterBody3D = get_node("../PrototypeCar")
 
-var _dpad: Control
+const STICK_SIZE := 156.0
+const STICK_KNOB_SIZE := 66.0
+const STICK_RADIUS := 58.0
+const STICK_DEADZONE := 0.12
+const TOUCH_LOOK_X := 0.0043
+const TOUCH_LOOK_Y := 0.0035
+
+var _stick_base: Panel
+var _stick_knob: Panel
 var _actions: Control
+var _travel_panel: Panel
+var _action_buttons: Array[Control] = []
+var _stick_touch_id: int = -1
+var _look_touch_id: int = -1
+var _vehicle_view_index: int = 0
 
 
 func _ready() -> void:
@@ -21,45 +37,112 @@ func _ready() -> void:
     if not visible:
         return
     _build_controls()
+    set_process_input(true)
 
 
 func _build_controls() -> void:
-    _dpad = Control.new()
-    _dpad.name = "DPad"
-    _dpad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    _dpad.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-    _dpad.position = Vector2(24.0, -230.0)
-    add_child(_dpad)
+    _stick_base = Panel.new()
+    _stick_base.name = "AnalogStickBase"
+    _stick_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _stick_base.anchor_top = 1.0
+    _stick_base.anchor_bottom = 1.0
+    _stick_base.offset_left = 28.0
+    _stick_base.offset_top = -196.0
+    _stick_base.offset_right = 28.0 + STICK_SIZE
+    _stick_base.offset_bottom = -40.0
+    _stick_base.add_theme_stylebox_override("panel", _circle_style(Color(0.05, 0.07, 0.09, 0.46), Color(0.86, 0.91, 0.95, 0.38), 2))
+    add_child(_stick_base)
+
+    _stick_knob = Panel.new()
+    _stick_knob.name = "AnalogStickKnob"
+    _stick_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _stick_knob.size = Vector2(STICK_KNOB_SIZE, STICK_KNOB_SIZE)
+    _stick_knob.add_theme_stylebox_override("panel", _circle_style(Color(0.86, 0.91, 0.95, 0.58), Color(1.0, 1.0, 1.0, 0.72), 2))
+    _stick_base.add_child(_stick_knob)
+    _reset_stick_knob()
 
     _actions = Control.new()
     _actions.name = "Actions"
     _actions.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    _actions.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-    _actions.position = Vector2(-250.0, -215.0)
+    _actions.anchor_left = 1.0
+    _actions.anchor_top = 1.0
+    _actions.anchor_right = 1.0
+    _actions.anchor_bottom = 1.0
+    _actions.offset_left = -300.0
+    _actions.offset_top = -246.0
+    _actions.offset_right = -18.0
+    _actions.offset_bottom = -18.0
     add_child(_actions)
 
-    var up := _make_button("▲", Vector2(76, 0), Vector2(72, 72))
-    var left := _make_button("◀", Vector2(0, 76), Vector2(72, 72))
-    var down := _make_button("▼", Vector2(76, 76), Vector2(72, 72))
-    var right := _make_button("▶", Vector2(152, 76), Vector2(72, 72))
-    _dpad.add_child(up)
-    _dpad.add_child(left)
-    _dpad.add_child(down)
-    _dpad.add_child(right)
-    _bind_hold(up, "forward_pressed")
-    _bind_hold(down, "backward_pressed")
-    _bind_hold(left, "left_pressed")
-    _bind_hold(right, "right_pressed")
+    var interact := _make_button("ENTRER", Vector2(176, 24), Vector2(92, 78))
+    var jump := _make_button("SAUT", Vector2(78, 126), Vector2(82, 72))
+    var sprint := _make_button("COURIR", Vector2(176, 126), Vector2(92, 72))
+    var view := _make_button("VUE", Vector2(0, 40), Vector2(68, 62))
+    var travel := _make_button("CARTE", Vector2(0, 132), Vector2(68, 62))
+    for button: Button in [interact, jump, sprint, view, travel]:
+        _actions.add_child(button)
+        _action_buttons.append(button)
 
-    var interact := _make_button("E", Vector2(90, 5), Vector2(82, 82))
-    var jump := _make_button("SAUT", Vector2(0, 95), Vector2(82, 70))
-    var sprint := _make_button("RUN", Vector2(100, 100), Vector2(82, 70))
-    _actions.add_child(interact)
-    _actions.add_child(jump)
-    _actions.add_child(sprint)
     interact.pressed.connect(_interact)
     _bind_hold(jump, "jump_pressed")
     _bind_hold(sprint, "sprint_pressed")
+    view.pressed.connect(_cycle_view)
+    travel.pressed.connect(_toggle_travel_panel)
+    _build_travel_panel()
+
+
+func _build_travel_panel() -> void:
+    _travel_panel = Panel.new()
+    _travel_panel.name = "FastTravelPanel"
+    _travel_panel.visible = false
+    _travel_panel.anchor_left = 0.5
+    _travel_panel.anchor_top = 0.5
+    _travel_panel.anchor_right = 0.5
+    _travel_panel.anchor_bottom = 0.5
+    _travel_panel.offset_left = -145.0
+    _travel_panel.offset_top = -118.0
+    _travel_panel.offset_right = 145.0
+    _travel_panel.offset_bottom = 118.0
+    _travel_panel.add_theme_stylebox_override("panel", _rounded_style(Color(0.025, 0.035, 0.05, 0.92), Color(0.75, 0.82, 0.88, 0.35), 18, 2))
+    add_child(_travel_panel)
+    _action_buttons.append(_travel_panel)
+
+    var title := Label.new()
+    title.position = Vector2(18, 14)
+    title.size = Vector2(254, 30)
+    title.text = "DÉPLACEMENT RAPIDE"
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    title.add_theme_font_size_override("font_size", 18)
+    _travel_panel.add_child(title)
+
+    var midi := _travel_button("MIDI / ZUID", Vector2(18, 58))
+    var center := _travel_button("CENTRE / BOURSE", Vector2(150, 58))
+    var cars := _travel_button("TEST AUTO A/B", Vector2(18, 128), Vector2(254, 54))
+    var close := _travel_button("FERMER", Vector2(82, 190), Vector2(126, 34))
+    _travel_panel.add_child(midi)
+    _travel_panel.add_child(center)
+    _travel_panel.add_child(cars)
+    _travel_panel.add_child(close)
+    midi.pressed.connect(_fast_travel.bind("midi"))
+    center.pressed.connect(_fast_travel.bind("bourse"))
+    cars.pressed.connect(_fast_travel.bind("vehicle_ab"))
+    close.pressed.connect(_toggle_travel_panel)
+
+
+func _circle_style(fill: Color, border: Color, width: int) -> StyleBoxFlat:
+    return _rounded_style(fill, border, 999, width)
+
+
+func _rounded_style(fill: Color, border: Color, radius: int, width: int) -> StyleBoxFlat:
+    var style := StyleBoxFlat.new()
+    style.bg_color = fill
+    style.border_color = border
+    style.set_border_width_all(width)
+    style.corner_radius_top_left = radius
+    style.corner_radius_top_right = radius
+    style.corner_radius_bottom_left = radius
+    style.corner_radius_bottom_right = radius
+    return style
 
 
 func _make_button(label: String, pos: Vector2, button_size: Vector2) -> Button:
@@ -69,8 +152,15 @@ func _make_button(label: String, pos: Vector2, button_size: Vector2) -> Button:
     button.size = button_size
     button.custom_minimum_size = button_size
     button.focus_mode = Control.FOCUS_NONE
-    button.modulate = Color(1.0, 1.0, 1.0, 0.78)
-    button.add_theme_font_size_override("font_size", 20)
+    button.add_theme_font_size_override("font_size", 15)
+    button.add_theme_stylebox_override("normal", _rounded_style(Color(0.05, 0.07, 0.09, 0.60), Color(0.88, 0.92, 0.95, 0.40), 22, 2))
+    button.add_theme_stylebox_override("pressed", _rounded_style(Color(0.22, 0.35, 0.48, 0.82), Color(1.0, 1.0, 1.0, 0.72), 22, 2))
+    return button
+
+
+func _travel_button(label: String, pos: Vector2, button_size: Vector2 = Vector2(122, 54)) -> Button:
+    var button := _make_button(label, pos, button_size)
+    button.add_theme_font_size_override("font_size", 13)
     return button
 
 
@@ -88,8 +178,148 @@ func _release_if_needed(property_name: String) -> void:
     set(property_name, false)
 
 
+func _input(event: InputEvent) -> void:
+    if not visible:
+        return
+    if event is InputEventScreenTouch:
+        var touch := event as InputEventScreenTouch
+        if not touch.pressed:
+            if touch.index == _stick_touch_id:
+                _release_stick()
+            if touch.index == _look_touch_id:
+                _look_touch_id = -1
+            return
+        if _travel_panel != null and _travel_panel.visible:
+            return
+        if _stick_touch_id < 0 and _stick_capture_rect().has_point(touch.position):
+            _stick_touch_id = touch.index
+            _update_stick(touch.position)
+            return
+        if _look_touch_id < 0 and touch.position.x > get_viewport_rect().size.x * 0.36 and not _point_over_actions(touch.position):
+            _look_touch_id = touch.index
+            return
+
+    if event is InputEventScreenDrag:
+        var drag := event as InputEventScreenDrag
+        if drag.index == _stick_touch_id:
+            _update_stick(drag.position)
+        elif drag.index == _look_touch_id:
+            _apply_touch_look(drag.relative)
+
+
+func _stick_capture_rect() -> Rect2:
+    if _stick_base == null:
+        return Rect2()
+    return _stick_base.get_global_rect().grow(28.0)
+
+
+func _update_stick(screen_position: Vector2) -> void:
+    var rect := _stick_base.get_global_rect()
+    var center := rect.get_center()
+    var delta := screen_position - center
+    var clamped := delta.limit_length(STICK_RADIUS)
+    var normalized := clamped / STICK_RADIUS
+    if normalized.length() < STICK_DEADZONE:
+        normalized = Vector2.ZERO
+    movement_vector = normalized
+    _stick_knob.position = Vector2(STICK_SIZE * 0.5 - STICK_KNOB_SIZE * 0.5, STICK_SIZE * 0.5 - STICK_KNOB_SIZE * 0.5) + clamped
+    _sync_legacy_direction_flags()
+
+
+func _release_stick() -> void:
+    _stick_touch_id = -1
+    movement_vector = Vector2.ZERO
+    _sync_legacy_direction_flags()
+    _reset_stick_knob()
+
+
+func _reset_stick_knob() -> void:
+    if _stick_knob == null:
+        return
+    _stick_knob.position = Vector2(STICK_SIZE * 0.5 - STICK_KNOB_SIZE * 0.5, STICK_SIZE * 0.5 - STICK_KNOB_SIZE * 0.5)
+
+
+func _sync_legacy_direction_flags() -> void:
+    left_pressed = movement_vector.x < -0.22
+    right_pressed = movement_vector.x > 0.22
+    forward_pressed = movement_vector.y < -0.22
+    backward_pressed = movement_vector.y > 0.22
+
+
+func get_movement_vector() -> Vector2:
+    return movement_vector
+
+
+func _point_over_actions(point: Vector2) -> bool:
+    for control: Control in _action_buttons:
+        if control.visible and control.get_global_rect().has_point(point):
+            return true
+    return false
+
+
+func _apply_touch_look(relative: Vector2) -> void:
+    var driven_vehicle := _driven_vehicle()
+    if driven_vehicle != null:
+        var pivot := driven_vehicle.get_node_or_null("CameraPivot") as Node3D
+        if pivot != null:
+            pivot.rotate_y(-relative.x * TOUCH_LOOK_X)
+            pivot.rotate_x(-relative.y * TOUCH_LOOK_Y)
+            pivot.rotation.y = clampf(pivot.rotation.y, -1.55, 1.55)
+            pivot.rotation.x = clampf(pivot.rotation.x, deg_to_rad(-34.0), deg_to_rad(24.0))
+        return
+    if player == null:
+        return
+    player.rotate_y(-relative.x * TOUCH_LOOK_X)
+    var pivot := player.get_node_or_null("CameraPivot") as Node3D
+    if pivot != null:
+        pivot.rotate_x(-relative.y * TOUCH_LOOK_Y)
+        pivot.rotation.x = clampf(pivot.rotation.x, deg_to_rad(-60.0), deg_to_rad(35.0))
+
+
+func _driven_vehicle() -> Node3D:
+    for candidate: Node in get_tree().get_nodes_in_group("vehicle"):
+        if candidate is Node3D and candidate.has_method("has_driver") and bool(candidate.call("has_driver")):
+            return candidate as Node3D
+    return null
+
+
 func _interact() -> void:
-    if car.has_method("has_driver") and bool(car.call("has_driver")):
-        car.call("exit_driver")
-    elif player.has_method("try_enter_vehicle"):
+    var driven_vehicle := _driven_vehicle()
+    if driven_vehicle != null and driven_vehicle.has_method("exit_driver"):
+        driven_vehicle.call("exit_driver")
+        return
+    if player != null and player.has_method("try_enter_vehicle"):
         player.call("try_enter_vehicle")
+
+
+func _cycle_view() -> void:
+    var driven_vehicle := _driven_vehicle()
+    if driven_vehicle != null:
+        var arm := driven_vehicle.get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
+        var vehicle_camera := driven_vehicle.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
+        if arm != null:
+            var distances: Array[float] = [6.1, 3.8, 8.2]
+            var fovs: Array[float] = [72.0, 76.0, 66.0]
+            _vehicle_view_index = (_vehicle_view_index + 1) % distances.size()
+            arm.spring_length = distances[_vehicle_view_index]
+            if vehicle_camera != null:
+                vehicle_camera.fov = fovs[_vehicle_view_index]
+        return
+    if player != null and player.has_method("cycle_camera_view"):
+        player.call("cycle_camera_view")
+
+
+func _toggle_travel_panel() -> void:
+    if _travel_panel == null:
+        return
+    _travel_panel.visible = not _travel_panel.visible
+    if _travel_panel.visible:
+        _release_stick()
+        _look_touch_id = -1
+
+
+func _fast_travel(destination: String) -> void:
+    if player != null and player.has_method("fast_travel_to"):
+        player.call("fast_travel_to", destination)
+    if _travel_panel != null:
+        _travel_panel.visible = false

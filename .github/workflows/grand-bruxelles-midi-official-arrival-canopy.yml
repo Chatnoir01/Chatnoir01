@@ -1,0 +1,85 @@
+name: Grand Bruxelles Midi Official Arrival Canopy
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-official-arrival-canopy.yml"
+      - "grand-bruxelles-game/data/urbis/midi_lod2/1633645.game.json"
+      - "grand-bruxelles-game/game/scripts/midi_official_arrival_canopy.gd"
+      - "grand-bruxelles-game/game/tests/midi_official_arrival_canopy_visual_test.gd"
+      - "grand-bruxelles-game/project.godot"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lock audited UrbIS source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/urbis/midi_lod2/1633645.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['source']['building_2d_id']=='https://databrussels.be/id/building/1633645'
+          assert d['source']['package_sha256']=='a760fdff222ae9431113f82fe1c8f942a9fe2bda40e32064c627ae8d3a21110f'
+          assert d['source']['crs']=='EPSG:31370'
+          assert d['source']['license']=='CC0-1.0'
+          assert d['evidence']['face_count']==889 and d['evidence']['triangle_count']==3428
+          assert d['evidence']['face_type_counts']['WALLSURFACE']==852
+          assert d['evidence']['face_type_counts']['ROOFSURFACE']==34
+          assert abs(d['evidence']['height_m']-13.6076)<1e-4
+          PY
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Render fixed normal-player Midi/Fonsny A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_official_arrival_canopy_visual_test.gd 2>&1 | tee /tmp/midi-official-arrival-canopy.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_OFFICIAL_ARRIVAL_CANOPY_VISUAL_FAIL" /tmp/midi-official-arrival-canopy.log; then exit 1; fi
+          grep -F "MIDI_OFFICIAL_ARRIVAL_CANOPY_VISUAL_OK" /tmp/midi-official-arrival-canopy.log
+          test -f grand-bruxelles-game/artifacts/midi/official-arrival-canopy/before.png
+          test -f grand-bruxelles-game/artifacts/midi/official-arrival-canopy/after.png
+      - name: Enforce predeclared anti-micro gate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image, ImageChops
+          a=Image.open('grand-bruxelles-game/artifacts/midi/official-arrival-canopy/before.png').convert('RGB')
+          b=Image.open('grand-bruxelles-game/artifacts/midi/official-arrival-canopy/after.png').convert('RGB')
+          assert a.size==(1280,720) and b.size==a.size
+          pa=list(a.getdata()); pb=list(b.getdata())
+          changed3=sum(1 for x,y in zip(pa,pb) if max(abs(x[i]-y[i]) for i in range(3))>3)
+          changed8=sum(1 for x,y in zip(pa,pb) if max(abs(x[i]-y[i]) for i in range(3))>8)
+          total=1280*720
+          r3=changed3/total; r8=changed8/total
+          diff=ImageChops.difference(a,b)
+          bbox=diff.getbbox()
+          print(f'MIDI_OFFICIAL_ARRIVAL_CANOPY_PIXEL_GATE changed3={changed3} ratio3={r3:.6f} changed8={changed8} ratio8={r8:.6f} bbox={bbox}')
+          if changed3 < 18432 or r3 < 0.02 or r8 < 0.01:
+              raise SystemExit('anti-micro gate failed: arrival correction is below the fixed normal-player bar')
+          PY
+      - name: Upload A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-official-arrival-canopy-visual
+          path: |
+            grand-bruxelles-game/artifacts/midi/official-arrival-canopy/before.png
+            grand-bruxelles-game/artifacts/midi/official-arrival-canopy/after.png
+            /tmp/midi-official-arrival-canopy.log
+          if-no-files-found: error

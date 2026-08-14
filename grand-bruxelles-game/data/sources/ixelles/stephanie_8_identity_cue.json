@@ -1,0 +1,50 @@
+{
+  "schema": "grand-bruxelles.ixelles.identity-cue.v1",
+  "cell_id": "bxl-e149000-n169000-s500",
+  "bbox_epsg31370": [149000.0, 169000.0, 149500.0, 169500.0],
+  "runtime_approved": false,
+  "promote_runtime": false,
+  "cue_id": "stephanie-8-white-stone-frontage",
+  "source_building_id": "https://databrussels.be/id/building/1737880",
+  "strong_source_semantic_height_m": 19.884,
+  "official_address": {
+    "urbis_address_id": "https://databrussels.be/id/address/7573613",
+    "street_fr": "Place Stéphanie",
+    "street_nl": "Stefaniaplein",
+    "police_number": "8",
+    "urbis_wfs": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "link_method": "#261 evidence-only discovery: urbisvector Addresses BU_ID exact match"
+  },
+  "heritage": {
+    "authority": "urban.brussels - Inventaire du patrimoine architectural",
+    "record_url": "https://monument.heritage.brussels/fr/Ixelles/Place_Staephanie/8/19360",
+    "urban_id": 19360,
+    "description_basis": [
+      "neo-classical townhouse by architect Gustave Saintenoy, 1886",
+      "facade in white stone highlighted with blue stone",
+      "ground-floor openings have blue-stone surrounds",
+      "first-floor surrounds and central balcony are blue stone",
+      "slate gable roof with dormers"
+    ]
+  },
+  "frontage_selection": {
+    "source_axis_id": "https://databrussels.be/id/streetaxe/71306:2",
+    "source_axis_fr": "Place Stéphanie",
+    "source_axis_nl": "Stefaniaplein",
+    "source_axis_points_game_xz": [[740.719, 928.006], [735.808, 926.900]],
+    "method": "select the existing strong-source footprint edge with minimum segment-to-segment distance to official Place Stephanie StreetAxis 71306:2",
+    "whole_building_recolor": false
+  },
+  "runtime_interpretation": {
+    "scope": "renderer-only overlay on one selected existing strong-source frontage edge",
+    "material_semantics": "white stone; authored warm-white visualization, not measured RGB",
+    "blue_stone_geometry_added": false,
+    "openings_or_balconies_invented": false,
+    "geometry_changes": false,
+    "collision_changes": false,
+    "camera_changes": false,
+    "terrain_changes": false,
+    "street_changes": false,
+    "unresolved_buildings_added": 0
+  }
+}

@@ -13,6 +13,7 @@ const MIN_BODY_CLEARANCE_M := 0.75
 const MAX_BODY_CLEARANCE_M := 1.05
 const EXPECTED_CAMERA_EYE_HEIGHT_M := 1.72
 const EYE_HEIGHT_TOLERANCE_M := 0.03
+const MAX_SAMPLE_COLLISION_DELTA_M := 1.0
 const WIDTH := 1280
 const HEIGHT := 720
 
@@ -61,20 +62,26 @@ func _run() -> void:
         _fail("target StreetAxis witness drifted")
         return
 
-    var ground_y := float(player.get_meta("ixelles_direct_ground_y", NAN))
-    if not is_finite(ground_y):
-        _fail("player ground witness missing")
+    var sampled_ground_y := float(player.get_meta("ixelles_direct_sampled_ground_y", NAN))
+    var physical_ground_y := float(player.get_meta("ixelles_direct_physical_ground_y", NAN))
+    if not is_finite(sampled_ground_y) or not is_finite(physical_ground_y):
+        _fail("sampled/physical ground witness missing")
         return
-    var body_clearance := player.global_position.y - ground_y
+    var sample_collision_delta := sampled_ground_y - physical_ground_y
+    if absf(sample_collision_delta) > MAX_SAMPLE_COLLISION_DELTA_M:
+        _fail("sample/collision terrain delta unexpectedly large: %.3f" % sample_collision_delta)
+        return
+
+    var body_clearance := player.global_position.y - physical_ground_y
     if body_clearance < MIN_BODY_CLEARANCE_M or body_clearance > MAX_BODY_CLEARANCE_M:
-        _fail("player is not safely terrain-anchored: clearance=%.3f" % body_clearance)
+        _fail("player is not safely collision-anchored: clearance=%.3f" % body_clearance)
         return
 
     var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
     if camera == null or not camera.current:
         _fail("player camera unavailable")
         return
-    var camera_eye_height := camera.global_position.y - ground_y
+    var camera_eye_height := camera.global_position.y - sampled_ground_y
     if absf(camera_eye_height - EXPECTED_CAMERA_EYE_HEIGHT_M) > EYE_HEIGHT_TOLERANCE_M:
         _fail("player camera eye height drifted: %.3f" % camera_eye_height)
         return
@@ -108,5 +115,5 @@ func _run() -> void:
         _fail("production-player capture save failed")
         return
 
-    print("IXELLES_DIRECT_SPAWN_OK: cell=%s player=(%.3f,%.3f,%.3f) ground=%.3f body_clearance=%.3f camera_eye=%.3f streets=%d axes=%d buildings=%d skipped=%d capture=%s size=%dx%d" % [str(slice.get("cell_id")), player.global_position.x, player.global_position.y, player.global_position.z, ground_y, body_clearance, camera_eye_height, int(slice.get("street_surface_count")), int(slice.get("street_segment_count")), int(slice.get("building_count")), int(slice.get("skipped_unapproved_height_buildings")), OUTPUT_PATH, WIDTH, HEIGHT])
+    print("IXELLES_DIRECT_SPAWN_OK: cell=%s player=(%.3f,%.3f,%.3f) sampled_ground=%.3f physical_ground=%.3f sample_collision_delta=%.3f body_clearance=%.3f camera_eye=%.3f streets=%d axes=%d buildings=%d skipped=%d capture=%s size=%dx%d" % [str(slice.get("cell_id")), player.global_position.x, player.global_position.y, player.global_position.z, sampled_ground_y, physical_ground_y, sample_collision_delta, body_clearance, camera_eye_height, int(slice.get("street_surface_count")), int(slice.get("street_segment_count")), int(slice.get("building_count")), int(slice.get("skipped_unapproved_height_buildings")), OUTPUT_PATH, WIDTH, HEIGHT])
     quit(0)

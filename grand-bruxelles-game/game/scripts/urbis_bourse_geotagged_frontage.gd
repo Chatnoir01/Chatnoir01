@@ -7,6 +7,8 @@ var _roof_material: StandardMaterial3D
 var _render_triangle_count := 0
 var _masked_osm_count := 0
 var _bounds := Rect2()
+var _flipped_wall_triangles := 0
+var _flipped_roof_triangles := 0
 
 
 func _ready() -> void:
@@ -23,11 +25,11 @@ func _make_materials() -> void:
     _wall_material = StandardMaterial3D.new()
     _wall_material.albedo_color = Color(0.48, 0.43, 0.35, 1.0)
     _wall_material.roughness = 0.92
-    _wall_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    _wall_material.cull_mode = BaseMaterial3D.CULL_BACK
     _roof_material = StandardMaterial3D.new()
     _roof_material.albedo_color = Color(0.17, 0.18, 0.19, 1.0)
     _roof_material.roughness = 0.92
-    _roof_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    _roof_material.cull_mode = BaseMaterial3D.CULL_BACK
 
 
 func _read_geometry() -> Dictionary:
@@ -104,6 +106,31 @@ func _mask_replaced_osm(bounds: Rect2) -> void:
         _masked_osm_count += 1
 
 
+func _oriented_triangle(a: Vector3, b: Vector3, c: Vector3, face_type: String) -> Array[Vector3]:
+    var aa := a
+    var bb := b
+    var cc := c
+    var normal := (bb - aa).cross(cc - aa).normalized()
+    if not normal.is_finite() or normal.length_squared() < 0.5:
+        return []
+    if face_type == "WALLSURFACE":
+        var triangle_center := (aa + bb + cc) / 3.0
+        var building_center := _bounds.get_center()
+        var outward := Vector2(triangle_center.x, triangle_center.z) - building_center
+        var normal_xz := Vector2(normal.x, normal.z)
+        if outward.length_squared() > 0.0001 and normal_xz.length_squared() > 0.0001 and normal_xz.dot(outward) < 0.0:
+            var swap := bb
+            bb = cc
+            cc = swap
+            _flipped_wall_triangles += 1
+    elif face_type == "ROOFSURFACE" and normal.y < 0.0:
+        var swap := bb
+        bb = cc
+        cc = swap
+        _flipped_roof_triangles += 1
+    return [aa, bb, cc]
+
+
 func _append_type(tool: SurfaceTool, faces: Array, face_type: String) -> int:
     var count := 0
     for raw_face: Variant in faces:
@@ -117,6 +144,12 @@ func _append_type(tool: SurfaceTool, faces: Array, face_type: String) -> int:
             var c := _point(raw_triangle[2])
             if not a.is_finite() or not b.is_finite() or not c.is_finite():
                 continue
+            var oriented := _oriented_triangle(a, b, c, face_type)
+            if oriented.size() != 3:
+                continue
+            a = oriented[0]
+            b = oriented[1]
+            c = oriented[2]
             var normal := (b - a).cross(c - a).normalized()
             if not normal.is_finite() or normal.length_squared() < 0.5:
                 continue
@@ -148,7 +181,8 @@ func _build_geometry(data: Dictionary) -> void:
     set_meta("building_id", "https://databrussels.be/id/building/1598452")
     set_meta("runtime_approved", false)
     set_meta("realism_complete", false)
-    print("Bourse geotagged frontage 1598452: %d rendered triangles, %d OSM replacements" % [_render_triangle_count, _masked_osm_count])
+    set_meta("source_face_orientation_preserved", true)
+    print("Bourse geotagged frontage 1598452: %d rendered triangles, %d OSM replacements, flipped_walls=%d flipped_roofs=%d" % [_render_triangle_count, _masked_osm_count, _flipped_wall_triangles, _flipped_roof_triangles])
 
 
 func render_triangle_count() -> int:

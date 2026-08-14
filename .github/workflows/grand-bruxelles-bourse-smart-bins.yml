@@ -37,3 +37,20 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_smart_bins_visual_test.gd 2>&1 | tee /tmp/bourse-smart-bins.log
           if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_SMART_BINS_FAIL" /tmp/bourse-smart-bins.log; then exit 1; fi
           grep -F "BOURSE_SMART_BINS_OK" /tmp/bourse-smart-bins.log
+      - name: Capture production-camera Bourse witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/bourse_smart_bins_witness_test.gd 2>&1 | tee /tmp/bourse-smart-bins-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_SMART_BINS_WITNESS_FAIL" /tmp/bourse-smart-bins-witness.log; then exit 1; fi
+          grep -F "BOURSE_SMART_BINS_WITNESS_OK" /tmp/bourse-smart-bins-witness.log
+          test -f grand-bruxelles-game/artifacts/bourse/bourse_smart_bins_witness.png
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-smart-bins-visual-evidence
+          path: |
+            grand-bruxelles-game/artifacts/bourse/bourse_smart_bins_witness.png
+            /tmp/bourse-smart-bins.log
+            /tmp/bourse-smart-bins-witness.log
+          if-no-files-found: error

@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import json, math
+          import json, math, re
           from pathlib import Path
 
           root=Path('grand-bruxelles-game')
@@ -37,21 +37,30 @@ jobs:
               elif isinstance(obj,list):
                   for v in obj: yield from dicts(v)
 
+          def normalized_id(value):
+              if value is None: return None
+              s=str(value)
+              if s.isdigit(): return s
+              m=re.search(r'(?:physicalbuilding|building|footprint)[/:_-]?(\d+)$',s,re.I)
+              return m.group(1) if m else None
+
           def ident(d):
-              for k in ('building_id','source_building_id','id','source_id'):
-                  if k in d and d[k] is not None:
-                      s=str(d[k])
-                      if s.startswith('https://databrussels.be/id/physicalbuilding/'):
-                          return s.rsplit('/',1)[-1]
-                      if s.isdigit(): return s
+              preferred=('building_id','source_building_id','physical_building_id','footprint_id','id','source_id','source_ref')
+              for k in preferred:
+                  if k in d:
+                      bid=normalized_id(d[k])
+                      if bid: return bid
+              for k,v in d.items():
+                  if any(token in str(k).lower() for token in ('building','footprint')):
+                      bid=normalized_id(v)
+                      if bid: return bid
               return None
 
-          strong_ids=set()
-          for d in dicts(strong):
-              bid=ident(d)
-              if bid: strong_ids.add(bid)
+          records=strong.get('records',[])
           print('STRONG_SCHEMA_KEYS', sorted(strong.keys()))
-          print('STRONG_ID_COUNT', len(strong_ids))
+          print('STRONG_SAMPLE_RECORDS', records[:3])
+          strong_ids={ident(d) for d in records if isinstance(d,dict)}-{None}
+          print('STRONG_ID_COUNT', len(strong_ids), 'ELIGIBLE_COUNT', strong.get('eligible_count'))
 
           axes={str(a.get('id')):a for a in network.get('street_axes',[]) if isinstance(a,dict)}
           cam_axis=axes['https://databrussels.be/id/streetaxe/71374:1']['points']
@@ -101,11 +110,13 @@ jobs:
                   vals.append(sign*math.degrees(math.acos(qdot)))
               amin=min(vals) if vals else angle; amax=max(vals) if vals else angle
               intersects=(amin <= 45.0 and amax >= -45.0)
-              rows.append((not intersects, max(abs(amin),abs(amax)) if not intersects else 0.0, dist, angle, bid, amin, amax, d.get('source_ref') or d.get('source_id') or d.get('id')))
+              rows.append((not intersects, dist, angle, bid, amin, amax, d.get('source_ref') or d.get('source_id') or d.get('id')))
           rows.sort()
           print('STRONG_CELL_FOOTPRINT_COUNT', len(rows))
           for r in rows[:30]:
-              print('VISIBLE_STRONG_CANDIDATE', {'id':r[4],'distance_m':round(r[2],2),'center_angle_deg':round(r[3],2),'span_deg':[round(r[5],2),round(r[6],2)],'source':r[7]})
+              print('VISIBLE_STRONG_CANDIDATE', {'id':r[3],'distance_m':round(r[1],2),'center_angle_deg':round(r[2],2),'span_deg':[round(r[4],2),round(r[5],2)],'source':r[6]})
+          if len(strong_ids) != int(strong.get('eligible_count',-1)):
+              raise SystemExit('Strong-height identifier extraction drifted from eligible_count')
           if not rows:
               raise SystemExit('No strong-source runtime footprints found')
           if not any(not r[0] for r in rows):

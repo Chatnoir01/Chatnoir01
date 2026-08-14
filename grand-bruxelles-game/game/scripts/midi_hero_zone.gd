@@ -15,6 +15,7 @@ const FAUQUENBERG_BRICK_HEIGHT_M := 0.04
 const FAUQUENBERG_JOINT_WIDTH_M := 0.02
 const FAUQUENBERG_TILE_WIDTH_M := 0.52
 const FAUQUENBERG_TILE_HEIGHT_M := 0.12
+const BLUE_STONE_TILE_SIZE_M := 1.25
 
 var _brick_yellow: StandardMaterial3D
 var _brick_shadow: StandardMaterial3D
@@ -112,13 +113,56 @@ func _fauquenberg_material(shadow: bool = false) -> StandardMaterial3D:
     return material
 
 
+func _blue_stone_texture() -> ImageTexture:
+    const SIZE := 256
+    var image := Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RGBA8)
+    for y: int in range(SIZE):
+        for x: int in range(SIZE):
+            # Deterministic authored mineral variation. The heritage source
+            # identifies blue stone but does not provide a calibrated pattern.
+            var fine_seed: int = (x * 73 + y * 151 + ((x * y) % 97) * 37) % 997
+            var coarse_seed: int = ((x / 14) * 41 + (y / 14) * 67) % 101
+            var fine: float = float(fine_seed) / 996.0 - 0.5
+            var coarse: float = float(coarse_seed) / 100.0 - 0.5
+            var value: float = fine * 0.030 + coarse * 0.052
+            var base := Color(0.245, 0.265, 0.282, 1.0)
+            image.set_pixel(
+                x,
+                y,
+                Color(
+                    clampf(base.r + value * 0.86, 0.0, 1.0),
+                    clampf(base.g + value * 0.94, 0.0, 1.0),
+                    clampf(base.b + value, 0.0, 1.0),
+                    1.0
+                )
+            )
+    return ImageTexture.create_from_image(image)
+
+
+func _blue_stone_material() -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color.WHITE
+    material.albedo_texture = _blue_stone_texture()
+    material.roughness = 0.84
+    material.metallic = 0.0
+    material.uv1_triplanar = true
+    material.uv1_world_triplanar = false
+    material.uv1_scale = Vector3.ONE / BLUE_STONE_TILE_SIZE_M
+    material.set_meta("source_material_identity", "blue_stone")
+    material.set_meta("authored_tile_size_m", BLUE_STONE_TILE_SIZE_M)
+    material.set_meta("authored_presentation_values", true)
+    material.set_meta("procedural_original_asset", true)
+    material.set_meta("copyrighted_photo_texture_used", false)
+    return material
+
+
 func _make_materials() -> void:
     # Heritage inventory: yellow smooth Fauquenberg facing brick in a 24 x 4 x
     # 9 cm format with 2 cm joints, blue-stone bases/bands, concrete opening
     # frames and canopies, metal + extensive glazing.
     _brick_yellow = _fauquenberg_material(false)
     _brick_shadow = _fauquenberg_material(true)
-    _blue_stone = _material(Color(0.235, 0.255, 0.27, 1.0), 0.86)
+    _blue_stone = _blue_stone_material()
     _concrete = _material(Color(0.47, 0.48, 0.46, 1.0), 0.90)
     _glass = _material(Color(0.055, 0.085, 0.105, 1.0), 0.18, 0.20)
     _glass_block = _material(Color(0.32, 0.43, 0.45, 0.78), 0.26, 0.05)

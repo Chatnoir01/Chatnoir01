@@ -73,7 +73,7 @@ func _run() -> void:
     manager.update_observer(approach, approach_velocity)
 
     var ixelles_node: Node = null
-    for _frame_index: int in range(20):
+    for _frame_index: int in range(60):
         await process_frame
         if backend.has_active_instance(CELL_ID):
             ixelles_node = backend.get_instance(CELL_ID)
@@ -87,7 +87,7 @@ func _run() -> void:
         return
     if not _expect(is_instance_valid(ixelles_node), "Ixelles node vanished after activation"):
         return
-    if not _expect(bool(ixelles_node.get("runtime_loaded")), "Ixelles streamed runtime did not complete within 20 frames"):
+    if not _expect(bool(ixelles_node.get("runtime_loaded")), "Ixelles streamed runtime did not complete within 60 frames"):
         return
     if not _expect(int(ixelles_node.get("terrain_triangle_count")) == 125000, "unexpected Ixelles terrain triangle count"):
         return
@@ -99,7 +99,11 @@ func _run() -> void:
     var phase_ms: Dictionary = ixelles_node.get("stream_phase_ms")
     var total_stream_ms := int(ixelles_node.get("stream_total_ms"))
     var max_phase_ms := int(ixelles_node.call("get_max_stream_phase_ms"))
-    if not _expect(phase_ms.size() == 4 and phase_ms.has("contracts_materials") and phase_ms.has("terrain_mesh") and phase_ms.has("street_surfaces") and phase_ms.has("buildings"), "streamed Ixelles build was not split into the four expected visual phases: %s" % [phase_ms]):
+    var required_phases: Array[String] = ["contracts_materials", "terrain_vertices_chunk", "terrain_indices_chunk", "terrain_mesh_commit", "street_surfaces", "buildings"]
+    for phase_name: String in required_phases:
+        if not _expect(phase_ms.has(phase_name), "missing streamed build telemetry phase '%s': %s" % [phase_name, phase_ms]):
+            return
+    if not _expect(int(ixelles_node.get("terrain_vertex_chunks")) > 1 and int(ixelles_node.get("terrain_index_chunks")) > 1, "terrain geometry was not actually chunked across frames"):
         return
     if not _expect(max_phase_ms <= total_stream_ms, "max phase time cannot exceed total stream time"):
         return
@@ -117,7 +121,7 @@ func _run() -> void:
     if not _expect(int(scheduler_metrics.get("duplicate_activation_attempts", -1)) == 0, "scheduler duplicated a real cell activation"):
         return
 
-    print("BRUSSELS_REAL_CELL_LIFECYCLE_OK: staged Ixelles 125000-triangle/260-building cell prefetched and released; elapsed_ms=%d total_stream_ms=%d max_phase_ms=%d phases=%s center=(%.2f, %.2f)" % [load_elapsed_ms, total_stream_ms, max_phase_ms, phase_ms, cell_world_center.x, cell_world_center.z])
+    print("BRUSSELS_REAL_CELL_LIFECYCLE_OK: chunked Ixelles 125000-triangle/260-building cell prefetched and released; elapsed_ms=%d total_stream_ms=%d max_phase_ms=%d vertex_chunks=%d index_chunks=%d phases=%s center=(%.2f, %.2f)" % [load_elapsed_ms, total_stream_ms, max_phase_ms, int(ixelles_node.get("terrain_vertex_chunks")), int(ixelles_node.get("terrain_index_chunks")), phase_ms, cell_world_center.x, cell_world_center.z])
     backend.queue_free()
     manager.queue_free()
     quit(0)

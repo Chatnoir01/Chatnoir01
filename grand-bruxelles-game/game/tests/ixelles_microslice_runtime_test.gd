@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SLICE_SCRIPT := preload("res://game/zones/ixelles/ixelles_microslice_draped.gd")
+const SLICE_SCRIPT := preload("res://game/zones/ixelles/ixelles_microslice_draped_exact.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -33,13 +33,16 @@ func _run() -> void:
         _fail("StreetSurface drape triangle budget exceeded: %d" % slice.street_drape_triangle_count)
         return
     if slice.street_drape_outside_source_vertices != 0:
-        _fail("densified StreetSurface vertex left its official source polygon")
+        _fail("densified StreetSurface vertex left its official source partition")
+        return
+    if slice.street_drape_invalid_source_partition_triangles != 0 or slice.street_drape_exact_clip_rejections != 0:
+        _fail("official source partition or exact clip guard rejected geometry")
         return
     if not is_finite(slice.street_drape_min_check_clearance_m) or slice.street_drape_min_check_clearance_m < -0.001:
         _fail("DTM-supported StreetSurface still drops beneath rendered terrain: %.6f m" % slice.street_drape_min_check_clearance_m)
         return
-    if slice.street_drape_max_leaf_edge_m > 8.001:
-        _fail("StreetSurface leaf edge exceeds adaptive presentation limit")
+    if slice.street_drape_max_leaf_edge_m > 2.830:
+        _fail("StreetSurface leaf edge is no longer aligned to 2 m DTM triangles")
         return
     if slice.eligible_height_count != 260 or slice.building_count != 260 or slice.skipped_unapproved_height_buildings != 460:
         _fail("strong-height allowlist or fail-closed building count drifted")

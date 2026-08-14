@@ -30,10 +30,11 @@ func _hide_noise(main: Node) -> void:
 
 
 func _capture(path: String) -> bool:
-    RenderingServer.force_draw()
-    await process_frame
-    RenderingServer.force_draw()
-    await process_frame
+    # Keep the SceneTree running so a MeshInstance visibility change reaches the root viewport.
+    # The previous paused-tree capture produced two identical frames despite the visibility toggle.
+    for _frame: int in range(3):
+        RenderingServer.force_draw()
+        await process_frame
     var image := root.get_texture().get_image()
     if image == null or image.is_empty() or image.get_width() != WIDTH or image.get_height() != HEIGHT:
         return false
@@ -84,19 +85,23 @@ func _run() -> void:
     camera.look_at(CAMERA_TARGET, Vector3.UP)
     camera.current = true
 
-    # Freeze simulation for a pixel-stable A/B; only the official surface visibility changes.
-    paused = true
+    # Pixel-stable A/B: only surface visibility changes. Do not pause the SceneTree here;
+    # root viewport updates can otherwise remain identical across the two captures.
     surface.call("set_surface_visible", false)
+    if bool(surface.call("surface_is_visible")):
+        _fail("official surface refused baseline hide")
+        return
     if not await _capture(OUTPUT_DIR + "/baseline.png"):
-        paused = false
         _fail("baseline capture failed")
         return
+
     surface.call("set_surface_visible", true)
+    if not bool(surface.call("surface_is_visible")):
+        _fail("official surface refused visible witness state")
+        return
     if not await _capture(OUTPUT_DIR + "/official_surface.png"):
-        paused = false
         _fail("official-surface capture failed")
         return
-    paused = false
 
     print("GRAND_PLACE_ARRIVAL_SURFACE_OK: area=%d vertices=%d triangles=%d camera=(%.2f, %.2f, %.2f) target=(%.2f, %.2f, %.2f) fov=%.1f baseline=%s official=%s" % [
         int(surface.get("official_area_m2")), int(surface.get("open_vertex_count")), int(surface.get("triangle_count")),

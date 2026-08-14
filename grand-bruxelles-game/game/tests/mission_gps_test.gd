@@ -56,6 +56,8 @@ func _run() -> void:
     var grand_place := Vector2(319.01, -535.20)
     var return_route: Array = minimap.call("force_route_for_test", grand_place, bourse)
     if return_route.size() < 3:
+        var endpoints: Dictionary = minimap.call("_best_route_endpoints", grand_place, bourse)
+        print("MISSION_GPS_RETURN_DIAGNOSTIC: endpoints=%s" % [endpoints])
         _fail("Grand-Place -> Bourse return mission route missing")
         return
 

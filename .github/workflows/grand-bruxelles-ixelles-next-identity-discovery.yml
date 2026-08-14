@@ -1,0 +1,71 @@
+name: Grand Bruxelles Ixelles Next Identity Discovery
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-ixelles-next-identity-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve official address to rendered strong-source building
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs'
+          python3 - <<'PY'
+          import json, pathlib, urllib.parse, urllib.request
+
+          candidates=[
+            ('stassart131','Rue de Stassart','131'),
+            ('stephanie8','Place Stéphanie','8'),
+            ('drapiers31','Rue des Drapiers','31'),
+          ]
+          base='https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs'
+          strong=json.load(open('grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169000-s500_strong_heights.game.json',encoding='utf-8'))
+          strong_ids={str(r.get('building_id')):r for r in strong.get('records',[]) if r.get('visual_runtime_eligible')}
+          cell=json.load(open('grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/cell.game.json',encoding='utf-8'))
+          cell_ids={str(b.get('id')) for b in cell.get('buildings',[])}
+          rows=[]
+          for key,street,num in candidates:
+            cql=f"STRNAMEFRE='{street}' AND POLICENUM='{num}'"
+            params={
+              'service':'WFS','version':'2.0.0','request':'GetFeature','outputFormat':'application/json',
+              'srsName':'EPSG:31370','typeNames':'urbisvector:Addresses','CQL_FILTER':cql,
+            }
+            url=base+'?'+urllib.parse.urlencode(params)
+            with urllib.request.urlopen(url,timeout=30) as r:
+              data=json.load(r)
+            roots=[f.get('properties',{}) for f in data.get('features',[]) if (f.get('properties') or {}).get('PARENTID') is None]
+            for p in roots:
+              bid=str(p.get('BU_ID',''))
+              row={
+                'candidate':key,'street':street,'number':num,'address_id':p.get('INSPIRE_ID'),
+                'building_id':bid,'capakey':p.get('CAPAKEY'),'x':p.get('XL72'),'y':p.get('YL72'),
+                'in_cell':bid in cell_ids,'strong_rendered':bid in strong_ids,
+              }
+              if bid in strong_ids:
+                r=strong_ids[bid]
+                row['semantic_height_m']=r.get('semantic_height_m')
+                row['abs_delta_m']=r.get('abs_delta_m')
+              rows.append(row)
+          print('IXELLES_NEXT_IDENTITY_DISCOVERY',json.dumps(rows,ensure_ascii=False,sort_keys=True))
+          pathlib.Path('/tmp/ixelles-next-identity.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n')
+          eligible=[r for r in rows if r['in_cell'] and r['strong_rendered']]
+          print('IXELLES_NEXT_IDENTITY_ELIGIBLE',json.dumps(eligible,ensure_ascii=False,sort_keys=True))
+          if not eligible:
+            raise SystemExit('no candidate resolves to a rendered strong-source building')
+          PY
+      - name: Upload discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-next-identity-discovery
+          path: /tmp/ixelles-next-identity.json
+          if-no-files-found: error

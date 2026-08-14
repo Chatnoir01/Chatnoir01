@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "asset_family": "brussels_historic_shopfront",
+  "retrieved_on": "2026-08-14",
+  "source_basis": [
+    {
+      "publisher": "urban.brussels / Inventaire du patrimoine architectural",
+      "title": "Café Cirio — Rue de la Bourse 18-20",
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Rue_de_la_Bourse/18/41878",
+      "use": "Confirms the monumental 1909 commercial storefront is executed in wood and marble in a neo-Renaissance treatment. No source photograph is embedded or redistributed."
+    },
+    {
+      "publisher": "urban.brussels / Inventaire du patrimoine architectural",
+      "title": "Rue de la Bourse",
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Rue_de_la_Bourse/10002015",
+      "use": "Confirms the straight Rue de la Bourse commercial frontage and that the ground-floor shops are protected by a common awning."
+    },
+    {
+      "publisher": "Le Cirio",
+      "title": "Contact et informations pratiques",
+      "url": "https://lecirio.be/fr/contact",
+      "use": "Confirms the current factual address Rue de la Bourse 18, 1000 Bruxelles. No branding or site artwork is embedded."
+    }
+  ],
+  "source_backed_contract": {
+    "commercial_frontage": true,
+    "cirio_material_vocabulary": ["wood", "marble"],
+    "street_vocabulary": ["glazed commercial frontage", "awning"],
+    "address_example": "Rue de la Bourse 18"
+  },
+  "authored_presentation_values": {
+    "shopfront_envelope_m": [7.2, 3.6, 1.12],
+    "bay_count": 3,
+    "frame_and_plinth_proportions": "authored reusable presentation proportions; not a measured reconstruction",
+    "colors_and_pbr": "authored; not sampled or calibrated from source imagery",
+    "interior_warmth": "authored low-energy emission for glazing readability"
+  },
+  "witness_anchor": {
+    "purpose": "deterministic production-scene readability witness only; not a permanent surveyed facade mount",
+    "wgs84_reference": [50.848329, 4.350725],
+    "lambert72_derived": [148730.4591, 170880.9148],
+    "project_world_position_derived": [193.6649, 0.0, -714.4507],
+    "orientation_policy": "presentation yaw follows the straight Bourse-to-address street axis; it does not claim surveyed facade bearing"
+  },
+  "placement_policy": "Permanent production mounting requires the geographic owner to tie a real facade edge/ground height to authoritative geometry. This shared asset family may be reused only where wood/marble/glazing/awning traits are independently defensible.",
+  "license_note": "Newly authored primitive geometry and materials only. No protected photograph, business logo, menu artwork, font file, or heritage image is redistributed."
+}

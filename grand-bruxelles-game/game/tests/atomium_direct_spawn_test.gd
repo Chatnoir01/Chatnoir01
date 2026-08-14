@@ -1,10 +1,13 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
+const OUTPUT_PATH := "res://artifacts/atomium/atomium_direct_spawn.png"
 const EXPECTED_HORIZONTAL_DISTANCE_M := 71.06335
 const MIN_STANDING_CLEARANCE_M := 0.75
 const MAX_STANDING_CLEARANCE_M := 1.10
 const EXPECTED_CAMERA_PITCH_DEGREES := -24.0
+const WIDTH := 1280
+const HEIGHT := 960
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -84,5 +87,19 @@ func _run() -> void:
         _fail("default sun still competes with Atomium presentation sun")
         return
 
-    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f)" % [horizontal_distance, standing_clearance, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z])
+    for _frame: int in range(8):
+        await process_frame
+    RenderingServer.force_draw()
+    await process_frame
+    var image := root.get_texture().get_image()
+    if image == null or image.is_empty() or image.get_width() != WIDTH or image.get_height() != HEIGHT:
+        _fail("direct spawn capture invalid: %dx%d" % [image.get_width() if image != null else 0, image.get_height() if image != null else 0])
+        return
+    var absolute_output := ProjectSettings.globalize_path(OUTPUT_PATH)
+    DirAccess.make_dir_recursive_absolute(absolute_output.get_base_dir())
+    if image.save_png(absolute_output) != OK:
+        _fail("direct spawn capture save failed")
+        return
+
+    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f) capture=%s" % [horizontal_distance, standing_clearance, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z, OUTPUT_PATH])
     quit(0)

@@ -8,8 +8,8 @@ const WASH_COUNT := 4
 const WARM_LIGHT := Color(1.0, 0.72, 0.46, 1.0)
 
 var wash_light_count: int = 0
-var _presentation_enabled := true
-var _installed := false
+var _presentation_enabled: bool = true
+var _installed: bool = false
 var _wash_lights: Array[SpotLight3D] = []
 
 func _ready() -> void:
@@ -23,7 +23,7 @@ func _ready() -> void:
 
 func _install_when_ready() -> void:
     for _attempt: int in range(90):
-        var target := get_tree().root.get_node_or_null(TARGET_NODE_NAME)
+        var target: Node = get_tree().root.get_node_or_null(TARGET_NODE_NAME)
         if target != null and bool(target.get("geometry_loaded")):
             if _install_on_target(target as Node3D):
                 _installed = true
@@ -36,9 +36,9 @@ func _install_when_ready() -> void:
 func _find_wall_mesh(target: Node3D) -> MeshInstance3D:
     var stack: Array[Node] = [target]
     while not stack.is_empty():
-        var node := stack.pop_back()
+        var node: Node = stack.pop_back() as Node
         if node is MeshInstance3D:
-            var mesh_node := node as MeshInstance3D
+            var mesh_node: MeshInstance3D = node as MeshInstance3D
             if "WALLSURFACE" in mesh_node.name and mesh_node.mesh != null:
                 return mesh_node
         for child: Node in node.get_children():
@@ -46,53 +46,53 @@ func _find_wall_mesh(target: Node3D) -> MeshInstance3D:
     return null
 
 func _world_aabb(mesh_node: MeshInstance3D) -> AABB:
-    var local := mesh_node.get_aabb()
+    var local: AABB = mesh_node.get_aabb()
     var points: Array[Vector3] = []
     for x_index: int in range(2):
         for y_index: int in range(2):
             for z_index: int in range(2):
-                var local_point := local.position + Vector3(
+                var local_point: Vector3 = local.position + Vector3(
                     local.size.x * float(x_index),
                     local.size.y * float(y_index),
                     local.size.z * float(z_index)
                 )
                 points.append(mesh_node.global_transform * local_point)
-    var min_point := points[0]
-    var max_point := points[0]
+    var min_point: Vector3 = points[0]
+    var max_point: Vector3 = points[0]
     for point: Vector3 in points:
-        min_point = Vector3(min(min_point.x, point.x), min(min_point.y, point.y), min(min_point.z, point.z))
-        max_point = Vector3(max(max_point.x, point.x), max(max_point.y, point.y), max(max_point.z, point.z))
+        min_point = Vector3(minf(min_point.x, point.x), minf(min_point.y, point.y), minf(min_point.z, point.z))
+        max_point = Vector3(maxf(max_point.x, point.x), maxf(max_point.y, point.y), maxf(max_point.z, point.z))
     return AABB(min_point, max_point - min_point)
 
 func _install_on_target(target: Node3D) -> bool:
     if _installed:
         return true
-    var wall := _find_wall_mesh(target)
+    var wall: MeshInstance3D = _find_wall_mesh(target)
     if wall == null:
         return false
-    var bounds := _world_aabb(wall)
+    var bounds: AABB = _world_aabb(wall)
     if bounds.size.y < 10.0:
         return false
 
-    var center := bounds.position + bounds.size * 0.5
-    var toward_square := Vector3(SQUARE_SIDE_REFERENCE.x - center.x, 0.0, SQUARE_SIDE_REFERENCE.z - center.z)
+    var center: Vector3 = bounds.position + bounds.size * 0.5
+    var toward_square: Vector3 = Vector3(SQUARE_SIDE_REFERENCE.x - center.x, 0.0, SQUARE_SIDE_REFERENCE.z - center.z)
     if toward_square.length() < 0.01:
         return false
     toward_square = toward_square.normalized()
-    var tangent := Vector3(-toward_square.z, 0.0, toward_square.x)
-    var horizontal_span := max(bounds.size.x, bounds.size.z)
-    var fixture_distance := clamp(horizontal_span * 0.15, 7.0, 12.0)
-    var low_y := bounds.position.y + max(1.1, bounds.size.y * 0.035)
-    var aim_y := bounds.position.y + bounds.size.y * 0.46
+    var tangent: Vector3 = Vector3(-toward_square.z, 0.0, toward_square.x)
+    var horizontal_span: float = maxf(bounds.size.x, bounds.size.z)
+    var fixture_distance: float = clampf(horizontal_span * 0.15, 7.0, 12.0)
+    var low_y: float = bounds.position.y + maxf(1.1, bounds.size.y * 0.035)
+    var aim_y: float = bounds.position.y + bounds.size.y * 0.46
 
     for index: int in range(WASH_COUNT):
-        var t := (float(index) / float(WASH_COUNT - 1)) - 0.5
+        var t: float = (float(index) / float(WASH_COUNT - 1)) - 0.5
         var light := SpotLight3D.new()
         light.name = "TownHallFacadeWash%02d" % (index + 1)
         light.light_color = WARM_LIGHT
         light.light_energy = 7.5
         light.shadow_enabled = false
-        light.spot_range = max(34.0, bounds.size.y + fixture_distance + 8.0)
+        light.spot_range = maxf(34.0, bounds.size.y + fixture_distance + 8.0)
         light.spot_angle = 41.0
         light.spot_attenuation = 1.15
         light.position = center + toward_square * fixture_distance + tangent * (horizontal_span * t * 0.72)

@@ -13,6 +13,8 @@ var stream_total_ms := 0
 var stream_build_started := false
 var terrain_vertex_chunks := 0
 var terrain_index_chunks := 0
+var stream_collision_enabled := false
+var dynamic_collision_build_ms := 0
 
 func _ready() -> void:
     call_deferred("_build_streamed")
@@ -55,7 +57,33 @@ func _build_streamed() -> void:
     runtime_loaded = terrain_triangle_count == 125000 and street_surface_count == 309 and street_segment_count == 277 and building_count == eligible_height_count and building_count == 260 and skipped_unapproved_height_buildings == 460
     stream_total_ms = Time.get_ticks_msec() - total_started
     if runtime_loaded:
+        _sync_stream_collision()
         print("IXELLES_STREAMED_MICROSLICE_READY: cell=%s triangles=%d streets=%d buildings=%d total_ms=%d max_phase_ms=%d vertex_chunks=%d index_chunks=%d" % [cell_id, terrain_triangle_count, street_surface_count, building_count, stream_total_ms, get_max_stream_phase_ms(), terrain_vertex_chunks, terrain_index_chunks])
+
+func set_stream_collision_enabled(enabled: bool) -> void:
+    if stream_collision_enabled == enabled:
+        if runtime_loaded:
+            _sync_stream_collision()
+        return
+    stream_collision_enabled = enabled
+    if runtime_loaded:
+        call_deferred("_sync_stream_collision")
+
+func _sync_stream_collision() -> void:
+    if not runtime_loaded:
+        return
+    var existing := find_child("OfficialIxellesDTMCollision", true, false)
+    if stream_collision_enabled:
+        if existing != null:
+            return
+        var started := Time.get_ticks_msec()
+        _build_collision()
+        dynamic_collision_build_ms = Time.get_ticks_msec() - started
+        print("IXELLES_STREAM_COLLISION: enabled build_ms=%d" % dynamic_collision_build_ms)
+        return
+    if existing != null:
+        existing.queue_free()
+        print("IXELLES_STREAM_COLLISION: disabled")
 
 func _record_phase_peak(phase_name: String, elapsed_ms: int) -> void:
     stream_phase_ms[phase_name] = maxi(int(stream_phase_ms.get(phase_name, 0)), elapsed_ms)

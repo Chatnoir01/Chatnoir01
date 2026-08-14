@@ -1,0 +1,64 @@
+name: Grand Bruxelles Grand Place LoD2 1786758 Visual
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-lod2-1786758-visual.yml"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/1786758.game.json"
+      - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1786758.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_lod2_1786758_visual_test.gd"
+      - "grand-bruxelles-game/project.godot"
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Render deterministic Grand-Place ensemble A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_lod2_1786758_visual_test.gd 2>&1 | tee /tmp/grand-place-lod2-1786758.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_LOD2_1786758_FAIL" /tmp/grand-place-lod2-1786758.log; then exit 1; fi
+          grep -F "GRAND_PLACE_LOD2_1786758_OK" /tmp/grand-place-lod2-1786758.log
+          test -f grand-bruxelles-game/artifacts/grand-place/lod2-1786758/before.png
+          test -f grand-bruxelles-game/artifacts/grand-place/lod2-1786758/after.png
+      - name: Enforce anti-micro pixel gate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          a=Image.open('grand-bruxelles-game/artifacts/grand-place/lod2-1786758/before.png').convert('RGB')
+          b=Image.open('grand-bruxelles-game/artifacts/grand-place/lod2-1786758/after.png').convert('RGB')
+          assert a.size==(1280,720) and b.size==a.size
+          pa=list(a.getdata()); pb=list(b.getdata())
+          changed=sum(1 for x,y in zip(pa,pb) if max(abs(x[i]-y[i]) for i in range(3))>3)
+          ratio=changed/(1280*720)
+          print(f'GRAND_PLACE_LOD2_1786758_PIXEL_GATE changed={changed} ratio={ratio:.6f}')
+          if changed < 30000 or ratio < 0.03:
+              raise SystemExit('anti-micro gate failed: second LoD2 mass is not visually substantive')
+          PY
+      - name: Upload A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-lod2-1786758-visual
+          path: |
+            grand-bruxelles-game/artifacts/grand-place/lod2-1786758/before.png
+            grand-bruxelles-game/artifacts/grand-place/lod2-1786758/after.png
+            /tmp/grand-place-lod2-1786758.log
+          if-no-files-found: error

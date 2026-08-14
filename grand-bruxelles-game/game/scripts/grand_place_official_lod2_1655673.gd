@@ -1,7 +1,12 @@
 extends Node3D
 
 const GEOMETRY_PATH := "res://data/urbis/grand_place_lod2/1655673.game.json"
+const MATERIAL_IDENTITY_PATH := "res://data/visual/grand_place_1655673_material_identity.json"
 const BUILDING_ID := "https://databrussels.be/id/building/1655673"
+const NEUTRAL_WALL_COLOR := Color(0.56, 0.54, 0.50, 1.0)
+const WHITE_STONE_WALL_COLOR := Color(0.78, 0.76, 0.70, 1.0)
+const NEUTRAL_WALL_ROUGHNESS := 0.88
+const WHITE_STONE_WALL_ROUGHNESS := 0.82
 
 var geometry_loaded := false
 var render_triangle_count := 0
@@ -12,6 +17,7 @@ var _masked_nodes: Array[Node3D] = []
 var _masked_visibility: Array[bool] = []
 var _official_visible := true
 var _built := false
+var _wall_material: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -41,7 +47,9 @@ func _build_when_scene_ready() -> void:
     set_meta("runtime_approved", false)
     set_meta("realism_complete", false)
     set_meta("presentation_materials_only", true)
-    print("GRAND_PLACE_LOD2_1655673_READY: triangles=%d masked_osm=%d height=%.3f" % [render_triangle_count, masked_osm_count, source_height_m])
+    set_meta("wall_material_identity", "official_heritage_white_stone")
+    set_meta("wall_material_source", MATERIAL_IDENTITY_PATH)
+    print("GRAND_PLACE_LOD2_1655673_READY: triangles=%d masked_osm=%d height=%.3f white_stone=true" % [render_triangle_count, masked_osm_count, source_height_m])
 
 
 func _read_geometry() -> Dictionary:
@@ -132,9 +140,10 @@ func _mask_replaced_osm(bounds: Rect2) -> void:
 
 func _materials() -> Dictionary:
     var wall := StandardMaterial3D.new()
-    wall.albedo_color = Color(0.56, 0.54, 0.50, 1.0)
-    wall.roughness = 0.88
+    wall.albedo_color = WHITE_STONE_WALL_COLOR
+    wall.roughness = WHITE_STONE_WALL_ROUGHNESS
     wall.cull_mode = BaseMaterial3D.CULL_BACK
+    _wall_material = wall
     var roof := StandardMaterial3D.new()
     roof.albedo_color = Color(0.16, 0.17, 0.18, 1.0)
     roof.roughness = 0.9
@@ -215,6 +224,17 @@ func _build_geometry(faces: Array) -> void:
     var center := _building_center(faces)
     render_triangle_count = _build_surface(faces, "WALLSURFACE", mats["WALLSURFACE"], center)
     render_triangle_count += _build_surface(faces, "ROOFSURFACE", mats["ROOFSURFACE"], center)
+
+
+func set_sourced_wall_material(enabled: bool) -> void:
+    if _wall_material == null:
+        return
+    _wall_material.albedo_color = WHITE_STONE_WALL_COLOR if enabled else NEUTRAL_WALL_COLOR
+    _wall_material.roughness = WHITE_STONE_WALL_ROUGHNESS if enabled else NEUTRAL_WALL_ROUGHNESS
+
+
+func sourced_wall_material_enabled() -> bool:
+    return _wall_material != null and _wall_material.albedo_color.is_equal_approx(WHITE_STONE_WALL_COLOR)
 
 
 func set_official_visible(enabled: bool) -> void:

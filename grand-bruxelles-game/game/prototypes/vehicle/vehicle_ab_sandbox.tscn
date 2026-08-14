@@ -1,0 +1,134 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
+[ext_resource type="Script" path="res://game/scripts/vehicle_controller.gd" id="2_legacy"]
+[ext_resource type="Script" path="res://game/scripts/vehicle_physics_controller.gd" id="3_physical"]
+[ext_resource type="Script" path="res://game/scripts/civilian_vehicle_visual.gd" id="4_visual"]
+
+[sub_resource type="CapsuleShape3D" id="PlayerShape"]
+radius = 0.42
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="PlayerMesh"]
+radius = 0.42
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="PlayerMaterial"]
+albedo_color = Color(0.18, 0.22, 0.27, 1)
+roughness = 0.72
+
+[sub_resource type="BoxShape3D" id="CarShape"]
+size = Vector3(1.9, 0.9, 4.2)
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(50, 1, 50)
+
+[sub_resource type="BoxMesh" id="FloorMesh"]
+size = Vector3(50, 1, 50)
+
+[sub_resource type="StandardMaterial3D" id="FloorMaterial"]
+albedo_color = Color(0.12, 0.125, 0.13, 1)
+roughness = 0.92
+
+[sub_resource type="StandardMaterial3D" id="LegacyLabelMaterial"]
+albedo_color = Color(0.88, 0.88, 0.88, 1)
+
+[sub_resource type="StandardMaterial3D" id="PhysicalLabelMaterial"]
+albedo_color = Color(0.92, 0.92, 0.92, 1)
+
+[node name="VehicleABSandbox" type="Node3D"]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-52, -28, 0)
+light_energy = 1.15
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="."]
+position = Vector3(0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("FloorShape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("FloorMesh")
+material_override = SubResource("FloorMaterial")
+
+[node name="Player" type="CharacterBody3D" parent="."]
+position = Vector3(0, 1.1, 7)
+script = ExtResource("1_player")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+shape = SubResource("PlayerShape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Player"]
+mesh = SubResource("PlayerMesh")
+material_override = SubResource("PlayerMaterial")
+
+[node name="CameraPivot" type="Node3D" parent="Player"]
+position = Vector3(0, 0.65, 0)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="Player/CameraPivot"]
+spring_length = 5.2
+margin = 0.18
+
+[node name="Camera3D" type="Camera3D" parent="Player/CameraPivot/SpringArm3D"]
+current = true
+fov = 69.0
+
+[node name="LegacyCar" type="CharacterBody3D" parent="." groups=["vehicle"]]
+position = Vector3(-3.2, 0.58, 0)
+script = ExtResource("2_legacy")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LegacyCar"]
+shape = SubResource("CarShape")
+
+[node name="VisualUpgrade" type="Node3D" parent="LegacyCar"]
+script = ExtResource("4_visual")
+paint_color = Color(0.08, 0.22, 0.45, 1)
+
+[node name="Label3D" type="Label3D" parent="LegacyCar"]
+position = Vector3(0, 1.8, 0)
+text = "A · ACTUEL / CHARACTERBODY"
+font_size = 34
+outline_size = 8
+
+[node name="CameraPivot" type="Node3D" parent="LegacyCar"]
+position = Vector3(0, 1.32, 0.15)
+rotation_degrees = Vector3(-8, 0, 0)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="LegacyCar/CameraPivot"]
+spring_length = 6.1
+margin = 0.18
+
+[node name="Camera3D" type="Camera3D" parent="LegacyCar/CameraPivot/SpringArm3D"]
+current = false
+fov = 72.0
+
+[node name="PhysicalCar" type="RigidBody3D" parent="." groups=["vehicle"]]
+position = Vector3(3.2, 0.78, 0)
+script = ExtResource("3_physical")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PhysicalCar"]
+shape = SubResource("CarShape")
+
+[node name="VisualUpgrade" type="Node3D" parent="PhysicalCar"]
+script = ExtResource("4_visual")
+paint_color = Color(0.42, 0.07, 0.055, 1)
+
+[node name="Label3D" type="Label3D" parent="PhysicalCar"]
+position = Vector3(0, 1.8, 0)
+text = "B · PHYSIQUE / RIGIDBODY 60 HZ"
+font_size = 34
+outline_size = 8
+
+[node name="CameraPivot" type="Node3D" parent="PhysicalCar"]
+position = Vector3(0, 1.32, 0.15)
+rotation_degrees = Vector3(-8, 0, 0)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="PhysicalCar/CameraPivot"]
+spring_length = 6.1
+margin = 0.18
+
+[node name="Camera3D" type="Camera3D" parent="PhysicalCar/CameraPivot/SpringArm3D"]
+current = false
+fov = 72.0

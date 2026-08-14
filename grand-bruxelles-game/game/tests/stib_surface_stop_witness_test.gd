@@ -36,21 +36,21 @@ func _run() -> void:
     if player == null:
         _fail("production player camera rig missing")
         return
-    # Keep the shipped camera rig/FOV while moving the witness operator to a
-    # clear oblique inspection pose. Hide only the player's body for evidence.
+    # Keep the shipped camera rig/FOV at the already-clear Midi presentation
+    # approach, while hiding only the player's body from the evidence frame.
     var body_mesh := player.get_node_or_null("MeshInstance3D") as Node3D
     if body_mesh != null:
         body_mesh.visible = false
     var visual_upgrade := player.get_node_or_null("VisualUpgrade") as Node3D
     if visual_upgrade != null:
         visual_upgrade.visible = false
-    player.global_position = Vector3(-639.0, 1.05, 632.0)
-    player.look_at(Vector3(-650.0, 1.15, 621.0), Vector3.UP)
+    player.global_position = Vector3(-650.0, 1.05, 633.0)
+    player.look_at(Vector3(-650.0, 1.10, 621.0), Vector3.UP)
     var pivot := player.get_node_or_null("CameraPivot") as Node3D
     if pivot == null:
         _fail("production camera pivot missing")
         return
-    pivot.rotation_degrees.x = -3.0
+    pivot.rotation_degrees.x = -4.0
 
     for _frame: int in range(10):
         await process_frame

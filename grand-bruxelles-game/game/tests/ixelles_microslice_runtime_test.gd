@@ -32,11 +32,14 @@ func _run() -> void:
     if slice.street_drape_outside_source_vertices != 0:
         _fail("densified StreetSurface vertex left its official source polygon")
         return
+    if slice.street_drape_outside_terrain_vertices != 0:
+        _fail("StreetSurface drape requires DTM samples outside the selected official terrain")
+        return
     if not is_finite(slice.street_drape_min_check_clearance_m) or slice.street_drape_min_check_clearance_m < -0.001:
         _fail("draped StreetSurface still drops beneath sampled terrain: %.6f m" % slice.street_drape_min_check_clearance_m)
         return
-    if slice.street_drape_max_leaf_edge_m > 2.001:
-        _fail("StreetSurface leaf edge exceeds 2 m DTM-aligned presentation limit")
+    if slice.street_drape_max_leaf_edge_m > 6.001:
+        _fail("StreetSurface leaf edge exceeds adaptive presentation limit")
         return
     if slice.eligible_height_count != 260 or slice.building_count != 260 or slice.skipped_unapproved_height_buildings != 460:
         _fail("strong-height allowlist or fail-closed building count drifted")

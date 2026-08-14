@@ -40,7 +40,6 @@ const RETURN_BOURSE := Vector3(81.54, 0.0, -664.58)
 const RETURN_ACTIVE_STATE := 2
 const GRAPH_KEY_SCALE := 1000.0
 
-
 func _ready() -> void:
     mouse_filter = Control.MOUSE_FILTER_IGNORE
     _load_map_data()
@@ -48,14 +47,12 @@ func _ready() -> void:
     _refresh_route(true)
     queue_redraw()
 
-
 func _process(delta: float) -> void:
     _route_elapsed_s += maxf(0.0, delta)
     if _route_elapsed_s >= maxf(0.1, route_refresh_interval_s):
         _route_elapsed_s = 0.0
         _refresh_route(false)
     queue_redraw()
-
 
 func _load_map_data() -> void:
     if not FileAccess.file_exists(data_path):
@@ -75,7 +72,6 @@ func _load_map_data() -> void:
             float(raw_bounds[2]),
             float(raw_bounds[3])
         )
-
 
 func _build_road_graph() -> void:
     _graph_points.clear()
@@ -113,7 +109,6 @@ func _build_road_graph() -> void:
             previous_point = point
     _index_graph_components()
 
-
 func _index_graph_components() -> void:
     _graph_components.clear()
     var component_id := 0
@@ -137,17 +132,14 @@ func _index_graph_components() -> void:
                     pending.append(neighbor)
         component_id += 1
 
-
 func _graph_key(point: Vector2) -> String:
     return "%d:%d" % [roundi(point.x * GRAPH_KEY_SCALE), roundi(point.y * GRAPH_KEY_SCALE)]
-
 
 func _active_actor() -> Node3D:
     for candidate: Node in get_tree().get_nodes_in_group("vehicle"):
         if candidate is Node3D and candidate.has_method("has_driver") and bool(candidate.call("has_driver")):
             return candidate as Node3D
     return player
-
 
 func _active_mission_target() -> Variant:
     var stage := int(mission.call("get_stage"))
@@ -158,7 +150,6 @@ func _active_mission_target() -> Variant:
             return RETURN_BOURSE
     return null
 
-
 func _refresh_route(force: bool) -> void:
     var actor := _active_actor()
     var target_value: Variant = _active_mission_target()
@@ -167,7 +158,6 @@ func _refresh_route(force: bool) -> void:
         _route_distance_m = 0.0
         _last_route_target = Vector2(INF, INF)
         return
-
     var actor_point := Vector2(actor.global_position.x, actor.global_position.z)
     var target3 := target_value as Vector3
     var target_point := Vector2(target3.x, target3.z)
@@ -175,12 +165,10 @@ func _refresh_route(force: bool) -> void:
     var target_changed := target_point.distance_to(_last_route_target) >= 0.5
     if not force and not actor_moved and not target_changed:
         return
-
     _last_route_actor = actor_point
     _last_route_target = target_point
     _route_world_points = _compute_route(actor_point, target_point)
     _route_distance_m = _polyline_length(_route_world_points)
-
 
 func _best_route_endpoints(start_world: Vector2, target_world: Vector2) -> Dictionary:
     var per_component: Dictionary = {}
@@ -208,7 +196,6 @@ func _best_route_endpoints(start_world: Vector2, target_world: Vector2) -> Dicti
             info["target_dist"] = target_dist
             info["target_key"] = key
         per_component[component_id] = info
-
     var best: Dictionary = {}
     var best_connector_cost := INF
     for component_variant: Variant in per_component.keys():
@@ -227,7 +214,6 @@ func _best_route_endpoints(start_world: Vector2, target_world: Vector2) -> Dicti
             best["component_id"] = int(component_variant)
     return best
 
-
 func _compute_route(start_world: Vector2, target_world: Vector2) -> Array[Vector2]:
     var result: Array[Vector2] = []
     var endpoints := _best_route_endpoints(start_world, target_world)
@@ -237,12 +223,10 @@ func _compute_route(start_world: Vector2, target_world: Vector2) -> Array[Vector
     var target_key := str(endpoints.get("target_key", ""))
     if start_key.is_empty() or target_key.is_empty():
         return result
-
     var frontier: Array[String] = [start_key]
     var distance: Dictionary = {start_key: 0.0}
     var previous: Dictionary = {}
     var visited: Dictionary = {}
-
     while not frontier.is_empty():
         var best_index := 0
         var best_key := frontier[0]
@@ -260,7 +244,6 @@ func _compute_route(start_world: Vector2, target_world: Vector2) -> Array[Vector
         visited[best_key] = true
         if best_key == target_key:
             break
-
         var neighbors_value: Variant = _graph_neighbors.get(best_key, {})
         if not neighbors_value is Dictionary:
             continue
@@ -275,10 +258,8 @@ func _compute_route(start_world: Vector2, target_world: Vector2) -> Array[Vector
                 previous[neighbor] = best_key
                 if not frontier.has(neighbor):
                     frontier.append(neighbor)
-
     if start_key != target_key and not previous.has(target_key):
         return result
-
     var reverse_keys: Array[String] = [target_key]
     var cursor := target_key
     while cursor != start_key:
@@ -287,7 +268,6 @@ func _compute_route(start_world: Vector2, target_world: Vector2) -> Array[Vector
         cursor = str(previous[cursor])
         reverse_keys.append(cursor)
     reverse_keys.reverse()
-
     result.append(start_world)
     for key: String in reverse_keys:
         var point_value: Variant = _graph_points.get(key, null)
@@ -298,7 +278,6 @@ func _compute_route(start_world: Vector2, target_world: Vector2) -> Array[Vector
     if result.is_empty() or target_world.distance_to(result[result.size() - 1]) > 0.25:
         result.append(target_world)
     return _simplify_route(result)
-
 
 func _simplify_route(points: Array[Vector2]) -> Array[Vector2]:
     if points.size() <= 2:
@@ -315,13 +294,11 @@ func _simplify_route(points: Array[Vector2]) -> Array[Vector2]:
     simplified.append(points[points.size() - 1])
     return simplified
 
-
 func _polyline_length(points: Array[Vector2]) -> float:
     var total := 0.0
     for index in range(points.size() - 1):
         total += points[index].distance_to(points[index + 1])
     return total
-
 
 func _world_to_map(world_x: float, world_z: float) -> Vector2:
     var usable_width: float = maxf(size.x - padding * 2.0, 1.0)
@@ -330,15 +307,10 @@ func _world_to_map(world_x: float, world_z: float) -> Vector2:
     var span_z: float = maxf(_bounds.w - _bounds.y, 1.0)
     var normalized_x: float = (world_x - _bounds.x) / span_x
     var normalized_z: float = (world_z - _bounds.y) / span_z
-    return Vector2(
-        padding + normalized_x * usable_width,
-        padding + normalized_z * usable_height
-    )
-
+    return Vector2(padding + normalized_x * usable_width, padding + normalized_z * usable_height)
 
 func _draw() -> void:
     draw_style_box(_panel_style(), Rect2(Vector2.ZERO, size))
-
     for road_variant: Variant in _roads:
         var road: Dictionary = road_variant
         var points: Array = road.get("points", [])
@@ -354,55 +326,28 @@ func _draw() -> void:
             draw_line(
                 _world_to_map(float(start_point[0]), float(start_point[1])),
                 _world_to_map(float(end_point[0]), float(end_point[1])),
-                road_color,
-                road_width,
-                true
+                road_color, road_width, true
             )
-
     if _route_world_points.size() >= 2:
         for index in range(_route_world_points.size() - 1):
             var start_route := _route_world_points[index]
             var end_route := _route_world_points[index + 1]
-            draw_line(
-                _world_to_map(start_route.x, start_route.y),
-                _world_to_map(end_route.x, end_route.y),
-                Color(0.01, 0.02, 0.03, 0.78),
-                6.0,
-                true
-            )
-            draw_line(
-                _world_to_map(start_route.x, start_route.y),
-                _world_to_map(end_route.x, end_route.y),
-                _route_color,
-                3.2,
-                true
-            )
-
+            draw_line(_world_to_map(start_route.x, start_route.y), _world_to_map(end_route.x, end_route.y), Color(0.01, 0.02, 0.03, 0.78), 6.0, true)
+            draw_line(_world_to_map(start_route.x, start_route.y), _world_to_map(end_route.x, end_route.y), _route_color, 3.2, true)
     var actor := _active_actor()
     if actor != null:
         var actor_point: Vector2 = _world_to_map(actor.global_position.x, actor.global_position.z)
         draw_circle(actor_point, 5.5, _player_color)
         draw_circle(actor_point, 8.5, Color(1.0, 0.82, 0.16, 0.25), false, 1.5)
-
     var target_value: Variant = _active_mission_target()
     if target_value is Vector3:
         var target := target_value as Vector3
         var checkpoint_point: Vector2 = _world_to_map(target.x, target.z)
         draw_circle(checkpoint_point, 6.0, _checkpoint_color, false, 2.0)
         draw_circle(checkpoint_point, 2.3, _checkpoint_color)
-
     if _route_distance_m > 1.0:
         var distance_text := "GPS · %.0f m" % _route_distance_m
-        draw_string(
-            ThemeDB.fallback_font,
-            Vector2(14.0, size.y - 11.0),
-            distance_text,
-            HORIZONTAL_ALIGNMENT_LEFT,
-            -1.0,
-            13,
-            Color(0.72, 0.90, 1.0, 0.96)
-        )
-
+        draw_string(ThemeDB.fallback_font, Vector2(14.0, size.y - 11.0), distance_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13, Color(0.72, 0.90, 1.0, 0.96))
 
 func _panel_style() -> StyleBoxFlat:
     var style: StyleBoxFlat = StyleBoxFlat.new()
@@ -412,23 +357,15 @@ func _panel_style() -> StyleBoxFlat:
     style.set_corner_radius_all(18)
     return style
 
-
 func force_route_for_test(start_world: Vector2, target_world: Vector2) -> Array[Vector2]:
     _route_world_points = _compute_route(start_world, target_world)
     _route_distance_m = _polyline_length(_route_world_points)
     return _route_world_points.duplicate()
 
-
 func route_snapshot_for_test() -> Dictionary:
     return {
         "graph_points": _graph_points.size(),
         "graph_nodes_with_neighbors": _graph_neighbors.size(),
-        "graph_components": _graph_components.values().duplicate().reduce(func(accum: Array, value: Variant) -> Array:
-            var component_id := int(value)
-            if not accum.has(component_id):
-                accum.append(component_id)
-            return accum
-        , []).size(),
         "route_points": _route_world_points.duplicate(),
         "distance_m": _route_distance_m,
     }

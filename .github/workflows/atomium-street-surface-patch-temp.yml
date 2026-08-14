@@ -1,0 +1,67 @@
+name: One-shot Atomium StreetSurface integration patch
+
+on:
+  push:
+    branches: ["integration/atomium-street-surface-context-current"]
+    paths:
+      - ".github/workflows/atomium-street-surface-patch-temp.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wire source-bounded context into shipped Atomium slice
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          player=Path('grand-bruxelles-game/game/scripts/player_controller.gd')
+          text=player.read_text()
+          needle='const ATOMIUM_REFLECTION_SCRIPT := preload("res://game/zones/laeken_jette/atomium_hero_reflection_environment.gd")\n'
+          repl=needle+'const ATOMIUM_STREET_SURFACE_SCRIPT := preload("res://game/zones/laeken_jette/atomium_street_surface_context.gd")\n'
+          if needle not in text: raise SystemExit('player preload marker missing')
+          text=text.replace(needle,repl,1)
+          needle2='''    if not bool(terrain.get("terrain_loaded")):\n        push_error("Atomium direct spawn: official DTM failed to load")\n        return\n\n    var hero := ATOMIUM_HERO_SCRIPT.new()\n'''
+          repl2='''    if not bool(terrain.get("terrain_loaded")):\n        push_error("Atomium direct spawn: official DTM failed to load")\n        return\n\n    var street_context := ATOMIUM_STREET_SURFACE_SCRIPT.new()\n    street_context.name = "AtomiumDirectStreetSurfaceContext"\n    world.add_child(street_context)\n    if not bool(street_context.call("build_on_terrain", terrain)):\n        push_error("Atomium direct spawn: official StreetSurface context failed to build")\n        return\n\n    var hero := ATOMIUM_HERO_SCRIPT.new()\n'''
+          if needle2 not in text: raise SystemExit('player Atomium terrain marker missing')
+          player.write_text(text.replace(needle2,repl2,1))
+
+          direct=Path('grand-bruxelles-game/game/tests/atomium_direct_spawn_test.gd')
+          text=direct.read_text()
+          needle='    var reflection := main.get_node_or_null("AtomiumDirectReflectionEnvironment")\n    if terrain == null or hero == null or reflection == null:\n'
+          repl='    var reflection := main.get_node_or_null("AtomiumDirectReflectionEnvironment")\n    var street_context := main.get_node_or_null("AtomiumDirectStreetSurfaceContext")\n    if terrain == null or hero == null or reflection == null or street_context == null:\n'
+          if needle not in text: raise SystemExit('direct test node marker missing')
+          text=text.replace(needle,repl,1)
+          needle='''    if not bool(reflection.get("environment_built")):\n        _fail("reflection environment did not build")\n        return\n\n'''
+          repl=needle+'''    if not bool(street_context.get("context_loaded")) or int(street_context.get("rendered_feature_count")) < 20:\n        _fail("source-bounded StreetSurface context did not mount")\n        return\n\n'''
+          if needle not in text: raise SystemExit('direct test reflection marker missing')
+          direct.write_text(text.replace(needle,repl,1))
+
+          workflow=Path('.github/workflows/grand-bruxelles-atomium-hero-ground-oblique.yml')
+          text=workflow.read_text()
+          path_marker='      - "grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json"\n'
+          path_add=path_marker+'''      - "grand-bruxelles-game/data/urbis/laeken_jette/atomium_street_surfaces.game.json"\n      - "grand-bruxelles-game/data/sources/laeken_jette/atomium_street_surfaces_provenance.json"\n      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_street_surface_context.gd"\n      - "grand-bruxelles-game/game/tests/atomium_street_surface_context_test.gd"\n'''
+          if path_marker not in text: raise SystemExit('Atomium workflow path marker missing')
+          text=text.replace(path_marker,path_add,1)
+          step_marker='''      - name: Upload evidence\n        uses: actions/upload-artifact@v4\n'''
+          step_add='''      - name: Validate source-bounded Atomium StreetSurface context\n        shell: bash\n        run: |\n          set -o pipefail\n          START=$(date +%s%3N)\n          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x960 --script res://game/tests/atomium_street_surface_context_test.gd 2>&1 | tee /tmp/atomium-street-surface.log\n          END=$(date +%s%3N)\n          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_STREETSURFACE_CONTEXT_FAIL" /tmp/atomium-street-surface.log; then exit 1; fi\n          grep -F "ATOMIUM_STREETSURFACE_CONTEXT_OK" /tmp/atomium-street-surface.log\n          echo "atomium_street_surface_ms=$((END-START))" | tee /tmp/atomium-street-surface-performance.txt\n          test -f grand-bruxelles-game/artifacts/atomium/atomium_street_surface_context.png\n      - name: Upload evidence\n        uses: actions/upload-artifact@v4\n'''
+          if step_marker not in text: raise SystemExit('Atomium workflow upload marker missing')
+          text=text.replace(step_marker,step_add,1)
+          artifact_marker='''            grand-bruxelles-game/artifacts/atomium/atomium_direct_spawn.png\n'''
+          artifact_add=artifact_marker+'''            grand-bruxelles-game/artifacts/atomium/atomium_street_surface_context.png\n'''
+          text=text.replace(artifact_marker,artifact_add,1)
+          log_marker='''            /tmp/atomium-direct-spawn.log\n'''
+          log_add=log_marker+'''            /tmp/atomium-street-surface.log\n            /tmp/atomium-street-surface-performance.txt\n'''
+          text=text.replace(log_marker,log_add,1)
+          workflow.write_text(text)
+          PY
+          rm .github/workflows/atomium-street-surface-patch-temp.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "world(laeken): mount official Atomium StreetSurface context"
+          git push origin HEAD:integration/atomium-street-surface-context-current

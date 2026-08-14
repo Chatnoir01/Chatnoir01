@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "asset_family": "belgian_blue_stone_paving",
+  "scope": "shared_visual_material_demonstrated_at_bourse",
+  "status": {
+    "source_identity_resolved": true,
+    "source_site_usage_resolved": true,
+    "runtime_integrated": true,
+    "exact_spectral_color_resolved": false,
+    "exact_surface_roughness_resolved": false,
+    "exact_slab_module_resolved": false,
+    "exact_finish_resolved": false
+  },
+  "source": {
+    "publisher": "City of Brussels / Ville de Bruxelles",
+    "title": "Bourse surroundings - Redevelopment of public space (completed)",
+    "url": "https://www.brussels.be/bourse-surroundings",
+    "accessed_utc": "2026-08-14T03:48:00Z",
+    "facts": {
+      "material_identity": "bluestone",
+      "documented_use": "the entire area around the Stock Exchange will be covered in bluestone",
+      "public_space_character": "continuous nearly level pedestrian public realm around the Bourse"
+    }
+  },
+  "authored_runtime_contract": {
+    "texture_is_original": true,
+    "copyrighted_photo_texture_used": false,
+    "geometry_change_allowed": false,
+    "physical_curb_height_claim_allowed": false,
+    "metallic": 0.0,
+    "roughness": 0.88,
+    "authored_repeat_size_m": 1.6,
+    "surface_character": "cool blue-grey mineral variation only; no claimed slab dimensions, fossils, veins or calibrated finish",
+    "notes": "The City source resolves bluestone material identity and site coverage, not calibrated RGB, roughness, slab module, finish or spectral response. All procedural presentation values remain authored and non-photometric."
+  },
+  "reuse_targets": [
+    "Bourse foreground/public-space surfaces already bounded by official sidewalk geometry",
+    "other Brussels public-space elements only where bluestone use is independently source-confirmed"
+  ]
+}

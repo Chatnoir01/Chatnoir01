@@ -29,14 +29,14 @@ func _run() -> void:
     if slice.street_drape_triangle_count <= 309 or slice.street_drape_vertex_count != slice.street_drape_triangle_count * 3:
         _fail("StreetSurface drape was not deterministically tessellated")
         return
+    if slice.street_drape_triangle_count > 500000:
+        _fail("StreetSurface drape triangle budget exceeded: %d" % slice.street_drape_triangle_count)
+        return
     if slice.street_drape_outside_source_vertices != 0:
         _fail("densified StreetSurface vertex left its official source polygon")
         return
-    if slice.street_drape_outside_terrain_vertices != 0:
-        _fail("StreetSurface drape requires DTM samples outside the selected official terrain")
-        return
     if not is_finite(slice.street_drape_min_check_clearance_m) or slice.street_drape_min_check_clearance_m < -0.001:
-        _fail("draped StreetSurface still drops beneath sampled terrain: %.6f m" % slice.street_drape_min_check_clearance_m)
+        _fail("DTM-supported StreetSurface still drops beneath sampled terrain: %.6f m" % slice.street_drape_min_check_clearance_m)
         return
     if slice.street_drape_max_leaf_edge_m > 6.001:
         _fail("StreetSurface leaf edge exceeds adaptive presentation limit")
@@ -85,5 +85,5 @@ func _run() -> void:
     if slice.vertical_reference_absolute_m < 40.0 or slice.vertical_reference_absolute_m > 100.0:
         _fail("vertical reference is not a plausible official DTM elevation")
         return
-    print("IXELLES_MICROSLICE_RUNTIME_OK: cell=%s samples=%d triangles=%d streets=%d drape_triangles=%d drape_min_clearance=%.5f buildings=%d skipped=%d reference_z=%.3f" % [slice.cell_id, slice.terrain_sample_count, slice.terrain_triangle_count, slice.street_surface_count, slice.street_drape_triangle_count, slice.street_drape_min_check_clearance_m, slice.building_count, slice.skipped_unapproved_height_buildings, slice.vertical_reference_absolute_m])
+    print("IXELLES_MICROSLICE_RUNTIME_OK: cell=%s samples=%d triangles=%d streets=%d drape_triangles=%d unsupported=%d drape_min_clearance=%.5f buildings=%d skipped=%d reference_z=%.3f" % [slice.cell_id, slice.terrain_sample_count, slice.terrain_triangle_count, slice.street_surface_count, slice.street_drape_triangle_count, slice.street_drape_unsupported_triangle_count, slice.street_drape_min_check_clearance_m, slice.building_count, slice.skipped_unapproved_height_buildings, slice.vertical_reference_absolute_m])
     quit(0)

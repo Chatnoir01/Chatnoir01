@@ -27,6 +27,7 @@ jobs:
           BASE='https://geoservices-urbis.irisnet.be/geoserver/urbistopo/wfs'
           COMMON='service=WFS&version=2.0.0&request=GetFeature&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=147900%2C175900%2C148300%2C176300%2CEPSG%3A31370'
           curl -fL --retry 3 --retry-delay 3 "$BASE?$COMMON&typeName=urbistopo%3ATopoLines" -o /tmp/atomium-topo/lines.json
+          curl -fL --retry 3 --retry-delay 3 "$BASE?$COMMON&typeName=urbistopo%3ATopoPolygons" -o /tmp/atomium-topo/polygons.json
           python3 - <<'PY'
           import json, math
           from pathlib import Path
@@ -34,15 +35,15 @@ jobs:
           target={'BB03L','CR39L'}
           data=json.load(open('/tmp/atomium-topo/lines.json',encoding='utf-8'))
           selected=[]
+          def coords(x):
+              if isinstance(x,list) and len(x)>=2 and isinstance(x[0],(int,float)) and isinstance(x[1],(int,float)):
+                  yield float(x[0]),float(x[1])
+              elif isinstance(x,list):
+                  for y in x: yield from coords(y)
           for f in data.get('features',[]):
               props=f.get('properties',{})
               t=str(props.get('TYPE','')).upper()
               if t not in target: continue
-              def coords(x):
-                  if isinstance(x,list) and len(x)>=2 and isinstance(x[0],(int,float)) and isinstance(x[1],(int,float)):
-                      yield float(x[0]),float(x[1])
-                  elif isinstance(x,list):
-                      for y in x: yield from coords(y)
               pts=list(coords(f.get('geometry',{}).get('coordinates',[])))
               d=min((math.hypot(x-anchor[0],y-anchor[1]) for x,y in pts),default=1e9)
               if d <= 90.0: selected.append((str(f.get('id')),t,d))
@@ -52,9 +53,34 @@ jobs:
           live=sorted((i,t) for i,t,_ in selected)
           if live != locked:
               raise SystemExit('locked bounded Topo snapshot drifted from live WFS')
-          out={'live_selected_count':len(selected),'stairs':sum(t=='BB03L' for _,t,_ in selected),'benches':sum(t=='CR39L' for _,t,_ in selected),'nearest':selected[:10]}
-          Path('grand-bruxelles-game/artifacts/atomium/atomium_topo_esplanade_discovery.json').write_text(json.dumps(out,indent=2)+'\n')
-          print('ATOMIUM_TOPO_SOURCE_OK',out)
+
+          polygons=json.load(open('/tmp/atomium-topo/polygons.json',encoding='utf-8'))
+          nearby=[]
+          for f in polygons.get('features',[]):
+              pts=list(coords(f.get('geometry',{}).get('coordinates',[])))
+              if not pts: continue
+              d=min(math.hypot(x-anchor[0],y-anchor[1]) for x,y in pts)
+              if d > 120.0: continue
+              props=f.get('properties',{})
+              t=str(props.get('TYPE','')).upper()
+              desc=str(props.get('DESCRIPTION','') or props.get('DESCR_FR','') or props.get('DESCR_NL',''))
+              # Bounding-box area is diagnostic only; no geometry/material claim derives from it.
+              xs=[p[0] for p in pts]; ys=[p[1] for p in pts]
+              bbox_area=(max(xs)-min(xs))*(max(ys)-min(ys))
+              nearby.append({'id':str(f.get('id')),'type':t,'description':desc,'min_distance_m':round(d,3),'bbox_area_m2':round(bbox_area,1),'properties':{k:v for k,v in props.items() if k in ('TYPE','DESCRIPTION','DESCR_FR','DESCR_NL','LEVEL','LVL')}})
+          nearby.sort(key=lambda x:(x['min_distance_m'],-x['bbox_area_m2']))
+          out={
+              'live_selected_count':len(selected),
+              'stairs':sum(t=='BB03L' for _,t,_ in selected),
+              'benches':sum(t=='CR39L' for _,t,_ in selected),
+              'nearest_lines':selected[:10],
+              'nearby_polygon_count':len(nearby),
+              'nearby_polygons':nearby[:80]
+          }
+          Path('grand-bruxelles-game/artifacts/atomium/atomium_topo_esplanade_discovery.json').write_text(json.dumps(out,indent=2,ensure_ascii=False)+'\n')
+          print('ATOMIUM_TOPO_SOURCE_OK', {'lines':len(selected),'stairs':out['stairs'],'benches':out['benches'],'nearby_polygons':len(nearby)})
+          for item in nearby[:30]:
+              print('ATOMIUM_TOPO_POLYGON', item['id'], item['type'], item['min_distance_m'], item['bbox_area_m2'], item['description'])
           PY
       - name: Install Godot 4.7.1
         run: |

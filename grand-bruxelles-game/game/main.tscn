@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3]
+[gd_scene load_steps=43 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -31,6 +31,7 @@
 [ext_resource type="Script" path="res://game/scripts/mission_reward_controller.gd" id="29_mission_reward"]
 [ext_resource type="Script" path="res://game/scripts/wallet_hud.gd" id="30_wallet_hud"]
 [ext_resource type="Script" path="res://game/scripts/mission_return_to_bourse.gd" id="31_return_mission"]
+[ext_resource type="Script" path="res://game/scripts/grand_place_official_surface.gd" id="32_grand_place_surface"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -113,6 +114,9 @@ use_collision = true
 
 [node name="BrusselsOSM" type="Node3D" parent="."]
 script = ExtResource("2_city")
+
+[node name="GrandPlaceOfficialSurface" type="Node3D" parent="."]
+script = ExtResource("32_grand_place_surface")
 
 [node name="UrbISBourseGeotaggedFrontage" type="Node3D" parent="."]
 script = ExtResource("23_bourse_geotagged_frontage")
@@ -218,104 +222,3 @@ margin = 0.18
 
 [node name="Camera3D" type="Camera3D" parent="PrototypeCar/CameraPivot/SpringArm3D"]
 current = false
-fov = 72.0
-
-[node name="MissionDriveToCenter" type="Node" parent="." groups=["rewarding_mission"]]
-script = ExtResource("4_mission")
-
-[node name="MissionReturnToBourse" type="Node" parent="." groups=["rewarding_mission"]]
-script = ExtResource("31_return_mission")
-
-[node name="Wallet" type="Node" parent="."]
-script = ExtResource("28_wallet")
-
-[node name="RuntimeGameplayState" type="Node" parent="."]
-script = ExtResource("26_runtime_gameplay_state")
-
-[node name="MissionQuickSave" type="Node" parent="."]
-script = ExtResource("25_mission_quick_save")
-
-[node name="MissionCheckpointAutosave" type="Node" parent="."]
-script = ExtResource("27_mission_autosave")
-
-[node name="MissionRewardController" type="Node" parent="."]
-script = ExtResource("29_mission_reward")
-
-[node name="WalletHud" type="Node" parent="."]
-script = ExtResource("30_wallet_hud")
-
-[node name="LocationLabel" type="Label" parent="."]
-offset_left = 24.0
-offset_top = 20.0
-offset_right = 520.0
-offset_bottom = 48.0
-theme_override_colors/font_color = Color(0.92, 0.93, 0.92, 0.90)
-theme_override_colors/font_shadow_color = Color(0.0, 0.0, 0.0, 0.72)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 14
-text = "BRUXELLES-MIDI · BRUSSEL-ZUID"
-script = ExtResource("16_location")
-
-[node name="MissionLabel" type="Label" parent="."]
-offset_left = 24.0
-offset_top = 49.0
-offset_right = 630.0
-offset_bottom = 103.0
-theme_override_colors/font_color = Color(0.96, 0.82, 0.33, 0.96)
-theme_override_colors/font_shadow_color = Color(0.0, 0.0, 0.0, 0.75)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 18
-text = "MIDI → CENTRE\nTrouve un véhicule · E"
-
-[node name="SaveStatusLabel" type="Label" parent="."]
-visible = false
-offset_left = 24.0
-offset_top = 108.0
-offset_right = 520.0
-offset_bottom = 136.0
-theme_override_colors/font_shadow_color = Color(0.0, 0.0, 0.0, 0.72)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 14
-text = "PARTIE SAUVEGARDÉE · F9 pour charger"
-
-[node name="PrototypeLabel" type="Label" parent="."]
-visible = false
-offset_left = 20.0
-offset_top = 92.0
-offset_right = 980.0
-offset_bottom = 150.0
-text = "debug"
-
-[node name="WalletLabel" type="Label" parent="."]
-offset_left = 1030.0
-offset_top = 258.0
-offset_right = 1252.0
-offset_bottom = 292.0
-theme_override_colors/font_color = Color(0.63, 1, 0.7, 0.96)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.76)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 20
-text = "0 €"
-horizontal_alignment = 2
-
-[node name="MiniMap" type="Control" parent="."]
-offset_left = 1030.0
-offset_top = 24.0
-offset_right = 1252.0
-offset_bottom = 246.0
-modulate = Color(1, 1, 1, 0.88)
-script = ExtResource("5_minimap")
-
-[node name="MobileControls" type="Control" parent="."]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("6_mobile")

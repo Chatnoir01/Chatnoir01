@@ -2,7 +2,7 @@
 
 Production truth: GitHub `main` only. This file is the player-facing priority backlog, not a completeness claim.
 
-Current production checkpoint: `5c306cdae9fe5439bd3bd87796ae1730cf0aefc7` (publication-only Web commit). Latest substantive production parent: `15bf915c5b18394bbd0766b365ffac77f1d23b62`, merged PR #243.
+Current production checkpoint: `cc36b6cb5998f6fb5480674858dc63352e3cdc2d` (Direction-only merge #245). Latest substantive player-facing Web publication remains `5c306cdae9fe5439bd3bd87796ae1730cf0aefc7`, containing shipped #241 Bourse roof winding, #242 direct Ixelles entry and #243 bilingual Brussels street-name plaque.
 
 ## North star
 
@@ -16,128 +16,63 @@ Optimize three horizons:
 
 Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is necessary but never sufficient. Source truth and direct player-facing inspection are hard gates.
 
-## Director gates — 2026-08-14
+## Director gates — 2026-08-14 11:07 Brussels
 
-- **#243 bilingual Brussels street-name plaque**: `shipped`, `shared_identity_gain`. Reusable authored FR/NL plaque family is in production after deterministic Bourse witness and human visual acceptance. The factual pair `RUE DE LA BOURSE / BEURSSTRAAT` is source-backed; panel geometry/color/type/PBR remain authored presentation values. Permanent surveyed placement is still a separate source-truth question.
-- **#242 direct Ixelles player/Web entry**: `shipped`, `player_access_gain`. `?spawn=ixelles` mounts the already-shipped one-cell micro-slice and anchors the player on the accepted Rue de Stassart -> Place Stephanie source witness with the 260/460 no-invention height contract intact.
-- **#241 Bourse official roof winding**: `shipped`, `source_preserving_roof_gain`. Existing UrbIS3D `ROOFSURFACE` vertices/triangles are preserved while exterior roof winding is normalized upward for deterministic culling. This improves the high-impact roof/interior layer without authored landmark dimensions; Bourse remains incomplete.
-- **#239 Ixelles compact visible micro-slice**: `shipped`, `runtime_foundation_gain`. One cell only: `bxl-e149000-n169000-s500`, 2 m DTM, 309 StreetSurfaces, 277 StreetAxes, 260 strong-source-height buildings, 460 unresolved-height buildings absent.
-- **#244 Atomium StreetSurface context**: `source_disciplined`, `visual_impact_rejected`, `closed_without_merge`. 84 official source features produced only sparse dark slivers in the hero witness (~0.0417% pixels >5 RGB). Preserve extraction evidence; do not inflate material/coverage to manufacture impact.
-- **#231 shared STIB surface-stop vocabulary**: `technically_green`, `human_visual_accepted`, `placement_source_blocked`, `keep_draft`. Reusable family is accepted; production placement still needs an official stop anchor and independent evidence for the furniture actually present there.
-- **#223 Midi blue-stone material**: `source_disciplined`, `visual_impact_rejected`, `keep_draft`. Preserve for closer/source-confirmed reuse; do not retune merely to increase pixel delta.
-- **#220 Atomium trees**: `source_coverage_rejected`, `closed_without_merge`. Do not revive by weakening gates or fabricating placement.
-- **#222 Bourse vault proxy**: `source_truth_rejected`, `closed_without_merge`. Visually stronger but depended on authored landmark dimensions; not production geometry.
+- **#243 bilingual Brussels street-name plaque** — `shipped`, `shared_identity_gain`. Reusable FR/NL plaque family is in production. Permanent surveyed placement remains a separate source-truth gate.
+- **#242 direct Ixelles player/Web entry** — `shipped`, `player_access_gain`. `?spawn=ixelles` exposes the shipped one-cell micro-slice without adding geography or unresolved heights.
+- **#241 Bourse official roof winding** — `shipped`, `source_preserving_roof_gain`. Existing UrbIS3D ROOFSURFACE geometry is kept while exterior winding is normalized for deterministic culling.
+- **#239 Ixelles compact visible micro-slice** — `shipped`, `runtime_foundation_gain`. One cell only; 309 StreetSurfaces, 277 StreetAxes, 260 strong-source-height buildings, 460 unresolved-height buildings absent.
+- **#247 Atomium measured glazed pavilion** — `source_truth_rejected`, `visual_impact_rejected`, `closed_without_merge`. Heritage semantics support a 26 m circular fully glazed pavilion, but the proposed 4.027 m facade height came from a `height_quality: low`, landmark-contaminated DSM-DTM distribution and is not a defensible facade-top measurement. Exact 1280×960 A/B changed only about 1,757 pixels above 8 RGB (~0.143%). Preserve semantics; do not promote the contaminated median to landmark geometry.
+- **#248 historic shopfront vocabulary** — `source_disciplined`, `visual_identity_rejected`, `closed_without_merge`. Readable historic commercial vocabulary, but still generic at normal street scale. Do not manufacture impact with branding or fabricated surrounding facade geometry.
+- **#246 Grand-Place StreetSurface witness** — `full_frame_impact`, `recognition_rejected`, `closed_without_merge`. Official surface changed ~47.42% of the 1280×720 frame, proving non-micro impact, but the witness was sky + flat ground with no recognizable Grand-Place architecture and a dark slab foreground. Next Grand-Place work must first establish architecture in the deterministic arrival frame.
+- **#244 Atomium StreetSurface context** — `visual_impact_rejected`, `closed_without_merge`. Official surfaces produced sparse slivers only; do not inflate coverage/material contrast.
+- **#231 shared STIB surface-stop vocabulary** — `technically_green`, `human_visual_accepted`, `placement_source_blocked`, `keep_draft`. Asset family is accepted. Integration requires an official production stop anchor plus independent evidence of the furniture actually present there.
+- **#223 Midi blue-stone material** — `source_disciplined`, `visual_impact_rejected`, `keep_draft`. Preserve for closer/source-confirmed reuse; do not retune for pixel delta.
+- **#220 Atomium trees** — `source_coverage_rejected`, `closed_without_merge`.
+- **#222 Bourse vault proxy** — `source_truth_rejected`, `closed_without_merge`.
 
 ## Latest shipped player-facing gains
 
-- **#243 bilingual Brussels street-name plaque** — immediately increases Brussels street-language identity and is reusable across source-confirmed placements.
-- **#242 direct Ixelles Web/player spawn** — converts the shipped Ixelles foundation into a destination the player can directly inspect.
-- **#241 Bourse roof winding normalization** — source-preserving improvement on the hero roof/interior layer.
-- **#239 Ixelles compact runtime micro-slice** — first clean production runtime foundation for a real bounded Ixelles cell.
-- **#230 Atomium direct Web spawn** — landmark becomes immediately reachable/testable.
-- **#226 Atomium deterministic reflection environment** — stronger stainless response without geometry changes.
-- **#217 Bourse white-stone portico** — stronger six-column separation/readability.
-- **#215 Midi/Fonsny Fauquenberg brick** — source-scaled procedural brick replaces a large flat façade response.
-- **#214 Atomium stainless presentation** — brighter metallic response and stronger presentation tessellation.
+- **#243 bilingual Brussels street-name plaque** — reusable Brussels language identity.
+- **#242 direct Ixelles Web/player spawn** — first bounded Ixelles slice directly inspectable by the player.
+- **#241 Bourse roof winding normalization** — source-preserving improvement to the hero roof/interior layer.
+- **#239 Ixelles compact runtime micro-slice** — clean production foundation for one real Ixelles cell.
+- **#230 Atomium direct Web spawn** — landmark immediately reachable/testable.
+- **#226 Atomium deterministic reflection environment** — stronger stainless response.
+- **#217 Bourse white-stone portico** — stronger six-column readability.
+- **#215 Midi/Fonsny Fauquenberg brick** — large flat façade response replaced by source-scaled procedural brick.
+- **#214 Atomium stainless presentation** — improved metallic landmark response.
 
 ## Current top 5 perceived-quality bottlenecks
 
-1. **Grand-Place arrival is visibly sparse/prototype** — `visual_gap_high`, `references_needed`. It is now the strongest unowned full-frame opportunity: architecture, roof silhouettes, paving, frontage rhythm, bilingual signs/furniture and atmosphere remain far below the real place.
-2. **Bourse roof/interior volumes + immediate surrounding frontage** — `visual_gap_high`. #241 improves the authoritative roof layer, but the fixed hero witness still exposes simplified/incomplete interior/roof/frontage structure. No proxy pediment or authored landmark dimensions.
-3. **Midi lacks unmistakable STIB/station/public-space identity** — `visual_gap_high`. #215 brick is shipped and #231 proves a strong reusable transit cue, but real stop/furniture placement truth is still unresolved.
-4. **Ixelles is directly playable but visually generic beyond terrain/streets/massing** — `player_access_shipped`, `identity_gap_high`. Next lot should add exactly one source-backed, high-impact local identity cue in the existing cell/player view; no new geography or unresolved heights.
-5. **Atomium immediate context/pavilion/supports remain incomplete** — `visual_gap_high`. Stainless, reflections and direct spawn are shipped; #244 proved generic StreetSurface context is too weak. Exact support/yaw facts remain blocked and must not be fabricated.
+1. **Grand-Place arrival lacks recognizable architecture in the production witness** — `visual_gap_critical`. #246 proved the plaza foreground can change a large fraction of the frame, but a paving-only frame is not Brussels recognition. First establish an architecture-bearing arrival witness, then correct one coherent source-backed massing/frontage/paving/signage giveaway.
+2. **Bourse roof/interior volumes + immediate surrounding frontage** — `visual_gap_high`. #241 improves the authoritative roof layer, but simplified/incomplete structure remains visible. No proxy pediment or invented landmark dimensions.
+3. **Midi lacks unmistakable STIB/station/public-space identity** — `visual_gap_high`. #215 brick is shipped; #231 proves a strong transit cue but real furniture placement remains unresolved.
+4. **Ixelles is directly playable but visually generic beyond terrain/streets/massing** — `player_access_shipped`, `identity_gap_high`. Next lot must add exactly one high-impact, source-backed local identity cue inside the same cell/player view.
+5. **Atomium immediate pavilion/context/supports remain incomplete** — `visual_gap_high`. Stainless, reflections and direct spawn are strong; #247 confirms that weak vertical evidence must not be promoted merely to fill the base.
 
 ## Active ownership map
 
-- **Centre Vertical Slice** — owns Bourse/Centre/Midi visible geography. #241 is shipped. Next substantive lot should target Grand-Place arrival or another clearly large source-bounded Bourse/Midi giveaway; no return to imperceptible frontage micro-lots.
-- **Visual Assets + Atmosphere** — owns shared PBR/furniture/signage/vegetation/lighting/weather/audio. #243 is shipped. #231 still owns the accepted STIB stop family; next step is placement/furniture source truth, not styling.
-- **Ixelles Runtime Slice** — #239 and #242 are shipped. Next lot stays in the same cell and adds one player-visible source-backed identity cue only; no terrain research, extra cells or 460 unresolved buildings.
-- **Laeken Hero Impact** — #230/#226/#214 are shipped. #244 is rejected. Next hero lot must be current-main and source-bounded, preferably pavilion/public-realm/context with meaningful screen area.
-- **Impact Director maintenance** — Traffic/Living City/missions/saves/release only for blockers/regressions or unusually high perceived-impact opportunities.
+- **Centre Vertical Slice** — owns Bourse/Centre/Midi visible geography. No integration-ready high-impact PR at this checkpoint. #246 is closed diagnostic evidence. Next lot should establish a recognizable Grand-Place architecture-bearing witness or a materially large authoritative Bourse/Midi correction.
+- **Visual Assets + Atmosphere** — owns shared PBR/furniture/signage/vegetation/lighting/weather/audio. #243 is shipped. #231 still owns the accepted STIB stop family; next step is placement/furniture source truth, not styling. #248 is closed as generic identity.
+- **Ixelles Runtime Slice** — #239 and #242 are shipped. Infrastructure phase is over. Next lot stays in the same cell and adds one visible source-backed Ixelles identity cue only.
+- **Laeken Hero Impact** — #214/#226/#230 are shipped. #247 is closed. Preserve the factual 26 m circular fully glazed pavilion semantics, but do not create height/roof/access geometry without a defensible source. Pivot to another high-impact source-bounded context fact if vertical evidence remains blocked.
+- **Impact Director maintenance** — Traffic/Living City/missions/saves/release only for blockers, regressions or unusually high perceived-impact opportunities.
 
-## Centre / Bourse / Grand-Place
+## Stream health
 
-### Bourse foundations
+- **Centre** — `drift_risk_high`: repeatedly finds either micro-deltas or full-frame changes without Brussels recognition. Must optimize witness composition + source-backed architecture, not commit count.
+- **Visual Assets + Atmosphere** — `productive_but_source_blocked`: shipped bilingual signage; STIB asset is strong but placement truth remains the blocker. Generic shopfront family was correctly rejected.
+- **Ixelles** — `productive`: runtime + direct access shipped. Must now convert technical fidelity into local visual identity.
+- **Laeken** — `productive_but_fact_blocked`: landmark material/reflection/access are strong; context attempts must stop when source truth or screen impact is weak.
 
-- UrbIS3D hero mass and six-column portico.
-- Fixed geotagged 1280×960 witness.
-- Official StreetSurfaces and bounded sidewalk geometry.
-- Visually accepted white-stone portico.
-- Source-bounded sidewalk articulation.
-- Source-preserving upward roof-surface winding (#241).
+## Shared priorities
 
-### Highest-value next work
-
-- Existing authoritative roof/interior surfaces or measurable envelope constraints that remove obvious prototype read behind the portico.
-- A frontage/context correction with materially large screen area, not another ~0.05% micro-delta.
-- **Grand-Place deterministic arrival witness + one coherent full-frame correction** is now a preferred pivot when Bourse source facts stall.
-- #165 pediment remains unresolved; never invent dimensions.
-
-## Midi → Anneessens
-
-### Shipped foundation
-
-- Playable mission/checkpoint/save loop.
-- Fauquenberg brick presentation on bounded Fonsny façade family.
-
-### Highest-value next work
-
-- **Authentic STIB stop identity**: #231 family is visually accepted. Pair an official production stop geolocation with independent evidence of the actual furniture present there; integrate only the proven subset.
-- Station frontage identity/entries and bilingual wayfinding.
-- Forecourt/tram-bus interface geometry/markings only where source-backed.
-- Retail frontage and ground-floor rhythm.
-
-## Grand-Place / Centre arrival
-
-- Gameplay arrival exists.
-- Visual credibility remains `visual_gap_high` and is now the strongest clean full-frame opportunity.
-- Next useful lot: lock a deterministic production arrival camera, then improve one coherent source-backed foreground/midground giveaway — massing/frontage/paving/signage — rather than another isolated micro-detail.
-
-## Ixelles
-
-### Shipped scope — #239 + #242
-
-- Cell `bxl-e149000-n169000-s500`, EPSG:31370 bbox `[149000,169000,149500,169500]` only.
-- Locked 2 m DTM/source hashes; 63,001 terrain samples / 125,000 terrain triangles.
-- 309 authoritative StreetSurfaces and 277 StreetAxes.
-- 260 strong source-backed building heights; 460 unresolved-height buildings absent.
-- Source-anchored Rue de Stassart axis `71374:1` → Place Stephanie axis `71306:2`.
-- Accepted one-cell roadway drape and direct player/Web entry `?spawn=ixelles`.
-
-### Highest-value next work
-
-1. Human-judge the direct player view as the baseline for all future Ixelles visual work.
-2. Add exactly one high-impact identity cue with defensible source support: immediate frontage/material/vegetation/street context.
-3. Require a 1280×720 player before/after; reject if impact requires A/B magnification.
-4. Keep geography, DTM, camera anchor and 260/460 height policy unchanged.
-
-## Laeken / Atomium
-
-### Shipped foundation
-
-- Official DTM with collision/normals.
-- 9-sphere / 20-tube source-bounded core, 102 m / 18 m / 3.30 m.
-- Stainless presentation (#214).
-- Deterministic reflection environment (#226).
-- Direct browser hero entry `?spawn=atomium` (#230).
-- 26 m circular pavilion-plan evidence.
-
-### Highest-value remaining work
-
-- Pavilion details only where actual dimensions/semantics are established.
-- Immediate public-realm/context geometry or imagery only when it occupies meaningful hero/player screen area and has dedicated A/B evidence.
-- Exact global crystal yaw and three bipod feet remain `references_needed`; support geometry stays blocked.
-- Do not revive #220 or #244 unchanged.
-
-## Shared asset priorities
-
-1. **#231 authentic STIB production placement** — highest-value ready family if stop coordinate + actual furniture presence can be proven quickly.
-2. **Bilingual street-name/wayfinding placement** — #243 family is shipped; future placements require factual name + defensible scene anchor.
-3. Shopfront/window/awning modules demonstrated in a current production witness.
-4. Brussels/STIB/public-space furniture where official/reference placement is defensible and visually unmistakable.
-5. Larger foreground paving/cobble/asphalt families only when source-confirmed coverage occupies substantial screen area.
-6. Controlled overcast/wet/night atmosphere after major geometry/street-identity blockers in the chosen witness are under control.
+1. **#231 authentic STIB production placement** if stop coordinate + real furniture subset can be proven quickly.
+2. **Ixelles first identity cue** in the shipped `?spawn=ixelles` view: frontage/material/vegetation/signage with strong source support.
+3. **Grand-Place architecture-bearing deterministic arrival witness**, followed immediately by one coherent full-frame correction.
+4. Source-defensible bilingual wayfinding/street-name placements using #243.
+5. Atmosphere/wet/night only after the chosen frame has credible geometry/street identity.
 
 ## Production rules
 
@@ -154,4 +89,4 @@ Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is 
 
 ## Director next-integration priority
 
-**Highest-value current candidate: #231 STIB surface-stop vocabulary, but only after a real production stop anchor and actual furniture-presence proof are paired.** If that source truth cannot be closed within one or two lots, defer #231 and pivot to the new clean opportunity: a deterministic Grand-Place arrival witness followed by one coherent source-backed full-frame correction. Ixelles is now a shipped/player-accessible baseline, so it no longer blocks integration; its next work is quality, not infrastructure.
+**No currently open runtime PR is integration-ready. Highest-value near-term candidate remains #231 only if real stop/furniture placement truth closes quickly. Otherwise the best clean new integration target is one source-backed Ixelles identity cue in the already shipped/player-accessible cell, because it has low infrastructure risk and directly improves the 3-second and 30-second experience. Centre should prepare the next Grand-Place correction, but only after the deterministic arrival witness actually contains recognizable Grand-Place architecture.**

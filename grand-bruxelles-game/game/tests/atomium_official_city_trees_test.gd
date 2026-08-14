@@ -14,6 +14,71 @@ func _fail(message: String) -> void:
     push_error("ATOMIUM_OFFICIAL_TREES_FAIL: %s" % message)
     quit(1)
 
+func _source_intersection_diagnostics(terrain: Node, trees: Node, atomium_e: float, atomium_n: float) -> Dictionary:
+    var data_path := str(trees.get("data_path"))
+    if not FileAccess.file_exists(data_path):
+        return {}
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(data_path))
+    if typeof(parsed) != TYPE_DICTIONARY:
+        return {}
+    var features: Variant = (parsed as Dictionary).get("features", [])
+    if not features is Array:
+        return {}
+
+    var first_e := float(terrain.get("first_e"))
+    var first_n := float(terrain.get("first_n"))
+    var step_e := float(terrain.get("step_e"))
+    var step_n := float(terrain.get("step_n"))
+    var width := int(terrain.get("width"))
+    var height := int(terrain.get("height"))
+    var last_e := first_e + float(width - 1) * step_e
+    var last_n := first_n + float(height - 1) * step_n
+    var min_e := minf(first_e, last_e)
+    var max_e := maxf(first_e, last_e)
+    var min_n := minf(first_n, last_n)
+    var max_n := maxf(first_n, last_n)
+    var hero_radius := float(trees.get("hero_radius_m"))
+    var hero_radius_sq := hero_radius * hero_radius
+
+    var radius_count := 0
+    var bbox_count := 0
+    var intersection_count := 0
+    var point_count := 0
+    for raw_feature: Variant in features:
+        if not raw_feature is Dictionary:
+            continue
+        var geometry: Variant = (raw_feature as Dictionary).get("geometry", {})
+        if not geometry is Dictionary or str((geometry as Dictionary).get("type", "")) != "Point":
+            continue
+        var coords: Variant = (geometry as Dictionary).get("coordinates", [])
+        if not coords is Array or coords.size() < 2:
+            continue
+        point_count += 1
+        var source_e := float(coords[0])
+        var source_n := float(coords[1])
+        var de := source_e - atomium_e
+        var dn := source_n - atomium_n
+        var in_radius := de * de + dn * dn <= hero_radius_sq
+        var in_bbox := source_e >= min_e and source_e <= max_e and source_n >= min_n and source_n <= max_n
+        if in_radius:
+            radius_count += 1
+        if in_bbox:
+            bbox_count += 1
+        if in_radius and in_bbox:
+            intersection_count += 1
+
+    return {
+        "feature_count": features.size(),
+        "point_count": point_count,
+        "within_radius_count": radius_count,
+        "inside_dtm_bbox_count": bbox_count,
+        "intersection_count": intersection_count,
+        "dtm_bbox": [min_e, min_n, max_e, max_n],
+        "atomium_e": atomium_e,
+        "atomium_n": atomium_n,
+        "hero_radius_m": hero_radius
+    }
+
 func _run() -> void:
     var viewport := SubViewport.new()
     viewport.size = Vector2i(WIDTH, HEIGHT)
@@ -50,6 +115,34 @@ func _run() -> void:
     var converted_anchor := trees.source_to_game_horizontal(terrain, reconstructed_atomium_e, reconstructed_atomium_n)
     if absf(converted_anchor.x - hero.anchor_position.x) > 0.001 or absf(converted_anchor.y - hero.anchor_position.z) > 0.001:
         _fail("Lambert-to-local conversion drifted: %s vs hero %s" % [converted_anchor, Vector2(hero.anchor_position.x, hero.anchor_position.z)])
+        return
+
+    # Deterministic source-space diagnosis. This happens before renderer filtering
+    # and does not alter source coordinates, source hash, terrain scope or runtime
+    # behavior. It distinguishes a genuine source/terrain coverage gap from a
+    # coordinate-conversion/filtering bug.
+    var diagnostics := _source_intersection_diagnostics(terrain, trees, reconstructed_atomium_e, reconstructed_atomium_n)
+    if diagnostics.is_empty():
+        _fail("source intersection diagnostics unavailable")
+        return
+    print("ATOMIUM_TREE_INTERSECTION_DIAGNOSTIC: source=%d points=%d radius420=%d dtm_bbox=%d intersection=%d atomium=(%.6f,%.6f) bbox=[%.6f,%.6f,%.6f,%.6f]" % [
+        int(diagnostics.get("feature_count", -1)),
+        int(diagnostics.get("point_count", -1)),
+        int(diagnostics.get("within_radius_count", -1)),
+        int(diagnostics.get("inside_dtm_bbox_count", -1)),
+        int(diagnostics.get("intersection_count", -1)),
+        float(diagnostics.get("atomium_e", 0.0)),
+        float(diagnostics.get("atomium_n", 0.0)),
+        float((diagnostics.get("dtm_bbox", []) as Array)[0]),
+        float((diagnostics.get("dtm_bbox", []) as Array)[1]),
+        float((diagnostics.get("dtm_bbox", []) as Array)[2]),
+        float((diagnostics.get("dtm_bbox", []) as Array)[3])
+    ])
+    if int(diagnostics.get("feature_count", -1)) != 8236 or int(diagnostics.get("point_count", -1)) != 8236:
+        _fail("official source point count drifted before filtering")
+        return
+    if int(diagnostics.get("intersection_count", -1)) <= 0:
+        _fail("source/DTM Lambert intersection is zero; vegetation cannot be rendered without changing validated scope")
         return
 
     if not trees.build_on_terrain(terrain):

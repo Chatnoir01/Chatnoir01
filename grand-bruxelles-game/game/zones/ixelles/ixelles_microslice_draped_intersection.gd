@@ -8,11 +8,17 @@ extends "res://game/zones/ixelles/ixelles_microslice_draped.gd"
 const STASSART_124_BUILDING_ID := "https://databrussels.be/id/building/1737877"
 const STASSART_124_LEVEL_COUNT := 4.0
 const STASSART_124_CUE_ENV := "GB_IXELLES_STASSART124_CUE"
+const STASSART_131_BUILDING_ID := "https://databrussels.be/id/building/1633062"
+const STASSART_131_CUE_ENV := "GB_IXELLES_STASSART131_CUE"
+const STASSART_131_STASSART_AXIS_ID := "https://databrussels.be/id/streetaxe/71374:2"
+const STASSART_131_STEPHANIE_AXIS_ID := "https://databrussels.be/id/streetaxe/71306:2"
 
 var street_drape_source_intersection_piece_count := 0
 var street_drape_source_intersection_empty_count := 0
 var street_drape_source_polygon_count := 0
 var stassart_124_blue_stone_cue_built := false
+var stassart_131_street_facades_built := false
+var stassart_131_selected_edge_count := 0
 
 func _emit_bounded_piece(target: SurfaceTool, bounded_piece: PackedVector2Array) -> void:
     if bounded_piece.size() < 3:
@@ -127,9 +133,132 @@ func _build_street_surfaces() -> void:
 
 func _build_strong_height_candidate_buildings() -> void:
     super._build_strong_height_candidate_buildings()
-    if OS.get_environment(STASSART_124_CUE_ENV) == "0":
+    if OS.get_environment(STASSART_124_CUE_ENV) != "0":
+        _build_stassart_124_blue_stone_ground_floor()
+    if OS.get_environment(STASSART_131_CUE_ENV) != "0":
+        _build_stassart_131_street_facing_facades()
+
+func _network_axis_points(axis_id: String) -> PackedVector2Array:
+    var network: Dictionary = get_meta("ixelles_network_contract", {})
+    var axes: Variant = network.get("street_axes", [])
+    if not axes is Array:
+        return PackedVector2Array()
+    for axis: Variant in axes:
+        if not axis is Dictionary or str(axis.get("id", "")) != axis_id:
+            continue
+        var raw_points: Variant = axis.get("points", [])
+        var result := PackedVector2Array()
+        if raw_points is Array:
+            for raw: Variant in raw_points:
+                if raw is Array and raw.size() >= 2:
+                    result.append(Vector2(float(raw[0]), float(raw[1])))
+        return result
+    return PackedVector2Array()
+
+func _select_edge_against_axis(polygon: PackedVector2Array, axis: PackedVector2Array, excluded_edge: int = -1) -> int:
+    if polygon.size() < 3 or axis.size() < 2:
+        return -1
+    var axis_a := axis[0]
+    var axis_b := axis[axis.size() - 1]
+    var axis_dir := (axis_b - axis_a).normalized()
+    var best_index := -1
+    var best_score := INF
+    for index: int in range(polygon.size()):
+        if index == excluded_edge:
+            continue
+        var a := polygon[index]
+        var b := polygon[(index + 1) % polygon.size()]
+        var edge := b - a
+        if edge.length() < 2.0:
+            continue
+        var alignment := absf(edge.normalized().dot(axis_dir))
+        if alignment < 0.55:
+            continue
+        var midpoint := (a + b) * 0.5
+        var distance := _point_segment_distance(midpoint, axis_a, axis_b)
+        var score := distance + (1.0 - alignment) * 12.0
+        if score < best_score:
+            best_score = score
+            best_index = index
+    return best_index
+
+func _build_stassart_131_street_facing_facades() -> void:
+    var cell: Dictionary = get_meta("ixelles_cell_contract", {})
+    var height_contract: Dictionary = get_meta("ixelles_height_contract", {})
+    var buildings: Variant = cell.get("buildings", [])
+    var records: Variant = height_contract.get("records", [])
+    if not buildings is Array or not records is Array:
         return
-    _build_stassart_124_blue_stone_ground_floor()
+    var semantic_height := NAN
+    for record: Variant in records:
+        if record is Dictionary and str(record.get("building_id", "")) == STASSART_131_BUILDING_ID:
+            if bool(record.get("visual_runtime_eligible", false)) and not bool(record.get("runtime_approved", true)):
+                semantic_height = float(record.get("semantic_height_m", NAN))
+            break
+    if not is_finite(semantic_height) or semantic_height < 8.0:
+        push_error("Ixelles identity cue: Stassart 131 strong-source height unavailable")
+        return
+    var polygon := PackedVector2Array()
+    for feature: Variant in buildings:
+        if feature is Dictionary and str(feature.get("id", "")) == STASSART_131_BUILDING_ID:
+            polygon = _ring(feature.get("footprint", []))
+            break
+    if polygon.size() < 3:
+        push_error("Ixelles identity cue: Stassart 131 footprint unavailable")
+        return
+    var stassart_axis := _network_axis_points(STASSART_131_STASSART_AXIS_ID)
+    var stephanie_axis := _network_axis_points(STASSART_131_STEPHANIE_AXIS_ID)
+    var stassart_edge := _select_edge_against_axis(polygon, stassart_axis)
+    var stephanie_edge := _select_edge_against_axis(polygon, stephanie_axis, stassart_edge)
+    if stassart_edge < 0 or stephanie_edge < 0 or stassart_edge == stephanie_edge:
+        push_error("Ixelles identity cue: Stassart 131 two street-facing edges could not be resolved")
+        return
+    var centroid := Vector2.ZERO
+    for point: Vector2 in polygon:
+        centroid += point
+    centroid /= float(polygon.size())
+    var base_y := sample_height(centroid.x, centroid.y) + 0.058
+    var top_y := base_y + semantic_height
+    var material := _make_material(Color(0.79, 0.765, 0.69, 1.0), 0.91)
+    var tool := SurfaceTool.new()
+    tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+    tool.set_material(material)
+    var selected := PackedInt32Array([stassart_edge, stephanie_edge])
+    for edge_index: int in selected:
+        var a := polygon[edge_index]
+        var b := polygon[(edge_index + 1) % polygon.size()]
+        var edge := b - a
+        if edge.length_squared() < 0.01:
+            continue
+        var midpoint := (a + b) * 0.5
+        var outward := Vector2(-edge.y, edge.x).normalized()
+        if (midpoint + outward * 0.2).distance_to(centroid) < midpoint.distance_to(centroid):
+            outward = -outward
+        outward *= 0.014
+        var normal := Vector3(outward.x, 0.0, outward.y).normalized()
+        var a0 := Vector3(a.x + outward.x, base_y, a.y + outward.y)
+        var b0 := Vector3(b.x + outward.x, base_y, b.y + outward.y)
+        var a1 := Vector3(a.x + outward.x, top_y, a.y + outward.y)
+        var b1 := Vector3(b.x + outward.x, top_y, b.y + outward.y)
+        for vertex: Vector3 in [a0, b0, b1, a0, b1, a1]:
+            tool.set_normal(normal)
+            tool.add_vertex(vertex)
+    var mesh := tool.commit()
+    if mesh.get_surface_count() == 0:
+        push_error("Ixelles identity cue: Stassart 131 overlay mesh empty")
+        return
+    var instance := MeshInstance3D.new()
+    instance.name = "Stassart131StreetFacingLightFacades"
+    instance.mesh = mesh
+    instance.set_meta("source_building_id", STASSART_131_BUILDING_ID)
+    instance.set_meta("source_address", "Rue de Stassart 131 / Place Stéphanie 12a")
+    instance.set_meta("heritage_record", "https://monument.heritage.brussels/fr/buildings/19362")
+    instance.set_meta("street_axis_ids", [STASSART_131_STASSART_AXIS_ID, STASSART_131_STEPHANIE_AXIS_ID])
+    instance.set_meta("interpretation", "light street-facing façade material from official 2009 inventory photograph; renderer-only")
+    add_child(instance)
+    stassart_131_selected_edge_count = 2
+    stassart_131_street_facades_built = true
+    print("IXELLES_STASSART131_IDENTITY_READY: building=%s semantic_height=%.3f edges=2 renderer_only=true" % [STASSART_131_BUILDING_ID, semantic_height])
 
 func _build_stassart_124_blue_stone_ground_floor() -> void:
     var cell: Dictionary = get_meta("ixelles_cell_contract", {})

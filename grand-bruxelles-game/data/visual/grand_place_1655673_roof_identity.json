@@ -1,0 +1,35 @@
+{
+  "schema": "grand-bruxelles-material-identity-v1",
+  "target": {
+    "runtime_node": "GrandPlaceOfficialLod2",
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "role": "Grand-Place Hotel de Ville landmark mass roof"
+  },
+  "geometry_source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "crs": "EPSG:31370",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "license": "CC0-1.0"
+  },
+  "material_identity_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Hotel de ville, Grand-Place 8, Urban 31125",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+    "fact": "vast slate gable roof pierced by four rows of hipped dormers",
+    "accessed_at": "2026-08-14"
+  },
+  "presentation_contract": {
+    "applies_to": "ROOFSURFACE only",
+    "geometry_changed": false,
+    "dormers_authored": false,
+    "exact_rgb_is_photometric_measurement": false,
+    "roughness_is_measured": false,
+    "texture_is_authored": true,
+    "runtime_approved": false,
+    "realism_complete": false
+  },
+  "reuse_plan": "The authored slate response is a reusable Brussels roof material helper, but production adoption on another building requires an independent source confirming slate roofing for that building.",
+  "licensing_note": "No heritage photograph or proprietary texture is distributed. The material is generated from authored scalar/color values only."
+}

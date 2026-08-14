@@ -4,8 +4,10 @@ const MAIN_SCENE := preload("res://game/main.tscn")
 const OUTPUT_DIR := "res://artifacts/grand-place/arrival-surface"
 const WIDTH := 1280
 const HEIGHT := 720
+# Presentation witness only: source-bounded Grand-Place arrival viewpoint inside the
+# official surface envelope. It is not a surveyed camera pose.
 const CAMERA_POSITION := Vector3(305.0, 1.72, -572.0)
-const CAMERA_TARGET := Vector3(333.0, 6.5, -521.0)
+const CAMERA_TARGET := Vector3(333.0, 0.85, -521.0)
 const CAMERA_FOV := 58.0
 
 
@@ -30,8 +32,6 @@ func _hide_noise(main: Node) -> void:
 
 
 func _capture(path: String) -> bool:
-    # Keep the SceneTree running so a MeshInstance visibility change reaches the root viewport.
-    # The previous paused-tree capture produced two identical frames despite the visibility toggle.
     for _frame: int in range(3):
         RenderingServer.force_draw()
         await process_frame
@@ -85,8 +85,8 @@ func _run() -> void:
     camera.look_at(CAMERA_TARGET, Vector3.UP)
     camera.current = true
 
-    # Pixel-stable A/B: only surface visibility changes. Do not pause the SceneTree here;
-    # root viewport updates can otherwise remain identical across the two captures.
+    # Pixel-stable A/B: only surface visibility changes. The target stays near eye/ground
+    # level so the official 5,337 m2 plaza occupies meaningful foreground screen area.
     surface.call("set_surface_visible", false)
     if bool(surface.call("surface_is_visible")):
         _fail("official surface refused baseline hide")

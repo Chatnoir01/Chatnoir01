@@ -5,6 +5,10 @@ class_name BrusselsCellStreamingManager
 ## It does not copy OpenLiberty/OpenRW code and never consumes GTA assets/data.
 ## Production geometry remains sourced from Brussels/UrbIS contracts.
 
+signal cell_activation_requested(cell_id: String, descriptor: Dictionary)
+signal cell_deactivation_requested(cell_id: String)
+signal collision_tier_changed(cell_id: String, enabled: bool)
+
 enum CellState { DORMANT, QUEUED, ACTIVE, COOLING }
 
 @export var visual_load_radius_m := 650.0
@@ -53,9 +57,9 @@ func register_manifest_dict(manifest: Dictionary, world_center: Variant = null) 
         return false
     var source_bbox := Rect2(min_e, min_n, max_e - min_e, max_n - min_n)
     var resolved_world_center := Vector3.ZERO
-    if world_center is Vector3:
-        resolved_world_center = world_center as Vector3
-    var runtime_paths := {}
+    if typeof(world_center) == TYPE_VECTOR3:
+        resolved_world_center = world_center
+    var runtime_paths: Dictionary = {}
     var runtime: Variant = manifest.get("runtime", {})
     if runtime is Dictionary:
         runtime_paths = {
@@ -126,6 +130,7 @@ func _activate(cell_id: String) -> void:
     cell["state"] = CellState.ACTIVE
     _cells[cell_id] = cell
     _activation_count += 1
+    cell_activation_requested.emit(cell_id, cell.duplicate(true))
 
 func _deactivate(cell_id: String) -> void:
     if not _cells.has(cell_id):
@@ -136,9 +141,11 @@ func _deactivate(cell_id: String) -> void:
     if bool(cell["collision_active"]):
         cell["collision_active"] = false
         _collision_changes += 1
+        collision_tier_changed.emit(cell_id, false)
     cell["state"] = CellState.DORMANT
     _cells[cell_id] = cell
     _deactivation_count += 1
+    cell_deactivation_requested.emit(cell_id)
 
 func _refresh_collisions() -> void:
     for cell_id: String in _cells.keys():
@@ -148,6 +155,7 @@ func _refresh_collisions() -> void:
             cell["collision_active"] = should_collide
             _collision_changes += 1
             _cells[cell_id] = cell
+            collision_tier_changed.emit(cell_id, should_collide)
 
 func _flat_distance(a: Vector3, b: Vector3) -> float:
     return Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z))

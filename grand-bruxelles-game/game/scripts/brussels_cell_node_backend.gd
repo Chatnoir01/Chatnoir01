@@ -8,9 +8,11 @@ var _manager: BrusselsCellStreamingManager
 var _bindings: Dictionary = {}
 var _instances: Dictionary = {}
 var _desired_active: Dictionary = {}
+var _desired_collision: Dictionary = {}
 var _load_count := 0
 var _unload_count := 0
 var _failed_load_count := 0
+var _collision_apply_count := 0
 
 func bind_manager(manager: BrusselsCellStreamingManager) -> void:
     if _manager == manager:
@@ -20,11 +22,14 @@ func bind_manager(manager: BrusselsCellStreamingManager) -> void:
             _manager.cell_activation_requested.disconnect(_on_activation_requested)
         if _manager.cell_deactivation_requested.is_connected(_on_deactivation_requested):
             _manager.cell_deactivation_requested.disconnect(_on_deactivation_requested)
+        if _manager.collision_tier_changed.is_connected(_on_collision_tier_changed):
+            _manager.collision_tier_changed.disconnect(_on_collision_tier_changed)
     _manager = manager
     if not is_instance_valid(_manager):
         return
     _manager.cell_activation_requested.connect(_on_activation_requested)
     _manager.cell_deactivation_requested.connect(_on_deactivation_requested)
+    _manager.collision_tier_changed.connect(_on_collision_tier_changed)
 
 func register_script_cell(cell_id: String, script_path: String, property_overrides: Dictionary = {}) -> bool:
     if cell_id.is_empty() or script_path.is_empty() or _bindings.has(cell_id):
@@ -36,6 +41,7 @@ func register_script_cell(cell_id: String, script_path: String, property_overrid
         "property_overrides": property_overrides.duplicate(true),
     }
     _desired_active[cell_id] = false
+    _desired_collision[cell_id] = false
     return true
 
 func _on_activation_requested(cell_id: String, _descriptor: Dictionary) -> void:
@@ -48,7 +54,15 @@ func _on_deactivation_requested(cell_id: String) -> void:
     if not _bindings.has(cell_id):
         return
     _desired_active[cell_id] = false
+    _desired_collision[cell_id] = false
     call_deferred("_release_cell", cell_id)
+
+func _on_collision_tier_changed(cell_id: String, enabled: bool) -> void:
+    if not _bindings.has(cell_id):
+        return
+    _desired_collision[cell_id] = enabled
+    if _instances.has(cell_id):
+        call_deferred("_apply_collision_state", cell_id)
 
 func _instantiate_cell(cell_id: String) -> void:
     if not bool(_desired_active.get(cell_id, false)) or _instances.has(cell_id):
@@ -72,6 +86,16 @@ func _instantiate_cell(cell_id: String) -> void:
     add_child(instance)
     _instances[cell_id] = instance
     _load_count += 1
+    call_deferred("_apply_collision_state", cell_id)
+
+func _apply_collision_state(cell_id: String) -> void:
+    if not _instances.has(cell_id):
+        return
+    var instance: Node = _instances[cell_id]
+    if not is_instance_valid(instance) or not instance.has_method("set_stream_collision_enabled"):
+        return
+    instance.call("set_stream_collision_enabled", bool(_desired_collision.get(cell_id, false)))
+    _collision_apply_count += 1
 
 func _release_cell(cell_id: String) -> void:
     if not _instances.has(cell_id):
@@ -79,6 +103,8 @@ func _release_cell(cell_id: String) -> void:
     var instance: Node = _instances[cell_id]
     _instances.erase(cell_id)
     if is_instance_valid(instance):
+        if instance.has_method("set_stream_collision_enabled"):
+            instance.call("set_stream_collision_enabled", false)
         instance.queue_free()
     _unload_count += 1
 
@@ -98,4 +124,5 @@ func get_metrics() -> Dictionary:
         "load_count": _load_count,
         "unload_count": _unload_count,
         "failed_load_count": _failed_load_count,
+        "collision_apply_count": _collision_apply_count,
     }

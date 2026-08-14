@@ -19,6 +19,13 @@ const LOCOMOTION_PROFILE_SCRIPT := preload("res://game/scripts/player_locomotion
 const BOURSE_DIRECT_SPAWN_POSITION := Vector3(83.44, 1.05, -663.42)
 # Faces the authoritative UrbIS LoD2 Bourse bbox center from the direct-test position.
 const BOURSE_DIRECT_SPAWN_YAW_DEGREES := -84.32
+const MIDI_FAST_TRAVEL_POSITION := Vector3(-652.0, 1.05, 621.0)
+const MIDI_FAST_TRAVEL_YAW_DEGREES := -38.0
+const VEHICLE_AB_FAST_TRAVEL_POSITION := Vector3(-652.0, 1.05, 621.0)
+
+const CAMERA_VIEW_DISTANCES: Array[float] = [4.9, 2.7, 7.2, 0.12]
+const CAMERA_VIEW_FOVS: Array[float] = [69.0, 74.0, 64.0, 76.0]
+const CAMERA_VIEW_NAMES: Array[String] = ["STANDARD", "PROCHE", "LARGE", "1RE PERSONNE"]
 
 const ATOMIUM_TERRAIN_SCRIPT := preload("res://game/zones/laeken_jette/atomium_dtm_terrain.gd")
 const ATOMIUM_HERO_SCRIPT := preload("res://game/zones/laeken_jette/atomium_hero_core.gd")
@@ -42,11 +49,20 @@ var _base_collision_layer: int = 1
 var _base_collision_mask: int = 1
 var _locomotion := LOCOMOTION_PROFILE_SCRIPT.new()
 var _jump_was_pressed: bool = false
+var _camera_view_index: int = 0
+var _base_mesh_default_visible: bool = true
+var _visual_upgrade_default_visible: bool = true
 
 
 func _ready() -> void:
     _base_collision_layer = collision_layer
     _base_collision_mask = collision_mask
+    var base_mesh := get_node_or_null("MeshInstance3D") as MeshInstance3D
+    if base_mesh != null:
+        _base_mesh_default_visible = base_mesh.visible
+    var visual_upgrade := get_node_or_null("VisualUpgrade") as Node3D
+    if visual_upgrade != null:
+        _visual_upgrade_default_visible = visual_upgrade.visible
     _sync_locomotion_profile()
     _locomotion.reset_jump_windows(true)
     _apply_direct_spawn_from_user_args(OS.get_cmdline_user_args())
@@ -199,6 +215,7 @@ func _activate_ixelles_direct_spawn() -> void:
     var visual_upgrade := get_node_or_null("VisualUpgrade") as Node3D
     if visual_upgrade != null:
         visual_upgrade.visible = false
+    set_meta("camera_view_locked_first_person", true)
     velocity = Vector3.ZERO
 
     set_meta("ixelles_direct_camera_axis", IXELLES_CAMERA_AXIS_ID)
@@ -297,6 +314,72 @@ func _activate_atomium_direct_spawn() -> void:
     print("Direct test spawn: Atomium / Heysel")
 
 
+func cycle_camera_view() -> String:
+    if bool(get_meta("camera_view_locked_first_person", false)):
+        return "1RE PERSONNE"
+    _camera_view_index = (_camera_view_index + 1) % CAMERA_VIEW_DISTANCES.size()
+    _apply_camera_view(_camera_view_index)
+    return CAMERA_VIEW_NAMES[_camera_view_index]
+
+
+func _apply_camera_view(index: int) -> void:
+    _camera_view_index = clampi(index, 0, CAMERA_VIEW_DISTANCES.size() - 1)
+    var spring_arm := get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
+    if spring_arm != null:
+        spring_arm.spring_length = CAMERA_VIEW_DISTANCES[_camera_view_index]
+    camera.fov = CAMERA_VIEW_FOVS[_camera_view_index]
+    var first_person := _camera_view_index == CAMERA_VIEW_DISTANCES.size() - 1
+    var base_mesh := get_node_or_null("MeshInstance3D") as MeshInstance3D
+    if base_mesh != null:
+        base_mesh.visible = false if first_person else _base_mesh_default_visible
+    var visual_upgrade := get_node_or_null("VisualUpgrade") as Node3D
+    if visual_upgrade != null:
+        visual_upgrade.visible = false if first_person else _visual_upgrade_default_visible
+
+
+func fast_travel_to(destination: String) -> bool:
+    var key := destination.strip_edges().to_lower()
+    _exit_current_vehicle_if_needed()
+    set_meta("camera_view_locked_first_person", false)
+    match key:
+        "midi":
+            global_position = MIDI_FAST_TRAVEL_POSITION
+            rotation_degrees.y = MIDI_FAST_TRAVEL_YAW_DEGREES
+        "bourse":
+            global_position = BOURSE_DIRECT_SPAWN_POSITION
+            rotation_degrees.y = BOURSE_DIRECT_SPAWN_YAW_DEGREES
+        "vehicle_ab":
+            global_position = VEHICLE_AB_FAST_TRAVEL_POSITION
+            rotation_degrees.y = MIDI_FAST_TRAVEL_YAW_DEGREES
+        _:
+            return false
+    velocity = Vector3.ZERO
+    camera_pivot.rotation.x = 0.0
+    _locomotion.reset_jump_windows(true)
+    _jump_was_pressed = false
+    _apply_camera_view(0)
+    _restore_runtime_hud()
+    print("Fast travel: %s" % key)
+    return true
+
+
+func _exit_current_vehicle_if_needed() -> void:
+    for candidate: Node in get_tree().get_nodes_in_group("vehicle"):
+        if candidate.has_method("has_driver") and bool(candidate.call("has_driver")) and candidate.has_method("exit_driver"):
+            candidate.call("exit_driver")
+            return
+
+
+func _restore_runtime_hud() -> void:
+    var world := get_parent()
+    if world == null:
+        return
+    for node_name: String in ["LocationLabel", "MissionLabel", "WalletLabel", "MiniMap", "MobileControls"]:
+        var item := world.get_node_or_null(node_name) as CanvasItem
+        if item != null:
+            item.visible = true
+
+
 func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
         rotate_y(-event.relative.x * mouse_sensitivity)
@@ -310,6 +393,8 @@ func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo:
         if event.keycode == KEY_E:
             try_enter_vehicle()
+        elif event.keycode == KEY_V:
+            cycle_camera_view()
         elif event.keycode == KEY_ESCAPE:
             Input.mouse_mode = (
                 Input.MOUSE_MODE_VISIBLE
@@ -341,16 +426,23 @@ func _physics_process(delta: float) -> void:
     var sprint: bool = Input.is_key_pressed(KEY_SHIFT)
 
     if mobile != null:
-        left = left or bool(mobile.get("left_pressed"))
-        right = right or bool(mobile.get("right_pressed"))
-        forward = forward or bool(mobile.get("forward_pressed"))
-        backward = backward or bool(mobile.get("backward_pressed"))
         sprint = sprint or bool(mobile.get("sprint_pressed"))
 
     var input_2d := Vector2(
         float(right) - float(left),
         float(backward) - float(forward)
-    ).limit_length(1.0)
+    )
+    if mobile != null and mobile.has_method("get_movement_vector"):
+        var touch_vector: Variant = mobile.call("get_movement_vector")
+        if touch_vector is Vector2:
+            input_2d += touch_vector as Vector2
+    else:
+        if mobile != null:
+            input_2d += Vector2(
+                float(bool(mobile.get("right_pressed"))) - float(bool(mobile.get("left_pressed"))),
+                float(bool(mobile.get("backward_pressed"))) - float(bool(mobile.get("forward_pressed")))
+            )
+    input_2d = input_2d.limit_length(1.0)
 
     if _locomotion.tick_jump_window(grounded, delta):
         velocity.y = jump_velocity

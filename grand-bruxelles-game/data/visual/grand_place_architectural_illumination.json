@@ -1,0 +1,37 @@
+{
+  "schema": "grand-bruxelles-architectural-illumination-v1",
+  "target": {
+    "runtime_node": "GrandPlaceOfficialLod2",
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "role": "Grand-Place Town Hall official LoD2 mass",
+    "application": "authored architectural facade wash only"
+  },
+  "source": {
+    "provider": "Beliris",
+    "title": "Un nouvel eclairage pour la Grand-Place",
+    "url": "https://www.beliris.be/projets/grand-place.html",
+    "accessed_at": "2026-08-14",
+    "facts": [
+      "Beliris completed a new illumination and sound system for five facade groups on the Grand-Place.",
+      "The Hotel de Ville is explicitly listed among the illuminated buildings.",
+      "The project is described as highlighting architectural and artistic elements of the facades and gables."
+    ]
+  },
+  "geometry_basis": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "runtime_geometry_owned_elsewhere": true,
+    "geometry_changed_by_this_lot": false
+  },
+  "presentation_contract": {
+    "fixture_positions_measured": false,
+    "fixture_count_historic_or_measured": false,
+    "light_color_photometric_measurement": false,
+    "light_energy_photometric_measurement": false,
+    "wash_positions_authored_from_existing_wall_bounds": true,
+    "no_protected_reference_image_distributed": true,
+    "no_logo_or_signage_artwork_distributed": true,
+    "town_hall_only_until_other_illuminated_geometry_is_independently_available": true,
+    "reusable_family": "brussels_architectural_facade_wash"
+  }
+}

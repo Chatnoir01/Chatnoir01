@@ -23,11 +23,14 @@ func _run() -> void:
     if slice.terrain_sample_count != 63001 or slice.terrain_triangle_count != 125000:
         _fail("2 m terrain topology drifted")
         return
-    if slice.street_surface_count != 309:
-        _fail("official street surface count drifted")
+    if slice.street_surface_count != 309 or slice.street_segment_count != 277:
+        _fail("official street counts drifted")
         return
-    if slice.building_count != 0 or slice.skipped_unapproved_height_buildings != 720:
-        _fail("heuristic building heights were promoted")
+    if slice.eligible_height_count != 260 or slice.building_count != 260 or slice.skipped_unapproved_height_buildings != 460:
+        _fail("strong-height allowlist or fail-closed building count drifted")
+        return
+    if slice.get_node_or_null("StrongSourceBackedIxellesBuildings") == null:
+        _fail("strong source-backed building root missing")
         return
     var collision := slice.get_node_or_null("OfficialIxellesDTMCollision/OfficialIxellesDTMHeightMapCollision") as CollisionShape3D
     if collision == null or not collision.shape is HeightMapShape3D:
@@ -57,19 +60,15 @@ func _run() -> void:
     if vertices.size() != 63001:
         _fail("render vertex count drifted")
         return
-    var reference := slice.vertical_reference_absolute_m
-    if absf(vertices[0].y) > 0.0001:
-        _fail("source-backed vertical reference is not applied at first sample")
-        return
-    if absf(shape.map_data[0]) > 0.0001:
-        _fail("collision and render disagree at first sample")
+    if absf(vertices[0].y) > 0.0001 or absf(shape.map_data[0]) > 0.0001:
+        _fail("source-backed vertical reference is not shared by render/collision")
         return
     for index: int in [0, 250, 31500, 62750, 63000]:
         if absf(vertices[index].y - shape.map_data[index]) > 0.0001:
             _fail("collision/render height mismatch at %d" % index)
             return
-    if reference < 40.0 or reference > 100.0:
+    if slice.vertical_reference_absolute_m < 40.0 or slice.vertical_reference_absolute_m > 100.0:
         _fail("vertical reference is not a plausible official DTM elevation")
         return
-    print("IXELLES_MICROSLICE_RUNTIME_OK: cell=%s samples=%d triangles=%d streets=%d skipped_unapproved_heights=%d reference_z=%.3f" % [slice.cell_id, slice.terrain_sample_count, slice.terrain_triangle_count, slice.street_surface_count, slice.skipped_unapproved_height_buildings, reference])
+    print("IXELLES_MICROSLICE_RUNTIME_OK: cell=%s samples=%d triangles=%d streets=%d buildings=%d skipped=%d reference_z=%.3f" % [slice.cell_id, slice.terrain_sample_count, slice.terrain_triangle_count, slice.street_surface_count, slice.building_count, slice.skipped_unapproved_height_buildings, slice.vertical_reference_absolute_m])
     quit(0)

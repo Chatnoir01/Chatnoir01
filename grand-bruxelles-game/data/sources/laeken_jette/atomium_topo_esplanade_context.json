@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS Topo",
+    "service": "WFS urbistopo:TopoLines",
+    "crs": "EPSG:31370",
+    "license": "CC0",
+    "bounded_query_bbox": [147900, 175900, 148300, 176300],
+    "retrieved_utc": "2026-08-14T09:51:03Z",
+    "source_type_contract": {"BB03L": "Escalier/escalator/rampe", "CR39L": "Banc"}
+  },
+  "heritage_context": {
+    "official_record": "urban.brussels Atomium architectural heritage inventory",
+    "semantic_fact": "2004-2006 concrete esplanade bordered by continuous benches and a large stair leading northeast to the reception pavilion",
+    "geometry_identity_note": "Only UrbIS Topo geometries below are rendered; heritage prose is not used to invent missing geometry."
+  },
+  "atomium_anchor_epsg31370": [148093.22038698208, 176091.76722726133],
+  "selection": {"max_distance_m": 90.0, "stair_line_count": 14, "bench_line_count": 5},
+  "features": [
+    {"id":"TopoLines.471219","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":15.442,"geometry":{"type":"MultiLineString","coordinates":[[[148106.161589,176107.646059],[148107.100696,176106.688981],[148103.657709,176103.147237],[148102.718603,176104.104314],[148106.161589,176107.646059]]] }},
+    {"id":"TopoLines.471218","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":17.431,"geometry":{"type":"MultiLineString","coordinates":[[[148109.985097,176104.95526],[148111.234588,176104.626751],[148109.842958,176099.655721],[148108.593467,176099.984229],[148109.985097,176104.95526]]] }},
+    {"id":"TopoLines.471206","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":27.607,"geometry":{"type":"MultiLineString","coordinates":[[[148116.253366,176073.303728],[148115.096604,176069.255312],[148114.78633464,176068.57337822],[148114.291093,176068.011207],[148113.66940883,176067.61156002],[148112.966254,176067.384003],[148097.60723943,176064.51266712]]] }},
+    {"id":"TopoLines.471203","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":32.145,"geometry":{"type":"MultiLineString","coordinates":[[[148096.1794667,176058.11567218],[148101.552553,176059.111826],[148101.813407,176057.657256],[148104.840022,176058.213662],[148105.094009,176056.762486],[148108.179963,176057.339968],[148108.490683,176055.868496],[148110.474774,176056.246004],[148110.744661,176054.794714],[148112.421325,176055.116981],[148113.40112321,176055.36174988],[148114.22209924,176055.949895],[148114.76904,176056.798878],[148115.792564,176060.480957],[148115.437552,176060.587283],[148116.927351,176066.083376],[148116.585006,176066.180875],[148118.039303,176071.338307]]] }},
+    {"id":"TopoLines.471288","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":37.844,"geometry":{"type":"MultiLineString","coordinates":[[[148088.8885525,176051.59735572],[148090.117406,176048.450744],[148090.474156,176045.886014],[148093.277825,176047.485989],[148092.11178,176049.500838],[148092.89704,176049.94595],[148094.049821,176047.9285],[148096.842749,176049.504484],[148096.053679,176050.139987],[148094.910404,176051.006808],[148092.87669627,176053.92822375]]] }},
+    {"id":"TopoLines.471291","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":40.8,"geometry":{"type":"MultiLineString","coordinates":[[[148092.89704,176049.94595],[148094.910404,176051.006808]]] }},
+    {"id":"TopoLines.471290","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":42.28,"geometry":{"type":"MultiLineString","coordinates":[[[148092.11178,176049.500838],[148090.968816,176048.924666],[148090.117406,176048.450744]]] }},
+    {"id":"TopoLines.471289","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":43.45,"geometry":{"type":"MultiLineString","coordinates":[[[148093.826213,176048.319831],[148093.04888,176047.881589]]] }},
+    {"id":"TopoLines.471311","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":60.74,"geometry":{"type":"MultiLineString","coordinates":[[[148035.861,176071.792],[148032.565,176071.834],[148032.597,176070.493],[148035.896,176070.472],[148035.861,176071.792]]] }},
+    {"id":"TopoLines.471300","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":66.01,"geometry":{"type":"MultiLineString","coordinates":[[[148036.455,176058.074],[148032.40256,176058.113443],[148032.39,176056.823],[148036.397,176056.784],[148036.455,176058.074]]] }},
+    {"id":"TopoLines.471252","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":66.8,"geometry":{"type":"MultiLineString","coordinates":[[[148109.372794,176026.89019],[148110.578216,176027.257011],[148112.010551,176022.55017],[148110.805129,176022.183349],[148109.372794,176026.89019]]] }},
+    {"id":"TopoLines.471362","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":68.7,"geometry":{"type":"MultiLineString","coordinates":[[[148102.17757,176022.887285],[148103.067357,176023.779406],[148106.880174,176019.976562],[148105.990387,176019.084441],[148102.17757,176022.887285]]] }},
+    {"id":"TopoLines.471279","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":76.0,"geometry":{"type":"MultiLineString","coordinates":[[[148072.826,176019.188],[148074.121,176018.712],[148075.781,176023.226],[148074.486,176023.702],[148072.826,176019.188]]] }},
+    {"id":"TopoLines.471281","topo_type":"BB03L","description_fr":"Escalier/escalator/rampe","min_distance_to_atomium_m":81.0,"geometry":{"type":"MultiLineString","coordinates":[[[148066.02,176015.72],[148067.28,176015.19],[148069.21,176019.77],[148067.95,176020.3],[148066.02,176015.72]]] }},
+    {"id":"TopoLines.471326","topo_type":"CR39L","description_fr":"Banc","min_distance_to_atomium_m":33.08,"geometry":{"type":"MultiLineString","coordinates":[[[148060.154716,176090.882625],[148058.499485,176093.840091],[148058.200405,176093.863573],[148057.315018,176082.586957],[148059.497757,176082.41686],[148060.154716,176090.882625]]] }},
+    {"id":"TopoLines.471337","topo_type":"CR39L","description_fr":"Banc","min_distance_to_atomium_m":36.09,"geometry":{"type":"MultiLineString","coordinates":[[[148060.49847,176119.103543],[148060.199697,176119.130654],[148059.554699,176112.022501],[148061.241953,176109.071572],[148061.540954,176109.047102],[148062.117093,176116.086821],[148060.49847,176119.103543]]] }},
+    {"id":"TopoLines.471286","topo_type":"CR39L","description_fr":"Banc","min_distance_to_atomium_m":37.28,"geometry":{"type":"MultiLineString","coordinates":[[[148056.005585,176065.650696],[148055.92395411,176063.57643567],[148056.009788,176061.502345],[148056.27773529,176059.44025239],[148056.740023,176057.412862],[148057.69931917,176054.48964993],[148058.915784,176051.663764],[148060.39444114,176048.96175101],[148062.132974,176046.419153],[148063.65516497,176044.63554452],[148065.352067,176043.017259],[148067.17168853,176041.55599218],[148069.08553,176040.220502],[148070.66944072,176039.25845774],[148072.317986,176038.411935],[148074.02676502,176037.69124501],[148075.78713,176037.107777],[148076.652824,176036.858432],[148077.145059,176039.001794],[148076.390227,176039.201653],[148074.26553367,176039.94899295],[148072.22318428,176040.8985443],[148070.282371,176042.041384],[148067.93331118,176043.69285282],[148065.78615987,176045.59946567],[148063.868485,176047.736743],[148062.25198127,176050.11213381],[148060.86695201,176052.62952527],[148059.7257693,176055.26643024],[148058.838627,176057.999294],[148058.39555425,176060.46950261],[148058.17469509,176062.96939567],[148058.177812,176065.479024],[148058.34857678,176070.07730277],[148058.902227,176074.645322],[148059.073499,176076.817589],[148056.902103,176076.99468],[148056.005585,176065.650696]]] }},
+    {"id":"TopoLines.471196","topo_type":"CR39L","description_fr":"Banc","min_distance_to_atomium_m":51.94,"geometry":{"type":"MultiLineString","coordinates":[[[148106.237836,176041.482439],[148107.387701,176039.499897],[148114.743708,176040.885615],[148115.062492,176043.190295],[148106.237836,176041.482439]]] }},
+    {"id":"TopoLines.471285","topo_type":"CR39L","description_fr":"Banc","min_distance_to_atomium_m":53.4,"geometry":{"type":"MultiLineString","coordinates":[[[148083.377392,176035.896109],[148084.91425257,176035.81591489],[148086.453204,176035.816021],[148087.9926791,176035.91669762],[148089.519585,176036.137328],[148091.05635,176036.425379],[148090.02579,176038.458171],[148088.817435,176038.262759],[148086.04437855,176038.03388736],[148083.263209,176038.119446],[148082.108387,176038.19551],[148081.898915,176036.00797],[148083.377392,176035.896109]]] }}
+  ],
+  "presentation": {
+    "runtime_approved": false,
+    "surveyed_vertical_dimensions": false,
+    "bench_height_authored_m": 0.42,
+    "stair_line_width_authored_m": 0.18,
+    "note": "Vertical/profile dimensions are presentation-only; plan geometry and semantic type come from UrbIS Topo."
+  }
+}

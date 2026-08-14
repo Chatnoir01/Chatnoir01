@@ -6,8 +6,9 @@ const EXPECTED_HORIZONTAL_DISTANCE_M := 71.06335
 const MIN_STANDING_CLEARANCE_M := 0.75
 const MAX_STANDING_CLEARANCE_M := 1.10
 const EXPECTED_CAMERA_PITCH_DEGREES := -24.0
+# The playable project enforces its production viewport at 1280x720.
 const WIDTH := 1280
-const HEIGHT := 960
+const HEIGHT := 720
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -101,5 +102,5 @@ func _run() -> void:
         _fail("direct spawn capture save failed")
         return
 
-    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f) capture=%s" % [horizontal_distance, standing_clearance, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z, OUTPUT_PATH])
+    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f) capture=%s size=%dx%d" % [horizontal_distance, standing_clearance, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z, OUTPUT_PATH, WIDTH, HEIGHT])
     quit(0)

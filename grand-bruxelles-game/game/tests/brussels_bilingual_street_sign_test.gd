@@ -38,5 +38,20 @@ func _run() -> void:
         _fail("reusable plaque must not claim surveyed placement")
         return
 
-    print("BRUSSELS_BILINGUAL_STREET_SIGN_OK: plaque=1 language_lines=2 fr=%s nl=%s" % [str(sign.get("display_french")), str(sign.get("display_dutch"))])
+    var french_label := sign.get_node_or_null("FrenchStreetName") as Label3D
+    var dutch_label := sign.get_node_or_null("DutchStreetName") as Label3D
+    if french_label == null or dutch_label == null:
+        _fail("bilingual labels missing")
+        return
+    if french_label.position.z >= -0.025 or dutch_label.position.z >= -0.025:
+        _fail("labels must sit on the authored -Z readable panel face")
+        return
+    if absf(absf(french_label.rotation_degrees.y) - 180.0) > 0.01:
+        _fail("French label must face out from the -Z panel face")
+        return
+    if absf(absf(dutch_label.rotation_degrees.y) - 180.0) > 0.01:
+        _fail("Dutch label must face out from the -Z panel face")
+        return
+
+    print("BRUSSELS_BILINGUAL_STREET_SIGN_OK: plaque=1 language_lines=2 fr=%s nl=%s readable_face=-Z" % [str(sign.get("display_french")), str(sign.get("display_dutch"))])
     quit(0)

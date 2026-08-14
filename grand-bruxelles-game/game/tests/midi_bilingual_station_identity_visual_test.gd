@@ -66,7 +66,7 @@ func _run() -> void:
     var main := MAIN_SCENE.instantiate()
     root.add_child(main)
     current_scene = main
-    for _frame: int in range(12):
+    for _frame: int in range(16):
         await process_frame
 
     var hero := main.get_node_or_null("MidiHeroZone")
@@ -76,6 +76,10 @@ func _run() -> void:
     var entrance := hero.get_node_or_null("MidiMainEntranceFonsny")
     if entrance == null:
         _fail("existing Fonsny entrance missing")
+        return
+    var identity := root.get_node_or_null("MidiStationIdentity")
+    if identity == null or not bool(identity.call("station_identity_attached")):
+        _fail("station identity autoload did not attach")
         return
     if entrance.get_node_or_null("StationNameFR") == null or entrance.get_node_or_null("StationNameNL") == null:
         _fail("source-backed bilingual identity labels missing")
@@ -99,16 +103,16 @@ func _run() -> void:
     for _frame: int in range(3):
         await process_frame
 
-    hero.call("set_station_identity_visible", false)
-    if bool(hero.call("station_identity_visible")):
+    identity.call("set_station_identity_visible", false)
+    if bool(identity.call("station_identity_visible")):
         _fail("baseline identity toggle failed")
         return
     if not await _capture(OUTPUT_DIR + "/before.png"):
         _fail("before capture failed")
         return
 
-    hero.call("set_station_identity_visible", true)
-    if not bool(hero.call("station_identity_visible")):
+    identity.call("set_station_identity_visible", true)
+    if not bool(identity.call("station_identity_visible")):
         _fail("sourced identity toggle failed")
         return
     if not await _capture(OUTPUT_DIR + "/after.png"):

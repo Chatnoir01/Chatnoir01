@@ -30,8 +30,9 @@ func _build_when_scene_ready() -> void:
     if data.is_empty():
         return
     var faces: Array = data.get("faces", [])
+    var evidence: Dictionary = data.get("evidence", {})
     source_bounds = _horizontal_bounds(faces)
-    source_height_m = float((data.get("evidence", {}) as Dictionary).get("height_m", 0.0))
+    source_height_m = float(evidence.get("height_m", 0.0))
     _mask_replaced_osm(source_bounds)
     _build_geometry(faces)
     _built = true

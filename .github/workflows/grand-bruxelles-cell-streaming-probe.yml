@@ -7,8 +7,13 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-cell-streaming-probe.yml"
       - "grand-bruxelles-game/game/scripts/brussels_cell_streaming_manager.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_cell_node_backend.gd"
       - "grand-bruxelles-game/game/tests/brussels_cell_streaming_probe_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_real_cell_lifecycle_test.gd"
+      - "grand-bruxelles-game/game/zones/ixelles/ixelles_microslice.gd"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/**/manifest.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/**/runtime/**"
+      - "grand-bruxelles-game/data/terrain/ixelles/**"
   workflow_dispatch:
 
 permissions:
@@ -32,10 +37,17 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/streaming-import.log
           if grep -E "SCRIPT ERROR|Parse Error:" /tmp/streaming-import.log; then exit 1; fi
-      - name: Run predictive cell streaming probe
+      - name: Run predictive cell scheduling probe
         shell: bash
         run: |
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_cell_streaming_probe_test.gd 2>&1 | tee /tmp/streaming-probe.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_CELL_STREAMING_PROBE_FAIL" /tmp/streaming-probe.log; then exit 1; fi
           grep -F "BRUSSELS_CELL_STREAMING_PROBE_OK" /tmp/streaming-probe.log
+      - name: Run real Ixelles cell lifecycle probe
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_real_cell_lifecycle_test.gd 2>&1 | tee /tmp/real-cell-lifecycle.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_REAL_CELL_LIFECYCLE_FAIL" /tmp/real-cell-lifecycle.log; then exit 1; fi
+          grep -F "BRUSSELS_REAL_CELL_LIFECYCLE_OK" /tmp/real-cell-lifecycle.log

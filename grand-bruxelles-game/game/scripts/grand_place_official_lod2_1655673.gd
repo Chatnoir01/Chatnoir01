@@ -2,11 +2,15 @@ extends Node3D
 
 const GEOMETRY_PATH := "res://data/urbis/grand_place_lod2/1655673.game.json"
 const MATERIAL_IDENTITY_PATH := "res://data/visual/grand_place_1655673_material_identity.json"
+const ROOF_IDENTITY_PATH := "res://data/visual/grand_place_1655673_roof_identity.json"
+const SLATE_MATERIAL := preload("res://game/scripts/brussels_slate_roof_material.gd")
 const BUILDING_ID := "https://databrussels.be/id/building/1655673"
 const NEUTRAL_WALL_COLOR := Color(0.56, 0.54, 0.50, 1.0)
 const WHITE_STONE_WALL_COLOR := Color(0.78, 0.76, 0.70, 1.0)
 const NEUTRAL_WALL_ROUGHNESS := 0.88
 const WHITE_STONE_WALL_ROUGHNESS := 0.82
+const NEUTRAL_ROOF_COLOR := Color(0.16, 0.17, 0.18, 1.0)
+const NEUTRAL_ROOF_ROUGHNESS := 0.9
 
 var geometry_loaded := false
 var render_triangle_count := 0
@@ -18,6 +22,7 @@ var _masked_visibility: Array[bool] = []
 var _official_visible := true
 var _built := false
 var _wall_material: StandardMaterial3D
+var _roof_material: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -49,7 +54,9 @@ func _build_when_scene_ready() -> void:
     set_meta("presentation_materials_only", true)
     set_meta("wall_material_identity", "official_heritage_white_stone")
     set_meta("wall_material_source", MATERIAL_IDENTITY_PATH)
-    print("GRAND_PLACE_LOD2_1655673_READY: triangles=%d masked_osm=%d height=%.3f white_stone=true" % [render_triangle_count, masked_osm_count, source_height_m])
+    set_meta("roof_material_identity", "official_heritage_slate")
+    set_meta("roof_material_source", ROOF_IDENTITY_PATH)
+    print("GRAND_PLACE_LOD2_1655673_READY: triangles=%d masked_osm=%d height=%.3f white_stone=true slate_roof=true" % [render_triangle_count, masked_osm_count, source_height_m])
 
 
 func _read_geometry() -> Dictionary:
@@ -144,10 +151,8 @@ func _materials() -> Dictionary:
     wall.roughness = WHITE_STONE_WALL_ROUGHNESS
     wall.cull_mode = BaseMaterial3D.CULL_BACK
     _wall_material = wall
-    var roof := StandardMaterial3D.new()
-    roof.albedo_color = Color(0.16, 0.17, 0.18, 1.0)
-    roof.roughness = 0.9
-    roof.cull_mode = BaseMaterial3D.CULL_BACK
+    var roof: StandardMaterial3D = SLATE_MATERIAL.create_material()
+    _roof_material = roof
     return {"WALLSURFACE": wall, "ROOFSURFACE": roof}
 
 
@@ -235,6 +240,21 @@ func set_sourced_wall_material(enabled: bool) -> void:
 
 func sourced_wall_material_enabled() -> bool:
     return _wall_material != null and _wall_material.albedo_color.is_equal_approx(WHITE_STONE_WALL_COLOR)
+
+
+func set_sourced_roof_material(enabled: bool) -> void:
+    if _roof_material == null:
+        return
+    if enabled:
+        _roof_material.albedo_color = SLATE_MATERIAL.SLATE_COLOR
+        _roof_material.roughness = SLATE_MATERIAL.SLATE_ROUGHNESS
+    else:
+        _roof_material.albedo_color = NEUTRAL_ROOF_COLOR
+        _roof_material.roughness = NEUTRAL_ROOF_ROUGHNESS
+
+
+func sourced_roof_material_enabled() -> bool:
+    return _roof_material != null and _roof_material.albedo_color.is_equal_approx(SLATE_MATERIAL.SLATE_COLOR)
 
 
 func set_official_visible(enabled: bool) -> void:

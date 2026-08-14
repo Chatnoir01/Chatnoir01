@@ -1,0 +1,58 @@
+name: Grand-Place Paving Source Probe
+
+on:
+  push:
+    branches:
+      - visual/grand-place-granite-paving-current
+    paths:
+      - '.github/workflows/grand-place-paving-source-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch official UrbIS StreetSurfaces around Grand-Place
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=urbisvector%3AStreetSurfaces&outputFormat=application%2Fjson&srsName=EPSG%3A31370&bbox=148780%2C170590%2C148930%2C170760%2CEPSG%3A31370'
+          curl --fail --location --retry 3 --retry-delay 2 "$URL" --output street-surfaces.geojson
+          python - <<'PY'
+          import json, math
+          p='street-surfaces.geojson'
+          data=json.load(open(p, encoding='utf-8'))
+          print('feature_count=', len(data.get('features', [])))
+          def pts(g):
+              t=g.get('type'); c=g.get('coordinates', [])
+              if t=='Polygon':
+                  return [p for ring in c for p in ring]
+              if t=='MultiPolygon':
+                  return [p for poly in c for ring in poly for p in ring]
+              return []
+          rows=[]
+          for f in data.get('features', []):
+              ps=pts(f.get('geometry') or {})
+              if not ps: continue
+              xs=[float(p[0]) for p in ps]; ys=[float(p[1]) for p in ps]
+              rows.append({
+                  'id':f.get('id'),
+                  'bbox':[min(xs),min(ys),max(xs),max(ys)],
+                  'center':[(min(xs)+max(xs))/2,(min(ys)+max(ys))/2],
+                  'properties':f.get('properties',{})
+              })
+          rows.sort(key=lambda r: (r['bbox'][2]-r['bbox'][0])*(r['bbox'][3]-r['bbox'][1]), reverse=True)
+          json.dump(rows, open('street-surfaces-summary.json','w',encoding='utf-8'), ensure_ascii=False, indent=2)
+          for r in rows[:30]:
+              props={k:v for k,v in r['properties'].items() if v not in (None,'',0,False)}
+              print(json.dumps({'id':r['id'],'bbox':r['bbox'],'center':r['center'],'properties':props}, ensure_ascii=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-urbis-street-surfaces
+          path: |
+            street-surfaces.geojson
+            street-surfaces-summary.json
+          if-no-files-found: error

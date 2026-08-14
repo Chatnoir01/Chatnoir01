@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3]
+[gd_scene load_steps=43 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -31,6 +31,7 @@
 [ext_resource type="Script" path="res://game/scripts/mission_reward_controller.gd" id="29_mission_reward"]
 [ext_resource type="Script" path="res://game/scripts/wallet_hud.gd" id="30_wallet_hud"]
 [ext_resource type="Script" path="res://game/scripts/mission_return_to_bourse.gd" id="31_return_mission"]
+[ext_resource type="Script" path="res://game/scripts/grand_place_official_surface.gd" id="32_grand_place_surface"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -113,6 +114,9 @@ use_collision = true
 
 [node name="BrusselsOSM" type="Node3D" parent="."]
 script = ExtResource("2_city")
+
+[node name="GrandPlaceOfficialSurface" type="Node3D" parent="."]
+script = ExtResource("32_grand_place_surface")
 
 [node name="UrbISBourseGeotaggedFrontage" type="Node3D" parent="."]
 script = ExtResource("23_bourse_geotagged_frontage")

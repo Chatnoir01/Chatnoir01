@@ -90,6 +90,31 @@ func _commit_surface(tool: SurfaceTool, name: String, root: Node3D) -> MeshInsta
     return instance
 
 
+func _create_collision_after_runtime_adjustments(surface: MeshInstance3D) -> void:
+    # Hero geometry can be source-bounded and then refined by sibling runtime
+    # scripts during the first deferred frame (for example Bourse front reveal).
+    # Building the collider one frame later keeps the physical mesh aligned with
+    # the final visible mesh instead of preserving triangles that were removed.
+    await get_tree().process_frame
+    if not is_instance_valid(surface) or surface.mesh == null:
+        return
+    for child: Node in surface.get_children():
+        if child is CollisionObject3D:
+            child.free()
+    surface.create_trimesh_collision()
+    var collision_count := 0
+    for child: Node in surface.get_children():
+        if child is CollisionObject3D:
+            var collision := child as CollisionObject3D
+            collision.collision_layer = 1
+            collision.collision_mask = 1
+            collision_count += 1
+    surface.set_meta("collision_synced_after_runtime_adjustments", true)
+    surface.set_meta("collision_body_count", collision_count)
+    if surface.mesh.get_surface_count() > 0:
+        surface.set_meta("collision_source_vertex_count", surface.mesh.surface_get_array_len(0))
+
+
 func _build_hero(entry: Dictionary) -> bool:
     var path := str(entry.get("geometry_path", ""))
     var data := _read_dictionary(path)
@@ -126,7 +151,7 @@ func _build_hero(entry: Dictionary) -> bool:
     if build_collisions:
         for surface: MeshInstance3D in surfaces:
             if surface.name == "Walls" or surface.name == "Roofs":
-                surface.create_trimesh_collision()
+                _create_collision_after_runtime_adjustments(surface)
     hero_root.set_meta("source_runtime_approved", bool(data.get("runtime_approved", false)))
     hero_root.set_meta("triangle_count", triangle_count)
     hero_root.set_meta("geometry_path", path)

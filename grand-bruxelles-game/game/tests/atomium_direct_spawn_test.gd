@@ -84,6 +84,14 @@ func _run() -> void:
     if direct_camera == null or absf(direct_camera.fov - EXPECTED_CAMERA_FOV_DEGREES) > 0.01:
         _fail("camera FOV drifted from accepted Atomium framing: %.3f" % [direct_camera.fov if direct_camera != null else -1.0])
         return
+    var base_visual := player.get_node_or_null("MeshInstance3D") as Node3D
+    if base_visual != null and base_visual.visible:
+        _fail("fallback player avatar still occludes direct Atomium witness")
+        return
+    var upgrade_visual := player.get_node_or_null("VisualUpgrade") as Node3D
+    if upgrade_visual != null and upgrade_visual.visible:
+        _fail("authored player avatar still occludes direct Atomium witness")
+        return
 
     var location_label := main.get_node_or_null("LocationLabel") as Label
     if location_label == null or location_label.text != "ATOMIUM · HEYSEL / HEIZEL":
@@ -117,5 +125,5 @@ func _run() -> void:
         _fail("direct spawn capture save failed")
         return
 
-    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f fov=%.1f player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f) capture=%s size=%dx%d" % [horizontal_distance, standing_clearance, direct_camera.fov, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z, OUTPUT_PATH, WIDTH, HEIGHT])
+    print("ATOMIUM_DIRECT_SPAWN_OK: distance=%.3f clearance=%.3f fov=%.1f avatar_hidden=true player=(%.3f, %.3f, %.3f) anchor=(%.3f, %.3f, %.3f) capture=%s size=%dx%d" % [horizontal_distance, standing_clearance, direct_camera.fov, player_position.x, player_position.y, player_position.z, atomium_anchor.x, atomium_anchor.y, atomium_anchor.z, OUTPUT_PATH, WIDTH, HEIGHT])
     quit(0)

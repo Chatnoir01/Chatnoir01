@@ -1,0 +1,30 @@
+{
+  "schema": "grand-bruxelles-station-identity-v1",
+  "target": {
+    "runtime_node": "MidiMainEntranceFonsny",
+    "corridor": "Bruxelles-Midi / Brussel-Zuid — Avenue Fonsny / Fonsnylaan"
+  },
+  "source": {
+    "provider": "SNCB-NMBS",
+    "record": "Brussel-Zuid station: facilities and access",
+    "url": "https://www.belgiantrain.be/en/station-information/brussel-bruxelles/zuid-midi",
+    "accessed_at": "2026-08-14",
+    "facts": {
+      "official_french_name": "Bruxelles-Midi",
+      "official_dutch_name": "Brussel-Zuid",
+      "fonsny_address": "Avenue Fonsny 47 / Fonsnylaan 47"
+    }
+  },
+  "presentation_contract": {
+    "text_identity_source_backed": true,
+    "existing_entrance_geometry_only": true,
+    "new_landmark_geometry": false,
+    "new_openings": false,
+    "new_measured_dimensions": false,
+    "new_material_identity_claim": false,
+    "label_scale_and_typography_are_authored_presentation": true,
+    "runtime_approved": false,
+    "realism_complete": false
+  },
+  "note": "This evidence authorizes the factual bilingual station-name cue on the already-authored Fonsny entrance only. It does not claim surveyed exterior sign dimensions, font, branding geometry, colorimetry or placement coordinates."
+}

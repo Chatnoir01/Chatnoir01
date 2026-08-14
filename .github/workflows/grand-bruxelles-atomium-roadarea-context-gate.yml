@@ -36,27 +36,31 @@ jobs:
         working-directory: grand-bruxelles-game
         run: |
           python3 - <<'PY'
-          import json
+          import hashlib,json
           probe=json.load(open('artifacts/atomium/roadarea_context_probe.json',encoding='utf-8'))
           locked=json.load(open('data/environment/laeken_jette/atomium_roadarea_context.game.json',encoding='utf-8'))
           assert probe['source']['crs'] == locked['source']['crs'] == 'EPSG:31370'
           assert probe['source']['layer'] == locked['source']['layer'] == 'TN.RoadTransportNetwork.RoadArea'
-          assert probe['source']['response_sha256'] == locked['source']['response_sha256']
           assert probe['feature_count'] == locked['selection']['source_feature_count'] == 24
           assert abs(probe['witness']['ground_wedge_coverage_fraction']-locked['accepted_player_witness']['ground_wedge_coverage_fraction']) < 1e-12
           hit_ids=sorted({i for sample in probe['samples'] for i in sample[2]})
           assert hit_ids == locked['selection']['selected_feature_ids']
           by_id={x['id']:x for x in probe['features']}
+          canonical=[]
           for feature in locked['features']:
               fresh=by_id[feature['id']]
               assert fresh['geometry'] == feature['geometry'], feature['id']
               assert abs(float(fresh['area_m2'])-float(feature['area_m2'])) < 0.001
+              canonical.append({'id':fresh['id'],'area_m2':fresh['area_m2'],'geometry':fresh['geometry']})
+          canonical.sort(key=lambda x:x['id'])
+          digest=hashlib.sha256(json.dumps(canonical,separators=(',',':'),sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+          assert digest == '0f35010e61c570c00315215bc04e7e06547e62c5c9f0656b6b5b31c833ef1aff'
           assert locked['source']['license'] == 'CC-BY-4.0'
           assert locked['source']['attribution'].startswith('Paradigm')
           assert locked['runtime_policy']['geometry_exact_from_wfs']
           assert not locked['runtime_policy']['material_photometry_resolved']
           assert probe['witness']['ground_wedge_coverage_fraction'] >= 0.20
-          print('ATOMIUM_ROADAREA_SOURCE_LOCK_OK',len(hit_ids),probe['witness']['ground_wedge_coverage_fraction'])
+          print('ATOMIUM_ROADAREA_SOURCE_LOCK_OK',len(hit_ids),probe['witness']['ground_wedge_coverage_fraction'],digest)
           PY
       - name: Import project
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit

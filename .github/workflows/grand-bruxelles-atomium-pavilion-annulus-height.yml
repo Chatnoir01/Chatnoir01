@@ -53,8 +53,11 @@ jobs:
           dsm_path=glob.glob('/tmp/atomium-pavilion/dsm/**/*.tif',recursive=True)[0]
           dtm_path=glob.glob('/tmp/atomium-pavilion/dtm/**/*.tif',recursive=True)[0]
           with rasterio.open(dsm_path) as dsm, rasterio.open(dtm_path) as dtm:
-              assert dsm.crs.to_epsg()==31370 and dtm.crs.to_epsg()==31370
               assert dsm.transform==dtm.transform and dsm.shape==dtm.shape
+              assert abs(dsm.res[0]-0.5)<1e-9 and abs(abs(dsm.res[1])-0.5)<1e-9
+              b=dsm.bounds
+              assert abs(b.left-148000.0)<1e-6 and abs(b.right-149000.0)<1e-6
+              assert abs(b.bottom-176000.0)<1e-6 and abs(b.top-177000.0)<1e-6
               dsm_a=dsm.read(1,masked=True).astype('float64')
               dtm_a=dtm.read(1,masked=True).astype('float64')
               rows,cols=np.indices(dsm.shape)
@@ -80,7 +83,7 @@ jobs:
                   }
 
               out={
-                'source_crs':'EPSG:31370','anchor':[E0,N0],
+                'source_crs':'EPSG:31370 (UrbIS tile contract)','anchor':[E0,N0],
                 'sphere_diameter_m':18.0,'pavilion_diameter_m':26.0,
                 'annulus_inner_radius_m':INNER,'annulus_outer_radius_m':OUTER,
                 'outer_annulus':stats((r>=INNER)&(r<=OUTER)),

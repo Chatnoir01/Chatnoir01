@@ -16,7 +16,7 @@ Optimize three horizons:
 
 Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is necessary but never sufficient. Source truth and direct player-facing inspection are hard gates.
 
-## Director gates — 2026-08-14 11:07 Brussels
+## Director gates — 2026-08-14 11:09 Brussels
 
 - **#243 bilingual Brussels street-name plaque** — `shipped`, `shared_identity_gain`. Reusable FR/NL plaque family is in production. Permanent surveyed placement remains a separate source-truth gate.
 - **#242 direct Ixelles player/Web entry** — `shipped`, `player_access_gain`. `?spawn=ixelles` exposes the shipped one-cell micro-slice without adding geography or unresolved heights.
@@ -26,7 +26,7 @@ Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is 
 - **#248 historic shopfront vocabulary** — `source_disciplined`, `visual_identity_rejected`, `closed_without_merge`. Readable historic commercial vocabulary, but still generic at normal street scale. Do not manufacture impact with branding or fabricated surrounding facade geometry.
 - **#246 Grand-Place StreetSurface witness** — `full_frame_impact`, `recognition_rejected`, `closed_without_merge`. Official surface changed ~47.42% of the 1280×720 frame, proving non-micro impact, but the witness was sky + flat ground with no recognizable Grand-Place architecture and a dark slab foreground. Next Grand-Place work must first establish architecture in the deterministic arrival frame.
 - **#244 Atomium StreetSurface context** — `visual_impact_rejected`, `closed_without_merge`. Official surfaces produced sparse slivers only; do not inflate coverage/material contrast.
-- **#231 shared STIB surface-stop vocabulary** — `technically_green`, `human_visual_accepted`, `placement_source_blocked`, `keep_draft`. Asset family is accepted. Integration requires an official production stop anchor plus independent evidence of the furniture actually present there.
+- **#231 shared STIB surface-stop vocabulary** — `technically_green`, `human_visual_accepted`, `placement_source_deferred`, `keep_draft`. Two source-truth passes identified Suède / Zweden on Fonsny as a real candidate stop, but still did not establish surveyed pole pose or the actual shelter/bench/info subset. Preserve the accepted family; stop spending cycles on placement until new geolocated imagery, asset inventory or equivalent evidence appears.
 - **#223 Midi blue-stone material** — `source_disciplined`, `visual_impact_rejected`, `keep_draft`. Preserve for closer/source-confirmed reuse; do not retune for pixel delta.
 - **#220 Atomium trees** — `source_coverage_rejected`, `closed_without_merge`.
 - **#222 Bourse vault proxy** — `source_truth_rejected`, `closed_without_merge`.
@@ -47,14 +47,14 @@ Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is 
 
 1. **Grand-Place arrival lacks recognizable architecture in the production witness** — `visual_gap_critical`. #246 proved the plaza foreground can change a large fraction of the frame, but a paving-only frame is not Brussels recognition. First establish an architecture-bearing arrival witness, then correct one coherent source-backed massing/frontage/paving/signage giveaway.
 2. **Bourse roof/interior volumes + immediate surrounding frontage** — `visual_gap_high`. #241 improves the authoritative roof layer, but simplified/incomplete structure remains visible. No proxy pediment or invented landmark dimensions.
-3. **Midi lacks unmistakable STIB/station/public-space identity** — `visual_gap_high`. #215 brick is shipped; #231 proves a strong transit cue but real furniture placement remains unresolved.
-4. **Ixelles is directly playable but visually generic beyond terrain/streets/massing** — `player_access_shipped`, `identity_gap_high`. Next lot must add exactly one high-impact, source-backed local identity cue inside the same cell/player view.
+3. **Ixelles is directly playable but visually generic beyond terrain/streets/massing** — `player_access_shipped`, `identity_gap_high`. It now offers the cleanest low-risk opportunity for a single source-backed local identity cue visible directly in `?spawn=ixelles`.
+4. **Midi lacks unmistakable STIB/station/public-space identity** — `visual_gap_high`. #215 brick is shipped and #231 proves a strong transit cue, but placement truth has been explicitly deferred after two unsuccessful evidence passes.
 5. **Atomium immediate pavilion/context/supports remain incomplete** — `visual_gap_high`. Stainless, reflections and direct spawn are strong; #247 confirms that weak vertical evidence must not be promoted merely to fill the base.
 
 ## Active ownership map
 
 - **Centre Vertical Slice** — owns Bourse/Centre/Midi visible geography. No integration-ready high-impact PR at this checkpoint. #246 is closed diagnostic evidence. Next lot should establish a recognizable Grand-Place architecture-bearing witness or a materially large authoritative Bourse/Midi correction.
-- **Visual Assets + Atmosphere** — owns shared PBR/furniture/signage/vegetation/lighting/weather/audio. #243 is shipped. #231 still owns the accepted STIB stop family; next step is placement/furniture source truth, not styling. #248 is closed as generic identity.
+- **Visual Assets + Atmosphere** — owns shared PBR/furniture/signage/vegetation/lighting/weather/audio. #243 is shipped. #231 is preserved but placement work is deferred pending new evidence; do not style/retune it. The stream should pivot to another unmistakable reusable identity cue rather than generic modules.
 - **Ixelles Runtime Slice** — #239 and #242 are shipped. Infrastructure phase is over. Next lot stays in the same cell and adds one visible source-backed Ixelles identity cue only.
 - **Laeken Hero Impact** — #214/#226/#230 are shipped. #247 is closed. Preserve the factual 26 m circular fully glazed pavilion semantics, but do not create height/roof/access geometry without a defensible source. Pivot to another high-impact source-bounded context fact if vertical evidence remains blocked.
 - **Impact Director maintenance** — Traffic/Living City/missions/saves/release only for blockers, regressions or unusually high perceived-impact opportunities.
@@ -62,16 +62,16 @@ Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is 
 ## Stream health
 
 - **Centre** — `drift_risk_high`: repeatedly finds either micro-deltas or full-frame changes without Brussels recognition. Must optimize witness composition + source-backed architecture, not commit count.
-- **Visual Assets + Atmosphere** — `productive_but_source_blocked`: shipped bilingual signage; STIB asset is strong but placement truth remains the blocker. Generic shopfront family was correctly rejected.
+- **Visual Assets + Atmosphere** — `productive_but_pivot_needed`: bilingual signage shipped; STIB placement truth is deferred; generic shopfront family was correctly rejected. Next cue must be unmistakably Brussels and source-defensible.
 - **Ixelles** — `productive`: runtime + direct access shipped. Must now convert technical fidelity into local visual identity.
 - **Laeken** — `productive_but_fact_blocked`: landmark material/reflection/access are strong; context attempts must stop when source truth or screen impact is weak.
 
 ## Shared priorities
 
-1. **#231 authentic STIB production placement** if stop coordinate + real furniture subset can be proven quickly.
-2. **Ixelles first identity cue** in the shipped `?spawn=ixelles` view: frontage/material/vegetation/signage with strong source support.
-3. **Grand-Place architecture-bearing deterministic arrival witness**, followed immediately by one coherent full-frame correction.
-4. Source-defensible bilingual wayfinding/street-name placements using #243.
+1. **Ixelles first identity cue** in the shipped `?spawn=ixelles` view: frontage/material/vegetation/signage with strong source support and obvious street-scale impact.
+2. **Grand-Place architecture-bearing deterministic arrival witness**, followed immediately by one coherent full-frame correction.
+3. Source-defensible bilingual wayfinding/street-name placements using #243.
+4. **#231 STIB family preserved, not actively integrated** until new placement/furniture evidence appears.
 5. Atmosphere/wet/night only after the chosen frame has credible geometry/street identity.
 
 ## Production rules
@@ -89,4 +89,4 @@ Decision model: **Impact × Confidence × Reuse / (Cost × Risk)**. Green CI is 
 
 ## Director next-integration priority
 
-**No currently open runtime PR is integration-ready. Highest-value near-term candidate remains #231 only if real stop/furniture placement truth closes quickly. Otherwise the best clean new integration target is one source-backed Ixelles identity cue in the already shipped/player-accessible cell, because it has low infrastructure risk and directly improves the 3-second and 30-second experience. Centre should prepare the next Grand-Place correction, but only after the deterministic arrival witness actually contains recognizable Grand-Place architecture.**
+**No currently open runtime PR is integration-ready. The highest-value clean next target is one source-backed Ixelles identity cue in the already shipped/player-accessible cell: it has low infrastructure risk and can directly improve the 3-second and 30-second experience. Centre should prepare the next Grand-Place correction only after the deterministic arrival witness actually contains recognizable Grand-Place architecture. #231 remains preserved as a strong asset family, but production placement is explicitly deferred until new evidence appears.**

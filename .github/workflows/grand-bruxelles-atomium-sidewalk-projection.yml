@@ -1,0 +1,28 @@
+name: Grand Bruxelles Atomium Sidewalk Projection
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/tools/probe_atomium_sidewalk_context.py'
+      - 'grand-bruxelles-game/data/environment/laeken_jette/atomium_sidewalk_context.game.json'
+      - 'grand-bruxelles-game/game/zones/laeken_jette/atomium_sidewalk_context.gd'
+      - 'grand-bruxelles-game/game/scripts/player_controller.gd'
+      - 'grand-bruxelles-game/game/tests/atomium_sidewalk_context_test.gd'
+      - '.github/workflows/grand-bruxelles-atomium-sidewalk-projection.yml'
+  workflow_dispatch:
+
+jobs:
+  source-lock:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe official sidewalk geometry and accepted player wedge
+        run: python3 tools/probe_atomium_sidewalk_context.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atomium-sidewalk-source-lock
+          path: grand-bruxelles-game/artifacts/atomium/atomium_sidewalk_source_lock.game.json
+          if-no-files-found: error

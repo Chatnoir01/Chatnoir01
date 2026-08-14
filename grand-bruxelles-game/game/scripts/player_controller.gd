@@ -160,6 +160,10 @@ func _activate_ixelles_direct_spawn() -> void:
         return
 
     global_position = Vector3(camera_xz.x, physical_ground + IXELLES_PLAYER_BODY_CENTER_CLEARANCE_M, camera_xz.y)
+    velocity = Vector3.ZERO
+    await get_tree().physics_frame
+    await get_tree().physics_frame
+
     var target_position := Vector3(target_xz.x, target_ground + 1.65, target_xz.y)
     var to_target := target_position - Vector3(global_position.x, target_position.y, global_position.z)
     rotation_degrees.y = rad_to_deg(atan2(-to_target.x, -to_target.z))

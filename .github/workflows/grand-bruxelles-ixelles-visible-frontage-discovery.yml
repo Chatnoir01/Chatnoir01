@@ -1,0 +1,113 @@
+name: Grand Bruxelles Ixelles Visible Frontage Discovery
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-ixelles-visible-frontage-discovery.yml"
+      - "grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169000-s500_strong_heights.game.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/cell.game.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/network.game.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rank-visible-frontages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rank strong-source buildings in shipped Ixelles player cone
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, math
+          from pathlib import Path
+
+          root=Path('grand-bruxelles-game')
+          strong=json.loads((root/'data/terrain/ixelles/bxl-e149000-n169000-s500_strong_heights.game.json').read_text())
+          cell=json.loads((root/'data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/cell.game.json').read_text())
+          network=json.loads((root/'data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/network.game.json').read_text())
+
+          def dicts(obj):
+              if isinstance(obj,dict):
+                  yield obj
+                  for v in obj.values(): yield from dicts(v)
+              elif isinstance(obj,list):
+                  for v in obj: yield from dicts(v)
+
+          def ident(d):
+              for k in ('building_id','source_building_id','id','source_id'):
+                  if k in d and d[k] is not None:
+                      s=str(d[k])
+                      if s.startswith('https://databrussels.be/id/physicalbuilding/'):
+                          return s.rsplit('/',1)[-1]
+                      if s.isdigit(): return s
+              return None
+
+          strong_ids=set()
+          for d in dicts(strong):
+              bid=ident(d)
+              if bid: strong_ids.add(bid)
+          print('STRONG_SCHEMA_KEYS', sorted(strong.keys()))
+          print('STRONG_ID_COUNT', len(strong_ids))
+
+          axes={str(a.get('id')):a for a in network.get('street_axes',[]) if isinstance(a,dict)}
+          cam_axis=axes['https://databrussels.be/id/streetaxe/71374:1']['points']
+          tgt_axis=axes['https://databrussels.be/id/streetaxe/71306:2']['points']
+          t=.68
+          cam=(cam_axis[0][0]+(cam_axis[1][0]-cam_axis[0][0])*t,
+               cam_axis[0][1]+(cam_axis[1][1]-cam_axis[0][1])*t)
+          target=tuple(map(float,tgt_axis[1]))
+          view=(target[0]-cam[0],target[1]-cam[1])
+          view_len=math.hypot(*view)
+          view=(view[0]/view_len,view[1]/view_len)
+          print('CAMERA_XZ',cam,'TARGET_XZ',target)
+
+          def points_from(d):
+              for k in ('polygon','footprint','points'):
+                  v=d.get(k)
+                  if isinstance(v,list) and len(v)>=3:
+                      pts=[]
+                      ok=True
+                      for p in v:
+                          if isinstance(p,list) and len(p)>=2 and all(isinstance(q,(int,float)) for q in p[:2]):
+                              pts.append((float(p[0]),float(p[1])))
+                          else:
+                              ok=False; break
+                      if ok: return pts
+              return []
+
+          rows=[]
+          seen=set()
+          for d in dicts(cell):
+              bid=ident(d)
+              pts=points_from(d)
+              if not bid or bid in seen or not pts or bid not in strong_ids: continue
+              seen.add(bid)
+              cx=sum(x for x,z in pts)/len(pts); cz=sum(z for x,z in pts)/len(pts)
+              vx,vz=cx-cam[0],cz-cam[1]
+              dist=math.hypot(vx,vz)
+              if dist < 1e-6: continue
+              dot=max(-1.0,min(1.0,(vx*view[0]+vz*view[1])/dist))
+              angle=math.degrees(math.acos(dot))
+              vals=[]
+              for x,z in pts:
+                  qx,qz=x-cam[0],z-cam[1]; qd=math.hypot(qx,qz)
+                  if qd<1e-6: continue
+                  qdot=max(-1.0,min(1.0,(qx*view[0]+qz*view[1])/qd))
+                  sign=1.0 if view[0]*qz-view[1]*qx>=0 else -1.0
+                  vals.append(sign*math.degrees(math.acos(qdot)))
+              amin=min(vals) if vals else angle; amax=max(vals) if vals else angle
+              intersects=(amin <= 45.0 and amax >= -45.0)
+              rows.append((not intersects, max(abs(amin),abs(amax)) if not intersects else 0.0, dist, angle, bid, amin, amax, d.get('source_ref') or d.get('source_id') or d.get('id')))
+          rows.sort()
+          print('STRONG_CELL_FOOTPRINT_COUNT', len(rows))
+          for r in rows[:30]:
+              print('VISIBLE_STRONG_CANDIDATE', {'id':r[4],'distance_m':round(r[2],2),'center_angle_deg':round(r[3],2),'span_deg':[round(r[5],2),round(r[6],2)],'source':r[7]})
+          if not rows:
+              raise SystemExit('No strong-source runtime footprints found')
+          if not any(not r[0] for r in rows):
+              raise SystemExit('No strong-source building intersects direct-player 90-degree view cone')
+          PY

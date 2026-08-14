@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "asset_family": "belgian_blue_stone",
+  "scope": "shared_visual_material",
+  "status": {
+    "source_identity_resolved": true,
+    "source_geometry_usage_resolved": true,
+    "runtime_integrated": false,
+    "exact_spectral_color_resolved": false,
+    "exact_surface_roughness_resolved": false,
+    "exact_vein_or_fossil_pattern_resolved": false
+  },
+  "source": {
+    "publisher": "urban.brussels / Inventaire du patrimoine architectural",
+    "title": "Gare du Midi et bâtiments annexes — Avenue Fonsny 47, 48, 49",
+    "url": "https://monument.heritage.brussels/fr/Saint-Gilles/Avenue_Fonsny/47/9423",
+    "accessed_utc": "2026-08-14T02:48:00Z",
+    "facts": {
+      "material_identity": "blue stone",
+      "documented_uses": [
+        "bases / soubassements",
+        "horizontal bands / cordons",
+        "ground-floor blue-stone frontage at Avenue Fonsny"
+      ]
+    }
+  },
+  "authored_runtime_contract": {
+    "texture_is_original": true,
+    "copyrighted_photo_texture_used": false,
+    "geometry_change_allowed": false,
+    "metallic": 0.0,
+    "roughness": 0.84,
+    "authored_tile_size_m": 1.25,
+    "surface_character": "subtle cool-grey mineral variation only; no literal fossil or vein claim",
+    "notes": "The heritage record resolves material identity and where blue stone is used, not calibrated RGB, roughness, polish, or exact mineral pattern. All presentation values and procedural variation are authored and must remain visually restrained."
+  },
+  "reuse_targets": [
+    "Bruxelles-Midi / Brussel-Zuid Fonsny source-confirmed bases and bands",
+    "other Brussels elements only where blue-stone use is independently source-confirmed"
+  ]
+}

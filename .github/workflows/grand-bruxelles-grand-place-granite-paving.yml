@@ -1,0 +1,48 @@
+name: Grand Bruxelles Grand-Place Granite Paving
+
+on:
+  push:
+    branches:
+      - visual/grand-place-granite-paving-current
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-granite-paving.yml"
+      - "grand-bruxelles-game/game/scripts/grand_place_granite_paving.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_granite_paving_test.gd"
+      - "grand-bruxelles-game/data/visual/grand_place_granite_paving.json"
+      - "grand-bruxelles-game/project.godot"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-granite-paving.yml"
+      - "grand-bruxelles-game/game/scripts/grand_place_granite_paving.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_granite_paving_test.gd"
+      - "grand-bruxelles-game/data/visual/grand_place_granite_paving.json"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  granite-paving:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate official granite paving contract
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/grand_place_granite_paving_test.gd 2>&1 | tee /tmp/grand-place-granite-paving.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_GRANITE_PAVING_FAIL" /tmp/grand-place-granite-paving.log; then exit 1; fi
+          grep -F "GRAND_PLACE_GRANITE_PAVING_OK" /tmp/grand-place-granite-paving.log

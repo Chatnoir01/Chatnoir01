@@ -47,14 +47,15 @@ func _run() -> void:
         _fail("GeneratedFacadeDetails is missing")
         return
 
-    var windows := _instance_count(details.get_node_or_null("CorridorFacadeWindows"))
+    var window_node := details.get_node_or_null("CorridorFacadeWindows") as MultiMeshInstance3D
+    var windows := _instance_count(window_node)
     var shopfront_node := details.get_node_or_null("CorridorShopfronts") as MultiMeshInstance3D
     var shopfronts := _instance_count(shopfront_node)
     var lintels := _instance_count(details.get_node_or_null("CorridorFacadeLintels"))
     var sills := _instance_count(details.get_node_or_null("CorridorFacadeSills"))
     var jambs := _instance_count(details.get_node_or_null("CorridorFacadeJambs"))
 
-    if windows < 1:
+    if windows < 1 or window_node == null or window_node.multimesh == null:
         _fail("baseline corridor windows disappeared")
         return
     if lintels != windows:
@@ -154,6 +155,55 @@ func _run() -> void:
         _fail("shopfront glass replacement changed or lost source transforms")
         return
 
-    print("CORRIDOR_FACADE_DEPTH_OK windows=%d lintels=%d sills=%d jambs=%d shopfronts=%d canopies=%d canopy_groups=%d canopy_colors=%d glass=%d glass_groups=%d glass_tints=%d" % [windows, lintels, sills, jambs, shopfronts, canopy_total, canopy_groups, canopy_distinct.size(), glass_total, glass_groups, glass_distinct.size()])
+    var window_source_transforms := {}
+    _add_transform_counts(window_source_transforms, window_node.multimesh)
+    var window_glass_transforms := {}
+    var window_glass_total := 0
+    var window_glass_groups := 0
+    var window_glass_distinct := {}
+    for child: Node in details.get_children():
+        if not child.name.begins_with("CorridorWindowGlass") or not child is MultiMeshInstance3D:
+            continue
+        var window_glass_node := child as MultiMeshInstance3D
+        var mm := window_glass_node.multimesh
+        if mm == null or mm.instance_count < 1:
+            continue
+        var box_mesh := mm.mesh as BoxMesh
+        if box_mesh == null:
+            _fail("window glass group does not use expected low-cost BoxMesh")
+            return
+        var material := box_mesh.material as StandardMaterial3D
+        if material == null:
+            _fail("window glass group has no StandardMaterial3D")
+            return
+        var color := material.albedo_color
+        if color.r < 0.035 or color.g < 0.055 or color.b < 0.065 or color.r > 0.15 or color.g > 0.18 or color.b > 0.21:
+            _fail("window glass tint escaped restrained bounds: %s" % _color_key(color))
+            return
+        if material.roughness < 0.18 or material.roughness > 0.38:
+            _fail("window glass roughness escaped restrained bounds: %.3f" % material.roughness)
+            return
+        if material.metallic < 0.06 or material.metallic > 0.24:
+            _fail("window glass reflectance escaped restrained bounds: %.3f" % material.metallic)
+            return
+        window_glass_distinct[_color_key(color)] = true
+        window_glass_total += mm.instance_count
+        window_glass_groups += 1
+        _add_transform_counts(window_glass_transforms, mm)
+
+    if window_node.visible:
+        _fail("uniform baseline window glass must be hidden after exact replacement")
+        return
+    if window_glass_total != windows:
+        _fail("replacement window glass must preserve every window; windows=%d glass=%d" % [windows, window_glass_total])
+        return
+    if window_glass_groups < 4 or window_glass_distinct.size() < 4:
+        _fail("upper window glass remains too synchronized; groups=%d distinct_tints=%d" % [window_glass_groups, window_glass_distinct.size()])
+        return
+    if window_source_transforms != window_glass_transforms:
+        _fail("window glass replacement changed or lost source transforms")
+        return
+
+    print("CORRIDOR_FACADE_DEPTH_OK windows=%d lintels=%d sills=%d jambs=%d window_glass=%d window_groups=%d window_tints=%d shopfronts=%d canopies=%d canopy_groups=%d canopy_colors=%d glass=%d glass_groups=%d glass_tints=%d" % [windows, lintels, sills, jambs, window_glass_total, window_glass_groups, window_glass_distinct.size(), shopfronts, canopy_total, canopy_groups, canopy_distinct.size(), glass_total, glass_groups, glass_distinct.size()])
     scene.queue_free()
     quit(0)

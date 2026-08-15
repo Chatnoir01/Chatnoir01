@@ -4,13 +4,17 @@ extends "res://game/scripts/midi_hero_zone.gd"
 # Geometry remains owned by the existing Midi hero zone. Texture scale, colors,
 # roughness and block cadence are authored presentation values, not survey data.
 
+const MODERNIST_REGISTER = preload("res://game/scripts/brussels_modernist_facade_register.gd")
 const CONCRETE_TEXTURE_METRES := 1.80
 const GLASS_BLOCK_TEXTURE_METRES := 1.60
+
+var _aluminium_register: StandardMaterial3D
 
 func _make_materials() -> void:
     super._make_materials()
     _concrete = _architectural_concrete_material()
     _glass_block = _glass_block_material()
+    _aluminium_register = _aluminium_register_material()
 
 func _build_station_entrance() -> void:
     super._build_station_entrance()
@@ -23,6 +27,18 @@ func _build_station_entrance() -> void:
     var glazing := entrance.get_node_or_null("EntranceGlazing") as MeshInstance3D
     if glazing != null and glazing.mesh != null:
         glazing.mesh.material = _glass_block
+
+func _add_office_block(parent: Node3D, name: String, local_z: float, length: float, floors: int, glass_tower: bool) -> void:
+    super._add_office_block(parent, name, local_z, length, floors, glass_tower)
+    var block := parent.get_node_or_null(name) as Node3D
+    if block == null:
+        return
+    # Heritage inventory Urban 9423 documents aluminium window frames with a
+    # fixed lower section, a top-hung transom and sunshades on the three Fonsny
+    # administrative/postal buildings. It separately documents projecting-brick
+    # spandrels on no. 47, represented by the existing seven-storey centre body.
+    # The module derives placement from existing Window_* openings only.
+    MODERNIST_REGISTER.decorate(block, _aluminium_register, _brick_shadow, name == "FonsnyCentral")
 
 func _architectural_concrete_material() -> StandardMaterial3D:
     const SIZE := 128
@@ -82,6 +98,18 @@ func _glass_block_material() -> StandardMaterial3D:
     material.set_meta("source_identity", "Midi heritage glass-block bays")
     material.set_meta("source_geometry_unchanged", true)
     material.set_meta("authored_block_cadence", true)
+    material.set_meta("authored_pbr_values", true)
+    material.set_meta("procedural_original_asset", true)
+    return material
+
+func _aluminium_register_material() -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color(0.49, 0.515, 0.53, 1.0)
+    material.roughness = 0.34
+    material.metallic = 0.56
+    material.set_meta("brussels_material_family", "modernist_aluminium_register")
+    material.set_meta("source_identity", "Fonsny 47-49 aluminium window frames and sunshades")
+    material.set_meta("source_geometry_unchanged", true)
     material.set_meta("authored_pbr_values", true)
     material.set_meta("procedural_original_asset", true)
     return material

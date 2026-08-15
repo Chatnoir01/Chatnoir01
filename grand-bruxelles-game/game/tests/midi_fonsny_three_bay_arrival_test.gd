@@ -27,13 +27,16 @@ func _run() -> void:
 
     var columns := 0
     for child in entrance.get_children():
-        if child is MeshInstance3D and child.name == "EntranceColumn":
-            columns += 1
-            var column := child as MeshInstance3D
-            var material := column.mesh.material as StandardMaterial3D if column.mesh != null else null
-            assert(material != null, "porch column material missing")
-            assert(material.get_meta("brussels_material_family", "") == "architectural_concrete", "porch columns must reuse shipped #323 concrete identity")
-            assert(column.get_meta("geometry_unchanged", false), "column geometry must remain unchanged")
+        if not (child is MeshInstance3D):
+            continue
+        var column := child as MeshInstance3D
+        if not _is_authored_column(column):
+            continue
+        columns += 1
+        var material := column.mesh.material as StandardMaterial3D
+        assert(material != null, "porch column material missing")
+        assert(material.get_meta("brussels_material_family", "") == "architectural_concrete", "porch columns must reuse shipped #323 concrete identity")
+        assert(column.get_meta("geometry_unchanged", false), "column geometry must remain unchanged")
     assert(columns == 4, "existing four authored porch columns must be preserved")
 
     var glazing := entrance.get_node_or_null("EntranceGlazing") as MeshInstance3D
@@ -45,3 +48,14 @@ func _run() -> void:
     await process_frame
     print("Midi Fonsny three-bay arrival regression: PASS")
     quit(0)
+
+func _is_authored_column(column: MeshInstance3D) -> bool:
+    if not (column.mesh is CylinderMesh):
+        return false
+    var cylinder := column.mesh as CylinderMesh
+    return (
+        is_equal_approx(column.position.x, -13.9)
+        and is_equal_approx(cylinder.height, 4.25)
+        and is_equal_approx(cylinder.top_radius, 0.14)
+        and is_equal_approx(cylinder.bottom_radius, 0.14)
+    )

@@ -1,0 +1,34 @@
+name: Grand Bruxelles KartaView Catalog
+on:
+  pull_request:
+    paths: ["grand-bruxelles-game/tools/visual_dataset/build_kartaview_catalog.py", "grand-bruxelles-game/tools/visual_dataset/test_kartaview_catalog.py", ".github/workflows/grand-bruxelles-kartaview-catalog.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  connector-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/visual_dataset/test_kartaview_catalog.py
+      - name: Scan live public Brussels KartaView coverage
+        run: |
+          python3 grand-bruxelles-game/tools/visual_dataset/build_kartaview_catalog.py --max-per-point 50 --output /tmp/kartaview.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/kartaview.json'))
+          assert p['format']=='grand-bruxelles-kartaview-catalog-v1'
+          assert p['status'] in {'ok','NO_COVERAGE'}
+          assert p['summary']['queries']==len(p['query_points'])==16
+          assert p['summary']['geolocated'] <= p['summary']['images']
+          assert all(x['source']=='KartaView' and x['usage_class']=='REFERENCE_ONLY' for x in p['images'])
+          if p['status']=='ok':
+              assert p['summary']['images']>0 and p['summary']['geolocated']>0
+          else:
+              assert p['summary']['images']==0
+          print('KARTAVIEW_LIVE_SCAN_OK',p['status'],p['summary'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brussels-kartaview-catalog
+          path: /tmp/kartaview.json

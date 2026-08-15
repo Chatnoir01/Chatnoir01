@@ -306,12 +306,41 @@ func _unit(seed_value: int, salt: int) -> float:
     return float(posmod(seed_value * 1103515245 + salt * 12345, 10000)) / 9999.0
 
 
+func _build_player_fallback() -> void:
+    var base_y := -0.90
+    var skin := _material(Color(0.63, 0.43, 0.32, 1.0), 0.78)
+    var hair := _material(Color(0.055, 0.045, 0.04, 1.0), 0.90)
+    var jacket := _material(Color(0.075, 0.095, 0.115, 1.0), 0.82)
+    var trousers := _material(Color(0.075, 0.105, 0.15, 1.0), 0.88)
+    var shoes := _material(Color(0.025, 0.027, 0.03, 1.0), 0.76)
+
+    _elliptic_frustum_part("Torso", Vector2(0.36, 0.19), Vector2(0.27, 0.17), 0.72, Vector3(0.0, base_y + 1.18, 0.0), jacket, 10)
+    _elliptic_frustum_part("Hips", Vector2(0.27, 0.17), Vector2(0.24, 0.16), 0.24, Vector3(0.0, base_y + 0.78, 0.0), trousers, 9)
+    _left_arm = _elliptic_frustum_part("LeftArm", Vector2(0.11, 0.105), Vector2(0.075, 0.08), 0.68, Vector3(-0.38, base_y + 1.16, 0.0), jacket, 8)
+    _right_arm = _elliptic_frustum_part("RightArm", Vector2(0.11, 0.105), Vector2(0.075, 0.08), 0.68, Vector3(0.38, base_y + 1.16, 0.0), jacket, 8)
+    _custom_ellipsoid_part("LeftHand", Vector3(0.085, 0.11, 0.075), Vector3(-0.38, base_y + 0.79, 0.0), skin, 7, 4)
+    _custom_ellipsoid_part("RightHand", Vector3(0.085, 0.11, 0.075), Vector3(0.38, base_y + 0.79, 0.0), skin, 7, 4)
+    _left_leg = _elliptic_frustum_part("LeftLeg", Vector2(0.14, 0.15), Vector2(0.095, 0.105), 0.76, Vector3(-0.15, base_y + 0.43, 0.0), trousers, 9)
+    _right_leg = _elliptic_frustum_part("RightLeg", Vector2(0.14, 0.15), Vector2(0.095, 0.105), 0.76, Vector3(0.15, base_y + 0.43, 0.0), trousers, 9)
+    _custom_prism_part("LeftShoe", Vector3(0.20, 0.12, 0.34), Vector3(0.23, 0.13, 0.39), Vector3(-0.15, base_y + 0.04, -0.07), shoes)
+    _custom_prism_part("RightShoe", Vector3(0.20, 0.12, 0.34), Vector3(0.23, 0.13, 0.39), Vector3(0.15, base_y + 0.04, -0.07), shoes)
+    _elliptic_frustum_part("Neck", Vector2(0.105, 0.095), Vector2(0.11, 0.10), 0.16, Vector3(0.0, base_y + 1.56, 0.0), skin, 8)
+    _custom_ellipsoid_part("Head", Vector3(0.255, 0.31, 0.245), Vector3(0.0, base_y + 1.78, 0.0), skin, 10, 6)
+    _custom_prism_part("Nose", Vector3(0.065, 0.10, 0.085), Vector3(0.075, 0.11, 0.10), Vector3(0.0, base_y + 1.77, -0.225), skin)
+    _custom_ellipsoid_part("HairCrown", Vector3(0.27, 0.14, 0.26), Vector3(0.0, base_y + 2.00, 0.01), hair, 9, 4)
+    _visual_signature = "player_profiled_fallback_v1"
+    set_meta("custom_mesh_pipeline", "array_mesh_player_fallback_v1")
+
+
 func _build_humanoid() -> void:
-    var base_y: float = 0.0 if _police else -0.90
+    if not _police:
+        _build_player_fallback()
+        return
+    var base_y: float = 0.0
     var skin: StandardMaterial3D = _material(Color(0.63, 0.43, 0.32, 1.0), 0.78)
     var hair: StandardMaterial3D = _material(Color(0.055, 0.045, 0.04, 1.0), 0.90)
-    var jacket_color: Color = Color(0.018, 0.04, 0.095, 1.0) if _police else Color(0.075, 0.095, 0.115, 1.0)
-    var trousers_color: Color = Color(0.02, 0.035, 0.075, 1.0) if _police else Color(0.075, 0.105, 0.15, 1.0)
+    var jacket_color: Color = Color(0.018, 0.04, 0.095, 1.0)
+    var trousers_color: Color = Color(0.02, 0.035, 0.075, 1.0)
     var jacket: StandardMaterial3D = _material(jacket_color, 0.82)
     var trousers: StandardMaterial3D = _material(trousers_color, 0.88)
     var shoes: StandardMaterial3D = _material(Color(0.025, 0.027, 0.03, 1.0), 0.76)
@@ -326,23 +355,22 @@ func _build_humanoid() -> void:
     var head: MeshInstance3D = _sphere_part("Head", Vector3(0.29, 0.34, 0.29), Vector3(0.0, base_y + 1.78, 0.0), skin)
     head.scale = Vector3(1.0, 1.08, 0.94)
     _box_part("Hair", Vector3(0.48, 0.13, 0.48), Vector3(0.0, base_y + 2.04, 0.0), hair)
-    if _police:
-        var hivis: StandardMaterial3D = _material(Color(0.76, 0.82, 0.075, 1.0), 0.64)
-        hivis.emission_enabled = true
-        hivis.emission = Color(0.09, 0.10, 0.005, 1.0)
-        hivis.emission_energy_multiplier = 0.18
-        _box_part("HiVisVest", Vector3(0.65, 0.52, 0.08), Vector3(0.0, base_y + 1.20, -0.205), hivis)
-        _box_part("PoliceCap", Vector3(0.52, 0.12, 0.48), Vector3(0.0, base_y + 2.07, 0.0), jacket)
-        _box_part("PoliceCapPeak", Vector3(0.42, 0.055, 0.22), Vector3(0.0, base_y + 2.075, -0.30), jacket)
-        var label: Label3D = Label3D.new()
-        label.name = "UniformPoliceLabel"
-        label.text = "POLICE · POLITIE"
-        label.font_size = 24
-        label.outline_size = 3
-        label.position = Vector3(0.0, base_y + 1.25, -0.255)
-        label.rotation_degrees = Vector3(0.0, 180.0, 0.0)
-        label.modulate = Color(0.04, 0.08, 0.18, 1.0)
-        add_child(label)
+    var hivis: StandardMaterial3D = _material(Color(0.76, 0.82, 0.075, 1.0), 0.64)
+    hivis.emission_enabled = true
+    hivis.emission = Color(0.09, 0.10, 0.005, 1.0)
+    hivis.emission_energy_multiplier = 0.18
+    _box_part("HiVisVest", Vector3(0.65, 0.52, 0.08), Vector3(0.0, base_y + 1.20, -0.205), hivis)
+    _box_part("PoliceCap", Vector3(0.52, 0.12, 0.48), Vector3(0.0, base_y + 2.07, 0.0), jacket)
+    _box_part("PoliceCapPeak", Vector3(0.42, 0.055, 0.22), Vector3(0.0, base_y + 2.075, -0.30), jacket)
+    var label: Label3D = Label3D.new()
+    label.name = "UniformPoliceLabel"
+    label.text = "POLICE · POLITIE"
+    label.font_size = 24
+    label.outline_size = 3
+    label.position = Vector3(0.0, base_y + 1.25, -0.255)
+    label.rotation_degrees = Vector3(0.0, 180.0, 0.0)
+    label.modulate = Color(0.04, 0.08, 0.18, 1.0)
+    add_child(label)
     _visual_signature = "legacy_fallback"
 
 
@@ -473,4 +501,3 @@ func _sphere_part(name_value: String, size: Vector3, pos: Vector3, material: Mat
     instance.scale = size * 2.0
     instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
     add_child(instance)
-    return instance

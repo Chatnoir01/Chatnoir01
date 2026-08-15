@@ -205,11 +205,24 @@ func _build_terrain() -> void:
     instance.mesh = mesh
     add_child(instance)
 
+func _heightmap_collision_data() -> PackedFloat32Array:
+    # Lambert northing increases while Grand Bruxelles game Z decreases.
+    # HeightMapShape3D rows advance toward +Z, so reverse source rows only.
+    var collision_heights := PackedFloat32Array()
+    collision_heights.resize(_heights_relative.size())
+    for target_row: int in range(_height):
+        var source_row := _height - 1 - target_row
+        var target_offset := target_row * _width
+        var source_offset := source_row * _width
+        for col: int in range(_width):
+            collision_heights[target_offset + col] = _heights_relative[source_offset + col]
+    return collision_heights
+
 func _build_collision() -> void:
     var shape := HeightMapShape3D.new()
     shape.map_width = _width
     shape.map_depth = _height
-    shape.map_data = _heights_relative
+    shape.map_data = _heightmap_collision_data()
     var collision := CollisionShape3D.new()
     collision.name = "OfficialIxellesDTMHeightMapCollision"
     collision.shape = shape

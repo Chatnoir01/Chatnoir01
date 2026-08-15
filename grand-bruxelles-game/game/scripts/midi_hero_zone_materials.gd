@@ -7,6 +7,16 @@ extends "res://game/scripts/midi_hero_zone.gd"
 const CONCRETE_TEXTURE_METRES := 1.80
 const GLASS_BLOCK_TEXTURE_METRES := 1.60
 
+# Fonsny arrival articulation. The heritage inventory documents three long bays
+# with concrete cross framing at the access porch. The existing authored glazing
+# envelope is retained; exact frame thickness/offset are presentation values.
+const FONSNY_FRAME_FACE_X := -14.49
+const FONSNY_FRAME_DEPTH := 0.06
+const FONSNY_VERTICAL_FRAME_WIDTH := 0.18
+const FONSNY_HORIZONTAL_FRAME_HEIGHT := 0.16
+const FONSNY_ENTRANCE_SPAN_Z := 18.8
+const FONSNY_ENTRANCE_GLAZING_HEIGHT := 3.65
+
 func _make_materials() -> void:
     super._make_materials()
     _concrete = _architectural_concrete_material()
@@ -23,6 +33,52 @@ func _build_station_entrance() -> void:
     var glazing := entrance.get_node_or_null("EntranceGlazing") as MeshInstance3D
     if glazing != null and glazing.mesh != null:
         glazing.mesh.material = _glass_block
+
+    if bool(get_meta("disable_fonsny_three_bay_arrival", false)):
+        return
+    _build_fonsny_three_bay_arrival(entrance)
+
+func _build_fonsny_three_bay_arrival(entrance: Node3D) -> void:
+    var arrival_frame := Node3D.new()
+    arrival_frame.name = "FonsnyThreeBayArrivalFrame"
+    entrance.add_child(arrival_frame)
+
+    # Three documented long bays: two shallow dividers across the existing
+    # 18.8 m authored glazing span. No new entrance width/height is introduced.
+    var bay_step := FONSNY_ENTRANCE_SPAN_Z / 3.0
+    for divider_index: int in [1, 2]:
+        var z := -FONSNY_ENTRANCE_SPAN_Z * 0.5 + bay_step * float(divider_index)
+        var divider := _add_box(
+            arrival_frame,
+            "BayDivider_%d" % divider_index,
+            Vector3(FONSNY_FRAME_DEPTH, FONSNY_ENTRANCE_GLAZING_HEIGHT, FONSNY_VERTICAL_FRAME_WIDTH),
+            Vector3(FONSNY_FRAME_FACE_X, 2.15, z),
+            _concrete
+        )
+        divider.set_meta("source_fact", "three_long_bays_with_concrete_cross_framing")
+        divider.set_meta("authored_dimensions", true)
+
+    # One quiet cross rail makes the documented concrete-cross framing legible
+    # without the repeated projecting caps/shadows rejected in #326.
+    var rail := _add_box(
+        arrival_frame,
+        "BayCrossRail",
+        Vector3(FONSNY_FRAME_DEPTH, FONSNY_HORIZONTAL_FRAME_HEIGHT, FONSNY_ENTRANCE_SPAN_Z),
+        Vector3(FONSNY_FRAME_FACE_X, 2.15, 0.0),
+        _concrete
+    )
+    rail.set_meta("source_fact", "concrete_cross_framing")
+    rail.set_meta("authored_dimensions", true)
+
+    # Preserve the existing four authored porch columns exactly; only align
+    # their material with the documented concrete entrance composition.
+    for child in entrance.get_children():
+        if child is MeshInstance3D and child.name == "EntranceColumn":
+            var column := child as MeshInstance3D
+            if column.mesh != null:
+                column.mesh.material = _concrete
+                column.set_meta("source_fact", "polygonal_columns_support_access_porch")
+                column.set_meta("geometry_unchanged", true)
 
 func _architectural_concrete_material() -> StandardMaterial3D:
     const SIZE := 128

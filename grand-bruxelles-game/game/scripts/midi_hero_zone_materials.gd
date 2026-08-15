@@ -70,15 +70,29 @@ func _build_fonsny_three_bay_arrival(entrance: Node3D) -> void:
     rail.set_meta("source_fact", "concrete_cross_framing")
     rail.set_meta("authored_dimensions", true)
 
-    # Preserve the existing four authored porch columns exactly; only align
-    # their material with the documented concrete entrance composition.
+    # Preserve the existing four authored porch columns exactly. Godot may
+    # rename duplicate sibling node names, so identify the already-authored
+    # supports by their CylinderMesh and committed local X/height/radius.
     for child in entrance.get_children():
-        if child is MeshInstance3D and child.name == "EntranceColumn":
-            var column := child as MeshInstance3D
-            if column.mesh != null:
-                column.mesh.material = _concrete
-                column.set_meta("source_fact", "polygonal_columns_support_access_porch")
-                column.set_meta("geometry_unchanged", true)
+        if not (child is MeshInstance3D):
+            continue
+        var column := child as MeshInstance3D
+        if not _is_authored_fonsny_porch_column(column):
+            continue
+        column.mesh.material = _concrete
+        column.set_meta("source_fact", "polygonal_columns_support_access_porch")
+        column.set_meta("geometry_unchanged", true)
+
+func _is_authored_fonsny_porch_column(column: MeshInstance3D) -> bool:
+    if not (column.mesh is CylinderMesh):
+        return false
+    var cylinder := column.mesh as CylinderMesh
+    return (
+        is_equal_approx(column.position.x, -13.9)
+        and is_equal_approx(cylinder.height, 4.25)
+        and is_equal_approx(cylinder.top_radius, 0.14)
+        and is_equal_approx(cylinder.bottom_radius, 0.14)
+    )
 
 func _architectural_concrete_material() -> StandardMaterial3D:
     const SIZE := 128

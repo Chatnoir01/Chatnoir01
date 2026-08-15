@@ -71,7 +71,7 @@ jobs:
           OUT="$RUNNER_TEMP/grand-bruxelles-pc"
           chmod +x "$OUT/grand-bruxelles.x86_64"
           set +e
-          timeout 12s "$OUT/grand-bruxelles.x86_64" --headless --path grand-bruxelles-game > /tmp/desktop-smoke.log 2>&1
+          timeout 12s "$OUT/grand-bruxelles.x86_64" --headless > /tmp/desktop-smoke.log 2>&1
           status=$?
           set -e
           cat /tmp/desktop-smoke.log

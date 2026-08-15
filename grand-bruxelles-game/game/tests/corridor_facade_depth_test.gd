@@ -16,6 +16,9 @@ func _instance_count(node: Node) -> int:
 func _color_key(color: Color) -> String:
     return "%.3f,%.3f,%.3f" % [color.r, color.g, color.b]
 
+func _depth_key(depth: float) -> String:
+    return "%.3f" % depth
+
 func _transform_key(transform: Transform3D) -> String:
     var b := transform.basis
     var o := transform.origin
@@ -115,6 +118,7 @@ func _run() -> void:
     var canopy_total := 0
     var canopy_groups := 0
     var canopy_distinct := {}
+    var canopy_depths := {}
     for child: Node in details.get_children():
         if not child.name.begins_with("CorridorShopCanopies") or not child is MultiMeshInstance3D:
             continue
@@ -137,6 +141,12 @@ func _run() -> void:
             _fail("canopy palette escaped restrained street-level bounds: %s" % _color_key(color))
             return
         canopy_distinct[_color_key(color)] = true
+        for index: int in range(mm.instance_count):
+            var scale := mm.get_instance_transform(index).basis.get_scale().abs()
+            if scale.z < 0.52 or scale.z > 0.92:
+                _fail("canopy projection escaped plausible bounds: %.3f" % scale.z)
+                return
+            canopy_depths[_depth_key(scale.z)] = true
         canopy_total += mm.instance_count
         canopy_groups += 1
 
@@ -144,7 +154,10 @@ func _run() -> void:
         _fail("each existing shopfront must keep exactly one canopy; shops=%d canopies=%d" % [shopfronts, canopy_total])
         return
     if canopy_groups < 4 or canopy_distinct.size() < 4:
-        _fail("shop canopies remain too synchronized; groups=%d distinct_colors=%d" % [canopy_groups, canopy_distinct.size()])
+        _fail("shop canopies remain too synchronized in material; groups=%d distinct_colors=%d" % [canopy_groups, canopy_distinct.size()])
+        return
+    if canopy_depths.size() < 3:
+        _fail("shop canopy silhouettes remain too synchronized; distinct_projections=%d" % canopy_depths.size())
         return
 
     var source_transforms := {}
@@ -245,6 +258,6 @@ func _run() -> void:
         _fail("window glass replacement changed or lost source transforms")
         return
 
-    print("CORRIDOR_FACADE_DEPTH_OK windows=%d lintels=%d sills=%d jambs=%d trim_groups=%d trim_colors=%d window_glass=%d window_groups=%d window_tints=%d shopfronts=%d canopies=%d canopy_groups=%d canopy_colors=%d glass=%d glass_groups=%d glass_tints=%d" % [windows, lintels, sills, jambs, lintel_stats.groups, lintel_stats.colors, window_glass_total, window_glass_groups, window_glass_distinct.size(), shopfronts, canopy_total, canopy_groups, canopy_distinct.size(), glass_total, glass_groups, glass_distinct.size()])
+    print("CORRIDOR_FACADE_DEPTH_OK windows=%d lintels=%d sills=%d jambs=%d trim_groups=%d trim_colors=%d window_glass=%d window_groups=%d window_tints=%d shopfronts=%d canopies=%d canopy_groups=%d canopy_colors=%d canopy_depths=%d glass=%d glass_groups=%d glass_tints=%d" % [windows, lintels, sills, jambs, lintel_stats.groups, lintel_stats.colors, window_glass_total, window_glass_groups, window_glass_distinct.size(), shopfronts, canopy_total, canopy_groups, canopy_distinct.size(), canopy_depths.size(), glass_total, glass_groups, glass_distinct.size()])
     scene.queue_free()
     quit(0)

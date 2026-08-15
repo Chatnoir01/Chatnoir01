@@ -1,0 +1,33 @@
+name: Grand Bruxelles Midi Multimodal Arrival
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-multimodal-arrival.yml"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/tests/midi_multimodal_arrival_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  midi-multimodal-arrival:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Prove Midi multimodal arrival context
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_multimodal_arrival_test.gd 2>&1 | tee /tmp/midi-multimodal-arrival.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_MULTIMODAL_ARRIVAL_FAIL" /tmp/midi-multimodal-arrival.log; then exit 1; fi
+          grep -q "MIDI_MULTIMODAL_ARRIVAL_OK" /tmp/midi-multimodal-arrival.log

@@ -1,0 +1,21 @@
+name: Grand Bruxelles Mapillary Catalog
+on:
+  pull_request:
+    paths: ["grand-bruxelles-game/tools/visual_dataset/build_mapillary_catalog.py", "grand-bruxelles-game/tools/visual_dataset/test_mapillary_catalog.py", ".github/workflows/grand-bruxelles-mapillary-catalog.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  connector-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/visual_dataset/test_mapillary_catalog.py
+      - name: Confirm live mode is externally blocked without token
+        run: |
+          set +e
+          python3 grand-bruxelles-game/tools/visual_dataset/build_mapillary_catalog.py --output /tmp/mapillary.json
+          code=$?
+          set -e
+          test "$code" -eq 3
+          grep -q 'BLOCKED_EXTERNAL_KEY' /tmp/mapillary.json

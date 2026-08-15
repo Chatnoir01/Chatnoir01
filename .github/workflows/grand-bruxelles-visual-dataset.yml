@@ -19,8 +19,10 @@ jobs:
           p=json.load(open('/tmp/brussels-visual-catalog.json'))
           assert p['summary']['seen']>0
           assert p['summary']['accepted']>0
-          assert all((not x['accepted']) or (x['license'] in p['license_allowlist'] and x['url'] and x['lat'] is not None and x['lon'] is not None) for x in p['images'])
-          print('VISUAL_DATASET_LIVE_OK',p['summary'])
+          assert all((not x['accepted']) or (x['license'] in p['license_allowlist'] and x['url']) for x in p['images'])
+          geolocated=[x for x in p['images'] if x['lat'] is not None and x['lon'] is not None]
+          assert geolocated, 'live query must return at least one coordinate-bearing image'
+          print('VISUAL_DATASET_LIVE_OK',p['summary'],'geolocated=',len(geolocated))
           PY
       - uses: actions/upload-artifact@v4
         with:

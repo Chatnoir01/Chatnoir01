@@ -43,18 +43,21 @@ func _run() -> void:
         return
 
     var metrics: Dictionary = ambience.call("measure_pcm", stream.data)
-    if float(metrics.get("rms", 0.0)) < 0.025:
+    var rms := float(metrics.get("rms", 0.0))
+    var peak := float(metrics.get("peak", 1.0))
+    var active_ratio := float(metrics.get("active_ratio", 0.0))
+    if rms < 0.025:
         _fail("ambience is effectively inaudible")
         return
-    if float(metrics.get("rms", 1.0)) > 0.24:
+    if rms > 0.24:
         _fail("ambience is too loud for a background layer")
         return
-    if float(metrics.get("peak", 1.0)) > 0.96:
+    if peak > 0.96:
         _fail("ambience risks clipping")
         return
-    if float(metrics.get("active_ratio", 0.0)) < 0.80:
+    if active_ratio < 0.80:
         _fail("ambience is too sparse to support 30-second immersion")
         return
 
-    print("BRUSSELS_PUBLIC_SPACE_AUDIO_OK rms=%.6f peak=%.6f active_ratio=%.6f" % [metrics.rms, metrics.peak, metrics.active_ratio])
+    print("BRUSSELS_PUBLIC_SPACE_AUDIO_OK rms=%.6f peak=%.6f active_ratio=%.6f" % [rms, peak, active_ratio])
     quit(0)

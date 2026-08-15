@@ -1,0 +1,50 @@
+name: Grand Bruxelles Real Player Visual
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/characters/player/**"
+      - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/tests/real_authored_player_visual_ab_capture_test.gd"
+      - ".github/workflows/grand-bruxelles-real-player-visual.yml"
+  push:
+    branches:
+      - integration/real-player-kaykit-rogue-current-v2
+    paths:
+      - "grand-bruxelles-game/assets/characters/player/**"
+      - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/tests/real_authored_player_visual_ab_capture_test.gd"
+      - ".github/workflows/grand-bruxelles-real-player-visual.yml"
+  workflow_dispatch:
+
+jobs:
+  authored-player-visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Godot 4.7.1
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+      - name: Import project and real authored GLB
+        run: godot --headless --path grand-bruxelles-game --import
+      - name: Capture deterministic authored-player A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/real_authored_player_visual_ab_capture_test.gd 2>&1 | tee /tmp/real-player-visual.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|REAL_AUTHORED_PLAYER_VISUAL_AB_FAIL' /tmp/real-player-visual.log; then
+            exit 1
+          fi
+          grep -q 'REAL_AUTHORED_PLAYER_VISUAL_AB_OK' /tmp/real-player-visual.log
+      - name: Preserve visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-authored-player-visual-ab
+          path: grand-bruxelles-game/artifacts/qa/real_authored_player_visual_ab/
+          if-no-files-found: error
+          retention-days: 14

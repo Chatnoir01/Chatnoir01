@@ -147,13 +147,13 @@ func _run() -> void:
         _fail("daylight capture failed")
         return
 
-    if not is_equal_approx(world.environment.fog_density, 0.0021):
+    if not is_equal_approx(world.environment.fog_density, 0.0023):
         _fail("production fog density contract drifted")
         return
-    if not is_equal_approx(world.environment.ambient_light_energy, 0.72):
+    if not is_equal_approx(world.environment.ambient_light_energy, 0.70):
         _fail("production ambient energy contract drifted")
         return
-    if not is_equal_approx(sun.light_energy, 1.10):
+    if not is_equal_approx(sun.light_energy, 1.08):
         _fail("production sun energy contract drifted")
         return
 

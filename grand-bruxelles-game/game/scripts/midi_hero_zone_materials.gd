@@ -6,11 +6,13 @@ extends "res://game/scripts/midi_hero_zone.gd"
 
 const CONCRETE_TEXTURE_METRES := 1.80
 const GLASS_BLOCK_TEXTURE_METRES := 1.60
+const BLUE_STONE_TEXTURE_METRES := 2.40
 
 func _make_materials() -> void:
     super._make_materials()
     _concrete = _architectural_concrete_material()
     _glass_block = _glass_block_material()
+    _blue_stone = _blue_stone_material()
 
 func _build_station_entrance() -> void:
     super._build_station_entrance()
@@ -83,5 +85,35 @@ func _glass_block_material() -> StandardMaterial3D:
     material.set_meta("source_geometry_unchanged", true)
     material.set_meta("authored_block_cadence", true)
     material.set_meta("authored_pbr_values", true)
+    material.set_meta("procedural_original_asset", true)
+    return material
+
+func _blue_stone_material() -> StandardMaterial3D:
+    const SIZE := 128
+    var image := Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RGBA8)
+    var base := Color(0.18, 0.215, 0.235, 1.0)
+    image.fill(base)
+    # Quiet deterministic mineral modulation only. Heritage evidence identifies
+    # blue stone as the material, but does not provide coursing dimensions, so
+    # this intentionally avoids invented joints or block sizes.
+    for tile_y: int in range(8):
+        for tile_x: int in range(8):
+            var hash_value := (tile_x * 43 + tile_y * 29 + tile_x * tile_y * 5) % 13
+            var delta := (float(hash_value) - 6.0) * 0.004
+            var patch := Color(base.r + delta * 0.55, base.g + delta * 0.75, base.b + delta, 1.0)
+            _fill_image_rect(image, tile_x * 16, tile_y * 16, (tile_x + 1) * 16, (tile_y + 1) * 16, patch)
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color.WHITE
+    material.albedo_texture = ImageTexture.create_from_image(image)
+    material.roughness = 0.74
+    material.metallic = 0.0
+    material.uv1_triplanar = true
+    material.uv1_world_triplanar = true
+    material.uv1_scale = Vector3.ONE / BLUE_STONE_TEXTURE_METRES
+    material.set_meta("brussels_material_family", "blue_stone")
+    material.set_meta("source_identity", "Midi heritage blue-stone bases and entrance device")
+    material.set_meta("source_geometry_unchanged", true)
+    material.set_meta("authored_pbr_values", true)
+    material.set_meta("authored_texture_scale", true)
     material.set_meta("procedural_original_asset", true)
     return material

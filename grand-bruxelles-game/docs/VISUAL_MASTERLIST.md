@@ -2,7 +2,7 @@
 
 Production truth: GitHub `main` only. Optimize player-perceived Brussels quality, not commit count.
 
-Current production checkpoint: `562621ae3726a3cf01bbef97c7cda6608d3ccdf7` (Director documentation merge). Latest substantive player-facing runtime remains `9fa924d5048edf49c6b4a5f10368cb34c888251d` (#344 autonomous Living City showcase). Latest positive visual identity gain remains `1699dbbfa3eb4224f50f3879326c935f0eebe271` (#323 Midi concrete + glass-block). Latest blocking runtime correction remains #333 Ixelles DTM collision orientation parity.
+Current production checkpoint: `dec3be44af884b91d67e54695658aae1025cf729` (Director documentation merge). Latest substantive player-facing runtime remains `9fa924d5048edf49c6b4a5f10368cb34c888251d` (#344 autonomous Living City showcase). Latest positive visual identity gain remains `1699dbbfa3eb4224f50f3879326c935f0eebe271` (#323 Midi concrete + glass-block). Latest blocking runtime correction remains #333 Ixelles DTM collision orientation parity.
 
 ## North star
 
@@ -20,6 +20,8 @@ Judge three horizons: **3-second recognition**, **30-second immersion**, **10-mi
 
 ### Closed / blocked low-return paths
 
+- **#349 ArcheoBru Rue de Flandre photogrammetry lab** — technically strong, source-pinned and broad-CI green. Direct inspection of the exact artifact confirms both quality and Web LODs preserve the photogrammetric facade very well; measured source→Web witness differences were only about **2.6–3.1% >3 RGB** across the three neutral views. However geographic identity remains explicitly unproven (`Rue de Flandre 180` only a hypothesis), so no legitimate player placement/A-B can follow immediately. Closed without merge under the anti-rabbit-hole rule. Preserve DOI/hash/license/LOD findings as history; a future photogrammetry lot may restart only when exact geographic identity is independently proven before opening, so placement + player witness can happen in one compact current-main runtime lot.
+- **#348 compatibility-safe PBR foundation** — technically clean but legitimate pedestrian-frame witness was nearly indistinguishable (**0.0286% >3 RGB / 0.0005% >8 RGB**). Closed without merge. Do not add PBR machinery merely because normal/roughness maps exist; require material response that survives normal player framing.
 - **#346 bilingual police vest rear identity** — source/runtime contract and broad CI were correct, but the real #344-triggered frozen production witness measured **0.0000% >3 RGB / 0.0000% >8 RGB**. Rear vest identity was not naturally exposed in the legitimate player frame. Closed without merge. Do not rescue by moving the camera, enlarging the vest/label, increasing contrast or staging the officer differently.
 - **#342 bilingual location HUD banner** — clean deterministic evidence but decorative UI chrome; existing bilingual location was already readable. Closed without merge.
 - **#340 authored public-space ambience** — technically audition-ready, deterministic and CI-green, but no genuine human listening verdict. Not an aesthetic reject; do not build a competing ambience implementation.
@@ -30,7 +32,7 @@ Judge three horizons: **3-second recognition**, **30-second immersion**, **10-mi
 ## Active ownership map
 
 - **Centre Vertical Slice** — Bourse/Centre/Midi visible slice. No active runtime PR. Next lot: broad **Midi arrival/forecourt/transport-context** cue on existing readable geometry, or one large exposed Bourse discrepancy. Do not duplicate #344 Living City orchestration.
-- **Visual Assets + Atmosphere** — shared PBR/materials/furniture/signage/vegetation/lighting/weather/audio. No active runtime PR. #340 remains audition-ready/human-unresolved; no competing ambience. #346 confirms that character decals/details need a natural-exposure proof before implementation. Prefer naturally broad world/audio cues, not HUD chrome, invisible markers or character micro-details that disappear in normal framing.
+- **Visual Assets + Atmosphere** — shared PBR/materials/furniture/signage/vegetation/lighting/weather/audio. No active runtime PR. #340 remains audition-ready/human-unresolved; no competing ambience. #349 photogrammetry is closed until exact geographic identity is independently proven before a new lot. Prefer naturally broad world/audio cues with a direct placement/player path, not HUD chrome, invisible markers, character micro-details or unlocated asset labs.
 - **Ixelles Runtime Slice** — same-coverage identity + shipped four-cell runtime. **Infrastructure hard-frozen.** No fifth cell, neighbor terrain promotion or neighbor building extrusion until sustained human traversal is recorded.
 - **Laeken Hero Impact** — Atomium/Heysel presentation. Stay idle unless a fundamentally different source-backed cue plausibly affects the real direct-spawn frame.
 - **Director maintenance** — traffic/Living City/missions/saves/release only for blocker/regression or unusually high perceived impact. #344 qualifies as a rare high-value orchestration gain; do not turn this into a chain of scripted encounters.
@@ -42,12 +44,12 @@ Judge three horizons: **3-second recognition**, **30-second immersion**, **10-mi
 2. **Bruxelles-Midi station arrival / transport identity** — `3sec_high`. #323 remains the last positive visual identity gain. Next Centre lot must make the place read more clearly as Bruxelles-Midi without another small material/frame/HUD/character-detail pass.
 3. **Bourse exposed roof/interior/frontage coherence** — `3sec_high`. Only a visibly exposed structural/silhouette/frontage issue qualifies.
 4. **Ixelles local identity density inside existing coverage** — `30sec_medium_high`. Improve the same cells before expanding them.
-5. **Reusable Brussels atmosphere / transit / bilingual / audio vocabulary** — `30sec_medium_high_human_gate`. #340 can progress only after genuine audition; world or character cues must prove natural player exposure before coding.
+5. **Reusable Brussels atmosphere / transit / bilingual / audio vocabulary** — `30sec_medium_high_human_gate`. #340 can progress only after genuine audition; any world/character/photogrammetry cue must prove natural player exposure and direct geographic placement before implementation effort grows.
 
 ## Stream health
 
 - **Centre** — `healthy_but_needs_broader_visual_problem`. No active competing lot; remain on arrival/forecourt/transport-context or pivot Bourse.
-- **Visual Assets + Atmosphere** — `technically_productive_but_selection_exposure_drifting`. #346 is the second recent source-correct but naturally invisible identity path after #338. Stop spending implementation effort on small localized cues before proving player-frame exposure. Resolve #340 audition or choose a broad naturally exposed/reusable cue.
+- **Visual Assets + Atmosphere** — `technically_productive_but_research_selection_drifting`. #348 was invisible PBR machinery and #349 became a visually promising but unlocated photogrammetry lab. Stop opening asset research without a near-term current-main player placement. Resolve #340 audition or choose a broad naturally exposed/reusable cue with placement proven first.
 - **Ixelles** — `high_technical_progress_but_human_QA_overdue`. Infrastructure remains frozen.
 - **Laeken** — `source_disciplined_idle`. Staying idle is better than another zero-impact chain.
 - **Director maintenance / Living City** — `fresh_player_facing_progress_but_scope_now_frozen`. #344 is substantive and CI-clean; next action is human session QA, not another scripted incident feature.
@@ -58,7 +60,7 @@ Judge three horizons: **3-second recognition**, **30-second immersion**, **10-mi
 2. **One broad source-backed Midi arrival/forecourt/transport-context lot**, or pivot Centre to one large exposed Bourse discrepancy.
 3. **Resolve #340 human audio gate without duplicating implementation**, or defer audio and choose another broad shared cue.
 4. **One recognisable same-coverage Ixelles identity cue** only after traversal QA; no new infrastructure.
-5. **No second autonomous scripted encounter lot and no further localized character/signage identity lot without natural player-frame exposure proof.**
+5. **Photogrammetry only with geographic identity proven before opening the runtime lot**; no separate audit→address→placement chain.
 
 ## Production rules
 
@@ -80,7 +82,9 @@ Judge three horizons: **3-second recognition**, **30-second immersion**, **10-mi
 16. Human sensory/gameplay inspection cannot be replaced by metrics alone.
 17. Do not restyle already-clear HUD information unless legibility, hierarchy or gameplay understanding materially improves.
 18. **Behavior orchestration gate:** autonomous showcase events must reuse existing behavioral systems, remain bounded, never script the player as target without design intent, recover to normal routines, and be judged for repetition/disruption in real session QA before any second event family is added.
+19. **Photogrammetry gate:** verify lawful source and exact geographic identity before opening a production-oriented photogrammetry lot. Do not spend separate current-main PRs on LOD/audit/address research when placement is unresolved; once identity is proven, source optimization + UrbIS alignment + normal-player witness should fit one compact runtime path.
+20. **PBR-value gate:** adding technically correct normal/roughness/material infrastructure is not a production win unless deterministic normal-player evidence shows a material response that survives ordinary framing.
 
 ## Director next-integration priority
 
-**No open substantive PR is mergeable now. #346 is a clean zero-impact reject, not a candidate for rescue. Highest-value project action remains one sustained Web/phone play session that validates #314/#333 streaming/collision continuity and #344 Living City believability together. Highest-impact next engineering candidate remains a broad source-backed Centre arrival/forecourt/transport-context improvement at Bruxelles-Midi; if no naturally visible defensible candidate exists, pivot immediately to one large exposed Bourse discrepancy. Ixelles infrastructure, further scripted Living City expansion and further localized identity micro-details are frozen pending the relevant human/exposure gates.**
+**No open substantive PR is mergeable now. #349 is closed as a visually promising but unlocated research path; #348 is closed as technically correct but player-invisible PBR infrastructure. Highest-value project action remains one sustained Web/phone play session that validates #314/#333 streaming/collision continuity and #344 Living City believability together. Highest-impact next engineering candidate remains a broad source-backed Centre arrival/forecourt/transport-context improvement at Bruxelles-Midi; if no naturally visible defensible candidate exists, pivot immediately to one large exposed Bourse discrepancy. Ixelles infrastructure, further scripted Living City expansion, localized identity micro-details and unlocated photogrammetry research are frozen pending the relevant human/exposure/geographic gates.**

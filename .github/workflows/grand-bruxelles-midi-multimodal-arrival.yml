@@ -36,7 +36,7 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_multimodal_arrival_test.gd 2>&1 | tee /tmp/midi-multimodal-arrival.log
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_MULTIMODAL_ARRIVAL_FAIL" /tmp/midi-multimodal-arrival.log; then exit 1; fi
           grep -q "MIDI_MULTIMODAL_ARRIVAL_OK" /tmp/midi-multimodal-arrival.log
-      - name: Capture player-height visual witness
+      - name: Capture player-height visual witnesses
         shell: bash
         run: |
           set -o pipefail
@@ -48,14 +48,17 @@ jobs:
             --script res://game/tests/midi_multimodal_arrival_witness_test.gd 2>&1 | tee /tmp/midi-multimodal-witness.log
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_MULTIMODAL_WITNESS_FAIL" /tmp/midi-multimodal-witness.log; then exit 1; fi
           grep -q "MIDI_MULTIMODAL_WITNESS_OK" /tmp/midi-multimodal-witness.log
-          test -s grand-bruxelles-game/artifacts/visual/midi_multimodal_arrival_after.png
-          file grand-bruxelles-game/artifacts/visual/midi_multimodal_arrival_after.png | grep -F "1280 x 720"
+          for image in midi_multimodal_arrival_context.png midi_multimodal_arrival_close.png; do
+            test -s "grand-bruxelles-game/artifacts/visual/$image"
+            file "grand-bruxelles-game/artifacts/visual/$image" | grep -F "1280 x 720"
+          done
       - name: Upload visual evidence
         uses: actions/upload-artifact@v4
         with:
           name: midi-multimodal-arrival-visual-evidence
           path: |
-            grand-bruxelles-game/artifacts/visual/midi_multimodal_arrival_after.png
+            grand-bruxelles-game/artifacts/visual/midi_multimodal_arrival_context.png
+            grand-bruxelles-game/artifacts/visual/midi_multimodal_arrival_close.png
             /tmp/midi-multimodal-arrival.log
             /tmp/midi-multimodal-witness.log
           if-no-files-found: error

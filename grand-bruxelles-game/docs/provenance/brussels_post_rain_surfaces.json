@@ -1,0 +1,28 @@
+{
+  "schema": "grand-bruxelles-authored-atmosphere-v1",
+  "asset_family": "shared-post-rain-paved-surface-response",
+  "status": "runtime-candidate",
+  "scope": [
+    "UrbIS Bourse StreetSurface meshes already shipped in production",
+    "UrbIS Midi street-surface meshes already shipped in production"
+  ],
+  "source_truth": {
+    "geometry": "No geometry is added, moved, enlarged or reclassified by this lot. Existing UrbIS-derived production surfaces remain the placement truth.",
+    "weather_state": "Authored presentation mode only. The project does not claim a measured historical or live weather condition for these captures.",
+    "granite_exclusion": "Grand-Place granite paving #280 is not modified, wrapped or retuned by this family."
+  },
+  "authored_parameters": {
+    "default_wetness_strength": 0.62,
+    "wet_color_multiplier": 0.72,
+    "minimum_wet_roughness": 0.28,
+    "maximum_wet_specular": 0.78,
+    "variation": "broad deterministic world-space modulation; no photographic texture or scraped asset"
+  },
+  "licensing": {
+    "runtime_material": "original project-authored shader code",
+    "third_party_media_vendored": false,
+    "distribution_note": "No external image, audio or texture bytes are distributed by this lot."
+  },
+  "reuse_policy": "May be reused only on already source-backed paved/road surfaces where an authored post-rain atmosphere is desired. It must not be used to imply puddle depth, drainage, surface chemistry or current weather observations.",
+  "realism_complete": false
+}

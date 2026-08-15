@@ -43,6 +43,14 @@ class AssetProvenanceTests(unittest.TestCase):
         (root / "assets" / "LICENSE_REGISTRY.tsv").write_text(HEADER + row, encoding="utf-8")
         self.assertTrue(any("local_path does not exist" in error for error in validate(root)))
 
+    def test_gitkeep_is_not_treated_as_distributable_asset(self) -> None:
+        root = self.make_root()
+        (root / "assets" / "LICENSE_REGISTRY.tsv").write_text(HEADER, encoding="utf-8")
+        placeholder = root / "assets" / "characters" / "source" / ".gitkeep"
+        placeholder.parent.mkdir(parents=True)
+        placeholder.write_text("", encoding="utf-8")
+        self.assertEqual([], validate(root))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,6 +13,8 @@ on:
     paths:
       - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
       - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py"
+      - "grand-bruxelles-game/tools/citygen/build_cell_candidate_package.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_cell_candidate_package.py"
       - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
 
 permissions:
@@ -30,6 +32,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Autonomous scheduler regression
         run: python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py
+      - name: Per-cell candidate package regression
+        run: python3 grand-bruxelles-game/tools/citygen/test_build_cell_candidate_package.py
       - name: Existing city-generation guardrails
         run: |
           python3 grand-bruxelles-game/tools/city_generation/test_generate_facade_candidates.py
@@ -41,7 +45,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,17 +72,44 @@ jobs:
             --output-dir /tmp/citygen-out \
             --batch-size "$BATCH"
           cat /tmp/citygen-out/worklist.txt
+      - name: Build authoritative candidate package for each selected cell
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/citygen-out/candidates
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            MATURITY="grand-bruxelles-game/data/cell_manifests/${CELL}.json"
+            MATURITY_ARGS=()
+            if [ -f "$MATURITY" ]; then MATURITY_ARGS=(--maturity "$MATURITY"); fi
+            python3 grand-bruxelles-game/tools/citygen/build_cell_candidate_package.py \
+              --cell-dir "grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}" \
+              "${MATURITY_ARGS[@]}" \
+              --output "/tmp/citygen-out/candidates/${CELL}.json"
+          done < /tmp/citygen-out/worklist.txt
+      - name: Cross-check generated package count
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          work=[x.strip() for x in Path('/tmp/citygen-out/worklist.txt').read_text().splitlines() if x.strip()]
+          packages=sorted(p.stem for p in Path('/tmp/citygen-out/candidates').glob('*.json'))
+          if sorted(work) != packages:
+              raise SystemExit(f'candidate package mismatch work={sorted(work)} packages={packages}')
+          print(f'AUTONOMOUS_CELL_PACKAGES_OK selected={len(work)} packages={len(packages)}')
+          PY
       - name: Persist autonomous progress off main
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -C citygen-autonomous-state
-          mkdir -p grand-bruxelles-game/data/qa
+          mkdir -p grand-bruxelles-game/data/qa/autonomous_candidates
           cp /tmp/citygen-out/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_state.json
           cp /tmp/citygen-out/autonomous_citygen_report.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json
           cp /tmp/citygen-out/worklist.txt grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt
-          git add grand-bruxelles-game/data/qa/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt
+          cp /tmp/citygen-out/candidates/*.json grand-bruxelles-game/data/qa/autonomous_candidates/ 2>/dev/null || true
+          git add grand-bruxelles-game/data/qa/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt grand-bruxelles-game/data/qa/autonomous_candidates
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "citygen: persist autonomous scheduler pass"
           git push --force-with-lease origin citygen-autonomous-state

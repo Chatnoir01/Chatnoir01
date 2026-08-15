@@ -1,0 +1,72 @@
+name: Grand Bruxelles Midi Fonsny Three-Bay Arrival
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-fonsny-three-bay-arrival.yml"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone_materials.gd"
+      - "grand-bruxelles-game/game/tests/midi_fonsny_three_bay_arrival_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_fonsny_three_bay_arrival_witness_test.gd"
+      - "grand-bruxelles-game/docs/provenance/midi_fonsny_three_bay_arrival.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  midi-fonsny-three-bay-arrival:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate source and runtime contract
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/docs/provenance/midi_fonsny_three_bay_arrival.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d['source']['publisher'].startswith('Inventaire du patrimoine architectural')
+          assert d['placement']['existing_glazing_envelope_m'] == [18.8, 3.65]
+          assert d['placement']['new_envelope_claim'] is False
+          assert 'new station massing' in d['runtime_scope']['excluded']
+          print('Midi Fonsny arrival provenance lock: PASS')
+          PY
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/midi_fonsny_three_bay_arrival_test.gd 2>&1 | tee /tmp/midi-fonsny-three-bay-test.log
+          if grep -E "SCRIPT ERROR|Parse Error:|Assertion failed" /tmp/midi-fonsny-three-bay-test.log; then exit 1; fi
+          grep -F "Midi Fonsny three-bay arrival regression: PASS" /tmp/midi-fonsny-three-bay-test.log
+      - name: Capture deterministic normal-player A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_fonsny_three_bay_arrival_witness_test.gd 2>&1 | tee /tmp/midi-fonsny-three-bay-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_FONSNY_THREE_BAY_WITNESS_FAIL" /tmp/midi-fonsny-three-bay-witness.log; then exit 1; fi
+          grep -F "MIDI_FONSNY_THREE_BAY_WITNESS_OK" /tmp/midi-fonsny-three-bay-witness.log
+      - name: Assert evidence package
+        run: |
+          test -s grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_before.png
+          test -s grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_after.png
+          file grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_before.png | grep -F "1280 x 720"
+          file grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_after.png | grep -F "1280 x 720"
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-fonsny-three-bay-arrival-visual-evidence
+          path: |
+            grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_before.png
+            grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_after.png
+            /tmp/midi-fonsny-three-bay-test.log
+            /tmp/midi-fonsny-three-bay-witness.log
+          if-no-files-found: error

@@ -26,6 +26,7 @@ var terrain_sample_count := 0
 var terrain_triangle_count := 0
 var street_surface_count := 0
 var street_segment_count := 0
+var street_surface_intersection_piece_count := 0
 var source_building_count := 0
 var blocked_unapproved_building_count := 0
 var rendered_building_count := 0
@@ -253,6 +254,14 @@ func sample_height(game_x: float, game_z: float) -> float:
     return lerpf(lerpf(_heights_relative[_index(r0, c0)], _heights_relative[_index(r0, c1)], tx), lerpf(_heights_relative[_index(r1, c0)], _heights_relative[_index(r1, c1)], tx), ty)
 
 
+func _terrain_clip_polygon() -> PackedVector2Array:
+    var sw := lambert_to_game(_bbox.position.x, _bbox.position.y)
+    var se := lambert_to_game(_bbox.end.x, _bbox.position.y)
+    var ne := lambert_to_game(_bbox.end.x, _bbox.end.y)
+    var nw := lambert_to_game(_bbox.position.x, _bbox.end.y)
+    return PackedVector2Array([Vector2(sw.x, sw.z), Vector2(se.x, se.z), Vector2(ne.x, ne.z), Vector2(nw.x, nw.z)])
+
+
 func _record_phase_peak(phase_name: String, elapsed_ms: int) -> void:
     stream_phase_ms[phase_name] = maxi(int(stream_phase_ms.get(phase_name, 0)), elapsed_ms)
 
@@ -288,9 +297,9 @@ func _build_streamed() -> void:
     stream_total_ms = Time.get_ticks_msec() - total_started
     if runtime_loaded:
         _apply_streamed_collision_request()
-        print("BRUSSELS_SOURCE_DTM_CELL_READY: cell=%s triangles=%d surfaces=%d street_segments=%d blocked_buildings=%d first_relative=%.3f total_ms=%d max_phase_ms=%d" % [cell_id, terrain_triangle_count, street_surface_count, street_segment_count, blocked_unapproved_building_count, first_relative_height_m, stream_total_ms, get_max_stream_phase_ms()])
+        print("BRUSSELS_SOURCE_DTM_CELL_READY: cell=%s triangles=%d surfaces=%d pieces=%d street_segments=%d blocked_buildings=%d first_relative=%.3f total_ms=%d max_phase_ms=%d" % [cell_id, terrain_triangle_count, street_surface_count, street_surface_intersection_piece_count, street_segment_count, blocked_unapproved_building_count, first_relative_height_m, stream_total_ms, get_max_stream_phase_ms()])
     else:
-        push_error("BrusselsSourceDtmStreamedCell: runtime gate failed for %s terrain=%d surfaces=%d/%d buildings=%d/%d sample_failures=%d min_clearance=%.6f" % [cell_id, terrain_triangle_count, street_surface_count, expected_surfaces, blocked_unapproved_building_count, expected_buildings, terrain_sample_failures, street_surface_min_vertex_clearance_m])
+        push_error("BrusselsSourceDtmStreamedCell: runtime gate failed for %s terrain=%d surfaces=%d/%d pieces=%d buildings=%d/%d sample_failures=%d min_clearance=%.6f" % [cell_id, terrain_triangle_count, street_surface_count, expected_surfaces, street_surface_intersection_piece_count, blocked_unapproved_building_count, expected_buildings, terrain_sample_failures, street_surface_min_vertex_clearance_m])
 
 
 func _build_terrain_over_frames() -> void:
@@ -363,6 +372,7 @@ func _build_street_surfaces_over_frames() -> void:
     if not surfaces is Array:
         return
     var grouped: Dictionary = {}
+    var clip_polygon := _terrain_clip_polygon()
     var chunk_size := maxi(street_surface_features_per_frame, 1)
     var start_index := 0
     while start_index < surfaces.size():
@@ -375,29 +385,46 @@ func _build_street_surfaces_over_frames() -> void:
             var ring := _ring(feature.get("polygon", []))
             if ring.size() < 3:
                 continue
-            var triangle_indices := Geometry2D.triangulate_polygon(ring)
-            if triangle_indices.size() < 3:
-                continue
-            var key := str(feature.get("type", ""))
-            if not grouped.has(key):
-                var tool := SurfaceTool.new()
-                tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-                tool.set_material(_surface_material(key))
-                grouped[key] = tool
-            var target: SurfaceTool = grouped[key]
-            for raw_index: int in triangle_indices:
-                var point := ring[raw_index]
-                var terrain_y := sample_height(point.x, point.y)
-                if not is_finite(terrain_y):
-                    terrain_sample_failures += 1
+            var pieces := Geometry2D.intersect_polygons(ring, clip_polygon)
+            var rendered_feature := false
+            for piece_variant: Variant in pieces:
+                if not piece_variant is PackedVector2Array:
                     continue
-                var vertex_y := terrain_y + surface_clearance_m
-                var clearance := vertex_y - terrain_y
-                street_surface_min_vertex_clearance_m = minf(street_surface_min_vertex_clearance_m, clearance)
-                street_surface_max_vertex_clearance_m = maxf(street_surface_max_vertex_clearance_m, clearance)
-                target.set_normal(Vector3.UP)
-                target.add_vertex(Vector3(point.x, vertex_y, point.y))
-            street_surface_count += 1
+                var piece := piece_variant as PackedVector2Array
+                if piece.size() < 3:
+                    continue
+                var triangle_indices := Geometry2D.triangulate_polygon(piece)
+                if triangle_indices.size() < 3:
+                    continue
+                var key := str(feature.get("type", ""))
+                if not grouped.has(key):
+                    var tool := SurfaceTool.new()
+                    tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+                    tool.set_material(_surface_material(key))
+                    grouped[key] = tool
+                var target: SurfaceTool = grouped[key]
+                var piece_valid := true
+                var piece_vertices: Array[Vector3] = []
+                for raw_index: int in triangle_indices:
+                    var point := piece[raw_index]
+                    var terrain_y := sample_height(point.x, point.y)
+                    if not is_finite(terrain_y):
+                        terrain_sample_failures += 1
+                        piece_valid = false
+                        break
+                    var vertex_y := terrain_y + surface_clearance_m
+                    street_surface_min_vertex_clearance_m = minf(street_surface_min_vertex_clearance_m, vertex_y - terrain_y)
+                    street_surface_max_vertex_clearance_m = maxf(street_surface_max_vertex_clearance_m, vertex_y - terrain_y)
+                    piece_vertices.append(Vector3(point.x, vertex_y, point.y))
+                if not piece_valid:
+                    continue
+                for vertex: Vector3 in piece_vertices:
+                    target.set_normal(Vector3.UP)
+                    target.add_vertex(vertex)
+                street_surface_intersection_piece_count += 1
+                rendered_feature = true
+            if rendered_feature:
+                street_surface_count += 1
         street_surface_chunks += 1
         _record_phase_peak("street_surface_chunk", Time.get_ticks_msec() - started)
         start_index = end_index

@@ -1,0 +1,137 @@
+name: Grand Bruxelles Real Player Stef Current Witness
+
+on:
+  push:
+    branches:
+      - visual/real-player-stef-current-witness
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-main-authored-player-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assert exact witness base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 115c4f164ef9691ede46bb6d4d997541136ccc59 HEAD
+          test "$(git rev-parse HEAD~2)" = "115c4f164ef9691ede46bb6d4d997541136ccc59"
+
+      - name: Fetch validated Stef exporter from isolated lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin visual/real-player-stef-audit:refs/remotes/origin/visual/real-player-stef-audit
+          git show origin/visual/real-player-stef-audit:grand-bruxelles-game/tools/prepare_stef_character.py > /tmp/prepare_stef_character.py
+          test -s /tmp/prepare_stef_character.py
+
+      - name: Download and verify audited CC0 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --output /tmp/stef_npc1.zip \
+            https://opengameart.org/sites/default/files/stef_npc1_1.zip
+          echo '3b1f65c188ffd91dd237dae3d670d8b1d390ce7e96a251dd13ec5b8fb5d6fe22  /tmp/stef_npc1.zip' | sha256sum -c -
+          rm -rf /tmp/stef && mkdir -p /tmp/stef
+          unzip -q /tmp/stef_npc1.zip -d /tmp/stef
+          test -s '/tmp/stef/npc girl stef!.blend'
+
+      - name: Install Blender and software renderer dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y blender python3-numpy xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+          blender --background --python-expr 'import numpy; print("BLENDER_NUMPY_OK", numpy.__version__)'
+
+      - name: Generate audited Stef GLB without touching production renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p grand-bruxelles-game/assets/characters/player/stef
+          blender --background '/tmp/stef/npc girl stef!.blend' \
+            --python /tmp/prepare_stef_character.py -- \
+            grand-bruxelles-game/assets/characters/player/stef/Stef.glb \
+            2>&1 | tee /tmp/stef-blender.log
+          grep -q 'STEF_EXPORT_OK' /tmp/stef-blender.log
+          sha256sum grand-bruxelles-game/assets/characters/player/stef/Stef.glb | tee /tmp/stef-glb.sha256
+          grep -q '^eab65edaa5e296f90b6b06dc310d35d97a2ceb5fb6f2070e97ce48a66db8f38c ' /tmp/stef-glb.sha256
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import generated GLB completely
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 180s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless \
+            --path grand-bruxelles-game --import 2>&1 | tee /tmp/stef-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR:.*Stef|Scan thread aborted' /tmp/stef-import.log; then exit 1; fi
+          test -n "$(find grand-bruxelles-game/.godot/imported -maxdepth 1 -type f -name 'Stef.glb-*' -print -quit)"
+
+      - name: Capture frozen #368 normal gameplay camera BEFORE procedural fallback
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility \
+            --resolution 1280x720 --script res://game/tests/player_procedural_fallback_capture_test.gd -- \
+            /tmp/player-before.png 2>&1 | tee /tmp/player-before.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|PLAYER_PROCEDURAL_FALLBACK_CAPTURE_FAIL' /tmp/player-before.log; then exit 1; fi
+          grep -q 'PLAYER_PROCEDURAL_FALLBACK_CAPTURE_OK' /tmp/player-before.log
+
+      - name: Capture same camera with real authored Stef selected by Player
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility \
+            --resolution 1280x720 --script res://game/tests/stef_authored_player_capture_test.gd -- \
+            /tmp/player-after.png 2>&1 | tee /tmp/player-after.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|STEF_AUTHORED_PLAYER_CAPTURE_FAIL' /tmp/player-after.log; then exit 1; fi
+          grep -q 'STEF_AUTHORED_PLAYER_CAPTURE_OK' /tmp/player-after.log
+
+      - name: Measure deterministic player-only visual delta with frozen #368 comparator
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
+            --script res://game/tests/player_procedural_fallback_ab_compare_test.gd -- \
+            /tmp/player-before.png /tmp/player-after.png 2>&1 | tee /tmp/player-ab.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|PLAYER_PROCEDURAL_FALLBACK_AB_FAIL' /tmp/player-ab.log; then exit 1; fi
+          grep -q 'PLAYER_PROCEDURAL_FALLBACK_AB_OK' /tmp/player-ab.log
+
+      - name: Stage immutable witness
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/real_player_stef_current
+          cp /tmp/player-before.png grand-bruxelles-game/artifacts/qa/real_player_stef_current/before.png 2>/dev/null || true
+          cp /tmp/player-after.png grand-bruxelles-game/artifacts/qa/real_player_stef_current/after.png 2>/dev/null || true
+          cp /tmp/player-ab.log grand-bruxelles-game/artifacts/qa/real_player_stef_current/metrics.log 2>/dev/null || true
+          cp /tmp/player-before.log grand-bruxelles-game/artifacts/qa/real_player_stef_current/before.log 2>/dev/null || true
+          cp /tmp/player-after.log grand-bruxelles-game/artifacts/qa/real_player_stef_current/after.log 2>/dev/null || true
+          cp /tmp/stef-blender.log grand-bruxelles-game/artifacts/qa/real_player_stef_current/blender.log 2>/dev/null || true
+          cp /tmp/stef-glb.sha256 grand-bruxelles-game/artifacts/qa/real_player_stef_current/glb.sha256 2>/dev/null || true
+
+      - name: Upload exact-main authored player A/B
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-player-stef-current-main-ab
+          path: grand-bruxelles-game/artifacts/qa/real_player_stef_current
+          if-no-files-found: error
+          retention-days: 7

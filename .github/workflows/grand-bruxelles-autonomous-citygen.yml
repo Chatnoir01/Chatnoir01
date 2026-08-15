@@ -1,0 +1,90 @@
+name: Grand Bruxelles Autonomous CityGen
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Maximum source cells to advance in this pass"
+        required: false
+        default: "4"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
+      - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py"
+      - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-autonomous-citygen
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Autonomous scheduler regression
+        run: python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py
+      - name: Existing city-generation guardrails
+        run: |
+          python3 grand-bruxelles-game/tools/city_generation/test_generate_facade_candidates.py
+          python3 grand-bruxelles-game/tools/city_generation/test_apply_facade_rules.py
+          python3 grand-bruxelles-game/tools/city_generation/test_build_mass_candidate_manifest.py
+          python3 grand-bruxelles-game/tools/city_generation/test_build_candidate_qa_queue.py
+
+  scheduled-pass:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Recover durable scheduler state
+        shell: bash
+        run: |
+          mkdir -p /tmp/citygen-prev
+          if git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state 2>/dev/null; then
+            git show origin/citygen-autonomous-state:grand-bruxelles-game/data/qa/autonomous_citygen_state.json > /tmp/citygen-prev/state.json || true
+          fi
+      - name: Select next Brussels cells fail-closed
+        shell: bash
+        env:
+          INPUT_BATCH_SIZE: ${{ inputs.batch_size }}
+        run: |
+          BATCH="${INPUT_BATCH_SIZE:-4}"
+          STATE_ARGS=()
+          if [ -s /tmp/citygen-prev/state.json ]; then STATE_ARGS=(--state /tmp/citygen-prev/state.json); fi
+          python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py \
+            --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
+            --maturity-root grand-bruxelles-game/data/cell_manifests \
+            "${STATE_ARGS[@]}" \
+            --output-dir /tmp/citygen-out \
+            --batch-size "$BATCH"
+          cat /tmp/citygen-out/worklist.txt
+      - name: Persist autonomous progress off main
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C citygen-autonomous-state
+          mkdir -p grand-bruxelles-game/data/qa
+          cp /tmp/citygen-out/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_state.json
+          cp /tmp/citygen-out/autonomous_citygen_report.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json
+          cp /tmp/citygen-out/worklist.txt grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt
+          git add grand-bruxelles-game/data/qa/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "citygen: persist autonomous scheduler pass"
+          git push --force-with-lease origin citygen-autonomous-state
+      - name: Upload CityGen pass evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-citygen-pass-${{ github.run_number }}
+          path: /tmp/citygen-out/
+          retention-days: 30

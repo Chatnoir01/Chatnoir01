@@ -1,0 +1,78 @@
+name: Grand Bruxelles Shared Environment
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/shared_environment_daylight.gd"
+      - "grand-bruxelles-game/game/tests/shared_environment_daylight_ab_test.gd"
+      - "grand-bruxelles-game/data/sources/visual_assets/shared_neutral_daylight.json"
+      - ".github/workflows/grand-bruxelles-shared-environment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shared-environment-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate authored provenance contract
+        run: |
+          python3 - <<'PY'
+          import json
+          p = 'grand-bruxelles-game/data/sources/visual_assets/shared_neutral_daylight.json'
+          d = json.load(open(p, encoding='utf-8'))
+          assert d['schema'] == 'grand-bruxelles-shared-neutral-daylight-v1'
+          assert d['scope'] == ['Midi', 'Anneessens', 'Bourse', 'Grand-Place']
+          assert d['runtime']['geometry_added'] == 0
+          assert d['runtime']['textures_added'] == 0
+          assert d['runtime']['expected_extra_draw_calls'] == 0
+          assert d['authorship_and_rights']['external_assets'] == []
+          assert d['truth_limits']['photometric_measurement'] is False
+          assert d['truth_limits']['weather_timestamp_claim'] is False
+          assert d['production_constraints']['new_geography'] is False
+          assert d['production_constraints']['atomium_or_laeken_scope'] is False
+          print('SHARED_ENVIRONMENT_PROVENANCE_OK')
+          PY
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/shared-environment-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/shared-environment-import.log; then exit 1; fi
+      - name: Render deterministic normal-gameplay A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/shared_environment_daylight_ab_test.gd 2>&1 | tee /tmp/shared-environment-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|SHARED_ENVIRONMENT_DAYLIGHT_FAIL" /tmp/shared-environment-ab.log; then exit 1; fi
+          grep -q "SHARED_ENVIRONMENT_DAYLIGHT_OK" /tmp/shared-environment-ab.log
+          test -f grand-bruxelles-game/artifacts/shared-environment/neutral-daylight-before.png
+          test -f grand-bruxelles-game/artifacts/shared-environment/neutral-daylight-after.png
+          test -f grand-bruxelles-game/artifacts/shared-environment/neutral-daylight-metrics.json
+      - name: Upload A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-neutral-daylight-ab
+          path: |
+            grand-bruxelles-game/artifacts/shared-environment/neutral-daylight-before.png
+            grand-bruxelles-game/artifacts/shared-environment/neutral-daylight-after.png
+            grand-bruxelles-game/artifacts/shared-environment/neutral-daylight-metrics.json
+          if-no-files-found: error

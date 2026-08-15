@@ -1,0 +1,64 @@
+name: Grand Bruxelles Real Player Stef Audit
+
+on:
+  push:
+    branches:
+      - visual/real-player-stef-audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-source-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Assert exact branch base ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor cac4f7f1b131d5675dffb6c6a03e5ed0e644de2b HEAD
+
+      - name: Download CC0 Stef archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            --output /tmp/stef_npc1.zip \
+            https://opengameart.org/sites/default/files/stef_npc1_1.zip
+          test -s /tmp/stef_npc1.zip
+          sha256sum /tmp/stef_npc1.zip
+
+      - name: Inspect package without modifying source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stef
+          unzip -q /tmp/stef_npc1.zip -d /tmp/stef
+          echo '--- FILES ---'
+          find /tmp/stef -type f -printf '%P\t%k KiB\n' | sort
+          echo '--- CANDIDATE 3D FILES ---'
+          find /tmp/stef -type f \
+            \( -iname '*.glb' -o -iname '*.gltf' -o -iname '*.fbx' -o -iname '*.dae' -o -iname '*.blend' \) \
+            -print | sort
+          echo '--- TEXTURES ---'
+          find /tmp/stef -type f \
+            \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.tga' \) \
+            -print | sort
+          echo '--- HASHES ---'
+          find /tmp/stef -type f -print0 | sort -z | xargs -0 sha256sum
+
+      - name: Upload immutable audit package
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-player-stef-source-audit
+          path: |
+            /tmp/stef_npc1.zip
+            /tmp/stef
+          if-no-files-found: error
+          retention-days: 7

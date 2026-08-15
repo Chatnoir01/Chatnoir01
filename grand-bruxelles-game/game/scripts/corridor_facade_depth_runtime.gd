@@ -97,9 +97,9 @@ func _shop_canopy(shop_transform: Transform3D) -> Transform3D:
 func _shop_palette_index(origin: Vector3) -> int:
     # Quantized world position keeps the choice stable across runs and independent
     # of frame order, while breaking the obvious adjacent A/B/C sequence look.
-    var x_key := int(round(origin.x * 2.0))
-    var z_key := int(round(origin.z * 2.0))
-    var mixed := abs(x_key * 73856093 + z_key * 19349663 + x_key * z_key * 83492791)
+    var x_key: int = int(round(origin.x * 2.0))
+    var z_key: int = int(round(origin.z * 2.0))
+    var mixed: int = int(abs(x_key * 73856093 + z_key * 19349663 + x_key * z_key * 83492791))
     return mixed % SHOP_CANOPY_PALETTE.size()
 
 func _shop_canopy_color(shop_transform: Transform3D) -> Color:

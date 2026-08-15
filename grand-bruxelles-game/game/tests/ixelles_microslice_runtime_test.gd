@@ -78,15 +78,31 @@ func _run() -> void:
     if vertices.size() != 63001:
         _fail("render vertex count drifted")
         return
-    if absf(vertices[0].y) > 0.0001 or absf(shape.map_data[0]) > 0.0001:
-        _fail("source-backed vertical reference is not shared by render/collision")
+
+    # The render grid stores Lambert rows south -> north while Godot's
+    # HeightMapShape3D map rows advance toward +Z. Since game Z decreases with
+    # northing, collision rows must be the exact north/south reversal of render
+    # rows while keeping the same shared vertical datum.
+    if absf(vertices[0].y) > 0.0001:
+        _fail("render vertical reference no longer starts at the locked source datum")
         return
-    for index: int in [0, 250, 31500, 62750, 63000]:
-        if absf(vertices[index].y - shape.map_data[index]) > 0.0001:
-            _fail("collision/render height mismatch at %d" % index)
+    var collision_index_for_render_origin := 250 * 251
+    if absf(shape.map_data[collision_index_for_render_origin]) > 0.0001:
+        _fail("collision does not preserve the render vertical datum after row reversal")
+        return
+    var sample_rows: Array[int] = [0, 20, 70, 125, 205, 250]
+    var sample_cols: Array[int] = [0, 200, 145, 125, 210, 35]
+    for i: int in range(sample_rows.size()):
+        var render_row := sample_rows[i]
+        var col := sample_cols[i]
+        var collision_row := 250 - render_row
+        var render_index := render_row * 251 + col
+        var collision_index := collision_row * 251 + col
+        if absf(vertices[render_index].y - shape.map_data[collision_index]) > 0.0001:
+            _fail("collision/render reversed-row height mismatch at render row=%d col=%d" % [render_row, col])
             return
     if slice.vertical_reference_absolute_m < 40.0 or slice.vertical_reference_absolute_m > 100.0:
         _fail("vertical reference is not a plausible official DTM elevation")
         return
-    print("IXELLES_MICROSLICE_RUNTIME_OK: cell=%s samples=%d triangles=%d streets=%d drape_triangles=%d source_intersections=%d unsupported=%d drape_min_clearance=%.5f max_sampler_render_lift=%.5f buildings=%d skipped=%d reference_z=%.3f" % [slice.cell_id, slice.terrain_sample_count, slice.terrain_triangle_count, slice.street_surface_count, slice.street_drape_triangle_count, slice.street_drape_source_intersection_piece_count, slice.street_drape_unsupported_triangle_count, slice.street_drape_min_check_clearance_m, slice.street_drape_max_sampler_render_lift_m, slice.building_count, slice.skipped_unapproved_height_buildings, slice.vertical_reference_absolute_m])
+    print("IXELLES_MICROSLICE_RUNTIME_OK: cell=%s samples=%d triangles=%d streets=%d drape_triangles=%d source_intersections=%d unsupported=%d drape_min_clearance=%.5f max_sampler_render_lift=%.5f buildings=%d skipped=%d reference_z=%.3f collision_rows=reversed_north_south" % [slice.cell_id, slice.terrain_sample_count, slice.terrain_triangle_count, slice.street_surface_count, slice.street_drape_triangle_count, slice.street_drape_source_intersection_piece_count, slice.street_drape_unsupported_triangle_count, slice.street_drape_min_check_clearance_m, slice.street_drape_max_sampler_render_lift_m, slice.building_count, slice.skipped_unapproved_height_buildings, slice.vertical_reference_absolute_m])
     quit(0)

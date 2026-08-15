@@ -1,7 +1,7 @@
 extends SceneTree
 
 const MAIN_SCENE := "res://game/main.tscn"
-const EXPECTED_SCRIPT := "res://game/scripts/midi_fonsny_arrival_identity.gd"
+const EXPECTED_SCRIPT := "res://game/scripts/midi_hero_zone_materials.gd"
 
 func _init() -> void:
     call_deferred("_run")
@@ -15,7 +15,7 @@ func _run() -> void:
 
     var midi := world.get_node_or_null("MidiHeroZone") as Node3D
     assert(midi != null, "MidiHeroZone must exist")
-    assert(midi.get_script() != null and midi.get_script().resource_path == EXPECTED_SCRIPT, "Midi must use Fonsny arrival wrapper")
+    assert(midi.get_script() != null and midi.get_script().resource_path == EXPECTED_SCRIPT, "Midi must keep the shipped #323 production wrapper")
 
     var entrance := midi.get_node_or_null("MidiMainEntranceFonsny") as Node3D
     assert(entrance != null, "Fonsny entrance must exist")

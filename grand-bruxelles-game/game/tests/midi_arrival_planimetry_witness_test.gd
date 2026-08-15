@@ -46,13 +46,12 @@ func _freeze_dynamic_recursive(node: Node) -> int:
         frozen += 1
     return frozen
 
-func _capture(viewport: SubViewport, path: String) -> Image:
-    viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+func _capture(path: String) -> Image:
     RenderingServer.force_draw()
     await process_frame
     await process_frame
     await RenderingServer.frame_post_draw
-    var image := viewport.get_texture().get_image()
+    var image := root.get_viewport().get_texture().get_image()
     if image == null or image.is_empty() or image.get_width() != WIDTH or image.get_height() != HEIGHT:
         _fail("capture invalid: " + path)
         return null
@@ -89,16 +88,11 @@ func _run() -> void:
         _fail("main scene missing")
         return
     var scene := packed.instantiate()
-    var viewport := SubViewport.new()
-    viewport.size = Vector2i(WIDTH, HEIGHT)
-    viewport.own_world_3d = true
-    viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-    root.add_child(viewport)
-    viewport.add_child(scene)
+    root.add_child(scene)
     current_scene = scene
     _hide_ui_and_player(scene)
 
-    var existing_camera := scene.get_viewport().get_camera_3d()
+    var existing_camera := root.get_viewport().get_camera_3d()
     if existing_camera != null:
         existing_camera.current = false
     var camera := Camera3D.new()
@@ -128,11 +122,11 @@ func _run() -> void:
     await process_frame
 
     controller.call("set_arrival_planimetry_enabled", false)
-    var before := await _capture(viewport, BEFORE_PATH)
+    var before := await _capture(BEFORE_PATH)
     if before == null:
         return
     controller.call("set_arrival_planimetry_enabled", true)
-    var after := await _capture(viewport, AFTER_PATH)
+    var after := await _capture(AFTER_PATH)
     if after == null:
         return
 
@@ -144,5 +138,5 @@ func _run() -> void:
     if float(metrics.pct8) < MIN_CHANGED_OVER_8:
         _fail("normal-distance >8 RGB area below predeclared 2.0% gate")
         return
-    print("MIDI_ARRIVAL_PLANIMETRY_WITNESS_OK before=%s after=%s camera=production_fonsny_28m fov=65 frozen_same_scene=true" % [BEFORE_PATH, AFTER_PATH])
+    print("MIDI_ARRIVAL_PLANIMETRY_WITNESS_OK before=%s after=%s camera=production_fonsny_28m fov=65 frozen_same_scene=true frozen_dynamic_nodes=%d" % [BEFORE_PATH, AFTER_PATH, frozen_count])
     quit(0)

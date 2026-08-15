@@ -33,7 +33,6 @@ var _sign_blue: StandardMaterial3D
 var _railing: StandardMaterial3D
 var _paving: StandardMaterial3D
 
-
 func _ready() -> void:
     _make_materials()
     _build_station_complex()
@@ -46,14 +45,12 @@ func _ready() -> void:
     _build_tram_railings()
     print("Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active")
 
-
 func _material(color: Color, roughness: float = 0.8, metallic: float = 0.0) -> StandardMaterial3D:
     var material: StandardMaterial3D = StandardMaterial3D.new()
     material.albedo_color = color
     material.roughness = roughness
     material.metallic = metallic
     return material
-
 
 func _fill_image_rect(image: Image, x0: int, y0: int, x1: int, y1: int, color: Color) -> void:
     var min_x: int = clampi(x0, 0, image.get_width())
@@ -63,7 +60,6 @@ func _fill_image_rect(image: Image, x0: int, y0: int, x1: int, y1: int, color: C
     for y: int in range(min_y, max_y):
         for x: int in range(min_x, max_x):
             image.set_pixel(x, y, color)
-
 
 func _fauquenberg_texture(shadow: bool) -> ImageTexture:
     const WIDTH := 256
@@ -92,7 +88,6 @@ func _fauquenberg_texture(shadow: bool) -> ImageTexture:
             brick_index += 1
     return ImageTexture.create_from_image(image)
 
-
 func _fauquenberg_material(shadow: bool = false) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_color = Color.WHITE
@@ -101,22 +96,14 @@ func _fauquenberg_material(shadow: bool = false) -> StandardMaterial3D:
     material.metallic = 0.0
     material.uv1_triplanar = true
     material.uv1_world_triplanar = false
-    material.uv1_scale = Vector3(
-        1.0 / FAUQUENBERG_TILE_WIDTH_M,
-        1.0 / FAUQUENBERG_TILE_HEIGHT_M,
-        1.0 / FAUQUENBERG_TILE_WIDTH_M
-    )
+    material.uv1_scale = Vector3(1.0 / FAUQUENBERG_TILE_WIDTH_M, 1.0 / FAUQUENBERG_TILE_HEIGHT_M, 1.0 / FAUQUENBERG_TILE_WIDTH_M)
     material.set_meta("source_brick_length_m", FAUQUENBERG_BRICK_LENGTH_M)
     material.set_meta("source_brick_height_m", FAUQUENBERG_BRICK_HEIGHT_M)
     material.set_meta("source_joint_width_m", FAUQUENBERG_JOINT_WIDTH_M)
     material.set_meta("procedural_original_asset", true)
     return material
 
-
 func _make_materials() -> void:
-    # Heritage inventory: yellow smooth Fauquenberg facing brick in a 24 x 4 x
-    # 9 cm format with 2 cm joints, blue-stone bases/bands, concrete opening
-    # frames and canopies, metal + extensive glazing.
     _brick_yellow = _fauquenberg_material(false)
     _brick_shadow = _fauquenberg_material(true)
     _blue_stone = _material(Color(0.235, 0.255, 0.27, 1.0), 0.86)
@@ -136,7 +123,6 @@ func _make_materials() -> void:
     _railing = _material(Color(0.07, 0.075, 0.08, 1.0), 0.48, 0.58)
     _paving = _material(Color(0.38, 0.37, 0.34, 1.0), 0.96)
 
-
 func _add_box(parent: Node3D, name: String, size: Vector3, position: Vector3, material: Material) -> MeshInstance3D:
     var mesh: BoxMesh = BoxMesh.new()
     mesh.size = size
@@ -147,7 +133,6 @@ func _add_box(parent: Node3D, name: String, size: Vector3, position: Vector3, ma
     instance.position = position
     parent.add_child(instance)
     return instance
-
 
 func _add_cylinder(parent: Node3D, name: String, radius: float, height: float, position: Vector3, material: Material) -> MeshInstance3D:
     var mesh: CylinderMesh = CylinderMesh.new()
@@ -163,10 +148,8 @@ func _add_cylinder(parent: Node3D, name: String, radius: float, height: float, p
     parent.add_child(instance)
     return instance
 
-
 func _road_angle() -> float:
     return atan2(FONSNY_AXIS.x, FONSNY_AXIS.z)
-
 
 func _station_root() -> Node3D:
     var station: Node3D = Node3D.new()
@@ -176,54 +159,37 @@ func _station_root() -> Node3D:
     add_child(station)
     return station
 
-
 func _build_station_complex() -> void:
     var station: Node3D = _station_root()
-
-    # Low station base / covered frontage running along Avenue Fonsny.
     _add_box(station, "StationBaseBlueStone", Vector3(45.0, 3.25, 171.0), Vector3(0.0, 1.625, 0.0), _blue_stone)
     _add_box(station, "StationLowerBrick", Vector3(44.6, 4.1, 170.0), Vector3(-0.1, 5.30, 0.0), _brick_yellow)
     _add_box(station, "StationLongGlassBand", Vector3(0.18, 2.0, 164.0), Vector3(22.40, 5.55, 0.0), _glass)
     _add_box(station, "StationRoofLine", Vector3(48.0, 0.55, 176.0), Vector3(0.0, 7.55, 0.0), _metal)
-
-    # Distinct Fonsny administrative/postal volumes instead of one generic box.
-    # The centre block is intentionally taller, reflecting the heritage facade
-    # rhythm visible on Fonsny 47-49.
     _add_office_block(station, "FonsnyWingSouth", -57.0, 48.0, 6, false)
     _add_office_block(station, "FonsnyCentral", 0.0, 61.0, 7, true)
     _add_office_block(station, "FonsnyWingNorth", 60.0, 52.0, 6, false)
-
-    # Break up the long station volume with vertical masonry joints.
     for local_z: float in [-82.0, -41.0, 39.0, 82.0]:
         _add_box(station, "StationMasonryJoint", Vector3(0.22, 6.0, 0.55), Vector3(22.56, 4.5, local_z), _brick_shadow)
-
 
 func _add_office_block(parent: Node3D, name: String, local_z: float, length: float, floors: int, glass_tower: bool) -> void:
     var block: Node3D = Node3D.new()
     block.name = name
     block.position = Vector3(-1.8, 0.0, local_z)
     parent.add_child(block)
-
     var floor_height: float = 3.05
     var base_height: float = 3.15
     var upper_height: float = float(floors) * floor_height
     var total_height: float = base_height + upper_height
     var width: float = 41.0
-
     _add_box(block, "BlueStoneBase", Vector3(width, base_height, length), Vector3(0.0, base_height * 0.5, 0.0), _blue_stone)
     _add_box(block, "FauquenbergBrick", Vector3(width, upper_height, length), Vector3(0.0, base_height + upper_height * 0.5, 0.0), _brick_yellow)
     _add_box(block, "FlatRoof", Vector3(width + 1.1, 0.45, length + 1.1), Vector3(0.0, total_height + 0.225, 0.0), _metal)
-
     var front_x: float = width * 0.5 + 0.07
     var window_columns: int = maxi(6, int(floor(length / 3.15)))
     var bay_step: float = length / float(window_columns)
-
-    # Strong horizontal concrete bands visible in the original modernist facade.
     for floor_index: int in range(floors + 1):
         var band_y: float = base_height + float(floor_index) * floor_height
         _add_box(block, "HorizontalBand_%02d" % floor_index, Vector3(0.16, 0.24, length - 0.35), Vector3(front_x, band_y, 0.0), _concrete)
-
-    # Repetitive windows framed by concrete mullions and yellow brick infill.
     for column_index: int in range(window_columns):
         var z: float = -length * 0.5 + bay_step * (float(column_index) + 0.5)
         _add_box(block, "VerticalMullion_%02d" % column_index, Vector3(0.16, upper_height, 0.18), Vector3(front_x + 0.01, base_height + upper_height * 0.5, z - bay_step * 0.5), _concrete)
@@ -231,19 +197,14 @@ func _add_office_block(parent: Node3D, name: String, local_z: float, length: flo
             var y: float = base_height + float(floor_index) * floor_height + 1.62
             var window_depth: float = maxf(1.55, bay_step * 0.66)
             _add_box(block, "Window_%02d_%02d" % [column_index, floor_index], Vector3(0.12, 1.52, window_depth), Vector3(front_x + 0.10, y, z), _glass)
-
-    # Ground-floor openings / storefront-like station offices.
     var ground_openings: int = maxi(4, int(floor(length / 7.8)))
     var ground_step: float = length / float(ground_openings)
     for opening_index: int in range(ground_openings):
         var opening_z: float = -length * 0.5 + ground_step * (float(opening_index) + 0.5)
         _add_box(block, "GroundOpening_%02d" % opening_index, Vector3(0.14, 2.18, minf(4.9, ground_step * 0.68)), Vector3(front_x + 0.11, 1.72, opening_z), _glass)
-
     if glass_tower:
-        # Characteristic tall glazed/glass-block vertical bay on the central block.
         _add_box(block, "VerticalGlassTowerFrame", Vector3(0.20, upper_height + 0.45, 6.3), Vector3(front_x + 0.13, base_height + upper_height * 0.50, 0.0), _concrete)
         _add_box(block, "VerticalGlassTower", Vector3(0.13, upper_height - 0.65, 5.35), Vector3(front_x + 0.25, base_height + upper_height * 0.50, 0.0), _glass_block)
-
 
 func _build_station_entrance() -> void:
     var entrance: Node3D = Node3D.new()
@@ -251,17 +212,13 @@ func _build_station_entrance() -> void:
     entrance.position = MIDI + STATION_SIDE * 10.5 + FONSNY_AXIS * -7.0
     entrance.rotation.y = _road_angle()
     add_child(entrance)
-
     _add_box(entrance, "EntranceBlueStoneWall", Vector3(0.34, 4.35, 23.0), Vector3(-14.8, 2.35, 0.0), _blue_stone)
     _add_box(entrance, "EntranceGlazing", Vector3(0.18, 3.65, 18.8), Vector3(-15.02, 2.15, 0.0), _glass)
     _add_box(entrance, "EntranceConcreteCanopy", Vector3(17.8, 0.48, 25.0), Vector3(-7.0, 4.55, 0.0), _concrete)
     _add_box(entrance, "CanopyMetalEdge", Vector3(18.0, 0.14, 25.3), Vector3(-7.0, 4.82, 0.0), _metal)
-
     for local_z: float in [-9.1, -3.1, 3.1, 9.1]:
         _add_cylinder(entrance, "EntranceColumn", 0.14, 4.25, Vector3(-13.9, 2.125, local_z), _metal)
-
     _add_box(entrance, "StationTotem", Vector3(0.62, 4.2, 1.55), Vector3(-16.75, 2.30, -11.2), _sign_blue)
-
     var station_label: Label3D = Label3D.new()
     station_label.name = "StationName"
     station_label.text = "BRUXELLES-MIDI  ·  BRUSSEL-ZUID"
@@ -272,33 +229,22 @@ func _build_station_entrance() -> void:
     station_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
     entrance.add_child(station_label)
 
-
 func _build_fonsny_forecourt() -> void:
-    var forecourt: MeshInstance3D = _add_box(
-        self,
-        "FonsnyStationForecourt",
-        Vector3(18.0, 0.10, 174.0),
-        MIDI + STATION_SIDE * 15.5 + FONSNY_AXIS * 2.0 + Vector3(0.0, 0.13, 0.0),
-        _paving
-    )
+    var forecourt: MeshInstance3D = _add_box(self, "FonsnyStationForecourt", Vector3(18.0, 0.10, 174.0), MIDI + STATION_SIDE * 15.5 + FONSNY_AXIS * 2.0 + Vector3(0.0, 0.13, 0.0), _paving)
     forecourt.rotation.y = _road_angle()
 
-
 func _build_multimodal_arrival_context() -> void:
-    # Project-authored low-poly street furniture: no external asset or logo.
-    # The goal is player-height readability of station arrival modes without
-    # taking ownership of transit routing, stops or vehicle simulation.
+    # Project-authored low-poly street furniture; no external asset or logo.
     var wayfinding := Node3D.new()
     wayfinding.name = "MidiMobilityWayfinding"
     wayfinding.position = MIDI + STATION_SIDE * 7.4 + FONSNY_AXIS * 9.0
     wayfinding.rotation.y = _road_angle()
     add_child(wayfinding)
     _add_cylinder(wayfinding, "WayfindingPost", 0.10, 3.25, Vector3(0.0, 1.625, 0.0), _pole)
-    _add_box(wayfinding, "WayfindingPanel", Vector3(0.18, 2.45, 3.15), Vector3(-0.18, 2.34, 0.0), _sign_blue)
-    _add_wayfinding_label(wayfinding, "WayfindingRail", "TRAINS  ·  TREINEN", Vector3(-0.30, 2.92, 0.0))
-    _add_wayfinding_label(wayfinding, "WayfindingUrbanTransit", "METRO  ·  TRAM  ·  BUS", Vector3(-0.30, 2.35, 0.0))
-    _add_wayfinding_label(wayfinding, "WayfindingStreetModes", "TAXI  ·  VÉLO / FIETS", Vector3(-0.30, 1.78, 0.0))
-
+    _add_box(wayfinding, "WayfindingPanel", Vector3(0.18, 2.45, 3.15), Vector3(0.0, 2.34, 0.0), _sign_blue)
+    _add_wayfinding_label(wayfinding, "WayfindingRail", "TRAINS  ·  TREINEN", Vector3(0.30, 2.92, 0.0))
+    _add_wayfinding_label(wayfinding, "WayfindingUrbanTransit", "METRO  ·  TRAM  ·  BUS", Vector3(0.30, 2.35, 0.0))
+    _add_wayfinding_label(wayfinding, "WayfindingStreetModes", "TAXI  ·  VÉLO / FIETS", Vector3(0.30, 1.78, 0.0))
     var racks := Node3D.new()
     racks.name = "MidiBikeRackCluster"
     racks.position = MIDI + ROAD_SIDE * 12.2 + FONSNY_AXIS * 25.0
@@ -312,7 +258,6 @@ func _build_multimodal_arrival_context() -> void:
         _add_cylinder(rack, "PostA", 0.035, 0.72, Vector3(-0.34, 0.36, 0.0), _railing)
         _add_cylinder(rack, "PostB", 0.035, 0.72, Vector3(0.34, 0.36, 0.0), _railing)
         _add_box(rack, "TopRail", Vector3(0.72, 0.07, 0.07), Vector3(0.0, 0.70, 0.0), _railing)
-
     var taxi := Node3D.new()
     taxi.name = "MidiTaxiRankMarker"
     taxi.position = MIDI + ROAD_SIDE * 10.2 + FONSNY_AXIS * -9.0
@@ -326,10 +271,10 @@ func _build_multimodal_arrival_context() -> void:
     taxi_label.font_size = 34
     taxi_label.outline_size = 5
     taxi_label.modulate = Color(0.97, 0.97, 0.92, 1.0)
-    taxi_label.position = Vector3(-0.10, 2.20, 0.0)
+    taxi_label.position = Vector3(0.18, 2.20, 0.0)
     taxi_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    taxi_label.no_depth_test = true
     taxi.add_child(taxi_label)
-
 
 func _add_wayfinding_label(parent: Node3D, name: String, text: String, position: Vector3) -> Label3D:
     var label := Label3D.new()
@@ -340,36 +285,26 @@ func _add_wayfinding_label(parent: Node3D, name: String, text: String, position:
     label.modulate = Color(0.97, 0.97, 0.92, 1.0)
     label.position = position
     label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    label.no_depth_test = true
     parent.add_child(label)
     return label
-
 
 func _build_fonsny_crossing() -> void:
     var crossing_center: Vector3 = MIDI + FONSNY_AXIS * -18.0
     var angle: float = _road_angle()
     for stripe_index: int in range(10):
-        var stripe: MeshInstance3D = _add_box(
-            self,
-            "Crosswalk_%02d" % stripe_index,
-            Vector3(12.5, 0.035, 0.48),
-            crossing_center + FONSNY_AXIS * (float(stripe_index) - 4.5) * 0.91 + Vector3(0.0, 0.16, 0.0),
-            _white
-        )
+        var stripe: MeshInstance3D = _add_box(self, "Crosswalk_%02d" % stripe_index, Vector3(12.5, 0.035, 0.48), crossing_center + FONSNY_AXIS * (float(stripe_index) - 4.5) * 0.91 + Vector3(0.0, 0.16, 0.0), _white)
         stripe.rotation.y = angle
-
 
 func _build_fonsny_street_furniture() -> void:
     for distance: float in [-88.0, -66.0, -44.0, -22.0, 0.0, 22.0, 44.0, 66.0, 88.0]:
         _add_lamp(MIDI + FONSNY_AXIS * distance + STATION_SIDE * 8.4)
         if int(distance) % 44 == 0:
             _add_lamp(MIDI + FONSNY_AXIS * distance + ROAD_SIDE * 8.6)
-
     for distance: float in [-76.0, -51.0, -26.0, 24.0, 49.0, 74.0]:
         _add_tree(MIDI + FONSNY_AXIS * distance + ROAD_SIDE * 13.1)
-
     for distance: float in [-28.0, -24.0, -20.0, 18.0, 22.0, 26.0]:
         _add_bollard(MIDI + FONSNY_AXIS * distance + STATION_SIDE * 7.2)
-
 
 func _add_lamp(position: Vector3) -> void:
     var lamp_root: Node3D = Node3D.new()
@@ -378,7 +313,6 @@ func _add_lamp(position: Vector3) -> void:
     _add_cylinder(lamp_root, "Pole", 0.075, 5.8, Vector3(0.0, 2.9, 0.0), _pole)
     _add_box(lamp_root, "Arm", Vector3(0.85, 0.07, 0.07), Vector3(0.34, 5.55, 0.0), _pole)
     _add_box(lamp_root, "Lamp", Vector3(0.30, 0.14, 0.22), Vector3(0.72, 5.48, 0.0), _lamp)
-
 
 func _add_tree(position: Vector3) -> void:
     var tree: Node3D = Node3D.new()
@@ -396,15 +330,12 @@ func _add_tree(position: Vector3) -> void:
     crown.position = Vector3(0.0, 4.0, 0.0)
     tree.add_child(crown)
 
-
 func _add_bollard(position: Vector3) -> void:
     _add_cylinder(self, "Bollard", 0.09, 0.82, position + Vector3(0.0, 0.41, 0.0), _pole)
-
 
 func _build_shelters() -> void:
     _add_shelter(MIDI + FONSNY_AXIS * 34.0 + ROAD_SIDE * 9.6)
     _add_shelter(MIDI + FONSNY_AXIS * -54.0 + STATION_SIDE * 9.6)
-
 
 func _add_shelter(position: Vector3) -> void:
     var shelter: Node3D = Node3D.new()
@@ -416,9 +347,7 @@ func _add_shelter(position: Vector3) -> void:
     _add_box(shelter, "ShelterBench", Vector3(0.55, 0.12, 2.6), Vector3(-0.45, 0.72, 0.0), _blue_stone)
     _add_box(shelter, "StopPanel", Vector3(0.16, 2.3, 0.55), Vector3(1.15, 1.45, -1.65), _sign_blue)
 
-
 func _build_tram_railings() -> void:
-    # Characteristic black railings separating the tram corridor / traffic edge.
     for side: float in [-1.0, 1.0]:
         var side_offset: Vector3 = STATION_SIDE * 5.3 if side < 0.0 else ROAD_SIDE * 5.3
         for distance_index: int in range(-18, 19):

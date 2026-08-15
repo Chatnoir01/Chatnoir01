@@ -501,3 +501,4 @@ func _sphere_part(name_value: String, size: Vector3, pos: Vector3, material: Mat
     instance.scale = size * 2.0
     instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
     add_child(instance)
+    return instance

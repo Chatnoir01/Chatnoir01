@@ -1,0 +1,53 @@
+name: Grand Bruxelles Player Stef Inspect
+
+on:
+  push:
+    branches:
+      - research/player-stef-cc0-current
+    paths:
+      - .github/workflows/grand-bruxelles-player-stef-inspect.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-stef-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert exact live-main base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          test "$(git merge-base HEAD origin/main)" = '5c34af7e1beeb12b47d1f49ffa18334f1aa531be'
+      - name: Download CC0 Stef archive from OpenGameArt
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            'https://opengameart.org/sites/default/files/stef_npc1_1.zip' \
+            --output /tmp/stef_npc1.zip
+          sha256sum /tmp/stef_npc1.zip | tee /tmp/stef.sha256
+          stat -c 'bytes=%s' /tmp/stef_npc1.zip | tee /tmp/stef.size
+      - name: Inspect archive structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stef
+          unzip -q /tmp/stef_npc1.zip -d /tmp/stef
+          find /tmp/stef -type f -printf '%P\t%s bytes\n' | sort | tee /tmp/stef-files.txt
+          printf '\n--- file types ---\n' | tee -a /tmp/stef-files.txt
+          find /tmp/stef -type f -print0 | xargs -0 file | tee -a /tmp/stef-files.txt
+      - name: Preserve source inspection evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-stef-source-inspection
+          path: |
+            /tmp/stef.sha256
+            /tmp/stef.size
+            /tmp/stef-files.txt
+          if-no-files-found: error
+          retention-days: 14

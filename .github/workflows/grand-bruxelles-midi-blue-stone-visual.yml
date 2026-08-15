@@ -51,6 +51,7 @@ jobs:
           file grand-bruxelles-game/artifacts/visual/midi_blue_stone_before.png | grep -F "1280 x 720"
           file grand-bruxelles-game/artifacts/visual/midi_blue_stone_after.png | grep -F "1280 x 720"
       - name: Upload evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: midi-blue-stone-visual-evidence

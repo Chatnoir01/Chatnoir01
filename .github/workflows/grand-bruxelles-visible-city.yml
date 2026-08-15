@@ -5,13 +5,17 @@ on:
     branches: ["main"]
     paths:
       - "grand-bruxelles-game/game/scripts/visible_city_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/living_city_showcase_runtime.gd"
       - "grand-bruxelles-game/game/tests/visible_city_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/living_city_showcase_runtime_test.gd"
       - "grand-bruxelles-game/project.godot"
       - ".github/workflows/grand-bruxelles-visible-city.yml"
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/visible_city_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/living_city_showcase_runtime.gd"
       - "grand-bruxelles-game/game/tests/visible_city_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/living_city_showcase_runtime_test.gd"
       - "grand-bruxelles-game/project.godot"
       - ".github/workflows/grand-bruxelles-visible-city.yml"
   workflow_dispatch:
@@ -59,6 +63,19 @@ jobs:
           fi
           grep -q "VISIBLE_CITY_RUNTIME_OK" /tmp/visible-city.log
 
+      - name: Autonomous street-showcase runtime test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/living_city_showcase_runtime_test.gd 2>&1 | tee /tmp/living-showcase.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LIVING_CITY_SHOWCASE_FAIL" /tmp/living-showcase.log; then
+            exit 1
+          fi
+          grep -q "LIVING_CITY_SHOWCASE_OK" /tmp/living-showcase.log
+
       - name: Load real main scene
         shell: bash
         run: |
@@ -71,3 +88,4 @@ jobs:
             exit 1
           fi
           grep -q "VISIBLE_CITY_RUNTIME_READY" /tmp/main.log
+          grep -q "LIVING_CITY_SHOWCASE_READY" /tmp/main.log

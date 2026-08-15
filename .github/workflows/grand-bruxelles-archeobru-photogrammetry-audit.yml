@@ -1,0 +1,160 @@
+name: Grand Bruxelles ArcheoBru Photogrammetry Audit
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/provenance/archeobru_rue_de_flandre_photogrammetry.json"
+      - "grand-bruxelles-game/game/tests/archeobru_photogrammetry_lod_witness_test.gd"
+      - ".github/workflows/grand-bruxelles-archeobru-photogrammetry-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-and-lod:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SOURCE_URL: https://zenodo.org/records/10337827/files/cc2e77e5d22640788f2e39fe399065aa.glb?download=1
+      SOURCE_MD5: d94640ca694fef136d68bc3458a440ee
+      WORK_DIR: grand-bruxelles-game/artifacts/ci_photogrammetry
+      VIS_DIR: grand-bruxelles-game/artifacts/visual/archeobru_photogrammetry
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate provenance contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('grand-bruxelles-game/data/provenance/archeobru_rue_de_flandre_photogrammetry.json')
+          d = json.loads(p.read_text())
+          assert d['creator'] == 'ArcheoBru'
+          assert d['doi'] == '10.5281/zenodo.10337827'
+          assert d['source_md5'] == 'd94640ca694fef136d68bc3458a440ee'
+          assert d['license']['spdx_equivalent'] == 'CC-BY-1.0'
+          assert d['geolocation']['runtime_placement_allowed'] is False
+          assert d['integration_policy']['raw_asset_committed_to_repository'] is False
+          print('ARCHEOBRU_PROVENANCE_OK')
+          PY
+
+      - name: Download source outside repository history
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$WORK_DIR" "$VIS_DIR"
+          curl -fL --retry 4 --retry-delay 3 --connect-timeout 30 \
+            "$SOURCE_URL" -o "$WORK_DIR/source.glb"
+          ACTUAL_MD5="$(md5sum "$WORK_DIR/source.glb" | awk '{print $1}')"
+          test "$ACTUAL_MD5" = "$SOURCE_MD5"
+          stat --printf='ARCHEOBRU_SOURCE_BYTES=%s\n' "$WORK_DIR/source.glb"
+          echo "ARCHEOBRU_SOURCE_MD5=$ACTUAL_MD5"
+
+      - name: Install pinned glTF Transform
+        run: |
+          npm install --global @gltf-transform/cli@4.3.0
+          gltf-transform --version
+
+      - name: Inspect original photogrammetry
+        shell: bash
+        run: |
+          set -o pipefail
+          gltf-transform inspect "$WORK_DIR/source.glb" 2>&1 | tee "$WORK_DIR/source.inspect.txt"
+
+      - name: Build quality LOD
+        shell: bash
+        run: |
+          set -euo pipefail
+          gltf-transform simplify \
+            "$WORK_DIR/source.glb" "$WORK_DIR/lod_quality_mesh.glb" \
+            --ratio 0.45 --error 0.001 --lock-border
+          gltf-transform resize \
+            "$WORK_DIR/lod_quality_mesh.glb" "$WORK_DIR/lod_quality.glb" \
+            --width 4096 --height 4096
+          rm -f "$WORK_DIR/lod_quality_mesh.glb"
+          gltf-transform inspect "$WORK_DIR/lod_quality.glb" 2>&1 | tee "$WORK_DIR/lod_quality.inspect.txt"
+          stat --printf='ARCHEOBRU_QUALITY_BYTES=%s\n' "$WORK_DIR/lod_quality.glb"
+          sha256sum "$WORK_DIR/lod_quality.glb" | tee "$WORK_DIR/lod_quality.sha256"
+
+      - name: Build Web LOD
+        shell: bash
+        run: |
+          set -euo pipefail
+          gltf-transform simplify \
+            "$WORK_DIR/source.glb" "$WORK_DIR/lod_web_mesh.glb" \
+            --ratio 0.15 --error 0.005 --lock-border
+          gltf-transform resize \
+            "$WORK_DIR/lod_web_mesh.glb" "$WORK_DIR/lod_web.glb" \
+            --width 2048 --height 2048
+          rm -f "$WORK_DIR/lod_web_mesh.glb"
+          gltf-transform inspect "$WORK_DIR/lod_web.glb" 2>&1 | tee "$WORK_DIR/lod_web.inspect.txt"
+          stat --printf='ARCHEOBRU_WEB_BYTES=%s\n' "$WORK_DIR/lod_web.glb"
+          sha256sum "$WORK_DIR/lod_web.glb" | tee "$WORK_DIR/lod_web.sha256"
+
+      - name: Record size ratios
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('grand-bruxelles-game/artifacts/ci_photogrammetry')
+          sizes = {name: (root / name).stat().st_size for name in ['source.glb', 'lod_quality.glb', 'lod_web.glb']}
+          print('ARCHEOBRU_LOD_SIZE source=%d quality=%d quality_ratio=%.4f web=%d web_ratio=%.4f' % (
+              sizes['source.glb'], sizes['lod_quality.glb'], sizes['lod_quality.glb']/sizes['source.glb'],
+              sizes['lod_web.glb'], sizes['lod_web.glb']/sizes['source.glb']))
+          if sizes['lod_web.glb'] >= sizes['source.glb']:
+              raise SystemExit('Web LOD did not reduce transfer size')
+          PY
+
+      - name: Install Godot witness dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+          curl -fL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import generated GLBs in Godot 4.7.1
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee "$WORK_DIR/godot_import.log"
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load" "$WORK_DIR/godot_import.log"; then
+            exit 1
+          fi
+
+      - name: Render source and LOD witnesses
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/archeobru_photogrammetry_lod_witness_test.gd 2>&1 | tee "$WORK_DIR/godot_witness.log"
+          if grep -E "SCRIPT ERROR|Parse Error:|ARCHEOBRU_PHOTOGRAMMETRY_WITNESS_FAIL" "$WORK_DIR/godot_witness.log"; then
+            exit 1
+          fi
+          grep -q "ARCHEOBRU_PHOTOGRAMMETRY_WITNESS_OK" "$WORK_DIR/godot_witness.log"
+          test "$(find "$VIS_DIR" -name '*.png' | wc -l)" -eq 9
+
+      - name: Remove raw source before artifact upload
+        run: rm -f "$WORK_DIR/source.glb"
+
+      - name: Upload audit, LODs and visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: archeobru-rue-de-flandre-photogrammetry-lod-audit
+          path: |
+            grand-bruxelles-game/artifacts/ci_photogrammetry/*.inspect.txt
+            grand-bruxelles-game/artifacts/ci_photogrammetry/*.sha256
+            grand-bruxelles-game/artifacts/ci_photogrammetry/lod_quality.glb
+            grand-bruxelles-game/artifacts/ci_photogrammetry/lod_web.glb
+            grand-bruxelles-game/artifacts/ci_photogrammetry/godot_import.log
+            grand-bruxelles-game/artifacts/ci_photogrammetry/godot_witness.log
+            grand-bruxelles-game/artifacts/visual/archeobru_photogrammetry/*.png
+          if-no-files-found: error

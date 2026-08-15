@@ -5,6 +5,7 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
       - "grand-bruxelles-game/game/tests/production_player_identity_contract_test.gd"
+      - "grand-bruxelles-game/game/tests/production_player_nearby_visual_diagnostic_test.gd"
       - "grand-bruxelles-game/game/tests/player_procedural_fallback_capture_test.gd"
       - "grand-bruxelles-game/game/tests/production_player_identity_ab_compare_test.gd"
       - ".github/workflows/grand-bruxelles-production-player-identity.yml"
@@ -40,3 +41,14 @@ jobs:
             exit 1
           fi
           grep -q "PRODUCTION_PLAYER_IDENTITY_OK" /tmp/player-identity.log
+
+      - name: Diagnose nearby production visuals
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/production_player_nearby_visual_diagnostic_test.gd 2>&1 | tee /tmp/player-nearby.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PLAYER_NEARBY_VISUAL_DIAGNOSTIC_FAIL" /tmp/player-nearby.log; then
+            exit 1
+          fi
+          grep -q "PLAYER_NEARBY_VISUAL_DIAGNOSTIC_OK" /tmp/player-nearby.log

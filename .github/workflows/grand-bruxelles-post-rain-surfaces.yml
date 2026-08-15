@@ -1,0 +1,70 @@
+name: Grand Bruxelles Shared Post-Rain Surfaces
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-post-rain-surfaces.yml"
+      - "grand-bruxelles-game/game/scripts/brussels_post_rain_surface_material.gd"
+      - "grand-bruxelles-game/game/scripts/urbis_bourse_surface_context.gd"
+      - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
+      - "grand-bruxelles-game/game/tests/brussels_post_rain_surface_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_post_rain_surface_witness_test.gd"
+      - "grand-bruxelles-game/docs/provenance/brussels_post_rain_surfaces.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  post-rain-surfaces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate shared post-rain material contract
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/brussels_post_rain_surface_test.gd 2>&1 | tee /tmp/brussels-post-rain.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_POST_RAIN_SURFACE_FAIL" /tmp/brussels-post-rain.log; then exit 1; fi
+          grep -F "Brussels post-rain shared surface regression: PASS" /tmp/brussels-post-rain.log
+      - name: Capture deterministic Bourse and Midi A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/brussels_post_rain_surface_witness_test.gd 2>&1 | tee /tmp/brussels-post-rain-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_POST_RAIN_WITNESS_FAIL" /tmp/brussels-post-rain-witness.log; then exit 1; fi
+          grep -F "BRUSSELS_POST_RAIN_WITNESS_OK" /tmp/brussels-post-rain-witness.log
+      - name: Assert evidence package
+        run: |
+          for image in \
+            post_rain_midi_before.png \
+            post_rain_midi_after.png \
+            post_rain_bourse_before.png \
+            post_rain_bourse_after.png; do
+            test -s "grand-bruxelles-game/artifacts/visual/$image"
+            file "grand-bruxelles-game/artifacts/visual/$image" | grep -F "1280 x 720"
+          done
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-post-rain-surface-visual-evidence
+          path: |
+            grand-bruxelles-game/artifacts/visual/post_rain_midi_before.png
+            grand-bruxelles-game/artifacts/visual/post_rain_midi_after.png
+            grand-bruxelles-game/artifacts/visual/post_rain_bourse_before.png
+            grand-bruxelles-game/artifacts/visual/post_rain_bourse_after.png
+            /tmp/brussels-post-rain.log
+            /tmp/brussels-post-rain-witness.log
+          if-no-files-found: error

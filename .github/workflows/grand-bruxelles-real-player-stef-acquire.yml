@@ -1,0 +1,46 @@
+name: Grand Bruxelles Real Player Stef Acquire
+
+on:
+  push:
+    branches: ["visual/real-player-stef-current"]
+    paths:
+      - ".github/workflows/grand-bruxelles-real-player-stef-acquire.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acquire-and-inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact public CC0 package
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 3 -o /tmp/stef_npc1.zip https://opengameart.org/sites/default/files/stef_npc1_1.zip
+          sha256sum /tmp/stef_npc1.zip | tee /tmp/stef_npc1.sha256
+          test "$(stat -c%s /tmp/stef_npc1.zip)" -gt 900000
+          test "$(stat -c%s /tmp/stef_npc1.zip)" -lt 1100000
+      - name: Inspect package without modifying source
+        run: |
+          set -euxo pipefail
+          mkdir -p /tmp/stef
+          unzip -q /tmp/stef_npc1.zip -d /tmp/stef
+          find /tmp/stef -type f -printf '%P\t%s bytes\n' | sort | tee /tmp/stef-inventory.txt
+          find /tmp/stef -type f \( -iname '*.fbx' -o -iname '*.glb' -o -iname '*.gltf' -o -iname '*.blend' \) -printf '%P\n' | sort | tee /tmp/stef-3d-files.txt
+          test -s /tmp/stef-3d-files.txt
+      - name: Package acquisition evidence
+        run: |
+          mkdir -p /tmp/evidence
+          cp /tmp/stef_npc1.sha256 /tmp/evidence/
+          cp /tmp/stef-inventory.txt /tmp/evidence/
+          cp /tmp/stef-3d-files.txt /tmp/evidence/
+          cp /tmp/stef_npc1.zip /tmp/evidence/
+      - name: Upload package and inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-player-stef-source-package
+          path: /tmp/evidence/*
+          if-no-files-found: error

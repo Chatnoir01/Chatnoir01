@@ -93,10 +93,11 @@ func _restore_shipped_blue_stone(root: Node) -> void:
 func _replace_blue_stone_materials(node: Node, replacement: StandardMaterial3D) -> void:
     if node is MeshInstance3D:
         var mesh_instance := node as MeshInstance3D
-        if mesh_instance.mesh != null:
-            var material := mesh_instance.mesh.material as StandardMaterial3D
+        var primitive := mesh_instance.mesh as PrimitiveMesh
+        if primitive != null:
+            var material := primitive.material as StandardMaterial3D
             if material != null and material.get_meta("brussels_material_family", "") == "blue_stone":
-                mesh_instance.mesh.material = replacement
+                primitive.material = replacement
     for child: Node in node.get_children():
         _replace_blue_stone_materials(child, replacement)
 

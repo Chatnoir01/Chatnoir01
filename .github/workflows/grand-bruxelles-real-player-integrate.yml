@@ -20,249 +20,44 @@ jobs:
         with:
           ref: integration/real-player-kaykit-rogue-live
           fetch-depth: 0
-      - name: Patch production authored-player path and locomotion
-        shell: python
-        run: |
-          from pathlib import Path
-          p = Path('grand-bruxelles-game/game/scripts/humanoid_visual.gd')
-          s = p.read_text()
-          old = '''const FALLBACK_AUTHORED_CHARACTER_PATHS := [\n    "res://assets/characters/player/thandi/Thandi.fbx",\n    "res://assets/characters/player_character.glb",\n]'''
-          new = '''const FALLBACK_AUTHORED_CHARACTER_PATHS := [\n    "res://assets/characters/player/thandi/Thandi.fbx",\n    "res://assets/characters/player/kaykit_rogue/Rogue.glb",\n    "res://assets/characters/player_character.glb",\n]'''
-          assert old in s
-          s = s.replace(old, new, 1)
-          old = 'var _visual_signature: String = ""\n'
-          new = '''var _visual_signature: String = ""\nvar _authored_animation_player: AnimationPlayer\nvar _authored_idle_animation: StringName = &""\nvar _authored_walk_animation: StringName = &""\nvar _authored_run_animation: StringName = &""\n'''
-          assert old in s
-          s = s.replace(old, new, 1)
-          old = '''    if is_instance_valid(_authored_character):\n        return\n'''
-          new = '''    if is_instance_valid(_authored_character):\n        _update_authored_locomotion()\n        return\n'''
-          assert old in s
-          s = s.replace(old, new, 1)
-          old = '''                _visual_signature = "authored:%s" % candidate\n                print("Grand Bruxelles authored player loaded: %s" % candidate)\n'''
-          new = '''                _visual_signature = "authored:%s" % candidate\n                _configure_authored_animation_player()\n                print("Grand Bruxelles authored player loaded: %s" % candidate)\n'''
-          assert old in s
-          s = s.replace(old, new, 1)
-          marker = '\nfunc is_using_authored_character() -> bool:\n'
-          assert marker in s
-          methods = r'''
-
-func _configure_authored_animation_player() -> void:
-    _authored_animation_player = _find_animation_player(_authored_character)
-    if _authored_animation_player == null:
-        return
-    var names: PackedStringArray = _authored_animation_player.get_animation_list()
-    _authored_idle_animation = _find_animation_name(names, ["idle"])
-    _authored_walk_animation = _find_animation_name(names, ["walk"])
-    _authored_run_animation = _find_animation_name(names, ["run", "sprint"])
-    if _authored_idle_animation == &"":
-        _authored_idle_animation = _first_non_reset_animation(names)
-    if _authored_idle_animation != &"":
-        _authored_animation_player.play(_authored_idle_animation)
-
-
-func _find_animation_player(node: Node) -> AnimationPlayer:
-    if node is AnimationPlayer:
-        return node as AnimationPlayer
-    for child: Node in node.get_children():
-        var found: AnimationPlayer = _find_animation_player(child)
-        if found != null:
-            return found
-    return null
-
-
-func _find_animation_name(names: PackedStringArray, needles: Array[String]) -> StringName:
-    for animation_name: String in names:
-        var lower: String = animation_name.to_lower()
-        for needle: String in needles:
-            if needle in lower:
-                return StringName(animation_name)
-    return &""
-
-
-func _first_non_reset_animation(names: PackedStringArray) -> StringName:
-    for animation_name: String in names:
-        if animation_name != "RESET":
-            return StringName(animation_name)
-    return &""
-
-
-func _update_authored_locomotion() -> void:
-    if _authored_animation_player == null:
-        return
-    var actor: CharacterBody3D = get_parent() as CharacterBody3D
-    if actor == null:
-        return
-    var speed: float = Vector2(actor.velocity.x, actor.velocity.z).length()
-    var target: StringName = _authored_idle_animation
-    if speed > 5.2 and _authored_run_animation != &"":
-        target = _authored_run_animation
-    elif speed > 0.25 and _authored_walk_animation != &"":
-        target = _authored_walk_animation
-    if target != &"" and _authored_animation_player.current_animation != String(target):
-        _authored_animation_player.play(target)
-
-
-func authored_animation_player() -> AnimationPlayer:
-    return _authored_animation_player
-
-
-func authored_locomotion_animations() -> Dictionary:
-    return {
-        "idle": String(_authored_idle_animation),
-        "walk": String(_authored_walk_animation),
-        "run": String(_authored_run_animation),
-    }
-'''
-          s = s.replace(marker, methods + marker, 1)
-          p.write_text(s)
-      - name: Add provenance and exact real-asset runtime test
+      - name: Verify pinned authored binary
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p grand-bruxelles-game/assets/characters/player/kaykit_rogue
-          cat > grand-bruxelles-game/assets/characters/player/kaykit_rogue/PROVENANCE.md <<'EOF'
-          # KayKit Rogue — authored player fallback
-
-          - Upstream: KayKit Character Pack: Adventurers 1.0, Kay Lousberg
-          - Repository: `KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0`
-          - Pinned upstream tree: `672074b73ba276876a19e8816ecdc5241817ab47`
-          - Upstream path: `addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb`
-          - Git blob SHA: `c8827661105eef7b2bfbef3bc676d41a47625733`
-          - Exact size: `3616284` bytes
-          - License: Creative Commons Zero 1.0 Universal (CC0-1.0)
-          - Upstream pack states characters are fully textured, rigged and animated and provides 75 animations.
-          - Runtime role: real authored fallback only when the preferred Thandi GLB/FBX is unavailable. It is not renamed or represented as Thandi.
-          EOF
-          cat > grand-bruxelles-game/game/tests/real_authored_player_asset_test.gd <<'EOF'
-          extends SceneTree
-
-          const HUMANOID_VISUAL := preload("res://game/scripts/humanoid_visual.gd")
-          const REAL_ASSET := "res://assets/characters/player/kaykit_rogue/Rogue.glb"
-
-          var skeleton_count := 0
-          var skinned_mesh_count := 0
-          var material_surface_count := 0
-          var animation_count := 0
-
-          func _initialize() -> void:
-              call_deferred("_run")
-
-          func _fail(message: String) -> void:
-              push_error("REAL_AUTHORED_PLAYER_FAIL: %s" % message)
-              quit(1)
-
-          func _scan(node: Node) -> void:
-              if node is Skeleton3D:
-                  skeleton_count += 1
-              if node is MeshInstance3D:
-                  var mesh_instance := node as MeshInstance3D
-                  if mesh_instance.mesh != null:
-                      if mesh_instance.skin != null or not mesh_instance.skeleton.is_empty():
-                          skinned_mesh_count += 1
-                      for surface_index in range(mesh_instance.mesh.get_surface_count()):
-                          if mesh_instance.mesh.surface_get_material(surface_index) != null:
-                              material_surface_count += 1
-              if node is AnimationPlayer:
-                  var player := node as AnimationPlayer
-                  animation_count += player.get_animation_list().size()
-              for child in node.get_children():
-                  _scan(child)
-
-          func _run() -> void:
-              if not ResourceLoader.exists(REAL_ASSET):
-                  _fail("Pinned Rogue GLB missing from branch")
-                  return
-              var packed := ResourceLoader.load(REAL_ASSET)
-              if not packed is PackedScene:
-                  _fail("Rogue GLB did not import as PackedScene")
-                  return
-              var asset := (packed as PackedScene).instantiate()
-              root.add_child(asset)
-              await process_frame
-              _scan(asset)
-              if skeleton_count < 1:
-                  _fail("No Skeleton3D found in real GLB")
-                  return
-              if skinned_mesh_count < 1:
-                  _fail("No skinned MeshInstance3D found in real GLB")
-                  return
-              if material_surface_count < 1:
-                  _fail("No imported material found on real GLB mesh")
-                  return
-              if animation_count < 1:
-                  _fail("No animations found in real GLB")
-                  return
-              asset.queue_free()
-              await process_frame
-
-              var actor := CharacterBody3D.new()
-              actor.name = "Player"
-              root.add_child(actor)
-              var visual := HUMANOID_VISUAL.new()
-              visual.name = "VisualUpgrade"
-              actor.add_child(visual)
-              await process_frame
-              if not visual.is_using_authored_character():
-                  _fail("Production Player did not select a real authored character")
-                  return
-              if visual.resolved_authored_scene_path() != REAL_ASSET:
-                  _fail("Production Player resolved unexpected asset: %s" % visual.resolved_authored_scene_path())
-                  return
-              var animation_player: AnimationPlayer = visual.authored_animation_player()
-              if animation_player == null:
-                  _fail("Production authored player has no AnimationPlayer")
-                  return
-              var locomotion: Dictionary = visual.authored_locomotion_animations()
-              var selected := String(locomotion.get("idle", ""))
-              if selected.is_empty():
-                  _fail("No authored animation selected for runtime playback")
-                  return
-              animation_player.play(selected)
-              animation_player.advance(0.05)
-              if animation_player.current_animation != selected:
-                  _fail("Authored runtime animation did not play")
-                  return
-              print("REAL_AUTHORED_PLAYER_OK path=%s skeletons=%d skinned_meshes=%d material_surfaces=%d animations=%d playing=%s" % [visual.resolved_authored_scene_path(), skeleton_count, skinned_mesh_count, material_surface_count, animation_count, selected])
-              quit(0)
-          EOF
-          printf '%s\n' 'kaykit_rogue_player	https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0	Kay Lousberg	CC0-1.0	false	CC0 1.0 Universal	assets/characters/player/kaykit_rogue/Rogue.glb	Pinned upstream tree 672074b73ba276876a19e8816ecdc5241817ab47; blob c8827661105eef7b2bfbef3bc676d41a47625733; real rigged/textured/animated fallback, not represented as Thandi.' >> grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv
-      - name: Extend character-loader workflow paths and real-asset proof
-        shell: python
-        run: |
-          from pathlib import Path
-          p = Path('.github/workflows/grand-bruxelles-character-loader.yml')
-          s = p.read_text()
-          anchor = '      - "grand-bruxelles-game/assets/characters/player/thandi/**"\n'
-          assert anchor in s
-          s = s.replace(anchor, anchor + '      - "grand-bruxelles-game/assets/characters/player/kaykit_rogue/**"\n      - "grand-bruxelles-game/game/tests/real_authored_player_asset_test.gd"\n', 1)
-          needle = '''          grep -q "HUMANOID_AUTHORED_PLAYER_OK" /tmp/character-loader.log\n'''
-          assert needle in s
-          replacement = needle + '''\n      - name: Prove real authored player rig, material and animation runtime\n        shell: bash\n        run: |\n          set -o pipefail\n          timeout 60s godot --headless --path grand-bruxelles-game \\\n            --script res://game/tests/real_authored_player_asset_test.gd 2>&1 | tee /tmp/real-player.log\n          if grep -E "SCRIPT ERROR|Parse Error:|REAL_AUTHORED_PLAYER_FAIL" /tmp/real-player.log; then\n            exit 1\n          fi\n          grep -q "REAL_AUTHORED_PLAYER_OK" /tmp/real-player.log\n'''
-          s = s.replace(needle, replacement, 1)
-          p.write_text(s)
+          dst='grand-bruxelles-game/assets/characters/player/kaykit_rogue/Rogue.glb'
+          test -f "$dst"
+          test "$(stat -c '%s' "$dst")" = '3616284'
+          test "$(git hash-object "$dst")" = 'c8827661105eef7b2bfbef3bc676d41a47625733'
+      - name: Apply bounded production integration
+        run: python3 grand-bruxelles-game/tools/integrate_real_player.py
       - name: Setup Godot 4.7.1
         uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.7.1
           use-dotnet: false
-      - name: Import and run real authored-player proof before commit
+      - name: Import real authored GLB
+        run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
+      - name: Prove rig materials animations and production selection
         shell: bash
         run: |
           set -o pipefail
-          godot --headless --path grand-bruxelles-game --editor --quit-after 3
-          timeout 60s godot --headless --path grand-bruxelles-game --script res://game/tests/real_authored_player_asset_test.gd 2>&1 | tee /tmp/real-player.log
-          if grep -E 'SCRIPT ERROR|Parse Error:|REAL_AUTHORED_PLAYER_FAIL' /tmp/real-player.log; then exit 1; fi
+          timeout 60s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/real_authored_player_asset_test.gd 2>&1 | tee /tmp/real-player.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|REAL_AUTHORED_PLAYER_FAIL' /tmp/real-player.log; then
+            exit 1
+          fi
           grep -q 'REAL_AUTHORED_PLAYER_OK' /tmp/real-player.log
-      - name: Commit proven integration
+      - name: Commit proven runtime integration
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add grand-bruxelles-game/game/scripts/humanoid_visual.gd \
-            grand-bruxelles-game/game/tests/real_authored_player_asset_test.gd \
-            grand-bruxelles-game/assets/characters/player/kaykit_rogue/PROVENANCE.md \
-            grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv \
             .github/workflows/grand-bruxelles-character-loader.yml
+          if git diff --cached --quiet; then
+            echo 'Runtime integration already committed.'
+            exit 0
+          fi
           git commit -m 'visual(player): select real rigged animated CC0 character'
           git push origin HEAD:integration/real-player-kaykit-rogue-live

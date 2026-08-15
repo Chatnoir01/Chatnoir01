@@ -1,0 +1,80 @@
+name: Grand Bruxelles Midi Arrival Planimetry Visual
+
+on:
+  push:
+    branches: ["integration/midi-arrival-planimetry-current"]
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-arrival-planimetry-visual.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone_arrival_planimetry.gd"
+      - "grand-bruxelles-game/game/tests/midi_arrival_planimetry_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_arrival_planimetry_witness_test.gd"
+      - "grand-bruxelles-game/data/qa/midi_fonsny_crosswalk_ortho2023.json"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-arrival-planimetry-visual.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone_arrival_planimetry.gd"
+      - "grand-bruxelles-game/game/tests/midi_arrival_planimetry_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_arrival_planimetry_witness_test.gd"
+      - "grand-bruxelles-game/data/qa/midi_fonsny_crosswalk_ortho2023.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  midi-arrival-planimetry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate source/runtime contract
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/midi_arrival_planimetry_test.gd 2>&1 | tee /tmp/midi-arrival-planimetry-runtime.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|MIDI_ARRIVAL_PLANIMETRY_FAIL' /tmp/midi-arrival-planimetry-runtime.log; then exit 1; fi
+          grep -F 'MIDI_ARRIVAL_PLANIMETRY_OK' /tmp/midi-arrival-planimetry-runtime.log
+          grep -F 'runtime_approved=false' /tmp/midi-arrival-planimetry-runtime.log
+      - name: Capture frozen same-world 1280x720 A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_arrival_planimetry_witness_test.gd 2>&1 | tee /tmp/midi-arrival-planimetry-witness.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|MIDI_ARRIVAL_PLANIMETRY_WITNESS_FAIL' /tmp/midi-arrival-planimetry-witness.log; then exit 1; fi
+          grep -F 'MIDI_ARRIVAL_PLANIMETRY_WITNESS_OK' /tmp/midi-arrival-planimetry-witness.log
+          grep -F 'frozen_same_scene=true' /tmp/midi-arrival-planimetry-witness.log
+      - name: Package deterministic evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence=/tmp/midi-arrival-planimetry-evidence
+          rm -rf "$evidence"
+          mkdir -p "$evidence"
+          cp /tmp/midi-arrival-planimetry-runtime.log "$evidence/runtime.log" 2>/dev/null || true
+          cp /tmp/midi-arrival-planimetry-witness.log "$evidence/witness.log" 2>/dev/null || true
+          cp grand-bruxelles-game/artifacts/visual/midi_arrival_planimetry_before.png "$evidence/before.png" 2>/dev/null || true
+          cp grand-bruxelles-game/artifacts/visual/midi_arrival_planimetry_after.png "$evidence/after.png" 2>/dev/null || true
+          cp grand-bruxelles-game/data/qa/midi_fonsny_crosswalk_ortho2023.json "$evidence/source-derived-crosswalk.json"
+          printf 'base_sha=ae7d06e37b439ee6e5bd21883d9ad7169b7bb001\nhead_sha=%s\ncamera=Fonsny entrance + ROAD_SIDE*28m\nresolution=1280x720\nfov=65\npredeclared_gt3_gate=5.0%%\npredeclared_gt8_gate=2.0%%\nsource_reuse_gate=BLOCKED_PENDING_EXACT_ORTHO2023_REUSE_VERIFICATION\n' "${GITHUB_SHA}" > "$evidence/evidence-contract.txt"
+          find "$evidence" -maxdepth 1 -type f -printf '%f %s bytes\n' | sort | tee "$evidence/file-list.txt"
+      - name: Upload inspectable evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-arrival-planimetry-visual-evidence
+          path: /tmp/midi-arrival-planimetry-evidence
+          if-no-files-found: error

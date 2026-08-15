@@ -36,7 +36,7 @@ jobs:
           version: 4.7.1
           use-dotnet: false
       - name: Import real authored GLB
-        run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
+        run: godot --headless --path grand-bruxelles-game --editor --quit-after 15
       - name: Prove rig materials animations and production selection
         shell: bash
         run: |

@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/npc_appearance_profile.gd"
       - "grand-bruxelles-game/game/scripts/visible_city_runtime.gd"
       - "grand-bruxelles-game/game/tests/npc_visual_profile_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/npc_visual_profile_capture_test.gd"
       - ".github/workflows/grand-bruxelles-npc-visual-profile.yml"
   push:
     branches: ["main"]
@@ -15,6 +16,7 @@ on:
       - "grand-bruxelles-game/game/scripts/npc_appearance_profile.gd"
       - "grand-bruxelles-game/game/scripts/visible_city_runtime.gd"
       - "grand-bruxelles-game/game/tests/npc_visual_profile_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/npc_visual_profile_capture_test.gd"
       - ".github/workflows/grand-bruxelles-npc-visual-profile.yml"
   workflow_dispatch:
 
@@ -45,3 +47,26 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_visual_profile_runtime_test.gd 2>&1 | tee /tmp/npc-visual-profile.log
           if grep -E "SCRIPT ERROR|Parse Error:|NPC_VISUAL_PROFILE_RUNTIME_FAIL" /tmp/npc-visual-profile.log; then exit 1; fi
           grep -q "NPC_VISUAL_PROFILE_RUNTIME_OK" /tmp/npc-visual-profile.log
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Render reproducible crowd witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1024x720 \
+            --script res://game/tests/npc_visual_profile_capture_test.gd 2>&1 | tee /tmp/npc-visual-profile-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_VISUAL_PROFILE_CAPTURE_FAIL" /tmp/npc-visual-profile-capture.log; then exit 1; fi
+          grep -q "NPC_VISUAL_PROFILE_CAPTURE_OK" /tmp/npc-visual-profile-capture.log
+          test -f grand-bruxelles-game/artifacts/npc/npc_visual_profile.png
+      - name: Upload crowd visual witness
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-visual-profile-witness
+          path: grand-bruxelles-game/artifacts/npc/npc_visual_profile.png
+          if-no-files-found: error

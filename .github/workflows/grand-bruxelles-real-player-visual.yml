@@ -30,11 +30,19 @@ jobs:
           use-dotnet: false
       - name: Import project and real authored GLB
         run: godot --headless --path grand-bruxelles-game --import
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
       - name: Capture deterministic authored-player A/B
         shell: bash
         run: |
           set -o pipefail
-          timeout 60s godot --headless --path grand-bruxelles-game \
+          timeout 60s xvfb-run -a godot \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
             --script res://game/tests/real_authored_player_visual_ab_capture_test.gd 2>&1 | tee /tmp/real-player-visual.log
           if grep -E 'SCRIPT ERROR|Parse Error:|REAL_AUTHORED_PLAYER_VISUAL_AB_FAIL' /tmp/real-player-visual.log; then
             exit 1
@@ -45,6 +53,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: real-authored-player-visual-ab
-          path: grand-bruxelles-game/artifacts/qa/real_authored_player_visual_ab/
+          path: grand-bruxelles-game/artifacts/qa/real_authored_player_visual_ab/*.png
           if-no-files-found: error
           retention-days: 14

@@ -21,11 +21,12 @@ var lintel_count := 0
 var sill_count := 0
 var jamb_count := 0
 var canopy_count := 0
+var canopy_material_group_count := 0
 
 func _ready() -> void:
     call_deferred("_build")
 
-func _material(color: Color, roughness: float, metallic: float = 0.0) -> StandardMaterial3D:
+func _material(color: Color, roughness: float = 0.85, metallic: float = 0.0) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_color = color
     material.roughness = roughness
@@ -42,24 +43,6 @@ func _unit_multimesh(name: String, transforms: Array[Transform3D], material: Mat
     multimesh.instance_count = transforms.size()
     for index: int in range(transforms.size()):
         multimesh.set_instance_transform(index, transforms[index])
-    var instance := MultiMeshInstance3D.new()
-    instance.name = name
-    instance.multimesh = multimesh
-    return instance
-
-func _colored_unit_multimesh(name: String, transforms: Array[Transform3D], colors: Array[Color], material: StandardMaterial3D) -> MultiMeshInstance3D:
-    var mesh := BoxMesh.new()
-    mesh.size = Vector3.ONE
-    material.vertex_color_use_as_albedo = true
-    mesh.material = material
-    var multimesh := MultiMesh.new()
-    multimesh.transform_format = MultiMesh.TRANSFORM_3D
-    multimesh.use_colors = true
-    multimesh.mesh = mesh
-    multimesh.instance_count = transforms.size()
-    for index: int in range(transforms.size()):
-        multimesh.set_instance_transform(index, transforms[index])
-        multimesh.set_instance_color(index, colors[index])
     var instance := MultiMeshInstance3D.new()
     instance.name = name
     instance.multimesh = multimesh
@@ -102,8 +85,24 @@ func _shop_palette_index(origin: Vector3) -> int:
     var mixed: int = int(abs(x_key * 73856093 + z_key * 19349663 + x_key * z_key * 83492791))
     return mixed % SHOP_CANOPY_PALETTE.size()
 
-func _shop_canopy_color(shop_transform: Transform3D) -> Color:
-    return SHOP_CANOPY_PALETTE[_shop_palette_index(shop_transform.origin)]
+func _build_shop_canopies(details: Node3D, shop_node: MultiMeshInstance3D) -> void:
+    var shop_multimesh := shop_node.multimesh
+    if shop_multimesh == null:
+        return
+    for palette_index: int in range(SHOP_CANOPY_PALETTE.size()):
+        var transforms: Array[Transform3D] = []
+        for index: int in range(shop_multimesh.instance_count):
+            var shop_transform: Transform3D = shop_multimesh.get_instance_transform(index)
+            if _shop_palette_index(shop_transform.origin) != palette_index:
+                continue
+            transforms.append(_shop_canopy(shop_transform))
+        if transforms.is_empty():
+            continue
+        var node_name := "CorridorShopCanopies" if palette_index == 0 else "CorridorShopCanopies_%d" % palette_index
+        var canopy_material := _material(SHOP_CANOPY_PALETTE[palette_index], 0.54, 0.12)
+        details.add_child(_unit_multimesh(node_name, transforms, canopy_material))
+        canopy_count += transforms.size()
+        canopy_material_group_count += 1
 
 func _build() -> void:
     var details := get_node_or_null(DETAILS_PATH) as Node3D
@@ -131,20 +130,11 @@ func _build() -> void:
     jamb_count = jambs.size()
 
     var shop_node := details.get_node_or_null(SHOP_NODE) as MultiMeshInstance3D
-    if shop_node != null and shop_node.multimesh != null:
-        var canopies: Array[Transform3D] = []
-        var canopy_colors: Array[Color] = []
-        for index: int in range(shop_node.multimesh.instance_count):
-            var shop_transform := shop_node.multimesh.get_instance_transform(index)
-            canopies.append(_shop_canopy(shop_transform))
-            canopy_colors.append(_shop_canopy_color(shop_transform))
-        if not canopies.is_empty():
-            var canopy_material := _material(Color.WHITE, 0.54, 0.12)
-            details.add_child(_colored_unit_multimesh("CorridorShopCanopies", canopies, canopy_colors, canopy_material))
-            canopy_count = canopies.size()
+    if shop_node != null:
+        _build_shop_canopies(details, shop_node)
 
     articulation_ready = lintel_count == windows.instance_count and sill_count == windows.instance_count and jamb_count == windows.instance_count * 2
     if articulation_ready:
-        print("CORRIDOR_FACADE_DEPTH_READY: windows=%d lintels=%d sills=%d jambs=%d canopies=%d" % [windows.instance_count, lintel_count, sill_count, jamb_count, canopy_count])
+        print("CORRIDOR_FACADE_DEPTH_READY: windows=%d lintels=%d sills=%d jambs=%d canopies=%d canopy_groups=%d" % [windows.instance_count, lintel_count, sill_count, jamb_count, canopy_count, canopy_material_group_count])
     else:
         push_error("CorridorFacadeDepthRuntime: articulation count mismatch")

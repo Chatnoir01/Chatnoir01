@@ -38,13 +38,14 @@ jobs:
           unzip -q /tmp/stef_npc1.zip -d /tmp/stef
           test -s '/tmp/stef/npc girl stef!.blend'
 
-      - name: Install Blender
+      - name: Install Blender and glTF dependencies
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y blender
+          sudo apt-get install -y blender python3-numpy
           blender --version | head -2
+          blender --background --python-expr 'import numpy; print("BLENDER_NUMPY_OK", numpy.__version__)'
 
       - name: Export real rigged player GLB
         shell: bash
@@ -125,6 +126,8 @@ jobs:
             echo 'source_archive_sha256=3b1f65c188ffd91dd237dae3d670d8b1d390ce7e96a251dd13ec5b8fb5d6fe22'
             echo -n 'glb_sha256='; awk '{print $1}' /tmp/stef-glb.sha256
             echo
+            grep 'STEF_TEXTURE_RELINK:' /tmp/stef-blender.log || true
+            grep 'STEF_TEXTURE_UNRESOLVED:' /tmp/stef-blender.log || true
             grep 'STEF_EXPORT_OK' /tmp/stef-blender.log
             grep 'STEF_ACTIONS:' /tmp/stef-blender.log || true
             grep 'STEF_AUTHORED_PLAYER_OK' /tmp/stef-runtime.log

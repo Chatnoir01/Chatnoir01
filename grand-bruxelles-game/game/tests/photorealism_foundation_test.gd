@@ -44,11 +44,14 @@ func _run() -> void:
         _fail("expected repeated visible Midi PBR surfaces, got %d" % pbr_instances)
         return
 
-    var profile_script := load("res://game/scripts/photorealism_runtime.gd")
+    var profile_script: Script = load("res://game/scripts/photorealism_runtime.gd") as Script
     if profile_script == null:
         _fail("photorealism profile script missing")
         return
-    var profile := profile_script.new()
+    var profile: Node = profile_script.new() as Node
+    if profile == null:
+        _fail("photorealism profile could not instantiate")
+        return
     var environment := Environment.new()
     environment.fog_enabled = true
     environment.fog_density = 0.01

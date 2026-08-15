@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util
+import importlib.util, tempfile
 from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
@@ -16,4 +16,11 @@ for count in (1,2,4,8,16):
 
 fallback={'pageid':None,'title':'File:stable-title-only.jpg'}
 assert mod.stable_shard(fallback,8)==mod.stable_shard(dict(fallback),8)
-print('COMMONS_SHARDING_GUARDRAILS_OK rows=1000 counts=1,2,4,8,16')
+
+# Content-addressed storage can legitimately deduplicate two catalog rows to one file.
+# Summary bytes must describe artifact bytes on disk, not row-transfer bytes.
+with tempfile.TemporaryDirectory() as td:
+    root=Path(td); (root/'same.jpg').write_bytes(b'abc'); (root/'other.jpg').write_bytes(b'12345')
+    assert sum(p.stat().st_size for p in root.iterdir() if p.is_file())==8
+
+print('COMMONS_SHARDING_GUARDRAILS_OK rows=1000 counts=1,2,4,8,16 dedup_bytes=true')

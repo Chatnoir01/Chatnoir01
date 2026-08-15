@@ -64,6 +64,18 @@ jobs:
           if grep -E 'SCRIPT ERROR|Parse Error:|BOURSE_METRO_IDENTITY_WITNESS_FAIL' /tmp/bourse-metro-witness.log; then exit 1; fi
           grep -F 'BOURSE_METRO_IDENTITY_WITNESS_OK' /tmp/bourse-metro-witness.log
           grep -F 'frozen_same_scene=true' /tmp/bourse-metro-witness.log
+      - name: Upload capture diagnostics on every run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-metro-identity-capture-diagnostics
+          path: |
+            /tmp/bourse-metro-source.log
+            /tmp/bourse-metro-runtime.log
+            /tmp/bourse-metro-witness.log
+            grand-bruxelles-game/artifacts/visual/bourse_metro_identity_before.png
+            grand-bruxelles-game/artifacts/visual/bourse_metro_identity_after.png
+          if-no-files-found: warn
       - name: Deterministically package evidence
         shell: bash
         run: |

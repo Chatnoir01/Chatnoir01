@@ -1,0 +1,80 @@
+name: Grand Bruxelles PC Desktop Export
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/**"
+      - "grand-bruxelles-game/assets/**"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-desktop-export.yml"
+  push:
+    branches: [main]
+    paths:
+      - "grand-bruxelles-game/game/**"
+      - "grand-bruxelles-game/assets/**"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-desktop-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-desktop-export-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  export-linux-desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Godot 4.7.1 with export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import project
+        run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
+
+      - name: Require Desktop PC preset
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'name="PC Desktop (Linux)"' grand-bruxelles-game/export_presets.cfg
+          grep -F 'platform="Linux"' grand-bruxelles-game/export_presets.cfg
+
+      - name: Export Desktop PC build
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/grand-bruxelles-pc"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          godot --headless --path grand-bruxelles-game --export-release "PC Desktop (Linux)" "$OUT/grand-bruxelles.x86_64" 2>&1 | tee /tmp/desktop-export.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/desktop-export.log; then exit 1; fi
+          test -s "$OUT/grand-bruxelles.x86_64"
+          file "$OUT/grand-bruxelles.x86_64" | grep -F "ELF 64-bit"
+          du -h "$OUT/grand-bruxelles.x86_64"
+          echo "DESKTOP_EXPORT_OK"
+
+      - name: Smoke exported executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/grand-bruxelles-pc"
+          chmod +x "$OUT/grand-bruxelles.x86_64"
+          set +e
+          timeout 12s "$OUT/grand-bruxelles.x86_64" --headless > /tmp/desktop-smoke.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/desktop-smoke.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/desktop-smoke.log; then exit 1; fi
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then exit "$status"; fi
+          echo "DESKTOP_SMOKE_OK"

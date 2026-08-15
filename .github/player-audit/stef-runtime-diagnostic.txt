@@ -1,0 +1,20 @@
+Stef runtime diagnostic
+=======================
+
+[runtime]
+Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
+
+ERROR: STEF_AUTHORED_PLAYER_FAIL: Stef GLB does not exist at production candidate path
+   at: push_error (core/variant/variant_utility.cpp:1023)
+   GDScript backtrace (most recent call first):
+       [0] _fail (res://game/tests/stef_authored_player_test.gd:12)
+       [1] _run (res://game/tests/stef_authored_player_test.gd:26)
+
+[blender summary]
+STEF_TEXTURE_RELINK: relinked=14 unresolved=3
+STEF_TEXTURE_UNRESOLVED: 398435_wookmark.jpg | fghfgh.jpeg | mia_winters_clean_default__resident_evil_7_by_xxkammyxx-db172il.png
+STEF_EXPORT_OK: output=/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/assets/characters/player/stef/Stef.glb armatures=1 bones=60 meshes=9 skinned=9 materials=10 actions=8 height=1.70m
+STEF_ACTIONS: apose | idol | sitidol | storeidol | storetalk | talk | walk | yay
+
+[glb]
+eab65edaa5e296f90b6b06dc310d35d97a2ceb5fb6f2070e97ce48a66db8f38c  grand-bruxelles-game/assets/characters/player/stef/Stef.glb

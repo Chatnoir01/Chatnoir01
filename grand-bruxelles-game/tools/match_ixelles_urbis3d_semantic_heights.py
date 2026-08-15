@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build read-only per-building UrbIS 3D semantic height evidence for one Ixelles seed cell.
+"""Build read-only per-building UrbIS 3D semantic height evidence for one Ixelles cell.
 
 The tool intentionally keeps 2D building INSPIRE_ID and 3D BUSOLID_ID separate. It
 matches them spatially using semantically tagged GROUNDSURFACE polygons, and derives
@@ -21,6 +21,7 @@ from osgeo import ogr
 SCHEMA = "grand-bruxelles-ixelles-urbis3d-semantic-match-v1"
 ROOF = "ROOFSURFACE"
 GROUND = "GROUNDSURFACE"
+DEFAULT_CELL_ID = "bxl-e149000-n169000-s500"
 DEFAULT_BBOX = (149000.0, 169000.0, 149500.0, 169500.0)
 MIN_MATCH_SCORE = 0.70
 MIN_RUNNER_UP_MARGIN = 0.15
@@ -160,7 +161,12 @@ def score_match(ground: ogr.Geometry, building: ogr.Geometry) -> dict[str, float
     }
 
 
-def build_evidence(buildings: list[dict[str, Any]], solids: dict[str, dict[str, Any]], bbox: tuple[float, float, float, float]) -> dict[str, Any]:
+def build_evidence(
+    buildings: list[dict[str, Any]],
+    solids: dict[str, dict[str, Any]],
+    bbox: tuple[float, float, float, float],
+    cell_id: str = DEFAULT_CELL_ID,
+) -> dict[str, Any]:
     matches = []
     counters = defaultdict(int)
     for solid_id in sorted(solids):
@@ -225,7 +231,7 @@ def build_evidence(buildings: list[dict[str, Any]], solids: dict[str, dict[str, 
     heights = [m["semantic_height_m"] for m in semantic if m["semantic_height_m"] is not None]
     return {
         "schema": SCHEMA,
-        "cell": "bxl-e149000-n169000-s500",
+        "cell": cell_id,
         "bbox_epsg31370": list(bbox),
         "policy": {
             "crs": "EPSG:31370",
@@ -258,6 +264,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--buildings", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--cell-id", default=DEFAULT_CELL_ID)
     parser.add_argument("--bbox", type=float, nargs=4, default=DEFAULT_BBOX)
     return parser.parse_args()
 
@@ -269,12 +276,12 @@ def main() -> int:
     buildings = load_buildings(args.buildings, bbox)
     dataset, layer, package = find_buildingfaces(args.root)
     solids = collect_solids(layer, bbox)
-    evidence = build_evidence(buildings, solids, bbox)
+    evidence = build_evidence(buildings, solids, bbox, args.cell_id)
     evidence["source_package_path"] = str(package)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     counts = evidence["counts"]
-    print("IXELLES_SEMANTIC_MATCH", "buildings=", counts["urbis_2d_buildings"], "solids=", counts["building_solids_in_bbox"], "semantic=", counts.get("matched_semantic_evidence", 0), "runtime_approved=false")
+    print("IXELLES_SEMANTIC_MATCH", "cell=", args.cell_id, "buildings=", counts["urbis_2d_buildings"], "solids=", counts["building_solids_in_bbox"], "semantic=", counts.get("matched_semantic_evidence", 0), "runtime_approved=false")
     dataset = None
     return 0
 

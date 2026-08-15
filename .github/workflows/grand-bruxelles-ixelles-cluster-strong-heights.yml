@@ -1,0 +1,235 @@
+name: Grand Bruxelles Ixelles Cluster Strong Heights
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-ixelles-cluster-strong-heights.yml"
+      - "grand-bruxelles-game/tools/match_ixelles_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/compare_ixelles_semantic_dsm_heights.py"
+      - "grand-bruxelles-game/tools/materialize_ixelles_cluster_strong_heights.py"
+      - "grand-bruxelles-game/tools/test_materialize_ixelles_cluster_strong_heights.py"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/runtime/cell.game.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/runtime/cell.game.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e149500-n169500-s500/runtime/cell.game.json"
+      - "grand-bruxelles-game/data/terrain/ixelles/*_strong_heights.game.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ixelles-cluster-strong-heights-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cross-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SPECIALIST_SHA: fcb31314461e2c7c30d57c962dac7f5f5fe624df
+      DSM_CSV_BLOB_SHA1: fe5df2040a0fb41f6374e90826a56472f38b1116
+      DIST_SHA256: 090f4a6aada5c7c19609860d7ee3956ce0f06379c991533975bcf1ddb848dfaa
+      GPKG_SHA256: 2aa3057da9d0cfd656baf684fe53d343629b1539a648fbb69fff983327993c78
+      SOURCE_REVISION: "20260808"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Install read-only official geometry tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal unzip
+          ogrinfo --version
+
+      - name: Run conservative materializer regression
+        run: |
+          python3 grand-bruxelles-game/tools/test_materialize_ixelles_cluster_strong_heights.py
+          python3 grand-bruxelles-game/tools/test_match_ixelles_urbis3d_semantic_heights.py
+
+      - name: Lock specialist DSM-DTM evidence without merging specialist history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin zone-reste-bruxelles-clean --depth=1
+          ACTUAL="$(git rev-parse FETCH_HEAD)"
+          test "$ACTUAL" = "$SPECIALIST_SHA"
+          CSV_PATH=grand-bruxelles-game/data/processed/remaining_brussels/references/ixelles_building_heights.csv
+          ACTUAL_BLOB="$(git rev-parse "FETCH_HEAD:${CSV_PATH}")"
+          test "$ACTUAL_BLOB" = "$DSM_CSV_BLOB_SHA1"
+          git show "FETCH_HEAD:${CSV_PATH}" > /tmp/ixelles_building_heights.csv
+          for CELL in \
+            bxl-e149000-n169500-s500 \
+            bxl-e149500-n169000-s500 \
+            bxl-e149500-n169500-s500
+          do
+            RAW="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}/raw/buildings.geojson"
+            git show "FETCH_HEAD:${RAW}" > "/tmp/${CELL}_buildings.geojson"
+            test -s "/tmp/${CELL}_buildings.geojson"
+          done
+          echo "LOCKED_SPECIALIST_DSM_EVIDENCE ${ACTUAL} ${ACTUAL_BLOB}"
+
+      - name: Select latest official Ixelles UrbIS 3D EPSG 31370 GPKG
+        run: |
+          python3 - <<'PY'
+          import importlib.util,json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/tools/discover_urbis_sources.py')
+          spec=importlib.util.spec_from_file_location('discover',p); assert spec and spec.loader
+          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          source_id='urbis_3d_constructions'
+          feed=m.parse_feed(source_id,m.DEFAULT_FEEDS[source_id])
+          Path('/tmp/discovered.json').write_text(json.dumps({'schema':1,'feeds':[feed]},indent=2)+'\n')
+          PY
+          python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
+            /tmp/discovered.json /tmp/selected.json \
+            --source-id urbis_3d_constructions \
+            --token 31370 --token GPKG \
+            --candidate-token 31370 --candidate-token GPKG --candidate-token 21009 \
+            --prefer-latest
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/selected.json')); s=p['selected']; u=s['href'].casefold()
+          assert s.get('title','').casefold()=='ixelles'
+          assert '31370' in u and 'gpkg' in u and '21009' in u
+          assert p['selected_embedded_date'] >= '20260808'
+          print('IXELLES_CLUSTER_OFFICIAL_SELECTION',p['selected_embedded_date'],s['href'])
+          PY
+
+      - name: Download and verify official UrbIS 3D source lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="$(python3 - <<'PY'
+          import json
+          print(json.load(open('/tmp/selected.json'))['selected']['href'])
+          PY
+          )"
+          curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
+            --user-agent 'GrandBruxellesGame/ixelles-cluster-height-crosscheck (+github.com/Chatnoir01/Chatnoir01)' \
+            "$URL" -o /tmp/urbis-3d-distribution
+          ACTUAL_DIST="$(sha256sum /tmp/urbis-3d-distribution | awk '{print $1}')"
+          test "$ACTUAL_DIST" = "$DIST_SHA256"
+          python3 - <<'PY'
+          import shutil,zipfile
+          from pathlib import Path
+          source=Path('/tmp/urbis-3d-distribution'); root=Path('/tmp/extracted'); root.mkdir(parents=True,exist_ok=True)
+          def extract(a,d):
+              d.mkdir(parents=True,exist_ok=True); base=d.resolve()
+              with zipfile.ZipFile(a) as z:
+                  for member in z.infolist():
+                      target=(d/member.filename).resolve()
+                      if base not in target.parents and target != base: raise SystemExit('unsafe ZIP path')
+                  z.extractall(d)
+          if zipfile.is_zipfile(source): extract(source,root/'level0')
+          elif source.read_bytes()[:16].startswith(b'SQLite format 3'): shutil.copy2(source,root/'selected.gpkg')
+          else: raise SystemExit('unsupported official distribution container')
+          for depth in range(1,4):
+              for i,p in enumerate(list(root.rglob('*.zip'))):
+                  dest=p.parent/f'{p.stem}-nested-{depth}-{i}'
+                  if not dest.exists(): extract(p,dest)
+          packages=list(root.rglob('*.gpkg')); assert packages
+          print('\n'.join(str(p) for p in packages))
+          PY
+          GPKG="$(find /tmp/extracted -type f -name '*.gpkg' -print -quit)"
+          test -n "$GPKG"
+          ACTUAL_GPKG="$(sha256sum "$GPKG" | awk '{print $1}')"
+          test "$ACTUAL_GPKG" = "$GPKG_SHA256"
+          echo "LOCKED_URBIS3D ${ACTUAL_DIST} ${ACTUAL_GPKG}"
+
+      - name: Build semantic matches and strong contracts for three streamed neighbors
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/semantic grand-bruxelles-game/data/terrain/ixelles
+          while read -r CELL MIN_E MIN_N MAX_E MAX_N; do
+            echo "--- ${CELL} ---"
+            python3 grand-bruxelles-game/tools/match_ixelles_urbis3d_semantic_heights.py \
+              --root /tmp/extracted \
+              --buildings "/tmp/${CELL}_buildings.geojson" \
+              --cell-id "$CELL" \
+              --bbox "$MIN_E" "$MIN_N" "$MAX_E" "$MAX_N" \
+              --output "/tmp/semantic/${CELL}.json"
+            python3 grand-bruxelles-game/tools/materialize_ixelles_cluster_strong_heights.py \
+              --semantic "/tmp/semantic/${CELL}.json" \
+              --dsm-csv /tmp/ixelles_building_heights.csv \
+              --runtime-cell "grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}/runtime/cell.game.json" \
+              --cell-id "$CELL" \
+              --distribution-sha256 "$DIST_SHA256" \
+              --gpkg-sha256 "$GPKG_SHA256" \
+              --dsm-evidence-git-blob-sha1 "$DSM_CSV_BLOB_SHA1" \
+              --source-revision "$SOURCE_REVISION" \
+              --output "grand-bruxelles-game/data/terrain/ixelles/${CELL}_strong_heights.game.json"
+          done <<'CELLS'
+          bxl-e149000-n169500-s500 149000 169500 149500 170000
+          bxl-e149500-n169000-s500 149500 169000 150000 169500
+          bxl-e149500-n169500-s500 149500 169500 150000 170000
+          CELLS
+
+      - name: Enforce fail-closed neighbor height contracts
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          # Exact counts are intentionally pinned from the first provenance-locked
+          # official run. Any source or algorithm drift must fail visibly instead
+          # of silently changing the set of buildings considered safe to render.
+          cells={
+            'bxl-e149000-n169500-s500':{'runtime':375,'joined':100,'eligible':53},
+            'bxl-e149500-n169000-s500':{'runtime':919,'joined':988,'eligible':584},
+            'bxl-e149500-n169500-s500':{'runtime':668,'joined':627,'eligible':402},
+          }
+          for cell,expected in cells.items():
+              p=json.loads(Path(f'grand-bruxelles-game/data/terrain/ixelles/{cell}_strong_heights.game.json').read_text())
+              assert p['schema']=='grand-bruxelles-ixelles-strong-height-candidates-v1'
+              assert p['cell_id']==cell
+              assert p['runtime_footprint_count']==expected['runtime']
+              assert p['joined_comparisons']==expected['joined']
+              assert p['eligible_count']==expected['eligible']
+              assert p['duplicate_strong_records_removed']==0
+              assert p['runtime_approved'] is False
+              assert p['policy']['max_abs_delta_m']==2.0
+              assert p['policy']['required_dsm_confidence']=='high'
+              assert p['policy']['min_semantic_match_score']==0.90
+              assert p['policy']['min_semantic_match_margin']==0.25
+              assert p['policy']['urbis3d_distribution_sha256']=='090f4a6aada5c7c19609860d7ee3956ce0f06379c991533975bcf1ddb848dfaa'
+              assert p['policy']['urbis3d_gpkg_sha256']=='2aa3057da9d0cfd656baf684fe53d343629b1539a648fbb69fff983327993c78'
+              assert p['policy']['dsm_evidence_git_blob_sha1']=='fe5df2040a0fb41f6374e90826a56472f38b1116'
+              ids=[r['building_id'] for r in p['records']]
+              assert len(ids)==len(set(ids))==p['eligible_count']
+              assert all(r['visual_runtime_eligible'] is True and r['runtime_approved'] is False for r in p['records'])
+              assert all(float(r['abs_delta_m'])<=2.0 for r in p['records'])
+              print('IXELLES_NEIGHBOR_STRONG_HEIGHT_GATE',cell,p['eligible_count'],p['joined_comparisons'],p['duplicate_strong_records_removed'])
+          PY
+
+      - name: Commit deterministic contracts on PR head when changed
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169500-s500_strong_heights.game.json
+          git add grand-bruxelles-game/data/terrain/ixelles/bxl-e149500-n169000-s500_strong_heights.game.json
+          git add grand-bruxelles-game/data/terrain/ixelles/bxl-e149500-n169500-s500_strong_heights.game.json
+          if git diff --cached --quiet; then
+            echo "Neighbor strong-height contracts already deterministic"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data(ixelles): lock cross-checked neighbor height contracts [skip ci]"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+
+      - name: Upload cross-check evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ixelles-cluster-strong-height-evidence
+          path: |
+            /tmp/selected.json
+            /tmp/semantic/*.json
+            grand-bruxelles-game/data/terrain/ixelles/bxl-e149000-n169500-s500_strong_heights.game.json
+            grand-bruxelles-game/data/terrain/ixelles/bxl-e149500-n169000-s500_strong_heights.game.json
+            grand-bruxelles-game/data/terrain/ixelles/bxl-e149500-n169500-s500_strong_heights.game.json
+          if-no-files-found: warn

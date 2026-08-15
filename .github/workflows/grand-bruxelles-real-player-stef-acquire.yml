@@ -36,203 +36,91 @@ jobs:
           blender --version
           blender -b --python-expr 'import numpy; print("BLENDER_NUMPY_OK=" + numpy.__version__)'
 
-      - name: Inspect source rig, skin bindings, actions and materials
+      - name: Inspect source rig, UVs, skin bindings, actions and materials
         run: |
           cat > /tmp/inspect_stef.py <<'PY'
-          import bpy, json
+          import bpy, json, os
           armatures=[o for o in bpy.data.objects if o.type=='ARMATURE']
           meshes=[o for o in bpy.data.objects if o.type=='MESH']
           actions=list(bpy.data.actions)
           bound=[]
+          mesh_report={}
           for o in meshes:
               if any(m.type=='ARMATURE' and m.object is not None for m in o.modifiers):
                   bound.append(o.name)
-          material_slots=sum(len(o.material_slots) for o in meshes)
+              uv=[]
+              for i,layer in enumerate(o.data.uv_layers):
+                  uv.append({'index':i,'name':layer.name,'active':bool(layer.active),'active_render':bool(layer.active_render),'loops':len(layer.data)})
+              slots=[]
+              for idx,slot in enumerate(o.material_slots):
+                  slots.append({'index':idx,'material':slot.material.name if slot.material else None})
+              mesh_report[o.name]={
+                  'vertices':len(o.data.vertices),'polygons':len(o.data.polygons),
+                  'uv_layers':uv,'active_uv':o.data.uv_layers.active.name if o.data.uv_layers.active else None,
+                  'material_slots':slots,
+                  'material_indices':sorted(set(int(p.material_index) for p in o.data.polygons)),
+              }
+          mat_report={}
+          for m in bpy.data.materials:
+              nodes=[]
+              if m.use_nodes and m.node_tree:
+                  for n in m.node_tree.nodes:
+                      item={'type':n.bl_idname,'name':n.name}
+                      if hasattr(n,'image') and n.image:
+                          item['image']=n.image.name
+                      nodes.append(item)
+              mat_report[m.name]={
+                  'use_nodes':bool(m.use_nodes),
+                  'diffuse_color':[float(x) for x in m.diffuse_color],
+                  'nodes':nodes,
+              }
+          image_report={}
+          for i in bpy.data.images:
+              if i.name=='Render Result': continue
+              image_report[i.name]={
+                  'filepath':bpy.path.abspath(i.filepath) if i.filepath else '',
+                  'source':i.source,
+                  'size':[int(i.size[0]),int(i.size[1])],
+                  'packed':bool(i.packed_file),
+              }
           report={
               'armatures':[o.name for o in armatures],
               'armature_bones':{o.name:len(o.data.bones) for o in armatures},
-              'meshes':[o.name for o in meshes],
+              'meshes':mesh_report,
               'armature_bound_meshes':bound,
               'actions':[a.name for a in actions],
-              'materials':[m.name for m in bpy.data.materials],
-              'images':[i.name for i in bpy.data.images if i.name != 'Render Result'],
-              'material_slot_count':material_slots,
+              'materials':mat_report,
+              'images':image_report,
+              'material_slot_count':sum(len(o.material_slots) for o in meshes),
           }
           print('STEF_BLENDER_REPORT='+json.dumps(report, sort_keys=True))
-          assert armatures, 'no armature in source blend'
-          assert meshes, 'no meshes in source blend'
-          assert bound, 'no mesh bound to an armature'
-          assert actions, 'no animation actions in source blend'
-          assert material_slots > 0, 'no material slots in source blend'
-          assert report['images'], 'no source images/textures in blend'
+          assert armatures and meshes and bound and actions
+          assert report['material_slot_count'] > 0
+          assert image_report
           open('/tmp/stef-blender-report.json','w').write(json.dumps(report, indent=2, sort_keys=True))
           PY
           blender -b '/tmp/stef/npc girl stef!.blend' --python /tmp/inspect_stef.py
 
-      - name: Export source non-destructively to Godot GLB
-        run: |
-          mkdir -p grand-bruxelles-game/assets/characters/player/stef/source
-          cp '/tmp/stef/npc girl stef!.blend' grand-bruxelles-game/assets/characters/player/stef/source/stef_source.blend
-          cp /tmp/stef/*.jpg grand-bruxelles-game/assets/characters/player/stef/source/
-          cat > /tmp/export_stef.py <<'PY'
-          import bpy
-          out='/home/runner/work/Chatnoir01/Chatnoir01/grand-bruxelles-game/assets/characters/player_character.glb'
-          bpy.ops.export_scene.gltf(
-              filepath=out,
-              export_format='GLB',
-              export_animations=True,
-              export_skins=True,
-              export_materials='EXPORT',
-              export_apply=False,
-          )
-          print('STEF_GLTF_EXPORTED='+out)
-          PY
-          blender -b '/tmp/stef/npc girl stef!.blend' --python /tmp/export_stef.py
-          test -s grand-bruxelles-game/assets/characters/player_character.glb
-          sha256sum grand-bruxelles-game/assets/characters/player_character.glb | tee /tmp/stef-glb.sha256
-
-      - name: Structurally validate exported GLB
+      - name: Stop after source texture diagnostics
         run: |
           python3 - <<'PY'
-          import json, struct
-          p='grand-bruxelles-game/assets/characters/player_character.glb'
-          raw=open(p,'rb').read()
-          magic,version,length=struct.unpack_from('<4sII',raw,0)
-          assert magic==b'glTF', magic
-          assert version==2, version
-          assert length==len(raw), (length,len(raw))
-          chunk_len,chunk_type=struct.unpack_from('<II',raw,12)
-          assert chunk_type==0x4E4F534A, hex(chunk_type)
-          doc=json.loads(raw[20:20+chunk_len].decode('utf-8').rstrip(' \t\r\n\x00'))
-          report={k:len(doc.get(k,[])) for k in ('meshes','skins','animations','materials','textures','images','nodes')}
-          print('STEF_GLB_STRUCTURE='+json.dumps(report,sort_keys=True))
-          assert report['meshes']>0
-          assert report['skins']>0
-          assert report['animations']>0
-          assert report['materials']>0
-          assert report['images']>0
-          open('/tmp/stef-glb-structure.json','w').write(json.dumps(report,indent=2,sort_keys=True))
+          import json
+          r=json.load(open('/tmp/stef-blender-report.json'))
+          for name,m in r['meshes'].items():
+              print('MESH',name,'active_uv=',m['active_uv'],'uv_layers=',m['uv_layers'],'materials=',m['material_slots'])
+          for name,m in r['materials'].items():
+              print('MATERIAL',name,'nodes=',m['nodes'])
+          for name,i in r['images'].items():
+              print('IMAGE',name,i)
           PY
+          exit 1
 
-      - name: Setup Godot 4.7.1
-        uses: chickensoft-games/setup-godot@v2
-        with:
-          version: 4.7.1
-          use-dotnet: false
-
-      - name: Import exported GLB completely in Godot
-        shell: bash
-        run: |
-          set -o pipefail
-          timeout 180s godot --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/stef-godot-import.log
-          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load|Scan thread aborted' /tmp/stef-godot-import.log; then exit 1; fi
-          test -f grand-bruxelles-game/assets/characters/player_character.glb.import
-
-      - name: Prove runtime selection, skeleton, skin, materials and animation playback
-        shell: bash
-        run: |
-          cat > grand-bruxelles-game/game/tests/_temp_real_player_stef_probe.gd <<'GD'
-          extends SceneTree
-          const HUMANOID_VISUAL := preload("res://game/scripts/humanoid_visual.gd")
-          const EXPECTED := "res://assets/characters/player_character.glb"
-
-          func _initialize() -> void:
-              call_deferred("_run")
-
-          func _collect(node: Node, skeletons: Array, meshes: Array, players: Array) -> void:
-              if node is Skeleton3D: skeletons.append(node)
-              if node is MeshInstance3D: meshes.append(node)
-              if node is AnimationPlayer: players.append(node)
-              for c in node.get_children(): _collect(c, skeletons, meshes, players)
-
-          func _run() -> void:
-              var actor := CharacterBody3D.new()
-              actor.name = "Player"
-              root.add_child(actor)
-              var visual := HUMANOID_VISUAL.new()
-              visual.name = "VisualUpgrade"
-              actor.add_child(visual)
-              await process_frame
-              await process_frame
-              if not visual.is_using_authored_character():
-                  push_error("REAL_PLAYER_STEF_FAIL: production Player did not select authored asset")
-                  quit(1); return
-              if visual.resolved_authored_scene_path() != EXPECTED:
-                  push_error("REAL_PLAYER_STEF_FAIL: wrong authored path: %s" % visual.resolved_authored_scene_path())
-                  quit(1); return
-              var authored := visual.get_node_or_null("AuthoredCharacter")
-              if authored == null:
-                  push_error("REAL_PLAYER_STEF_FAIL: authored instance missing")
-                  quit(1); return
-              var skeletons: Array = []
-              var meshes: Array = []
-              var players: Array = []
-              _collect(authored, skeletons, meshes, players)
-              var skinned := 0
-              var material_surfaces := 0
-              for m in meshes:
-                  var mi := m as MeshInstance3D
-                  if mi.skin != null or not mi.skeleton.is_empty(): skinned += 1
-                  if mi.mesh != null:
-                      for s in range(mi.mesh.get_surface_count()):
-                          if mi.get_surface_override_material(s) != null or mi.mesh.surface_get_material(s) != null:
-                              material_surfaces += 1
-              var animation_names: Array[String] = []
-              for p in players:
-                  var ap := p as AnimationPlayer
-                  for n in ap.get_animation_list():
-                      if n != "RESET" and n not in animation_names: animation_names.append(n)
-              if skeletons.is_empty():
-                  push_error("REAL_PLAYER_STEF_FAIL: no Skeleton3D after Godot import"); quit(1); return
-              if meshes.is_empty() or skinned == 0:
-                  push_error("REAL_PLAYER_STEF_FAIL: no skinned mesh after Godot import"); quit(1); return
-              if material_surfaces == 0:
-                  push_error("REAL_PLAYER_STEF_FAIL: imported meshes have no materials"); quit(1); return
-              if animation_names.is_empty():
-                  push_error("REAL_PLAYER_STEF_FAIL: no imported animation clips"); quit(1); return
-              var played := false
-              for p in players:
-                  var ap := p as AnimationPlayer
-                  for n in animation_names:
-                      if ap.has_animation(n):
-                          ap.play(n)
-                          await process_frame
-                          await process_frame
-                          if ap.current_animation == n:
-                              played = true
-                              print("REAL_PLAYER_STEF_ANIMATION_PLAYING=%s" % n)
-                              break
-                  if played: break
-              if not played:
-                  push_error("REAL_PLAYER_STEF_FAIL: no animation could be played"); quit(1); return
-              print("REAL_PLAYER_STEF_OK path=%s skeletons=%d meshes=%d skinned=%d material_surfaces=%d animations=%s" % [visual.resolved_authored_scene_path(), skeletons.size(), meshes.size(), skinned, material_surfaces, str(animation_names)])
-              quit(0)
-          GD
-          set -o pipefail
-          timeout 60s godot --headless --path grand-bruxelles-game --script res://game/tests/_temp_real_player_stef_probe.gd 2>&1 | tee /tmp/stef-runtime.log
-          rm grand-bruxelles-game/game/tests/_temp_real_player_stef_probe.gd
-          grep -q 'REAL_PLAYER_STEF_OK' /tmp/stef-runtime.log
-          grep -q 'Grand Bruxelles authored player loaded: res://assets/characters/player_character.glb' /tmp/stef-runtime.log
-
-      - name: Commit verified source and GLB to the branch
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add grand-bruxelles-game/assets/characters/player/stef/source grand-bruxelles-game/assets/characters/player_character.glb
-          git diff --cached --stat
-          git commit -m 'asset(player): add verified CC0 rigged animated Stef character'
-          git push origin HEAD:visual/real-player-stef-current
-
-      - name: Upload deterministic rig/import evidence
+      - name: Upload deterministic source diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: real-player-stef-rig-import-evidence
+          name: real-player-stef-source-diagnostics
           path: |
             /tmp/stef-inventory.txt
             /tmp/stef-blender-report.json
-            /tmp/stef-glb.sha256
-            /tmp/stef-glb-structure.json
-            /tmp/stef-godot-import.log
-            /tmp/stef-runtime.log
           if-no-files-found: warn

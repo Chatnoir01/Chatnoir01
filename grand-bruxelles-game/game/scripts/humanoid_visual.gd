@@ -1,6 +1,18 @@
 extends Node3D
 
+const DEFAULT_AUTHORED_PLAYER_PATH := "res://assets/characters/player/thandi/Thandi.glb"
+const FALLBACK_AUTHORED_PLAYER_PATHS: Array[String] = [
+    "res://assets/characters/player/thandi/Thandi.fbx",
+    "res://assets/characters/player_character.glb",
+]
+
 @export var force_police_uniform: bool = false
+@export var allow_authored_player: bool = true
+@export var allow_authored_fallback_paths: bool = true
+@export_file("*.glb", "*.gltf", "*.fbx", "*.tscn") var authored_player_scene_path: String = DEFAULT_AUTHORED_PLAYER_PATH
+@export var authored_player_position: Vector3 = Vector3(0.0, -0.90, 0.0)
+@export var authored_player_rotation_degrees: Vector3 = Vector3(0.0, 180.0, 0.0)
+@export var authored_player_scale: Vector3 = Vector3.ONE
 
 var _left_arm: MeshInstance3D
 var _right_arm: MeshInstance3D
@@ -8,6 +20,9 @@ var _left_leg: MeshInstance3D
 var _right_leg: MeshInstance3D
 var _phase: float = 0.0
 var _police: bool = false
+var _authored_character: Node3D
+var _using_authored_character: bool = false
+var _resolved_authored_scene_path: String = ""
 
 
 func _ready() -> void:
@@ -16,10 +31,18 @@ func _ready() -> void:
         return
     _police = force_police_uniform or actor.is_in_group("police_officer")
     _hide_legacy_visuals(actor)
+
+    if allow_authored_player and not _police and _is_player_actor(actor):
+        if _try_load_authored_player():
+            return
+
     _build_humanoid()
 
 
 func _process(delta: float) -> void:
+    if _using_authored_character:
+        return
+
     var actor: CharacterBody3D = get_parent() as CharacterBody3D
     if actor == null:
         return
@@ -37,6 +60,67 @@ func _process(delta: float) -> void:
         _left_leg.rotation.x = -swing * 0.72
     if is_instance_valid(_right_leg):
         _right_leg.rotation.x = swing * 0.72
+
+
+func is_using_authored_character() -> bool:
+    return _using_authored_character
+
+
+func authored_character() -> Node3D:
+    return _authored_character
+
+
+func resolved_authored_scene_path() -> String:
+    return _resolved_authored_scene_path
+
+
+func _is_player_actor(actor: Node3D) -> bool:
+    return actor.name == &"Player" or actor.is_in_group("player")
+
+
+func _authored_candidates() -> Array[String]:
+    var candidates: Array[String] = []
+    if not authored_player_scene_path.is_empty():
+        candidates.append(authored_player_scene_path)
+    if allow_authored_fallback_paths:
+        for fallback_path: String in FALLBACK_AUTHORED_PLAYER_PATHS:
+            if not candidates.has(fallback_path):
+                candidates.append(fallback_path)
+    return candidates
+
+
+func _try_load_authored_player() -> bool:
+    for candidate_path: String in _authored_candidates():
+        if _try_load_authored_player_path(candidate_path):
+            return true
+    return false
+
+
+func _try_load_authored_player_path(candidate_path: String) -> bool:
+    if candidate_path.is_empty() or not ResourceLoader.exists(candidate_path):
+        return false
+
+    var resource: Resource = ResourceLoader.load(candidate_path)
+    if not resource is PackedScene:
+        push_warning("Authored player asset is not a PackedScene: %s" % candidate_path)
+        return false
+
+    var instance: Node = (resource as PackedScene).instantiate()
+    if not instance is Node3D:
+        instance.queue_free()
+        push_warning("Authored player root must be Node3D: %s" % candidate_path)
+        return false
+
+    _authored_character = instance as Node3D
+    _authored_character.name = "AuthoredCharacter"
+    _authored_character.position = authored_player_position
+    _authored_character.rotation_degrees = authored_player_rotation_degrees
+    _authored_character.scale = authored_player_scale
+    add_child(_authored_character)
+
+    _resolved_authored_scene_path = candidate_path
+    _using_authored_character = true
+    return true
 
 
 func _hide_legacy_visuals(actor: Node3D) -> void:

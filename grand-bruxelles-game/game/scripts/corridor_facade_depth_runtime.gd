@@ -26,6 +26,7 @@ const SHOP_CANOPY_PALETTE: Array[Color] = [
 ]
 const SHOP_CANOPY_PERMUTATION: Array[int] = [0, 3, 1, 4, 2]
 const SHOP_CANOPY_DEPTH_FACTORS: Array[float] = [0.82, 1.00, 1.18, 0.90, 1.10]
+const SHOP_FRAME_COLOR := Color(0.11, 0.12, 0.125, 1.0)
 const SHOP_GLASS_PALETTE: Array[Color] = [
     Color(0.055, 0.105, 0.135, 1.0),
     Color(0.075, 0.135, 0.155, 1.0),
@@ -53,6 +54,9 @@ var jamb_count := 0
 var trim_material_group_count := 0
 var canopy_count := 0
 var canopy_material_group_count := 0
+var shop_header_count := 0
+var shop_jamb_count := 0
+var shop_mullion_count := 0
 var glass_count := 0
 var glass_material_group_count := 0
 var window_glass_count := 0
@@ -180,6 +184,38 @@ func _build_shop_canopies(details: Node3D, shop_node: MultiMeshInstance3D) -> vo
         canopy_count += transforms.size()
         canopy_material_group_count += 1
 
+func _shopfront_frame_parts(shop_transform: Transform3D, headers: Array[Transform3D], jambs: Array[Transform3D], mullions: Array[Transform3D]) -> void:
+    var scale := shop_transform.basis.get_scale().abs()
+    var rotation := _clean_basis(shop_transform)
+    var horizontal := rotation.x.normalized()
+    var outward := rotation.z.normalized()
+    var origin := shop_transform.origin + outward * 0.035
+    var frame_depth := maxf(0.12, scale.z + 0.04)
+    var header_offset := scale.y * 0.5 + 0.055
+    var side_offset := scale.x * 0.5 + 0.055
+    headers.append(Transform3D(rotation.scaled(Vector3(scale.x + 0.14, 0.11, frame_depth)), origin + Vector3.UP * header_offset))
+    var jamb_scale := Vector3(0.10, scale.y + 0.08, frame_depth)
+    jambs.append(Transform3D(rotation.scaled(jamb_scale), origin + horizontal * side_offset))
+    jambs.append(Transform3D(rotation.scaled(jamb_scale), origin - horizontal * side_offset))
+    mullions.append(Transform3D(rotation.scaled(Vector3(0.075, maxf(0.6, scale.y - 0.06), frame_depth)), origin))
+
+func _build_shopfront_frames(details: Node3D, shop_node: MultiMeshInstance3D) -> void:
+    var shop_multimesh := shop_node.multimesh
+    if shop_multimesh == null:
+        return
+    var headers: Array[Transform3D] = []
+    var jambs: Array[Transform3D] = []
+    var mullions: Array[Transform3D] = []
+    for index: int in range(shop_multimesh.instance_count):
+        _shopfront_frame_parts(shop_multimesh.get_instance_transform(index), headers, jambs, mullions)
+    var frame_material := _material(SHOP_FRAME_COLOR, 0.48, 0.34)
+    details.add_child(_unit_multimesh("CorridorShopfrontHeaders", headers, frame_material))
+    details.add_child(_unit_multimesh("CorridorShopfrontJambs", jambs, frame_material))
+    details.add_child(_unit_multimesh("CorridorShopfrontMullions", mullions, frame_material))
+    shop_header_count = headers.size()
+    shop_jamb_count = jambs.size()
+    shop_mullion_count = mullions.size()
+
 func _build_shopfront_glass(details: Node3D, shop_node: MultiMeshInstance3D) -> void:
     var shop_multimesh := shop_node.multimesh
     if shop_multimesh == null:
@@ -241,10 +277,11 @@ func _build() -> void:
     var shop_node := details.get_node_or_null(SHOP_NODE) as MultiMeshInstance3D
     if shop_node != null:
         _build_shop_canopies(details, shop_node)
+        _build_shopfront_frames(details, shop_node)
         _build_shopfront_glass(details, shop_node)
 
     articulation_ready = lintel_count == windows.instance_count and sill_count == windows.instance_count and jamb_count == windows.instance_count * 2
     if articulation_ready:
-        print("CORRIDOR_FACADE_DEPTH_READY: windows=%d lintels=%d sills=%d jambs=%d trim_groups=%d window_glass=%d window_groups=%d canopies=%d canopy_groups=%d glass=%d glass_groups=%d" % [windows.instance_count, lintel_count, sill_count, jamb_count, trim_material_group_count, window_glass_count, window_glass_material_group_count, canopy_count, canopy_material_group_count, glass_count, glass_material_group_count])
+        print("CORRIDOR_FACADE_DEPTH_READY: windows=%d lintels=%d sills=%d jambs=%d trim_groups=%d window_glass=%d window_groups=%d canopies=%d canopy_groups=%d shop_headers=%d shop_jambs=%d shop_mullions=%d glass=%d glass_groups=%d" % [windows.instance_count, lintel_count, sill_count, jamb_count, trim_material_group_count, window_glass_count, window_glass_material_group_count, canopy_count, canopy_material_group_count, shop_header_count, shop_jamb_count, shop_mullion_count, glass_count, glass_material_group_count])
     else:
         push_error("CorridorFacadeDepthRuntime: articulation count mismatch")

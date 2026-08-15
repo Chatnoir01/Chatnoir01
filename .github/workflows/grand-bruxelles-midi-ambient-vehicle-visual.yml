@@ -81,6 +81,11 @@ jobs:
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
 
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+
       - name: Install identical capture harness in base checkout
         run: |
           cp head/grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd \
@@ -100,17 +105,25 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path base/grand-bruxelles-game \
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path base/grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
             --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- /tmp/midi-vehicle-before.png 2>&1 | tee /tmp/base-capture.log
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path head/grand-bruxelles-game \
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path head/grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
             --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- /tmp/midi-vehicle-after.png 2>&1 | tee /tmp/head-capture.log
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AMBIENT_VEHICLE_CAPTURE_FAIL" /tmp/base-capture.log /tmp/head-capture.log; then
             exit 1
           fi
           grep -q "MIDI_AMBIENT_VEHICLE_CAPTURE_OK" /tmp/base-capture.log
           grep -q "MIDI_AMBIENT_VEHICLE_CAPTURE_OK" /tmp/head-capture.log
+          test -f /tmp/midi-vehicle-before.png
+          test -f /tmp/midi-vehicle-after.png
 
       - name: Enforce visible normal-camera delta
         shell: bash

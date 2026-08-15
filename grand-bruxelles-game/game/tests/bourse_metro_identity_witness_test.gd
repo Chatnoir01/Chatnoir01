@@ -32,14 +32,28 @@ func _hide_ui_and_player(scene: Node) -> void:
         if spatial != null:
             spatial.visible = false
 
-func _freeze_world(scene: Node) -> void:
-    # Hard evidence rule: warm the exact same scene once, then disable all scene
-    # processing/physics before either capture. A/B differs only by identity visibility.
-    _hide_ui_and_player(scene)
-    scene.process_mode = Node.PROCESS_MODE_DISABLED
+func _is_dynamic_name(name_text: String) -> bool:
+    var lowered := name_text.to_lower()
+    for token in ["npc", "traffic", "vehicle", "car", "pedestrian", "agent", "urbanlife", "urban_life"]:
+        if lowered.contains(token):
+            return true
+    return false
+
+func _freeze_dynamic_recursive(node: Node) -> int:
+    var frozen := 0
+    for child in node.get_children():
+        frozen += _freeze_dynamic_recursive(child)
+    if node is CharacterBody3D or node is RigidBody3D or node is AnimatableBody3D or node is AnimationPlayer or _is_dynamic_name(node.name):
+        node.process_mode = Node.PROCESS_MODE_DISABLED
+        if node is RigidBody3D:
+            (node as RigidBody3D).freeze = true
+        frozen += 1
+    return frozen
 
 func _capture(viewport: SubViewport, path: String) -> Image:
+    viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
     RenderingServer.force_draw()
+    await process_frame
     await process_frame
     var image := viewport.get_texture().get_image()
     if image == null or image.is_empty() or image.get_width() != WIDTH or image.get_height() != HEIGHT:
@@ -73,6 +87,7 @@ func _measure(before: Image, after: Image) -> Dictionary:
     }
 
 func _run() -> void:
+    print("BOURSE_METRO_IDENTITY_WITNESS_STAGE: start")
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(EVIDENCE_PATH))
     if typeof(parsed) != TYPE_DICTIONARY:
         _fail("camera evidence invalid")
@@ -114,18 +129,23 @@ func _run() -> void:
 
     for _frame in range(WARMUP_FRAMES):
         await process_frame
-    _freeze_world(scene)
+    _hide_ui_and_player(scene)
+    var frozen_count := _freeze_dynamic_recursive(scene)
+    print("BOURSE_METRO_IDENTITY_WITNESS_STAGE: warmed frozen_dynamic_nodes=%d" % frozen_count)
+    await process_frame
 
     runtime.visible = false
     var before := await _capture(viewport, BEFORE_PATH)
     if before == null:
         return
+    print("BOURSE_METRO_IDENTITY_WITNESS_STAGE: before_saved")
     runtime.visible = true
     var after := await _capture(viewport, AFTER_PATH)
     if after == null:
         return
+    print("BOURSE_METRO_IDENTITY_WITNESS_STAGE: after_saved")
 
     var metrics := _measure(before, after)
-    print("BOURSE_METRO_IDENTITY_WITNESS_METRICS: gt3=%d pct3=%.4f gt8=%d pct8=%.4f frozen_same_scene=true" % [metrics.gt3, metrics.pct3, metrics.gt8, metrics.pct8])
+    print("BOURSE_METRO_IDENTITY_WITNESS_METRICS: gt3=%d pct3=%.4f gt8=%d pct8=%.4f frozen_same_scene=true frozen_dynamic_nodes=%d" % [metrics.gt3, metrics.pct3, metrics.gt8, metrics.pct8, frozen_count])
     print("BOURSE_METRO_IDENTITY_WITNESS_OK: before=%s after=%s camera=source_locked entrances=7" % [BEFORE_PATH, AFTER_PATH])
     quit(0)

@@ -8,17 +8,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  acquire-export-validate-commit:
+  recover-legacy-material-bindings:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Download exact public CC0 package
         run: |
           set -euxo pipefail
@@ -26,101 +23,56 @@ jobs:
           echo '3b1f65c188ffd91dd237dae3d670d8b1d390ce7e96a251dd13ec5b8fb5d6fe22  /tmp/stef_npc1.zip' | sha256sum -c -
           mkdir -p /tmp/stef
           unzip -q /tmp/stef_npc1.zip -d /tmp/stef
-          find /tmp/stef -type f -printf '%P\t%s bytes\n' | sort | tee /tmp/stef-inventory.txt
-          test -f '/tmp/stef/npc girl stef!.blend'
-
-      - name: Install Blender and glTF Python dependency
+      - name: Download official Blender 2.79b compatibility reader
         run: |
-          sudo apt-get update
-          sudo apt-get install -y blender python3-numpy
-          blender --version
-          blender -b --python-expr 'import numpy; print("BLENDER_NUMPY_OK=" + numpy.__version__)'
-
-      - name: Inspect source rig, UVs, skin bindings, actions and materials
+          set -euxo pipefail
+          curl -fL --retry 3 -o /tmp/blender279.tar.bz2 https://download.blender.org/release/Blender2.79/blender-2.79b-linux-glibc219-x86_64.tar.bz2
+          mkdir -p /tmp/blender279
+          tar -xjf /tmp/blender279.tar.bz2 -C /tmp/blender279 --strip-components=1
+          /tmp/blender279/blender --version
+      - name: Recover exact legacy texture-slot to material mapping
         run: |
-          cat > /tmp/inspect_stef.py <<'PY'
+          cat > /tmp/legacy_bindings.py <<'PY'
           import bpy, json, os
-          armatures=[o for o in bpy.data.objects if o.type=='ARMATURE']
-          meshes=[o for o in bpy.data.objects if o.type=='MESH']
-          actions=list(bpy.data.actions)
-          bound=[]
-          mesh_report={}
-          for o in meshes:
-              if any(m.type=='ARMATURE' and m.object is not None for m in o.modifiers):
-                  bound.append(o.name)
-              uv=[]
-              for i,layer in enumerate(o.data.uv_layers):
-                  uv.append({'index':i,'name':layer.name,'active':bool(layer.active),'active_render':bool(layer.active_render),'loops':len(layer.data)})
+          report={'materials':{},'meshes':{},'images':{}}
+          for mat in bpy.data.materials:
               slots=[]
-              for idx,slot in enumerate(o.material_slots):
-                  slots.append({'index':idx,'material':slot.material.name if slot.material else None})
-              mesh_report[o.name]={
-                  'vertices':len(o.data.vertices),'polygons':len(o.data.polygons),
-                  'uv_layers':uv,'active_uv':o.data.uv_layers.active.name if o.data.uv_layers.active else None,
-                  'material_slots':slots,
-                  'material_indices':sorted(set(int(p.material_index) for p in o.data.polygons)),
+              for idx,slot in enumerate(mat.texture_slots):
+                  if slot is None or slot.texture is None:
+                      continue
+                  tex=slot.texture
+                  image=None
+                  if tex.type=='IMAGE' and tex.image is not None:
+                      image={'name':tex.image.name,'filepath':bpy.path.abspath(tex.image.filepath)}
+                  slots.append({
+                      'index':idx,'texture':tex.name,'type':tex.type,
+                      'texture_coords':slot.texture_coords,
+                      'uv_layer':slot.uv_layer,
+                      'use_map_color_diffuse':bool(slot.use_map_color_diffuse),
+                      'diffuse_color_factor':float(slot.diffuse_color_factor),
+                      'image':image,
+                  })
+              report['materials'][mat.name]={'texture_slots':slots,'diffuse_color':[float(x) for x in mat.diffuse_color]}
+          for obj in bpy.data.objects:
+              if obj.type!='MESH': continue
+              report['meshes'][obj.name]={
+                  'uv_textures':[u.name for u in obj.data.uv_textures],
+                  'uv_layers':[u.name for u in obj.data.uv_layers],
+                  'materials':[s.material.name if s.material else None for s in obj.material_slots],
               }
-          mat_report={}
-          for m in bpy.data.materials:
-              nodes=[]
-              if m.use_nodes and m.node_tree:
-                  for n in m.node_tree.nodes:
-                      item={'type':n.bl_idname,'name':n.name}
-                      if hasattr(n,'image') and n.image:
-                          item['image']=n.image.name
-                      nodes.append(item)
-              mat_report[m.name]={
-                  'use_nodes':bool(m.use_nodes),
-                  'diffuse_color':[float(x) for x in m.diffuse_color],
-                  'nodes':nodes,
-              }
-          image_report={}
-          for i in bpy.data.images:
-              if i.name=='Render Result': continue
-              image_report[i.name]={
-                  'filepath':bpy.path.abspath(i.filepath) if i.filepath else '',
-                  'source':i.source,
-                  'size':[int(i.size[0]),int(i.size[1])],
-                  'packed':bool(i.packed_file),
-              }
-          report={
-              'armatures':[o.name for o in armatures],
-              'armature_bones':{o.name:len(o.data.bones) for o in armatures},
-              'meshes':mesh_report,
-              'armature_bound_meshes':bound,
-              'actions':[a.name for a in actions],
-              'materials':mat_report,
-              'images':image_report,
-              'material_slot_count':sum(len(o.material_slots) for o in meshes),
-          }
-          print('STEF_BLENDER_REPORT='+json.dumps(report, sort_keys=True))
-          assert armatures and meshes and bound and actions
-          assert report['material_slot_count'] > 0
-          assert image_report
-          open('/tmp/stef-blender-report.json','w').write(json.dumps(report, indent=2, sort_keys=True))
+          for img in bpy.data.images:
+              if img.name=='Render Result': continue
+              report['images'][img.name]={'filepath':bpy.path.abspath(img.filepath),'size':[int(img.size[0]),int(img.size[1])]}
+          print('STEF_LEGACY_BINDINGS='+json.dumps(report,sort_keys=True))
+          open('/tmp/stef-legacy-bindings.json','w').write(json.dumps(report,indent=2,sort_keys=True))
+          linked=sum(1 for m in report['materials'].values() for s in m['texture_slots'] if s['image'])
+          assert linked >= 1, 'no legacy image texture bindings recovered'
+          print('STEF_LEGACY_BINDINGS_OK linked_image_slots=%d' % linked)
           PY
-          blender -b '/tmp/stef/npc girl stef!.blend' --python /tmp/inspect_stef.py
-
-      - name: Stop after source texture diagnostics
-        run: |
-          python3 - <<'PY'
-          import json
-          r=json.load(open('/tmp/stef-blender-report.json'))
-          for name,m in r['meshes'].items():
-              print('MESH',name,'active_uv=',m['active_uv'],'uv_layers=',m['uv_layers'],'materials=',m['material_slots'])
-          for name,m in r['materials'].items():
-              print('MATERIAL',name,'nodes=',m['nodes'])
-          for name,i in r['images'].items():
-              print('IMAGE',name,i)
-          PY
-          exit 1
-
-      - name: Upload deterministic source diagnostics
-        if: always()
+          /tmp/blender279/blender -b '/tmp/stef/npc girl stef!.blend' --python /tmp/legacy_bindings.py
+      - name: Upload legacy material evidence
         uses: actions/upload-artifact@v4
         with:
-          name: real-player-stef-source-diagnostics
-          path: |
-            /tmp/stef-inventory.txt
-            /tmp/stef-blender-report.json
-          if-no-files-found: warn
+          name: real-player-stef-legacy-material-bindings
+          path: /tmp/stef-legacy-bindings.json
+          if-no-files-found: error

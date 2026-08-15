@@ -21,7 +21,7 @@ func build_from_city_builder(city_builder: Node) -> bool:
     if data_path.is_empty() or not FileAccess.file_exists(data_path):
         push_warning("Corridor sidewalk articulation source missing: %s" % data_path)
         return false
-    var parsed: Variant = JSON.parse_string(FileAccess.file_exists(data_path) and FileAccess.get_file_as_string(data_path) or "")
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(data_path))
     if typeof(parsed) != TYPE_DICTIONARY:
         push_error("Corridor sidewalk articulation could not parse source road data")
         return false

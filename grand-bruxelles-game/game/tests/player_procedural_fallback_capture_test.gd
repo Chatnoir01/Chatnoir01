@@ -62,6 +62,14 @@ func _run() -> void:
         _fail("normal gameplay camera missing")
         return
 
+    var torso := visual.get_node_or_null("Torso") as MeshInstance3D
+    var torso_color := Color(0, 0, 0, 0)
+    if torso != null and torso.mesh is ArrayMesh and (torso.mesh as ArrayMesh).get_surface_count() > 0:
+        var torso_material := (torso.mesh as ArrayMesh).surface_get_material(0) as StandardMaterial3D
+        if torso_material != null:
+            torso_color = torso_material.albedo_color
+    print("PLAYER_PROCEDURAL_FALLBACK_CAPTURE_RENDERER: signature=%s torso_mesh=%s torso_color=%s legacy_visible=%s" % [str(visual.call("visual_signature")), torso.mesh.get_class() if torso != null and torso.mesh != null else "missing", str(torso_color), str((scene.get_node_or_null("Player/MeshInstance3D") as MeshInstance3D).visible if scene.get_node_or_null("Player/MeshInstance3D") is MeshInstance3D else false)])
+
     scene.process_mode = Node.PROCESS_MODE_DISABLED
     RenderingServer.force_draw()
     await process_frame

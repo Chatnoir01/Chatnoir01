@@ -9,6 +9,7 @@ or service semantics.
 from __future__ import annotations
 
 import json
+import re
 import sys
 import urllib.parse
 import urllib.request
@@ -17,10 +18,14 @@ DATASET = "entrees-stations-souterraines-metro-premetro-ingangen-ondergrondse-me
 BASE = f"https://opendata.brussels.be/api/explore/v2.1/catalog/datasets/{DATASET}/records"
 
 
+def _normalized_station(value: object) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip()).casefold()
+    if text.startswith("station "):
+        text = text[len("station "):]
+    return text
+
+
 def _point(row: dict) -> tuple[float, float] | None:
-    # Opendatasoft v2.1 normally exposes point fields as {lon, lat}; tolerate
-    # legacy [lat, lon] payloads so schema representation changes do not create
-    # false negatives while still requiring explicit numeric coordinates.
     for key in ("geo_point_2d", "geopoint", "coordinates"):
         value = row.get(key)
         if isinstance(value, dict) and "lon" in value and "lat" in value:
@@ -38,8 +43,6 @@ def _point(row: dict) -> tuple[float, float] | None:
 
 def main() -> int:
     try:
-        # Dataset is small enough to fetch a broad page and filter locally. This
-        # avoids coupling the source gate to ODSQL quoting/parser differences.
         params = urllib.parse.urlencode({"limit": "100"})
         req = urllib.request.Request(
             f"{BASE}?{params}",
@@ -54,11 +57,11 @@ def main() -> int:
 
         records = []
         for row in rows:
-            if str(row.get("station_fr", "")).strip().casefold() != "bourse":
+            if _normalized_station(row.get("station_fr")) != "bourse":
                 continue
-            station_nl = str(row.get("station_nl", "")).strip()
-            if station_nl.casefold() != "beurs":
-                raise RuntimeError(f"Unexpected Dutch station name: {station_nl!r}")
+            station_nl_raw = row.get("station_nl", "")
+            if _normalized_station(station_nl_raw) != "beurs":
+                raise RuntimeError(f"Unexpected Dutch station name: {station_nl_raw!r}")
             point = _point(row)
             if point is None:
                 raise RuntimeError(

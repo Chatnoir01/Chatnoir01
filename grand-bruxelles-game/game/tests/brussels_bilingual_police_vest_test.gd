@@ -31,9 +31,9 @@ func _run() -> void:
         var officer := node as NpcAgent
         if not officer.active:
             continue
-        var visual := officer.get_node_or_null("VisualUpgrade")
+        var visual := officer.get_node_or_null("VisibleHumanoid")
         if visual == null:
-            _fail("active police officer missing VisualUpgrade")
+            _fail("active production police officer missing VisibleHumanoid")
             return
         var front_panel := visual.get_node_or_null("PoliceFrontHiVis")
         var rear_panel := visual.get_node_or_null("PoliceRearHiVis")
@@ -57,12 +57,12 @@ func _run() -> void:
     for node: Node in get_nodes_in_group("behavioral_civilian"):
         if not node is NpcAgent:
             continue
-        var visual := node.get_node_or_null("VisualUpgrade")
+        var visual := node.get_node_or_null("VisibleHumanoid")
         if visual != null and (visual.get_node_or_null("PoliceRearHiVis") != null or visual.get_node_or_null("UniformPoliceRearLabel") != null):
             _fail("civilian received police identity")
             return
 
-    print("BRUSSELS_BILINGUAL_POLICE_VEST_OK: officers=%d" % police_checked)
+    print("BRUSSELS_BILINGUAL_POLICE_VEST_OK: officers=%d visual_mount=VisibleHumanoid" % police_checked)
     quit(0)
 
 func _fail(message: String) -> void:

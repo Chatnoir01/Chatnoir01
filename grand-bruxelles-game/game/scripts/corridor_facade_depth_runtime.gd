@@ -8,6 +8,15 @@ extends Node
 const DETAILS_PATH := NodePath("../BrusselsOSM/GeneratedFacadeDetails")
 const WINDOW_NODE := "CorridorFacadeWindows"
 const SHOP_NODE := "CorridorShopfronts"
+const WINDOW_TRIM_PALETTE: Array[Color] = [
+    Color(0.57, 0.535, 0.46, 1.0),
+    Color(0.62, 0.59, 0.52, 1.0),
+    Color(0.50, 0.48, 0.43, 1.0),
+    Color(0.66, 0.62, 0.55, 1.0),
+    Color(0.46, 0.44, 0.40, 1.0),
+]
+const WINDOW_TRIM_PERMUTATION: Array[int] = [0, 3, 1, 4, 2]
+const WINDOW_TRIM_ROUGHNESS: Array[float] = [0.93, 0.90, 0.96, 0.88, 0.94]
 const SHOP_CANOPY_PALETTE: Array[Color] = [
     Color(0.23, 0.095, 0.085, 1.0),
     Color(0.075, 0.19, 0.17, 1.0),
@@ -40,6 +49,7 @@ var articulation_ready := false
 var lintel_count := 0
 var sill_count := 0
 var jamb_count := 0
+var trim_material_group_count := 0
 var canopy_count := 0
 var canopy_material_group_count := 0
 var glass_count := 0
@@ -94,6 +104,38 @@ func _window_articulation(window_transform: Transform3D, lintels: Array[Transfor
     jambs.append(Transform3D(rotation.scaled(jamb_scale), origin + horizontal * side_offset))
     jambs.append(Transform3D(rotation.scaled(jamb_scale), origin - horizontal * side_offset))
 
+func _window_trim_index(instance_index: int) -> int:
+    # A complete five-window block sees every stone family once. The block
+    # rotation prevents a single repeating global phase while remaining stable.
+    var lane: int = instance_index % WINDOW_TRIM_PERMUTATION.size()
+    var block: int = instance_index / WINDOW_TRIM_PERMUTATION.size()
+    var rotation: int = (block * 4 + block * block * 2) % WINDOW_TRIM_PERMUTATION.size()
+    return (WINDOW_TRIM_PERMUTATION[lane] + rotation) % WINDOW_TRIM_PALETTE.size()
+
+func _build_window_trim(details: Node3D, lintels: Array[Transform3D], sills: Array[Transform3D], jambs: Array[Transform3D]) -> void:
+    for palette_index: int in range(WINDOW_TRIM_PALETTE.size()):
+        var lintel_group: Array[Transform3D] = []
+        var sill_group: Array[Transform3D] = []
+        var jamb_group: Array[Transform3D] = []
+        for index: int in range(lintels.size()):
+            if _window_trim_index(index) != palette_index:
+                continue
+            lintel_group.append(lintels[index])
+            sill_group.append(sills[index])
+            jamb_group.append(jambs[index * 2])
+            jamb_group.append(jambs[index * 2 + 1])
+        if lintel_group.is_empty():
+            continue
+        var suffix := "" if palette_index == 0 else "_%d" % palette_index
+        var trim_material := _material(WINDOW_TRIM_PALETTE[palette_index], WINDOW_TRIM_ROUGHNESS[palette_index])
+        details.add_child(_unit_multimesh("CorridorFacadeLintels%s" % suffix, lintel_group, trim_material))
+        details.add_child(_unit_multimesh("CorridorFacadeSills%s" % suffix, sill_group, trim_material))
+        details.add_child(_unit_multimesh("CorridorFacadeJambs%s" % suffix, jamb_group, trim_material))
+        lintel_count += lintel_group.size()
+        sill_count += sill_group.size()
+        jamb_count += jamb_group.size()
+        trim_material_group_count += 1
+
 func _shop_canopy(shop_transform: Transform3D) -> Transform3D:
     var scale := shop_transform.basis.get_scale().abs()
     var rotation := _clean_basis(shop_transform)
@@ -114,8 +156,6 @@ func _shop_glass_index(instance_index: int) -> int:
     return (SHOP_GLASS_PERMUTATION[lane] + rotation) % SHOP_GLASS_PALETTE.size()
 
 func _window_glass_index(instance_index: int) -> int:
-    # Keep a cycle distinct from both shopfront systems. Every five-window block
-    # covers all five families once; block rotation breaks a single global phase.
     var lane: int = instance_index % WINDOW_GLASS_PERMUTATION.size()
     var block: int = instance_index / WINDOW_GLASS_PERMUTATION.size()
     var rotation: int = (block * 2 + block * block * 3) % WINDOW_GLASS_PERMUTATION.size()
@@ -176,8 +216,6 @@ func _build_window_glass(details: Node3D, windows_node: MultiMeshInstance3D) -> 
         details.add_child(_unit_multimesh(node_name, transforms, window_material))
         window_glass_count += transforms.size()
         window_glass_material_group_count += 1
-    # Source remains authoritative for transforms and trim derivation but its
-    # single uniform material is no longer rendered.
     windows_node.visible = false
 
 func _build() -> void:
@@ -197,16 +235,9 @@ func _build() -> void:
     for index: int in range(windows.instance_count):
         _window_articulation(windows.get_instance_transform(index), lintels, sills, jambs)
 
-    var trim_material := _material(Color(0.57, 0.535, 0.46, 1.0), 0.93)
-    details.add_child(_unit_multimesh("CorridorFacadeLintels", lintels, trim_material))
-    details.add_child(_unit_multimesh("CorridorFacadeSills", sills, trim_material))
-    details.add_child(_unit_multimesh("CorridorFacadeJambs", jambs, trim_material))
-    lintel_count = lintels.size()
-    sill_count = sills.size()
-    jamb_count = jambs.size()
-
-    # Only after every trim transform has been derived from the canonical source
-    # do we replace its uniform render material with exact transform partitions.
+    # Geometry is derived once from the canonical window transforms, then only
+    # partitioned by material family. No trim transform is regenerated or moved.
+    _build_window_trim(details, lintels, sills, jambs)
     _build_window_glass(details, windows_node)
 
     var shop_node := details.get_node_or_null(SHOP_NODE) as MultiMeshInstance3D
@@ -216,6 +247,6 @@ func _build() -> void:
 
     articulation_ready = lintel_count == windows.instance_count and sill_count == windows.instance_count and jamb_count == windows.instance_count * 2
     if articulation_ready:
-        print("CORRIDOR_FACADE_DEPTH_READY: windows=%d lintels=%d sills=%d jambs=%d window_glass=%d window_groups=%d canopies=%d canopy_groups=%d glass=%d glass_groups=%d" % [windows.instance_count, lintel_count, sill_count, jamb_count, window_glass_count, window_glass_material_group_count, canopy_count, canopy_material_group_count, glass_count, glass_material_group_count])
+        print("CORRIDOR_FACADE_DEPTH_READY: windows=%d lintels=%d sills=%d jambs=%d trim_groups=%d window_glass=%d window_groups=%d canopies=%d canopy_groups=%d glass=%d glass_groups=%d" % [windows.instance_count, lintel_count, sill_count, jamb_count, trim_material_group_count, window_glass_count, window_glass_material_group_count, canopy_count, canopy_material_group_count, glass_count, glass_material_group_count])
     else:
         push_error("CorridorFacadeDepthRuntime: articulation count mismatch")

@@ -3,6 +3,7 @@ extends Node3D
 const DEFAULT_AUTHORED_CHARACTER_PATH := "res://assets/characters/player/thandi/Thandi.glb"
 const FALLBACK_AUTHORED_CHARACTER_PATHS := [
     "res://assets/characters/player/thandi/Thandi.fbx",
+    "res://assets/characters/player/stef/Stef.glb",
     "res://assets/characters/player_character.glb",
 ]
 

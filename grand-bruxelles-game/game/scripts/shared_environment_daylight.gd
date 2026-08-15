@@ -63,10 +63,8 @@ func apply_to(world: WorldEnvironment, sun: DirectionalLight3D) -> bool:
         return false
     var environment := world.environment
     environment.background_energy_multiplier = BACKGROUND_ENERGY
-    environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     environment.ambient_light_color = AMBIENT_COLOR
     environment.ambient_light_energy = AMBIENT_ENERGY
-    environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
     environment.tonemap_exposure = TONEMAP_EXPOSURE
     environment.adjustment_enabled = true
     environment.adjustment_brightness = ADJUSTMENT_BRIGHTNESS

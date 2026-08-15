@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "asset_family": "brussels_bilingual_police_vest_identity",
+  "retrieved_on": "2026-08-15",
+  "source_basis": [
+    {
+      "publisher": "Police Locale Uccle / Watermael-Boitsfort / Auderghem",
+      "title": "Attention aux faux policiers !",
+      "url": "https://www.police.be/5342/fr/actualites/attention-aux-faux-policiers",
+      "use": "Confirms that uniformed police wear a protective vest carrying the bilingual inscription police - politie. No source image, logo or artwork is redistributed."
+    },
+    {
+      "publisher": "Police Fédérale",
+      "title": "Eléments d'identification policière",
+      "url": "https://www.police.be/5998/fr/a-propos/police-integree/elements-didentification-policiere",
+      "use": "Confirms bilingual identification variants for bilingual municipalities and the police blue identity family. No official logo or graphical standard is copied."
+    }
+  ],
+  "source_backed_contract": {
+    "languages": ["fr", "nl"],
+    "text": "POLICE · POLITIE",
+    "runtime_scope": "existing NpcAgent police officers only",
+    "placement": "front and rear vest identity surfaces on the existing humanoid police visual",
+    "zones": ["Midi", "Bourse", "future zones reusing the same police NpcAgent visual"]
+  },
+  "authored_values": {
+    "vest_yellow": "authored high-visibility yellow already used by production humanoid_visual; not sampled from an official garment specification",
+    "label_color": "authored dark blue for legibility; no protected police logo, badge, font or striping artwork embedded",
+    "geometry": "rear identity surface mirrors the already-existing front vest envelope; no body proportions or gameplay collision are changed"
+  },
+  "player_exposure_contract": {
+    "natural_exposure": "#344 Living City guarantees existing police NpcAgents participate in the normal Midi/Bourse autonomous street event; no police actor is staged solely for evidence",
+    "expected_three_second_value": "medium-high during response because bilingual police identity remains readable whether an officer faces toward or away from the player",
+    "reuse_scope": "all existing and future police NpcAgents using humanoid_visual.gd"
+  },
+  "license_note": "Only factual bilingual wording and general color/identity facts are used. No external photograph, police logo, badge, font, texture or third-party artwork is redistributed."
+}

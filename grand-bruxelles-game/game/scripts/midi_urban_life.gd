@@ -6,6 +6,7 @@ const MIDI: Vector3 = Vector3(-668.5, 0.0, 627.84)
 const FONSNY_AXIS: Vector3 = Vector3(-0.627, 0.0, 0.779)
 const STATION_SIDE: Vector3 = Vector3(-0.779, 0.0, -0.627)
 const ROAD_SIDE: Vector3 = Vector3(0.779, 0.0, 0.627)
+const CIVILIAN_VEHICLE_VISUAL := preload("res://game/scripts/civilian_vehicle_visual.gd")
 
 @export var pedestrian_count: int = 20
 @export var parked_vehicle_count: int = 14
@@ -259,24 +260,11 @@ func _animate_traffic(delta: float) -> void:
 func _civilian_car(name_value: String, color: Color) -> Node3D:
     var car: Node3D = Node3D.new()
     car.name = name_value
-    var paint: StandardMaterial3D = _material(color, 0.33, 0.42)
-    var lamp_red: StandardMaterial3D = _red_light
-
-    _box(car, "LowerBody", Vector3(1.78, 0.54, 4.05), Vector3(0.0, 0.10, 0.0), paint)
-    _box(car, "Hood", Vector3(1.72, 0.26, 1.22), Vector3(0.0, 0.48, -1.28), paint)
-    _box(car, "Roof", Vector3(1.50, 0.18, 1.72), Vector3(0.0, 1.08, 0.18), paint)
-    _box(car, "CabinGlass", Vector3(1.48, 0.60, 1.82), Vector3(0.0, 0.77, 0.17), _glass)
-    _box(car, "FrontLeftLamp", Vector3(0.42, 0.16, 0.08), Vector3(-0.52, 0.30, -2.07), _white_light)
-    _box(car, "FrontRightLamp", Vector3(0.42, 0.16, 0.08), Vector3(0.52, 0.30, -2.07), _white_light)
-    _box(car, "RearLeftLamp", Vector3(0.38, 0.17, 0.08), Vector3(-0.53, 0.31, 2.07), lamp_red)
-    _box(car, "RearRightLamp", Vector3(0.38, 0.17, 0.08), Vector3(0.53, 0.31, 2.07), lamp_red)
-    _box(car, "FrontPlate", Vector3(0.48, 0.13, 0.035), Vector3(0.0, 0.18, -2.13), _material(Color(0.92, 0.92, 0.90, 1.0), 0.7))
-    _box(car, "RearPlate", Vector3(0.48, 0.13, 0.035), Vector3(0.0, 0.18, 2.13), _material(Color(0.92, 0.92, 0.90, 1.0), 0.7))
-
-    for wheel_x: float in [-0.86, 0.86]:
-        for wheel_z: float in [-1.35, 1.35]:
-            var wheel: MeshInstance3D = _cylinder(car, "Wheel", 0.30, 0.22, Vector3(wheel_x, -0.10, wheel_z), _rubber)
-            wheel.rotation.z = PI * 0.5
+    var visual: Node3D = Node3D.new()
+    visual.name = "ProductionVisual"
+    visual.set_script(CIVILIAN_VEHICLE_VISUAL)
+    visual.set("paint_color", color)
+    car.add_child(visual)
     return car
 
 

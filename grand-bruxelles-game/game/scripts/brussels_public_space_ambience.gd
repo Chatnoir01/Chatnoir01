@@ -1,5 +1,4 @@
 extends Node
-class_name BrusselsPublicSpaceAmbience
 
 ## Original project-authored procedural public-space ambience.
 ## No third-party recording is embedded and no tone is claimed to reproduce an

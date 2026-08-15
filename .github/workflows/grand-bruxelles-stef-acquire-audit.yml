@@ -1,0 +1,94 @@
+name: Grand Bruxelles Stef Acquire Audit
+
+on:
+  push:
+    branches:
+      - integration/real-player-stef-audit-current
+    paths:
+      - ".github/workflows/grand-bruxelles-stef-acquire-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-stef-acquire-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acquire-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+
+      - name: Acquire CC0 source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://opengameart.org/sites/default/files/stef_npc1_1.zip"
+          curl --fail --location --retry 3 --retry-delay 2 "$URL" -o /tmp/stef_npc1.zip
+          test -s /tmp/stef_npc1.zip
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/stef_npc1.zip')
+          data=p.read_bytes()[:4]
+          assert data[:2] == b'PK', f'not a zip: {data!r}'
+          print('STEF_ARCHIVE_BYTES', p.stat().st_size)
+          PY
+          sha256sum /tmp/stef_npc1.zip | tee /tmp/stef_archive_sha256.txt
+
+      - name: Extract without rewriting source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/stef-extract
+          mkdir -p /tmp/stef-extract
+          unzip -q /tmp/stef_npc1.zip -d /tmp/stef-extract
+          find /tmp/stef-extract -type f -printf '%P\t%s bytes\n' | sort | tee /tmp/stef_files.txt
+          test -s /tmp/stef_files.txt
+
+      - name: Build deterministic source manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST="grand-bruxelles-game/assets/characters/player/stef/source"
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+          cp -a /tmp/stef-extract/. "$DEST/"
+          {
+            echo "archive_url=https://opengameart.org/sites/default/files/stef_npc1_1.zip"
+            echo -n "archive_sha256="
+            cut -d' ' -f1 /tmp/stef_archive_sha256.txt
+            echo "archive_bytes=$(stat -c %s /tmp/stef_npc1.zip)"
+            echo "files:"
+            find "$DEST" -type f -printf '%P\t%s\n' | sort
+            echo "sha256:"
+            find "$DEST" -type f -print0 | sort -z | xargs -0 sha256sum
+          } > grand-bruxelles-game/assets/characters/player/stef/SOURCE_MANIFEST.txt
+          cat grand-bruxelles-game/assets/characters/player/stef/SOURCE_MANIFEST.txt
+
+      - name: Reject empty or obviously non-3D archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! find grand-bruxelles-game/assets/characters/player/stef/source -type f \( -iname '*.blend' -o -iname '*.fbx' -o -iname '*.dae' -o -iname '*.gltf' -o -iname '*.glb' -o -iname '*.obj' \) -print -quit | grep -q .; then
+            echo 'No supported 3D source format found in the real archive.' >&2
+            exit 1
+          fi
+
+      - name: Commit untouched acquired source to audit branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f grand-bruxelles-game/assets/characters/player/stef/source
+          git add grand-bruxelles-game/assets/characters/player/stef/SOURCE_MANIFEST.txt
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+            exit 0
+          fi
+          git commit -m "asset(player): acquire untouched Stef CC0 source [skip ci]"
+          git push origin HEAD:integration/real-player-stef-audit-current

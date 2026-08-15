@@ -1,0 +1,75 @@
+name: Grand Bruxelles Bilingual Police Vest Visual
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bilingual-police-vest.yml"
+      - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/tests/brussels_bilingual_police_vest_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_bilingual_police_vest_witness_test.gd"
+      - "grand-bruxelles-game/data/provenance/brussels_bilingual_police_vest.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bilingual-police-vest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate bilateral bilingual police vest
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/brussels_bilingual_police_vest_test.gd 2>&1 | tee /tmp/bilingual-police-vest.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_BILINGUAL_POLICE_VEST_FAIL" /tmp/bilingual-police-vest.log; then exit 1; fi
+          grep -F "BRUSSELS_BILINGUAL_POLICE_VEST_OK" /tmp/bilingual-police-vest.log
+      - name: Capture frozen production Living City A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/brussels_bilingual_police_vest_witness_test.gd 2>&1 | tee /tmp/bilingual-police-vest-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_BILINGUAL_POLICE_VEST_WITNESS_FAIL" /tmp/bilingual-police-vest-witness.log; then exit 1; fi
+          grep -F "BRUSSELS_BILINGUAL_POLICE_VEST_WITNESS_OK" /tmp/bilingual-police-vest-witness.log
+      - name: Assert deterministic evidence files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/bilingual-police-vest-evidence
+          cp grand-bruxelles-game/artifacts/visual/brussels_bilingual_police_vest_before.png /tmp/bilingual-police-vest-evidence/before.png
+          cp grand-bruxelles-game/artifacts/visual/brussels_bilingual_police_vest_after.png /tmp/bilingual-police-vest-evidence/after.png
+          cp /tmp/bilingual-police-vest.log /tmp/bilingual-police-vest-evidence/bilingual-police-vest.log
+          cp /tmp/bilingual-police-vest-witness.log /tmp/bilingual-police-vest-evidence/bilingual-police-vest-witness.log
+          test -s /tmp/bilingual-police-vest-evidence/before.png
+          test -s /tmp/bilingual-police-vest-evidence/after.png
+          test -s /tmp/bilingual-police-vest-evidence/bilingual-police-vest.log
+          test -s /tmp/bilingual-police-vest-evidence/bilingual-police-vest-witness.log
+          python - <<'PY'
+          import struct
+          from pathlib import Path
+          for name in ("before.png", "after.png"):
+              data = (Path("/tmp/bilingual-police-vest-evidence") / name).read_bytes()
+              assert data[:8] == b"\x89PNG\r\n\x1a\n", name
+              width, height = struct.unpack(">II", data[16:24])
+              assert (width, height) == (1280, 720), (name, width, height)
+          PY
+          sha256sum /tmp/bilingual-police-vest-evidence/* | tee /tmp/bilingual-police-vest-evidence/SHA256SUMS.txt
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-bilingual-police-vest-visual-evidence
+          path: /tmp/bilingual-police-vest-evidence
+          if-no-files-found: error

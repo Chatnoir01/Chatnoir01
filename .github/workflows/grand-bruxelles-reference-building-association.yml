@@ -1,0 +1,31 @@
+name: Grand Bruxelles Reference Building Association
+on:
+  pull_request:
+    paths: ["grand-bruxelles-game/tools/visual_dataset/associate_references_to_urbis_buildings.py", "grand-bruxelles-game/tools/visual_dataset/test_associate_references_to_urbis_buildings.py", "grand-bruxelles-game/data/urbis/remaining_brussels/cells/**", ".github/workflows/grand-bruxelles-reference-building-association.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  association-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/visual_dataset/test_associate_references_to_urbis_buildings.py
+      - name: Exercise real UrbIS building file without forcing a match
+        run: |
+          python3 - <<'PY'
+          import json
+          p={'records':[{'canonical_id':'probe','easting_31370':149475.0,'northing_31370':169340.0,'cell_ids':['bxl-e149000-n169000-s500'],'heading':0.0},{'canonical_id':'missing','easting_31370':None,'northing_31370':None,'cell_ids':[]}]}
+          json.dump(p,open('/tmp/index.json','w'))
+          PY
+          python3 grand-bruxelles-game/tools/visual_dataset/associate_references_to_urbis_buildings.py --input /tmp/index.json --output /tmp/assoc.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/assoc.json'))
+          assert p['summary']['records']==2
+          probe=p['records'][0]
+          assert probe['building_candidates'], 'probe near official footprint should have candidates'
+          assert all(c['distance_m']<=60.0 and c['building_id'].startswith('https://databrussels.be/id/building/') for c in probe['building_candidates'])
+          assert p['records'][1]['association_status']=='UNMATCHED'
+          print('REFERENCE_BUILDING_ASSOCIATION_REAL_OK',p['summary'],probe['building_candidates'][0])
+          PY

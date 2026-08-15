@@ -37,7 +37,57 @@ func _read_dictionary(path: String) -> Dictionary:
     if typeof(parsed) != TYPE_DICTIONARY:
         push_error("Invalid UrbIS hero JSON: %s" % path)
         return {}
-    return parsed
+    return parsed as Dictionary
+
+
+func _read_style(entry: Dictionary) -> Dictionary:
+    var style_path := str(entry.get("style_path", ""))
+    if style_path.is_empty():
+        return {}
+    var style := _read_dictionary(style_path)
+    if style.is_empty():
+        return {}
+    if str(style.get("schema", "")) != "grand-bruxelles-hero-material-style-v1":
+        push_error("Unsupported hero material style: %s" % style_path)
+        return {}
+    if str(style.get("hero_id", "")) != str(entry.get("id", "")):
+        push_error("Hero material style ID mismatch: %s" % style_path)
+        return {}
+    if bool(style.get("geometry_mutation_allowed", true)):
+        push_error("Hero material style attempted to allow geometry mutation: %s" % style_path)
+        return {}
+    if not bool(style.get("runtime_visual_approved", false)):
+        push_error("Hero material style is not runtime visual approved: %s" % style_path)
+        return {}
+    return style
+
+
+func _color_from_array(raw: Variant, fallback: Color) -> Color:
+    if not raw is Array or raw.size() != 4:
+        return fallback
+    return Color(
+        clampf(float(raw[0]), 0.0, 1.0),
+        clampf(float(raw[1]), 0.0, 1.0),
+        clampf(float(raw[2]), 0.0, 1.0),
+        clampf(float(raw[3]), 0.0, 1.0)
+    )
+
+
+func _style_material(style: Dictionary, key: String, fallback: StandardMaterial3D) -> StandardMaterial3D:
+    if style.is_empty():
+        return fallback
+    var materials: Variant = style.get("materials", {})
+    if not materials is Dictionary:
+        return fallback
+    var definition: Variant = materials.get(key, {})
+    if not definition is Dictionary:
+        return fallback
+    var material := fallback.duplicate() as StandardMaterial3D
+    material.albedo_color = _color_from_array(definition.get("albedo_rgba", []), fallback.albedo_color)
+    material.roughness = clampf(float(definition.get("roughness", fallback.roughness)), 0.0, 1.0)
+    material.metallic = clampf(float(definition.get("metallic", fallback.metallic)), 0.0, 1.0)
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    return material
 
 
 func _tool(material: Material) -> SurfaceTool:
@@ -91,10 +141,6 @@ func _commit_surface(tool: SurfaceTool, name: String, root: Node3D) -> MeshInsta
 
 
 func _create_collision_after_runtime_adjustments(surface: MeshInstance3D) -> void:
-    # Hero geometry can be source-bounded and then refined by sibling runtime
-    # scripts during the first deferred frame (for example Bourse front reveal).
-    # Building the collider one frame later keeps the physical mesh aligned with
-    # the final visible mesh instead of preserving triangles that were removed.
     await get_tree().process_frame
     if not is_instance_valid(surface) or surface.mesh == null:
         return
@@ -127,6 +173,14 @@ func _build_hero(entry: Dictionary) -> bool:
         push_error("UrbIS hero ID mismatch: %s" % path)
         return false
 
+    var style_path := str(entry.get("style_path", ""))
+    var style := _read_style(entry)
+    if not style_path.is_empty() and style.is_empty():
+        return false
+    var wall_material := _style_material(style, "wall", _wall_material)
+    var roof_material := _style_material(style, "roof", _roof_material)
+    var ground_material := _style_material(style, "ground", _ground_material)
+
     var hero_root := Node3D.new()
     hero_root.name = "Hero_%s" % str(entry.get("id", "unknown")).capitalize()
     add_child(hero_root)
@@ -134,9 +188,9 @@ func _build_hero(entry: Dictionary) -> bool:
     var triangle_count := 0
     var surfaces: Array[MeshInstance3D] = []
     for definition: Array in [
-        ["WALLSURFACE", _wall_material, "Walls"],
-        ["ROOFSURFACE", _roof_material, "Roofs"],
-        ["GROUNDSURFACE", _ground_material, "Ground"],
+        ["WALLSURFACE", wall_material, "Walls"],
+        ["ROOFSURFACE", roof_material, "Roofs"],
+        ["GROUNDSURFACE", ground_material, "Ground"],
     ]:
         var tool := _tool(definition[1])
         triangle_count += _append_triangles(tool, faces, definition[0])
@@ -155,9 +209,11 @@ func _build_hero(entry: Dictionary) -> bool:
     hero_root.set_meta("source_runtime_approved", bool(data.get("runtime_approved", false)))
     hero_root.set_meta("triangle_count", triangle_count)
     hero_root.set_meta("geometry_path", path)
+    hero_root.set_meta("style_path", style_path)
+    hero_root.set_meta("runtime_material_style_applied", not style.is_empty())
     print(
-        "Grand Bruxelles UrbIS hero: %s, %d faces, %d triangles, runtime_approved=%s" %
-        [str(entry.get("id", "unknown")), faces.size(), triangle_count, str(data.get("runtime_approved", false))]
+        "Grand Bruxelles UrbIS hero: %s, %d faces, %d triangles, runtime_approved=%s material_style=%s" %
+        [str(entry.get("id", "unknown")), faces.size(), triangle_count, str(data.get("runtime_approved", false)), str(not style.is_empty())]
     )
     return true
 

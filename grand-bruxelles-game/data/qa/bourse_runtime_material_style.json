@@ -1,0 +1,33 @@
+{
+  "schema": "grand-bruxelles-hero-material-style-v1",
+  "hero_id": "bourse",
+  "purpose": "presentation-only material correction on authoritative UrbIS LOD2 geometry",
+  "geometry_mutation_allowed": false,
+  "runtime_visual_approved": true,
+  "sources": [
+    "res://data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json",
+    "res://data/qa/bourse_portico_articulation_candidate.json"
+  ],
+  "citygen": {
+    "rule_version": "facade-correction-v1",
+    "regeneration_contract": "grand-bruxelles-facade-regeneration-v1"
+  },
+  "materials": {
+    "wall": {
+      "albedo_rgba": [0.74, 0.71, 0.64, 1.0],
+      "roughness": 0.91,
+      "metallic": 0.0
+    },
+    "roof": {
+      "albedo_rgba": [0.17, 0.18, 0.19, 1.0],
+      "roughness": 0.92,
+      "metallic": 0.0
+    },
+    "ground": {
+      "albedo_rgba": [0.33, 0.32, 0.29, 1.0],
+      "roughness": 0.95,
+      "metallic": 0.0
+    }
+  },
+  "validation_note": "Only material parameters may change. Mesh vertices, faces, transforms and collisions remain sourced from the existing UrbIS hero geometry."
+}

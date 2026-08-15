@@ -1,0 +1,60 @@
+name: Grand Bruxelles Bourse Runtime Material
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-runtime-material.yml"
+      - "grand-bruxelles-game/data/qa/bourse_runtime_material_style.json"
+      - "grand-bruxelles-game/data/urbis/heroes/manifest.json"
+      - "grand-bruxelles-game/game/scripts/urbis_hero_builder.gd"
+      - "grand-bruxelles-game/game/tests/bourse_runtime_material_style_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_geotagged_camera_capture_test.gd"
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-material:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate material contract against runtime geometry
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_runtime_material_style_test.gd 2>&1 | tee /tmp/bourse-runtime-material.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_RUNTIME_MATERIAL_STYLE_FAIL" /tmp/bourse-runtime-material.log; then exit 1; fi
+          grep -F "BOURSE_RUNTIME_MATERIAL_STYLE_OK" /tmp/bourse-runtime-material.log
+      - name: Render geotagged Bourse witness with corrected material
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x960 \
+            --script res://game/tests/bourse_geotagged_camera_capture_test.gd 2>&1 | tee /tmp/bourse-runtime-material-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GEOTAGGED_CAPTURE_FAIL" /tmp/bourse-runtime-material-capture.log; then exit 1; fi
+          grep -F "BOURSE_GEOTAGGED_CAPTURE_OK" /tmp/bourse-runtime-material-capture.log
+          test -f grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bourse-runtime-material-witness
+          path: |
+            grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png
+            /tmp/bourse-runtime-material.log
+            /tmp/bourse-runtime-material-capture.log
+          if-no-files-found: error

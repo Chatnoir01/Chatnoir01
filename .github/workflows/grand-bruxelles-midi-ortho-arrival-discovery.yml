@@ -32,14 +32,12 @@ jobs:
         run: |
           python3 - <<'PY'
           from PIL import Image, ImageDraw
-          import json, math
+          import json
           from pathlib import Path
 
           out = Path('grand-bruxelles-game/artifacts/qa/midi-ortho-arrival')
           image = Image.open(out / 'ortho_2023.png').convert('RGB')
           draw = ImageDraw.Draw(image)
-
-          # Exact current-main coordinate contract reconstructed from committed constants.
           origin_e = 148536.794
           origin_n = 170166.464
           midi = (-668.5, 627.84)
@@ -48,84 +46,83 @@ jobs:
           road_side = (0.779, 0.627)
           entrance = (-672.2905, 615.8035)
           camera = (entrance[0] + road_side[0] * 28.0, entrance[1] + road_side[1] * 28.0)
-
           bbox = (147760.0, 169430.0, 147970.0, 169650.0)
           width, height = image.size
-          def world_to_lambert(p):
-              return (origin_e + p[0], origin_n - p[1])
+          def world_to_lambert(p): return (origin_e + p[0], origin_n - p[1])
           def px(lambert):
               e, n = lambert
-              x = (e - bbox[0]) / (bbox[2] - bbox[0]) * width
-              y = (bbox[3] - n) / (bbox[3] - bbox[1]) * height
-              return (x, y)
+              return ((e-bbox[0])/(bbox[2]-bbox[0])*width, (bbox[3]-n)/(bbox[3]-bbox[1])*height)
           def add(a,b): return (a[0]+b[0], a[1]+b[1])
           def mul(a,s): return (a[0]*s, a[1]*s)
           def rect(center, axis_x, axis_z, size_x, size_z):
               hx, hz = size_x/2.0, size_z/2.0
-              return [
-                  add(add(center,mul(axis_x,-hx)),mul(axis_z,-hz)),
-                  add(add(center,mul(axis_x, hx)),mul(axis_z,-hz)),
-                  add(add(center,mul(axis_x, hx)),mul(axis_z, hz)),
-                  add(add(center,mul(axis_x,-hx)),mul(axis_z, hz)),
-              ]
-
-          # Current hand-built forecourt: 18 x 174 m, center = MIDI + STATION_SIDE*15.5 + FONSNY_AXIS*2.
+              return [add(add(center,mul(axis_x,-hx)),mul(axis_z,-hz)), add(add(center,mul(axis_x,hx)),mul(axis_z,-hz)), add(add(center,mul(axis_x,hx)),mul(axis_z,hz)), add(add(center,mul(axis_x,-hx)),mul(axis_z,hz))]
           forecourt_center = add(add(midi, mul(station_side,15.5)), mul(fonsny,2.0))
           forecourt = rect(forecourt_center, road_side, fonsny, 18.0, 174.0)
-          forecourt_px = [px(world_to_lambert(p)) for p in forecourt]
-          draw.line(forecourt_px + [forecourt_px[0]], fill=(255,0,0), width=7)
-
-          # Current hand-built crossing: 10 stripes, 12.5 m wide, centered MIDI + FONSNY_AXIS*-18.
+          fp = [px(world_to_lambert(p)) for p in forecourt]
+          draw.line(fp+[fp[0]], fill=(255,0,0), width=7)
           crossing_center = add(midi, mul(fonsny,-18.0))
-          crossing_outline = rect(crossing_center, road_side, fonsny, 12.5, 8.67)
-          crossing_px = [px(world_to_lambert(p)) for p in crossing_outline]
-          draw.line(crossing_px + [crossing_px[0]], fill=(255,210,0), width=7)
-
-          for p, color, radius in [
-              (world_to_lambert(midi), (0,220,255), 9),
-              (world_to_lambert(entrance), (0,255,80), 9),
-              (world_to_lambert(camera), (255,0,255), 9),
-          ]:
-              x,y = px(p)
-              draw.ellipse((x-radius,y-radius,x+radius,y+radius), outline=color, width=5)
-
+          crossing = rect(crossing_center, road_side, fonsny, 12.5, 8.67)
+          cp = [px(world_to_lambert(p)) for p in crossing]
+          draw.line(cp+[cp[0]], fill=(255,210,0), width=7)
+          for p, color, radius in [(world_to_lambert(midi),(0,220,255),9),(world_to_lambert(entrance),(0,255,80),9),(world_to_lambert(camera),(255,0,255),9)]:
+              x,y = px(p); draw.ellipse((x-radius,y-radius,x+radius,y+radius), outline=color, width=5)
           image.save(out / 'ortho_2023_authored_overlay.png')
           evidence = {
-              'schema': 'grand-bruxelles-midi-ortho-arrival-discovery-v1',
-              'production_base_sha': 'ae7d06e37b439ee6e5bd21883d9ad7169b7bb001',
-              'source': {
-                  'provider': 'Paradigm / Brussels-Capital Region',
-                  'service': 'GeoServer WMS',
-                  'layer': 'urbisgrid:Ortho2023',
-                  'crs': 'EPSG:31370',
-                  'bbox': list(bbox),
-                  'requested_pixel_size_m': [0.125, 0.125],
-                  'usage': 'QA/reference only; not a production texture'
-              },
-              'authored_geometry': {
-                  'forecourt_size_m': [18.0, 174.0],
-                  'forecourt_center_world_xz': list(forecourt_center),
-                  'crossing_size_m': [12.5, 8.67],
-                  'crossing_center_world_xz': list(crossing_center),
-                  'entrance_world_xz': list(entrance),
-                  'normal_player_camera_world_xz': list(camera)
-              },
-              'legend': {
-                  'red': 'current authored FonsnyStationForecourt footprint',
-                  'yellow': 'current authored crosswalk envelope',
-                  'cyan': 'Midi control point',
-                  'green': 'current authored entrance target',
-                  'magenta': 'normal-distance witness camera'
-              },
-              'runtime_approved': False
-          }
-          (out / 'evidence.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')
-          print(json.dumps(evidence, indent=2))
+              'schema':'grand-bruxelles-midi-ortho-arrival-discovery-v2','production_base_sha':'ae7d06e37b439ee6e5bd21883d9ad7169b7bb001',
+              'source':{'provider':'Paradigm / Brussels-Capital Region','service':'GeoServer WMS','layer':'urbisgrid:Ortho2023','crs':'EPSG:31370','bbox':list(bbox),'requested_pixel_size_m':[0.125,0.125],'usage':'QA/reference only; not a production texture'},
+              'authored_geometry':{'forecourt_size_m':[18.0,174.0],'forecourt_center_world_xz':list(forecourt_center),'crossing_size_m':[12.5,8.67],'crossing_center_world_xz':list(crossing_center),'entrance_world_xz':list(entrance),'normal_player_camera_world_xz':list(camera)},
+              'runtime_approved':False}
+          (out/'evidence.json').write_text(json.dumps(evidence,indent=2),encoding='utf-8')
+          PY
+      - name: Lock nearby exact UrbIS StreetSurface candidates
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw
+          import json, math
+          from pathlib import Path
+
+          out = Path('grand-bruxelles-game/artifacts/qa/midi-ortho-arrival')
+          runtime = json.loads(Path('grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json').read_text(encoding='utf-8'))
+          image = Image.open(out/'ortho_2023_authored_overlay.png').convert('RGBA')
+          layer = Image.new('RGBA', image.size, (0,0,0,0)); draw = ImageDraw.Draw(layer)
+          origin_e, origin_n = 148536.794, 170166.464
+          midi_world = (-668.5, 627.84)
+          entrance_world = (-672.2905, 615.8035)
+          entrance_local = (entrance_world[0]-midi_world[0], entrance_world[1]-midi_world[1])
+          bbox = (147760.0,169430.0,147970.0,169650.0); width,height=image.size
+          def px_local(p):
+              wx,wz = midi_world[0]+float(p[0]), midi_world[1]+float(p[1])
+              e,n = origin_e+wx, origin_n-wz
+              return ((e-bbox[0])/(bbox[2]-bbox[0])*width,(bbox[3]-n)/(bbox[3]-bbox[1])*height)
+          def area(poly):
+              if len(poly)<3:return 0.0
+              return abs(sum(float(poly[i][0])*float(poly[(i+1)%len(poly)][1])-float(poly[(i+1)%len(poly)][0])*float(poly[i][1]) for i in range(len(poly))))*0.5
+          def centroid(poly):
+              return (sum(float(p[0]) for p in poly)/len(poly),sum(float(p[1]) for p in poly)/len(poly))
+          candidates=[]
+          colors={'SW':(0,150,255,95),'P':(0,255,80,95),'I':(255,140,0,80)}
+          for index,feature in enumerate(runtime.get('street_surfaces',[])):
+              typ=str(feature.get('type','')); poly=feature.get('polygon',[])
+              if typ not in ('SW','P','I') or len(poly)<3: continue
+              c=centroid(poly); d=math.hypot(c[0]-entrance_local[0],c[1]-entrance_local[1]); a=area(poly)
+              if d>110.0 or a<5.0: continue
+              candidates.append({'index':index,'id':feature.get('id'),'type':typ,'area_m2':round(a,3),'centroid_local_xz':[round(c[0],3),round(c[1],3)],'centroid_distance_to_entrance_m':round(d,3),'bbox_local_xz':[round(min(float(p[0]) for p in poly),3),round(min(float(p[1]) for p in poly),3),round(max(float(p[0]) for p in poly),3),round(max(float(p[1]) for p in poly),3)],'vertex_count':len(poly)})
+              pts=[px_local(p) for p in poly]; draw.polygon(pts,fill=colors[typ]); draw.line(pts+[pts[0]],fill=colors[typ][:3]+(220,),width=3)
+          candidates.sort(key=lambda x:(x['centroid_distance_to_entrance_m'],-x['area_m2']))
+          (out/'nearby_street_surface_candidates.json').write_text(json.dumps({'entrance_local_xz':entrance_local,'candidate_count':len(candidates),'candidates':candidates},indent=2),encoding='utf-8')
+          Image.alpha_composite(image,layer).convert('RGB').save(out/'ortho_2023_official_surfaces_overlay.png')
+          print(json.dumps(candidates[:30],indent=2))
+          if not any(c['type'] in ('SW','P') and c['area_m2']>=50.0 and c['centroid_distance_to_entrance_m']<=60.0 for c in candidates):
+              raise SystemExit('No large official SW/P surface close enough to the entrance; reject Midi forecourt candidate')
           PY
       - name: Assert QA artifact dimensions
         run: |
           test -s grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/ortho_2023.png
           test -s grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/ortho_2023_authored_overlay.png
+          test -s grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/ortho_2023_official_surfaces_overlay.png
+          test -s grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/nearby_street_surface_candidates.json
           test -s grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/evidence.json
       - name: Upload discovery evidence
         uses: actions/upload-artifact@v4

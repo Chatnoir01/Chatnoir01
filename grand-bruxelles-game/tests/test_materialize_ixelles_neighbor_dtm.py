@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -7,9 +8,28 @@ import numpy as np
 import pytest
 
 TOOLS = Path(__file__).resolve().parents[1] / "tools"
+PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 
 import materialize_ixelles_neighbor_dtm as m  # noqa: E402
+
+EXPECTED_COMMITTED = {
+    "bxl-e149000-n169500-s500": {
+        "min": 50.129438,
+        "max": 82.123082,
+        "sha": "2949dded95da1688d22aea19d9cf1c9da93556cdfb2299718337255c77cb88df",
+    },
+    "bxl-e149500-n169000-s500": {
+        "min": 69.07554,
+        "max": 87.837482,
+        "sha": "bd9d2b4e1898f358c26013277c4d6700e2cbcf43aa44d68430b87183ba47d3ad",
+    },
+    "bxl-e149500-n169500-s500": {
+        "min": 64.091393,
+        "max": 80.483965,
+        "sha": "c72be3242b1c6713fef11724d20d369469527b73716db2e717633abd3be48fd5",
+    },
+}
 
 
 def grid(base: float, east_slope: float = 0.01, north_slope: float = 0.02) -> np.ndarray:
@@ -65,3 +85,21 @@ def test_contract_keeps_absolute_source_and_shared_datum() -> None:
     assert contract["relative_min_m"] == pytest.approx(65.0 - m.EXPECTED_REFERENCE_M)
     assert contract["runtime_approved"] is False
     assert contract["promote_runtime"] is False
+
+
+def test_committed_neighbor_contracts_match_first_official_generation() -> None:
+    for cell_id, expected in EXPECTED_COMMITTED.items():
+        path = PROJECT / "data" / "terrain" / "ixelles" / f"{cell_id}_dtm_2m.game.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert payload["schema"] == m.SCHEMA
+        assert payload["cell_id"] == cell_id
+        assert payload["shape"] == [251, 251]
+        assert payload["sample_count"] == 63001
+        assert payload["spacing_m"] == 2.0
+        assert payload["absolute_min_m"] == expected["min"]
+        assert payload["absolute_max_m"] == expected["max"]
+        assert payload["absolute_float64_sha256"] == expected["sha"]
+        assert payload["shared_vertical_datum"]["reference_absolute_m"] == m.EXPECTED_REFERENCE_M
+        assert payload["source"]["source_archive_sha256"] == m.SOURCE_ARCHIVES
+        assert payload["runtime_approved"] is False
+        assert payload["promote_runtime"] is False

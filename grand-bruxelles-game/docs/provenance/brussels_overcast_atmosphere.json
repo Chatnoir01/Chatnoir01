@@ -1,0 +1,35 @@
+{
+  "schema": "grand-bruxelles-authored-atmosphere-v1",
+  "asset_family": "brussels-uccle-overcast-atmosphere",
+  "status": "runtime-candidate",
+  "source_basis": [
+    {
+      "publisher": "Institut royal météorologique de Belgique / KMI-IRM",
+      "title": "Normales climatiques à Uccle — généralités",
+      "url": "https://www.meteo.be/fr/climat/climat-de-la-belgique/normales-climatiques-a-uccle/generalites",
+      "use": "Uccle 1991-2020 normals are the long-period Brussels climate context; no source image or proprietary media is redistributed."
+    },
+    {
+      "publisher": "Institut royal météorologique de Belgique / KMI-IRM",
+      "title": "Bilans climatologiques — cloudiness context",
+      "url": "https://www.meteo.be/fr/climat/climat-de-la-belgique/bilans-climatologiques/2026/mars",
+      "use": "Confirms cloudiness/covered-sky reporting is a measured climatological variable at Uccle. The runtime preset does not claim to reproduce a specific observed day."
+    }
+  ],
+  "source_truth": {
+    "location_context": "Uccle station is used by IRM/KMI for Brussels/central-Belgium climatological normals.",
+    "weather_claim": "Authored overcast presentation preset only; not live weather and not a reconstruction of a dated observation."
+  },
+  "authored_parameters": {
+    "sun_energy": 0.54,
+    "ambient_energy": 0.80,
+    "fog_density": 0.0036,
+    "sky_colors": "authored neutral-cool overcast palette",
+    "tonemap_and_saturation": "authored for facade readability and reduced hard-sun contrast"
+  },
+  "licensing": {
+    "runtime_code": "original project-authored GDScript",
+    "third_party_media_vendored": false
+  },
+  "reuse_scope": "Shared across Centre, Midi, Ixelles and Laeken because it changes only the global environment/light presentation and does not own geography or building geometry."
+}

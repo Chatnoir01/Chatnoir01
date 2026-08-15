@@ -56,6 +56,9 @@ func _run() -> void:
     if not bool(hero.get_meta("runtime_material_style_applied", false)):
         _fail("runtime material style was not applied")
         return
+    if not bool(hero.get_meta("wall_shader_articulation_applied", false)):
+        _fail("wall shader articulation was not applied")
+        return
     if str(hero.get_meta("geometry_path", "")) != GEOMETRY_PATH:
         _fail("geometry path changed while applying material style")
         return
@@ -67,18 +70,26 @@ func _run() -> void:
     if walls == null or walls.mesh == null or walls.mesh.get_surface_count() < 1:
         _fail("Bourse wall surface missing")
         return
-    var material := walls.mesh.surface_get_material(0) as StandardMaterial3D
-    if material == null:
-        _fail("Bourse wall material missing")
+    var material := walls.mesh.surface_get_material(0) as ShaderMaterial
+    if material == null or material.shader == null:
+        _fail("Bourse wall shader material missing")
         return
-    var expected_wall := _rgba((style.get("materials", {}) as Dictionary).get("wall", {}).get("albedo_rgba", []))
-    if not material.albedo_color.is_equal_approx(expected_wall):
-        _fail("wall albedo does not match style contract")
+    var wall_definition: Dictionary = (style.get("materials", {}) as Dictionary).get("wall", {})
+    if material.shader.resource_path != str(wall_definition.get("shader_path", "")):
+        _fail("wall shader path does not match style contract")
         return
-    if absf(material.roughness - 0.91) > 0.0001:
-        _fail("wall roughness does not match style contract")
+    var expected_wall := _rgba(wall_definition.get("albedo_rgba", []))
+    var actual_wall: Color = material.get_shader_parameter("base_color")
+    if not actual_wall.is_equal_approx(expected_wall):
+        _fail("wall shader base color does not match style contract")
+        return
+    if absf(float(material.get_shader_parameter("base_roughness")) - 0.91) > 0.0001:
+        _fail("wall shader roughness does not match style contract")
+        return
+    if absf(float(material.get_shader_parameter("course_height_m")) - 0.62) > 0.0001:
+        _fail("stone course height does not match style contract")
         return
 
-    print("BOURSE_RUNTIME_MATERIAL_STYLE_OK: triangles=%d wall=%s roughness=%.2f geometry_unchanged=true" % [expected_triangles, str(material.albedo_color), material.roughness])
+    print("BOURSE_RUNTIME_MATERIAL_STYLE_OK: triangles=%d shader=%s course=0.62 geometry_unchanged=true" % [expected_triangles, material.shader.resource_path])
     builder.queue_free()
     quit(0)

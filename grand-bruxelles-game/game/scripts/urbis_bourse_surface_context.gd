@@ -9,6 +9,9 @@ const DATA_PATHS := [
 ]
 const SUPPORTED_TYPES := ["I", "P", "S", "SW"]
 const PRESENTATION_Y_OFFSET_M := 0.17
+const PostRainSurface := preload("res://game/scripts/brussels_post_rain_surface_material.gd")
+
+@export_range(0.0, 1.0, 0.01) var post_rain_wetness: float = 0.62
 
 var _materials: Dictionary = {}
 var _surface_count: int = 0
@@ -21,12 +24,14 @@ func _ready() -> void:
     _make_materials()
     _build()
 
-func _material(color: Color, roughness: float) -> StandardMaterial3D:
-    var material := StandardMaterial3D.new()
-    material.albedo_color = color
-    material.roughness = roughness
-    material.cull_mode = BaseMaterial3D.CULL_DISABLED
-    return material
+func _material(color: Color, roughness: float) -> Material:
+    if post_rain_wetness <= 0.001:
+        var material := StandardMaterial3D.new()
+        material.albedo_color = color
+        material.roughness = roughness
+        material.cull_mode = BaseMaterial3D.CULL_DISABLED
+        return material
+    return PostRainSurface.make(color, roughness, post_rain_wetness)
 
 func _make_materials() -> void:
     _materials = {

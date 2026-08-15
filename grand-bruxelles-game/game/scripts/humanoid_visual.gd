@@ -76,6 +76,8 @@ func _hide_legacy_visuals(actor: Node3D) -> void:
 
 func _try_build_authored_character() -> bool:
     for candidate: String in _authored_candidates():
+        if not ResourceLoader.exists(candidate):
+            continue
         var resource: Resource = load(candidate)
         if resource == null:
             continue

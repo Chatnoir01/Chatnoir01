@@ -72,9 +72,9 @@ func _measure(before: Image, after: Image) -> Dictionary:
     var total := WIDTH * HEIGHT
     for y in range(HEIGHT):
         for x in range(WIDTH):
-            var a := before.get_pixel(x, y)
-            var b := after.get_pixel(x, y)
-            var delta := max(abs(a.r - b.r), max(abs(a.g - b.g), abs(a.b - b.b))) * 255.0
+            var a: Color = before.get_pixel(x, y)
+            var b: Color = after.get_pixel(x, y)
+            var delta: float = maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b))) * 255.0
             if delta > 3.0:
                 gt3 += 1
             if delta > 8.0:

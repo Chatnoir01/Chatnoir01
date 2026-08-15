@@ -16,7 +16,14 @@
     "wall": {
       "albedo_rgba": [0.74, 0.71, 0.64, 1.0],
       "roughness": 0.91,
-      "metallic": 0.0
+      "metallic": 0.0,
+      "shader_path": "res://assets/materials/bourse_stone_courses.gdshader",
+      "shader_parameters": {
+        "course_height_m": 0.62,
+        "joint_half_width_m": 0.018,
+        "joint_darkening": 0.065,
+        "roughness_lift": 0.035
+      }
     },
     "roof": {
       "albedo_rgba": [0.17, 0.18, 0.19, 1.0],
@@ -29,5 +36,5 @@
       "metallic": 0.0
     }
   },
-  "validation_note": "Only material parameters may change. Mesh vertices, faces, transforms and collisions remain sourced from the existing UrbIS hero geometry."
+  "validation_note": "Only material parameters may change. The wall shader adds subtle horizontal stone-course shading in the existing mesh coordinate frame; mesh vertices, faces, transforms and collisions remain sourced from the existing UrbIS hero geometry."
 }

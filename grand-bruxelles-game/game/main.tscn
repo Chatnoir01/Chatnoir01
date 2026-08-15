@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=3]
+[gd_scene load_steps=45 format=3]
 
 [ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="1_player"]
 [ext_resource type="Script" path="res://game/scripts/osm_city_builder.gd" id="2_city"]
@@ -33,6 +33,7 @@
 [ext_resource type="Script" path="res://game/scripts/mission_return_to_bourse.gd" id="31_return_mission"]
 [ext_resource type="Script" path="res://game/scripts/vehicle_physics_controller.gd" id="32_physical_vehicle"]
 [ext_resource type="Script" path="res://game/scripts/mobile_playability_collision_runtime.gd" id="33_playability_collision"]
+[ext_resource type="Script" path="res://game/scripts/corridor_facade_depth_runtime.gd" id="34_facade_depth"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.42
@@ -115,6 +116,9 @@ use_collision = true
 
 [node name="BrusselsOSM" type="Node3D" parent="."]
 script = ExtResource("2_city")
+
+[node name="CorridorFacadeDepthRuntime" type="Node" parent="."]
+script = ExtResource("34_facade_depth")
 
 [node name="UrbISBourseGeotaggedFrontage" type="Node3D" parent="."]
 script = ExtResource("23_bourse_geotagged_frontage")

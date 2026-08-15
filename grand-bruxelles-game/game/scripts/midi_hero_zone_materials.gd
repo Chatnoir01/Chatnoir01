@@ -4,6 +4,7 @@ extends "res://game/scripts/midi_hero_zone.gd"
 # Geometry remains owned by the existing Midi hero zone. Texture scale, colors,
 # roughness and block cadence are authored presentation values, not survey data.
 
+const SHARED_STREET_MATERIALS := preload("res://game/scripts/brussels_shared_street_materials.gd")
 const CONCRETE_TEXTURE_METRES := 1.80
 const GLASS_BLOCK_TEXTURE_METRES := 1.60
 
@@ -11,6 +12,10 @@ func _make_materials() -> void:
     super._make_materials()
     _concrete = _architectural_concrete_material()
     _glass_block = _glass_block_material()
+    # Re-materialize only the already-authored Fonsny forecourt geometry.
+    # This shared family can be reused by other approved pedestrian surfaces;
+    # it does not establish or alter any location-specific placement.
+    _paving = SHARED_STREET_MATERIALS.pedestrian_paving()
 
 func _build_station_entrance() -> void:
     super._build_station_entrance()

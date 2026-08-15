@@ -36,7 +36,7 @@ func _test_authored_player_selected() -> bool:
 
     var visual := HUMANOID_VISUAL.new()
     visual.name = "VisualUpgrade"
-    visual.authored_player_scene_path = AUTHORED_FIXTURE
+    visual.authored_scene_path = AUTHORED_FIXTURE
     visual.allow_authored_fallback_paths = false
     actor.add_child(visual)
     await process_frame
@@ -51,7 +51,7 @@ func _test_authored_player_selected() -> bool:
         _fail("Legacy player capsule must be hidden")
         return false
 
-    var authored: Node3D = visual.authored_character()
+    var authored := visual.get_node_or_null("AuthoredCharacter") as Node3D
     if authored == null or authored.name != "AuthoredCharacter":
         _fail("Authored player instance missing")
         return false
@@ -74,7 +74,7 @@ func _test_player_fallback_remains_safe() -> bool:
 
     var visual := HUMANOID_VISUAL.new()
     visual.name = "VisualUpgrade"
-    visual.authored_player_scene_path = "res://assets/characters/player/does-not-exist.glb"
+    visual.authored_scene_path = "res://assets/characters/player/does-not-exist.glb"
     visual.allow_authored_fallback_paths = false
     actor.add_child(visual)
     await process_frame
@@ -99,7 +99,7 @@ func _test_police_never_uses_player_asset() -> bool:
 
     var visual := HUMANOID_VISUAL.new()
     visual.name = "VisualUpgrade"
-    visual.authored_player_scene_path = AUTHORED_FIXTURE
+    visual.authored_scene_path = AUTHORED_FIXTURE
     visual.allow_authored_fallback_paths = false
     actor.add_child(visual)
     await process_frame

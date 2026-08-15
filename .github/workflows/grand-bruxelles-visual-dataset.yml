@@ -1,0 +1,30 @@
+name: Grand Bruxelles Visual Dataset
+on:
+  pull_request:
+    paths: ["grand-bruxelles-game/tools/visual_dataset/**", ".github/workflows/grand-bruxelles-visual-dataset.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  catalog-guardrails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/visual_dataset/test_visual_catalog.py
+      - name: Build live licensed Brussels catalog
+        run: |
+          python3 grand-bruxelles-game/tools/visual_dataset/build_wikimedia_catalog.py --limit 100 --output /tmp/brussels-visual-catalog.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/brussels-visual-catalog.json'))
+          assert p['summary']['seen']>0
+          assert p['summary']['accepted']>0
+          assert all((not x['accepted']) or (x['license'] in p['license_allowlist'] and x['url']) for x in p['images'])
+          geolocated=[x for x in p['images'] if x['lat'] is not None and x['lon'] is not None]
+          assert geolocated, 'live query must return at least one coordinate-bearing image'
+          print('VISUAL_DATASET_LIVE_OK',p['summary'],'geolocated=',len(geolocated))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brussels-visual-catalog
+          path: /tmp/brussels-visual-catalog.json

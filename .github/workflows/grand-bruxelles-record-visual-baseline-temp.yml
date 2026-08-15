@@ -1,0 +1,52 @@
+name: Grand Bruxelles Record Visual Baseline Temp
+
+on:
+  push:
+    branches: ["visual/midi-ambient-npc-production-bridge"]
+    paths:
+      - ".github/workflows/grand-bruxelles-record-visual-baseline-temp.yml"
+      - "grand-bruxelles-game/data/qa/rendered_main_baseline.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  record-rendered-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/rendered-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/rendered-import.log; then exit 1; fi
+      - name: Record accepted visual baseline
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GB_VISUAL_BASELINE_RECORD: "1"
+        run: |
+          set -o pipefail
+          mkdir -p grand-bruxelles-game/artifacts
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --rendering-method gl_compatibility --script res://game/tests/rendered_main_baseline_test.gd 2>&1 | tee /tmp/rendered-record.log
+          grep -q "RENDERED_MAIN_BASELINE_OK" /tmp/rendered-record.log
+          test -s grand-bruxelles-game/artifacts/rendered-main-fingerprint.json
+          cp grand-bruxelles-game/artifacts/rendered-main-fingerprint.json grand-bruxelles-game/artifacts/rendered_main_baseline.recorded.json
+      - name: Upload recorded baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-recorded-visual-baseline
+          path: grand-bruxelles-game/artifacts/rendered_main_baseline.recorded.json
+          if-no-files-found: error

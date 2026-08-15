@@ -4,7 +4,7 @@ Run with Blender opening the source .blend first, then this script:
     blender --background SOURCE.blend --python tools/prepare_stef_character.py -- OUTPUT.glb
 
 The script does not remodel the character. It validates the existing armature,
-skinned meshes, materials and animation actions, reconnects external textures,
+skinned meshes, materials and animation actions, reconnects packaged textures,
 normalizes only the scene-root scale to a 1.70 m game height, and exports GLB
 with skins, materials and animations preserved.
 """
@@ -18,6 +18,7 @@ import bpy
 from mathutils import Vector
 
 TARGET_HEIGHT_M = 1.70
+TEXTURE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".tga")
 
 
 def _output_arg() -> Path:
@@ -91,14 +92,43 @@ def _validate_source() -> dict[str, object]:
     }
 
 
+def _normalized_stem(name: str) -> str:
+    return Path(name).stem.strip().lower()
+
+
 def _reconnect_textures() -> None:
     source_path = Path(bpy.data.filepath)
     if not source_path.is_file():
         return
-    try:
-        bpy.ops.file.find_missing_files(directory=str(source_path.parent))
-    except RuntimeError as exc:
-        print(f"STEF_WARN: missing-file reconnect reported: {exc}")
+
+    texture_dir = source_path.parent
+    package_textures = {
+        _normalized_stem(path.name): path
+        for path in texture_dir.iterdir()
+        if path.is_file() and path.suffix.lower() in TEXTURE_EXTENSIONS
+    }
+
+    relinked = 0
+    unresolved: list[str] = []
+    for image in bpy.data.images:
+        if image.source != "FILE":
+            continue
+        original_name = Path(bpy.path.abspath(image.filepath)).name or image.name
+        key = _normalized_stem(original_name)
+        replacement = package_textures.get(key)
+        if replacement is None:
+            unresolved.append(original_name)
+            continue
+        image.filepath = str(replacement)
+        try:
+            image.reload()
+        except RuntimeError as exc:
+            raise RuntimeError(f"Failed to reload packaged texture {replacement.name}: {exc}") from exc
+        relinked += 1
+
+    print(f"STEF_TEXTURE_RELINK: relinked={relinked} unresolved={len(unresolved)}")
+    if unresolved:
+        print("STEF_TEXTURE_UNRESOLVED: " + " | ".join(sorted(set(unresolved))))
 
 
 def _mark_metadata(scale: float, audit: dict[str, object]) -> None:
@@ -116,7 +146,7 @@ def _mark_metadata(scale: float, audit: dict[str, object]) -> None:
 
 def _export_glb(output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
-    kwargs = dict(
+    bpy.ops.export_scene.gltf(
         filepath=str(output),
         export_format="GLB",
         export_apply=False,
@@ -125,8 +155,8 @@ def _export_glb(output: Path) -> None:
         export_morph=True,
         export_yup=True,
         export_materials="EXPORT",
+        export_draco_mesh_compression_enable=False,
     )
-    bpy.ops.export_scene.gltf(**kwargs)
     if not output.is_file() or output.stat().st_size < 100_000:
         raise RuntimeError(f"GLB export missing or unexpectedly small: {output}")
 

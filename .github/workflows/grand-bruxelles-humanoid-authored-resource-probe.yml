@@ -1,0 +1,52 @@
+name: Grand Bruxelles Humanoid Authored Resource Probe
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/tests/humanoid_authored_resource_probe_test.gd"
+      - ".github/workflows/grand-bruxelles-humanoid-authored-resource-probe.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/tests/humanoid_authored_resource_probe_test.gd"
+      - ".github/workflows/grand-bruxelles-humanoid-authored-resource-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-authored-resource-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project headless
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/humanoid-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/humanoid-import.log; then exit 1; fi
+      - name: Authored resource probe regression
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/humanoid_authored_resource_probe_test.gd 2>&1 | tee /tmp/humanoid-probe.log
+          if grep -E "SCRIPT ERROR|Parse Error:|HUMANOID_AUTHORED_RESOURCE_PROBE_FAIL" /tmp/humanoid-probe.log; then exit 1; fi
+          grep -q "HUMANOID_AUTHORED_RESOURCE_PROBE_OK" /tmp/humanoid-probe.log
+          if grep -F -e "Resource file not found: res://assets/characters/player/thandi/Thandi.glb" -e "Resource file not found: res://assets/characters/player/thandi/Thandi.fbx" -e "Resource file not found: res://assets/characters/player_character.glb" /tmp/humanoid-probe.log; then exit 1; fi
+      - name: Production main-scene missing-resource silence
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --quit-after 8 2>&1 | tee /tmp/humanoid-main.log
+          if grep -F -e "Resource file not found: res://assets/characters/player/thandi/Thandi.glb" -e "Resource file not found: res://assets/characters/player/thandi/Thandi.fbx" -e "Resource file not found: res://assets/characters/player_character.glb" /tmp/humanoid-main.log; then exit 1; fi
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/humanoid-main.log; then exit 1; fi
+          echo "HUMANOID_AUTHORED_RESOURCE_MAIN_SILENT_OK"

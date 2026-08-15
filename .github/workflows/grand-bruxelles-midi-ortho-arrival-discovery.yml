@@ -1,0 +1,135 @@
+name: Grand Bruxelles Midi Ortho Arrival Discovery
+
+on:
+  push:
+    branches:
+      - integration/midi-ortho-arrival-current
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-ortho-arrival-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  midi-ortho-arrival-discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install image tooling
+        run: python3 -m pip install --quiet pillow
+      - name: Download pinned official 2023 orthophoto crop
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p grand-bruxelles-game/artifacts/qa/midi-ortho-arrival
+          URL='https://geoservices-urbis.irisnet.be/geoserver/urbisgrid/wms?service=WMS&version=1.1.0&request=GetMap&layers=urbisgrid%3AOrtho2023&styles=&bbox=147760,169430,147970,169650&width=1680&height=1760&srs=EPSG%3A31370&format=image%2Fpng'
+          curl -fL --retry 3 --retry-delay 3 "$URL" -o grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/ortho_2023.png
+          file grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/ortho_2023.png | grep -F 'PNG image data'
+      - name: Overlay current authored Fonsny footprints
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw
+          import json, math
+          from pathlib import Path
+
+          out = Path('grand-bruxelles-game/artifacts/qa/midi-ortho-arrival')
+          image = Image.open(out / 'ortho_2023.png').convert('RGB')
+          draw = ImageDraw.Draw(image)
+
+          # Exact current-main coordinate contract reconstructed from committed constants.
+          origin_e = 148536.794
+          origin_n = 170166.464
+          midi = (-668.5, 627.84)
+          fonsny = (-0.627, 0.779)
+          station_side = (-0.779, -0.627)
+          road_side = (0.779, 0.627)
+          entrance = (-672.2905, 615.8035)
+          camera = (entrance[0] + road_side[0] * 28.0, entrance[1] + road_side[1] * 28.0)
+
+          bbox = (147760.0, 169430.0, 147970.0, 169650.0)
+          width, height = image.size
+          def world_to_lambert(p):
+              return (origin_e + p[0], origin_n - p[1])
+          def px(lambert):
+              e, n = lambert
+              x = (e - bbox[0]) / (bbox[2] - bbox[0]) * width
+              y = (bbox[3] - n) / (bbox[3] - bbox[1]) * height
+              return (x, y)
+          def add(a,b): return (a[0]+b[0], a[1]+b[1])
+          def mul(a,s): return (a[0]*s, a[1]*s)
+          def rect(center, axis_x, axis_z, size_x, size_z):
+              hx, hz = size_x/2.0, size_z/2.0
+              return [
+                  add(add(center,mul(axis_x,-hx)),mul(axis_z,-hz)),
+                  add(add(center,mul(axis_x, hx)),mul(axis_z,-hz)),
+                  add(add(center,mul(axis_x, hx)),mul(axis_z, hz)),
+                  add(add(center,mul(axis_x,-hx)),mul(axis_z, hz)),
+              ]
+
+          # Current hand-built forecourt: 18 x 174 m, center = MIDI + STATION_SIDE*15.5 + FONSNY_AXIS*2.
+          forecourt_center = add(add(midi, mul(station_side,15.5)), mul(fonsny,2.0))
+          forecourt = rect(forecourt_center, road_side, fonsny, 18.0, 174.0)
+          forecourt_px = [px(world_to_lambert(p)) for p in forecourt]
+          draw.line(forecourt_px + [forecourt_px[0]], fill=(255,0,0), width=7)
+
+          # Current hand-built crossing: 10 stripes, 12.5 m wide, centered MIDI + FONSNY_AXIS*-18.
+          crossing_center = add(midi, mul(fonsny,-18.0))
+          crossing_outline = rect(crossing_center, road_side, fonsny, 12.5, 8.67)
+          crossing_px = [px(world_to_lambert(p)) for p in crossing_outline]
+          draw.line(crossing_px + [crossing_px[0]], fill=(255,210,0), width=7)
+
+          for p, color, radius in [
+              (world_to_lambert(midi), (0,220,255), 9),
+              (world_to_lambert(entrance), (0,255,80), 9),
+              (world_to_lambert(camera), (255,0,255), 9),
+          ]:
+              x,y = px(p)
+              draw.ellipse((x-radius,y-radius,x+radius,y+radius), outline=color, width=5)
+
+          image.save(out / 'ortho_2023_authored_overlay.png')
+          evidence = {
+              'schema': 'grand-bruxelles-midi-ortho-arrival-discovery-v1',
+              'production_base_sha': 'ae7d06e37b439ee6e5bd21883d9ad7169b7bb001',
+              'source': {
+                  'provider': 'Paradigm / Brussels-Capital Region',
+                  'service': 'GeoServer WMS',
+                  'layer': 'urbisgrid:Ortho2023',
+                  'crs': 'EPSG:31370',
+                  'bbox': list(bbox),
+                  'requested_pixel_size_m': [0.125, 0.125],
+                  'usage': 'QA/reference only; not a production texture'
+              },
+              'authored_geometry': {
+                  'forecourt_size_m': [18.0, 174.0],
+                  'forecourt_center_world_xz': list(forecourt_center),
+                  'crossing_size_m': [12.5, 8.67],
+                  'crossing_center_world_xz': list(crossing_center),
+                  'entrance_world_xz': list(entrance),
+                  'normal_player_camera_world_xz': list(camera)
+              },
+              'legend': {
+                  'red': 'current authored FonsnyStationForecourt footprint',
+                  'yellow': 'current authored crosswalk envelope',
+                  'cyan': 'Midi control point',
+                  'green': 'current authored entrance target',
+                  'magenta': 'normal-distance witness camera'
+              },
+              'runtime_approved': False
+          }
+          (out / 'evidence.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')
+          print(json.dumps(evidence, indent=2))
+          PY
+      - name: Assert QA artifact dimensions
+        run: |
+          test -s grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/ortho_2023.png
+          test -s grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/ortho_2023_authored_overlay.png
+          test -s grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/evidence.json
+      - name: Upload discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-ortho-arrival-discovery
+          path: grand-bruxelles-game/artifacts/qa/midi-ortho-arrival/
+          if-no-files-found: error

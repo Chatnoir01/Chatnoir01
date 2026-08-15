@@ -1,0 +1,25 @@
+{
+  "schema": "grand-bruxelles-corridor-sidewalk-articulation-v1",
+  "asset_kind": "procedural_street_art_direction",
+  "scope": "existing production OSM sidewalks inside the Midi and Bourse detail radii",
+  "geometry_reference": "existing production OSM road segments plus the production sidewalk width rules in osm_city_builder.gd",
+  "runtime": {
+    "autoload": "CorridorSidewalkArticulationRuntime",
+    "layer": "BrusselsOSM/CorridorSidewalkArticulation",
+    "moves_source_geometry": false,
+    "changes_road_width": false,
+    "multimesh_layers": 2
+  },
+  "authorship_and_rights": {
+    "external_assets": [],
+    "external_textures": [],
+    "licence_dependency": "none",
+    "modifications": "Original procedural curb-lip and pavement-joint presentation generated from already-shipped road segments."
+  },
+  "truth_limits": {
+    "curb_dimensions_are_measured": false,
+    "joint_spacing_is_measured": false,
+    "material_values_are_measured": false,
+    "purpose": "Reusable player-height street articulation only; source route geometry remains authoritative."
+  }
+}

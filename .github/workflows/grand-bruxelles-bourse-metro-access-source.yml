@@ -1,0 +1,31 @@
+name: Grand Bruxelles Bourse Metro Access Source
+
+on:
+  push:
+    branches: ["visual/shared-bourse-metro-identity-current"]
+    paths:
+      - "grand-bruxelles-game/tools/fetch_bourse_metro_access.py"
+      - ".github/workflows/grand-bruxelles-bourse-metro-access-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch official Bourse / Beurs metro entrances
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/fetch_bourse_metro_access.py | tee /tmp/bourse-metro-access-source.log
+          grep -F "BOURSE_METRO_ACCESS_SOURCE_OK=" /tmp/bourse-metro-access-source.log
+      - name: Upload source unlocker log
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-metro-access-source-unlocker
+          path: /tmp/bourse-metro-access-source.log
+          if-no-files-found: error

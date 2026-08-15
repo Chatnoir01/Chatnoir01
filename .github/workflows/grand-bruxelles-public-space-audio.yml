@@ -1,0 +1,82 @@
+name: Grand Bruxelles Public Space Audio
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-public-space-audio.yml"
+      - "grand-bruxelles-game/game/scripts/brussels_public_space_ambience.gd"
+      - "grand-bruxelles-game/game/tests/brussels_public_space_audio_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_public_space_audio_witness_test.gd"
+      - "grand-bruxelles-game/docs/provenance/brussels_public_space_ambience.json"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-space-audio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --audio-driver Dummy --path grand-bruxelles-game --editor --quit
+      - name: Validate runtime and authored-audio contract
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --audio-driver Dummy --path grand-bruxelles-game --script res://game/tests/brussels_public_space_audio_test.gd 2>&1 | tee /tmp/brussels-public-space-audio.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_PUBLIC_SPACE_AUDIO_FAIL" /tmp/brussels-public-space-audio.log; then exit 1; fi
+          grep -F "BRUSSELS_PUBLIC_SPACE_AUDIO_OK" /tmp/brussels-public-space-audio.log
+      - name: Render exact runtime PCM into 30-second witness
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --audio-driver Dummy --path grand-bruxelles-game --script res://game/tests/brussels_public_space_audio_witness_test.gd 2>&1 | tee /tmp/brussels-public-space-audio-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_PUBLIC_SPACE_AUDIO_WITNESS_FAIL" /tmp/brussels-public-space-audio-witness.log; then exit 1; fi
+          grep -F "BRUSSELS_PUBLIC_SPACE_AUDIO_WITNESS_OK" /tmp/brussels-public-space-audio-witness.log
+          grep -F "same_runtime_pcm=true" /tmp/brussels-public-space-audio-witness.log
+      - name: Assert deterministic listening artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          WAV="grand-bruxelles-game/artifacts/audio/brussels_public_space_30s.wav"
+          JSON="grand-bruxelles-game/artifacts/audio/brussels_public_space_30s.json"
+          test -s "$WAV"
+          test -s "$JSON"
+          python3 - <<'PY'
+          import json, wave
+          wav_path = "grand-bruxelles-game/artifacts/audio/brussels_public_space_30s.wav"
+          json_path = "grand-bruxelles-game/artifacts/audio/brussels_public_space_30s.json"
+          with wave.open(wav_path, "rb") as w:
+              assert w.getnchannels() == 2, w.getnchannels()
+              assert w.getsampwidth() == 2, w.getsampwidth()
+              assert w.getframerate() == 22050, w.getframerate()
+              assert w.getnframes() == 661500, w.getnframes()
+          with open(json_path, encoding="utf-8") as f:
+              report = json.load(f)
+          assert report["witness_seconds"] == 30
+          assert report["same_runtime_pcm"] is True
+          assert report["third_party_audio"] is False
+          assert report["claims_official_stib_signal"] is False
+          assert 0.025 <= report["rms"] <= 0.24, report["rms"]
+          assert report["peak"] <= 0.96, report["peak"]
+          assert report["active_ratio"] >= 0.80, report["active_ratio"]
+          print("LISTENING_ARTIFACT_OK", report)
+          PY
+      - name: Upload listening evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-public-space-audio-evidence
+          path: |
+            grand-bruxelles-game/artifacts/audio/brussels_public_space_30s.wav
+            grand-bruxelles-game/artifacts/audio/brussels_public_space_30s.json
+            /tmp/brussels-public-space-audio.log
+            /tmp/brussels-public-space-audio-witness.log
+          if-no-files-found: error

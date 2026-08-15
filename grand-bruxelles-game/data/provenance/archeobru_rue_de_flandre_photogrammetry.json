@@ -1,0 +1,42 @@
+{
+  "schema": "grand-bruxelles-photogrammetry-source-v1",
+  "asset_id": "archeobru-rue-de-flandre-cc2e77e5",
+  "title": "Facade Rue de Flandre Brussels",
+  "creator": "ArcheoBru",
+  "publisher": "Zenodo",
+  "zenodo_record_id": "10337827",
+  "doi": "10.5281/zenodo.10337827",
+  "source_url": "https://zenodo.org/records/10337827",
+  "source_file": "cc2e77e5d22640788f2e39fe399065aa.glb",
+  "source_size_bytes_expected": 87200000,
+  "source_md5": "d94640ca694fef136d68bc3458a440ee",
+  "sketchfab_uid": "cc2e77e5d22640788f2e39fe399065aa",
+  "sketchfab_model_url": "https://sketchfab.com/3d-models/facade-rue-de-flandre-brussels-cc2e77e5d22640788f2e39fe399065aa",
+  "license": {
+    "spdx_equivalent": "CC-BY-1.0",
+    "name": "Creative Commons Attribution 1.0 Generic",
+    "attribution_required": true,
+    "attribution_text": "Facade Rue de Flandre Brussels — ArcheoBru — CC BY 1.0 — DOI 10.5281/zenodo.10337827"
+  },
+  "source_description": "Photogrammetry of a historic house facade on Rue de Flandre / Vlaamsesteenweg in Brussels. Zenodo describes a house dating to the 14th century whose facade was petrified/reworked in the first half of the 17th century.",
+  "geolocation": {
+    "status": "candidate_only_not_runtime_approved",
+    "candidate_address": "Rue de Flandre 180, 1000 Bruxelles, Belgium",
+    "confidence": "strong_hypothesis_not_verified",
+    "evidence": [
+      "Brussels architectural inventory lists Rue de Flandre 180 as a protected traditional house.",
+      "Published archaeological literature specifically reports medieval/early-modern brick evidence and 17th-century facade petrification at 180 Rue de Flandre.",
+      "The wording and chronology closely match the ArcheoBru model description, but no source metadata inspected so far explicitly states house number 180."
+    ],
+    "runtime_placement_allowed": false
+  },
+  "integration_policy": {
+    "raw_asset_committed_to_repository": false,
+    "raw_asset_runtime_allowed": false,
+    "generated_lod_requires_visual_qa": true,
+    "generated_lod_requires_license_attribution": true,
+    "production_placement_requires_verified_address": true,
+    "collision_source": "separate_simplified_or_existing_urbis_geometry_only",
+    "photogrammetry_never_replaces_urbis_geometric_truth": true
+  }
+}

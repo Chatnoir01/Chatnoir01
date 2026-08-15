@@ -1,0 +1,78 @@
+name: Grand Bruxelles Full Commons Bank
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/visual_dataset/build_wikimedia_catalog.py"
+      - "grand-bruxelles-game/tools/visual_dataset/test_build_wikimedia_catalog_sharding.py"
+      - ".github/workflows/grand-bruxelles-full-commons-bank.yml"
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/visual_dataset/test_build_wikimedia_catalog_sharding.py
+      - name: Exhaustively discover Brussels Commons metadata once
+        run: |
+          mkdir -p /tmp/commons-discovery
+          python3 grand-bruxelles-game/tools/visual_dataset/build_wikimedia_catalog.py --output /tmp/commons-discovery/catalog.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/commons-discovery/catalog.json')); s=p['summary']
+          assert p['shard']=={'index':0,'count':1}
+          assert s['global_seen']==s['seen'] and s['seen']>0
+          assert s['downloaded']==0 and s['download_failures']==0
+          print('COMMONS_DISCOVERY_OK',s)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brussels-commons-discovery
+          path: /tmp/commons-discovery/catalog.json
+          if-no-files-found: error
+          retention-days: 7
+  shard:
+    needs: discover
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: brussels-commons-discovery
+          path: /tmp/commons-discovery
+      - name: Download deterministic shard from discovered catalog
+        run: |
+          mkdir -p "/tmp/commons-bank/${{ matrix.shard }}/images"
+          python3 grand-bruxelles-game/tools/visual_dataset/build_wikimedia_catalog.py \
+            --catalog-input /tmp/commons-discovery/catalog.json \
+            --output "/tmp/commons-bank/${{ matrix.shard }}/catalog.json" \
+            --download-dir "/tmp/commons-bank/${{ matrix.shard }}/images" \
+            --shard-count 8 --shard-index "${{ matrix.shard }}"
+      - name: Prove complete shard accounting
+        run: |
+          python3 - <<'PY'
+          import json, os
+          shard='${{ matrix.shard }}'; p=json.load(open(f'/tmp/commons-bank/{shard}/catalog.json')); s=p['summary']
+          assert p['shard']=={'index':int(shard),'count':8}
+          assert s['global_seen']>0 and s['seen']>0
+          assert s['transient_failures']==0, s
+          assert s['downloaded'] + s['unavailable_sources'] == s['downloadable'], s
+          actual=sum(os.path.getsize('/tmp/commons-bank/'+shard+'/images/'+x) for x in os.listdir('/tmp/commons-bank/'+shard+'/images'))
+          assert actual==s['download_bytes'], (actual,s)
+          print('COMMONS_FULL_SHARD_OK', shard, s)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: brussels-commons-bank-shard-${{ matrix.shard }}
+          path: /tmp/commons-bank/${{ matrix.shard }}
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 0

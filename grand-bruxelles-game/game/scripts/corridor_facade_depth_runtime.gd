@@ -8,6 +8,13 @@ extends Node
 const DETAILS_PATH := NodePath("../BrusselsOSM/GeneratedFacadeDetails")
 const WINDOW_NODE := "CorridorFacadeWindows"
 const SHOP_NODE := "CorridorShopfronts"
+const SHOP_CANOPY_PALETTE: Array[Color] = [
+    Color(0.23, 0.095, 0.085, 1.0),
+    Color(0.075, 0.19, 0.17, 1.0),
+    Color(0.075, 0.13, 0.225, 1.0),
+    Color(0.245, 0.16, 0.09, 1.0),
+    Color(0.145, 0.15, 0.155, 1.0),
+]
 
 var articulation_ready := false
 var lintel_count := 0
@@ -35,6 +42,24 @@ func _unit_multimesh(name: String, transforms: Array[Transform3D], material: Mat
     multimesh.instance_count = transforms.size()
     for index: int in range(transforms.size()):
         multimesh.set_instance_transform(index, transforms[index])
+    var instance := MultiMeshInstance3D.new()
+    instance.name = name
+    instance.multimesh = multimesh
+    return instance
+
+func _colored_unit_multimesh(name: String, transforms: Array[Transform3D], colors: Array[Color], material: StandardMaterial3D) -> MultiMeshInstance3D:
+    var mesh := BoxMesh.new()
+    mesh.size = Vector3.ONE
+    material.vertex_color_use_as_albedo = true
+    mesh.material = material
+    var multimesh := MultiMesh.new()
+    multimesh.transform_format = MultiMesh.TRANSFORM_3D
+    multimesh.use_colors = true
+    multimesh.mesh = mesh
+    multimesh.instance_count = transforms.size()
+    for index: int in range(transforms.size()):
+        multimesh.set_instance_transform(index, transforms[index])
+        multimesh.set_instance_color(index, colors[index])
     var instance := MultiMeshInstance3D.new()
     instance.name = name
     instance.multimesh = multimesh
@@ -69,6 +94,17 @@ func _shop_canopy(shop_transform: Transform3D) -> Transform3D:
     var origin := shop_transform.origin + Vector3.UP * (scale.y * 0.5 + 0.14) + outward * 0.28
     return Transform3D(rotation.scaled(Vector3(scale.x + 0.34, 0.12, 0.72)), origin)
 
+func _shop_palette_index(origin: Vector3) -> int:
+    # Quantized world position keeps the choice stable across runs and independent
+    # of frame order, while breaking the obvious adjacent A/B/C sequence look.
+    var x_key := int(round(origin.x * 2.0))
+    var z_key := int(round(origin.z * 2.0))
+    var mixed := abs(x_key * 73856093 + z_key * 19349663 + x_key * z_key * 83492791)
+    return mixed % SHOP_CANOPY_PALETTE.size()
+
+func _shop_canopy_color(shop_transform: Transform3D) -> Color:
+    return SHOP_CANOPY_PALETTE[_shop_palette_index(shop_transform.origin)]
+
 func _build() -> void:
     var details := get_node_or_null(DETAILS_PATH) as Node3D
     if details == null:
@@ -97,11 +133,14 @@ func _build() -> void:
     var shop_node := details.get_node_or_null(SHOP_NODE) as MultiMeshInstance3D
     if shop_node != null and shop_node.multimesh != null:
         var canopies: Array[Transform3D] = []
+        var canopy_colors: Array[Color] = []
         for index: int in range(shop_node.multimesh.instance_count):
-            canopies.append(_shop_canopy(shop_node.multimesh.get_instance_transform(index)))
+            var shop_transform := shop_node.multimesh.get_instance_transform(index)
+            canopies.append(_shop_canopy(shop_transform))
+            canopy_colors.append(_shop_canopy_color(shop_transform))
         if not canopies.is_empty():
-            var canopy_material := _material(Color(0.18, 0.205, 0.22, 1.0), 0.54, 0.22)
-            details.add_child(_unit_multimesh("CorridorShopCanopies", canopies, canopy_material))
+            var canopy_material := _material(Color.WHITE, 0.54, 0.12)
+            details.add_child(_colored_unit_multimesh("CorridorShopCanopies", canopies, canopy_colors, canopy_material))
             canopy_count = canopies.size()
 
     articulation_ready = lintel_count == windows.instance_count and sill_count == windows.instance_count and jamb_count == windows.instance_count * 2

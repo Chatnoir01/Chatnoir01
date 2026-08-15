@@ -1,0 +1,24 @@
+{
+  "schema": "grand-bruxelles-midi-ambient-npc-visual-bridge-v1",
+  "asset_kind": "runtime_visual_bridge",
+  "scope": "the 20 legacy MidiUrbanLife ambient pedestrians already present in production",
+  "runtime": {
+    "autoload": "MidiAmbientNpcVisualRuntime",
+    "movement_owner": "midi_urban_life.gd",
+    "navigation_added": false,
+    "simulation_proxy_disabled": true,
+    "visual_pipeline": "NpcAgent + humanoid_visual.gd"
+  },
+  "authorship_and_rights": {
+    "external_assets": [],
+    "external_textures": [],
+    "licence_dependency": "none",
+    "modifications": "Original runtime bridge hides legacy primitive pedestrian meshes and mounts the existing production profiled humanoid visual pipeline."
+  },
+  "truth_limits": {
+    "pedestrian_positions_changed": false,
+    "pedestrian_paths_changed": false,
+    "traffic_authority_changed": false,
+    "purpose": "Eliminate a visible legacy primitive crowd without creating a second movement or navigation system."
+  }
+}

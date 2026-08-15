@@ -2,15 +2,18 @@ extends "res://game/scripts/midi_hero_zone.gd"
 
 # Heritage-backed material identity for Bruxelles-Midi / Brussel-Zuid.
 # Geometry remains owned by the existing Midi hero zone. Texture scale, colors,
-# roughness and block cadence are authored presentation values, not survey data.
+# roughness and authored detail dimensions are presentation values, not survey data.
 
 const CONCRETE_TEXTURE_METRES := 1.80
 const GLASS_BLOCK_TEXTURE_METRES := 1.60
+
+var _aluminium_window: StandardMaterial3D
 
 func _make_materials() -> void:
     super._make_materials()
     _concrete = _architectural_concrete_material()
     _glass_block = _glass_block_material()
+    _aluminium_window = _anodized_aluminium_window_material()
 
 func _build_station_entrance() -> void:
     super._build_station_entrance()
@@ -23,6 +26,101 @@ func _build_station_entrance() -> void:
     var glazing := entrance.get_node_or_null("EntranceGlazing") as MeshInstance3D
     if glazing != null and glazing.mesh != null:
         glazing.mesh.material = _glass_block
+
+func _add_office_block(parent: Node3D, name: String, local_z: float, length: float, floors: int, glass_tower: bool) -> void:
+    super._add_office_block(parent, name, local_z, length, floors, glass_tower)
+    var block := parent.get_node_or_null(name) as Node3D
+    if block != null:
+        _add_aluminium_window_vocabulary(block)
+
+func _add_aluminium_window_vocabulary(block: Node3D) -> void:
+    # The heritage inventory states that the Fonsny administrative/postal
+    # buildings use aluminium window frames with a fixed lower section,
+    # tilting transom and sunshade. Existing window planes determine placement;
+    # the thin authored frame/shade dimensions below do not claim survey truth.
+    var windows: Array[MeshInstance3D] = []
+    for child in block.get_children():
+        if child is MeshInstance3D and String(child.name).begins_with("Window_"):
+            windows.append(child as MeshInstance3D)
+    if windows.is_empty():
+        return
+
+    var first_box := windows[0].mesh as BoxMesh
+    if first_box == null:
+        return
+    var window_height := first_box.size.y
+    var window_width := first_box.size.z
+    var frame_thickness := 0.065
+    var frame_depth := 0.10
+
+    var vertical_mesh := BoxMesh.new()
+    vertical_mesh.size = Vector3(frame_depth, window_height + 0.10, frame_thickness)
+    vertical_mesh.material = _aluminium_window
+    var vertical_mm := MultiMesh.new()
+    vertical_mm.transform_format = MultiMesh.TRANSFORM_3D
+    vertical_mm.mesh = vertical_mesh
+    vertical_mm.instance_count = windows.size() * 2
+    var vertical_instance := MultiMeshInstance3D.new()
+    vertical_instance.name = "AluminiumWindowFrames"
+    vertical_instance.multimesh = vertical_mm
+    block.add_child(vertical_instance)
+
+    var horizontal_mesh := BoxMesh.new()
+    horizontal_mesh.size = Vector3(frame_depth, frame_thickness, window_width + 0.10)
+    horizontal_mesh.material = _aluminium_window
+    var horizontal_mm := MultiMesh.new()
+    horizontal_mm.transform_format = MultiMesh.TRANSFORM_3D
+    horizontal_mm.mesh = horizontal_mesh
+    horizontal_mm.instance_count = windows.size() * 3
+    var horizontal_instance := MultiMeshInstance3D.new()
+    horizontal_instance.name = "AluminiumWindowTransoms"
+    horizontal_instance.multimesh = horizontal_mm
+    block.add_child(horizontal_instance)
+
+    var shade_mesh := BoxMesh.new()
+    shade_mesh.size = Vector3(0.38, 0.075, window_width + 0.14)
+    shade_mesh.material = _aluminium_window
+    var shade_mm := MultiMesh.new()
+    shade_mm.transform_format = MultiMesh.TRANSFORM_3D
+    shade_mm.mesh = shade_mesh
+    shade_mm.instance_count = windows.size()
+    var shade_instance := MultiMeshInstance3D.new()
+    shade_instance.name = "AluminiumSunshades"
+    shade_instance.multimesh = shade_mm
+    block.add_child(shade_instance)
+
+    var vi := 0
+    var hi := 0
+    var si := 0
+    for window in windows:
+        var box := window.mesh as BoxMesh
+        if box == null:
+            continue
+        var half_width := box.size.z * 0.5
+        var half_height := box.size.y * 0.5
+        var front_x := window.position.x + 0.075
+        vertical_mm.set_instance_transform(vi, Transform3D(Basis.IDENTITY, Vector3(front_x, window.position.y, window.position.z - half_width)))
+        vi += 1
+        vertical_mm.set_instance_transform(vi, Transform3D(Basis.IDENTITY, Vector3(front_x, window.position.y, window.position.z + half_width)))
+        vi += 1
+        for offset_y: float in [-half_height, 0.22, half_height]:
+            horizontal_mm.set_instance_transform(hi, Transform3D(Basis.IDENTITY, Vector3(front_x, window.position.y + offset_y, window.position.z)))
+            hi += 1
+        shade_mm.set_instance_transform(si, Transform3D(Basis.IDENTITY, Vector3(window.position.x + 0.24, window.position.y + half_height + 0.11, window.position.z)))
+        si += 1
+
+func _anodized_aluminium_window_material() -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color(0.49, 0.515, 0.525, 1.0)
+    material.roughness = 0.34
+    material.metallic = 0.72
+    material.set_meta("brussels_material_family", "anodized_aluminium_window")
+    material.set_meta("source_identity", "Midi heritage aluminium window frames and sunshades")
+    material.set_meta("source_geometry_unchanged", true)
+    material.set_meta("authored_detail_dimensions", true)
+    material.set_meta("authored_pbr_values", true)
+    material.set_meta("procedural_original_asset", true)
+    return material
 
 func _architectural_concrete_material() -> StandardMaterial3D:
     const SIZE := 128

@@ -1,0 +1,31 @@
+{
+  "schema": "grand-bruxelles-shared-neutral-daylight-v1",
+  "asset_kind": "procedural_environment_presentation",
+  "scope": ["Midi", "Anneessens", "Bourse", "Grand-Place"],
+  "runtime": {
+    "autoload": "SharedEnvironmentDaylight",
+    "targets": ["Main/WorldEnvironment", "Main/Sun"],
+    "geometry_added": 0,
+    "textures_added": 0,
+    "expected_extra_draw_calls": 0
+  },
+  "authorship_and_rights": {
+    "external_assets": [],
+    "external_texture_sources": [],
+    "licence_dependency": "none",
+    "description": "Original procedural presentation settings authored for Grand Bruxelles Game; no third-party texture, HDRI, photograph, weather dataset or photogrammetry is embedded."
+  },
+  "truth_limits": {
+    "photometric_measurement": false,
+    "weather_timestamp_claim": false,
+    "sun_position_measurement": false,
+    "material_identity_claim": false,
+    "purpose": "Neutral daylight readability and coherent atmosphere across the existing playable corridor only."
+  },
+  "production_constraints": {
+    "new_geography": false,
+    "atomium_or_laeken_scope": false,
+    "invented_brussels_signage": false,
+    "runtime_placement_required": true
+  }
+}

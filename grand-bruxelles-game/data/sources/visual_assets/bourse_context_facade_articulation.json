@@ -1,0 +1,25 @@
+{
+  "schema": "grand-bruxelles-bourse-context-facade-articulation-v1",
+  "asset_kind": "procedural_facade_art_direction",
+  "scope": "Bourse context within 180 m of the existing route anchor",
+  "geometry_reference": "existing OSM source footprints already consumed by osm_city_builder.gd",
+  "runtime": {
+    "autoload": "BourseContextFacadeRuntime",
+    "layer": "BrusselsOSM/ContextFacadeArticulation",
+    "moves_source_geometry": false,
+    "changes_building_height": false,
+    "multimesh_layers": 5
+  },
+  "authorship_and_rights": {
+    "external_assets": [],
+    "external_textures": [],
+    "licence_dependency": "none",
+    "modifications": "Original procedural cornice, lintel, sill, entrance and shop-header geometry generated from already-loaded building edges."
+  },
+  "truth_limits": {
+    "architectural_detail_is_measured": false,
+    "building_footprint_is_reauthored": false,
+    "building_height_is_reauthored": false,
+    "purpose": "Player-height art-direction articulation only; source geometry remains authoritative."
+  }
+}

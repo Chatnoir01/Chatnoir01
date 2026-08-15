@@ -55,12 +55,14 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_FONSNY_THREE_BAY_WITNESS_FAIL" /tmp/midi-fonsny-three-bay-witness.log; then exit 1; fi
           grep -F "MIDI_FONSNY_THREE_BAY_WITNESS_OK" /tmp/midi-fonsny-three-bay-witness.log
       - name: Assert evidence package
+        if: always()
         run: |
           test -s grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_before.png
           test -s grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_after.png
           file grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_before.png | grep -F "1280 x 720"
           file grand-bruxelles-game/artifacts/visual/midi_fonsny_three_bay_after.png | grep -F "1280 x 720"
       - name: Upload evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: midi-fonsny-three-bay-arrival-visual-evidence

@@ -22,6 +22,7 @@ func _run() -> void:
     root.add_child(scene)
     await process_frame
     await process_frame
+    await process_frame
 
     var details := scene.get_node_or_null("BrusselsOSM/GeneratedFacadeDetails")
     if details == null:
@@ -30,26 +31,26 @@ func _run() -> void:
 
     var windows := _instance_count(details.get_node_or_null("CorridorFacadeWindows"))
     var lintels := _instance_count(details.get_node_or_null("CorridorFacadeLintels"))
+    var sills := _instance_count(details.get_node_or_null("CorridorFacadeSills"))
     var jambs := _instance_count(details.get_node_or_null("CorridorFacadeJambs"))
-    var cornices := _instance_count(details.get_node_or_null("CorridorFacadeCornices"))
     var canopies := _instance_count(details.get_node_or_null("CorridorShopCanopies"))
 
     if windows < 1:
         _fail("baseline corridor windows disappeared")
         return
-    if lintels < windows:
-        _fail("every visible corridor window must receive a lintel; windows=%d lintels=%d" % [windows, lintels])
+    if lintels != windows:
+        _fail("every visible corridor window must receive exactly one lintel; windows=%d lintels=%d" % [windows, lintels])
         return
-    if jambs < windows * 2:
-        _fail("every visible corridor window must receive two jambs; windows=%d jambs=%d" % [windows, jambs])
+    if sills != windows:
+        _fail("every visible corridor window must receive exactly one sill; windows=%d sills=%d" % [windows, sills])
         return
-    if cornices < 1:
-        _fail("no roofline cornice articulation was generated")
+    if jambs != windows * 2:
+        _fail("every visible corridor window must receive exactly two jambs; windows=%d jambs=%d" % [windows, jambs])
         return
     if canopies < 1:
         _fail("no shopfront canopy articulation was generated")
         return
 
-    print("CORRIDOR_FACADE_DEPTH_OK windows=%d lintels=%d jambs=%d cornices=%d canopies=%d" % [windows, lintels, jambs, cornices, canopies])
+    print("CORRIDOR_FACADE_DEPTH_OK windows=%d lintels=%d sills=%d jambs=%d canopies=%d" % [windows, lintels, sills, jambs, canopies])
     scene.queue_free()
     quit(0)

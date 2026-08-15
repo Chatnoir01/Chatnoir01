@@ -15,6 +15,7 @@ const SHOP_CANOPY_PALETTE: Array[Color] = [
     Color(0.245, 0.16, 0.09, 1.0),
     Color(0.145, 0.15, 0.155, 1.0),
 ]
+const SHOP_CANOPY_PERMUTATION: Array[int] = [0, 3, 1, 4, 2]
 
 var articulation_ready := false
 var lintel_count := 0
@@ -77,14 +78,14 @@ func _shop_canopy(shop_transform: Transform3D) -> Transform3D:
     var origin := shop_transform.origin + Vector3.UP * (scale.y * 0.5 + 0.14) + outward * 0.28
     return Transform3D(rotation.scaled(Vector3(scale.x + 0.34, 0.12, 0.72)), origin)
 
-func _shop_palette_index(origin: Vector3, instance_index: int) -> int:
-    # OSM generation order is deterministic. Mixing that stable index with a
-    # quantized position avoids both frame-time randomness and spatial modulo
-    # aliasing (the previous position-only hash collapsed this corridor to one color).
-    var x_key: int = int(round(origin.x * 2.0))
-    var z_key: int = int(round(origin.z * 2.0))
-    var mixed: int = int(abs(x_key * 92821 + z_key * 68917 + instance_index * 31337 + instance_index * instance_index * 97))
-    return mixed % SHOP_CANOPY_PALETTE.size()
+func _shop_palette_index(_origin: Vector3, instance_index: int) -> int:
+    # OSM shopfront generation order is deterministic. Each consecutive block
+    # of five therefore covers all five restrained material families exactly
+    # once, while a block rotation prevents one global repeating phase.
+    var lane: int = instance_index % SHOP_CANOPY_PERMUTATION.size()
+    var block: int = instance_index / SHOP_CANOPY_PERMUTATION.size()
+    var rotation: int = (block * 3 + block * block * 2) % SHOP_CANOPY_PERMUTATION.size()
+    return (SHOP_CANOPY_PERMUTATION[lane] + rotation) % SHOP_CANOPY_PALETTE.size()
 
 func _build_shop_canopies(details: Node3D, shop_node: MultiMeshInstance3D) -> void:
     var shop_multimesh := shop_node.multimesh

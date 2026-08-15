@@ -31,6 +31,36 @@ func _add_transform_counts(counts: Dictionary, mm: MultiMesh) -> void:
         var key := _transform_key(mm.get_instance_transform(index))
         counts[key] = int(counts.get(key, 0)) + 1
 
+func _trim_stats(details: Node, prefix: String) -> Dictionary:
+    var total := 0
+    var groups := 0
+    var colors := {}
+    for child: Node in details.get_children():
+        if not child.name.begins_with(prefix) or not child is MultiMeshInstance3D:
+            continue
+        var mm := (child as MultiMeshInstance3D).multimesh
+        if mm == null or mm.instance_count < 1:
+            continue
+        var box_mesh := mm.mesh as BoxMesh
+        if box_mesh == null:
+            _fail("%s group does not use expected low-cost BoxMesh" % prefix)
+            return {}
+        var material := box_mesh.material as StandardMaterial3D
+        if material == null:
+            _fail("%s group has no StandardMaterial3D" % prefix)
+            return {}
+        var color := material.albedo_color
+        if color.r < 0.38 or color.g < 0.36 or color.b < 0.31 or color.r > 0.68 or color.g > 0.65 or color.b > 0.58:
+            _fail("%s color escaped restrained stone bounds: %s" % [prefix, _color_key(color)])
+            return {}
+        if material.roughness < 0.78 or material.roughness > 0.98:
+            _fail("%s roughness escaped masonry bounds: %.3f" % [prefix, material.roughness])
+            return {}
+        total += mm.instance_count
+        groups += 1
+        colors[_color_key(color)] = true
+    return {"total": total, "groups": groups, "colors": colors.size()}
+
 func _run() -> void:
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
@@ -51,9 +81,14 @@ func _run() -> void:
     var windows := _instance_count(window_node)
     var shopfront_node := details.get_node_or_null("CorridorShopfronts") as MultiMeshInstance3D
     var shopfronts := _instance_count(shopfront_node)
-    var lintels := _instance_count(details.get_node_or_null("CorridorFacadeLintels"))
-    var sills := _instance_count(details.get_node_or_null("CorridorFacadeSills"))
-    var jambs := _instance_count(details.get_node_or_null("CorridorFacadeJambs"))
+    var lintel_stats := _trim_stats(details, "CorridorFacadeLintels")
+    var sill_stats := _trim_stats(details, "CorridorFacadeSills")
+    var jamb_stats := _trim_stats(details, "CorridorFacadeJambs")
+    if lintel_stats.is_empty() or sill_stats.is_empty() or jamb_stats.is_empty():
+        return
+    var lintels := int(lintel_stats.total)
+    var sills := int(sill_stats.total)
+    var jambs := int(jamb_stats.total)
 
     if windows < 1 or window_node == null or window_node.multimesh == null:
         _fail("baseline corridor windows disappeared")
@@ -66,6 +101,12 @@ func _run() -> void:
         return
     if jambs != windows * 2:
         _fail("every visible corridor window must receive exactly two jambs; windows=%d jambs=%d" % [windows, jambs])
+        return
+    if int(lintel_stats.groups) < 4 or int(sill_stats.groups) < 4 or int(jamb_stats.groups) < 4:
+        _fail("window trim remains globally synchronized; lintel_groups=%d sill_groups=%d jamb_groups=%d" % [lintel_stats.groups, sill_stats.groups, jamb_stats.groups])
+        return
+    if int(lintel_stats.colors) < 4 or int(sill_stats.colors) < 4 or int(jamb_stats.colors) < 4:
+        _fail("window trim needs at least four restrained stone tones; lintel_colors=%d sill_colors=%d jamb_colors=%d" % [lintel_stats.colors, sill_stats.colors, jamb_stats.colors])
         return
     if shopfronts < 1 or shopfront_node == null or shopfront_node.multimesh == null:
         _fail("baseline corridor shopfronts disappeared")
@@ -204,6 +245,6 @@ func _run() -> void:
         _fail("window glass replacement changed or lost source transforms")
         return
 
-    print("CORRIDOR_FACADE_DEPTH_OK windows=%d lintels=%d sills=%d jambs=%d window_glass=%d window_groups=%d window_tints=%d shopfronts=%d canopies=%d canopy_groups=%d canopy_colors=%d glass=%d glass_groups=%d glass_tints=%d" % [windows, lintels, sills, jambs, window_glass_total, window_glass_groups, window_glass_distinct.size(), shopfronts, canopy_total, canopy_groups, canopy_distinct.size(), glass_total, glass_groups, glass_distinct.size()])
+    print("CORRIDOR_FACADE_DEPTH_OK windows=%d lintels=%d sills=%d jambs=%d trim_groups=%d trim_colors=%d window_glass=%d window_groups=%d window_tints=%d shopfronts=%d canopies=%d canopy_groups=%d canopy_colors=%d glass=%d glass_groups=%d glass_tints=%d" % [windows, lintels, sills, jambs, lintel_stats.groups, lintel_stats.colors, window_glass_total, window_glass_groups, window_glass_distinct.size(), shopfronts, canopy_total, canopy_groups, canopy_distinct.size(), glass_total, glass_groups, glass_distinct.size()])
     scene.queue_free()
     quit(0)

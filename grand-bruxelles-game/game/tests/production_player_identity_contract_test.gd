@@ -36,8 +36,10 @@ func _assert_visual_contract(visual: Node3D, context: String) -> bool:
     if torso_material == null:
         _fail("%s torso material missing" % context)
         return false
-    if torso_material.albedo_color.distance_to(EXPECTED_PINK) > 0.01:
-        _fail("%s torso is not canonical pink: %s" % [context, str(torso_material.albedo_color)])
+    var actual := torso_material.albedo_color
+    var pink_delta := maxf(absf(actual.r - EXPECTED_PINK.r), maxf(absf(actual.g - EXPECTED_PINK.g), maxf(absf(actual.b - EXPECTED_PINK.b), absf(actual.a - EXPECTED_PINK.a))))
+    if pink_delta > 0.01:
+        _fail("%s torso is not canonical pink: %s" % [context, str(actual)])
         return false
     return true
 

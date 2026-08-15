@@ -91,17 +91,42 @@ jobs:
           test -s grand-bruxelles-game/assets/characters/player_character.glb
           sha256sum grand-bruxelles-game/assets/characters/player_character.glb | tee /tmp/stef-glb.sha256
 
+      - name: Structurally validate exported GLB
+        run: |
+          python3 - <<'PY'
+          import json, struct
+          p='grand-bruxelles-game/assets/characters/player_character.glb'
+          raw=open(p,'rb').read()
+          magic,version,length=struct.unpack_from('<4sII',raw,0)
+          assert magic==b'glTF', magic
+          assert version==2, version
+          assert length==len(raw), (length,len(raw))
+          chunk_len,chunk_type=struct.unpack_from('<II',raw,12)
+          assert chunk_type==0x4E4F534A, hex(chunk_type)
+          doc=json.loads(raw[20:20+chunk_len].decode('utf-8').rstrip(' \t\r\n\x00'))
+          report={k:len(doc.get(k,[])) for k in ('meshes','skins','animations','materials','textures','images','nodes')}
+          print('STEF_GLB_STRUCTURE='+json.dumps(report,sort_keys=True))
+          assert report['meshes']>0
+          assert report['skins']>0
+          assert report['animations']>0
+          assert report['materials']>0
+          assert report['images']>0
+          open('/tmp/stef-glb-structure.json','w').write(json.dumps(report,indent=2,sort_keys=True))
+          PY
+
       - name: Setup Godot 4.7.1
         uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.7.1
           use-dotnet: false
 
-      - name: Import exported GLB in Godot
+      - name: Import exported GLB completely in Godot
+        shell: bash
         run: |
           set -o pipefail
-          godot --headless --path grand-bruxelles-game --editor --quit-after 8 2>&1 | tee /tmp/stef-godot-import.log
-          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load' /tmp/stef-godot-import.log; then exit 1; fi
+          timeout 180s godot --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/stef-godot-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load|Scan thread aborted' /tmp/stef-godot-import.log; then exit 1; fi
+          test -f grand-bruxelles-game/assets/characters/player_character.glb.import
 
       - name: Prove runtime selection, skeleton, skin, materials and animation playback
         shell: bash
@@ -207,6 +232,7 @@ jobs:
             /tmp/stef-inventory.txt
             /tmp/stef-blender-report.json
             /tmp/stef-glb.sha256
+            /tmp/stef-glb-structure.json
             /tmp/stef-godot-import.log
             /tmp/stef-runtime.log
           if-no-files-found: warn

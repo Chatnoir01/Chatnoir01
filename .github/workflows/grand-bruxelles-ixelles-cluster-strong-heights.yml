@@ -173,18 +173,22 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
+          # Exact counts are intentionally pinned from the first provenance-locked
+          # official run. Any source or algorithm drift must fail visibly instead
+          # of silently changing the set of buildings considered safe to render.
           cells={
-            'bxl-e149000-n169500-s500':375,
-            'bxl-e149500-n169000-s500':919,
-            'bxl-e149500-n169500-s500':668,
+            'bxl-e149000-n169500-s500':{'runtime':375,'joined':100,'eligible':53},
+            'bxl-e149500-n169000-s500':{'runtime':919,'joined':988,'eligible':584},
+            'bxl-e149500-n169500-s500':{'runtime':668,'joined':627,'eligible':402},
           }
-          for cell,expected_runtime in cells.items():
+          for cell,expected in cells.items():
               p=json.loads(Path(f'grand-bruxelles-game/data/terrain/ixelles/{cell}_strong_heights.game.json').read_text())
               assert p['schema']=='grand-bruxelles-ixelles-strong-height-candidates-v1'
               assert p['cell_id']==cell
-              assert p['runtime_footprint_count']==expected_runtime
-              assert p['eligible_count']>0
-              assert p['eligible_count']<=expected_runtime
+              assert p['runtime_footprint_count']==expected['runtime']
+              assert p['joined_comparisons']==expected['joined']
+              assert p['eligible_count']==expected['eligible']
+              assert p['duplicate_strong_records_removed']==0
               assert p['runtime_approved'] is False
               assert p['policy']['max_abs_delta_m']==2.0
               assert p['policy']['required_dsm_confidence']=='high'

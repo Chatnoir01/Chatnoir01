@@ -9,6 +9,7 @@ extends Node
 const CROSSWALK_SOURCE := "res://data/qa/midi_fonsny_crosswalk_ortho2023.json"
 const OFFICIAL_CROSSWALK_NAME := "OfficialFonsnyCrosswalkOrtho2023"
 const HERO_PATH := NodePath("MidiHeroZone")
+const SCENE_WAIT_FRAMES := 120
 
 var _arrival_planimetry_enabled := true
 var _hero: Node3D
@@ -20,20 +21,25 @@ func _ready() -> void:
 
 func _mount_runtime() -> void:
     var scene := get_tree().current_scene
-    if scene == null:
+    var waited := 0
+    while scene == null and waited < SCENE_WAIT_FRAMES:
         await get_tree().process_frame
         scene = get_tree().current_scene
+        waited += 1
     if scene == null:
-        push_error("Midi arrival planimetry: current scene missing")
+        # Script-based CI tests may intentionally never set a production scene.
         return
     _hero = scene.get_node_or_null(HERO_PATH) as Node3D
     if _hero == null:
         push_error("Midi arrival planimetry: MidiHeroZone missing")
         return
-    _source_crosswalk = _build_source_crosswalk()
-    if _source_crosswalk == null:
-        return
-    _hero.add_child(_source_crosswalk)
+    if _hero.has_node(OFFICIAL_CROSSWALK_NAME):
+        _source_crosswalk = _hero.get_node(OFFICIAL_CROSSWALK_NAME) as MeshInstance3D
+    else:
+        _source_crosswalk = _build_source_crosswalk()
+        if _source_crosswalk == null:
+            return
+        _hero.add_child(_source_crosswalk)
     visual_built = true
     set_arrival_planimetry_enabled(true)
     set_meta("midi_arrival_planimetry_source_bounded", true)

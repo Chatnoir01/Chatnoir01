@@ -1,0 +1,25 @@
+name: Grand Bruxelles City Compiler
+on:
+  pull_request:
+    paths: ["grand-bruxelles-game/tools/city_compiler/**", "grand-bruxelles-game/data/cell_manifests/**", ".github/workflows/grand-bruxelles-city-compiler.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  compiler-guardrails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/city_compiler/test_city_compiler.py
+      - name: Compile real repository cells
+        run: |
+          python3 grand-bruxelles-game/tools/city_compiler/city_compiler.py --input grand-bruxelles-game/data/cell_manifests --output /tmp/candidate.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/candidate.json'))
+          assert p['summary']['processed']>0
+          assert p['summary']['approved']+p['summary']['quarantined']==p['summary']['processed']
+          print('CITY_COMPILER_REPO_OK',p['summary'],p['generation_digest'])
+          PY
+      - name: Refuse accidental runtime promotion
+        run: test ! -e grand-bruxelles-game/data/generated/approved/city_compiler_runtime.json

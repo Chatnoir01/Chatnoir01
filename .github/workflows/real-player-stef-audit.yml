@@ -7,10 +7,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   audit-source-package:
+    if: ${{ !contains(github.event.head_commit.message, '[stef-audit-output]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -38,6 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf /tmp/stef
           mkdir -p /tmp/stef
           unzip -q /tmp/stef_npc1.zip -d /tmp/stef
           echo '--- FILES ---'
@@ -52,6 +54,47 @@ jobs:
             -print | sort
           echo '--- HASHES ---'
           find /tmp/stef -type f -print0 | sort -z | xargs -0 sha256sum
+
+      - name: Persist deterministic audit manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .github/player-audit
+          {
+            echo 'source_page=https://opengameart.org/content/npc-girl-stef'
+            echo 'download_url=https://opengameart.org/sites/default/files/stef_npc1_1.zip'
+            echo 'declared_license=CC0'
+            echo -n 'archive_sha256='; sha256sum /tmp/stef_npc1.zip | awk '{print $1}'
+            echo
+            echo '[files]'
+            find /tmp/stef -type f -printf '%P\t%s bytes\n' | sort
+            echo
+            echo '[candidate_3d_files]'
+            find /tmp/stef -type f \
+              \( -iname '*.glb' -o -iname '*.gltf' -o -iname '*.fbx' -o -iname '*.dae' -o -iname '*.blend' \) \
+              -printf '%P\n' | sort
+            echo
+            echo '[textures]'
+            find /tmp/stef -type f \
+              \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.tga' \) \
+              -printf '%P\n' | sort
+            echo
+            echo '[sha256]'
+            while IFS= read -r -d '' f; do
+              rel="${f#/tmp/stef/}"
+              printf '%s  %s\n' "$(sha256sum "$f" | awk '{print $1}')" "$rel"
+            done < <(find /tmp/stef -type f -print0 | sort -z)
+          } > .github/player-audit/stef-manifest.txt
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/player-audit/stef-manifest.txt
+          if git diff --cached --quiet; then
+            echo 'Manifest unchanged.'
+          else
+            git commit -m 'docs(player): record Stef source audit [stef-audit-output]'
+            git push origin HEAD:visual/real-player-stef-audit
+          fi
 
       - name: Upload immutable audit package
         uses: actions/upload-artifact@v4

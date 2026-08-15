@@ -1,0 +1,162 @@
+name: Grand Bruxelles Real Player Stef Build
+
+on:
+  push:
+    branches:
+      - visual/real-player-stef-audit
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-prove-real-player:
+    if: ${{ !contains(github.event.head_commit.message, '[stef-build-output]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assert exact live-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor cac4f7f1b131d5675dffb6c6a03e5ed0e644de2b HEAD
+
+      - name: Download and verify audited CC0 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            --output /tmp/stef_npc1.zip \
+            https://opengameart.org/sites/default/files/stef_npc1_1.zip
+          echo '3b1f65c188ffd91dd237dae3d670d8b1d390ce7e96a251dd13ec5b8fb5d6fe22  /tmp/stef_npc1.zip' | sha256sum -c -
+          rm -rf /tmp/stef
+          mkdir -p /tmp/stef
+          unzip -q /tmp/stef_npc1.zip -d /tmp/stef
+          test -s '/tmp/stef/npc girl stef!.blend'
+
+      - name: Install Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+          blender --version | head -2
+
+      - name: Export real rigged player GLB
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p grand-bruxelles-game/assets/characters/player/stef
+          blender --background '/tmp/stef/npc girl stef!.blend' \
+            --python grand-bruxelles-game/tools/prepare_stef_character.py -- \
+            grand-bruxelles-game/assets/characters/player/stef/Stef.glb \
+            2>&1 | tee /tmp/stef-blender.log
+          grep -q 'STEF_EXPORT_OK' /tmp/stef-blender.log
+          test -s grand-bruxelles-game/assets/characters/player/stef/Stef.glb
+          sha256sum grand-bruxelles-game/assets/characters/player/stef/Stef.glb | tee /tmp/stef-glb.sha256
+
+      - name: Add Stef as truthful authored fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/game/scripts/humanoid_visual.gd')
+          text = path.read_text()
+          stef = '    "res://assets/characters/player/stef/Stef.glb",\n'
+          if stef not in text:
+              needle = '    "res://assets/characters/player/thandi/Thandi.fbx",\n'
+              if needle not in text:
+                  raise SystemExit('Expected Thandi fallback anchor missing')
+              text = text.replace(needle, needle + stef, 1)
+              path.write_text(text)
+          PY
+          grep -n 'assets/characters/player/stef/Stef.glb' grand-bruxelles-game/game/scripts/humanoid_visual.gd
+
+      - name: Setup Godot 4.7.1
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+
+      - name: Import generated GLB in real project
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path grand-bruxelles-game --editor --quit-after 5 2>&1 | tee /tmp/stef-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR:.*Stef' /tmp/stef-import.log; then
+            exit 1
+          fi
+
+      - name: Prove real rig skin materials animations and Player selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 60s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/stef_authored_player_test.gd 2>&1 | tee /tmp/stef-runtime.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|STEF_AUTHORED_PLAYER_FAIL' /tmp/stef-runtime.log; then
+            exit 1
+          fi
+          grep -q 'STEF_AUTHORED_PLAYER_OK' /tmp/stef-runtime.log
+
+      - name: Preserve existing authored loader regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 45s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/humanoid_authored_player_test.gd 2>&1 | tee /tmp/player-loader.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|HUMANOID_AUTHORED_PLAYER_FAIL' /tmp/player-loader.log; then
+            exit 1
+          fi
+          grep -q 'HUMANOID_AUTHORED_PLAYER_OK' /tmp/player-loader.log
+
+      - name: Record deterministic build evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'source=OpenGameArt npc girl Stef / supersteve'
+            echo 'license=CC0'
+            echo 'source_page=https://opengameart.org/content/npc-girl-stef'
+            echo 'source_archive_sha256=3b1f65c188ffd91dd237dae3d670d8b1d390ce7e96a251dd13ec5b8fb5d6fe22'
+            echo -n 'glb_sha256='; awk '{print $1}' /tmp/stef-glb.sha256
+            echo
+            grep 'STEF_EXPORT_OK' /tmp/stef-blender.log
+            grep 'STEF_ACTIONS:' /tmp/stef-blender.log || true
+            grep 'STEF_AUTHORED_PLAYER_OK' /tmp/stef-runtime.log
+          } > grand-bruxelles-game/assets/characters/player/stef/BUILD_EVIDENCE.txt
+
+      - name: Commit verified binary and loader selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            grand-bruxelles-game/assets/characters/player/stef/Stef.glb \
+            grand-bruxelles-game/assets/characters/player/stef/BUILD_EVIDENCE.txt \
+            grand-bruxelles-game/game/scripts/humanoid_visual.gd
+          if git diff --cached --quiet; then
+            echo 'Verified output already committed.'
+          else
+            git commit -m 'asset(player): add verified CC0 Stef rig [stef-build-output]'
+            git push origin HEAD:visual/real-player-stef-audit
+          fi
+
+      - name: Upload conversion logs and verified GLB
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-player-stef-build-evidence
+          path: |
+            /tmp/stef-blender.log
+            /tmp/stef-import.log
+            /tmp/stef-runtime.log
+            /tmp/stef-glb.sha256
+            grand-bruxelles-game/assets/characters/player/stef/Stef.glb
+            grand-bruxelles-game/assets/characters/player/stef/BUILD_EVIDENCE.txt
+          if-no-files-found: error
+          retention-days: 7

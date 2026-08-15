@@ -1,0 +1,29 @@
+name: Grand Bruxelles Mass Candidate Manifest
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_generation/build_mass_candidate_manifest.py"
+      - "grand-bruxelles-game/tools/city_generation/test_build_mass_candidate_manifest.py"
+      - ".github/workflows/grand-bruxelles-mass-candidate-manifest.yml"
+permissions: {contents: read}
+jobs:
+  manifest-guardrails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/city_generation/test_build_mass_candidate_manifest.py
+      - name: Prove authoritative UrbIS inventory is non-empty
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/tools/city_generation/build_mass_candidate_manifest.py')
+          s=importlib.util.spec_from_file_location('m',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+          b=m.load_buildings(Path('grand-bruxelles-game/data/urbis/remaining_brussels/cells'))
+          assert b, 'no authoritative UrbIS buildings found'
+          assert len(b)==len(set(b)), 'duplicate INSPIRE_ID'
+          print('MASS_CANDIDATE_REAL_INVENTORY_OK buildings=',len(b),'vertices=',sum(x['vertex_count'] for x in b.values()))
+          PY
+      - name: Refuse runtime promotion from this stage
+        run: test ! -e grand-bruxelles-game/data/generated/approved/mass_candidate_runtime.json

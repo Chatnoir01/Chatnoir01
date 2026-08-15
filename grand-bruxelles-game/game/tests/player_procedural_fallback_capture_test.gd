@@ -17,6 +17,34 @@ func _hide_qa_noise(scene: Node) -> void:
         if item != null:
             item.visible = false
 
+func _material_color(material: Material) -> String:
+    if material is StandardMaterial3D:
+        return str((material as StandardMaterial3D).albedo_color)
+    return "none"
+
+func _hide_visual_metrics(before: Image, after: Image) -> String:
+    var changed := 0
+    var min_x := WIDTH
+    var min_y := HEIGHT
+    var max_x := -1
+    var max_y := -1
+    var threshold := 4.0 / 255.0
+    for y: int in range(HEIGHT):
+        for x: int in range(WIDTH):
+            var a := before.get_pixel(x, y)
+            var b := after.get_pixel(x, y)
+            var delta := maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b)))
+            if delta > threshold:
+                changed += 1
+                min_x = mini(min_x, x)
+                min_y = mini(min_y, y)
+                max_x = maxi(max_x, x)
+                max_y = maxi(max_y, y)
+    var fraction := float(changed) / float(WIDTH * HEIGHT)
+    var bbox_width := 0 if max_x < min_x else max_x - min_x + 1
+    var bbox_height := 0 if max_y < min_y else max_y - min_y + 1
+    return "changed=%.4f%% bbox=%dx%d" % [fraction * 100.0, bbox_width, bbox_height]
+
 func _run() -> void:
     var args := OS.get_cmdline_user_args()
     if args.size() != 1:
@@ -63,12 +91,14 @@ func _run() -> void:
         return
 
     var torso := visual.get_node_or_null("Torso") as MeshInstance3D
-    var torso_color := Color(0, 0, 0, 0)
+    var torso_surface_color := Color(0, 0, 0, 0)
+    var active_material: Material = null
     if torso != null and torso.mesh is ArrayMesh and (torso.mesh as ArrayMesh).get_surface_count() > 0:
         var torso_material := (torso.mesh as ArrayMesh).surface_get_material(0) as StandardMaterial3D
         if torso_material != null:
-            torso_color = torso_material.albedo_color
-    print("PLAYER_PROCEDURAL_FALLBACK_CAPTURE_RENDERER: signature=%s torso_mesh=%s torso_color=%s legacy_visible=%s" % [str(visual.call("visual_signature")), torso.mesh.get_class() if torso != null and torso.mesh != null else "missing", str(torso_color), str((scene.get_node_or_null("Player/MeshInstance3D") as MeshInstance3D).visible if scene.get_node_or_null("Player/MeshInstance3D") is MeshInstance3D else false)])
+            torso_surface_color = torso_material.albedo_color
+        active_material = torso.get_active_material(0)
+    print("PLAYER_PROCEDURAL_FALLBACK_CAPTURE_RENDERER: signature=%s torso_mesh=%s surface_color=%s active_color=%s override_color=%s overlay_color=%s legacy_visible=%s" % [str(visual.call("visual_signature")), torso.mesh.get_class() if torso != null and torso.mesh != null else "missing", str(torso_surface_color), _material_color(active_material), _material_color(torso.material_override if torso != null else null), _material_color(torso.material_overlay if torso != null else null), str((scene.get_node_or_null("Player/MeshInstance3D") as MeshInstance3D).visible if scene.get_node_or_null("Player/MeshInstance3D") is MeshInstance3D else false)])
 
     scene.process_mode = Node.PROCESS_MODE_DISABLED
     RenderingServer.force_draw()
@@ -82,6 +112,20 @@ func _run() -> void:
     if image.save_png(absolute) != OK:
         _fail("could not save PNG")
         return
+
+    visual.visible = false
+    RenderingServer.force_draw()
+    await process_frame
+    var hidden_image := viewport.get_texture().get_image()
+    if hidden_image == null or hidden_image.is_empty():
+        _fail("hidden-player diagnostic image is empty")
+        return
+    var torso_screen := camera.unproject_position(torso.global_position) if torso != null else Vector2(-1, -1)
+    var sample_x := clampi(int(round(torso_screen.x)), 0, WIDTH - 1)
+    var sample_y := clampi(int(round(torso_screen.y)), 0, HEIGHT - 1)
+    print("PLAYER_PROCEDURAL_FALLBACK_HIDE_VISUAL_METRICS: %s torso_screen=%s normal_pixel=%s hidden_pixel=%s" % [_hide_visual_metrics(image, hidden_image), str(torso_screen), str(image.get_pixel(sample_x, sample_y)), str(hidden_image.get_pixel(sample_x, sample_y))])
+    visual.visible = true
+
     print("PLAYER_PROCEDURAL_FALLBACK_CAPTURE_OK: %s player=%s camera=%s" % [absolute, str(player.global_position), str(camera.global_position)])
     viewport.queue_free()
     quit(0)

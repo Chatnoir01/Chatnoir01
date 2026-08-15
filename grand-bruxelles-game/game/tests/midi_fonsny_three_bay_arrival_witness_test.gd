@@ -1,7 +1,6 @@
 extends SceneTree
 
 const MAIN_SCENE := "res://game/main.tscn"
-const BASE_MIDI_SCRIPT := "res://game/scripts/midi_hero_zone_materials.gd"
 const OUTPUT_DIR := "res://artifacts/visual"
 const BEFORE_PATH := OUTPUT_DIR + "/midi_fonsny_three_bay_before.png"
 const AFTER_PATH := OUTPUT_DIR + "/midi_fonsny_three_bay_after.png"
@@ -59,7 +58,7 @@ func _run() -> void:
     print("MIDI_FONSNY_THREE_BAY_WITNESS_OK")
     quit(0)
 
-func _capture(use_base_arrival: bool, path: String) -> Image:
+func _capture(disable_arrival: bool, path: String) -> Image:
     var packed := load(MAIN_SCENE) as PackedScene
     if packed == null:
         return null
@@ -68,8 +67,7 @@ func _capture(use_base_arrival: bool, path: String) -> Image:
     if midi == null:
         world.free()
         return null
-    if use_base_arrival:
-        midi.set_script(load(BASE_MIDI_SCRIPT))
+    midi.set_meta("disable_fonsny_three_bay_arrival", disable_arrival)
     get_root().add_child(world)
     await process_frame
 

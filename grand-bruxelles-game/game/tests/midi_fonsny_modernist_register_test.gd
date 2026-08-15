@@ -31,10 +31,16 @@ func _run() -> void:
         assert(register != null, block_name + " must receive the reusable modernist register")
         var sunshades := register.get_node_or_null("Sunshades") as MultiMeshInstance3D
         var transoms := register.get_node_or_null("Transoms") as MultiMeshInstance3D
+        var vertical_frames := register.get_node_or_null("VerticalFrames") as MultiMeshInstance3D
+        var bottom_rails := register.get_node_or_null("BottomRails") as MultiMeshInstance3D
         assert(sunshades != null and sunshades.multimesh != null, "sunshade register missing")
         assert(transoms != null and transoms.multimesh != null, "transom register missing")
+        assert(vertical_frames != null and vertical_frames.multimesh != null, "aluminium vertical-frame register missing")
+        assert(bottom_rails != null and bottom_rails.multimesh != null, "aluminium bottom-rail register missing")
         assert(sunshades.multimesh.instance_count == window_count, "one sunshade per existing opening")
         assert(transoms.multimesh.instance_count == window_count, "one transom per existing opening")
+        assert(vertical_frames.multimesh.instance_count == window_count * 2, "two aluminium jambs per existing opening")
+        assert(bottom_rails.multimesh.instance_count == window_count, "one lower aluminium rail per existing opening")
         assert(bool(register.get_meta("source_geometry_unchanged", false)), "module must preserve source-informed massing")
         assert(bool(register.get_meta("authored_dimensions_not_measured", false)), "authored dimensions must remain explicit")
 

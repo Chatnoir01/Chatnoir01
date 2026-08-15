@@ -1,0 +1,33 @@
+{
+  "schema": "grand-bruxelles-authored-audio-v1",
+  "asset_family": "brussels-public-space-ambience",
+  "status": "runtime-candidate",
+  "source_truth": {
+    "third_party_recording_embedded": false,
+    "official_stib_mivb_signal_claimed": false,
+    "official_announcement_claimed": false,
+    "service_frequency_claimed": false,
+    "vehicle_schedule_claimed": false,
+    "placement_claim": "shared non-diegetic/area public-space atmosphere only; it does not assert a specific vehicle, stop, announcement or event at the listener position"
+  },
+  "authorship": {
+    "method": "deterministic procedural PCM synthesized in project-authored GDScript",
+    "layers": [
+      "low urban traffic bed",
+      "soft crowd-like broadband wash",
+      "authored metallic distant-transit-like events",
+      "authored rail-like harmonic sweeps"
+    ],
+    "licensing": "original project-authored code and generated PCM; no third-party audio file redistributed"
+  },
+  "runtime_contract": {
+    "sample_rate_hz": 22050,
+    "channels": 2,
+    "format": "signed 16-bit PCM",
+    "loop_seconds": 12.0,
+    "witness_seconds": 30,
+    "profile_id": "brussels_public_space_authored_v1"
+  },
+  "reuse_scope": "Shared ambience candidate for Centre, Midi and Ixelles public-space gameplay. The base layer intentionally carries no stop-, route-, timetable- or vehicle-specific semantics; future location-specific layers require their own source gate.",
+  "acceptance_note": "Human listening remains decisive. Spectral/loudness measurements only prove deterministic audibility and integrity, not Brussels recognition or aesthetic quality."
+}

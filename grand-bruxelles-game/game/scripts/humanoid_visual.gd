@@ -50,16 +50,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
     if is_instance_valid(_authored_character):
         return
-
     var actor: CharacterBody3D = get_parent() as CharacterBody3D
     if actor == null:
         return
-
     var horizontal_speed: float = Vector2(actor.velocity.x, actor.velocity.z).length()
     var activity: float = clampf(horizontal_speed / 7.0, 0.0, 1.0)
     _phase += delta * lerpf(3.0, 10.0, activity)
     var swing: float = sin(_phase) * 0.55 * activity
-
     if is_instance_valid(_left_arm):
         _left_arm.rotation.x = swing
     if is_instance_valid(_right_arm):
@@ -147,42 +144,51 @@ func _build_profiled_npc(agent: NpcAgent) -> void:
     var accent := _material(accent_color, 0.74)
     var shoes := _material(_shoe_color(profile.footwear, seed_value), 0.78)
 
-    var leg_h := 0.73 * stature
-    var torso_h := 0.64 * stature
+    var leg_h := 0.72 * stature
+    var torso_h := 0.61 * stature
     var torso_y := base_y + 1.18 * stature
-    var hip_y := base_y + 0.80 * stature
-    var head_y := base_y + 1.76 * stature
-    var shoulder_width := 0.69 * shoulder
-    var hip_width := lerpf(0.44, 0.55, _unit(seed_value, 71))
+    var hip_y := base_y + 0.82 * stature
+    var head_y := base_y + 1.77 * stature
+    var shoulder_width := 0.65 * shoulder
+    var hip_width := lerpf(0.42, 0.53, _unit(seed_value, 71))
     var build_factor := lerpf(0.90, 1.08, _unit(seed_value, 73))
 
-    _custom_prism_part(
+    _elliptic_frustum_part(
         "Torso",
-        Vector3(shoulder_width * 0.88, torso_h, 0.30 * build_factor),
-        Vector3(shoulder_width, torso_h, 0.34 * build_factor),
+        Vector2(shoulder_width * 0.52, 0.17 * build_factor),
+        Vector2(hip_width * 0.50, 0.155 * build_factor),
+        torso_h,
         Vector3(0.0, torso_y, 0.0),
-        upper
+        upper,
+        10
     )
-    _custom_prism_part(
+    _elliptic_frustum_part(
         "Hips",
-        Vector3(hip_width, 0.28 * stature, 0.31 * build_factor),
-        Vector3(shoulder_width * 0.72, 0.28 * stature, 0.31 * build_factor),
+        Vector2(hip_width * 0.52, 0.16 * build_factor),
+        Vector2(hip_width * 0.47, 0.15 * build_factor),
+        0.25 * stature,
         Vector3(0.0, hip_y, 0.0),
-        lower
+        lower,
+        9
     )
 
-    var arm_x := shoulder_width * 0.63
-    _left_arm = _custom_prism_part("LeftArm", Vector3(0.15, 0.61 * stature, 0.17), Vector3(0.19, 0.61 * stature, 0.20), Vector3(-arm_x, base_y + 1.16 * stature, 0.0), upper)
-    _right_arm = _custom_prism_part("RightArm", Vector3(0.15, 0.61 * stature, 0.17), Vector3(0.19, 0.61 * stature, 0.20), Vector3(arm_x, base_y + 1.16 * stature, 0.0), upper)
+    var arm_x := shoulder_width * 0.61
+    var arm_h := 0.57 * stature
+    _left_arm = _elliptic_frustum_part("LeftArm", Vector2(0.105, 0.105), Vector2(0.075, 0.080), arm_h, Vector3(-arm_x, base_y + 1.17 * stature, 0.0), upper, 8)
+    _right_arm = _elliptic_frustum_part("RightArm", Vector2(0.105, 0.105), Vector2(0.075, 0.080), arm_h, Vector3(arm_x, base_y + 1.17 * stature, 0.0), upper, 8)
+    _custom_ellipsoid_part("LeftHand", Vector3(0.085, 0.115, 0.075), Vector3(-arm_x, base_y + 0.84 * stature, 0.0), skin, 7, 4)
+    _custom_ellipsoid_part("RightHand", Vector3(0.085, 0.115, 0.075), Vector3(arm_x, base_y + 0.84 * stature, 0.0), skin, 7, 4)
 
     var leg_x := hip_width * 0.25
-    _left_leg = _custom_prism_part("LeftLeg", Vector3(0.19, leg_h, 0.23), Vector3(0.23, leg_h, 0.27), Vector3(-leg_x, base_y + 0.46 * stature, 0.0), lower)
-    _right_leg = _custom_prism_part("RightLeg", Vector3(0.19, leg_h, 0.23), Vector3(0.23, leg_h, 0.27), Vector3(leg_x, base_y + 0.46 * stature, 0.0), lower)
-    _custom_prism_part("LeftShoe", Vector3(0.22, 0.13, 0.36), Vector3(0.24, 0.13, 0.40), Vector3(-leg_x, base_y + 0.07, -0.07), shoes)
-    _custom_prism_part("RightShoe", Vector3(0.22, 0.13, 0.36), Vector3(0.24, 0.13, 0.40), Vector3(leg_x, base_y + 0.07, -0.07), shoes)
+    _left_leg = _elliptic_frustum_part("LeftLeg", Vector2(0.13, 0.14), Vector2(0.095, 0.105), leg_h, Vector3(-leg_x, base_y + 0.46 * stature, 0.0), lower, 9)
+    _right_leg = _elliptic_frustum_part("RightLeg", Vector2(0.13, 0.14), Vector2(0.095, 0.105), leg_h, Vector3(leg_x, base_y + 0.46 * stature, 0.0), lower, 9)
+    _custom_prism_part("LeftShoe", Vector3(0.20, 0.12, 0.34), Vector3(0.23, 0.13, 0.39), Vector3(-leg_x, base_y + 0.07, -0.07), shoes)
+    _custom_prism_part("RightShoe", Vector3(0.20, 0.12, 0.34), Vector3(0.23, 0.13, 0.39), Vector3(leg_x, base_y + 0.07, -0.07), shoes)
 
-    var head_scale := Vector3(0.27 * build_factor, 0.32 * stature, 0.26 * build_factor)
-    _custom_ellipsoid_part("Head", head_scale, Vector3(0.0, head_y, 0.0), skin)
+    _elliptic_frustum_part("Neck", Vector2(0.105, 0.095), Vector2(0.11, 0.10), 0.16 * stature, Vector3(0.0, base_y + 1.55 * stature, 0.0), skin, 8)
+    var head_scale := Vector3(0.255 * build_factor, 0.31 * stature, 0.245 * build_factor)
+    _custom_ellipsoid_part("Head", head_scale, Vector3(0.0, head_y, 0.0), skin, 10, 6)
+    _custom_prism_part("Nose", Vector3(0.065, 0.10, 0.085), Vector3(0.075, 0.11, 0.10), Vector3(0.0, head_y - 0.01, -head_scale.z * 0.92), skin)
     _build_profiled_hair(profile, seed_value, head_y, head_scale, hair, accent)
     _build_outer_layer(profile, stature, shoulder_width, torso_y, build_factor, accent)
 
@@ -201,52 +207,53 @@ func _build_profiled_npc(agent: NpcAgent) -> void:
         profile.shoulder_scale,
     ]
     set_meta("appearance_signature", _visual_signature)
-    set_meta("custom_mesh_pipeline", "array_mesh_profiled_v1")
+    set_meta("custom_mesh_pipeline", "array_mesh_profiled_v2")
 
 
 func _build_profiled_hair(profile: NpcAppearanceProfile, seed_value: int, head_y: float, head_scale: Vector3, hair: Material, accent: Material) -> void:
     var style: int = posmod(seed_value * 13 + 3, 4)
     match style:
         0:
-            _custom_ellipsoid_part("HairCrown", Vector3(head_scale.x * 1.07, head_scale.y * 0.46, head_scale.z * 1.08), Vector3(0.0, head_y + head_scale.y * 0.62, 0.01), hair, 6, 3)
+            _custom_ellipsoid_part("HairCrown", Vector3(head_scale.x * 1.07, head_scale.y * 0.46, head_scale.z * 1.08), Vector3(0.0, head_y + head_scale.y * 0.62, 0.01), hair, 8, 4)
         1:
-            _custom_ellipsoid_part("HairCrown", Vector3(head_scale.x * 1.08, head_scale.y * 0.40, head_scale.z * 1.08), Vector3(0.0, head_y + head_scale.y * 0.67, 0.01), hair, 6, 3)
-            _custom_ellipsoid_part("HairBun", Vector3(0.13, 0.14, 0.13), Vector3(0.0, head_y + head_scale.y * 1.15, 0.03), hair, 6, 3)
+            _custom_ellipsoid_part("HairCrown", Vector3(head_scale.x * 1.08, head_scale.y * 0.40, head_scale.z * 1.08), Vector3(0.0, head_y + head_scale.y * 0.67, 0.01), hair, 8, 4)
+            _custom_ellipsoid_part("HairBun", Vector3(0.13, 0.14, 0.13), Vector3(0.0, head_y + head_scale.y * 1.15, 0.03), hair, 8, 4)
         2:
-            _custom_ellipsoid_part("HairVolume", Vector3(head_scale.x * 1.17, head_scale.y * 0.76, head_scale.z * 1.14), Vector3(0.0, head_y + head_scale.y * 0.25, 0.04), hair, 7, 4)
+            _custom_ellipsoid_part("HairVolume", Vector3(head_scale.x * 1.17, head_scale.y * 0.76, head_scale.z * 1.14), Vector3(0.0, head_y + head_scale.y * 0.25, 0.04), hair, 9, 5)
         _:
-            _custom_ellipsoid_part("HairCrown", Vector3(head_scale.x * 1.04, head_scale.y * 0.35, head_scale.z * 1.05), Vector3(0.0, head_y + head_scale.y * 0.72, 0.01), hair, 6, 3)
+            _custom_ellipsoid_part("HairCrown", Vector3(head_scale.x * 1.04, head_scale.y * 0.35, head_scale.z * 1.05), Vector3(0.0, head_y + head_scale.y * 0.72, 0.01), hair, 8, 4)
 
     match profile.headwear:
         &"beanie":
-            _custom_prism_part("Beanie", Vector3(head_scale.x * 1.50, 0.19, head_scale.z * 1.48), Vector3(head_scale.x * 1.30, 0.19, head_scale.z * 1.30), Vector3(0.0, head_y + head_scale.y * 0.92, 0.0), accent)
+            _elliptic_frustum_part("Beanie", Vector2(head_scale.x * 0.98, head_scale.z * 0.98), Vector2(head_scale.x * 1.10, head_scale.z * 1.10), 0.19, Vector3(0.0, head_y + head_scale.y * 0.92, 0.0), accent, 9)
         &"cap":
-            _custom_prism_part("CapCrown", Vector3(head_scale.x * 1.45, 0.16, head_scale.z * 1.44), Vector3(head_scale.x * 1.30, 0.16, head_scale.z * 1.30), Vector3(0.0, head_y + head_scale.y * 0.88, 0.0), accent)
-            _custom_prism_part("CapPeak", Vector3(0.28, 0.04, 0.24), Vector3(0.32, 0.04, 0.28), Vector3(0.0, head_y + head_scale.y * 0.72, -head_scale.z * 1.20), accent)
+            _elliptic_frustum_part("CapCrown", Vector2(head_scale.x * 0.95, head_scale.z * 0.95), Vector2(head_scale.x * 1.08, head_scale.z * 1.08), 0.16, Vector3(0.0, head_y + head_scale.y * 0.88, 0.0), accent, 9)
+            _custom_prism_part("CapPeak", Vector3(0.26, 0.04, 0.22), Vector3(0.31, 0.04, 0.28), Vector3(0.0, head_y + head_scale.y * 0.72, -head_scale.z * 1.20), accent)
         &"hood_up":
-            _custom_ellipsoid_part("RaisedHood", Vector3(head_scale.x * 1.35, head_scale.y * 1.18, head_scale.z * 1.28), Vector3(0.0, head_y + 0.02, 0.06), accent, 7, 4)
+            _custom_ellipsoid_part("RaisedHood", Vector3(head_scale.x * 1.35, head_scale.y * 1.18, head_scale.z * 1.28), Vector3(0.0, head_y + 0.02, 0.06), accent, 9, 5)
 
 
 func _build_outer_layer(profile: NpcAppearanceProfile, stature: float, shoulder_width: float, torso_y: float, build_factor: float, accent: Material) -> void:
     if profile.outer_layer == &"none" or profile.outer_layer == &"police_standard":
         return
     var long_layer := profile.outer_layer in [&"winter_coat", &"wool_coat", &"parka", &"hooded_coat", &"coat", &"police_cold_layer", &"police_rain_layer"]
-    var layer_h := (0.73 if long_layer else 0.51) * stature
-    var layer_y := torso_y - (0.09 * stature if long_layer else 0.0)
-    _custom_prism_part(
+    var layer_h := (0.69 if long_layer else 0.48) * stature
+    var layer_y := torso_y - (0.08 * stature if long_layer else 0.0)
+    _elliptic_frustum_part(
         "OuterLayer",
-        Vector3(shoulder_width * 0.97, layer_h, 0.35 * build_factor),
-        Vector3(shoulder_width * 1.06, layer_h, 0.38 * build_factor),
-        Vector3(0.0, layer_y, 0.025),
-        accent
+        Vector2(shoulder_width * 0.56, 0.19 * build_factor),
+        Vector2(shoulder_width * 0.48, 0.18 * build_factor),
+        layer_h,
+        Vector3(0.0, layer_y, 0.02),
+        accent,
+        10
     )
 
 
 func _build_police_details(base_y: float, stature: float, shoulder_width: float, hivis: Material, uniform: Material) -> void:
-    _custom_prism_part("HiVisVest", Vector3(shoulder_width * 0.81, 0.39 * stature, 0.055), Vector3(shoulder_width * 0.87, 0.39 * stature, 0.065), Vector3(0.0, base_y + 1.22 * stature, -0.205), hivis)
-    _custom_prism_part("PoliceCap", Vector3(0.42, 0.12, 0.39), Vector3(0.48, 0.12, 0.45), Vector3(0.0, base_y + 2.03 * stature, 0.0), uniform)
+    _elliptic_frustum_part("HiVisVest", Vector2(shoulder_width * 0.49, 0.19), Vector2(shoulder_width * 0.44, 0.18), 0.39 * stature, Vector3(0.0, base_y + 1.22 * stature, -0.005), hivis, 10)
+    _elliptic_frustum_part("PoliceCap", Vector2(0.22, 0.20), Vector2(0.245, 0.22), 0.12, Vector3(0.0, base_y + 2.03 * stature, 0.0), uniform, 9)
     _custom_prism_part("PoliceCapPeak", Vector3(0.31, 0.04, 0.17), Vector3(0.36, 0.04, 0.22), Vector3(0.0, base_y + 2.025 * stature, -0.30), uniform)
-
     var label := Label3D.new()
     label.name = "UniformPoliceLabel"
     label.text = "POLICE · POLITIE"
@@ -306,21 +313,17 @@ func _build_humanoid() -> void:
     var jacket: StandardMaterial3D = _material(jacket_color, 0.82)
     var trousers: StandardMaterial3D = _material(trousers_color, 0.88)
     var shoes: StandardMaterial3D = _material(Color(0.025, 0.027, 0.03, 1.0), 0.76)
-
     _box_part("Torso", Vector3(0.62, 0.72, 0.34), Vector3(0.0, base_y + 1.18, 0.0), jacket)
     _box_part("Shoulders", Vector3(0.76, 0.18, 0.36), Vector3(0.0, base_y + 1.48, 0.0), jacket)
-
     _left_arm = _box_part("LeftArm", Vector3(0.18, 0.70, 0.20), Vector3(-0.43, base_y + 1.17, 0.0), jacket)
     _right_arm = _box_part("RightArm", Vector3(0.18, 0.70, 0.20), Vector3(0.43, base_y + 1.17, 0.0), jacket)
     _left_leg = _box_part("LeftLeg", Vector3(0.22, 0.78, 0.25), Vector3(-0.17, base_y + 0.52, 0.0), trousers)
     _right_leg = _box_part("RightLeg", Vector3(0.22, 0.78, 0.25), Vector3(0.17, base_y + 0.52, 0.0), trousers)
     _box_part("LeftShoe", Vector3(0.24, 0.14, 0.38), Vector3(-0.17, base_y + 0.09, -0.06), shoes)
     _box_part("RightShoe", Vector3(0.24, 0.14, 0.38), Vector3(0.17, base_y + 0.09, -0.06), shoes)
-
     var head: MeshInstance3D = _sphere_part("Head", Vector3(0.29, 0.34, 0.29), Vector3(0.0, base_y + 1.78, 0.0), skin)
     head.scale = Vector3(1.0, 1.08, 0.94)
     _box_part("Hair", Vector3(0.48, 0.13, 0.48), Vector3(0.0, base_y + 2.04, 0.0), hair)
-
     if _police:
         var hivis: StandardMaterial3D = _material(Color(0.76, 0.82, 0.075, 1.0), 0.64)
         hivis.emission_enabled = true
@@ -329,7 +332,6 @@ func _build_humanoid() -> void:
         _box_part("HiVisVest", Vector3(0.65, 0.52, 0.08), Vector3(0.0, base_y + 1.20, -0.205), hivis)
         _box_part("PoliceCap", Vector3(0.52, 0.12, 0.48), Vector3(0.0, base_y + 2.07, 0.0), jacket)
         _box_part("PoliceCapPeak", Vector3(0.42, 0.055, 0.22), Vector3(0.0, base_y + 2.075, -0.30), jacket)
-
         var label: Label3D = Label3D.new()
         label.name = "UniformPoliceLabel"
         label.text = "POLICE · POLITIE"
@@ -339,7 +341,6 @@ func _build_humanoid() -> void:
         label.rotation_degrees = Vector3(0.0, 180.0, 0.0)
         label.modulate = Color(0.04, 0.08, 0.18, 1.0)
         add_child(label)
-
     _visual_signature = "legacy_fallback"
 
 
@@ -350,21 +351,33 @@ func _material(color: Color, roughness: float) -> StandardMaterial3D:
     return material
 
 
+func _elliptic_frustum_part(name_value: String, top_radii: Vector2, bottom_radii: Vector2, height: float, pos: Vector3, material: Material, segments: int = 8) -> MeshInstance3D:
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var safe_segments := maxi(segments, 6)
+    var half_h := height * 0.5
+    var top_center := Vector3(0.0, half_h, 0.0)
+    var bottom_center := Vector3(0.0, -half_h, 0.0)
+    for segment: int in range(safe_segments):
+        var next_segment := (segment + 1) % safe_segments
+        var angle_a := TAU * float(segment) / float(safe_segments)
+        var angle_b := TAU * float(next_segment) / float(safe_segments)
+        var top_a := Vector3(sin(angle_a) * top_radii.x, half_h, cos(angle_a) * top_radii.y)
+        var top_b := Vector3(sin(angle_b) * top_radii.x, half_h, cos(angle_b) * top_radii.y)
+        var bottom_a := Vector3(sin(angle_a) * bottom_radii.x, -half_h, cos(angle_a) * bottom_radii.y)
+        var bottom_b := Vector3(sin(angle_b) * bottom_radii.x, -half_h, cos(angle_b) * bottom_radii.y)
+        _add_triangle(surface, bottom_a, top_b, top_a)
+        _add_triangle(surface, bottom_a, bottom_b, top_b)
+        _add_triangle(surface, top_center, top_a, top_b)
+        _add_triangle(surface, bottom_center, bottom_b, bottom_a)
+    return _commit_custom_part(name_value, surface, pos, material)
+
+
 func _custom_prism_part(name_value: String, top_size: Vector3, bottom_size: Vector3, pos: Vector3, material: Material) -> MeshInstance3D:
     var half_top := Vector3(top_size.x * 0.5, top_size.y * 0.5, top_size.z * 0.5)
     var half_bottom := Vector3(bottom_size.x * 0.5, bottom_size.y * 0.5, bottom_size.z * 0.5)
-    var top := [
-        Vector3(-half_top.x, half_top.y, -half_top.z),
-        Vector3(half_top.x, half_top.y, -half_top.z),
-        Vector3(half_top.x, half_top.y, half_top.z),
-        Vector3(-half_top.x, half_top.y, half_top.z),
-    ]
-    var bottom := [
-        Vector3(-half_bottom.x, -half_bottom.y, -half_bottom.z),
-        Vector3(half_bottom.x, -half_bottom.y, -half_bottom.z),
-        Vector3(half_bottom.x, -half_bottom.y, half_bottom.z),
-        Vector3(-half_bottom.x, -half_bottom.y, half_bottom.z),
-    ]
+    var top := [Vector3(-half_top.x, half_top.y, -half_top.z), Vector3(half_top.x, half_top.y, -half_top.z), Vector3(half_top.x, half_top.y, half_top.z), Vector3(-half_top.x, half_top.y, half_top.z)]
+    var bottom := [Vector3(-half_bottom.x, -half_bottom.y, -half_bottom.z), Vector3(half_bottom.x, -half_bottom.y, -half_bottom.z), Vector3(half_bottom.x, -half_bottom.y, half_bottom.z), Vector3(-half_bottom.x, -half_bottom.y, half_bottom.z)]
     var surface := SurfaceTool.new()
     surface.begin(Mesh.PRIMITIVE_TRIANGLES)
     _add_triangle(surface, top[0], top[2], top[1])
@@ -375,15 +388,7 @@ func _custom_prism_part(name_value: String, top_size: Vector3, bottom_size: Vect
         var next_side := (side + 1) % 4
         _add_triangle(surface, bottom[side], top[next_side], top[side])
         _add_triangle(surface, bottom[side], bottom[next_side], top[next_side])
-    var mesh := surface.commit() as ArrayMesh
-    mesh.surface_set_material(0, material)
-    var instance := MeshInstance3D.new()
-    instance.name = name_value
-    instance.mesh = mesh
-    instance.position = pos
-    instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-    add_child(instance)
-    return instance
+    return _commit_custom_part(name_value, surface, pos, material)
 
 
 func _custom_ellipsoid_part(name_value: String, radii: Vector3, pos: Vector3, material: Material, segments: int = 8, rings: int = 5) -> MeshInstance3D:
@@ -409,6 +414,10 @@ func _custom_ellipsoid_part(name_value: String, radii: Vector3, pos: Vector3, ma
                 _add_triangle(surface, a, c, b)
             if ring < safe_rings - 1:
                 _add_triangle(surface, a, d, c)
+    return _commit_custom_part(name_value, surface, pos, material)
+
+
+func _commit_custom_part(name_value: String, surface: SurfaceTool, pos: Vector3, material: Material) -> MeshInstance3D:
     var mesh := surface.commit() as ArrayMesh
     mesh.surface_set_material(0, material)
     var instance := MeshInstance3D.new()
@@ -422,11 +431,7 @@ func _custom_ellipsoid_part(name_value: String, radii: Vector3, pos: Vector3, ma
 
 func _ellipsoid_point(radii: Vector3, phi: float, theta: float) -> Vector3:
     var cos_phi := cos(phi)
-    return Vector3(
-        radii.x * cos_phi * sin(theta),
-        radii.y * sin(phi),
-        radii.z * cos_phi * cos(theta)
-    )
+    return Vector3(radii.x * cos_phi * sin(theta), radii.y * sin(phi), radii.z * cos_phi * cos(theta))
 
 
 func _add_triangle(surface: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:

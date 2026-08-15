@@ -1,0 +1,93 @@
+name: Grand Bruxelles Bourse Metro Identity Visual
+
+on:
+  push:
+    branches: ["visual/shared-bourse-metro-identity-current"]
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-metro-identity-visual.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/tools/fetch_bourse_metro_access.py"
+      - "grand-bruxelles-game/game/scripts/bourse_metro_identity_runtime.gd"
+      - "grand-bruxelles-game/game/tests/bourse_metro_identity_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_metro_identity_witness_test.gd"
+      - "grand-bruxelles-game/data/provenance/bourse_metro_identity_runtime.json"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-metro-identity-visual.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/tools/fetch_bourse_metro_access.py"
+      - "grand-bruxelles-game/game/scripts/bourse_metro_identity_runtime.gd"
+      - "grand-bruxelles-game/game/tests/bourse_metro_identity_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_metro_identity_witness_test.gd"
+      - "grand-bruxelles-game/data/provenance/bourse_metro_identity_runtime.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-metro-identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Revalidate official Bourse / Beurs entrance source
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/fetch_bourse_metro_access.py 2>&1 | tee /tmp/bourse-metro-source.log
+          grep -F 'BOURSE_METRO_ACCESS_SOURCE_OK=' /tmp/bourse-metro-source.log
+          grep -F '"entrance_count": 7' /tmp/bourse-metro-source.log
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate runtime source contract
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/bourse_metro_identity_runtime_test.gd 2>&1 | tee /tmp/bourse-metro-runtime.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|BOURSE_METRO_IDENTITY_FAIL' /tmp/bourse-metro-runtime.log; then exit 1; fi
+          grep -F 'BOURSE_METRO_IDENTITY_OK' /tmp/bourse-metro-runtime.log
+      - name: Capture uncontaminated player-facing A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/bourse_metro_identity_witness_test.gd 2>&1 | tee /tmp/bourse-metro-witness.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|BOURSE_METRO_IDENTITY_WITNESS_FAIL' /tmp/bourse-metro-witness.log; then exit 1; fi
+          grep -F 'BOURSE_METRO_IDENTITY_WITNESS_OK' /tmp/bourse-metro-witness.log
+          grep -F 'frozen_same_scene=true' /tmp/bourse-metro-witness.log
+      - name: Deterministically package evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence=/tmp/bourse-metro-identity-evidence
+          rm -rf "$evidence"
+          mkdir -p "$evidence"
+          cp grand-bruxelles-game/artifacts/visual/bourse_metro_identity_before.png "$evidence/before.png"
+          cp grand-bruxelles-game/artifacts/visual/bourse_metro_identity_after.png "$evidence/after.png"
+          cp /tmp/bourse-metro-source.log "$evidence/source.log"
+          cp /tmp/bourse-metro-runtime.log "$evidence/runtime.log"
+          cp /tmp/bourse-metro-witness.log "$evidence/witness.log"
+          test -s "$evidence/before.png"
+          test -s "$evidence/after.png"
+          test -s "$evidence/source.log"
+          test -s "$evidence/runtime.log"
+          test -s "$evidence/witness.log"
+          file "$evidence/before.png" | grep -F '1280 x 720'
+          file "$evidence/after.png" | grep -F '1280 x 720'
+          find "$evidence" -maxdepth 1 -type f -printf '%f %s bytes\n' | sort | tee "$evidence/file-list.txt"
+          test -s "$evidence/file-list.txt"
+      - name: Upload inspectable evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-metro-identity-visual-evidence
+          path: /tmp/bourse-metro-identity-evidence
+          if-no-files-found: error

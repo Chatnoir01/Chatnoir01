@@ -17,18 +17,22 @@ func _run() -> void:
         return
     var scene := packed.instantiate()
     root.add_child(scene)
-    for _frame: int in range(3):
+    for _frame: int in range(5):
         await process_frame
 
     var city_builder := scene.get_node_or_null("BrusselsOSM")
     if city_builder == null:
         _fail("production OSM city builder missing")
         return
-    if not city_builder.has_method("facade_articulation_counts_near"):
-        _fail("production context facades expose no articulation diagnostics")
+    var articulation := city_builder.get_node_or_null("ContextFacadeArticulation")
+    if articulation == null:
+        _fail("production context facades have no reusable articulation runtime")
+        return
+    if not articulation.has_method("facade_articulation_counts_near"):
+        _fail("facade articulation runtime exposes no placement diagnostics")
         return
 
-    var counts: Dictionary = city_builder.call("facade_articulation_counts_near", BOURSE_ANCHOR, DETAIL_RADIUS_M)
+    var counts: Dictionary = articulation.call("facade_articulation_counts_near", BOURSE_ANCHOR, DETAIL_RADIUS_M)
     var cornices := int(counts.get("cornices", 0))
     var lintels := int(counts.get("lintels", 0))
     var sills := int(counts.get("sills", 0))
@@ -48,14 +52,21 @@ func _run() -> void:
         _fail("Bourse context lacks player-height commercial frontage headers; got %d" % shop_headers)
         return
 
-    var details := scene.get_node_or_null("BrusselsOSM/GeneratedFacadeDetails")
-    if details == null:
-        _fail("production facade details root missing")
-        return
     for required_name: String in ["CorridorFacadeCornices", "CorridorFacadeLintels", "CorridorFacadeSills", "CorridorFacadeEntries", "CorridorShopHeaders"]:
-        if details.get_node_or_null(required_name) == null:
+        if articulation.get_node_or_null(required_name) == null:
             _fail("missing visible production detail layer %s" % required_name)
             return
+
+    if not articulation.has_method("truth_contract"):
+        _fail("art direction/source-geometry separation contract missing")
+        return
+    var contract: Dictionary = articulation.call("truth_contract")
+    if bool(contract.get("moves_source_geometry", true)):
+        _fail("facade art direction must not move source geometry")
+        return
+    if int(contract.get("external_assets", -1)) != 0:
+        _fail("this procedural lot must not introduce untracked external assets")
+        return
 
     print("BOURSE_FACADE_ARTICULATION_OK: cornices=%d lintels=%d sills=%d entries=%d shop_headers=%d" % [cornices, lintels, sills, entries, shop_headers])
     scene.queue_free()

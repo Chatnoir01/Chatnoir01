@@ -1,18 +1,16 @@
 extends Node3D
-class_name BourseMetroIdentityRuntime
 
 ## Source-bounded bilingual public-transport identity for the seven published
 ## Bourse/Beurs underground-station entrance points. Published points are treated
 ## as anchors, not centimetre surveys; blade geometry/yaw/materials are authored.
 
-const station_fr := "Bourse"
-const station_nl := "Beurs"
-const entrance_count := 7
-const published_points_only := true
-const claims_surveyed_sign_geometry := false
-const claims_timetable_or_service := false
-
-const source_stop_ids := [
+var station_fr := "Bourse"
+var station_nl := "Beurs"
+var entrance_count := 7
+var published_points_only := true
+var claims_surveyed_sign_geometry := false
+var claims_timetable_or_service := false
+var source_stop_ids: Array = [
     "0600565", "0600765", "0600365", "0600965", "0601165", "0600165", "0601265"
 ]
 
@@ -27,7 +25,6 @@ const ENTRANCE_ANCHORS := [
     Vector3(151.133, 0.16, -752.746),
     Vector3(137.215, 0.16, -767.774),
 ]
-
 const STATION_CENTRE := Vector3(99.011, 0.16, -676.666)
 
 var identity_count := 0
@@ -71,8 +68,7 @@ func _build_identity(index: int, anchor: Vector3) -> void:
     panel_mat.roughness = 0.62
     panel_mat.metallic = 0.0
 
-    # A compact authored identity blade. It is intentionally smaller than the
-    # rejected #320 single-stop panel; broad value comes from seven real entrance
+    # Compact authored identity blade. Broad value comes from seven real entrance
     # anchors, not from enlarging one marker.
     _box(root_node, "IdentityPost", Vector3(0.075, 2.15, 0.075), Vector3(0.0, 1.075, 0.0), frame_mat)
     _box(root_node, "IdentityBlade", Vector3(0.66, 1.18, 0.065), Vector3(0.0, 1.72, -0.012), panel_mat)

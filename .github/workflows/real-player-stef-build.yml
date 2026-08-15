@@ -88,10 +88,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          godot --headless --path grand-bruxelles-game --editor --quit-after 5 2>&1 | tee /tmp/stef-import.log
-          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR:.*Stef' /tmp/stef-import.log; then
+          timeout 180s godot --headless --path grand-bruxelles-game --import 2>&1 | tee /tmp/stef-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR:.*Stef|Scan thread aborted' /tmp/stef-import.log; then
             exit 1
           fi
+          test -n "$(find grand-bruxelles-game/.godot/imported -maxdepth 1 -type f -name 'Stef.glb-*' -print -quit)"
 
       - name: Prove real rig skin materials animations and Player selection
         id: stef_runtime
@@ -121,10 +122,13 @@ jobs:
             echo
             echo '[runtime]'
             if test -f /tmp/stef-runtime.log; then
-              tail -n 200 /tmp/stef-runtime.log
+              tail -n 240 /tmp/stef-runtime.log
             else
               echo 'runtime log missing'
             fi
+            echo
+            echo '[import]'
+            tail -n 120 /tmp/stef-import.log || true
             echo
             echo '[blender summary]'
             grep -E 'STEF_TEXTURE_|STEF_EXPORT_OK|STEF_ACTIONS:' /tmp/stef-blender.log || true

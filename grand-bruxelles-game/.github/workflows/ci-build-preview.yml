@@ -1,0 +1,38 @@
+name: CI - smoke & license check
+on:
+  push:
+    branches:
+      - main
+      - 'direction/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  license-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check LICENSE_REGISTRY.tsv presence
+        run: |
+          if [ ! -f "grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv" ]; then
+            echo "LICENSE_REGISTRY.tsv not found"; exit 1; fi
+          echo "Found LICENSE_REGISTRY.tsv"
+      - name: Quick manifest validity
+        run: |
+          head -n 5 grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv || true
+
+  smoke-preview:
+    runs-on: ubuntu-latest
+    needs: license-check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Godot (placeholder)
+        run: |
+          echo "This job is a placeholder for Godot build steps. Configure a runner with Godot 4.7.x or use a community action."
+      - name: Web preview files exist
+        run: |
+          if [ ! -f "grand-bruxelles-game/web-preview/index.html" ]; then echo "web-preview missing"; exit 1; fi
+          echo "web-preview present"

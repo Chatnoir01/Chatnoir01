@@ -140,13 +140,11 @@ func _run() -> void:
         if max_channel > 0.30 or min_channel < 0.05:
             _fail("canopy palette escaped restrained street-level bounds: %s" % _color_key(color))
             return
+        if box_mesh.size.z < 0.75 or box_mesh.size.z > 1.25:
+            _fail("canopy mesh depth factor escaped plausible bounds: %.3f" % box_mesh.size.z)
+            return
         canopy_distinct[_color_key(color)] = true
-        for index: int in range(mm.instance_count):
-            var scale := mm.get_instance_transform(index).basis.get_scale().abs()
-            if scale.z < 0.52 or scale.z > 0.92:
-                _fail("canopy projection escaped plausible bounds: %.3f" % scale.z)
-                return
-            canopy_depths[_depth_key(scale.z)] = true
+        canopy_depths[_depth_key(box_mesh.size.z)] = true
         canopy_total += mm.instance_count
         canopy_groups += 1
 
@@ -157,7 +155,7 @@ func _run() -> void:
         _fail("shop canopies remain too synchronized in material; groups=%d distinct_colors=%d" % [canopy_groups, canopy_distinct.size()])
         return
     if canopy_depths.size() < 3:
-        _fail("shop canopy silhouettes remain too synchronized; distinct_projections=%d" % canopy_depths.size())
+        _fail("shop canopy silhouettes remain too synchronized; distinct_depth_factors=%d" % canopy_depths.size())
         return
 
     var source_transforms := {}

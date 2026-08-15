@@ -2,7 +2,23 @@ name: Grand Bruxelles Mobile Playability
 
 on:
   push:
-    branches: ["agent/mobile-playability-vehicle-ab"]
+    branches: ["main"]
+    paths:
+      - ".github/workflows/grand-bruxelles-mobile-playability.yml"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/scripts/mobile_controls.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/scripts/mobile_playability_collision_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/vehicle_dynamics_60hz.gd"
+      - "grand-bruxelles-game/game/scripts/vehicle_physics_controller.gd"
+      - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/scripts/midi_urban_life.gd"
+      - "grand-bruxelles-game/game/scripts/midi_ambient_npc_visual_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/npc_agent.gd"
+      - "grand-bruxelles-game/game/scripts/character_loader.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1655673.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1786758.gd"
+      - "grand-bruxelles-game/game/tests/mobile_playability_runtime_test.gd"
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-mobile-playability.yml"
@@ -12,6 +28,11 @@ on:
       - "grand-bruxelles-game/game/scripts/mobile_playability_collision_runtime.gd"
       - "grand-bruxelles-game/game/scripts/vehicle_dynamics_60hz.gd"
       - "grand-bruxelles-game/game/scripts/vehicle_physics_controller.gd"
+      - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/scripts/midi_urban_life.gd"
+      - "grand-bruxelles-game/game/scripts/midi_ambient_npc_visual_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/npc_agent.gd"
+      - "grand-bruxelles-game/game/scripts/character_loader.gd"
       - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1655673.gd"
       - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1786758.gd"
       - "grand-bruxelles-game/game/tests/mobile_playability_runtime_test.gd"

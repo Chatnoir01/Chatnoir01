@@ -100,8 +100,8 @@ func _queue_segment(start: Vector3, finish: Vector3, road_width: float, road_cla
 
     for side: float in [-1.0, 1.0]:
         if _curb_transforms.size() < MAX_CURBS:
-            var curb_center := center + perpendicular * curb_offset * side + Vector3(0.0, 0.105, 0.0)
-            var curb_basis := Basis(Vector3.UP, angle).scaled(Vector3(0.10, 0.12, length * 0.975))
+            var curb_center := center + perpendicular * curb_offset * side + Vector3(0.0, 0.149, 0.0)
+            var curb_basis := Basis(Vector3.UP, angle).scaled(Vector3(0.065, 0.006, length * 0.975))
             _curb_transforms.append(Transform3D(curb_basis, curb_center))
 
         var joint_spacing := 3.0
@@ -119,12 +119,12 @@ func _queue_segment(start: Vector3, finish: Vector3, road_width: float, road_cla
 
 func _flush_layers() -> void:
     var curb_material := StandardMaterial3D.new()
-    curb_material.albedo_color = Color(0.35, 0.34, 0.32, 1.0)
-    curb_material.roughness = 0.96
+    curb_material.albedo_color = Color(0.30, 0.295, 0.285, 1.0)
+    curb_material.roughness = 0.98
     var joint_material := StandardMaterial3D.new()
     joint_material.albedo_color = Color(0.34, 0.33, 0.31, 1.0)
     joint_material.roughness = 0.98
-    _add_multimesh_layer("CurbLips", _curb_transforms, curb_material, true)
+    _add_multimesh_layer("CurbLips", _curb_transforms, curb_material, false)
     _add_multimesh_layer("PavementJoints", _joint_transforms, joint_material, false)
 
 func _add_multimesh_layer(layer_name: String, transforms: Array[Transform3D], material: Material, casts_shadow: bool) -> void:

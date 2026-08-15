@@ -1,0 +1,45 @@
+name: Grand Bruxelles Player Asset Acquire
+
+on:
+  push:
+    branches:
+      - integration/real-player-kaykit-rogue-live
+    paths:
+      - .github/workflows/grand-bruxelles-player-asset-acquire.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  acquire-pinned-cc0-player:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: integration/real-player-kaykit-rogue-live
+      - name: Download pinned KayKit Rogue GLB
+        shell: bash
+        run: |
+          set -euo pipefail
+          dst='grand-bruxelles-game/assets/characters/player/kaykit_rogue/Rogue.glb'
+          mkdir -p "$(dirname "$dst")"
+          curl --fail --location --retry 3 \
+            'https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb' \
+            --output "$dst"
+          test "$(stat -c '%s' "$dst")" = '3616284'
+          test "$(git hash-object "$dst")" = 'c8827661105eef7b2bfbef3bc676d41a47625733'
+      - name: Commit exact binary to branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/assets/characters/player/kaykit_rogue/Rogue.glb
+          if git diff --cached --quiet; then
+            echo 'Pinned authored player binary already present.'
+            exit 0
+          fi
+          git commit -m 'asset(player): add pinned CC0 KayKit Rogue GLB'
+          git push origin HEAD:integration/real-player-kaykit-rogue-live

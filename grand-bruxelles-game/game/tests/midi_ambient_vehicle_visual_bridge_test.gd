@@ -50,8 +50,13 @@ func _run() -> void:
         if visual == null:
             _fail("%s has no production civilian vehicle visual" % vehicle.name)
             return
-        if visual.get_node_or_null("LowerBody") == null:
-            _fail("%s production visual did not build detailed body" % vehicle.name)
+        var body_shell := visual.get_node_or_null("BodyShell") as MeshInstance3D
+        var glass_house := visual.get_node_or_null("GlassHouse") as MeshInstance3D
+        if body_shell == null or not (body_shell.mesh is ArrayMesh):
+            _fail("%s production visual did not build shaped BodyShell" % vehicle.name)
+            return
+        if glass_house == null or not (glass_house.mesh is ArrayMesh):
+            _fail("%s production visual did not build shaped GlassHouse" % vehicle.name)
             return
         for legacy_name: String in ["LowerBody", "Hood", "Roof", "CabinGlass", "FrontLeftLamp", "FrontRightLamp", "RearLeftLamp", "RearRightLamp", "FrontPlate", "RearPlate", "Wheel"]:
             if vehicle.get_node_or_null(legacy_name) != null:

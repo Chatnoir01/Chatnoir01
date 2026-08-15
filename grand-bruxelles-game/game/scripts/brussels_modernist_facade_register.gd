@@ -6,6 +6,7 @@ extends RefCounted
 
 const SUNSHADE_PROJECTION_M := 0.42
 const SUNSHADE_THICKNESS_M := 0.09
+const FRAME_RAIL_THICKNESS_M := 0.055
 const TRANSOM_THICKNESS_M := 0.07
 const SPANDREL_RELIEF_DEPTH_M := 0.08
 const SPANDREL_RELIEF_HEIGHT_M := 0.16
@@ -16,11 +17,11 @@ static func decorate(block: Node3D, aluminium: Material, brick_relief: Material,
         if child is MeshInstance3D and String(child.name).begins_with("Window_"):
             windows.append(child as MeshInstance3D)
     if windows.is_empty():
-        return {"windows": 0, "sunshades": 0, "transoms": 0, "spandrels": 0}
+        return {"windows": 0, "sunshades": 0, "transoms": 0, "vertical_frames": 0, "bottom_rails": 0, "spandrels": 0}
 
     var first_box := windows[0].mesh as BoxMesh
     if first_box == null:
-        return {"windows": 0, "sunshades": 0, "transoms": 0, "spandrels": 0}
+        return {"windows": 0, "sunshades": 0, "transoms": 0, "vertical_frames": 0, "bottom_rails": 0, "spandrels": 0}
 
     var root := Node3D.new()
     root.name = "ModernistFacadeRegister"
@@ -31,6 +32,8 @@ static func decorate(block: Node3D, aluminium: Material, brick_relief: Material,
 
     var sunshade_positions: Array[Vector3] = []
     var transom_positions: Array[Vector3] = []
+    var vertical_frame_positions: Array[Vector3] = []
+    var bottom_rail_positions: Array[Vector3] = []
     var spandrel_positions: Array[Vector3] = []
     for window in windows:
         var box := window.mesh as BoxMesh
@@ -46,6 +49,14 @@ static func decorate(block: Node3D, aluminium: Material, brick_relief: Material,
         transom_positions.append(Vector3(
             facade_x + 0.02,
             window.position.y + box.size.y * 0.22,
+            window.position.z
+        ))
+        var jamb_offset := maxf(0.0, depth * 0.5 - FRAME_RAIL_THICKNESS_M * 0.5)
+        vertical_frame_positions.append(Vector3(facade_x + 0.02, window.position.y, window.position.z - jamb_offset))
+        vertical_frame_positions.append(Vector3(facade_x + 0.02, window.position.y, window.position.z + jamb_offset))
+        bottom_rail_positions.append(Vector3(
+            facade_x + 0.02,
+            window.position.y - box.size.y * 0.5 + FRAME_RAIL_THICKNESS_M * 0.5,
             window.position.z
         ))
         if add_projecting_spandrels:
@@ -70,6 +81,20 @@ static func decorate(block: Node3D, aluminium: Material, brick_relief: Material,
         transom_positions,
         aluminium
     )
+    _add_multimesh(
+        root,
+        "VerticalFrames",
+        Vector3(0.15, first_box.size.y, FRAME_RAIL_THICKNESS_M),
+        vertical_frame_positions,
+        aluminium
+    )
+    _add_multimesh(
+        root,
+        "BottomRails",
+        Vector3(0.15, FRAME_RAIL_THICKNESS_M, window_depth),
+        bottom_rail_positions,
+        aluminium
+    )
     if add_projecting_spandrels:
         _add_multimesh(
             root,
@@ -81,12 +106,15 @@ static func decorate(block: Node3D, aluminium: Material, brick_relief: Material,
 
     root.set_meta("window_count", windows.size())
     root.set_meta("sunshade_projection_m_authored", SUNSHADE_PROJECTION_M)
+    root.set_meta("frame_rail_thickness_m_authored", FRAME_RAIL_THICKNESS_M)
     root.set_meta("transom_thickness_m_authored", TRANSOM_THICKNESS_M)
     root.set_meta("spandrel_relief_depth_m_authored", SPANDREL_RELIEF_DEPTH_M)
     return {
         "windows": windows.size(),
         "sunshades": sunshade_positions.size(),
         "transoms": transom_positions.size(),
+        "vertical_frames": vertical_frame_positions.size(),
+        "bottom_rails": bottom_rail_positions.size(),
         "spandrels": spandrel_positions.size()
     }
 

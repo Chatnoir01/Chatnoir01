@@ -1,14 +1,16 @@
 extends Node3D
 
 @export_file("*.json") var data_path: String = "res://data/urbis/midi/midi_runtime.game.json"
+@export_range(0.0, 1.0, 0.01) var post_rain_wetness: float = 0.62
 
 const MIDI_WORLD := Vector3(-668.5, 0.0, 627.84)
+const PostRainSurface := preload("res://game/scripts/brussels_post_rain_surface_material.gd")
 
-var _road: StandardMaterial3D
-var _sidewalk: StandardMaterial3D
-var _island: StandardMaterial3D
-var _paved: StandardMaterial3D
-var _other_surface: StandardMaterial3D
+var _road: Material
+var _sidewalk: Material
+var _island: Material
+var _paved: Material
+var _other_surface: Material
 var _building_materials: Array[StandardMaterial3D] = []
 
 
@@ -25,12 +27,18 @@ func _material(color: Color, roughness: float = 0.9) -> StandardMaterial3D:
     return material
 
 
+func _surface_material(color: Color, roughness: float) -> Material:
+    if post_rain_wetness <= 0.001:
+        return _material(color, roughness)
+    return PostRainSurface.make(color, roughness, post_rain_wetness)
+
+
 func _make_materials() -> void:
-    _road = _material(Color(0.075, 0.078, 0.082, 1.0), 0.97)
-    _sidewalk = _material(Color(0.45, 0.435, 0.405, 1.0), 0.94)
-    _island = _material(Color(0.36, 0.35, 0.325, 1.0), 0.94)
-    _paved = _material(Color(0.39, 0.375, 0.345, 1.0), 0.95)
-    _other_surface = _material(Color(0.28, 0.285, 0.28, 1.0), 0.95)
+    _road = _surface_material(Color(0.075, 0.078, 0.082, 1.0), 0.97)
+    _sidewalk = _surface_material(Color(0.45, 0.435, 0.405, 1.0), 0.94)
+    _island = _surface_material(Color(0.36, 0.35, 0.325, 1.0), 0.94)
+    _paved = _surface_material(Color(0.39, 0.375, 0.345, 1.0), 0.95)
+    _other_surface = _surface_material(Color(0.28, 0.285, 0.28, 1.0), 0.95)
     _building_materials = [
         _material(Color(0.47, 0.31, 0.22, 1.0), 0.92),
         _material(Color(0.60, 0.54, 0.43, 1.0), 0.91),

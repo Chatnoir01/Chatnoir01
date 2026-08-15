@@ -308,27 +308,46 @@ func _unit(seed_value: int, salt: int) -> float:
 
 func _build_player_fallback() -> void:
     var base_y := -0.90
-    var skin := _material(Color(0.63, 0.43, 0.32, 1.0), 0.78)
-    var hair := _material(Color(0.055, 0.045, 0.04, 1.0), 0.90)
-    var jacket := _material(Color(0.075, 0.095, 0.115, 1.0), 0.82)
-    var trousers := _material(Color(0.075, 0.105, 0.15, 1.0), 0.88)
-    var shoes := _material(Color(0.025, 0.027, 0.03, 1.0), 0.76)
+    var skin := _material(Color(0.43, 0.25, 0.17, 1.0), 0.72)
+    var hair := _material(Color(0.018, 0.014, 0.012, 1.0), 0.92)
+    var pink := _material(Color(0.93, 0.12, 0.58, 1.0), 0.58)
+    var white := _material(Color(0.96, 0.96, 0.97, 1.0), 0.52)
+    var bag_mat := _material(Color(0.36, 0.25, 0.17, 1.0), 0.66)
+    var metal := _material(Color(0.78, 0.65, 0.27, 1.0), 0.28)
 
-    _elliptic_frustum_part("Torso", Vector2(0.36, 0.19), Vector2(0.27, 0.17), 0.72, Vector3(0.0, base_y + 1.18, 0.0), jacket, 10)
-    _elliptic_frustum_part("Hips", Vector2(0.27, 0.17), Vector2(0.24, 0.16), 0.24, Vector3(0.0, base_y + 0.78, 0.0), trousers, 9)
-    _left_arm = _elliptic_frustum_part("LeftArm", Vector2(0.11, 0.105), Vector2(0.075, 0.08), 0.68, Vector3(-0.38, base_y + 1.16, 0.0), jacket, 8)
-    _right_arm = _elliptic_frustum_part("RightArm", Vector2(0.11, 0.105), Vector2(0.075, 0.08), 0.68, Vector3(0.38, base_y + 1.16, 0.0), jacket, 8)
+    _elliptic_frustum_part("Torso", Vector2(0.36, 0.19), Vector2(0.27, 0.17), 0.72, Vector3(0.0, base_y + 1.18, 0.0), pink, 10)
+    _elliptic_frustum_part("CropTop", Vector2(0.305, 0.195), Vector2(0.285, 0.178), 0.19, Vector3(0.0, base_y + 1.07, -0.004), white, 10)
+    _elliptic_frustum_part("Waist", Vector2(0.245, 0.155), Vector2(0.235, 0.15), 0.12, Vector3(0.0, base_y + 0.91, 0.0), skin, 9)
+    _elliptic_frustum_part("Hips", Vector2(0.29, 0.18), Vector2(0.25, 0.165), 0.28, Vector3(0.0, base_y + 0.75, 0.0), pink, 9)
+
+    _left_arm = _elliptic_frustum_part("LeftArm", Vector2(0.11, 0.105), Vector2(0.075, 0.08), 0.68, Vector3(-0.38, base_y + 1.16, 0.0), pink, 8)
+    _right_arm = _elliptic_frustum_part("RightArm", Vector2(0.11, 0.105), Vector2(0.075, 0.08), 0.68, Vector3(0.38, base_y + 1.16, 0.0), pink, 8)
+    _custom_prism_part("LeftSleeveStripe", Vector3(0.025, 0.56, 0.18), Vector3(0.025, 0.58, 0.19), Vector3(-0.47, base_y + 1.17, -0.005), white)
+    _custom_prism_part("RightSleeveStripe", Vector3(0.025, 0.56, 0.18), Vector3(0.025, 0.58, 0.19), Vector3(0.47, base_y + 1.17, -0.005), white)
     _custom_ellipsoid_part("LeftHand", Vector3(0.085, 0.11, 0.075), Vector3(-0.38, base_y + 0.79, 0.0), skin, 7, 4)
     _custom_ellipsoid_part("RightHand", Vector3(0.085, 0.11, 0.075), Vector3(0.38, base_y + 0.79, 0.0), skin, 7, 4)
-    _left_leg = _elliptic_frustum_part("LeftLeg", Vector2(0.14, 0.15), Vector2(0.095, 0.105), 0.76, Vector3(-0.15, base_y + 0.43, 0.0), trousers, 9)
-    _right_leg = _elliptic_frustum_part("RightLeg", Vector2(0.14, 0.15), Vector2(0.095, 0.105), 0.76, Vector3(0.15, base_y + 0.43, 0.0), trousers, 9)
-    _custom_prism_part("LeftShoe", Vector3(0.20, 0.12, 0.34), Vector3(0.23, 0.13, 0.39), Vector3(-0.15, base_y + 0.04, -0.07), shoes)
-    _custom_prism_part("RightShoe", Vector3(0.20, 0.12, 0.34), Vector3(0.23, 0.13, 0.39), Vector3(0.15, base_y + 0.04, -0.07), shoes)
+
+    _left_leg = _elliptic_frustum_part("LeftLeg", Vector2(0.145, 0.15), Vector2(0.095, 0.105), 0.76, Vector3(-0.15, base_y + 0.43, 0.0), pink, 9)
+    _right_leg = _elliptic_frustum_part("RightLeg", Vector2(0.145, 0.15), Vector2(0.095, 0.105), 0.76, Vector3(0.15, base_y + 0.43, 0.0), pink, 9)
+    _custom_prism_part("LeftTrouserStripe", Vector3(0.026, 0.66, 0.22), Vector3(0.026, 0.68, 0.23), Vector3(-0.275, base_y + 0.43, -0.005), white)
+    _custom_prism_part("RightTrouserStripe", Vector3(0.026, 0.66, 0.22), Vector3(0.026, 0.68, 0.23), Vector3(0.275, base_y + 0.43, -0.005), white)
+    _custom_prism_part("LeftShoe", Vector3(0.20, 0.12, 0.34), Vector3(0.23, 0.13, 0.39), Vector3(-0.15, base_y + 0.04, -0.07), white)
+    _custom_prism_part("RightShoe", Vector3(0.20, 0.12, 0.34), Vector3(0.23, 0.13, 0.39), Vector3(0.15, base_y + 0.04, -0.07), white)
+
     _elliptic_frustum_part("Neck", Vector2(0.105, 0.095), Vector2(0.11, 0.10), 0.16, Vector3(0.0, base_y + 1.56, 0.0), skin, 8)
     _custom_ellipsoid_part("Head", Vector3(0.255, 0.31, 0.245), Vector3(0.0, base_y + 1.78, 0.0), skin, 10, 6)
     _custom_prism_part("Nose", Vector3(0.065, 0.10, 0.085), Vector3(0.075, 0.11, 0.10), Vector3(0.0, base_y + 1.77, -0.225), skin)
     _custom_ellipsoid_part("HairCrown", Vector3(0.27, 0.14, 0.26), Vector3(0.0, base_y + 2.00, 0.01), hair, 9, 4)
-    _visual_signature = "player_profiled_fallback_v1"
+    _custom_ellipsoid_part("HairBun", Vector3(0.15, 0.14, 0.15), Vector3(0.0, base_y + 2.03, 0.20), hair, 8, 4)
+
+    _custom_prism_part("ShoulderBag", Vector3(0.26, 0.20, 0.12), Vector3(0.30, 0.23, 0.14), Vector3(-0.46, base_y + 0.92, 0.04), bag_mat)
+    var strap := _custom_prism_part("BagStrap", Vector3(0.035, 0.78, 0.035), Vector3(0.035, 0.82, 0.035), Vector3(-0.20, base_y + 1.27, 0.01), bag_mat)
+    strap.rotation.z = -0.58
+    _custom_ellipsoid_part("Pendant", Vector3(0.045, 0.045, 0.025), Vector3(0.0, base_y + 1.47, -0.20), metal, 7, 4)
+    _custom_prism_part("Phone", Vector3(0.09, 0.17, 0.025), Vector3(0.105, 0.20, 0.03), Vector3(0.45, base_y + 0.84, -0.04), white)
+
+    _visual_signature = "pink_tracksuit_procedural_v1"
+    set_meta("appearance_signature", _visual_signature)
     set_meta("custom_mesh_pipeline", "array_mesh_player_fallback_v1")
 
 

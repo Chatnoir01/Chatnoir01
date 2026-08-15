@@ -1,0 +1,31 @@
+name: Grand Bruxelles Facade Candidates
+on:
+  pull_request:
+    paths: ["grand-bruxelles-game/tools/city_generation/generate_facade_candidates.py", "grand-bruxelles-game/tools/city_generation/test_generate_facade_candidates.py", "grand-bruxelles-game/data/urbis/remaining_brussels/cells/**", ".github/workflows/grand-bruxelles-facade-candidates.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  candidate-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/city_generation/test_generate_facade_candidates.py
+      - name: Exercise a real UrbIS INSPIRE building candidate
+        run: |
+          python3 - <<'PY'
+          import json
+          bid='https://databrussels.be/id/building/1703911'
+          c={'buildings':[{'building_id':bid,'status':'READY','visual_confidence':.9,'view_count':3,'independent_source_count':2,'reference_ids':['a','b','c'],'palette_consensus':[{'rgb':[160,140,120],'weight_fraction':1.0}],'vertical_band_consensus':[{'position':.2,'support_views':3},{'position':.5,'support_views':2}],'horizontal_band_consensus':[{'position':.3,'support_views':3},{'position':.65,'support_views':2}],'measured_consensus':{'mean_luminance':{'value':120},'vertical_edge_density':{'value':.2},'horizontal_edge_density':{'value':.18}}}]}
+          json.dump(c,open('/tmp/consensus.json','w'))
+          PY
+          python3 grand-bruxelles-game/tools/city_generation/generate_facade_candidates.py --consensus /tmp/consensus.json --output /tmp/facades.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/facades.json')); r=p['recipes'][0]
+          assert r['state']=='CANDIDATE'
+          assert r['geometry']['building_id']=='https://databrussels.be/id/building/1703911'
+          assert r['geometry']['footprint_31370'] and r['geometry']['edge_lengths_m']
+          assert r['style_recipe']['height_m'] is None and r['style_recipe']['street_facing_edge'] is None and r['style_recipe']['semantic_elements']==[]
+          print('FACADE_CANDIDATE_REAL_URBIS_OK',p['summary'],r['recipe_digest'])
+          PY

@@ -41,6 +41,7 @@ func _ready() -> void:
     _build_fonsny_forecourt()
     _build_fonsny_crossing()
     _build_fonsny_street_furniture()
+    _build_multimodal_arrival_context()
     _build_shelters()
     _build_tram_railings()
     print("Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active")
@@ -281,6 +282,68 @@ func _build_fonsny_forecourt() -> void:
         _paving
     )
     forecourt.rotation.y = _road_angle()
+
+
+func _build_multimodal_arrival_context() -> void:
+    # Project-authored low-poly street furniture: no external asset or logo.
+    # The goal is player-height readability of station arrival modes without
+    # taking ownership of transit routing, stops or vehicle simulation.
+    var wayfinding := Node3D.new()
+    wayfinding.name = "MidiMobilityWayfinding"
+    wayfinding.position = MIDI + STATION_SIDE * 7.4 + FONSNY_AXIS * 9.0
+    wayfinding.rotation.y = _road_angle()
+    add_child(wayfinding)
+    _add_cylinder(wayfinding, "WayfindingPost", 0.10, 3.25, Vector3(0.0, 1.625, 0.0), _pole)
+    _add_box(wayfinding, "WayfindingPanel", Vector3(0.18, 2.45, 3.15), Vector3(0.0, 2.34, 0.0), _sign_blue)
+    _add_wayfinding_label(wayfinding, "WayfindingRail", "TRAINS  ·  TREINEN", Vector3(0.30, 2.92, 0.0))
+    _add_wayfinding_label(wayfinding, "WayfindingUrbanTransit", "METRO  ·  TRAM  ·  BUS", Vector3(0.30, 2.35, 0.0))
+    _add_wayfinding_label(wayfinding, "WayfindingStreetModes", "TAXI  ·  VÉLO / FIETS", Vector3(0.30, 1.78, 0.0))
+
+    var racks := Node3D.new()
+    racks.name = "MidiBikeRackCluster"
+    racks.position = MIDI + ROAD_SIDE * 12.2 + FONSNY_AXIS * 25.0
+    racks.rotation.y = _road_angle()
+    add_child(racks)
+    for rack_index: int in range(6):
+        var rack := Node3D.new()
+        rack.name = "BikeRack_%02d" % rack_index
+        rack.position = Vector3(0.0, 0.0, (float(rack_index) - 2.5) * 0.92)
+        racks.add_child(rack)
+        _add_cylinder(rack, "PostA", 0.035, 0.72, Vector3(-0.34, 0.36, 0.0), _railing)
+        _add_cylinder(rack, "PostB", 0.035, 0.72, Vector3(0.34, 0.36, 0.0), _railing)
+        _add_box(rack, "TopRail", Vector3(0.72, 0.07, 0.07), Vector3(0.0, 0.70, 0.0), _railing)
+
+    var taxi := Node3D.new()
+    taxi.name = "MidiTaxiRankMarker"
+    taxi.position = MIDI + ROAD_SIDE * 10.2 + FONSNY_AXIS * -9.0
+    taxi.rotation.y = _road_angle()
+    add_child(taxi)
+    _add_cylinder(taxi, "TaxiPost", 0.075, 2.55, Vector3(0.0, 1.275, 0.0), _pole)
+    _add_box(taxi, "TaxiPanel", Vector3(0.14, 0.82, 1.05), Vector3(0.0, 2.20, 0.0), _sign_blue)
+    var taxi_label := Label3D.new()
+    taxi_label.name = "TaxiLabel"
+    taxi_label.text = "TAXI"
+    taxi_label.font_size = 34
+    taxi_label.outline_size = 5
+    taxi_label.modulate = Color(0.97, 0.97, 0.92, 1.0)
+    taxi_label.position = Vector3(0.18, 2.20, 0.0)
+    taxi_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    taxi_label.no_depth_test = true
+    taxi.add_child(taxi_label)
+
+
+func _add_wayfinding_label(parent: Node3D, name: String, text: String, position: Vector3) -> Label3D:
+    var label := Label3D.new()
+    label.name = name
+    label.text = text
+    label.font_size = 30
+    label.outline_size = 5
+    label.modulate = Color(0.97, 0.97, 0.92, 1.0)
+    label.position = position
+    label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    label.no_depth_test = true
+    parent.add_child(label)
+    return label
 
 
 func _build_fonsny_crossing() -> void:

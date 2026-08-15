@@ -1,0 +1,32 @@
+name: Grand Bruxelles Multi View Consensus
+on:
+  pull_request:
+    paths: ["grand-bruxelles-game/tools/visual_dataset/build_multiview_consensus.py", "grand-bruxelles-game/tools/visual_dataset/test_build_multiview_consensus.py", ".github/workflows/grand-bruxelles-multiview-consensus.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  consensus-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/visual_dataset/test_build_multiview_consensus.py
+      - name: Exercise READY and blocked buildings through CLI
+        run: |
+          python3 - <<'PY'
+          import json
+          def r(i,source,bid,assoc=.9,vd=.2):
+              return {'canonical_id':i,'source':source,'building_candidates':[{'building_id':bid,'confidence':assoc}], 'visual_analysis':{'quality_status':'USABLE','vertical_edge_density':vd,'horizontal_edge_density':.18,'mean_luminance':120,'mean_channel_stddev':30,'strong_vertical_bands':[.2,.5,.8],'strong_horizontal_bands':[.3,.6],'palette':[{'rgb':[160,140,120],'fraction':1.0}]}}
+          p={'records':[r('1','Commons','A'),r('2','KartaView','A'),r('3','Commons','B')]}
+          json.dump(p,open('/tmp/in.json','w'))
+          PY
+          python3 grand-bruxelles-game/tools/visual_dataset/build_multiview_consensus.py --input /tmp/in.json --output /tmp/out.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/out.json'))
+          by={b['building_id']:b for b in p['buildings']}
+          assert by['A']['status']=='READY'
+          assert by['B']['status']=='INSUFFICIENT_EVIDENCE'
+          assert p['summary']['ready']==1 and p['summary']['insufficient']==1
+          print('MULTIVIEW_CONSENSUS_CLI_OK',p['summary'])
+          PY

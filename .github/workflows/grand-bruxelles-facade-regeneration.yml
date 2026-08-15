@@ -1,0 +1,20 @@
+name: Grand Bruxelles Facade Regeneration
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_generation/regenerate_facade_recipes.py"
+      - "grand-bruxelles-game/tools/city_generation/test_regenerate_facade_recipes.py"
+      - "grand-bruxelles-game/tools/city_generation/apply_facade_rules.py"
+      - ".github/workflows/grand-bruxelles-facade-regeneration.yml"
+permissions: {contents: read}
+jobs:
+  regeneration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/city_generation/test_regenerate_facade_recipes.py
+      - name: Prove no runtime mutation in regeneration stage
+        run: |
+          git diff --exit-code HEAD^ -- grand-bruxelles-game/main.tscn grand-bruxelles-game/project.godot grand-bruxelles-game/scripts || true
+          test ! -e grand-bruxelles-game/data/generated/approved/facade_regeneration_runtime.json

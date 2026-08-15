@@ -129,6 +129,7 @@ func _apply_surface_response_maps(material: StandardMaterial3D, normal_strength:
             var local_roughness := clampf(base_roughness + (0.50 - luminance) * 0.16, 0.68, 1.0)
             roughness_image.set_pixel(x, y, Color(local_roughness, local_roughness, local_roughness, 1.0))
 
+    material.set_meta("photoreal_base_roughness", base_roughness)
     material.normal_enabled = true
     material.normal_texture = ImageTexture.create_from_image(normal_image)
     material.normal_scale = 0.62

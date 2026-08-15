@@ -1,0 +1,33 @@
+name: Grand Bruxelles Reference Image Analysis
+on:
+  pull_request:
+    paths: ["grand-bruxelles-game/tools/visual_dataset/analyze_reference_images.py", "grand-bruxelles-game/tools/visual_dataset/test_analyze_reference_images.py", "grand-bruxelles-game/tools/visual_dataset/build_wikimedia_catalog.py", ".github/workflows/grand-bruxelles-reference-image-analysis.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  image-analysis-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned image library
+        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0
+      - run: python3 grand-bruxelles-game/tools/visual_dataset/test_analyze_reference_images.py
+      - name: Analyze real downloaded Commons references
+        run: |
+          mkdir -p /tmp/refs/images
+          python3 grand-bruxelles-game/tools/visual_dataset/build_wikimedia_catalog.py --max-images 5 --output /tmp/refs/catalog.json --download-dir /tmp/refs/images
+          python3 grand-bruxelles-game/tools/visual_dataset/analyze_reference_images.py --input /tmp/refs/catalog.json --image-root /tmp/refs/images --output /tmp/refs/analysis.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/refs/analysis.json'))
+          assert p['summary']['records']>0
+          assert p['summary']['missing_images']==0
+          assert all(r['visual_analysis']['analysis_version']=='low_level_v1' for r in p['records'])
+          assert all('palette' in r['visual_analysis'] for r in p['records'])
+          print('REFERENCE_IMAGE_ANALYSIS_LIVE_OK',p['summary'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brussels-reference-image-analysis-sample
+          path: /tmp/refs/analysis.json

@@ -9,6 +9,11 @@ const GLASS_BLOCK_TEXTURE_METRES := 1.60
 
 func _make_materials() -> void:
     super._make_materials()
+    # The base Fauquenberg texture already carries the sourced brick cadence.
+    # Derive low-cost PBR response maps from that exact authored albedo instead
+    # of adding unrelated texture detail or changing geometry.
+    _apply_surface_response_maps(_brick_yellow, 0.42, 0.91)
+    _apply_surface_response_maps(_brick_shadow, 0.38, 0.94)
     _concrete = _architectural_concrete_material()
     _glass_block = _glass_block_material()
 
@@ -44,6 +49,7 @@ func _architectural_concrete_material() -> StandardMaterial3D:
     material.uv1_triplanar = true
     material.uv1_world_triplanar = true
     material.uv1_scale = Vector3.ONE / CONCRETE_TEXTURE_METRES
+    _apply_surface_response_maps(material, 0.28, 0.90)
     material.set_meta("brussels_material_family", "architectural_concrete")
     material.set_meta("source_identity", "Midi heritage concrete canopy")
     material.set_meta("source_geometry_unchanged", true)
@@ -85,3 +91,52 @@ func _glass_block_material() -> StandardMaterial3D:
     material.set_meta("authored_pbr_values", true)
     material.set_meta("procedural_original_asset", true)
     return material
+
+func _apply_surface_response_maps(material: StandardMaterial3D, normal_strength: float, base_roughness: float) -> void:
+    if material == null or material.albedo_texture == null:
+        return
+    var source := material.albedo_texture.get_image()
+    if source == null or source.is_empty():
+        return
+    var width := source.get_width()
+    var height := source.get_height()
+    var normal_image := Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
+    var roughness_image := Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
+
+    for y: int in range(height):
+        var y0 := maxi(y - 1, 0)
+        var y1 := mini(y + 1, height - 1)
+        for x: int in range(width):
+            var x0 := maxi(x - 1, 0)
+            var x1 := mini(x + 1, width - 1)
+            var left := _surface_luma(source.get_pixel(x0, y))
+            var right := _surface_luma(source.get_pixel(x1, y))
+            var up := _surface_luma(source.get_pixel(x, y0))
+            var down := _surface_luma(source.get_pixel(x, y1))
+            var tangent_normal := Vector3(
+                -(right - left) * normal_strength,
+                -(down - up) * normal_strength,
+                1.0
+            ).normalized()
+            normal_image.set_pixel(x, y, Color(
+                tangent_normal.x * 0.5 + 0.5,
+                tangent_normal.y * 0.5 + 0.5,
+                tangent_normal.z * 0.5 + 0.5,
+                1.0
+            ))
+
+            var luminance := _surface_luma(source.get_pixel(x, y))
+            var local_roughness := clampf(base_roughness + (0.50 - luminance) * 0.16, 0.68, 1.0)
+            roughness_image.set_pixel(x, y, Color(local_roughness, local_roughness, local_roughness, 1.0))
+
+    material.normal_enabled = true
+    material.normal_texture = ImageTexture.create_from_image(normal_image)
+    material.normal_scale = 0.62
+    material.roughness = 1.0
+    material.roughness_texture = ImageTexture.create_from_image(roughness_image)
+    material.set_meta("photoreal_normal_map", true)
+    material.set_meta("photoreal_roughness_map", true)
+    material.set_meta("pbr_maps_source", "derived_from_existing_authored_albedo")
+
+func _surface_luma(color: Color) -> float:
+    return color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722

@@ -20,12 +20,12 @@ func _save(image: Image, path: String) -> void:
     if image.save_png(absolute_output) != OK:
         _fail("could not save %s" % path)
 
-func _capture(viewport: SubViewport) -> Image:
+func _capture(viewport: Viewport) -> Image:
     RenderingServer.force_draw()
     await process_frame
     var image := viewport.get_texture().get_image()
     if image == null or image.is_empty() or image.get_width() != WIDTH or image.get_height() != HEIGHT:
-        _fail("capture invalid")
+        _fail("capture invalid: expected %dx%d got %dx%d" % [WIDTH, HEIGHT, image.get_width() if image != null else -1, image.get_height() if image != null else -1])
         return Image.new()
     return image
 
@@ -52,12 +52,7 @@ func _run() -> void:
         _fail("main scene missing")
         return
     var scene := packed.instantiate()
-    var viewport := SubViewport.new()
-    viewport.size = Vector2i(WIDTH, HEIGHT)
-    viewport.own_world_3d = true
-    viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-    root.add_child(viewport)
-    viewport.add_child(scene)
+    root.add_child(scene)
     current_scene = scene
 
     for _frame: int in range(12):
@@ -97,13 +92,13 @@ func _run() -> void:
     if toggled < 2:
         _fail("expected at least two production police vest surfaces")
         return
-    var before := await _capture(viewport)
+    var before := await _capture(root)
     if before.is_empty():
         return
     _save(before, BEFORE_PATH)
 
     _set_rear_identity_visible(true)
-    var after := await _capture(viewport)
+    var after := await _capture(root)
     if after.is_empty():
         return
     _save(after, AFTER_PATH)
@@ -127,5 +122,5 @@ func _run() -> void:
         _fail("natural player-frame cue too small: gt3=%.4f%% gt8=%.4f%%" % [gt3_percent, gt8_percent])
         return
 
-    print("BRUSSELS_BILINGUAL_POLICE_VEST_WITNESS_OK: gt3=%d pct_gt3=%.4f gt8=%d pct_gt8=%.4f officers=%d dynamic_state=frozen exposure=production_midi_showcase visual_mount=VisibleHumanoid" % [gt3, gt3_percent, gt8, gt8_percent, toggled])
+    print("BRUSSELS_BILINGUAL_POLICE_VEST_WITNESS_OK: gt3=%d pct_gt3=%.4f gt8=%d pct_gt8=%.4f officers=%d dynamic_state=frozen exposure=production_midi_showcase visual_mount=VisibleHumanoid viewport=root" % [gt3, gt3_percent, gt8, gt8_percent, toggled])
     quit(0)

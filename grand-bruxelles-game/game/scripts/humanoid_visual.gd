@@ -3,6 +3,7 @@ extends Node3D
 const DEFAULT_AUTHORED_CHARACTER_PATH := "res://assets/characters/player/thandi/Thandi.glb"
 const FALLBACK_AUTHORED_CHARACTER_PATHS := [
     "res://assets/characters/player/thandi/Thandi.fbx",
+    "res://assets/characters/player/kaykit_rogue/Rogue.glb",
     "res://assets/characters/player_character.glb",
 ]
 
@@ -31,6 +32,10 @@ var _police: bool = false
 var _authored_character: Node3D
 var _resolved_authored_scene_path: String = ""
 var _visual_signature: String = ""
+var _authored_animation_player: AnimationPlayer
+var _authored_idle_animation: StringName = &""
+var _authored_walk_animation: StringName = &""
+var _authored_run_animation: StringName = &""
 
 
 func _ready() -> void:
@@ -49,6 +54,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
     if is_instance_valid(_authored_character):
+        _update_authored_locomotion()
         return
     var actor: CharacterBody3D = get_parent() as CharacterBody3D
     if actor == null:
@@ -90,6 +96,7 @@ func _try_build_authored_character() -> bool:
                 add_child(_authored_character)
                 _resolved_authored_scene_path = candidate
                 _visual_signature = "authored:%s" % candidate
+                _configure_authored_animation_player()
                 print("Grand Bruxelles authored player loaded: %s" % candidate)
                 return true
     return false
@@ -105,6 +112,74 @@ func _authored_candidates() -> Array[String]:
                 candidates.append(fallback)
     return candidates
 
+
+
+func _configure_authored_animation_player() -> void:
+    _authored_animation_player = _find_animation_player(_authored_character)
+    if _authored_animation_player == null:
+        return
+    var names: PackedStringArray = _authored_animation_player.get_animation_list()
+    _authored_idle_animation = _find_animation_name(names, ["idle"])
+    _authored_walk_animation = _find_animation_name(names, ["walk"])
+    _authored_run_animation = _find_animation_name(names, ["run", "sprint"])
+    if _authored_idle_animation == &"":
+        _authored_idle_animation = _first_non_reset_animation(names)
+    if _authored_idle_animation != &"":
+        _authored_animation_player.play(_authored_idle_animation)
+
+
+func _find_animation_player(node: Node) -> AnimationPlayer:
+    if node is AnimationPlayer:
+        return node as AnimationPlayer
+    for child: Node in node.get_children():
+        var found: AnimationPlayer = _find_animation_player(child)
+        if found != null:
+            return found
+    return null
+
+
+func _find_animation_name(names: PackedStringArray, needles: Array[String]) -> StringName:
+    for animation_name: String in names:
+        var lower: String = animation_name.to_lower()
+        for needle: String in needles:
+            if needle in lower:
+                return StringName(animation_name)
+    return &""
+
+
+func _first_non_reset_animation(names: PackedStringArray) -> StringName:
+    for animation_name: String in names:
+        if animation_name != "RESET":
+            return StringName(animation_name)
+    return &""
+
+
+func _update_authored_locomotion() -> void:
+    if _authored_animation_player == null:
+        return
+    var actor: CharacterBody3D = get_parent() as CharacterBody3D
+    if actor == null:
+        return
+    var speed: float = Vector2(actor.velocity.x, actor.velocity.z).length()
+    var target: StringName = _authored_idle_animation
+    if speed > 5.2 and _authored_run_animation != &"":
+        target = _authored_run_animation
+    elif speed > 0.25 and _authored_walk_animation != &"":
+        target = _authored_walk_animation
+    if target != &"" and _authored_animation_player.current_animation != String(target):
+        _authored_animation_player.play(target)
+
+
+func authored_animation_player() -> AnimationPlayer:
+    return _authored_animation_player
+
+
+func authored_locomotion_animations() -> Dictionary:
+    return {
+        "idle": String(_authored_idle_animation),
+        "walk": String(_authored_walk_animation),
+        "run": String(_authored_run_animation),
+    }
 
 func is_using_authored_character() -> bool:
     return is_instance_valid(_authored_character)

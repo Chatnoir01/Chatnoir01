@@ -6,6 +6,7 @@ on:
       - "grand-bruxelles-game/game/scripts/corridor_facade_depth_runtime.gd"
       - "grand-bruxelles-game/game/scripts/midi_hero_zone_materials.gd"
       - "grand-bruxelles-game/game/tests/corridor_facade_depth_test.gd"
+      - "grand-bruxelles-game/game/tests/corridor_shopfront_frame_test.gd"
       - ".github/workflows/grand-bruxelles-corridor-facade-depth.yml"
   workflow_dispatch:
 
@@ -36,3 +37,10 @@ jobs:
           timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/corridor_facade_depth_test.gd 2>&1 | tee /tmp/test.log
           if grep -E "SCRIPT ERROR|Parse Error:|CORRIDOR_FACADE_DEPTH_FAIL" /tmp/test.log; then exit 1; fi
           grep -q "CORRIDOR_FACADE_DEPTH_OK" /tmp/test.log
+      - name: Corridor shopfront frame runtime test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/corridor_shopfront_frame_test.gd 2>&1 | tee /tmp/shopfront-frame.log
+          if grep -E "SCRIPT ERROR|Parse Error:|CORRIDOR_SHOPFRONT_FRAME_FAIL" /tmp/shopfront-frame.log; then exit 1; fi
+          grep -q "CORRIDOR_SHOPFRONT_FRAME_OK" /tmp/shopfront-frame.log

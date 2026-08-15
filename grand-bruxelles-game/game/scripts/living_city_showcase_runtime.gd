@@ -8,6 +8,8 @@ extends Node
 const MIDI := Vector3(-668.5, 0.16, 627.84)
 const BOURSE := Vector3(114.0, 0.18, -722.0)
 const SHOWCASE_RADIUS_M := 150.0
+const BYSTANDER_RADIUS_M := 45.0
+const MAX_BYSTANDERS := 3
 
 @export var showcase_delay_seconds := 5.5
 @export var incident_duration_seconds := 7.0
@@ -141,6 +143,7 @@ func _trigger_showcase(zone: String) -> bool:
     subject.react_to_event(82.0, stimulus_position)
     subject.set_meta("living_city_showcase_subject", true)
 
+    var bystander_candidates: Array[Dictionary] = []
     for node: Node in get_tree().get_nodes_in_group("behavioral_civilian"):
         if not node is NpcAgent or node == subject:
             continue
@@ -148,7 +151,13 @@ func _trigger_showcase(zone: String) -> bool:
         if not civilian.active:
             continue
         var distance := civilian.get_world_position().distance_to(incident_position)
-        if distance <= 24.0:
+        if distance <= BYSTANDER_RADIUS_M:
+            bystander_candidates.append({"agent": civilian, "distance": distance})
+    bystander_candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.get("distance", INF)) < float(b.get("distance", INF)))
+    for index: int in range(mini(MAX_BYSTANDERS, bystander_candidates.size())):
+        var candidate: Variant = bystander_candidates[index].get("agent", null)
+        if candidate is NpcAgent:
+            var civilian := candidate as NpcAgent
             civilian.apply_local_crowd_stimulus(incident_position, 0.66, false)
             _reacting_civilians.append(civilian)
 

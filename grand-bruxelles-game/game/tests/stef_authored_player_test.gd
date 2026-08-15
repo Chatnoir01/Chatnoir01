@@ -59,7 +59,7 @@ func _run() -> void:
     var total_bones := 0
     var skinned_meshes := 0
     var material_surfaces := 0
-    var animation_players: Array[AnimationPlayer] = []
+    var textured_material_surfaces := 0
     var animation_names: Array[StringName] = []
     var walk_player: AnimationPlayer = null
     var walk_animation_name := StringName()
@@ -75,11 +75,13 @@ func _run() -> void:
                 skinned_meshes += 1
             if mesh_instance.mesh != null:
                 for surface_index in mesh_instance.mesh.get_surface_count():
-                    if mesh_instance.get_active_material(surface_index) != null:
+                    var active_material := mesh_instance.get_active_material(surface_index)
+                    if active_material != null:
                         material_surfaces += 1
+                        if active_material is BaseMaterial3D and (active_material as BaseMaterial3D).albedo_texture != null:
+                            textured_material_surfaces += 1
         elif node is AnimationPlayer:
             var player := node as AnimationPlayer
-            animation_players.append(player)
             for library_name in player.get_animation_library_list():
                 var library := player.get_animation_library(library_name)
                 if library == null:
@@ -101,6 +103,9 @@ func _run() -> void:
         return
     if material_surfaces < 1:
         _fail("Imported Stef has no active material surfaces")
+        return
+    if textured_material_surfaces < 1:
+        _fail("Imported Stef has no active albedo-textured material surfaces")
         return
     if animation_names.is_empty():
         _fail("Imported Stef has no authored animation clips")
@@ -144,12 +149,13 @@ func _run() -> void:
         return
 
     print(
-        "STEF_AUTHORED_PLAYER_OK: path=%s skeletons=%d bones=%d skinned_meshes=%d material_surfaces=%d animations=%d walk=%s walk_length=%.3f valid_walk_bone_tracks=%d" % [
+        "STEF_AUTHORED_PLAYER_OK: path=%s skeletons=%d bones=%d skinned_meshes=%d material_surfaces=%d textured_material_surfaces=%d animations=%d walk=%s walk_length=%.3f valid_walk_bone_tracks=%d" % [
             STEF_PATH,
             skeleton_count,
             total_bones,
             skinned_meshes,
             material_surfaces,
+            textured_material_surfaces,
             animation_names.size(),
             String(walk_animation_name),
             walk_animation.length,

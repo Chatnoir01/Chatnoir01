@@ -1,0 +1,19 @@
+name: Grand Bruxelles Candidate QA Queue
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_generation/build_candidate_qa_queue.py"
+      - "grand-bruxelles-game/tools/city_generation/test_build_candidate_qa_queue.py"
+      - ".github/workflows/grand-bruxelles-candidate-qa-queue.yml"
+permissions: {contents: read}
+jobs:
+  qa-queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/city_generation/test_build_candidate_qa_queue.py
+      - name: Refuse visual approval or runtime promotion claims
+        run: |
+          grep -q "PRE_VISUAL_QA_ONLY" grand-bruxelles-game/tools/city_generation/build_candidate_qa_queue.py
+          grep -q "runtime_promotion_allowed.*False" grand-bruxelles-game/tools/city_generation/build_candidate_qa_queue.py

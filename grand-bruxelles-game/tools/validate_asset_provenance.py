@@ -15,7 +15,7 @@ REQUIRED = [
     "local_path",
     "notes",
 ]
-IGNORED_NAMES = {"LICENSE_REGISTRY.tsv", "PROVENANCE.md"}
+IGNORED_NAMES = {"LICENSE_REGISTRY.tsv", "PROVENANCE.md", ".gitkeep"}
 IGNORED_SUFFIXES = {".md", ".import"}
 
 

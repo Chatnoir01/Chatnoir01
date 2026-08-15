@@ -73,7 +73,7 @@ func _color_from_array(raw: Variant, fallback: Color) -> Color:
     )
 
 
-func _style_material(style: Dictionary, key: String, fallback: StandardMaterial3D) -> StandardMaterial3D:
+func _style_material(style: Dictionary, key: String, fallback: StandardMaterial3D) -> Material:
     if style.is_empty():
         return fallback
     var materials: Variant = style.get("materials", {})
@@ -82,10 +82,31 @@ func _style_material(style: Dictionary, key: String, fallback: StandardMaterial3
     var definition: Variant = materials.get(key, {})
     if not definition is Dictionary:
         return fallback
+    var base_color := _color_from_array(definition.get("albedo_rgba", []), fallback.albedo_color)
+    var roughness := clampf(float(definition.get("roughness", fallback.roughness)), 0.0, 1.0)
+    var metallic := clampf(float(definition.get("metallic", fallback.metallic)), 0.0, 1.0)
+    var shader_path := str(definition.get("shader_path", ""))
+    if not shader_path.is_empty():
+        if not ResourceLoader.exists(shader_path):
+            push_error("Hero material shader missing: %s" % shader_path)
+            return fallback
+        var shader_resource := ResourceLoader.load(shader_path)
+        if not shader_resource is Shader:
+            push_error("Hero material resource is not a Shader: %s" % shader_path)
+            return fallback
+        var shader_material := ShaderMaterial.new()
+        shader_material.shader = shader_resource as Shader
+        shader_material.set_shader_parameter("base_color", base_color)
+        shader_material.set_shader_parameter("base_roughness", roughness)
+        var raw_parameters: Variant = definition.get("shader_parameters", {})
+        if raw_parameters is Dictionary:
+            for parameter_name: Variant in raw_parameters.keys():
+                shader_material.set_shader_parameter(str(parameter_name), raw_parameters[parameter_name])
+        return shader_material
     var material := fallback.duplicate() as StandardMaterial3D
-    material.albedo_color = _color_from_array(definition.get("albedo_rgba", []), fallback.albedo_color)
-    material.roughness = clampf(float(definition.get("roughness", fallback.roughness)), 0.0, 1.0)
-    material.metallic = clampf(float(definition.get("metallic", fallback.metallic)), 0.0, 1.0)
+    material.albedo_color = base_color
+    material.roughness = roughness
+    material.metallic = metallic
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     return material
 
@@ -177,9 +198,9 @@ func _build_hero(entry: Dictionary) -> bool:
     var style := _read_style(entry)
     if not style_path.is_empty() and style.is_empty():
         return false
-    var wall_material := _style_material(style, "wall", _wall_material)
-    var roof_material := _style_material(style, "roof", _roof_material)
-    var ground_material := _style_material(style, "ground", _ground_material)
+    var wall_material: Material = _style_material(style, "wall", _wall_material)
+    var roof_material: Material = _style_material(style, "roof", _roof_material)
+    var ground_material: Material = _style_material(style, "ground", _ground_material)
 
     var hero_root := Node3D.new()
     hero_root.name = "Hero_%s" % str(entry.get("id", "unknown")).capitalize()
@@ -211,9 +232,10 @@ func _build_hero(entry: Dictionary) -> bool:
     hero_root.set_meta("geometry_path", path)
     hero_root.set_meta("style_path", style_path)
     hero_root.set_meta("runtime_material_style_applied", not style.is_empty())
+    hero_root.set_meta("wall_shader_articulation_applied", wall_material is ShaderMaterial)
     print(
-        "Grand Bruxelles UrbIS hero: %s, %d faces, %d triangles, runtime_approved=%s material_style=%s" %
-        [str(entry.get("id", "unknown")), faces.size(), triangle_count, str(data.get("runtime_approved", false)), str(not style.is_empty())]
+        "Grand Bruxelles UrbIS hero: %s, %d faces, %d triangles, runtime_approved=%s material_style=%s wall_shader=%s" %
+        [str(entry.get("id", "unknown")), faces.size(), triangle_count, str(data.get("runtime_approved", false)), str(not style.is_empty()), str(wall_material is ShaderMaterial)]
     )
     return true
 

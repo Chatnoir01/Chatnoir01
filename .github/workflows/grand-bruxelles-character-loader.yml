@@ -17,7 +17,7 @@ permissions:
 jobs:
   character-loader-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,4 +32,12 @@ jobs:
         run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
 
       - name: Run production authored player loader test
-        run: godot --headless --path grand-bruxelles-game --script res://game/tests/humanoid_authored_player_test.gd
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/humanoid_authored_player_test.gd 2>&1 | tee /tmp/character-loader.log
+          if grep -E "SCRIPT ERROR|Parse Error:|HUMANOID_AUTHORED_PLAYER_FAIL" /tmp/character-loader.log; then
+            exit 1
+          fi
+          grep -q "HUMANOID_AUTHORED_PLAYER_OK" /tmp/character-loader.log

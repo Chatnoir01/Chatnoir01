@@ -21,9 +21,10 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python3 grand-bruxelles-game/tools/fetch_bourse_metro_access.py | tee /tmp/bourse-metro-access-source.log
+          python3 grand-bruxelles-game/tools/fetch_bourse_metro_access.py 2>&1 | tee /tmp/bourse-metro-access-source.log
           grep -F "BOURSE_METRO_ACCESS_SOURCE_OK=" /tmp/bourse-metro-access-source.log
       - name: Upload source unlocker log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bourse-metro-access-source-unlocker

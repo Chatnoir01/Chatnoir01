@@ -77,12 +77,13 @@ func _shop_canopy(shop_transform: Transform3D) -> Transform3D:
     var origin := shop_transform.origin + Vector3.UP * (scale.y * 0.5 + 0.14) + outward * 0.28
     return Transform3D(rotation.scaled(Vector3(scale.x + 0.34, 0.12, 0.72)), origin)
 
-func _shop_palette_index(origin: Vector3) -> int:
-    # Quantized world position keeps the choice stable across runs and independent
-    # of frame order, while breaking the obvious adjacent A/B/C sequence look.
+func _shop_palette_index(origin: Vector3, instance_index: int) -> int:
+    # OSM generation order is deterministic. Mixing that stable index with a
+    # quantized position avoids both frame-time randomness and spatial modulo
+    # aliasing (the previous position-only hash collapsed this corridor to one color).
     var x_key: int = int(round(origin.x * 2.0))
     var z_key: int = int(round(origin.z * 2.0))
-    var mixed: int = int(abs(x_key * 73856093 + z_key * 19349663 + x_key * z_key * 83492791))
+    var mixed: int = int(abs(x_key * 92821 + z_key * 68917 + instance_index * 31337 + instance_index * instance_index * 97))
     return mixed % SHOP_CANOPY_PALETTE.size()
 
 func _build_shop_canopies(details: Node3D, shop_node: MultiMeshInstance3D) -> void:
@@ -93,7 +94,7 @@ func _build_shop_canopies(details: Node3D, shop_node: MultiMeshInstance3D) -> vo
         var transforms: Array[Transform3D] = []
         for index: int in range(shop_multimesh.instance_count):
             var shop_transform: Transform3D = shop_multimesh.get_instance_transform(index)
-            if _shop_palette_index(shop_transform.origin) != palette_index:
+            if _shop_palette_index(shop_transform.origin, index) != palette_index:
                 continue
             transforms.append(_shop_canopy(shop_transform))
         if transforms.is_empty():

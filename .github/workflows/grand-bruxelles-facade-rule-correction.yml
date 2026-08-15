@@ -1,0 +1,28 @@
+name: Grand Bruxelles Facade Rule Correction
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_generation/apply_facade_rules.py"
+      - "grand-bruxelles-game/tools/city_generation/test_apply_facade_rules.py"
+      - ".github/workflows/grand-bruxelles-facade-rule-correction.yml"
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  correction-guardrails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/city_generation/test_apply_facade_rules.py
+      - name: Prove candidate geometry is untouched
+        run: |
+          python3 - <<'PY'
+          import importlib.util, pathlib
+          p=pathlib.Path('grand-bruxelles-game/tools/city_generation/apply_facade_rules.py')
+          s=importlib.util.spec_from_file_location('r',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+          recipe={'building_id':'x','state':'CANDIDATE','reasons':[],'style_recipe':{'base_color_rgb':[1,2,3],'vertical_rhythm_normalized':[.2,.21,.8],'horizontal_rhythm_normalized':[.3,.6],'semantic_elements':[],'height_m':None,'street_facing_edge':None},'geometry':{'footprint_digest':'official','edge_lengths_m':[5,7,5,7]}}
+          out=m.correct(recipe)
+          assert out['geometry']==recipe['geometry']
+          assert out['state']=='CORRECTED_CANDIDATE'
+          print('FACADE_RULE_GEOMETRY_IMMUTABLE_OK')
+          PY

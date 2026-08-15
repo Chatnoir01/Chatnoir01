@@ -6,6 +6,7 @@ on:
       - "grand-bruxelles-game/game/scripts/midi_hero_zone_materials.gd"
       - "grand-bruxelles-game/game/scripts/photorealism_runtime.gd"
       - "grand-bruxelles-game/game/tests/photorealism_foundation_test.gd"
+      - "grand-bruxelles-game/game/tests/photorealism_pbr_witness_test.gd"
       - ".github/workflows/grand-bruxelles-photorealism-foundation.yml"
   push:
     branches: ["main"]
@@ -13,6 +14,7 @@ on:
       - "grand-bruxelles-game/game/scripts/midi_hero_zone_materials.gd"
       - "grand-bruxelles-game/game/scripts/photorealism_runtime.gd"
       - "grand-bruxelles-game/game/tests/photorealism_foundation_test.gd"
+      - "grand-bruxelles-game/game/tests/photorealism_pbr_witness_test.gd"
       - ".github/workflows/grand-bruxelles-photorealism-foundation.yml"
   workflow_dispatch:
 
@@ -22,10 +24,15 @@ permissions:
 jobs:
   photorealism-foundation:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
 
       - name: Install Godot 4.7.1
         run: |
@@ -59,6 +66,23 @@ jobs:
           fi
           grep -q "PHOTOREALISM_FOUNDATION_OK" /tmp/photorealism.log
 
+      - name: Capture isolated pedestrian-frame PBR A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/photorealism_pbr_witness_test.gd 2>&1 | tee /tmp/photoreal-pbr-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PHOTOREAL_PBR_WITNESS_FAIL" /tmp/photoreal-pbr-witness.log; then
+            exit 1
+          fi
+          grep -q "PHOTOREAL_PBR_WITNESS_OK" /tmp/photoreal-pbr-witness.log
+          test -s grand-bruxelles-game/artifacts/visual/photoreal_pbr_before.png
+          test -s grand-bruxelles-game/artifacts/visual/photoreal_pbr_after.png
+
       - name: Smoke real main scene
         shell: bash
         run: |
@@ -70,3 +94,14 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/main.log; then
             exit 1
           fi
+
+      - name: Upload isolated PBR evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-photoreal-pbr-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/photoreal_pbr_before.png
+            grand-bruxelles-game/artifacts/visual/photoreal_pbr_after.png
+            /tmp/photorealism.log
+            /tmp/photoreal-pbr-witness.log
+          if-no-files-found: error

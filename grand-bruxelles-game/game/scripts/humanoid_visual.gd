@@ -75,19 +75,26 @@ func _build_humanoid() -> void:
         hivis.emission_enabled = true
         hivis.emission = Color(0.09, 0.10, 0.005, 1.0)
         hivis.emission_energy_multiplier = 0.18
-        _box_part("HiVisVest", Vector3(0.65, 0.52, 0.08), Vector3(0.0, base_y + 1.20, -0.205), hivis)
+        _box_part("PoliceFrontHiVis", Vector3(0.65, 0.52, 0.08), Vector3(0.0, base_y + 1.20, -0.205), hivis)
+        _box_part("PoliceRearHiVis", Vector3(0.65, 0.52, 0.08), Vector3(0.0, base_y + 1.20, 0.205), hivis)
         _box_part("PoliceCap", Vector3(0.52, 0.12, 0.48), Vector3(0.0, base_y + 2.07, 0.0), jacket)
         _box_part("PoliceCapPeak", Vector3(0.42, 0.055, 0.22), Vector3(0.0, base_y + 2.075, -0.30), jacket)
 
-        var label: Label3D = Label3D.new()
-        label.name = "UniformPoliceLabel"
-        label.text = "POLICE · POLITIE"
-        label.font_size = 24
-        label.outline_size = 3
-        label.position = Vector3(0.0, base_y + 1.25, -0.255)
-        label.rotation_degrees = Vector3(0.0, 180.0, 0.0)
-        label.modulate = Color(0.04, 0.08, 0.18, 1.0)
-        add_child(label)
+        _police_label("UniformPoliceFrontLabel", Vector3(0.0, base_y + 1.25, -0.255), 180.0)
+        _police_label("UniformPoliceRearLabel", Vector3(0.0, base_y + 1.25, 0.255), 0.0)
+
+
+func _police_label(name_value: String, pos: Vector3, rotation_y_deg: float) -> Label3D:
+    var label: Label3D = Label3D.new()
+    label.name = name_value
+    label.text = "POLICE · POLITIE"
+    label.font_size = 24
+    label.outline_size = 3
+    label.position = pos
+    label.rotation_degrees = Vector3(0.0, rotation_y_deg, 0.0)
+    label.modulate = Color(0.04, 0.08, 0.18, 1.0)
+    add_child(label)
+    return label
 
 
 func _material(color: Color, roughness: float) -> StandardMaterial3D:

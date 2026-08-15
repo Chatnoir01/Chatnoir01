@@ -14,7 +14,10 @@ import materialize_ixelles_neighbor_dtm as m  # noqa: E402
 
 def grid(base: float, east_slope: float = 0.01, north_slope: float = 0.02) -> np.ndarray:
     rows, cols = np.meshgrid(np.arange(251), np.arange(251), indexing="ij")
-    return base + cols * east_slope + rows * north_slope
+    # Runtime contracts are deliberately quantized to 1e-6 m. Mirror that here
+    # so the synthetic test validates contract values rather than IEEE-754 order
+    # of operations at ~1e-14 m.
+    return m.rounded_grid(base + cols * east_slope + rows * north_slope)
 
 
 def test_shared_reference_preserves_neighbor_relative_seams() -> None:

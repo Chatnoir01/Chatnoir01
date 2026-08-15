@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build-and-prove-real-player:
-    if: ${{ !contains(github.event.head_commit.message, '[stef-build-output]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[stef-build-output]') && !contains(github.event.head_commit.message, '[stef-diagnostic-output]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -94,15 +94,64 @@ jobs:
           fi
 
       - name: Prove real rig skin materials animations and Player selection
+        id: stef_runtime
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/stef_authored_player_test.gd 2>&1 | tee /tmp/stef-runtime.log
+          status=${PIPESTATUS[0]}
+          if grep -E 'SCRIPT ERROR|Parse Error:|STEF_AUTHORED_PLAYER_FAIL' /tmp/stef-runtime.log; then
+            status=1
+          fi
+          if ! grep -q 'STEF_AUTHORED_PLAYER_OK' /tmp/stef-runtime.log; then
+            status=1
+          fi
+          exit "$status"
+
+      - name: Persist runtime diagnostic on failure
+        if: ${{ failure() && steps.stef_runtime.outcome == 'failure' }}
         shell: bash
         run: |
           set -euo pipefail
-          timeout 60s godot --headless --path grand-bruxelles-game \
-            --script res://game/tests/stef_authored_player_test.gd 2>&1 | tee /tmp/stef-runtime.log
-          if grep -E 'SCRIPT ERROR|Parse Error:|STEF_AUTHORED_PLAYER_FAIL' /tmp/stef-runtime.log; then
-            exit 1
+          mkdir -p .github/player-audit
+          {
+            echo 'Stef runtime diagnostic'
+            echo '======================='
+            echo
+            echo '[runtime]'
+            if test -f /tmp/stef-runtime.log; then
+              tail -n 200 /tmp/stef-runtime.log
+            else
+              echo 'runtime log missing'
+            fi
+            echo
+            echo '[blender summary]'
+            grep -E 'STEF_TEXTURE_|STEF_EXPORT_OK|STEF_ACTIONS:' /tmp/stef-blender.log || true
+            echo
+            echo '[glb]'
+            cat /tmp/stef-glb.sha256 || true
+          } > .github/player-audit/stef-runtime-diagnostic.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/player-audit/stef-runtime-diagnostic.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs(player): persist Stef runtime diagnostic [stef-diagnostic-output]'
+            git push origin HEAD:visual/real-player-stef-audit
           fi
-          grep -q 'STEF_AUTHORED_PLAYER_OK' /tmp/stef-runtime.log
+
+      - name: Upload runtime diagnostic
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-player-stef-runtime-diagnostic
+          path: |
+            /tmp/stef-blender.log
+            /tmp/stef-import.log
+            /tmp/stef-runtime.log
+            /tmp/stef-glb.sha256
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Preserve existing authored loader regression
         shell: bash

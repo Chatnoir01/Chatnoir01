@@ -25,6 +25,7 @@ const SHOP_CANOPY_PALETTE: Array[Color] = [
     Color(0.145, 0.15, 0.155, 1.0),
 ]
 const SHOP_CANOPY_PERMUTATION: Array[int] = [0, 3, 1, 4, 2]
+const SHOP_CANOPY_DEPTH_FACTORS: Array[float] = [0.82, 1.00, 1.18, 0.90, 1.10]
 const SHOP_GLASS_PALETTE: Array[Color] = [
     Color(0.055, 0.105, 0.135, 1.0),
     Color(0.075, 0.135, 0.155, 1.0),
@@ -67,9 +68,9 @@ func _material(color: Color, roughness: float = 0.85, metallic: float = 0.0) -> 
     material.metallic = metallic
     return material
 
-func _unit_multimesh(name: String, transforms: Array[Transform3D], material: Material) -> MultiMeshInstance3D:
+func _unit_multimesh(name: String, transforms: Array[Transform3D], material: Material, mesh_size: Vector3 = Vector3.ONE) -> MultiMeshInstance3D:
     var mesh := BoxMesh.new()
-    mesh.size = Vector3.ONE
+    mesh.size = mesh_size
     mesh.material = material
     var multimesh := MultiMesh.new()
     multimesh.transform_format = MultiMesh.TRANSFORM_3D
@@ -105,8 +106,6 @@ func _window_articulation(window_transform: Transform3D, lintels: Array[Transfor
     jambs.append(Transform3D(rotation.scaled(jamb_scale), origin - horizontal * side_offset))
 
 func _window_trim_index(instance_index: int) -> int:
-    # A complete five-window block sees every stone family once. The block
-    # rotation prevents a single repeating global phase while remaining stable.
     var lane: int = instance_index % WINDOW_TRIM_PERMUTATION.size()
     var block: int = instance_index / WINDOW_TRIM_PERMUTATION.size()
     var rotation: int = (block * 4 + block * block * 2) % WINDOW_TRIM_PERMUTATION.size()
@@ -176,7 +175,8 @@ func _build_shop_canopies(details: Node3D, shop_node: MultiMeshInstance3D) -> vo
             continue
         var node_name := "CorridorShopCanopies" if palette_index == 0 else "CorridorShopCanopies_%d" % palette_index
         var canopy_material := _material(SHOP_CANOPY_PALETTE[palette_index], 0.54, 0.12)
-        details.add_child(_unit_multimesh(node_name, transforms, canopy_material))
+        var canopy_mesh_size := Vector3(1.0, 1.0, SHOP_CANOPY_DEPTH_FACTORS[palette_index])
+        details.add_child(_unit_multimesh(node_name, transforms, canopy_material, canopy_mesh_size))
         canopy_count += transforms.size()
         canopy_material_group_count += 1
 
@@ -235,8 +235,6 @@ func _build() -> void:
     for index: int in range(windows.instance_count):
         _window_articulation(windows.get_instance_transform(index), lintels, sills, jambs)
 
-    # Geometry is derived once from the canonical window transforms, then only
-    # partitioned by material family. No trim transform is regenerated or moved.
     _build_window_trim(details, lintels, sills, jambs)
     _build_window_glass(details, windows_node)
 

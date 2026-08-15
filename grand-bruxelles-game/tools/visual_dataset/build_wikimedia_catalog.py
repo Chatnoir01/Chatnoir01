@@ -68,14 +68,15 @@ def main():
  if a.shard_count<1 or not 0<=a.shard_index<a.shard_count: raise SystemExit('invalid shard configuration')
  if a.catalog_input and a.max_images: raise SystemExit('--max-images cannot be combined with --catalog-input')
  all_rows=load_rows(a); rows=[dict(r) for r in all_rows if stable_shard(r,a.shard_count)==a.shard_index]; reusable=[r for r in rows if r["usage_class"]=="REUSABLE_ASSET_SOURCE"]
- downloaded=unavailable=transient=download_bytes=0
+ downloaded=unavailable=transient=0
  if a.download_dir:
   root=Path(a.download_dir); root.mkdir(parents=True,exist_ok=True)
   for r in rows:
    if not r.get("url"): continue
    state=download(r,root)
-   if state=="DOWNLOADED": downloaded+=1; download_bytes+=int(r.get('download_bytes',0))
+   if state=="DOWNLOADED": downloaded+=1
    elif state=="UNAVAILABLE_SOURCE": unavailable+=1
    else: transient+=1
+ download_bytes=sum(p.stat().st_size for p in root.iterdir() if p.is_file()) if a.download_dir else 0
  payload={"format":"grand-bruxelles-visual-catalog-v3","source":"Wikimedia Commons geosearch","reusable_license_allowlist":sorted(REUSABLE),"shard":{"index":a.shard_index,"count":a.shard_count},"summary":{"global_seen":len(all_rows),"seen":len(rows),"reusable":len(reusable),"reference_only":len(rows)-len(reusable),"downloadable":sum(bool(r.get('url')) for r in rows),"downloaded":downloaded,"unavailable_sources":unavailable,"transient_failures":transient,"download_failures":unavailable+transient,"download_bytes":download_bytes},"images":rows}; Path(a.output).write_text(json.dumps(payload,indent=2,sort_keys=True,ensure_ascii=False)+"\n",encoding="utf-8"); print("VISUAL_CATALOG_OK",payload["summary"])
 if __name__=="__main__": main()

@@ -6,6 +6,19 @@ extends "res://game/scripts/midi_hero_zone.gd"
 
 const CONCRETE_TEXTURE_METRES := 1.80
 const GLASS_BLOCK_TEXTURE_METRES := 1.60
+const CORRIDOR_FACADE_DEPTH_RUNTIME := preload("res://game/scripts/corridor_facade_depth_runtime.gd")
+
+func _ready() -> void:
+    super._ready()
+    call_deferred("_install_corridor_facade_depth")
+
+func _install_corridor_facade_depth() -> void:
+    var scene_root := get_parent()
+    if scene_root == null or scene_root.get_node_or_null("CorridorFacadeDepthRuntime") != null:
+        return
+    var runtime := CORRIDOR_FACADE_DEPTH_RUNTIME.new()
+    runtime.name = "CorridorFacadeDepthRuntime"
+    scene_root.add_child(runtime)
 
 func _make_materials() -> void:
     super._make_materials()

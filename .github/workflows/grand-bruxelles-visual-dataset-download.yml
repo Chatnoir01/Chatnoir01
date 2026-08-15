@@ -1,0 +1,32 @@
+name: Grand Bruxelles Visual Dataset Download
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Maximum geolocated Commons images (1-500)"
+        required: true
+        default: "500"
+permissions: {contents: read}
+jobs:
+  download-licensed-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download accepted images content-addressed
+        run: |
+          mkdir -p /tmp/brussels-visual/images
+          python3 grand-bruxelles-game/tools/visual_dataset/build_wikimedia_catalog.py --limit "${{ inputs.limit }}" --output /tmp/brussels-visual/catalog.json --download-dir /tmp/brussels-visual/images
+          python3 - <<'PY'
+          import json, pathlib
+          p=json.load(open('/tmp/brussels-visual/catalog.json'))
+          files=list(pathlib.Path('/tmp/brussels-visual/images').iterdir())
+          assert len(files)==p['summary']['accepted']
+          assert all(x.get('sha256') and x.get('local_file') for x in p['images'] if x['accepted'])
+          print('VISUAL_DATASET_DOWNLOAD_OK',p['summary'],'files=',len(files))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brussels-licensed-visual-dataset
+          path: /tmp/brussels-visual
+          retention-days: 30

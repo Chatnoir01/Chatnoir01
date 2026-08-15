@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3]
+
+[node name="PlayerSpawn" type="CharacterBody3D"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlayerSpawn"]
+shape = SubResource("CapsuleShape_player")
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
+radius = 0.25
+height = 1.6
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="PlayerSpawn"]
+mesh = SubResource("FallbackCapsule")
+
+[sub_resource type="CapsuleMesh" id="FallbackCapsule"]
+radius = 0.25
+height = 1.6
+
+# If a GLB exists at res://grand-bruxelles-game/assets/characters/player.glb,
+# developers should replace the MeshInstance3D above with an instanced GLTF scene.

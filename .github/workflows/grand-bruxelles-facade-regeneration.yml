@@ -13,8 +13,22 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - run: python3 grand-bruxelles-game/tools/city_generation/test_regenerate_facade_recipes.py
       - name: Prove no runtime mutation in regeneration stage
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git diff --exit-code HEAD^ -- grand-bruxelles-game/main.tscn grand-bruxelles-game/project.godot grand-bruxelles-game/scripts || true
+          python3 - <<'PY'
+          import os, subprocess
+          base='origin/'+os.environ['BASE_REF']
+          changed=subprocess.check_output(['git','diff','--name-only',base+'...HEAD'],text=True).splitlines()
+          forbidden=[]
+          for p in changed:
+              if p in {'grand-bruxelles-game/main.tscn','grand-bruxelles-game/project.godot'} or p.startswith('grand-bruxelles-game/scripts/'):
+                  forbidden.append(p)
+          assert not forbidden, f'regeneration stage mutated runtime files: {forbidden}'
+          print('REGENERATION_RUNTIME_IMMUTABILITY_OK changed=',len(changed))
+          PY
           test ! -e grand-bruxelles-game/data/generated/approved/facade_regeneration_runtime.json

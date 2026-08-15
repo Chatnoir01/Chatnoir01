@@ -1,6 +1,17 @@
 extends Node3D
 
+const DEFAULT_AUTHORED_CHARACTER_PATH := "res://assets/characters/player/thandi/Thandi.glb"
+const FALLBACK_AUTHORED_CHARACTER_PATHS := [
+    "res://assets/characters/player/thandi/Thandi.fbx",
+    "res://assets/characters/player_character.glb",
+]
+
 @export var force_police_uniform: bool = false
+@export_file("*.glb", "*.gltf", "*.fbx", "*.tscn") var authored_scene_path: String = DEFAULT_AUTHORED_CHARACTER_PATH
+@export var allow_authored_fallback_paths: bool = true
+@export var authored_position: Vector3 = Vector3(0.0, -0.90, 0.0)
+@export var authored_rotation_degrees: Vector3 = Vector3(0.0, 180.0, 0.0)
+@export var authored_scale: Vector3 = Vector3.ONE
 
 var _left_arm: MeshInstance3D
 var _right_arm: MeshInstance3D
@@ -8,6 +19,8 @@ var _left_leg: MeshInstance3D
 var _right_leg: MeshInstance3D
 var _phase: float = 0.0
 var _police: bool = false
+var _authored_character: Node3D
+var _resolved_authored_scene_path: String = ""
 
 
 func _ready() -> void:
@@ -16,10 +29,15 @@ func _ready() -> void:
         return
     _police = force_police_uniform or actor.is_in_group("police_officer")
     _hide_legacy_visuals(actor)
+    if not _police and actor.name == "Player" and _try_build_authored_character():
+        return
     _build_humanoid()
 
 
 func _process(delta: float) -> void:
+    if is_instance_valid(_authored_character):
+        return
+
     var actor: CharacterBody3D = get_parent() as CharacterBody3D
     if actor == null:
         return
@@ -44,6 +62,45 @@ func _hide_legacy_visuals(actor: Node3D) -> void:
         var legacy: Node = actor.get_node_or_null(path)
         if legacy is VisualInstance3D:
             (legacy as VisualInstance3D).visible = false
+
+
+func _try_build_authored_character() -> bool:
+    for candidate: String in _authored_candidates():
+        var resource: Resource = load(candidate)
+        if resource == null:
+            continue
+        if resource is PackedScene:
+            var instance: Node = (resource as PackedScene).instantiate()
+            if instance is Node3D:
+                _authored_character = instance as Node3D
+                _authored_character.name = "AuthoredCharacter"
+                _authored_character.position = authored_position
+                _authored_character.rotation_degrees = authored_rotation_degrees
+                _authored_character.scale = authored_scale
+                add_child(_authored_character)
+                _resolved_authored_scene_path = candidate
+                print("Grand Bruxelles authored player loaded: %s" % candidate)
+                return true
+    return false
+
+
+func _authored_candidates() -> Array[String]:
+    var candidates: Array[String] = []
+    if not authored_scene_path.is_empty():
+        candidates.append(authored_scene_path)
+    if allow_authored_fallback_paths:
+        for fallback: String in FALLBACK_AUTHORED_CHARACTER_PATHS:
+            if fallback not in candidates:
+                candidates.append(fallback)
+    return candidates
+
+
+func is_using_authored_character() -> bool:
+    return is_instance_valid(_authored_character)
+
+
+func resolved_authored_scene_path() -> String:
+    return _resolved_authored_scene_path
 
 
 func _build_humanoid() -> void:

@@ -3,9 +3,11 @@ name: Grand Bruxelles Character Loader
 on:
   pull_request:
     paths:
-      - "grand-bruxelles-game/game/scripts/pink_tracksuit_player_visual.gd"
-      - "grand-bruxelles-game/game/tests/pink_tracksuit_player_visual_test.gd"
+      - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/tests/humanoid_authored_player_test.gd"
       - "grand-bruxelles-game/game/tests/fixtures/rigged_character_fixture.tscn"
+      - "grand-bruxelles-game/assets/characters/player/thandi/**"
+      - "grand-bruxelles-game/assets/characters/player_character.glb"
       - ".github/workflows/grand-bruxelles-character-loader.yml"
   workflow_dispatch:
 
@@ -29,5 +31,5 @@ jobs:
       - name: Verify project imports
         run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
 
-      - name: Run rigged player loader test
-        run: godot --headless --path grand-bruxelles-game --script res://game/tests/pink_tracksuit_player_visual_test.gd
+      - name: Run production authored player loader test
+        run: godot --headless --path grand-bruxelles-game --script res://game/tests/humanoid_authored_player_test.gd

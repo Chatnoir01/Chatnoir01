@@ -1,0 +1,127 @@
+name: Grand Bruxelles Real Player Bravos CC0 Audit
+
+on:
+  push:
+    branches:
+      - research/real-player-bravos-cc0-live
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assert exact live-main base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "115c4f164ef9691ede46bb6d4d997541136ccc59"
+
+      - name: Download public CC0 archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/bravos /tmp/audit
+          curl --fail --location --retry 3 -o /tmp/bravos/2024.zip \
+            https://opengameart.org/sites/default/files/bravos_game_br_2024.zip
+          curl --fail --location --retry 3 -o /tmp/bravos/part3.zip \
+            https://opengameart.org/sites/default/files/bravos_game_br_part_3.zip
+          sha256sum /tmp/bravos/*.zip | tee /tmp/audit/archive_sha256.txt
+          unzip -q /tmp/bravos/2024.zip -d /tmp/bravos/2024
+          unzip -q /tmp/bravos/part3.zip -d /tmp/bravos/part3
+          find /tmp/bravos/2024 /tmp/bravos/part3 -type f -printf '%p\t%s\n' | sort | tee /tmp/audit/files.txt
+
+      - name: Inventory candidate formats
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/audit/inventory.json
+          import json
+          from pathlib import Path
+          roots=[Path('/tmp/bravos/2024'),Path('/tmp/bravos/part3')]
+          exts={'.blend','.fbx','.glb','.gltf','.obj','.png','.jpg','.jpeg','.tga'}
+          rows=[]
+          for root in roots:
+              for p in sorted(root.rglob('*')):
+                  if p.is_file() and p.suffix.lower() in exts:
+                      rows.append({'path':str(p),'ext':p.suffix.lower(),'bytes':p.stat().st_size})
+          print(json.dumps(rows, indent=2))
+          PY
+
+      - name: Install Blender for structural audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+          blender --version | head -1
+
+      - name: Audit every Blender character without modifying it
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/audit_blend.py <<'PY'
+          import bpy, json
+          meshes=[o for o in bpy.context.scene.objects if o.type=='MESH']
+          arms=[o for o in bpy.context.scene.objects if o.type=='ARMATURE']
+          skinned=[]
+          for o in meshes:
+              if any(m.type=='ARMATURE' for m in o.modifiers) or o.parent in arms:
+                  skinned.append(o.name)
+          report={
+              'blend':bpy.data.filepath,
+              'objects':len(bpy.context.scene.objects),
+              'meshes':len(meshes),
+              'armatures':len(arms),
+              'bones':sum(len(a.data.bones) for a in arms),
+              'skinned_meshes':len(skinned),
+              'materials':len(bpy.data.materials),
+              'images':len(bpy.data.images),
+              'actions':[a.name for a in bpy.data.actions],
+              'mesh_names':[o.name for o in meshes],
+              'armature_names':[o.name for o in arms],
+          }
+          print('BRAVOS_AUDIT_JSON '+json.dumps(report, sort_keys=True))
+          PY
+          : > /tmp/audit/blender_audit.jsonl
+          while IFS= read -r -d '' f; do
+            echo "AUDIT_BLEND=$f" | tee -a /tmp/audit/blender.log
+            blender --background "$f" --python /tmp/audit_blend.py 2>&1 | tee -a /tmp/audit/blender.log
+            grep 'BRAVOS_AUDIT_JSON ' /tmp/audit/blender.log | tail -1 | sed 's/^.*BRAVOS_AUDIT_JSON //' >> /tmp/audit/blender_audit.jsonl
+          done < <(find /tmp/bravos/2024 /tmp/bravos/part3 -type f -name '*.blend' -print0)
+          test -s /tmp/audit/blender_audit.jsonl
+
+      - name: Rank rigged animated candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee /tmp/audit/ranked.txt
+          import json
+          from pathlib import Path
+          rows=[]
+          for line in Path('/tmp/audit/blender_audit.jsonl').read_text().splitlines():
+              if not line.strip(): continue
+              r=json.loads(line)
+              score=(10 if r['armatures'] else 0)+(10 if r['skinned_meshes'] else 0)+(10 if r['actions'] else 0)+(3 if r['materials'] else 0)
+              rows.append((score,r))
+          for score,r in sorted(rows,key=lambda x:(-x[0],x[1]['blend'])):
+              print(f"score={score} blend={r['blend']} armatures={r['armatures']} bones={r['bones']} skinned={r['skinned_meshes']} materials={r['materials']} actions={len(r['actions'])} action_names={'|'.join(r['actions'])}")
+          if not rows or max(x[0] for x in rows) < 30:
+              raise SystemExit('No rigged+skinned+animated Blender candidate found')
+          PY
+
+      - name: Upload immutable audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-player-bravos-cc0-audit
+          path: /tmp/audit
+          if-no-files-found: error
+          retention-days: 7

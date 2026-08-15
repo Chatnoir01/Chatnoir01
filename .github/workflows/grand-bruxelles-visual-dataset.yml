@@ -17,9 +17,12 @@ jobs:
           python3 - <<'PY'
           import json
           p=json.load(open('/tmp/brussels-visual-catalog.json'))
-          assert p['format']=='grand-bruxelles-visual-catalog-v2'
+          assert p['format']=='grand-bruxelles-visual-catalog-v3'
+          assert p['shard']=={'index':0,'count':1}
+          assert p['summary']['global_seen']==p['summary']['seen']
           assert p['summary']['seen']>0
           assert p['summary']['reusable'] + p['summary']['reference_only'] == p['summary']['seen']
+          assert p['summary']['downloaded']==0 and p['summary']['download_bytes']==0
           assert all(x['usage_class'] in {'REUSABLE_ASSET_SOURCE','REFERENCE_ONLY'} for x in p['images'])
           assert all((x['usage_class']!='REUSABLE_ASSET_SOURCE') or (x['license'] in p['reusable_license_allowlist'] and x['url']) for x in p['images'])
           geolocated=[x for x in p['images'] if x['lat'] is not None and x['lon'] is not None]

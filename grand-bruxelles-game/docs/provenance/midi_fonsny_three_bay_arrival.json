@@ -1,0 +1,39 @@
+{
+  "asset_family": "midi_fonsny_three_bay_arrival",
+  "location": "Bruxelles-Midi / Brussel-Zuid, Avenue Fonsny access porch",
+  "source": {
+    "publisher": "Inventaire du patrimoine architectural, Région de Bruxelles-Capitale",
+    "title": "Gare du Midi et bâtiments annexes",
+    "url": "https://monument.heritage.brussels/fr/buildings/9423",
+    "facts_used": [
+      "The Avenue Fonsny station access is a vast porch supported by polygonal columns.",
+      "The porch has a large concrete canopy opened with glass blocks.",
+      "Its middle register is pierced by three long bays with concrete cross framing filled with glass blocks."
+    ]
+  },
+  "placement": {
+    "runtime_node": "MidiMainEntranceFonsny",
+    "basis": "existing authored readable Fonsny entrance geometry retained in production",
+    "existing_glazing_envelope_m": [18.8, 3.65],
+    "new_envelope_claim": false
+  },
+  "runtime_scope": {
+    "geometry": "two shallow bay dividers plus one shallow cross rail on the existing glazing envelope; existing entrance columns retain their geometry",
+    "materials": "reuse shipped #323 architectural concrete and glass-block family",
+    "excluded": [
+      "new station massing",
+      "new facade envelope",
+      "new measured opening dimensions",
+      "logos or third-party signage assets",
+      "window-cap vocabulary rejected in #326"
+    ]
+  },
+  "authored_not_measured": [
+    "divider thickness",
+    "cross-rail thickness",
+    "exact frame face offset",
+    "equal subdivision of the existing authored glazing span"
+  ],
+  "recognition_hypothesis": "At normal player distance, the entrance should read as the documented three-bay concrete/glass-block Fonsny porch rather than a single generic glazing plane.",
+  "licensing": "No source photograph, logo, font or third-party texture is distributed; runtime geometry is original procedural presentation over existing project geometry."
+}

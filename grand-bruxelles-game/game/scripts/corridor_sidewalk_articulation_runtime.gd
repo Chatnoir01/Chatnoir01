@@ -25,24 +25,25 @@ func _mount_when_ready() -> void:
             return
         var scene := _find_scene_with_city()
         if scene != null:
-            _mount_into(scene)
+            mount_into_scene(scene)
             return
         await get_tree().process_frame
     push_warning("Corridor sidewalk articulation did not find a production BrusselsOSM scene within %d frames" % MAX_MOUNT_FRAMES)
 
-func _mount_into(scene: Node) -> void:
-    if _mounted or scene == null:
-        return
+func mount_into_scene(scene: Node) -> bool:
+    if scene == null:
+        return false
     var city_builder := scene.get_node_or_null("BrusselsOSM")
     if city_builder == null:
-        return
+        return false
     if city_builder.get_node_or_null("CorridorSidewalkArticulation") != null:
         _mounted = true
-        return
+        return true
     var articulation := ARTICULATION_SCRIPT.new()
     articulation.name = "CorridorSidewalkArticulation"
     city_builder.add_child(articulation)
     if articulation.build_from_city_builder(city_builder):
         _mounted = true
-    else:
-        articulation.queue_free()
+        return true
+    articulation.queue_free()
+    return false

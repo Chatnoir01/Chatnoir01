@@ -1,0 +1,29 @@
+name: Grand Bruxelles Reference Dedup
+on:
+  pull_request:
+    paths: ["grand-bruxelles-game/tools/visual_dataset/deduplicate_catalogs.py", "grand-bruxelles-game/tools/visual_dataset/test_deduplicate_catalogs.py", ".github/workflows/grand-bruxelles-reference-dedup.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  dedup-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/visual_dataset/test_deduplicate_catalogs.py
+      - name: Exercise CLI on mixed normalized catalogs
+        run: |
+          python3 - <<'PY'
+          import json
+          c={'images':[{'source':'Commons','source_id':'1','url':'u','lat':50.85,'lon':4.35,'commons_sha1':'abc','usage_class':'REFERENCE_ONLY'}]}
+          k={'images':[{'source':'KartaView','source_id':'2','url':'v','lat':50.85001,'lon':4.35001,'usage_class':'REFERENCE_ONLY'}]}
+          json.dump(c,open('/tmp/c.json','w')); json.dump(k,open('/tmp/k.json','w'))
+          PY
+          python3 grand-bruxelles-game/tools/visual_dataset/deduplicate_catalogs.py /tmp/c.json /tmp/k.json --output /tmp/dedup.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/dedup.json'))
+          assert p['summary']['input']==2 and p['summary']['canonical']==2
+          assert p['summary']['possible_cross_source_pairs']==1
+          print('REFERENCE_DEDUP_CLI_OK',p['summary'])
+          PY

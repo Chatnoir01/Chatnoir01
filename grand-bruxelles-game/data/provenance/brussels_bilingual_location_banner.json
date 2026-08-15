@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "asset_family": "brussels_bilingual_location_banner",
+  "retrieved_on": "2026-08-15",
+  "source_basis": [
+    {
+      "publisher": "Ville de Bruxelles",
+      "title": "De la ville au musée : les plaques de rue dans la collection",
+      "url": "https://www.bruxelles.be/de-la-ville-au-musee-les-plaques-de-rue-dans-la-collection",
+      "use": "Confirms street-name plaques as a visible municipal Brussels public-space identity cue. No source image is redistributed."
+    },
+    {
+      "publisher": "existing production location contract",
+      "title": "LocationLabelController factual bilingual names and world anchors",
+      "use": "Reuses the already-shipped factual bilingual labels and existing production anchors for Bruxelles-Midi/Brussel-Zuid, Bourse/Beurs and Grand-Place/Grote Markt. No physical sign placement is inferred."
+    }
+  ],
+  "source_backed_contract": {
+    "languages": ["fr", "nl"],
+    "runtime_labels": [
+      "BRUXELLES-MIDI · BRUSSEL-ZUID",
+      "ANNEESSENS",
+      "BOURSE · BEURS",
+      "GRAND-PLACE · GROTE MARKT",
+      "BRUXELLES · BRUSSEL"
+    ],
+    "placement": "existing production screen-space LocationLabel only"
+  },
+  "authored_presentation_values": {
+    "panel_color": "authored dark blue; not calibrated from a municipal paint specification",
+    "border": "authored pale border",
+    "typography": "existing engine/UI font and existing bilingual text; no municipal font, crest or logo embedded",
+    "envelope": "existing LocationLabel bounds with an 8 px left / 3 px top visual overhang; no gameplay camera or world anchor moved"
+  },
+  "player_exposure_contract": {
+    "natural_exposure": "LocationLabel is mounted in production main.tscn and visible by default during normal gameplay",
+    "expected_three_second_value": "high: persistent bilingual Brussels place identity without staging a world object",
+    "reuse_scope": ["Midi", "Bourse", "Grand-Place", "Anneessens", "Brussels fallback"]
+  },
+  "license_note": "No copyrighted photograph, logo, font file, municipal artwork or third-party texture/audio is embedded or redistributed. The panel is newly authored from factual bilingual naming and the general municipal plaque cue."
+}

@@ -1,0 +1,46 @@
+{
+  "schema": "grand-bruxelles-runtime-provenance-v1",
+  "asset_id": "bourse_beurs_multi_entrance_identity",
+  "authority": "City of Brussels Open Data / STIB-MIVB",
+  "dataset": "entrees-stations-souterraines-metro-premetro-ingangen-ondergrondse-metro-premetro-stations",
+  "license": "CC BY 4.0",
+  "retrieved_on": "2026-08-15",
+  "source_page": "https://opendata.brussels.be/explore/dataset/entrees-stations-souterraines-metro-premetro-ingangen-ondergrondse-metro-premetro-stations/",
+  "source_contract": {
+    "station_fr": "Bourse",
+    "station_nl": "Beurs",
+    "entrance_count": 7,
+    "published_points_wgs84": [
+      {"stop_id": "0600565", "lon": 4.348688, "lat": 50.847232, "stop_name": "5 - Boulevard Anspach"},
+      {"stop_id": "0600765", "lon": 4.348419, "lat": 50.847340, "stop_name": "7 - Boulevard Anspach"},
+      {"stop_id": "0600365", "lon": 4.349128, "lat": 50.847655, "stop_name": "3 - Bourse"},
+      {"stop_id": "0600965", "lon": 4.349000, "lat": 50.847898, "stop_name": "9 - Bourse"},
+      {"stop_id": "0601165", "lon": 4.349157, "lat": 50.848248, "stop_name": "11 - Place de la Bourse"},
+      {"stop_id": "0600165", "lon": 4.350150, "lat": 50.848662, "stop_name": "1 - Boulevard Anspach"},
+      {"stop_id": "0601265", "lon": 4.349952, "lat": 50.848797, "stop_name": "12 - Boulevard Anspach"}
+    ]
+  },
+  "coordinate_policy": "The publisher explicitly warns that entrance locations may sometimes lack precision. The published points are therefore exact dataset anchors, not centimetre-accurate surveys.",
+  "game_space_derivation": {
+    "world_origin_lon_lat": [4.348, 50.8419],
+    "method": "existing project local-tangent/equirectangular convention; x=(lon-origin_lon)*111320*cos(origin_lat), z=-(lat-origin_lat)*111320",
+    "y_m": 0.16
+  },
+  "authored_presentation": {
+    "identity_blade_geometry": true,
+    "identity_blade_dimensions": "0.66 m x 1.18 m panel on 2.15 m authored post; not a surveyed STIB/MIVB object",
+    "materials_and_typography": "newly authored; engine default font; no STIB/MIVB logo artwork or proprietary font embedded",
+    "yaw": "authored toward a station-centre presentation target; no surveyed yaw claimed"
+  },
+  "explicitly_not_claimed": [
+    "surveyed entrance-sign geometry or manufacturer model",
+    "shelter or station furniture presence",
+    "timetable contents",
+    "line/service frequency",
+    "vehicle schedule",
+    "entrance opening hours",
+    "centimetre-accurate entrance coordinates"
+  ],
+  "reuse_policy": "The runtime family may be reused at another station only when bilingual identity and each entrance point are independently sourced from an authoritative dataset.",
+  "distribution": "No source photo, STIB/MIVB logo artwork, timetable, map, or proprietary font asset is redistributed."
+}

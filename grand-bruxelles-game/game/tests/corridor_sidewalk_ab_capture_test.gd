@@ -92,13 +92,22 @@ func _run() -> void:
         await process_frame
     _hide_qa_noise(scene)
 
+    var production_runtime := root.get_node_or_null("CorridorSidewalkArticulationRuntime")
+    if production_runtime == null or not production_runtime.has_method("mount_into_scene"):
+        _fail("production sidewalk runtime singleton missing explicit mount contract")
+        return
+    if not bool(production_runtime.call("mount_into_scene", scene)):
+        _fail("production sidewalk runtime could not mount into frozen QA scene")
+        return
+    await process_frame
+
     var camera := viewport.get_camera_3d()
     if camera == null:
         _fail("normal gameplay camera missing")
         return
     var articulation := scene.get_node_or_null("BrusselsOSM/CorridorSidewalkArticulation") as Node3D
     if articulation == null:
-        _fail("production sidewalk articulation missing")
+        _fail("production sidewalk articulation missing after production mount")
         return
 
     scene.process_mode = Node.PROCESS_MODE_DISABLED

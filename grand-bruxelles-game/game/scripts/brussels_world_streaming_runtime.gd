@@ -9,6 +9,7 @@ const STREAMER_SCRIPT := preload("res://game/scripts/brussels_cell_streaming_man
 const BACKEND_SCRIPT := preload("res://game/scripts/brussels_cell_node_backend.gd")
 const IXELLES_STREAMED_SCRIPT_PATH := "res://game/zones/ixelles/ixelles_streamed_microslice.gd"
 const SOURCE_PLAN_STREAMED_SCRIPT_PATH := "res://game/scripts/brussels_source_plan_streamed_cell.gd"
+const SOURCE_DTM_STREAMED_SCRIPT_PATH := "res://game/scripts/brussels_source_dtm_streamed_cell.gd"
 
 const SHIPPED_CELLS: Array[Dictionary] = [
     {
@@ -31,7 +32,11 @@ const SHIPPED_CELLS: Array[Dictionary] = [
         "manifest_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/manifest.json",
         "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/runtime/cell.game.json",
         "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/runtime/network.game.json",
-        "script_path": SOURCE_PLAN_STREAMED_SCRIPT_PATH,
+        "script_path": SOURCE_DTM_STREAMED_SCRIPT_PATH,
+        "metadata": {
+            "terrain_path": "res://data/terrain/ixelles/bxl-e149500-n169000-s500_dtm_2m.game.json",
+            "shared_datum_path": "res://data/terrain/ixelles/ixelles_shared_vertical_datum.game.json",
+        },
     },
     {
         "cell_id": "bxl-e149500-n169500-s500",
@@ -149,7 +154,7 @@ func _register_shipped_cells() -> int:
             continue
 
         var metadata: Dictionary = (descriptor.get("metadata", {}) as Dictionary).duplicate(true)
-        if script_path == SOURCE_PLAN_STREAMED_SCRIPT_PATH:
+        if script_path == SOURCE_PLAN_STREAMED_SCRIPT_PATH or script_path == SOURCE_DTM_STREAMED_SCRIPT_PATH:
             metadata["manifest_path"] = manifest_path
             metadata["runtime_cell_path"] = runtime_cell_path
             metadata["runtime_network_path"] = runtime_network_path

@@ -5,8 +5,7 @@ const OUTPUT_DIR := "res://artifacts/visual"
 const OUTPUT_PATH := OUTPUT_DIR + "/midi_multimodal_arrival_after.png"
 const WIDTH := 1280
 const HEIGHT := 720
-const MIDI := Vector3(-668.5, 0.0, 627.84)
-const FONSNY_AXIS := Vector3(-0.627, 0.0, 0.779)
+const ENTRANCE := Vector3(-672.2905, 0.0, 615.8035)
 const ROAD_SIDE := Vector3(0.779, 0.0, 0.627)
 
 func _init() -> void:
@@ -27,12 +26,14 @@ func _run() -> void:
         _fail("multimodal runtime must exist before capture")
         return
 
+    # Reuse the proven unobstructed Fonsny witness framing already used by
+    # the station material QA instead of inventing a camera inside geometry.
     var camera := Camera3D.new()
     camera.name = "MidiMultimodalWitnessCamera"
-    camera.position = MIDI + ROAD_SIDE * 30.0 + FONSNY_AXIS * 8.0 + Vector3(0.0, 2.7, 0.0)
-    camera.fov = 62.0
+    camera.position = ENTRANCE + ROAD_SIDE * 28.0 + Vector3(0.0, 2.6, 0.0)
+    camera.fov = 65.0
     world.add_child(camera)
-    camera.look_at(MIDI + FONSNY_AXIS * 10.0 + Vector3(0.0, 2.25, 0.0), Vector3.UP)
+    camera.look_at(ENTRANCE + Vector3(0.0, 3.2, 0.0), Vector3.UP)
     camera.current = true
     await process_frame
     await RenderingServer.frame_post_draw

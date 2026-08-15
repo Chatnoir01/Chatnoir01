@@ -1,0 +1,87 @@
+name: Grand Bruxelles Bourse Context Facade
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/bourse_context_facade_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/bourse_context_facade_articulation.gd"
+      - "grand-bruxelles-game/game/tests/bourse_facade_articulation_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_geotagged_camera_capture_test.gd"
+      - "grand-bruxelles-game/data/sources/visual_assets/bourse_context_facade_articulation.json"
+      - ".github/workflows/grand-bruxelles-bourse-context-facade.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/bourse_context_facade_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/bourse_context_facade_articulation.gd"
+      - "grand-bruxelles-game/game/tests/bourse_facade_articulation_runtime_test.gd"
+      - "grand-bruxelles-game/data/sources/visual_assets/bourse_context_facade_articulation.json"
+      - ".github/workflows/grand-bruxelles-bourse-context-facade.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-context-facade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate provenance contract
+        run: |
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/sources/visual_assets/bourse_context_facade_articulation.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d['schema']=='grand-bruxelles-bourse-context-facade-articulation-v1'
+          assert d['runtime']['moves_source_geometry'] is False
+          assert d['runtime']['changes_building_height'] is False
+          assert d['authorship_and_rights']['external_assets']==[]
+          assert d['authorship_and_rights']['external_textures']==[]
+          assert d['truth_limits']['architectural_detail_is_measured'] is False
+          print('BOURSE_FACADE_PROVENANCE_OK')
+          PY
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project headless
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/bourse-facade-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/bourse-facade-import.log; then exit 1; fi
+      - name: Production facade articulation regression
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_facade_articulation_runtime_test.gd 2>&1 | tee /tmp/bourse-facade-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_FACADE_ARTICULATION_FAIL" /tmp/bourse-facade-runtime.log; then exit 1; fi
+          grep -q "BOURSE_FACADE_ARTICULATION_OK" /tmp/bourse-facade-runtime.log
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Render source-registered Bourse witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x960 \
+            --script res://game/tests/bourse_geotagged_camera_capture_test.gd 2>&1 | tee /tmp/bourse-facade-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GEOTAGGED_CAPTURE_FAIL" /tmp/bourse-facade-capture.log; then exit 1; fi
+          grep -q "BOURSE_GEOTAGGED_CAPTURE_OK" /tmp/bourse-facade-capture.log
+          test -f grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png
+      - name: Upload Bourse context witness
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-context-facade-witness
+          path: grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png
+          if-no-files-found: error

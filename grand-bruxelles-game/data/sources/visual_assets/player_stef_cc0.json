@@ -1,0 +1,22 @@
+{
+  "schema": "grand-bruxelles-authored-player-source-v1",
+  "asset_id": "open-game-art-npc-girl-stef",
+  "title": "npc girl Stef",
+  "author": "supersteve",
+  "source_page": "https://opengameart.org/content/npc-girl-stef",
+  "source_archive": "https://opengameart.org/sites/default/files/stef_npc1_1.zip",
+  "source_archive_sha256": "3b1f65c188ffd91dd237dae3d670d8b1d390ce7e96a251dd13ec5b8fb5d6fe22",
+  "license": "CC0-1.0",
+  "source_claims": {
+    "rigged": true,
+    "textured": true,
+    "animation_clips": ["idle", "talk", "walk", "sit", "store clerk"]
+  },
+  "production_target": "res://assets/characters/player_character.glb",
+  "truth_limits": {
+    "not_thandi": true,
+    "not_face_match_claim": true,
+    "no_gameplay_rewrite": true,
+    "preserve_source_rig_and_animations": true
+  }
+}

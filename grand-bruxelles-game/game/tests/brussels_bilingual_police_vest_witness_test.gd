@@ -34,7 +34,7 @@ func _set_rear_identity_visible(value: bool) -> int:
     for node: Node in get_nodes_in_group("police_officer"):
         if not node is NpcAgent:
             continue
-        var visual := node.get_node_or_null("VisualUpgrade")
+        var visual := node.get_node_or_null("VisibleHumanoid")
         if visual == null:
             continue
         var panel := visual.get_node_or_null("PoliceRearHiVis") as VisualInstance3D
@@ -90,8 +90,6 @@ func _run() -> void:
     # physics and showcase orchestration no longer advance between A/B. The only
     # mutation after this line is visibility of the newly authored rear vest cue.
     scene.process_mode = Node.PROCESS_MODE_DISABLED
-    var visible_runtime_process := visible_runtime.process_mode
-    var showcase_process := showcase.process_mode
     visible_runtime.process_mode = Node.PROCESS_MODE_DISABLED
     showcase.process_mode = Node.PROCESS_MODE_DISABLED
 
@@ -129,5 +127,5 @@ func _run() -> void:
         _fail("natural player-frame cue too small: gt3=%.4f%% gt8=%.4f%%" % [gt3_percent, gt8_percent])
         return
 
-    print("BRUSSELS_BILINGUAL_POLICE_VEST_WITNESS_OK: gt3=%d pct_gt3=%.4f gt8=%d pct_gt8=%.4f officers=%d dynamic_state=frozen exposure=production_midi_showcase" % [gt3, gt3_percent, gt8, gt8_percent, toggled])
+    print("BRUSSELS_BILINGUAL_POLICE_VEST_WITNESS_OK: gt3=%d pct_gt3=%.4f gt8=%d pct_gt8=%.4f officers=%d dynamic_state=frozen exposure=production_midi_showcase visual_mount=VisibleHumanoid" % [gt3, gt3_percent, gt8, gt8_percent, toggled])
     quit(0)

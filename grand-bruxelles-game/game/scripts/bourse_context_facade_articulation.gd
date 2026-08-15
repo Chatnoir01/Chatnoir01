@@ -22,8 +22,7 @@ var _built := false
 func build_from_city_builder(city_builder: Node) -> bool:
     if _built or city_builder == null:
         return _built
-    var generated := city_builder.get_node_or_null("GeneratedBuildings")
-    if generated == null:
+    if city_builder.get_node_or_null("GeneratedBuildings") == null:
         return false
     var data_path := str(city_builder.get("data_path"))
     if data_path.is_empty() or not FileAccess.file_exists(data_path):
@@ -36,25 +35,28 @@ func build_from_city_builder(city_builder: Node) -> bool:
 
     _make_materials()
     var city_data: Dictionary = parsed
-    var built_ids := _generated_building_ids(generated)
+    var replacement_ids: Dictionary = {}
+    if city_builder.has_method("_validated_hero_replacements"):
+        replacement_ids = city_builder.call("_validated_hero_replacements") as Dictionary
+    var accepted_buildings := 0
     for raw_building: Variant in city_data.get("buildings", []):
         if typeof(raw_building) != TYPE_DICTIONARY:
             continue
         var building: Dictionary = raw_building
-        var osm_id := str(building.get("osm_id", ""))
-        if osm_id.is_empty() or not built_ids.has(osm_id):
+        if replacement_ids.has(int(building.get("osm_id", 0))):
             continue
         var footprint: Array = building.get("footprint", [])
         if footprint.size() < 3 or not _footprint_near_bourse(footprint):
             continue
         var height := clampf(float(building.get("height", 10.5)), 2.8, 120.0)
         _queue_building_articulation(footprint, height)
+        accepted_buildings += 1
 
     _flush_layers()
     _built = true
     print(
-        "Bourse context facade articulation: cornices=%d lintels=%d sills=%d entries=%d shop_headers=%d" %
-        [_cornice_transforms.size(), _lintel_transforms.size(), _sill_transforms.size(), _entry_transforms.size(), _shop_header_transforms.size()]
+        "Bourse context facade articulation: buildings=%d cornices=%d lintels=%d sills=%d entries=%d shop_headers=%d" %
+        [accepted_buildings, _cornice_transforms.size(), _lintel_transforms.size(), _sill_transforms.size(), _entry_transforms.size(), _shop_header_transforms.size()]
     )
     return true
 
@@ -69,14 +71,6 @@ func _material(color: Color, roughness: float) -> StandardMaterial3D:
     material.albedo_color = color
     material.roughness = roughness
     return material
-
-func _generated_building_ids(generated: Node) -> Dictionary:
-    var ids := {}
-    for child: Node in generated.get_children():
-        var node_name := str(child.name)
-        if node_name.begins_with("Building_"):
-            ids[node_name.trim_prefix("Building_")] = true
-    return ids
 
 func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
     var segment := finish - start

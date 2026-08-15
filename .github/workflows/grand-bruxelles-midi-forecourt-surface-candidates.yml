@@ -1,0 +1,55 @@
+name: Grand Bruxelles Midi Forecourt Surface Candidates
+
+on:
+  push:
+    branches:
+      - integration/midi-ortho-arrival-current
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-forecourt-surface-candidates.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rank-surfaces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rank exact official surfaces near Fonsny entrance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p grand-bruxelles-game/artifacts/qa/midi-forecourt-surfaces
+          python3 - <<'PY'
+          import json, math
+          from pathlib import Path
+          runtime = json.loads(Path('grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json').read_text(encoding='utf-8'))
+          midi_world=(-668.5,627.84); entrance_world=(-672.2905,615.8035)
+          entrance_local=(entrance_world[0]-midi_world[0],entrance_world[1]-midi_world[1])
+          def area(poly):
+              return abs(sum(float(poly[i][0])*float(poly[(i+1)%len(poly)][1])-float(poly[(i+1)%len(poly)][0])*float(poly[i][1]) for i in range(len(poly))))*0.5 if len(poly)>=3 else 0.0
+          def centroid(poly):
+              return (sum(float(p[0]) for p in poly)/len(poly),sum(float(p[1]) for p in poly)/len(poly))
+          rows=[]
+          for index,f in enumerate(runtime.get('street_surfaces',[])):
+              typ=str(f.get('type','')); poly=f.get('polygon',[])
+              if typ not in ('SW','P','I') or len(poly)<3: continue
+              c=centroid(poly); d=math.hypot(c[0]-entrance_local[0],c[1]-entrance_local[1]); a=area(poly)
+              if d>110.0 or a<5.0: continue
+              rows.append({'index':index,'id':f.get('id'),'type':typ,'area_m2':round(a,3),'centroid_local_xz':[round(c[0],3),round(c[1],3)],'centroid_distance_to_entrance_m':round(d,3),'bbox_local_xz':[round(min(float(p[0]) for p in poly),3),round(min(float(p[1]) for p in poly),3),round(max(float(p[0]) for p in poly),3),round(max(float(p[1]) for p in poly),3)],'vertex_count':len(poly),'polygon':poly})
+          rows.sort(key=lambda r:(r['centroid_distance_to_entrance_m'],-r['area_m2']))
+          out={'schema':'grand-bruxelles-midi-forecourt-surface-candidates-v1','production_base_sha':'ae7d06e37b439ee6e5bd21883d9ad7169b7bb001','entrance_local_xz':entrance_local,'candidate_count':len(rows),'candidates':rows}
+          path=Path('grand-bruxelles-game/artifacts/qa/midi-forecourt-surfaces/candidates.json'); path.write_text(json.dumps(out,indent=2),encoding='utf-8')
+          print(json.dumps([{k:v for k,v in r.items() if k!='polygon'} for r in rows[:40]],indent=2))
+          strong=[r for r in rows if r['type'] in ('SW','P') and r['area_m2']>=50.0 and r['centroid_distance_to_entrance_m']<=60.0]
+          if not strong: raise SystemExit('No large source-bounded SW/P forecourt candidate')
+          print('MIDI_FORECOURT_SURFACE_CANDIDATES_OK strong=%d' % len(strong))
+          PY
+      - name: Upload surface candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-forecourt-surface-candidates
+          path: grand-bruxelles-game/artifacts/qa/midi-forecourt-surfaces/candidates.json
+          if-no-files-found: error

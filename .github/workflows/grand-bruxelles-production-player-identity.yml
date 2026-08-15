@@ -1,0 +1,42 @@
+name: Grand Bruxelles Production Player Identity
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/tests/production_player_identity_contract_test.gd"
+      - "grand-bruxelles-game/game/tests/player_procedural_fallback_capture_test.gd"
+      - "grand-bruxelles-game/game/tests/production_player_identity_ab_compare_test.gd"
+      - ".github/workflows/grand-bruxelles-production-player-identity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-player-identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Godot 4.7.1
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+
+      - name: Verify project imports
+        run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
+
+      - name: Production player identity contract
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/production_player_identity_contract_test.gd 2>&1 | tee /tmp/player-identity.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PRODUCTION_PLAYER_IDENTITY_FAIL" /tmp/player-identity.log; then
+            exit 1
+          fi
+          grep -q "PRODUCTION_PLAYER_IDENTITY_OK" /tmp/player-identity.log

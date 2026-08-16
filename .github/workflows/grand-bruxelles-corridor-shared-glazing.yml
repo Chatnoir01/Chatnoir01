@@ -1,0 +1,60 @@
+name: Grand Bruxelles Corridor Shared Glazing
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-corridor-shared-glazing.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/brussels_architectural_glazing_material.gd"
+      - "grand-bruxelles-game/game/scripts/corridor_shared_glazing_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/corridor_facade_depth_runtime.gd"
+      - "grand-bruxelles-game/game/tests/corridor_shared_glazing_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/corridor_facade_depth_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  corridor-shared-glazing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Preserve existing corridor facade contract
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/corridor_facade_depth_test.gd 2>&1 | tee /tmp/corridor-facade-depth.log
+          if grep -E "SCRIPT ERROR|Parse Error:|CORRIDOR_FACADE_DEPTH_FAIL" /tmp/corridor-facade-depth.log; then exit 1; fi
+          grep -F "CORRIDOR_FACADE_DEPTH_OK" /tmp/corridor-facade-depth.log
+      - name: Capture deterministic player A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/corridor_shared_glazing_witness_test.gd 2>&1 | tee /tmp/corridor-shared-glazing.log
+          if grep -E "SCRIPT ERROR|Parse Error:|CORRIDOR_SHARED_GLAZING_WITNESS_FAIL" /tmp/corridor-shared-glazing.log; then exit 1; fi
+          grep -F "CORRIDOR_SHARED_GLAZING_WITNESS_OK" /tmp/corridor-shared-glazing.log
+          test -f grand-bruxelles-game/artifacts/visual/corridor_shared_glazing_before.png
+          test -f grand-bruxelles-game/artifacts/visual/corridor_shared_glazing_after.png
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: corridor-shared-glazing-evidence
+          path: |
+            grand-bruxelles-game/artifacts/visual/corridor_shared_glazing_before.png
+            grand-bruxelles-game/artifacts/visual/corridor_shared_glazing_after.png
+            /tmp/corridor-facade-depth.log
+            /tmp/corridor-shared-glazing.log
+          if-no-files-found: error

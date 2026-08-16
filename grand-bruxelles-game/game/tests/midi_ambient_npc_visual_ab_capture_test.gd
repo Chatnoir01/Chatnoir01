@@ -3,6 +3,7 @@ extends SceneTree
 const WIDTH := 1280
 const HEIGHT := 720
 const WARMUP_FRAMES := 100
+const EXPECTED_AMBIENT := 24
 const OUTPUT_DIR := "res://artifacts/qa/midi_ambient_npc_visual_ab"
 const BEFORE_PATH := OUTPUT_DIR + "/before.png"
 const AFTER_PATH := OUTPUT_DIR + "/after.png"
@@ -96,8 +97,8 @@ func _run() -> void:
         _fail("production visual bridge singleton missing")
         return
     var bridge_result: Dictionary = runtime.call("bridge_scene", scene)
-    if int(bridge_result.get("bridged", 0)) + int(bridge_result.get("already", 0)) != 20:
-        _fail("production visual bridge did not cover all 20 ambient pedestrians")
+    if int(bridge_result.get("bridged", 0)) + int(bridge_result.get("already", 0)) != EXPECTED_AMBIENT:
+        _fail("production visual bridge did not cover all %d ambient pedestrians" % EXPECTED_AMBIENT)
         return
 
     var camera := viewport.get_camera_3d()

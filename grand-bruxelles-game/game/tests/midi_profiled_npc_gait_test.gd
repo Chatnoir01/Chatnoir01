@@ -11,6 +11,7 @@ const MIN_AMPLITUDE_PROFILES := 5
 const MIN_AMPLITUDE_MULTIPLIER := 0.86
 const MAX_AMPLITUDE_MULTIPLIER := 1.14
 const MIN_AMPLITUDE_SPAN := 0.18
+const MIN_CACHED_RIGS := 20
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -98,6 +99,27 @@ func _run() -> void:
         _fail("visual gait must not change navigation")
         return
 
+    var rig_cache_size := int(stats.get("rig_cache_size", 0))
+    var rig_discovery_count := int(stats.get("rig_discovery_count", 0))
+    if rig_cache_size < MIN_CACHED_RIGS:
+        _fail("gait rig references are not cached for the active crowd: cache=%d" % rig_cache_size)
+        return
+    if rig_discovery_count < rig_cache_size:
+        _fail("rig discovery accounting is inconsistent: discoveries=%d cache=%d" % [rig_discovery_count, rig_cache_size])
+        return
+    for _frame: int in range(12):
+        await process_frame
+    var warmed_stats: Dictionary = runtime.call("gait_stats")
+    if int(warmed_stats.get("rig_cache_size", 0)) != rig_cache_size:
+        _fail("stable crowd should retain the warmed rig cache")
+        return
+    if int(warmed_stats.get("rig_discovery_count", 0)) != rig_discovery_count:
+        _fail("stable crowd rediscovered gait rig nodes after cache warmup")
+        return
+    if not bool(warmed_stats.get("rig_cache_stable_after_warmup", false)):
+        _fail("runtime does not declare stable per-pedestrian rig caching")
+        return
+
     var profile_count := int(stats.get("cadence_profile_count", 0))
     var cadence_min := float(stats.get("cadence_multiplier_min", 1.0))
     var cadence_max := float(stats.get("cadence_multiplier_max", 1.0))
@@ -130,6 +152,6 @@ func _run() -> void:
         _fail("stride amplitude must be deterministic per pedestrian, not random per frame")
         return
 
-    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f amplitude_profiles=%d amplitude_range=%.3f..%.3f" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max, amplitude_profile_count, amplitude_min, amplitude_max])
+    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f amplitude_profiles=%d amplitude_range=%.3f..%.3f rig_cache=%d rig_discoveries=%d" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max, amplitude_profile_count, amplitude_min, amplitude_max, rig_cache_size, rig_discovery_count])
     scene.queue_free()
     quit(0)

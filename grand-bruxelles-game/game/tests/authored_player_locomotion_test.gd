@@ -1,0 +1,74 @@
+extends SceneTree
+
+const HUMANOID_VISUAL := preload("res://game/scripts/humanoid_visual.gd")
+const LOCOMOTION_RUNTIME := preload("res://game/scripts/authored_player_locomotion_runtime.gd")
+const REAL_ASSET := "res://assets/characters/player_character.glb"
+
+func _fail(message: String) -> void:
+    push_error("AUTHORED_PLAYER_LOCOMOTION_FAIL: %s" % message)
+    quit(1)
+
+func _initialize() -> void:
+    call_deferred("_run")
+
+func _run() -> void:
+    if not ResourceLoader.exists(REAL_ASSET):
+        _fail("real authored player asset is unavailable")
+        return
+
+    var actor := CharacterBody3D.new()
+    actor.name = "Player"
+    root.add_child(actor)
+    var visual := HUMANOID_VISUAL.new()
+    visual.name = "VisualUpgrade"
+    actor.add_child(visual)
+    await process_frame
+
+    if not visual.is_using_authored_character():
+        _fail("Player did not select authored character")
+        return
+
+    var runtime := LOCOMOTION_RUNTIME.new()
+    runtime.process_mode = Node.PROCESS_MODE_DISABLED
+    root.add_child(runtime)
+    if not runtime.bind_target(actor, visual):
+        _fail("authored locomotion runtime could not bind to production Player")
+        return
+
+    var locomotion: Dictionary = runtime.resolved_locomotion_animations()
+    for key: String in ["idle", "walk", "run"]:
+        if String(locomotion.get(key, "")).is_empty():
+            _fail("missing resolved %s animation" % key)
+            return
+    if String(locomotion["walk"]) == String(locomotion["run"]):
+        _fail("walk and run resolved to the same animation")
+        return
+
+    actor.velocity = Vector3.ZERO
+    runtime.update_from_speed()
+    var idle_name := runtime.current_animation()
+    if idle_name != String(locomotion["idle"]):
+        _fail("zero speed did not select idle: %s" % idle_name)
+        return
+
+    actor.velocity = Vector3(2.5, 0.0, 0.0)
+    runtime.update_from_speed()
+    var walk_name := runtime.current_animation()
+    if walk_name != String(locomotion["walk"]):
+        _fail("walking speed did not select walk: %s" % walk_name)
+        return
+
+    actor.velocity = Vector3(7.0, 0.0, 0.0)
+    runtime.update_from_speed()
+    var run_name := runtime.current_animation()
+    if run_name != String(locomotion["run"]):
+        _fail("running speed did not select run: %s" % run_name)
+        return
+
+    var player := runtime.bound_animation_player()
+    if player == null or player.current_animation != run_name or not player.is_playing():
+        _fail("resolved running animation was not actually played")
+        return
+
+    print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s" % [idle_name, walk_name, run_name])
+    quit(0)

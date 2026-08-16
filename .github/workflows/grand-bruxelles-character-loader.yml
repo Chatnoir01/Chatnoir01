@@ -4,12 +4,15 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/scripts/authored_player_locomotion_runtime.gd"
       - "grand-bruxelles-game/game/tests/humanoid_authored_player_test.gd"
       - "grand-bruxelles-game/game/tests/real_authored_player_asset_test.gd"
+      - "grand-bruxelles-game/game/tests/authored_player_locomotion_test.gd"
       - "grand-bruxelles-game/game/tests/fixtures/rigged_character_fixture.tscn"
       - "grand-bruxelles-game/assets/characters/player/thandi/**"
       - "grand-bruxelles-game/assets/characters/player/kaykit_rogue/**"
       - "grand-bruxelles-game/assets/characters/player_character.glb"
+      - "grand-bruxelles-game/project.godot"
       - ".github/workflows/grand-bruxelles-character-loader.yml"
   workflow_dispatch:
 
@@ -54,3 +57,14 @@ jobs:
             exit 1
           fi
           grep -q "REAL_AUTHORED_PLAYER_OK" /tmp/real-player.log
+
+      - name: Prove authored idle walk run locomotion selection
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/authored_player_locomotion_test.gd 2>&1 | tee /tmp/authored-locomotion.log
+          if grep -E "SCRIPT ERROR|Parse Error:|AUTHORED_PLAYER_LOCOMOTION_FAIL" /tmp/authored-locomotion.log; then
+            exit 1
+          fi
+          grep -q "AUTHORED_PLAYER_LOCOMOTION_OK" /tmp/authored-locomotion.log

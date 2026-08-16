@@ -1,0 +1,87 @@
+name: Grand Bruxelles CityGen State Refresh
+
+on:
+  workflow_run:
+    workflows: ["Grand Bruxelles Autonomous CityGen"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-autonomous-citygen
+  cancel-in-progress: false
+
+jobs:
+  refresh-durable-state:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Recover durable CityGen cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          STATE_ROOT=/tmp/citygen-state
+          rm -rf "$STATE_ROOT"
+          mkdir -p "$STATE_ROOT"
+          git archive origin/citygen-autonomous-state \
+            grand-bruxelles-game/data/qa/autonomous_citygen_state.json \
+            grand-bruxelles-game/data/qa/brussels_regional_target_grid.json \
+            grand-bruxelles-game/data/qa/autonomous_sources | tar -x -C "$STATE_ROOT"
+          CACHE="$STATE_ROOT/grand-bruxelles-game/data/qa/autonomous_sources"
+          test -d "$CACHE"
+          mkdir -p grand-bruxelles-game/data/urbis/remaining_brussels/cells
+          cp -a "$CACHE"/. grand-bruxelles-game/data/urbis/remaining_brussels/cells/
+
+      - name: Recompute post-pass classifications and evidence progress
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATE_ROOT=/tmp/citygen-state/grand-bruxelles-game/data/qa
+          rm -rf /tmp/citygen-refresh
+          python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py \
+            --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
+            --maturity-root grand-bruxelles-game/data/cell_manifests \
+            --state "$STATE_ROOT/autonomous_citygen_state.json" \
+            --target-grid "$STATE_ROOT/brussels_regional_target_grid.json" \
+            --output-dir /tmp/citygen-refresh \
+            --batch-size 4 \
+            --refresh-only
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          old=json.loads(Path('/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_citygen_state.json').read_text())
+          new=json.loads(Path('/tmp/citygen-refresh/autonomous_citygen_state.json').read_text())
+          if new['run_number'] != old['run_number']:
+              raise SystemExit('refresh changed run_number')
+          for cell_id, old_cell in old['cells'].items():
+              if cell_id in new['cells'] and new['cells'][cell_id]['attempts'] != old_cell['attempts']:
+                  raise SystemExit(f'refresh changed attempts: {cell_id}')
+          print('CITYGEN_POST_PASS_STATE_REFRESH_OK run=%s cells=%s' % (new['run_number'], len(new['cells'])))
+          PY
+
+      - name: Persist refreshed state only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C citygen-autonomous-state origin/citygen-autonomous-state
+          cp /tmp/citygen-refresh/autonomous_citygen_state.json \
+            grand-bruxelles-game/data/qa/autonomous_citygen_state.json
+          git add grand-bruxelles-game/data/qa/autonomous_citygen_state.json
+          if git diff --cached --quiet; then
+            echo "CITYGEN_POST_PASS_STATE_ALREADY_CURRENT"
+            exit 0
+          fi
+          git commit -m "citygen: refresh durable post-pass state"
+          git push --force-with-lease origin citygen-autonomous-state

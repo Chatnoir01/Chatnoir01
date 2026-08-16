@@ -77,4 +77,38 @@ with tempfile.TemporaryDirectory() as tmp:
     assert action == "secondary_height_validation_and_terrain_runtime_checks"
     assert mod.discover_cells(source)==sorted(cells[:4])
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true")
+    # Regression: durable scheduler state must be refreshed after the selected
+    # worklist has materially advanced. Refreshing must never count as another
+    # scheduler run or another attempt, and it must not select a new batch.
+    refreshed_source = root / "refreshed-source"
+    refreshed_maturity = root / "refreshed-maturity"
+    refreshed_out1 = root / "refreshed-out1"
+    refreshed_out2 = root / "refreshed-out2"
+    refresh_cell = "bxl-e141500-n167500-s500"
+    refresh_target = root / "refresh-target.json"
+    write_json(refresh_target,{"format":"grand-bruxelles-regional-target-grid-v1","crs":"EPSG:31370","cell_size_m":500.0,"cells":[{"cell_id":refresh_cell,"bbox":[141500,167500,142000,168000],"municipalities":["test"]}]})
+    first=mod.run(refreshed_source,refreshed_maturity,None,refreshed_out1,1,refresh_target)
+    assert first["selected_batch"] == [refresh_cell]
+    assert first["run_number"] == 1
+    write_json(refreshed_source/refresh_cell/"manifest.json",{"cell_id":refresh_cell,"crs":"EPSG:31370","layers":["buildings"]})
+    write_json(refreshed_source/refresh_cell/"maturity.json",{"cell_id":refresh_cell,"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:False for name in all_gates}}})
+    for filename, _action in mod.EVIDENCE_STAGES:
+        write_json(refreshed_source/refresh_cell/filename,{"cell_id":refresh_cell})
+    refreshed=mod.run(
+        refreshed_source,
+        refreshed_maturity,
+        refreshed_out1/"autonomous_citygen_state.json",
+        refreshed_out2,
+        1,
+        refresh_target,
+        refresh_only=True,
+    )
+    refreshed_row=refreshed["cells"][0]
+    assert refreshed["run_number"] == 1
+    assert refreshed["selected_batch"] == []
+    assert refreshed_row["attempts"] == 1
+    assert refreshed_row["state"] == "DATA_READY"
+    assert refreshed_row["evidence_progress"] == len(mod.EVIDENCE_STAGES)
+    assert refreshed_row["next_action"] == mod.MANUAL_FRONTIER_ACTION
+
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true")

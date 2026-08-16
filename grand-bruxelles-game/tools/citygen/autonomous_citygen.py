@@ -166,15 +166,24 @@ def _autonomously_actionable(cell: dict[str, Any]) -> bool:
     return True
 
 
+def _selection_priority(cell: dict[str, Any]) -> int:
+    # A source directory with a surviving manifest but a missing declared payload
+    # is repair work, not regional expansion. Repair it before advancing ordinary
+    # evidence so stale source/elevation state cannot persist indefinitely.
+    if cell.get("state") == "MISSING_SOURCE" and any(
+        str(blocker).startswith("missing_authoritative_source_file:")
+        for blocker in (cell.get("blockers") or [])
+    ):
+        return -1
+    return {"DATA_READY": 0, "DISCOVERED": 1, "MISSING_SOURCE": 2}.get(str(cell.get("state")), 99)
+
+
 def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
-    # Finish already-materialized source cells before expanding regional coverage.
-    # Otherwise a large MISSING_SOURCE target grid can indefinitely starve a cell
-    # whose authoritative geometry and elevation evidence are already close to the
-    # manual frontier.
-    priority = {"DATA_READY": 0, "DISCOVERED": 1, "MISSING_SOURCE": 2}
+    # Finish already-materialized source cells before expanding regional coverage,
+    # but repair physically incomplete source cells first.
     candidates = [cell for cell in cells if _autonomously_actionable(cell)]
     candidates.sort(key=lambda cell: (
-        priority.get(cell["state"], 99),
+        _selection_priority(cell),
         -int(cell.get("evidence_progress", 0)) if cell["state"] == "DATA_READY" else 0,
         int(cell.get("attempts", 0)),
         cell["cell_id"],
@@ -251,6 +260,7 @@ def run(
             "maturity_gate_count": len(MATURITY_GATES),
             "runtime_promotion": "forbidden_without_full_regional_maturity_contract",
             "uncertain_evidence": "quarantine_or_keep_pending_never_guess",
+            "incomplete_source_priority": "repair_declared_source_payloads_before_evidence_or_regional_expansion",
             "missing_source_priority": "expand_only_after_existing_source_cells_reach_their_current_autonomous_frontier",
             "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_materializing_more_source_cells",
             "manual_frontier": "exclude_from_autonomous_batches_until_secondary_height_and_terrain_runtime_checks_are_implemented",

@@ -43,6 +43,28 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def height_source_pair_ready(value_evidence_path: Path, frontier_path: Path) -> bool:
+    """Return true only for the already-validated source-pair contract.
+
+    Autonomous CityGen can legitimately carry a terrain-ready cell whose DSM/DTM
+    height pair is still blocked. Treat that state as pending work, not as an
+    exception/retry. Malformed or contradictory evidence stays fail-closed.
+    """
+    try:
+        value_evidence = _read(value_evidence_path)
+        frontier = _read(frontier_path)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+    if value_evidence.get("format") != VALUE_FORMAT or value_evidence.get("crs") != CRS:
+        return False
+    if frontier.get("format") != FRONTIER_FORMAT or frontier.get("crs") != CRS:
+        return False
+    cell_id = value_evidence.get("cell_id")
+    if not isinstance(cell_id, str) or frontier.get("cell_id") != cell_id:
+        return False
+    return value_evidence.get("height_source_pair_ready") is True and (frontier.get("heights") or {}).get("source_pair_ready") is True
+
+
 def _percentile(values: list[float], q: float) -> float | None:
     finite = sorted(float(v) for v in values if math.isfinite(float(v)))
     if not finite:
@@ -265,6 +287,10 @@ def main() -> None:
     parser.add_argument("--extract-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if not height_source_pair_ready(args.value_evidence, args.frontier):
+        args.output.unlink(missing_ok=True)
+        print("CELL_BUILDING_HEIGHT_CANDIDATES_PENDING height_source_pair_not_ready")
+        return
     result = build(args.cell_dir, args.value_evidence, args.frontier, args.raster_validation, args.extract_root)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")

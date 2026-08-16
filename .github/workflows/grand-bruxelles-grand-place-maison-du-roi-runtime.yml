@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/data/visual/grand_place_maison_du_roi_identity.json"
       - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1654360.gd"
       - "grand-bruxelles-game/game/tests/grand_place_maison_du_roi_lod2_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_maison_du_roi_ab_capture_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -17,7 +18,7 @@ permissions:
 jobs:
   maison-du-roi-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Install Godot 4.7.1
@@ -33,3 +34,13 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/maison-du-roi-import.log; then exit 1; fi
       - name: Validate official Maison du Roi runtime
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_maison_du_roi_lod2_test.gd
+      - name: Render deterministic full-frame A/B
+        run: xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/grand_place_maison_du_roi_ab_capture_test.gd
+      - name: Upload full-frame evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-maison-du-roi-ab
+          path: |
+            /tmp/grand-place-maison-du-roi-before.png
+            /tmp/grand-place-maison-du-roi-after.png
+          if-no-files-found: error

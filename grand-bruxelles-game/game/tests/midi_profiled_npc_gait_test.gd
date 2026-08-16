@@ -11,6 +11,10 @@ const MIN_AMPLITUDE_PROFILES := 5
 const MIN_AMPLITUDE_MULTIPLIER := 0.86
 const MAX_AMPLITUDE_MULTIPLIER := 1.14
 const MIN_AMPLITUDE_SPAN := 0.18
+const MIN_IDLE_POSTURE_PROFILES := 4
+const MIN_IDLE_ARM_SPREAD_RAD := 0.025
+const MAX_IDLE_ARM_SPREAD_RAD := 0.095
+const MIN_IDLE_ARM_SPAN_RAD := 0.025
 const MIN_CACHED_RIGS := 20
 const EXPECTED_DETAIL_UPDATE_DISTANCE_M := 100.0
 
@@ -163,6 +167,25 @@ func _run() -> void:
         _fail("stride amplitude must be deterministic per pedestrian, not random per frame")
         return
 
-    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f amplitude_profiles=%d amplitude_range=%.3f..%.3f rig_cache=%d rig_discoveries=%d detail_update_m=%.1f" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max, amplitude_profile_count, amplitude_min, amplitude_max, rig_cache_size, rig_discovery_count, float(warmed_stats.get("detail_update_distance_m", 0.0))])
+    var idle_profile_count := int(stats.get("idle_posture_profile_count", 0))
+    var idle_spread_min := float(stats.get("idle_arm_spread_min_rad", 0.0))
+    var idle_spread_max := float(stats.get("idle_arm_spread_max_rad", 0.0))
+    if idle_profile_count < MIN_IDLE_POSTURE_PROFILES:
+        _fail("idle posture is too uniform or unavailable: profiles=%d" % idle_profile_count)
+        return
+    if idle_spread_min < MIN_IDLE_ARM_SPREAD_RAD or idle_spread_max > MAX_IDLE_ARM_SPREAD_RAD:
+        _fail("idle arm spread escaped safe visual range: min=%.4f max=%.4f" % [idle_spread_min, idle_spread_max])
+        return
+    if idle_spread_max - idle_spread_min < MIN_IDLE_ARM_SPAN_RAD:
+        _fail("idle posture spread is too small: min=%.4f max=%.4f" % [idle_spread_min, idle_spread_max])
+        return
+    if not bool(stats.get("idle_posture_is_stable_per_pedestrian", false)):
+        _fail("idle posture must be deterministic per pedestrian")
+        return
+    if not bool(stats.get("idle_posture_speed_blended", false)):
+        _fail("idle posture must fade out as walking activity rises")
+        return
+
+    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f amplitude_profiles=%d amplitude_range=%.3f..%.3f idle_profiles=%d idle_spread=%.4f..%.4f rig_cache=%d rig_discoveries=%d detail_update_m=%.1f" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max, amplitude_profile_count, amplitude_min, amplitude_max, idle_profile_count, idle_spread_min, idle_spread_max, rig_cache_size, rig_discovery_count, float(warmed_stats.get("detail_update_distance_m", 0.0))])
     scene.queue_free()
     quit(0)

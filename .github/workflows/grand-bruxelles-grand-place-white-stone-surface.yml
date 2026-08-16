@@ -42,6 +42,7 @@ jobs:
           test -f grand-bruxelles-game/artifacts/grand-place/white-stone-surface-runtime/before.png
           test -f grand-bruxelles-game/artifacts/grand-place/white-stone-surface-runtime/after.png
       - name: Upload evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: grand-place-white-stone-surface-evidence

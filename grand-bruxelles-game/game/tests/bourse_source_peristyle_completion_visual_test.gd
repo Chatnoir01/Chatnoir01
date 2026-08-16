@@ -6,7 +6,7 @@ const OUTPUT_DIR := "res://artifacts/visual"
 const BEFORE_PATH := OUTPUT_DIR + "/bourse_before_missing_fronton.png"
 const AFTER_PATH := OUTPUT_DIR + "/bourse_after_source_fronton.png"
 const WIDTH := 1280
-const HEIGHT := 960
+const HEIGHT := 720
 const MIN_CHANGED_FRACTION := 0.005
 const MAX_CHANGED_FRACTION := 0.20
 
@@ -44,9 +44,9 @@ func _run() -> void:
             dynamic_node.process_mode = Node.PROCESS_MODE_DISABLED
             if dynamic_node is Node3D:
                 (dynamic_node as Node3D).visible = false
-    for child in world.get_children():
-        if child is CanvasLayer:
-            (child as CanvasLayer).visible = false
+    for ui_node in world.find_children("*", "CanvasLayer", true, false):
+        if ui_node is CanvasLayer:
+            (ui_node as CanvasLayer).visible = false
 
     root.add_child(world)
     await process_frame
@@ -124,7 +124,7 @@ func _run() -> void:
         _fail("full-frame A/B capture missing")
         return
     if before.get_size() != Vector2i(WIDTH, HEIGHT) or after.get_size() != Vector2i(WIDTH, HEIGHT):
-        _fail("A/B must be 1280x960")
+        _fail("A/B must match the production 1280x720 viewport")
         return
 
     var changed := 0

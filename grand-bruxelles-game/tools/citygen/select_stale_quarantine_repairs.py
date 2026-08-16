@@ -57,7 +57,15 @@ def select_repairs(candidate_root: Path, source_root: Path, target_grid: Path, l
         cell_id = candidate.get("cell_id") or path.stem
         if cell_id != path.stem or cell_id not in bboxes:
             continue
-        if candidate.get("status") != "QUARANTINE":
+        # Durable candidate packages call this field `state`. Keep the legacy
+        # `status` fallback only for older persisted packages, while failing
+        # closed if both fields exist and disagree.
+        state = candidate.get("state")
+        status = candidate.get("status")
+        if state is not None and status is not None and state != status:
+            continue
+        candidate_state = state if state is not None else status
+        if candidate_state != "QUARANTINE":
             continue
         blockers = candidate.get("blockers") or []
         if not isinstance(blockers, list) or REPAIR_BLOCKER not in blockers:

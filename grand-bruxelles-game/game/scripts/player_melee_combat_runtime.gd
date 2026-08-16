@@ -11,6 +11,9 @@ const COUNTER_COOLDOWN_MS := 900
 const COUNTER_DAMAGE := 8
 const GUARDED_COUNTER_DAMAGE := 2
 const WORLD_REACTION_RADIUS_M := 14.0
+const LOOT_REACH_M := 2.20
+const LOOT_MIN_EUR := 8
+const LOOT_VARIATION_EUR := 23
 
 var _attack_serial := 0
 var _next_attack_allowed_ms := 0
@@ -45,6 +48,9 @@ func _input(event: InputEvent) -> void:
             return
         if key_event.keycode == KEY_F and key_event.pressed and not key_event.echo:
             request_attack(player)
+            return
+        if key_event.keycode == KEY_E and key_event.pressed and not key_event.echo:
+            request_loot(player)
 
 func _process(_delta: float) -> void:
     var now := Time.get_ticks_msec()
@@ -86,7 +92,7 @@ func request_attack(player: CharacterBody3D) -> Dictionary:
     var result := perform_attack(player)
     if bool(result.get("hit", false)):
         if StringName(result.get("reaction", &"")) == &"ko":
-            _show_feedback("K.O.", 420)
+            _show_feedback("K.O.   E : FOUILLER", 520)
         else:
             _show_feedback("TOUCHÉ  -%d" % int(ATTACK_DAMAGE), 280)
     else:
@@ -149,6 +155,62 @@ func perform_attack(player: CharacterBody3D) -> Dictionary:
         "attack_radius": ATTACK_RADIUS,
     }
 
+func request_loot(player: CharacterBody3D) -> Dictionary:
+    if player == null or not is_instance_valid(player) or not player.is_inside_tree():
+        return {"looted": false, "reason": "player_unavailable"}
+    if is_guarding(player):
+        return {"looted": false, "reason": "guarding"}
+
+    var root_node: Node = get_tree().current_scene
+    if root_node == null:
+        root_node = player.get_parent()
+    if root_node == null:
+        return {"looted": false, "reason": "no_target"}
+
+    var forward := -player.global_transform.basis.z.normalized()
+    var target: NpcAgent = null
+    var best_distance := INF
+    var nearby_already_looted := false
+    for node: Node in root_node.find_children("*", "", true, false):
+        if not node is NpcAgent:
+            continue
+        var npc := node as NpcAgent
+        if not bool(npc.get_meta("melee_knocked_out", false)):
+            continue
+        var offset := npc.global_position - player.global_position
+        offset.y = 0.0
+        var distance := offset.length()
+        if distance > LOOT_REACH_M:
+            continue
+        if distance > 0.001 and forward.dot(offset.normalized()) < -0.20:
+            continue
+        if bool(npc.get_meta("melee_looted", false)):
+            nearby_already_looted = true
+            continue
+        if distance < best_distance:
+            best_distance = distance
+            target = npc
+
+    if target == null:
+        var reason := "already_looted" if nearby_already_looted else "no_target"
+        if nearby_already_looted:
+            _show_feedback("DÉJÀ FOUILLÉ", 220)
+        return {"looted": false, "reason": reason}
+
+    var amount := LOOT_MIN_EUR + posmod(target.variation_seed * 11 + 7, LOOT_VARIATION_EUR)
+    var cash := int(player.get_meta("combat_cash_eur", 0)) + amount
+    player.set_meta("combat_cash_eur", cash)
+    player.set_meta("combat_loot_count", int(player.get_meta("combat_loot_count", 0)) + 1)
+    target.set_meta("melee_looted", true)
+    target.set_meta("melee_loot_eur", amount)
+    _show_feedback("FOUILLÉ  +€%d   €%d" % [amount, cash], 420)
+    return {
+        "looted": true,
+        "target": target,
+        "amount_eur": amount,
+        "cash_eur": cash,
+    }
+
 func _npc_from_collider(value: Variant) -> NpcAgent:
     if not value is Node:
         return null
@@ -203,6 +265,7 @@ func _knock_out(npc: NpcAgent) -> void:
     npc.set_meta("melee_knocked_out", true)
     npc.set_meta("melee_reaction", &"ko")
     npc.set_meta("melee_hurt_feedback", false)
+    npc.set_meta("melee_looted", false)
     npc.movement_held = true
     npc.velocity = Vector3.ZERO
     npc.active = false

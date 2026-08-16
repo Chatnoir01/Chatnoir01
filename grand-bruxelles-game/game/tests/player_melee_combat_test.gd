@@ -109,6 +109,29 @@ func _run() -> void:
     if not _expect(is_equal_approx(float(behind.get_meta("melee_health", 100.0)), 100.0), "rear NPC was affected during KO sequence"):
         return
 
-    print("PLAYER_MELEE_COMBAT_OK: forward_hit=true guard_damage=2 open_damage=8 ko_after_hits=3 rear_untouched=true")
+    var loot: Dictionary = combat.call("request_loot", player)
+    if not _expect(bool(loot.get("looted", false)), "player could not search the nearby knocked-out NPC"):
+        return
+    if not _expect(loot.get("target") == front, "loot interaction selected the wrong target"):
+        return
+    var amount := int(loot.get("amount_eur", 0))
+    if not _expect(amount >= 8 and amount <= 30, "deterministic loot amount escaped the bounded cash range"):
+        return
+    if not _expect(int(player.get_meta("combat_cash_eur", 0)) == amount, "loot did not add cash to the player"):
+        return
+    if not _expect(int(player.get_meta("combat_loot_count", 0)) == 1, "player loot count did not increment exactly once"):
+        return
+    if not _expect(bool(front.get_meta("melee_looted", false)), "knocked-out target was not marked looted"):
+        return
+    if not _expect(not bool(behind.get_meta("melee_looted", false)), "rear NPC was incorrectly looted"):
+        return
+
+    var duplicate: Dictionary = combat.call("request_loot", player)
+    if not _expect(not bool(duplicate.get("looted", false)) and String(duplicate.get("reason", "")) == "already_looted", "same knocked-out NPC could be looted twice"):
+        return
+    if not _expect(int(player.get_meta("combat_cash_eur", 0)) == amount, "duplicate loot changed player cash"):
+        return
+
+    print("PLAYER_MELEE_COMBAT_OK: forward_hit=true guard_damage=2 open_damage=8 ko_after_hits=3 loot_once=true loot_eur=%d rear_untouched=true" % amount)
     world.queue_free()
     quit(0)

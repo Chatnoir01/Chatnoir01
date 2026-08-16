@@ -18,6 +18,14 @@ func _hide_legacy(vehicle: Node3D) -> void:
             (legacy as VisualInstance3D).visible = false
 
 
+func _uses_swace_wagon_roofline() -> bool:
+    var vehicle: Node3D = get_parent() as Node3D
+    if vehicle == null or vehicle.name != "ParkedCar_07":
+        return false
+    var urban_life: Node = vehicle.get_parent()
+    return urban_life != null and urban_life.name == "MidiUrbanLife"
+
+
 func _build_vehicle() -> void:
     var paint: StandardMaterial3D = _material(paint_color, 0.32, 0.42)
     var glass: StandardMaterial3D = _material(Color(0.025, 0.055, 0.08, 0.78), 0.14, 0.16)
@@ -38,17 +46,28 @@ func _build_vehicle() -> void:
         ],
         paint
     )
-    _section_shell(
-        "GlassHouse",
-        [
-            Vector4(-0.88, 0.76, 0.43, 0.62),
-            Vector4(-0.52, 0.67, 0.43, 1.04),
-            Vector4(0.78, 0.66, 0.43, 1.05),
-            Vector4(1.12, 0.75, 0.43, 0.62),
-        ],
-        glass
-    )
-    _box("RoofCap", Vector3(1.30, 0.09, 1.32), Vector3(0.0, 1.055, 0.14), paint)
+
+    var glass_sections: Array[Vector4] = [
+        Vector4(-0.88, 0.76, 0.43, 0.62),
+        Vector4(-0.52, 0.67, 0.43, 1.04),
+        Vector4(0.78, 0.66, 0.43, 1.05),
+        Vector4(1.12, 0.75, 0.43, 0.62),
+    ]
+    var roof_size := Vector3(1.30, 0.09, 1.32)
+    var roof_position := Vector3(0.0, 1.055, 0.14)
+    if _uses_swace_wagon_roofline():
+        glass_sections = [
+            Vector4(-0.92, 0.76, 0.43, 0.62),
+            Vector4(-0.55, 0.68, 0.43, 1.05),
+            Vector4(0.78, 0.68, 0.43, 1.06),
+            Vector4(1.42, 0.70, 0.43, 1.02),
+            Vector4(1.62, 0.75, 0.43, 0.60),
+        ]
+        roof_size = Vector3(1.30, 0.09, 2.05)
+        roof_position = Vector3(0.0, 1.065, 0.35)
+
+    _section_shell("GlassHouse", glass_sections, glass)
+    _box("RoofCap", roof_size, roof_position, paint)
     _box("FrontBumper", Vector3(1.66, 0.18, 0.16), Vector3(0.0, -0.08, -2.18), dark)
     _box("RearBumper", Vector3(1.66, 0.18, 0.16), Vector3(0.0, -0.08, 2.18), dark)
     _box("FrontGrille", Vector3(0.96, 0.21, 0.045), Vector3(0.0, 0.02, -2.205), dark)

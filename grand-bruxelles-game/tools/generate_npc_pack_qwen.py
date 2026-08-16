@@ -32,6 +32,20 @@ FORBIDDEN = (
     "prompt système",
     "prompt systeme",
 )
+INTENT_CUES: dict[str, tuple[str, ...]] = {
+    "greeting": (),
+    "smalltalk": (),
+    "warning": ("recule", "calme", "distance", "doucement", "arrête", "arrete", "stop", "attention"),
+    "hurt": ("aïe", "aie", "mal", "douleur", "arrête", "arrete", "laisse-moi", "laisse moi"),
+    "police": ("police", "agent", "patrouille", "sirène", "sirene", "flic"),
+}
+INTENT_RULES = {
+    "greeting": "Salue ou réponds simplement. Tu peux dire bonjour, salut, bonsoir ou inviter la personne à parler.",
+    "smalltalk": "Parle du quotidien, du trajet, de Midi ou de Bruxelles. Ne te présente pas à nouveau.",
+    "warning": "Chaque phrase doit clairement demander de reculer, se calmer, garder ses distances ou faire attention. Ne te présente pas.",
+    "hurt": "Chaque phrase doit clairement exprimer une douleur ou demander d'arrêter. Ne te présente pas.",
+    "police": "Chaque phrase doit explicitement parler de la police, d'un agent, d'une patrouille ou d'une sirène. Ne te présente pas.",
+}
 LINE_PREFIX_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)-])\s*")
 THRESHOLD_RE = re.compile(r"\b(fear|aggression|flee_health)\s*[:=]\s*(0(?:[.,]\d+)?|1(?:[.,]0+)?)\b", re.IGNORECASE)
 JSON_LINE_KEYS = {"lines", "phrases", "text", "line", *INTENTS}
@@ -63,6 +77,14 @@ def _clean_text(value: str, limit: int = 180) -> str:
     if any(token in lowered for token in FORBIDDEN):
         return ""
     return value
+
+
+def _matches_intent(line: str, intent: str) -> bool:
+    cues = INTENT_CUES.get(intent, ())
+    if not cues:
+        return True
+    lowered = line.casefold()
+    return any(cue in lowered for cue in cues)
 
 
 def parse_persona_output(raw: str) -> dict[str, str]:
@@ -167,29 +189,41 @@ aggression: 0.x
 flee_health: 0.x"""
 
 
-def build_dialogue_prompt(intent: str, zone: str, archetype: str, persona: dict[str, str], needed: int, used: list[str]) -> str:
-    hints = {
-        "greeting": "saluer ou répondre quand le joueur aborde le PNJ",
-        "smalltalk": "parler brièvement du quotidien ou du quartier",
-        "warning": "demander calmement au joueur de reculer ou se calmer",
-        "hurt": "réagir humainement à la douleur sans décrire de mécanique de jeu",
-        "police": "réagir à la présence ou au risque d'intervention de la police",
-    }
+def build_dialogue_prompt(
+    intent: str,
+    zone: str,
+    archetype: str,
+    persona: dict[str, str],
+    needed: int,
+    used: list[str],
+    rejected: list[str] | None = None,
+) -> str:
+    rejected = rejected or []
     already = "\n".join(f"- {line}" for line in used[-12:]) if used else "(aucune)"
+    refused = "\n".join(f"- {line}" for line in rejected[-8:]) if rejected else "(aucune)"
+    cue_rule = ""
+    cues = INTENT_CUES.get(intent, ())
+    if cues:
+        cue_rule = "\nChaque phrase doit contenir au moins un de ces indices sémantiques: " + ", ".join(cues) + "."
     return f"""Tu écris des répliques courtes pour {persona['name']}, habitant de Bruxelles.
 Zone: {zone}. Archétype: {archetype}. Persona: {persona['summary']}
-Intention: {intent} — {hints[intent]}.
+Intention imposée: {intent}.
+Règle de sens: {INTENT_RULES[intent]}{cue_rule}
 Il me faut exactement {needed} NOUVELLES phrases françaises naturelles, orales et différentes.
+
 Phrases déjà utilisées à ne jamais répéter:
 {already}
 
+Phrases déjà refusées pour mauvais sens ou répétition, à ne jamais reproduire:
+{refused}
+
 Réponds uniquement avec {needed} lignes commençant chacune par '- '.
-Aucune explication, aucun JSON, aucune mention d'IA/modèle/prompt, aucune action technique."""
+Aucune explication, aucun JSON, aucune présentation du personnage, aucune mention d'IA/modèle/prompt, aucune action technique."""
 
 
 def _chat_completion(tokenizer, model, prompt: str, max_new_tokens: int) -> str:
     messages = [
-        {"role": "system", "content": "Tu écris du contenu court et naturel pour des PNJ bruxellois. Tu respectes exactement le format demandé."},
+        {"role": "system", "content": "Tu écris du contenu court et naturel pour des PNJ bruxellois. Tu respectes exactement le format et l'intention demandés."},
         {"role": "user", "content": prompt},
     ]
     try:
@@ -238,25 +272,54 @@ def generate_thresholds(tokenizer, model, zone: str, archetype: str, summary: st
     raise GenerationError("threshold generation failed: " + " | ".join(errors))
 
 
-def generate_intent_lines(tokenizer, model, intent: str, zone: str, archetype: str, persona: dict[str, str], globally_used: list[str], target: int = 4, attempts: int = 5) -> tuple[list[str], list[str]]:
+def generate_intent_lines(
+    tokenizer,
+    model,
+    intent: str,
+    zone: str,
+    archetype: str,
+    persona: dict[str, str],
+    globally_used: list[str],
+    target: int = 4,
+    attempts: int = 5,
+) -> tuple[list[str], list[str]]:
     collected: list[str] = []
     raw_attempts: list[str] = []
+    rejected: list[str] = []
+    duplicate_count = 0
+    semantic_reject_count = 0
+    parsed_count = 0
     for attempt in range(1, attempts + 1):
         needed = target - len(collected)
         if needed <= 0:
             break
-        prompt = build_dialogue_prompt(intent, zone, archetype, persona, needed, globally_used + collected)
-        prompt += f"\nEssai de format {attempt}: respecte les puces, sans texte avant ou après."
-        raw = _chat_completion(tokenizer, model, prompt, max(48, needed * 32))
+        prompt = build_dialogue_prompt(intent, zone, archetype, persona, needed, globally_used + collected, rejected)
+        prompt += f"\nEssai {attempt}/{attempts}: produis uniquement des phrases nouvelles qui respectent l'intention {intent}."
+        raw = _chat_completion(tokenizer, model, prompt, max(56, needed * 36))
         raw_attempts.append(raw)
-        for candidate in parse_dialogue_lines(raw):
-            if candidate not in globally_used and candidate not in collected:
-                collected.append(candidate)
-                if len(collected) == target:
-                    break
+        parsed = parse_dialogue_lines(raw)
+        parsed_count += len(parsed)
+        for candidate in parsed:
+            if candidate in globally_used or candidate in collected:
+                duplicate_count += 1
+                if candidate not in rejected:
+                    rejected.append(candidate)
+                continue
+            if not _matches_intent(candidate, intent):
+                semantic_reject_count += 1
+                if candidate not in rejected:
+                    rejected.append(candidate)
+                continue
+            collected.append(candidate)
+            if len(collected) == target:
+                break
     if len(collected) != target:
         last_raw = raw_attempts[-1][-600:] if raw_attempts else "<no output>"
-        raise GenerationError(f"{intent} generation produced {len(collected)}/{target} unique valid lines; last_raw={last_raw!r}")
+        raise GenerationError(
+            f"{intent} generation produced {len(collected)}/{target} unique semantic lines; "
+            f"parsed={parsed_count} duplicates={duplicate_count} semantic_rejects={semantic_reject_count}; "
+            f"last_raw={last_raw!r}"
+        )
     return collected, raw_attempts
 
 

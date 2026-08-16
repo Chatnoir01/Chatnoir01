@@ -7,6 +7,13 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py"
       - ".github/workflows/grand-bruxelles-citygen-secondary-persistence.yml"
       - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
+  push:
+    branches:
+      - "main"
+    paths:
+      - "grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py"
+      - ".github/workflows/grand-bruxelles-citygen-secondary-persistence.yml"
   workflow_run:
     workflows:
       - "Grand Bruxelles CityGen Anderlecht Secondary Height"
@@ -14,12 +21,12 @@ on:
       - completed
 
 permissions:
-  actions: read
+  actions: write
   contents: write
 
 jobs:
   regression:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -28,6 +35,27 @@ jobs:
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py
+
+  refresh-secondary:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch exact-current-main secondary-height gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPOSITORY}/actions/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml/dispatches" \
+            -d '{"ref":"main"}'
+          echo "SECONDARY_HEIGHT_REFRESH_DISPATCHED"
 
   persist:
     if: >-

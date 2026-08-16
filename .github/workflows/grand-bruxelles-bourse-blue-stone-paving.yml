@@ -1,0 +1,40 @@
+name: Grand Bruxelles Bourse Blue Stone Paving
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-blue-stone-paving.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/bourse_blue_stone_paving_runtime.gd"
+      - "grand-bruxelles-game/game/tests/bourse_blue_stone_paving_test.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_blue_stone_material.gd"
+      - "grand-bruxelles-game/game/scripts/bourse_official_sidewalk_overlay.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-paving:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/bourse-paving-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/bourse-paving-import.log; then exit 1; fi
+      - name: Prove Bourse LABO paving
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_blue_stone_paving_test.gd 2>&1 | tee /tmp/bourse-paving.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_BLUE_STONE_PAVING_FAIL" /tmp/bourse-paving.log; then exit 1; fi
+          grep -F "BOURSE_BLUE_STONE_PAVING_OK" /tmp/bourse-paving.log

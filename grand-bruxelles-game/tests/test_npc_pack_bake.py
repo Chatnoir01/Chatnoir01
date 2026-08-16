@@ -55,7 +55,7 @@ class NpcPackBakeTest(unittest.TestCase):
         parsed = GEN.extract_json_object(raw)
         GEN.validate_generated_identity(parsed, "midi_resident_01", "midi", "civilian", "fr-BE")
         parsed["profiles"][0]["zone"] = "jette"
-        with self.assertRaises(MOD.BakeError):
+        with self.assertRaises(GEN.BAKER.BakeError):
             GEN.validate_generated_identity(parsed, "midi_resident_01", "midi", "civilian", "fr-BE")
 
     def test_qwen_metadata_is_pinned_before_bake(self):

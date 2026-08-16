@@ -7,6 +7,8 @@ const PROXY_Y_OFFSET := 0.67
 const LEGACY_VISUAL_NAMES := ["Torso", "LeftLeg", "RightLeg", "LeftArm", "RightArm", "Head", "Bag"]
 
 var _bridged_scene_ids: Dictionary = {}
+var _shared_materials: Dictionary = {}
+var _deduplicated_surfaces: int = 0
 
 func _ready() -> void:
     call_deferred("_bridge_when_ready")
@@ -33,15 +35,16 @@ func _find_scene_with_ambient_crowd() -> Node:
 
 func bridge_scene(scene: Node) -> Dictionary:
     if scene == null:
-        return {"bridged": 0, "already": 0, "legacy_hidden": 0}
+        return {"bridged": 0, "already": 0, "legacy_hidden": 0, "materials_reused": 0, "material_cache_entries": _shared_materials.size()}
     var scene_id := scene.get_instance_id()
     var urban_life := scene.get_node_or_null("MidiUrbanLife")
     if urban_life == null:
-        return {"bridged": 0, "already": 0, "legacy_hidden": 0}
+        return {"bridged": 0, "already": 0, "legacy_hidden": 0, "materials_reused": 0, "material_cache_entries": _shared_materials.size()}
 
     var bridged := 0
     var already := 0
     var legacy_hidden := 0
+    var reused_before := _deduplicated_surfaces
     for child: Node in urban_life.get_children():
         if not child.is_in_group("ambient_pedestrian"):
             continue
@@ -55,10 +58,17 @@ func bridge_scene(scene: Node) -> Dictionary:
         _attach_profiled_proxy(person, _seed_for_person(person))
         bridged += 1
 
+    var materials_reused := _deduplicated_surfaces - reused_before
     if bridged + already > 0:
         _bridged_scene_ids[scene_id] = true
-    print("Midi ambient NPC visual bridge: bridged=%d already=%d legacy_hidden=%d" % [bridged, already, legacy_hidden])
-    return {"bridged": bridged, "already": already, "legacy_hidden": legacy_hidden}
+    print("Midi ambient NPC visual bridge: bridged=%d already=%d legacy_hidden=%d materials_reused=%d cache_entries=%d" % [bridged, already, legacy_hidden, materials_reused, _shared_materials.size()])
+    return {
+        "bridged": bridged,
+        "already": already,
+        "legacy_hidden": legacy_hidden,
+        "materials_reused": materials_reused,
+        "material_cache_entries": _shared_materials.size(),
+    }
 
 func set_profiled_visuals_enabled(scene: Node, enabled: bool) -> int:
     if scene == null:
@@ -95,6 +105,40 @@ func _attach_profiled_proxy(person: Node3D, seed_value: int) -> void:
     visual.set_script(HUMANOID_VISUAL_SCRIPT)
     proxy.add_child(visual)
     person.add_child(proxy)
+    _deduplicate_proxy_materials(visual)
+
+func _deduplicate_proxy_materials(root: Node) -> int:
+    var replaced := 0
+    for node: Node in root.find_children("*", "MeshInstance3D", true, false):
+        var mesh_instance := node as MeshInstance3D
+        if mesh_instance == null or mesh_instance.mesh == null:
+            continue
+        var mesh := mesh_instance.mesh
+        for surface_index: int in range(mesh.get_surface_count()):
+            var material := mesh.surface_get_material(surface_index) as StandardMaterial3D
+            if material == null:
+                continue
+            var key := _material_key(material)
+            var shared := _shared_materials.get(key) as StandardMaterial3D
+            if shared == null:
+                _shared_materials[key] = material
+                continue
+            if shared == material:
+                continue
+            mesh.surface_set_material(surface_index, shared)
+            replaced += 1
+    _deduplicated_surfaces += replaced
+    return replaced
+
+func _material_key(material: StandardMaterial3D) -> String:
+    return "%d|%.6f|%.6f|%s|%d|%.6f" % [
+        material.albedo_color.to_rgba32(),
+        material.roughness,
+        material.metallic,
+        str(material.emission_enabled),
+        material.emission.to_rgba32(),
+        material.emission_energy_multiplier,
+    ]
 
 func _set_legacy_visuals(person: Node3D, visible_value: bool) -> int:
     var changed := 0
@@ -115,11 +159,18 @@ func _seed_for_person(person: Node3D) -> int:
     var index := int(digits) if not digits.is_empty() else posmod(int(person.get_instance_id()), EXPECTED_AMBIENT)
     return 81001 + index * 97
 
+func material_cache_stats() -> Dictionary:
+    return {
+        "entries": _shared_materials.size(),
+        "surfaces_reused": _deduplicated_surfaces,
+    }
+
 func truth_contract() -> Dictionary:
     return {
         "movement_owner": "midi_urban_life.gd legacy ambient path remains authoritative",
         "navigation_added": false,
         "simulation_proxy_disabled": true,
         "visual_pipeline": "NpcAgent + humanoid_visual.gd profiled NPC path",
+        "material_sharing": "exact-equivalent StandardMaterial3D reuse",
         "external_assets": 0,
     }

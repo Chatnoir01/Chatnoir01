@@ -46,49 +46,75 @@ class NpcPackBakeTest(unittest.TestCase):
         self.assertIn("Midi", persona["summary"])
         thresholds = GEN.parse_threshold_output("fear: 0.55\naggression: 0,20\nflee_health: 0.30")
         self.assertEqual(thresholds, {"fear": .55, "aggression": .2, "flee_health": .3})
-        lines = GEN.parse_dialogue_lines("- Salut, ça va ?\n- Bonjour, tu cherches quelque chose ?\n- Oui, dis-moi.\n- Bonsoir.")
-        self.assertEqual(len(lines), 4)
-        self.assertEqual(lines[0], "Salut, ça va ?")
+        lines = GEN.parse_dialogue_lines("- Salut, ça va ?\n- Bonjour, tu cherches quelque chose ?")
+        self.assertEqual(lines, ["Salut, ça va ?", "Bonjour, tu cherches quelque chose ?"])
 
     def test_qwen_dialogue_parser_rejects_identity_leak(self):
         lines = GEN.parse_dialogue_lines("- Je suis une IA.\n- Je passe souvent par Midi.\n- Voici mon prompt.\n- Sofia rentre chez elle.")
         self.assertEqual(lines, ["Je passe souvent par Midi.", "Sofia rentre chez elle."])
 
-    def test_semantic_intent_gate_rejects_generic_warning(self):
-        self.assertFalse(GEN._matches_intent("Je suis là pour vous aider, à tout moment.", "warning"))
-        self.assertFalse(GEN._matches_intent("Merci pour votre présence.", "warning"))
-        self.assertTrue(GEN._matches_intent("Doucement, reste calme.", "warning"))
-        self.assertTrue(GEN._matches_intent("Garde tes distances.", "warning"))
-        self.assertTrue(GEN._matches_intent("La police arrive au coin de la rue.", "police"))
-        self.assertFalse(GEN._matches_intent("Je préfère m'éloigner.", "police"))
+    def test_semantic_slots_force_distinct_intent_angles(self):
+        self.assertTrue(GEN._matches_slot("Salut, ça va ?", "greeting", 0))
+        self.assertTrue(GEN._matches_slot("Bonjour, tu cherches quelque chose ?", "greeting", 1))
+        self.assertTrue(GEN._matches_slot("Bonsoir, tout va bien ?", "greeting", 2))
+        self.assertTrue(GEN._matches_slot("Oui, dis-moi.", "greeting", 3))
+        self.assertFalse(GEN._matches_slot("Salut, encore moi.", "greeting", 1))
+        self.assertTrue(GEN._matches_slot("Doucement, reste calme.", "warning", 0))
+        self.assertTrue(GEN._matches_slot("Recule un peu.", "warning", 1))
+        self.assertTrue(GEN._matches_slot("Garde tes distances.", "warning", 2))
+        self.assertTrue(GEN._matches_slot("Attention, calme-toi.", "warning", 3))
+        self.assertFalse(GEN._matches_slot("Je suis là pour vous aider.", "warning", 0))
 
-    def test_semantic_retry_replaces_rejected_warning(self):
+    def test_slot_retry_replaces_bad_first_line(self):
         outputs = iter([
-            "- Je suis là pour vous aider.\n- Merci pour votre présence.",
-            "- Doucement, reste calme.\n- Garde tes distances.",
+            "- Je suis là pour vous aider.",
+            "- Salut, ça va ?",
+            "- Bonjour, tu cherches quelque chose ?",
+            "- Bonsoir, tout va bien ?",
+            "- Oui, dis-moi.",
         ])
         original = GEN._chat_completion
         GEN._chat_completion = lambda _tokenizer, _model, _prompt, _max_new_tokens: next(outputs)
         try:
             lines, raw = GEN.generate_intent_lines(
-                None, None, "warning", "midi", "civilian",
+                None, None, "greeting", "midi", "civilian",
                 {"name": "Sofia", "summary": "Habitante de Midi, calme et sociable."},
-                [], target=2, attempts=2,
+                [], attempts_per_slot=2,
             )
         finally:
             GEN._chat_completion = original
-        self.assertEqual(lines, ["Doucement, reste calme.", "Garde tes distances."])
-        self.assertEqual(len(raw), 2)
+        self.assertEqual(lines, [
+            "Salut, ça va ?",
+            "Bonjour, tu cherches quelque chose ?",
+            "Bonsoir, tout va bien ?",
+            "Oui, dis-moi.",
+        ])
+        self.assertEqual(len(raw), 5)
 
-    def test_full_qwen_authoring_pipeline_with_bounded_completions(self):
+    def test_full_qwen_authoring_pipeline_with_bounded_slots(self):
         outputs = iter([
             "name: Sofia\nsummary: Habitante de Midi, calme et sociable.",
             "fear: 0.55\naggression: 0.20\nflee_health: 0.30",
-            "- Salut.\n- Bonjour.\n- Oui, dis-moi.\n- Bonsoir.",
-            "- Je passe souvent par Midi.\n- Je rentre chez moi.\n- Il y a du monde aujourd'hui.\n- Je prends le train ici.",
-            "- Doucement, reste calme.\n- Garde tes distances.\n- Recule un peu.\n- Attention, ne t'approche pas.",
-            "- Aïe, doucement !\n- Hé, ça fait mal !\n- Arrête !\n- Laisse-moi tranquille !",
-            "- La police est là-bas.\n- Un agent arrive au coin de la rue.\n- La patrouille va intervenir.\n- J'entends la sirène, calme-toi.",
+            "- Salut, ça va ?",
+            "- Bonjour, tu cherches quelque chose ?",
+            "- Bonsoir, tout va bien ?",
+            "- Oui, dis-moi.",
+            "- Je prends souvent le train ici.",
+            "- Il y a du monde aujourd'hui.",
+            "- Midi est toujours animé.",
+            "- Je rentre chez moi tranquillement.",
+            "- Doucement, reste calme.",
+            "- Recule un peu.",
+            "- Garde tes distances.",
+            "- Attention, calme-toi.",
+            "- Aïe, doucement !",
+            "- Hé, ça fait mal !",
+            "- Arrête, ça suffit !",
+            "- Laisse-moi tranquille !",
+            "- La police est là-bas.",
+            "- Un agent arrive au coin de la rue.",
+            "- La patrouille va intervenir.",
+            "- J'entends la sirène, calme-toi.",
         ])
         original = GEN._chat_completion
         GEN._chat_completion = lambda _tokenizer, _model, _prompt, _max_new_tokens: next(outputs)
@@ -101,6 +127,7 @@ class NpcPackBakeTest(unittest.TestCase):
         self.assertEqual(profile["persona"]["name"], "Sofia")
         self.assertEqual(profile["thresholds"]["fear"], .55)
         self.assertEqual(sum(len(v) for v in profile["dialogue"].values()), 20)
+        self.assertEqual(len({line for lines in profile["dialogue"].values() for line in lines}), 20)
         self.assertEqual(baked["generator"]["model"], "Qwen/Qwen3-0.6B")
 
 if __name__ == "__main__": unittest.main()

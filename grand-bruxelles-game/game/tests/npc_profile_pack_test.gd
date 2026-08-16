@@ -37,7 +37,8 @@ func _run() -> void:
     if not _expect(str(result.get("source", "")) == "fallback", "model-off turn did not use pack"): return
     if not _expect(str(result.get("action", "")) == "idle" and not str(result.get("line", "")).is_empty(), "model-off NPC did not talk"): return
     var persona: Dictionary = catalog.persona_snapshot("midi_resident_01")
-    var smalltalk := persona.get("intents", {}).get("smalltalk", []) as Array
+    var intents := persona.get("intents", {}) as Dictionary
+    var smalltalk := intents.get("smalltalk", []) as Array
     if not _expect(str(result.get("line", "")) in smalltalk, "model-off line did not come from baked pack"): return
     print("NPC_PROFILE_PACK_OK: profiles=1 lines=20 thresholds=true model_off_talk=true")
     quit(0)

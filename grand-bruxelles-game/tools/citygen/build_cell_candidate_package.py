@@ -5,8 +5,9 @@ import argparse, hashlib, json, math
 from pathlib import Path
 from typing import Any
 
+from bootstrap_cell_maturity import GATES as REQUIRED_GATES
+
 FORMAT = "grand-bruxelles-cell-candidate-package-v1"
-REQUIRED_GATES = ("runtime_geometry", "collisions", "streaming", "terrain", "heights", "photo_match", "performance")
 
 
 def digest(value: Any) -> str:
@@ -69,7 +70,7 @@ def build(cell_dir: Path, maturity_path: Path | None) -> dict[str,Any]:
     if invalid_features: state="QUARANTINE"; blockers=sorted(set(blockers+["invalid_building_features_present"]))
     if buildings_source_present and not records: state="QUARANTINE"; blockers=sorted(set(blockers+["no_valid_authoritative_buildings"]))
     buildings=[records[k] for k in sorted(records)]
-    package={"format":FORMAT,"cell_id":cell_id,"crs":"EPSG:31370","state":state,"blockers":blockers,"authority":{"geometry":"UrbIS raw EPSG:31370 building footprints","buildings_source_present":buildings_source_present,"source_manifest_digest":digest(source_manifest),"maturity_manifest_digest":digest(maturity) if maturity else None},"summary":{"valid_buildings":len(buildings),"invalid_features":invalid_features,"total_vertices":sum(row["vertex_count"] for row in buildings),"runtime_approved_buildings":0},"buildings":buildings,"promotion_policy":"no_runtime_mutation_until_independent_height_facade_collision_streaming_photo_performance_gates_pass"}
+    package={"format":FORMAT,"cell_id":cell_id,"crs":"EPSG:31370","state":state,"blockers":blockers,"authority":{"geometry":"UrbIS raw EPSG:31370 building footprints","buildings_source_present":buildings_source_present,"source_manifest_digest":digest(source_manifest),"maturity_manifest_digest":digest(maturity) if maturity else None},"summary":{"valid_buildings":len(buildings),"invalid_features":invalid_features,"total_vertices":sum(row["vertex_count"] for row in buildings),"runtime_approved_buildings":0},"buildings":buildings,"promotion_policy":"no_runtime_mutation_until_full_regional_maturity_contract_passes"}
     package["package_digest"]=digest(package); return package
 
 

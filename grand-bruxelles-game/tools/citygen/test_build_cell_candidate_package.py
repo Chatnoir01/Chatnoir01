@@ -52,6 +52,24 @@ with tempfile.TemporaryDirectory() as td:
     assert all(row["height_m"] is None and row["runtime_approved"] is False for row in pending["buildings"])
 
     maturity = root / "maturity.json"
+    legacy_gates = {
+        name: True
+        for name in (
+            "runtime_geometry",
+            "collisions",
+            "streaming",
+            "terrain",
+            "heights",
+            "photo_match",
+            "performance",
+        )
+    }
+    write_json(maturity, {"cell_id": cell.name, "crs": "EPSG:31370", "geometry": {"authoritative_geometry_ready": True}, "maturity": {"gates": legacy_gates}})
+    legacy = mod.build(cell, maturity)
+    assert legacy["state"] == "EVIDENCE_PENDING", (legacy["state"], legacy["blockers"])
+    for blocker in ("source_requirements", "materials", "facade", "clutter", "mobility", "verification", "license", "region_scalable"):
+        assert blocker in legacy["blockers"], (blocker, legacy["blockers"])
+
     gates = {name: True for name in mod.REQUIRED_GATES}
     write_json(maturity, {"cell_id": cell.name, "crs": "EPSG:31370", "geometry": {"authoritative_geometry_ready": True}, "maturity": {"gates": gates}})
     complete = mod.build(cell, maturity)
@@ -74,4 +92,4 @@ with tempfile.TemporaryDirectory() as td:
     assert invalid["state"] == "QUARANTINE"
     assert invalid["summary"]["invalid_features"] == 1
 
-print("CELL_CANDIDATE_PACKAGE_GUARDRAILS_OK deterministic=true epsg31370=true missing_buildings=quarantine fail_closed=true runtime_promotion=false")
+print("CELL_CANDIDATE_PACKAGE_GUARDRAILS_OK deterministic=true epsg31370=true missing_buildings=quarantine full_region_maturity=true fail_closed=true runtime_promotion=false")

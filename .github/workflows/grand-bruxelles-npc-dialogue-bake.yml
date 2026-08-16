@@ -1,0 +1,41 @@
+name: Grand Bruxelles NPC Dialogue Bake
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-npc-dialogue-bake.yml"
+      - "grand-bruxelles-game/game/scripts/npc_dialogue_catalog.gd"
+      - "grand-bruxelles-game/game/tests/npc_dialogue_catalog_test.gd"
+      - "grand-bruxelles-game/tools/bake_npc_dialogues.py"
+      - "grand-bruxelles-game/tests/test_npc_dialogue_bake.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npc-dialogue-bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deterministic offline bake
+        run: python3 -m unittest grand-bruxelles-game/tests/test_npc_dialogue_bake.py
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/npc-dialogue-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/npc-dialogue-import.log; then exit 1; fi
+      - name: Validate runtime dialogue catalog
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_dialogue_catalog_test.gd 2>&1 | tee /tmp/npc-dialogue.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_DIALOGUE_CATALOG_FAIL" /tmp/npc-dialogue.log; then exit 1; fi
+          grep -F "NPC_DIALOGUE_CATALOG_OK" /tmp/npc-dialogue.log

@@ -9,6 +9,7 @@ const DEFEND_HOLD_MS := 650
 const FIGHT_WINDOW_MS := 5200
 const COUNTER_COOLDOWN_MS := 900
 const COUNTER_DAMAGE := 8
+const GUARDED_COUNTER_DAMAGE := 2
 const WORLD_REACTION_RADIUS_M := 14.0
 
 var _attack_serial := 0
@@ -16,24 +17,34 @@ var _next_attack_allowed_ms := 0
 var _feedback_hide_ms := 0
 var _feedback_label: Label = null
 var _reaction_states: Dictionary = {}
+var _guarding := false
+var _guard_visual_base_x := 0.0
+var _guard_visual_bound := false
 
 func _ready() -> void:
     set_process(true)
     set_process_input(true)
 
 func _input(event: InputEvent) -> void:
-    var pressed := false
+    var player := _current_player()
+    if player == null:
+        return
+
     if event is InputEventMouseButton:
         var mouse_event := event as InputEventMouseButton
-        pressed = mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed
+        if mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+            set_guarding(player, mouse_event.pressed)
+            return
+        if mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed:
+            request_attack(player)
+            return
     elif event is InputEventKey:
         var key_event := event as InputEventKey
-        pressed = key_event.keycode == KEY_F and key_event.pressed and not key_event.echo
-    if not pressed:
-        return
-    var player := _current_player()
-    if player != null:
-        request_attack(player)
+        if key_event.keycode == KEY_G and not key_event.echo:
+            set_guarding(player, key_event.pressed)
+            return
+        if key_event.keycode == KEY_F and key_event.pressed and not key_event.echo:
+            request_attack(player)
 
 func _process(_delta: float) -> void:
     var now := Time.get_ticks_msec()
@@ -47,7 +58,26 @@ func _current_player() -> CharacterBody3D:
         return null
     return scene.get_node_or_null("Player") as CharacterBody3D
 
+func set_guarding(player: CharacterBody3D, enabled: bool) -> void:
+    if player == null or not is_instance_valid(player):
+        return
+    _guarding = enabled
+    player.set_meta("combat_guarding", enabled)
+    var visual := player.get_node_or_null("VisualUpgrade") as Node3D
+    if visual != null:
+        if enabled and not _guard_visual_bound:
+            _guard_visual_base_x = visual.rotation.x
+            _guard_visual_bound = true
+        visual.rotation.x = _guard_visual_base_x + (0.11 if enabled else 0.0)
+    if enabled:
+        _show_feedback("GARDE", 180)
+
+func is_guarding(player: CharacterBody3D) -> bool:
+    return player != null and bool(player.get_meta("combat_guarding", false))
+
 func request_attack(player: CharacterBody3D) -> Dictionary:
+    if is_guarding(player):
+        return {"hit": false, "reason": "guarding"}
     var now := Time.get_ticks_msec()
     if now < _next_attack_allowed_ms:
         return {"hit": false, "reason": "cooldown"}
@@ -55,7 +85,10 @@ func request_attack(player: CharacterBody3D) -> Dictionary:
     _animate_player_swing(player)
     var result := perform_attack(player)
     if bool(result.get("hit", false)):
-        _show_feedback("TOUCHÉ  -%d" % int(ATTACK_DAMAGE), 280)
+        if StringName(result.get("reaction", &"")) == &"ko":
+            _show_feedback("K.O.", 420)
+        else:
+            _show_feedback("TOUCHÉ  -%d" % int(ATTACK_DAMAGE), 280)
     else:
         _show_feedback("COUP", 150)
     return result
@@ -84,7 +117,7 @@ func perform_attack(player: CharacterBody3D) -> Dictionary:
     var best_distance := INF
     for hit: Dictionary in hits:
         var npc := _npc_from_collider(hit.get("collider"))
-        if npc == null or npc == player:
+        if npc == null or npc == player or bool(npc.get_meta("melee_knocked_out", false)):
             continue
         var to_target := npc.global_position - player.global_position
         to_target.y = 0.0
@@ -134,6 +167,11 @@ func _apply_hit(npc: NpcAgent, player: CharacterBody3D, damage: float) -> String
     npc.set_meta("melee_hurt_feedback", true)
     npc.set_meta("last_melee_attacker_id", player.get_instance_id())
 
+    if health <= 0.0:
+        _knock_out(npc)
+        _spawn_hurt_feedback(npc, &"ko")
+        return &"ko"
+
     var reaction := _reaction_for(npc, health)
     npc.set_meta("melee_reaction", reaction)
     var now := Time.get_ticks_msec()
@@ -160,6 +198,22 @@ func _apply_hit(npc: NpcAgent, player: CharacterBody3D, damage: float) -> String
     _spawn_hurt_feedback(npc, reaction)
     return reaction
 
+func _knock_out(npc: NpcAgent) -> void:
+    _reaction_states.erase(npc.get_instance_id())
+    npc.set_meta("melee_knocked_out", true)
+    npc.set_meta("melee_reaction", &"ko")
+    npc.set_meta("melee_hurt_feedback", false)
+    npc.movement_held = true
+    npc.velocity = Vector3.ZERO
+    npc.active = false
+
+    var visual: Node3D = npc.get_node_or_null("ProfiledNpcProxy") as Node3D
+    if visual == null:
+        visual = npc.get_node_or_null("VisualUpgrade") as Node3D
+    if visual != null:
+        var tween := create_tween()
+        tween.tween_property(visual, "rotation:z", deg_to_rad(72.0), 0.20)
+
 func _reaction_for(npc: NpcAgent, health: float) -> StringName:
     if npc.role == NpcBehaviorModel.Role.POLICE:
         return &"fight"
@@ -172,6 +226,20 @@ func _reaction_for(npc: NpcAgent, health: float) -> StringName:
         return &"fight"
     return &"flee"
 
+func resolve_counter_hit(player: CharacterBody3D) -> int:
+    if player == null or not is_instance_valid(player):
+        return 0
+    var guarded := is_guarding(player)
+    var damage := GUARDED_COUNTER_DAMAGE if guarded else COUNTER_DAMAGE
+    var player_health := maxi(0, int(player.get_meta("combat_health", 100)) - damage)
+    player.set_meta("combat_health", player_health)
+    player.set_meta("combat_last_counter_damage", damage)
+    if guarded:
+        _show_feedback("BLOQUÉ  -%d   PV %d" % [damage, player_health], 300)
+    else:
+        _show_feedback("RIPOSTE  -%d   PV %d" % [damage, player_health], 350)
+    return damage
+
 func _tick_reactions(now: int) -> void:
     var expired: Array[int] = []
     for raw_id: Variant in _reaction_states.keys():
@@ -181,7 +249,7 @@ func _tick_reactions(now: int) -> void:
         var player_ref: WeakRef = state.get("player")
         var npc := npc_ref.get_ref() as NpcAgent if npc_ref != null else null
         var player := player_ref.get_ref() as CharacterBody3D if player_ref != null else null
-        if npc == null or not is_instance_valid(npc):
+        if npc == null or not is_instance_valid(npc) or bool(npc.get_meta("melee_knocked_out", false)):
             expired.append(instance_id)
             continue
         var reaction := StringName(state.get("reaction", &""))
@@ -199,11 +267,9 @@ func _tick_reactions(now: int) -> void:
             npc.global_position.z - player.global_position.z
         ).length()
         if planar_distance <= 2.05 and now >= int(state.get("next_counter_ms", 0)):
-            var player_health := maxi(0, int(player.get_meta("combat_health", 100)) - COUNTER_DAMAGE)
-            player.set_meta("combat_health", player_health)
+            resolve_counter_hit(player)
             state["next_counter_ms"] = now + COUNTER_COOLDOWN_MS
             _reaction_states[instance_id] = state
-            _show_feedback("RIPOSTE  -%d   PV %d" % [COUNTER_DAMAGE, player_health], 350)
     for instance_id: int in expired:
         _reaction_states.erase(instance_id)
 
@@ -240,7 +306,10 @@ func _animate_player_swing(player: CharacterBody3D) -> void:
 func _spawn_hurt_feedback(npc: NpcAgent, reaction: StringName) -> void:
     var marker := Label3D.new()
     marker.name = "MeleeHurtFeedback"
-    marker.text = "HIT  -%d\n%s" % [int(ATTACK_DAMAGE), String(reaction).to_upper()]
+    if reaction == &"ko":
+        marker.text = "K.O."
+    else:
+        marker.text = "HIT  -%d\n%s" % [int(ATTACK_DAMAGE), String(reaction).to_upper()]
     marker.position = Vector3(0.0, 2.15, 0.0)
     marker.font_size = 36
     marker.outline_size = 8

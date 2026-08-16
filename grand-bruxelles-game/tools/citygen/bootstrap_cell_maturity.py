@@ -190,9 +190,33 @@ def build(cell_dir: Path) -> dict[str, Any]:
     }
     crs_evidence["evidence_digest"] = _digest(crs_evidence)
 
+    verification_checks = {
+        "authoritative_geometry_ready": authoritative_ready,
+        "building_feature_count_matches": declared_count == actual_count,
+        "canonical_ownership_valid": invalid_ownership == 0,
+        "crs_contract_valid": True,
+        "source_identity_valid": source.get("cell_id") == cell_id,
+        "source_requirements_complete": bool(source_requirements["complete"]),
+    }
+    verification_blockers: list[str] = []
+    if not verification_checks["source_requirements_complete"]:
+        verification_blockers.append("source_requirements_incomplete")
+    if not verification_checks["canonical_ownership_valid"]:
+        verification_blockers.append("canonical_ownership_invalid")
+    verification_ready = all(verification_checks.values()) and not verification_blockers
+    verification_evidence = {
+        "status": "validated" if verification_ready else "evidence_pending",
+        "contract": "deterministic authoritative source bootstrap checks",
+        "checks": verification_checks,
+        "blockers": verification_blockers,
+        "gate_ready": verification_ready,
+    }
+    verification_evidence["evidence_digest"] = _digest(verification_evidence)
+
     gates = {gate: False for gate in GATES}
     gates["source_requirements"] = source_gate_ready
     gates["crs"] = True
+    gates["verification"] = verification_ready
 
     uncertainties = [
         "runtime geometry not generated or validated",
@@ -204,12 +228,13 @@ def build(cell_dir: Path) -> dict[str, Any]:
         "player-facing facade treatment not validated",
         "clutter baseline or explicit deferral not validated",
         "traffic/pedestrian branchability or absence rationale not validated",
-        "automated test or deterministic witness not attached",
         "asset/source licensing not validated for this cell",
         "hero-independent regional scalability not validated",
         "photo-match not evaluated for this cell",
         "streamed-cell performance not measured",
     ]
+    if not verification_ready:
+        uncertainties.insert(0, "automated deterministic source-verification witness is incomplete")
     if not source_gate_ready:
         uncertainties.insert(0, "explicitly declared source requirements are incomplete or invalid")
     if invalid_ownership:
@@ -231,9 +256,11 @@ def build(cell_dir: Path) -> dict[str, Any]:
             "buildings_source_digest": _digest(buildings),
             "source_requirements_digest": _digest(source_requirements),
             "crs_evidence_digest": crs_evidence["evidence_digest"],
+            "verification_evidence_digest": verification_evidence["evidence_digest"],
         },
         "source_requirements": source_requirements,
         "crs_evidence": crs_evidence,
+        "verification_evidence": verification_evidence,
         "geometry": {
             "authoritative_geometry_ready": authoritative_ready,
             "source_manifest": f"data/urbis/remaining_brussels/cells/{cell_id}/manifest.json",

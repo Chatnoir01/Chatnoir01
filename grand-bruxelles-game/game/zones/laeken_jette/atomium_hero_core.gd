@@ -7,6 +7,7 @@ extends Node3D
 @export_file("*.json") var evidence_path := "res://data/sources/laeken_jette/atomium_hero_core_evidence.json"
 
 const LANDCOVER_CONTEXT_SCRIPT := preload("res://game/zones/laeken_jette/atomium_landcover_context.gd")
+const SPHERE_SKIN_SEMANTICS_SCRIPT := preload("res://game/zones/laeken_jette/atomium_sphere_skin_semantics.gd")
 const SPHERE_RADIAL_SEGMENTS := 48
 const SPHERE_RINGS := 24
 const TUBE_RADIAL_SEGMENTS := 32
@@ -20,6 +21,7 @@ var source_tube_diameter_m := 0.0
 var unresolved_support_pillars := 0
 var anchor_position := Vector3.ZERO
 var landcover_context: Node3D
+var sphere_skin_semantics_applied := false
 
 var _sphere_material: StandardMaterial3D
 var _tube_material: StandardMaterial3D
@@ -54,6 +56,9 @@ func build_on_terrain(terrain: Node) -> bool:
     anchor_position = Vector3(atomium_anchor.x, sampled_y, atomium_anchor.z)
     position = anchor_position
     _make_materials()
+    if not sphere_skin_semantics_applied:
+        push_error("AtomiumHeroCore: source-bounded sphere skin semantics unavailable")
+        return false
     var centres: Array[Vector3] = []
     for raw: Variant in centres_raw:
         if not raw is Array or raw.size() != 3:
@@ -75,7 +80,7 @@ func build_on_terrain(terrain: Node) -> bool:
     hero_built = sphere_count == 9 and tube_count == 20
     if hero_built:
         _mount_landcover_context(terrain)
-        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars])
+        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d sphere_skin_semantics=%s exact_seams=false" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars, str(sphere_skin_semantics_applied)])
     return hero_built
 
 func _mount_landcover_context(terrain: Node) -> void:
@@ -106,6 +111,16 @@ func _load_evidence() -> Dictionary:
     if bool(status.get("runtime_approved", true)) or bool(status.get("realism_complete", true)):
         push_error("AtomiumHeroCore: provisional evidence was incorrectly promoted")
         return {}
+    if not bool(status.get("sphere_skin_material_resolved", false)) or not bool(status.get("sphere_panel_topology_semantics_resolved", false)):
+        push_error("AtomiumHeroCore: sphere skin source semantics unresolved")
+        return {}
+    if bool(status.get("sphere_panel_exact_runtime_layout_resolved", true)):
+        push_error("AtomiumHeroCore: exact sphere seam layout was incorrectly promoted")
+        return {}
+    var contract: Dictionary = evidence.get("integration_contract", {})
+    if not bool(contract.get("no_invented_panel_seams_without_layout_source", false)):
+        push_error("AtomiumHeroCore: no-invented-panel-seams contract missing")
+        return {}
     return evidence
 
 func _make_materials() -> void:
@@ -113,6 +128,7 @@ func _make_materials() -> void:
     _sphere_material.albedo_color = Color(0.82, 0.85, 0.87, 1.0)
     _sphere_material.metallic = 0.96
     _sphere_material.roughness = 0.16
+    sphere_skin_semantics_applied = bool(SPHERE_SKIN_SEMANTICS_SCRIPT.apply_to(_sphere_material))
     _tube_material = StandardMaterial3D.new()
     _tube_material.albedo_color = Color(0.57, 0.61, 0.64, 1.0)
     _tube_material.metallic = 0.78

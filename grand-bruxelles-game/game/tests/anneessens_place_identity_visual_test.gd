@@ -34,7 +34,7 @@ func _changed_ratio(a: Image, b: Image) -> float:
     a.convert(Image.FORMAT_RGBA8); b.convert(Image.FORMAT_RGBA8)
     var ad := a.get_data(); var bd := b.get_data(); var changed := 0; var pixels := a.get_width()*a.get_height()
     for i in range(0, ad.size(), 4):
-        var delta := abs(int(ad[i])-int(bd[i])) + abs(int(ad[i+1])-int(bd[i+1])) + abs(int(ad[i+2])-int(bd[i+2]))
+        var delta: int = abs(int(ad[i])-int(bd[i])) + abs(int(ad[i+1])-int(bd[i+1])) + abs(int(ad[i+2])-int(bd[i+2]))
         if delta >= 18: changed += 1
     return float(changed) / float(max(1,pixels))
 

@@ -71,14 +71,14 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         var pavement := CSGBox3D.new()
         pavement.name = "AnneessensSidewalk_%s_%s" % [road.name, "L" if side < 0.0 else "R"]
         pavement.size = Vector3(width, SIDEWALK_HEIGHT_M, road.size.z)
-        pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)
-        pavement.global_rotation = road.global_rotation
         pavement.material = material
         pavement.use_collision = true
         pavement.set_meta("source_road", road.name)
         pavement.set_meta("source", "OpenStreetMap road geometry")
         pavement.set_meta("recipe", "Midi")
         _root.add_child(pavement)
+        pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)
+        pavement.global_rotation = road.global_rotation
         _sidewalk_count += 1
         _collision_count += 1
 

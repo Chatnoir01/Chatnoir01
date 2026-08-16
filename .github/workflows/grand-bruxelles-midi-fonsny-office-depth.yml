@@ -58,6 +58,7 @@ jobs:
           grep -q "MIDI_FONSNY_DEPTH_WITNESS_OK" /tmp/midi-fonsny-depth.log
 
       - name: Upload full-frame evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: midi-fonsny-office-depth-ab

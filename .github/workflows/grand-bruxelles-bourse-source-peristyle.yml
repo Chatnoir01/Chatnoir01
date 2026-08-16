@@ -1,0 +1,68 @@
+name: Grand Bruxelles Bourse Source Peristyle
+
+on:
+  push:
+    branches: ["visual/bourse-fronton-inner-peristyle-v1"]
+    paths:
+      - "grand-bruxelles-game/game/scripts/bourse_portico_articulation.gd"
+      - "grand-bruxelles-game/game/tests/bourse_source_peristyle_completion_visual_test.gd"
+      - ".github/workflows/grand-bruxelles-bourse-source-peristyle.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/bourse_portico_articulation.gd"
+      - "grand-bruxelles-game/game/tests/bourse_source_peristyle_completion_visual_test.gd"
+      - ".github/workflows/grand-bruxelles-bourse-source-peristyle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-source-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import exact branch project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/bourse-source-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/bourse-source-import.log; then exit 1; fi
+
+      - name: Render deterministic full-frame source completion A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x960 \
+            --script res://game/tests/bourse_source_peristyle_completion_visual_test.gd 2>&1 | tee /tmp/bourse-source-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_SOURCE_PERISTYLE_FAIL" /tmp/bourse-source-ab.log; then exit 1; fi
+          grep -q "BOURSE_SOURCE_PERISTYLE_OK" /tmp/bourse-source-ab.log
+
+      - name: Upload full-frame evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-source-peristyle-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/bourse_before_missing_fronton.png
+            grand-bruxelles-game/artifacts/visual/bourse_after_source_fronton.png
+          if-no-files-found: error

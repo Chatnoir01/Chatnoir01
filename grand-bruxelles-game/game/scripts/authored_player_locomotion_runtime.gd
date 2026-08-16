@@ -1,7 +1,15 @@
 extends Node
 
-const IDLE_MAX_SPEED_MPS := 0.20
-const RUN_MIN_SPEED_MPS := 5.0
+const IDLE_ENTER_SPEED_MPS := 0.14
+const IDLE_EXIT_SPEED_MPS := 0.26
+const RUN_ENTER_SPEED_MPS := 5.20
+const RUN_EXIT_SPEED_MPS := 4.50
+const WALK_REFERENCE_SPEED_MPS := 2.50
+const RUN_REFERENCE_SPEED_MPS := 7.00
+const WALK_PLAYBACK_MIN := 0.65
+const WALK_PLAYBACK_MAX := 1.50
+const RUN_PLAYBACK_MIN := 0.82
+const RUN_PLAYBACK_MAX := 1.24
 const LOCOMOTION_BLEND_SECONDS := 0.12
 const REJECT_ACTION_TOKENS: Array[String] = ["attack", "combat", "melee", "sword", "staff", "bow", "gun", "shoot", "hit", "hurt", "death", "jump"]
 
@@ -10,6 +18,8 @@ var _visual: Node
 var _animation_player: AnimationPlayer
 var _locomotion: Dictionary = {"idle": "", "walk": "", "run": ""}
 var _current_animation: String = ""
+var _current_state: String = "idle"
+var _current_playback_speed_scale: float = 1.0
 
 func _process(_delta: float) -> void:
     if not _ensure_bound():
@@ -52,6 +62,8 @@ func bind_target(player: CharacterBody3D, visual: Node) -> bool:
     set_meta("authored_locomotion_idle", String(_locomotion["idle"]))
     set_meta("authored_locomotion_walk", String(_locomotion["walk"]))
     set_meta("authored_locomotion_run", String(_locomotion["run"]))
+    set_meta("authored_locomotion_hysteresis", true)
+    set_meta("authored_locomotion_speed_sync", true)
     update_from_speed()
     return true
 
@@ -61,7 +73,11 @@ func _clear_binding() -> void:
     _animation_player = null
     _locomotion = {"idle": "", "walk": "", "run": ""}
     _current_animation = ""
+    _current_state = "idle"
+    _current_playback_speed_scale = 1.0
     remove_meta("authored_locomotion_ready")
+    remove_meta("authored_locomotion_hysteresis")
+    remove_meta("authored_locomotion_speed_sync")
 
 func _find_animation_player(node: Node) -> AnimationPlayer:
     if node is AnimationPlayer:
@@ -115,26 +131,63 @@ func _configure_locomotion_loops() -> void:
         if animation != null:
             animation.loop_mode = Animation.LOOP_LINEAR
 
+func _resolve_state(speed: float) -> String:
+    match _current_state:
+        "run":
+            if speed < RUN_EXIT_SPEED_MPS:
+                return "idle" if speed < IDLE_ENTER_SPEED_MPS else "walk"
+            return "run"
+        "walk":
+            if speed >= RUN_ENTER_SPEED_MPS:
+                return "run"
+            if speed < IDLE_ENTER_SPEED_MPS:
+                return "idle"
+            return "walk"
+        _:
+            if speed >= RUN_ENTER_SPEED_MPS:
+                return "run"
+            if speed > IDLE_EXIT_SPEED_MPS:
+                return "walk"
+            return "idle"
+
+func _playback_scale_for_state(state: String, speed: float) -> float:
+    match state:
+        "walk":
+            return clampf(speed / WALK_REFERENCE_SPEED_MPS, WALK_PLAYBACK_MIN, WALK_PLAYBACK_MAX)
+        "run":
+            return clampf(speed / RUN_REFERENCE_SPEED_MPS, RUN_PLAYBACK_MIN, RUN_PLAYBACK_MAX)
+        _:
+            return 1.0
+
 func update_from_speed() -> void:
     if not is_instance_valid(_player) or not is_instance_valid(_animation_player):
         return
     var speed := Vector2(_player.velocity.x, _player.velocity.z).length()
-    var target := String(_locomotion["idle"])
-    if speed >= RUN_MIN_SPEED_MPS:
-        target = String(_locomotion["run"])
-    elif speed > IDLE_MAX_SPEED_MPS:
-        target = String(_locomotion["walk"])
+    var target_state := _resolve_state(speed)
+    var target := String(_locomotion.get(target_state, ""))
     if target.is_empty():
         return
+
+    var target_scale := _playback_scale_for_state(target_state, speed)
+    _animation_player.speed_scale = target_scale
+    _current_playback_speed_scale = target_scale
+
     if _current_animation != target or _animation_player.current_animation != target or not _animation_player.is_playing():
         _animation_player.play(target, LOCOMOTION_BLEND_SECONDS)
         _current_animation = target
+    _current_state = target_state
 
 func resolved_locomotion_animations() -> Dictionary:
     return _locomotion.duplicate(true)
 
 func current_animation() -> String:
     return _current_animation
+
+func current_locomotion_state() -> String:
+    return _current_state
+
+func current_playback_speed_scale() -> float:
+    return _current_playback_speed_scale
 
 func bound_animation_player() -> AnimationPlayer:
     return _animation_player

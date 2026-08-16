@@ -95,7 +95,6 @@ func _run() -> void:
         return
 
     var roads: Array[CSGBox3D] = []
-    var production_materials: Array[Material] = []
     var major_count: int = 0
     var local_count: int = 0
     for child: Node in roads_root.get_children():
@@ -126,7 +125,6 @@ func _run() -> void:
             _fail("unknown asphalt road family: %s" % family)
             return
         roads.append(road)
-        production_materials.append(material)
 
     if roads.size() < 250:
         _fail("shared asphalt coverage is too narrow: %d road segments" % roads.size())
@@ -135,10 +133,27 @@ func _run() -> void:
         _fail("major/local road material distinction was lost")
         return
 
+    var local_material := asphalt_runtime.call("local_material") as StandardMaterial3D
+    var major_material := asphalt_runtime.call("major_material") as StandardMaterial3D
+    var local_reference := asphalt_runtime.call("flat_reference_material", "local") as StandardMaterial3D
+    var major_reference := asphalt_runtime.call("flat_reference_material", "major") as StandardMaterial3D
+    if local_material == null or major_material == null or local_reference == null or major_reference == null:
+        _fail("could not access shared asphalt material resources")
+        return
+    var local_texture: Texture2D = local_material.albedo_texture
+    var major_texture: Texture2D = major_material.albedo_texture
+    if local_texture == null or major_texture == null:
+        _fail("production asphalt textures are missing")
+        return
+
+    # Freeze gameplay state, then mutate the two shared material resources
+    # directly. Reassigning materials on disabled CSG nodes does not rebuild
+    # their meshes reliably and can create a false zero-delta witness.
     scene.process_mode = Node.PROCESS_MODE_DISABLED
-    for index: int in range(roads.size()):
-        var family := str((production_materials[index] as StandardMaterial3D).get_meta("asphalt_road_family", "local"))
-        roads[index].material = asphalt_runtime.call("flat_reference_material", family) as Material
+    local_material.albedo_texture = null
+    local_material.albedo_color = local_reference.albedo_color
+    major_material.albedo_texture = null
+    major_material.albedo_color = major_reference.albedo_color
     await process_frame
     await process_frame
     var before := _save_viewport(viewport, BEFORE_PATH)
@@ -146,8 +161,10 @@ func _run() -> void:
         _fail("could not save flat BEFORE frame")
         return
 
-    for index: int in range(roads.size()):
-        roads[index].material = production_materials[index]
+    local_material.albedo_color = Color.WHITE
+    local_material.albedo_texture = local_texture
+    major_material.albedo_color = Color.WHITE
+    major_material.albedo_texture = major_texture
     await process_frame
     await process_frame
     var after := _save_viewport(viewport, AFTER_PATH)

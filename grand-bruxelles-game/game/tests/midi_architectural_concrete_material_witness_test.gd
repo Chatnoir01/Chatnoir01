@@ -46,16 +46,19 @@ func _run() -> void:
     if typeof(parsed_identity) != TYPE_DICTIONARY:
         _fail("material identity contract invalid")
         return
-    var candidate := parsed_identity as Dictionary
-    if bool(runtime.call("_runtime_identity_allowed", candidate)):
-        _fail("candidate must remain fail-closed before reviewed runtime approval")
-        return
-    var approved := candidate.duplicate(true)
+    var approved := (parsed_identity as Dictionary).duplicate(true)
     var approved_contract := approved.get("presentation_contract", {}) as Dictionary
     approved_contract["runtime_approved"] = true
     approved["presentation_contract"] = approved_contract
     if not bool(runtime.call("_runtime_identity_allowed", approved)):
         _fail("explicitly approved source contract must pass runtime guard")
+        return
+    var unapproved := approved.duplicate(true)
+    var unapproved_contract := unapproved.get("presentation_contract", {}) as Dictionary
+    unapproved_contract["runtime_approved"] = false
+    unapproved["presentation_contract"] = unapproved_contract
+    if bool(runtime.call("_runtime_identity_allowed", unapproved)):
+        _fail("runtime guard must reject source contract when runtime_approved=false")
         return
 
     var material := runtime.enhanced_material() as ShaderMaterial
@@ -82,7 +85,7 @@ func _run() -> void:
 
     runtime.set_enhanced_material_enabled(false)
     var before := await _capture(BEFORE_PATH)
-    runtime.apply_candidate_for_validation()
+    runtime.set_enhanced_material_enabled(true)
     var after := await _capture(AFTER_PATH)
     if before == null or after == null:
         _fail("capture missing")

@@ -11,32 +11,26 @@ const AFTER_PATH := "res://artifacts/visual/bourse_white_stone_after.png"
 const MIN_CHANGED_3 := 0.015
 const MIN_CHANGED_8 := 0.005
 
-
 func _initialize() -> void:
     call_deferred("_run")
-
 
 func _fail(message: String) -> void:
     push_error("BOURSE_WHITE_STONE_WITNESS_FAIL: %s" % message)
     quit(1)
-
 
 func _vector3(raw: Variant) -> Vector3:
     if typeof(raw) != TYPE_ARRAY or raw.size() != 3:
         return Vector3.ZERO
     return Vector3(float(raw[0]), float(raw[1]), float(raw[2]))
 
-
 func _horizontal_to_vertical_fov(horizontal_degrees: float, aspect: float) -> float:
     return rad_to_deg(2.0 * atan(tan(deg_to_rad(horizontal_degrees) * 0.5) / aspect))
-
 
 func _hide_labels(node: Node) -> void:
     if node is Label3D:
         (node as Label3D).visible = false
     for child: Node in node.get_children():
         _hide_labels(child)
-
 
 func _hide_noise(scene: Node) -> void:
     for node_path: String in ["LocationLabel", "MissionLabel", "PrototypeLabel", "MiniMap", "MobileControls"]:
@@ -54,13 +48,11 @@ func _hide_noise(scene: Node) -> void:
             (traffic as Node3D).visible = false
     _hide_labels(scene)
 
-
 func _read_json(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):
         return {}
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
     return parsed as Dictionary if typeof(parsed) == TYPE_DICTIONARY else {}
-
 
 func _capture(viewport: SubViewport, output_path: String) -> Image:
     RenderingServer.force_draw()
@@ -73,7 +65,6 @@ func _capture(viewport: SubViewport, output_path: String) -> Image:
     if image.save_png(absolute) != OK:
         return null
     return image
-
 
 func _changed_fraction(before: Image, after: Image, threshold: int) -> float:
     if before == null or after == null or before.get_size() != after.get_size():
@@ -88,7 +79,6 @@ func _changed_fraction(before: Image, after: Image, threshold: int) -> float:
             if max(abs(a.r - b.r), max(abs(a.g - b.g), abs(a.b - b.b))) > limit:
                 changed += 1
     return float(changed) / float(total)
-
 
 func _run() -> void:
     var identity := _read_json(IDENTITY_PATH)
@@ -149,7 +139,8 @@ func _run() -> void:
     if runtime == null or portico == null:
         _fail("runtime or portico missing")
         return
-    runtime.call("bind_portico", portico)
+    if int(runtime.call("diagnostic_target_count")) != 24:
+        runtime.call("bind_portico", portico)
     if bool(runtime.call("diagnostic_identity_failure")):
         _fail("runtime identity validation failed")
         return

@@ -45,6 +45,7 @@ func _run() -> void:
 
     var moved := 0
     var animated := 0
+    var extremities_parented := 0
     for raw: Node in ambient:
         var person := raw as Node3D
         if person == null:
@@ -71,6 +72,20 @@ func _run() -> void:
         if left_leg == null or right_leg == null or left_arm == null or right_arm == null:
             _fail("%s profiled visual is missing gait limbs" % person.name)
             return
+        var left_hand := visual.find_child("LeftHand", true, false) as Node3D
+        var right_hand := visual.find_child("RightHand", true, false) as Node3D
+        var left_shoe := visual.find_child("LeftShoe", true, false) as Node3D
+        var right_shoe := visual.find_child("RightShoe", true, false) as Node3D
+        if left_hand == null or right_hand == null or left_shoe == null or right_shoe == null:
+            _fail("%s profiled visual is missing gait extremities" % person.name)
+            return
+        if left_hand.get_parent() != left_arm or right_hand.get_parent() != right_arm:
+            _fail("%s hands must follow their animated arms" % person.name)
+            return
+        if left_shoe.get_parent() != left_leg or right_shoe.get_parent() != right_leg:
+            _fail("%s shoes must follow their animated legs" % person.name)
+            return
+        extremities_parented += 4
         var max_swing := maxf(maxf(absf(left_leg.rotation.x), absf(right_leg.rotation.x)), maxf(absf(left_arm.rotation.x), absf(right_arm.rotation.x)))
         var opposition_error := maxf(absf(left_leg.rotation.x + right_leg.rotation.x), absf(left_arm.rotation.x + right_arm.rotation.x))
         if max_swing > 0.025 and opposition_error < 0.03:
@@ -81,6 +96,9 @@ func _run() -> void:
         return
     if animated < MIN_ANIMATED_PROFILED_PEDESTRIANS:
         _fail("profiled pedestrians glide without visible gait: animated=%d moved=%d" % [animated, moved])
+        return
+    if extremities_parented != EXPECTED_AMBIENT * 4:
+        _fail("profiled gait did not bind every hand/shoe to its animated limb: %d" % extremities_parented)
         return
 
     var runtime := root.get_node_or_null("MidiProfiledNpcGaitRuntime")
@@ -130,6 +148,6 @@ func _run() -> void:
         _fail("stride amplitude must be deterministic per pedestrian, not random per frame")
         return
 
-    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f amplitude_profiles=%d amplitude_range=%.3f..%.3f" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max, amplitude_profile_count, amplitude_min, amplitude_max])
+    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d extremities_parented=%d cadence_profiles=%d cadence_range=%.3f..%.3f amplitude_profiles=%d amplitude_range=%.3f..%.3f" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), extremities_parented, profile_count, cadence_min, cadence_max, amplitude_profile_count, amplitude_min, amplitude_max])
     scene.queue_free()
     quit(0)

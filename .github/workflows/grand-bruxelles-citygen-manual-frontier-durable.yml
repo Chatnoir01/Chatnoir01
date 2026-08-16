@@ -1,0 +1,82 @@
+name: Grand Bruxelles CityGen Manual Frontier Durable Queue
+
+on:
+  workflow_run:
+    workflows: ["Grand Bruxelles Autonomous CityGen"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-autonomous-citygen
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
+          fetch-depth: 0
+
+      - name: Recover durable CityGen source cache
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/citygen-durable
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          if git ls-tree -r --name-only origin/citygen-autonomous-state -- grand-bruxelles-game/data/qa/autonomous_sources | grep -q .; then
+            git archive origin/citygen-autonomous-state grand-bruxelles-game/data/qa/autonomous_sources | tar -x -C /tmp/citygen-durable
+          fi
+          mkdir -p /tmp/citygen-durable/grand-bruxelles-game/data/qa/autonomous_sources
+
+      - name: Build fail-closed mature review queue
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/citygen-manual-frontier/reviews
+          python3 grand-bruxelles-game/tools/citygen/collect_manual_frontier_reviews.py \
+            --source-root /tmp/citygen-durable/grand-bruxelles-game/data/qa/autonomous_sources \
+            --output-dir /tmp/citygen-manual-frontier/reviews \
+            --report /tmp/citygen-manual-frontier/report.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('/tmp/citygen-manual-frontier/report.json').read_text())
+          if report.get('runtime_promotion_allowed') is not False:
+              raise SystemExit('manual frontier report must forbid runtime promotion')
+          for path in Path('/tmp/citygen-manual-frontier/reviews').glob('*.json'):
+              review=json.loads(path.read_text())
+              if review.get('runtime_promotion_allowed') is not False:
+                  raise SystemExit(f'{path.name} permits runtime promotion')
+          print('CITYGEN_DURABLE_MANUAL_FRONTIER_OK', report['ready_count'], report['pending_count'], report['failed_count'])
+          PY
+
+      - name: Persist review queue on durable state branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C citygen-autonomous-state origin/citygen-autonomous-state
+          ROOT=grand-bruxelles-game/data/qa/autonomous_manual_frontier_reviews
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT/reviews"
+          cp /tmp/citygen-manual-frontier/report.json "$ROOT/report.json"
+          cp /tmp/citygen-manual-frontier/reviews/*.json "$ROOT/reviews/" 2>/dev/null || true
+          git add "$ROOT"
+          if git diff --cached --quiet; then
+            echo "CITYGEN_DURABLE_MANUAL_FRONTIER_UNCHANGED"
+            exit 0
+          fi
+          git commit -m "citygen: persist mature manual frontier queue"
+          git push --force-with-lease origin citygen-autonomous-state
+
+      - name: Upload manual-frontier queue evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: citygen-manual-frontier-queue-${{ github.run_number }}
+          path: /tmp/citygen-manual-frontier/
+          retention-days: 30

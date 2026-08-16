@@ -44,7 +44,7 @@ class NpcPackBakeTest(unittest.TestCase):
         persona = GEN.parse_persona_output("name: Sofia\nsummary: Habitante de Midi, calme et sociable.")
         self.assertEqual(persona["name"], "Sofia")
         self.assertIn("Midi", persona["summary"])
-        thresholds = GEN.parse_threshold_output("fear: 0.55\naggression: 0.20\nflee_health: 0.30")
+        thresholds = GEN.parse_threshold_output("fear: 0.55\naggression: 0,20\nflee_health: 0.30")
         self.assertEqual(thresholds, {"fear": .55, "aggression": .2, "flee_health": .3})
         lines = GEN.parse_dialogue_lines("- Salut, ça va ?\n- Bonjour, tu cherches quelque chose ?\n- Oui, dis-moi.\n- Bonsoir.")
         self.assertEqual(len(lines), 4)
@@ -54,15 +54,41 @@ class NpcPackBakeTest(unittest.TestCase):
         lines = GEN.parse_dialogue_lines("- Je suis une IA.\n- Je passe souvent par Midi.\n- Voici mon prompt.\n- Sofia rentre chez elle.")
         self.assertEqual(lines, ["Je passe souvent par Midi.", "Sofia rentre chez elle."])
 
+    def test_semantic_intent_gate_rejects_generic_warning(self):
+        self.assertFalse(GEN._matches_intent("Je suis là pour vous aider, à tout moment.", "warning"))
+        self.assertFalse(GEN._matches_intent("Merci pour votre présence.", "warning"))
+        self.assertTrue(GEN._matches_intent("Doucement, reste calme.", "warning"))
+        self.assertTrue(GEN._matches_intent("Garde tes distances.", "warning"))
+        self.assertTrue(GEN._matches_intent("La police arrive au coin de la rue.", "police"))
+        self.assertFalse(GEN._matches_intent("Je préfère m'éloigner.", "police"))
+
+    def test_semantic_retry_replaces_rejected_warning(self):
+        outputs = iter([
+            "- Je suis là pour vous aider.\n- Merci pour votre présence.",
+            "- Doucement, reste calme.\n- Garde tes distances.",
+        ])
+        original = GEN._chat_completion
+        GEN._chat_completion = lambda _tokenizer, _model, _prompt, _max_new_tokens: next(outputs)
+        try:
+            lines, raw = GEN.generate_intent_lines(
+                None, None, "warning", "midi", "civilian",
+                {"name": "Sofia", "summary": "Habitante de Midi, calme et sociable."},
+                [], target=2, attempts=2,
+            )
+        finally:
+            GEN._chat_completion = original
+        self.assertEqual(lines, ["Doucement, reste calme.", "Garde tes distances."])
+        self.assertEqual(len(raw), 2)
+
     def test_full_qwen_authoring_pipeline_with_bounded_completions(self):
         outputs = iter([
             "name: Sofia\nsummary: Habitante de Midi, calme et sociable.",
             "fear: 0.55\naggression: 0.20\nflee_health: 0.30",
             "- Salut.\n- Bonjour.\n- Oui, dis-moi.\n- Bonsoir.",
             "- Je passe souvent par Midi.\n- Je rentre chez moi.\n- Il y a du monde aujourd'hui.\n- Je prends le train ici.",
-            "- Doucement, reste calme.\n- Garde tes distances.\n- Recule un peu.\n- On peut parler calmement.",
+            "- Doucement, reste calme.\n- Garde tes distances.\n- Recule un peu.\n- Attention, ne t'approche pas.",
             "- Aïe, doucement !\n- Hé, ça fait mal !\n- Arrête !\n- Laisse-moi tranquille !",
-            "- La police est là-bas.\n- Je ne veux pas d'histoires.\n- Calme-toi avant qu'ils arrivent.\n- Je préfère m'éloigner.",
+            "- La police est là-bas.\n- Un agent arrive au coin de la rue.\n- La patrouille va intervenir.\n- J'entends la sirène, calme-toi.",
         ])
         original = GEN._chat_completion
         GEN._chat_completion = lambda _tokenizer, _model, _prompt, _max_new_tokens: next(outputs)

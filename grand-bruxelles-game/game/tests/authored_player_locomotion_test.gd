@@ -69,7 +69,6 @@ func _run() -> void:
         _fail("walk animation playback is not synchronized to movement speed: slow=%.3f ref=%.3f fast=%.3f" % [walk_scale_slow, walk_scale_reference, walk_scale_fast])
         return
 
-    # Near the run threshold, remain walking until the enter threshold is crossed.
     actor.velocity = Vector3(5.0, 0.0, 0.0)
     runtime.update_from_speed()
     if runtime.current_animation() != walk_name:
@@ -83,7 +82,6 @@ func _run() -> void:
         _fail("running speed did not select run: %s" % run_name)
         return
 
-    # Once running, small speed drops must not immediately flip back to walk.
     actor.velocity = Vector3(4.8, 0.0, 0.0)
     runtime.update_from_speed()
     if runtime.current_animation() != run_name:
@@ -95,7 +93,6 @@ func _run() -> void:
         _fail("run did not exit after crossing the lower hysteresis threshold")
         return
 
-    # Walk/idle uses the same anti-chatter policy.
     actor.velocity = Vector3(0.30, 0.0, 0.0)
     runtime.update_from_speed()
     if runtime.current_animation() != walk_name:
@@ -126,7 +123,6 @@ func _run() -> void:
         _fail("resolved running animation was not actually played")
         return
 
-    # The authored mesh must visually face travel direction without rotating the gameplay body.
     if not runtime.has_method("current_visual_facing_offset_radians"):
         _fail("authored locomotion has no movement-facing visual contract")
         return
@@ -142,7 +138,6 @@ func _run() -> void:
         _fail("visual movement-facing changed gameplay body yaw")
         return
 
-    # Stopping after lateral/backward travel must preserve the last facing direction instead of visibly swivelling to body-forward while idle.
     actor.velocity = Vector3.ZERO
     for _step in range(8):
         runtime.update_from_speed(0.10)
@@ -165,5 +160,18 @@ func _run() -> void:
         _fail("authored mesh did not return to forward travel facing: offset=%.2f deg" % rad_to_deg(forward_offset))
         return
 
-    print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s walk_scale=%.3f/%.3f/%.3f run_scale=%.3f strafe_facing=%.1fdeg idle_hold=%.1fdeg" % [idle_name, walk_name, run_name, walk_scale_slow, walk_scale_reference, walk_scale_fast, runtime.current_playback_speed_scale(), rad_to_deg(strafe_offset), rad_to_deg(idle_hold_offset)])
+    # A full-speed reversal must not leave the authored mesh running mostly backwards for multiple visible frames.
+    actor.velocity = Vector3(0.0, 0.0, 7.0)
+    for _step in range(3):
+        runtime.update_from_speed(0.05)
+    var reversal_offset := float(runtime.call("current_visual_facing_offset_radians"))
+    var reversal_error := absf(angle_difference(reversal_offset, PI))
+    if reversal_error > deg_to_rad(45.0):
+        _fail("full-speed reversal leaves authored mesh facing too far from travel after 150ms: offset=%.1f error=%.1f deg" % [rad_to_deg(reversal_offset), rad_to_deg(reversal_error)])
+        return
+    if absf(actor.rotation.y - gameplay_yaw_before) > 0.0001:
+        _fail("reversal facing response changed gameplay body yaw")
+        return
+
+    print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s walk_scale=%.3f/%.3f/%.3f run_scale=%.3f strafe_facing=%.1fdeg idle_hold=%.1fdeg reversal_error=%.1fdeg" % [idle_name, walk_name, run_name, walk_scale_slow, walk_scale_reference, walk_scale_fast, runtime.current_playback_speed_scale(), rad_to_deg(strafe_offset), rad_to_deg(idle_hold_offset), rad_to_deg(reversal_error)])
     quit(0)

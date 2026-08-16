@@ -13,6 +13,7 @@ const RUN_PLAYBACK_MAX := 1.24
 const LOCOMOTION_BLEND_SECONDS := 0.12
 const VISUAL_FACING_MIN_SPEED_MPS := 0.20
 const VISUAL_FACING_TURN_SPEED_RAD_PER_S := deg_to_rad(540.0)
+const VISUAL_FACING_RUN_TURN_SPEED_RAD_PER_S := deg_to_rad(1080.0)
 const REJECT_ACTION_TOKENS: Array[String] = ["attack", "combat", "melee", "sword", "staff", "bow", "gun", "shoot", "hit", "hurt", "death", "jump"]
 
 var _player: CharacterBody3D
@@ -76,6 +77,7 @@ func bind_target(player: CharacterBody3D, visual: Node) -> bool:
     set_meta("authored_locomotion_speed_sync", true)
     set_meta("authored_locomotion_velocity_facing", true)
     set_meta("authored_locomotion_idle_facing_hold", true)
+    set_meta("authored_locomotion_speed_scaled_facing", true)
     update_from_speed()
     return true
 
@@ -97,6 +99,7 @@ func _clear_binding() -> void:
     remove_meta("authored_locomotion_speed_sync")
     remove_meta("authored_locomotion_velocity_facing")
     remove_meta("authored_locomotion_idle_facing_hold")
+    remove_meta("authored_locomotion_speed_scaled_facing")
 
 func _find_animation_player(node: Node) -> AnimationPlayer:
     if node is AnimationPlayer:
@@ -178,16 +181,20 @@ func _playback_scale_for_state(state: String, speed: float) -> float:
         _:
             return 1.0
 
+func _visual_facing_turn_speed(speed: float) -> float:
+    var run_weight := clampf(speed / RUN_REFERENCE_SPEED_MPS, 0.0, 1.0)
+    return lerpf(VISUAL_FACING_TURN_SPEED_RAD_PER_S, VISUAL_FACING_RUN_TURN_SPEED_RAD_PER_S, run_weight)
+
 func _update_visual_facing(delta: float) -> void:
     if not is_instance_valid(_player) or not is_instance_valid(_authored_character):
         return
     var horizontal_velocity := Vector3(_player.velocity.x, 0.0, _player.velocity.z)
-    # No new travel direction means no new facing target. Keeping the last valid offset avoids an idle-only swivel back to gameplay body-forward.
+    var speed := horizontal_velocity.length()
     var target_offset := _current_visual_facing_offset
-    if horizontal_velocity.length() >= VISUAL_FACING_MIN_SPEED_MPS:
+    if speed >= VISUAL_FACING_MIN_SPEED_MPS:
         var local_velocity := _player.global_transform.basis.inverse() * horizontal_velocity.normalized()
         target_offset = atan2(-local_velocity.x, -local_velocity.z)
-    var max_step := VISUAL_FACING_TURN_SPEED_RAD_PER_S * maxf(delta, 0.0)
+    var max_step := _visual_facing_turn_speed(speed) * maxf(delta, 0.0)
     _current_visual_facing_offset = rotate_toward(_current_visual_facing_offset, target_offset, max_step)
     _authored_character.rotation.y = _authored_base_yaw + _current_visual_facing_offset
 

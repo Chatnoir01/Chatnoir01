@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import importlib.util
 import json
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -48,4 +50,6 @@ with tempfile.TemporaryDirectory() as tmp:
     else:
         raise AssertionError("degree-like bbox must fail closed")
 
-print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true maturity_sidecar=true fail_closed=true")
+subprocess.run([sys.executable, str(HERE / "test_materialize_urbis_source_cell_multipolygon.py")], check=True)
+
+print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true multipolygon=true maturity_sidecar=true fail_closed=true")

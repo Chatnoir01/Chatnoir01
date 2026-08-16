@@ -10,6 +10,7 @@ from typing import Any
 FORMAT = "grand-bruxelles-autonomous-citygen-v1"
 TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 TERMINAL = {"RUNTIME_READY", "QUARANTINE"}
+MANUAL_FRONTIER_ACTION = "secondary_height_validation_and_terrain_runtime_checks"
 EVIDENCE_STAGES = (
     ("elevation_requirements.json", "derive_elevation_requirements"),
     ("elevation_dsm_resolution.json", "resolve_dsm_source"),
@@ -89,7 +90,7 @@ def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
         if not (cell_dir / filename).exists():
             return completed, action
         completed += 1
-    return completed, "secondary_height_validation_and_terrain_runtime_checks"
+    return completed, MANUAL_FRONTIER_ACTION
 
 
 def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple[str, list[str]]:
@@ -126,9 +127,17 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
     return "DATA_READY", [name for name in required if gates.get(name) is not True]
 
 
+def _autonomously_actionable(cell: dict[str, Any]) -> bool:
+    if cell["state"] in TERMINAL:
+        return False
+    if cell["state"] == "DATA_READY" and int(cell.get("evidence_progress", 0)) >= len(EVIDENCE_STAGES):
+        return False
+    return True
+
+
 def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
     priority = {"MISSING_SOURCE": 0, "DISCOVERED": 1, "DATA_READY": 2}
-    candidates = [cell for cell in cells if cell["state"] not in TERMINAL]
+    candidates = [cell for cell in cells if _autonomously_actionable(cell)]
     candidates.sort(key=lambda cell: (
         priority.get(cell["state"], 99),
         -int(cell.get("evidence_progress", 0)) if cell["state"] == "DATA_READY" else 0,
@@ -165,6 +174,7 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
             "evidence_stage_count": len(EVIDENCE_STAGES),
             "next_action": next_action,
         }
+        row["autonomous_actionable"] = _autonomously_actionable(row)
         if target_row is not None:
             row["bbox"] = target_row["bbox"]
             row["municipalities"] = target_row["municipalities"]
@@ -190,7 +200,8 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
             "runtime_promotion": "forbidden_without_all_required_gates",
             "uncertain_evidence": "quarantine_or_keep_pending_never_guess",
             "missing_source_priority": "materialize_before_candidate_processing",
-            "data_ready_priority": "finish_most_advanced_evidence_frontier_then_fair_rotate_within_stage",
+            "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_then_fair_rotate_within_stage",
+            "manual_frontier": "exclude_from_autonomous_batches_until_secondary_height_and_terrain_runtime_checks_are_implemented",
         },
     }
     state = {

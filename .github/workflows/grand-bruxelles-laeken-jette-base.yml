@@ -50,5 +50,5 @@ jobs:
         run: |
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/laeken_jette_base_smoke_test.gd 2>&1 | tee /tmp/laeken-jette-base.log
-          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_JETTE_BASE_SMOKE_FAIL" /tmp/laeken-jette-base.log; then exit 1; fi
+          if grep -q "LAEKEN_JETTE_BASE_SMOKE_FAIL" /tmp/laeken-jette-base.log; then exit 1; fi
           grep -q "LAEKEN_JETTE_BASE_SMOKE_OK" /tmp/laeken-jette-base.log

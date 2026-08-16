@@ -1,7 +1,7 @@
 extends SceneTree
 
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
-const EXPECTED_IDS := ["midi", "bourse", "ixelles", "atomium", "jette"]
+const EXPECTED_IDS := ["midi", "anneessens", "bourse", "grand_place", "ixelles", "atomium", "jette"]
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -57,10 +57,13 @@ func _run() -> void:
         get_root().add_child(main)
         current_scene = main
         selector.call("set_menu_open", true)
-        for _frame: int in range(8): await process_frame
+        for _frame: int in range(8):
+            await process_frame
         DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts/visual"))
         var result := get_root().get_viewport().get_texture().get_image().save_png("res://artifacts/visual/zone_selector_1280x720.png")
-        if result != OK: _fail("witness save failed"); return
+        if result != OK:
+            _fail("witness save failed")
+            return
         print("ZONE_SELECTOR_WITNESS_OK: 1280x720")
-    print("ZONE_SELECTOR_OK: listed=%d playable=1 lab=4 no_invisible_quarantine=true" % available.size())
+    print("ZONE_SELECTOR_OK: listed=%d playable=1 lab=6 no_invisible_quarantine=true" % available.size())
     quit(0)

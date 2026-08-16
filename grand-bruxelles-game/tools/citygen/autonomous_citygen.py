@@ -10,6 +10,15 @@ from typing import Any
 FORMAT = "grand-bruxelles-autonomous-citygen-v1"
 TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 TERMINAL = {"RUNTIME_READY", "QUARANTINE"}
+EVIDENCE_STAGES = (
+    ("elevation_requirements.json", "derive_elevation_requirements"),
+    ("elevation_dsm_resolution.json", "resolve_dsm_source"),
+    ("elevation_dtm_resolution.json", "resolve_dtm_source"),
+    ("elevation_dsm_archive_validation.json", "validate_dsm_archive"),
+    ("elevation_dtm_archive_validation.json", "validate_dtm_archive"),
+    ("elevation_raster_validation.json", "validate_dsm_dtm_georasters"),
+    ("elevation_value_evidence.json", "assess_elevation_values"),
+)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -67,6 +76,16 @@ def _maturity_path(cell_id: str, source_root: Path, maturity_root: Path) -> Path
     return sidecar if sidecar.exists() else None
 
 
+def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
+    cell_dir = source_root / cell_id
+    completed = 0
+    for filename, action in EVIDENCE_STAGES:
+        if not (cell_dir / filename).exists():
+            return completed, action
+        completed += 1
+    return completed, "derive_terrain_and_height_candidates"
+
+
 def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple[str, list[str]]:
     source_manifest = source_root / cell_id / "manifest.json"
     if not source_manifest.exists():
@@ -104,7 +123,12 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
 def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
     priority = {"MISSING_SOURCE": 0, "DISCOVERED": 1, "DATA_READY": 2}
     candidates = [cell for cell in cells if cell["state"] not in TERMINAL]
-    candidates.sort(key=lambda cell: (priority.get(cell["state"], 99), int(cell.get("attempts", 0)), cell["cell_id"]))
+    candidates.sort(key=lambda cell: (
+        priority.get(cell["state"], 99),
+        -int(cell.get("evidence_progress", 0)) if cell["state"] == "DATA_READY" else 0,
+        int(cell.get("attempts", 0)),
+        cell["cell_id"],
+    ))
     return [cell["cell_id"] for cell in candidates[:batch_size]]
 
 
@@ -125,7 +149,8 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
         else:
             state, blockers = classify_cell(cell_id, source_root, maturity_root)
         previous_cell = previous.get("cells", {}).get(cell_id, {})
-        row = {"cell_id": cell_id, "state": state, "blockers": blockers, "attempts": int(previous_cell.get("attempts", 0))}
+        progress, next_action = evidence_plan(cell_id, source_root) if cell_id in source_set else (0, "materialize_authoritative_source")
+        row = {"cell_id": cell_id, "state": state, "blockers": blockers, "attempts": int(previous_cell.get("attempts", 0)), "evidence_progress": progress, "evidence_stage_count": len(EVIDENCE_STAGES), "next_action": next_action}
         if target_row is not None:
             row["bbox"] = target_row["bbox"]
             row["municipalities"] = target_row["municipalities"]
@@ -137,8 +162,8 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
         if cell["cell_id"] in batch_set:
             cell["attempts"] += 1
     run_number = int(previous.get("run_number", 0)) + 1
-    report = {"format": FORMAT, "run_number": run_number, "source_cell_count": len(source_cells), "target_cell_count": len(target) if target else len(source_cells), "counts": dict(sorted(counts.items())), "selected_batch": batch, "cells": cells, "policy": {"crs": "EPSG:31370", "batch_size": batch_size, "runtime_promotion": "forbidden_without_all_required_gates", "uncertain_evidence": "quarantine_or_keep_pending_never_guess", "missing_source_priority": "materialize_before_candidate_processing"}}
-    state = {"format": FORMAT, "run_number": run_number, "cells": {cell["cell_id"]: {"state": cell["state"], "attempts": cell["attempts"]} for cell in cells}}
+    report = {"format": FORMAT, "run_number": run_number, "source_cell_count": len(source_cells), "target_cell_count": len(target) if target else len(source_cells), "counts": dict(sorted(counts.items())), "selected_batch": batch, "cells": cells, "policy": {"crs": "EPSG:31370", "batch_size": batch_size, "runtime_promotion": "forbidden_without_all_required_gates", "uncertain_evidence": "quarantine_or_keep_pending_never_guess", "missing_source_priority": "materialize_before_candidate_processing", "data_ready_priority": "finish_most_advanced_evidence_frontier_then_fair_rotate_within_stage"}}
+    state = {"format": FORMAT, "run_number": run_number, "cells": {cell["cell_id"]: {"state": cell["state"], "attempts": cell["attempts"], "evidence_progress": cell["evidence_progress"], "next_action": cell["next_action"]} for cell in cells}}
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "autonomous_citygen_report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_dir / "autonomous_citygen_state.json").write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")

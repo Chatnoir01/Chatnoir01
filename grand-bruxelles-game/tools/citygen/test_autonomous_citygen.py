@@ -32,8 +32,10 @@ with tempfile.TemporaryDirectory() as tmp:
     assert report1["selected_batch"]==[cells[4],cells[1]],report1["selected_batch"]
     local=next(cell for cell in report1["cells"] if cell["cell_id"]==cells[3])
     assert local["state"]=="DATA_READY" and "terrain" in local["blockers"]
+    assert local["next_action"]=="derive_elevation_requirements" and local["evidence_progress"]==0
     missing=next(cell for cell in report1["cells"] if cell["cell_id"]==cells[4])
     assert missing["state"]=="MISSING_SOURCE" and missing["bbox"]==[151000,169000,151500,169500]
+    assert missing["next_action"]=="materialize_authoritative_source"
 
     report2=mod.run(source,maturity,out1/"autonomous_citygen_state.json",out2,2,target_grid)
     attempts={cell["cell_id"]:cell["attempts"] for cell in report2["cells"]}
@@ -45,6 +47,12 @@ with tempfile.TemporaryDirectory() as tmp:
 
     rotation=[{"cell_id":"bxl-e100000-n100000-s500","state":"DISCOVERED","attempts":3},{"cell_id":"bxl-e100500-n100000-s500","state":"DISCOVERED","attempts":0},{"cell_id":"bxl-e101000-n100000-s500","state":"DISCOVERED","attempts":1}]
     assert mod.select_batch(rotation,2)==["bxl-e100500-n100000-s500","bxl-e101000-n100000-s500"]
+    frontier=[
+        {"cell_id":"bxl-e100000-n100000-s500","state":"DATA_READY","attempts":0,"evidence_progress":1},
+        {"cell_id":"bxl-e100500-n100000-s500","state":"DATA_READY","attempts":7,"evidence_progress":6},
+        {"cell_id":"bxl-e101000-n100000-s500","state":"DATA_READY","attempts":1,"evidence_progress":6},
+    ]
+    assert mod.select_batch(frontier,2)==["bxl-e101000-n100000-s500","bxl-e100500-n100000-s500"]
     assert mod.discover_cells(source)==sorted(cells[:4])
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true fair_rotation=true fail_closed=true resume=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true")

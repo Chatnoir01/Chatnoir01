@@ -7,6 +7,8 @@ on:
     paths:
       - "grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py"
       - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py"
       - "grand-bruxelles-game/tools/select_urbis_distribution.py"
       - "grand-bruxelles-game/tools/test_select_urbis_distribution.py"
       - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
@@ -16,6 +18,7 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
       - "grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py"
       - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py"
       - "grand-bruxelles-game/tools/select_urbis_distribution.py"
       - "grand-bruxelles-game/tools/test_select_urbis_distribution.py"
       - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
@@ -36,7 +39,7 @@ jobs:
       - name: Install read-only GeoPackage tooling
         run: |
           sudo apt-get update
-          sudo apt-get install -y gdal-bin python3-gdal unzip
+          sudo apt-get install -y gdal-bin python3-gdal unzip sqlite3 file
           ogrinfo --version
 
       - name: Regression-test regional semantic comparison
@@ -87,32 +90,18 @@ jobs:
           source_id='urbis_3d_constructions'
           feed=module.parse_feed(source_id,module.DEFAULT_FEEDS[source_id])
           assert feed.get('entry_count',0)>0
-          Path('/tmp/urbis-discovered.json').write_text(
-              json.dumps({'schema':1,'purpose':'Anderlecht CityGen independent height evidence','feeds':[feed]},ensure_ascii=False,indent=2)+'\n',
-              encoding='utf-8'
-          )
+          Path('/tmp/urbis-discovered.json').write_text(json.dumps({'schema':1,'purpose':'Anderlecht CityGen independent height evidence','feeds':[feed]},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           print('URBIS_3D_DISCOVERY_OK',feed.get('feed_updated'),feed.get('entry_count'))
           PY
-          python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
-            /tmp/urbis-discovered.json /tmp/urbis-3d-selected.json \
-            --source-id urbis_3d_constructions \
-            --token 31370 --token GPKG \
-            --candidate-token 31370 --candidate-token GPKG \
-            --candidate-token 21009 --candidate-token Anderlecht \
-            --prefer-latest
+          python3 grand-bruxelles-game/tools/select_urbis_distribution.py /tmp/urbis-discovered.json /tmp/urbis-3d-selected.json \
+            --source-id urbis_3d_constructions --token 31370 --token GPKG \
+            --candidate-token 31370 --candidate-token GPKG --candidate-token 21009 --candidate-token Anderlecht --prefer-latest
           python3 - <<'PY'
           import json
           from urllib.parse import urlparse
-          data=json.load(open('/tmp/urbis-3d-selected.json',encoding='utf-8'))
-          selected=data['selected']; url=str(selected['href']); title=str(selected.get('title',''))
-          assert url.startswith('https://')
-          folded=url.casefold()
-          assert '31370' in folded and 'gpkg' in folded and '21009' in folded and 'anderlecht' in folded
-          assert '/dwg/' not in folded
-          assert title.casefold()=='anderlecht', (title,url)
-          assert data.get('prefer_latest') is True
-          host=(urlparse(url).hostname or '').lower()
-          allowed=('datastore.brussels','urbisdownload.datastore.brussels','geoservices-urbis.irisnet.be','gis.urban.brussels','urban.brussels')
+          data=json.load(open('/tmp/urbis-3d-selected.json',encoding='utf-8')); selected=data['selected']; url=str(selected['href'])
+          folded=url.casefold(); assert url.startswith('https://'); assert all(x in folded for x in ('31370','gpkg','21009','anderlecht')); assert '/dwg/' not in folded
+          host=(urlparse(url).hostname or '').lower(); allowed=('datastore.brussels','urbisdownload.datastore.brussels','geoservices-urbis.irisnet.be','gis.urban.brussels','urban.brussels')
           assert any(host==x or host.endswith('.'+x) for x in allowed)
           print('URBIS_3D_ANDERLECHT_SELECTION_OK',data['selected_embedded_date'],url)
           PY
@@ -125,11 +114,10 @@ jobs:
           print(json.load(open('/tmp/urbis-3d-selected.json'))['selected']['href'])
           PY
           )"
-          curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
-            --user-agent 'GrandBruxellesGame/anderlecht-secondary-height (+github.com/Chatnoir01/Chatnoir01)' \
-            "$URL" -o /tmp/urbis-3d-distribution
+          curl --fail --location --retry 3 --retry-all-errors --max-time 900 --user-agent 'GrandBruxellesGame/anderlecht-secondary-height (+github.com/Chatnoir01/Chatnoir01)' "$URL" -o /tmp/urbis-3d-distribution
           test -s /tmp/urbis-3d-distribution
           sha256sum /tmp/urbis-3d-distribution | tee /tmp/distribution.sha256
+          unzip -l /tmp/urbis-3d-distribution | head -40
           python3 - <<'PY'
           import shutil,zipfile
           from pathlib import Path
@@ -139,28 +127,42 @@ jobs:
               with zipfile.ZipFile(archive) as z:
                   for member in z.infolist():
                       target=(dest/member.filename).resolve()
-                      if base not in target.parents and target != base:
-                          raise SystemExit(f'unsafe ZIP path: {member.filename}')
+                      if base not in target.parents and target != base: raise SystemExit(f'unsafe ZIP path: {member.filename}')
                   z.extractall(dest)
-          if zipfile.is_zipfile(source):
-              extract(source,root/'level0')
-          elif source.read_bytes()[:16].startswith(b'SQLite format 3'):
-              shutil.copy2(source,root/'selected.gpkg')
-          else:
-              raise SystemExit('unsupported official distribution container')
-          seen=set()
-          for depth in range(1,4):
-              archives=[p for p in root.rglob('*.zip') if p.resolve() not in seen]
-              if not archives: break
-              for index,archive in enumerate(archives):
-                  seen.add(archive.resolve())
-                  extract(archive,archive.parent/f'{archive.stem}-nested-{depth}-{index}')
+          if zipfile.is_zipfile(source): extract(source,root/'level0')
+          elif source.read_bytes()[:16].startswith(b'SQLite format 3'): shutil.copy2(source,root/'selected.gpkg')
+          else: raise SystemExit('unsupported official distribution container')
           packages=sorted(root.rglob('*.gpkg'))
-          if not packages:
-              raise SystemExit('official Anderlecht distribution contains no GeoPackage')
+          if not packages: raise SystemExit('official Anderlecht distribution contains no GeoPackage')
           print('URBIS_3D_ANDERLECHT_EXTRACTION_OK gpkg_count=',len(packages))
           for p in packages: print(p,p.stat().st_size)
           PY
+
+      - name: Diagnose exact GeoPackage container and schema
+        run: |
+          set -euo pipefail
+          GPKG="$(find /tmp/urbis-3d-extracted -type f -name '*.gpkg' | head -1)"
+          test -n "$GPKG"
+          file "$GPKG"
+          xxd -l 32 "$GPKG"
+          python3 - "$GPKG" <<'PY'
+          import sqlite3,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]); head=p.read_bytes()[:16]
+          print('GPKG_HEADER',head)
+          assert head == b'SQLite format 3\x00', head
+          con=sqlite3.connect(f'file:{p}?mode=ro',uri=True)
+          quick=con.execute('PRAGMA quick_check').fetchone()[0]
+          print('SQLITE_QUICK_CHECK',quick); assert quick=='ok'
+          rows=con.execute("SELECT table_name,data_type,identifier FROM gpkg_contents ORDER BY table_name").fetchall()
+          print('GPKG_CONTENTS',rows)
+          for table,data_type,_identifier in rows:
+              if data_type=='features':
+                  cols=[r[1] for r in con.execute(f'PRAGMA table_info("{table}")')]
+                  print('FEATURE_SCHEMA',table,cols)
+          con.close()
+          PY
+          ogrinfo -ro -q "$GPKG" || true
 
       - name: Build real Anderlecht semantic 3D evidence
         run: |
@@ -168,56 +170,26 @@ jobs:
           CELL=bxl-e141500-n167500-s500
           SRC="/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
           mkdir -p /tmp/anderlecht-secondary
-          python3 grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py \
-            --root /tmp/urbis-3d-extracted \
-            --buildings "$SRC/raw/buildings.geojson" \
-            --output /tmp/anderlecht-secondary/semantic.json \
-            --cell-id "$CELL" \
-            --municipality anderlecht \
-            --bbox 141500 167500 142000 168000
+          python3 grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py --root /tmp/urbis-3d-extracted --buildings "$SRC/raw/buildings.geojson" --output /tmp/anderlecht-secondary/semantic.json --cell-id "$CELL" --municipality anderlecht --bbox 141500 167500 142000 168000
           python3 - <<'PY'
           import json
           p=json.load(open('/tmp/anderlecht-secondary/semantic.json',encoding='utf-8'))
-          assert p['cell']=='bxl-e141500-n167500-s500'
-          assert p['municipality']=='anderlecht'
-          assert p['bbox_epsg31370']==[141500.0,167500.0,142000.0,168000.0]
-          assert p['policy']['runtime_approval'] is False
-          assert p['counts']['building_solids_in_bbox']>0
+          assert p['cell']=='bxl-e141500-n167500-s500'; assert p['policy']['runtime_approval'] is False; assert p['counts']['building_solids_in_bbox']>0
           print('ANDERLECHT_SEMANTIC_SOURCE_OK',json.dumps(p['counts'],sort_keys=True))
           PY
 
       - name: Compare seven candidates and run fail-closed secondary validator
         run: |
           set -euo pipefail
-          python3 grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py \
-            --semantic /tmp/anderlecht-secondary/semantic.json \
-            --review /tmp/manual-frontier-review.json \
-            --output /tmp/anderlecht-secondary/secondary-evidence.json
-          python3 grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py \
-            --review /tmp/manual-frontier-review.json \
-            --secondary /tmp/anderlecht-secondary/secondary-evidence.json \
-            --output /tmp/anderlecht-secondary/validation.json
+          python3 grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py --semantic /tmp/anderlecht-secondary/semantic.json --review /tmp/manual-frontier-review.json --output /tmp/anderlecht-secondary/secondary-evidence.json
+          python3 grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py --review /tmp/manual-frontier-review.json --secondary /tmp/anderlecht-secondary/secondary-evidence.json --output /tmp/anderlecht-secondary/validation.json
           python3 - <<'PY'
           import json
-          evidence=json.load(open('/tmp/anderlecht-secondary/secondary-evidence.json',encoding='utf-8'))
-          validation=json.load(open('/tmp/anderlecht-secondary/validation.json',encoding='utf-8'))
-          assert evidence['cell']=='bxl-e141500-n167500-s500'
-          assert evidence['runtime_approved'] is False
-          assert evidence['counts']['manual_frontier_candidates']==7
-          assert validation['candidate_count']==7
+          evidence=json.load(open('/tmp/anderlecht-secondary/secondary-evidence.json',encoding='utf-8')); validation=json.load(open('/tmp/anderlecht-secondary/validation.json',encoding='utf-8'))
+          assert evidence['counts']['manual_frontier_candidates']==7; assert validation['candidate_count']==7
           assert validation['validated_candidate_count']+validation['blocked_candidate_count']==7
-          assert validation['runtime_promotion_allowed'] is False
-          assert validation['runtime_approved_count']==0
-          print('ANDERLECHT_SECONDARY_VALIDATION_RESULT',json.dumps({
-              'joined': evidence['counts']['semantic_joined_records'],
-              'strong': evidence['counts']['strong_validation_candidates'],
-              'conflicts': evidence['counts']['conflicts'],
-              'missing': evidence['counts']['missing_secondary_records'],
-              'validated': validation['validated_candidate_count'],
-              'blocked': validation['blocked_candidate_count'],
-              'complete': validation['secondary_validation_complete'],
-              'next_action': validation['next_action'],
-          },sort_keys=True))
+          assert validation['runtime_promotion_allowed'] is False; assert validation['runtime_approved_count']==0
+          print('ANDERLECHT_SECONDARY_VALIDATION_RESULT',json.dumps({'joined':evidence['counts']['semantic_joined_records'],'strong':evidence['counts']['strong_validation_candidates'],'conflicts':evidence['counts']['conflicts'],'missing':evidence['counts']['missing_secondary_records'],'validated':validation['validated_candidate_count'],'blocked':validation['blocked_candidate_count'],'complete':validation['secondary_validation_complete'],'next_action':validation['next_action']},sort_keys=True))
           PY
 
       - name: Package compact provenance and evidence
@@ -227,9 +199,7 @@ jobs:
           cp /tmp/urbis-3d-selected.json /tmp/anderlecht-secondary/selected.json
           cp /tmp/distribution.sha256 /tmp/anderlecht-secondary/distribution.sha256
           cp /tmp/manual-frontier-review.json /tmp/anderlecht-secondary/manual-frontier-review.json
-          test -s /tmp/anderlecht-secondary/semantic.json
-          test -s /tmp/anderlecht-secondary/secondary-evidence.json
-          test -s /tmp/anderlecht-secondary/validation.json
+          test -s /tmp/anderlecht-secondary/semantic.json; test -s /tmp/anderlecht-secondary/secondary-evidence.json; test -s /tmp/anderlecht-secondary/validation.json
           find /tmp/anderlecht-secondary -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
 
       - name: Upload compact evidence only

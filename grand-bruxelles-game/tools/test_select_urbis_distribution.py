@@ -35,6 +35,29 @@ def main() -> int:
     assert non_latest is not None
     missing = module.filter_candidates(candidates, ["31370", "GPKG", "99999"])
     assert missing == []
+
+    # Real Atom metadata can describe a parent entry advertising multiple formats.
+    # A concrete SHP href must never satisfy GPKG just because title/type metadata
+    # happens to contain the word GPKG.
+    mixed_anderlecht = [
+        {
+            "href": "https://datastore.brussels/download/332_31370_shp_21009_anderlecht.zip",
+            "title": "Anderlecht GPKG SHP",
+            "type": "application/gpkg+zip",
+            "rel": "enclosure",
+        },
+        {
+            "href": "https://datastore.brussels/download/332_31370_gpkg_21009_anderlecht.zip",
+            "title": "Anderlecht GPKG SHP",
+            "type": "application/zip",
+            "rel": "enclosure",
+        },
+    ]
+    gpkg_only = module.filter_candidates(mixed_anderlecht, ["31370", "GPKG", "21009", "Anderlecht"])
+    assert len(gpkg_only) == 1, gpkg_only
+    assert "_gpkg_" in gpkg_only[0]["href"].casefold()
+    assert "_shp_" not in gpkg_only[0]["href"].casefold()
+
     print("URBIS_DISTRIBUTION_SELECTOR_TEST_OK")
     return 0
 

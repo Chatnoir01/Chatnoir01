@@ -13,12 +13,12 @@ func _fail(message: String) -> void:
     print("ANNEESSENS_POPULATION_HUD_FAIL: %s" % message)
     quit(1)
 
-func _capture() -> Image:
+func _capture(name: String) -> Image:
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT_DIR))
     var image := get_root().get_viewport().get_texture().get_image()
     if image == null or image.is_empty():
         return null
-    if image.save_png(OUTPUT_DIR.path_join("anneessens_population_hud.png")) != OK:
+    if image.save_png(OUTPUT_DIR.path_join("%s.png" % name)) != OK:
         return null
     return image
 
@@ -93,16 +93,40 @@ func _run() -> void:
         _fail("Anneessens has no local ambient pedestrians to validate")
         return
     if reported < local_ambient:
-        var image := _capture()
+        var image := _capture("anneessens_population_hud_report")
         if image == null or not _write_report(selector, image):
             _fail("population mismatch found but SIGNALER artifact could not be persisted")
             return
         _fail("HUD under-reports local civilians: ambient=%d reported=%d" % [local_ambient, reported])
         return
-
     if not hud_text.contains("%d civils actifs" % reported):
         _fail("HUD text does not expose computed civilian count")
         return
 
-    print("ANNEESSENS_POPULATION_HUD_OK: local_ambient=%d reported=%d" % [local_ambient, reported])
+    var hud_label := main.get_node_or_null("VisibleCityHudLayer/VisibleCityStatus/StatusLabel") as Label
+    if hud_label == null:
+        _fail("VisibleCity HUD label missing")
+        return
+    var main_process_mode := main.process_mode
+    var runtime_process_mode := visible_runtime.process_mode
+    main.process_mode = Node.PROCESS_MODE_DISABLED
+    visible_runtime.process_mode = Node.PROCESS_MODE_DISABLED
+
+    hud_label.text = "VILLE VIVANTE · 0 civils actifs · 0 policiers"
+    for _frame: int in range(3):
+        await process_frame
+    if _capture("anneessens_population_before_zero") == null:
+        _fail("frozen BEFORE capture failed")
+        return
+
+    hud_label.text = hud_text
+    for _frame: int in range(3):
+        await process_frame
+    if _capture("anneessens_population_after_local") == null:
+        _fail("frozen AFTER capture failed")
+        return
+
+    main.process_mode = main_process_mode
+    visible_runtime.process_mode = runtime_process_mode
+    print("ANNEESSENS_POPULATION_HUD_OK: local_ambient=%d reported=%d frozen_ab=true" % [local_ambient, reported])
     quit(0)

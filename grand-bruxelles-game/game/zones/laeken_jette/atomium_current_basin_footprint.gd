@@ -7,6 +7,9 @@ extends Node3D
 
 @export_file("*.json") var data_path: String = "res://data/environment/laeken_jette/atomium_current_basin_footprint.game.json"
 
+const RADIAL_SEGMENTS := 64
+const RADIAL_RINGS := 6
+
 var footprint_built := false
 var source_crs := ""
 var center_epsg := Vector2.ZERO
@@ -21,38 +24,46 @@ var historical_photo_match_alignment_resolved := true
 var _surface_offset_m := 0.035
 
 func build_on_terrain(terrain: Node) -> bool:
-    if terrain == null or not bool(terrain.get("terrain_loaded")):
+    if terrain == null or not bool(terrain.get("terrain_loaded")) or not terrain.has_method("sample_height"):
         return false
     if not _load_contract():
         return false
 
-    var width: int = int(terrain.get("width"))
-    var height: int = int(terrain.get("height"))
-    var first_e: float = float(terrain.get("first_e"))
-    var first_n: float = float(terrain.get("first_n"))
-    var step_e: float = float(terrain.get("step_e"))
-    var step_n: float = float(terrain.get("step_n"))
     var origin_e: float = float(terrain.get("origin_e"))
     var origin_n: float = float(terrain.get("origin_n"))
-    var heights: PackedFloat32Array = terrain.get("heights")
-    var valid_mask: PackedByteArray = terrain.get("valid_mask")
-    if width < 2 or height < 2 or heights.size() != width * height or valid_mask.size() != heights.size():
-        return false
-
+    var center_game := Vector2(center_epsg.x - origin_e, -(center_epsg.y - origin_n))
     var vertices := PackedVector3Array()
-    for row: int in range(height - 1):
-        for col: int in range(width - 1):
-            var i0 := row * width + col
-            var i1 := (row + 1) * width + col
-            var i2 := row * width + col + 1
-            var i3 := (row + 1) * width + col + 1
-            if valid_mask[i0] != 0 and valid_mask[i1] != 0 and valid_mask[i2] != 0:
-                _append_if_inside(vertices, [i0, i1, i2], width, first_e, first_n, step_e, step_n, origin_e, origin_n, heights)
-            if valid_mask[i2] != 0 and valid_mask[i1] != 0 and valid_mask[i3] != 0:
-                _append_if_inside(vertices, [i2, i1, i3], width, first_e, first_n, step_e, step_n, origin_e, origin_n, heights)
+
+    # Keep the orthophoto witness circular. The DTM controls only Y; it must not
+    # quantize the source-backed plan footprint into 5 m grid-cell chunks.
+    var center_vertex := _terrain_vertex(terrain, center_game)
+    var previous_ring: Array[Vector3] = []
+    for ring_index: int in range(1, RADIAL_RINGS + 1):
+        var ring_radius := radius_m * float(ring_index) / float(RADIAL_RINGS)
+        var current_ring: Array[Vector3] = []
+        for segment: int in range(RADIAL_SEGMENTS):
+            var angle := TAU * float(segment) / float(RADIAL_SEGMENTS)
+            var point := center_game + Vector2(cos(angle), sin(angle)) * ring_radius
+            current_ring.append(_terrain_vertex(terrain, point))
+        if ring_index == 1:
+            for segment: int in range(RADIAL_SEGMENTS):
+                var next := (segment + 1) % RADIAL_SEGMENTS
+                vertices.append(center_vertex)
+                vertices.append(current_ring[segment])
+                vertices.append(current_ring[next])
+        else:
+            for segment: int in range(RADIAL_SEGMENTS):
+                var next := (segment + 1) % RADIAL_SEGMENTS
+                vertices.append(previous_ring[segment])
+                vertices.append(current_ring[segment])
+                vertices.append(current_ring[next])
+                vertices.append(previous_ring[segment])
+                vertices.append(current_ring[next])
+                vertices.append(previous_ring[next])
+        previous_ring = current_ring
 
     triangle_count = vertices.size() / 3
-    if triangle_count <= 0:
+    if triangle_count != RADIAL_SEGMENTS * (1 + 2 * (RADIAL_RINGS - 1)):
         return false
 
     var arrays: Array = []
@@ -63,8 +74,8 @@ func build_on_terrain(terrain: Node) -> bool:
     var material := StandardMaterial3D.new()
     # Deliberately authored presentation cue only. This colour is not a measured
     # water/stone material and cannot be used as photometric source evidence.
-    material.albedo_color = Color(0.22, 0.39, 0.46, 0.88)
-    material.roughness = 0.48
+    material.albedo_color = Color(0.22, 0.39, 0.46, 0.78)
+    material.roughness = 0.52
     material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     mesh.surface_set_material(0, material)
@@ -74,23 +85,11 @@ func build_on_terrain(terrain: Node) -> bool:
     instance.mesh = mesh
     add_child(instance)
     footprint_built = true
-    print("ATOMIUM_CURRENT_BASIN_FOOTPRINT_READY: center=(%.3f,%.3f) radius=%.3f uncertainty=%.3f triangles=%d historical_axis_offset=%.3f" % [center_epsg.x, center_epsg.y, radius_m, radius_uncertainty_m, triangle_count, historical_axis_offset_m])
+    print("ATOMIUM_CURRENT_BASIN_FOOTPRINT_READY: center=(%.3f,%.3f) radius=%.3f uncertainty=%.3f triangles=%d radial_segments=%d rings=%d historical_axis_offset=%.3f" % [center_epsg.x, center_epsg.y, radius_m, radius_uncertainty_m, triangle_count, RADIAL_SEGMENTS, RADIAL_RINGS, historical_axis_offset_m])
     return true
 
-func _append_if_inside(vertices: PackedVector3Array, ids: Array, width: int, first_e: float, first_n: float, step_e: float, step_n: float, origin_e: float, origin_n: float, heights: PackedFloat32Array) -> void:
-    var source_points: Array[Vector2] = []
-    for raw_id: Variant in ids:
-        var idx := int(raw_id)
-        var row: int = idx / width
-        var col: int = idx % width
-        source_points.append(Vector2(first_e + float(col) * step_e, first_n + float(row) * step_n))
-    var centroid := (source_points[0] + source_points[1] + source_points[2]) / 3.0
-    if centroid.distance_to(center_epsg) > radius_m:
-        return
-    for k: int in range(3):
-        var idx := int(ids[k])
-        var source := source_points[k]
-        vertices.append(Vector3(source.x - origin_e, heights[idx] + _surface_offset_m, -(source.y - origin_n)))
+func _terrain_vertex(terrain: Node, point: Vector2) -> Vector3:
+    return Vector3(point.x, float(terrain.call("sample_height", point.x, point.y)) + _surface_offset_m, point.y)
 
 func _load_contract() -> bool:
     if not FileAccess.file_exists(data_path):

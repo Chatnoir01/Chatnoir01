@@ -61,6 +61,21 @@ with tempfile.TemporaryDirectory() as tmp:
         "region_scalable",
     }.issubset(set(legacy_blockers)), legacy_blockers
 
+    # Scheduler source-repair detection must delegate to the same declared-file
+    # contract used by maturity bootstrap, while remaining lightweight.
+    shared_cell = "bxl-e160500-n175000-s500"
+    shared_dir = contract_source / shared_cell
+    shared_manifest = {
+        "cell_id": shared_cell,
+        "crs": "EPSG:31370",
+        "layers": {"buildings": {"features": 0, "file": "raw/buildings.geojson"}},
+    }
+    write_json(shared_dir / "manifest.json", shared_manifest)
+    write_json(shared_dir / "raw" / "buildings.geojson", {"type": "FeatureCollection", "features": []})
+    assert mod._missing_declared_source_files(shared_manifest, shared_dir) == []
+    (shared_dir / "raw" / "buildings.geojson").unlink()
+    assert mod._missing_declared_source_files(shared_manifest, shared_dir) == ["buildings:raw/buildings.geojson"]
+
     report1=mod.run(source,maturity,None,out1,2,target_grid)
     assert report1["source_cell_count"]==4 and report1["target_cell_count"]==5
     assert report1["counts"]=={"DATA_READY":2,"MISSING_SOURCE":1,"QUARANTINE":1,"RUNTIME_READY":1},report1["counts"]
@@ -148,4 +163,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert refreshed_row["evidence_progress"] == len(mod.EVIDENCE_STAGES)
     assert refreshed_row["next_action"] == mod.MANUAL_FRONTIER_ACTION
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")

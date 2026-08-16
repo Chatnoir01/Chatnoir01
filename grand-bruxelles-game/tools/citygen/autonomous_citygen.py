@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from bootstrap_cell_maturity import GATES as MATURITY_GATES
+from bootstrap_cell_maturity import GATES as MATURITY_GATES, missing_declared_source_files
 
 FORMAT = "grand-bruxelles-autonomous-citygen-v1"
 TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
@@ -88,29 +88,8 @@ def _maturity_path(cell_id: str, source_root: Path, maturity_root: Path) -> Path
 
 
 def _missing_declared_source_files(source: dict[str, Any], cell_dir: Path) -> list[str]:
-    """Return manifest-declared layer files that are physically absent.
-
-    Legacy synthetic/list-style manifests remain supported; only explicit file
-    contracts are enforced. This lets CityGen rematerialize a durable cell whose
-    manifest survived while one or more authoritative source payloads did not.
-    """
-    layers = source.get("layers")
-    if not isinstance(layers, dict):
-        return []
-    missing: list[str] = []
-    for layer_name, spec in sorted(layers.items()):
-        if not isinstance(spec, dict):
-            continue
-        declared = spec.get("file")
-        if not isinstance(declared, str) or not declared.strip():
-            continue
-        relative = Path(declared)
-        if relative.is_absolute() or ".." in relative.parts:
-            missing.append(f"{layer_name}:{declared}")
-            continue
-        if not (cell_dir / relative).is_file():
-            missing.append(f"{layer_name}:{declared}")
-    return missing
+    """Delegate physical source completeness to the canonical maturity contract."""
+    return missing_declared_source_files(source, cell_dir)
 
 
 def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:

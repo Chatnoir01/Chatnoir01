@@ -35,86 +35,162 @@ func build_on_terrain(terrain: Node) -> bool:
         push_error("AtomiumHeroCore: terrain sampler unavailable")
         return false
     var evidence := _load_evidence()
-    if evidence.is_empty(): return false
+    if evidence.is_empty():
+        return false
     var dimensions: Dictionary = evidence.get("authoritative_dimensions", {})
     var centres_raw: Variant = evidence.get("core_sphere_centres_m", [])
     var tubes_raw: Variant = evidence.get("connecting_tubes", [])
-    if not centres_raw is Array or not tubes_raw is Array: return false
+    if not centres_raw is Array or not tubes_raw is Array:
+        push_error("AtomiumHeroCore: invalid topology payload")
+        return false
     source_height_m = float(dimensions.get("total_height_m", 0.0))
     source_sphere_diameter_m = float(dimensions.get("sphere_diameter_m", 0.0))
     source_tube_diameter_m = float(dimensions.get("tube_diameter_m", 0.0))
     unresolved_support_pillars = int(dimensions.get("support_pillar_count", 0))
-    if centres_raw.size() != int(dimensions.get("sphere_count", -1)) or tubes_raw.size() != int(dimensions.get("connecting_tube_count", -1)): return false
-    if not terrain.get("terrain_loaded"): return false
+    if centres_raw.size() != int(dimensions.get("sphere_count", -1)) or tubes_raw.size() != int(dimensions.get("connecting_tube_count", -1)):
+        push_error("AtomiumHeroCore: source counts do not match topology")
+        return false
+    if not terrain.get("terrain_loaded"):
+        push_error("AtomiumHeroCore: terrain is not loaded")
+        return false
     var atomium_anchor: Vector3 = terrain.get("atomium_game_position")
     var sampled_y := float(terrain.call("sample_height", atomium_anchor.x, atomium_anchor.z))
     anchor_position = Vector3(atomium_anchor.x, sampled_y, atomium_anchor.z)
     position = anchor_position
     _make_materials()
-    if not sphere_skin_semantics_applied: return false
+    if not sphere_skin_semantics_applied:
+        push_error("AtomiumHeroCore: source-bounded sphere skin semantics unavailable")
+        return false
     var centres: Array[Vector3] = []
     for raw: Variant in centres_raw:
-        if not raw is Array or raw.size() != 3: return false
+        if not raw is Array or raw.size() != 3:
+            push_error("AtomiumHeroCore: invalid sphere centre")
+            return false
         centres.append(Vector3(float(raw[0]), float(raw[1]), float(raw[2])))
-    for i: int in range(centres.size()): _add_sphere("Sphere_%02d" % i, centres[i])
+    for i: int in range(centres.size()):
+        _add_sphere("Sphere_%02d" % i, centres[i])
     for raw_edge: Variant in tubes_raw:
-        if not raw_edge is Array or raw_edge.size() != 2: return false
-        var a := int(raw_edge[0]); var b := int(raw_edge[1])
-        if a < 0 or b < 0 or a >= centres.size() or b >= centres.size() or a == b: return false
+        if not raw_edge is Array or raw_edge.size() != 2:
+            push_error("AtomiumHeroCore: invalid tube edge")
+            return false
+        var a := int(raw_edge[0])
+        var b := int(raw_edge[1])
+        if a < 0 or b < 0 or a >= centres.size() or b >= centres.size() or a == b:
+            push_error("AtomiumHeroCore: tube edge outside sphere topology")
+            return false
         _add_tube(centres[a], centres[b])
     hero_built = sphere_count == 9 and tube_count == 20
     if hero_built:
         _mount_landcover_context(terrain)
         _mount_current_basin_footprint(terrain)
+        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d sphere_skin_semantics=%s exact_seams=false" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars, str(sphere_skin_semantics_applied)])
     return hero_built
 
 func _mount_landcover_context(terrain: Node) -> void:
     var world_parent := get_parent()
-    if world_parent == null: return
-    landcover_context = LANDCOVER_CONTEXT_SCRIPT.new(); landcover_context.name = "AtomiumLandCoverContext"; world_parent.add_child(landcover_context)
+    if world_parent == null:
+        return
+    landcover_context = LANDCOVER_CONTEXT_SCRIPT.new()
+    landcover_context.name = "AtomiumLandCoverContext"
+    world_parent.add_child(landcover_context)
     if not bool(landcover_context.call("build_on_terrain", terrain)):
-        landcover_context.queue_free(); landcover_context = null
+        landcover_context.queue_free()
+        landcover_context = null
+        push_warning("AtomiumHeroCore: official LandCover context unavailable; hero remains valid")
 
 func _mount_current_basin_footprint(terrain: Node) -> void:
     var world_parent := get_parent()
-    if world_parent == null: return
-    current_basin_footprint = CURRENT_BASIN_FOOTPRINT_SCRIPT.new(); current_basin_footprint.name = "AtomiumCurrentBasinFootprint"; world_parent.add_child(current_basin_footprint)
+    if world_parent == null:
+        return
+    current_basin_footprint = CURRENT_BASIN_FOOTPRINT_SCRIPT.new()
+    current_basin_footprint.name = "AtomiumCurrentBasinFootprint"
+    world_parent.add_child(current_basin_footprint)
     if not bool(current_basin_footprint.call("build_on_terrain", terrain)):
-        current_basin_footprint.queue_free(); current_basin_footprint = null
+        current_basin_footprint.queue_free()
+        current_basin_footprint = null
+        push_warning("AtomiumHeroCore: current basin footprint unavailable; hero remains valid")
 
 func _load_evidence() -> Dictionary:
-    if not FileAccess.file_exists(evidence_path): return {}
+    if not FileAccess.file_exists(evidence_path):
+        push_error("AtomiumHeroCore: evidence missing")
+        return {}
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(evidence_path))
-    if typeof(parsed) != TYPE_DICTIONARY: return {}
+    if typeof(parsed) != TYPE_DICTIONARY:
+        push_error("AtomiumHeroCore: evidence is not a dictionary")
+        return {}
     var evidence := parsed as Dictionary
-    if str(evidence.get("crs", "")) != "EPSG:31370": return {}
+    if str(evidence.get("crs", "")) != "EPSG:31370":
+        push_error("AtomiumHeroCore: evidence CRS is not EPSG:31370")
+        return {}
     var status: Dictionary = evidence.get("status", {})
-    if bool(status.get("runtime_approved", true)) or bool(status.get("realism_complete", true)): return {}
-    if not bool(status.get("sphere_skin_material_resolved", false)) or not bool(status.get("sphere_panel_topology_semantics_resolved", false)): return {}
-    if bool(status.get("sphere_panel_exact_runtime_layout_resolved", true)): return {}
+    if bool(status.get("runtime_approved", true)) or bool(status.get("realism_complete", true)):
+        push_error("AtomiumHeroCore: provisional evidence was incorrectly promoted")
+        return {}
+    if not bool(status.get("sphere_skin_material_resolved", false)) or not bool(status.get("sphere_panel_topology_semantics_resolved", false)):
+        push_error("AtomiumHeroCore: sphere skin source semantics unresolved")
+        return {}
+    if bool(status.get("sphere_panel_exact_runtime_layout_resolved", true)):
+        push_error("AtomiumHeroCore: exact sphere seam layout was incorrectly promoted")
+        return {}
     var contract: Dictionary = evidence.get("integration_contract", {})
-    if not bool(contract.get("no_invented_panel_seams_without_layout_source", false)): return {}
+    if not bool(contract.get("no_invented_panel_seams_without_layout_source", false)):
+        push_error("AtomiumHeroCore: no-invented-panel-seams contract missing")
+        return {}
     return evidence
 
 func _make_materials() -> void:
-    _sphere_material = StandardMaterial3D.new(); _sphere_material.albedo_color = Color(0.82, 0.85, 0.87, 1.0); _sphere_material.metallic = 0.96; _sphere_material.roughness = 0.16
+    _sphere_material = StandardMaterial3D.new()
+    _sphere_material.albedo_color = Color(0.82, 0.85, 0.87, 1.0)
+    _sphere_material.metallic = 0.96
+    _sphere_material.roughness = 0.16
     sphere_skin_semantics_applied = bool(SPHERE_SKIN_SEMANTICS_SCRIPT.apply_to(_sphere_material))
-    _tube_material = StandardMaterial3D.new(); _tube_material.albedo_color = Color(0.57, 0.61, 0.64, 1.0); _tube_material.metallic = 0.78; _tube_material.roughness = 0.28
+    _tube_material = StandardMaterial3D.new()
+    _tube_material.albedo_color = Color(0.57, 0.61, 0.64, 1.0)
+    _tube_material.metallic = 0.78
+    _tube_material.roughness = 0.28
 
 func _add_sphere(node_name: String, centre: Vector3) -> void:
-    var sphere := SphereMesh.new(); sphere.radius = source_sphere_diameter_m * 0.5; sphere.height = source_sphere_diameter_m; sphere.radial_segments = SPHERE_RADIAL_SEGMENTS; sphere.rings = SPHERE_RINGS; sphere.material = _sphere_material
-    var instance := MeshInstance3D.new(); instance.name = node_name; instance.mesh = sphere; instance.position = centre; add_child(instance); sphere_count += 1
+    var sphere := SphereMesh.new()
+    sphere.radius = source_sphere_diameter_m * 0.5
+    sphere.height = source_sphere_diameter_m
+    sphere.radial_segments = SPHERE_RADIAL_SEGMENTS
+    sphere.rings = SPHERE_RINGS
+    sphere.material = _sphere_material
+    var instance := MeshInstance3D.new()
+    instance.name = node_name
+    instance.mesh = sphere
+    instance.position = centre
+    add_child(instance)
+    sphere_count += 1
 
 func _add_tube(a: Vector3, b: Vector3) -> void:
-    var delta := b - a; var length := delta.length()
-    if length <= 0.01: return
-    var cylinder := CylinderMesh.new(); cylinder.top_radius = source_tube_diameter_m * 0.5; cylinder.bottom_radius = source_tube_diameter_m * 0.5; cylinder.height = length; cylinder.radial_segments = TUBE_RADIAL_SEGMENTS; cylinder.material = _tube_material
-    var instance := MeshInstance3D.new(); instance.name = "Tube_%02d" % tube_count; instance.mesh = cylinder; instance.position = (a + b) * 0.5; instance.quaternion = Quaternion(Vector3.UP, delta.normalized()); add_child(instance); tube_count += 1
+    var delta := b - a
+    var length := delta.length()
+    if length <= 0.01:
+        return
+    var cylinder := CylinderMesh.new()
+    cylinder.top_radius = source_tube_diameter_m * 0.5
+    cylinder.bottom_radius = source_tube_diameter_m * 0.5
+    cylinder.height = length
+    cylinder.radial_segments = TUBE_RADIAL_SEGMENTS
+    cylinder.material = _tube_material
+    var instance := MeshInstance3D.new()
+    instance.name = "Tube_%02d" % tube_count
+    instance.mesh = cylinder
+    instance.position = (a + b) * 0.5
+    instance.quaternion = Quaternion(Vector3.UP, delta.normalized())
+    add_child(instance)
+    tube_count += 1
 
 func measured_vertical_extent() -> Vector2:
-    if not hero_built: return Vector2.ZERO
-    var half_diameter := source_sphere_diameter_m * 0.5; var min_y := INF; var max_y := -INF
+    if not hero_built:
+        return Vector2.ZERO
+    var half_diameter := source_sphere_diameter_m * 0.5
+    var min_y := INF
+    var max_y := -INF
     for child: Node in get_children():
         if child is MeshInstance3D and child.name.begins_with("Sphere_"):
-            var y := (child as MeshInstance3D).position.y; min_y = minf(min_y, y - half_diameter); max_y = maxf(max_y, y + half_diameter)
+            var y := (child as MeshInstance3D).position.y
+            min_y = minf(min_y, y - half_diameter)
+            max_y = maxf(max_y, y + half_diameter)
     return Vector2(min_y, max_y)

@@ -31,6 +31,21 @@ func _scan(node: Node) -> void:
     for child in node.get_children():
         _scan(child)
 
+func _find_animation_player(node: Node) -> AnimationPlayer:
+    if node is AnimationPlayer:
+        return node as AnimationPlayer
+    for child in node.get_children():
+        var found := _find_animation_player(child)
+        if found != null:
+            return found
+    return null
+
+func _first_playable_animation(player: AnimationPlayer) -> StringName:
+    for animation_name: String in player.get_animation_list():
+        if animation_name != "RESET":
+            return StringName(animation_name)
+    return &""
+
 func _run() -> void:
     if not ResourceLoader.exists(REAL_ASSET):
         _fail("Pinned CC0 authored player GLB was not imported")
@@ -71,5 +86,20 @@ func _run() -> void:
     if visual.resolved_authored_scene_path() != REAL_ASSET:
         _fail("Production Player resolved unexpected asset: %s" % visual.resolved_authored_scene_path())
         return
-    print("REAL_AUTHORED_PLAYER_OK path=%s skeletons=%d skinned_meshes=%d material_surfaces=%d animations=%d" % [visual.resolved_authored_scene_path(), skeleton_count, skinned_mesh_count, material_surface_count, animation_count])
+
+    var animation_player := _find_animation_player(visual)
+    if animation_player == null:
+        _fail("Selected production authored player has no AnimationPlayer")
+        return
+    var playable := _first_playable_animation(animation_player)
+    if playable == &"":
+        _fail("Selected production authored player has no playable non-RESET animation")
+        return
+    animation_player.play(playable)
+    animation_player.advance(0.05)
+    if animation_player.current_animation != String(playable):
+        _fail("Selected production authored animation did not play")
+        return
+
+    print("REAL_AUTHORED_PLAYER_OK path=%s skeletons=%d skinned_meshes=%d material_surfaces=%d animations=%d playing=%s" % [visual.resolved_authored_scene_path(), skeleton_count, skinned_mesh_count, material_surface_count, animation_count, String(playable)])
     quit(0)

@@ -1,0 +1,48 @@
+{
+  "schema": "grand-bruxelles-bourse-parvis-proportions-evidence-v1",
+  "objective": "Measure the source-backed Bourse forecourt/street/sidewalk relationship and render a bounded QA-only A/B for the inherited StreetSurface 22358 +1.8 m camera-axis candidate.",
+  "source_inputs": {
+    "street_surfaces": [
+      "data/urbis/bourse_street_surfaces.game.json",
+      "data/urbis/bourse_street_surfaces_adjacent_22982.game.json",
+      "data/urbis/bourse_street_surfaces_adjacent_41098.game.json",
+      "data/urbis/bourse_street_surfaces_adjacent_41084.game.json",
+      "data/urbis/bourse_street_surfaces_adjacent_21944.game.json"
+    ],
+    "official_sidewalks": "data/urbis/bourse_official_sidewalks.game.json",
+    "camera_evidence": "data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json",
+    "curb_policy": "data/urbis/bourse_curb_source_policy.game.json"
+  },
+  "target_surface": {
+    "inspire_id": "https://databrussels.be/id/streetsurface/22358",
+    "source_geometry_must_remain_unchanged": true
+  },
+  "qa_candidate": {
+    "translation_m": 1.8,
+    "axis_definition": "horizontal camera-to-authoritative-hero-bbox-center vector in game XZ",
+    "direction": "camera_toward_hero",
+    "axis_unit_xz": [
+      0.7303397855663312,
+      0.6830840340828683
+    ],
+    "translation_xz_m": [
+      1.3146116140193962,
+      1.229551261349163
+    ],
+    "status": "qa_hypothesis_only",
+    "runtime_promotion_allowed": false
+  },
+  "gate": {
+    "criterion_under_2_min": "Open the two 1280x960 Bourse captures side by side. Reject immediately if the shifted 22358 edge worsens the source-backed sidewalk/street relationship, creates overlap, or makes the parvis read less like the lawful reference. A human KEEP verdict is required before any runtime proposal is opened.",
+    "human_verdict": "pending",
+    "runtime_approved": false,
+    "realism_complete": false
+  },
+  "notes": [
+    "The 1.8 m translation is inherited QA candidate evidence, not UrbIS geometry and not a surveyed correction.",
+    "All committed source polygons stay untouched. The candidate exists only in the deterministic capture harness until a human gate and a separate defensibility review pass.",
+    "No physical curb height is asserted; the merged curb policy continues to forbid vertical extrusion."
+  ],
+  "runtime_approved": false,
+  "realism_complete": false
+}

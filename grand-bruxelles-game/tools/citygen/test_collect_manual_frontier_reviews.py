@@ -19,4 +19,19 @@ with tempfile.TemporaryDirectory() as tmp:
     assert (out/'ready.json').exists() and not (out/'pending.json').exists()
     review=json.loads((out/'ready.json').read_text())
     assert review['runtime_promotion_allowed'] is False
-print('CITYGEN_BATCH_MANUAL_FRONTIER_REVIEWS_OK ready=1 pending=1 fail_closed=true')
+
+repo_root=HERE.parents[2]
+workflow=repo_root/'.github/workflows/grand-bruxelles-citygen-manual-frontier-durable.yml'
+assert workflow.exists(), 'durable manual-frontier workflow is missing'
+text=workflow.read_text(encoding='utf-8')
+for required in [
+    'Grand Bruxelles Autonomous CityGen',
+    "head_branch == 'main'",
+    'origin/citygen-autonomous-state',
+    'collect_manual_frontier_reviews.py',
+    'autonomous_manual_frontier_reviews',
+    'runtime_promotion_allowed',
+    'grand-bruxelles-autonomous-citygen',
+]:
+    assert required in text, f'durable manual-frontier wiring missing: {required}'
+print('CITYGEN_BATCH_MANUAL_FRONTIER_REVIEWS_OK ready=1 pending=1 durable_queue=true fail_closed=true')

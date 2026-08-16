@@ -18,6 +18,9 @@ def main() -> None:
     workflow = (
         repository_root / ".github/workflows/grand-bruxelles-pages.yml"
     ).read_text(encoding="utf-8")
+    web_build_workflow = (
+        repository_root / ".github/workflows/grand-bruxelles-web.yml"
+    ).read_text(encoding="utf-8")
 
     assert LIVE_URL in readme, "README must expose the verified playable URL"
     assert DEAD_URL not in readme, "README must not advertise the removed Vercel deployment"
@@ -34,6 +37,22 @@ def main() -> None:
     assert "deploy_pages:" in workflow
     assert "github.event_name == 'workflow_dispatch' && inputs.deploy_pages" in workflow
     assert "uses: actions/deploy-pages@v4" in workflow
+
+    publish_markers = [
+        "for publish_attempt in 1 2 3",
+        "git fetch origin main",
+        "git rebase origin/main",
+        "if git push origin HEAD:main; then",
+        "Playable Web build push lost three main-branch races",
+    ]
+    marker_offsets = [web_build_workflow.find(marker) for marker in publish_markers]
+    assert all(offset >= 0 for offset in marker_offsets), (
+        "Web publishing must retry a bounded fetch/rebase/push after concurrent "
+        "main-branch automation"
+    )
+    assert marker_offsets == sorted(marker_offsets), (
+        "Web publishing race guards must run in fetch/rebase/push order"
+    )
 
     print("PLAYABLE_LINK_CONTRACT_TEST_OK")
 

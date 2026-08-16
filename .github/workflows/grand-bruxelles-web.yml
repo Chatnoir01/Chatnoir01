@@ -116,5 +116,17 @@ jobs:
             echo "Playable Web build already up to date."
           else
             git commit -m "web: publish playable Grand Bruxelles build [skip ci]"
-            git push origin HEAD:main
+            for publish_attempt in 1 2 3; do
+              # A source-refresh workflow may advance main while this slower
+              # export is running. Replay the generated build on the latest
+              # main before each bounded push attempt.
+              git fetch origin main:refs/remotes/origin/main
+              git rebase origin/main
+              if git push origin HEAD:main; then
+                exit 0
+              fi
+              echo "Playable Web build push attempt $publish_attempt raced with another main update."
+            done
+            echo "::error::Playable Web build push lost three main-branch races."
+            exit 1
           fi

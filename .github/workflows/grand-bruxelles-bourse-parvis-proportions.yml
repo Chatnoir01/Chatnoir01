@@ -56,7 +56,7 @@ jobs:
       - name: Install software renderer dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
 
       - name: Install Godot 4.7.1
         run: |
@@ -78,7 +78,7 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_PARVIS_PROPORTIONS_FAIL" /tmp/bourse-parvis-proportions-test.log; then exit 1; fi
           grep -F "BOURSE_PARVIS_PROPORTIONS_TEST_OK" /tmp/bourse-parvis-proportions-test.log
 
-      - name: Render fixed-camera A/B
+      - name: Render fixed-camera same-scene A/B
         shell: bash
         run: |
           set -o pipefail
@@ -87,9 +87,57 @@ jobs:
             --resolution 1280x960 --script res://game/tests/bourse_parvis_proportions_capture_test.gd \
             2>&1 | tee /tmp/bourse-parvis-proportions-capture.log
           if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_PARVIS_PROPORTIONS_CAPTURE_FAIL" /tmp/bourse-parvis-proportions-capture.log; then exit 1; fi
-          grep -F "BOURSE_PARVIS_PROPORTIONS_CAPTURE_OK" /tmp/bourse-parvis-proportions-capture.log
+          grep -F "BOURSE_PARVIS_PROPORTIONS_CAPTURE_OK: same_scene=true" /tmp/bourse-parvis-proportions-capture.log
           test -f grand-bruxelles-game/artifacts/photo-match/bourse_parvis_proportions_before.png
           test -f grand-bruxelles-game/artifacts/photo-match/bourse_parvis_proportions_candidate_22358_plus_1_8m_camera_axis.png
+
+      - name: Reject contaminated A/B evidence
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          import json
+          from pathlib import Path
+
+          root=Path('grand-bruxelles-game/artifacts')
+          before=Image.open(root/'photo-match/bourse_parvis_proportions_before.png').convert('RGB')
+          after=Image.open(root/'photo-match/bourse_parvis_proportions_candidate_22358_plus_1_8m_camera_axis.png').convert('RGB')
+          assert before.size == (1280, 960) == after.size
+
+          changed=0
+          min_x=min_y=10**9
+          max_x=max_y=-1
+          max_channel_delta=0
+          for y in range(960):
+              for x in range(1280):
+                  a=before.getpixel((x,y)); b=after.getpixel((x,y))
+                  delta=max(abs(a[i]-b[i]) for i in range(3))
+                  max_channel_delta=max(max_channel_delta, delta)
+                  if delta > 3:
+                      changed += 1
+                      min_x=min(min_x,x); max_x=max(max_x,x)
+                      min_y=min(min_y,y); max_y=max(max_y,y)
+
+          assert changed >= 100, f'candidate is visually inert: {changed} changed pixels'
+          assert changed <= 20000, f'A/B is contaminated beyond isolated surface change: {changed} changed pixels'
+          assert min_y >= 480, f'A/B contamination reaches architecture above ground ROI: min_y={min_y}'
+          assert max_y <= 700, f'A/B contamination extends below expected 22358 projection: max_y={max_y}'
+
+          metrics={
+              'threshold_rgb': 3,
+              'changed_pixels': changed,
+              'changed_percent': changed/(1280*960)*100.0,
+              'bbox_xyxy': [min_x,min_y,max_x,max_y],
+              'max_channel_delta': max_channel_delta,
+              'same_scene': True,
+              'target_inspire_id': 'https://databrussels.be/id/streetsurface/22358',
+              'human_gate': 'pending',
+              'runtime_approved': False,
+              'realism_complete': False,
+          }
+          out=root/'bourse-parvis-proportions/diff_metrics.json'
+          out.write_text(json.dumps(metrics, indent=2)+'\n', encoding='utf-8')
+          print('BOURSE_PARVIS_AB_ISOLATION_OK', metrics)
+          PY
 
       - name: Upload human gate evidence
         uses: actions/upload-artifact@v4
@@ -97,6 +145,7 @@ jobs:
           name: bourse-parvis-proportions-human-gate
           path: |
             grand-bruxelles-game/artifacts/bourse-parvis-proportions/measurement.json
+            grand-bruxelles-game/artifacts/bourse-parvis-proportions/diff_metrics.json
             grand-bruxelles-game/artifacts/photo-match/bourse_parvis_proportions_before.png
             grand-bruxelles-game/artifacts/photo-match/bourse_parvis_proportions_candidate_22358_plus_1_8m_camera_axis.png
             /tmp/bourse-parvis-proportions-test.log

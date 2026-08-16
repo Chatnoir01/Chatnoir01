@@ -11,6 +11,10 @@ const CADENCE_MAX := 1.08
 const AMPLITUDE_BUCKETS := 9
 const AMPLITUDE_MIN := 0.88
 const AMPLITUDE_MAX := 1.12
+const DETAIL_LOD_SWITCH_DISTANCE_M := 90.0
+const DETAIL_LOD_TRANSITION_MARGIN_M := 10.0
+const DETAIL_UPDATE_DISTANCE_M := DETAIL_LOD_SWITCH_DISTANCE_M + DETAIL_LOD_TRANSITION_MARGIN_M
+const DETAIL_UPDATE_DISTANCE_SQUARED := DETAIL_UPDATE_DISTANCE_M * DETAIL_UPDATE_DISTANCE_M
 
 var _last_positions: Dictionary = {}
 var _phases: Dictionary = {}
@@ -20,6 +24,8 @@ var _rig_cache: Dictionary = {}
 var _rig_discovery_count: int = 0
 var _tracked_pedestrians: int = 0
 var _animated_pedestrians: int = 0
+var _distance_culled_pedestrians: int = 0
+var _camera_distance_culling_available: bool = false
 var _last_max_speed_mps: float = 0.0
 
 func _process(delta: float) -> void:
@@ -30,14 +36,26 @@ func _update_profiled_gait(delta: float) -> void:
         return
     var tracked := 0
     var animated := 0
+    var distance_culled := 0
     var max_speed := 0.0
     var live_ids: Dictionary = {}
+    var camera := get_viewport().get_camera_3d()
+    _camera_distance_culling_available = camera != null
+    var camera_position := Vector3.ZERO
+    if camera != null:
+        camera_position = camera.global_position
+
     for raw: Node in get_tree().get_nodes_in_group("ambient_pedestrian"):
         var person := raw as Node3D
         if person == null:
             continue
 
         var instance_id := person.get_instance_id()
+        live_ids[instance_id] = true
+        if camera != null and not _within_detail_update_distance(person.global_position, camera_position):
+            distance_culled += 1
+            continue
+
         var rig := _rig_for_person(person, instance_id)
         if rig.is_empty():
             continue
@@ -49,7 +67,6 @@ func _update_profiled_gait(delta: float) -> void:
             _rig_cache.erase(instance_id)
             continue
 
-        live_ids[instance_id] = true
         tracked += 1
         var current_position := person.global_position
         if not _last_positions.has(instance_id):
@@ -83,8 +100,12 @@ func _update_profiled_gait(delta: float) -> void:
 
     _tracked_pedestrians = tracked
     _animated_pedestrians = animated
+    _distance_culled_pedestrians = distance_culled
     _last_max_speed_mps = max_speed
     _prune_stale(live_ids)
+
+func _within_detail_update_distance(person_position: Vector3, camera_position: Vector3) -> bool:
+    return person_position.distance_squared_to(camera_position) <= DETAIL_UPDATE_DISTANCE_SQUARED
 
 func _rig_for_person(person: Node3D, instance_id: int) -> Dictionary:
     var cached: Dictionary = _rig_cache.get(instance_id, {})
@@ -181,6 +202,7 @@ func gait_stats() -> Dictionary:
     return {
         "tracked_pedestrians": _tracked_pedestrians,
         "animated_pedestrians": _animated_pedestrians,
+        "distance_culled_pedestrians": _distance_culled_pedestrians,
         "max_measured_speed_mps": _last_max_speed_mps,
         "changes_behavior_owner": false,
         "changes_navigation": false,
@@ -197,4 +219,8 @@ func gait_stats() -> Dictionary:
         "rig_cache_size": _rig_cache.size(),
         "rig_discovery_count": _rig_discovery_count,
         "rig_cache_stable_after_warmup": true,
+        "distance_lod_culling_active": true,
+        "camera_distance_culling_available": _camera_distance_culling_available,
+        "detail_update_distance_m": DETAIL_UPDATE_DISTANCE_M,
+        "simulation_continues_when_detail_culled": true,
     }

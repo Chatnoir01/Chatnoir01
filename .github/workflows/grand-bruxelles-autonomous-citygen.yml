@@ -89,126 +89,164 @@ jobs:
             --output /tmp/citygen-out/brussels_regional_target_grid.json
 
       - name: Select next Brussels evidence frontier
+        env:
+          INPUT_BATCH_SIZE: ${{ inputs.batch_size }}
         run: |
           set -euo pipefail
-          ARGS=(
-            --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells
-            --maturity-root grand-bruxelles-game/data/qa/citygen
-            --target-grid /tmp/citygen-out/brussels_regional_target_grid.json
-            --output-dir /tmp/citygen-out
-            --batch-size "${{ inputs.batch_size || '4' }}"
-          )
-          if [ -s /tmp/citygen-prev/state.json ]; then
-            ARGS+=(--state /tmp/citygen-prev/state.json)
-          fi
-          python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py "${ARGS[@]}"
+          BATCH="${INPUT_BATCH_SIZE:-4}"
+          STATE_ARGS=()
+          if [ -s /tmp/citygen-prev/state.json ]; then STATE_ARGS=(--state /tmp/citygen-prev/state.json); fi
+          python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py \
+            --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
+            --maturity-root grand-bruxelles-game/data/cell_manifests \
+            --target-grid /tmp/citygen-out/brussels_regional_target_grid.json \
+            "${STATE_ARGS[@]}" \
+            --output-dir /tmp/citygen-out \
+            --batch-size "$BATCH"
+          cat /tmp/citygen-out/worklist.txt
 
       - name: Materialize selected missing UrbIS cells
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json
-          import subprocess
           from pathlib import Path
           report=json.loads(Path('/tmp/citygen-out/autonomous_citygen_report.json').read_text())
-          rows={row['cell_id']:row for row in report['cells']}
-          for cell in report['selected_batch']:
-              row=rows[cell]
-              if row['state']!='MISSING_SOURCE':
-                  continue
-              cmd=[
-                  'python3','grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py',
-                  '--cell-id',cell,
-                  '--bbox',*[str(v) for v in row['bbox']],
-                  '--output-dir',f'grand-bruxelles-game/data/urbis/remaining_brussels/cells/{cell}',
-              ]
-              subprocess.run(cmd,check=True)
+          selected=set(report['selected_batch'])
+          rows=[]
+          for cell in report['cells']:
+              if cell['cell_id'] in selected and cell['state']=='MISSING_SOURCE':
+                  bbox=cell.get('bbox')
+                  if not isinstance(bbox,list) or len(bbox)!=4:
+                      raise SystemExit(f"missing source has no canonical bbox: {cell['cell_id']}")
+                  rows.append(cell['cell_id']+'\t'+','.join(str(v) for v in bbox))
+          Path('/tmp/citygen-out/missing_source_worklist.tsv').write_text(''.join(row+'\n' for row in rows))
           PY
+          while IFS=$'\t' read -r CELL BBOX; do
+            [ -n "$CELL" ] || continue
+            python3 grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py \
+              --cell-id "$CELL" --bbox "$BBOX" \
+              --output-dir "grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
+          done < /tmp/citygen-out/missing_source_worklist.tsv
 
       - name: Derive and resolve elevation requirements
         run: |
           set -u
+          mkdir -p /tmp/citygen-out/elevation-resolution-errors
           while IFS= read -r CELL; do
             [ -n "$CELL" ] || continue
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
-            python3 grand-bruxelles-game/tools/citygen/build_cell_elevation_requirements.py \
-              --cell-dir "$D" --output "$D/elevation_requirements.json" || { rm -f "$D/elevation_requirements.json"; continue; }
-            python3 grand-bruxelles-game/tools/citygen/resolve_cell_elevation_sources.py \
-              --requirements "$D/elevation_requirements.json" \
-              --dsm-output "$D/elevation_dsm_resolution.json" \
-              --dtm-output "$D/elevation_dtm_resolution.json" || { rm -f "$D/elevation_dsm_resolution.json" "$D/elevation_dtm_resolution.json"; continue; }
+            REQLOG="/tmp/citygen-out/elevation-resolution-errors/${CELL}-requirements.log"
+            if python3 grand-bruxelles-game/tools/citygen/build_cell_elevation_requirements.py --cell-dir "$D" --output "$D/elevation_requirements.json" >"$REQLOG" 2>&1; then
+              rm -f "$REQLOG"
+            else
+              rm -f "$D/elevation_requirements.json" "$D/elevation_dsm_resolution.json" "$D/elevation_dtm_resolution.json"
+              echo "ELEVATION_REQUIREMENTS_PENDING ${CELL}"
+              continue
+            fi
+            for KIND in dsm dtm; do
+              LOG="/tmp/citygen-out/elevation-resolution-errors/${CELL}-${KIND}.log"
+              if python3 grand-bruxelles-game/tools/citygen/resolve_cell_elevation_sources.py --requirements "$D/elevation_requirements.json" --kind "$KIND" --output "$D/elevation_${KIND}_resolution.json" >"$LOG" 2>&1; then
+                rm -f "$LOG"
+              else
+                rm -f "$D/elevation_${KIND}_resolution.json"
+                echo "ELEVATION_SOURCE_RESOLUTION_PENDING ${CELL} ${KIND}"
+              fi
+            done
           done < /tmp/citygen-out/worklist.txt
 
       - name: Download hash and structurally validate official archives
         run: |
           set -u
-          mkdir -p /tmp/citygen-archives /tmp/citygen-archive-extract
+          mkdir -p /tmp/citygen-elevation-archive-cache /tmp/citygen-out/elevation-archive-errors
           while IFS= read -r CELL; do
             [ -n "$CELL" ] || continue
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
-            DA="$D/elevation_dsm_resolution.json"; TA="$D/elevation_dtm_resolution.json"
-            [ -f "$DA" ] && [ -f "$TA" ] || continue
-            python3 grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py \
-              --dsm-resolution "$DA" --dtm-resolution "$TA" \
-              --archive-dir /tmp/citygen-archives --extract-dir /tmp/citygen-archive-extract \
-              --dsm-output "$D/elevation_dsm_archive_validation.json" \
-              --dtm-output "$D/elevation_dtm_archive_validation.json" || {
-                rm -f "$D/elevation_dsm_archive_validation.json" "$D/elevation_dtm_archive_validation.json"; continue;
-              }
+            for KIND in dsm dtm; do
+              R="$D/elevation_${KIND}_resolution.json"
+              [ -f "$R" ] || continue
+              LOG="/tmp/citygen-out/elevation-archive-errors/${CELL}-${KIND}.log"
+              if python3 grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py --resolution "$R" --work-dir /tmp/citygen-elevation-archive-cache --output "$D/elevation_${KIND}_archive_validation.json" >"$LOG" 2>&1; then
+                rm -f "$LOG"
+              else
+                rm -f "$D/elevation_${KIND}_archive_validation.json"
+                echo "ELEVATION_ARCHIVE_VALIDATION_PENDING ${CELL} ${KIND}"
+              fi
+            done
           done < /tmp/citygen-out/worklist.txt
 
       - name: Prepare raster value stack
         run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq gdal-bin python3-gdal python3-numpy
-          python3 - <<'PY'
-          from pathlib import Path
-          try:
-              import rasterio  # noqa
-          except Exception:
-              raise SystemExit(0)
-          Path('/tmp/citygen-rasterio-ready').write_text('1')
-          PY
-        shell: bash
+          set +e
+          mkdir -p /tmp/citygen-out/elevation-raster-errors
+          python3 -m pip install --disable-pip-version-check "rasterio>=1.3,<2" "numpy>=1.26,<3" > /tmp/citygen-out/elevation-raster-errors/install.log 2>&1
+          if [ $? -eq 0 ]; then touch /tmp/citygen-rasterio-ready; else echo "RASTER_STACK_INSTALL_PENDING"; fi
 
       - name: Validate georasters and assess source values
         run: |
           set -u
-          mkdir -p /tmp/citygen-raster-extract
+          [ -f /tmp/citygen-rasterio-ready ] || { echo "raster stack unavailable; preserving pending evidence"; exit 0; }
+          mkdir -p /tmp/citygen-raster-extract /tmp/citygen-out/elevation-value-errors
           while IFS= read -r CELL; do
             [ -n "$CELL" ] || continue
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
-            DA="$D/elevation_dsm_archive_validation.json"; TA="$D/elevation_dtm_archive_validation.json"
-            [ -f "$DA" ] && [ -f "$TA" ] || continue
-            python3 grand-bruxelles-game/tools/citygen/validate_cell_elevation_rasters.py \
-              --dsm-validation "$DA" --dtm-validation "$TA" --extract-root /tmp/citygen-raster-extract \
-              --output "$D/elevation_raster_validation.json" || { rm -f "$D/elevation_raster_validation.json"; continue; }
-            python3 grand-bruxelles-game/tools/citygen/assess_cell_elevation_values.py \
-              --raster-validation "$D/elevation_raster_validation.json" --extract-root /tmp/citygen-raster-extract \
-              --output "$D/elevation_value_evidence.json" || { rm -f "$D/elevation_value_evidence.json"; continue; }
+            DSM="$D/elevation_dsm_archive_validation.json"; DTM="$D/elevation_dtm_archive_validation.json"
+            [ -f "$DSM" ] && [ -f "$DTM" ] || continue
+            RLOG="/tmp/citygen-out/elevation-raster-errors/${CELL}.log"
+            if ! python3 grand-bruxelles-game/tools/citygen/validate_cell_elevation_rasters.py \
+              --dsm-validation "$DSM" --dtm-validation "$DTM" \
+              --archive-cache /tmp/citygen-elevation-archive-cache \
+              --extract-root /tmp/citygen-raster-extract \
+              --output "$D/elevation_raster_validation.json" >"$RLOG" 2>&1; then
+              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
+              echo "ELEVATION_RASTER_VALIDATION_PENDING ${CELL}"
+              continue
+            fi
+            rm -f "$RLOG"
+            VLOG="/tmp/citygen-out/elevation-value-errors/${CELL}.log"
+            if python3 grand-bruxelles-game/tools/citygen/assess_cell_elevation_values.py \
+              --raster-validation "$D/elevation_raster_validation.json" \
+              --extract-root /tmp/citygen-raster-extract \
+              --output "$D/elevation_value_evidence.json" >"$VLOG" 2>&1; then
+              rm -f "$VLOG"
+            else
+              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
+              echo "ELEVATION_VALUE_ASSESSMENT_PENDING ${CELL}"
+            fi
           done < /tmp/citygen-out/worklist.txt
 
       - name: Build authoritative candidate packages and elevation frontiers
         run: |
-          set -u
+          set -euo pipefail
           mkdir -p /tmp/citygen-out/candidates
           while IFS= read -r CELL; do
             [ -n "$CELL" ] || continue
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
-            python3 grand-bruxelles-game/tools/citygen/build_cell_candidate_package.py \
-              --cell-dir "$D" --output "/tmp/citygen-out/candidates/${CELL}.json" || true
-            if [ -f "$D/elevation_value_evidence.json" ] && [ -f "$D/elevation_raster_validation.json" ]; then
+            MATURITY="grand-bruxelles-game/data/cell_manifests/${CELL}.json"
+            MATURITY_ARGS=(); [ -f "$MATURITY" ] && MATURITY_ARGS=(--maturity "$MATURITY")
+            PACKAGE="/tmp/citygen-out/candidates/${CELL}.json"
+            python3 grand-bruxelles-game/tools/citygen/build_cell_candidate_package.py --cell-dir "$D" "${MATURITY_ARGS[@]}" --output "$PACKAGE"
+            if [ -f "$D/elevation_value_evidence.json" ]; then
               python3 grand-bruxelles-game/tools/citygen/build_cell_elevation_candidate_frontier.py \
                 --value-evidence "$D/elevation_value_evidence.json" \
-                --raster-validation "$D/elevation_raster_validation.json" \
-                --output "$D/elevation_candidate_frontier.json" || rm -f "$D/elevation_candidate_frontier.json"
+                --candidate-package "$PACKAGE" \
+                --output "$D/elevation_candidate_frontier.json"
+            else
+              rm -f "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
             fi
           done < /tmp/citygen-out/worklist.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          work=sorted(x.strip() for x in Path('/tmp/citygen-out/worklist.txt').read_text().splitlines() if x.strip())
+          packages=sorted(p.stem for p in Path('/tmp/citygen-out/candidates').glob('*.json'))
+          if work != packages: raise SystemExit(f'candidate package mismatch work={work} packages={packages}')
+          print(f'AUTONOMOUS_CELL_PACKAGES_OK selected={len(work)}')
+          PY
 
       - name: Derive per-building DSM DTM height candidates
         run: |
           set -u
+          [ -f /tmp/citygen-rasterio-ready ] || { echo "raster stack unavailable; building heights remain pending"; exit 0; }
           mkdir -p /tmp/citygen-out/building-height-errors
           while IFS= read -r CELL; do
             [ -n "$CELL" ] || continue
@@ -269,16 +307,19 @@ jobs:
           done < /tmp/citygen-out/worklist.txt
 
       - name: Refresh scheduler state after source and evidence mutations
+        env:
+          INPUT_BATCH_SIZE: ${{ inputs.batch_size }}
         run: |
           set -euo pipefail
+          BATCH="${INPUT_BATCH_SIZE:-4}"
           rm -rf /tmp/citygen-refresh
           python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py \
             --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
-            --maturity-root grand-bruxelles-game/data/qa/citygen \
+            --maturity-root grand-bruxelles-game/data/cell_manifests \
             --state /tmp/citygen-out/autonomous_citygen_state.json \
             --target-grid /tmp/citygen-out/brussels_regional_target_grid.json \
             --output-dir /tmp/citygen-refresh \
-            --batch-size "${{ inputs.batch_size || '4' }}" \
+            --batch-size "$BATCH" \
             --refresh-only
           cp /tmp/citygen-refresh/autonomous_citygen_state.json /tmp/citygen-out/autonomous_citygen_state.json
 

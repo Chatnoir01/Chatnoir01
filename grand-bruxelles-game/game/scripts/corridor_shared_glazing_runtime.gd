@@ -17,26 +17,38 @@ func _process(_delta: float) -> void:
         set_process(false)
         return
     _discovery_attempts += 1
-    var targets: Array[MeshInstance3D] = []
+    var targets: Array[MultiMeshInstance3D] = []
     _collect_targets(get_tree().root, targets)
     if targets.is_empty() and _discovery_attempts < DISCOVERY_FRAMES:
         return
     _records.clear()
-    for mesh in targets:
-        var original := mesh.material_override
-        if original == null:
+    for node in targets:
+        var mm := node.multimesh
+        if mm == null or mm.mesh == null or not mm.mesh is BoxMesh:
             continue
-        var enhanced := _enhanced_for(original)
-        if enhanced == null:
+        var original_mesh := mm.mesh as BoxMesh
+        var original_material := original_mesh.material
+        if original_material == null:
             continue
-        _records.append({"mesh": mesh, "original": original, "enhanced": enhanced})
-        mesh.material_override = enhanced if _enhanced_enabled else original
+        var enhanced_material := _enhanced_for(original_material)
+        var enhanced_mesh := original_mesh.duplicate() as BoxMesh
+        if enhanced_mesh == null:
+            continue
+        enhanced_mesh.material = enhanced_material
+        _records.append({
+            "node": node,
+            "original_mesh": original_mesh,
+            "enhanced_mesh": enhanced_mesh,
+            "instance_count": mm.instance_count,
+            "original_size": original_mesh.size,
+        })
+        mm.mesh = enhanced_mesh if _enhanced_enabled else original_mesh
     _ready_complete = true
     set_process(false)
 
-func _collect_targets(node: Node, out: Array[MeshInstance3D]) -> void:
-    if node is MeshInstance3D and _is_target_name(node.name):
-        out.append(node as MeshInstance3D)
+func _collect_targets(node: Node, out: Array[MultiMeshInstance3D]) -> void:
+    if node is MultiMeshInstance3D and _is_target_name(node.name):
+        out.append(node as MultiMeshInstance3D)
     for child in node.get_children():
         if child == self:
             continue
@@ -79,8 +91,14 @@ func _enhanced_for(original: Material) -> ShaderMaterial:
 func ready_complete() -> bool:
     return _ready_complete
 
-func applied_surface_count() -> int:
+func applied_group_count() -> int:
     return _records.size()
+
+func applied_instance_count() -> int:
+    var total := 0
+    for record in _records:
+        total += int(record.get("instance_count", 0))
+    return total
 
 func shared_material_count() -> int:
     return _material_cache.size()
@@ -88,10 +106,18 @@ func shared_material_count() -> int:
 func set_enhanced_material_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled
     for record in _records:
-        var mesh := record.get("mesh") as MeshInstance3D
-        if not is_instance_valid(mesh):
+        var node := record.get("node") as MultiMeshInstance3D
+        if not is_instance_valid(node) or node.multimesh == null:
             continue
-        mesh.material_override = record.get("enhanced") as Material if enabled else record.get("original") as Material
+        node.multimesh.mesh = record.get("enhanced_mesh") as Mesh if enabled else record.get("original_mesh") as Mesh
+
+func geometry_contract_intact() -> bool:
+    for record in _records:
+        var original := record.get("original_mesh") as BoxMesh
+        var enhanced := record.get("enhanced_mesh") as BoxMesh
+        if original == null or enhanced == null or original.size != enhanced.size:
+            return false
+    return true
 
 func target_records() -> Array[Dictionary]:
     return _records.duplicate()

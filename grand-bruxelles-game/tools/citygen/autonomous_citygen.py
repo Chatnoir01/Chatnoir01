@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic, fail-closed scheduler for autonomous Brussels reconstruction.
-
-The scheduler never promotes runtime geometry. It can inventory the complete
-regional target grid, distinguish target cells whose authoritative UrbIS source
-has not yet been materialized, resume durable state, and emit the next bounded
-source/QA batch. Missing or inconsistent evidence is never guessed.
-"""
+"""Deterministic, fail-closed scheduler for autonomous Brussels reconstruction."""
 from __future__ import annotations
 
 import argparse
@@ -29,21 +23,15 @@ def _read_json(path: Path) -> dict[str, Any]:
 def discover_cells(source_root: Path) -> list[str]:
     if not source_root.exists():
         return []
-    return sorted(
-        child.name
-        for child in source_root.iterdir()
-        if child.is_dir() and child.name.startswith("bxl-")
-    )
+    return sorted(child.name for child in source_root.iterdir() if child.is_dir() and child.name.startswith("bxl-"))
 
 
 def load_state(path: Path | None) -> dict[str, Any]:
     if path is None or not path.exists():
         return {"format": FORMAT, "run_number": 0, "cells": {}}
     state = _read_json(path)
-    if state.get("format") != FORMAT:
+    if state.get("format") != FORMAT or not isinstance(state.get("cells"), dict):
         raise ValueError("unsupported autonomous CityGen state format")
-    if not isinstance(state.get("cells"), dict):
-        raise ValueError("state cells must be an object")
     return state
 
 
@@ -59,21 +47,24 @@ def load_target_grid(path: Path | None) -> dict[str, dict[str, Any]]:
             raise ValueError("target grid cells must be objects")
         cell_id = row.get("cell_id")
         bbox = row.get("bbox")
-        if not isinstance(cell_id, str) or not cell_id.startswith("bxl-"):
-            raise ValueError("target grid contains invalid cell id")
-        if cell_id in out:
-            raise ValueError(f"duplicate target grid cell: {cell_id}")
+        if not isinstance(cell_id, str) or not cell_id.startswith("bxl-") or cell_id in out:
+            raise ValueError("target grid contains invalid or duplicate cell id")
         if not isinstance(bbox, list) or len(bbox) != 4 or not all(isinstance(v, (int, float)) for v in bbox):
             raise ValueError(f"target grid cell has invalid bbox: {cell_id}")
         if not (bbox[0] < bbox[2] and bbox[1] < bbox[3]) or min(bbox) < 10_000:
             raise ValueError(f"target grid cell bbox is not valid EPSG:31370: {cell_id}")
-        out[cell_id] = {
-            "bbox": [float(v) if not float(v).is_integer() else int(v) for v in bbox],
-            "municipalities": sorted(str(v) for v in (row.get("municipalities") or [])),
-        }
+        out[cell_id] = {"bbox": [float(v) if not float(v).is_integer() else int(v) for v in bbox], "municipalities": sorted(str(v) for v in (row.get("municipalities") or []))}
     if not out:
         raise ValueError("regional target grid contains no cells")
     return out
+
+
+def _maturity_path(cell_id: str, source_root: Path, maturity_root: Path) -> Path | None:
+    committed = maturity_root / f"{cell_id}.json"
+    if committed.exists():
+        return committed
+    sidecar = source_root / cell_id / "maturity.json"
+    return sidecar if sidecar.exists() else None
 
 
 def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple[str, list[str]]:
@@ -84,7 +75,6 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
         source = _read_json(source_manifest)
     except (OSError, ValueError, json.JSONDecodeError):
         return "QUARANTINE", ["invalid_authoritative_source_manifest"]
-
     if not source:
         return "QUARANTINE", ["empty_authoritative_source_manifest"]
     if source.get("cell_id") not in (None, cell_id):
@@ -92,28 +82,23 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
     if source.get("crs") not in (None, "EPSG:31370"):
         return "QUARANTINE", ["authoritative_source_crs_mismatch"]
 
-    maturity_path = maturity_root / f"{cell_id}.json"
-    if not maturity_path.exists():
+    maturity_path = _maturity_path(cell_id, source_root, maturity_root)
+    if maturity_path is None:
         return "DISCOVERED", ["maturity_manifest_missing"]
     try:
         maturity = _read_json(maturity_path)
     except (OSError, ValueError, json.JSONDecodeError):
         return "QUARANTINE", ["invalid_maturity_manifest"]
-
     if maturity.get("cell_id") != cell_id or maturity.get("crs") != "EPSG:31370":
         return "QUARANTINE", ["maturity_identity_or_crs_mismatch"]
-
     geometry = maturity.get("geometry", {})
     if not geometry.get("authoritative_geometry_ready", False):
         return "QUARANTINE", ["authoritative_geometry_not_ready"]
-
     gates = maturity.get("maturity", {}).get("gates", {})
     required = ("runtime_geometry", "collisions", "streaming", "terrain", "heights", "photo_match", "performance")
     if all(gates.get(name) is True for name in required):
         return "RUNTIME_READY", []
-
-    blockers = [name for name in required if gates.get(name) is not True]
-    return "DATA_READY", blockers
+    return "DATA_READY", [name for name in required if gates.get(name) is not True]
 
 
 def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
@@ -123,14 +108,7 @@ def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
     return [cell["cell_id"] for cell in candidates[:batch_size]]
 
 
-def run(
-    source_root: Path,
-    maturity_root: Path,
-    state_path: Path | None,
-    output_dir: Path,
-    batch_size: int,
-    target_grid_path: Path | None = None,
-) -> dict[str, Any]:
+def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_dir: Path, batch_size: int, target_grid_path: Path | None = None) -> dict[str, Any]:
     previous = load_state(state_path)
     source_cells = discover_cells(source_root)
     source_set = set(source_cells)
@@ -138,7 +116,6 @@ def run(
     cell_ids = sorted(set(target) | source_set) if target else source_cells
     cells: list[dict[str, Any]] = []
     counts: dict[str, int] = {}
-
     for cell_id in cell_ids:
         target_row = target.get(cell_id)
         if target and target_row is None:
@@ -148,49 +125,20 @@ def run(
         else:
             state, blockers = classify_cell(cell_id, source_root, maturity_root)
         previous_cell = previous.get("cells", {}).get(cell_id, {})
-        row = {
-            "cell_id": cell_id,
-            "state": state,
-            "blockers": blockers,
-            "attempts": int(previous_cell.get("attempts", 0)),
-        }
+        row = {"cell_id": cell_id, "state": state, "blockers": blockers, "attempts": int(previous_cell.get("attempts", 0))}
         if target_row is not None:
             row["bbox"] = target_row["bbox"]
             row["municipalities"] = target_row["municipalities"]
         cells.append(row)
         counts[state] = counts.get(state, 0) + 1
-
     batch = select_batch(cells, batch_size)
     batch_set = set(batch)
     for cell in cells:
         if cell["cell_id"] in batch_set:
             cell["attempts"] += 1
-
     run_number = int(previous.get("run_number", 0)) + 1
-    report = {
-        "format": FORMAT,
-        "run_number": run_number,
-        "source_cell_count": len(source_cells),
-        "target_cell_count": len(target) if target else len(source_cells),
-        "counts": dict(sorted(counts.items())),
-        "selected_batch": batch,
-        "cells": cells,
-        "policy": {
-            "crs": "EPSG:31370",
-            "batch_size": batch_size,
-            "runtime_promotion": "forbidden_without_all_required_gates",
-            "uncertain_evidence": "quarantine_or_keep_pending_never_guess",
-            "missing_source_priority": "materialize_before_candidate_processing",
-            "equal_state_rotation": "least_attempts_then_cell_id",
-        },
-    }
-
-    state = {
-        "format": FORMAT,
-        "run_number": run_number,
-        "cells": {cell["cell_id"]: {"state": cell["state"], "attempts": cell["attempts"]} for cell in cells},
-    }
-
+    report = {"format": FORMAT, "run_number": run_number, "source_cell_count": len(source_cells), "target_cell_count": len(target) if target else len(source_cells), "counts": dict(sorted(counts.items())), "selected_batch": batch, "cells": cells, "policy": {"crs": "EPSG:31370", "batch_size": batch_size, "runtime_promotion": "forbidden_without_all_required_gates", "uncertain_evidence": "quarantine_or_keep_pending_never_guess", "missing_source_priority": "materialize_before_candidate_processing"}}
+    state = {"format": FORMAT, "run_number": run_number, "cells": {cell["cell_id"]: {"state": cell["state"], "attempts": cell["attempts"]} for cell in cells}}
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "autonomous_citygen_report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_dir / "autonomous_citygen_state.json").write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -26,7 +26,7 @@ jobs:
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
       - name: Import project
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
-      - name: Validate Anneessens OSM roof attachment and capture AFTER
+      - name: Validate Anneessens OSM roof attachment and frozen A/B
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
@@ -34,5 +34,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: anneessens-roof-fix-after
-          path: grand-bruxelles-game/artifacts/qa/anneessens_roof_fix/anneessens_after_yaw_180.png
+          name: anneessens-roof-fix-ab
+          path: grand-bruxelles-game/artifacts/qa/anneessens_roof_fix/*.png

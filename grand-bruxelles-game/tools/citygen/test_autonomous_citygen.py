@@ -29,7 +29,9 @@ with tempfile.TemporaryDirectory() as tmp:
     report1=mod.run(source,maturity,None,out1,2,target_grid)
     assert report1["source_cell_count"]==4 and report1["target_cell_count"]==5
     assert report1["counts"]=={"DATA_READY":2,"MISSING_SOURCE":1,"QUARANTINE":1,"RUNTIME_READY":1},report1["counts"]
-    assert report1["selected_batch"]==[cells[4],cells[1]],report1["selected_batch"]
+    # Existing authoritative source cells must mature before CityGen expands into
+    # a new MISSING_SOURCE cell, otherwise a large target grid can starve evidence.
+    assert report1["selected_batch"]==[cells[1],cells[3]],report1["selected_batch"]
     local=next(cell for cell in report1["cells"] if cell["cell_id"]==cells[3])
     assert local["state"]=="DATA_READY" and "terrain" in local["blockers"]
     assert local["next_action"]=="derive_elevation_requirements" and local["evidence_progress"]==0
@@ -40,9 +42,9 @@ with tempfile.TemporaryDirectory() as tmp:
     report2=mod.run(source,maturity,out1/"autonomous_citygen_state.json",out2,2,target_grid)
     attempts={cell["cell_id"]:cell["attempts"] for cell in report2["cells"]}
     assert report2["run_number"]==2
-    assert attempts[cells[4]]==2
-    assert attempts[cells[1]]==1
-    assert attempts[cells[3]]==1
+    assert attempts[cells[4]]==0
+    assert attempts[cells[1]]==2
+    assert attempts[cells[3]]==2
     assert attempts[cells[0]]==0 and attempts[cells[2]]==0
 
     rotation=[{"cell_id":"bxl-e100000-n100000-s500","state":"DISCOVERED","attempts":3},{"cell_id":"bxl-e100500-n100000-s500","state":"DISCOVERED","attempts":0},{"cell_id":"bxl-e101000-n100000-s500","state":"DISCOVERED","attempts":1}]
@@ -53,6 +55,11 @@ with tempfile.TemporaryDirectory() as tmp:
         {"cell_id":"bxl-e101000-n100000-s500","state":"DATA_READY","attempts":1,"evidence_progress":6},
     ]
     assert mod.select_batch(frontier,2)==["bxl-e101000-n100000-s500","bxl-e100500-n100000-s500"]
+    mature_vs_expansion=[
+        {"cell_id":"bxl-e141500-n167500-s500","state":"DATA_READY","attempts":1,"evidence_progress":7},
+        {"cell_id":"bxl-e142000-n168000-s500","state":"MISSING_SOURCE","attempts":0,"evidence_progress":0},
+    ]
+    assert mod.select_batch(mature_vs_expansion,1)==["bxl-e141500-n167500-s500"]
 
     frontier_cell = cells[3]
     for filename, _action in mod.EVIDENCE_STAGES[:-2]:
@@ -70,4 +77,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert action == "secondary_height_validation_and_terrain_runtime_checks"
     assert mod.discover_cells(source)==sorted(cells[:4])
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true")

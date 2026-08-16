@@ -140,6 +140,7 @@ jobs:
           PY
 
       - name: Upload human gate evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bourse-parvis-proportions-human-gate

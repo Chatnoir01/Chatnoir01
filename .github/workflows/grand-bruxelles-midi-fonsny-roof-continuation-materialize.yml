@@ -1,0 +1,156 @@
+name: Grand Bruxelles Midi Fonsny Roof Continuation Materialize
+
+on:
+  push:
+    branches: ["integration/midi-fonsny-official-roof-continuation-v1"]
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-fonsny-roof-continuation-materialize.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-midi-fonsny-roof-continuation-materialize
+  cancel-in-progress: true
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/midi-fonsny-official-roof-continuation-v1
+          fetch-depth: 0
+
+      - name: Download audited official UrbIS 3D Midi tile
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_147169_20260808.zip"
+          EXPECTED="a760fdff222ae9431113f82fe1c8f942a9fe2bda40e32064c627ae8d3a21110f"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_147169_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source_root.txt
+
+      - name: Extract exact official station complex
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"
+          python3 grand-bruxelles-game/tools/extract_urbis_3d_hero.py \
+            --source-root "$ROOT" --prefix UrbISBuildings3D_147169 \
+            --building-id "https://databrussels.be/id/building/1633645" \
+            --hero-id "midi_fonsny_1633645" --name "Bruxelles-Midi official LoD2 building 1633645" \
+            --package-url "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_147169_20260808.zip" \
+            --package-sha256 "a760fdff222ae9431113f82fe1c8f942a9fe2bda40e32064c627ae8d3a21110f" \
+            --package-revision "2026-08-08" --accessed-at "2026-08-16" \
+            --origin-e 147868.29422791934 --origin-n 169538.62414926197 \
+            --world-x -668.5 --world-z 627.84 \
+            --output /tmp/midi_1633645_full.game.json
+
+      - name: Select complete official roof faces outside authored 176 m hero core
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p grand-bruxelles-game/data/urbis/midi_fonsny_roof_continuation
+          python3 - <<'PY'
+          import json, math
+          from pathlib import Path
+
+          src = Path('/tmp/midi_1633645_full.game.json')
+          data = json.loads(src.read_text(encoding='utf-8'))
+
+          # Current production MidiHeroZone station root and Fonsny axis.
+          # The hero roofline is 176 m long, therefore +/-88 m. We require a
+          # 4 m source-separation buffer and keep only COMPLETE official faces
+          # entirely beyond the authored core. No source vertex is clipped or moved.
+          core_center = (-696.240, 608.080)
+          axis = (-0.627, 0.779)
+          limit = 92.0
+
+          def axial(p):
+              return (float(p[0]) - core_center[0]) * axis[0] + (float(p[2]) - core_center[1]) * axis[1]
+
+          selected = []
+          tri_count = 0
+          side_counts = {'north': 0, 'south': 0}
+          axial_min = None
+          axial_max = None
+          for face in data.get('faces', []):
+              if face.get('type') != 'ROOFSURFACE':
+                  continue
+              pts = [p for tri in face.get('triangles', []) for p in tri]
+              if not pts:
+                  continue
+              vals = [axial(p) for p in pts]
+              keep_north = min(vals) > limit
+              keep_south = max(vals) < -limit
+              if not (keep_north or keep_south):
+                  continue
+              selected.append(face)
+              tri_count += len(face.get('triangles', []))
+              side_counts['north' if keep_north else 'south'] += 1
+              lo, hi = min(vals), max(vals)
+              axial_min = lo if axial_min is None else min(axial_min, lo)
+              axial_max = hi if axial_max is None else max(axial_max, hi)
+
+          if not selected or tri_count < 10:
+              raise SystemExit(f'ROOF_CONTINUATION_SOURCE_FAIL: selected={len(selected)} triangles={tri_count}')
+
+          out = {
+              'schema': 'grand-bruxelles-midi-fonsny-roof-continuation-v1',
+              'source': data['source'],
+              'transform': data['transform'],
+              'selection': {
+                  'building_id': data['source']['building_2d_id'],
+                  'face_type': 'ROOFSURFACE',
+                  'authored_core_center_world_xz': list(core_center),
+                  'fonsny_axis_world_xz': list(axis),
+                  'authored_core_half_length_m': 88.0,
+                  'source_separation_buffer_m': 4.0,
+                  'complete_face_only': True,
+                  'vertex_clipping': False,
+                  'vertex_movement': False,
+                  'triangle_replacement': False,
+                  'selected_face_count': len(selected),
+                  'selected_triangle_count': tri_count,
+                  'side_face_counts': side_counts,
+                  'selected_axial_extent_m': [axial_min, axial_max],
+              },
+              'heritage_basis': {
+                  'provider': 'urban.brussels / Inventaire du patrimoine architectural',
+                  'urban_id': 9423,
+                  'fact': 'Gare du Midi and annexes extend for more than 600 m along Avenue Fonsny; the Fonsny side includes station/admin/postal/retaining-wall/portico elements.',
+                  'geometry_claim': 'Only exact Paradigm UrbIS3D ROOFSURFACE source faces are rendered by this lot.'
+              },
+              'runtime_approved': False,
+              'realism_complete': False,
+              'faces': selected,
+          }
+          dest = Path('grand-bruxelles-game/data/urbis/midi_fonsny_roof_continuation/1633645_roofs_outside_core.game.json')
+          dest.write_text(json.dumps(out, separators=(',', ':')) + '\n', encoding='utf-8')
+          summary = Path('grand-bruxelles-game/data/urbis/midi_fonsny_roof_continuation/summary.json')
+          summary.write_text(json.dumps(out['selection'], indent=2) + '\n', encoding='utf-8')
+          print('MIDI_FONSNY_ROOF_CONTINUATION_SOURCE_OK', json.dumps(out['selection'], sort_keys=True))
+          PY
+
+      - name: Commit exact source subset
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/urbis/midi_fonsny_roof_continuation
+          if git diff --cached --quiet; then
+            echo "Exact roof continuation subset already current."
+            exit 0
+          fi
+          git commit -m "data(midi): materialize exact Fonsny roof continuation [skip ci]"
+          git push origin HEAD:integration/midi-fonsny-official-roof-continuation-v1

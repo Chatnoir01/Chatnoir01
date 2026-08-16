@@ -6,7 +6,9 @@ on:
       - ".github/workflows/grand-bruxelles-atomium-hero-ground-oblique.yml"
       - "grand-bruxelles-game/data/sources/laeken_jette/atomium_hero_core_evidence.json"
       - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_core.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_sphere_skin_semantics.gd"
       - "grand-bruxelles-game/game/tests/atomium_hero_ground_oblique_test.gd"
+      - "grand-bruxelles-game/game/tests/atomium_sphere_skin_semantics_test.gd"
       - "grand-bruxelles-game/game/tests/atomium_direct_spawn_test.gd"
       - "grand-bruxelles-game/game/scripts/player_controller.gd"
       - "grand-bruxelles-game/game/scripts/location_label_controller.gd"
@@ -34,6 +36,13 @@ jobs:
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
       - name: Import project
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate source-bounded sphere skin semantics
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/atomium_sphere_skin_semantics_test.gd 2>&1 | tee /tmp/atomium-sphere-skin-semantics.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_SPHERE_SKIN_SEMANTICS_FAIL" /tmp/atomium-sphere-skin-semantics.log; then exit 1; fi
+          grep -F "ATOMIUM_SPHERE_SKIN_SEMANTICS_OK" /tmp/atomium-sphere-skin-semantics.log
       - name: Validate Atomium hero and capture
         shell: bash
         run: |
@@ -60,6 +69,7 @@ jobs:
           path: |
             grand-bruxelles-game/artifacts/atomium/atomium_hero_ground_oblique.png
             grand-bruxelles-game/artifacts/atomium/atomium_direct_spawn.png
+            /tmp/atomium-sphere-skin-semantics.log
             /tmp/atomium-hero.log
             /tmp/atomium-hero-performance.txt
             /tmp/atomium-direct-spawn.log

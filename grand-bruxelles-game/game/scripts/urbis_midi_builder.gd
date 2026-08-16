@@ -10,6 +10,7 @@ var _island: StandardMaterial3D
 var _paved: StandardMaterial3D
 var _other_surface: StandardMaterial3D
 var _building_materials: Array[StandardMaterial3D] = []
+var _surface_family_counts: Dictionary = {}
 
 
 func _ready() -> void:
@@ -49,9 +50,16 @@ func _build_from_runtime() -> void:
         push_error("Invalid UrbIS Midi runtime: %s" % data_path)
         return
     var data: Dictionary = parsed
+    var accuracy := data.get("accuracy", {}) as Dictionary
+    if str(accuracy.get("street_surface_levels", "")) != "official_urbis":
+        push_error("UrbIS Midi runtime missing official street-surface level contract")
+        return
     var surface_count: int = _build_street_surfaces(data.get("street_surfaces", []))
     var building_count: int = _build_buildings(data.get("buildings", []))
-    print("Grand Bruxelles UrbIS Midi exact-plan: %d surfaces, %d buildings" % [surface_count, building_count])
+    print(
+        "Grand Bruxelles UrbIS Midi exact-plan: %d surfaces, %d hidden-level surfaces, %d buildings" %
+        [surface_count, int(_surface_family_counts.get("hidden_level", 0)), building_count]
+    )
 
 
 func _world(local_point: Vector2, y: float) -> Vector3:
@@ -99,6 +107,33 @@ func _commit_tool(tool: SurfaceTool, name: String, root: Node3D) -> void:
     root.add_child(instance)
 
 
+func surface_family(surface_type: String, level: float) -> String:
+    # Official meanings come from Paradigm UrbIS Land Cover product
+    # specification, section 4.1.3.2. In particular I=intersection and
+    # M=median/berm/roundabout; they must not be guessed from their initials.
+    # Non-zero LVL surfaces are vertically distinct and cannot be flattened
+    # into this street-level mesh.
+    if not is_zero_approx(level):
+        return "hidden_level"
+    match surface_type:
+        "S", "A", "AC", "B", "C", "I", "IC", "IL", "K", "SC":
+            return "road"
+        "SW", "G":
+            return "sidewalk"
+        "M":
+            return "island"
+        "P":
+            return "paved"
+        "MS", "MT", "RS", "RT":
+            return "transit"
+        _:
+            return "other"
+
+
+func surface_family_counts() -> Dictionary:
+    return _surface_family_counts.duplicate()
+
+
 func _build_street_surfaces(features: Array) -> int:
     var root: Node3D = Node3D.new()
     root.name = "UrbISStreetSurfaces"
@@ -110,19 +145,34 @@ func _build_street_surfaces(features: Array) -> int:
     var paved_tool: SurfaceTool = _new_tool(_paved)
     var other_tool: SurfaceTool = _new_tool(_other_surface)
     var count: int = 0
+    _surface_family_counts = {
+        "road": 0,
+        "sidewalk": 0,
+        "island": 0,
+        "paved": 0,
+        "transit": 0,
+        "other": 0,
+        "hidden_level": 0,
+    }
 
     for feature: Dictionary in features:
         var polygon: PackedVector2Array = _ring(feature.get("polygon", []))
         var surface_type: String = str(feature.get("type", ""))
+        var level: float = float(feature.get("level", 0.0))
+        var family: String = surface_family(surface_type, level)
+        _surface_family_counts[family] = int(_surface_family_counts.get(family, 0)) + 1
+        if family == "hidden_level":
+            continue
         var target: SurfaceTool = other_tool
-        if surface_type == "S":
-            target = road_tool
-        elif surface_type == "SW":
-            target = sidewalk_tool
-        elif surface_type == "I":
-            target = island_tool
-        elif surface_type == "P":
-            target = paved_tool
+        match family:
+            "road":
+                target = road_tool
+            "sidewalk":
+                target = sidewalk_tool
+            "island":
+                target = island_tool
+            "paved":
+                target = paved_tool
         if _append_flat_polygon(target, polygon, 0.075):
             count += 1
 

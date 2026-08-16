@@ -78,8 +78,17 @@ jobs:
           assert manifest['layers']['street_surfaces']['features'] > 50
           assert manifest['layers']['street_axes']['features'] > 50
           assert runtime['accuracy']['plan_geometry'] == 'official_urbis'
+          assert runtime['accuracy']['street_surface_levels'] == 'official_urbis'
           assert runtime['stats']['buildings'] > 500, runtime['stats']
           assert runtime['stats']['street_surfaces'] > 300, runtime['stats']
+          assert runtime['stats']['street_surfaces_surface_level'] > 300, runtime['stats']
+          assert runtime['stats']['street_surfaces_non_surface_level'] > 0, runtime['stats']
+          assert (
+              runtime['stats']['street_surfaces_surface_level']
+              + runtime['stats']['street_surfaces_non_surface_level']
+              == runtime['stats']['street_surfaces']
+          ), runtime['stats']
+          assert all('level' in surface for surface in runtime['street_surfaces'])
           print('runtime', runtime['stats'])
           PY
 

@@ -75,6 +75,21 @@ def load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def official_level(properties: dict[str, Any]) -> float:
+    """Return the official relative UrbIS level without flattening it to zero.
+
+    Paradigm UrbIS Land Cover product specification, section 4.1.3.7:
+    https://urbisdownload.datastore.brussels/UrbIS/TechSpec/LandCover_TechSpec_FR20240401.pdf
+    """
+    raw_level = properties.get("LVL")
+    if raw_level in (None, ""):
+        raise ValueError("UrbIS street surface is missing its official LVL attribute")
+    level = float(raw_level)
+    if not math.isfinite(level):
+        raise ValueError(f"Invalid UrbIS street-surface LVL: {raw_level!r}")
+    return round(level, 3)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--buildings", type=Path, required=True)
@@ -108,18 +123,26 @@ def main() -> int:
             })
 
     surfaces: list[dict[str, Any]] = []
+    surface_level_count = 0
+    non_surface_level_count = 0
     for feature in surfaces_doc.get("features", []):
         props = feature.get("properties", {}) or {}
         area = float(props.get("AREA") or 0.0)
         if area < args.min_surface_area:
             continue
+        level = official_level(props)
         for ring in outer_rings(feature.get("geometry")):
             clean = clean_ring(ring)
             if len(clean) < 3 or not in_radius(clean, args.radius):
                 continue
+            if math.isclose(level, 0.0, abs_tol=0.001):
+                surface_level_count += 1
+            else:
+                non_surface_level_count += 1
             surfaces.append({
                 "id": str(props.get("INSPIRE_ID") or feature.get("id") or ""),
                 "type": str(props.get("TYPE") or ""),
+                "level": level,
                 "street_fr": str(props.get("STRNAMEFRE") or ""),
                 "street_nl": str(props.get("STRNAMEDUT") or ""),
                 "area": round(area, 2),
@@ -140,12 +163,15 @@ def main() -> int:
         },
         "accuracy": {
             "plan_geometry": "official_urbis",
+            "street_surface_levels": "official_urbis",
             "building_heights": "temporary_area_heuristic_pending_urbis_landscape_or_lidar",
         },
         "radius_m": args.radius,
         "stats": {
             "buildings": len(buildings),
             "street_surfaces": len(surfaces),
+            "street_surfaces_surface_level": surface_level_count,
+            "street_surfaces_non_surface_level": non_surface_level_count,
         },
         "buildings": buildings,
         "street_surfaces": surfaces,

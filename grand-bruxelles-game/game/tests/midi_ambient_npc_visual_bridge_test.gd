@@ -1,6 +1,8 @@
 extends SceneTree
 
 const EXPECTED_AMBIENT := 20
+const EXPECTED_MATERIAL_CACHE_ENTRIES := 23
+const EXPECTED_REUSED_MATERIAL_SURFACES := 240
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -68,11 +70,11 @@ func _run() -> void:
     var stats: Dictionary = material_runtime.call("material_cache_stats")
     var cache_entries := int(stats.get("entries", 0))
     var surfaces_reused := int(stats.get("surfaces_reused", 0))
-    if cache_entries <= 0:
-        _fail("material cache is empty after building the ambient crowd")
+    if cache_entries != EXPECTED_MATERIAL_CACHE_ENTRIES:
+        _fail("expected %d exact material cache entries, got %d" % [EXPECTED_MATERIAL_CACHE_ENTRIES, cache_entries])
         return
-    if surfaces_reused <= 0:
-        _fail("no equivalent NPC material surfaces were actually reused")
+    if surfaces_reused != EXPECTED_REUSED_MATERIAL_SURFACES:
+        _fail("expected %d equivalent NPC material surfaces reused, got %d" % [EXPECTED_REUSED_MATERIAL_SURFACES, surfaces_reused])
         return
 
     print("MIDI_AMBIENT_NPC_VISUAL_OK: pedestrians=%d unique_signatures=%d material_cache_entries=%d material_surfaces_reused=%d" % [ambient.size(), signatures.size(), cache_entries, surfaces_reused])

@@ -1,0 +1,39 @@
+{
+  "schema": "grand-bruxelles-grand-place-1786758-three-bay-v1",
+  "building_id": "https://databrussels.be/id/building/1786758",
+  "official_geometry": {
+    "source": "Paradigm / Brussels-Capital Region UrbIS - 3D Constructions",
+    "crs": "EPSG:31370",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "wall_face_id": "https://databrussels.be/id/buildingface/11521730",
+    "player_facing_edge_from_game_x_y_z": [317.9358, 0.0, -487.4869],
+    "player_facing_edge_to_game_x_y_z": [312.7193, 0.0, -494.022]
+  },
+  "heritage_sources": [
+    {
+      "urban_id": 31126,
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31126",
+      "fact": "main facade has three bays; central axial bay wider; colossal order of four composite pilasters"
+    },
+    {
+      "urban_id": 40020,
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/9/40020",
+      "fact": "main facade has three bays; marked central risalit"
+    }
+  ],
+  "shared_discrete_semantics": {
+    "main_bay_count": 3,
+    "central_bay_emphasized": true,
+    "window_registers_visualized": 2
+  },
+  "visualization_convention": {
+    "panel_height_m": 3.0,
+    "side_panel_width_ratio_of_bay": 0.50,
+    "central_panel_width_ratio_of_bay": 0.66,
+    "register_center_y_m": [9.2, 15.4],
+    "surface_offset_m": 0.055,
+    "note": "Only three-bay rhythm and central emphasis are source-backed discrete semantics. Exact panel dimensions, register heights and inset are visualization conventions, not an architectural survey."
+  },
+  "runtime_approved": false,
+  "realism_complete": false
+}

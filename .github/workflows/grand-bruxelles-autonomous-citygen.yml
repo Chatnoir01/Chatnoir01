@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       batch_size:
-        description: "Maximum source cells to advance in this pass"
+        description: "Maximum regional cells to advance in this pass"
         required: false
         default: "4"
   pull_request:
@@ -17,6 +17,8 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_build_cell_candidate_package.py"
       - "grand-bruxelles-game/tools/citygen/build_brussels_regional_grid.py"
       - "grand-bruxelles-game/tools/citygen/test_build_brussels_regional_grid.py"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py"
       - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
 
 permissions:
@@ -38,6 +40,8 @@ jobs:
         run: python3 grand-bruxelles-game/tools/citygen/test_build_cell_candidate_package.py
       - name: Regional target-grid regression
         run: python3 grand-bruxelles-game/tools/citygen/test_build_brussels_regional_grid.py
+      - name: Missing-source materialization regression
+        run: python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py
       - name: Existing city-generation guardrails
         run: |
           python3 grand-bruxelles-game/tools/city_generation/test_generate_facade_candidates.py
@@ -49,17 +53,23 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Recover durable scheduler state
+      - name: Recover durable scheduler state and source cache
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p /tmp/citygen-prev
           if git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state 2>/dev/null; then
             git show origin/citygen-autonomous-state:grand-bruxelles-game/data/qa/autonomous_citygen_state.json > /tmp/citygen-prev/state.json || true
+            if git ls-tree -r --name-only origin/citygen-autonomous-state -- grand-bruxelles-game/data/qa/autonomous_sources | grep -q .; then
+              git archive origin/citygen-autonomous-state grand-bruxelles-game/data/qa/autonomous_sources | tar -x -C /tmp/citygen-prev
+              mkdir -p grand-bruxelles-game/data/urbis/remaining_brussels/cells
+              cp -a /tmp/citygen-prev/grand-bruxelles-game/data/qa/autonomous_sources/. grand-bruxelles-game/data/urbis/remaining_brussels/cells/
+            fi
           fi
       - name: Derive official Brussels regional target grid
         shell: bash
@@ -75,16 +85,47 @@ jobs:
         env:
           INPUT_BATCH_SIZE: ${{ inputs.batch_size }}
         run: |
+          set -euo pipefail
           BATCH="${INPUT_BATCH_SIZE:-4}"
           STATE_ARGS=()
           if [ -s /tmp/citygen-prev/state.json ]; then STATE_ARGS=(--state /tmp/citygen-prev/state.json); fi
           python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py \
             --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
             --maturity-root grand-bruxelles-game/data/cell_manifests \
+            --target-grid /tmp/citygen-out/brussels_regional_target_grid.json \
             "${STATE_ARGS[@]}" \
             --output-dir /tmp/citygen-out \
             --batch-size "$BATCH"
           cat /tmp/citygen-out/worklist.txt
+      - name: Extract missing-source work with canonical bboxes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('/tmp/citygen-out/autonomous_citygen_report.json').read_text())
+          selected=set(report['selected_batch'])
+          rows=[]
+          for cell in report['cells']:
+              if cell['cell_id'] in selected and cell['state']=='MISSING_SOURCE':
+                  bbox=cell.get('bbox')
+                  if not isinstance(bbox,list) or len(bbox)!=4:
+                      raise SystemExit(f"missing source has no canonical bbox: {cell['cell_id']}")
+                  rows.append(cell['cell_id']+'\t'+','.join(str(v) for v in bbox))
+          Path('/tmp/citygen-out/missing_source_worklist.tsv').write_text(''.join(row+'\n' for row in rows))
+          print(f'MISSING_SOURCE_WORKLIST_OK cells={len(rows)}')
+          PY
+      - name: Materialize selected missing UrbIS source cells
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r CELL BBOX; do
+            [ -n "$CELL" ] || continue
+            python3 grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py \
+              --cell-id "$CELL" \
+              --bbox "$BBOX" \
+              --output-dir "grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
+          done < /tmp/citygen-out/missing_source_worklist.tsv
       - name: Build authoritative candidate package for each selected cell
         shell: bash
         run: |
@@ -111,19 +152,30 @@ jobs:
               raise SystemExit(f'candidate package mismatch work={sorted(work)} packages={packages}')
           print(f'AUTONOMOUS_CELL_PACKAGES_OK selected={len(work)} packages={len(packages)}')
           PY
+      - name: Stage newly materialized source cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/citygen-new-sources
+          while IFS=$'\t' read -r CELL BBOX; do
+            [ -n "$CELL" ] || continue
+            cp -a "grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}" "/tmp/citygen-new-sources/${CELL}"
+          done < /tmp/citygen-out/missing_source_worklist.tsv
       - name: Persist autonomous progress off main
         shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -C citygen-autonomous-state
-          mkdir -p grand-bruxelles-game/data/qa/autonomous_candidates
+          mkdir -p grand-bruxelles-game/data/qa/autonomous_candidates grand-bruxelles-game/data/qa/autonomous_sources
           cp /tmp/citygen-out/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_state.json
           cp /tmp/citygen-out/autonomous_citygen_report.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json
           cp /tmp/citygen-out/worklist.txt grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt
           cp /tmp/citygen-out/brussels_regional_target_grid.json grand-bruxelles-game/data/qa/brussels_regional_target_grid.json
           cp /tmp/citygen-out/candidates/*.json grand-bruxelles-game/data/qa/autonomous_candidates/ 2>/dev/null || true
-          git add grand-bruxelles-game/data/qa/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt grand-bruxelles-game/data/qa/brussels_regional_target_grid.json grand-bruxelles-game/data/qa/autonomous_candidates
+          cp -a /tmp/citygen-new-sources/. grand-bruxelles-game/data/qa/autonomous_sources/ 2>/dev/null || true
+          git add grand-bruxelles-game/data/qa/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt grand-bruxelles-game/data/qa/brussels_regional_target_grid.json grand-bruxelles-game/data/qa/autonomous_candidates grand-bruxelles-game/data/qa/autonomous_sources
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "citygen: persist autonomous scheduler pass"
           git push --force-with-lease origin citygen-autonomous-state

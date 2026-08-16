@@ -29,6 +29,7 @@ var _sourced_materials: Dictionary = {}
 var _enabled := true
 var _applied_surface_count := 0
 var _ready_complete := false
+var _identity_failure := false
 
 func _ready() -> void:
     call_deferred("_apply_when_ready")
@@ -36,22 +37,29 @@ func _ready() -> void:
 func _read_identity(path: String, expected_building_id: String) -> Dictionary:
     if not FileAccess.file_exists(path):
         push_error("Grand-Place white-stone runtime: identity missing %s" % path)
+        _identity_failure = true
         return {}
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
     if typeof(parsed) != TYPE_DICTIONARY:
         push_error("Grand-Place white-stone runtime: identity invalid %s" % path)
+        _identity_failure = true
         return {}
     var identity := parsed as Dictionary
     var target := identity.get("target", {}) as Dictionary
     var contract := identity.get("presentation_contract", {}) as Dictionary
     if str(target.get("urbis_building_id", "")) != expected_building_id:
         push_error("Grand-Place white-stone runtime: building identity drifted %s" % path)
+        _identity_failure = true
         return {}
-    if str(contract.get("applies_to", "")) != "WALLSURFACE":
+    # The older 1655673 evidence predates the explicit applies_to field. Treat
+    # an absent field as legacy-compatible, but reject any contradictory scope.
+    if contract.has("applies_to") and str(contract.get("applies_to", "")) != "WALLSURFACE":
         push_error("Grand-Place white-stone runtime: wall-only contract drifted %s" % path)
+        _identity_failure = true
         return {}
     if bool(contract.get("geometry_changed", true)) or bool(contract.get("exact_rgb_is_photometric_measurement", true)):
         push_error("Grand-Place white-stone runtime: source/presentation boundary drifted %s" % path)
+        _identity_failure = true
         return {}
     return identity
 
@@ -60,6 +68,8 @@ func _apply_when_ready() -> void:
         if _try_apply_all():
             _ready_complete = true
             print("GRAND_PLACE_WHITE_STONE_SURFACE_READY: surfaces=%d procedural=true geometry_changed=false" % _applied_surface_count)
+            return
+        if _identity_failure:
             return
         await get_tree().process_frame
     push_error("Grand-Place white-stone runtime: target LoD2 walls did not become ready")

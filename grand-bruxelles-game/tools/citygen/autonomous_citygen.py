@@ -85,6 +85,32 @@ def _maturity_path(cell_id: str, source_root: Path, maturity_root: Path) -> Path
     return sidecar if sidecar.exists() else None
 
 
+def _missing_declared_source_files(source: dict[str, Any], cell_dir: Path) -> list[str]:
+    """Return manifest-declared layer files that are physically absent.
+
+    Legacy synthetic/list-style manifests remain supported; only explicit file
+    contracts are enforced. This lets CityGen rematerialize a durable cell whose
+    manifest survived while one or more authoritative source payloads did not.
+    """
+    layers = source.get("layers")
+    if not isinstance(layers, dict):
+        return []
+    missing: list[str] = []
+    for layer_name, spec in sorted(layers.items()):
+        if not isinstance(spec, dict):
+            continue
+        declared = spec.get("file")
+        if not isinstance(declared, str) or not declared.strip():
+            continue
+        relative = Path(declared)
+        if relative.is_absolute() or ".." in relative.parts:
+            missing.append(f"{layer_name}:{declared}")
+            continue
+        if not (cell_dir / relative).is_file():
+            missing.append(f"{layer_name}:{declared}")
+    return missing
+
+
 def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
     cell_dir = source_root / cell_id
     completed = 0
@@ -96,7 +122,8 @@ def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
 
 
 def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple[str, list[str]]:
-    source_manifest = source_root / cell_id / "manifest.json"
+    cell_dir = source_root / cell_id
+    source_manifest = cell_dir / "manifest.json"
     if not source_manifest.exists():
         return "QUARANTINE", ["missing_authoritative_source_manifest"]
     try:
@@ -109,6 +136,9 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
         return "QUARANTINE", ["authoritative_source_identity_mismatch"]
     if source.get("crs") not in (None, "EPSG:31370"):
         return "QUARANTINE", ["authoritative_source_crs_mismatch"]
+    missing_files = _missing_declared_source_files(source, cell_dir)
+    if missing_files:
+        return "MISSING_SOURCE", [f"missing_authoritative_source_file:{item}" for item in missing_files]
 
     maturity_path = _maturity_path(cell_id, source_root, maturity_root)
     if maturity_path is None:
@@ -177,7 +207,12 @@ def run(
         else:
             state, blockers = classify_cell(cell_id, source_root, maturity_root)
         previous_cell = previous.get("cells", {}).get(cell_id, {})
-        progress, next_action = evidence_plan(cell_id, source_root) if cell_id in source_set else (0, "materialize_authoritative_source")
+        if state == "MISSING_SOURCE":
+            progress, next_action = 0, "materialize_authoritative_source"
+        elif cell_id in source_set:
+            progress, next_action = evidence_plan(cell_id, source_root)
+        else:
+            progress, next_action = 0, "materialize_authoritative_source"
         row = {
             "cell_id": cell_id,
             "state": state,

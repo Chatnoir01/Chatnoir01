@@ -1,7 +1,7 @@
 extends SceneTree
 
 const HUMANOID_VISUAL := preload("res://game/scripts/humanoid_visual.gd")
-const REAL_ASSET := "res://assets/characters/player/kaykit_rogue/Rogue.glb"
+const REAL_ASSET := "res://assets/characters/player_character.glb"
 
 var skeleton_count := 0
 var skinned_mesh_count := 0
@@ -33,11 +33,11 @@ func _scan(node: Node) -> void:
 
 func _run() -> void:
     if not ResourceLoader.exists(REAL_ASSET):
-        _fail("Pinned Rogue GLB missing from fresh branch")
+        _fail("Pinned CC0 authored player GLB was not imported")
         return
     var packed := ResourceLoader.load(REAL_ASSET)
     if not packed is PackedScene:
-        _fail("Rogue GLB did not import as PackedScene")
+        _fail("Authored player GLB did not import as PackedScene")
         return
     var asset := (packed as PackedScene).instantiate()
     root.add_child(asset)

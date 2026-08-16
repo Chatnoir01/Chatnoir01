@@ -19,7 +19,7 @@ permissions:
 jobs:
   character-loader-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,8 +30,8 @@ jobs:
           version: 4.7.1
           use-dotnet: false
 
-      - name: Verify project imports
-        run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
+      - name: Import project and authored GLB completely
+        run: godot --headless --path grand-bruxelles-game --editor --quit
 
       - name: Run production authored player loader test
         shell: bash

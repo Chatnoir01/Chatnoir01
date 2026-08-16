@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-import importlib.util, unittest
+import importlib.util, json, unittest
 from pathlib import Path
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / "tools" / "bake_npc_pack.py"
-SPEC = importlib.util.spec_from_file_location("bake_npc_pack", MODULE_PATH)
-assert SPEC is not None and SPEC.loader is not None
-MOD = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(MOD)
+ROOT = Path(__file__).resolve().parents[1]
+BAKER_PATH = ROOT / "tools" / "bake_npc_pack.py"
+GENERATOR_PATH = ROOT / "tools" / "generate_npc_pack_qwen.py"
+
+def load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); return module
+
+MOD = load_module("bake_npc_pack", BAKER_PATH)
+GEN = load_module("generate_npc_pack_qwen", GENERATOR_PATH)
 
 class NpcPackBakeTest(unittest.TestCase):
     def source(self, count: int = 20):
@@ -32,5 +39,31 @@ class NpcPackBakeTest(unittest.TestCase):
     def test_rejects_invalid_threshold(self):
         source = self.source(); source["profiles"][0]["thresholds"]["aggression"] = 1.2
         with self.assertRaises(MOD.BakeError): MOD.bake_payload(source)
+
+    def test_qwen_generator_prompt_requires_full_pack(self):
+        prompt = GEN.build_prompt("midi_qwen_01", "midi", "civilian", "fr-BE")
+        self.assertIn('"fear": 0.0', prompt)
+        self.assertIn('"aggression": 0.0', prompt)
+        self.assertIn("exactement 20 phrases", prompt)
+        self.assertIn('"greeting": [4 phrases]', prompt)
+        self.assertIn("midi_qwen_01", prompt)
+
+    def test_qwen_json_extraction_and_identity_gate(self):
+        fixture = self.source()
+        fixture.pop("generator", None)
+        raw = "```json\n" + json.dumps(fixture, ensure_ascii=False) + "\n```"
+        parsed = GEN.extract_json_object(raw)
+        GEN.validate_generated_identity(parsed, "midi_resident_01", "midi", "civilian", "fr-BE")
+        parsed["profiles"][0]["zone"] = "jette"
+        with self.assertRaises(MOD.BakeError):
+            GEN.validate_generated_identity(parsed, "midi_resident_01", "midi", "civilian", "fr-BE")
+
+    def test_qwen_metadata_is_pinned_before_bake(self):
+        draft = self.source(); draft.pop("generator", None)
+        manifest = {"repo_id": "Qwen/Qwen3-0.6B", "revision": "c1899de289a04d12100db370d81485cdf75e47ca"}
+        enriched = GEN.attach_generator_metadata(draft, manifest)
+        baked = MOD.bake_payload(enriched)
+        self.assertEqual(baked["generator"]["model"], manifest["repo_id"])
+        self.assertEqual(baked["generator"]["revision"], manifest["revision"])
 
 if __name__ == "__main__": unittest.main()

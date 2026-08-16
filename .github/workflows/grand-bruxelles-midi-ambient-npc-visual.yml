@@ -5,7 +5,9 @@ on:
     paths:
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/game/scripts/midi_ambient_npc_visual_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/midi_profiled_npc_gait_runtime.gd"
       - "grand-bruxelles-game/game/tests/midi_ambient_npc_visual_bridge_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_profiled_npc_gait_test.gd"
       - "grand-bruxelles-game/game/tests/midi_ambient_npc_visual_ab_capture_test.gd"
       - "grand-bruxelles-game/data/sources/visual_assets/midi_ambient_npc_visual_bridge.json"
       - ".github/workflows/grand-bruxelles-midi-ambient-npc-visual.yml"
@@ -14,7 +16,9 @@ on:
     paths:
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/game/scripts/midi_ambient_npc_visual_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/midi_profiled_npc_gait_runtime.gd"
       - "grand-bruxelles-game/game/tests/midi_ambient_npc_visual_bridge_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_profiled_npc_gait_test.gd"
       - "grand-bruxelles-game/game/tests/midi_ambient_npc_visual_ab_capture_test.gd"
       - "grand-bruxelles-game/data/sources/visual_assets/midi_ambient_npc_visual_bridge.json"
       - ".github/workflows/grand-bruxelles-midi-ambient-npc-visual.yml"
@@ -61,6 +65,13 @@ jobs:
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_ambient_npc_visual_bridge_test.gd 2>&1 | tee /tmp/midi-ambient-npc-runtime.log
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AMBIENT_NPC_VISUAL_FAIL" /tmp/midi-ambient-npc-runtime.log; then exit 1; fi
           grep -q "MIDI_AMBIENT_NPC_VISUAL_OK" /tmp/midi-ambient-npc-runtime.log
+      - name: Prove moving profiled pedestrians have visual gait
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_profiled_npc_gait_test.gd 2>&1 | tee /tmp/midi-profiled-npc-gait.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_PROFILED_NPC_GAIT_FAIL" /tmp/midi-profiled-npc-gait.log; then exit 1; fi
+          grep -q "MIDI_PROFILED_NPC_GAIT_OK" /tmp/midi-profiled-npc-gait.log
       - name: Install software renderer dependencies
         run: |
           sudo apt-get update

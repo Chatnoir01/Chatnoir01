@@ -40,7 +40,15 @@ with tempfile.TemporaryDirectory() as tmp:
     assert maturity["cell_id"] == cell_id
     assert maturity["geometry"]["authoritative_geometry_ready"] is True
     assert maturity["maturity"]["state"] == "data_ready"
-    assert all(value is False for value in maturity["maturity"]["gates"].values())
+    assert maturity["maturity"]["gates"]["source_requirements"] is True
+    assert all(
+        value is False
+        for gate, value in maturity["maturity"]["gates"].items()
+        if gate != "source_requirements"
+    )
+    assert maturity["source_requirements"]["complete"] is True
+    assert maturity["source_requirements"]["gate_ready"] is True
+    assert maturity["source_requirements"]["required_file_count"] == 1
     assert manifest["source_digest"] == mod.digest({k:v for k,v in manifest.items() if k != "source_digest"})
 
     try:
@@ -52,4 +60,4 @@ with tempfile.TemporaryDirectory() as tmp:
 
 subprocess.run([sys.executable, str(HERE / "test_materialize_urbis_source_cell_multipolygon.py")], check=True)
 
-print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true multipolygon=true maturity_sidecar=true fail_closed=true")
+print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true multipolygon=true maturity_sidecar=true source_requirements=true fail_closed=true")

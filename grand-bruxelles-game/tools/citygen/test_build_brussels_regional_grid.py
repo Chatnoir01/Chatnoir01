@@ -66,20 +66,23 @@ with tempfile.TemporaryDirectory() as tmp:
         raise AssertionError("degree-like coordinates must fail closed")
 
     # Regression: the scheduled CityGen pass already persists a validated official
-    # regional grid. A transient live WFS timeout must be allowed to reuse exactly
-    # that durable grid, but only after revalidating its CRS/count/digest contract.
+    # regional grid on citygen-autonomous-state. A transient WFS timeout must reuse
+    # exactly that durable grid even when the workflow supplies no explicit path.
     fallback_path = root / "durable_grid.json"
     fallback_payload = durable_grid_payload()
     fallback_path.write_text(json.dumps(fallback_payload), encoding="utf-8")
     original_fetch = mod.fetch_official
+    original_git_fallback = mod._load_git_fallback_grid
     try:
         def timeout_fetch(_output):
             raise urllib.error.URLError(TimeoutError("timed out"))
         mod.fetch_official = timeout_fetch
-        recovered = mod.resolve_regional_grid(root / "network", 500.0, True, fallback_path)
+        mod._load_git_fallback_grid = lambda cell_size: fallback_payload
+        recovered = mod.resolve_regional_grid(root / "network", 500.0, True)
         assert recovered == fallback_payload
     finally:
         mod.fetch_official = original_fetch
+        mod._load_git_fallback_grid = original_git_fallback
 
     tampered = dict(fallback_payload)
     tampered["grid_digest"] = "0" * 64

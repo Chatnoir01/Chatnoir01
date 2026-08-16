@@ -80,8 +80,12 @@ jobs:
           urbis_path = 'grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json'
           urbis = json.load(open(urbis_path, encoding='utf-8'))
           assert urbis['accuracy']['plan_geometry'] == 'official_urbis'
+          assert urbis['accuracy']['street_surface_levels'] == 'official_urbis'
           assert urbis['stats']['buildings'] >= 2500, urbis['stats']
           assert urbis['stats']['street_surfaces'] >= 1200, urbis['stats']
+          assert urbis['stats']['street_surfaces_surface_level'] >= 1200, urbis['stats']
+          assert urbis['stats']['street_surfaces_non_surface_level'] == 8, urbis['stats']
+          assert all('level' in surface for surface in urbis['street_surfaces'])
           print('Committed UrbIS Midi runtime stats:', urbis['stats'])
 
           bourse_surface_path = 'grand-bruxelles-game/data/urbis/bourse_street_surfaces.game.json'

@@ -234,11 +234,41 @@ func _apply_zone(main: Node, zone: Dictionary) -> void:
     if not ok:
         _travel_failed("zone runtime refused to load")
         return
+    if not await _mount_life_if_required(main, zone):
+        _travel_failed("zone loaded but minimum LABO life contract failed")
+        return
     _active_zone_id = str(zone.get("id", _active_zone_id))
     _pending_zone_id = ""
     _busy = false
     _status.text = "%s · %s" % [str(zone.get("label", "Zone")), str(zone.get("quality", "LABO"))]
     print("ZONE_VISIT_READY: id=%s quality=%s" % [str(zone.get("id", "")), str(zone.get("quality", ""))])
+
+func _mount_life_if_required(main: Node, zone: Dictionary) -> bool:
+    var script_path := str(zone.get("life_script", ""))
+    if script_path.is_empty():
+        return true
+    var script: Script = load(script_path)
+    if script == null:
+        return false
+    var life := Node3D.new()
+    life.name = "ZoneLife_%s" % str(zone.get("id", "zone"))
+    life.set_script(script)
+    main.add_child(life)
+    await get_tree().process_frame
+    if life.has_method("has_minimum_playable_life") and not bool(life.call("has_minimum_playable_life")):
+        life.queue_free()
+        return false
+    var minimum: Variant = zone.get("life_minimum", {})
+    if minimum is Dictionary and life.has_method("get_counts"):
+        var counts: Variant = life.call("get_counts")
+        if not counts is Dictionary:
+            life.queue_free()
+            return false
+        for key: Variant in (minimum as Dictionary).keys():
+            if int((counts as Dictionary).get(key, 0)) < int((minimum as Dictionary).get(key, 0)):
+                life.queue_free()
+                return false
+    return true
 
 func _mount_script_zone(main: Node, player: CharacterBody3D, zone: Dictionary) -> bool:
     var script_path := str(zone.get("script", ""))

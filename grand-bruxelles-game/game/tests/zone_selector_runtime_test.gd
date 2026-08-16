@@ -30,6 +30,7 @@ func _run() -> void:
         _fail("zones invalid")
         return
     var ids: Array[String] = []
+    var anneessens: Dictionary = {}
     for raw: Variant in zones:
         if not raw is Dictionary:
             _fail("zone row invalid")
@@ -43,10 +44,24 @@ func _run() -> void:
             if not ResourceLoader.exists(str(requirement)) and not FileAccess.file_exists(str(requirement)):
                 _fail("missing requirement %s" % str(requirement))
                 return
+        if str(zone.get("id", "")) == "anneessens":
+            anneessens = zone
         ids.append(str(zone.get("id", "")))
     if ids != EXPECTED_IDS:
         _fail("unexpected listed zones %s" % str(ids))
         return
+    if anneessens.is_empty() or str(anneessens.get("quality", "")) != "LABO":
+        _fail("Anneessens LABO contract missing")
+        return
+    var life_script := str(anneessens.get("life_script", ""))
+    var life_minimum: Variant = anneessens.get("life_minimum", {})
+    if life_script.is_empty() or not ResourceLoader.exists(life_script):
+        _fail("Anneessens life runtime missing")
+        return
+    if not life_minimum is Dictionary or int((life_minimum as Dictionary).get("civilians", 0)) <= 0 or int((life_minimum as Dictionary).get("moving_vehicles", 0)) <= 0:
+        _fail("Anneessens minimum-life gate missing")
+        return
+
     var selector := get_root().get_node_or_null("ZoneSelectorRuntime")
     if selector == null or not selector.has_method("available_zones"):
         _fail("runtime selector missing")
@@ -118,17 +133,37 @@ func _run() -> void:
         selector.call("set_menu_open", false)
         for _frame: int in range(8):
             await process_frame
+        await selector.call("_apply_zone", main, anneessens)
+        for _frame: int in range(6):
+            await process_frame
+        var life := main.get_node_or_null("ZoneLife_anneessens")
+        if life == null or not life.has_method("get_counts"):
+            _fail("Anneessens life runtime did not mount")
+            return
+        var counts: Variant = life.call("get_counts")
+        if not counts is Dictionary or int((counts as Dictionary).get("civilians", 0)) <= 0 or int((counts as Dictionary).get("moving_vehicles", 0)) <= 0:
+            _fail("Anneessens remained empty")
+            return
+        var player := main.get_node_or_null("Player") as CharacterBody3D
+        if player == null or Vector2(player.global_position.x + 272.04, player.global_position.z + 217.07).length() > 1.0:
+            _fail("Anneessens player spawn failed")
+            return
         reporter.call("begin_report")
         for _frame: int in range(3):
             await process_frame
         if reporter.get_node_or_null("ReportPanel") == null or not (reporter.get_node("ReportPanel") as Control).visible:
             _fail("report panel did not open")
             return
+        var context: Variant = selector.call("current_report_context")
+        if not context is Dictionary or str((context as Dictionary).get("id", "")) != "anneessens" or str((context as Dictionary).get("quality", "")) != "LABO":
+            _fail("Anneessens report context not active")
+            return
         DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts/visual"))
         var result := get_root().get_viewport().get_texture().get_image().save_png("res://artifacts/visual/player_report_1280x720.png")
         if result != OK:
             _fail("report witness save failed")
             return
-        print("PLAYER_REPORT_WITNESS_OK: 1280x720")
-    print("ZONE_SELECTOR_OK: listed=%d playable=1 lab=6 reporting=true no_invisible_quarantine=true" % available.size())
+        print("ANNEESSENS_LAB_PLAYABLE_OK: civilians=%d parked=%d moving=%d" % [int((counts as Dictionary).get("civilians", 0)), int((counts as Dictionary).get("parked_vehicles", 0)), int((counts as Dictionary).get("moving_vehicles", 0))])
+        print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720")
+    print("ZONE_SELECTOR_OK: listed=%d playable=1 lab=6 reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
     quit(0)

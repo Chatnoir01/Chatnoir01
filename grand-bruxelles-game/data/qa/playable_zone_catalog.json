@@ -1,9 +1,9 @@
 {
   "schema": "grand-bruxelles-playable-zone-catalog-v1",
-  "policy": "List only zones already present on main whose required runtime resources exist. LABO means visitable but not human-approved as JOUABLE.",
+  "policy": "List only zones already present on main whose required runtime resources exist. LABO means player-testable experimental, not empty: zone-specific minimum-life contracts are enforced on visit. JOUABLE remains human-promoted only.",
   "zones": [
     {"id":"midi","label":"Midi","quality":"JOUABLE","mode":"fast_travel","destination":"midi","requires":["res://game/main.tscn","res://game/scripts/player_controller.gd"]},
-    {"id":"anneessens","label":"Anneessens","quality":"LABO","mode":"position","spawn":[-272.04,1.05,-217.07],"requires":["res://game/main.tscn","res://data/osm/vertical_slice_01.game.json"]},
+    {"id":"anneessens","label":"Anneessens","quality":"LABO","mode":"position","spawn":[-272.04,1.05,-217.07],"life_script":"res://game/scripts/anneessens_lab_life.gd","life_minimum":{"civilians":1,"moving_vehicles":1},"requires":["res://game/main.tscn","res://data/osm/vertical_slice_01.game.json","res://game/scripts/anneessens_lab_life.gd"]},
     {"id":"bourse","label":"Bourse","quality":"LABO","mode":"fast_travel","destination":"bourse","requires":["res://game/main.tscn","res://game/scripts/player_controller.gd","res://game/scripts/bourse_portico_articulation.gd"]},
     {"id":"grand_place","label":"Grand-Place","quality":"LABO","mode":"position","spawn":[319.01,1.05,-535.20],"requires":["res://game/main.tscn","res://game/scripts/grand_place_official_lod2_1655673.gd","res://game/scripts/grand_place_official_lod2_1786758.gd"]},
     {"id":"ixelles","label":"Ixelles","quality":"LABO","mode":"player_method","method":"_activate_ixelles_direct_spawn","requires":["res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd"]},

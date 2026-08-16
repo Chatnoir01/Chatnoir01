@@ -1,0 +1,35 @@
+name: Grand Bruxelles Anneessens School Source
+
+on:
+  push:
+    paths:
+      - "grand-bruxelles-game/tools/fetch_anneessens_school_source.py"
+      - "grand-bruxelles-game/tests/test_anneessens_school_source.py"
+      - "grand-bruxelles-game/data/osm/anneessens_school_256375327.game.json"
+      - ".github/workflows/grand-bruxelles-anneessens-school-source.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/fetch_anneessens_school_source.py"
+      - "grand-bruxelles-game/tests/test_anneessens_school_source.py"
+      - "grand-bruxelles-game/data/osm/anneessens_school_256375327.game.json"
+      - ".github/workflows/grand-bruxelles-anneessens-school-source.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Acquire exact OSM school footprint
+        run: python grand-bruxelles-game/tools/fetch_anneessens_school_source.py --output /tmp/anneessens_school_256375327.game.json
+      - name: Show acquired source record
+        run: cat /tmp/anneessens_school_256375327.game.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-school-source
+          path: /tmp/anneessens_school_256375327.game.json

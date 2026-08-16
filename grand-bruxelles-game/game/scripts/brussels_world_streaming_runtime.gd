@@ -24,6 +24,7 @@ const SHIPPED_CELLS: Array[Dictionary] = [
         "manifest_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/manifest.json",
         "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/runtime/cell.game.json",
         "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/runtime/network.game.json",
+        "strong_heights_path": "res://data/terrain/ixelles/bxl-e149000-n169500-s500_strong_heights.game.json",
         "script_path": SOURCE_PLAN_STREAMED_SCRIPT_PATH,
     },
     {
@@ -31,6 +32,7 @@ const SHIPPED_CELLS: Array[Dictionary] = [
         "manifest_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/manifest.json",
         "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/runtime/cell.game.json",
         "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/runtime/network.game.json",
+        "strong_heights_path": "res://data/terrain/ixelles/bxl-e149500-n169000-s500_strong_heights.game.json",
         "script_path": SOURCE_PLAN_STREAMED_SCRIPT_PATH,
     },
     {
@@ -38,6 +40,7 @@ const SHIPPED_CELLS: Array[Dictionary] = [
         "manifest_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169500-s500/manifest.json",
         "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169500-s500/runtime/cell.game.json",
         "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169500-s500/runtime/network.game.json",
+        "strong_heights_path": "res://data/terrain/ixelles/bxl-e149500-n169500-s500_strong_heights.game.json",
         "script_path": SOURCE_PLAN_STREAMED_SCRIPT_PATH,
     },
 ]
@@ -153,6 +156,7 @@ func _register_shipped_cells() -> int:
             metadata["manifest_path"] = manifest_path
             metadata["runtime_cell_path"] = runtime_cell_path
             metadata["runtime_network_path"] = runtime_network_path
+            metadata["strong_heights_path"] = str(descriptor.get("strong_heights_path", ""))
             metadata["build_collision"] = false
         if not backend.register_script_cell(cell_id, script_path, metadata):
             push_error("BrusselsWorldStreamingRuntime: backend registration failed %s" % cell_id)

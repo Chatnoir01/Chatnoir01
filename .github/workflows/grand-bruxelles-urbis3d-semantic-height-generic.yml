@@ -1,0 +1,30 @@
+name: Grand Bruxelles UrbIS3D Semantic Height Generic
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/match_ixelles_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/test_match_ixelles_urbis3d_semantic_heights.py"
+      - ".github/workflows/grand-bruxelles-urbis3d-semantic-height-generic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-height-generic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install read-only GeoPackage tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal
+          ogrinfo --version
+      - name: Prove generic Anderlecht contract
+        run: python3 grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py
+      - name: Preserve historical Ixelles contract
+        run: python3 grand-bruxelles-game/tools/test_match_ixelles_urbis3d_semantic_heights.py

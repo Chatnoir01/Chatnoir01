@@ -29,15 +29,16 @@ void vertex() {
 }
 
 void fragment() {
-    // Broad-band mineral breakup only. Frequencies are deliberately larger
-    // than architectural joints so this cannot imply stone block dimensions.
+    // Broad mineral breakup only. These overlapping metre-scale waves are
+    // deliberately non-architectural: no repeated course, joint or block grid
+    // is encoded, so the shader cannot imply undocumented masonry dimensions.
     float a = sin(world_pos.x * 0.31 + world_pos.y * 0.17 + world_pos.z * 0.23);
     float b = sin(world_pos.x * 0.57 - world_pos.y * 0.11 + world_pos.z * 0.41 + 1.9);
     float c = sin(world_pos.x * 0.13 + world_pos.y * 0.29 - world_pos.z * 0.19 + 4.2);
-    float mineral = clamp(0.5 + a * 0.11 + b * 0.07 + c * 0.08, 0.0, 1.0);
+    float mineral = clamp(0.5 + a * 0.20 + b * 0.12 + c * 0.10, 0.0, 1.0);
     vec3 stone = mix(cool_color.rgb, warm_color.rgb, mineral);
     ALBEDO = stone;
-    ROUGHNESS = clamp(base_roughness + (0.5 - mineral) * 0.10, 0.62, 0.96);
+    ROUGHNESS = clamp(base_roughness + (0.5 - mineral) * 0.14, 0.60, 0.97);
     METALLIC = 0.0;
     SPECULAR = 0.28;
 }

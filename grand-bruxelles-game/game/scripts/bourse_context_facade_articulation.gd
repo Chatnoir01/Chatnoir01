@@ -22,24 +22,37 @@ func _build() -> void:
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
     if typeof(parsed) != TYPE_DICTIONARY: push_error("Bourse context facade: invalid source"); return
 
-    var rendered := {}
-    for child: Node in generated.get_children():
-        if child.name.begins_with("Building_"):
-            var raw := child.name.trim_prefix("Building_")
-            if raw.is_valid_int(): rendered[int(raw)] = true
+    var source_buildings: Array = (parsed as Dictionary).get("buildings", [])
     var replacements: Dictionary = city.call("_validated_hero_replacements") as Dictionary if city.has_method("_validated_hero_replacements") else {}
-    for raw: Variant in (parsed as Dictionary).get("buildings", []):
+    var selected := _builder_selected_ids(source_buildings, replacements, int(city.get("max_buildings")))
+    var near_count := 0
+    for raw: Variant in source_buildings:
         if not raw is Dictionary: continue
         var building := raw as Dictionary
         var osm_id := int(building.get("osm_id", 0))
         var footprint: Array = building.get("footprint", [])
+        if not selected.has(osm_id) or footprint.size() < 3 or not _near(footprint): continue
+        near_count += 1
         var height := clampf(float(building.get("height", 10.5)), 2.8, 120.0)
-        if not rendered.has(osm_id) or replacements.has(osm_id) or footprint.size() < 3 or height < 8.0 or not _near(footprint): continue
+        if height < 8.0: continue
         _queue(footprint, height); _buildings += 1
     _layer("ContextCornices", _cornices, Color(0.60, 0.555, 0.48, 1.0))
     _layer("ContextLintels", _lintels, Color(0.60, 0.555, 0.48, 1.0))
     _layer("ContextSills", _sills, Color(0.46, 0.44, 0.40, 1.0))
-    print("BOURSE_CONTEXT_FACADE_READY: buildings=%d trims=%d source_geometry_unchanged=true collision=false" % [_buildings, diagnostic_trim_count()])
+    print("BOURSE_CONTEXT_FACADE_READY: builder_selected=%d near=%d buildings=%d trims=%d source_geometry_unchanged=true collision=false" % [selected.size(), near_count, _buildings, diagnostic_trim_count()])
+
+func _builder_selected_ids(buildings: Array, replacements: Dictionary, limit: int) -> Dictionary:
+    var selected := {}
+    var count := 0
+    for raw: Variant in buildings:
+        if count >= limit: break
+        if not raw is Dictionary: continue
+        var building := raw as Dictionary
+        var osm_id := int(building.get("osm_id", 0))
+        var footprint: Array = building.get("footprint", [])
+        if replacements.has(osm_id) or footprint.size() < 3: continue
+        selected[osm_id] = true; count += 1
+    return selected
 
 func _center(points: Array) -> Vector2:
     var value := Vector2.ZERO

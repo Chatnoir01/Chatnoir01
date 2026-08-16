@@ -43,11 +43,10 @@ def _validate(cell_id: str,bbox: tuple[float,float,float,float]) -> None:
     if cell_id!=expected: raise ValueError(f"cell id/bbox mismatch: expected {expected}, got {cell_id}")
 
 
-def _centroid(feature: dict[str,Any]) -> tuple[float,float] | None:
-    geom=feature.get("geometry") or {}; coords=geom.get("coordinates") or []
-    if geom.get("type")!="Polygon" or not coords or not isinstance(coords[0],list): return None
+def _ring_centroid(ring: Any) -> tuple[float,float,float] | None:
+    if not isinstance(ring,list): return None
     points=[]
-    for p in coords[0]:
+    for p in ring:
         if not isinstance(p,list) or len(p)<2: return None
         x,y=float(p[0]),float(p[1])
         if not math.isfinite(x) or not math.isfinite(y): return None
@@ -57,8 +56,32 @@ def _centroid(feature: dict[str,Any]) -> tuple[float,float] | None:
     twice_area=0.0; cx=0.0; cy=0.0
     for i,(x0,y0) in enumerate(points):
         x1,y1=points[(i+1)%len(points)]; cross=x0*y1-x1*y0; twice_area+=cross; cx+=(x0+x1)*cross; cy+=(y0+y1)*cross
-    if abs(twice_area)<1e-9: return (sum(x for x,_ in points)/len(points),sum(y for _,y in points)/len(points))
-    return (cx/(3.0*twice_area),cy/(3.0*twice_area))
+    if abs(twice_area)<1e-9:
+        return (sum(x for x,_ in points)/len(points),sum(y for _,y in points)/len(points),0.0)
+    return (cx/(3.0*twice_area),cy/(3.0*twice_area),abs(twice_area)/2.0)
+
+
+def _polygon_centroid(coords: Any) -> tuple[float,float,float] | None:
+    if not isinstance(coords,list) or not coords: return None
+    return _ring_centroid(coords[0])
+
+
+def _centroid(feature: dict[str,Any]) -> tuple[float,float] | None:
+    geom=feature.get("geometry") or {}; coords=geom.get("coordinates") or []; kind=geom.get("type")
+    if kind=="Polygon":
+        result=_polygon_centroid(coords)
+        return None if result is None else (result[0],result[1])
+    if kind!="MultiPolygon" or not isinstance(coords,list) or not coords: return None
+    parts=[]
+    for polygon in coords:
+        result=_polygon_centroid(polygon)
+        if result is None: return None
+        parts.append(result)
+    weighted=[part for part in parts if part[2]>0.0]
+    if weighted:
+        total=sum(part[2] for part in weighted)
+        return (sum(part[0]*part[2] for part in weighted)/total,sum(part[1]*part[2] for part in weighted)/total)
+    return (sum(part[0] for part in parts)/len(parts),sum(part[1] for part in parts)/len(parts))
 
 
 def owner_cell(feature: dict[str,Any]) -> str | None:
@@ -95,7 +118,7 @@ def materialize(cell_id: str,bbox: tuple[float,float,float,float],output_dir: Pa
         elif owner==cell_id: kept.append(feature)
         else: ownership_filtered+=1
     kept.sort(key=lambda f:str((f.get("properties") or {}).get("INSPIRE_ID") or f.get("id") or digest(f)))
-    source={k:v for k,v in document.items() if k!="features"}; source["type"]="FeatureCollection"; source["features"]=kept; source["numberReturned"]=len(kept); source["grand_bruxelles_source"]={"authority":"Paradigm / Brussels-Capital Region","service":WFS_URL,"layer":LAYER,"crs":CRS,"bbox":list(bbox),"cell_id":cell_id,"ownership":"polygon_centroid_global_500m_cell"}
+    source={k:v for k,v in document.items() if k!="features"}; source["type"]="FeatureCollection"; source["features"]=kept; source["numberReturned"]=len(kept); source["grand_bruxelles_source"]={"authority":"Paradigm / Brussels-Capital Region","service":WFS_URL,"layer":LAYER,"crs":CRS,"bbox":list(bbox),"cell_id":cell_id,"ownership":"polygon_or_multipolygon_centroid_global_500m_cell"}
     _write(output_dir/"raw"/"buildings.geojson",source,True)
     manifest={"format":"grand-bruxelles-urbis-source-cell-v1","cell_id":cell_id,"crs":CRS,"bbox":list(bbox),"layers":{"buildings":{"wfs_name":LAYER,"features":len(kept),"ownership_filtered":ownership_filtered,"invalid_ownership_features":invalid_ownership,"file":"raw/buildings.geojson"}},"promotion":"source_only_no_runtime_mutation"}; manifest["source_digest"]=digest(manifest); _write(output_dir/"manifest.json",manifest,False)
     maturity=build_maturity(output_dir); _write(output_dir/"maturity.json",maturity,False)

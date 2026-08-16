@@ -5,6 +5,18 @@ class_name BrusselsSourcePlanStreamedCell
 ## plan geometry. Street surfaces always stay plan-backed. Optional strong-height
 ## contracts may add VISUAL-ONLY building massing; they never authorize gameplay
 ## collision or authoritative building heights.
+##
+## Building tones below are presentation-only, deliberately non-classifying
+## variation for source-backed massing. They do not claim real facade material,
+## measured color, brick/stone/concrete identity, or photometric truth.
+
+const MASSING_PRESENTATION_TONES := [
+    Color(0.56, 0.50, 0.44, 1.0),
+    Color(0.62, 0.55, 0.47, 1.0),
+    Color(0.59, 0.53, 0.49, 1.0),
+    Color(0.65, 0.58, 0.50, 1.0),
+    Color(0.54, 0.49, 0.46, 1.0),
+]
 
 @export_file("*.json") var manifest_path := ""
 @export_file("*.json") var runtime_cell_path := ""
@@ -24,6 +36,7 @@ var source_building_count := 0
 var blocked_unapproved_building_count := 0
 var rendered_building_count := 0
 var strong_height_contract_loaded := false
+var massing_tone_profile_count := 0
 var stream_total_ms := 0
 var stream_phase_ms: Dictionary = {}
 var street_surface_chunks := 0
@@ -100,7 +113,8 @@ func _make_materials() -> void:
     _sidewalk_material = _make_material(Color(0.45, 0.435, 0.405, 1.0), 0.94)
     _paved_material = _make_material(Color(0.39, 0.375, 0.345, 1.0), 0.95)
     _other_material = _make_material(Color(0.28, 0.285, 0.28, 1.0), 0.95)
-    _building_material = _make_material(Color(0.60, 0.53, 0.45, 1.0), 0.90)
+    _building_material = _make_material(Color.WHITE, 0.90)
+    _building_material.vertex_color_use_as_albedo = true
 
 
 func _surface_material(surface_type: String) -> StandardMaterial3D:
@@ -111,6 +125,16 @@ func _surface_material(surface_type: String) -> StandardMaterial3D:
     if surface_type == "P" or surface_type == "I":
         return _paved_material
     return _other_material
+
+
+func _massing_tone_index(building_id: String) -> int:
+    if MASSING_PRESENTATION_TONES.is_empty():
+        return 0
+    return absi(building_id.hash()) % MASSING_PRESENTATION_TONES.size()
+
+
+func _massing_tone(building_id: String) -> Color:
+    return MASSING_PRESENTATION_TONES[_massing_tone_index(building_id)]
 
 
 func _ring(raw: Variant) -> PackedVector2Array:
@@ -186,13 +210,14 @@ func _prepare_visual_buildings(buildings: Array) -> Array:
     return prepared
 
 
-func _add_building(tool: SurfaceTool, ring: PackedVector2Array, height: float) -> bool:
+func _add_building(tool: SurfaceTool, ring: PackedVector2Array, height: float, tone: Color) -> bool:
     var triangles := Geometry2D.triangulate_polygon(ring)
     if triangles.size() < 3:
         return false
     var top_y := building_base_y + height
     for raw_index: int in triangles:
         var point := ring[raw_index]
+        tool.set_color(tone)
         tool.set_normal(Vector3.UP)
         tool.add_vertex(Vector3(point.x, top_y, point.y))
     for index: int in range(ring.size()):
@@ -207,6 +232,7 @@ func _add_building(tool: SurfaceTool, ring: PackedVector2Array, height: float) -
         var a1 := Vector3(a.x, top_y, a.y)
         var b1 := Vector3(b.x, top_y, b.y)
         for vertex: Vector3 in [a0, b0, b1, a0, b1, a1]:
+            tool.set_color(tone)
             tool.set_normal(normal)
             tool.add_vertex(vertex)
     return true
@@ -218,6 +244,7 @@ func _build_visual_buildings_over_frames(prepared: Array) -> void:
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     tool.set_material(_building_material)
+    var used_tones: Dictionary = {}
     var chunk_size := maxi(building_features_per_frame, 1)
     var start_index := 0
     while start_index < prepared.size():
@@ -225,7 +252,10 @@ func _build_visual_buildings_over_frames(prepared: Array) -> void:
         var end_index := mini(start_index + chunk_size, prepared.size())
         for feature_index: int in range(start_index, end_index):
             var building: Dictionary = prepared[feature_index]
-            if _add_building(tool, building["footprint"] as PackedVector2Array, float(building["height"])):
+            var building_id := str(building["id"])
+            var tone_index := _massing_tone_index(building_id)
+            if _add_building(tool, building["footprint"] as PackedVector2Array, float(building["height"]), _massing_tone(building_id)):
+                used_tones[tone_index] = true
                 rendered_building_count += 1
         building_massing_chunks += 1
         stream_phase_ms["building_massing_chunk"] = maxi(int(stream_phase_ms.get("building_massing_chunk", 0)), Time.get_ticks_msec() - started)
@@ -233,6 +263,7 @@ func _build_visual_buildings_over_frames(prepared: Array) -> void:
         if start_index < prepared.size():
             await get_tree().process_frame
 
+    massing_tone_profile_count = used_tones.size()
     var commit_started := Time.get_ticks_msec()
     var mesh: ArrayMesh = tool.commit()
     if mesh.get_surface_count() > 0:
@@ -241,6 +272,8 @@ func _build_visual_buildings_over_frames(prepared: Array) -> void:
         instance.mesh = mesh
         instance.set_meta("visual_only", true)
         instance.set_meta("runtime_approved", false)
+        instance.set_meta("presentation_only", true)
+        instance.set_meta("massing_tone_profiles", massing_tone_profile_count)
         add_child(instance)
     stream_phase_ms["building_massing_commit"] = Time.get_ticks_msec() - commit_started
 
@@ -276,7 +309,7 @@ func _build_streamed() -> void:
     runtime_loaded = expected_surfaces >= 0 and street_surface_count == expected_surfaces and rendered_building_count + blocked_unapproved_building_count == expected_buildings
     stream_total_ms = Time.get_ticks_msec() - total_started
     if runtime_loaded:
-        print("BRUSSELS_SOURCE_PLAN_CELL_READY: cell=%s surfaces=%d street_segments=%d visual_buildings=%d blocked_buildings=%d strong_heights=%s total_ms=%d max_phase_ms=%d surface_chunks=%d building_chunks=%d" % [cell_id, street_surface_count, street_segment_count, rendered_building_count, blocked_unapproved_building_count, str(strong_height_contract_loaded), stream_total_ms, get_max_stream_phase_ms(), street_surface_chunks, building_massing_chunks])
+        print("BRUSSELS_SOURCE_PLAN_CELL_READY: cell=%s surfaces=%d street_segments=%d visual_buildings=%d blocked_buildings=%d strong_heights=%s massing_tones=%d total_ms=%d max_phase_ms=%d surface_chunks=%d building_chunks=%d" % [cell_id, street_surface_count, street_segment_count, rendered_building_count, blocked_unapproved_building_count, str(strong_height_contract_loaded), massing_tone_profile_count, stream_total_ms, get_max_stream_phase_ms(), street_surface_chunks, building_massing_chunks])
     else:
         push_error("BrusselsSourcePlanStreamedCell: runtime counts failed for %s surfaces=%d/%d buildings=%d+%d/%d" % [cell_id, street_surface_count, expected_surfaces, rendered_building_count, blocked_unapproved_building_count, expected_buildings])
 

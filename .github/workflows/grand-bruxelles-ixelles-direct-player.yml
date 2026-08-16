@@ -42,14 +42,16 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|IXELLES_DIRECT_SPAWN_FAIL" /tmp/ixelles-direct-player.log; then exit 1; fi
           grep -F "IXELLES_DIRECT_SPAWN_OK" /tmp/ixelles-direct-player.log
           test -f grand-bruxelles-game/artifacts/ixelles/ixelles_direct_player_1280x720.png
-      - name: Capture streamed East source-plan visual massing 1280x720
+      - name: Capture streamed East source-plan visual massing 1280x720 A/B
         shell: bash
         run: |
           set -o pipefail
           xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/brussels_source_plan_cluster_test.gd -- capture=1 2>&1 | tee /tmp/ixelles-source-plan-east.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_SOURCE_PLAN_CLUSTER_FAIL" /tmp/ixelles-source-plan-east.log; then exit 1; fi
+          grep -F "BRUSSELS_SOURCE_PLAN_MASSING_AB_OK" /tmp/ixelles-source-plan-east.log
           grep -F "BRUSSELS_SOURCE_PLAN_CAPTURE_OK" /tmp/ixelles-source-plan-east.log
           grep -F "BRUSSELS_SOURCE_PLAN_CLUSTER_OK" /tmp/ixelles-source-plan-east.log
+          test -f grand-bruxelles-game/artifacts/ixelles/ixelles_source_plan_east_massing_flat_before_1280x720.png
           test -f grand-bruxelles-game/artifacts/ixelles/ixelles_source_plan_east_1280x720.png
       - name: Upload production player evidence
         if: always()
@@ -58,6 +60,7 @@ jobs:
           name: ixelles-production-visual-witnesses-1280x720
           path: |
             grand-bruxelles-game/artifacts/ixelles/ixelles_direct_player_1280x720.png
+            grand-bruxelles-game/artifacts/ixelles/ixelles_source_plan_east_massing_flat_before_1280x720.png
             grand-bruxelles-game/artifacts/ixelles/ixelles_source_plan_east_1280x720.png
             /tmp/ixelles-direct-player.log
             /tmp/ixelles-source-plan-east.log

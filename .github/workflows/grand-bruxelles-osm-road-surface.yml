@@ -3,8 +3,10 @@ name: Grand Bruxelles OSM Road Surface
 on:
   pull_request:
     paths:
+      - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/game/scripts/osm_city_builder.gd"
       - "grand-bruxelles-game/game/scripts/brussels_osm_road_surface_material.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_road_surface_runtime.gd"
       - "grand-bruxelles-game/game/tests/brussels_osm_road_surface_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_osm_road_surface_witness_test.gd"
       - ".github/workflows/grand-bruxelles-osm-road-surface.yml"
@@ -40,7 +42,6 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_ROAD_SURFACE_FAIL" /tmp/osm-road-surface.log; then exit 1; fi
           grep -q "BRUSSELS_OSM_ROAD_SURFACE_OK" /tmp/osm-road-surface.log
       - name: 1280x720 normal-player road surface A/B
-        if: hashFiles('grand-bruxelles-game/game/tests/brussels_osm_road_surface_witness_test.gd') != ''
         shell: bash
         run: |
           set -o pipefail
@@ -48,7 +49,6 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_ROAD_SURFACE_VISUAL_FAIL" /tmp/osm-road-witness.log; then exit 1; fi
           grep -q "BRUSSELS_OSM_ROAD_SURFACE_VISUAL_OK" /tmp/osm-road-witness.log
       - name: Upload road surface evidence
-        if: hashFiles('grand-bruxelles-game/artifacts/visual/osm_road_surface_before.png') != ''
         uses: actions/upload-artifact@v4
         with:
           name: brussels-osm-road-surface-ab

@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import tempfile
+import urllib.error
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -16,6 +17,23 @@ def feature(name, ring):
         "crs": {"type": "name", "properties": {"name": "EPSG:31370"}},
         "features": [{"type": "Feature", "properties": {"name": name}, "geometry": {"type": "Polygon", "coordinates": [ring]}}],
     }
+
+
+def durable_grid_payload():
+    payload = {
+        "format": "grand-bruxelles-regional-target-grid-v1",
+        "authority": "UrbIS Municipalities official geometry",
+        "crs": "EPSG:31370",
+        "cell_size_m": 500.0,
+        "summary": {"municipality_count": 19, "cell_count": 1},
+        "cells": [{
+            "cell_id": "bxl-e149000-n169000-s500",
+            "bbox": [149000.0, 169000.0, 149500.0, 169500.0],
+            "municipalities": ["bruxelles"],
+        }],
+    }
+    payload["grid_digest"] = mod.digest(payload)
+    return payload
 
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -46,5 +64,34 @@ with tempfile.TemporaryDirectory() as tmp:
         assert "EPSG:31370" in str(exc)
     else:
         raise AssertionError("degree-like coordinates must fail closed")
+
+    # Regression: the scheduled CityGen pass already persists a validated official
+    # regional grid on citygen-autonomous-state. A transient WFS timeout must reuse
+    # exactly that durable grid even when the workflow supplies no explicit path.
+    fallback_path = root / "durable_grid.json"
+    fallback_payload = durable_grid_payload()
+    fallback_path.write_text(json.dumps(fallback_payload), encoding="utf-8")
+    original_fetch = mod.fetch_official
+    original_git_fallback = mod._load_git_fallback_grid
+    try:
+        def timeout_fetch(_output):
+            raise urllib.error.URLError(TimeoutError("timed out"))
+        mod.fetch_official = timeout_fetch
+        mod._load_git_fallback_grid = lambda cell_size: fallback_payload
+        recovered = mod.resolve_regional_grid(root / "network", 500.0, True)
+        assert recovered == fallback_payload
+    finally:
+        mod.fetch_official = original_fetch
+        mod._load_git_fallback_grid = original_git_fallback
+
+    tampered = dict(fallback_payload)
+    tampered["grid_digest"] = "0" * 64
+    fallback_path.write_text(json.dumps(tampered), encoding="utf-8")
+    try:
+        mod.load_fallback_grid(fallback_path, 500.0)
+    except ValueError as exc:
+        assert "digest" in str(exc)
+    else:
+        raise AssertionError("tampered durable grid must fail closed")
 
 print("BRUSSELS_REGIONAL_GRID_OK")

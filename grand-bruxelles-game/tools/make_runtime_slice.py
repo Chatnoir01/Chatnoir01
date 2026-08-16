@@ -74,11 +74,36 @@ def selected_bounds(features: list[dict[str, Any]]) -> list[float]:
     for feature in features:
         points.extend(feature.get("points", []))
         points.extend(feature.get("footprint", []))
+        position = feature.get("position")
+        if isinstance(position, list) and len(position) >= 2:
+            points.append(position)
     if not points:
         return [0.0, 0.0, 0.0, 0.0]
     xs = [float(p[0]) for p in points]
     zs = [float(p[1]) for p in points]
     return [round(min(xs), 2), round(min(zs), 2), round(max(xs), 2), round(max(zs), 2)]
+
+
+def select_environment_points(
+    source_points: list[dict[str, Any]],
+    anchors: list[tuple[float, float]],
+    radius: float,
+    max_points: int,
+) -> list[dict[str, Any]]:
+    """Keep only explicit source points close to the playable corridor."""
+    candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    for point in source_points:
+        position = point.get("position")
+        if not isinstance(position, list) or len(position) < 2:
+            continue
+        kind = str(point.get("kind", ""))
+        if kind not in {"tree", "street_lamp", "bollard"}:
+            continue
+        distance = corridor_distance((float(position[0]), float(position[1])), anchors)
+        if distance <= radius:
+            candidates.append(((round(distance, 4), kind, int(point.get("osm_id") or 0)), point))
+    candidates.sort(key=lambda item: item[0])
+    return [item[1] for item in candidates[:max_points]]
 
 
 def select_buildings(
@@ -153,9 +178,11 @@ def main() -> int:
     parser.add_argument("--road-radius", type=float, default=170.0)
     parser.add_argument("--building-radius", type=float, default=130.0)
     parser.add_argument("--rail-radius", type=float, default=180.0)
+    parser.add_argument("--environment-radius", type=float, default=130.0)
     parser.add_argument("--max-roads", type=int, default=140)
     parser.add_argument("--max-buildings", type=int, default=140)
     parser.add_argument("--max-railways", type=int, default=30)
+    parser.add_argument("--max-environment-points", type=int, default=1000)
     args = parser.parse_args()
 
     full = json.loads(args.input.read_text(encoding="utf-8"))
@@ -218,6 +245,13 @@ def main() -> int:
     rail_candidates.sort(key=lambda item: item[0])
     railways = [item[1] for item in rail_candidates[: args.max_railways]]
 
+    environment_points = select_environment_points(
+        full.get("environment_points", []),
+        anchors,
+        args.environment_radius,
+        args.max_environment_points,
+    )
+
     subset: dict[str, Any] = {
         "format": full.get("format", "grand-bruxelles-osm-v1"),
         "source": full.get("source", "OpenStreetMap contributors via Overpass API"),
@@ -231,6 +265,7 @@ def main() -> int:
                 "roads": args.road_radius,
                 "buildings": args.building_radius,
                 "railways": args.rail_radius,
+                "environment_points": args.environment_radius,
             },
         },
         "source_stats": full.get("stats", {}),
@@ -239,12 +274,14 @@ def main() -> int:
             "drivable_roads": sum(1 for road in roads if road.get("drivable")),
             "buildings": len(buildings),
             "railways": len(railways),
+            "environment_points": len(environment_points),
         },
         "roads": roads,
         "buildings": buildings,
         "railways": railways,
+        "environment_points": environment_points,
     }
-    subset["bounds_m"] = selected_bounds(roads + buildings + railways)
+    subset["bounds_m"] = selected_bounds(roads + buildings + railways + environment_points)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

@@ -5,9 +5,13 @@ const MAX_VISUAL_SPEED_MPS := 2.2
 const GAIT_REFERENCE_SPEED_MPS := 1.0
 const MAX_LEG_SWING_RAD := 0.42
 const ARM_SWING_RATIO := 0.90
+const CADENCE_BUCKETS := 9
+const CADENCE_MIN := 0.92
+const CADENCE_MAX := 1.08
 
 var _last_positions: Dictionary = {}
 var _phases: Dictionary = {}
+var _cadence_multipliers: Dictionary = {}
 var _tracked_pedestrians: int = 0
 var _animated_pedestrians: int = 0
 var _last_max_speed_mps: float = 0.0
@@ -45,7 +49,9 @@ func _update_profiled_gait(delta: float) -> void:
         var current_position := person.global_position
         if not _last_positions.has(instance_id):
             _last_positions[instance_id] = current_position
-            _phases[instance_id] = float(instance_id % 23) * 0.37
+            var stable_hash := String(person.name).hash()
+            _phases[instance_id] = float(posmod(stable_hash, 23)) * 0.37
+            _cadence_multipliers[instance_id] = _cadence_multiplier_for_name(person.name)
             _set_limb_swing(left_leg, right_leg, left_arm, right_arm, 0.0)
             continue
 
@@ -60,7 +66,8 @@ func _update_profiled_gait(delta: float) -> void:
         var activity := clampf(speed / GAIT_REFERENCE_SPEED_MPS, 0.0, 1.0)
         var phase := float(_phases.get(instance_id, 0.0))
         if activity > 0.01:
-            phase += delta * lerpf(4.0, 9.0, activity)
+            var cadence := float(_cadence_multipliers.get(instance_id, 1.0))
+            phase += delta * lerpf(4.0, 9.0, activity) * cadence
             _phases[instance_id] = fmod(phase, TAU)
         var swing := sin(phase) * MAX_LEG_SWING_RAD * activity
         _set_limb_swing(left_leg, right_leg, left_arm, right_arm, swing)
@@ -71,6 +78,12 @@ func _update_profiled_gait(delta: float) -> void:
     _animated_pedestrians = animated
     _last_max_speed_mps = max_speed
     _prune_stale(live_ids)
+
+func _cadence_multiplier_for_name(person_name: StringName) -> float:
+    var bucket := posmod(String(person_name).hash(), CADENCE_BUCKETS)
+    if CADENCE_BUCKETS <= 1:
+        return 1.0
+    return lerpf(CADENCE_MIN, CADENCE_MAX, float(bucket) / float(CADENCE_BUCKETS - 1))
 
 func _set_limb_swing(left_leg: Node3D, right_leg: Node3D, left_arm: Node3D, right_arm: Node3D, swing: float) -> void:
     left_leg.rotation.x = swing
@@ -83,8 +96,23 @@ func _prune_stale(live_ids: Dictionary) -> void:
         if not live_ids.has(key):
             _last_positions.erase(key)
             _phases.erase(key)
+            _cadence_multipliers.erase(key)
 
 func gait_stats() -> Dictionary:
+    var unique_profiles: Dictionary = {}
+    var cadence_min := 1.0
+    var cadence_max := 1.0
+    var first := true
+    for key: Variant in _cadence_multipliers.keys():
+        var cadence := float(_cadence_multipliers[key])
+        unique_profiles[snappedf(cadence, 0.001)] = true
+        if first:
+            cadence_min = cadence
+            cadence_max = cadence
+            first = false
+        else:
+            cadence_min = minf(cadence_min, cadence)
+            cadence_max = maxf(cadence_max, cadence)
     return {
         "tracked_pedestrians": _tracked_pedestrians,
         "animated_pedestrians": _animated_pedestrians,
@@ -93,4 +121,8 @@ func gait_stats() -> Dictionary:
         "changes_navigation": false,
         "movement_source": "observed transform delta from existing midi_urban_life.gd ambient path",
         "teleport_guard_m": TELEPORT_GUARD_M,
+        "cadence_profile_count": unique_profiles.size(),
+        "cadence_multiplier_min": cadence_min,
+        "cadence_multiplier_max": cadence_max,
+        "cadence_is_stable_per_pedestrian": true,
     }

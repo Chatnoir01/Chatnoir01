@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Deterministic, fail-closed scheduler for autonomous Brussels reconstruction.
 
-The scheduler never promotes runtime geometry. It inventories authoritative source
-cells already present in the repository, resumes from a durable state file, and
-emits the next QA/generation batch. Missing or inconsistent evidence is
-quarantined instead of guessed.
+The scheduler never promotes runtime geometry. It can inventory the complete
+regional target grid, distinguish target cells whose authoritative UrbIS source
+has not yet been materialized, resume durable state, and emit the next bounded
+source/QA batch. Missing or inconsistent evidence is never guessed.
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 FORMAT = "grand-bruxelles-autonomous-citygen-v1"
+TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 TERMINAL = {"RUNTIME_READY", "QUARANTINE"}
 
 
@@ -46,6 +47,35 @@ def load_state(path: Path | None) -> dict[str, Any]:
     return state
 
 
+def load_target_grid(path: Path | None) -> dict[str, dict[str, Any]]:
+    if path is None:
+        return {}
+    payload = _read_json(path)
+    if payload.get("format") != TARGET_FORMAT or payload.get("crs") != "EPSG:31370":
+        raise ValueError("unsupported regional target grid or CRS")
+    out: dict[str, dict[str, Any]] = {}
+    for row in payload.get("cells") or []:
+        if not isinstance(row, dict):
+            raise ValueError("target grid cells must be objects")
+        cell_id = row.get("cell_id")
+        bbox = row.get("bbox")
+        if not isinstance(cell_id, str) or not cell_id.startswith("bxl-"):
+            raise ValueError("target grid contains invalid cell id")
+        if cell_id in out:
+            raise ValueError(f"duplicate target grid cell: {cell_id}")
+        if not isinstance(bbox, list) or len(bbox) != 4 or not all(isinstance(v, (int, float)) for v in bbox):
+            raise ValueError(f"target grid cell has invalid bbox: {cell_id}")
+        if not (bbox[0] < bbox[2] and bbox[1] < bbox[3]) or min(bbox) < 10_000:
+            raise ValueError(f"target grid cell bbox is not valid EPSG:31370: {cell_id}")
+        out[cell_id] = {
+            "bbox": [float(v) if not float(v).is_integer() else int(v) for v in bbox],
+            "municipalities": sorted(str(v) for v in (row.get("municipalities") or [])),
+        }
+    if not out:
+        raise ValueError("regional target grid contains no cells")
+    return out
+
+
 def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple[str, list[str]]:
     source_manifest = source_root / cell_id / "manifest.json"
     if not source_manifest.exists():
@@ -55,10 +85,12 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
     except (OSError, ValueError, json.JSONDecodeError):
         return "QUARANTINE", ["invalid_authoritative_source_manifest"]
 
-    # A source manifest must contain some explicit feature/layer evidence. We do
-    # not infer geometry from an empty JSON object.
     if not source:
         return "QUARANTINE", ["empty_authoritative_source_manifest"]
+    if source.get("cell_id") not in (None, cell_id):
+        return "QUARANTINE", ["authoritative_source_identity_mismatch"]
+    if source.get("crs") not in (None, "EPSG:31370"):
+        return "QUARANTINE", ["authoritative_source_crs_mismatch"]
 
     maturity_path = maturity_root / f"{cell_id}.json"
     if not maturity_path.exists():
@@ -85,27 +117,47 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
 
 
 def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
-    priority = {"DISCOVERED": 0, "DATA_READY": 1}
+    priority = {"MISSING_SOURCE": 0, "DISCOVERED": 1, "DATA_READY": 2}
     candidates = [cell for cell in cells if cell["state"] not in TERMINAL]
     candidates.sort(key=lambda cell: (priority.get(cell["state"], 99), cell["cell_id"]))
     return [cell["cell_id"] for cell in candidates[:batch_size]]
 
 
-def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_dir: Path, batch_size: int) -> dict[str, Any]:
+def run(
+    source_root: Path,
+    maturity_root: Path,
+    state_path: Path | None,
+    output_dir: Path,
+    batch_size: int,
+    target_grid_path: Path | None = None,
+) -> dict[str, Any]:
     previous = load_state(state_path)
-    discovered = discover_cells(source_root)
+    source_cells = discover_cells(source_root)
+    source_set = set(source_cells)
+    target = load_target_grid(target_grid_path)
+    cell_ids = sorted(set(target) | source_set) if target else source_cells
     cells: list[dict[str, Any]] = []
     counts: dict[str, int] = {}
 
-    for cell_id in discovered:
-        state, blockers = classify_cell(cell_id, source_root, maturity_root)
+    for cell_id in cell_ids:
+        target_row = target.get(cell_id)
+        if target and target_row is None:
+            state, blockers = "QUARANTINE", ["source_cell_outside_regional_target_grid"]
+        elif cell_id not in source_set:
+            state, blockers = "MISSING_SOURCE", ["authoritative_source_cell_missing"]
+        else:
+            state, blockers = classify_cell(cell_id, source_root, maturity_root)
         previous_cell = previous.get("cells", {}).get(cell_id, {})
-        cells.append({
+        row = {
             "cell_id": cell_id,
             "state": state,
             "blockers": blockers,
             "attempts": int(previous_cell.get("attempts", 0)),
-        })
+        }
+        if target_row is not None:
+            row["bbox"] = target_row["bbox"]
+            row["municipalities"] = target_row["municipalities"]
+        cells.append(row)
         counts[state] = counts.get(state, 0) + 1
 
     batch = select_batch(cells, batch_size)
@@ -118,7 +170,8 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
     report = {
         "format": FORMAT,
         "run_number": run_number,
-        "source_cell_count": len(discovered),
+        "source_cell_count": len(source_cells),
+        "target_cell_count": len(target) if target else len(source_cells),
         "counts": dict(sorted(counts.items())),
         "selected_batch": batch,
         "cells": cells,
@@ -127,6 +180,7 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
             "batch_size": batch_size,
             "runtime_promotion": "forbidden_without_all_required_gates",
             "uncertain_evidence": "quarantine_or_keep_pending_never_guess",
+            "missing_source_priority": "materialize_before_candidate_processing",
         },
     }
 
@@ -140,7 +194,7 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
     (output_dir / "autonomous_citygen_report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_dir / "autonomous_citygen_state.json").write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_dir / "worklist.txt").write_text("".join(f"{cell_id}\n" for cell_id in batch), encoding="utf-8")
-    print(f"AUTONOMOUS_CITYGEN_OK run={run_number} source_cells={len(discovered)} selected={len(batch)} counts={report['counts']}")
+    print(f"AUTONOMOUS_CITYGEN_OK run={run_number} source_cells={len(source_cells)} target_cells={report['target_cell_count']} selected={len(batch)} counts={report['counts']}")
     return report
 
 
@@ -149,12 +203,13 @@ def main() -> None:
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--maturity-root", type=Path, required=True)
     parser.add_argument("--state", type=Path)
+    parser.add_argument("--target-grid", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--batch-size", type=int, default=4)
     args = parser.parse_args()
     if args.batch_size < 1 or args.batch_size > 32:
         raise SystemExit("batch size must be between 1 and 32")
-    run(args.source_root, args.maturity_root, args.state, args.output_dir, args.batch_size)
+    run(args.source_root, args.maturity_root, args.state, args.output_dir, args.batch_size, args.target_grid)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,13 @@
 name: Grand Bruxelles CityGen Anderlecht Secondary Height
 
 on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
+      - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py"

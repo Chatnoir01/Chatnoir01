@@ -40,7 +40,7 @@ func bind_portico(portico: Node) -> void:
         return
     _material = MATERIAL_FACTORY.create("Urban 31241 Bourse glazed doors and daylights")
     for target: Node in _targets:
-        _original_materials[target.get_instance_id()] = _get_material(target)
+        _original_materials[target.get_instance_id()] = _get_authored_material(target)
     set_enhanced_material_enabled(true)
     print("Bourse glazing runtime: surfaces=%d material_only=true" % _targets.size())
 
@@ -94,6 +94,13 @@ func _collect_targets(node: Node) -> void:
         _targets.append(node)
     for child: Node in node.get_children():
         _collect_targets(child)
+
+func _get_authored_material(target: Node) -> Material:
+    if target is MeshInstance3D:
+        return (target as MeshInstance3D).material_override
+    if target is CSGShape3D:
+        return (target as CSGShape3D).material
+    return null
 
 func _get_material(target: Node) -> Material:
     if target is MeshInstance3D:

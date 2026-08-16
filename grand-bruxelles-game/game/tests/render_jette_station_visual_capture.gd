@@ -20,6 +20,25 @@ func _run() -> void:
     await process_frame
     await process_frame
 
+    var zone := scene.get_node_or_null("JettePhase2Zone")
+    var camera := scene.get_node_or_null("Camera3D") as Camera3D
+    var hero := zone.get_node_or_null("JetteStationOfficialFootprintHero") as MeshInstance3D if zone != null else null
+    if camera == null or hero == null or hero.mesh == null:
+        push_error("JETTE_STATION_CAPTURE_FAIL: station hero/camera unavailable")
+        quit(1)
+        return
+
+    # Frame the actual UrbIS-owned station hero instead of relying on a distant
+    # hard-coded overview camera. The witness therefore proves the station lot,
+    # while remaining derived from loaded source-backed geometry.
+    var local_aabb := hero.get_aabb()
+    var center := hero.global_transform * local_aabb.get_center()
+    var size := local_aabb.size
+    var horizontal_extent := max(max(size.x, size.z), 12.0)
+    camera.global_position = center + Vector3(-horizontal_extent * 0.85, max(size.y * 0.55, 5.5), horizontal_extent * 1.15)
+    camera.look_at(center + Vector3(0.0, max(size.y * 0.28, 1.8), 0.0), Vector3.UP)
+    camera.fov = 58.0
+
     var window := root.get_window()
     window.size = Vector2i(1280, 720)
     await process_frame

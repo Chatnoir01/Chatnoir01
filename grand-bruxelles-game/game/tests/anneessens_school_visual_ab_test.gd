@@ -32,9 +32,18 @@ func _hide_dynamic_world(main: Node) -> void:
     var traffic := main.get_node_or_null("TrafficManager") as Node3D
     if traffic != null:
         traffic.visible = false
-    for vehicle: Node in get_nodes_in_group("vehicle"):
-        if vehicle is Node3D:
-            (vehicle as Node3D).visible = false
+    var anneessens_life := main.get_node_or_null("AnneessensLabLife") as Node3D
+    if anneessens_life != null:
+        anneessens_life.visible = false
+        anneessens_life.set_process(false)
+    for group_name: String in ["vehicle", "ambient_pedestrian", "ambient_traffic"]:
+        for node: Node in get_nodes_in_group(group_name):
+            if node is Node3D:
+                (node as Node3D).visible = false
+    for node: Node in main.find_children("Anneessens*", "Node3D", true, false):
+        var node3d := node as Node3D
+        if node3d != null and node3d != main.get_node_or_null("Player"):
+            node3d.visible = false
     for child: Node in main.get_children():
         var lower := child.name.to_lower()
         if child is Node3D and ("civilian" in lower or "npc" in lower):

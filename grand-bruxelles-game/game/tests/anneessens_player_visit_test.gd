@@ -85,10 +85,13 @@ func _run() -> void:
         return
 
     var roofs: Array[CSGPolygon3D] = []
+    var buildings: Array[CSGPolygon3D] = []
     var nearby_roofs := 0
     var vertical_mismatch_count := 0
     var max_vertical_gap := 0.0
     for child: Node in generated_buildings.get_children():
+        if child is CSGPolygon3D and child.name.begins_with("Building_"):
+            buildings.append(child as CSGPolygon3D)
         if not child is CSGPolygon3D or not child.name.begins_with("Roof_"):
             continue
         var roof := child as CSGPolygon3D
@@ -134,6 +137,27 @@ func _run() -> void:
     for _frame: int in range(4):
         await process_frame
 
+    paused = true
+    var corrected_positions: Array[Vector3] = []
+    for building: CSGPolygon3D in buildings:
+        corrected_positions.append(building.position)
+        building.position.y *= 0.5
+    for _frame: int in range(3):
+        await process_frame
+    if _capture("anneessens_ab_before_old_origin") == null:
+        paused = false
+        _fail("same-run BEFORE capture failed")
+        return
+    for index: int in range(buildings.size()):
+        buildings[index].position = corrected_positions[index]
+    for _frame: int in range(3):
+        await process_frame
+    if _capture("anneessens_ab_after_fixed_origin") == null:
+        paused = false
+        _fail("same-run AFTER capture failed")
+        return
+    paused = false
+
     var facade_details := main.get_node_or_null("BrusselsOSM/GeneratedFacadeDetails") as Node3D
     if facade_details == null:
         _fail("GeneratedFacadeDetails missing")
@@ -164,5 +188,5 @@ func _run() -> void:
         _fail("floating OSM roofs: %d/%d nearby building tops detached, max gap %.2fm" % [vertical_mismatch_count, nearby_roofs, max_vertical_gap])
         return
 
-    print("ANNEESSENS_VISIT_OK: zone=anneessens roofs=%d nearby_roofs=%d parity=true" % [roofs.size(), nearby_roofs])
+    print("ANNEESSENS_VISIT_OK: zone=anneessens roofs=%d nearby_roofs=%d parity=true frozen_ab=true" % [roofs.size(), nearby_roofs])
     quit(0)

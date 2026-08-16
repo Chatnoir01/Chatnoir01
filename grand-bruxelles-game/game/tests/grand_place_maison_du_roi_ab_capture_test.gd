@@ -2,12 +2,10 @@ extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
 const AUTOLOAD_NAME := "GrandPlaceMaisonDuRoiOfficialLod2"
+const ZONE_CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const WIDTH := 1280
 const HEIGHT := 720
-# Reuse the established architecture-bearing Grand-Place witness from the
-# shipped LoD2 visual QA instead of inventing a candidate-specific camera.
-const CAMERA_POSITION := Vector3(365.0, 1.72, -505.0)
-const CAMERA_TARGET := Vector3(279.5, 38.0, -515.0)
+const PLAYER_EYE_HEIGHT := 1.72
 const CAMERA_FOV := 64.0
 
 func _initialize() -> void:
@@ -16,6 +14,22 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
     push_error("GRAND_PLACE_MAISON_DU_ROI_AB_FAIL: %s" % message)
     quit(1)
+
+func _grand_place_player_eye() -> Vector3:
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(ZONE_CATALOG_PATH))
+    if typeof(parsed) != TYPE_DICTIONARY:
+        return Vector3.INF
+    for raw_zone: Variant in (parsed as Dictionary).get("zones", []):
+        if typeof(raw_zone) != TYPE_DICTIONARY:
+            continue
+        var zone: Dictionary = raw_zone
+        if str(zone.get("id", "")) != "grand_place":
+            continue
+        var spawn: Array = zone.get("spawn", [])
+        if spawn.size() != 3:
+            return Vector3.INF
+        return Vector3(float(spawn[0]), PLAYER_EYE_HEIGHT, float(spawn[2]))
+    return Vector3.INF
 
 func _hide_dynamic(main: Node) -> void:
     for name_value: String in ["LocationLabel", "MissionLabel", "SaveStatusLabel", "WalletLabel", "MiniMap", "MobileControls", "PrototypeLabel"]:
@@ -79,23 +93,30 @@ func _run() -> void:
     town_hall.call("set_official_visible", true)
     ensemble.call("set_official_visible", true)
 
+    var camera_position := _grand_place_player_eye()
+    var bounds: Rect2 = official.get("source_bounds")
+    if not camera_position.is_finite() or bounds.size.length_squared() <= 0.001:
+        _fail("Grand-Place spawn or official source bounds missing")
+        return
+    var center := bounds.get_center()
+    var lod2_height := float(official.get_meta("lod2_height_m", 0.0))
+    var camera_target := Vector3(center.x, lod2_height * 0.5, center.y)
+
     _hide_dynamic(main)
     var existing_camera := main.get_viewport().get_camera_3d()
     if existing_camera != null:
         existing_camera.current = false
     var camera := Camera3D.new()
-    camera.name = "MaisonDuRoiHistoricalGrandPlaceWitness"
-    camera.position = CAMERA_POSITION
+    camera.name = "MaisonDuRoiGrandPlaceSpawnWitness"
+    camera.position = camera_position
     camera.fov = CAMERA_FOV
     main.add_child(camera)
-    camera.look_at(CAMERA_TARGET, Vector3.UP)
+    camera.look_at(camera_target, Vector3.UP)
     camera.current = true
 
     for _frame: int in range(12):
         await process_frame
 
-    # BEFORE restores the exact generic OSM replacement state; all other
-    # shipped Grand-Place architecture remains unchanged and visible.
     official.call("set_official_visible", false)
     for _frame: int in range(6):
         await process_frame
@@ -134,9 +155,8 @@ func _run() -> void:
     var total := WIDTH * HEIGHT
     var p3 := 100.0 * float(changed3) / float(total)
     var p8 := 100.0 * float(changed8) / float(total)
-    # Thresholds remain exactly the precommitted PR contract. Do not lower.
     if p3 < 2.0 or p8 < 0.8:
         _fail("anti-micro gate failed: changed3=%.4f%% changed8=%.4f%%" % [p3, p8])
         return
-    print("GRAND_PLACE_MAISON_DU_ROI_AB_OK: changed3=%d %.4f%% changed8=%d %.4f%% bbox=%d,%d..%d,%d camera=(%.1f,%.2f,%.1f) target=(%.1f,%.1f,%.1f) fov=%.1f dynamics_masked=true historical_witness=true" % [changed3,p3,changed8,p8,min_x,min_y,max_x,max_y,CAMERA_POSITION.x,CAMERA_POSITION.y,CAMERA_POSITION.z,CAMERA_TARGET.x,CAMERA_TARGET.y,CAMERA_TARGET.z,CAMERA_FOV])
+    print("GRAND_PLACE_MAISON_DU_ROI_AB_OK: changed3=%d %.4f%% changed8=%d %.4f%% bbox=%d,%d..%d,%d camera=(%.2f,%.2f,%.2f) target=(%.2f,%.2f,%.2f) fov=%.1f dynamics_masked=true zone_spawn_witness=true" % [changed3,p3,changed8,p8,min_x,min_y,max_x,max_y,camera_position.x,camera_position.y,camera_position.z,camera_target.x,camera_target.y,camera_target.z,CAMERA_FOV])
     quit(0)

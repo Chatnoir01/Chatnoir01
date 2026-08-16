@@ -8,6 +8,8 @@ on:
       - "grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_bridge_test.gd"
       - "grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd"
       - "grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_ab_compare_test.gd"
+      - "grand-bruxelles-game/refs/photos/brussels_swace_wagon/**"
+      - "grand-bruxelles-game/refs/reports/brussels_swace_wagon.md"
       - ".github/workflows/grand-bruxelles-midi-ambient-vehicle-visual.yml"
 
 permissions:
@@ -138,18 +140,26 @@ jobs:
           fi
           grep -q "MIDI_AMBIENT_VEHICLE_AB_OK" /tmp/midi-vehicle-ab.log
 
-      - name: Stage A/B evidence
+      - name: Stage licensed reference and A/B evidence
         if: always()
+        shell: bash
         run: |
           mkdir -p head/grand-bruxelles-game/artifacts/qa/midi_ambient_vehicle_visual_ab
+          mkdir -p head/grand-bruxelles-game/refs/photos/brussels_swace_wagon
           cp /tmp/midi-vehicle-before.png head/grand-bruxelles-game/artifacts/qa/midi_ambient_vehicle_visual_ab/before.png 2>/dev/null || true
           cp /tmp/midi-vehicle-after.png head/grand-bruxelles-game/artifacts/qa/midi_ambient_vehicle_visual_ab/after.png 2>/dev/null || true
           cp /tmp/midi-vehicle-ab.log head/grand-bruxelles-game/artifacts/qa/midi_ambient_vehicle_visual_ab/metrics.log 2>/dev/null || true
+          curl -fL \
+            "https://upload.wikimedia.org/wikipedia/commons/6/6b/Suzuki_Swace_-_caught_in_a_test_ride_-_avenue_Houzeau.jpg" \
+            -o head/grand-bruxelles-game/refs/photos/brussels_swace_wagon/reference.jpg
+          echo "58a9d30263786459816b676d3e006d01e725846a  head/grand-bruxelles-game/refs/photos/brussels_swace_wagon/reference.jpg" | sha1sum -c -
 
       - name: Upload A/B evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: midi-ambient-vehicle-visual-ab
-          path: head/grand-bruxelles-game/artifacts/qa/midi_ambient_vehicle_visual_ab
+          path: |
+            head/grand-bruxelles-game/artifacts/qa/midi_ambient_vehicle_visual_ab
+            head/grand-bruxelles-game/refs/photos/brussels_swace_wagon/reference.jpg
           if-no-files-found: warn

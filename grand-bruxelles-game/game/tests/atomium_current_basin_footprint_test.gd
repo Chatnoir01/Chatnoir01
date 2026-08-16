@@ -2,6 +2,7 @@ extends SceneTree
 
 const TERRAIN_SCRIPT := preload("res://game/zones/laeken_jette/atomium_dtm_terrain.gd")
 const BASIN_SCRIPT := preload("res://game/zones/laeken_jette/atomium_current_basin_footprint.gd")
+const EXPECTED_TRIANGLES := 704
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -36,8 +37,8 @@ func _run() -> void:
     if absf(basin.radius_m - 26.944) > 0.001 or absf(basin.radius_uncertainty_m - 0.8) > 0.001:
         _fail("orthophoto circle radius/uncertainty drifted")
         return
-    if basin.triangle_count < 150 or basin.triangle_count > 500:
-        _fail("terrain-following footprint triangle count implausible: %d" % basin.triangle_count)
+    if basin.triangle_count != EXPECTED_TRIANGLES:
+        _fail("smooth circular tessellation drifted: %d" % basin.triangle_count)
         return
     if not basin.presentation_only_surface:
         _fail("presentation-only disclaimer was lost")

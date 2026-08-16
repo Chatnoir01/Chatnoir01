@@ -1,0 +1,67 @@
+name: Grand Bruxelles Midi Fonsny Office Depth
+
+on:
+  push:
+    branches: ["visual/midi-fonsny-office-depth-14m"]
+    paths:
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone_materials.gd"
+      - "grand-bruxelles-game/game/tests/midi_fonsny_office_depth_witness_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-fonsny-office-depth.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone_materials.gd"
+      - "grand-bruxelles-game/game/tests/midi_fonsny_office_depth_witness_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-fonsny-office-depth.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-backed-massing-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import exact branch project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-fonsny-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-fonsny-import.log; then exit 1; fi
+
+      - name: Render deterministic full-frame 41 m versus 14 m witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/midi_fonsny_office_depth_witness_test.gd 2>&1 | tee /tmp/midi-fonsny-depth.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_FONSNY_DEPTH_WITNESS_FAIL" /tmp/midi-fonsny-depth.log; then exit 1; fi
+          grep -q "MIDI_FONSNY_DEPTH_WITNESS_OK" /tmp/midi-fonsny-depth.log
+
+      - name: Upload full-frame evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-fonsny-office-depth-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/midi_fonsny_depth_before_41m.png
+            grand-bruxelles-game/artifacts/visual/midi_fonsny_depth_after_14m.png
+          if-no-files-found: error

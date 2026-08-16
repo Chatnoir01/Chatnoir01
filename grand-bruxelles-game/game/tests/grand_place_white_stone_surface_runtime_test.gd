@@ -26,6 +26,15 @@ func _hide_noise(main: Node) -> void:
         var node := main.get_node_or_null(path)
         if node is Node3D:
             (node as Node3D).visible = false
+    # Freeze the autonomous Living City showcase before the slow full-frame
+    # pixel comparison. Otherwise its status banner can change between BEFORE
+    # and AFTER and falsely inflate the visual delta.
+    var showcase := root.get_node_or_null("LivingCityShowcaseRuntime")
+    if showcase != null:
+        showcase.process_mode = Node.PROCESS_MODE_DISABLED
+    var visible_runtime := root.get_node_or_null("VisibleCityRuntime")
+    if visible_runtime != null and visible_runtime.has_method("_set_status"):
+        visible_runtime.call("_set_status", "")
 
 func _capture(path: String) -> Image:
     for _frame: int in range(5):

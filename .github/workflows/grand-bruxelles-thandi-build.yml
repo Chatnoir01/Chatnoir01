@@ -7,7 +7,16 @@ on:
     paths:
       - "grand-bruxelles-game/assets/characters/player/thandi/source/**"
       - "grand-bruxelles-game/assets/characters/player/thandi/textures/**"
+      - "grand-bruxelles-game/assets/characters/player/thandi/source_status.json"
       - "grand-bruxelles-game/tools/prepare_thandi_character.py"
+      - "grand-bruxelles-game/tools/validate_thandi_source_status.py"
+      - ".github/workflows/grand-bruxelles-thandi-build.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/characters/player/thandi/**"
+      - "grand-bruxelles-game/tools/prepare_thandi_character.py"
+      - "grand-bruxelles-game/tools/validate_thandi_source_status.py"
+      - "grand-bruxelles-game/tools/test_validate_thandi_source_status.py"
       - ".github/workflows/grand-bruxelles-thandi-build.yml"
   workflow_dispatch:
 
@@ -19,7 +28,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source status regression
+        run: python3 grand-bruxelles-game/tools/test_validate_thandi_source_status.py
+      - name: Validate current source status
+        run: |
+          python3 grand-bruxelles-game/tools/validate_thandi_source_status.py \
+            --root grand-bruxelles-game/assets/characters/player/thandi \
+            --status grand-bruxelles-game/assets/characters/player/thandi/source_status.json
+
   build-thandi-glb:
+    if: github.event_name != 'pull_request'
+    needs: validate-source-contract
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -33,7 +57,7 @@ jobs:
           FBX="grand-bruxelles-game/assets/characters/player/thandi/source/Thandi.fbx"
           if [ ! -s "$FBX" ]; then
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "Thandi source FBX is not in this branch yet; nothing to build."
+            echo "Thandi source package is explicitly pending; authored build remains blocked."
             exit 0
           fi
           echo "present=true" >> "$GITHUB_OUTPUT"

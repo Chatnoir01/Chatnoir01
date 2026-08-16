@@ -6,6 +6,8 @@ extends "res://game/scripts/midi_hero_zone.gd"
 
 const CONCRETE_TEXTURE_METRES := 1.80
 const GLASS_BLOCK_TEXTURE_METRES := 1.60
+const FONSNY_OFFICE_SITE_DEPTH_M := 14.0
+const LEGACY_FONSNY_OFFICE_DEPTH_M := 41.0
 const CORRIDOR_FACADE_DEPTH_RUNTIME := preload("res://game/scripts/corridor_facade_depth_runtime.gd")
 
 func _ready() -> void:
@@ -19,6 +21,49 @@ func _install_corridor_facade_depth() -> void:
     var runtime := CORRIDOR_FACADE_DEPTH_RUNTIME.new()
     runtime.name = "CorridorFacadeDepthRuntime"
     scene_root.add_child(runtime)
+
+func _add_office_block(parent: Node3D, name: String, local_z: float, length: float, floors: int, glass_tower: bool) -> void:
+    # Brussels architectural heritage inventory, Avenue Fonsny 47-49:
+    # the three SNCB office buildings stand on a narrow site of barely 14 m
+    # between the railway tracks and Avenue Fonsny. The inherited hero geometry
+    # used a 41 m cross-section, which made the arrival frontage read as a deep
+    # generic slab instead of the documented long, shallow modernist ensemble.
+    super._add_office_block(parent, name, local_z, length, floors, glass_tower)
+    var block := parent.get_node_or_null(name) as Node3D
+    if block == null:
+        return
+
+    var old_front_x := LEGACY_FONSNY_OFFICE_DEPTH_M * 0.5 + 0.07
+    var new_front_x := FONSNY_OFFICE_SITE_DEPTH_M * 0.5 + 0.07
+    var front_delta_x := new_front_x - old_front_x
+
+    for child in block.get_children():
+        var mesh_instance := child as MeshInstance3D
+        if mesh_instance == null:
+            continue
+        var box := mesh_instance.mesh as BoxMesh
+        if box == null:
+            continue
+
+        if mesh_instance.name == "BlueStoneBase" or mesh_instance.name == "FauquenbergBrick":
+            box.size.x = FONSNY_OFFICE_SITE_DEPTH_M
+        elif mesh_instance.name == "FlatRoof":
+            box.size.x = FONSNY_OFFICE_SITE_DEPTH_M + 1.1
+
+        var child_name := String(mesh_instance.name)
+        if (
+            child_name.begins_with("HorizontalBand_")
+            or child_name.begins_with("VerticalMullion_")
+            or child_name.begins_with("Window_")
+            or child_name.begins_with("GroundOpening_")
+            or child_name == "VerticalGlassTowerFrame"
+            or child_name == "VerticalGlassTower"
+        ):
+            mesh_instance.position.x += front_delta_x
+
+    block.set_meta("source_site_depth_m", FONSNY_OFFICE_SITE_DEPTH_M)
+    block.set_meta("legacy_runtime_depth_m", LEGACY_FONSNY_OFFICE_DEPTH_M)
+    block.set_meta("source_identity", "Brussels heritage inventory Avenue Fonsny 47-49")
 
 func _make_materials() -> void:
     super._make_materials()

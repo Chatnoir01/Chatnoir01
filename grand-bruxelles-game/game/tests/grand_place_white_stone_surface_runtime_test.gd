@@ -7,8 +7,10 @@ const HEIGHT := 720
 const CAMERA_POSITION := Vector3(365.0, 1.72, -505.0)
 const CAMERA_TARGET := Vector3(279.5, 38.0, -515.0)
 const CAMERA_FOV := 64.0
-const MIN_CHANGED_RATIO := 0.0075
+const MIN_CHANGED_RATIO := 0.03
 const PIXEL_THRESHOLD := 3.0 / 255.0
+const MIN_STRONG_CHANGED_RATIO := 0.01
+const STRONG_PIXEL_THRESHOLD := 8.0 / 255.0
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -49,7 +51,7 @@ func _capture(path: String) -> Image:
         return Image.new()
     return image
 
-func _changed_ratio(before: Image, after: Image) -> float:
+func _changed_ratio(before: Image, after: Image, threshold: float) -> float:
     var changed := 0
     var total := WIDTH * HEIGHT
     for y: int in range(HEIGHT):
@@ -57,7 +59,7 @@ func _changed_ratio(before: Image, after: Image) -> float:
             var a := before.get_pixel(x, y)
             var b := after.get_pixel(x, y)
             var delta := maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b)))
-            if delta > PIXEL_THRESHOLD:
+            if delta > threshold:
                 changed += 1
     return float(changed) / float(total)
 
@@ -128,12 +130,17 @@ func _run() -> void:
         _fail("after capture failed")
         return
 
-    var ratio := _changed_ratio(before, after)
+    var ratio := _changed_ratio(before, after, PIXEL_THRESHOLD)
+    var strong_ratio := _changed_ratio(before, after, STRONG_PIXEL_THRESHOLD)
     if ratio < MIN_CHANGED_RATIO:
-        _fail("player-scale visual delta too small: %.6f < %.6f" % [ratio, MIN_CHANGED_RATIO])
+        _fail("broad visual delta too small: %.6f < %.6f" % [ratio, MIN_CHANGED_RATIO])
+        return
+    if strong_ratio < MIN_STRONG_CHANGED_RATIO:
+        _fail("perceptible visual delta too small: %.6f < %.6f" % [strong_ratio, MIN_STRONG_CHANGED_RATIO])
         return
 
-    print("GRAND_PLACE_WHITE_STONE_SURFACE_OK: surfaces=2 changed_ratio=%.6f threshold=%.6f before=%s after=%s" % [
-        ratio, MIN_CHANGED_RATIO, OUTPUT_DIR + "/before.png", OUTPUT_DIR + "/after.png"
+    print("GRAND_PLACE_WHITE_STONE_SURFACE_OK: surfaces=2 changed_ratio=%.6f strong_ratio=%.6f thresholds=%.6f/%.6f before=%s after=%s" % [
+        ratio, strong_ratio, MIN_CHANGED_RATIO, MIN_STRONG_CHANGED_RATIO,
+        OUTPUT_DIR + "/before.png", OUTPUT_DIR + "/after.png"
     ])
     quit(0)

@@ -15,6 +15,8 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py"
       - "grand-bruxelles-game/tools/citygen/build_cell_candidate_package.py"
       - "grand-bruxelles-game/tools/citygen/test_build_cell_candidate_package.py"
+      - "grand-bruxelles-game/tools/citygen/build_brussels_regional_grid.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_brussels_regional_grid.py"
       - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
 
 permissions:
@@ -34,6 +36,8 @@ jobs:
         run: python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py
       - name: Per-cell candidate package regression
         run: python3 grand-bruxelles-game/tools/citygen/test_build_cell_candidate_package.py
+      - name: Regional target-grid regression
+        run: python3 grand-bruxelles-game/tools/citygen/test_build_brussels_regional_grid.py
       - name: Existing city-generation guardrails
         run: |
           python3 grand-bruxelles-game/tools/city_generation/test_generate_facade_candidates.py
@@ -45,7 +49,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,6 +61,15 @@ jobs:
           if git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state 2>/dev/null; then
             git show origin/citygen-autonomous-state:grand-bruxelles-game/data/qa/autonomous_citygen_state.json > /tmp/citygen-prev/state.json || true
           fi
+      - name: Derive official Brussels regional target grid
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/citygen-boundaries /tmp/citygen-out
+          python3 grand-bruxelles-game/tools/citygen/build_brussels_regional_grid.py \
+            --boundary-dir /tmp/citygen-boundaries \
+            --fetch-official \
+            --output /tmp/citygen-out/brussels_regional_target_grid.json
       - name: Select next Brussels cells fail-closed
         shell: bash
         env:
@@ -108,8 +121,9 @@ jobs:
           cp /tmp/citygen-out/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_state.json
           cp /tmp/citygen-out/autonomous_citygen_report.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json
           cp /tmp/citygen-out/worklist.txt grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt
+          cp /tmp/citygen-out/brussels_regional_target_grid.json grand-bruxelles-game/data/qa/brussels_regional_target_grid.json
           cp /tmp/citygen-out/candidates/*.json grand-bruxelles-game/data/qa/autonomous_candidates/ 2>/dev/null || true
-          git add grand-bruxelles-game/data/qa/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt grand-bruxelles-game/data/qa/autonomous_candidates
+          git add grand-bruxelles-game/data/qa/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt grand-bruxelles-game/data/qa/brussels_regional_target_grid.json grand-bruxelles-game/data/qa/autonomous_candidates
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "citygen: persist autonomous scheduler pass"
           git push --force-with-lease origin citygen-autonomous-state

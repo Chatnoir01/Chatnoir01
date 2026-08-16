@@ -1,0 +1,20 @@
+name: Grand Bruxelles CityGen Manual Frontier Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/build_manual_frontier_review.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_manual_frontier_review.py"
+      - ".github/workflows/grand-bruxelles-citygen-manual-frontier-review.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manual frontier review regression
+        run: python3 grand-bruxelles-game/tools/citygen/test_build_manual_frontier_review.py

@@ -90,12 +90,12 @@ func _run() -> void:
 
     var camera := Camera3D.new()
     camera.name = "MidiFonsnyDepthWitnessCamera"
-    # Use station-local coordinates so the camera is guaranteed to stay on the
-    # Avenue Fonsny side of the long facade and sees the rail-side depth at an
-    # oblique arrival angle instead of ending up inside a city mass.
-    var target := station.to_global(Vector3(20.5, 10.0, 0.0))
-    camera.position = station.to_global(Vector3(95.0, 14.0, -70.0))
-    camera.fov = 58.0
+    # Normal pedestrian/forecourt exposure: close to the Avenue Fonsny facade,
+    # looking diagonally north along it. This keeps the visible street plane in
+    # frame while exposing the side/rear depth that was previously over-massed.
+    var target := station.to_global(Vector3(20.5, 8.0, -15.0))
+    camera.position = station.to_global(Vector3(38.0, 4.8, -75.0))
+    camera.fov = 70.0
     world.add_child(camera)
     camera.look_at(target, Vector3.UP)
     camera.current = true

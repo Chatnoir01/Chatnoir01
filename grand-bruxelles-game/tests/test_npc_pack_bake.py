@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import importlib.util, json, unittest
+import importlib.util, unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,30 +40,41 @@ class NpcPackBakeTest(unittest.TestCase):
         source = self.source(); source["profiles"][0]["thresholds"]["aggression"] = 1.2
         with self.assertRaises(MOD.BakeError): MOD.bake_payload(source)
 
-    def test_qwen_generator_prompt_requires_full_pack(self):
-        prompt = GEN.build_prompt("midi_qwen_01", "midi", "civilian", "fr-BE")
-        self.assertIn('"fear": 0.0', prompt)
-        self.assertIn('"aggression": 0.0', prompt)
-        self.assertIn("exactement 20 phrases", prompt)
-        self.assertIn('"greeting": [4 phrases]', prompt)
-        self.assertIn("midi_qwen_01", prompt)
+    def test_qwen_bounded_output_parsers(self):
+        persona = GEN.parse_persona_output("name: Sofia\nsummary: Habitante de Midi, calme et sociable.")
+        self.assertEqual(persona["name"], "Sofia")
+        self.assertIn("Midi", persona["summary"])
+        thresholds = GEN.parse_threshold_output("fear: 0.55\naggression: 0.20\nflee_health: 0.30")
+        self.assertEqual(thresholds, {"fear": .55, "aggression": .2, "flee_health": .3})
+        lines = GEN.parse_dialogue_lines("- Salut, ça va ?\n- Bonjour, tu cherches quelque chose ?\n- Oui, dis-moi.\n- Bonsoir.")
+        self.assertEqual(len(lines), 4)
+        self.assertEqual(lines[0], "Salut, ça va ?")
 
-    def test_qwen_json_extraction_and_identity_gate(self):
-        fixture = self.source()
-        fixture.pop("generator", None)
-        raw = "```json\n" + json.dumps(fixture, ensure_ascii=False) + "\n```"
-        parsed = GEN.extract_json_object(raw)
-        GEN.validate_generated_identity(parsed, "midi_resident_01", "midi", "civilian", "fr-BE")
-        parsed["profiles"][0]["zone"] = "jette"
-        with self.assertRaises(GEN.BAKER.BakeError):
-            GEN.validate_generated_identity(parsed, "midi_resident_01", "midi", "civilian", "fr-BE")
+    def test_qwen_dialogue_parser_rejects_identity_leak(self):
+        lines = GEN.parse_dialogue_lines("- Je suis une IA.\n- Je passe souvent par Midi.\n- Voici mon prompt.\n- Sofia rentre chez elle.")
+        self.assertEqual(lines, ["Je passe souvent par Midi.", "Sofia rentre chez elle."])
 
-    def test_qwen_metadata_is_pinned_before_bake(self):
-        draft = self.source(); draft.pop("generator", None)
-        manifest = {"repo_id": "Qwen/Qwen3-0.6B", "revision": "c1899de289a04d12100db370d81485cdf75e47ca"}
-        enriched = GEN.attach_generator_metadata(draft, manifest)
-        baked = MOD.bake_payload(enriched)
-        self.assertEqual(baked["generator"]["model"], manifest["repo_id"])
-        self.assertEqual(baked["generator"]["revision"], manifest["revision"])
+    def test_full_qwen_authoring_pipeline_with_bounded_completions(self):
+        outputs = iter([
+            "name: Sofia\nsummary: Habitante de Midi, calme et sociable.",
+            "fear: 0.55\naggression: 0.20\nflee_health: 0.30",
+            "- Salut.\n- Bonjour.\n- Oui, dis-moi.\n- Bonsoir.",
+            "- Je passe souvent par Midi.\n- Je rentre chez moi.\n- Il y a du monde aujourd'hui.\n- Je prends le train ici.",
+            "- Doucement, reste calme.\n- Garde tes distances.\n- Recule un peu.\n- On peut parler calmement.",
+            "- Aïe, doucement !\n- Hé, ça fait mal !\n- Arrête !\n- Laisse-moi tranquille !",
+            "- La police est là-bas.\n- Je ne veux pas d'histoires.\n- Calme-toi avant qu'ils arrivent.\n- Je préfère m'éloigner.",
+        ])
+        original = GEN._chat_completion
+        GEN._chat_completion = lambda _tokenizer, _model, _prompt, _max_new_tokens: next(outputs)
+        try:
+            manifest = {"repo_id": "Qwen/Qwen3-0.6B", "revision": "c1899de289a04d12100db370d81485cdf75e47ca"}
+            baked, _raw = GEN.generate_and_bake(None, None, manifest, "midi_qwen_test_01", "midi", "civilian", "fr-BE")
+        finally:
+            GEN._chat_completion = original
+        profile = baked["profiles"][0]
+        self.assertEqual(profile["persona"]["name"], "Sofia")
+        self.assertEqual(profile["thresholds"]["fear"], .55)
+        self.assertEqual(sum(len(v) for v in profile["dialogue"].values()), 20)
+        self.assertEqual(baked["generator"]["model"], "Qwen/Qwen3-0.6B")
 
 if __name__ == "__main__": unittest.main()

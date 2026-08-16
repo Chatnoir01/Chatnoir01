@@ -55,15 +55,19 @@ with tempfile.TemporaryDirectory() as tmp:
     assert mod.select_batch(frontier,2)==["bxl-e101000-n100000-s500","bxl-e100500-n100000-s500"]
 
     frontier_cell = cells[3]
-    for filename, _action in mod.EVIDENCE_STAGES[:-1]:
+    for filename, _action in mod.EVIDENCE_STAGES[:-2]:
         write_json(source/frontier_cell/filename, {"cell_id": frontier_cell})
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == len(mod.EVIDENCE_STAGES)-1
+    assert progress == len(mod.EVIDENCE_STAGES)-2
     assert action == "derive_building_height_candidates"
     write_json(source/frontier_cell/"building_height_candidates.json", {"cell_id": frontier_cell})
     progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == len(mod.EVIDENCE_STAGES)-1
+    assert action == "evaluate_terrain_lod"
+    write_json(source/frontier_cell/"terrain_lod_evidence.json", {"cell_id": frontier_cell})
+    progress, action = mod.evidence_plan(frontier_cell, source)
     assert progress == len(mod.EVIDENCE_STAGES)
-    assert action == "assess_terrain_lod_and_secondary_height_validation"
+    assert action == "secondary_height_validation_and_terrain_runtime_checks"
     assert mod.discover_cells(source)==sorted(cells[:4])
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true")

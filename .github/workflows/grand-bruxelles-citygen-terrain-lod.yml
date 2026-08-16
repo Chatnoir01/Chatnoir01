@@ -1,0 +1,19 @@
+name: Grand Bruxelles CityGen Terrain LOD
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/evaluate_cell_dtm_lod.py"
+      - "grand-bruxelles-game/tools/citygen/test_evaluate_cell_dtm_lod.py"
+      - ".github/workflows/grand-bruxelles-citygen-terrain-lod.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install numeric stack
+        run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3" "affine>=2.4,<3"
+      - name: Terrain LOD regression
+        run: python3 grand-bruxelles-game/tools/citygen/test_evaluate_cell_dtm_lod.py

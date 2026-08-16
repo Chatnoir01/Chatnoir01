@@ -20,6 +20,7 @@ EVIDENCE_STAGES = (
     ("elevation_value_evidence.json", "assess_elevation_values"),
     ("elevation_candidate_frontier.json", "derive_elevation_candidate_frontier"),
     ("building_height_candidates.json", "derive_building_height_candidates"),
+    ("terrain_lod_evidence.json", "evaluate_terrain_lod"),
 )
 
 
@@ -64,7 +65,10 @@ def load_target_grid(path: Path | None) -> dict[str, dict[str, Any]]:
             raise ValueError(f"target grid cell has invalid bbox: {cell_id}")
         if not (bbox[0] < bbox[2] and bbox[1] < bbox[3]) or min(bbox) < 10_000:
             raise ValueError(f"target grid cell bbox is not valid EPSG:31370: {cell_id}")
-        out[cell_id] = {"bbox": [float(v) if not float(v).is_integer() else int(v) for v in bbox], "municipalities": sorted(str(v) for v in (row.get("municipalities") or []))}
+        out[cell_id] = {
+            "bbox": [float(v) if not float(v).is_integer() else int(v) for v in bbox],
+            "municipalities": sorted(str(v) for v in (row.get("municipalities") or [])),
+        }
     if not out:
         raise ValueError("regional target grid contains no cells")
     return out
@@ -85,7 +89,7 @@ def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
         if not (cell_dir / filename).exists():
             return completed, action
         completed += 1
-    return completed, "assess_terrain_lod_and_secondary_height_validation"
+    return completed, "secondary_height_validation_and_terrain_runtime_checks"
 
 
 def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple[str, list[str]]:
@@ -152,7 +156,15 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
             state, blockers = classify_cell(cell_id, source_root, maturity_root)
         previous_cell = previous.get("cells", {}).get(cell_id, {})
         progress, next_action = evidence_plan(cell_id, source_root) if cell_id in source_set else (0, "materialize_authoritative_source")
-        row = {"cell_id": cell_id, "state": state, "blockers": blockers, "attempts": int(previous_cell.get("attempts", 0)), "evidence_progress": progress, "evidence_stage_count": len(EVIDENCE_STAGES), "next_action": next_action}
+        row = {
+            "cell_id": cell_id,
+            "state": state,
+            "blockers": blockers,
+            "attempts": int(previous_cell.get("attempts", 0)),
+            "evidence_progress": progress,
+            "evidence_stage_count": len(EVIDENCE_STAGES),
+            "next_action": next_action,
+        }
         if target_row is not None:
             row["bbox"] = target_row["bbox"]
             row["municipalities"] = target_row["municipalities"]
@@ -164,8 +176,36 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
         if cell["cell_id"] in batch_set:
             cell["attempts"] += 1
     run_number = int(previous.get("run_number", 0)) + 1
-    report = {"format": FORMAT, "run_number": run_number, "source_cell_count": len(source_cells), "target_cell_count": len(target) if target else len(source_cells), "counts": dict(sorted(counts.items())), "selected_batch": batch, "cells": cells, "policy": {"crs": "EPSG:31370", "batch_size": batch_size, "runtime_promotion": "forbidden_without_all_required_gates", "uncertain_evidence": "quarantine_or_keep_pending_never_guess", "missing_source_priority": "materialize_before_candidate_processing", "data_ready_priority": "finish_most_advanced_evidence_frontier_then_fair_rotate_within_stage"}}
-    state = {"format": FORMAT, "run_number": run_number, "cells": {cell["cell_id"]: {"state": cell["state"], "attempts": cell["attempts"], "evidence_progress": cell["evidence_progress"], "next_action": cell["next_action"]} for cell in cells}}
+    report = {
+        "format": FORMAT,
+        "run_number": run_number,
+        "source_cell_count": len(source_cells),
+        "target_cell_count": len(target) if target else len(source_cells),
+        "counts": dict(sorted(counts.items())),
+        "selected_batch": batch,
+        "cells": cells,
+        "policy": {
+            "crs": "EPSG:31370",
+            "batch_size": batch_size,
+            "runtime_promotion": "forbidden_without_all_required_gates",
+            "uncertain_evidence": "quarantine_or_keep_pending_never_guess",
+            "missing_source_priority": "materialize_before_candidate_processing",
+            "data_ready_priority": "finish_most_advanced_evidence_frontier_then_fair_rotate_within_stage",
+        },
+    }
+    state = {
+        "format": FORMAT,
+        "run_number": run_number,
+        "cells": {
+            cell["cell_id"]: {
+                "state": cell["state"],
+                "attempts": cell["attempts"],
+                "evidence_progress": cell["evidence_progress"],
+                "next_action": cell["next_action"],
+            }
+            for cell in cells
+        },
+    }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "autonomous_citygen_report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_dir / "autonomous_citygen_state.json").write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")

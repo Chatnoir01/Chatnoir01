@@ -1,0 +1,159 @@
+name: Grand Bruxelles CityGen Stale Quarantine Repair
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Maximum stale quarantine cells to rematerialize"
+        required: false
+        default: "4"
+  workflow_run:
+    workflows:
+      - "Grand Bruxelles Autonomous CityGen"
+    types:
+      - completed
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/select_stale_quarantine_repairs.py"
+      - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen_stale_quarantine_repair.py"
+      - ".github/workflows/grand-bruxelles-citygen-stale-quarantine-repair.yml"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: grand-bruxelles-citygen-stale-quarantine-repair
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove stale quarantine repair selection
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen_stale_quarantine_repair.py
+
+  repair:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    needs: regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Recover durable candidate and source caches
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stale-repair-cache
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          for ITEM in autonomous_candidates autonomous_sources; do
+            if git ls-tree -r --name-only origin/citygen-autonomous-state -- "grand-bruxelles-game/data/qa/${ITEM}" | grep -q .; then
+              git archive origin/citygen-autonomous-state "grand-bruxelles-game/data/qa/${ITEM}" | tar -x -C /tmp/stale-repair-cache
+            fi
+          done
+          git show origin/citygen-autonomous-state:grand-bruxelles-game/data/qa/brussels_regional_target_grid.json > /tmp/stale-repair-cache/target-grid.json
+
+      - name: Select stale quarantine repairs
+        env:
+          INPUT_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          LIMIT="${INPUT_LIMIT:-4}"
+          CANDIDATES=/tmp/stale-repair-cache/grand-bruxelles-game/data/qa/autonomous_candidates
+          SOURCES=/tmp/stale-repair-cache/grand-bruxelles-game/data/qa/autonomous_sources
+          mkdir -p "$CANDIDATES" "$SOURCES" /tmp/stale-repair-output
+          python3 grand-bruxelles-game/tools/citygen/select_stale_quarantine_repairs.py \
+            --candidate-root "$CANDIDATES" \
+            --source-root "$SOURCES" \
+            --target-grid /tmp/stale-repair-cache/target-grid.json \
+            --output /tmp/stale-repair-output/worklist.tsv \
+            --limit "$LIMIT"
+          cat /tmp/stale-repair-output/worklist.tsv
+
+      - name: Rematerialize only selected cells from official UrbIS WFS
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r CELL BBOX; do
+            [ -n "$CELL" ] || continue
+            python3 grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py \
+              --cell-id "$CELL" \
+              --bbox "$BBOX" \
+              --output-dir "/tmp/stale-repair-output/${CELL}"
+            python3 - "$CELL" <<'PY'
+          import json, sys
+          from pathlib import Path
+          cell=sys.argv[1]
+          manifest=json.loads((Path('/tmp/stale-repair-output')/cell/'manifest.json').read_text())
+          invalid=((manifest.get('layers') or {}).get('buildings') or {}).get('invalid_ownership_features')
+          if invalid != 0:
+              raise SystemExit(f"rematerialized cell still has invalid ownership features: {cell} invalid={invalid}")
+          source=Path('/tmp/stale-repair-output')/cell/'raw'/'buildings.geojson'
+          if not source.is_file() or source.stat().st_size == 0:
+              raise SystemExit(f"rematerialized cell missing authoritative buildings payload: {cell}")
+          print(f"STALE_QUARANTINE_REMATERIALIZED_OK cell={cell} invalid_ownership_features=0")
+          PY
+          done < /tmp/stale-repair-output/worklist.tsv
+
+      - name: Persist repaired authoritative sources off main
+        id: persist
+        run: |
+          set -euo pipefail
+          if [ ! -s /tmp/stale-repair-output/worklist.tsv ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "STALE_QUARANTINE_REPAIR_NONE"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            git reset --hard HEAD
+            git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+            git switch -C citygen-autonomous-state origin/citygen-autonomous-state
+            while IFS=$'\t' read -r CELL BBOX; do
+              [ -n "$CELL" ] || continue
+              TARGET="grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
+              rm -rf "$TARGET"
+              mkdir -p "$(dirname "$TARGET")"
+              cp -a "/tmp/stale-repair-output/${CELL}" "$TARGET"
+              git add "$TARGET"
+            done < /tmp/stale-repair-output/worklist.tsv
+            if git diff --cached --quiet; then
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "STALE_QUARANTINE_REPAIR_ALREADY_CURRENT"
+              exit 0
+            fi
+            git commit -m "citygen: rematerialize stale quarantine sources"
+            if git push --force-with-lease origin citygen-autonomous-state; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              echo "STALE_QUARANTINE_REPAIR_PERSISTED attempt=${ATTEMPT}"
+              exit 0
+            fi
+            echo "STALE_QUARANTINE_REPAIR_RETRY attempt=${ATTEMPT}"
+          done
+          echo "failed to persist stale quarantine repair after repeated durable-state races" >&2
+          exit 1
+
+      - name: Dispatch CityGen refresh after a real repair
+        if: steps.persist.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-autonomous-citygen.yml/dispatches" \
+            -d '{"ref":"main"}'
+          echo "STALE_QUARANTINE_CITYGEN_REFRESH_DISPATCHED"

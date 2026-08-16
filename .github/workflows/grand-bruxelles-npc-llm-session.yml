@@ -1,0 +1,75 @@
+name: Grand Bruxelles NPC LLM Session
+
+on:
+  pull_request:
+    paths:
+      - ".gitignore"
+      - ".github/workflows/grand-bruxelles-npc-llm-session.yml"
+      - "grand-bruxelles-game/data/ai/npc_llm_model.json"
+      - "grand-bruxelles-game/game/scripts/npc_llm_session.gd"
+      - "grand-bruxelles-game/game/scripts/npc_dialogue_catalog.gd"
+      - "grand-bruxelles-game/game/tests/npc_llm_session_test.gd"
+      - "grand-bruxelles-game/tools/download_npc_llm.py"
+      - "grand-bruxelles-game/tools/npc_llm_server.py"
+      - "grand-bruxelles-game/tests/test_npc_llm_tools.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject committed model weights
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files 'grand-bruxelles-game/models/**' | grep -q .; then
+            echo 'NPC_LLM_WEIGHTS_FAIL: model files are tracked by Git'
+            exit 1
+          fi
+          grep -Fx 'grand-bruxelles-game/models/' .gitignore
+      - name: Validate pinned local-model tooling
+        run: python3 -m unittest grand-bruxelles-game/tests/test_npc_llm_tools.py
+      - name: Validate download plan without network
+        run: python3 grand-bruxelles-game/tools/download_npc_llm.py --dry-run
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/npc-llm-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/npc-llm-import.log; then exit 1; fi
+      - name: Validate isolated NPC session and rules filter
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_llm_session_test.gd 2>&1 | tee /tmp/npc-llm-session.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_LLM_SESSION_FAIL" /tmp/npc-llm-session.log; then exit 1; fi
+          grep -F "NPC_LLM_SESSION_OK" /tmp/npc-llm-session.log
+
+  real-qwen-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CPU inference dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch>=2.6,<2.8'
+          python3 -m pip install 'transformers>=4.51,<4.52' 'huggingface_hub>=0.30,<1.0' 'safetensors>=0.5,<1.0'
+      - name: Download exact pinned Qwen model outside Git
+        run: python3 grand-bruxelles-game/tools/download_npc_llm.py
+      - name: Prove real local Qwen action+line generation
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/npc_llm_server.py --smoke 2>&1 | tee /tmp/real-qwen-smoke.log
+          grep -F "NPC_LLM_REAL_SMOKE_OK" /tmp/real-qwen-smoke.log

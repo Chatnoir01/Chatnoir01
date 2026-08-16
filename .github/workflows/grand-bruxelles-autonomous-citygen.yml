@@ -58,15 +58,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Recover durable scheduler state and source cache
+      - name: Recover durable scheduler state and accumulated caches
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/citygen-prev
           if git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state 2>/dev/null; then
             git show origin/citygen-autonomous-state:grand-bruxelles-game/data/qa/autonomous_citygen_state.json > /tmp/citygen-prev/state.json || true
-            if git ls-tree -r --name-only origin/citygen-autonomous-state -- grand-bruxelles-game/data/qa/autonomous_sources | grep -q .; then
-              git archive origin/citygen-autonomous-state grand-bruxelles-game/data/qa/autonomous_sources | tar -x -C /tmp/citygen-prev
+            for CACHE in autonomous_sources autonomous_candidates; do
+              if git ls-tree -r --name-only origin/citygen-autonomous-state -- "grand-bruxelles-game/data/qa/${CACHE}" | grep -q .; then
+                git archive origin/citygen-autonomous-state "grand-bruxelles-game/data/qa/${CACHE}" | tar -x -C /tmp/citygen-prev
+              fi
+            done
+            if [ -d /tmp/citygen-prev/grand-bruxelles-game/data/qa/autonomous_sources ]; then
               mkdir -p grand-bruxelles-game/data/urbis/remaining_brussels/cells
               cp -a /tmp/citygen-prev/grand-bruxelles-game/data/qa/autonomous_sources/. grand-bruxelles-game/data/urbis/remaining_brussels/cells/
             fi
@@ -173,6 +177,8 @@ jobs:
           cp /tmp/citygen-out/autonomous_citygen_report.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json
           cp /tmp/citygen-out/worklist.txt grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt
           cp /tmp/citygen-out/brussels_regional_target_grid.json grand-bruxelles-game/data/qa/brussels_regional_target_grid.json
+          cp -a /tmp/citygen-prev/grand-bruxelles-game/data/qa/autonomous_candidates/. grand-bruxelles-game/data/qa/autonomous_candidates/ 2>/dev/null || true
+          cp -a /tmp/citygen-prev/grand-bruxelles-game/data/qa/autonomous_sources/. grand-bruxelles-game/data/qa/autonomous_sources/ 2>/dev/null || true
           cp /tmp/citygen-out/candidates/*.json grand-bruxelles-game/data/qa/autonomous_candidates/ 2>/dev/null || true
           cp -a /tmp/citygen-new-sources/. grand-bruxelles-game/data/qa/autonomous_sources/ 2>/dev/null || true
           git add grand-bruxelles-game/data/qa/autonomous_citygen_state.json grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json grand-bruxelles-game/data/qa/autonomous_citygen_worklist.txt grand-bruxelles-game/data/qa/brussels_regional_target_grid.json grand-bruxelles-game/data/qa/autonomous_candidates grand-bruxelles-game/data/qa/autonomous_sources

@@ -108,7 +108,10 @@ func _run() -> void:
         _fail("no OSM road available near Anneessens spawn")
         return
 
-    var runtime := runtime_script.new()
+    var runtime: Node = runtime_script.new() as Node
+    if runtime == null:
+        _fail("Anneessens Midi sidewalk runtime did not instantiate")
+        return
     scene.add_child(runtime)
     runtime.call("bind_scene", scene)
     await process_frame

@@ -13,6 +13,8 @@ FORMAT = "grand-bruxelles-autonomous-citygen-v1"
 TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 TERMINAL = {"RUNTIME_READY", "QUARANTINE"}
 MANUAL_FRONTIER_ACTION = "secondary_height_validation_and_terrain_runtime_checks"
+MANUAL_ELEVATION_QUALITY_ACTION = "resolve_elevation_quality_blockers"
+MANUAL_ACTIONS = {MANUAL_FRONTIER_ACTION, MANUAL_ELEVATION_QUALITY_ACTION}
 EVIDENCE_STAGES = (
     ("elevation_requirements.json", "derive_elevation_requirements"),
     ("elevation_dsm_resolution.json", "resolve_dsm_source"),
@@ -115,9 +117,17 @@ def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
     cell_dir = source_root / cell_id
     completed = 0
     for filename, action in EVIDENCE_STAGES:
-        if not (cell_dir / filename).exists():
+        path = cell_dir / filename
+        if not path.exists():
             return completed, action
         completed += 1
+        if filename == "elevation_candidate_frontier.json":
+            try:
+                frontier = _read_json(path)
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+            if frontier.get("next_action") == MANUAL_ELEVATION_QUALITY_ACTION:
+                return completed, MANUAL_ELEVATION_QUALITY_ACTION
     return completed, MANUAL_FRONTIER_ACTION
 
 
@@ -160,6 +170,8 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
 
 def _autonomously_actionable(cell: dict[str, Any]) -> bool:
     if cell["state"] in TERMINAL:
+        return False
+    if cell.get("next_action") in MANUAL_ACTIONS:
         return False
     if cell["state"] == "DATA_READY" and int(cell.get("evidence_progress", 0)) >= len(EVIDENCE_STAGES):
         return False
@@ -263,7 +275,7 @@ def run(
             "incomplete_source_priority": "repair_declared_source_payloads_before_evidence_or_regional_expansion",
             "missing_source_priority": "expand_only_after_existing_source_cells_reach_their_current_autonomous_frontier",
             "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_materializing_more_source_cells",
-            "manual_frontier": "exclude_from_autonomous_batches_until_secondary_height_and_terrain_runtime_checks_are_implemented",
+            "manual_frontier": "exclude_measured_elevation_quality_and_secondary_height_terrain_runtime_frontiers_from_retries",
             "refresh_only": "recompute durable classification_and_evidence_progress_without_new_attempts_or_batch_selection",
         },
     }

@@ -25,8 +25,8 @@
     "aggregate_scale_claimed": false,
     "exact_rgb_is_photometric_measurement": false,
     "procedural_texture_external_asset": false,
-    "runtime_approved": false,
-    "runtime_approval_basis": "Pending deterministic normal-distance A/B and release-gate validation on this PR.",
+    "runtime_approved": true,
+    "runtime_approval_basis": "Deterministic 1280x720 normal-distance A/B on PR #442 changed 5.3188% of pixels above 3 RGB and 2.7042% above 8 RGB; source contract and dedicated Godot witness passed before approval.",
     "realism_complete": false
   }
 }

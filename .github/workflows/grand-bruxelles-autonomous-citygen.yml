@@ -53,7 +53,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
         with:
@@ -189,7 +189,7 @@ jobs:
               --archive-cache /tmp/citygen-elevation-archive-cache \
               --extract-root /tmp/citygen-raster-extract \
               --output "$D/elevation_raster_validation.json" >"$RLOG" 2>&1; then
-              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json"
+              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
               echo "ELEVATION_RASTER_VALIDATION_PENDING ${CELL}"
               continue
             fi
@@ -201,7 +201,7 @@ jobs:
               --output "$D/elevation_value_evidence.json" >"$VLOG" 2>&1; then
               rm -f "$VLOG"
             else
-              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json"
+              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
               echo "ELEVATION_VALUE_ASSESSMENT_PENDING ${CELL}"
             fi
           done < /tmp/citygen-out/worklist.txt
@@ -223,7 +223,7 @@ jobs:
                 --candidate-package "$PACKAGE" \
                 --output "$D/elevation_candidate_frontier.json"
             else
-              rm -f "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json"
+              rm -f "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
             fi
           done < /tmp/citygen-out/worklist.txt
           python3 - <<'PY'
@@ -244,7 +244,7 @@ jobs:
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
             VALUE="$D/elevation_value_evidence.json"; FRONTIER="$D/elevation_candidate_frontier.json"; RASTER="$D/elevation_raster_validation.json"
             if [ ! -f "$VALUE" ] || [ ! -f "$FRONTIER" ] || [ ! -f "$RASTER" ]; then
-              rm -f "$D/building_height_candidates.json"
+              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
               continue
             fi
             LOG="/tmp/citygen-out/building-height-errors/${CELL}.log"
@@ -257,8 +257,34 @@ jobs:
               --output "$D/building_height_candidates.json" >"$LOG" 2>&1; then
               rm -f "$LOG"
             else
-              rm -f "$D/building_height_candidates.json"
+              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
               echo "BUILDING_HEIGHT_CANDIDATES_PENDING ${CELL}"
+            fi
+          done < /tmp/citygen-out/worklist.txt
+
+      - name: Evaluate source-faithful DTM terrain LOD
+        run: |
+          set -u
+          [ -f /tmp/citygen-rasterio-ready ] || { echo "raster stack unavailable; terrain LOD remains pending"; exit 0; }
+          mkdir -p /tmp/citygen-out/terrain-lod-errors
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
+            VALUE="$D/elevation_value_evidence.json"; RASTER="$D/elevation_raster_validation.json"; HEIGHTS="$D/building_height_candidates.json"
+            if [ ! -f "$VALUE" ] || [ ! -f "$RASTER" ] || [ ! -f "$HEIGHTS" ]; then
+              rm -f "$D/terrain_lod_evidence.json"
+              continue
+            fi
+            LOG="/tmp/citygen-out/terrain-lod-errors/${CELL}.log"
+            if python3 grand-bruxelles-game/tools/citygen/evaluate_cell_dtm_lod.py \
+              --raster-validation "$RASTER" \
+              --value-evidence "$VALUE" \
+              --extract-root /tmp/citygen-raster-extract \
+              --output "$D/terrain_lod_evidence.json" >"$LOG" 2>&1; then
+              rm -f "$LOG"
+            else
+              rm -f "$D/terrain_lod_evidence.json"
+              echo "TERRAIN_LOD_EVIDENCE_PENDING ${CELL}"
             fi
           done < /tmp/citygen-out/worklist.txt
 

@@ -61,7 +61,7 @@ func _build_ui() -> void:
     _panel.name = "ZoneSelectorPanel"
     _panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
     _panel.position = Vector2(-382.0, 70.0)
-    _panel.size = Vector2(364.0, 390.0)
+    _panel.size = Vector2(364.0, 540.0)
     add_child(_panel)
 
     var box := VBoxContainer.new()
@@ -159,6 +159,14 @@ func _apply_zone(main: Node, zone: Dictionary) -> void:
     var ok := false
     if mode == "fast_travel":
         ok = bool(player.call("fast_travel_to", str(zone.get("destination", ""))))
+    elif mode == "position":
+        var spawn: Variant = zone.get("spawn", [])
+        if spawn is Array and spawn.size() >= 3:
+            player.global_position = Vector3(float(spawn[0]), float(spawn[1]), float(spawn[2]))
+            player.velocity = Vector3.ZERO
+            if player.has_method("_restore_runtime_hud"):
+                player.call("_restore_runtime_hud")
+            ok = true
     elif mode == "player_method":
         var method := str(zone.get("method", ""))
         if player.has_method(method):

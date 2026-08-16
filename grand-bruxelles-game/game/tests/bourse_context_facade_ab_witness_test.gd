@@ -67,9 +67,11 @@ func _run() -> void:
     if art == null or not art.has_method("set_articulation_enabled"): _fail("production articulation missing"); return
     var buildings := int(art.call("diagnostic_building_count")); var trims := int(art.call("diagnostic_trim_count"))
     if buildings < 8 or trims < 80: _fail("coverage too small: buildings=%d trims=%d" % [buildings, trims]); return
-    art.call("set_articulation_enabled", false); for _frame: int in range(8): await process_frame
+    art.call("set_articulation_enabled", false)
+    for _frame: int in range(8): await process_frame
     var before := await _capture(viewport, BEFORE)
-    art.call("set_articulation_enabled", true); for _frame: int in range(8): await process_frame
+    art.call("set_articulation_enabled", true)
+    for _frame: int in range(8): await process_frame
     var after := await _capture(viewport, AFTER)
     if before == null or after == null: _fail("capture failed"); return
     var d4 := _changed(before, after, 4); var d10 := _changed(before, after, 10)

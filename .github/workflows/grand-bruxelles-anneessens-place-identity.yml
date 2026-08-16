@@ -41,11 +41,23 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_place_identity_test.gd 2>&1 | tee /tmp/anneessens-place-identity.log
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_PLACE_IDENTITY_FAIL" /tmp/anneessens-place-identity.log; then exit 1; fi
           grep -F "ANNEESSENS_PLACE_IDENTITY_OK" /tmp/anneessens-place-identity.log
+      - name: Ensure Xvfb for rendered evidence
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
       - name: Run frozen natural-exposure A/B
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_place_identity_visual_test.gd 2>&1 | tee /tmp/anneessens-place-visual.log
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/anneessens_place_identity_visual_test.gd 2>&1 | tee /tmp/anneessens-place-visual.log
           if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_PLACE_IDENTITY_VISUAL_FAIL" /tmp/anneessens-place-visual.log; then exit 1; fi
           grep -F "ANNEESSENS_PLACE_IDENTITY_VISUAL_OK" /tmp/anneessens-place-visual.log
       - name: Stage review evidence

@@ -1,7 +1,8 @@
 extends Node
 
 const HUMANOID_VISUAL_SCRIPT := preload("res://game/scripts/humanoid_visual.gd")
-const EXPECTED_AMBIENT := 20
+const EXPECTED_AMBIENT := 24
+const TARGET_AMBIENT_DENSITY := 24
 const MAX_DISCOVERY_FRAMES := 120
 const PROXY_Y_OFFSET := 0.67
 const LOD_SWITCH_DISTANCE_M := 90.0
@@ -13,7 +14,17 @@ var _shared_materials: Dictionary = {}
 var _deduplicated_surfaces: int = 0
 
 func _ready() -> void:
+    get_tree().node_added.connect(_on_scene_node_added)
     call_deferred("_bridge_when_ready")
+
+func _on_scene_node_added(node: Node) -> void:
+    if node == null or node.name != "MidiUrbanLife":
+        return
+    var current_density = node.get("pedestrian_count")
+    if current_density == null:
+        return
+    if int(current_density) < TARGET_AMBIENT_DENSITY:
+        node.set("pedestrian_count", TARGET_AMBIENT_DENSITY)
 
 func _bridge_when_ready() -> void:
     for _frame: int in range(MAX_DISCOVERY_FRAMES):
@@ -251,5 +262,6 @@ func truth_contract() -> Dictionary:
         "visual_pipeline": "NpcAgent + humanoid_visual.gd profiled NPC path",
         "material_sharing": "exact-equivalent StandardMaterial3D reuse",
         "distance_lod": "profiled meshes near / existing legacy primitives beyond 90m with 10m self-fade margin",
+        "ambient_density_target": TARGET_AMBIENT_DENSITY,
         "external_assets": 0,
     }

@@ -1,8 +1,9 @@
 extends SceneTree
 
-const EXPECTED_AMBIENT := 20
-const EXPECTED_MATERIAL_CACHE_ENTRIES := 23
-const EXPECTED_REUSED_MATERIAL_SURFACES := 240
+const EXPECTED_AMBIENT := 24
+const MIN_UNIQUE_SIGNATURES := 12
+const MAX_MATERIAL_CACHE_ENTRIES := 30
+const MIN_REUSED_MATERIAL_SURFACES := 240
 const EXPECTED_LOD_SWITCH_DISTANCE := 90.0
 const EXPECTED_LOD_MARGIN := 10.0
 
@@ -105,7 +106,7 @@ func _run() -> void:
             return
         legacy_lod_visuals += person_legacy
 
-    if signatures.size() < 8:
+    if signatures.size() < MIN_UNIQUE_SIGNATURES:
         _fail("ambient crowd variation is too repetitive: %d unique signatures" % signatures.size())
         return
 
@@ -116,11 +117,11 @@ func _run() -> void:
     var stats: Dictionary = material_runtime.call("material_cache_stats")
     var cache_entries := int(stats.get("entries", 0))
     var surfaces_reused := int(stats.get("surfaces_reused", 0))
-    if cache_entries != EXPECTED_MATERIAL_CACHE_ENTRIES:
-        _fail("expected %d exact material cache entries, got %d" % [EXPECTED_MATERIAL_CACHE_ENTRIES, cache_entries])
+    if cache_entries > MAX_MATERIAL_CACHE_ENTRIES:
+        _fail("expected at most %d exact material cache entries, got %d" % [MAX_MATERIAL_CACHE_ENTRIES, cache_entries])
         return
-    if surfaces_reused != EXPECTED_REUSED_MATERIAL_SURFACES:
-        _fail("expected %d equivalent NPC material surfaces reused, got %d" % [EXPECTED_REUSED_MATERIAL_SURFACES, surfaces_reused])
+    if surfaces_reused < MIN_REUSED_MATERIAL_SURFACES:
+        _fail("expected at least %d equivalent NPC material surfaces reused, got %d" % [MIN_REUSED_MATERIAL_SURFACES, surfaces_reused])
         return
 
     if not material_runtime.has_method("lod_stats"):

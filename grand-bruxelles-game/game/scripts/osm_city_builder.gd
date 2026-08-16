@@ -358,6 +358,7 @@ func _build_buildings(buildings: Array, root: Node3D, replacement_ids: Dictionar
         count += 1
     return count
 
+
 func _queue_facade_details(footprint: Array, height: float) -> void:
     if height < 6.0:
         return

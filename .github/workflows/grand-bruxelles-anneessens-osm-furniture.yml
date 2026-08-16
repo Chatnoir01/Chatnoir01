@@ -7,7 +7,9 @@ on:
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/data/osm/anneessens_environment_points.game.json"
       - "grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_street_tree_asset.gd"
       - "grand-bruxelles-game/game/tests/anneessens_osm_furniture_test.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_street_tree_witness_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -16,9 +18,11 @@ permissions:
 jobs:
   furniture-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -31,4 +35,24 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/anneessens-furniture-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/anneessens-furniture-import.log; then exit 1; fi
       - name: Validate source-backed furniture runtime
-        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_furniture_test.gd
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/anneessens_osm_furniture_test.gd 2>&1 | tee /tmp/anneessens-furniture-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_OSM_FURNITURE_FAIL" /tmp/anneessens-furniture-runtime.log; then exit 1; fi
+          grep -q "ANNEESSENS_OSM_FURNITURE_OK" /tmp/anneessens-furniture-runtime.log
+      - name: Anneessens 1280x720 street-tree player A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/anneessens_street_tree_witness_test.gd 2>&1 | tee /tmp/anneessens-tree-visual.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_STREET_TREE_FAIL" /tmp/anneessens-tree-visual.log; then exit 1; fi
+          grep -q "ANNEESSENS_STREET_TREE_OK" /tmp/anneessens-tree-visual.log
+      - name: Upload Anneessens street-tree evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-street-tree-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/anneessens_tree_before.png
+            grand-bruxelles-game/artifacts/visual/anneessens_tree_after.png
+          if-no-files-found: error

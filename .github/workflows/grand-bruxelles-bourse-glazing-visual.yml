@@ -43,10 +43,24 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GLAZING_TARGET_CONTRACT_FAIL" /tmp/target-contract.log; then exit 1; fi
           grep -q "BOURSE_GLAZING_TARGET_CONTRACT_OK" /tmp/target-contract.log
       - name: Bourse glazing authored material restore regression
+        id: material_restore
+        continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_architectural_glazing_material_restore_test.gd 2>&1 | tee /tmp/material-restore.log
+      - name: Upload Bourse glazing restore diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-glazing-material-restore-log
+          path: /tmp/material-restore.log
+          if-no-files-found: error
+      - name: Enforce Bourse glazing authored material restore regression
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.material_restore.outcome }}" != "success" ]; then cat /tmp/material-restore.log; exit 1; fi
           if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GLAZING_MATERIAL_RESTORE_FAIL" /tmp/material-restore.log; then exit 1; fi
           grep -q "BOURSE_GLAZING_MATERIAL_RESTORE_OK" /tmp/material-restore.log
       - name: Bourse glazing deterministic A/B

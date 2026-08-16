@@ -19,6 +19,7 @@ EVIDENCE_STAGES = (
     ("elevation_raster_validation.json", "validate_dsm_dtm_georasters"),
     ("elevation_value_evidence.json", "assess_elevation_values"),
     ("elevation_candidate_frontier.json", "derive_elevation_candidate_frontier"),
+    ("building_height_candidates.json", "derive_building_height_candidates"),
 )
 
 
@@ -84,7 +85,7 @@ def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
         if not (cell_dir / filename).exists():
             return completed, action
         completed += 1
-    return completed, "assess_terrain_lod_and_building_height_samples"
+    return completed, "assess_terrain_lod_and_secondary_height_validation"
 
 
 def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple[str, list[str]]:

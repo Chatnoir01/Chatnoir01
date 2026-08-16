@@ -1,0 +1,17 @@
+name: Grand Bruxelles CityGen Building Heights
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/derive_cell_building_height_candidates.py"
+      - "grand-bruxelles-game/tools/citygen/test_derive_cell_building_height_candidates.py"
+      - ".github/workflows/grand-bruxelles-citygen-building-heights.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Per-building height candidate regression
+        run: python3 grand-bruxelles-game/tools/citygen/test_derive_cell_building_height_candidates.py

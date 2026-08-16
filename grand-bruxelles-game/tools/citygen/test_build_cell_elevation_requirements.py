@@ -28,8 +28,22 @@ with tempfile.TemporaryDirectory() as tmp:
     assert result["expected_1km_tile_codes"] == ["149169"]
     assert result["official_sources"]["dsm"]["dataset_id"] == mod.DSM_DATASET_ID
     assert result["official_sources"]["dtm"]["dataset_id"] == mod.DTM_DATASET_ID
+    assert result["source_basis"]["maturity_sidecar_present"] is True
     assert result["maturity_effect"] == {"terrain_gate": False, "heights_gate": False, "reason": "requirements_only_no_raster_evidence_yet"}
     assert result["requirements_digest"] == mod._digest({k:v for k,v in result.items() if k != "requirements_digest"})
+
+    # Regression from Autonomous CityGen pass 53: a source cell can have a valid
+    # authoritative EPSG:31370 manifest before maturity.json exists. Elevation
+    # requirements are only a tile plan, so the manifest bbox is sufficient and
+    # must not be retried forever as an exception. Runtime gates remain false.
+    manifest_only = root / "bxl-e149000-n169500-s500"
+    source3 = {"cell_id": manifest_only.name, "crs": "EPSG:31370", "bbox": [149000,169500,149500,170000], "layers": {}}
+    write(manifest_only / "manifest.json", source3)
+    pending = mod.build(manifest_only)
+    assert pending["expected_1km_tile_codes"] == ["149169"]
+    assert pending["source_basis"]["maturity_sidecar_present"] is False
+    assert pending["maturity_effect"]["terrain_gate"] is False
+    assert pending["maturity_effect"]["heights_gate"] is False
 
     # A 500 m cell crossing a kilometre boundary requires both tiles exactly.
     crossing = root / "bxl-e149750-n169000-s500"
@@ -49,4 +63,4 @@ with tempfile.TemporaryDirectory() as tmp:
     else:
         raise AssertionError("degree-like bbox must fail closed")
 
-print("CELL_ELEVATION_REQUIREMENTS_GUARDRAILS_OK tile_plan=true gates_false=true fail_closed=true")
+print("CELL_ELEVATION_REQUIREMENTS_GUARDRAILS_OK tile_plan=true manifest_only=true gates_false=true fail_closed=true")

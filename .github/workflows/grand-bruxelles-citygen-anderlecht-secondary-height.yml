@@ -95,12 +95,12 @@ jobs:
           PY
           python3 grand-bruxelles-game/tools/select_urbis_distribution.py /tmp/urbis-discovered.json /tmp/urbis-3d-selected.json \
             --source-id urbis_3d_constructions --token 31370 --token GPKG \
-            --candidate-token 31370 --candidate-token GPKG --candidate-token 21009 --candidate-token Anderlecht --prefer-latest
+            --candidate-token 31370 --candidate-token GPKG --candidate-token 21001 --prefer-latest
           python3 - <<'PY'
           import json
           from urllib.parse import urlparse
           data=json.load(open('/tmp/urbis-3d-selected.json',encoding='utf-8')); selected=data['selected']; url=str(selected['href'])
-          folded=url.casefold(); assert url.startswith('https://'); assert all(x in folded for x in ('31370','gpkg','21009','anderlecht')); assert '/dwg/' not in folded
+          folded=url.casefold(); assert url.startswith('https://'); assert all(x in folded for x in ('31370','gpkg','21001')); assert '/dwg/' not in folded
           host=(urlparse(url).hostname or '').lower(); allowed=('datastore.brussels','urbisdownload.datastore.brussels','geoservices-urbis.irisnet.be','gis.urban.brussels','urban.brussels')
           assert any(host==x or host.endswith('.'+x) for x in allowed)
           print('URBIS_3D_ANDERLECHT_SELECTION_OK',data['selected_embedded_date'],url)

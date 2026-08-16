@@ -26,6 +26,34 @@ with tempfile.TemporaryDirectory() as tmp:
     write_json(maturity/f"{cells[2]}.json",{"cell_id":cells[2],"crs":"EPSG:4326","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{}}})
     write_json(source/cells[3]/"maturity.json",{"cell_id":cells[3],"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:False for name in all_gates}}})
 
+    # Red regression: the legacy seven runtime gates are insufficient for a
+    # Region-scale mature cell. A legacy-complete manifest must remain pending
+    # until production evidence exists for sources/materials/facade/clutter,
+    # mobility, verification, licensing and hero-independent scalability.
+    legacy_cell = "bxl-e160000-n175000-s500"
+    write_json(source / legacy_cell / "manifest.json", {"cell_id": legacy_cell, "crs": "EPSG:31370", "layers": ["buildings"]})
+    write_json(
+        maturity / f"{legacy_cell}.json",
+        {
+            "cell_id": legacy_cell,
+            "crs": "EPSG:31370",
+            "geometry": {"authoritative_geometry_ready": True},
+            "maturity": {"gates": {name: True for name in all_gates}},
+        },
+    )
+    legacy_state, legacy_blockers = mod.classify_cell(legacy_cell, source, maturity)
+    assert legacy_state == "DATA_READY", (legacy_state, legacy_blockers)
+    assert {
+        "source_requirements",
+        "materials",
+        "facade",
+        "clutter",
+        "mobility",
+        "verification",
+        "license",
+        "region_scalable",
+    }.issubset(set(legacy_blockers)), legacy_blockers
+
     report1=mod.run(source,maturity,None,out1,2,target_grid)
     assert report1["source_cell_count"]==4 and report1["target_cell_count"]==5
     assert report1["counts"]=={"DATA_READY":2,"MISSING_SOURCE":1,"QUARANTINE":1,"RUNTIME_READY":1},report1["counts"]
@@ -75,7 +103,7 @@ with tempfile.TemporaryDirectory() as tmp:
     progress, action = mod.evidence_plan(frontier_cell, source)
     assert progress == len(mod.EVIDENCE_STAGES)
     assert action == "secondary_height_validation_and_terrain_runtime_checks"
-    assert mod.discover_cells(source)==sorted(cells[:4])
+    assert mod.discover_cells(source)==sorted(cells[:4] + [legacy_cell])
 
     # Regression: durable scheduler state must be refreshed after the selected
     # worklist has materially advanced. Refreshing must never count as another
@@ -111,4 +139,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert refreshed_row["evidence_progress"] == len(mod.EVIDENCE_STAGES)
     assert refreshed_row["next_action"] == mod.MANUAL_FRONTIER_ACTION
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")

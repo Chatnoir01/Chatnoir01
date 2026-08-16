@@ -57,20 +57,25 @@ func _read_identity() -> Dictionary:
         _identity_failure = true
         return {}
     var identity := parsed as Dictionary
-    var contract := identity.get("presentation_contract", {}) as Dictionary
-    if str(identity.get("schema", "")) != "grand-bruxelles-material-identity-v1":
-        _identity_failure = true
-        return {}
-    if str(contract.get("material_identity", "")) != "blue_stone":
-        _identity_failure = true
-        return {}
-    if bool(contract.get("geometry_changed", true)) or bool(contract.get("new_location_specific_placement", true)):
-        _identity_failure = true
-        return {}
-    if bool(contract.get("masonry_joints_authored", true)) or bool(contract.get("tooling_pattern_authored", true)):
+    if not _runtime_identity_allowed(identity):
+        push_error("Midi blue-stone runtime: material identity is not explicitly runtime-approved or violates the presentation contract")
         _identity_failure = true
         return {}
     return identity
+
+func _runtime_identity_allowed(identity: Dictionary) -> bool:
+    var contract := identity.get("presentation_contract", {}) as Dictionary
+    if str(identity.get("schema", "")) != "grand-bruxelles-material-identity-v1":
+        return false
+    if str(contract.get("material_identity", "")) != "blue_stone":
+        return false
+    if bool(contract.get("geometry_changed", true)) or bool(contract.get("new_location_specific_placement", true)):
+        return false
+    if bool(contract.get("masonry_joints_authored", true)) or bool(contract.get("tooling_pattern_authored", true)):
+        return false
+    if not bool(contract.get("runtime_approved", false)):
+        return false
+    return true
 
 func _collect_targets(node: Node) -> void:
     if node is MeshInstance3D and node.name in TARGET_NAMES:

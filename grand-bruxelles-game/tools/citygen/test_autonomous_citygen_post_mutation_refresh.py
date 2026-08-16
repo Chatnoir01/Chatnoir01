@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Workflow regression: persist scheduler state after source/evidence mutations."""
 from pathlib import Path
+import subprocess
+import sys
 
-workflow = (Path(__file__).resolve().parents[3] / ".github" / "workflows" / "grand-bruxelles-autonomous-citygen.yml").read_text(encoding="utf-8")
+HERE = Path(__file__).resolve().parent
+workflow = (HERE.parents[2] / ".github" / "workflows" / "grand-bruxelles-autonomous-citygen.yml").read_text(encoding="utf-8")
 
 refresh_name = "Refresh scheduler state after source and evidence mutations"
 persist_name = "Persist autonomous progress off main"
@@ -25,4 +28,12 @@ for token in required:
 assert "cp /tmp/citygen-refresh/autonomous_citygen_report.json /tmp/citygen-out/autonomous_citygen_report.json" not in workflow
 assert "cp /tmp/citygen-refresh/worklist.txt /tmp/citygen-out/worklist.txt" not in workflow
 
-print("AUTONOMOUS_CITYGEN_POST_MUTATION_REFRESH_OK state_only=true audit_preserved=true")
+# The dedicated workflow already executes this regression file. Chain the measured
+# source-quality frontier regression here so a future scheduler change cannot resume
+# burning attempts on a gate which explicitly requires non-autonomous evidence work.
+subprocess.run(
+    [sys.executable, str(HERE / "test_autonomous_citygen_blocked_height_frontier.py")],
+    check=True,
+)
+
+print("AUTONOMOUS_CITYGEN_POST_MUTATION_REFRESH_OK state_only=true audit_preserved=true blocked_quality_frontier=true")

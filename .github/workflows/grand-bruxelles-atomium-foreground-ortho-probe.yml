@@ -5,6 +5,8 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-atomium-foreground-ortho-probe.yml"
       - "grand-bruxelles-game/tools/probe_atomium_foreground_ortho.py"
+      - "grand-bruxelles-game/tools/audit_atomium_fountain_orthophoto.py"
+      - "grand-bruxelles-game/data/sources/laeken_jette/atomium_fountain_orthophoto_evidence.json"
   workflow_dispatch:
 
 permissions:
@@ -17,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install probe dependencies
-        run: python -m pip install --disable-pip-version-check pillow
+        run: python -m pip install --disable-pip-version-check pillow opencv-python-headless
       - name: Fetch and freeze inspection crop
         working-directory: grand-bruxelles-game
         shell: bash
@@ -28,6 +30,14 @@ jobs:
           test -s artifacts/qa/atomium_foreground_ortho/ortho_crop.jpg
           test -s artifacts/qa/atomium_foreground_ortho/annotated.png
           test -s artifacts/qa/atomium_foreground_ortho/probe.json
+      - name: Reproduce circular-basin witness
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/audit_atomium_fountain_orthophoto.py 2>&1 | tee /tmp/atomium-fountain-ortho-audit.log
+          grep -F "ATOMIUM_FOUNTAIN_ORTHO_AUDIT_OK" /tmp/atomium-fountain-ortho-audit.log
+          test -s artifacts/qa/atomium_foreground_ortho/basin_witness.png
       - name: Upload inspection evidence
         uses: actions/upload-artifact@v4
         with:
@@ -35,6 +45,8 @@ jobs:
           path: |
             grand-bruxelles-game/artifacts/qa/atomium_foreground_ortho/ortho_crop.jpg
             grand-bruxelles-game/artifacts/qa/atomium_foreground_ortho/annotated.png
+            grand-bruxelles-game/artifacts/qa/atomium_foreground_ortho/basin_witness.png
             grand-bruxelles-game/artifacts/qa/atomium_foreground_ortho/probe.json
             /tmp/atomium-foreground-ortho.log
+            /tmp/atomium-fountain-ortho-audit.log
           if-no-files-found: error

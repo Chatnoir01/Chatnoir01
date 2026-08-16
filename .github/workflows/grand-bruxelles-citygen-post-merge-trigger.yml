@@ -4,14 +4,20 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen_main_push_trigger.py"
+      - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py"
+      - ".github/workflows/grand-bruxelles-urbis3d-semantic-height-generic.yml"
       - ".github/workflows/grand-bruxelles-citygen-post-merge-trigger.yml"
   push:
     branches: [main]
     paths:
       - "grand-bruxelles-game/tools/citygen/**"
+      - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py"
       - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
       - ".github/workflows/grand-bruxelles-citygen-state-refresh.yml"
       - ".github/workflows/grand-bruxelles-citygen-post-merge-trigger.yml"
+      - ".github/workflows/grand-bruxelles-urbis3d-semantic-height-generic.yml"
 
 permissions:
   contents: read

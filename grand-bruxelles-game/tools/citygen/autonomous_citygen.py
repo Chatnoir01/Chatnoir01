@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from bootstrap_cell_maturity import GATES as MATURITY_GATES
+
 FORMAT = "grand-bruxelles-autonomous-citygen-v1"
 TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 TERMINAL = {"RUNTIME_READY", "QUARANTINE"}
@@ -121,10 +123,9 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
     if not geometry.get("authoritative_geometry_ready", False):
         return "QUARANTINE", ["authoritative_geometry_not_ready"]
     gates = maturity.get("maturity", {}).get("gates", {})
-    required = ("runtime_geometry", "collisions", "streaming", "terrain", "heights", "photo_match", "performance")
-    if all(gates.get(name) is True for name in required):
+    if all(gates.get(name) is True for name in MATURITY_GATES):
         return "RUNTIME_READY", []
-    return "DATA_READY", [name for name in required if gates.get(name) is not True]
+    return "DATA_READY", [name for name in MATURITY_GATES if gates.get(name) is not True]
 
 
 def _autonomously_actionable(cell: dict[str, Any]) -> bool:
@@ -212,7 +213,8 @@ def run(
         "policy": {
             "crs": "EPSG:31370",
             "batch_size": batch_size,
-            "runtime_promotion": "forbidden_without_all_required_gates",
+            "maturity_gate_count": len(MATURITY_GATES),
+            "runtime_promotion": "forbidden_without_full_regional_maturity_contract",
             "uncertain_evidence": "quarantine_or_keep_pending_never_guess",
             "missing_source_priority": "expand_only_after_existing_source_cells_reach_their_current_autonomous_frontier",
             "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_materializing_more_source_cells",

@@ -1,0 +1,58 @@
+name: Grand Bruxelles Laeken Orthophoto Discovery
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/discover_laeken_orthophoto_wms.py"
+      - ".github/workflows/grand-bruxelles-laeken-orthophoto-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Inspect official Paradigm orthophoto WMS
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/discover_laeken_orthophoto_wms.py
+          python3 tools/discover_laeken_orthophoto_wms.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/orthophoto_wms_inventory.json'
+          d=json.load(open(p,encoding='utf-8'))
+          names={x['name'] for x in d['target_layers']}
+          assert 'Ortho' in names, names
+          layer=next(x for x in d['target_layers'] if x['name']=='Ortho')
+          assert 'EPSG:31370' in layer['crs'], layer['crs']
+          service=d['service']
+          fees=(service.get('fees') or '').lower()
+          access=(service.get('access_constraints') or '').lower()
+          assert 'cc-0' in fees or 'public domain' in fees, service
+          assert 'no limitations' in access, service
+          print('LAEKEN_ORTHO_WMS_INVENTORY_VALID',service,names)
+          PY
+
+      - name: Commit provenance inventory safely
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/orthophoto_wms_inventory.json /tmp/orthophoto_wms_inventory.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/orthophoto_wms_inventory.json grand-bruxelles-game/data/sources/laeken_jette/orthophoto_wms_inventory.json
+          git add grand-bruxelles-game/data/sources/laeken_jette/orthophoto_wms_inventory.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: inventory Laeken orthophoto WMS metadata [skip ci]"
+          git push origin HEAD:zone-laeken-jette

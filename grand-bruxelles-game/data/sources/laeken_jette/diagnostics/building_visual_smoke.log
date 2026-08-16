@@ -1,0 +1,20 @@
+Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
+
+LAEKEN_TERRAIN_READY: source=res://data/terrain/laeken_jette/phase1_dtm.game.json 360x620 valid=223200 holes=0 height_range=[-37.09, 24.27]m atomium_abs=52.58m
+LAEKEN_JETTE_ZONE_READY: {"buildings":9518,"street_axes":955,"street_surfaces":3572,"train_network":326,"tram_network":326}
+WARNING: LaekenBuildingHeightPass: height records missing or misaligned; preserving original building mesh
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _build_height_mesh (res://game/zones/laeken_jette/laeken_building_height_pass.gd:142)
+LAEKEN_REALISM_READY: axis_distance=5.85 trees=0 lamps=0 dashes=3
+LAEKEN_ATOMIUM_CORRIDOR_READY: axis_distance=5.85 trees=36 lamps=28 dashes=51
+LAEKEN_DTM_DRAPE_READY: roads=280848 buildings=754735 tram=50404 train=50404 terrain_y=[-36.68, 24.02]
+LAEKEN_ORTHOPHOTO_READY: active=true terrain=true roads=true texture=res://data/orthophoto/laeken_jette/phase1_ortho.jpg
+LAEKEN_BUILDING_VISUAL_READY: active=true ortho_roofs=true
+WARNING: LaekenBuildingDSMMaterialBridge: source or DSM target missing
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _bridge (res://game/zones/laeken_jette/laeken_building_dsm_material_bridge.gd:23)
+LAEKEN_OFFICIAL_TREES_READY: total=8222 terrain=8222 broadleaf=6677 conifer=1477 columnar=68 skipped=14
+LAEKEN_BUILDING_VISUAL_OK: ortho_roofs=true
+godot_exit_status=0

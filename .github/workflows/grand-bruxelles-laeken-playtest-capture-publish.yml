@@ -1,0 +1,123 @@
+name: Grand Bruxelles Laeken Published Gameplay Capture
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/game/zones/laeken_jette/**"
+      - "grand-bruxelles-game/game/tests/render_laeken_player_camera_capture.gd"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
+      - "grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/**"
+      - "grand-bruxelles-game/data/orthophoto/laeken_jette/**"
+      - ".github/workflows/grand-bruxelles-laeken-playtest-capture-publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-published-capture
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - name: Checkout latest zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+          fetch-depth: 0
+
+      - name: Self-heal validated DSM and Atomium override for capture
+        run: |
+          set -euo pipefail
+          HEIGHT_COMMIT=3583c352cb2896b3cff7f76909db5a7dcf07410a
+          OVERRIDE_COMMIT=f99a54bc403fc4ce54ebbcfb034c7194e6410713
+          HEIGHT_PATH=grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json
+          OVERRIDE_PATH=grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json
+          mkdir -p "$(dirname "$HEIGHT_PATH")"
+          if test ! -s "$HEIGHT_PATH"; then
+            git show "$HEIGHT_COMMIT:$HEIGHT_PATH" > "$HEIGHT_PATH"
+          fi
+          if test ! -s "$OVERRIDE_PATH"; then
+            git show "$OVERRIDE_COMMIT:$OVERRIDE_PATH" > "$OVERRIDE_PATH"
+          fi
+          python3 - <<'PY'
+          import json
+          h=json.load(open('grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json',encoding='utf-8'))
+          o=json.load(open('grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json',encoding='utf-8'))
+          assert h['feature_count']==9518 and len(h['records'])==9518 and h['derived_height_count']==9163
+          item=o['overrides']['https://databrussels.be/id/building/1637983']
+          assert abs(float(item['height_m'])-4.231)<0.0001
+          print('CAPTURE_DSM_AND_OVERRIDE_READY')
+          PY
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project resources
+        run: |
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+
+      - name: Render actual gameplay Camera3D
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --rendering-method gl_compatibility \
+            --script res://game/tests/render_laeken_player_camera_capture.gd 2>&1 | tee /tmp/capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PLAYER_CAMERA_CAPTURE_FAIL" /tmp/capture.log; then
+            exit 1
+          fi
+          grep -q "PLAYER_CAMERA_CAPTURE_OK" /tmp/capture.log
+          grep -q "LAEKEN_BUILDING_HEIGHTS_READY" /tmp/capture.log
+          grep -q "LAEKEN_FACADE_DETAIL_READY" /tmp/capture.log
+          grep -q "LAEKEN_OFFICIAL_TREES_READY" /tmp/capture.log
+          grep -q "LAEKEN_TREE_CANOPY_REFINED" /tmp/capture.log
+          grep -q "LAEKEN_TRAM_RAILS_READY" /tmp/capture.log
+          grep -q "LAEKEN_ORTHOPHOTO_READY: active=true" /tmp/capture.log
+          test -s grand-bruxelles-game/laeken_player_camera_current.png
+
+      - name: Publish gameplay capture safely on moving zone branch
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/laeken-capture
+          cp grand-bruxelles-game/laeken_player_camera_current.png /tmp/laeken-capture/laeken_player_camera_current.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for ATTEMPT in 1 2 3 4 5; do
+            echo "Capture publish attempt $ATTEMPT/5"
+            git fetch origin zone-laeken-jette
+            git reset --hard origin/zone-laeken-jette
+            mkdir -p grand-bruxelles-game/data/reference/laeken_jette/captures
+            cp /tmp/laeken-capture/laeken_player_camera_current.png \
+              grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
+            git add -f grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
+            if git diff --cached --quiet; then
+              echo "Gameplay capture already matches latest branch head"
+              exit 0
+            fi
+            git commit -m "visual: publish true Laeken gameplay-camera capture [skip ci]"
+            if git push origin HEAD:zone-laeken-jette; then
+              echo "Gameplay capture published on attempt $ATTEMPT"
+              exit 0
+            fi
+            echo "Branch moved during capture publish; retrying"
+            sleep 2
+          done
+          echo "Unable to publish gameplay capture after 5 branch-safe retries" >&2
+          exit 1

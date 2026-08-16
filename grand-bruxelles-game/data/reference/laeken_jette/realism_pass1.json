@@ -1,0 +1,45 @@
+{
+  "schema": 2,
+  "zone": "laeken_jette",
+  "pass": "realism_01_atomium_heysel",
+  "geometry_policy": "Official UrbIS geometry remains authoritative. Photo-guided street furniture is visual-only until replaced by surveyed/open-data positions.",
+  "references": [
+    {
+      "subject": "Atomium approach",
+      "url": "https://pixy.org/5912449/",
+      "license": "CC0 / public domain as stated by source",
+      "observations": ["tree-lined approach", "regular modern lamp posts", "parked cars", "strong central view axis", "metallic reflective spheres"]
+    },
+    {
+      "subject": "Avenue Houba de Strooper",
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Laeken/Avenue_Houba_de_Strooper/10208100",
+      "publisher": "Brussels architectural heritage inventory",
+      "observations": ["brick and stone/stucco facades", "3-4 storey street wall", "ground-floor commerce", "street trees", "mixed historic facade rhythm"]
+    },
+    {
+      "subject": "Place Emile Bockstael",
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Laeken/Place_Emile_Bockstael/10208064",
+      "publisher": "Brussels architectural heritage inventory",
+      "observations": ["red and brown brick", "stone trim", "balconies", "retail ground floors", "dense perimeter blocks"]
+    }
+  ],
+  "current_visual_rules": {
+    "building_facades": "procedural shader remains temporary; building footprints remain UrbIS; facade colour/window pattern is not parcel-specific yet",
+    "atomium_approach_furniture": "aligned to nearest official UrbIS StreetAxes geometry; lateral offsets and spacing are photo-guided, not surveyed",
+    "building_heights": "DSM-DTM height pass is active: 9163 of 9518 official building footprints use p75 per-pixel DSM-DTM derived heights; 355 currently use the documented 10.5 m fallback. See building_height_integration_validation.json for tested counts and quality classes.",
+    "building_height_quality_gate": "do not replace DSM-derived heights with generic storey defaults; investigate the 355 fallback footprints progressively using better source coverage",
+    "photo_match": "Atomium benchmark camera is provisional. Jette references may include depicted-place coordinates, but those must never be treated as photographer coordinates unless the source explicitly provides camera position."
+  },
+  "measured_height_validation": {
+    "status": "passed",
+    "source_feature_count": 9518,
+    "derived_height_count": 9163,
+    "fallback_count": 355,
+    "derived_coverage_percent": 96.27,
+    "median_height_m": 11.374515533447266,
+    "min_height_m": 2.0669898986816406,
+    "max_height_m": 51.033287048339844,
+    "method": "p75 of valid DSM-DTM pixel heights whose pixel centres fall inside the official UrbIS building footprint",
+    "validation_file": "data/sources/laeken_jette/building_height_integration_validation.json"
+  }
+}

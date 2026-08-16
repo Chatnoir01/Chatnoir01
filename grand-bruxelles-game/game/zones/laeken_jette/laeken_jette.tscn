@@ -1,0 +1,74 @@
+[gd_scene load_steps=19 format=3]
+
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_jette_zone.gd" id="1_zone"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_realism_pass.gd" id="2_realism"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_atomium_corridor.gd" id="3_corridor"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_terrain.gd" id="4_terrain"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_terrain_drape.gd" id="5_drape"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_orthophoto_pass.gd" id="6_ortho"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_building_visual_pass.gd" id="7_buildings"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_building_height_pass.gd" id="8_heights"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_building_dsm_material_bridge.gd" id="9_bridge"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_official_trees.gd" id="10_trees"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_tree_canopy_refinement.gd" id="11_tree_refine"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_tree_canopy_sync.gd" id="12_tree_sync"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_facade_detail_pass.gd" id="13_facade_detail"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_source_truth_cleanup.gd" id="14_source_cleanup"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_tram_rail_pass.gd" id="15_tram_rails"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_atomium_visual_refinement.gd" id="16_atomium_visual"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_palais5_hero_pass.gd" id="17_palais5"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_palais5_envelope_detail_pass.gd" id="18_palais5_envelope"]
+
+[node name="LaekenJetteZone" type="Node3D"]
+script = ExtResource("1_zone")
+
+[node name="LaekenTerrain" type="Node3D" parent="."]
+script = ExtResource("4_terrain")
+
+[node name="BuildingHeightPass" type="Node" parent="."]
+script = ExtResource("8_heights")
+
+[node name="RealismPass" type="Node3D" parent="."]
+script = ExtResource("2_realism")
+
+[node name="AtomiumVisualRefinement" type="Node" parent="."]
+script = ExtResource("16_atomium_visual")
+
+[node name="AtomiumCorridor" type="Node3D" parent="."]
+script = ExtResource("3_corridor")
+
+[node name="TerrainDrape" type="Node" parent="."]
+script = ExtResource("5_drape")
+
+[node name="OrthophotoPass" type="Node" parent="."]
+script = ExtResource("6_ortho")
+
+[node name="BuildingVisualPass" type="Node" parent="."]
+script = ExtResource("7_buildings")
+
+[node name="BuildingDSMMaterialBridge" type="Node" parent="."]
+script = ExtResource("9_bridge")
+
+[node name="FacadeDetailPass" type="Node3D" parent="."]
+script = ExtResource("13_facade_detail")
+
+[node name="Palais5HeroPass" type="Node3D" parent="."]
+script = ExtResource("17_palais5")
+
+[node name="Palais5EnvelopeDetailPass" type="Node3D" parent="."]
+script = ExtResource("18_palais5_envelope")
+
+[node name="TramRailPass" type="Node3D" parent="."]
+script = ExtResource("15_tram_rails")
+
+[node name="OfficialTrees" type="Node3D" parent="."]
+script = ExtResource("10_trees")
+
+[node name="TreeCanopyRefinement" type="Node3D" parent="."]
+script = ExtResource("11_tree_refine")
+
+[node name="TreeCanopySync" type="Node" parent="."]
+script = ExtResource("12_tree_sync")
+
+[node name="SourceTruthCleanup" type="Node" parent="."]
+script = ExtResource("14_source_cleanup")

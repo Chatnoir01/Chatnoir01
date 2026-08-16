@@ -1,0 +1,102 @@
+name: Grand Bruxelles Laeken Height Integration Proof
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/game/zones/laeken_jette/laeken_building_height_pass.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/laeken_building_dsm_material_bridge.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/laeken_jette.tscn"
+      - "grand-bruxelles-game/game/tests/laeken_building_heights_smoke_test.gd"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json"
+      - ".github/workflows/grand-bruxelles-laeken-height-integration-proof.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-height-integration-proof
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Prove DSM height mesh in Godot
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/laeken_building_heights_smoke_test.gd 2>&1 | tee /tmp/heights.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_BUILDING_HEIGHTS_FAIL" /tmp/heights.log; then
+            exit 1
+          fi
+          grep -q "LAEKEN_BUILDING_HEIGHTS_OK" /tmp/heights.log
+          grep "LAEKEN_BUILDING_HEIGHTS_OK" /tmp/heights.log | tail -n1 >/tmp/proof-line.txt
+          cat /tmp/proof-line.txt
+
+      - name: Write integration proof
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          heights=json.load(open('data/urbis/laeken_jette/building_heights_dsm.game.json',encoding='utf-8'))
+          line=pathlib.Path('/tmp/proof-line.txt').read_text(encoding='utf-8').strip()
+          out={
+              'schema':1,
+              'status':'passed',
+              'engine':'Godot 4.7.1',
+              'branch':'zone-laeken-jette',
+              'tested_commit':os.environ.get('GITHUB_SHA'),
+              'source_height_method':heights['selection_method'],
+              'source_feature_count':heights['feature_count'],
+              'source_derived_height_count':heights['derived_height_count'],
+              'source_quality_counts':heights['quality_counts'],
+              'source_height_min_m':heights['derived_height_min_m'],
+              'source_height_median_m':heights['derived_height_median_m'],
+              'source_height_max_m':heights['derived_height_max_m'],
+              'godot_smoke_output':line,
+              'assertions':[
+                  'DSM height replacement mesh exists and is visible',
+                  'uniform-height original mesh is hidden',
+                  'at least 9000 buildings use DSM-derived heights',
+                  'no more than 500 buildings use the 10.5 m fallback',
+                  'derived height mesh has meaningful vertical variation',
+                  'validated facade/orthophoto material is bridged to DSM mesh',
+              ],
+          }
+          p=pathlib.Path('data/sources/laeken_jette/building_height_integration_validation.json')
+          p.parent.mkdir(parents=True,exist_ok=True)
+          p.write_text(json.dumps(out,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          PY
+
+      - name: Publish proof from latest branch head
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/building_height_integration_validation.json /tmp/building_height_integration_validation.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/building_height_integration_validation.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add grand-bruxelles-game/data/sources/laeken_jette/building_height_integration_validation.json
+          git diff --cached --quiet && exit 0
+          git commit -m "test: prove Laeken DSM building-height integration [skip ci]"
+          git push origin HEAD:zone-laeken-jette

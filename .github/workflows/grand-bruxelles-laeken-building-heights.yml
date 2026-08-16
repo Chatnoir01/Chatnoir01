@@ -1,0 +1,189 @@
+name: Grand Bruxelles Laeken Building Heights
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/derive_laeken_building_heights.py"
+      - "grand-bruxelles-game/data/sources/laeken_jette/urbis_dsm_discovery.json"
+      - "grand-bruxelles-game/data/sources/laeken_jette/urbis_dtm_discovery.json"
+      - ".github/workflows/grand-bruxelles-laeken-building-heights.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-building-heights
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install GDAL Python and NumPy
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gdal-bin python3-gdal python3-numpy
+          /usr/bin/python3 - <<'PY'
+          from osgeo import gdal
+          import numpy
+          print('GDAL',gdal.VersionInfo(),'NumPy',numpy.__version__)
+          PY
+
+      - name: Resolve the 12 official DSM and DTM ZIPs
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/laeken-heights/dsm-zips /tmp/laeken-heights/dtm-zips /tmp/laeken-heights/dsm /tmp/laeken-heights/dtm
+          /usr/bin/python3 - <<'PY'
+          import json,pathlib
+          def resolve(path):
+              d=json.load(open(path,encoding='utf-8'))
+              expected=d['expected_1km_tile_codes']
+              found={}
+              for item in d['candidate_links']:
+                  url=item['url']
+                  if not url.lower().endswith('.zip'): continue
+                  for tile in item.get('matching_tiles',[]):
+                      if tile in expected: found.setdefault(tile,[]).append(url)
+              out={}
+              for tile in expected:
+                  matches=sorted(set(found.get(tile,[])))
+                  if len(matches)!=1: raise SystemExit(f'{path}: {tile} -> {matches}')
+                  out[tile]=matches[0]
+              return out
+          dsm=resolve('data/sources/laeken_jette/urbis_dsm_discovery.json')
+          dtm=resolve('data/sources/laeken_jette/urbis_dtm_discovery.json')
+          pathlib.Path('/tmp/laeken-heights/dsm-urls.json').write_text(json.dumps(dsm,indent=2)+'\n')
+          pathlib.Path('/tmp/laeken-heights/dtm-urls.json').write_text(json.dumps(dtm,indent=2)+'\n')
+          print('HEIGHT_SOURCE_URLS_OK',len(dsm),len(dtm))
+          PY
+
+      - name: Download, hash and extract all height tiles
+        run: |
+          /usr/bin/python3 - <<'PY'
+          import concurrent.futures,hashlib,json,pathlib,shutil,urllib.request,zipfile
+          root=pathlib.Path('/tmp/laeken-heights')
+          jobs=[]
+          for kind in ('dsm','dtm'):
+              urls=json.load(open(root/f'{kind}-urls.json'))
+              for tile,url in urls.items(): jobs.append((kind,tile,url))
+          def one(job):
+              kind,tile,url=job
+              dest=root/f'{kind}-zips'/(tile+'.zip')
+              req=urllib.request.Request(url,headers={'User-Agent':'Grand-Bruxelles-Game/1.0 (building height derivation)'})
+              with urllib.request.urlopen(req,timeout=120) as r,dest.open('wb') as f: shutil.copyfileobj(r,f,1024*1024)
+              sha=hashlib.sha256(dest.read_bytes()).hexdigest()
+              out=root/kind/tile
+              out.mkdir(parents=True,exist_ok=True)
+              with zipfile.ZipFile(dest) as z:
+                  z.extractall(out)
+                  tifs=[out/n for n in z.namelist() if n.lower().endswith(('.tif','.tiff'))]
+              if len(tifs)!=1: raise RuntimeError(f'{kind} {tile}: {tifs}')
+              return {'kind':kind,'tile':tile,'url':url,'size_bytes':dest.stat().st_size,'sha256':sha,'tif':str(tifs[0])}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+              records=list(pool.map(one,jobs))
+          records.sort(key=lambda x:(x['kind'],x['tile']))
+          (root/'source-manifest.json').write_text(json.dumps(records,indent=2)+'\n')
+          for r in records: print('HEIGHT_TILE',r['kind'],r['tile'],r['size_bytes'],r['sha256'])
+          PY
+
+      - name: Build aligned 1 metre DSM and DTM mosaics
+        run: |
+          find /tmp/laeken-heights/dsm -type f \( -iname '*.tif' -o -iname '*.tiff' \) | sort >/tmp/laeken-heights/dsm.txt
+          find /tmp/laeken-heights/dtm -type f \( -iname '*.tif' -o -iname '*.tiff' \) | sort >/tmp/laeken-heights/dtm.txt
+          test "$(wc -l </tmp/laeken-heights/dsm.txt)" -eq 12
+          test "$(wc -l </tmp/laeken-heights/dtm.txt)" -eq 12
+          gdalbuildvrt -q -input_file_list /tmp/laeken-heights/dsm.txt /tmp/laeken-heights/dsm.vrt
+          gdalbuildvrt -q -input_file_list /tmp/laeken-heights/dtm.txt /tmp/laeken-heights/dtm.vrt
+          for KIND in dsm dtm; do
+            gdalwarp -q -te 147300 173650 149100 176750 -tr 1 1 -r bilinear -dstnodata -3.4028235e+38 \
+              /tmp/laeken-heights/$KIND.vrt /tmp/laeken-heights/$KIND-1m.tif
+            gdalinfo -json -stats /tmp/laeken-heights/$KIND-1m.tif >/tmp/laeken-heights/$KIND-info.json
+          done
+          /usr/bin/python3 - <<'PY'
+          import json
+          dsm=json.load(open('/tmp/laeken-heights/dsm-info.json'))
+          dtm=json.load(open('/tmp/laeken-heights/dtm-info.json'))
+          assert dsm['size']==[1800,3100],dsm['size']
+          assert dtm['size']==[1800,3100],dtm['size']
+          assert dsm['geoTransform']==dtm['geoTransform'],(dsm['geoTransform'],dtm['geoTransform'])
+          print('HEIGHT_RASTERS_ALIGNED',dsm['size'],dsm['geoTransform'])
+          PY
+
+      - name: Derive per-building heights from official footprints
+        working-directory: grand-bruxelles-game
+        run: |
+          /usr/bin/python3 -m py_compile tools/derive_laeken_building_heights.py
+          /usr/bin/python3 tools/derive_laeken_building_heights.py \
+            --buildings data/urbis/laeken_jette/buildings.geojson \
+            --dsm /tmp/laeken-heights/dsm-1m.tif \
+            --dtm /tmp/laeken-heights/dtm-1m.tif \
+            --output data/urbis/laeken_jette/building_heights_dsm.game.json
+
+      - name: Validate derived height distribution and write provenance
+        working-directory: grand-bruxelles-game
+        run: |
+          /usr/bin/python3 - <<'PY'
+          import json,pathlib
+          heights=json.load(open('data/urbis/laeken_jette/building_heights_dsm.game.json',encoding='utf-8'))
+          manifest=json.load(open('/tmp/laeken-heights/source-manifest.json'))
+          assert heights['feature_count']==9518,heights['feature_count']
+          assert len(heights['records'])==9518
+          assert heights['raster_resolution_m']==1.0
+          derived=heights['derived_height_count']
+          assert derived >= 7000, derived
+          assert 5.0 <= heights['derived_height_median_m'] <= 30.0, heights['derived_height_median_m']
+          assert heights['derived_height_max_m'] <= 120.0
+          quality=heights['quality_counts']
+          assert quality['high']+quality['medium']+quality['low'] >= 6500,quality
+          provenance={
+              'schema':1,
+              'source_buildings':'Paradigm UrbIS Buildings WFS',
+              'source_dsm':'Paradigm UrbIS Digital Surface Model 2021',
+              'source_dtm':'Paradigm UrbIS Digital Terrain Model 2021',
+              'source_crs':'EPSG:31370',
+              'bbox_epsg31370':[147300.0,173650.0,149100.0,176750.0],
+              'temporary_raster_resolution_m':1.0,
+              'height_method':heights['selection_method'],
+              'derived_height_count':derived,
+              'quality_counts':quality,
+              'derived_height_min_m':heights['derived_height_min_m'],
+              'derived_height_median_m':heights['derived_height_median_m'],
+              'derived_height_max_m':heights['derived_height_max_m'],
+              'source_tiles':manifest,
+              'license':'CC0 for DSM, DTM and UrbIS vector source datasets per official metadata committed in this branch',
+              'notes':heights['notes'],
+          }
+          p=pathlib.Path('data/sources/laeken_jette/building_heights_dsm_provenance.json')
+          p.write_text(json.dumps(provenance,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          print('LAEKEN_BUILDING_HEIGHTS_VALID',{'derived':derived,'quality':quality,'min':heights['derived_height_min_m'],'median':heights['derived_height_median_m'],'max':heights['derived_height_max_m']})
+          PY
+
+      - name: Preserve generated results
+        run: |
+          mkdir -p /tmp/laeken-heights/generated
+          cp grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json /tmp/laeken-heights/generated/
+          cp grand-bruxelles-game/data/sources/laeken_jette/building_heights_dsm_provenance.json /tmp/laeken-heights/generated/
+
+      - name: Publish height data from latest branch head
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/urbis/laeken_jette grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/laeken-heights/generated/building_heights_dsm.game.json grand-bruxelles-game/data/urbis/laeken_jette/
+          cp /tmp/laeken-heights/generated/building_heights_dsm_provenance.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json \
+                  grand-bruxelles-game/data/sources/laeken_jette/building_heights_dsm_provenance.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: derive Laeken building heights from official DSM-DTM [skip ci]"
+          git push origin HEAD:zone-laeken-jette

@@ -1,0 +1,85 @@
+name: Grand Bruxelles Laeken UrbIS Landscape Tile
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/inspect_urbis_landscape_tile.py"
+      - ".github/workflows/grand-bruxelles-laeken-landscape-tile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-landscape-tile
+  cancel-in-progress: true
+
+jobs:
+  inspect-atomium-tile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Validate tile inspector
+        run: python3 -m py_compile grand-bruxelles-game/tools/inspect_urbis_landscape_tile.py
+
+      - name: Inspect official Atomium tile 148176
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/inspect_urbis_landscape_tile.py \
+            --discovery data/sources/laeken_jette/urbis_landscape_discovery.json \
+            --tile 148176 \
+            --download-dir /tmp/urbis-landscape-laeken \
+            --output data/sources/laeken_jette/urbis_landscape_atomium_tile_inventory.json
+
+      - name: Validate archive inventory
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          path = 'data/sources/laeken_jette/urbis_landscape_atomium_tile_inventory.json'
+          data = json.load(open(path, encoding='utf-8'))
+          assert data['tile'] == '148176'
+          assert data['size_bytes'] > 0
+          assert len(data['sha256']) == 64
+          members = data['members']
+          assert members, 'archive has no members'
+          assert any(m['extension'] == '.skp' for m in members), members
+          print('LAEKEN_ATOMIUM_LANDSCAPE_TILE_INVENTORY_OK', {
+              'size_bytes': data['size_bytes'],
+              'members': len(members),
+              'skp': sum(1 for m in members if m['extension'] == '.skp'),
+          })
+          PY
+
+      - name: Identify extracted source files
+        run: |
+          mkdir -p /tmp/urbis-landscape-laeken/extracted
+          unzip -q /tmp/urbis-landscape-laeken/*.zip -d /tmp/urbis-landscape-laeken/extracted
+          find /tmp/urbis-landscape-laeken/extracted -maxdepth 3 -type f -print -exec file {} \;
+
+      - name: Commit inventory safely
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/sources/laeken_jette/urbis_landscape_atomium_tile_inventory.json
+          if git diff --cached --quiet; then
+            echo "Atomium Landscape tile inventory already up to date."
+            exit 0
+          fi
+          git commit -m "data: inventory UrbIS Landscape Atomium tile [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch origin zone-laeken-jette
+            git rebase origin/zone-laeken-jette
+            if git push origin HEAD:zone-laeken-jette; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

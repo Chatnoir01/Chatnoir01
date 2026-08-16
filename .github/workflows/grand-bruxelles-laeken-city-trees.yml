@@ -1,0 +1,69 @@
+name: Grand Bruxelles Laeken City Trees
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/fetch_laeken_city_trees.py"
+      - ".github/workflows/grand-bruxelles-laeken-city-trees.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-city-trees
+  cancel-in-progress: true
+
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Fetch and transform official tree inventory
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/fetch_laeken_city_trees.py
+          python3 tools/fetch_laeken_city_trees.py
+          python3 - <<'PY'
+          import json
+          trees=json.load(open('data/environment/laeken_jette/official_city_trees.game.json',encoding='utf-8'))
+          provenance=json.load(open('data/sources/laeken_jette/official_city_trees_provenance.json',encoding='utf-8'))
+          n=len(trees['features'])
+          assert n == provenance['selected_feature_count']
+          assert n >= 100,n
+          assert provenance['license']=='CC BY 4.0'
+          assert provenance['source_crs']=='EPSG:31370'
+          xs=[f['geometry']['coordinates'][0] for f in trees['features']]
+          zs=[f['geometry']['coordinates'][1] for f in trees['features']]
+          assert min(xs) >= -570 and max(xs) <= 1235,(min(xs),max(xs))
+          assert min(zs) >= -7220 and max(zs) <= -4100,(min(zs),max(zs))
+          print('LAEKEN_CITY_TREES_VALID',n,provenance['species_distinct'],provenance['top_species'][:10])
+          PY
+
+      - name: Preserve generated files
+        run: |
+          mkdir -p /tmp/laeken-tree-import
+          cp grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json /tmp/laeken-tree-import/
+          cp grand-bruxelles-game/data/sources/laeken_jette/official_city_trees_provenance.json /tmp/laeken-tree-import/
+
+      - name: Publish from latest branch head
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/environment/laeken_jette grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/laeken-tree-import/official_city_trees.game.json grand-bruxelles-game/data/environment/laeken_jette/
+          cp /tmp/laeken-tree-import/official_city_trees_provenance.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json \
+                  grand-bruxelles-game/data/sources/laeken_jette/official_city_trees_provenance.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: import official Laeken public-tree positions [skip ci]"
+          git push origin HEAD:zone-laeken-jette

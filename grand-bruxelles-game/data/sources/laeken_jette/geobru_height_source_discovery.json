@@ -1,0 +1,149 @@
+{
+  "schema": 1,
+  "source": "Geobru official GeoNetwork CSW catalogue",
+  "csw_endpoint": "https://geobru.irisnet.be/geonetwork/srv/eng/csw",
+  "fetched_at_utc": "2026-08-11T23:14:09+00:00",
+  "queries": [
+    {
+      "term": "DSM",
+      "url": "https://geobru.irisnet.be/geonetwork/srv/eng/csw?service=CSW&version=2.0.2&request=GetRecords&resultType=results&typeNames=csw%3ARecord&elementSetName=full&outputSchema=http%3A%2F%2Fwww.opengis.net%2Fcat%2Fcsw%2F2.0.2&constraintLanguage=CQL_TEXT&constraint_language_version=1.1.0&constraint=AnyText+LIKE+%27%25DSM%25%27&maxRecords=100",
+      "bytes": 34955,
+      "records": 12
+    },
+    {
+      "term": "digital surface model",
+      "url": "https://geobru.irisnet.be/geonetwork/srv/eng/csw?service=CSW&version=2.0.2&request=GetRecords&resultType=results&typeNames=csw%3ARecord&elementSetName=full&outputSchema=http%3A%2F%2Fwww.opengis.net%2Fcat%2Fcsw%2F2.0.2&constraintLanguage=CQL_TEXT&constraint_language_version=1.1.0&constraint=AnyText+LIKE+%27%25digital+surface+model%25%27&maxRecords=100",
+      "bytes": 9712,
+      "records": 2
+    },
+    {
+      "term": "surface model",
+      "url": "https://geobru.irisnet.be/geonetwork/srv/eng/csw?service=CSW&version=2.0.2&request=GetRecords&resultType=results&typeNames=csw%3ARecord&elementSetName=full&outputSchema=http%3A%2F%2Fwww.opengis.net%2Fcat%2Fcsw%2F2.0.2&constraintLanguage=CQL_TEXT&constraint_language_version=1.1.0&constraint=AnyText+LIKE+%27%25surface+model%25%27&maxRecords=100",
+      "bytes": 33866,
+      "records": 7
+    },
+    {
+      "term": "MNS",
+      "url": "https://geobru.irisnet.be/geonetwork/srv/eng/csw?service=CSW&version=2.0.2&request=GetRecords&resultType=results&typeNames=csw%3ARecord&elementSetName=full&outputSchema=http%3A%2F%2Fwww.opengis.net%2Fcat%2Fcsw%2F2.0.2&constraintLanguage=CQL_TEXT&constraint_language_version=1.1.0&constraint=AnyText+LIKE+%27%25MNS%25%27&maxRecords=100",
+      "bytes": 1991,
+      "records": 1
+    },
+    {
+      "term": "LiDAR",
+      "url": "https://geobru.irisnet.be/geonetwork/srv/eng/csw?service=CSW&version=2.0.2&request=GetRecords&resultType=results&typeNames=csw%3ARecord&elementSetName=full&outputSchema=http%3A%2F%2Fwww.opengis.net%2Fcat%2Fcsw%2F2.0.2&constraintLanguage=CQL_TEXT&constraint_language_version=1.1.0&constraint=AnyText+LIKE+%27%25LiDAR%25%27&maxRecords=100",
+      "bytes": 13932,
+      "records": 5
+    },
+    {
+      "term": "point cloud",
+      "url": "https://geobru.irisnet.be/geonetwork/srv/eng/csw?service=CSW&version=2.0.2&request=GetRecords&resultType=results&typeNames=csw%3ARecord&elementSetName=full&outputSchema=http%3A%2F%2Fwww.opengis.net%2Fcat%2Fcsw%2F2.0.2&constraintLanguage=CQL_TEXT&constraint_language_version=1.1.0&constraint=AnyText+LIKE+%27%25point+cloud%25%27&maxRecords=100",
+      "bytes": 6102,
+      "records": 2
+    }
+  ],
+  "candidate_count": 3,
+  "candidates": [
+    {
+      "identifiers": [
+        "8c2d921e-6a53-11ed-bfb5-010101010000"
+      ],
+      "titles": [
+        "UrbIS - Digital surface model"
+      ],
+      "subjects": [
+        "remote sensing",
+        "regional authority",
+        "remote sensing",
+        "Environment",
+        "Elevation",
+        "Regional",
+        "Elevation Grid Coverage",
+        "elevation"
+      ],
+      "descriptions": [
+        "The UrbIS - Digital surface model product is a raster image capturing all the objects (natural or built) on the surface of the ground.\n\nThe dataset is freely downloadable as a zipped file.",
+        "The UrbIS - Digital surface model product is a raster image capturing all the objects (natural or built) on the surface of the ground.\n\nThe dataset is freely downloadable as a zipped file."
+      ],
+      "references": [],
+      "formats": [
+        "TIFF",
+        "TIFF"
+      ],
+      "types": [
+        "dataset"
+      ],
+      "matched_terms": [
+        "digital surface model",
+        "surface model",
+        "LiDAR",
+        "point cloud"
+      ],
+      "height_source_score": 2
+    },
+    {
+      "identifiers": [
+        "ff1124e1-424e-11ee-b156-00090ffe0001"
+      ],
+      "titles": [
+        "Airborne LiDAR pointcloud - 2021"
+      ],
+      "subjects": [
+        "remote sensing",
+        "regional government",
+        "remote sensing",
+        "Environment",
+        "Elevation",
+        "Regional",
+        "Elevation Vector Object",
+        "elevation"
+      ],
+      "descriptions": [
+        "The product Airborne LiDAR (Light Detection and Ranging) pountcloud provides a three-dimensional vector model covering the Brussels-Capital region. This is the product of several LiDAR data collection campaigns captured from the air.\nThe data is available in open data, via a visualization tool and direct download as a Las file.",
+        "The product Airborne LiDAR (Light Detection and Ranging) pountcloud provides a three-dimensional vector model covering the Brussels-Capital region. This is the product of several LiDAR data collection campaigns captured from the air.\nThe data is available in open data, via a visualization tool and direct download as a Las file."
+      ],
+      "references": [],
+      "formats": [
+        "Las",
+        "Las"
+      ],
+      "types": [
+        "dataset"
+      ],
+      "matched_terms": [
+        "LiDAR"
+      ],
+      "height_source_score": 1
+    },
+    {
+      "identifiers": [
+        "99e17c00-6b3a-11ed-aa8d-010101010000"
+      ],
+      "titles": [
+        "View service – Raster"
+      ],
+      "subjects": [
+        "regional government",
+        "regional authority",
+        "Regions and cities",
+        "Orthoimagery",
+        "Regional",
+        "Map access service"
+      ],
+      "descriptions": [
+        "This view service allows, by means of a formatted URL, to display all the orthophotos and raster (DTM, DSM) reference datasets.",
+        "This view service allows, by means of a formatted URL, to display all the orthophotos and raster (DTM, DSM) reference datasets."
+      ],
+      "references": [],
+      "formats": [],
+      "types": [
+        "service"
+      ],
+      "matched_terms": [
+        "DSM",
+        "MNS"
+      ],
+      "height_source_score": 1
+    }
+  ],
+  "policy": "No height is consumed automatically. A candidate must explicitly document metric surface/LiDAR elevation, public access, CRS and redistribution/reuse conditions before entering the building-height pipeline."
+}

@@ -1,0 +1,98 @@
+{
+  "schema": 2,
+  "zone": "laeken_jette",
+  "status": "open",
+  "policy": "Only discrepancies supported by current source/provenance records are tracked here. Do not close an item from visual intuition alone; require a matching deterministic capture plus authoritative geometry or lawful reference evidence.",
+  "findings": [
+    {
+      "id": "LJ-PM-001",
+      "view_id": "atomium_approach_south_v1",
+      "severity": "high",
+      "category": "camera_alignment",
+      "status": "open",
+      "evidence": "photo_match_views.json marks the benchmark camera provisional",
+      "action": "Geolocate or independently constrain the reference viewpoint, then regenerate the deterministic capture before claiming photo-match alignment."
+    },
+    {
+      "id": "LJ-PM-002",
+      "view_id": "atomium_approach_south_v1",
+      "severity": "high",
+      "category": "facades_materials",
+      "status": "open",
+      "evidence": "realism_pass1.json states facade colour/window pattern is not parcel-specific yet",
+      "action": "Replace generic facade shader rules on hero-visible buildings with parcel/building-specific reference-backed facade proportions and material classes."
+    },
+    {
+      "id": "LJ-PM-003",
+      "view_id": "atomium_approach_south_v1",
+      "severity": "medium",
+      "category": "street_furniture",
+      "status": "open",
+      "evidence": "realism_pass1.json states lamp/furniture lateral offsets and spacing are photo-guided rather than surveyed",
+      "action": "Prefer official/open furniture positions where available; otherwise preserve uncertainty and validate spacing against orthophoto/street reference before promotion."
+    },
+    {
+      "id": "LJ-PM-004",
+      "view_id": "atomium_ground_oblique_v1",
+      "severity": "high",
+      "category": "capture_missing",
+      "status": "closed",
+      "evidence": "atomium_ground_oblique_dtm_sample.json pins four valid 5 m UrbIS DTM samples at the source-published camera coordinate and the dedicated Godot workflow produced a validated 1280x720 atomium_ground_oblique_v1 capture",
+      "action": "Capture gate is satisfied; keep the capture deterministic and address the remaining visual mismatches below before benchmark promotion."
+    },
+    {
+      "id": "LJ-PM-005",
+      "view_id": "heysel_stadium_context_v1",
+      "severity": "high",
+      "category": "capture_missing",
+      "status": "open",
+      "evidence": "reference states view from Atomium but exact observation point/lens pose is not known and no matching capture is registered",
+      "action": "Choose an explicitly provisional Atomium observation camera, match broad stadium/Heysel alignment, and record remaining uncertainty instead of inferring photographer GPS."
+    },
+    {
+      "id": "LJ-PM-006",
+      "view_id": "zone_wide",
+      "severity": "medium",
+      "category": "building_heights",
+      "status": "open",
+      "evidence": "355 of 9518 official building footprints still use the documented 10.5 m fallback",
+      "action": "Prioritize fallback buildings visible from hero views and replace fallback heights only when better DSM/LiDAR/source coverage supports the change."
+    },
+    {
+      "id": "LJ-PM-007",
+      "view_id": "heysel_stadium_context_v1",
+      "severity": "high",
+      "category": "landmark_geometry",
+      "status": "open",
+      "evidence": "palais5_nearest_urbis_audit.json identifies one containing UrbIS component around the Palais 5 semantic locator, but its campus-scale span/area fails the anti-false-positive hero-footprint screen and resolution_status remains needs_finer_authoritative_geometry",
+      "action": "Keep the broad UrbIS Expo geometry as context only. Resolve Palais 5 from finer authoritative geometry or another lawful, explicitly documented source before using a hall-specific footprint in hero-view validation."
+    },
+    {
+      "id": "LJ-PM-008",
+      "view_id": "atomium_ground_oblique_v1",
+      "severity": "high",
+      "category": "framing_lens",
+      "status": "open",
+      "evidence": "The first source-geolocated Godot capture at the provisional 50 degree FOV shows the Atomium occupying much less of the image than the lawful 960x638 reference. The source metadata does not publish focal length. The deterministic geometry audit now predicts that the registered 102 m subject occupies 35.454757% of the 720 px capture height at 50 degrees, but source-image landmark bounds are still unmeasured so that audit cannot recover the historical lens.",
+      "action": "Measure the Atomium bounding box in the lawful 960x638 source image and compare it with the deterministic geometry/capture bounds. Only then tune a documented benchmark FOV as a visual-fit parameter; never represent it as recovered EXIF focal length."
+    },
+    {
+      "id": "LJ-PM-009",
+      "view_id": "atomium_ground_oblique_v1",
+      "severity": "high",
+      "category": "foreground_context",
+      "status": "open",
+      "evidence": "The lawful reference includes the fountain/open space and dense flanking vegetation plus furniture/vehicles/people. atomium_ground_foreground_inventory.json now proves 17 City of Brussels public-tree records inside a +/-70 m camera-to-Atomium corridor (7 within the first 100 m, 3 from 100-220 m, 7 near the Atomium context). Those exact source IDs now receive denser hero LOD and the Godot smoke/capture gates pass. The City inventory is explicitly incomplete and does not establish fountain, benches, lamp posts, parked cars or pedestrians, so the broader mismatch remains open.",
+      "action": "Keep the 17 known public trees source-positioned and seek orthophoto/lawful-reference evidence for canopy gaps plus fountain/open-space and street-furniture geometry. Do not fill inventory gaps by intuition; rerun the deterministic hero capture after every evidence-backed foreground lot."
+    },
+    {
+      "id": "LJ-PM-010",
+      "view_id": "atomium_ground_oblique_v1",
+      "severity": "high",
+      "category": "materials_detail",
+      "status": "open",
+      "evidence": "The deterministic capture still contains simplified flat road/ground materials and generic facade blocks. The 17 source-audited public trees now use denser hero meshes, which improves geometry density without changing their source positions/species, but their dimensions remain deterministic approximations and the reference still contains reflective Atomium metal, paved foreground, vehicles and street furniture not yet matched.",
+      "action": "Continue source-backed material/detail replacement: first reflective Atomium/paved foreground classes and evidenced vegetation structure, then lawful furniture/vehicle context. Do not hide remaining mismatches with generic clutter."
+    }
+  ]
+}

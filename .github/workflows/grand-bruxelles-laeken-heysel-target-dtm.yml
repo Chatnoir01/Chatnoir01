@@ -1,0 +1,105 @@
+name: Grand Bruxelles Laeken Heysel Target DTM
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/data/reference/laeken_jette/anchors.json"
+      - "grand-bruxelles-game/data/reference/laeken_jette/heysel_stadium_target_evidence.json"
+      - "grand-bruxelles-game/data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json"
+      - "grand-bruxelles-game/tools/sample_laeken_dtm_runtime.py"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/phase1_dtm.game.json"
+      - ".github/workflows/grand-bruxelles-laeken-heysel-target-dtm.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-heysel-target-dtm
+  cancel-in-progress: true
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Compile sampler
+        working-directory: grand-bruxelles-game
+        run: python3 -m py_compile tools/sample_laeken_dtm_runtime.py
+
+      - name: Sample authoritative UrbIS stadium target terrain
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/sample_laeken_dtm_runtime.py \
+            data/terrain/laeken_jette/phase1_dtm.game.json \
+            --e 147572.177 \
+            --n 176160.013 \
+            --eye-height 0.0 \
+            --output /tmp/heysel_stadium_target_dtm_sample.json
+
+      - name: Validate committed 3D target evidence
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json, math, pathlib
+          target=json.load(open('data/reference/laeken_jette/heysel_stadium_target_evidence.json',encoding='utf-8'))
+          anchors=json.load(open('data/reference/laeken_jette/anchors.json',encoding='utf-8'))
+          committed=json.load(open('data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json',encoding='utf-8'))
+          generated=json.load(open('/tmp/heysel_stadium_target_dtm_sample.json',encoding='utf-8'))
+          p=target['authoritative_target']['full_urbis_union_centroid_lambert72']
+          game=target['authoritative_target']['full_urbis_union_game_xz']
+          transform=target['project_transform']
+          terrain=target['authoritative_target']['terrain_elevation']
+          camera=target['camera_policy']
+          canonical=anchors['project_origin']
+          assert target['status']=='urbis_target_3d_resolved_camera_comparison_pending'
+          assert target['crs']=='EPSG:31370'
+          assert transform['axes']==canonical['axes']=='X=east, Y=up, Z=south'
+          assert math.isclose(transform['origin_e'], canonical['e'], abs_tol=1e-9)
+          assert math.isclose(transform['origin_n'], canonical['n'], abs_tol=1e-9)
+          expected_x=p['e']-canonical['e']
+          expected_z=canonical['n']-p['n']
+          assert math.isclose(game['x'], expected_x, abs_tol=1e-9)
+          assert math.isclose(game['z'], expected_z, abs_tol=1e-9)
+          assert committed['source_crs']=='EPSG:31370'
+          assert math.isclose(committed['query_epsg31370']['e'], p['e'], abs_tol=1e-6)
+          assert math.isclose(committed['query_epsg31370']['n'], p['n'], abs_tol=1e-6)
+          assert len(committed['bilinear_corners'])==4
+          assert math.isclose(sum(x['weight'] for x in committed['bilinear_corners']),1.0,abs_tol=1e-6)
+          assert committed['nearest_sample']['valid'] is True
+          assert 0.0 < committed['terrain_absolute_elevation_m'] < 120.0
+          assert committed == generated, 'Committed DTM sample drifted from deterministic sampler output'
+          assert terrain['runtime_sha256']==committed['source_sha256']
+          assert math.isclose(terrain['absolute_elevation_m'], committed['terrain_absolute_elevation_m'], abs_tol=1e-9)
+          assert math.isclose(terrain['relative_to_atomium_baseline_m'], committed['terrain_relative_to_atomium_m'], abs_tol=1e-9)
+          assert camera['target_vertical_position_status']=='resolved_from_committed_urbis_dtm_runtime'
+          assert math.isclose(camera['target_ground_absolute_elevation_m'], committed['terrain_absolute_elevation_m'], abs_tol=1e-9)
+          assert pathlib.Path(terrain['sample_evidence_path']).as_posix()=='data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json'
+          print('HEYSEL_TARGET_3D_EVIDENCE_OK', game['x'], game['z'], committed['terrain_absolute_elevation_m'])
+          PY
+
+      - name: Preserve generated evidence
+        if: github.actor != 'github-actions[bot]'
+        run: |
+          mkdir -p /tmp/heysel-target-dtm
+          cp /tmp/heysel_stadium_target_dtm_sample.json /tmp/heysel-target-dtm/heysel_stadium_target_dtm_sample.json
+
+      - name: Publish evidence from latest branch head
+        if: github.actor != 'github-actions[bot]'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/reference/laeken_jette
+          cp /tmp/heysel-target-dtm/heysel_stadium_target_dtm_sample.json grand-bruxelles-game/data/reference/laeken_jette/
+          git add grand-bruxelles-game/data/reference/laeken_jette/heysel_stadium_target_dtm_sample.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: pin Heysel stadium target DTM elevation [skip ci]"
+          git push origin HEAD:zone-laeken-jette

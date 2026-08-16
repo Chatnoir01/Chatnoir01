@@ -1,0 +1,95 @@
+{
+  "schema": 3,
+  "semantic_locator": {
+    "source": "OpenStreetMap",
+    "osm_way_id": 143816182,
+    "latitude": 50.89969,
+    "longitude": 4.33721,
+    "local_x": -87.23317646887153,
+    "local_z": -7056.078922991641
+  },
+  "geometry_source": "Paradigm UrbIS Buildings WFS",
+  "feature_candidate_count": 1,
+  "component_candidate_count": 1,
+  "containing_component_count": 1,
+  "selected_component_if_unambiguous": {
+    "feature_index": 278,
+    "component_index": 0,
+    "inspire_id": "https://databrussels.be/id/building/1635598",
+    "block_id": "https://databrussels.be/id/block/23739",
+    "feature_area_m2": 148416.0,
+    "centroid_x": 10.899,
+    "centroid_z": -7031.516,
+    "min_x": -407.188,
+    "max_x": 230.766,
+    "min_z": -7305.272,
+    "max_z": -6822.634,
+    "outer_area_m2": 164085.193,
+    "pca_angle_rad": -0.547,
+    "pca_angle_deg": -31.369,
+    "major_span_m": 656.984,
+    "minor_span_m": 460.813,
+    "locator_inside": true,
+    "locator_boundary_distance_m": 0.0,
+    "locator_centroid_distance_m": 101.16,
+    "raw_height_m": 15.877,
+    "height_quality": "medium",
+    "effective_height_m": 15.877
+  },
+  "hero_footprint_screen": {
+    "passes": false,
+    "reason": "candidate_requires_finer_authoritative_resolution",
+    "failed_checks": [
+      "major_span_exceeds_single_hall_screen",
+      "minor_span_exceeds_single_hall_screen",
+      "outer_area_exceeds_single_hall_screen"
+    ],
+    "screen_limits": {
+      "max_major_span_m": 500.0,
+      "max_minor_span_m": 300.0,
+      "max_outer_area_m2": 100000.0,
+      "meaning": "anti-false-positive guard only; not claimed Palais 5 dimensions"
+    }
+  },
+  "resolution_status": "needs_finer_authoritative_geometry",
+  "nearest_components": [
+    {
+      "feature_index": 278,
+      "component_index": 0,
+      "inspire_id": "https://databrussels.be/id/building/1635598",
+      "block_id": "https://databrussels.be/id/block/23739",
+      "feature_area_m2": 148416.0,
+      "centroid_x": 10.899,
+      "centroid_z": -7031.516,
+      "min_x": -407.188,
+      "max_x": 230.766,
+      "min_z": -7305.272,
+      "max_z": -6822.634,
+      "outer_area_m2": 164085.193,
+      "pca_angle_rad": -0.547,
+      "pca_angle_deg": -31.369,
+      "major_span_m": 656.984,
+      "minor_span_m": 460.813,
+      "locator_inside": true,
+      "locator_boundary_distance_m": 0.0,
+      "locator_centroid_distance_m": 101.16,
+      "raw_height_m": 15.877,
+      "height_quality": "medium",
+      "effective_height_m": 15.877
+    }
+  ],
+  "nearby_features": [
+    {
+      "feature_index": 278,
+      "inspire_id": "https://databrussels.be/id/building/1635598",
+      "block_id": "https://databrussels.be/id/block/23739",
+      "feature_area_m2": 148416.0,
+      "raw_height_m": 15.877,
+      "height_quality": "medium",
+      "effective_height_m": 15.877,
+      "nearest_component_index": 0,
+      "nearest_component_boundary_distance_m": 0.0
+    }
+  ],
+  "policy": "OSM supplies identity/location only. A containing UrbIS component is retained as evidence but is not promoted to Palais 5 hero geometry when the broad anti-false-positive scale screen indicates campus/block geometry. Seek finer authoritative geometry or a separately documented lawful source; never invent a footprint."
+}

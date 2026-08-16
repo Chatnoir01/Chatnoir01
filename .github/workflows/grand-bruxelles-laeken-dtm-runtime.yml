@@ -1,0 +1,155 @@
+name: Grand Bruxelles Laeken DTM Runtime
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/build_laeken_atomium_dtm_runtime.py"
+      - ".github/workflows/grand-bruxelles-laeken-dtm-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-dtm-runtime
+  cancel-in-progress: true
+
+jobs:
+  build-terrain-data:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      DTM_URL: https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_148176_20211009_50.zip
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install GDAL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gdal-bin
+          gdalinfo --version
+
+      - name: Download official Atomium DTM tile
+        run: |
+          mkdir -p /tmp/laeken-dtm/extracted
+          python3 - <<'PY'
+          import os, shutil, urllib.request
+          url=os.environ['DTM_URL']
+          req=urllib.request.Request(url, headers={'User-Agent':'Grand-Bruxelles-Game/1.0 (UrbIS DTM runtime)'})
+          with urllib.request.urlopen(req, timeout=90) as response, open('/tmp/laeken-dtm/source.zip','wb') as output:
+              shutil.copyfileobj(response, output, length=1024*1024)
+          PY
+          unzip -q /tmp/laeken-dtm/source.zip -d /tmp/laeken-dtm/extracted
+          sha256sum /tmp/laeken-dtm/source.zip | tee /tmp/laeken-dtm/source.sha256
+          find /tmp/laeken-dtm/extracted -maxdepth 3 -type f -print -exec file {} \;
+
+      - name: Inspect official raster with GDAL
+        run: |
+          TIF="$(find /tmp/laeken-dtm/extracted -type f \( -iname '*.tif' -o -iname '*.tiff' \) | head -n1)"
+          test -n "$TIF"
+          echo "$TIF" > /tmp/laeken-dtm/tif-path
+          gdalinfo -json -stats "$TIF" > /tmp/laeken-dtm/gdalinfo.json
+          python3 - <<'PY'
+          import json
+          info=json.load(open('/tmp/laeken-dtm/gdalinfo.json', encoding='utf-8'))
+          print('DTM raster size:', info.get('size'))
+          print('DTM geoTransform:', info.get('geoTransform'))
+          print('DTM corners:', info.get('cornerCoordinates'))
+          for band in info.get('bands', []):
+              print('Band', band.get('band'), 'type', band.get('type'), 'min', band.get('minimum'), 'max', band.get('maximum'), 'nodata', band.get('noDataValue'))
+          PY
+
+      - name: Build compact 257x257 terrain grid
+        working-directory: grand-bruxelles-game
+        run: |
+          TIF="$(cat /tmp/laeken-dtm/tif-path)"
+          SOURCE_SHA="$(cut -d' ' -f1 /tmp/laeken-dtm/source.sha256)"
+          gdal_translate -q -r bilinear -outsize 257 257 -of XYZ "$TIF" /tmp/laeken-dtm/atomium.xyz
+          python3 tools/build_laeken_atomium_dtm_runtime.py \
+            /tmp/laeken-dtm/atomium.xyz \
+            data/terrain/laeken_jette/atomium_dtm.game.json \
+            --width 257 --height 257 \
+            --source-url "$DTM_URL" \
+            --source-sha256 "$SOURCE_SHA"
+
+      - name: Build curated provenance inventory
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, zipfile
+          info=json.load(open('/tmp/laeken-dtm/gdalinfo.json', encoding='utf-8'))
+          runtime=json.load(open('data/terrain/laeken_jette/atomium_dtm.game.json', encoding='utf-8'))
+          zip_path=pathlib.Path('/tmp/laeken-dtm/source.zip')
+          members=[]
+          with zipfile.ZipFile(zip_path) as z:
+              for i in z.infolist():
+                  members.append({'name':i.filename,'compressed_size':i.compress_size,'uncompressed_size':i.file_size})
+          bands=[]
+          for b in info.get('bands', []):
+              bands.append({'band':b.get('band'),'type':b.get('type'),'minimum':b.get('minimum'),'maximum':b.get('maximum'),'no_data':b.get('noDataValue')})
+          out={
+              'schema':1,'source':'Paradigm UrbIS Digital Terrain Model 2021',
+              'dataset_id':'1d7bd49d-fe83-4388-af85-6f5dc8ec7909','tile':'148176',
+              'url':runtime['source_url'],'zip_sha256':runtime['source_sha256'],
+              'zip_size_bytes':zip_path.stat().st_size,'archive_members':members,
+              'gdal_driver':info.get('driverShortName'),'raster_size':info.get('size'),
+              'geo_transform':info.get('geoTransform'),'corner_coordinates':info.get('cornerCoordinates'),
+              'coordinate_system':info.get('coordinateSystem',{}),'bands':bands,
+              'runtime_grid':{
+                  'width':runtime['width'],'height':runtime['height'],'step_e':runtime['step_e'],'step_n':runtime['step_n'],
+                  'absolute_elevation_min_m':runtime['absolute_elevation_min_m'],'absolute_elevation_max_m':runtime['absolute_elevation_max_m'],
+                  'atomium_absolute_elevation_m':runtime['atomium_reference']['absolute_elevation_m'],
+                  'relative_height_min_m':runtime['relative_height_min_m'],'relative_height_max_m':runtime['relative_height_max_m'],
+              },
+              'policy':'Raw DTM archive is not committed. Runtime grid is a bilinear 257x257 resampling of the official tile and preserves provenance/hash and absolute elevation metadata.'
+          }
+          dest=pathlib.Path('data/sources/laeken_jette/urbis_dtm_atomium_tile_inventory_gdal.json')
+          dest.parent.mkdir(parents=True, exist_ok=True)
+          dest.write_text(json.dumps(out, indent=2, ensure_ascii=False)+'\n', encoding='utf-8')
+          print('LAEKEN_DTM_TILE_GDAL_OK', out['runtime_grid'])
+          PY
+
+      - name: Validate runtime terrain data
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          data=json.load(open('data/terrain/laeken_jette/atomium_dtm.game.json', encoding='utf-8'))
+          assert data['source_crs']=='EPSG:31370'
+          assert data['width']==257 and data['height']==257
+          assert len(data['relative_heights_m'])==257*257
+          assert data['relative_height_max_m'] > data['relative_height_min_m']
+          assert abs(data['atomium_reference']['absolute_elevation_m']) < 500
+          assert abs(data['step_e']) > 0 and abs(data['step_n']) > 0
+          print('LAEKEN_DTM_RUNTIME_VALID', {
+              'absolute_min':data['absolute_elevation_min_m'],'absolute_max':data['absolute_elevation_max_m'],
+              'atomium':data['atomium_reference']['absolute_elevation_m'],
+              'relative_min':data['relative_height_min_m'],'relative_max':data['relative_height_max_m'],
+          })
+          PY
+
+      - name: Commit compact terrain data safely
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json \
+                  grand-bruxelles-game/data/sources/laeken_jette/urbis_dtm_atomium_tile_inventory_gdal.json
+          if git diff --cached --quiet; then
+            echo "Laeken DTM runtime already up to date."
+            exit 0
+          fi
+          git commit -m "data: add official Atomium DTM runtime grid [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch origin zone-laeken-jette
+            git rebase origin/zone-laeken-jette
+            if git push origin HEAD:zone-laeken-jette; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

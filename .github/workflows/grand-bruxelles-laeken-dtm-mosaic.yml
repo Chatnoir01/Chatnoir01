@@ -1,0 +1,193 @@
+name: Grand Bruxelles Laeken DTM Mosaic
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/data/sources/laeken_jette/urbis_dtm_discovery.json"
+      - "grand-bruxelles-game/tools/build_laeken_atomium_dtm_runtime.py"
+      - ".github/workflows/grand-bruxelles-laeken-dtm-mosaic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-dtm-mosaic
+  cancel-in-progress: true
+
+jobs:
+  mosaic:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install GDAL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gdal-bin
+          gdalinfo --version
+
+      - name: Resolve official DTM tile URLs from discovery inventory
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p /tmp/laeken-mosaic/downloads /tmp/laeken-mosaic/extracted
+          python3 - <<'PY'
+          import json, pathlib
+          d=json.load(open('data/sources/laeken_jette/urbis_dtm_discovery.json',encoding='utf-8'))
+          expected=d['expected_1km_tile_codes']
+          found={}
+          for item in d['candidate_links']:
+              url=item['url']
+              for tile in item.get('matching_tiles',[]):
+                  if tile in expected and url.lower().endswith('.zip'):
+                      found.setdefault(tile,[]).append(url)
+          resolved={}
+          for tile in expected:
+              matches=sorted(set(found.get(tile,[])))
+              if len(matches)!=1:
+                  raise SystemExit(f'Expected exactly one official DTM ZIP for {tile}, got {matches}')
+              resolved[tile]=matches[0]
+          pathlib.Path('/tmp/laeken-mosaic/urls.json').write_text(json.dumps(resolved,indent=2)+'\n')
+          print('LAEKEN_DTM_MOSAIC_URLS_OK',resolved)
+          PY
+
+      - name: Download and extract the 12 official tiles
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib, shutil, urllib.request, zipfile
+          urls=json.load(open('/tmp/laeken-mosaic/urls.json'))
+          manifest=[]
+          for tile,url in sorted(urls.items()):
+              dest=pathlib.Path('/tmp/laeken-mosaic/downloads')/f'{tile}.zip'
+              req=urllib.request.Request(url,headers={'User-Agent':'Grand-Bruxelles-Game/1.0 (Laeken DTM mosaic)'})
+              with urllib.request.urlopen(req,timeout=90) as r,dest.open('wb') as f:
+                  shutil.copyfileobj(r,f,1024*1024)
+              digest=hashlib.sha256(dest.read_bytes()).hexdigest()
+              outdir=pathlib.Path('/tmp/laeken-mosaic/extracted')/tile
+              outdir.mkdir(parents=True,exist_ok=True)
+              with zipfile.ZipFile(dest) as z:
+                  z.extractall(outdir)
+                  tifs=[outdir/m for m in z.namelist() if m.lower().endswith(('.tif','.tiff'))]
+              if len(tifs)!=1:
+                  raise SystemExit(f'{tile}: expected one TIFF, got {tifs}')
+              manifest.append({'tile':tile,'url':url,'size_bytes':dest.stat().st_size,'sha256':digest,'tif':str(tifs[0])})
+              print(tile,dest.stat().st_size,digest,tifs[0])
+          pathlib.Path('/tmp/laeken-mosaic/tile-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          PY
+
+      - name: Mosaic, crop exact phase bbox and resample to 5 metres
+        run: |
+          find /tmp/laeken-mosaic/extracted -type f \( -iname '*.tif' -o -iname '*.tiff' \) | sort > /tmp/laeken-mosaic/tifs.txt
+          test "$(wc -l < /tmp/laeken-mosaic/tifs.txt)" -eq 12
+          gdalbuildvrt -q -input_file_list /tmp/laeken-mosaic/tifs.txt /tmp/laeken-mosaic/all.vrt
+          gdalwarp -q \
+            -te 147300 173650 149100 176750 \
+            -tr 5 5 \
+            -r bilinear \
+            -dstnodata -3.4028235e+38 \
+            /tmp/laeken-mosaic/all.vrt /tmp/laeken-mosaic/phase1.tif
+          gdalinfo -json -stats /tmp/laeken-mosaic/phase1.tif > /tmp/laeken-mosaic/mosaic-info.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/laeken-mosaic/mosaic-info.json'))
+          print('LAEKEN_DTM_MOSAIC_GDAL',d['size'],d['geoTransform'],d.get('cornerCoordinates'))
+          assert d['size']==[360,620], d['size']
+          PY
+          gdal_translate -q -of XYZ /tmp/laeken-mosaic/phase1.tif /tmp/laeken-mosaic/phase1.xyz
+
+      - name: Build project-local phase 1 terrain runtime
+        working-directory: grand-bruxelles-game
+        run: |
+          COMPOSITE_SHA="$(python3 - <<'PY'
+          import hashlib,json
+          m=json.load(open('/tmp/laeken-mosaic/tile-manifest.json'))
+          payload='\n'.join(f"{x['tile']}:{x['sha256']}" for x in m).encode()
+          print(hashlib.sha256(payload).hexdigest())
+          PY
+          )"
+          python3 tools/build_laeken_atomium_dtm_runtime.py \
+            /tmp/laeken-mosaic/phase1.xyz \
+            data/terrain/laeken_jette/phase1_dtm.game.json \
+            --width 360 --height 620 \
+            --source-url "https://urbisdownload.datastore.brussels/atomfeed/1d7bd49d-fe83-4388-af85-6f5dc8ec7909-en.xml" \
+            --source-sha256 "$COMPOSITE_SHA"
+
+      - name: Write mosaic provenance
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          runtime=json.load(open('data/terrain/laeken_jette/phase1_dtm.game.json',encoding='utf-8'))
+          info=json.load(open('/tmp/laeken-mosaic/mosaic-info.json'))
+          tiles=json.load(open('/tmp/laeken-mosaic/tile-manifest.json'))
+          out={
+            'schema':1,
+            'source':'Paradigm UrbIS Digital Terrain Model 2021',
+            'dataset_id':'1d7bd49d-fe83-4388-af85-6f5dc8ec7909',
+            'source_crs':'EPSG:31370',
+            'bbox_epsg31370':[147300.0,173650.0,149100.0,176750.0],
+            'runtime_spacing_m':5.0,
+            'runtime_size':[runtime['width'],runtime['height']],
+            'source_tiles':tiles,
+            'mosaic_driver':info.get('driverShortName'),
+            'mosaic_geo_transform':info.get('geoTransform'),
+            'absolute_elevation_min_m':runtime['absolute_elevation_min_m'],
+            'absolute_elevation_max_m':runtime['absolute_elevation_max_m'],
+            'atomium_absolute_elevation_m':runtime['atomium_reference']['absolute_elevation_m'],
+            'relative_height_min_m':runtime['relative_height_min_m'],
+            'relative_height_max_m':runtime['relative_height_max_m'],
+            'valid_sample_count':runtime['valid_sample_count'],
+            'invalid_sample_count':runtime['invalid_sample_count'],
+            'composite_source_sha256':runtime['source_sha256'],
+            'policy':'All 12 ZIP URLs are resolved from the committed official Atom discovery. The raw rasters are not committed; the runtime is an exact-bbox 5 m bilinear mosaic with NoData preserved as holes.'
+          }
+          p=pathlib.Path('data/sources/laeken_jette/urbis_dtm_phase1_mosaic_inventory.json')
+          p.write_text(json.dumps(out,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          print('LAEKEN_DTM_PHASE1_RUNTIME_OK', {k:out[k] for k in ['runtime_size','absolute_elevation_min_m','absolute_elevation_max_m','atomium_absolute_elevation_m','relative_height_min_m','relative_height_max_m','valid_sample_count','invalid_sample_count']})
+          PY
+
+      - name: Validate mosaic runtime
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json,math
+          d=json.load(open('data/terrain/laeken_jette/phase1_dtm.game.json',encoding='utf-8'))
+          assert d['schema']==2 and d['source_crs']=='EPSG:31370'
+          assert d['width']==360 and d['height']==620
+          assert len(d['relative_heights_m'])==360*620
+          assert len(d['valid_mask'])==360*620
+          # This bbox reaches the lower canal-side terrain; values near 15 m
+          # are legitimate in the official mosaic and must not be rejected.
+          assert d['absolute_elevation_min_m'] > 0 and d['absolute_elevation_max_m'] < 120
+          assert d['relative_height_min_m'] > -60 and d['relative_height_max_m'] < 70
+          assert d['valid_sample_count'] + d['invalid_sample_count'] == 360*620
+          assert all(math.isfinite(v) and v > -1e20 for v in d['relative_heights_m'])
+          print('LAEKEN_DTM_PHASE1_VALID',d['absolute_elevation_min_m'],d['absolute_elevation_max_m'],d['valid_sample_count'],d['invalid_sample_count'])
+          PY
+
+      - name: Preserve generated outputs
+        run: |
+          mkdir -p /tmp/laeken-mosaic/generated
+          cp grand-bruxelles-game/data/terrain/laeken_jette/phase1_dtm.game.json /tmp/laeken-mosaic/generated/
+          cp grand-bruxelles-game/data/sources/laeken_jette/urbis_dtm_phase1_mosaic_inventory.json /tmp/laeken-mosaic/generated/
+
+      - name: Publish from latest branch head
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/terrain/laeken_jette grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/laeken-mosaic/generated/phase1_dtm.game.json grand-bruxelles-game/data/terrain/laeken_jette/
+          cp /tmp/laeken-mosaic/generated/urbis_dtm_phase1_mosaic_inventory.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add grand-bruxelles-game/data/terrain/laeken_jette/phase1_dtm.game.json \
+                  grand-bruxelles-game/data/sources/laeken_jette/urbis_dtm_phase1_mosaic_inventory.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: add official Laeken phase 1 DTM mosaic [skip ci]"
+          git push origin HEAD:zone-laeken-jette

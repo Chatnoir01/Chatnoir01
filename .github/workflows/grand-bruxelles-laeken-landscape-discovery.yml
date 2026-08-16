@@ -1,0 +1,72 @@
+name: Grand Bruxelles Laeken UrbIS Landscape Discovery
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/discover_urbis_landscape_laeken.py"
+      - ".github/workflows/grand-bruxelles-laeken-landscape-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-landscape-discovery
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Validate discovery tool
+        run: python3 -m py_compile grand-bruxelles-game/tools/discover_urbis_landscape_laeken.py
+
+      - name: Discover official UrbIS Landscape distributions
+        working-directory: grand-bruxelles-game
+        run: python3 tools/discover_urbis_landscape_laeken.py
+
+      - name: Validate inventory
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          path = 'data/sources/laeken_jette/urbis_landscape_discovery.json'
+          data = json.load(open(path, encoding='utf-8'))
+          assert data['dataset_id'] == '713171e6-65e3-11ef-b378-010101010000'
+          assert data['bbox_epsg31370'] == [147300.0, 173650.0, 149100.0, 176750.0]
+          assert len(data['expected_1km_tile_codes']) == 12
+          assert len(data['feeds_crawled']) >= 1
+          print('LAEKEN_LANDSCAPE_DISCOVERY_OK', {
+              'feeds': len(data['feeds_crawled']),
+              'links': data['all_discovered_link_count'],
+              'candidates': len(data['candidate_links']),
+          })
+          PY
+
+      - name: Commit source inventory safely
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/sources/laeken_jette/urbis_landscape_discovery.json
+          if git diff --cached --quiet; then
+            echo "UrbIS Landscape discovery already up to date."
+            exit 0
+          fi
+          git commit -m "data: discover Laeken UrbIS Landscape sources [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch origin zone-laeken-jette
+            git rebase origin/zone-laeken-jette
+            if git push origin HEAD:zone-laeken-jette; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

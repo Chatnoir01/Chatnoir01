@@ -1,0 +1,62 @@
+name: Grand Bruxelles Laeken Palais 5 OSM Outline
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/fetch_palais5_osm_outline.py"
+      - ".github/workflows/grand-bruxelles-laeken-palais5-osm-outline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+          fetch-depth: 0
+      - name: Install projection dependency
+        run: python3 -m pip install --quiet pyproj
+      - name: Fetch OSM outline and validate against official UrbIS complex
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/fetch_palais5_osm_outline.py
+          python3 tools/fetch_palais5_osm_outline.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/palais5_osm_outline.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['osm_way_id']==143816182
+          assert d['validation']['vertex_inside_share']>=0.70
+          assert d['validation']['vertex_inside_complex_bbox_share']==1.0
+          assert d['validation']['centroid_distance_to_locator_m']<=5.0
+          assert d['metrics']['area_m2']>500
+          assert d['metrics']['major_span_m']>20
+          assert d['validation']['axis_mapping']['x_sign']==1.0
+          assert d['validation']['axis_mapping']['z_sign']==-1.0
+          print('PALAIS5_OSM_OUTLINE_VALID',d['metrics'],d['validation'])
+          PY
+      - name: Publish validated outline safely
+        run: |
+          set -euo pipefail
+          cp grand-bruxelles-game/data/sources/laeken_jette/palais5_osm_outline.game.json /tmp/palais5-osm.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3 4 5; do
+            git fetch origin zone-laeken-jette
+            git reset --hard origin/zone-laeken-jette
+            mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+            cp /tmp/palais5-osm.json grand-bruxelles-game/data/sources/laeken_jette/palais5_osm_outline.game.json
+            git add -f grand-bruxelles-game/data/sources/laeken_jette/palais5_osm_outline.game.json
+            git diff --cached --quiet && exit 0
+            git commit -m "data: publish validated Palais 5 OSM outline [skip ci]"
+            git push origin HEAD:zone-laeken-jette && exit 0
+            sleep 2
+          done
+          exit 1

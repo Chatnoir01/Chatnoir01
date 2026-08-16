@@ -1,0 +1,57 @@
+name: Grand Bruxelles Laeken Heysel Stadium Audit
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/data/urbis/laeken_jette/buildings.geojson"
+      - "grand-bruxelles-game/tools/audit_heysel_stadium_urbis_candidates.py"
+      - "grand-bruxelles-game/tools/audit_heysel_stadium_osm_urbis_overlap.py"
+      - "grand-bruxelles-game/tools/tests/test_audit_heysel_stadium_urbis_candidates.py"
+      - "grand-bruxelles-game/tools/tests/test_audit_heysel_stadium_osm_urbis_overlap.py"
+      - ".github/workflows/grand-bruxelles-laeken-heysel-stadium-audit.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/urbis/laeken_jette/buildings.geojson"
+      - "grand-bruxelles-game/tools/audit_heysel_stadium_urbis_candidates.py"
+      - "grand-bruxelles-game/tools/audit_heysel_stadium_osm_urbis_overlap.py"
+      - "grand-bruxelles-game/tools/tests/test_audit_heysel_stadium_urbis_candidates.py"
+      - "grand-bruxelles-game/tools/tests/test_audit_heysel_stadium_osm_urbis_overlap.py"
+      - ".github/workflows/grand-bruxelles-laeken-heysel-stadium-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-stadium-target:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install geospatial audit dependencies
+        run: python3 -m pip install --disable-pip-version-check --quiet "shapely>=2.0,<3" "pyproj>=3.6,<4"
+      - name: Unit-test geometry candidate audit
+        run: python3 grand-bruxelles-game/tools/tests/test_audit_heysel_stadium_urbis_candidates.py
+      - name: Unit-test OSM-UrbIS overlap audit
+        run: python3 grand-bruxelles-game/tools/tests/test_audit_heysel_stadium_osm_urbis_overlap.py
+      - name: Audit real UrbIS candidates
+        run: |
+          python3 grand-bruxelles-game/tools/audit_heysel_stadium_urbis_candidates.py \
+            --output /tmp/heysel_stadium_urbis_candidates.json \
+            | tee /tmp/heysel_stadium_audit.log
+          grep -q "HEYSEL_STADIUM_URBIS_AUDIT_OK" /tmp/heysel_stadium_audit.log
+      - name: Cross-check live OSM semantic envelope against UrbIS
+        run: |
+          python3 grand-bruxelles-game/tools/audit_heysel_stadium_osm_urbis_overlap.py \
+            --output /tmp/heysel_stadium_osm_urbis_overlap.json \
+            | tee /tmp/heysel_stadium_overlap.log
+          grep -q "HEYSEL_OSM_URBIS_OVERLAP_OK" /tmp/heysel_stadium_overlap.log
+      - name: Upload audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: heysel-stadium-geometry-audit
+          path: |
+            /tmp/heysel_stadium_urbis_candidates.json
+            /tmp/heysel_stadium_osm_urbis_overlap.json
+          if-no-files-found: error

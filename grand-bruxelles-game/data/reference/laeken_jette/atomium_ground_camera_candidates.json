@@ -1,0 +1,55 @@
+{
+  "schema": 2,
+  "purpose": "historical candidate safety audit; not photographer geolocation",
+  "crs": "EPSG:31370",
+  "authoritative_inputs": [
+    "UrbIS street surfaces",
+    "UrbIS building footprints",
+    "official DTM bounds"
+  ],
+  "selection_policy": {
+    "min_radius_m": 60.0,
+    "max_radius_m": 220.0,
+    "exclude_building_footprints": true,
+    "require_inside_dtm_bounds": true,
+    "ranking": "closest to 120 m ground distance, deterministic azimuth tiebreak"
+  },
+  "source_geolocation_resolution": {
+    "reference_url": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",
+    "published_camera_wgs84": [4.339306, 50.897467],
+    "published_camera_epsg31370": [147928.4114, 176347.3521],
+    "published_camera_game_xz": [60.1172, -6808.7279],
+    "ground_distance_to_atomium_m": 304.1145,
+    "azimuth_from_atomium_deg": 327.1848,
+    "relationship_to_audit": "The source-published camera coordinate lies outside the audit's 60-220 m radius. The audit must therefore not be used to choose the final camera for this reference. It remains useful only as evidence that unsupported camera placement was constrained before the source metadata was discovered.",
+    "accuracy_policy": "Preserve as source-published metadata; do not claim survey-grade precision without independent evidence."
+  },
+  "candidate_count_before_limit": 31,
+  "candidates": [
+    {"e": 148013.941, "n": 176186.408, "distance_to_atomium_m": 123.459, "azimuth_from_atomium_deg": 320.048, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3a1e"},
+    {"e": 148205.774, "n": 176086.823, "distance_to_atomium_m": 112.662, "azimuth_from_atomium_deg": 92.515, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-39a0"},
+    {"e": 148160.445, "n": 176006.145, "distance_to_atomium_m": 108.859, "azimuth_from_atomium_deg": 141.863, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-38fa"},
+    {"e": 148216.959, "n": 176030.233, "distance_to_atomium_m": 138.195, "azimuth_from_atomium_deg": 116.441, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-38ff"},
+    {"e": 148164.385, "n": 176164.563, "distance_to_atomium_m": 101.802, "azimuth_from_atomium_deg": 44.351, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3a1b"},
+    {"e": 148046.644, "n": 176006.313, "distance_to_atomium_m": 97.324, "azimuth_from_atomium_deg": 208.592, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-38fe"},
+    {"e": 148029.43, "n": 176018.419, "distance_to_atomium_m": 97.207, "azimuth_from_atomium_deg": 221.013, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-38f9"},
+    {"e": 148038.536, "n": 176012.242, "distance_to_atomium_m": 96.513, "azimuth_from_atomium_deg": 214.513, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-38fc"},
+    {"e": 148004.067, "n": 176204.218, "distance_to_atomium_m": 143.504, "azimuth_from_atomium_deg": 321.592, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3a1f"},
+    {"e": 148164.303, "n": 176156.648, "distance_to_atomium_m": 96.241, "azimuth_from_atomium_deg": 47.612, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3a1a"},
+    {"e": 148228.501, "n": 176157.18, "distance_to_atomium_m": 150.265, "azimuth_from_atomium_deg": 64.195, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3a17"},
+    {"e": 148163.199, "n": 176142.883, "distance_to_atomium_m": 86.659, "azimuth_from_atomium_deg": 53.854, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3a19"},
+    {"e": 148152.805, "n": 176032.535, "distance_to_atomium_m": 84.017, "azimuth_from_atomium_deg": 134.83, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-38f8"},
+    {"e": 148246.64, "n": 176047.028, "distance_to_atomium_m": 159.809, "azimuth_from_atomium_deg": 106.258, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-39a8"},
+    {"e": 148242.525, "n": 176034.38, "distance_to_atomium_m": 159.954, "azimuth_from_atomium_deg": 111.025, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3778"},
+    {"e": 148010.019, "n": 176233.738, "distance_to_atomium_m": 164.555, "azimuth_from_atomium_deg": 329.628, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3a24"},
+    {"e": 148239.889, "n": 176013.676, "distance_to_atomium_m": 166.162, "azimuth_from_atomium_deg": 118.032, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3779"},
+    {"e": 148065.32, "n": 176025.426, "distance_to_atomium_m": 71.969, "azimuth_from_atomium_deg": 202.81, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-38f7"},
+    {"e": 148255.907, "n": 176043.543, "distance_to_atomium_m": 169.683, "azimuth_from_atomium_deg": 106.511, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-39ae"},
+    {"e": 148048.949, "n": 176039.661, "distance_to_atomium_m": 68.374, "azimuth_from_atomium_deg": 220.353, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-39b4"},
+    {"e": 148254.852, "n": 176026.342, "distance_to_atomium_m": 174.371, "azimuth_from_atomium_deg": 112.037, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3777"},
+    {"e": 148060.517, "n": 176036.357, "distance_to_atomium_m": 64.341, "azimuth_from_atomium_deg": 210.55, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-38f6"},
+    {"e": 148270.291, "n": 176034.936, "distance_to_atomium_m": 185.967, "azimuth_from_atomium_deg": 107.794, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3770"},
+    {"e": 148226.455, "n": 176238.333, "distance_to_atomium_m": 198.073, "azimuth_from_atomium_deg": 42.272, "street_feature_id": "StreetSurfaces.fid--fab9768_19ff340ff40_-3a16"}
+  ],
+  "status": "superseded_for_camera_selection_by_source_published_geolocation"
+}

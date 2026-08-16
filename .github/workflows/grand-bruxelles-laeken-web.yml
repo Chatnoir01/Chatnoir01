@@ -1,0 +1,142 @@
+name: Grand Bruxelles Laeken Playable Web
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/game/zones/laeken_jette/**"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/scripts/vehicle_controller.gd"
+      - "grand-bruxelles-game/game/scripts/mobile_controls.gd"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/**"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/**"
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-laeken-web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-web
+  cancel-in-progress: true
+
+jobs:
+  build-web:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout dedicated zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Cache Godot export templates
+        id: templates-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/4.7.1.stable
+          key: godot-4.7.1-stable-export-templates-v1
+
+      - name: Install Godot export templates
+        if: steps.templates-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/templates.tpz \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz
+          mkdir -p /tmp/templates-unpack
+          unzip -q /tmp/templates.tpz -d /tmp/templates-unpack
+          mkdir -p ~/.local/share/godot/export_templates/4.7.1.stable
+          cp -a /tmp/templates-unpack/templates/. ~/.local/share/godot/export_templates/4.7.1.stable/
+
+      - name: Validate playable scene
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            res://game/zones/laeken_jette/laeken_playtest.tscn \
+            --quit-after 5 2>&1 | tee /tmp/laeken-playtest.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load" /tmp/laeken-playtest.log; then
+            exit 1
+          fi
+          grep -q "LAEKEN_JETTE_ZONE_READY" /tmp/laeken-playtest.log
+          grep -q "LAEKEN_ATOMIUM_CORRIDOR_READY" /tmp/laeken-playtest.log
+          if test -f grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json; then
+            grep -q "LAEKEN_TERRAIN_READY" /tmp/laeken-playtest.log
+          fi
+
+      - name: Select Laeken playtest as temporary export main scene
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/project.godot')
+          text = path.read_text(encoding='utf-8')
+          old = 'run/main_scene="res://game/main.tscn"'
+          new = 'run/main_scene="res://game/zones/laeken_jette/laeken_playtest.tscn"'
+          if old not in text:
+              raise SystemExit('Expected main scene entry not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Import project
+        run: |
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit
+
+      - name: Export Laeken Web build
+        run: |
+          WEB_DIR="$GITHUB_WORKSPACE/grand-bruxelles-game/web-laeken"
+          rm -rf "$WEB_DIR"
+          mkdir -p "$WEB_DIR"
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path "$GITHUB_WORKSPACE/grand-bruxelles-game" \
+            --export-release "Web" "$WEB_DIR/index.html"
+          test -f "$WEB_DIR/index.html"
+          test -f "$WEB_DIR/index.wasm"
+          test -f "$WEB_DIR/index.pck"
+          test -f "$WEB_DIR/index.js"
+          du -h "$WEB_DIR"/*
+
+      - name: Verify exported files locally
+        run: |
+          python3 -m http.server 8765 --directory grand-bruxelles-game/web-laeken >/tmp/laeken-web-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID' EXIT
+          sleep 2
+          curl -fI http://127.0.0.1:8765/index.html
+          curl -fI http://127.0.0.1:8765/index.js
+          curl -fI http://127.0.0.1:8765/index.wasm
+          curl -fI http://127.0.0.1:8765/index.pck
+
+      - name: Restore project config and publish Web build safely
+        run: |
+          git checkout -- grand-bruxelles-game/project.godot
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f grand-bruxelles-game/web-laeken
+          if git diff --cached --quiet; then
+            echo "Laeken Web build already up to date."
+            exit 0
+          fi
+          git commit -m "web: publish playable Laeken preview [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch origin zone-laeken-jette
+            if ! git rebase origin/zone-laeken-jette; then
+              git rebase --abort || true
+              exit 1
+            fi
+            git push origin HEAD:zone-laeken-jette && exit 0
+            sleep 2
+          done
+          exit 1

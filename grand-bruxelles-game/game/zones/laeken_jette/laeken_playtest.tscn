@@ -1,0 +1,163 @@
+[gd_scene load_steps=15 format=3]
+
+[ext_resource type="PackedScene" path="res://game/zones/laeken_jette/laeken_jette.tscn" id="1_zone"]
+[ext_resource type="Script" path="res://game/scripts/player_controller.gd" id="2_player"]
+[ext_resource type="Script" path="res://game/scripts/vehicle_controller.gd" id="3_vehicle"]
+[ext_resource type="Script" path="res://game/scripts/mobile_controls.gd" id="4_mobile"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_playtest_spawn.gd" id="5_spawn"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/laeken_playtest_visuals.gd" id="6_visuals"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
+radius = 0.42
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
+radius = 0.42
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="Material_player"]
+albedo_color = Color(0.12, 0.18, 0.28, 1)
+roughness = 0.72
+
+[sub_resource type="BoxShape3D" id="BoxShape_car"]
+size = Vector3(1.9, 0.9, 4.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_car"]
+size = Vector3(1.9, 0.9, 4.2)
+
+[sub_resource type="StandardMaterial3D" id="Material_car"]
+albedo_color = Color(0.08, 0.22, 0.40, 1)
+metallic = 0.35
+roughness = 0.32
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSky_laeken"]
+sky_top_color = Color(0.30, 0.48, 0.69, 1)
+sky_horizon_color = Color(0.78, 0.83, 0.87, 1)
+sky_curve = 0.14
+sky_energy_multiplier = 0.96
+ground_bottom_color = Color(0.15, 0.16, 0.14, 1)
+ground_horizon_color = Color(0.61, 0.63, 0.61, 1)
+ground_curve = 0.07
+ground_energy_multiplier = 0.86
+sun_angle_max = 7.0
+sun_curve = 0.09
+use_debanding = true
+
+[sub_resource type="Sky" id="Sky_laeken"]
+radiance_size = 2
+sky_material = SubResource("ProceduralSky_laeken")
+
+[sub_resource type="Environment" id="Environment_playtest"]
+background_mode = 2
+sky = SubResource("Sky_laeken")
+ambient_light_source = 3
+ambient_light_color = Color(0.86, 0.88, 0.90, 1)
+ambient_light_energy = 0.95
+ambient_light_sky_contribution = 0.84
+fog_enabled = true
+fog_light_color = Color(0.78, 0.81, 0.84, 1)
+fog_light_energy = 0.68
+fog_density = 0.00028
+fog_sky_affect = 0.13
+fog_sun_scatter = 0.055
+
+[node name="LaekenPlaytest" type="Node3D"]
+script = ExtResource("5_spawn")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_playtest")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-52, -36, 0)
+light_color = Color(0.98, 0.96, 0.92, 1)
+light_energy = 1.16
+shadow_enabled = true
+
+[node name="LaekenJetteZone" parent="." instance=ExtResource("1_zone")]
+
+[node name="Player" type="CharacterBody3D" parent="."]
+position = Vector3(60.1172, 1.05, -6808.7279)
+rotation_degrees = Vector3(0, -147.1848, 0)
+script = ExtResource("2_player")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+shape = SubResource("CapsuleShape_player")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Player"]
+mesh = SubResource("CapsuleMesh_player")
+material_override = SubResource("Material_player")
+
+[node name="CameraPivot" type="Node3D" parent="Player"]
+position = Vector3(0, 0.78, 0)
+rotation_degrees = Vector3(-7, 0, 0)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="Player/CameraPivot"]
+spring_length = 4.9
+margin = 0.15
+
+[node name="Camera3D" type="Camera3D" parent="Player/CameraPivot/SpringArm3D"]
+current = true
+fov = 65.0
+far = 15000.0
+
+[node name="PrototypeCar" type="CharacterBody3D" parent="." groups=["vehicle"]]
+position = Vector3(52.5, 0.58, -6802.5)
+rotation_degrees = Vector3(0, -147.1848, 0)
+script = ExtResource("3_vehicle")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PrototypeCar"]
+shape = SubResource("BoxShape_car")
+
+[node name="Body" type="MeshInstance3D" parent="PrototypeCar"]
+mesh = SubResource("BoxMesh_car")
+material_override = SubResource("Material_car")
+
+[node name="Cabin" type="CSGBox3D" parent="PrototypeCar"]
+position = Vector3(0, 0.62, -0.15)
+size = Vector3(1.55, 0.72, 1.9)
+material = SubResource("Material_car")
+use_collision = false
+
+[node name="CameraPivot" type="Node3D" parent="PrototypeCar"]
+position = Vector3(0, 1.50, 0)
+rotation_degrees = Vector3(-9, 0, 0)
+
+[node name="SpringArm3D" type="SpringArm3D" parent="PrototypeCar/CameraPivot"]
+spring_length = 6.0
+margin = 0.15
+
+[node name="Camera3D" type="Camera3D" parent="PrototypeCar/CameraPivot/SpringArm3D"]
+current = false
+fov = 70.0
+far = 15000.0
+
+[node name="PlaytestVisualPass" type="Node" parent="."]
+script = ExtResource("6_visuals")
+
+[node name="Title" type="Label" parent="."]
+offset_left = 18.0
+offset_top = 16.0
+offset_right = 520.0
+offset_bottom = 46.0
+theme_override_colors/font_color = Color(0.94, 0.94, 0.91, 0.90)
+theme_override_font_sizes/font_size = 16
+text = "LAEKEN · ATOMIUM · PLAYTEST"
+
+[node name="Help" type="Label" parent="."]
+offset_left = 18.0
+offset_top = 48.0
+offset_right = 690.0
+offset_bottom = 74.0
+theme_override_colors/font_color = Color(0.88, 0.89, 0.90, 0.82)
+theme_override_font_sizes/font_size = 12
+text = "ZQSD/WASD · Shift courir · E voiture · Espace sauter"
+
+[node name="MobileControls" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_mobile")

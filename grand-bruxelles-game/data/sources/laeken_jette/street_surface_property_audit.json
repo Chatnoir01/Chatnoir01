@@ -1,0 +1,891 @@
+{
+  "schema": 1,
+  "source": "data/urbis/laeken_jette/street_surfaces.game.json",
+  "feature_count": 3572,
+  "geometry_types": {
+    "Polygon": 3572
+  },
+  "property_keys": [
+    {
+      "key": "INSPIRE_ID",
+      "present_count": 3572,
+      "distinct_count": 3572,
+      "top_values": [
+        [
+          "https://databrussels.be/id/streetsurface/128057",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/32030",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/128180",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/128088",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/32245",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/40788",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/127977",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/31603",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/32040",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/128382",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/127892",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/40757",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/17278",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/38385",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/128029",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/4435",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/127975",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/128059",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/127976",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/8283",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/128004",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/38201",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/16309",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/126730",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/9645",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/128053",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/111485",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/128147",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/111707",
+          1
+        ],
+        [
+          "https://databrussels.be/id/streetsurface/126716",
+          1
+        ]
+      ]
+    },
+    {
+      "key": "TYPE",
+      "present_count": 3572,
+      "distinct_count": 13,
+      "top_values": [
+        [
+          "SW",
+          1766
+        ],
+        [
+          "S",
+          954
+        ],
+        [
+          "I",
+          510
+        ],
+        [
+          "M",
+          183
+        ],
+        [
+          "IC",
+          54
+        ],
+        [
+          "C",
+          50
+        ],
+        [
+          "SC",
+          20
+        ],
+        [
+          "P",
+          16
+        ],
+        [
+          "MT",
+          6
+        ],
+        [
+          "MS",
+          5
+        ],
+        [
+          "K",
+          5
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "PB",
+          1
+        ]
+      ]
+    },
+    {
+      "key": "STREET_ID",
+      "present_count": 3572,
+      "distinct_count": 238,
+      "top_values": [
+        [
+          "https://databrussels.be/id/streetname/3392",
+          157
+        ],
+        [
+          "https://databrussels.be/id/streetname/3631",
+          149
+        ],
+        [
+          "https://databrussels.be/id/streetname/4915",
+          123
+        ],
+        [
+          "https://databrussels.be/id/streetname/6024",
+          117
+        ],
+        [
+          "https://databrussels.be/id/streetname/5574",
+          80
+        ],
+        [
+          "https://databrussels.be/id/streetname/5977",
+          74
+        ],
+        [
+          "https://databrussels.be/id/streetname/1938",
+          70
+        ],
+        [
+          "https://databrussels.be/id/streetname/6009",
+          65
+        ],
+        [
+          "https://databrussels.be/id/streetname/3916",
+          62
+        ],
+        [
+          "https://databrussels.be/id/streetname/560",
+          59
+        ],
+        [
+          "https://databrussels.be/id/streetname/1666",
+          59
+        ],
+        [
+          "https://databrussels.be/id/streetname/3585",
+          51
+        ],
+        [
+          "https://databrussels.be/id/streetname/2198",
+          48
+        ],
+        [
+          "https://databrussels.be/id/streetname/2838",
+          47
+        ],
+        [
+          "https://databrussels.be/id/streetname/2668",
+          46
+        ],
+        [
+          "https://databrussels.be/id/streetname/6006",
+          45
+        ],
+        [
+          "https://databrussels.be/id/streetname/5719",
+          40
+        ],
+        [
+          "https://databrussels.be/id/streetname/1913",
+          39
+        ],
+        [
+          "https://databrussels.be/id/streetname/4501",
+          38
+        ],
+        [
+          "https://databrussels.be/id/streetname/1232",
+          38
+        ],
+        [
+          "https://databrussels.be/id/streetname/1714",
+          37
+        ],
+        [
+          "https://databrussels.be/id/streetname/2740",
+          36
+        ],
+        [
+          "https://databrussels.be/id/streetname/6072",
+          36
+        ],
+        [
+          "https://databrussels.be/id/streetname/5582",
+          34
+        ],
+        [
+          "https://databrussels.be/id/streetname/1033",
+          33
+        ],
+        [
+          "https://databrussels.be/id/streetname/626",
+          33
+        ],
+        [
+          "https://databrussels.be/id/streetname/3287",
+          33
+        ],
+        [
+          "https://databrussels.be/id/streetname/3358",
+          32
+        ],
+        [
+          "https://databrussels.be/id/streetname/196",
+          31
+        ],
+        [
+          "https://databrussels.be/id/streetname/5123",
+          30
+        ]
+      ]
+    },
+    {
+      "key": "STRNAMEFRE",
+      "present_count": 3572,
+      "distinct_count": 225,
+      "top_values": [
+        [
+          "Boulevard de Smet de Naeyer",
+          159
+        ],
+        [
+          "Boulevard Emile Bockstael",
+          157
+        ],
+        [
+          "Avenue Houba de Strooper",
+          149
+        ],
+        [
+          "Rue Léopold I",
+          127
+        ],
+        [
+          "Jardins du Fleuriste",
+          117
+        ],
+        [
+          "Cimetière de Laeken",
+          74
+        ],
+        [
+          "Avenue Charles Woeste",
+          70
+        ],
+        [
+          "Parc d'Osseghem",
+          65
+        ],
+        [
+          "Square Prince Léopold",
+          62
+        ],
+        [
+          "Avenue Jean Sobieski",
+          59
+        ],
+        [
+          "Rue Emile Delva",
+          59
+        ],
+        [
+          "Rue Jules Lahaye",
+          51
+        ],
+        [
+          "Autoroute A12",
+          48
+        ],
+        [
+          "Avenue du Parc Royal",
+          46
+        ],
+        [
+          "Domaine du Stuyvenberg",
+          45
+        ],
+        [
+          "Avenue Ernest Masoin",
+          43
+        ],
+        [
+          "Place Arthur Van Gehuchten",
+          42
+        ],
+        [
+          "Avenue Rommelaere",
+          40
+        ],
+        [
+          "Rue des Artistes",
+          39
+        ],
+        [
+          "Avenue du Sacré-Coeur",
+          38
+        ],
+        [
+          "Avenue Richard Neybergh",
+          38
+        ],
+        [
+          "Avenue Guillaume De Greef",
+          37
+        ],
+        [
+          "Rue Gustave Gilson",
+          36
+        ],
+        [
+          "Parc de la Jeunesse",
+          36
+        ],
+        [
+          "Rue Marie-Christine",
+          34
+        ],
+        [
+          "Avenue du Forum",
+          33
+        ],
+        [
+          "Avenue de Bouchout",
+          33
+        ],
+        [
+          "Rue du Champ de la Couronne",
+          32
+        ],
+        [
+          "Avenue Notre-Dame de Lourdes",
+          31
+        ],
+        [
+          "Boulevard du Centenaire",
+          30
+        ]
+      ]
+    },
+    {
+      "key": "STRNAMEDUT",
+      "present_count": 3572,
+      "distinct_count": 226,
+      "top_values": [
+        [
+          "de Smet de Naeyerlaan",
+          159
+        ],
+        [
+          "Emile Bockstaellaan",
+          157
+        ],
+        [
+          "Houba de Strooperlaan",
+          149
+        ],
+        [
+          "Tuinen van de Bloemist",
+          117
+        ],
+        [
+          "Leopold I-straat",
+          80
+        ],
+        [
+          "Begraafplaats van Laken",
+          74
+        ],
+        [
+          "Charles Woestelaan",
+          70
+        ],
+        [
+          "Ossegempark",
+          65
+        ],
+        [
+          "Prins Leopoldsquare",
+          62
+        ],
+        [
+          "Jan Sobieskilaan",
+          59
+        ],
+        [
+          "Emile Delvastraat",
+          59
+        ],
+        [
+          "Jules Lahayestraat",
+          51
+        ],
+        [
+          "Autosnelweg A12",
+          48
+        ],
+        [
+          "Leopold I straat",
+          47
+        ],
+        [
+          "Koninklijk Parklaan",
+          46
+        ],
+        [
+          "Stuyvenbergdomein",
+          45
+        ],
+        [
+          "Ernest Masoinlaan",
+          43
+        ],
+        [
+          "Arthur Van Gehuchtenplein",
+          42
+        ],
+        [
+          "Rommelaerelaan",
+          40
+        ],
+        [
+          "Kunstenaarsstraat",
+          39
+        ],
+        [
+          "Heilig-Hartlaan",
+          38
+        ],
+        [
+          "Richard Neyberghlaan",
+          38
+        ],
+        [
+          "Guillaume De Greeflaan",
+          37
+        ],
+        [
+          "Gustave Gilsonstraat",
+          36
+        ],
+        [
+          "Jeugdpark",
+          36
+        ],
+        [
+          "Maria-Christinastraat",
+          34
+        ],
+        [
+          "Pannenhuisstraat",
+          34
+        ],
+        [
+          "Forumlaan",
+          33
+        ],
+        [
+          "Boechoutlaan",
+          33
+        ],
+        [
+          "Kroonveldstraat",
+          32
+        ]
+      ]
+    },
+    {
+      "key": "MUNNISCODE",
+      "present_count": 3572,
+      "distinct_count": 2,
+      "top_values": [
+        [
+          "21004",
+          2781
+        ],
+        [
+          "21010",
+          791
+        ]
+      ]
+    },
+    {
+      "key": "HIERARCHY",
+      "present_count": 3572,
+      "distinct_count": 6,
+      "top_values": [
+        [
+          "DR",
+          1788
+        ],
+        [
+          "IDR",
+          682
+        ],
+        [
+          "T",
+          489
+        ],
+        [
+          "MAR",
+          436
+        ],
+        [
+          "DC",
+          166
+        ],
+        [
+          "H",
+          11
+        ]
+      ]
+    },
+    {
+      "key": "LVL",
+      "present_count": 3572,
+      "distinct_count": 3,
+      "top_values": [
+        [
+          "0",
+          3513
+        ],
+        [
+          "1",
+          47
+        ],
+        [
+          "-1",
+          12
+        ]
+      ]
+    },
+    {
+      "key": "ADMIN",
+      "present_count": 3572,
+      "distinct_count": 4,
+      "top_values": [
+        [
+          "MUN_RBC",
+          1992
+        ],
+        [
+          "MUN_RE_RBC",
+          684
+        ],
+        [
+          "UNKNOWN",
+          479
+        ],
+        [
+          "REGION_RBC",
+          417
+        ]
+      ]
+    },
+    {
+      "key": "AREA",
+      "present_count": 3572,
+      "distinct_count": 1054,
+      "top_values": [
+        [
+          "29",
+          24
+        ],
+        [
+          "18",
+          24
+        ],
+        [
+          "21",
+          23
+        ],
+        [
+          "19",
+          23
+        ],
+        [
+          "7",
+          22
+        ],
+        [
+          "36",
+          22
+        ],
+        [
+          "9",
+          21
+        ],
+        [
+          "38",
+          20
+        ],
+        [
+          "47",
+          20
+        ],
+        [
+          "37",
+          20
+        ],
+        [
+          "25",
+          19
+        ],
+        [
+          "8",
+          19
+        ],
+        [
+          "41",
+          19
+        ],
+        [
+          "10",
+          18
+        ],
+        [
+          "20",
+          18
+        ],
+        [
+          "6",
+          17
+        ],
+        [
+          "52",
+          17
+        ],
+        [
+          "14",
+          17
+        ],
+        [
+          "3",
+          16
+        ],
+        [
+          "48",
+          16
+        ],
+        [
+          "53",
+          16
+        ],
+        [
+          "34",
+          16
+        ],
+        [
+          "31",
+          16
+        ],
+        [
+          "22",
+          16
+        ],
+        [
+          "16",
+          16
+        ],
+        [
+          "60",
+          15
+        ],
+        [
+          "69",
+          15
+        ],
+        [
+          "62",
+          15
+        ],
+        [
+          "17",
+          15
+        ],
+        [
+          "44",
+          15
+        ]
+      ]
+    }
+  ],
+  "sample_properties": [
+    {
+      "INSPIRE_ID": "https://databrussels.be/id/streetsurface/128057",
+      "TYPE": "SW",
+      "STREET_ID": "https://databrussels.be/id/streetname/1992",
+      "STRNAMEFRE": "Avenue de la Croix-Rouge",
+      "STRNAMEDUT": "Rode Kruislaan",
+      "MUNNISCODE": "21004",
+      "HIERARCHY": "DR",
+      "LVL": 0,
+      "ADMIN": "MUN_RBC",
+      "AREA": 370
+    },
+    {
+      "INSPIRE_ID": "https://databrussels.be/id/streetsurface/32030",
+      "TYPE": "S",
+      "STREET_ID": "https://databrussels.be/id/streetname/1992",
+      "STRNAMEFRE": "Avenue de la Croix-Rouge",
+      "STRNAMEDUT": "Rode Kruislaan",
+      "MUNNISCODE": "21004",
+      "HIERARCHY": "DR",
+      "LVL": 0,
+      "ADMIN": "MUN_RBC",
+      "AREA": 1793
+    },
+    {
+      "INSPIRE_ID": "https://databrussels.be/id/streetsurface/128180",
+      "TYPE": "SW",
+      "STREET_ID": "https://databrussels.be/id/streetname/1992",
+      "STRNAMEFRE": "Avenue de la Croix-Rouge",
+      "STRNAMEDUT": "Rode Kruislaan",
+      "MUNNISCODE": "21004",
+      "HIERARCHY": "DR",
+      "LVL": 0,
+      "ADMIN": "MUN_RBC",
+      "AREA": 592
+    },
+    {
+      "INSPIRE_ID": "https://databrussels.be/id/streetsurface/128088",
+      "TYPE": "SW",
+      "STREET_ID": "https://databrussels.be/id/streetname/1033",
+      "STRNAMEFRE": "Avenue du Forum",
+      "STRNAMEDUT": "Forumlaan",
+      "MUNNISCODE": "21004",
+      "HIERARCHY": "DR",
+      "LVL": 0,
+      "ADMIN": "MUN_RBC",
+      "AREA": 1210
+    },
+    {
+      "INSPIRE_ID": "https://databrussels.be/id/streetsurface/32245",
+      "TYPE": "S",
+      "STREET_ID": "https://databrussels.be/id/streetname/1033",
+      "STRNAMEFRE": "Avenue du Forum",
+      "STRNAMEDUT": "Forumlaan",
+      "MUNNISCODE": "21004",
+      "HIERARCHY": "DR",
+      "LVL": 0,
+      "ADMIN": "MUN_RBC",
+      "AREA": 2868
+    },
+    {
+      "INSPIRE_ID": "https://databrussels.be/id/streetsurface/40788",
+      "TYPE": "M",
+      "STREET_ID": "https://databrussels.be/id/streetname/1033",
+      "STRNAMEFRE": "Avenue du Forum",
+      "STRNAMEDUT": "Forumlaan",
+      "MUNNISCODE": "21004",
+      "HIERARCHY": "DR",
+      "LVL": 0,
+      "ADMIN": "MUN_RBC",
+      "AREA": 1856
+    },
+    {
+      "INSPIRE_ID": "https://databrussels.be/id/streetsurface/127977",
+      "TYPE": "SW",
+      "STREET_ID": "https://databrussels.be/id/streetname/1083",
+      "STRNAMEFRE": "Avenue de l'Amphore",
+      "STRNAMEDUT": "Amforalaan",
+      "MUNNISCODE": "21004",
+      "HIERARCHY": "DR",
+      "LVL": 0,
+      "ADMIN": "MUN_RBC",
+      "AREA": 170
+    },
+    {
+      "INSPIRE_ID": "https://databrussels.be/id/streetsurface/31603",
+      "TYPE": "S",
+      "STREET_ID": "https://databrussels.be/id/streetname/1083",
+      "STRNAMEFRE": "Avenue de l'Amphore",
+      "STRNAMEDUT": "Amforalaan",
+      "MUNNISCODE": "21004",
+      "HIERARCHY": "DR",
+      "LVL": 0,
+      "ADMIN": "MUN_RBC",
+      "AREA": 598
+    }
+  ],
+  "policy": "Use semantic classes for curb/sidewalk generation only if the committed authoritative layer exposes an unambiguous relevant property; do not infer classes from colour or intuition."
+}

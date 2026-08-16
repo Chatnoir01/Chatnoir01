@@ -1,0 +1,285 @@
+name: Grand Bruxelles Laeken Full Realism Release
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/game/zones/laeken_jette/**"
+      - "grand-bruxelles-game/game/tests/laeken_full_realism_smoke_test.gd"
+      - "grand-bruxelles-game/game/tests/laeken_building_heights_smoke_test.gd"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json"
+      - "grand-bruxelles-game/data/environment/laeken_jette/official_city_trees.game.json"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/**"
+      - "grand-bruxelles-game/data/orthophoto/laeken_jette/**"
+      - ".github/workflows/grand-bruxelles-laeken-realism-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-realism-release
+  cancel-in-progress: true
+
+jobs:
+  validate-and-release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout latest zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+          fetch-depth: 0
+
+      - name: Self-heal validated DSM and landmark correction runtime
+        run: |
+          set -euo pipefail
+          HEIGHT_COMMIT=3583c352cb2896b3cff7f76909db5a7dcf07410a
+          OVERRIDE_COMMIT=f99a54bc403fc4ce54ebbcfb034c7194e6410713
+          HEIGHT_PATH=grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json
+          OVERRIDE_PATH=grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json
+          mkdir -p "$(dirname "$HEIGHT_PATH")"
+
+          NEED_HEIGHT_RESTORE=0
+          if test ! -s "$HEIGHT_PATH"; then
+            NEED_HEIGHT_RESTORE=1
+          else
+            python3 - <<'PY' || NEED_HEIGHT_RESTORE=1
+          import json
+          p='grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['feature_count']==9518
+          assert len(d['records'])==9518
+          assert d['derived_height_count']==9163
+          assert d['quality_counts']=={'high':7357,'medium':1136,'low':670,'insufficient':355,'outside':0}
+          PY
+          fi
+          if test "$NEED_HEIGHT_RESTORE" -eq 1; then
+            echo "Restoring validated DSM runtime from $HEIGHT_COMMIT"
+            git cat-file -e "$HEIGHT_COMMIT:$HEIGHT_PATH"
+            git show "$HEIGHT_COMMIT:$HEIGHT_PATH" > "$HEIGHT_PATH"
+          fi
+
+          NEED_OVERRIDE_RESTORE=0
+          if test ! -s "$OVERRIDE_PATH"; then
+            NEED_OVERRIDE_RESTORE=1
+          else
+            python3 - <<'PY' || NEED_OVERRIDE_RESTORE=1
+          import json
+          p='grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          o=d['overrides']['https://databrussels.be/id/building/1637983']
+          assert abs(float(o['height_m'])-4.231) < 0.0001
+          assert abs(float(o['source_height_record']['height_m'])-51.033) < 0.001
+          PY
+          fi
+          if test "$NEED_OVERRIDE_RESTORE" -eq 1; then
+            echo "Restoring audited Atomium override from $OVERRIDE_COMMIT"
+            git cat-file -e "$OVERRIDE_COMMIT:$OVERRIDE_PATH"
+            git show "$OVERRIDE_COMMIT:$OVERRIDE_PATH" > "$OVERRIDE_PATH"
+          fi
+
+          cp "$HEIGHT_PATH" /tmp/validated-laeken-heights.json
+          cp "$OVERRIDE_PATH" /tmp/validated-laeken-overrides.json
+          python3 - <<'PY'
+          import json
+          h=json.load(open('/tmp/validated-laeken-heights.json',encoding='utf-8'))
+          o=json.load(open('/tmp/validated-laeken-overrides.json',encoding='utf-8'))
+          assert h['feature_count']==9518 and len(h['records'])==9518 and h['derived_height_count']==9163
+          item=o['overrides']['https://databrussels.be/id/building/1637983']
+          assert abs(float(item['height_m'])-4.231)<0.0001
+          print('LAEKEN_HEIGHT_RUNTIME_READY',h['derived_height_median_m'],h['derived_height_max_m'],'override',item['height_m'])
+          PY
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Cache export templates
+        id: templates-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/4.7.1.stable
+          key: godot-4.7.1-stable-export-templates-v1
+
+      - name: Install export templates
+        if: steps.templates-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/templates.tpz \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz
+          mkdir -p /tmp/templates-unpack
+          unzip -q /tmp/templates.tpz -d /tmp/templates-unpack
+          mkdir -p ~/.local/share/godot/export_templates/4.7.1.stable
+          cp -a /tmp/templates-unpack/templates/. ~/.local/share/godot/export_templates/4.7.1.stable/
+
+      - name: Import project resources once
+        run: |
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit
+
+      - name: Run single-load full realism gate
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/laeken_full_realism_smoke_test.gd 2>&1 | tee /tmp/laeken-full-realism.log
+          if grep -E "SCRIPT ERROR|Parse Error:|LAEKEN_FULL_REALISM_FAIL" /tmp/laeken-full-realism.log; then
+            exit 1
+          fi
+          grep -q "LAEKEN_FULL_REALISM_OK" /tmp/laeken-full-realism.log
+          grep -q "LAEKEN_TRAM_RAILS_READY" /tmp/laeken-full-realism.log
+          grep -q "LAEKEN_SOURCE_TRUTH_CLEANUP_READY" /tmp/laeken-full-realism.log
+
+      - name: Select Laeken playtest for Web export
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/project.godot')
+          text=p.read_text(encoding='utf-8')
+          old='run/main_scene="res://game/main.tscn"'
+          new='run/main_scene="res://game/zones/laeken_jette/laeken_playtest.tscn"'
+          assert old in text
+          p.write_text(text.replace(old,new,1),encoding='utf-8')
+          PY
+
+      - name: Export validated Web build
+        run: |
+          rm -rf grand-bruxelles-game/web-laeken
+          mkdir -p grand-bruxelles-game/web-laeken
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --export-release "Web" "$GITHUB_WORKSPACE/grand-bruxelles-game/web-laeken/index.html"
+          test -s grand-bruxelles-game/web-laeken/index.html
+          test -s grand-bruxelles-game/web-laeken/index.js
+          test -s grand-bruxelles-game/web-laeken/index.wasm
+          test -s grand-bruxelles-game/web-laeken/index.pck
+
+      - name: Write realism build identity
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          heights=json.load(open('data/urbis/laeken_jette/building_heights_dsm.game.json',encoding='utf-8'))
+          overrides=json.load(open('data/urbis/laeken_jette/building_height_landmark_overrides.game.json',encoding='utf-8'))
+          trees=json.load(open('data/sources/laeken_jette/official_city_trees_provenance.json',encoding='utf-8'))
+          terrain=json.load(open('data/terrain/laeken_jette/phase1_dtm.game.json',encoding='utf-8'))
+          log=pathlib.Path('/tmp/laeken-full-realism.log').read_text(encoding='utf-8',errors='replace')
+
+          correction_items=[]
+          for inspire_id, item in overrides.get('overrides',{}).items():
+            correction_items.append({
+              'inspire_id':inspire_id,
+              'effective_height_m':item['height_m'],
+              'raw_height_m':item.get('source_height_record',{}).get('height_m'),
+              'method':item.get('method'),
+              'reason':item.get('reason'),
+            })
+
+          facade={}
+          m=re.search(r'LAEKEN_FACADE_DETAIL_READY: buildings=(\d+) halls=(\d+) windows=(\d+) sills=(\d+) hall_ribs=(\d+)',log)
+          if m:
+            facade={'buildings':int(m.group(1)),'halls':int(m.group(2)),'windows':int(m.group(3)),'sills':int(m.group(4)),'hall_ribs':int(m.group(5))}
+
+          tram={}
+          m=re.search(r'LAEKEN_TRAM_RAILS_READY: features=(\d+) segments=(\d+) rails=(\d+) gauge=([0-9.]+) old_ribbon_hidden=(true|false)',log)
+          if m:
+            tram={'features':int(m.group(1)),'segments':int(m.group(2)),'rails':int(m.group(3)),'gauge_m':float(m.group(4)),'old_flat_ribbon_hidden':m.group(5)=='true'}
+
+          source_truth={}
+          m=re.search(r'LAEKEN_SOURCE_TRUTH_CLEANUP_READY: legacy_hidden=(true|false) corridor_trees=(\d+) corridor_dashes=(\d+) kept_lamps=(\d+)',log)
+          if m:
+            source_truth={'legacy_photo_guided_hidden':m.group(1)=='true','synthetic_corridor_trees':int(m.group(2)),'synthetic_corridor_dashes':int(m.group(3)),'provisional_axis_lamps':int(m.group(4))}
+
+          out={
+            'schema':2,
+            'build':'laeken-full-realism',
+            'source_commit':os.environ.get('GITHUB_SHA'),
+            'engine':'Godot 4.7.1',
+            'validation':['single-load terrain + orthophoto + DSM building heights + landmark contamination correction + 3D street facades + source-truth cleanup + twin tram rails + official City trees + multi-lobe canopy replacement'],
+            'building_heights':{
+              'feature_count':heights['feature_count'],
+              'derived':heights['derived_height_count'],
+              'fallback':heights['feature_count']-heights['derived_height_count'],
+              'raw_source_median_m':heights['derived_height_median_m'],
+              'raw_source_max_m':heights['derived_height_max_m'],
+              'quality':heights['quality_counts'],
+              'landmark_correction_count':len(correction_items),
+              'landmark_corrections':correction_items,
+              'note':'Raw source distribution is preserved for audit; gameplay applies listed deterministic corrections where landmark geometry contaminated a building footprint.'
+            },
+            'street_level_facades':facade,
+            'tram_rails':tram,
+            'source_truth':source_truth,
+            'official_trees':{
+              'selected_records':trees['selected_feature_count'],
+              'species_distinct':trees['species_distinct'],
+              'district_counts':trees['district_counts'],
+              'license':trees['license'],
+              'inventory_warning':trees['completeness_warning'],
+              'visual_canopy':'Broadleaf source positions use three deterministic asymmetric lobes; the former single-sphere crown layer is hidden.'
+            },
+            'terrain':{
+              'grid':[terrain['width'],terrain['height']],
+              'relative_min_m':terrain['relative_height_min_m'],
+              'relative_max_m':terrain['relative_height_max_m'],
+            },
+          }
+          assert tram.get('rails')==16664 and tram.get('old_flat_ribbon_hidden') is True
+          assert source_truth.get('synthetic_corridor_trees')==0 and source_truth.get('synthetic_corridor_dashes')==0
+          pathlib.Path('web-laeken/build-info.json').write_text(json.dumps(out,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          print('LAEKEN_FULL_REALISM_BUILD',json.dumps(out,ensure_ascii=False))
+          PY
+
+      - name: Verify exported assets over HTTP
+        run: |
+          python3 -m http.server 8765 --directory grand-bruxelles-game/web-laeken >/tmp/laeken-http.log 2>&1 &
+          PID=$!
+          trap 'kill $PID' EXIT
+          sleep 2
+          for FILE in index.html index.js index.wasm index.pck build-info.json; do
+            curl -fsI "http://127.0.0.1:8765/$FILE" >/dev/null
+          done
+
+      - name: Publish validated build safely on moving zone branch
+        run: |
+          set -euo pipefail
+          git checkout -- grand-bruxelles-game/project.godot
+          rm -rf /tmp/web-laeken-release
+          cp -a grand-bruxelles-game/web-laeken /tmp/web-laeken-release
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for ATTEMPT in 1 2 3 4 5; do
+            echo "Publish attempt $ATTEMPT/5"
+            git fetch origin zone-laeken-jette
+            git reset --hard origin/zone-laeken-jette
+            rm -rf grand-bruxelles-game/web-laeken
+            cp -a /tmp/web-laeken-release grand-bruxelles-game/web-laeken
+            mkdir -p grand-bruxelles-game/data/urbis/laeken_jette
+            cp /tmp/validated-laeken-heights.json grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json
+            cp /tmp/validated-laeken-overrides.json grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json
+            git add -f \
+              grand-bruxelles-game/web-laeken \
+              grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json \
+              grand-bruxelles-game/data/urbis/laeken_jette/building_height_landmark_overrides.game.json
+            if git diff --cached --quiet; then
+              echo "Validated Web build already present on latest branch head"
+              exit 0
+            fi
+            git commit -m "web: publish validated Laeken realism build and heal source runtime [skip ci]"
+            if git push origin HEAD:zone-laeken-jette; then
+              echo "Validated build published on attempt $ATTEMPT"
+              exit 0
+            fi
+            echo "Branch moved during publish; retrying against latest head"
+            sleep 2
+          done
+          echo "Unable to publish validated build after 5 branch-safe retries" >&2
+          exit 1

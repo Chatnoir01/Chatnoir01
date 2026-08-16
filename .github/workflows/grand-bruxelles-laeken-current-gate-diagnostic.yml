@@ -1,0 +1,68 @@
+name: Grand Bruxelles Laeken Current Gate Diagnostic
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - ".github/workflows/grand-bruxelles-laeken-current-gate-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout latest zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+          fetch-depth: 0
+
+      - name: Restore validated DSM runtime in diagnostic workspace
+        run: |
+          set -euo pipefail
+          VALIDATED_COMMIT=3583c352cb2896b3cff7f76909db5a7dcf07410a
+          HEIGHT_PATH=grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json
+          mkdir -p "$(dirname "$HEIGHT_PATH")"
+          git show "$VALIDATED_COMMIT:$HEIGHT_PATH" > "$HEIGHT_PATH"
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['feature_count']==9518 and len(d['records'])==9518 and d['derived_height_count']==9163
+          print('DIAGNOSTIC_DSM_READY')
+          PY
+
+      - name: Install Godot and import
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit >/tmp/import.log 2>&1 || true
+
+      - name: Capture exact full gate output
+        shell: bash
+        run: |
+          set +e
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/laeken_full_realism_smoke_test.gd > /tmp/current-full-gate.log 2>&1
+          STATUS=$?
+          echo "godot_exit_status=$STATUS" >> /tmp/current-full-gate.log
+          cat /tmp/current-full-gate.log
+          exit 0
+
+      - name: Publish exact diagnostic
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette/diagnostics
+          cp /tmp/current-full-gate.log grand-bruxelles-game/data/sources/laeken_jette/diagnostics/current_full_realism_gate.log
+          git add -f grand-bruxelles-game/data/sources/laeken_jette/diagnostics/current_full_realism_gate.log
+          git diff --cached --quiet && exit 0
+          git commit -m "debug: capture current Laeken full realism gate [skip ci]"
+          git push origin HEAD:zone-laeken-jette

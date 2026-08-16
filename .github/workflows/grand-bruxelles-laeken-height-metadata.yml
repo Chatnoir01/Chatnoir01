@@ -1,0 +1,53 @@
+name: Grand Bruxelles Laeken Height Metadata
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/fetch_geobru_height_metadata.py"
+      - ".github/workflows/grand-bruxelles-laeken-height-metadata.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  metadata:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Fetch full official ISO metadata
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/fetch_geobru_height_metadata.py
+          python3 tools/fetch_geobru_height_metadata.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/geobru_height_metadata.json'
+          d=json.load(open(p,encoding='utf-8'))
+          for key in ('dsm','lidar_2021'):
+              ds=d['datasets'][key]
+              assert ds['title'], (key,ds)
+              assert ds['online_resources'], (key,ds)
+              print('HEIGHT_METADATA_VALID',key,ds['title'],len(ds['online_resources']),ds['reference_systems'],ds['legal_constraints'])
+          PY
+
+      - name: Commit metadata safely
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/geobru_height_metadata.json /tmp/geobru_height_metadata.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/geobru_height_metadata.json grand-bruxelles-game/data/sources/laeken_jette/geobru_height_metadata.json
+          git add grand-bruxelles-game/data/sources/laeken_jette/geobru_height_metadata.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: record official DSM and LiDAR metadata [skip ci]"
+          git push origin HEAD:zone-laeken-jette

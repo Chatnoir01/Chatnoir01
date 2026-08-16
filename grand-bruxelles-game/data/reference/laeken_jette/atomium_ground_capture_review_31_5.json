@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "view_id": "atomium_ground_oblique_v1",
+  "benchmark_fov_degrees": 31.5,
+  "review_status": "framing_materially_improved_foreground_blockers_open",
+  "capture_evidence": {
+    "workflow_run_id": 31597045638,
+    "artifact_id": 9141524732,
+    "artifact_name": "atomium-ground-oblique-v1",
+    "artifact_sha256": "0518081013066bad1304b29ad2613fa82a73c7127e375f716b384f2adb15c247",
+    "render_resolution_px": [1280, 720],
+    "source_commit": "78f82747f593f8edef4f876d0cdc2ba650415397"
+  },
+  "reference_evidence": {
+    "url": "https://commons.wikimedia.org/wiki/File:Atomium,_Br%C3%BCssel_2.jpg",
+    "author": "Horst J. Meuter",
+    "license": "CC BY-SA 4.0",
+    "source_dimensions_px": [960, 638],
+    "published_camera_wgs84": [4.339306, 50.897467],
+    "visible_subject_witness": "atomium_ground_reference_witness.json"
+  },
+  "review_method": "side-by-side human visual QA of the deterministic Godot artifact against the lawful Commons reference, constrained by the registered camera/DTM geometry and conservative visible-subject witness",
+  "observations": [
+    {
+      "category": "framing_scale",
+      "severity": "medium",
+      "finding": "The 31.5 degree capture gives the Atomium substantially more frame presence than the rejected 50 degree capture and satisfies the conservative visible-subject lower-bound test.",
+      "state": "improved_not_complete",
+      "reason_not_complete": "The witness is not a full source bounding box; exact crop, yaw, pitch and historical lens remain unknown."
+    },
+    {
+      "category": "foreground_context",
+      "severity": "high",
+      "finding": "The deterministic capture foreground is dominated by broad simplified dark/light ground surfaces, while the lawful reference is visually organized around a fountain/open-space composition with denser real-world context.",
+      "state": "blocker_open",
+      "next_evidence": "Resolve fountain/basin and paved-open-space geometry from authoritative UrbIS/Landscape/orthophoto or another lawful documented source before adding geometry."
+    },
+    {
+      "category": "vegetation",
+      "severity": "high",
+      "finding": "Known source-positioned public trees are present, but the capture still reads as sparse/repetitive compared with the dense flanking vegetation visible in the lawful reference.",
+      "state": "blocker_open",
+      "next_evidence": "Use official orthophoto canopy/gap evidence to refine only supported massing; do not fabricate missing trees from the incomplete municipal point inventory."
+    },
+    {
+      "category": "materials_detail",
+      "severity": "high",
+      "finding": "Atomium metal is recognizably reflective, but ground, contextual buildings and much of the surrounding urban detail remain visibly prototype-level and generic.",
+      "state": "blocker_open",
+      "next_evidence": "Prioritize source-backed paving/ground classes and hero-visible contextual material proportions before decorative clutter."
+    }
+  ],
+  "decision": "Keep 31.5 degrees as the current evidence-bounded benchmark candidate. Do not call lens/framing resolved and do not mark the hero view realism-complete. The next visual lot should target authoritative fountain/open-space geometry because it is now the largest immediate source-to-game mismatch."
+}

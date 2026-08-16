@@ -1,0 +1,105 @@
+name: Grand Bruxelles Laeken Orthophoto Runtime
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/data/sources/laeken_jette/orthophoto_wms_inventory.json"
+      - ".github/workflows/grand-bruxelles-laeken-orthophoto-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-orthophoto-runtime
+  cancel-in-progress: true
+
+jobs:
+  fetch-ortho:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Fetch exact phase-1 orthophoto from official WMS
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p data/orthophoto/laeken_jette data/sources/laeken_jette
+          python3 - <<'PY'
+          import hashlib, json, pathlib, urllib.parse, urllib.request
+          inventory=json.load(open('data/sources/laeken_jette/orthophoto_wms_inventory.json',encoding='utf-8'))
+          service=inventory['service']
+          fees=(service.get('fees') or '').lower()
+          access=(service.get('access_constraints') or '').lower()
+          assert 'cc-0' in fees or 'public domain' in fees, service
+          assert 'no limitations' in access, service
+          layer=next(x for x in inventory['target_layers'] if x['name']=='Ortho')
+          assert 'EPSG:31370' in layer['crs']
+          bbox=inventory['phase1_bbox_epsg31370']
+          params={
+              'Service':'WMS','Version':'1.3.0','Request':'GetMap',
+              'Layers':'Ortho','Styles':'','CRS':'EPSG:31370',
+              'BBOX':','.join(str(x) for x in bbox),
+              'Width':'2048','Height':'3527','Format':'image/jpeg',
+              'Transparent':'false',
+          }
+          base='https://geoservices-grid.irisnet.be/geoserver/urbisgrid/ows'
+          url=base+'?'+urllib.parse.urlencode(params)
+          req=urllib.request.Request(url,headers={'User-Agent':'Grand-Bruxelles-Game/1.0 (official orthophoto runtime)'})
+          with urllib.request.urlopen(req,timeout=90) as response:
+              body=response.read()
+              content_type=response.headers.get('Content-Type','')
+          if not body.startswith(b'\xff\xd8'):
+              raise SystemExit(f'WMS did not return JPEG: {content_type} {body[:200]!r}')
+          if len(body) < 100000:
+              raise SystemExit(f'Orthophoto unexpectedly small: {len(body)} bytes')
+          dest=pathlib.Path('data/orthophoto/laeken_jette/phase1_ortho.jpg')
+          dest.write_bytes(body)
+          digest=hashlib.sha256(body).hexdigest()
+          provenance={
+              'schema':1,
+              'source':'Paradigm / Brussels-Capital Region official raster WMS',
+              'layer':'Ortho',
+              'layer_title':layer['title'],
+              'layer_abstract':layer['abstract'],
+              'crs':'EPSG:31370',
+              'bbox_epsg31370':bbox,
+              'width':2048,'height':3527,
+              'approx_ground_resolution_m_per_pixel':1800.0/2048.0,
+              'format':'image/jpeg','size_bytes':len(body),'sha256':digest,
+              'request_url':url,
+              'license':service['fees'],
+              'access_constraints':service['access_constraints'],
+              'runtime_path':'data/orthophoto/laeken_jette/phase1_ortho.jpg',
+              'notes':'The WMS Ortho alias is documented by the service as the latest RGB orthophoto, currently 2024 at fetch time. This committed image freezes the exact phase-1 visual source used by the game build.'
+          }
+          pathlib.Path('data/sources/laeken_jette/orthophoto_phase1_runtime.json').write_text(json.dumps(provenance,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          print('LAEKEN_ORTHOPHOTO_RUNTIME_OK',{'bytes':len(body),'sha256':digest,'resolution_m':provenance['approx_ground_resolution_m_per_pixel']})
+          PY
+          file data/orthophoto/laeken_jette/phase1_ortho.jpg
+
+      - name: Preserve generated orthophoto
+        run: |
+          mkdir -p /tmp/laeken-ortho
+          cp grand-bruxelles-game/data/orthophoto/laeken_jette/phase1_ortho.jpg /tmp/laeken-ortho/
+          cp grand-bruxelles-game/data/sources/laeken_jette/orthophoto_phase1_runtime.json /tmp/laeken-ortho/
+
+      - name: Publish from latest zone branch head
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/orthophoto/laeken_jette grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/laeken-ortho/phase1_ortho.jpg grand-bruxelles-game/data/orthophoto/laeken_jette/
+          cp /tmp/laeken-ortho/orthophoto_phase1_runtime.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add -f grand-bruxelles-game/data/orthophoto/laeken_jette/phase1_ortho.jpg \
+                     grand-bruxelles-game/data/sources/laeken_jette/orthophoto_phase1_runtime.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: add official Laeken phase-1 orthophoto texture [skip ci]"
+          git push origin HEAD:zone-laeken-jette

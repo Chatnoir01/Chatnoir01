@@ -1,0 +1,80 @@
+name: Grand Bruxelles Laeken Palais 5 UrbIS Audit
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/audit_palais5_nearest_urbis.py"
+      - ".github/workflows/grand-bruxelles-laeken-palais5-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+          fetch-depth: 0
+
+      - name: Restore validated DSM runtime for audit
+        run: |
+          VALIDATED_COMMIT=3583c352cb2896b3cff7f76909db5a7dcf07410a
+          HEIGHT_PATH=grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json
+          mkdir -p "$(dirname "$HEIGHT_PATH")"
+          if test ! -s "$HEIGHT_PATH"; then
+            git show "$VALIDATED_COMMIT:$HEIGHT_PATH" > "$HEIGHT_PATH"
+          fi
+          python3 - <<'PY'
+          import json
+          d=json.load(open('grand-bruxelles-game/data/urbis/laeken_jette/building_heights_dsm.game.json',encoding='utf-8'))
+          assert d['feature_count']==9518 and len(d['records'])==9518 and d['derived_height_count']==9163
+          print('PALAIS5_AUDIT_DSM_READY')
+          PY
+
+      - name: Audit official footprint without accepting campus-scale false positives
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/audit_palais5_nearest_urbis.py
+          python3 tools/audit_palais5_nearest_urbis.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/palais5_nearest_urbis_audit.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['schema'] == 3, d
+          assert d['feature_candidate_count'] > 0, d
+          assert d['component_candidate_count'] > 0, d
+          assert d['containing_component_count'] == 1, d
+          selected=d['selected_component_if_unambiguous']
+          assert selected is not None, d
+          assert selected['locator_inside'] is True, selected
+          assert selected['locator_boundary_distance_m'] == 0.0, selected
+          screen=d['hero_footprint_screen']
+          # Current UrbIS component is deliberately expected to fail the broad
+          # single-hall screen. A green CI here means the false-positive guard
+          # works; it does NOT mean Palais 5 geometry has been resolved.
+          assert screen['passes'] is False, screen
+          assert d['resolution_status'] == 'needs_finer_authoritative_geometry', d
+          assert screen['failed_checks'], screen
+          print('PALAIS5_FALSE_POSITIVE_GUARD_VALID', selected, screen)
+          PY
+
+      - name: Publish audit from latest branch head
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/palais5_nearest_urbis_audit.json /tmp/palais5_nearest_urbis_audit.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/palais5_nearest_urbis_audit.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add -f grand-bruxelles-game/data/sources/laeken_jette/palais5_nearest_urbis_audit.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: flag Palais 5 for finer authoritative geometry [skip ci]"
+          git push origin HEAD:zone-laeken-jette

@@ -1,0 +1,50 @@
+name: Grand Bruxelles Laeken Atomium Building Audit
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/analyze_atomium_neighbor_buildings.py"
+      - ".github/workflows/grand-bruxelles-laeken-atomium-building-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Audit nearby building heights
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/analyze_atomium_neighbor_buildings.py
+          python3 tools/analyze_atomium_neighbor_buildings.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/atomium_neighbor_building_audit.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['nearby_count'] > 0
+          print('ATOMIUM_NEIGHBOR_AUDIT_VALID',d['nearby_count'],d['suspicious_tall_nearby_count'])
+          PY
+
+      - name: Publish audit from latest branch head
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/atomium_neighbor_building_audit.json /tmp/atomium_neighbor_building_audit.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/atomium_neighbor_building_audit.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add -f grand-bruxelles-game/data/sources/laeken_jette/atomium_neighbor_building_audit.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: audit DSM heights around Atomium [skip ci]"
+          git push origin HEAD:zone-laeken-jette

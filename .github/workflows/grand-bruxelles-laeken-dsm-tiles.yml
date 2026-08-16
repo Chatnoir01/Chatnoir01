@@ -1,0 +1,53 @@
+name: Grand Bruxelles Laeken DSM Tiles
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/discover_urbis_dsm_laeken.py"
+      - ".github/workflows/grand-bruxelles-laeken-dsm-tiles.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Discover official DSM tile distributions
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/discover_urbis_dsm_laeken.py
+          python3 tools/discover_urbis_dsm_laeken.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/urbis_dsm_discovery.json'
+          d=json.load(open(p,encoding='utf-8'))
+          expected=set(d['expected_1km_tile_codes'])
+          found={tile for x in d['candidate_links'] for tile in x.get('matching_tiles',[]) if x['url'].lower().endswith('.zip')}
+          missing=expected-found
+          assert not missing, missing
+          print('LAEKEN_DSM_TILE_DISCOVERY_VALID',len(expected),len(found))
+          PY
+
+      - name: Commit discovery safely
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/urbis_dsm_discovery.json /tmp/urbis_dsm_discovery.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/urbis_dsm_discovery.json grand-bruxelles-game/data/sources/laeken_jette/urbis_dsm_discovery.json
+          git add grand-bruxelles-game/data/sources/laeken_jette/urbis_dsm_discovery.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: discover official Laeken DSM tiles [skip ci]"
+          git push origin HEAD:zone-laeken-jette

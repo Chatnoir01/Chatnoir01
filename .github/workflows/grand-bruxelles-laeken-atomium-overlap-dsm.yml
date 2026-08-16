@@ -1,0 +1,86 @@
+name: Grand Bruxelles Laeken Atomium Overlap DSM
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/analyze_atomium_overlap_height.py"
+      - ".github/workflows/grand-bruxelles-laeken-atomium-overlap-dsm.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Install GDAL and NumPy
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends python3-gdal python3-numpy
+
+      - name: Download official Atomium DSM and DTM tile
+        run: |
+          mkdir -p /tmp/atomium-overlap/dsm /tmp/atomium-overlap/dtm
+          python3 - <<'PY'
+          import pathlib, urllib.request, zipfile
+          urls={
+            'dsm':'https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_148176_20211009_50.zip',
+            'dtm':'https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_148176_20211009_50.zip',
+          }
+          for kind,url in urls.items():
+            dest=pathlib.Path('/tmp/atomium-overlap')/(kind+'.zip')
+            req=urllib.request.Request(url,headers={'User-Agent':'Grand-Bruxelles-Game/1.0 Atomium DSM audit'})
+            with urllib.request.urlopen(req,timeout=120) as r,dest.open('wb') as f:
+              while True:
+                chunk=r.read(1024*1024)
+                if not chunk: break
+                f.write(chunk)
+            out=pathlib.Path('/tmp/atomium-overlap')/kind
+            with zipfile.ZipFile(dest) as z: z.extractall(out)
+            tifs=list(out.rglob('*.tif'))+list(out.rglob('*.tiff'))
+            assert len(tifs)==1,(kind,tifs)
+            pathlib.Path('/tmp/atomium-overlap/'+kind+'.path').write_text(str(tifs[0]))
+            print(kind,tifs[0],dest.stat().st_size)
+          PY
+
+      - name: Analyze exact footprint distribution
+        working-directory: grand-bruxelles-game
+        run: |
+          DSM=$(cat /tmp/atomium-overlap/dsm.path)
+          DTM=$(cat /tmp/atomium-overlap/dtm.path)
+          /usr/bin/python3 -m py_compile tools/analyze_atomium_overlap_height.py
+          /usr/bin/python3 tools/analyze_atomium_overlap_height.py \
+            --buildings data/urbis/laeken_jette/buildings.game.json \
+            --dsm "$DSM" --dtm "$DTM" \
+            --output data/sources/laeken_jette/atomium_overlap_dsm_audit.json
+          /usr/bin/python3 - <<'PY'
+          import json
+          d=json.load(open('data/sources/laeken_jette/atomium_overlap_dsm_audit.json',encoding='utf-8'))
+          assert d['sample_count'] > 500
+          assert d['source_raster_resolution_m'] == 0.5
+          assert d['lower_surface_cluster_candidate'] is not None
+          print('ATOMIUM_OVERLAP_DSM_VALID',d['percentiles_m'],d['lower_surface_cluster_candidate'],d['top_histogram_peaks_1m'])
+          PY
+
+      - name: Publish audit from latest branch head
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/atomium_overlap_dsm_audit.json /tmp/atomium_overlap_dsm_audit.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/atomium_overlap_dsm_audit.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add -f grand-bruxelles-game/data/sources/laeken_jette/atomium_overlap_dsm_audit.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: inspect Atomium-overlap DSM distribution [skip ci]"
+          git push origin HEAD:zone-laeken-jette

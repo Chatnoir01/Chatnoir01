@@ -1,0 +1,79 @@
+{
+  "schema": 2,
+  "source": "Paradigm UrbIS Digital Terrain Model 2021",
+  "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
+  "tile": "148176",
+  "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_148176_20211009_50.zip",
+  "zip_sha256": "b689d20567223125aea2a8fb9c720a79c42be20ca5e5e7167080a39df2fd107f",
+  "zip_size_bytes": 11945806,
+  "archive_members": [
+    {
+      "name": "UrbDTM_2021_148176.tfw",
+      "compressed_size": 51,
+      "uncompressed_size": 89
+    },
+    {
+      "name": "UrbDTM_2021_148176.tif",
+      "compressed_size": 11945421,
+      "uncompressed_size": 16000270
+    }
+  ],
+  "gdal_driver": "GTiff",
+  "raster_size": [
+    2000,
+    2000
+  ],
+  "geo_transform": [
+    148000.1341350079,
+    0.5,
+    0.0,
+    177000.0715624727,
+    0.0,
+    -0.5
+  ],
+  "corner_coordinates": {
+    "upperLeft": [
+      148000.134,
+      177000.072
+    ],
+    "lowerLeft": [
+      148000.134,
+      176000.072
+    ],
+    "lowerRight": [
+      149000.134,
+      176000.072
+    ],
+    "upperRight": [
+      149000.134,
+      177000.072
+    ],
+    "center": [
+      148500.134,
+      176500.072
+    ]
+  },
+  "bands": [
+    {
+      "band": 1,
+      "type": "Float32",
+      "minimum": 45.867,
+      "maximum": 77.637,
+      "no_data": -3.4028235e+38
+    }
+  ],
+  "runtime_grid": {
+    "width": 257,
+    "height": 257,
+    "step_e": 3.8910505836538505,
+    "step_n": -3.8910505836538505,
+    "absolute_elevation_min_m": 46.17759704589844,
+    "absolute_elevation_max_m": 76.80229187011719,
+    "relative_height_min_m": -6.4002,
+    "relative_height_max_m": 24.2245,
+    "valid_sample_count": 65577,
+    "invalid_sample_count": 472
+  },
+  "atomium_absolute_elevation_m": 52.57776641845703,
+  "policy": "257x257 bilinear runtime grid derived from the official UrbIS DTM tile; raw raster is not committed; NoData cells remain holes."
+}

@@ -1,0 +1,52 @@
+name: Grand Bruxelles Laeken Height Source Discovery
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/discover_geobru_height_sources.py"
+      - ".github/workflows/grand-bruxelles-laeken-height-source-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Search official Geobru CSW catalogue
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/discover_geobru_height_sources.py
+          python3 tools/discover_geobru_height_sources.py
+          python3 - <<'PY'
+          import json
+          p='data/sources/laeken_jette/geobru_height_source_discovery.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['queries']
+          successful=[q for q in d['queries'] if 'error' not in q]
+          assert successful, d['queries']
+          print('GEOBRU_HEIGHT_SOURCE_INVENTORY_VALID',len(successful),d['candidate_count'])
+          PY
+
+      - name: Commit inventory safely
+        run: |
+          cp grand-bruxelles-game/data/sources/laeken_jette/geobru_height_source_discovery.json /tmp/geobru_height_source_discovery.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/geobru_height_source_discovery.json grand-bruxelles-game/data/sources/laeken_jette/geobru_height_source_discovery.json
+          git add grand-bruxelles-game/data/sources/laeken_jette/geobru_height_source_discovery.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: discover official Geobru height sources [skip ci]"
+          git push origin HEAD:zone-laeken-jette

@@ -1,0 +1,67 @@
+name: Grand Bruxelles Laeken Ground Camera Audit
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/audit_atomium_ground_camera_candidates.py"
+      - "grand-bruxelles-game/data/reference/laeken_jette/anchors.json"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/street_surfaces.geojson"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/buildings.geojson"
+      - "grand-bruxelles-game/data/terrain/laeken_jette/atomium_dtm.game.json"
+      - ".github/workflows/grand-bruxelles-laeken-ground-camera-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-laeken-ground-camera-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout dedicated zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Validate and run deterministic candidate audit
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/audit_atomium_ground_camera_candidates.py
+          python3 tools/audit_atomium_ground_camera_candidates.py \
+            --streets data/urbis/laeken_jette/street_surfaces.geojson \
+            --buildings data/urbis/laeken_jette/buildings.geojson \
+            --dtm data/terrain/laeken_jette/atomium_dtm.game.json \
+            --anchors data/reference/laeken_jette/anchors.json \
+            --output data/reference/laeken_jette/atomium_ground_camera_candidates.json
+          python3 - <<'PY'
+          import json
+          p='data/reference/laeken_jette/atomium_ground_camera_candidates.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['crs']=='EPSG:31370'
+          assert d['purpose']=='candidate audit only; not photographer geolocation'
+          assert d['selection_policy']['exclude_building_footprints'] is True
+          assert d['selection_policy']['require_inside_dtm_bounds'] is True
+          assert d['status'] in {'candidate_audit_ready_for_visual_comparison','blocked_no_authoritative_candidate'}
+          for c in d['candidates']:
+            assert 60.0 <= c['distance_to_atomium_m'] <= 220.0
+          print('ATOMIUM_GROUND_CAMERA_AUDIT_VALID', d['status'], len(d['candidates']))
+          PY
+
+      - name: Publish candidate audit safely
+        run: |
+          cp grand-bruxelles-game/data/reference/laeken_jette/atomium_ground_camera_candidates.json /tmp/atomium_ground_camera_candidates.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          cp /tmp/atomium_ground_camera_candidates.json grand-bruxelles-game/data/reference/laeken_jette/
+          git add grand-bruxelles-game/data/reference/laeken_jette/atomium_ground_camera_candidates.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: audit Atomium ground camera candidates [skip ci]"
+          git push origin HEAD:zone-laeken-jette

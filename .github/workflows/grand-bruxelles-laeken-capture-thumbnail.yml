@@ -1,0 +1,60 @@
+name: Grand Bruxelles Laeken Capture Quadrants
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - ".github/workflows/grand-bruxelles-laeken-capture-thumbnail.yml"
+  workflow_dispatch:
+
+env:
+  REALISM_SNAPSHOT: daylight-player-vehicle-v2
+
+permissions:
+  contents: write
+
+jobs:
+  quadrants:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout latest zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Build four readable capture quadrants after latest realism pass
+        run: |
+          echo "snapshot=$REALISM_SNAPSHOT"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends imagemagick
+          SRC=grand-bruxelles-game/data/reference/laeken_jette/captures/laeken_player_camera_current.png
+          test -s "$SRC"
+          convert "$SRC" -resize 192x108! /tmp/frame.png
+          convert /tmp/frame.png -crop 96x54+0+0 +repage -strip -quality 28 /tmp/q1.jpg
+          convert /tmp/frame.png -crop 96x54+96+0 +repage -strip -quality 28 /tmp/q2.jpg
+          convert /tmp/frame.png -crop 96x54+0+54 +repage -strip -quality 28 /tmp/q3.jpg
+          convert /tmp/frame.png -crop 96x54+96+54 +repage -strip -quality 28 /tmp/q4.jpg
+          for N in 1 2 3 4; do
+            base64 -w 0 "/tmp/q${N}.jpg" > "/tmp/q${N}.b64.txt"
+            BYTES=$(wc -c <"/tmp/q${N}.b64.txt")
+            test "$BYTES" -gt 250
+            test "$BYTES" -lt 2200
+            identify "/tmp/q${N}.jpg"
+            echo "q${N}_base64_bytes=$BYTES"
+          done
+
+      - name: Publish diagnostic quadrants
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          DIR=grand-bruxelles-game/data/reference/laeken_jette/captures/diagnostic/quadrants
+          mkdir -p "$DIR"
+          for N in 1 2 3 4; do cp "/tmp/q${N}.b64.txt" "$DIR/q${N}.b64.txt"; done
+          git add -f "$DIR"/*.b64.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "debug: publish Laeken gameplay capture quadrants [skip ci]"
+          git push origin HEAD:zone-laeken-jette

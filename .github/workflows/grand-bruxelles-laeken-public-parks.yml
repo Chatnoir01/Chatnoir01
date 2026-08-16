@@ -1,0 +1,61 @@
+name: Grand Bruxelles Laeken Public Parks
+
+on:
+  push:
+    branches: ["zone-laeken-jette"]
+    paths:
+      - "grand-bruxelles-game/tools/fetch_laeken_public_parks.py"
+      - ".github/workflows/grand-bruxelles-laeken-public-parks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout zone branch
+        uses: actions/checkout@v4
+        with:
+          ref: zone-laeken-jette
+
+      - name: Fetch public parks and gardens
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 -m py_compile tools/fetch_laeken_public_parks.py
+          python3 tools/fetch_laeken_public_parks.py
+          python3 - <<'PY'
+          import json
+          runtime=json.load(open('data/environment/laeken_jette/official_public_parks.game.json',encoding='utf-8'))
+          prov=json.load(open('data/sources/laeken_jette/official_public_parks_provenance.json',encoding='utf-8'))
+          assert len(runtime['features'])==prov['selected_feature_count']
+          assert prov['selected_feature_count'] > 0
+          assert prov['license']=='CC BY 4.0'
+          assert prov['source_crs']=='EPSG:31370'
+          assert any(k in prov['geometry_type_counts'] for k in ('Polygon','MultiPolygon'))
+          print('LAEKEN_PUBLIC_PARKS_VALID',prov['selected_feature_count'],prov['geometry_type_counts'],prov['selected_names'])
+          PY
+
+      - name: Preserve generated files
+        run: |
+          mkdir -p /tmp/laeken-parks
+          cp grand-bruxelles-game/data/environment/laeken_jette/official_public_parks.game.json /tmp/laeken-parks/
+          cp grand-bruxelles-game/data/sources/laeken_jette/official_public_parks_provenance.json /tmp/laeken-parks/
+
+      - name: Publish from latest branch head
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin zone-laeken-jette
+          git reset --hard origin/zone-laeken-jette
+          mkdir -p grand-bruxelles-game/data/environment/laeken_jette grand-bruxelles-game/data/sources/laeken_jette
+          cp /tmp/laeken-parks/official_public_parks.game.json grand-bruxelles-game/data/environment/laeken_jette/
+          cp /tmp/laeken-parks/official_public_parks_provenance.json grand-bruxelles-game/data/sources/laeken_jette/
+          git add -f grand-bruxelles-game/data/environment/laeken_jette/official_public_parks.game.json \
+                     grand-bruxelles-game/data/sources/laeken_jette/official_public_parks_provenance.json
+          git diff --cached --quiet && exit 0
+          git commit -m "data: import official Laeken public park geometry [skip ci]"
+          git push origin HEAD:zone-laeken-jette

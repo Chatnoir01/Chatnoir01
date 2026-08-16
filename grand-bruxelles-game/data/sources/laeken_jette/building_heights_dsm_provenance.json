@@ -1,0 +1,222 @@
+{
+  "schema": 1,
+  "source_buildings": "Paradigm UrbIS Buildings WFS",
+  "source_dsm": "Paradigm UrbIS Digital Surface Model 2021",
+  "source_dtm": "Paradigm UrbIS Digital Terrain Model 2021",
+  "source_crs": "EPSG:31370",
+  "bbox_epsg31370": [
+    147300.0,
+    173650.0,
+    149100.0,
+    176750.0
+  ],
+  "temporary_raster_resolution_m": 1.0,
+  "height_method": "p75 of valid per-pixel DSM-DTM heights whose pixel centres fall inside the official building footprint",
+  "derived_height_count": 9163,
+  "quality_counts": {
+    "high": 7357,
+    "medium": 1136,
+    "low": 670,
+    "insufficient": 355,
+    "outside": 0
+  },
+  "derived_height_min_m": 2.0669898986816406,
+  "derived_height_median_m": 11.374515533447266,
+  "derived_height_max_m": 51.033287048339844,
+  "source_tiles": [
+    {
+      "kind": "dsm",
+      "tile": "147173",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_147173_20211009_50.zip",
+      "size_bytes": 13275590,
+      "sha256": "0777e10bc29df315a08e73c894025530502832a2dea9b2f857b9d8ee45125b17",
+      "tif": "/tmp/laeken-heights/dsm/147173/UrbDSM_2021_147173.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "147174",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_147174_20211009_50.zip",
+      "size_bytes": 13404223,
+      "sha256": "85fb91a41502b6a01900273a8c08ce3d15e1a0a22c7f7e5a9b391191aa33e1ff",
+      "tif": "/tmp/laeken-heights/dsm/147174/UrbDSM_2021_147174.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "147175",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_147175_20211009_50.zip",
+      "size_bytes": 13172732,
+      "sha256": "bc2f639cee2f974450f2defcf33a582baa0befdd77cbd630c1f1bd5eac1bb54e",
+      "tif": "/tmp/laeken-heights/dsm/147175/UrbDSM_2021_147175.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "147176",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_147176_20211009_50.zip",
+      "size_bytes": 12052249,
+      "sha256": "1ff42a87955181a7b1e1238e89e540761d445428a9325ea4f253df6e744a95ea",
+      "tif": "/tmp/laeken-heights/dsm/147176/UrbDSM_2021_147176.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "148173",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_148173_20211009_50.zip",
+      "size_bytes": 13731922,
+      "sha256": "d5006ca9bda256f4247993adea1e8659b2eb4cb447e39c36afb4817cbe0a4627",
+      "tif": "/tmp/laeken-heights/dsm/148173/UrbDSM_2021_148173.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "148174",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_148174_20211009_50.zip",
+      "size_bytes": 13667373,
+      "sha256": "b3d7b2acd60d41d8fd08389f30f6de742bf91ba3dc6fb8a0cb14d983f276b12b",
+      "tif": "/tmp/laeken-heights/dsm/148174/UrbDSM_2021_148174.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "148175",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_148175_20211009_50.zip",
+      "size_bytes": 13432411,
+      "sha256": "72f6e7b0782a426eefca08e4bc83c2a85d546afce68a34bee5be501bdbfcf1d1",
+      "tif": "/tmp/laeken-heights/dsm/148175/UrbDSM_2021_148175.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "148176",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_148176_20211009_50.zip",
+      "size_bytes": 12823590,
+      "sha256": "8a089eec6ea3209d7a933ad6a6106a99f3bf4182bb39991cca802618c513242e",
+      "tif": "/tmp/laeken-heights/dsm/148176/UrbDSM_2021_148176.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "149173",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_149173_20211009_50.zip",
+      "size_bytes": 13433620,
+      "sha256": "fe494fd4f67e2f748454114b5e0ffad512570aab2d7ac5c1d2937cc2d8d92ac8",
+      "tif": "/tmp/laeken-heights/dsm/149173/UrbDSM_2021_149173.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "149174",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_149174_20211009_50.zip",
+      "size_bytes": 13741193,
+      "sha256": "cc8dcfcf5ce737f72b6b393d11f7840d396f7dc87334850b1a169a1873f0fb61",
+      "tif": "/tmp/laeken-heights/dsm/149174/UrbDSM_2021_149174.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "149175",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_149175_20211009_50.zip",
+      "size_bytes": 13531718,
+      "sha256": "ad29bd05471732bd8641f6c54b5054151e313af40234e975121b282e0ad0ac8a",
+      "tif": "/tmp/laeken-heights/dsm/149175/UrbDSM_2021_149175.tif"
+    },
+    {
+      "kind": "dsm",
+      "tile": "149176",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DSM/DSM2021/TIFF/UrbISDSM_31370_TIFF_149176_20211009_50.zip",
+      "size_bytes": 12210737,
+      "sha256": "3f6484684b4274fb096c2c23db4b3aba97312b2ce9259b8f33f83071ac9ee42e",
+      "tif": "/tmp/laeken-heights/dsm/149176/UrbDSM_2021_149176.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "147173",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_147173_20211009_50.zip",
+      "size_bytes": 12446519,
+      "sha256": "fb9b7648e30a35a76d5d54b2946b23052f193d32c7cff602dcc7a86c3f9fdd40",
+      "tif": "/tmp/laeken-heights/dtm/147173/UrbDTM_2021_147173.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "147174",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_147174_20211009_50.zip",
+      "size_bytes": 12535749,
+      "sha256": "53efc6a18b015a5bc24d8bb7f047460b8a3b81ddf13081e7922f17070235629c",
+      "tif": "/tmp/laeken-heights/dtm/147174/UrbDTM_2021_147174.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "147175",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_147175_20211009_50.zip",
+      "size_bytes": 12618266,
+      "sha256": "7f67cd1abc627b7364177ab5f9e1300ef91df2a4171ffdd0105df13274f2b11e",
+      "tif": "/tmp/laeken-heights/dtm/147175/UrbDTM_2021_147175.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "147176",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_147176_20211009_50.zip",
+      "size_bytes": 11201536,
+      "sha256": "06d77c42a3b2fa8eaf2f326123d0738a5ece1ebe6724518a3cd5d594ce74b6d1",
+      "tif": "/tmp/laeken-heights/dtm/147176/UrbDTM_2021_147176.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "148173",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_148173_20211009_50.zip",
+      "size_bytes": 12996833,
+      "sha256": "7d92ede0154669ec81c8ab04be38f9675a6b81a263389adcc7435f3fa5b2074f",
+      "tif": "/tmp/laeken-heights/dtm/148173/UrbDTM_2021_148173.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "148174",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_148174_20211009_50.zip",
+      "size_bytes": 12939037,
+      "sha256": "dbcd46034ebf7ae14206d56d60b693d7781521021207c1251ce81da1c2c83d18",
+      "tif": "/tmp/laeken-heights/dtm/148174/UrbDTM_2021_148174.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "148175",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_148175_20211009_50.zip",
+      "size_bytes": 12888145,
+      "sha256": "de65f8c21f45b1f8359926be234135ea24b4225ebcc3b1d70b5cdfe170a9ab47",
+      "tif": "/tmp/laeken-heights/dtm/148175/UrbDTM_2021_148175.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "148176",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_148176_20211009_50.zip",
+      "size_bytes": 11945806,
+      "sha256": "b689d20567223125aea2a8fb9c720a79c42be20ca5e5e7167080a39df2fd107f",
+      "tif": "/tmp/laeken-heights/dtm/148176/UrbDTM_2021_148176.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "149173",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149173_20211009_50.zip",
+      "size_bytes": 12527258,
+      "sha256": "33d66a1dd22eaa6c5caf87e97c97603a8380f3f26efdcf19b6b5c2e0d056d452",
+      "tif": "/tmp/laeken-heights/dtm/149173/UrbDTM_2021_149173.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "149174",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149174_20211009_50.zip",
+      "size_bytes": 12954535,
+      "sha256": "c9145d93bae1a10e771ff636582bbae98adffbe55f04ca48dcae2e7347232ed8",
+      "tif": "/tmp/laeken-heights/dtm/149174/UrbDTM_2021_149174.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "149175",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149175_20211009_50.zip",
+      "size_bytes": 13118592,
+      "sha256": "1a934f53bc20e227b12f3137d71f9b09d8568a42004012da4dd7ab6f1290a089",
+      "tif": "/tmp/laeken-heights/dtm/149175/UrbDTM_2021_149175.tif"
+    },
+    {
+      "kind": "dtm",
+      "tile": "149176",
+      "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_149176_20211009_50.zip",
+      "size_bytes": 11580496,
+      "sha256": "10af8c2950af98cebdf4286ab59f5ac286cbeb56ea5703a66b6ed83f9adeb6e0",
+      "tif": "/tmp/laeken-heights/dtm/149176/UrbDTM_2021_149176.tif"
+    }
+  ],
+  "license": "CC0 for DSM, DTM and UrbIS vector source datasets per official metadata committed in this branch",
+  "notes": "This is a remote-sensing derived building surface height, not a cadastral architectural height. p75 is selected to reduce isolated tree/chimney/antenna outliers while preserving real variation. Raw p50/p85/p90 remain available for auditing/refinement."
+}

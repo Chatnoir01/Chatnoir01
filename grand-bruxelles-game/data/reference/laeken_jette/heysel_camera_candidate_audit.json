@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "view_id": "heysel_stadium_context_v1",
+  "status": "candidate_observation_levels_resolved_exact_pose_pending",
+  "policy": "This audit narrows physically/source-supported observation levels without claiming the 2007 photographer's exact sphere, window, GPS, focal length, yaw, pitch or crop.",
+  "reference_file": {
+    "url": "https://commons.wikimedia.org/wiki/File:Heysel_from_Atomium.JPG",
+    "description": "King Baudouin Stadium, Heysel, Brussels, viewed from the Atomium",
+    "author": "Oldelpaso",
+    "date": "2007-07-24",
+    "current_pixels": [494, 370],
+    "earlier_pixels": [640, 480],
+    "current_file_edit_note": "Wikimedia file history records a 2012 crop/brightness edit of the current 494x370 version.",
+    "camera_model_metadata": "1.3M CMOS Camera",
+    "published_camera_coordinates": null,
+    "published_focal_length": null,
+    "license_options": [
+      "CC BY-SA 3.0",
+      "CC BY-SA 2.5",
+      "GFDL 1.2 or later"
+    ]
+  },
+  "official_atomium_observation_context": {
+    "source_url": "https://atomium.be/atomium_panorama?lang=en",
+    "upper_sphere_panorama": {
+      "altitude_m": 92.0,
+      "view_degrees": 360,
+      "access": "lift",
+      "official_description_role": "main panorama"
+    },
+    "lateral_sphere_viewpoint": {
+      "altitude_m": 36.0,
+      "view_degrees": 150,
+      "official_description_role": "viewpoint / photographer spot",
+      "official_view_character": "city viewed through the Atomium structure"
+    }
+  },
+  "candidate_assessment": [
+    {
+      "id": "upper_panorama_92m",
+      "altitude_m": 92.0,
+      "priority": 1,
+      "status": "plausible_not_proven",
+      "reason": "The official upper-sphere panorama provides a 360-degree exterior city view. The reference is an unobstructed broad stadium/city context view, so this level is a useful first benchmark candidate, but the source does not identify the sphere."
+    },
+    {
+      "id": "lateral_viewpoint_36m",
+      "altitude_m": 36.0,
+      "priority": 2,
+      "status": "plausible_not_proven",
+      "reason": "The official lateral viewpoint is explicitly promoted as a photographer spot, but its official description says the city is viewed through the Atomium structure. The reference does not establish that this was the 2007 observation level."
+    }
+  ],
+  "hard_unknowns": [
+    "exact 2007 observation sphere and window",
+    "exact horizontal camera offset inside the sphere",
+    "source focal length",
+    "pre-2012 crop relationship to the current file",
+    "exact camera yaw and pitch"
+  ],
+  "next_evidence_gate": [
+    "resolve an authoritative King Baudouin Stadium target/centroid from UrbIS geometry",
+    "render both 92 m and 36 m candidate observation levels from the Atomium anchor without claiming either as photographer GPS",
+    "compare stadium roofline, horizon angle and Atomium-structure occlusion against the lawful reference",
+    "keep the candidate with lower gross mismatch while retaining its provisional status"
+  ]
+}

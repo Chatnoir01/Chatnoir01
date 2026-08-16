@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "engine": "Godot 4.7.1",
+  "branch": "zone-laeken-jette",
+  "tested_commit": "477430794c4ecb490ca4d4d356608c48132c022d",
+  "source_height_method": "p75 of valid per-pixel DSM-DTM heights whose pixel centres fall inside the official building footprint",
+  "source_feature_count": 9518,
+  "source_derived_height_count": 9163,
+  "source_quality_counts": {
+    "high": 7357,
+    "medium": 1136,
+    "low": 670,
+    "insufficient": 355,
+    "outside": 0
+  },
+  "source_height_min_m": 2.0669898986816406,
+  "source_height_median_m": 11.374515533447266,
+  "source_height_max_m": 51.033287048339844,
+  "godot_smoke_output": "LAEKEN_BUILDING_HEIGHTS_OK: ready_frame=1 derived=9163 fallback=355 landmark_corrected=1 holes=56 palais5_cutouts=1 roof_triangles=73040 quality={high:7357,medium:1136,low:670} height=[2.07,50.14] mesh_vertical=105.22m expo_roofs=342 expo_survivor_area=85386.31m2 forbidden_overlap=0",
+  "assertions": [
+    "DSM height replacement mesh exists and is visible",
+    "uniform-height original mesh is hidden",
+    "at least 9000 buildings use DSM-derived heights",
+    "no more than 500 buildings use the 10.5 m fallback",
+    "derived height mesh has meaningful vertical variation",
+    "validated facade/orthophoto material is bridged to DSM mesh"
+  ]
+}

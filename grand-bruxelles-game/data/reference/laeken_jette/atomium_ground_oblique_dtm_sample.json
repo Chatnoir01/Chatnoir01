@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "source_runtime": "data/terrain/laeken_jette/phase1_dtm.game.json",
+  "source_crs": "EPSG:31370",
+  "source_sha256": "51faec9dc2dc9d899af81e82ea38282adc5a90cb769ff3c47a47434dac7727f7",
+  "query_epsg31370": {
+    "e": 147928.411,
+    "n": 176347.352
+  },
+  "runtime_bounds_epsg31370": {
+    "min_e": 147302.5,
+    "max_e": 149097.5,
+    "min_n": 173652.5,
+    "max_n": 176747.5
+  },
+  "grid_fractional": {
+    "row": 80.0295999999973,
+    "col": 125.18219999999856
+  },
+  "bilinear_corners": [
+    {
+      "row": 80,
+      "col": 125,
+      "weight": 0.7935931200036045,
+      "relative_height_m": 12.3871
+    },
+    {
+      "row": 80,
+      "col": 126,
+      "weight": 0.1768068799990935,
+      "relative_height_m": 12.2574
+    },
+    {
+      "row": 81,
+      "col": 125,
+      "weight": 0.024206879997836227,
+      "relative_height_m": 12.2561
+    },
+    {
+      "row": 81,
+      "col": 126,
+      "weight": 0.005393119999465781,
+      "relative_height_m": 12.0974
+    }
+  ],
+  "atomium_baseline_absolute_elevation_m": 52.575382232666016,
+  "terrain_relative_to_atomium_m": 12.359434659520558,
+  "terrain_absolute_elevation_m": 64.93481689218657,
+  "eye_height_m": 1.7,
+  "camera_eye_absolute_elevation_m": 66.63481689218658,
+  "nearest_sample": {
+    "row": 80,
+    "col": 125,
+    "valid": true,
+    "relative_height_m": 12.3871
+  },
+  "method": "Bilinear interpolation of four valid committed 5 m UrbIS DTM runtime samples; absolute elevation reconstructed from the runtime's pinned Atomium absolute baseline. No extrapolation and no NoData substitution."
+}

@@ -31,10 +31,15 @@ func _try_bind() -> void:
     var current := get_tree().current_scene
     if current == null or not current is Node3D:
         return
-    var player := current.get_node_or_null("Player") as Node3D
+    bind_scene(current as Node3D)
+
+func bind_scene(scene: Node3D) -> void:
+    if scene == null:
+        return
+    var player := scene.get_node_or_null("Player") as Node3D
     if player == null:
         return
-    _scene = current as Node3D
+    _scene = scene
     _player = player
     _build_once()
 
@@ -111,6 +116,7 @@ func _rebuild_tree_visual(tree: StaticBody3D) -> void:
     for child_name: String in ["StreetTreeVisual", "LegacyTreeVisual"]:
         var existing := tree.get_node_or_null(child_name)
         if existing != null:
+            tree.remove_child(existing)
             existing.queue_free()
     var osm_id := int(tree.get_meta("osm_id", 0))
     if _enhanced_trees_enabled:
@@ -123,6 +129,7 @@ func _rebuild_tree_visual(tree: StaticBody3D) -> void:
     legacy.name = "LegacyTreeVisual"
     tree.add_child(legacy)
     var trunk_mesh := MeshInstance3D.new()
+    trunk_mesh.name = "Trunk"
     var cylinder := CylinderMesh.new()
     cylinder.top_radius = 0.16
     cylinder.bottom_radius = 0.21
@@ -132,6 +139,7 @@ func _rebuild_tree_visual(tree: StaticBody3D) -> void:
     trunk_mesh.position.y = 1.3
     legacy.add_child(trunk_mesh)
     var crown := MeshInstance3D.new()
+    crown.name = "Crown"
     var sphere := SphereMesh.new()
     sphere.radius = 1.45
     sphere.height = 2.9
@@ -147,7 +155,6 @@ func set_enhanced_trees_enabled(enabled: bool) -> void:
     for tree: StaticBody3D in _trees:
         if is_instance_valid(tree):
             _rebuild_tree_visual(tree)
-    await get_tree().process_frame
 
 func enhanced_trees_enabled() -> bool:
     return _enhanced_trees_enabled

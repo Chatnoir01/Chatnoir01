@@ -30,11 +30,12 @@ with tempfile.TemporaryDirectory() as td:
     already_present = "bxl-e142000-n167500-s500"
     unrelated_quarantine = "bxl-e141500-n167500-s500"
 
+    # Production candidate packages use `state`, not scheduler `status`.
     write_json(
         candidates / f"{stale}.json",
         {
             "cell_id": stale,
-            "status": "QUARANTINE",
+            "state": "QUARANTINE",
             "blockers": ["authoritative_geometry_not_ready", "invalid_building_features_present"],
             "authority": {"buildings_source_present": True},
         },
@@ -43,7 +44,7 @@ with tempfile.TemporaryDirectory() as td:
         candidates / f"{already_present}.json",
         {
             "cell_id": already_present,
-            "status": "QUARANTINE",
+            "state": "QUARANTINE",
             "blockers": ["invalid_building_features_present"],
         },
     )
@@ -52,13 +53,13 @@ with tempfile.TemporaryDirectory() as td:
         candidates / f"{unrelated_quarantine}.json",
         {
             "cell_id": unrelated_quarantine,
-            "status": "QUARANTINE",
+            "state": "QUARANTINE",
             "blockers": ["secondary_height_validation_pending"],
         },
     )
     write_json(
         candidates / f"{fresh}.json",
-        {"cell_id": fresh, "status": "READY", "blockers": []},
+        {"cell_id": fresh, "state": "READY", "blockers": []},
     )
     write_json(
         target,
@@ -81,7 +82,7 @@ with tempfile.TemporaryDirectory() as td:
 
     # Fail closed: malformed candidate identity must not be repaired.
     bad = "bxl-e142500-n167000-s500"
-    write_json(candidates / f"{bad}.json", {"cell_id": stale, "status": "QUARANTINE", "blockers": [mod.REPAIR_BLOCKER]})
+    write_json(candidates / f"{bad}.json", {"cell_id": stale, "state": "QUARANTINE", "blockers": [mod.REPAIR_BLOCKER]})
     repairs = mod.select_repairs(candidates, source, target, 4)
     assert [row["cell_id"] for row in repairs] == [stale], repairs
 

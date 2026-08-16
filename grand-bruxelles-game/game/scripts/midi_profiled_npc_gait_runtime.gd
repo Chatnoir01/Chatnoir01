@@ -16,6 +16,8 @@ var _last_positions: Dictionary = {}
 var _phases: Dictionary = {}
 var _cadence_multipliers: Dictionary = {}
 var _amplitude_multipliers: Dictionary = {}
+var _rig_cache: Dictionary = {}
+var _rig_discovery_count: int = 0
 var _tracked_pedestrians: int = 0
 var _animated_pedestrians: int = 0
 var _last_max_speed_mps: float = 0.0
@@ -34,20 +36,19 @@ func _update_profiled_gait(delta: float) -> void:
         var person := raw as Node3D
         if person == null:
             continue
-        var proxy := person.get_node_or_null("ProfiledNpcProxy") as Node3D
-        if proxy == null:
-            continue
-        var visual := proxy.get_node_or_null("VisualUpgrade") as Node3D
-        if visual == null:
-            continue
-        var left_leg := visual.get_node_or_null("LeftLeg") as Node3D
-        var right_leg := visual.get_node_or_null("RightLeg") as Node3D
-        var left_arm := visual.get_node_or_null("LeftArm") as Node3D
-        var right_arm := visual.get_node_or_null("RightArm") as Node3D
-        if left_leg == null or right_leg == null or left_arm == null or right_arm == null:
-            continue
 
         var instance_id := person.get_instance_id()
+        var rig := _rig_for_person(person, instance_id)
+        if rig.is_empty():
+            continue
+        var left_leg := rig.get("left_leg") as Node3D
+        var right_leg := rig.get("right_leg") as Node3D
+        var left_arm := rig.get("left_arm") as Node3D
+        var right_arm := rig.get("right_arm") as Node3D
+        if left_leg == null or right_leg == null or left_arm == null or right_arm == null:
+            _rig_cache.erase(instance_id)
+            continue
+
         live_ids[instance_id] = true
         tracked += 1
         var current_position := person.global_position
@@ -85,6 +86,40 @@ func _update_profiled_gait(delta: float) -> void:
     _last_max_speed_mps = max_speed
     _prune_stale(live_ids)
 
+func _rig_for_person(person: Node3D, instance_id: int) -> Dictionary:
+    var cached: Dictionary = _rig_cache.get(instance_id, {})
+    if not cached.is_empty():
+        var cached_left_leg := cached.get("left_leg") as Node3D
+        var cached_right_leg := cached.get("right_leg") as Node3D
+        var cached_left_arm := cached.get("left_arm") as Node3D
+        var cached_right_arm := cached.get("right_arm") as Node3D
+        if is_instance_valid(cached_left_leg) and is_instance_valid(cached_right_leg) and is_instance_valid(cached_left_arm) and is_instance_valid(cached_right_arm):
+            return cached
+        _rig_cache.erase(instance_id)
+
+    var proxy := person.get_node_or_null("ProfiledNpcProxy") as Node3D
+    if proxy == null:
+        return {}
+    var visual := proxy.get_node_or_null("VisualUpgrade") as Node3D
+    if visual == null:
+        return {}
+    var left_leg := visual.get_node_or_null("LeftLeg") as Node3D
+    var right_leg := visual.get_node_or_null("RightLeg") as Node3D
+    var left_arm := visual.get_node_or_null("LeftArm") as Node3D
+    var right_arm := visual.get_node_or_null("RightArm") as Node3D
+    if left_leg == null or right_leg == null or left_arm == null or right_arm == null:
+        return {}
+
+    var rig := {
+        "left_leg": left_leg,
+        "right_leg": right_leg,
+        "left_arm": left_arm,
+        "right_arm": right_arm,
+    }
+    _rig_cache[instance_id] = rig
+    _rig_discovery_count += 1
+    return rig
+
 func _cadence_multiplier_for_name(person_name: StringName) -> float:
     var bucket := posmod(String(person_name).hash(), CADENCE_BUCKETS)
     if CADENCE_BUCKETS <= 1:
@@ -110,6 +145,7 @@ func _prune_stale(live_ids: Dictionary) -> void:
             _phases.erase(key)
             _cadence_multipliers.erase(key)
             _amplitude_multipliers.erase(key)
+            _rig_cache.erase(key)
 
 func gait_stats() -> Dictionary:
     var unique_profiles: Dictionary = {}
@@ -158,4 +194,7 @@ func gait_stats() -> Dictionary:
         "amplitude_multiplier_min": amplitude_min,
         "amplitude_multiplier_max": amplitude_max,
         "amplitude_is_stable_per_pedestrian": true,
+        "rig_cache_size": _rig_cache.size(),
+        "rig_discovery_count": _rig_discovery_count,
+        "rig_cache_stable_after_warmup": true,
     }

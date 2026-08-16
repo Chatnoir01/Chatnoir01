@@ -35,6 +35,9 @@ jobs:
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
           xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/anneessens_player_visit_test.gd
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: anneessens-player-visit
-          path: grand-bruxelles-game/artifacts/qa/anneessens_visit/*.png
+          path: |
+            grand-bruxelles-game/artifacts/qa/anneessens_visit/*.png
+            grand-bruxelles-game/artifacts/qa/anneessens_visit/*.gbreport.json

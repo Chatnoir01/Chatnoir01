@@ -119,7 +119,7 @@ def classify_cell(cell_id: str, source_root: Path, maturity_root: Path) -> tuple
 def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
     priority = {"MISSING_SOURCE": 0, "DISCOVERED": 1, "DATA_READY": 2}
     candidates = [cell for cell in cells if cell["state"] not in TERMINAL]
-    candidates.sort(key=lambda cell: (priority.get(cell["state"], 99), cell["cell_id"]))
+    candidates.sort(key=lambda cell: (priority.get(cell["state"], 99), int(cell.get("attempts", 0)), cell["cell_id"]))
     return [cell["cell_id"] for cell in candidates[:batch_size]]
 
 
@@ -181,6 +181,7 @@ def run(
             "runtime_promotion": "forbidden_without_all_required_gates",
             "uncertain_evidence": "quarantine_or_keep_pending_never_guess",
             "missing_source_priority": "materialize_before_candidate_processing",
+            "equal_state_rotation": "least_attempts_then_cell_id",
         },
     }
 

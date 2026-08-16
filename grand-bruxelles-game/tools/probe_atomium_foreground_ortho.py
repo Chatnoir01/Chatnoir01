@@ -22,10 +22,14 @@ from PIL import Image, ImageDraw
 SERVICE = "https://geoservices-grid.irisnet.be/geoserver/urbisgrid/ows"
 LAYER = "Ortho"
 CRS = "EPSG:31370"
-BBOX = [147860.0, 176290.0, 148160.0, 176670.0]
+# Corrected crop: the Commons camera is north of the Atomium. Project Z points
+# south, so increasing local Z means decreasing EPSG:31370 northing.
+BBOX = [147860.0, 176020.0, 148160.0, 176400.0]
 WMS_SIZE = [1500, 1900]
 CAMERA = [147928.4114, 176347.3521]
-ATOMIUM = [148093.2204, 176602.9369]
+# Existing project Atomium anchor mapped from the canonical local delta:
+# delta X = +164.809 m, delta Z = +255.585 m => delta northing = -255.585 m.
+ATOMIUM = [148093.2204, 176091.7673]
 OUT_DIR = Path("artifacts/qa/atomium_foreground_ortho")
 
 # Immutable historical evidence copy of the official phase-1 2024 orthophoto.
@@ -90,6 +94,14 @@ def _pixel_for(e: float, n: float, width: int, height: int) -> tuple[int, int]:
 
 
 def main() -> int:
+    # Hard regression guard for the project coordinate contract X=east, Z=south.
+    if not CAMERA[1] > ATOMIUM[1] or CAMERA[1] - ATOMIUM[1] < 200.0:
+        raise RuntimeError("Atomium northing sign regression: Commons camera must remain north of target")
+    if not (BBOX[0] <= CAMERA[0] <= BBOX[2] and BBOX[1] <= CAMERA[1] <= BBOX[3]):
+        raise RuntimeError("camera marker outside requested crop")
+    if not (BBOX[0] <= ATOMIUM[0] <= BBOX[2] and BBOX[1] <= ATOMIUM[1] <= BBOX[3]):
+        raise RuntimeError("Atomium marker outside requested crop")
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     source_mode = "official_wms_live"
     source_sha = ""
@@ -134,17 +146,19 @@ def main() -> int:
         (BBOX[3] - BBOX[1]) / height,
     ]
     report = {
-        "schema": 2,
+        "schema": 3,
         "purpose": "inspection-only official orthophoto crop; no fountain geometry inferred",
         "source": "Paradigm / Brussels-Capital Region UrbIS raster orthophoto",
         "source_mode": source_mode,
         "layer": LAYER,
         "crs": CRS,
+        "coordinate_contract": "project X=east, Z=south; therefore delta northing = -delta Z",
         "bbox_epsg31370": BBOX,
         "raster_size_px": [width, height],
         "ground_resolution_m_per_px": resolution,
         "camera_epsg31370": CAMERA,
         "atomium_audit_marker_epsg31370": ATOMIUM,
+        "camera_north_of_atomium_m": CAMERA[1] - ATOMIUM[1],
         "camera_pixel": list(camera_px),
         "atomium_pixel": list(atomium_px),
         "source_response_sha256": source_sha,
@@ -167,6 +181,7 @@ def main() -> int:
         "ATOMIUM_FOREGROUND_ORTHO_PROBE_OK: "
         f"mode={source_mode} source_sha256={source_sha} source_bytes={source_bytes} "
         f"crop={width}x{height} camera_px={camera_px} atomium_px={atomium_px} "
+        f"camera_north_m={report['camera_north_of_atomium_m']:.3f} "
         f"resolution_m_px={resolution[0]:.3f}x{resolution[1]:.3f}"
     )
     return 0

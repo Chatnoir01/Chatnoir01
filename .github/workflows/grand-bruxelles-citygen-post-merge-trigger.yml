@@ -38,22 +38,18 @@ jobs:
       - name: Validate immediate fresh-main dispatch contract
         run: python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen_main_push_trigger.py
 
-  dispatch-autonomous-pass:
+  dispatch-repair-first-pass:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Dispatch Autonomous CityGen and stale quarantine repair on exact live main
+      - name: Dispatch serialized stale quarantine repair on exact live main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh workflow run grand-bruxelles-autonomous-citygen.yml \
-            --repo "${{ github.repository }}" \
-            --ref main \
-            -f batch_size=4
           gh workflow run grand-bruxelles-citygen-stale-quarantine-repair.yml \
             --repo "${{ github.repository }}" \
             --ref main \
             -f limit=4
-          echo "CITYGEN_POST_MERGE_DISPATCH_OK sha=${{ github.sha }} autonomous=true stale_repair=true"
+          echo "CITYGEN_POST_MERGE_DISPATCH_OK sha=${{ github.sha }} stale_repair=true autonomous=deferred_until_repair_success"

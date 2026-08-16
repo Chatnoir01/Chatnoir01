@@ -142,6 +142,21 @@ func _run() -> void:
         _fail("visual movement-facing changed gameplay body yaw")
         return
 
+    # Stopping after lateral/backward travel must preserve the last facing direction instead of visibly swivelling to body-forward while idle.
+    actor.velocity = Vector3.ZERO
+    for _step in range(8):
+        runtime.update_from_speed(0.10)
+    var idle_hold_offset := float(runtime.call("current_visual_facing_offset_radians"))
+    if absf(angle_difference(idle_hold_offset, strafe_offset)) > deg_to_rad(5.0):
+        _fail("authored mesh rotates back toward body-forward while idle after strafe: strafe=%.2f idle=%.2f deg" % [rad_to_deg(strafe_offset), rad_to_deg(idle_hold_offset)])
+        return
+    if runtime.current_animation() != idle_name:
+        _fail("stopping after strafe did not select idle animation")
+        return
+    if absf(actor.rotation.y - gameplay_yaw_before) > 0.0001:
+        _fail("idle facing retention changed gameplay body yaw")
+        return
+
     actor.velocity = Vector3(0.0, 0.0, -3.0)
     for _step in range(8):
         runtime.update_from_speed(0.10)
@@ -150,5 +165,5 @@ func _run() -> void:
         _fail("authored mesh did not return to forward travel facing: offset=%.2f deg" % rad_to_deg(forward_offset))
         return
 
-    print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s walk_scale=%.3f/%.3f/%.3f run_scale=%.3f strafe_facing=%.1fdeg" % [idle_name, walk_name, run_name, walk_scale_slow, walk_scale_reference, walk_scale_fast, runtime.current_playback_speed_scale(), rad_to_deg(strafe_offset)])
+    print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s walk_scale=%.3f/%.3f/%.3f run_scale=%.3f strafe_facing=%.1fdeg idle_hold=%.1fdeg" % [idle_name, walk_name, run_name, walk_scale_slow, walk_scale_reference, walk_scale_fast, runtime.current_playback_speed_scale(), rad_to_deg(strafe_offset), rad_to_deg(idle_hold_offset)])
     quit(0)

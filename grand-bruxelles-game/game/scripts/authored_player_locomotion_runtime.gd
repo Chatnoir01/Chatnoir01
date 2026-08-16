@@ -75,6 +75,7 @@ func bind_target(player: CharacterBody3D, visual: Node) -> bool:
     set_meta("authored_locomotion_hysteresis", true)
     set_meta("authored_locomotion_speed_sync", true)
     set_meta("authored_locomotion_velocity_facing", true)
+    set_meta("authored_locomotion_idle_facing_hold", true)
     update_from_speed()
     return true
 
@@ -95,6 +96,7 @@ func _clear_binding() -> void:
     remove_meta("authored_locomotion_hysteresis")
     remove_meta("authored_locomotion_speed_sync")
     remove_meta("authored_locomotion_velocity_facing")
+    remove_meta("authored_locomotion_idle_facing_hold")
 
 func _find_animation_player(node: Node) -> AnimationPlayer:
     if node is AnimationPlayer:
@@ -180,7 +182,8 @@ func _update_visual_facing(delta: float) -> void:
     if not is_instance_valid(_player) or not is_instance_valid(_authored_character):
         return
     var horizontal_velocity := Vector3(_player.velocity.x, 0.0, _player.velocity.z)
-    var target_offset := 0.0
+    # No new travel direction means no new facing target. Keeping the last valid offset avoids an idle-only swivel back to gameplay body-forward.
+    var target_offset := _current_visual_facing_offset
     if horizontal_velocity.length() >= VISUAL_FACING_MIN_SPEED_MPS:
         var local_velocity := _player.global_transform.basis.inverse() * horizontal_velocity.normalized()
         target_offset = atan2(-local_velocity.x, -local_velocity.z)

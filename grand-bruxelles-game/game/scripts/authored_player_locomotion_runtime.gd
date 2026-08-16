@@ -11,23 +11,28 @@ const WALK_PLAYBACK_MAX := 1.50
 const RUN_PLAYBACK_MIN := 0.82
 const RUN_PLAYBACK_MAX := 1.24
 const LOCOMOTION_BLEND_SECONDS := 0.12
+const VISUAL_FACING_MIN_SPEED_MPS := 0.20
+const VISUAL_FACING_TURN_SPEED_RAD_PER_S := deg_to_rad(540.0)
 const REJECT_ACTION_TOKENS: Array[String] = ["attack", "combat", "melee", "sword", "staff", "bow", "gun", "shoot", "hit", "hurt", "death", "jump"]
 
 var _player: CharacterBody3D
 var _visual: Node
+var _authored_character: Node3D
+var _authored_base_yaw: float = 0.0
 var _animation_player: AnimationPlayer
 var _locomotion: Dictionary = {"idle": "", "walk": "", "run": ""}
 var _current_animation: String = ""
 var _current_state: String = "idle"
 var _current_playback_speed_scale: float = 1.0
+var _current_visual_facing_offset: float = 0.0
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
     if not _ensure_bound():
         return
-    update_from_speed()
+    update_from_speed(delta)
 
 func _ensure_bound() -> bool:
-    if is_instance_valid(_player) and is_instance_valid(_visual) and is_instance_valid(_animation_player):
+    if is_instance_valid(_player) and is_instance_valid(_visual) and is_instance_valid(_animation_player) and is_instance_valid(_authored_character):
         return true
     var scene := get_tree().current_scene
     if scene == null:
@@ -46,6 +51,9 @@ func bind_target(player: CharacterBody3D, visual: Node) -> bool:
         return false
     if not visual.has_method("is_using_authored_character") or not bool(visual.call("is_using_authored_character")):
         return false
+    var authored_character := visual.get_node_or_null("AuthoredCharacter") as Node3D
+    if authored_character == null:
+        return false
     var animation_player := _find_animation_player(visual)
     if animation_player == null:
         return false
@@ -55,6 +63,8 @@ func bind_target(player: CharacterBody3D, visual: Node) -> bool:
         return false
     _player = player
     _visual = visual
+    _authored_character = authored_character
+    _authored_base_yaw = authored_character.rotation.y
     _animation_player = animation_player
     _locomotion = resolved
     _configure_locomotion_loops()
@@ -64,20 +74,27 @@ func bind_target(player: CharacterBody3D, visual: Node) -> bool:
     set_meta("authored_locomotion_run", String(_locomotion["run"]))
     set_meta("authored_locomotion_hysteresis", true)
     set_meta("authored_locomotion_speed_sync", true)
+    set_meta("authored_locomotion_velocity_facing", true)
     update_from_speed()
     return true
 
 func _clear_binding() -> void:
+    if is_instance_valid(_authored_character):
+        _authored_character.rotation.y = _authored_base_yaw
     _player = null
     _visual = null
+    _authored_character = null
+    _authored_base_yaw = 0.0
     _animation_player = null
     _locomotion = {"idle": "", "walk": "", "run": ""}
     _current_animation = ""
     _current_state = "idle"
     _current_playback_speed_scale = 1.0
+    _current_visual_facing_offset = 0.0
     remove_meta("authored_locomotion_ready")
     remove_meta("authored_locomotion_hysteresis")
     remove_meta("authored_locomotion_speed_sync")
+    remove_meta("authored_locomotion_velocity_facing")
 
 func _find_animation_player(node: Node) -> AnimationPlayer:
     if node is AnimationPlayer:
@@ -159,7 +176,19 @@ func _playback_scale_for_state(state: String, speed: float) -> float:
         _:
             return 1.0
 
-func update_from_speed() -> void:
+func _update_visual_facing(delta: float) -> void:
+    if not is_instance_valid(_player) or not is_instance_valid(_authored_character):
+        return
+    var horizontal_velocity := Vector3(_player.velocity.x, 0.0, _player.velocity.z)
+    var target_offset := 0.0
+    if horizontal_velocity.length() >= VISUAL_FACING_MIN_SPEED_MPS:
+        var local_velocity := _player.global_transform.basis.inverse() * horizontal_velocity.normalized()
+        target_offset = atan2(-local_velocity.x, -local_velocity.z)
+    var max_step := VISUAL_FACING_TURN_SPEED_RAD_PER_S * maxf(delta, 0.0)
+    _current_visual_facing_offset = rotate_toward(_current_visual_facing_offset, target_offset, max_step)
+    _authored_character.rotation.y = _authored_base_yaw + _current_visual_facing_offset
+
+func update_from_speed(delta: float = 1.0 / 60.0) -> void:
     if not is_instance_valid(_player) or not is_instance_valid(_animation_player):
         return
     var speed := Vector2(_player.velocity.x, _player.velocity.z).length()
@@ -176,6 +205,7 @@ func update_from_speed() -> void:
         _animation_player.play(target, LOCOMOTION_BLEND_SECONDS)
         _current_animation = target
     _current_state = target_state
+    _update_visual_facing(delta)
 
 func resolved_locomotion_animations() -> Dictionary:
     return _locomotion.duplicate(true)
@@ -188,6 +218,9 @@ func current_locomotion_state() -> String:
 
 func current_playback_speed_scale() -> float:
     return _current_playback_speed_scale
+
+func current_visual_facing_offset_radians() -> float:
+    return _current_visual_facing_offset
 
 func bound_animation_player() -> AnimationPlayer:
     return _animation_player

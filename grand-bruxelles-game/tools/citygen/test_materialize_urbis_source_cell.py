@@ -41,10 +41,15 @@ with tempfile.TemporaryDirectory() as tmp:
     assert maturity["geometry"]["authoritative_geometry_ready"] is True
     assert maturity["maturity"]["state"] == "data_ready"
     assert maturity["maturity"]["gates"]["source_requirements"] is True
+    assert maturity["maturity"]["gates"]["crs"] is True
+    assert maturity["crs_evidence"]["status"] == "validated"
+    assert maturity["crs_evidence"]["source_crs"] == "EPSG:31370"
+    assert maturity["crs_evidence"]["bbox"] == list(bbox)
+    assert maturity["crs_evidence"]["gate_ready"] is True
     assert all(
         value is False
         for gate, value in maturity["maturity"]["gates"].items()
-        if gate != "source_requirements"
+        if gate not in {"source_requirements", "crs"}
     )
     assert maturity["source_requirements"]["complete"] is True
     assert maturity["source_requirements"]["gate_ready"] is True
@@ -60,4 +65,4 @@ with tempfile.TemporaryDirectory() as tmp:
 
 subprocess.run([sys.executable, str(HERE / "test_materialize_urbis_source_cell_multipolygon.py")], check=True)
 
-print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true multipolygon=true maturity_sidecar=true source_requirements=true fail_closed=true")
+print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true multipolygon=true maturity_sidecar=true source_requirements=true crs=true fail_closed=true")

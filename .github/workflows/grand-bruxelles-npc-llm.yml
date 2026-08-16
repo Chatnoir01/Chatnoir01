@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/npc_llm_*.gd"
       - "grand-bruxelles-game/game/tests/npc_dialogue_*.gd"
       - "grand-bruxelles-game/game/tests/npc_llm_*.gd"
+      - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/config/npc_llm_model.json"
       - "grand-bruxelles-game/tools/download_npc_llm.py"
       - "grand-bruxelles-game/tools/run_npc_llm.sh"
@@ -69,6 +70,18 @@ jobs:
             --script res://game/tests/npc_llm_offline_test.gd 2>&1 | tee /tmp/npc-llm-offline.log
           grep -q "NPC_LLM_OFFLINE_OK" /tmp/npc-llm-offline.log
 
+      - name: Playable dialogue runtime test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/npc_dialogue_runtime_test.gd 2>&1 | tee /tmp/npc-dialogue-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_DIALOGUE_RUNTIME_FAIL" /tmp/npc-dialogue-runtime.log; then
+            exit 1
+          fi
+          grep -q "NPC_DIALOGUE_RUNTIME_OK" /tmp/npc-dialogue-runtime.log
+
       - name: Download pinned Qwen model
         working-directory: grand-bruxelles-game
         run: |
@@ -116,6 +129,21 @@ jobs:
             exit 1
           fi
           grep -q "NPC_LLM_LIVE_OK" /tmp/npc-llm-live.log
+
+      - name: Real Qwen through playable runtime
+        env:
+          GB_NPC_LLM_ENDPOINT: http://127.0.0.1:8089/v1/chat/completions
+          GB_NPC_LLM_MODEL: grand-bruxelles-npc-qwen
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/npc_dialogue_runtime_live_test.gd 2>&1 | tee /tmp/npc-dialogue-runtime-live.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_DIALOGUE_RUNTIME_LIVE_FAIL" /tmp/npc-dialogue-runtime-live.log; then
+            exit 1
+          fi
+          grep -q "NPC_DIALOGUE_RUNTIME_LIVE_OK" /tmp/npc-dialogue-runtime-live.log
 
       - name: Server diagnostics on failure
         if: failure()

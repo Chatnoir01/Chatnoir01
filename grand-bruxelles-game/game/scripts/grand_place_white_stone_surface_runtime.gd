@@ -81,9 +81,11 @@ func _try_apply_all() -> bool:
         var building_id := str(target.get("building_id", ""))
         if _read_identity(identity_path, building_id).is_empty():
             return false
+        var cool: Color = target.get("cool", Color.WHITE)
+        var warm: Color = target.get("warm", Color.WHITE)
         var material := MATERIAL_FACTORY.create(
-            target.get("cool", Color.WHITE) as Color,
-            target.get("warm", Color.WHITE) as Color,
+            cool,
+            warm,
             float(target.get("roughness", 0.8)),
             identity_path
         )

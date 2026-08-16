@@ -151,7 +151,15 @@ def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
     return [cell["cell_id"] for cell in candidates[:batch_size]]
 
 
-def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_dir: Path, batch_size: int, target_grid_path: Path | None = None) -> dict[str, Any]:
+def run(
+    source_root: Path,
+    maturity_root: Path,
+    state_path: Path | None,
+    output_dir: Path,
+    batch_size: int,
+    target_grid_path: Path | None = None,
+    refresh_only: bool = False,
+) -> dict[str, Any]:
     previous = load_state(state_path)
     source_cells = discover_cells(source_root)
     source_set = set(source_cells)
@@ -184,12 +192,14 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
             row["municipalities"] = target_row["municipalities"]
         cells.append(row)
         counts[state] = counts.get(state, 0) + 1
-    batch = select_batch(cells, batch_size)
+
+    batch = [] if refresh_only else select_batch(cells, batch_size)
     batch_set = set(batch)
-    for cell in cells:
-        if cell["cell_id"] in batch_set:
-            cell["attempts"] += 1
-    run_number = int(previous.get("run_number", 0)) + 1
+    if not refresh_only:
+        for cell in cells:
+            if cell["cell_id"] in batch_set:
+                cell["attempts"] += 1
+    run_number = int(previous.get("run_number", 0)) if refresh_only else int(previous.get("run_number", 0)) + 1
     report = {
         "format": FORMAT,
         "run_number": run_number,
@@ -197,6 +207,7 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
         "target_cell_count": len(target) if target else len(source_cells),
         "counts": dict(sorted(counts.items())),
         "selected_batch": batch,
+        "refresh_only": refresh_only,
         "cells": cells,
         "policy": {
             "crs": "EPSG:31370",
@@ -206,6 +217,7 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
             "missing_source_priority": "expand_only_after_existing_source_cells_reach_their_current_autonomous_frontier",
             "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_materializing_more_source_cells",
             "manual_frontier": "exclude_from_autonomous_batches_until_secondary_height_and_terrain_runtime_checks_are_implemented",
+            "refresh_only": "recompute durable classification_and_evidence_progress_without_new_attempts_or_batch_selection",
         },
     }
     state = {
@@ -225,7 +237,8 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
     (output_dir / "autonomous_citygen_report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_dir / "autonomous_citygen_state.json").write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_dir / "worklist.txt").write_text("".join(f"{cell_id}\n" for cell_id in batch), encoding="utf-8")
-    print(f"AUTONOMOUS_CITYGEN_OK run={run_number} source_cells={len(source_cells)} target_cells={report['target_cell_count']} selected={len(batch)} counts={report['counts']}")
+    mode = "refresh" if refresh_only else "schedule"
+    print(f"AUTONOMOUS_CITYGEN_OK mode={mode} run={run_number} source_cells={len(source_cells)} target_cells={report['target_cell_count']} selected={len(batch)} counts={report['counts']}")
     return report
 
 
@@ -237,10 +250,23 @@ def main() -> None:
     parser.add_argument("--target-grid", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument(
+        "--refresh-only",
+        action="store_true",
+        help="recompute classification/evidence progress without incrementing scheduler run or attempts",
+    )
     args = parser.parse_args()
     if args.batch_size < 1 or args.batch_size > 32:
         raise SystemExit("batch size must be between 1 and 32")
-    run(args.source_root, args.maturity_root, args.state, args.output_dir, args.batch_size, args.target_grid)
+    run(
+        args.source_root,
+        args.maturity_root,
+        args.state,
+        args.output_dir,
+        args.batch_size,
+        args.target_grid,
+        refresh_only=args.refresh_only,
+    )
 
 
 if __name__ == "__main__":

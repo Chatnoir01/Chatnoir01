@@ -29,6 +29,7 @@ const BOURSE_CENTER := Vector3(114.0, 0.18, -722.0)
 @export var bourse_civilian_count: int = 6
 @export var bourse_police_count: int = 2
 @export var zone_activation_radius_m: float = 155.0
+@export var hud_population_radius_m: float = 240.0
 @export var dangerous_vehicle_speed_mps: float = 8.5
 @export var dangerous_near_miss_radius_m: float = 4.2
 @export var incident_crowd_radius_m: float = 28.0
@@ -220,9 +221,6 @@ func _spawn_behavior_agent(role_value: int, seed_value: int, spawn_position: Vec
     if role_value == NpcBehaviorModel.Role.POLICE:
         visual.set("force_police_uniform", true)
     else:
-        # humanoid_visual's civilian authored origin is centered around the player
-        # capsule; this local lift makes it ground-based on NpcAgent without
-        # changing the shared visual implementation.
         visual.position.y = 0.90
     agent.add_child(visual)
 
@@ -500,21 +498,40 @@ func _build_hud() -> void:
     _hud_label.add_theme_constant_override("shadow_offset_y", 2)
     _hud_panel.add_child(_hud_label)
 
+func _is_visible_local(node: Node3D) -> bool:
+    if not is_instance_valid(node) or not node.is_visible_in_tree():
+        return false
+    return node.global_position.distance_to(_active_player_position()) <= hud_population_radius_m
+
+func _visible_local_ambient_civilians() -> int:
+    var count := 0
+    for candidate: Node in get_tree().get_nodes_in_group("ambient_pedestrian"):
+        if candidate is Node3D and _is_visible_local(candidate as Node3D):
+            count += 1
+    return count
+
+func _visible_local_behavior_civilians() -> int:
+    var count := 0
+    for civilian: NpcAgent in _civilians:
+        if is_instance_valid(civilian) and civilian.active and _is_visible_local(civilian):
+            count += 1
+    return count
+
+func _visible_local_police() -> int:
+    var count := 0
+    for officer: NpcAgent in _police:
+        if is_instance_valid(officer) and officer.active and _is_visible_local(officer):
+            count += 1
+    return count
+
 func _update_status_hud() -> void:
     if not is_instance_valid(_hud_label):
         return
     if not _status_text.is_empty():
         _hud_label.text = _status_text
         return
-    var active_civilians := 0
-    var active_police := 0
-    for civilian: NpcAgent in _civilians:
-        if is_instance_valid(civilian) and civilian.active:
-            active_civilians += 1
-    for officer: NpcAgent in _police:
-        if is_instance_valid(officer) and officer.active:
-            active_police += 1
-    _hud_label.text = "VILLE VIVANTE · %d civils actifs · %d policiers" % [active_civilians, active_police]
+    var counts := visible_population_counts()
+    _hud_label.text = "VILLE VIVANTE · %d civils actifs · %d policiers" % [int(counts.get("civilians", 0)), int(counts.get("police", 0))]
 
 func _set_status(text_value: String) -> void:
     _status_text = text_value
@@ -527,14 +544,8 @@ func status_text_for_test() -> String:
     return _status_text
 
 func visible_population_counts() -> Dictionary:
-    var civilian_count := 0
-    var police_count := 0
-    for civilian: NpcAgent in _civilians:
-        if is_instance_valid(civilian):
-            civilian_count += 1
-    for officer: NpcAgent in _police:
-        if is_instance_valid(officer):
-            police_count += 1
+    var civilian_count := _visible_local_ambient_civilians() + _visible_local_behavior_civilians()
+    var police_count := _visible_local_police()
     return {
         "civilians": civilian_count,
         "police": police_count,

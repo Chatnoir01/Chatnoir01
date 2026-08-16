@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Bootstrap a fail-closed maturity manifest from one authoritative CityGen source cell.
 
-Only evidence already present in the source cell is promoted. Runtime, collisions,
-streaming, terrain, heights, photo-match and performance remain false until their
-independent gates produce proof. The output is deterministic and safe to persist on
-the autonomous state branch; it never mutates Godot runtime data.
+Only evidence already present in the source cell is promoted. Production maturity is
+intentionally broader than runtime geometry: a Region-scale cell also needs source,
+CRS, material/facade/clutter, mobility, verification, licensing and scalability proof.
+The output is deterministic and safe to persist on the autonomous state branch; it
+never mutates Godot runtime data.
 """
 from __future__ import annotations
 
@@ -16,7 +17,29 @@ from typing import Any
 
 FORMAT = "grand-bruxelles-cell-maturity-v1"
 CRS = "EPSG:31370"
-GATES = ("runtime_geometry", "collisions", "streaming", "terrain", "heights", "photo_match", "performance")
+# Single source of truth for Region-scale maturity. Existing gates are preserved for
+# backward-compatible manifests; missing additive gates fail closed in the scheduler.
+# `clutter` may be satisfied by the standard baseline or an explicit deferral;
+# `mobility` by branchable traffic/pedestrian data or an explicit absence rationale;
+# `region_scalable` means no hero-only hardcode blocks reuse/streaming elsewhere.
+GATES = (
+    "source_requirements",
+    "crs",
+    "runtime_geometry",
+    "collisions",
+    "streaming",
+    "terrain",
+    "heights",
+    "materials",
+    "facade",
+    "clutter",
+    "mobility",
+    "verification",
+    "license",
+    "region_scalable",
+    "photo_match",
+    "performance",
+)
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -65,11 +88,20 @@ def build(cell_dir: Path) -> dict[str, Any]:
     invalid_ownership = int(building_layer.get("invalid_ownership_features", 0) or 0)
     authoritative_ready = invalid_ownership == 0
     uncertainties = [
+        "full source requirements (UrbIS/OSM/DTM as applicable) not proven",
+        "independent CRS maturity evidence not persisted",
         "runtime geometry not generated or validated",
         "collision quality not validated",
         "streaming behavior not validated",
         "terrain evidence not acquired",
         "building height evidence not acquired",
+        "shared materials not validated",
+        "player-facing facade treatment not validated",
+        "clutter baseline or explicit deferral not validated",
+        "traffic/pedestrian branchability or absence rationale not validated",
+        "automated test or deterministic witness not attached",
+        "asset/source licensing not validated for this cell",
+        "hero-independent regional scalability not validated",
         "photo-match not evaluated for this cell",
         "streamed-cell performance not measured",
     ]

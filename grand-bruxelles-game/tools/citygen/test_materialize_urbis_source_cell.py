@@ -19,22 +19,26 @@ with tempfile.TemporaryDirectory() as tmp:
     cell_id = "bxl-e149000-n169000-s500"
     bbox = (149000.0, 169000.0, 149500.0, 169500.0)
     keep = building("keep", [[149100,169100],[149200,169100],[149200,169200],[149100,169200],[149100,169100]])
-    # Returned by bbox because it touches the cell, but its centroid belongs to the east neighbour.
     neighbour = building("neighbour", [[149490,169100],[149610,169100],[149610,169200],[149490,169200],[149490,169100]])
     calls = []
     def fake_fetch(request_bbox):
         calls.append(request_bbox)
         return {"type":"FeatureCollection","features":[neighbour, keep]}
 
-    manifest = mod.materialize(cell_id, bbox, root / cell_id, fake_fetch)
+    cell_dir = root / cell_id
+    manifest = mod.materialize(cell_id, bbox, cell_dir, fake_fetch)
     assert calls == [bbox]
     assert manifest["cell_id"] == cell_id
     assert manifest["crs"] == "EPSG:31370"
     assert manifest["layers"]["buildings"]["features"] == 1
     assert manifest["layers"]["buildings"]["ownership_filtered"] == 1
-    saved = json.loads((root / cell_id / "raw" / "buildings.geojson").read_text())
+    saved = json.loads((cell_dir / "raw" / "buildings.geojson").read_text())
     assert [f["properties"]["INSPIRE_ID"] for f in saved["features"]] == ["keep"]
-    assert saved["grand_bruxelles_source"]["cell_id"] == cell_id
+    maturity = json.loads((cell_dir / "maturity.json").read_text())
+    assert maturity["cell_id"] == cell_id
+    assert maturity["geometry"]["authoritative_geometry_ready"] is True
+    assert maturity["maturity"]["state"] == "data_ready"
+    assert all(value is False for value in maturity["maturity"]["gates"].values())
     assert manifest["source_digest"] == mod.digest({k:v for k,v in manifest.items() if k != "source_digest"})
 
     try:
@@ -44,4 +48,4 @@ with tempfile.TemporaryDirectory() as tmp:
     else:
         raise AssertionError("degree-like bbox must fail closed")
 
-print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true fail_closed=true")
+print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true maturity_sidecar=true fail_closed=true")

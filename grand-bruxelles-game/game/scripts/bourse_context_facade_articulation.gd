@@ -19,7 +19,7 @@ func _build() -> void:
     if generated == null: await get_tree().process_frame; generated = city.get_node_or_null("GeneratedBuildings")
     if generated == null: push_error("Bourse context facade: GeneratedBuildings missing"); return
     var path := str(city.get("data_path"))
-    var parsed := JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
     if typeof(parsed) != TYPE_DICTIONARY: push_error("Bourse context facade: invalid source"); return
 
     var rendered := {}

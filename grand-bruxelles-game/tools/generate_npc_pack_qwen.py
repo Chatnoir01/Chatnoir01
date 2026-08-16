@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Generate a complete NPC pack draft with the pinned local Qwen model, then bake it.
+"""Generate a complete NPC profile with the pinned local Qwen model, then bake it.
 
-Weights remain outside Git. This command requires the model downloaded by
-`tools/download_npc_llm.py`. Qwen authors the persona summary, thresholds and 20
-lines; `bake_npc_pack.py` remains the mandatory authority boundary before runtime.
+The game owns the schema. Qwen only authors bounded content fields: persona text,
+three thresholds and twenty short dialogue lines. The resulting draft must still
+pass `bake_npc_pack.py` before it can become runtime data.
 """
 from __future__ import annotations
 
 import argparse
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,14 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER_PATH = ROOT / "tools" / "npc_llm_server.py"
 BAKER_PATH = ROOT / "tools" / "bake_npc_pack.py"
 MANIFEST_PATH = ROOT / "data" / "ai" / "npc_llm_model.json"
+INTENTS = ("greeting", "smalltalk", "warning", "hurt", "police")
+FORBIDDEN = ("ia", "intelligence artificielle", "modèle", "modele", "prompt", "assistant")
+LINE_PREFIX_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)-])\s*")
+THRESHOLD_RE = re.compile(r"\b(fear|aggression|flee_health)\s*[:=]\s*(0(?:\.\d+)?|1(?:\.0+)?)\b", re.IGNORECASE)
+
+
+class GenerationError(ValueError):
+    pass
 
 
 def _load_module(name: str, path: Path):
@@ -33,89 +42,100 @@ SERVER = _load_module("npc_llm_server_for_pack", SERVER_PATH)
 BAKER = _load_module("bake_npc_pack_for_qwen", BAKER_PATH)
 
 
-def build_prompt(profile_id: str, zone: str, archetype: str, locale: str) -> str:
-    return f"""Tu crées UN habitant crédible de Bruxelles pour un jeu vidéo.
-Zone: {zone}
-Archetype: {archetype}
-Locale: {locale}
-Identifiant imposé: {profile_id}
-
-Retourne uniquement un objet JSON, sans markdown ni commentaire, avec cette forme exacte:
-{{
-  "profiles": [{{
-    "id": "{profile_id}",
-    "zone": "{zone}",
-    "locale": "{locale}",
-    "archetype": "{archetype}",
-    "persona": {{"name": "prénom crédible", "summary": "une phrase courte"}},
-    "thresholds": {{"fear": 0.0, "aggression": 0.0, "flee_health": 0.0}},
-    "dialogue": {{
-      "greeting": [4 phrases],
-      "smalltalk": [4 phrases],
-      "warning": [4 phrases],
-      "hurt": [4 phrases],
-      "police": [4 phrases]
-    }}
-  }}]
-}}
-
-Contraintes:
-- exactement 20 phrases, toutes différentes, courtes, naturelles, en français belge courant;
-- aucune mention d'IA, modèle ou prompt;
-- seuils entre 0 et 1 cohérents avec l'archétype;
-- aucune action de jeu, aucun code, aucune instruction technique;
-- persona bruxelloise crédible, sans caricature.
-"""
+def _clean_text(value: str, limit: int = 180) -> str:
+    value = value.strip().strip('"').strip("'").strip()
+    value = " ".join(value.split())
+    if not value or len(value) > limit:
+        return ""
+    lowered = value.casefold()
+    if any(token in lowered for token in FORBIDDEN):
+        return ""
+    return value
 
 
-def extract_json_object(text: str) -> dict[str, Any]:
-    candidate = text.strip()
-    if candidate.startswith("```"):
-        lines = candidate.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        candidate = "\n".join(lines).strip()
-    start = candidate.find("{")
-    end = candidate.rfind("}")
-    if start < 0 or end <= start:
-        raise BAKER.BakeError("Qwen output contains no JSON object")
-    parsed = json.loads(candidate[start : end + 1])
-    if not isinstance(parsed, dict):
-        raise BAKER.BakeError("Qwen JSON root must be an object")
-    return parsed
+def parse_persona_output(raw: str) -> dict[str, str]:
+    name = ""
+    summary = ""
+    for source_line in raw.replace("\r", "").splitlines():
+        line = source_line.strip()
+        lowered = line.casefold()
+        if lowered.startswith(("name:", "prénom:", "prenom:")):
+            name = _clean_text(line.split(":", 1)[1], 80)
+        elif lowered.startswith(("summary:", "résumé:", "resume:")):
+            summary = _clean_text(line.split(":", 1)[1], 240)
+    if not name or not summary:
+        raise GenerationError("persona output must contain name and summary")
+    return {"name": name, "summary": summary}
 
 
-def attach_generator_metadata(draft: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
-    result = json.loads(json.dumps(draft, ensure_ascii=False))
-    result["generator"] = {
-        "provider": "local_qwen",
-        "model": str(manifest["repo_id"]),
-        "revision": str(manifest["revision"]),
-        "run_id": "local-pack-generation",
-    }
+def parse_threshold_output(raw: str) -> dict[str, float]:
+    values: dict[str, float] = {}
+    for key, raw_value in THRESHOLD_RE.findall(raw):
+        values[key.lower()] = float(raw_value)
+    required = {"fear", "aggression", "flee_health"}
+    if set(values) != required:
+        raise GenerationError("threshold output must contain fear, aggression and flee_health")
+    if any(value < 0.0 or value > 1.0 for value in values.values()):
+        raise GenerationError("threshold outside 0..1")
+    return {key: round(values[key], 4) for key in ("fear", "aggression", "flee_health")}
+
+
+def parse_dialogue_lines(raw: str) -> list[str]:
+    result: list[str] = []
+    for source_line in raw.replace("\r", "").splitlines():
+        line = source_line.strip()
+        if not line or line.startswith("```"):
+            continue
+        line = LINE_PREFIX_RE.sub("", line).strip()
+        if line.casefold().startswith(("phrases:", "répliques:", "repliques:")):
+            continue
+        line = _clean_text(line, 180)
+        if line and line not in result:
+            result.append(line)
     return result
 
 
-def validate_generated_identity(draft: dict[str, Any], profile_id: str, zone: str, archetype: str, locale: str) -> None:
-    rows = draft.get("profiles")
-    if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
-        raise BAKER.BakeError("Qwen must generate exactly one profile")
-    row = rows[0]
-    expected = {"id": profile_id, "zone": zone, "archetype": archetype, "locale": locale}
-    actual = {key: str(row.get(key, "")) for key in expected}
-    if actual != expected:
-        differences = ", ".join(
-            f"{key}: expected={expected[key]!r} actual={actual[key]!r}"
-            for key in expected if actual[key] != expected[key]
-        )
-        raise BAKER.BakeError("Qwen changed imposed identity: " + differences)
+def build_persona_prompt(zone: str, archetype: str) -> str:
+    return f"""Crée une persona crédible pour un habitant de Bruxelles, zone {zone}, archétype {archetype}.
+Réponds EXACTEMENT en deux lignes, rien d'autre:
+name: <prénom humain crédible>
+summary: <une phrase courte décrivant caractère, quartier et attitude>
+Ne mentionne jamais IA, modèle ou prompt."""
 
 
-def generate_raw_text(tokenizer, model, prompt: str, max_new_tokens: int = 900) -> str:
+def build_threshold_prompt(zone: str, archetype: str, summary: str) -> str:
+    return f"""Choisis trois seuils comportementaux cohérents pour ce PNJ de Bruxelles.
+Zone: {zone}. Archétype: {archetype}. Persona: {summary}
+Chaque nombre doit être entre 0.0 et 1.0.
+Réponds EXACTEMENT en trois lignes, rien d'autre:
+fear: 0.x
+aggression: 0.x
+flee_health: 0.x"""
+
+
+def build_dialogue_prompt(intent: str, zone: str, archetype: str, persona: dict[str, str], needed: int, used: list[str]) -> str:
+    hints = {
+        "greeting": "saluer ou répondre quand le joueur aborde le PNJ",
+        "smalltalk": "parler brièvement du quotidien ou du quartier",
+        "warning": "demander calmement au joueur de reculer ou se calmer",
+        "hurt": "réagir humainement à la douleur sans décrire de mécanique de jeu",
+        "police": "réagir à la présence ou au risque d'intervention de la police",
+    }
+    already = "\n".join(f"- {line}" for line in used[-12:]) if used else "(aucune)"
+    return f"""Tu écris des répliques courtes pour {persona['name']}, habitant de Bruxelles.
+Zone: {zone}. Archétype: {archetype}. Persona: {persona['summary']}
+Intention: {intent} — {hints[intent]}.
+Il me faut exactement {needed} NOUVELLES phrases françaises naturelles, orales et différentes.
+Phrases déjà utilisées à ne jamais répéter:
+{already}
+
+Réponds uniquement avec {needed} lignes commençant chacune par '- '.
+Aucune explication, aucun JSON, aucune mention d'IA/modèle/prompt, aucune action technique."""
+
+
+def _chat_completion(tokenizer, model, prompt: str, max_new_tokens: int) -> str:
     messages = [
-        {"role": "system", "content": "Tu es un auteur de données JSON pour des PNJ bruxellois. Tu respectes exactement le schéma demandé."},
+        {"role": "system", "content": "Tu écris du contenu court et naturel pour des PNJ bruxellois. Tu respectes exactement le format demandé."},
         {"role": "user", "content": prompt},
     ]
     try:
@@ -136,21 +156,90 @@ def generate_raw_text(tokenizer, model, prompt: str, max_new_tokens: int = 900) 
     return tokenizer.decode(outputs[0][prompt_len:], skip_special_tokens=True).strip()
 
 
-def generate_and_bake(tokenizer, model, manifest: dict[str, Any], profile_id: str, zone: str, archetype: str, locale: str, attempts: int = 3) -> tuple[dict[str, Any], str]:
-    prompt = build_prompt(profile_id, zone, archetype, locale)
+def generate_persona(tokenizer, model, zone: str, archetype: str, attempts: int = 3) -> tuple[dict[str, str], str]:
+    prompt = build_persona_prompt(zone, archetype)
     errors: list[str] = []
+    raw = ""
     for attempt in range(1, attempts + 1):
-        raw = generate_raw_text(tokenizer, model, prompt)
+        raw = _chat_completion(tokenizer, model, prompt, 80)
         try:
-            draft = extract_json_object(raw)
-            validate_generated_identity(draft, profile_id, zone, archetype, locale)
-            draft = attach_generator_metadata(draft, manifest)
-            baked = BAKER.bake_payload(draft)
-            return baked, raw
-        except (json.JSONDecodeError, BAKER.BakeError) as exc:
+            return parse_persona_output(raw), raw
+        except GenerationError as exc:
             errors.append(f"attempt {attempt}: {exc}")
-            prompt += "\nLe précédent essai était invalide. Repars de zéro et respecte strictement le JSON et les 20 phrases uniques."
-    raise BAKER.BakeError("Qwen pack generation failed: " + " | ".join(errors))
+            prompt += "\nTon précédent format était invalide. Recommence avec exactement name: puis summary:."
+    raise GenerationError("persona generation failed: " + " | ".join(errors))
+
+
+def generate_thresholds(tokenizer, model, zone: str, archetype: str, summary: str, attempts: int = 3) -> tuple[dict[str, float], str]:
+    prompt = build_threshold_prompt(zone, archetype, summary)
+    errors: list[str] = []
+    raw = ""
+    for attempt in range(1, attempts + 1):
+        raw = _chat_completion(tokenizer, model, prompt, 48)
+        try:
+            return parse_threshold_output(raw), raw
+        except GenerationError as exc:
+            errors.append(f"attempt {attempt}: {exc}")
+            prompt += "\nFormat invalide. Recommence uniquement avec les trois clés imposées et des nombres 0..1."
+    raise GenerationError("threshold generation failed: " + " | ".join(errors))
+
+
+def generate_intent_lines(tokenizer, model, intent: str, zone: str, archetype: str, persona: dict[str, str], globally_used: list[str], target: int = 4, attempts: int = 5) -> tuple[list[str], list[str]]:
+    collected: list[str] = []
+    raw_attempts: list[str] = []
+    for _attempt in range(attempts):
+        needed = target - len(collected)
+        if needed <= 0:
+            break
+        prompt = build_dialogue_prompt(intent, zone, archetype, persona, needed, globally_used + collected)
+        raw = _chat_completion(tokenizer, model, prompt, max(48, needed * 32))
+        raw_attempts.append(raw)
+        for candidate in parse_dialogue_lines(raw):
+            if candidate not in globally_used and candidate not in collected:
+                collected.append(candidate)
+                if len(collected) == target:
+                    break
+    if len(collected) != target:
+        raise GenerationError(f"{intent} generation produced {len(collected)}/{target} unique valid lines")
+    return collected, raw_attempts
+
+
+def attach_generator_metadata(draft: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
+    result = json.loads(json.dumps(draft, ensure_ascii=False))
+    result["generator"] = {
+        "provider": "local_qwen",
+        "model": str(manifest["repo_id"]),
+        "revision": str(manifest["revision"]),
+        "run_id": "local-pack-generation",
+    }
+    return result
+
+
+def generate_and_bake(tokenizer, model, manifest: dict[str, Any], profile_id: str, zone: str, archetype: str, locale: str) -> tuple[dict[str, Any], str]:
+    persona, persona_raw = generate_persona(tokenizer, model, zone, archetype)
+    thresholds, thresholds_raw = generate_thresholds(tokenizer, model, zone, archetype, persona["summary"])
+    dialogue: dict[str, list[str]] = {}
+    used: list[str] = []
+    raw_sections: list[str] = ["[persona]\n" + persona_raw, "[thresholds]\n" + thresholds_raw]
+    for intent in INTENTS:
+        lines, attempts = generate_intent_lines(tokenizer, model, intent, zone, archetype, persona, used)
+        dialogue[intent] = lines
+        used.extend(lines)
+        raw_sections.append(f"[{intent}]\n" + "\n--- retry ---\n".join(attempts))
+    draft = {
+        "profiles": [{
+            "id": profile_id,
+            "zone": zone,
+            "locale": locale,
+            "archetype": archetype,
+            "persona": persona,
+            "thresholds": thresholds,
+            "dialogue": dialogue,
+        }]
+    }
+    draft = attach_generator_metadata(draft, manifest)
+    baked = BAKER.bake_payload(draft)
+    return baked, "\n\n".join(raw_sections)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -172,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.raw_output is not None:
             args.raw_output.parent.mkdir(parents=True, exist_ok=True)
             args.raw_output.write_text(raw + "\n", encoding="utf-8")
-    except (OSError, json.JSONDecodeError, RuntimeError, SERVER.RequestError, BAKER.BakeError) as exc:
+    except (OSError, json.JSONDecodeError, RuntimeError, SERVER.RequestError, BAKER.BakeError, GenerationError) as exc:
         print(f"NPC_PACK_QWEN_FAIL: {exc}", file=sys.stderr)
         return 2
     profile = baked["profiles"][0]

@@ -1,0 +1,33 @@
+{
+  "schema": "grand-bruxelles-bourse-triangular-pediment-candidate-v1",
+  "source_contract": {
+    "hero_id": "bourse",
+    "heritage_source": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Place_de_la_Bourse/A001/31241",
+    "heritage_fact": "main boulevard facade: monumental stair leading to a peristyle limited by six Corinthian columns carrying a triangular pediment",
+    "parent_contract": "res://data/qa/bourse_portico_articulation_candidate.json",
+    "geometry_claim": "triangular pediment identity is source-backed; exact width, rise, depth and offset remain bounded visualization parameters, not an architectural survey"
+  },
+  "authoritative_front_envelope": {
+    "plane_point_game_x_z": [142.3262444274295, -700.58771347945],
+    "toward_camera_x_z": [-0.7303397855663312, -0.6830840340828683],
+    "tangent_x_z": [0.6830840340828683, -0.7303397855663312],
+    "tangent_min_m": -18.231126974238453,
+    "tangent_max_m": 13.347734117571157,
+    "span_m": 31.57886109180961,
+    "y_min_m": 0.0,
+    "y_max_m": 22.6831
+  },
+  "provisional_visualization": {
+    "status": "source_bounded_candidate_not_architectural_survey",
+    "pediment_width_m": 28.0,
+    "pediment_rise_m": 2.0,
+    "pediment_depth_m": 0.55,
+    "pediment_base_y_m": 20.46,
+    "pediment_forward_offset_m": 0.75,
+    "material_family": "brussels_source_verified_white_stone",
+    "derivation_note": "Width stays below the authoritative 31.579 m front span. Base starts immediately above the existing provisional entablature top and the 2.0 m rise remains below authoritative y_max=22.6831 m. No sculpture, cornice profile or ornament is invented."
+  },
+  "runtime_approved": false,
+  "realism_complete": false,
+  "required_visual_gate": "deterministic Bourse player-eye BEFORE/AFTER; reject if the pediment clips, floats, overwhelms the official silhouette, or worsens photo-match plausibility"
+}

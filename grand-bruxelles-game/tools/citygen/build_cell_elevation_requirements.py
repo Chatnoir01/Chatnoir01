@@ -51,18 +51,21 @@ def build(cell_dir: Path) -> dict[str, Any]:
     maturity_path = cell_dir / "maturity.json"
     if not manifest_path.exists():
         raise ValueError("authoritative source manifest missing")
-    if not maturity_path.exists():
-        raise ValueError("maturity sidecar missing")
     source = _read(manifest_path)
-    maturity = _read(maturity_path)
+    maturity = _read(maturity_path) if maturity_path.exists() else None
     cell_id = cell_dir.name
-    if source.get("cell_id") != cell_id or maturity.get("cell_id") != cell_id:
-        raise ValueError("cell identity mismatch")
-    if source.get("crs") != CRS or maturity.get("crs") != CRS:
-        raise ValueError("cell CRS mismatch")
+    if source.get("cell_id") != cell_id:
+        raise ValueError("source cell identity mismatch")
+    if source.get("crs") != CRS:
+        raise ValueError("source cell CRS mismatch")
     bbox = source.get("bbox")
-    if bbox != maturity.get("bbox"):
-        raise ValueError("source/maturity bbox mismatch")
+    if maturity is not None:
+        if maturity.get("cell_id") != cell_id:
+            raise ValueError("maturity cell identity mismatch")
+        if maturity.get("crs") != CRS:
+            raise ValueError("maturity cell CRS mismatch")
+        if bbox != maturity.get("bbox"):
+            raise ValueError("source/maturity bbox mismatch")
     tiles = tile_codes_for_bbox(bbox)
     if not tiles:
         raise ValueError("cell has no elevation tiles")
@@ -71,6 +74,11 @@ def build(cell_dir: Path) -> dict[str, Any]:
         "cell_id": cell_id,
         "crs": CRS,
         "bbox": bbox,
+        "source_basis": {
+            "authoritative_manifest_present": True,
+            "maturity_sidecar_present": maturity is not None,
+            "maturity_crosscheck_applied": maturity is not None,
+        },
         "expected_1km_tile_codes": tiles,
         "official_sources": {
             "dsm": {

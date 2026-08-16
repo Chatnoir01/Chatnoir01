@@ -84,9 +84,9 @@ func _run() -> void:
         var person_legacy := 0
         for legacy_name: String in ["Torso", "LeftLeg", "RightLeg", "LeftArm", "RightArm", "Head", "Bag"]:
             var legacy := person.get_node_or_null(legacy_name)
-            if not (legacy is VisualInstance3D):
+            if not (legacy is GeometryInstance3D):
                 continue
-            var legacy_visual := legacy as VisualInstance3D
+            var legacy_visual := legacy as GeometryInstance3D
             if not legacy_visual.visible:
                 _fail("%s legacy LOD primitive %s must stay enabled for distance fallback" % [person.name, legacy_name])
                 return

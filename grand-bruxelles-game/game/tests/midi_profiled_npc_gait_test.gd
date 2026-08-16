@@ -75,7 +75,7 @@ func _run() -> void:
         _fail("profiled pedestrians glide without visible gait: animated=%d moved=%d" % [animated, moved])
         return
 
-    var runtime := root.get_node_or_null("MidiAmbientNpcVisualRuntime")
+    var runtime := root.get_node_or_null("MidiProfiledNpcGaitRuntime")
     if runtime == null or not runtime.has_method("gait_stats"):
         _fail("profiled gait runtime stats unavailable")
         return

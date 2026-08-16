@@ -2,13 +2,13 @@
 
 Prototype de jeu d’action-aventure en monde ouvert, en vue à la troisième personne, inspiré de Bruxelles.
 
-## Lien Web permanent — JOUABLE
+## Lien Web actuel — JOUABLE
 
 **Grand Bruxelles Game :**
 
-https://grand-bruxelles-game-hchxi.vercel.app
+https://raw.githack.com/Chatnoir01/Chatnoir01/main/grand-bruxelles-game/web-preview/index.html
 
-Cette URL Vercel est désormais la référence permanente du projet. Elle charge la build Godot Web et reste la même au fil des mises à jour du prototype.
+Cette URL charge directement la build Godot Web publiée dans `main` et reste identique au fil des mises à jour. RawGitHack peut afficher une page de confirmation lors du premier accès à un fichier HTML du dépôt ; vérifier que la destination commence par `raw.githack.com/Chatnoir01/Chatnoir01/`, puis continuer.
 
 La build Web comprend aussi des contrôles tactiles pour téléphone/tablette : directions, SAUT, RUN et E pour entrer/sortir du véhicule.
 
@@ -88,8 +88,9 @@ grand-bruxelles-game/
 - [x] Contrôles tactiles Web/mobile
 - [x] Tests automatiques Godot pour scène, voiture et mission
 - [x] Build Godot Web automatisée
-- [x] URL Web permanente Vercel
-- [ ] Trafic
-- [ ] Piétons
-- [ ] Feux et intersections
-- [ ] Premier landmark détaillé
+- [x] URL Web jouable RawGitHack surveillée
+- [x] Personnage riggé avec animations repos/marche/course
+- [x] Trafic
+- [x] Piétons
+- [x] Feux et intersections
+- [x] Premier landmark source-backed : Bourse

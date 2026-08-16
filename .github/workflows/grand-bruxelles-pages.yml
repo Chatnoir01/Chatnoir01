@@ -1,4 +1,4 @@
-name: Grand Bruxelles Playable Pages
+name: Grand Bruxelles Playable Link
 
 on:
   push:
@@ -6,26 +6,96 @@ on:
     paths:
       - "grand-bruxelles-game/web-preview/**"
       - ".github/workflows/grand-bruxelles-pages.yml"
+      - "grand-bruxelles-game/README.md"
+      - "grand-bruxelles-game/tools/test_playable_link_contract.py"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/web-preview/**"
+      - ".github/workflows/grand-bruxelles-pages.yml"
+      - "grand-bruxelles-game/README.md"
+      - "grand-bruxelles-game/tools/test_playable_link_contract.py"
   workflow_run:
     workflows: ["Grand Bruxelles Playable Web Build"]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      deploy_pages:
+        description: "Deploy GitHub Pages after Pages is enabled in repository settings"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "grand-bruxelles-pages"
+  group: "grand-bruxelles-playable-link"
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  verify:
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
+    env:
+      PLAYABLE_PUBLIC_BASE: https://raw.githack.com/Chatnoir01/Chatnoir01/main/grand-bruxelles-game/web-preview
+    steps:
+      - name: Checkout latest published main
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v6
+        with:
+          # The Web Build workflow commits web-preview after its original head SHA.
+          # Always deploy the resulting main, not workflow_run.head_sha.
+          ref: main
+
+      - name: Checkout proposed source
+        if: github.event_name != 'workflow_run'
+        uses: actions/checkout@v6
+
+      - name: Verify playable Godot export
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/test_playable_link_contract.py
+          test -f grand-bruxelles-game/web-preview/index.html
+          test -f grand-bruxelles-game/web-preview/index.js
+          test -f grand-bruxelles-game/web-preview/index.wasm
+          test -f grand-bruxelles-game/web-preview/index.pck
+          grep -q 'index.pck' grand-bruxelles-game/web-preview/index.html
+
+      - name: Verify public playable link
+        shell: bash
+        run: |
+          set -euo pipefail
+          public_index="$(mktemp)"
+          trap 'rm -f "$public_index"' EXIT
+
+          curl --fail --silent --show-error --location \
+            --retry 5 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 15 --max-time 120 \
+            "$PLAYABLE_PUBLIC_BASE/index.html" \
+            --output "$public_index"
+          grep -q '<title>Grand Bruxelles Game</title>' "$public_index"
+          grep -q 'index.pck' "$public_index"
+
+          for asset in index.js index.wasm index.pck; do
+            curl --fail --silent --show-error --location \
+              --retry 5 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 15 --max-time 180 \
+              --range 0-0 \
+              "$PLAYABLE_PUBLIC_BASE/$asset" \
+              --output /dev/null
+          done
+
+  deploy_pages:
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_pages
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -33,23 +103,10 @@ jobs:
       - name: Checkout latest published main
         uses: actions/checkout@v6
         with:
-          # The Web Build workflow commits web-preview after its original head SHA.
-          # Always deploy the resulting main, not workflow_run.head_sha.
           ref: main
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
-        with:
-          enablement: true
-
-      - name: Verify playable Godot export
-        run: |
-          set -euo pipefail
-          test -f grand-bruxelles-game/web-preview/index.html
-          test -f grand-bruxelles-game/web-preview/index.js
-          test -f grand-bruxelles-game/web-preview/index.wasm
-          test -f grand-bruxelles-game/web-preview/index.pck
-          grep -q 'index.pck' grand-bruxelles-game/web-preview/index.html
 
       - name: Upload playable build
         uses: actions/upload-pages-artifact@v4

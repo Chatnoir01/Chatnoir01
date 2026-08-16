@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/data/qa/playable_zone_catalog.json"
       - "grand-bruxelles-game/tools/validate_human_zone_promotion.py"
       - "grand-bruxelles-game/game/scripts/zone_selector_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/player_issue_report_runtime.gd"
       - "grand-bruxelles-game/game/scripts/player_controller.gd"
       - "grand-bruxelles-game/game/tests/zone_selector_runtime_test.gd"
       - "grand-bruxelles-game/project.godot"
@@ -41,11 +42,11 @@ jobs:
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
       - name: Import project
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
-      - name: Validate listed zones and selector runtime
+      - name: Validate zones, reports and promotion gate
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/zone_selector_runtime_test.gd
-      - name: Capture zone menu over production main
+      - name: Capture SIGNALER over production main
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 && xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/zone_selector_runtime_test.gd -- capture=1
       - uses: actions/upload-artifact@v4
         with:
-          name: zone-selector-witness
-          path: grand-bruxelles-game/artifacts/visual/zone_selector_1280x720.png
+          name: player-report-witness
+          path: grand-bruxelles-game/artifacts/visual/player_report_1280x720.png

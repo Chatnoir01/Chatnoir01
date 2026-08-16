@@ -1,0 +1,28 @@
+name: Grand Bruxelles Midi Station Source Plan
+
+on:
+  push:
+    paths:
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone_legacy.gd"
+      - "grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json"
+      - "grand-bruxelles-game/tests/test_midi_station_source_plan.py"
+      - ".github/workflows/grand-bruxelles-midi-station-source-plan.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone_legacy.gd"
+      - "grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json"
+      - "grand-bruxelles-game/tests/test_midi_station_source_plan.py"
+      - ".github/workflows/grand-bruxelles-midi-station-source-plan.yml"
+
+jobs:
+  source-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Require official UrbIS station plan
+        run: python grand-bruxelles-game/tests/test_midi_station_source_plan.py

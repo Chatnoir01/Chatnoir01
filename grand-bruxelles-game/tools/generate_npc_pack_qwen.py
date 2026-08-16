@@ -20,7 +20,18 @@ SERVER_PATH = ROOT / "tools" / "npc_llm_server.py"
 BAKER_PATH = ROOT / "tools" / "bake_npc_pack.py"
 MANIFEST_PATH = ROOT / "data" / "ai" / "npc_llm_model.json"
 INTENTS = ("greeting", "smalltalk", "warning", "hurt", "police")
-FORBIDDEN = ("ia", "intelligence artificielle", "modèle", "modele", "prompt", "assistant")
+FORBIDDEN = (
+    "je suis une ia",
+    "intelligence artificielle",
+    "je suis un modèle",
+    "je suis un modele",
+    "modèle de langage",
+    "modele de langage",
+    "mon prompt",
+    "system prompt",
+    "prompt système",
+    "prompt systeme",
+)
 LINE_PREFIX_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)-])\s*")
 THRESHOLD_RE = re.compile(r"\b(fear|aggression|flee_health)\s*[:=]\s*(0(?:\.\d+)?|1(?:\.0+)?)\b", re.IGNORECASE)
 

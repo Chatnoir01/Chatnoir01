@@ -20,6 +20,7 @@ VALUE_FORMAT = "grand-bruxelles-cell-elevation-value-evidence-v1"
 FRONTIER_FORMAT = "grand-bruxelles-cell-elevation-candidate-frontier-v1"
 RASTER_FORMAT = "grand-bruxelles-cell-elevation-raster-validation-v1"
 SOURCE_FORMAT = "grand-bruxelles-urbis-source-cell-v1"
+BUILT_SOURCE_FORMAT = "grand-bruxelles-urbis-built-cell-v1"
 CRS = "EPSG:31370"
 MIN_VALID_PIXELS = 16
 MIN_PLAUSIBLE_FRACTION = 0.60
@@ -41,6 +42,24 @@ def _read(path: Path) -> dict[str, Any]:
 def _digest(value: Any) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _authoritative_source_ready(source: dict[str, Any]) -> bool:
+    if source.get("crs") != CRS:
+        return False
+    source_format = source.get("format")
+    if source_format == SOURCE_FORMAT:
+        return True
+    if source_format != BUILT_SOURCE_FORMAT:
+        return False
+    buildings = (source.get("layers") or {}).get("buildings")
+    return (
+        isinstance(buildings, dict)
+        and buildings.get("wfs_name") == "urbisvector:Buildings"
+        and buildings.get("file") == "raw/buildings.geojson"
+        and isinstance(buildings.get("features"), int)
+        and buildings.get("features") >= 0
+    )
 
 
 def height_source_pair_ready(value_evidence_path: Path, frontier_path: Path) -> bool:
@@ -192,7 +211,7 @@ def build(cell_dir: Path, value_evidence_path: Path, frontier_path: Path, raster
     value_evidence = _read(value_evidence_path)
     frontier = _read(frontier_path)
     raster_validation = _read(raster_validation_path)
-    if source.get("format") != SOURCE_FORMAT or source.get("crs") != CRS:
+    if not _authoritative_source_ready(source):
         raise ValueError("unsupported authoritative source cell")
     if value_evidence.get("format") != VALUE_FORMAT or value_evidence.get("crs") != CRS:
         raise ValueError("unsupported elevation value evidence")

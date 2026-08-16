@@ -131,6 +131,8 @@ func _run() -> void:
         return
     if not _expect(int(source_cell.get("rendered_building_count")) == EXPECTED_VISUAL_BUILDINGS, "eligible visual building massing count drifted"):
         return
+    if not _expect(int(source_cell.get("massing_tone_profile_count")) >= 4, "visual massing lacks deterministic shared tone variation"):
+        return
     if not _expect(int(source_cell.get("blocked_unapproved_building_count")) == EXPECTED_BLOCKED_BUILDINGS, "non-eligible building heights were not fail-closed"):
         return
     if not _expect(source_cell.find_child("VisualCandidateBuildingMassing", true, false) != null, "combined visual building massing mesh is missing"):

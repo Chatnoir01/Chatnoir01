@@ -58,6 +58,11 @@ func _update_profiled_gait(delta: float) -> void:
         live_ids[instance_id] = true
         if camera != null and not _within_detail_update_distance(person.global_position, camera_position):
             distance_culled += 1
+            # Keep the visual speed observer current for already-profiled pedestrians while
+            # skipping all expensive rig/pose work. Otherwise a long culled walk can exceed
+            # TELEPORT_GUARD_M and produce a false zero-speed/idle frame on LOD re-entry.
+            if _last_positions.has(instance_id):
+                _last_positions[instance_id] = person.global_position
             continue
 
         var rig := _rig_for_person(person, instance_id)

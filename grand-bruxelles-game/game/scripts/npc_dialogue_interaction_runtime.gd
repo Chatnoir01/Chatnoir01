@@ -148,9 +148,18 @@ func open_for_npc(npc: Node3D) -> bool:
     _panel.visible = true
     _talk_button.visible = false
     _title.text = "%s · MIDI" % _display_name(npc)
-    var session = _session_for(npc)
-    var snapshot: Dictionary = session._fallback_result(_build_blackboard(), "dialogue_open")
-    _apply_result(snapshot)
+    var greeting := "Salut."
+    if _catalog != null:
+        var baked := _catalog.select_line("midi_resident_01", "greeting", int(abs(_npc_id(npc).hash())))
+        if not baked.is_empty():
+            greeting = baked
+    _apply_result({
+        "accepted": false,
+        "action": "idle",
+        "line": greeting,
+        "source": "fallback",
+        "reason": "dialogue_open",
+    })
     _input.text = ""
     _input.grab_focus()
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

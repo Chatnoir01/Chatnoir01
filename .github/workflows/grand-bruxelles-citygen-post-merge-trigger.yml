@@ -15,6 +15,7 @@ on:
       - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
       - "grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py"
       - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
+      - ".github/workflows/grand-bruxelles-citygen-stale-quarantine-repair.yml"
       - ".github/workflows/grand-bruxelles-citygen-state-refresh.yml"
       - ".github/workflows/grand-bruxelles-citygen-post-merge-trigger.yml"
       - ".github/workflows/grand-bruxelles-urbis3d-semantic-height-generic.yml"
@@ -42,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Dispatch Autonomous CityGen on exact live main
+      - name: Dispatch Autonomous CityGen and stale quarantine repair on exact live main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -51,4 +52,8 @@ jobs:
             --repo "${{ github.repository }}" \
             --ref main \
             -f batch_size=4
-          echo "CITYGEN_POST_MERGE_DISPATCH_OK sha=${{ github.sha }}"
+          gh workflow run grand-bruxelles-citygen-stale-quarantine-repair.yml \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            -f limit=4
+          echo "CITYGEN_POST_MERGE_DISPATCH_OK sha=${{ github.sha }} autonomous=true stale_repair=true"

@@ -24,14 +24,17 @@ def test_bourse_pediment_is_source_derived_and_mounted() -> None:
     runtime = RUNTIME.read_text(encoding="utf-8")
     project = PROJECT.read_text(encoding="utf-8")
 
-    # The reveal must reuse committed LoD2 wall triangles and the authoritative
-    # front envelope. It may not introduce authored pediment dimensions.
+    # The reveal must reuse a committed triangular LoD2 WALLSURFACE and the
+    # authoritative front envelope. Provisional visualization dimensions are
+    # explicitly forbidden from driving the selection.
     assert 'HERO_GEOMETRY_PATH := "res://data/urbis/heroes/bourse_lod2.game.json"' in runtime
     assert 'CANDIDATE_PATH := "res://data/qa/bourse_portico_articulation_candidate.json"' in runtime
     assert '"WALLSURFACE"' in runtime
     assert "authoritative_front_envelope" in runtime
+    assert "provisional_visualization" not in runtime
     assert "pediment_width_m" not in runtime
     assert "pediment_height_m" not in runtime
     assert "geometry_source_triangles" in runtime
+    assert "geometry_source_face_id" in runtime
     assert "source_package_sha256" in runtime
     assert "BourseOfficialPedimentSurfaceRuntime" in project

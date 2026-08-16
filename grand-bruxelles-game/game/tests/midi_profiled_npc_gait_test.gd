@@ -3,6 +3,10 @@ extends SceneTree
 const EXPECTED_AMBIENT := 24
 const MIN_MOVING_PEDESTRIANS := 20
 const MIN_ANIMATED_PROFILED_PEDESTRIANS := 16
+const MIN_CADENCE_PROFILES := 5
+const MIN_CADENCE_MULTIPLIER := 0.90
+const MAX_CADENCE_MULTIPLIER := 1.10
+const MIN_CADENCE_SPAN := 0.12
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -86,7 +90,26 @@ func _run() -> void:
     if bool(stats.get("changes_behavior_owner", true)):
         _fail("visual gait must not take ownership of pedestrian movement")
         return
+    if bool(stats.get("changes_navigation", true)):
+        _fail("visual gait must not change navigation")
+        return
 
-    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d" % [moved, animated, int(stats.get("tracked_pedestrians", 0))])
+    var profile_count := int(stats.get("cadence_profile_count", 0))
+    var cadence_min := float(stats.get("cadence_multiplier_min", 1.0))
+    var cadence_max := float(stats.get("cadence_multiplier_max", 1.0))
+    if profile_count < MIN_CADENCE_PROFILES:
+        _fail("crowd gait cadence is too synchronized: profiles=%d" % profile_count)
+        return
+    if cadence_min < MIN_CADENCE_MULTIPLIER or cadence_max > MAX_CADENCE_MULTIPLIER:
+        _fail("cadence variation escaped visual-only safe range: min=%.3f max=%.3f" % [cadence_min, cadence_max])
+        return
+    if cadence_max - cadence_min < MIN_CADENCE_SPAN:
+        _fail("cadence spread is too small to desynchronize crowd: min=%.3f max=%.3f" % [cadence_min, cadence_max])
+        return
+    if not bool(stats.get("cadence_is_stable_per_pedestrian", false)):
+        _fail("cadence must be deterministic per pedestrian, not random per frame")
+        return
+
+    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max])
     scene.queue_free()
     quit(0)

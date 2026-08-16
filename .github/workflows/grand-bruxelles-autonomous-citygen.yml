@@ -31,6 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py
+          python3 grand-bruxelles-game/tools/citygen/test_autonomous_elevation_requirement_isolation.py
           python3 grand-bruxelles-game/tools/citygen/test_build_cell_candidate_package.py
           python3 grand-bruxelles-game/tools/citygen/test_build_brussels_regional_grid.py
           python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py
@@ -134,7 +135,14 @@ jobs:
           while IFS= read -r CELL; do
             [ -n "$CELL" ] || continue
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
-            python3 grand-bruxelles-game/tools/citygen/build_cell_elevation_requirements.py --cell-dir "$D" --output "$D/elevation_requirements.json"
+            REQLOG="/tmp/citygen-out/elevation-resolution-errors/${CELL}-requirements.log"
+            if python3 grand-bruxelles-game/tools/citygen/build_cell_elevation_requirements.py --cell-dir "$D" --output "$D/elevation_requirements.json" >"$REQLOG" 2>&1; then
+              rm -f "$REQLOG"
+            else
+              rm -f "$D/elevation_requirements.json" "$D/elevation_dsm_resolution.json" "$D/elevation_dtm_resolution.json"
+              echo "ELEVATION_REQUIREMENTS_PENDING ${CELL}"
+              continue
+            fi
             for KIND in dsm dtm; do
               LOG="/tmp/citygen-out/elevation-resolution-errors/${CELL}-${KIND}.log"
               if python3 grand-bruxelles-game/tools/citygen/resolve_cell_elevation_sources.py --requirements "$D/elevation_requirements.json" --kind "$KIND" --output "$D/elevation_${KIND}_resolution.json" >"$LOG" 2>&1; then

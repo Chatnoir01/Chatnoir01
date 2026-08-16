@@ -7,6 +7,9 @@ import tempfile
 from pathlib import Path
 
 MODULE = Path(__file__).with_name("persist_secondary_height_evidence.py")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SECONDARY_WORKFLOW = REPO_ROOT / ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
+PERSISTENCE_WORKFLOW = REPO_ROOT / ".github/workflows/grand-bruxelles-citygen-secondary-persistence.yml"
 spec = importlib.util.spec_from_file_location("persist_secondary_height_evidence", MODULE)
 assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
@@ -75,6 +78,15 @@ def main() -> int:
             assert "runtime promotion" in str(exc).lower()
         else:
             raise AssertionError("unsafe runtime promotion must fail closed")
+
+    secondary_workflow = SECONDARY_WORKFLOW.read_text(encoding="utf-8")
+    persistence_workflow = PERSISTENCE_WORKFLOW.read_text(encoding="utf-8")
+    assert "contents: write" in secondary_workflow, "secondary gate must be able to persist its exact validated evidence"
+    assert "Persist validated secondary evidence off main" in secondary_workflow
+    assert "persist_secondary_height_evidence.py" in secondary_workflow
+    assert "git switch -C citygen-autonomous-state" in secondary_workflow
+    assert "github.event_name != 'pull_request'" in secondary_workflow
+    assert "workflow_run:" not in persistence_workflow, "GITHUB_TOKEN-dispatched refresh must not depend on an unobserved workflow_run chain"
 
     print("PERSIST_SECONDARY_HEIGHT_EVIDENCE_TEST_OK")
     return 0

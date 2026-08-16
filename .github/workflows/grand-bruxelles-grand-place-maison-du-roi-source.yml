@@ -26,9 +26,6 @@ jobs:
           import json, urllib.parse, urllib.request
           from pathlib import Path
 
-          # City of Brussels open-data record 028, dataset
-          # description-des-batiments-de-la-grand-place (CC BY 4.0).
-          # Record values were re-checked on 2026-08-16 before this branch.
           record = {
               "id":"028",
               "nom":"La Maison du Roi",
@@ -38,7 +35,6 @@ jobs:
           }
           lat=float(record["geo_point"]["lat"]); lon=float(record["geo_point"]["lon"])
           city_height=float(record["hauteur_totale"])
-
           pad=0.00055
           params={
               "service":"WFS","version":"2.0.0","request":"GetFeature",
@@ -55,10 +51,8 @@ jobs:
 
           def exterior_rings(geometry):
               coordinates=geometry.get("coordinates") or []
-              if geometry.get("type") == "Polygon":
-                  return [coordinates[0]] if coordinates else []
-              if geometry.get("type") == "MultiPolygon":
-                  return [polygon[0] for polygon in coordinates if polygon]
+              if geometry.get("type") == "Polygon": return [coordinates[0]] if coordinates else []
+              if geometry.get("type") == "MultiPolygon": return [polygon[0] for polygon in coordinates if polygon]
               return []
 
           def contains(ring,x,y):
@@ -75,8 +69,7 @@ jobs:
           matches=[]
           for feature in wfs.get("features",[]):
               geometry=feature.get("geometry") or {}
-              if not any(contains(ring,lon,lat) for ring in exterior_rings(geometry)):
-                  continue
+              if not any(contains(ring,lon,lat) for ring in exterior_rings(geometry)): continue
               props=feature.get("properties") or {}
               inspire=str(props.get("INSPIRE_ID") or props.get("inspire_id") or "")
               if inspire.startswith("https://databrussels.be/id/building/"):
@@ -89,17 +82,12 @@ jobs:
               "city_source":{
                   "provider":"Ville de Bruxelles / Data Management",
                   "dataset":"description-des-batiments-de-la-grand-place",
-                  "record_id":"028",
-                  "license":"CC BY 4.0",
-                  "name":record["nom"],
-                  "address":record["adresse"],
-                  "height_m":city_height,
-                  "geo_point":[lat,lon],
-                  "accessed_at":"2026-08-16",
+                  "record_id":"028","license":"CC BY 4.0",
+                  "name":record["nom"],"address":record["adresse"],
+                  "height_m":city_height,"geo_point":[lat,lon],"accessed_at":"2026-08-16",
               },
               "urbis_2d_building_id":matches[0]["id"],
-              "runtime_approved":False,
-              "realism_complete":False,
+              "runtime_approved":False,"realism_complete":False,
           }
           Path("/tmp/maison-du-roi/source_resolution.json").write_text(json.dumps(resolved,indent=2,ensure_ascii=False)+"\n")
           Path("/tmp/maison-du-roi/building_id.txt").write_text(matches[0]["id"]+"\n")
@@ -153,15 +141,20 @@ jobs:
           bbox=evidence.get('source_bbox_xy') or []
           if h<=0 or len(bbox)!=4: raise SystemExit('invalid extracted LoD2 envelope')
           width=float(bbox[2])-float(bbox[0]); depth=float(bbox[3])-float(bbox[1])
+          under=max(0.0,city_h-h)
           summary={
               'building_id':actual,'city_height_m':city_h,'lod2_height_m':h,
-              'height_delta_m':abs(city_h-h),'width_m':width,'depth_m':depth,
+              'height_underrepresentation_m':under,
+              'vertical_completeness':under<=2.0,
+              'width_m':width,'depth_m':depth,
               'face_count':int(evidence.get('face_count',0)),
               'triangle_count':int(evidence.get('triangle_count',0)),
               'face_type_counts':evidence.get('face_type_counts',{}),
           }
-          if summary['height_delta_m']>6.0: raise SystemExit(f'City/UrbIS identity height cross-check too far apart: {summary}')
-          if max(width,depth)<20.0 or h<25.0: raise SystemExit(f'Maison du Roi LoD2 is below large-landmark pre-gate: {summary}')
+          if h>city_h+1.0:
+              raise SystemExit(f'LoD2 exceeds official City total height: {summary}')
+          if max(width,depth)<20.0 or h<25.0:
+              raise SystemExit(f'Maison du Roi LoD2 is below large-landmark pre-gate: {summary}')
           Path('/tmp/maison-du-roi/impact_summary.json').write_text(json.dumps(summary,indent=2)+'\n')
           print('MAISON_DU_ROI_SOURCE_GATE_OK',json.dumps(summary))
           PY

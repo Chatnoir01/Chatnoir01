@@ -1,6 +1,7 @@
 extends SceneTree
 
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
+const REPORT_RUNTIME_PATH := "res://game/scripts/player_issue_report_runtime.gd"
 const EXPECTED_IDS := ["midi", "anneessens", "bourse", "grand_place", "ixelles", "atomium", "jette"]
 
 func _initialize() -> void:
@@ -13,6 +14,9 @@ func _fail(message: String) -> void:
 func _run() -> void:
     if not FileAccess.file_exists(CATALOG_PATH):
         _fail("catalog missing")
+        return
+    if not ResourceLoader.exists(REPORT_RUNTIME_PATH):
+        _fail("report runtime missing")
         return
     if str(ProjectSettings.get_setting("autoload/ZoneSelectorRuntime", "")) != "*res://game/scripts/zone_selector_runtime.gd":
         _fail("autoload missing")
@@ -52,6 +56,20 @@ func _run() -> void:
     if available.size() != EXPECTED_IDS.size():
         _fail("runtime filtered a proven zone")
         return
+    if not selector.has_method("reporting_runtime") or not selector.has_method("can_promote_zone"):
+        _fail("reporting contract missing")
+        return
+    var reporter: Node = selector.call("reporting_runtime")
+    if reporter == null:
+        _fail("reporter missing")
+        return
+    for method_name: String in ["begin_report", "create_report_from_image", "open_report_count"]:
+        if not reporter.has_method(method_name):
+            _fail("reporter method missing %s" % method_name)
+            return
+    if reporter.get_node_or_null("ReportButton") == null:
+        _fail("SIGNALER button missing")
+        return
     if "capture=1" in OS.get_cmdline_user_args():
         var main := (load("res://game/main.tscn") as PackedScene).instantiate()
         get_root().add_child(main)
@@ -65,5 +83,5 @@ func _run() -> void:
             _fail("witness save failed")
             return
         print("ZONE_SELECTOR_WITNESS_OK: 1280x720")
-    print("ZONE_SELECTOR_OK: listed=%d playable=1 lab=6 no_invisible_quarantine=true" % available.size())
+    print("ZONE_SELECTOR_OK: listed=%d playable=1 lab=6 reporting=true no_invisible_quarantine=true" % available.size())
     quit(0)

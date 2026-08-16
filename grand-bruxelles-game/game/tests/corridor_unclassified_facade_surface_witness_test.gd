@@ -9,8 +9,8 @@ const HEIGHT := 720
 const MIN_CHANGED_OVER_3 := 0.025
 const MIN_CHANGED_OVER_8 := 0.008
 const MIN_BUILDINGS := 40
-const MIDI_ENTRANCE := Vector3(-672.2905, 0.0, 615.8035)
-const ROAD_SIDE := Vector3(0.779, 0.0, 0.627)
+const BOURSE_ANCHOR := Vector3(81.54, 0.0, -664.58)
+const CORRIDOR_TOWARD_MIDI := Vector3(-0.502, 0.0, 0.865)
 
 func _init() -> void:
     call_deferred("_run")
@@ -78,10 +78,12 @@ func _run() -> void:
 
     var camera := Camera3D.new()
     camera.name = "CorridorUnclassifiedFacadeWitnessCamera"
-    camera.position = MIDI_ENTRANCE + ROAD_SIDE * 32.0 + Vector3(0.0, 3.0, 0.0)
+    # Legitimate eye-level corridor view, deliberately outside the official Midi
+    # OSM mask and looking from the Bourse side toward the Midi corridor.
+    camera.position = BOURSE_ANCHOR + CORRIDOR_TOWARD_MIDI * 45.0 + Vector3(0.0, 3.0, 0.0)
     camera.fov = 67.0
     world.add_child(camera)
-    camera.look_at(MIDI_ENTRANCE + Vector3(0.0, 8.0, 0.0), Vector3.UP)
+    camera.look_at(BOURSE_ANCHOR + CORRIDOR_TOWARD_MIDI * 140.0 + Vector3(0.0, 7.0, 0.0), Vector3.UP)
     camera.current = true
 
     paused = true

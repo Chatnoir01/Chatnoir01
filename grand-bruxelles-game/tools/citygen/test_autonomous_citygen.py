@@ -127,6 +127,19 @@ with tempfile.TemporaryDirectory() as tmp:
     progress, action = mod.evidence_plan(frontier_cell, source)
     assert progress == len(mod.EVIDENCE_STAGES)
     assert action == "secondary_height_validation_and_terrain_runtime_checks"
+
+    # Regression: rematerializing authoritative Buildings can change ownership
+    # counts after an older elevation frontier was created. The height sampler
+    # deliberately records that as a blocker. The scheduler must requeue the
+    # frontier stage instead of falsely treating all ten evidence files as mature.
+    write_json(
+        source/frontier_cell/"building_height_candidates.json",
+        {"cell_id": frontier_cell, "blockers": ["frontier_building_target_count_mismatch"]},
+    )
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == 7, (progress, action)
+    assert action == "derive_elevation_candidate_frontier", (progress, action)
+
     assert mod.discover_cells(source)==sorted(cells[:4])
 
     # Regression: durable scheduler state must be refreshed after the selected
@@ -163,4 +176,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert refreshed_row["evidence_progress"] == len(mod.EVIDENCE_STAGES)
     assert refreshed_row["next_action"] == mod.MANUAL_FRONTIER_ACTION
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true stale_height_frontier_requeue=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")

@@ -15,6 +15,7 @@ TERMINAL = {"RUNTIME_READY", "QUARANTINE"}
 MANUAL_FRONTIER_ACTION = "secondary_height_validation_and_terrain_runtime_checks"
 MANUAL_ELEVATION_QUALITY_ACTION = "resolve_elevation_quality_blockers"
 MANUAL_ACTIONS = {MANUAL_FRONTIER_ACTION, MANUAL_ELEVATION_QUALITY_ACTION}
+STALE_HEIGHT_FRONTIER_BLOCKER = "frontier_building_target_count_mismatch"
 EVIDENCE_STAGES = (
     ("elevation_requirements.json", "derive_elevation_requirements"),
     ("elevation_dsm_resolution.json", "resolve_dsm_source"),
@@ -95,6 +96,10 @@ def _missing_declared_source_files(source: dict[str, Any], cell_dir: Path) -> li
 def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
     cell_dir = source_root / cell_id
     completed = 0
+    frontier_stage_index = next(
+        index for index, (name, _action) in enumerate(EVIDENCE_STAGES)
+        if name == "elevation_candidate_frontier.json"
+    )
     for filename, action in EVIDENCE_STAGES:
         path = cell_dir / filename
         if not path.exists():
@@ -107,6 +112,14 @@ def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
                 continue
             if frontier.get("next_action") == MANUAL_ELEVATION_QUALITY_ACTION:
                 return completed, MANUAL_ELEVATION_QUALITY_ACTION
+        elif filename == "building_height_candidates.json":
+            try:
+                height_evidence = _read_json(path)
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+            blockers = height_evidence.get("blockers") or []
+            if isinstance(blockers, list) and STALE_HEIGHT_FRONTIER_BLOCKER in blockers:
+                return frontier_stage_index, "derive_elevation_candidate_frontier"
     return completed, MANUAL_FRONTIER_ACTION
 
 

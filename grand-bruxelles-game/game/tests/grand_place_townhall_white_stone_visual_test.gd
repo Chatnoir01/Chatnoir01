@@ -25,6 +25,12 @@ func _hide_noise(main: Node) -> void:
         var node := main.get_node_or_null(path)
         if node is Node3D:
             (node as Node3D).visible = false
+    var showcase := root.get_node_or_null("LivingCityShowcaseRuntime")
+    if showcase != null:
+        showcase.process_mode = Node.PROCESS_MODE_DISABLED
+    var visible_runtime := root.get_node_or_null("VisibleCityRuntime")
+    if visible_runtime != null and visible_runtime.has_method("_set_status"):
+        visible_runtime.call("_set_status", "")
 
 func _capture(path: String) -> bool:
     for _frame: int in range(5):
@@ -89,6 +95,13 @@ func _run() -> void:
         return
 
     _hide_noise(main)
+    # The reusable mineral presentation is a downstream wall override. Disable
+    # it here so this legacy witness continues to test the original sourced
+    # white-stone identity toggle rather than comparing the same override twice.
+    var surface_runtime := root.get_node_or_null("GrandPlaceWhiteStoneSurfaceRuntime")
+    if surface_runtime != null:
+        surface_runtime.call("set_enabled", false)
+
     var player_camera := main.get_node_or_null("Player/CameraPivot/SpringArm3D/Camera3D") as Camera3D
     if player_camera != null:
         player_camera.current = false

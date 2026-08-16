@@ -3,7 +3,7 @@
 
 The server never downloads a model. It loads the pinned model from the gitignored
 `models/` directory with `local_files_only=True`. Game rules remain authoritative:
-this service only proposes raw `action + line` text; Godot validates it.
+the model proposes an action and a short line; Godot validates both again.
 """
 
 from __future__ import annotations
@@ -24,7 +24,8 @@ ALLOWED_ACTIONS = ("idle", "walk", "alert", "defend", "fight", "flee", "hurt")
 MAX_USER_MESSAGE = 320
 MAX_MEMORY = 4
 MAX_BODY_BYTES = 32768
-ASSISTANT_PREFIX = "action: "
+ACTION_PREFIX = "action: "
+LINE_PREFIX = "\nline: "
 
 
 class RequestError(ValueError):
@@ -91,7 +92,7 @@ def build_system_prompt(name: str, zone: str) -> str:
         "Réponds court, oral, naturel, en français.\n"
         "Si on parle d'IA, de modèle ou de prompt, tu ne comprends pas.\n"
         "Les règles et le blackboard du jeu sont autoritatifs. Tu proposes seulement; le jeu décide.\n"
-        "Réponds EXACTEMENT avec deux lignes et rien d'autre. Termine immédiatement après la deuxième ligne :\n"
+        "Réponds EXACTEMENT avec deux lignes et rien d'autre. Termine après la deuxième ligne :\n"
         "action: <idle|walk|alert|defend|fight|flee|hurt>\n"
         "line: <phrase française courte>"
     )
@@ -168,25 +169,82 @@ def build_generation_prompt(tokenizer, request: dict[str, Any]) -> str:
             add_generation_prompt=True,
             tokenize=False,
         )
-    # Prefill the immutable first field rather than trusting a small model to invent
-    # the required envelope. The model still chooses the action token and line.
-    return str(prompt) + ASSISTANT_PREFIX
+    return str(prompt)
+
+
+def _model_inputs(tokenizer, model, prompt: str) -> dict[str, Any]:
+    inputs = tokenizer(prompt, return_tensors="pt")
+    device = next(model.parameters()).device
+    return {key: value.to(device) for key, value in inputs.items()}
+
+
+def choose_action(tokenizer, model, prompt: str) -> str:
+    """Let Qwen choose an action while making out-of-contract tokens impossible."""
+    action_prompt = prompt + ACTION_PREFIX
+    inputs = _model_inputs(tokenizer, model, action_prompt)
+    prompt_length = inputs["input_ids"].shape[-1]
+    action_tokens = {
+        action: tokenizer.encode(action, add_special_tokens=False)
+        for action in ALLOWED_ACTIONS
+    }
+    if any(not tokens for tokens in action_tokens.values()):
+        raise RequestError("tokenizer produced an empty action candidate")
+    max_action_tokens = max(len(tokens) for tokens in action_tokens.values())
+    eos_id = tokenizer.eos_token_id
+    if eos_id is None:
+        raise RequestError("tokenizer has no eos token")
+
+    def allowed_tokens(_batch_id: int, input_ids) -> list[int]:
+        generated = input_ids[prompt_length:].tolist()
+        candidates = [
+            tokens for tokens in action_tokens.values()
+            if generated == tokens[: len(generated)]
+        ]
+        completed = [tokens for tokens in candidates if len(generated) == len(tokens)]
+        if completed:
+            return [int(eos_id)]
+        next_ids = sorted({tokens[len(generated)] for tokens in candidates if len(tokens) > len(generated)})
+        if not next_ids:
+            return [int(eos_id)]
+        return [int(token_id) for token_id in next_ids]
+
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=max_action_tokens + 1,
+        do_sample=False,
+        eos_token_id=eos_id,
+        pad_token_id=tokenizer.pad_token_id or eos_id,
+        prefix_allowed_tokens_fn=allowed_tokens,
+    )
+    completion = tokenizer.decode(outputs[0][prompt_length:], skip_special_tokens=True).strip()
+    if completion not in ALLOWED_ACTIONS:
+        raise RequestError("constrained action decoder did not yield an allowed action")
+    return completion
+
+
+def generate_line(tokenizer, model, prompt: str, action: str, max_new_tokens: int) -> str:
+    line_prompt = prompt + ACTION_PREFIX + action + LINE_PREFIX
+    inputs = _model_inputs(tokenizer, model, line_prompt)
+    prompt_length = inputs["input_ids"].shape[-1]
+    eos_id = tokenizer.eos_token_id
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=min(max_new_tokens, 32),
+        do_sample=False,
+        eos_token_id=eos_id,
+        pad_token_id=tokenizer.pad_token_id or eos_id,
+    )
+    line = tokenizer.decode(outputs[0][prompt_length:], skip_special_tokens=True).strip()
+    if not line or len(line) > 180 or "\n" in line or "\r" in line or "\t" in line:
+        raise RequestError("model line escaped the one-line contract")
+    return line
 
 
 def generate_text(tokenizer, model, request: dict[str, Any], max_new_tokens: int = 64) -> str:
     prompt = build_generation_prompt(tokenizer, request)
-    inputs = tokenizer(prompt, return_tensors="pt")
-    device = next(model.parameters()).device
-    inputs = {key: value.to(device) for key, value in inputs.items()}
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=max_new_tokens,
-        do_sample=False,
-        pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
-    )
-    prompt_length = inputs["input_ids"].shape[-1]
-    completion = tokenizer.decode(outputs[0][prompt_length:], skip_special_tokens=True).strip()
-    return ASSISTANT_PREFIX + completion
+    action = choose_action(tokenizer, model, prompt)
+    line = generate_line(tokenizer, model, prompt, action, max_new_tokens)
+    return f"action: {action}\nline: {line}"
 
 
 class NpcLlmHandler(BaseHTTPRequestHandler):

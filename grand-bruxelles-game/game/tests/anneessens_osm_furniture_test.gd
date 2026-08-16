@@ -41,6 +41,7 @@ func _run() -> void:
         return
 
     var found_ids: Array[int] = []
+    var foliage_lobes_total := 0
     for node: Node in get_nodes_in_group("osm_environment_furniture"):
         if not node is StaticBody3D:
             _fail("OSM furniture must have physical collision owner")
@@ -51,10 +52,28 @@ func _run() -> void:
         if str(tree.get_meta("license", "")) != "ODbL-1.0":
             _fail("OSM furniture provenance/license missing")
             return
+        if str(tree.get_meta("asset_family", "")) != "brussels_street_tree_v1":
+            _fail("shared Brussels street-tree asset family missing: %s" % tree.name)
+            return
+        if bool(tree.get_meta("source_dimensions_measured", true)):
+            _fail("authored tree dimensions must not be presented as source measurements: %s" % tree.name)
+            return
         var collision := tree.get_node_or_null("CollisionShape3D") as CollisionShape3D
         if collision == null or collision.shape == null:
             _fail("tree collision missing: %s" % tree.name)
             return
+        var visual := tree.get_node_or_null("StreetTreeVisual") as Node3D
+        if visual == null:
+            _fail("shared street-tree visual root missing: %s" % tree.name)
+            return
+        var lobe_count := 0
+        for child: Node in visual.get_children():
+            if child.name.begins_with("FoliageLobe_") and child is MeshInstance3D:
+                lobe_count += 1
+        if lobe_count < 5:
+            _fail("tree crown still reads as a primitive; expected >=5 foliage lobes: %s" % tree.name)
+            return
+        foliage_lobes_total += lobe_count
         found_ids.append(int(tree.get_meta("osm_id", 0)))
 
     found_ids.sort()
@@ -63,6 +82,9 @@ func _run() -> void:
     if found_ids != expected:
         _fail("expected seven exact OSM trees, got %s" % str(found_ids))
         return
+    if foliage_lobes_total < 35:
+        _fail("shared tree visual coverage unexpectedly low")
+        return
 
-    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 collisions=7 source=OSM license=ODbL-1.0")
+    print("ANNEESSENS_OSM_FURNITURE_OK: trees=7 collisions=7 foliage_lobes=%d asset_family=brussels_street_tree_v1 source=OSM license=ODbL-1.0" % foliage_lobes_total)
     quit(0)

@@ -23,6 +23,8 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_build_cell_elevation_requirements.py"
       - "grand-bruxelles-game/tools/citygen/resolve_cell_elevation_sources.py"
       - "grand-bruxelles-game/tools/citygen/test_resolve_cell_elevation_sources.py"
+      - "grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py"
+      - "grand-bruxelles-game/tools/citygen/test_validate_cell_elevation_archives.py"
       - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
 
 permissions:
@@ -50,6 +52,8 @@ jobs:
         run: python3 grand-bruxelles-game/tools/citygen/test_build_cell_elevation_requirements.py
       - name: Cell elevation-source resolution regression
         run: python3 grand-bruxelles-game/tools/citygen/test_resolve_cell_elevation_sources.py
+      - name: Cell elevation-archive validation regression
+        run: python3 grand-bruxelles-game/tools/citygen/test_validate_cell_elevation_archives.py
       - name: Existing city-generation guardrails
         run: |
           python3 grand-bruxelles-game/tools/city_generation/test_generate_facade_candidates.py
@@ -61,7 +65,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -169,6 +173,30 @@ jobs:
                 { echo "resolution_pending kind=${KIND} cell=${CELL}"; cat "${ERROR}.log"; } > "$ERROR"
                 rm -f "${CELL_DIR}/elevation_${KIND}_resolution.json"
                 echo "ELEVATION_SOURCE_RESOLUTION_PENDING ${CELL} ${KIND}"
+              fi
+            done
+          done < /tmp/citygen-out/worklist.txt
+      - name: Download hash and structurally validate resolved elevation archives
+        shell: bash
+        run: |
+          set -u
+          mkdir -p /tmp/citygen-elevation-archive-cache /tmp/citygen-out/elevation-archive-errors
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            CELL_DIR="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
+            for KIND in dsm dtm; do
+              RESOLUTION="${CELL_DIR}/elevation_${KIND}_resolution.json"
+              [ -f "$RESOLUTION" ] || continue
+              ERROR="/tmp/citygen-out/elevation-archive-errors/${CELL}-${KIND}.txt"
+              if python3 grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py \
+                --resolution "$RESOLUTION" \
+                --work-dir /tmp/citygen-elevation-archive-cache \
+                --output "${CELL_DIR}/elevation_${KIND}_archive_validation.json" >"${ERROR}.log" 2>&1; then
+                rm -f "$ERROR" "${ERROR}.log"
+              else
+                { echo "archive_validation_pending kind=${KIND} cell=${CELL}"; cat "${ERROR}.log"; } > "$ERROR"
+                rm -f "${CELL_DIR}/elevation_${KIND}_archive_validation.json"
+                echo "ELEVATION_ARCHIVE_VALIDATION_PENDING ${CELL} ${KIND}"
               fi
             done
           done < /tmp/citygen-out/worklist.txt

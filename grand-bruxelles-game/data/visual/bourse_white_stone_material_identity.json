@@ -1,0 +1,41 @@
+{
+  "schema": "grand-bruxelles-material-identity-v1",
+  "target": {
+    "runtime_node": "BoursePorticoArticulation",
+    "role": "existing provisional Bourse portico facade articulation surfaces whose material identity is independently source-backed as white stone",
+    "surface_name_prefixes": ["Column_", "RearPilaster_"],
+    "surface_names": ["PorticoEntablature", "RearCentralEntryLintel"],
+    "expected_surface_count": 24,
+    "excluded_roles": ["MonumentalStair_*", "openings", "clock"]
+  },
+  "material_identity_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "La Bourse, Urban 31241",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Place_de_la_Bourse/A001/31241",
+    "accessed_at": "2026-08-16",
+    "facts": [
+      "The official heritage record describes the Bourse as having four white-stone facades.",
+      "The same record separately describes the high base as dressed limestone, so the monumental stair/base is intentionally excluded from this white-stone material pass."
+    ]
+  },
+  "presentation_contract": {
+    "material_identity": "white_stone",
+    "scope": "material response only on the named existing portico facade articulation surfaces",
+    "geometry_changed": false,
+    "candidate_geometry_promoted": false,
+    "masonry_joints_authored": false,
+    "openings_authored": false,
+    "exact_stone_species_claimed": false,
+    "exact_reflectance_claimed": false,
+    "exact_rgb_is_photometric_measurement": false,
+    "external_texture_asset": false,
+    "runtime_approved": true,
+    "runtime_approval_basis": "Deterministic 1280x960 Bourse geotagged-camera A/B on PR #452 changed 5.3080% of the whole frame at >3/255 RGB and 1.4733% at >8/255, above the predeclared 1.5% / 0.5% gates. Game CI, Photo Match QA, Performance Baseline, Web Export, PC Desktop Export and Branch Hygiene passed on the validated candidate head.",
+    "evidence_artifact": {
+      "name": "bourse-white-stone-ab",
+      "artifact_id": 9260881750,
+      "sha256": "b9b49e6d399547284628b01f247079f9ce00ff7607a0fc3f1df1a1f5c1a1b8d6"
+    },
+    "realism_complete": false
+  }
+}

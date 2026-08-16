@@ -1,0 +1,29 @@
+{
+  "schema": "grand-bruxelles-bourse-context-facade-articulation-v2",
+  "scope": "Bourse context buildings already rendered by BrusselsOSM within 145 m of the production Bourse anchor",
+  "source_contract": {
+    "city_data": "res://data/osm/vertical_slice_01.game.json",
+    "footprints": "existing OSM building footprints consumed by osm_city_builder.gd",
+    "heights": "existing building height values consumed by osm_city_builder.gd",
+    "rendered_building_membership": "GeneratedBuildings/Building_<osm_id> must already exist in production"
+  },
+  "presentation": {
+    "adds": ["cornice bands", "window lintel bands", "window sill bands"],
+    "moves_source_geometry": false,
+    "changes_building_height": false,
+    "creates_collision": false,
+    "external_assets": [],
+    "external_textures": []
+  },
+  "truth_limits": {
+    "architectural_detail_is_measured": false,
+    "facade_style_is_building_specific": false,
+    "purpose": "bounded player-facing art-direction for generic context masses; source footprint and height remain authoritative"
+  },
+  "evidence": {
+    "camera": "res://data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json",
+    "before": "res://artifacts/visual/bourse_context_facade_before.png",
+    "after": "res://artifacts/visual/bourse_context_facade_after.png",
+    "same_camera_required": true
+  }
+}

@@ -4,6 +4,7 @@ const DATA_PATH := "res://data/visual/grand_place_granite_paving.json"
 const SURFACE_Y := 0.012
 
 var _surface: MeshInstance3D
+var _collision_body: StaticBody3D
 var _feature_id := ""
 var _polygon_area_m2 := 0.0
 var _loaded := false
@@ -54,6 +55,24 @@ void fragment() {
     var material := ShaderMaterial.new()
     material.shader = shader
     return material
+
+func _build_collision(mesh: ArrayMesh) -> bool:
+    var shape := mesh.create_trimesh_shape()
+    if shape == null:
+        _fail("collision trimesh creation failed")
+        return false
+    _collision_body = StaticBody3D.new()
+    _collision_body.name = "OfficialGraniteStreetSurfaceCollision"
+    _collision_body.collision_layer = 1
+    _collision_body.collision_mask = 1
+    _collision_body.set_meta("source_feature_id", _feature_id)
+    _collision_body.set_meta("geometry_source", "same_official_granite_mesh")
+    var collision := CollisionShape3D.new()
+    collision.name = "CollisionShape3D"
+    collision.shape = shape
+    _collision_body.add_child(collision)
+    add_child(_collision_body)
+    return true
 
 func _build_from_source() -> void:
     if not FileAccess.file_exists(DATA_PATH):
@@ -114,6 +133,8 @@ func _build_from_source() -> void:
     _surface.set_meta("exact_rgb_is_photometric_measurement", false)
     _surface.set_meta("joint_pattern_authored", false)
     add_child(_surface)
+    if not _build_collision(mesh):
+        return
     _loaded = true
 
 func set_presentation_enabled(enabled: bool) -> void:
@@ -131,3 +152,6 @@ func source_polygon_area_m2() -> float:
 
 func geometry_loaded() -> bool:
     return _loaded
+
+func collision_ready() -> bool:
+    return _collision_body != null and _collision_body.get_node_or_null("CollisionShape3D") != null

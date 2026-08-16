@@ -185,7 +185,8 @@ func _run() -> void:
         return
     if not _expect(int(source_cell.get("rendered_building_count")) == EXPECTED_VISUAL_BUILDINGS, "eligible visual building massing count drifted"):
         return
-    if not _expect(int(source_cell.get("massing_tone_profile_count")) >= 4, "visual massing lacks deterministic shared tone variation"):
+    var tone_profile_count := int(source_cell.get("massing_tone_profile_count"))
+    if not _expect(tone_profile_count >= 4, "visual massing lacks deterministic shared tone variation"):
         return
     if not _expect(int(source_cell.get("blocked_unapproved_building_count")) == EXPECTED_BLOCKED_BUILDINGS, "non-eligible building heights were not fail-closed"):
         return
@@ -221,6 +222,6 @@ func _run() -> void:
     if not _expect(not runtime.backend.has_active_instance(EAST_CELL_ID), "east source-plan cell did not unload outside hysteresis radius"):
         return
 
-    print("BRUSSELS_SOURCE_PLAN_CLUSTER_OK: east cell streamed 252 official street surfaces, rendered 584 cross-source visual building candidates in a combined mesh with %d non-classifying tone profiles, kept 335 buildings fail-closed, created no fake collision, and unloaded cleanly" % int(source_cell.get("massing_tone_profile_count")))
+    print("BRUSSELS_SOURCE_PLAN_CLUSTER_OK: east cell streamed 252 official street surfaces, rendered 584 cross-source visual building candidates in a combined mesh with %d non-classifying tone profiles, kept 335 buildings fail-closed, created no fake collision, and unloaded cleanly" % tone_profile_count)
     world.queue_free()
     quit(0)

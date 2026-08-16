@@ -51,9 +51,11 @@ func _read_identity(path: String, expected_building_id: String) -> Dictionary:
         push_error("Grand-Place white-stone runtime: building identity drifted %s" % path)
         _identity_failure = true
         return {}
-    # The older 1655673 evidence predates the explicit applies_to field. Treat
-    # an absent field as legacy-compatible, but reject any contradictory scope.
-    if contract.has("applies_to") and str(contract.get("applies_to", "")) != "WALLSURFACE":
+    # Existing evidence phrases the scope as "WALLSURFACE only". Accept that
+    # exact wall-only wording (and a future normalized WALLSURFACE value), while
+    # rejecting every other scope so roof/ground surfaces can never inherit it.
+    var applies_to := str(contract.get("applies_to", ""))
+    if applies_to != "WALLSURFACE" and applies_to != "WALLSURFACE only":
         push_error("Grand-Place white-stone runtime: wall-only contract drifted %s" % path)
         _identity_failure = true
         return {}

@@ -49,7 +49,13 @@ with tempfile.TemporaryDirectory() as tmp:
         "cell_id": cell.name,
         "crs": "EPSG:31370",
         "bbox": [149000,169000,149500,169500],
-        "layers": {"buildings": {"features": 1, "invalid_ownership_features": 0}},
+        "layers": {
+            "buildings": {
+                "features": 1,
+                "invalid_ownership_features": 0,
+                "file": "raw/buildings.geojson",
+            }
+        },
     }
     buildings = {"type": "FeatureCollection", "features": [feature]}
     write(cell / "manifest.json", source)
@@ -64,12 +70,41 @@ with tempfile.TemporaryDirectory() as tmp:
     assert result["geometry"]["building_feature_count"] == 1
     assert tuple(mod.GATES) == EXPECTED_REGION_GATES, mod.GATES
     assert tuple(result["maturity"]["gates"]) == EXPECTED_REGION_GATES
-    assert all(value is False for value in result["maturity"]["gates"].values())
+    assert result["maturity"]["gates"]["source_requirements"] is True
+    assert all(
+        value is False
+        for gate, value in result["maturity"]["gates"].items()
+        if gate != "source_requirements"
+    )
+    assert result["source_requirements"]["status"] == "validated"
+    assert result["source_requirements"]["complete"] is True
+    assert result["source_requirements"]["required_file_count"] == 1
+    assert result["source_requirements"]["blockers"] == []
+    requirement = result["source_requirements"]["requirements"][0]
+    assert requirement["layer"] == "buildings"
+    assert requirement["file"] == "raw/buildings.geojson"
+    assert requirement["status"] == "validated"
+    assert requirement["declared_features"] == 1
+    assert requirement["actual_features"] == 1
+    assert requirement["content_digest"] == mod._digest(buildings)
     assert result["terrain"]["status"] == "evidence_pending"
     assert result["heights"]["status"] == "evidence_pending"
     assert result["photo_match"]["status"] == "not_evaluated"
     assert result["performance"]["budget_pass"] is False
     assert result["maturity_digest"] == mod._digest({k: v for k, v in result.items() if k != "maturity_digest"})
+
+    # Every explicitly declared source file participates in the same contract.
+    # A missing secondary source must keep the source gate fail-closed without
+    # falsely quarantining otherwise authoritative building geometry.
+    source["layers"]["street_axes"] = {"features": 0, "file": "raw/street_axes.geojson"}
+    write(cell / "manifest.json", source)
+    pending = mod.build(cell)
+    assert pending["maturity"]["state"] == "data_ready"
+    assert pending["maturity"]["gates"]["source_requirements"] is False
+    assert pending["source_requirements"]["status"] == "evidence_pending"
+    assert pending["source_requirements"]["complete"] is False
+    assert "missing_declared_source_file:street_axes:raw/street_axes.geojson" in pending["source_requirements"]["blockers"]
+    del source["layers"]["street_axes"]
 
     # Invalid canonical ownership must never be promoted as authoritative geometry.
     source["layers"]["buildings"]["invalid_ownership_features"] = 1
@@ -95,4 +130,4 @@ assert "python3 grand-bruxelles-game/tools/citygen/test_bootstrap_cell_maturity.
     "Autonomous CityGen CI must execute the canonical maturity-contract regression"
 )
 
-print("BOOTSTRAP_CELL_MATURITY_GUARDRAILS_OK deterministic=true gates_false=true quarantine=true regional_contract_locked=true ci_covered=true")
+print("BOOTSTRAP_CELL_MATURITY_GUARDRAILS_OK deterministic=true source_requirements=true quarantine=true regional_contract_locked=true ci_covered=true")

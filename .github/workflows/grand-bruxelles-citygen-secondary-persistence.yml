@@ -7,20 +7,19 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py"
       - ".github/workflows/grand-bruxelles-citygen-secondary-persistence.yml"
       - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
-  push:
-    branches:
-      - "main"
-    paths:
-      - "grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py"
-      - "grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py"
-      - ".github/workflows/grand-bruxelles-citygen-secondary-persistence.yml"
-      - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
+  workflow_run:
+    workflows:
+      - "Grand Bruxelles CityGen Anderlecht Secondary Height"
+    types:
+      - completed
 
 permissions:
-  contents: read
+  actions: read
+  contents: write
 
 jobs:
   regression:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -29,3 +28,52 @@ jobs:
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py
+
+  persist:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Download exact successful secondary-height evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: grand-bruxelles-citygen-anderlecht-secondary-height
+          path: /tmp/secondary-height-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Revalidate compact evidence fail-closed
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py \
+            --secondary /tmp/secondary-height-artifact/secondary-evidence.json \
+            --validation /tmp/secondary-height-artifact/validation.json \
+            --output-dir /tmp/secondary-height-cache
+
+      - name: Persist validated evidence off main
+        run: |
+          set -euo pipefail
+          CELL=bxl-e141500-n167500-s500
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          git switch -C citygen-autonomous-state origin/citygen-autonomous-state
+          TARGET="grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
+          mkdir -p "$TARGET"
+          cp /tmp/secondary-height-cache/secondary_height_evidence.json "$TARGET/secondary_height_evidence.json"
+          cp /tmp/secondary-height-cache/secondary_height_validation.json "$TARGET/secondary_height_validation.json"
+          git add "$TARGET/secondary_height_evidence.json" "$TARGET/secondary_height_validation.json"
+          if git diff --cached --quiet; then
+            echo "SECONDARY_HEIGHT_CACHE_ALREADY_CURRENT"
+            exit 0
+          fi
+          git commit -m "citygen: persist secondary height evidence"
+          git push --force-with-lease origin citygen-autonomous-state

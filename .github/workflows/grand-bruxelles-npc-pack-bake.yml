@@ -1,0 +1,84 @@
+name: Grand Bruxelles NPC Pack Bake
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-npc-pack-bake.yml"
+      - "grand-bruxelles-game/tools/bake_npc_pack.py"
+      - "grand-bruxelles-game/tools/generate_npc_pack_qwen.py"
+      - "grand-bruxelles-game/tests/test_npc_pack_bake.py"
+      - "grand-bruxelles-game/game/scripts/npc_profile_pack.gd"
+      - "grand-bruxelles-game/game/tests/npc_profile_pack_test.gd"
+      - "grand-bruxelles-game/data/npc/packs/*.pack.game.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npc-pack-bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate LLM-authored pack baker and Qwen generator boundary
+        run: python3 -m unittest grand-bruxelles-game/tests/test_npc_pack_bake.py
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/npc-pack-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/npc-pack-import.log; then exit 1; fi
+      - name: Prove model-off runtime pack
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/npc_profile_pack_test.gd 2>&1 | tee /tmp/npc-pack.log
+          if grep -E "SCRIPT ERROR|Parse Error:|NPC_PROFILE_PACK_FAIL" /tmp/npc-pack.log; then exit 1; fi
+          grep -F "NPC_PROFILE_PACK_OK" /tmp/npc-pack.log
+
+  real-qwen-pack-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CPU inference dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch>=2.6,<2.8'
+          python3 -m pip install 'transformers>=4.51,<4.52' 'huggingface_hub>=0.30,<1.0' 'safetensors>=0.5,<1.0'
+      - name: Download exact pinned Qwen model outside Git
+        run: python3 grand-bruxelles-game/tools/download_npc_llm.py
+      - name: Generate and bake a complete real Qwen profile
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/generate_npc_pack_qwen.py \
+            --profile-id midi_qwen_ci_01 --zone midi --archetype civilian --locale fr-BE \
+            --output /tmp/midi_qwen_ci.pack.game.json --raw-output /tmp/midi_qwen_ci.raw.txt \
+            2>&1 | tee /tmp/qwen-pack-smoke.log
+          grep -F "NPC_PACK_QWEN_OK" /tmp/qwen-pack-smoke.log
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/midi_qwen_ci.pack.game.json', encoding='utf-8'))
+          r=p['profiles'][0]
+          assert p['generator']['mode']=='offline_llm_bake'
+          assert p['generator']['model']=='Qwen/Qwen3-0.6B'
+          assert p['generator']['revision']=='c1899de289a04d12100db370d81485cdf75e47ca'
+          assert sum(len(v) for v in r['dialogue'].values()) == 20
+          assert 0.0 <= r['thresholds']['fear'] <= 1.0
+          assert 0.0 <= r['thresholds']['aggression'] <= 1.0
+          assert 0.0 <= r['thresholds']['flee_health'] <= 1.0
+          print('NPC_PACK_QWEN_ARTIFACT_OK: lines=20 thresholds=true')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: real-qwen-npc-pack-smoke
+          path: |
+            /tmp/midi_qwen_ci.pack.game.json
+            /tmp/midi_qwen_ci.raw.txt

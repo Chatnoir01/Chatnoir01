@@ -25,7 +25,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   anderlecht-secondary-height:
@@ -208,3 +208,37 @@ jobs:
           name: grand-bruxelles-citygen-anderlecht-secondary-height
           path: /tmp/anderlecht-secondary/
           if-no-files-found: error
+
+      - name: Persist validated secondary evidence off main
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          CELL=bxl-e141500-n167500-s500
+          python3 grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py \
+            --secondary /tmp/anderlecht-secondary/secondary-evidence.json \
+            --validation /tmp/anderlecht-secondary/validation.json \
+            --output-dir /tmp/secondary-height-cache
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            git reset --hard HEAD
+            git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+            git switch -C citygen-autonomous-state origin/citygen-autonomous-state
+            TARGET="grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
+            mkdir -p "$TARGET"
+            cp /tmp/secondary-height-cache/secondary_height_evidence.json "$TARGET/secondary_height_evidence.json"
+            cp /tmp/secondary-height-cache/secondary_height_validation.json "$TARGET/secondary_height_validation.json"
+            git add "$TARGET/secondary_height_evidence.json" "$TARGET/secondary_height_validation.json"
+            if git diff --cached --quiet; then
+              echo "SECONDARY_HEIGHT_CACHE_ALREADY_CURRENT"
+              exit 0
+            fi
+            git commit -m "citygen: persist secondary height evidence"
+            if git push --force-with-lease origin citygen-autonomous-state; then
+              echo "SECONDARY_HEIGHT_CACHE_PERSISTED attempt=${ATTEMPT}"
+              exit 0
+            fi
+            echo "SECONDARY_HEIGHT_CACHE_RETRY attempt=${ATTEMPT}"
+          done
+          echo "secondary height cache persistence lost repeated durable-state races" >&2
+          exit 1

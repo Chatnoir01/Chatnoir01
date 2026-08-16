@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parents[2]
 SPEC = importlib.util.spec_from_file_location("stale_repair", HERE / "select_stale_quarantine_repairs.py")
 assert SPEC and SPEC.loader
 mod = importlib.util.module_from_spec(SPEC)
@@ -84,4 +85,16 @@ with tempfile.TemporaryDirectory() as td:
     repairs = mod.select_repairs(candidates, source, target, 4)
     assert [row["cell_id"] for row in repairs] == [stale], repairs
 
-print("AUTONOMOUS_CITYGEN_STALE_QUARANTINE_REPAIR_OK candidate_state_contract=true")
+# Durable cache recovery runs under `set -o pipefail`. A `grep -q` existence
+# probe can close its pipe after the first match and make `git ls-tree` exit via
+# SIGPIPE on a large cache, silently skipping the archive. Both production
+# recovery paths must use a non-pipeline tree existence probe instead.
+for workflow_name in (
+    "grand-bruxelles-autonomous-citygen.yml",
+    "grand-bruxelles-citygen-stale-quarantine-repair.yml",
+):
+    workflow = (REPO_ROOT / ".github" / "workflows" / workflow_name).read_text(encoding="utf-8")
+    assert "git ls-tree -r --name-only origin/citygen-autonomous-state" not in workflow, workflow_name
+    assert "git cat-file -e \"origin/citygen-autonomous-state:" in workflow, workflow_name
+
+print("AUTONOMOUS_CITYGEN_STALE_QUARANTINE_REPAIR_OK candidate_state_contract=true durable_cache_probe_pipefail_safe=true")

@@ -11,6 +11,16 @@ func _fail(message: String) -> void:
     print("ANNEESSENS_VISIT_FAIL: %s" % message)
     quit(1)
 
+func _capture(name: String) -> bool:
+    var image := get_root().get_viewport().get_texture().get_image()
+    if image == null or image.is_empty():
+        return false
+    var path := "%s/%s.png" % [OUTPUT_DIR, name]
+    if image.save_png(path) != OK:
+        return false
+    print("ANNEESSENS_VISIT_CAPTURE: %s" % path)
+    return true
+
 func _run() -> void:
     var selector := get_root().get_node_or_null("ZoneSelectorRuntime")
     if selector == null or not selector.has_method("_on_zone_pressed"):
@@ -54,15 +64,47 @@ func _run() -> void:
         player.rotation_degrees.y = yaw
         for _frame: int in range(4):
             await process_frame
-        var image := get_root().get_viewport().get_texture().get_image()
-        if image == null or image.is_empty():
+        if not _capture("anneessens_yaw_%03d" % int(yaw)):
             _fail("capture failed at yaw %.0f" % yaw)
             return
-        var path := "%s/anneessens_yaw_%03d.png" % [OUTPUT_DIR, int(yaw)]
-        if image.save_png(path) != OK:
-            _fail("could not save %s" % path)
-            return
-        print("ANNEESSENS_VISIT_CAPTURE: yaw=%.0f path=%s" % [yaw, path])
 
-    print("ANNEESSENS_VISIT_OK: zone=anneessens views=4")
+    player.rotation_degrees.y = 180.0
+    for _frame: int in range(4):
+        await process_frame
+
+    var facade_details := main.get_node_or_null("BrusselsOSM/GeneratedFacadeDetails") as Node3D
+    if facade_details == null:
+        _fail("GeneratedFacadeDetails missing")
+        return
+    facade_details.visible = false
+    for _frame: int in range(3):
+        await process_frame
+    if not _capture("anneessens_yaw_180_no_facade_details"):
+        _fail("facade isolation capture failed")
+        return
+    facade_details.visible = true
+
+    var generated_buildings := main.get_node_or_null("BrusselsOSM/GeneratedBuildings") as Node3D
+    if generated_buildings == null:
+        _fail("GeneratedBuildings missing")
+        return
+    var roofs: Array[Node3D] = []
+    var nearby_roofs := 0
+    for child: Node in generated_buildings.get_children():
+        if child is Node3D and child.name.begins_with("Roof_"):
+            var roof := child as Node3D
+            roofs.append(roof)
+            if Vector2(roof.global_position.x, roof.global_position.z).distance_to(Vector2(ANNEESSENS_SPAWN.x, ANNEESSENS_SPAWN.z)) <= 100.0:
+                nearby_roofs += 1
+                print("ANNEESSENS_NEAR_ROOF: name=%s pos=%s" % [roof.name, str(roof.global_position)])
+            roof.visible = false
+    for _frame: int in range(3):
+        await process_frame
+    if not _capture("anneessens_yaw_180_no_roofs"):
+        _fail("roof isolation capture failed")
+        return
+    for roof: Node3D in roofs:
+        roof.visible = true
+
+    print("ANNEESSENS_VISIT_OK: zone=anneessens views=4 roofs=%d nearby_roofs=%d" % [roofs.size(), nearby_roofs])
     quit(0)

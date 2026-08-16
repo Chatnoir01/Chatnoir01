@@ -6,6 +6,7 @@ on:
       - ".github/workflows/grand-bruxelles-osm-furniture-ingestion.yml"
       - "grand-bruxelles-game/tools/fetch_osm_slice.py"
       - "grand-bruxelles-game/tools/transform_osm_to_game.py"
+      - "grand-bruxelles-game/tools/make_runtime_slice.py"
       - "grand-bruxelles-game/tools/test_osm_furniture_ingestion.py"
   workflow_dispatch:
 

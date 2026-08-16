@@ -26,17 +26,16 @@ func _add_office_block(parent: Node3D, name: String, local_z: float, length: flo
     # Brussels architectural heritage inventory, Avenue Fonsny 47-49:
     # the three SNCB office buildings stand on a narrow site of barely 14 m
     # between the railway tracks and Avenue Fonsny. The inherited hero geometry
-    # used a 41 m cross-section, which made the arrival frontage read as a deep
-    # generic slab instead of the documented long, shallow modernist ensemble.
+    # used a 41 m cross-section, which made the oblique arrival frontage read as
+    # a deep generic slab instead of the documented long, shallow modernist
+    # ensemble. Keep the already-exposed Avenue Fonsny facade plane anchored and
+    # remove the excess depth from the railway side only.
     super._add_office_block(parent, name, local_z, length, floors, glass_tower)
     var block := parent.get_node_or_null(name) as Node3D
     if block == null:
         return
 
-    var old_front_x := LEGACY_FONSNY_OFFICE_DEPTH_M * 0.5 + 0.07
-    var new_front_x := FONSNY_OFFICE_SITE_DEPTH_M * 0.5 + 0.07
-    var front_delta_x := new_front_x - old_front_x
-
+    var centre_shift_x := (LEGACY_FONSNY_OFFICE_DEPTH_M - FONSNY_OFFICE_SITE_DEPTH_M) * 0.5
     for child in block.get_children():
         var mesh_instance := child as MeshInstance3D
         if mesh_instance == null:
@@ -47,22 +46,14 @@ func _add_office_block(parent: Node3D, name: String, local_z: float, length: flo
 
         if mesh_instance.name == "BlueStoneBase" or mesh_instance.name == "FauquenbergBrick":
             box.size.x = FONSNY_OFFICE_SITE_DEPTH_M
+            mesh_instance.position.x += centre_shift_x
         elif mesh_instance.name == "FlatRoof":
             box.size.x = FONSNY_OFFICE_SITE_DEPTH_M + 1.1
-
-        var child_name := String(mesh_instance.name)
-        if (
-            child_name.begins_with("HorizontalBand_")
-            or child_name.begins_with("VerticalMullion_")
-            or child_name.begins_with("Window_")
-            or child_name.begins_with("GroundOpening_")
-            or child_name == "VerticalGlassTowerFrame"
-            or child_name == "VerticalGlassTower"
-        ):
-            mesh_instance.position.x += front_delta_x
+            mesh_instance.position.x += centre_shift_x
 
     block.set_meta("source_site_depth_m", FONSNY_OFFICE_SITE_DEPTH_M)
     block.set_meta("legacy_runtime_depth_m", LEGACY_FONSNY_OFFICE_DEPTH_M)
+    block.set_meta("street_facade_plane_preserved", true)
     block.set_meta("source_identity", "Brussels heritage inventory Avenue Fonsny 47-49")
 
 func _make_materials() -> void:

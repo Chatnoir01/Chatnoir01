@@ -11,6 +11,9 @@ const CADENCE_MAX := 1.08
 const AMPLITUDE_BUCKETS := 9
 const AMPLITUDE_MIN := 0.88
 const AMPLITUDE_MAX := 1.12
+const IDLE_POSTURE_BUCKETS := 7
+const IDLE_ARM_SPREAD_MIN_RAD := 0.035
+const IDLE_ARM_SPREAD_MAX_RAD := 0.085
 const DETAIL_LOD_SWITCH_DISTANCE_M := 90.0
 const DETAIL_LOD_TRANSITION_MARGIN_M := 10.0
 const DETAIL_UPDATE_DISTANCE_M := DETAIL_LOD_SWITCH_DISTANCE_M + DETAIL_LOD_TRANSITION_MARGIN_M
@@ -20,6 +23,7 @@ var _last_positions: Dictionary = {}
 var _phases: Dictionary = {}
 var _cadence_multipliers: Dictionary = {}
 var _amplitude_multipliers: Dictionary = {}
+var _idle_arm_spreads: Dictionary = {}
 var _rig_cache: Dictionary = {}
 var _rig_discovery_count: int = 0
 var _tracked_pedestrians: int = 0
@@ -75,7 +79,9 @@ func _update_profiled_gait(delta: float) -> void:
             _phases[instance_id] = float(posmod(stable_hash, 23)) * 0.37
             _cadence_multipliers[instance_id] = _cadence_multiplier_for_name(person.name)
             _amplitude_multipliers[instance_id] = _amplitude_multiplier_for_name(person.name)
-            _set_limb_swing(left_leg, right_leg, left_arm, right_arm, 0.0)
+            var idle_spread := _idle_arm_spread_for_name(person.name)
+            _idle_arm_spreads[instance_id] = idle_spread
+            _set_limb_pose(left_leg, right_leg, left_arm, right_arm, 0.0, idle_spread)
             continue
 
         var previous: Vector3 = _last_positions[instance_id]
@@ -94,7 +100,9 @@ func _update_profiled_gait(delta: float) -> void:
             _phases[instance_id] = fmod(phase, TAU)
         var amplitude := float(_amplitude_multipliers.get(instance_id, 1.0))
         var swing := sin(phase) * MAX_LEG_SWING_RAD * activity * amplitude
-        _set_limb_swing(left_leg, right_leg, left_arm, right_arm, swing)
+        var idle_spread := float(_idle_arm_spreads.get(instance_id, _idle_arm_spread_for_name(person.name)))
+        var idle_blend := 1.0 - activity
+        _set_limb_pose(left_leg, right_leg, left_arm, right_arm, swing, idle_spread * idle_blend)
         if absf(swing) > 0.025:
             animated += 1
 
@@ -153,11 +161,19 @@ func _amplitude_multiplier_for_name(person_name: StringName) -> float:
         return 1.0
     return lerpf(AMPLITUDE_MIN, AMPLITUDE_MAX, float(bucket) / float(AMPLITUDE_BUCKETS - 1))
 
-func _set_limb_swing(left_leg: Node3D, right_leg: Node3D, left_arm: Node3D, right_arm: Node3D, swing: float) -> void:
+func _idle_arm_spread_for_name(person_name: StringName) -> float:
+    var bucket := posmod((String(person_name) + ":idle-arm-spread").hash(), IDLE_POSTURE_BUCKETS)
+    if IDLE_POSTURE_BUCKETS <= 1:
+        return (IDLE_ARM_SPREAD_MIN_RAD + IDLE_ARM_SPREAD_MAX_RAD) * 0.5
+    return lerpf(IDLE_ARM_SPREAD_MIN_RAD, IDLE_ARM_SPREAD_MAX_RAD, float(bucket) / float(IDLE_POSTURE_BUCKETS - 1))
+
+func _set_limb_pose(left_leg: Node3D, right_leg: Node3D, left_arm: Node3D, right_arm: Node3D, swing: float, idle_arm_spread: float) -> void:
     left_leg.rotation.x = swing
     right_leg.rotation.x = -swing
     left_arm.rotation.x = -swing * ARM_SWING_RATIO
     right_arm.rotation.x = swing * ARM_SWING_RATIO
+    left_arm.rotation.z = idle_arm_spread
+    right_arm.rotation.z = -idle_arm_spread
 
 func _prune_stale(live_ids: Dictionary) -> void:
     for key: Variant in _last_positions.keys():
@@ -166,6 +182,7 @@ func _prune_stale(live_ids: Dictionary) -> void:
             _phases.erase(key)
             _cadence_multipliers.erase(key)
             _amplitude_multipliers.erase(key)
+            _idle_arm_spreads.erase(key)
             _rig_cache.erase(key)
 
 func gait_stats() -> Dictionary:
@@ -199,6 +216,21 @@ func gait_stats() -> Dictionary:
             amplitude_min = minf(amplitude_min, amplitude)
             amplitude_max = maxf(amplitude_max, amplitude)
 
+    var unique_idle_postures: Dictionary = {}
+    var idle_spread_min := 0.0
+    var idle_spread_max := 0.0
+    var idle_first := true
+    for key: Variant in _idle_arm_spreads.keys():
+        var spread := float(_idle_arm_spreads[key])
+        unique_idle_postures[snappedf(spread, 0.001)] = true
+        if idle_first:
+            idle_spread_min = spread
+            idle_spread_max = spread
+            idle_first = false
+        else:
+            idle_spread_min = minf(idle_spread_min, spread)
+            idle_spread_max = maxf(idle_spread_max, spread)
+
     return {
         "tracked_pedestrians": _tracked_pedestrians,
         "animated_pedestrians": _animated_pedestrians,
@@ -216,6 +248,11 @@ func gait_stats() -> Dictionary:
         "amplitude_multiplier_min": amplitude_min,
         "amplitude_multiplier_max": amplitude_max,
         "amplitude_is_stable_per_pedestrian": true,
+        "idle_posture_profile_count": unique_idle_postures.size(),
+        "idle_arm_spread_min_rad": idle_spread_min,
+        "idle_arm_spread_max_rad": idle_spread_max,
+        "idle_posture_is_stable_per_pedestrian": true,
+        "idle_posture_speed_blended": true,
         "rig_cache_size": _rig_cache.size(),
         "rig_discovery_count": _rig_discovery_count,
         "rig_cache_stable_after_warmup": true,

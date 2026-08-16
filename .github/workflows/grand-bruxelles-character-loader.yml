@@ -5,8 +5,10 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
       - "grand-bruxelles-game/game/tests/humanoid_authored_player_test.gd"
+      - "grand-bruxelles-game/game/tests/real_authored_player_asset_test.gd"
       - "grand-bruxelles-game/game/tests/fixtures/rigged_character_fixture.tscn"
       - "grand-bruxelles-game/assets/characters/player/thandi/**"
+      - "grand-bruxelles-game/assets/characters/player/kaykit_rogue/**"
       - "grand-bruxelles-game/assets/characters/player_character.glb"
       - ".github/workflows/grand-bruxelles-character-loader.yml"
   workflow_dispatch:
@@ -17,7 +19,7 @@ permissions:
 jobs:
   character-loader-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,8 +30,8 @@ jobs:
           version: 4.7.1
           use-dotnet: false
 
-      - name: Verify project imports
-        run: godot --headless --path grand-bruxelles-game --editor --quit-after 3
+      - name: Import project and authored GLB completely
+        run: godot --headless --path grand-bruxelles-game --editor --quit
 
       - name: Run production authored player loader test
         shell: bash
@@ -41,3 +43,14 @@ jobs:
             exit 1
           fi
           grep -q "HUMANOID_AUTHORED_PLAYER_OK" /tmp/character-loader.log
+
+      - name: Prove real authored player rig material animation and selection
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/real_authored_player_asset_test.gd 2>&1 | tee /tmp/real-player.log
+          if grep -E "SCRIPT ERROR|Parse Error:|REAL_AUTHORED_PLAYER_FAIL" /tmp/real-player.log; then
+            exit 1
+          fi
+          grep -q "REAL_AUTHORED_PLAYER_OK" /tmp/real-player.log

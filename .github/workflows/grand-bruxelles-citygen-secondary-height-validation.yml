@@ -1,0 +1,24 @@
+name: Grand Bruxelles CityGen Secondary Height Validation
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py"
+      - ".github/workflows/grand-bruxelles-citygen-secondary-height-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secondary-height-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate fail-closed secondary height contract
+        run: python grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py

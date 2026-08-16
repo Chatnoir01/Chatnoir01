@@ -1,0 +1,115 @@
+name: Grand Bruxelles Atomium Current Basin Footprint
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-current-basin-footprint.yml"
+      - "grand-bruxelles-game/data/environment/laeken_jette/atomium_current_basin_footprint.game.json"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_current_basin_footprint.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_core.gd"
+      - "grand-bruxelles-game/game/tests/atomium_current_basin_footprint_test.gd"
+      - "grand-bruxelles-game/game/tests/atomium_current_basin_capture_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove-current-basin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: base
+      - name: Checkout head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: head
+      - name: Install Godot 4.7.1 and renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          python -m pip install --disable-pip-version-check pillow
+      - name: Install identical capture harness in base
+        run: cp head/grand-bruxelles-game/game/tests/atomium_current_basin_capture_test.gd base/grand-bruxelles-game/game/tests/atomium_current_basin_capture_test.gd
+      - name: Import base and head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/base-import.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/head-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/base-import.log /tmp/head-import.log; then exit 1; fi
+      - name: Validate source-bounded footprint contract
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --script res://game/tests/atomium_current_basin_footprint_test.gd 2>&1 | tee /tmp/basin-smoke.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_CURRENT_BASIN_FOOTPRINT_FAIL" /tmp/basin-smoke.log; then exit 1; fi
+          grep -F "ATOMIUM_CURRENT_BASIN_FOOTPRINT_OK" /tmp/basin-smoke.log
+      - name: Capture deterministic BEFORE and AFTER
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path base/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/atomium_current_basin_capture_test.gd -- /tmp/basin-before.png 2>&1 | tee /tmp/base-capture.log
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/atomium_current_basin_capture_test.gd -- /tmp/basin-after.png 2>&1 | tee /tmp/head-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_CURRENT_BASIN_CAPTURE_FAIL" /tmp/base-capture.log /tmp/head-capture.log; then exit 1; fi
+          grep -F "ATOMIUM_CURRENT_BASIN_CAPTURE_OK" /tmp/base-capture.log
+          grep -F "ATOMIUM_CURRENT_BASIN_CAPTURE_OK" /tmp/head-capture.log
+          test -s /tmp/basin-before.png
+          test -s /tmp/basin-after.png
+      - name: Reject invisible or global visual deltas
+        shell: bash
+        run: |
+          python - <<'PY' | tee /tmp/basin-ab-metrics.log
+          from PIL import Image, ImageChops
+          a = Image.open('/tmp/basin-before.png').convert('RGB')
+          b = Image.open('/tmp/basin-after.png').convert('RGB')
+          if a.size != b.size:
+              raise SystemExit('ATOMIUM_CURRENT_BASIN_AB_FAIL: size mismatch')
+          pa, pb = a.load(), b.load()
+          changed = []
+          xs, ys = [], []
+          for y in range(a.height):
+              for x in range(a.width):
+                  if max(abs(pa[x,y][i]-pb[x,y][i]) for i in range(3)) > 3:
+                      changed.append((x,y))
+                      xs.append(x); ys.append(y)
+          total = a.width * a.height
+          pct = 100.0 * len(changed) / total
+          if not changed:
+              raise SystemExit('ATOMIUM_CURRENT_BASIN_AB_FAIL: zero changed pixels')
+          bbox = (min(xs), min(ys), max(xs)+1, max(ys)+1)
+          bbox_area_pct = 100.0 * (bbox[2]-bbox[0]) * (bbox[3]-bbox[1]) / total
+          print(f'ATOMIUM_CURRENT_BASIN_AB_METRICS: changed={pct:.4f}% bbox={bbox} bbox_area={bbox_area_pct:.2f}%')
+          if pct < 0.03:
+              raise SystemExit(f'ATOMIUM_CURRENT_BASIN_AB_FAIL: effect too small {pct:.4f}%')
+          if pct > 12.0:
+              raise SystemExit(f'ATOMIUM_CURRENT_BASIN_AB_FAIL: global effect too large {pct:.4f}%')
+          if bbox_area_pct > 55.0:
+              raise SystemExit(f'ATOMIUM_CURRENT_BASIN_AB_FAIL: delta spread too broadly {bbox_area_pct:.2f}%')
+          diff = ImageChops.difference(a,b)
+          diff.save('/tmp/basin-diff.png')
+          print('ATOMIUM_CURRENT_BASIN_AB_OK')
+          PY
+          grep -F "ATOMIUM_CURRENT_BASIN_AB_OK" /tmp/basin-ab-metrics.log
+      - name: Stage visible evidence
+        run: |
+          mkdir -p head/grand-bruxelles-game/artifacts/qa/atomium_current_basin_ab
+          cp /tmp/basin-before.png head/grand-bruxelles-game/artifacts/qa/atomium_current_basin_ab/before.png
+          cp /tmp/basin-after.png head/grand-bruxelles-game/artifacts/qa/atomium_current_basin_ab/after.png
+          cp /tmp/basin-diff.png head/grand-bruxelles-game/artifacts/qa/atomium_current_basin_ab/diff.png
+          cp /tmp/basin-ab-metrics.log head/grand-bruxelles-game/artifacts/qa/atomium_current_basin_ab/metrics.log
+          cp /tmp/basin-smoke.log head/grand-bruxelles-game/artifacts/qa/atomium_current_basin_ab/smoke.log
+      - name: Upload A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-current-basin-ab
+          path: head/grand-bruxelles-game/artifacts/qa/atomium_current_basin_ab
+          if-no-files-found: error

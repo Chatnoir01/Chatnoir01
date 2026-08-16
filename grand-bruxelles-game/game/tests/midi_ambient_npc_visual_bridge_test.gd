@@ -3,8 +3,8 @@ extends SceneTree
 const EXPECTED_AMBIENT := 20
 const EXPECTED_MATERIAL_CACHE_ENTRIES := 23
 const EXPECTED_REUSED_MATERIAL_SURFACES := 240
-const EXPECTED_LOD_SWITCH_DISTANCE := 48.0
-const EXPECTED_LOD_MARGIN := 6.0
+const EXPECTED_LOD_SWITCH_DISTANCE := 90.0
+const EXPECTED_LOD_MARGIN := 10.0
 
 func _initialize() -> void:
     call_deferred("_run")

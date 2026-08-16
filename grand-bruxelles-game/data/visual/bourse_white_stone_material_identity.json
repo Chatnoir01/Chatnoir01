@@ -1,0 +1,36 @@
+{
+  "schema": "grand-bruxelles-material-identity-v1",
+  "target": {
+    "runtime_node": "BoursePorticoArticulation",
+    "role": "existing provisional Bourse portico facade articulation surfaces whose material identity is independently source-backed as white stone",
+    "surface_name_prefixes": ["Column_", "RearPilaster_"],
+    "surface_names": ["PorticoEntablature", "RearCentralEntryLintel"],
+    "expected_surface_count": 24,
+    "excluded_roles": ["MonumentalStair_*", "openings", "clock"]
+  },
+  "material_identity_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "La Bourse, Urban 31241",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Place_de_la_Bourse/A001/31241",
+    "accessed_at": "2026-08-16",
+    "facts": [
+      "The official heritage record describes the Bourse as having four white-stone facades.",
+      "The same record separately describes the high base as dressed limestone, so the monumental stair/base is intentionally excluded from this white-stone material pass."
+    ]
+  },
+  "presentation_contract": {
+    "material_identity": "white_stone",
+    "scope": "material response only on the named existing portico facade articulation surfaces",
+    "geometry_changed": false,
+    "candidate_geometry_promoted": false,
+    "masonry_joints_authored": false,
+    "openings_authored": false,
+    "exact_stone_species_claimed": false,
+    "exact_reflectance_claimed": false,
+    "exact_rgb_is_photometric_measurement": false,
+    "external_texture_asset": false,
+    "runtime_approved": false,
+    "runtime_approval_basis": "Pending deterministic 1280x960 Bourse geotagged-camera A/B and affected CI gates on this PR.",
+    "realism_complete": false
+  }
+}

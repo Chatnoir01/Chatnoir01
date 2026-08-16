@@ -40,6 +40,7 @@ jobs:
           python3 grand-bruxelles-game/tools/citygen/test_validate_cell_elevation_rasters.py
           python3 grand-bruxelles-game/tools/citygen/test_assess_cell_elevation_values.py
           python3 grand-bruxelles-game/tools/citygen/test_build_cell_elevation_candidate_frontier.py
+          python3 grand-bruxelles-game/tools/citygen/test_derive_cell_building_height_candidates.py
       - name: Existing city-generation guardrails
         run: |
           set -euo pipefail
@@ -188,7 +189,7 @@ jobs:
               --archive-cache /tmp/citygen-elevation-archive-cache \
               --extract-root /tmp/citygen-raster-extract \
               --output "$D/elevation_raster_validation.json" >"$RLOG" 2>&1; then
-              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json"
+              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json"
               echo "ELEVATION_RASTER_VALIDATION_PENDING ${CELL}"
               continue
             fi
@@ -200,7 +201,7 @@ jobs:
               --output "$D/elevation_value_evidence.json" >"$VLOG" 2>&1; then
               rm -f "$VLOG"
             else
-              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json"
+              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json"
               echo "ELEVATION_VALUE_ASSESSMENT_PENDING ${CELL}"
             fi
           done < /tmp/citygen-out/worklist.txt
@@ -222,7 +223,7 @@ jobs:
                 --candidate-package "$PACKAGE" \
                 --output "$D/elevation_candidate_frontier.json"
             else
-              rm -f "$D/elevation_candidate_frontier.json"
+              rm -f "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json"
             fi
           done < /tmp/citygen-out/worklist.txt
           python3 - <<'PY'
@@ -232,6 +233,34 @@ jobs:
           if work != packages: raise SystemExit(f'candidate package mismatch work={work} packages={packages}')
           print(f'AUTONOMOUS_CELL_PACKAGES_OK selected={len(work)}')
           PY
+
+      - name: Derive per-building DSM DTM height candidates
+        run: |
+          set -u
+          [ -f /tmp/citygen-rasterio-ready ] || { echo "raster stack unavailable; building heights remain pending"; exit 0; }
+          mkdir -p /tmp/citygen-out/building-height-errors
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
+            VALUE="$D/elevation_value_evidence.json"; FRONTIER="$D/elevation_candidate_frontier.json"; RASTER="$D/elevation_raster_validation.json"
+            if [ ! -f "$VALUE" ] || [ ! -f "$FRONTIER" ] || [ ! -f "$RASTER" ]; then
+              rm -f "$D/building_height_candidates.json"
+              continue
+            fi
+            LOG="/tmp/citygen-out/building-height-errors/${CELL}.log"
+            if python3 grand-bruxelles-game/tools/citygen/derive_cell_building_height_candidates.py \
+              --cell-dir "$D" \
+              --value-evidence "$VALUE" \
+              --frontier "$FRONTIER" \
+              --raster-validation "$RASTER" \
+              --extract-root /tmp/citygen-raster-extract \
+              --output "$D/building_height_candidates.json" >"$LOG" 2>&1; then
+              rm -f "$LOG"
+            else
+              rm -f "$D/building_height_candidates.json"
+              echo "BUILDING_HEIGHT_CANDIDATES_PENDING ${CELL}"
+            fi
+          done < /tmp/citygen-out/worklist.txt
 
       - name: Stage selected source cache
         run: |

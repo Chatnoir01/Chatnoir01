@@ -20,19 +20,43 @@ def read_object(path: Path) -> dict[str, Any]:
     return value
 
 
-def polygon_record(feature: dict[str, Any], cell_id: str) -> dict[str, Any] | None:
-    props=feature.get("properties") or {}; geometry=feature.get("geometry") or {}; building_id=props.get("INSPIRE_ID")
-    if not building_id or geometry.get("type") != "Polygon": return None
-    coords=geometry.get("coordinates") or []
-    if not coords or not isinstance(coords[0],list) or len(coords[0]) < 4: return None
+def _ring_points(ring: Any) -> list[list[float]] | None:
+    if not isinstance(ring, list) or len(ring) < 4: return None
     points=[]
-    for point in coords[0]:
+    for point in ring:
         if not isinstance(point,list) or len(point)<2: return None
         x,y=float(point[0]),float(point[1])
         if not math.isfinite(x) or not math.isfinite(y): return None
         points.append([round(x,3),round(y,3)])
-    xs=[p[0] for p in points]; ys=[p[1] for p in points]
-    row={"building_id":str(building_id),"cell_id":cell_id,"block_id":props.get("BLOCK_ID"),"area_m2":props.get("AREA"),"bbox_31370":[min(xs),min(ys),max(xs),max(ys)],"vertex_count":len(points),"footprint_31370":points,"footprint_digest":digest(points),"height_m":None,"street_facing_edge":None,"facade_recipe_digest":None,"runtime_approved":False}
+    return points
+
+
+def polygon_record(feature: dict[str, Any], cell_id: str) -> dict[str, Any] | None:
+    props=feature.get("properties") or {}; geometry=feature.get("geometry") or {}; building_id=props.get("INSPIRE_ID")
+    if not building_id: return None
+    geometry_type=geometry.get("type"); coords=geometry.get("coordinates") or []
+    footprints: list[list[list[float]]] = []
+    if geometry_type == "Polygon":
+        if not coords: return None
+        points=_ring_points(coords[0])
+        if points is None: return None
+        footprints=[points]
+    elif geometry_type == "MultiPolygon":
+        if not coords: return None
+        for polygon in coords:
+            if not isinstance(polygon,list) or not polygon: return None
+            points=_ring_points(polygon[0])
+            if points is None: return None
+            footprints.append(points)
+        if not footprints: return None
+    else:
+        return None
+    all_points=[point for footprint in footprints for point in footprint]
+    xs=[p[0] for p in all_points]; ys=[p[1] for p in all_points]
+    row={"building_id":str(building_id),"cell_id":cell_id,"block_id":props.get("BLOCK_ID"),"area_m2":props.get("AREA"),"bbox_31370":[min(xs),min(ys),max(xs),max(ys)],"vertex_count":len(all_points),"footprint_31370":footprints[0] if geometry_type == "Polygon" else None,"footprint_digest":digest(footprints[0] if geometry_type == "Polygon" else footprints),"height_m":None,"street_facing_edge":None,"facade_recipe_digest":None,"runtime_approved":False}
+    if geometry_type == "MultiPolygon":
+        row["geometry_type"]="MultiPolygon"
+        row["footprints_31370"]=footprints
     row["record_digest"]=digest(row); return row
 
 

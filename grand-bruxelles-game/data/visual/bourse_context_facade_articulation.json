@@ -8,7 +8,8 @@
     "rendered_building_membership": "mirrors osm_city_builder._build_buildings source order, hero replacement exclusion, valid-footprint gate, and max_buildings limit"
   },
   "presentation": {
-    "adds": ["cornice bands", "window lintel bands", "window sill bands"],
+    "adds": ["roofline cornices", "grounded plinth courses", "footprint-corner pilasters"],
+    "avoids_duplicate_window_trim": true,
     "moves_source_geometry": false,
     "changes_building_height": false,
     "creates_collision": false,

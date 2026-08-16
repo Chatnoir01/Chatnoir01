@@ -1,6 +1,7 @@
 extends Node
 
 const TARGET_PREFIXES := ["CorridorWindowGlass", "CorridorShopfrontGlass"]
+const MIN_DISCOVERY_FRAMES := 6
 const DISCOVERY_FRAMES := 90
 
 var _records: Array[Dictionary] = []
@@ -17,6 +18,8 @@ func _process(_delta: float) -> void:
         set_process(false)
         return
     _discovery_attempts += 1
+    if _discovery_attempts < MIN_DISCOVERY_FRAMES:
+        return
     var targets: Array[MultiMeshInstance3D] = []
     _collect_targets(get_tree().root, targets)
     if targets.is_empty() and _discovery_attempts < DISCOVERY_FRAMES:

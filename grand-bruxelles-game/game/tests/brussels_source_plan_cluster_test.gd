@@ -2,6 +2,9 @@ extends SceneTree
 
 const PLAYABILITY_RUNTIME_SCRIPT := preload("res://game/scripts/mobile_playability_collision_runtime.gd")
 const EAST_CELL_ID := "bxl-e149500-n169000-s500"
+const EXPECTED_SOURCE_BUILDINGS := 919
+const EXPECTED_VISUAL_BUILDINGS := 584
+const EXPECTED_BLOCKED_BUILDINGS := EXPECTED_SOURCE_BUILDINGS - EXPECTED_VISUAL_BUILDINGS
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -59,7 +62,7 @@ func _run() -> void:
     player.global_position = center + Vector3(600.0, 1.05, 0.0)
     player.velocity = Vector3(-100.0, 0.0, 0.0)
     var source_cell: Node = null
-    for _frame: int in range(100):
+    for _frame: int in range(140):
         await physics_frame
         await process_frame
         if runtime.backend.has_active_instance(EAST_CELL_ID):
@@ -71,15 +74,21 @@ func _run() -> void:
         return
     if not _expect(int(source_cell.get("street_surface_count")) == 252, "east source-plan street surface count drifted"):
         return
-    if not _expect(int(source_cell.get("source_building_count")) == 919, "east source building count drifted"):
+    if not _expect(int(source_cell.get("source_building_count")) == EXPECTED_SOURCE_BUILDINGS, "east source building count drifted"):
         return
-    if not _expect(int(source_cell.get("blocked_unapproved_building_count")) == 919, "unapproved building heights were not fully blocked"):
+    if not _expect(bool(source_cell.get("strong_height_contract_loaded")), "east strong-height visual contract was not consumed"):
         return
-    if not _expect(int(source_cell.get("rendered_building_count")) == 0, "source-plan cell rendered unapproved building volumes"):
+    if not _expect(int(source_cell.get("rendered_building_count")) == EXPECTED_VISUAL_BUILDINGS, "eligible visual building massing count drifted"):
+        return
+    if not _expect(int(source_cell.get("blocked_unapproved_building_count")) == EXPECTED_BLOCKED_BUILDINGS, "non-eligible building heights were not fail-closed"):
+        return
+    if not _expect(source_cell.find_child("VisualCandidateBuildingMassing", true, false) != null, "combined visual building massing mesh is missing"):
         return
     if not _expect(source_cell.find_child("OfficialBrusselsStreetSurfaces", true, false) != null, "source-backed street surface mesh is missing"):
         return
     if not _expect(int(source_cell.get("street_surface_chunks")) > 1, "source-plan surfaces were not chunked across frames"):
+        return
+    if not _expect(int(source_cell.get("building_massing_chunks")) > 1, "visual building massing was not chunked across frames"):
         return
     if not _expect(int(source_cell.call("get_max_stream_phase_ms")) <= 50, "source-plan build exceeded 50 ms phase guard"):
         return
@@ -91,7 +100,7 @@ func _run() -> void:
         await process_frame
     if not _expect(runtime.manager.is_collision_active(EAST_CELL_ID), "scheduler did not enter near-player tier for east cell"):
         return
-    if not _expect(not _contains_static_body(source_cell), "plan-only cell invented vertical/terrain collision"):
+    if not _expect(not _contains_static_body(source_cell), "visual candidate massing invented gameplay collision"):
         return
 
     player.global_position = center + Vector3(900.0, 1.05, 0.0)
@@ -101,6 +110,6 @@ func _run() -> void:
     if not _expect(not runtime.backend.has_active_instance(EAST_CELL_ID), "east source-plan cell did not unload outside hysteresis radius"):
         return
 
-    print("BRUSSELS_SOURCE_PLAN_CLUSTER_OK: east cell streamed 252 official street surfaces, blocked 919 unapproved building heights, created no fake collision, and unloaded cleanly")
+    print("BRUSSELS_SOURCE_PLAN_CLUSTER_OK: east cell streamed 252 official street surfaces, rendered 584 cross-source visual building candidates in a combined mesh, kept 335 buildings fail-closed, created no fake collision, and unloaded cleanly")
     world.queue_free()
     quit(0)

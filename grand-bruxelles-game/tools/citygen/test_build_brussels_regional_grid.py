@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert grid["crs"] == "EPSG:31370"
     assert "bxl-e149000-n169000-s500" in by_id
     shared = by_id["bxl-e149000-n169000-s500"]
-    assert shared["municipalities"] == ["a", "b"], shared
+    assert shared["municipalities"] == ["a-0", "b-0"], shared
     assert len(by_id) == len(set(by_id)), "regional grid must deduplicate shared cells"
     assert grid["summary"]["municipality_count"] == 2
     assert grid["summary"]["cell_count"] == len(grid["cells"])

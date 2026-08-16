@@ -48,7 +48,6 @@ with tempfile.TemporaryDirectory() as tmp:
     assert calls == [feed, child]
     assert result["resolution_digest"] == mod._digest({k:v for k,v in result.items() if k != "resolution_digest"})
 
-    # Ambiguous tile resolution must fail instead of picking arbitrarily.
     duplicate = f"https://{mod.OFFICIAL_HOST}/data/COPY_149169.zip"
     payloads[child] = xml(archive_a, duplicate, archive_b)
     try:
@@ -58,12 +57,11 @@ with tempfile.TemporaryDirectory() as tmp:
     else:
         raise AssertionError("ambiguous elevation archive must fail closed")
 
-    # The crawler must never follow an off-domain feed.
     bad_feed = "https://example.invalid/evil.xml"
     try:
         mod.crawl(bad_feed, lambda _: b"<feed/>")
     except ValueError as exc:
-        assert mod.OFFICIAL_HOST in str(exc)
+        assert "escaped official elevation host" in str(exc)
     else:
         raise AssertionError("off-domain elevation feed must fail closed")
 

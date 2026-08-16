@@ -15,6 +15,12 @@ const FAUQUENBERG_BRICK_HEIGHT_M := 0.04
 const FAUQUENBERG_JOINT_WIDTH_M := 0.02
 const FAUQUENBERG_TILE_WIDTH_M := 0.52
 const FAUQUENBERG_TILE_HEIGHT_M := 0.12
+const CROSSWALK_BAND_WIDTH_M := 0.50
+const CROSSWALK_BAND_GAP_M := 0.50
+const CROSSWALK_LENGTH_M := 4.0
+const CROSSWALK_CARRIAGEWAY_WIDTH_M := 12.5
+const CROSSWALK_MARKING_THICKNESS_M := 0.006
+const CROSSWALK_MARKING_CENTER_Y_M := 0.081
 
 var _brick_yellow: StandardMaterial3D
 var _brick_shadow: StandardMaterial3D
@@ -286,15 +292,27 @@ func _build_fonsny_forecourt() -> void:
 func _build_fonsny_crossing() -> void:
     var crossing_center: Vector3 = MIDI + FONSNY_AXIS * -18.0
     var angle: float = _road_angle()
-    for stripe_index: int in range(10):
+    var lateral_axis := ROAD_SIDE.normalized()
+    var band_pitch := CROSSWALK_BAND_WIDTH_M + CROSSWALK_BAND_GAP_M
+    var band_count := int(round(
+        (CROSSWALK_CARRIAGEWAY_WIDTH_M + CROSSWALK_BAND_GAP_M) / band_pitch
+    ))
+    # Belgian road markings use 0.50 m white rectangles, separated by 0.50 m,
+    # with their long axis parallel to traffic. Four metres keeps this busy
+    # station crossing within the official 3 m minimum and intersection guide.
+    # Sources: code-de-la-route.be/fr/reglementation/2024005817~0mocswfbry
+    # and securotheque.wallonie.be ("Règles d'aménagement d'un passage pour piétons").
+    for stripe_index: int in range(band_count):
+        var lateral_offset := (float(stripe_index) - float(band_count - 1) * 0.5) * band_pitch
         var stripe: MeshInstance3D = _add_box(
             self,
             "Crosswalk_%02d" % stripe_index,
-            Vector3(12.5, 0.035, 0.48),
-            crossing_center + FONSNY_AXIS * (float(stripe_index) - 4.5) * 0.91 + Vector3(0.0, 0.16, 0.0),
+            Vector3(CROSSWALK_BAND_WIDTH_M, CROSSWALK_MARKING_THICKNESS_M, CROSSWALK_LENGTH_M),
+            crossing_center + lateral_axis * lateral_offset + Vector3(0.0, CROSSWALK_MARKING_CENTER_Y_M, 0.0),
             _white
         )
         stripe.rotation.y = angle
+        stripe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _build_fonsny_street_furniture() -> void:

@@ -1,0 +1,148 @@
+name: Grand Bruxelles Midi Crosswalk Geometry
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/tests/midi_crosswalk_geometry_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_crosswalk_visual_ab_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-crosswalk-geometry.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-crosswalk-geometry-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-crosswalk-geometry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project headless
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-crosswalk-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-crosswalk-import.log; then
+            exit 1
+          fi
+
+      - name: Verify regulatory-scale road marking
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/midi_crosswalk_geometry_test.gd 2>&1 | tee /tmp/midi-crosswalk-geometry.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_CROSSWALK_GEOMETRY_FAIL" /tmp/midi-crosswalk-geometry.log; then
+            exit 1
+          fi
+          grep -q "MIDI_CROSSWALK_GEOMETRY_OK" /tmp/midi-crosswalk-geometry.log
+
+  prove-player-visible-rescale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - name: Checkout head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+
+      - name: Install identical capture harness in base checkout
+        run: |
+          cp head/grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd \
+             base/grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd
+
+      - name: Import base and head projects
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-crosswalk-base-import.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-crosswalk-head-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-crosswalk-base-import.log /tmp/midi-crosswalk-head-import.log; then
+            exit 1
+          fi
+
+      - name: Capture frozen player camera before and after
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path base/grand-bruxelles-game --display-driver x11 \
+            --rendering-method gl_compatibility --resolution 1280x720 \
+            --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- \
+            /tmp/midi-crosswalk-before.png 2>&1 | tee /tmp/midi-crosswalk-before.log
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path head/grand-bruxelles-game --display-driver x11 \
+            --rendering-method gl_compatibility --resolution 1280x720 \
+            --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- \
+            /tmp/midi-crosswalk-after.png 2>&1 | tee /tmp/midi-crosswalk-after.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AMBIENT_VEHICLE_CAPTURE_FAIL" /tmp/midi-crosswalk-before.log /tmp/midi-crosswalk-after.log; then
+            exit 1
+          fi
+          test -f /tmp/midi-crosswalk-before.png
+          test -f /tmp/midi-crosswalk-after.png
+
+      - name: Enforce visible crosswalk rescale
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path head/grand-bruxelles-game \
+            --script res://game/tests/midi_crosswalk_visual_ab_test.gd -- \
+            /tmp/midi-crosswalk-before.png /tmp/midi-crosswalk-after.png 2>&1 | tee /tmp/midi-crosswalk-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_CROSSWALK_VISUAL_AB_FAIL" /tmp/midi-crosswalk-ab.log; then
+            exit 1
+          fi
+          grep -q "MIDI_CROSSWALK_VISUAL_AB_OK" /tmp/midi-crosswalk-ab.log
+
+      - name: Stage A/B evidence
+        if: always()
+        run: |
+          mkdir -p head/grand-bruxelles-game/artifacts/qa/midi_crosswalk_visual_ab
+          cp /tmp/midi-crosswalk-before.png head/grand-bruxelles-game/artifacts/qa/midi_crosswalk_visual_ab/before.png 2>/dev/null || true
+          cp /tmp/midi-crosswalk-after.png head/grand-bruxelles-game/artifacts/qa/midi_crosswalk_visual_ab/after.png 2>/dev/null || true
+          cp /tmp/midi-crosswalk-ab.log head/grand-bruxelles-game/artifacts/qa/midi_crosswalk_visual_ab/metrics.log 2>/dev/null || true
+
+      - name: Upload A/B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-crosswalk-visual-ab
+          path: head/grand-bruxelles-game/artifacts/qa/midi_crosswalk_visual_ab
+          if-no-files-found: warn

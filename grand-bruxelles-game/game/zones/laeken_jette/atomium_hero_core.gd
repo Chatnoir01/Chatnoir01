@@ -7,7 +7,6 @@ extends Node3D
 @export_file("*.json") var evidence_path := "res://data/sources/laeken_jette/atomium_hero_core_evidence.json"
 
 const LANDCOVER_CONTEXT_SCRIPT := preload("res://game/zones/laeken_jette/atomium_landcover_context.gd")
-const CURRENT_BASIN_FOOTPRINT_SCRIPT := preload("res://game/zones/laeken_jette/atomium_current_basin_footprint.gd")
 const SPHERE_SKIN_SEMANTICS_SCRIPT := preload("res://game/zones/laeken_jette/atomium_sphere_skin_semantics.gd")
 const SPHERE_RADIAL_SEGMENTS := 48
 const SPHERE_RINGS := 24
@@ -22,7 +21,6 @@ var source_tube_diameter_m := 0.0
 var unresolved_support_pillars := 0
 var anchor_position := Vector3.ZERO
 var landcover_context: Node3D
-var current_basin_footprint: Node3D
 var sphere_skin_semantics_applied := false
 
 var _sphere_material: StandardMaterial3D
@@ -82,7 +80,6 @@ func build_on_terrain(terrain: Node) -> bool:
     hero_built = sphere_count == 9 and tube_count == 20
     if hero_built:
         _mount_landcover_context(terrain)
-        _mount_current_basin_footprint(terrain)
         print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d sphere_skin_semantics=%s exact_seams=false" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars, str(sphere_skin_semantics_applied)])
     return hero_built
 
@@ -97,18 +94,6 @@ func _mount_landcover_context(terrain: Node) -> void:
         landcover_context.queue_free()
         landcover_context = null
         push_warning("AtomiumHeroCore: official LandCover context unavailable; hero remains valid")
-
-func _mount_current_basin_footprint(terrain: Node) -> void:
-    var world_parent := get_parent()
-    if world_parent == null:
-        return
-    current_basin_footprint = CURRENT_BASIN_FOOTPRINT_SCRIPT.new()
-    current_basin_footprint.name = "AtomiumCurrentBasinFootprint"
-    world_parent.add_child(current_basin_footprint)
-    if not bool(current_basin_footprint.call("build_on_terrain", terrain)):
-        current_basin_footprint.queue_free()
-        current_basin_footprint = null
-        push_warning("AtomiumHeroCore: current basin footprint unavailable; hero remains valid")
 
 func _load_evidence() -> Dictionary:
     if not FileAccess.file_exists(evidence_path):

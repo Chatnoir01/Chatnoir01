@@ -14,8 +14,7 @@ extends RefCounted
 const TEXTURE_WIDTH := 768
 const TEXTURE_HEIGHT := 384
 const CELL_SIZE := 64
-const MAJOR_LINE_WIDTH := 2
-const MINOR_LINE_WIDTH := 1
+const LINE_WIDTH := 1
 
 static func apply_to(material: StandardMaterial3D) -> bool:
     if material == null:
@@ -33,19 +32,22 @@ static func apply_to(material: StandardMaterial3D) -> bool:
 
 static func _build_semantics_texture() -> ImageTexture:
     var image := Image.create(TEXTURE_WIDTH, TEXTURE_HEIGHT, true, Image.FORMAT_RGBA8)
-    image.fill(Color(0.985, 0.99, 1.0, 1.0))
+    image.fill(Color(0.992, 0.995, 1.0, 1.0))
 
-    # Broad triangular cue. The lattice is deliberately presentation-authored:
-    # it communicates the sourced triangular cladding semantics without claiming
-    # a surveyed seam coordinate layout.
-    var major := Color(0.66, 0.69, 0.72, 1.0)
-    var minor := Color(0.81, 0.83, 0.85, 1.0)
+    # Presentation-authored triangular cue only. No vertical rectangular grid is
+    # drawn: the visual should read as subtle cladding semantics rather than a
+    # generic geodesic cage. Exact facade seam coordinates remain unresolved.
+    var major := Color(0.79, 0.81, 0.83, 1.0)
+    var minor := Color(0.90, 0.91, 0.92, 1.0)
 
     for y: int in range(0, TEXTURE_HEIGHT + 1, CELL_SIZE):
-        _draw_wrapped_line(image, Vector2i(0, mini(y, TEXTURE_HEIGHT - 1)), Vector2i(TEXTURE_WIDTH - 1, mini(y, TEXTURE_HEIGHT - 1)), major, MAJOR_LINE_WIDTH)
-
-    for x: int in range(0, TEXTURE_WIDTH + 1, CELL_SIZE):
-        _draw_wrapped_line(image, Vector2i(mini(x, TEXTURE_WIDTH - 1), 0), Vector2i(mini(x, TEXTURE_WIDTH - 1), TEXTURE_HEIGHT - 1), minor, MINOR_LINE_WIDTH)
+        _draw_wrapped_line(
+            image,
+            Vector2i(0, mini(y, TEXTURE_HEIGHT - 1)),
+            Vector2i(TEXTURE_WIDTH - 1, mini(y, TEXTURE_HEIGHT - 1)),
+            major,
+            LINE_WIDTH
+        )
 
     for row: int in range(TEXTURE_HEIGHT / CELL_SIZE):
         var y0 := row * CELL_SIZE
@@ -53,14 +55,16 @@ static func _build_semantics_texture() -> ImageTexture:
         for col: int in range(TEXTURE_WIDTH / CELL_SIZE):
             var x0 := col * CELL_SIZE
             var x1 := mini(x0 + CELL_SIZE, TEXTURE_WIDTH - 1)
+            var mid_x := (x0 + x1) / 2
+            var mid_y := (y0 + y1) / 2
             if (row + col) % 2 == 0:
-                _draw_wrapped_line(image, Vector2i(x0, y0), Vector2i(x1, y1), major, MAJOR_LINE_WIDTH)
-                _draw_wrapped_line(image, Vector2i(x0, (y0 + y1) / 2), Vector2i((x0 + x1) / 2, y1), minor, MINOR_LINE_WIDTH)
-                _draw_wrapped_line(image, Vector2i((x0 + x1) / 2, y0), Vector2i(x1, (y0 + y1) / 2), minor, MINOR_LINE_WIDTH)
+                _draw_wrapped_line(image, Vector2i(x0, y0), Vector2i(x1, y1), major, LINE_WIDTH)
+                _draw_wrapped_line(image, Vector2i(x0, mid_y), Vector2i(mid_x, y1), minor, LINE_WIDTH)
+                _draw_wrapped_line(image, Vector2i(mid_x, y0), Vector2i(x1, mid_y), minor, LINE_WIDTH)
             else:
-                _draw_wrapped_line(image, Vector2i(x1, y0), Vector2i(x0, y1), major, MAJOR_LINE_WIDTH)
-                _draw_wrapped_line(image, Vector2i(x0, (y0 + y1) / 2), Vector2i((x0 + x1) / 2, y0), minor, MINOR_LINE_WIDTH)
-                _draw_wrapped_line(image, Vector2i((x0 + x1) / 2, y1), Vector2i(x1, (y0 + y1) / 2), minor, MINOR_LINE_WIDTH)
+                _draw_wrapped_line(image, Vector2i(x1, y0), Vector2i(x0, y1), major, LINE_WIDTH)
+                _draw_wrapped_line(image, Vector2i(x0, mid_y), Vector2i(mid_x, y0), minor, LINE_WIDTH)
+                _draw_wrapped_line(image, Vector2i(mid_x, y1), Vector2i(x1, mid_y), minor, LINE_WIDTH)
 
     image.generate_mipmaps()
     return ImageTexture.create_from_image(image)

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const MAIN_SCENE := "res://game/main.tscn"
+const IDENTITY_PATH := "res://data/visual/midi_blue_stone_material_identity.json"
 const OUTPUT_DIR := "res://artifacts/visual"
 const BEFORE_PATH := OUTPUT_DIR + "/midi_blue_stone_before.png"
 const AFTER_PATH := OUTPUT_DIR + "/midi_blue_stone_after.png"
@@ -30,6 +31,28 @@ func _run() -> void:
     if runtime == null:
         _fail("autoload missing")
         return
+    if not runtime.has_method("_runtime_identity_allowed"):
+        _fail("runtime must expose a fail-closed material identity approval guard")
+        return
+    var parsed_identity: Variant = JSON.parse_string(FileAccess.get_file_as_string(IDENTITY_PATH))
+    if typeof(parsed_identity) != TYPE_DICTIONARY:
+        _fail("material identity contract missing or invalid")
+        return
+    var approved_identity := (parsed_identity as Dictionary).duplicate(true)
+    var approved_contract := approved_identity.get("presentation_contract", {}) as Dictionary
+    approved_contract["runtime_approved"] = true
+    approved_identity["presentation_contract"] = approved_contract
+    if not bool(runtime.call("_runtime_identity_allowed", approved_identity)):
+        _fail("explicitly approved blue-stone identity must be accepted by runtime guard")
+        return
+    var unapproved_identity := approved_identity.duplicate(true)
+    var unapproved_contract := unapproved_identity.get("presentation_contract", {}) as Dictionary
+    unapproved_contract["runtime_approved"] = false
+    unapproved_identity["presentation_contract"] = unapproved_contract
+    if bool(runtime.call("_runtime_identity_allowed", unapproved_identity)):
+        _fail("runtime guard must reject material identity when runtime_approved=false")
+        return
+
     for _i in range(20):
         if runtime.ready_complete():
             break
@@ -80,10 +103,7 @@ func _run() -> void:
         for x: int in range(WIDTH):
             var a := before.get_pixel(x, y)
             var b := after.get_pixel(x, y)
-            var delta := maxf(
-                absf(a.r - b.r) * 255.0,
-                maxf(absf(a.g - b.g) * 255.0, absf(a.b - b.b) * 255.0)
-            )
+            var delta := maxf(absf(a.r - b.r) * 255.0, maxf(absf(a.g - b.g) * 255.0, absf(a.b - b.b) * 255.0))
             if delta > 3.0:
                 over3 += 1
             if delta > 8.0:

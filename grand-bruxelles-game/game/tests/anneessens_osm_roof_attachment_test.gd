@@ -4,7 +4,9 @@ const MAIN_SCENE := "res://game/main.tscn"
 const ANNEESSENS_SPAWN := Vector3(-272.04, 1.05, -217.07)
 const RADIUS_M := 100.0
 const MAX_ATTACHMENT_GAP_M := 0.25
-const AFTER_PATH := "res://artifacts/qa/anneessens_roof_fix/anneessens_after_yaw_180.png"
+const WITNESS_DIR := "res://artifacts/qa/anneessens_roof_fix"
+const BEFORE_PATH := WITNESS_DIR + "/anneessens_before_yaw_180.png"
+const AFTER_PATH := WITNESS_DIR + "/anneessens_after_yaw_180.png"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -12,6 +14,10 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
     print("ANNEESSENS_ROOF_ATTACHMENT_FAIL: %s" % message)
     quit(1)
+
+func _capture(path: String) -> bool:
+    var image := get_root().get_viewport().get_texture().get_image()
+    return image != null and not image.is_empty() and image.save_png(path) == OK
 
 func _run() -> void:
     var selector := get_root().get_node_or_null("ZoneSelectorRuntime")
@@ -75,13 +81,38 @@ func _run() -> void:
         _fail("%d/%d nearby OSM roofs detached; max_gap=%.3f m" % [detached, nearby_pairs, max_gap])
         return
 
+    # Freeze the settled runtime, then recreate the exact old solid placement only for
+    # BEFORE. Restoring saved positions produces AFTER with identical camera/actors.
     player.rotation_degrees.y = 180.0
     for _frame: int in range(6):
         await process_frame
-    DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(AFTER_PATH.get_base_dir()))
-    var image := get_root().get_viewport().get_texture().get_image()
-    if image == null or image.is_empty() or image.save_png(AFTER_PATH) != OK:
+    paused = true
+
+    var solids: Array[CSGPolygon3D] = []
+    var original_positions: Array[Vector3] = []
+    for child: Node in generated.get_children():
+        if child is CSGPolygon3D and child.name.begins_with("Building_"):
+            var solid := child as CSGPolygon3D
+            solids.append(solid)
+            original_positions.append(solid.position)
+            solid.position.y = solid.depth * 0.5
+
+    DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(WITNESS_DIR))
+    for _frame: int in range(4):
+        await process_frame
+    if not _capture(BEFORE_PATH):
+        _fail("BEFORE witness capture failed")
+        return
+
+    for index: int in range(solids.size()):
+        solids[index].position = original_positions[index]
+    for _frame: int in range(4):
+        await process_frame
+    if not _capture(AFTER_PATH):
         _fail("AFTER witness capture failed")
         return
-    print("ANNEESSENS_ROOF_ATTACHMENT_OK: pairs=%d detached=0 witness=%s" % [nearby_pairs, AFTER_PATH])
+
+    paused = false
+    print("ANNEESSENS_ROOF_AB_OK: frozen=true before=%s after=%s" % [BEFORE_PATH, AFTER_PATH])
+    print("ANNEESSENS_ROOF_ATTACHMENT_OK: pairs=%d detached=0" % nearby_pairs)
     quit(0)

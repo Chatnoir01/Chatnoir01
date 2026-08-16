@@ -1,0 +1,228 @@
+name: Grand Bruxelles CityGen Anderlecht Secondary Height
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
+      - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  anderlecht-secondary-height:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install read-only GeoPackage tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal unzip
+          ogrinfo --version
+
+      - name: Regression-test regional semantic comparison
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py
+          python3 grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
+          python3 grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py
+
+      - name: Recover exact durable CityGen cell evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          CELL=bxl-e141500-n167500-s500
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          mkdir -p /tmp/citygen-state
+          git archive origin/citygen-autonomous-state \
+            "grand-bruxelles-game/data/qa/autonomous_sources/${CELL}" | tar -x -C /tmp/citygen-state
+          SRC="/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
+          test -s "$SRC/raw/buildings.geojson"
+          test -s "$SRC/building_height_candidates.json"
+          test -s "$SRC/terrain_lod_evidence.json"
+          python3 grand-bruxelles-game/tools/citygen/build_manual_frontier_review.py \
+            --height-candidates "$SRC/building_height_candidates.json" \
+            --terrain-lod "$SRC/terrain_lod_evidence.json" \
+            --output /tmp/manual-frontier-review.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/manual-frontier-review.json',encoding='utf-8'))
+          assert p['cell_id']=='bxl-e141500-n167500-s500'
+          assert p['crs']=='EPSG:31370'
+          assert p['runtime_promotion_allowed'] is False
+          assert p['height_review']['candidate_count']==7, p['height_review']['candidate_count']
+          print('ANDERLECHT_CITYGEN_REVIEW_OK candidates=7 runtime_promotion=false')
+          PY
+
+      - name: Discover and select latest official Anderlecht UrbIS 3D package
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util, json
+          from pathlib import Path
+          module_path=Path('grand-bruxelles-game/tools/discover_urbis_sources.py')
+          spec=importlib.util.spec_from_file_location('discover_urbis_sources',module_path)
+          assert spec and spec.loader
+          module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+          source_id='urbis_3d_constructions'
+          feed=module.parse_feed(source_id,module.DEFAULT_FEEDS[source_id])
+          assert feed.get('entry_count',0)>0
+          Path('/tmp/urbis-discovered.json').write_text(
+              json.dumps({'schema':1,'purpose':'Anderlecht CityGen independent height evidence','feeds':[feed]},ensure_ascii=False,indent=2)+'\n',
+              encoding='utf-8'
+          )
+          print('URBIS_3D_DISCOVERY_OK',feed.get('feed_updated'),feed.get('entry_count'))
+          PY
+          python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
+            /tmp/urbis-discovered.json /tmp/urbis-3d-selected.json \
+            --source-id urbis_3d_constructions \
+            --token 31370 --token GPKG \
+            --candidate-token 31370 --candidate-token GPKG \
+            --candidate-token 21009 --candidate-token Anderlecht \
+            --prefer-latest
+          python3 - <<'PY'
+          import json
+          from urllib.parse import urlparse
+          data=json.load(open('/tmp/urbis-3d-selected.json',encoding='utf-8'))
+          selected=data['selected']; url=str(selected['href']); title=str(selected.get('title',''))
+          assert url.startswith('https://')
+          folded=url.casefold()
+          assert '31370' in folded and 'gpkg' in folded and '21009' in folded and 'anderlecht' in folded
+          assert '/dwg/' not in folded
+          assert title.casefold()=='anderlecht', (title,url)
+          assert data.get('prefer_latest') is True
+          host=(urlparse(url).hostname or '').lower()
+          allowed=('datastore.brussels','urbisdownload.datastore.brussels','geoservices-urbis.irisnet.be','gis.urban.brussels','urban.brussels')
+          assert any(host==x or host.endswith('.'+x) for x in allowed)
+          print('URBIS_3D_ANDERLECHT_SELECTION_OK',data['selected_embedded_date'],url)
+          PY
+
+      - name: Download and safely extract official Anderlecht package
+        run: |
+          set -euo pipefail
+          URL="$(python3 - <<'PY'
+          import json
+          print(json.load(open('/tmp/urbis-3d-selected.json'))['selected']['href'])
+          PY
+          )"
+          curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
+            --user-agent 'GrandBruxellesGame/anderlecht-secondary-height (+github.com/Chatnoir01/Chatnoir01)' \
+            "$URL" -o /tmp/urbis-3d-distribution
+          test -s /tmp/urbis-3d-distribution
+          sha256sum /tmp/urbis-3d-distribution | tee /tmp/distribution.sha256
+          python3 - <<'PY'
+          import shutil,zipfile
+          from pathlib import Path
+          source=Path('/tmp/urbis-3d-distribution'); root=Path('/tmp/urbis-3d-extracted'); root.mkdir(parents=True,exist_ok=True)
+          def extract(archive,dest):
+              dest.mkdir(parents=True,exist_ok=True); base=dest.resolve()
+              with zipfile.ZipFile(archive) as z:
+                  for member in z.infolist():
+                      target=(dest/member.filename).resolve()
+                      if base not in target.parents and target != base:
+                          raise SystemExit(f'unsafe ZIP path: {member.filename}')
+                  z.extractall(dest)
+          if zipfile.is_zipfile(source):
+              extract(source,root/'level0')
+          elif source.read_bytes()[:16].startswith(b'SQLite format 3'):
+              shutil.copy2(source,root/'selected.gpkg')
+          else:
+              raise SystemExit('unsupported official distribution container')
+          seen=set()
+          for depth in range(1,4):
+              archives=[p for p in root.rglob('*.zip') if p.resolve() not in seen]
+              if not archives: break
+              for index,archive in enumerate(archives):
+                  seen.add(archive.resolve())
+                  extract(archive,archive.parent/f'{archive.stem}-nested-{depth}-{index}')
+          packages=sorted(root.rglob('*.gpkg'))
+          if not packages:
+              raise SystemExit('official Anderlecht distribution contains no GeoPackage')
+          print('URBIS_3D_ANDERLECHT_EXTRACTION_OK gpkg_count=',len(packages))
+          for p in packages: print(p,p.stat().st_size)
+          PY
+
+      - name: Build real Anderlecht semantic 3D evidence
+        run: |
+          set -euo pipefail
+          CELL=bxl-e141500-n167500-s500
+          SRC="/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
+          mkdir -p /tmp/anderlecht-secondary
+          python3 grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py \
+            --root /tmp/urbis-3d-extracted \
+            --buildings "$SRC/raw/buildings.geojson" \
+            --output /tmp/anderlecht-secondary/semantic.json \
+            --cell-id "$CELL" \
+            --municipality anderlecht \
+            --bbox 141500 167500 142000 168000
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/anderlecht-secondary/semantic.json',encoding='utf-8'))
+          assert p['cell']=='bxl-e141500-n167500-s500'
+          assert p['municipality']=='anderlecht'
+          assert p['bbox_epsg31370']==[141500.0,167500.0,142000.0,168000.0]
+          assert p['policy']['runtime_approval'] is False
+          assert p['counts']['building_solids_in_bbox']>0
+          print('ANDERLECHT_SEMANTIC_SOURCE_OK',json.dumps(p['counts'],sort_keys=True))
+          PY
+
+      - name: Compare seven candidates and run fail-closed secondary validator
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py \
+            --semantic /tmp/anderlecht-secondary/semantic.json \
+            --review /tmp/manual-frontier-review.json \
+            --output /tmp/anderlecht-secondary/secondary-evidence.json
+          python3 grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py \
+            --review /tmp/manual-frontier-review.json \
+            --secondary /tmp/anderlecht-secondary/secondary-evidence.json \
+            --output /tmp/anderlecht-secondary/validation.json
+          python3 - <<'PY'
+          import json
+          evidence=json.load(open('/tmp/anderlecht-secondary/secondary-evidence.json',encoding='utf-8'))
+          validation=json.load(open('/tmp/anderlecht-secondary/validation.json',encoding='utf-8'))
+          assert evidence['cell']=='bxl-e141500-n167500-s500'
+          assert evidence['runtime_approved'] is False
+          assert evidence['counts']['manual_frontier_candidates']==7
+          assert validation['candidate_count']==7
+          assert validation['validated_candidate_count']+validation['blocked_candidate_count']==7
+          assert validation['runtime_promotion_allowed'] is False
+          assert validation['runtime_approved_count']==0
+          print('ANDERLECHT_SECONDARY_VALIDATION_RESULT',json.dumps({
+              'joined': evidence['counts']['semantic_joined_records'],
+              'strong': evidence['counts']['strong_validation_candidates'],
+              'conflicts': evidence['counts']['conflicts'],
+              'missing': evidence['counts']['missing_secondary_records'],
+              'validated': validation['validated_candidate_count'],
+              'blocked': validation['blocked_candidate_count'],
+              'complete': validation['secondary_validation_complete'],
+              'next_action': validation['next_action'],
+          },sort_keys=True))
+          PY
+
+      - name: Package compact provenance and evidence
+        run: |
+          set -euo pipefail
+          cp /tmp/urbis-discovered.json /tmp/anderlecht-secondary/discovered.json
+          cp /tmp/urbis-3d-selected.json /tmp/anderlecht-secondary/selected.json
+          cp /tmp/distribution.sha256 /tmp/anderlecht-secondary/distribution.sha256
+          cp /tmp/manual-frontier-review.json /tmp/anderlecht-secondary/manual-frontier-review.json
+          test -s /tmp/anderlecht-secondary/semantic.json
+          test -s /tmp/anderlecht-secondary/secondary-evidence.json
+          test -s /tmp/anderlecht-secondary/validation.json
+          find /tmp/anderlecht-secondary -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+
+      - name: Upload compact evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-citygen-anderlecht-secondary-height
+          path: /tmp/anderlecht-secondary/
+          if-no-files-found: error

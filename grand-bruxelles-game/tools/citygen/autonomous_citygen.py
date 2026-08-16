@@ -136,7 +136,11 @@ def _autonomously_actionable(cell: dict[str, Any]) -> bool:
 
 
 def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
-    priority = {"MISSING_SOURCE": 0, "DISCOVERED": 1, "DATA_READY": 2}
+    # Finish already-materialized source cells before expanding regional coverage.
+    # Otherwise a large MISSING_SOURCE target grid can indefinitely starve a cell
+    # whose authoritative geometry and elevation evidence are already close to the
+    # manual frontier.
+    priority = {"DATA_READY": 0, "DISCOVERED": 1, "MISSING_SOURCE": 2}
     candidates = [cell for cell in cells if _autonomously_actionable(cell)]
     candidates.sort(key=lambda cell: (
         priority.get(cell["state"], 99),
@@ -199,8 +203,8 @@ def run(source_root: Path, maturity_root: Path, state_path: Path | None, output_
             "batch_size": batch_size,
             "runtime_promotion": "forbidden_without_all_required_gates",
             "uncertain_evidence": "quarantine_or_keep_pending_never_guess",
-            "missing_source_priority": "materialize_before_candidate_processing",
-            "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_then_fair_rotate_within_stage",
+            "missing_source_priority": "expand_only_after_existing_source_cells_reach_their_current_autonomous_frontier",
+            "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_materializing_more_source_cells",
             "manual_frontier": "exclude_from_autonomous_batches_until_secondary_height_and_terrain_runtime_checks_are_implemented",
         },
     }

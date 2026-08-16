@@ -52,7 +52,7 @@ func _build_ui() -> void:
     _toggle.name = "ZoneSelectorToggle"
     _toggle.text = "ZONES"
     _toggle.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-    _toggle.position = Vector2(-126.0, 18.0)
+    _toggle.position = Vector2(-500.0, 18.0)
     _toggle.size = Vector2(108.0, 42.0)
     _toggle.pressed.connect(func() -> void: set_menu_open(not _panel.visible))
     add_child(_toggle)

@@ -144,16 +144,20 @@ jobs:
           echo "failed to persist stale quarantine repair after repeated durable-state races" >&2
           exit 1
 
-      - name: Dispatch CityGen refresh after a real repair
-        if: steps.persist.outputs.changed == 'true'
+  dispatch-autonomous:
+    name: Dispatch Autonomous CityGen after repair stage
+    if: always() && needs.repair.result == 'success'
+    needs: repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch bounded Autonomous pass on exact live main
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          curl --fail-with-body -sS -X POST \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-autonomous-citygen.yml/dispatches" \
-            -d '{"ref":"main"}'
-          echo "STALE_QUARANTINE_CITYGEN_REFRESH_DISPATCHED"
+          gh workflow run grand-bruxelles-autonomous-citygen.yml \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            -f batch_size=4
+          echo "STALE_QUARANTINE_AUTONOMOUS_DISPATCHED repair_result=${{ needs.repair.result }}"

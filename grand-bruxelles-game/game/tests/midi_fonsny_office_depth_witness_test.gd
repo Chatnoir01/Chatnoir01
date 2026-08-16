@@ -10,8 +10,6 @@ const SOURCE_DEPTH_M := 14.0
 const LEGACY_DEPTH_M := 41.0
 const MIN_CHANGED_FRACTION := 0.01
 const MAX_CHANGED_FRACTION := 0.35
-const MIDI_FONSNY_AXIS := Vector3(-0.627, 0.0, 0.779)
-const MIDI_ROAD_SIDE := Vector3(0.779, 0.0, 0.627)
 const BLOCK_NAMES := ["FonsnyWingSouth", "FonsnyCentral", "FonsnyWingNorth"]
 
 func _init() -> void:
@@ -92,8 +90,11 @@ func _run() -> void:
 
     var camera := Camera3D.new()
     camera.name = "MidiFonsnyDepthWitnessCamera"
-    var target := station.global_position + Vector3(0.0, 10.0, 0.0)
-    camera.position = station.global_position + MIDI_ROAD_SIDE * 90.0 + MIDI_FONSNY_AXIS * -55.0 + Vector3(0.0, 13.0, 0.0)
+    # Use station-local coordinates so the camera is guaranteed to stay on the
+    # Avenue Fonsny side of the long facade and sees the rail-side depth at an
+    # oblique arrival angle instead of ending up inside a city mass.
+    var target := station.to_global(Vector3(20.5, 10.0, 0.0))
+    camera.position = station.to_global(Vector3(95.0, 14.0, -70.0))
     camera.fov = 58.0
     world.add_child(camera)
     camera.look_at(target, Vector3.UP)

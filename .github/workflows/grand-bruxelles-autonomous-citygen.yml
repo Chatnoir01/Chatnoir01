@@ -70,8 +70,10 @@ jobs:
           if git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state 2>/dev/null; then
             git show origin/citygen-autonomous-state:grand-bruxelles-game/data/qa/autonomous_citygen_state.json > /tmp/citygen-prev/state.json || true
             for CACHE in autonomous_sources autonomous_candidates; do
-              if git ls-tree -r --name-only origin/citygen-autonomous-state -- "grand-bruxelles-game/data/qa/${CACHE}" | grep -q .; then
-                git archive origin/citygen-autonomous-state "grand-bruxelles-game/data/qa/${CACHE}" | tar -x -C /tmp/citygen-prev
+              CACHE_PATH="grand-bruxelles-game/data/qa/${CACHE}"
+              if git cat-file -e "origin/citygen-autonomous-state:${CACHE_PATH}" 2>/dev/null; then
+                git archive origin/citygen-autonomous-state "${CACHE_PATH}" | tar -x -C /tmp/citygen-prev
+                test -d "/tmp/citygen-prev/${CACHE_PATH}" || { echo "failed to recover durable cache: ${CACHE}" >&2; exit 1; }
               fi
             done
             if [ -d /tmp/citygen-prev/grand-bruxelles-game/data/qa/autonomous_sources ]; then

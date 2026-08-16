@@ -71,11 +71,16 @@ with tempfile.TemporaryDirectory() as tmp:
     assert tuple(mod.GATES) == EXPECTED_REGION_GATES, mod.GATES
     assert tuple(result["maturity"]["gates"]) == EXPECTED_REGION_GATES
     assert result["maturity"]["gates"]["source_requirements"] is True
+    assert result["maturity"]["gates"]["crs"] is True
     assert all(
         value is False
         for gate, value in result["maturity"]["gates"].items()
-        if gate != "source_requirements"
+        if gate not in {"source_requirements", "crs"}
     )
+    assert result["crs_evidence"]["status"] == "validated"
+    assert result["crs_evidence"]["source_crs"] == "EPSG:31370"
+    assert result["crs_evidence"]["bbox"] == [149000,169000,149500,169500]
+    assert result["crs_evidence"]["gate_ready"] is True
     assert result["source_requirements"]["status"] == "validated"
     assert result["source_requirements"]["complete"] is True
     assert result["source_requirements"]["required_file_count"] == 1
@@ -94,25 +99,33 @@ with tempfile.TemporaryDirectory() as tmp:
     assert result["maturity_digest"] == mod._digest({k: v for k, v in result.items() if k != "maturity_digest"})
 
     # Every explicitly declared source file participates in the same contract.
-    # A missing secondary source must keep the source gate fail-closed without
-    # falsely quarantining otherwise authoritative building geometry.
+    # A missing secondary source keeps only the source gate fail-closed; CRS proof
+    # remains independently validated from the source manifest contract.
     source["layers"]["street_axes"] = {"features": 0, "file": "raw/street_axes.geojson"}
     write(cell / "manifest.json", source)
     pending = mod.build(cell)
     assert pending["maturity"]["state"] == "data_ready"
     assert pending["maturity"]["gates"]["source_requirements"] is False
+    assert pending["maturity"]["gates"]["crs"] is True
     assert pending["source_requirements"]["status"] == "evidence_pending"
     assert pending["source_requirements"]["complete"] is False
     assert "missing_declared_source_file:street_axes:raw/street_axes.geojson" in pending["source_requirements"]["blockers"]
     del source["layers"]["street_axes"]
 
     # Invalid canonical ownership must never be promoted as authoritative geometry.
+    # CRS evidence is still true because it describes coordinates, not geometry quality.
     source["layers"]["buildings"]["invalid_ownership_features"] = 1
     write(cell / "manifest.json", source)
     quarantined = mod.build(cell)
     assert quarantined["maturity"]["state"] == "quarantine"
     assert quarantined["geometry"]["authoritative_geometry_ready"] is False
-    assert all(value is False for value in quarantined["maturity"]["gates"].values())
+    assert quarantined["maturity"]["gates"]["source_requirements"] is False
+    assert quarantined["maturity"]["gates"]["crs"] is True
+    assert all(
+        value is False
+        for gate, value in quarantined["maturity"]["gates"].items()
+        if gate not in {"crs"}
+    )
 
     # Manifest/source disagreement fails closed instead of silently changing counts.
     source["layers"]["buildings"]["invalid_ownership_features"] = 0
@@ -130,4 +143,4 @@ assert "python3 grand-bruxelles-game/tools/citygen/test_bootstrap_cell_maturity.
     "Autonomous CityGen CI must execute the canonical maturity-contract regression"
 )
 
-print("BOOTSTRAP_CELL_MATURITY_GUARDRAILS_OK deterministic=true source_requirements=true quarantine=true regional_contract_locked=true ci_covered=true")
+print("BOOTSTRAP_CELL_MATURITY_GUARDRAILS_OK deterministic=true source_requirements=true crs=true quarantine=true regional_contract_locked=true ci_covered=true")

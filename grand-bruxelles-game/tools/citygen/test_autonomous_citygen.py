@@ -20,15 +20,52 @@ with tempfile.TemporaryDirectory() as tmp:
     cells = ["bxl-e149000-n169000-s500","bxl-e149000-n169500-s500","bxl-e149500-n169000-s500","bxl-e149500-n169500-s500","bxl-e150000-n169000-s500"]
     for cell in cells[:4]: write_json(source / cell / "manifest.json", {"cell_id": cell, "layers": ["buildings"]})
     write_json(target_grid,{"format":"grand-bruxelles-regional-target-grid-v1","crs":"EPSG:31370","cell_size_m":500.0,"cells":[{"cell_id":cell,"bbox":[149000+i*500,169000,149500+i*500,169500],"municipalities":["test"]} for i,cell in enumerate(cells)]})
-    all_gates=("runtime_geometry","collisions","streaming","terrain","heights","photo_match","performance")
+    legacy_gates=("runtime_geometry","collisions","streaming","terrain","heights","photo_match","performance")
+    all_gates=mod.MATURITY_GATES
+    assert len(all_gates) == 16
+    assert set(legacy_gates).issubset(set(all_gates))
+    assert {"source_requirements","crs","materials","facade","clutter","mobility","verification","license","region_scalable"}.issubset(set(all_gates))
     write_json(maturity/f"{cells[0]}.json",{"cell_id":cells[0],"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:True for name in all_gates}}})
     write_json(maturity/f"{cells[1]}.json",{"cell_id":cells[1],"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{"runtime_geometry":False}}})
     write_json(maturity/f"{cells[2]}.json",{"cell_id":cells[2],"crs":"EPSG:4326","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{}}})
     write_json(source/cells[3]/"maturity.json",{"cell_id":cells[3],"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:False for name in all_gates}}})
 
+    # Regression: the legacy seven runtime gates are insufficient for a
+    # Region-scale mature cell. A legacy-complete manifest must remain pending
+    # until production evidence exists for sources/materials/facade/clutter,
+    # mobility, verification, licensing and hero-independent scalability.
+    contract_source = root / "contract-source"
+    contract_maturity = root / "contract-maturity"
+    legacy_cell = "bxl-e160000-n175000-s500"
+    write_json(contract_source / legacy_cell / "manifest.json", {"cell_id": legacy_cell, "crs": "EPSG:31370", "layers": ["buildings"]})
+    write_json(
+        contract_maturity / f"{legacy_cell}.json",
+        {
+            "cell_id": legacy_cell,
+            "crs": "EPSG:31370",
+            "geometry": {"authoritative_geometry_ready": True},
+            "maturity": {"gates": {name: True for name in legacy_gates}},
+        },
+    )
+    legacy_state, legacy_blockers = mod.classify_cell(legacy_cell, contract_source, contract_maturity)
+    assert legacy_state == "DATA_READY", (legacy_state, legacy_blockers)
+    assert {
+        "source_requirements",
+        "crs",
+        "materials",
+        "facade",
+        "clutter",
+        "mobility",
+        "verification",
+        "license",
+        "region_scalable",
+    }.issubset(set(legacy_blockers)), legacy_blockers
+
     report1=mod.run(source,maturity,None,out1,2,target_grid)
     assert report1["source_cell_count"]==4 and report1["target_cell_count"]==5
     assert report1["counts"]=={"DATA_READY":2,"MISSING_SOURCE":1,"QUARANTINE":1,"RUNTIME_READY":1},report1["counts"]
+    assert report1["policy"]["maturity_gate_count"] == len(all_gates)
+    assert report1["policy"]["runtime_promotion"] == "forbidden_without_full_regional_maturity_contract"
     # Existing authoritative source cells must mature before CityGen expands into
     # a new MISSING_SOURCE cell, otherwise a large target grid can starve evidence.
     assert report1["selected_batch"]==[cells[1],cells[3]],report1["selected_batch"]
@@ -111,4 +148,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert refreshed_row["evidence_progress"] == len(mod.EVIDENCE_STAGES)
     assert refreshed_row["next_action"] == mod.MANUAL_FRONTIER_ACTION
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")

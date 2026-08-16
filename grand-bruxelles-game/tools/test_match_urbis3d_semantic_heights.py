@@ -38,6 +38,10 @@ def create_gpkg(path: Path) -> None:
     cases = [
         ("anderlecht-solid", module.GROUND, polygon(141510, 167510, 141520, 167520, 24.0)),
         ("anderlecht-solid", module.ROOF, polygon(141510, 167510, 141520, 167520, 36.5)),
+        # A 3D sub-solid fully contained by a larger 2D footprint stays ambiguous
+        # under the existing symmetric min(ground_coverage, building_coverage) score.
+        ("sub-solid", module.GROUND, polygon(141530, 167530, 141536, 167536, 25.0)),
+        ("sub-solid", module.ROOF, polygon(141530, 167530, 141536, 167536, 33.0)),
         # This valid Ixelles-looking solid must stay outside the explicit Anderlecht bbox.
         ("ixelles-solid", module.GROUND, polygon(149010, 169010, 149020, 169020, 60.0)),
         ("ixelles-solid", module.ROOF, polygon(149010, 169010, 149020, 169020, 72.0)),
@@ -52,11 +56,18 @@ def create_gpkg(path: Path) -> None:
 def create_buildings(path: Path) -> None:
     payload = {
         "type": "FeatureCollection",
-        "features": [{
-            "type": "Feature",
-            "geometry": {"type": "Polygon", "coordinates": [[[141510,167510],[141520,167510],[141520,167520],[141510,167520],[141510,167510]]]},
-            "properties": {"INSPIRE_ID": "https://databrussels.be/id/building/ANDERLECHT-A", "AREA": 100},
-        }],
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [[[141510,167510],[141520,167510],[141520,167520],[141510,167520],[141510,167510]]]},
+                "properties": {"INSPIRE_ID": "https://databrussels.be/id/building/ANDERLECHT-A", "AREA": 100},
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [[[141528,167528],[141538,167528],[141538,167538],[141528,167538],[141528,167528]]]},
+                "properties": {"INSPIRE_ID": "https://databrussels.be/id/building/ANDERLECHT-B", "AREA": 100},
+            },
+        ],
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
 
@@ -83,13 +94,26 @@ def main() -> int:
         assert evidence["bbox_epsg31370"] == list(ANDERLECHT_BBOX)
         assert evidence["policy"]["runtime_approval"] is False
         assert evidence["policy"]["dsm_dtm_comparison_performed"] is False
-        assert evidence["counts"]["building_solids_in_bbox"] == 1
-        assert {m["busolid_id"] for m in evidence["matches"]} == {"anderlecht-solid"}
-        match = evidence["matches"][0]
+        assert evidence["counts"]["building_solids_in_bbox"] == 2
+        assert {m["busolid_id"] for m in evidence["matches"]} == {"anderlecht-solid", "sub-solid"}
+
+        by_solid = {m["busolid_id"]: m for m in evidence["matches"]}
+        match = by_solid["anderlecht-solid"]
         assert match["status"] == "matched_semantic_evidence"
         assert match["matched_inspire_id"].endswith("/ANDERLECHT-A")
         assert abs(match["semantic_height_m"] - 12.5) < 1e-9
         assert match["runtime_approved"] is False
+
+        ambiguous = by_solid["sub-solid"]
+        assert ambiguous["status"] == "ambiguous"
+        assert ambiguous["matched_inspire_id"] is None
+        assert ambiguous["candidate_count"] == 1
+        assert ambiguous["best_candidate_inspire_id"].endswith("/ANDERLECHT-B")
+        assert abs(ambiguous["best_ground_coverage"] - 1.0) < 1e-9
+        assert abs(ambiguous["best_building_coverage"] - 0.36) < 1e-9
+        assert abs(ambiguous["best_intersection_area_m2"] - 36.0) < 1e-9
+        assert ambiguous["runner_up_candidate_inspire_id"] is None
+        assert ambiguous["runtime_approved"] is False
         ds = None
 
     # Fail closed: production evidence must identify the geographic contract.

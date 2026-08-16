@@ -5,6 +5,9 @@ const EAST_CELL_ID := "bxl-e149500-n169000-s500"
 const EXPECTED_SOURCE_BUILDINGS := 919
 const EXPECTED_VISUAL_BUILDINGS := 584
 const EXPECTED_BLOCKED_BUILDINGS := EXPECTED_SOURCE_BUILDINGS - EXPECTED_VISUAL_BUILDINGS
+const CAPTURE_OUTPUT := "res://artifacts/ixelles/ixelles_source_plan_east_1280x720.png"
+const CAPTURE_WIDTH := 1280
+const CAPTURE_HEIGHT := 720
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -26,6 +29,54 @@ func _contains_static_body(node: Node) -> bool:
         if _contains_static_body(child):
             return true
     return false
+
+func _capture_requested() -> bool:
+    for arg: String in OS.get_cmdline_user_args():
+        if arg.strip_edges().to_lower() == "capture=1":
+            return true
+    return false
+
+func _capture_east_visual(world: Node3D, center: Vector3) -> bool:
+    var environment := Environment.new()
+    environment.background_mode = Environment.BG_COLOR
+    environment.background_color = Color(0.66, 0.73, 0.82, 1.0)
+    environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+    environment.ambient_light_color = Color(0.76, 0.78, 0.82, 1.0)
+    environment.ambient_light_energy = 0.85
+    var world_environment := WorldEnvironment.new()
+    world_environment.environment = environment
+    world.add_child(world_environment)
+
+    var light := DirectionalLight3D.new()
+    light.rotation_degrees = Vector3(-52.0, -38.0, 0.0)
+    light.light_energy = 1.35
+    light.shadow_enabled = true
+    world.add_child(light)
+
+    var camera := Camera3D.new()
+    camera.fov = 56.0
+    camera.near = 0.5
+    camera.far = 2500.0
+    camera.position = center + Vector3(330.0, 185.0, 330.0)
+    world.add_child(camera)
+    camera.look_at(center + Vector3(0.0, 12.0, 0.0), Vector3.UP)
+    camera.current = true
+
+    for _frame: int in range(12):
+        await process_frame
+    RenderingServer.force_draw()
+    await process_frame
+    var image := root.get_texture().get_image()
+    if image == null or image.is_empty() or image.get_width() != CAPTURE_WIDTH or image.get_height() != CAPTURE_HEIGHT:
+        _fail("east visual capture invalid: %dx%d" % [image.get_width() if image != null else 0, image.get_height() if image != null else 0])
+        return false
+    var absolute_output := ProjectSettings.globalize_path(CAPTURE_OUTPUT)
+    DirAccess.make_dir_recursive_absolute(absolute_output.get_base_dir())
+    if image.save_png(absolute_output) != OK:
+        _fail("east visual capture save failed")
+        return false
+    print("BRUSSELS_SOURCE_PLAN_CAPTURE_OK: path=%s size=%dx%d" % [CAPTURE_OUTPUT, CAPTURE_WIDTH, CAPTURE_HEIGHT])
+    return true
 
 func _run() -> void:
     var world := Node3D.new()
@@ -92,6 +143,10 @@ func _run() -> void:
         return
     if not _expect(int(source_cell.call("get_max_stream_phase_ms")) <= 50, "source-plan build exceeded 50 ms phase guard"):
         return
+
+    if _capture_requested():
+        if not await _capture_east_visual(world, center):
+            return
 
     player.global_position = center + Vector3(40.0, 1.05, 0.0)
     player.velocity = Vector3.ZERO

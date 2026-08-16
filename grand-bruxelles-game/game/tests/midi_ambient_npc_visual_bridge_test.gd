@@ -61,6 +61,20 @@ func _run() -> void:
         _fail("ambient crowd variation is too repetitive: %d unique signatures" % signatures.size())
         return
 
-    print("MIDI_AMBIENT_NPC_VISUAL_OK: pedestrians=%d unique_signatures=%d" % [ambient.size(), signatures.size()])
+    var material_runtime := root.get_node_or_null("MidiAmbientNpcVisualRuntime")
+    if material_runtime == null or not material_runtime.has_method("material_cache_stats"):
+        _fail("material-sharing runtime stats are unavailable")
+        return
+    var stats: Dictionary = material_runtime.call("material_cache_stats")
+    var cache_entries := int(stats.get("entries", 0))
+    var surfaces_reused := int(stats.get("surfaces_reused", 0))
+    if cache_entries <= 0:
+        _fail("material cache is empty after building the ambient crowd")
+        return
+    if surfaces_reused <= 0:
+        _fail("no equivalent NPC material surfaces were actually reused")
+        return
+
+    print("MIDI_AMBIENT_NPC_VISUAL_OK: pedestrians=%d unique_signatures=%d material_cache_entries=%d material_surfaces_reused=%d" % [ambient.size(), signatures.size(), cache_entries, surfaces_reused])
     scene.queue_free()
     quit(0)

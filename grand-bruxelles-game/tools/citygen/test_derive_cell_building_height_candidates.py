@@ -63,6 +63,30 @@ with tempfile.TemporaryDirectory() as tmp:
         "frontier_digest": "c" * 64,
         "runtime_promotion_allowed": False,
     }), encoding="utf-8")
+    assert mod.height_source_pair_ready(value_evidence, frontier) is True
+
+    # Regression from Autonomous CityGen pass 49: a terrain-ready cell may have
+    # a blocked height pair. That is a valid pending state and must not be retried
+    # as an exception on every pass.
+    blocked_value = cell / "blocked_value.json"
+    blocked_value.write_text(json.dumps({
+        "format": mod.VALUE_FORMAT,
+        "cell_id": "bxl-e149000-n169000-s500",
+        "crs": "EPSG:31370",
+        "height_source_pair_ready": False,
+    }), encoding="utf-8")
+    blocked_frontier = cell / "blocked_frontier.json"
+    blocked_frontier.write_text(json.dumps({
+        "format": mod.FRONTIER_FORMAT,
+        "cell_id": "bxl-e149000-n169000-s500",
+        "crs": "EPSG:31370",
+        "heights": {"source_pair_ready": False},
+        "runtime_promotion_allowed": False,
+    }), encoding="utf-8")
+    assert mod.height_source_pair_ready(blocked_value, blocked_frontier) is False
+    blocked_frontier.write_text("[]", encoding="utf-8")
+    assert mod.height_source_pair_ready(blocked_value, blocked_frontier) is False
+
     raster_validation = cell / "elevation_raster_validation.json"
     raster_validation.write_text(json.dumps({
         "format": mod.RASTER_FORMAT,
@@ -87,4 +111,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert result["maturity_effect"]["heights_gate"] is False
     assert result["candidate_digest"] == mod._digest({k:v for k,v in result.items() if k != "candidate_digest"})
 
-print("CELL_BUILDING_HEIGHT_CANDIDATE_GUARDRAILS_OK confidence=true deterministic=true frontier=true runtime_approval=false")
+print("CELL_BUILDING_HEIGHT_CANDIDATE_GUARDRAILS_OK confidence=true deterministic=true frontier=true pending_height_pair=true runtime_approval=false")

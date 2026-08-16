@@ -6,8 +6,12 @@ const EXPECTED_SOURCE_BUILDINGS := 919
 const EXPECTED_VISUAL_BUILDINGS := 584
 const EXPECTED_BLOCKED_BUILDINGS := EXPECTED_SOURCE_BUILDINGS - EXPECTED_VISUAL_BUILDINGS
 const CAPTURE_OUTPUT := "res://artifacts/ixelles/ixelles_source_plan_east_1280x720.png"
+const CAPTURE_BEFORE_OUTPUT := "res://artifacts/ixelles/ixelles_source_plan_east_massing_flat_before_1280x720.png"
 const CAPTURE_WIDTH := 1280
 const CAPTURE_HEIGHT := 720
+const MIN_GT3_FRACTION := 0.020
+const MIN_GT8_FRACTION := 0.0075
+const LEGACY_FLAT_MASSING_COLOR := Color(0.60, 0.53, 0.45, 1.0)
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -36,7 +40,45 @@ func _capture_requested() -> bool:
             return true
     return false
 
-func _capture_east_visual(world: Node3D, center: Vector3) -> bool:
+func _render_image() -> Image:
+    for _frame: int in range(4):
+        await process_frame
+    RenderingServer.force_draw()
+    await process_frame
+    return root.get_texture().get_image()
+
+func _save_image(image: Image, output: String) -> bool:
+    if image == null or image.is_empty() or image.get_width() != CAPTURE_WIDTH or image.get_height() != CAPTURE_HEIGHT:
+        _fail("east visual capture invalid: %dx%d" % [image.get_width() if image != null else 0, image.get_height() if image != null else 0])
+        return false
+    var absolute_output := ProjectSettings.globalize_path(output)
+    DirAccess.make_dir_recursive_absolute(absolute_output.get_base_dir())
+    if image.save_png(absolute_output) != OK:
+        _fail("east visual capture save failed: %s" % output)
+        return false
+    return true
+
+func _compare_images(before: Image, after: Image) -> Dictionary:
+    var gt3 := 0
+    var gt8 := 0
+    var total := CAPTURE_WIDTH * CAPTURE_HEIGHT
+    for y: int in range(CAPTURE_HEIGHT):
+        for x: int in range(CAPTURE_WIDTH):
+            var a := before.get_pixel(x, y)
+            var b := after.get_pixel(x, y)
+            var delta := maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b))) * 255.0
+            if delta > 3.0:
+                gt3 += 1
+            if delta > 8.0:
+                gt8 += 1
+    return {
+        "gt3": gt3,
+        "gt8": gt8,
+        "gt3_fraction": float(gt3) / float(total),
+        "gt8_fraction": float(gt8) / float(total),
+    }
+
+func _capture_east_visual(world: Node3D, center: Vector3, source_cell: Node) -> bool:
     var environment := Environment.new()
     environment.background_mode = Environment.BG_COLOR
     environment.background_color = Color(0.66, 0.73, 0.82, 1.0)
@@ -62,20 +104,32 @@ func _capture_east_visual(world: Node3D, center: Vector3) -> bool:
     camera.look_at(center + Vector3(0.0, 12.0, 0.0), Vector3.UP)
     camera.current = true
 
-    for _frame: int in range(12):
-        await process_frame
-    RenderingServer.force_draw()
-    await process_frame
-    var image := root.get_texture().get_image()
-    if image == null or image.is_empty() or image.get_width() != CAPTURE_WIDTH or image.get_height() != CAPTURE_HEIGHT:
-        _fail("east visual capture invalid: %dx%d" % [image.get_width() if image != null else 0, image.get_height() if image != null else 0])
+    var massing := source_cell.find_child("VisualCandidateBuildingMassing", true, false) as MeshInstance3D
+    if not _expect(massing != null and massing.mesh != null and massing.mesh.get_surface_count() == 1, "massing A/B target missing"):
         return false
-    var absolute_output := ProjectSettings.globalize_path(CAPTURE_OUTPUT)
-    DirAccess.make_dir_recursive_absolute(absolute_output.get_base_dir())
-    if image.save_png(absolute_output) != OK:
-        _fail("east visual capture save failed")
+    var material := massing.mesh.surface_get_material(0) as StandardMaterial3D
+    if not _expect(material != null and material.vertex_color_use_as_albedo, "production massing material is not vertex-color driven"):
         return false
-    print("BRUSSELS_SOURCE_PLAN_CAPTURE_OK: path=%s size=%dx%d" % [CAPTURE_OUTPUT, CAPTURE_WIDTH, CAPTURE_HEIGHT])
+
+    material.vertex_color_use_as_albedo = false
+    material.albedo_color = LEGACY_FLAT_MASSING_COLOR
+    var before := await _render_image()
+    if not _save_image(before, CAPTURE_BEFORE_OUTPUT):
+        return false
+
+    material.albedo_color = Color.WHITE
+    material.vertex_color_use_as_albedo = true
+    var after := await _render_image()
+    if not _save_image(after, CAPTURE_OUTPUT):
+        return false
+
+    var metrics := _compare_images(before, after)
+    if not _expect(float(metrics["gt3_fraction"]) >= MIN_GT3_FRACTION, "massing tone A/B gt3 impact below %.4f: %.6f" % [MIN_GT3_FRACTION, float(metrics["gt3_fraction"])]):
+        return false
+    if not _expect(float(metrics["gt8_fraction"]) >= MIN_GT8_FRACTION, "massing tone A/B gt8 impact below %.4f: %.6f" % [MIN_GT8_FRACTION, float(metrics["gt8_fraction"])]):
+        return false
+    print("BRUSSELS_SOURCE_PLAN_MASSING_AB_OK: gt3=%d fraction=%.6f gt8=%d fraction=%.6f thresholds=%.4f/%.4f" % [int(metrics["gt3"]), float(metrics["gt3_fraction"]), int(metrics["gt8"]), float(metrics["gt8_fraction"]), MIN_GT3_FRACTION, MIN_GT8_FRACTION])
+    print("BRUSSELS_SOURCE_PLAN_CAPTURE_OK: before=%s after=%s size=%dx%d" % [CAPTURE_BEFORE_OUTPUT, CAPTURE_OUTPUT, CAPTURE_WIDTH, CAPTURE_HEIGHT])
     return true
 
 func _run() -> void:
@@ -147,7 +201,7 @@ func _run() -> void:
         return
 
     if _capture_requested():
-        if not await _capture_east_visual(world, center):
+        if not await _capture_east_visual(world, center, source_cell):
             return
 
     player.global_position = center + Vector3(40.0, 1.05, 0.0)
@@ -167,6 +221,6 @@ func _run() -> void:
     if not _expect(not runtime.backend.has_active_instance(EAST_CELL_ID), "east source-plan cell did not unload outside hysteresis radius"):
         return
 
-    print("BRUSSELS_SOURCE_PLAN_CLUSTER_OK: east cell streamed 252 official street surfaces, rendered 584 cross-source visual building candidates in a combined mesh, kept 335 buildings fail-closed, created no fake collision, and unloaded cleanly")
+    print("BRUSSELS_SOURCE_PLAN_CLUSTER_OK: east cell streamed 252 official street surfaces, rendered 584 cross-source visual building candidates in a combined mesh with %d non-classifying tone profiles, kept 335 buildings fail-closed, created no fake collision, and unloaded cleanly" % int(source_cell.get("massing_tone_profile_count")))
     world.queue_free()
     quit(0)

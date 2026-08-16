@@ -12,13 +12,18 @@ var _root: Node3D = null
 var _tree_materials: Dictionary = {}
 var _trees: Array[StaticBody3D] = []
 var _enhanced_trees_enabled := true
+var _manual_binding := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     call_deferred("_try_bind")
 
 func _process(_delta: float) -> void:
-    if not is_instance_valid(_scene) or get_tree().current_scene != _scene:
+    if not is_instance_valid(_scene):
+        _reset()
+        _try_bind()
+        return
+    if not _manual_binding and get_tree().current_scene != _scene:
         _reset()
         _try_bind()
         return
@@ -28,17 +33,28 @@ func _process(_delta: float) -> void:
         _root.visible = Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
 
 func _try_bind() -> void:
+    if _manual_binding:
+        return
     var current := get_tree().current_scene
     if current == null or not current is Node3D:
         return
-    bind_scene(current as Node3D)
+    _bind_scene(current as Node3D, false)
 
 func bind_scene(scene: Node3D) -> void:
+    _bind_scene(scene, true)
+
+func _bind_scene(scene: Node3D, manual: bool) -> void:
     if scene == null:
         return
     var player := scene.get_node_or_null("Player") as Node3D
     if player == null:
         return
+    if is_instance_valid(_root) and _scene != scene:
+        _root.queue_free()
+        _root = null
+        _trees.clear()
+        _tree_materials.clear()
+    _manual_binding = manual
     _scene = scene
     _player = player
     _build_once()
@@ -49,6 +65,7 @@ func _reset() -> void:
     _root = null
     _trees.clear()
     _tree_materials.clear()
+    _manual_binding = false
 
 func _build_once() -> void:
     if not is_instance_valid(_scene) or is_instance_valid(_root):

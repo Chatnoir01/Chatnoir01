@@ -1,0 +1,54 @@
+{
+  "schema": 2,
+  "zone": "laeken_jette",
+  "purpose": "Visual reference registry only; no remote photo bytes are vendored by this file",
+  "project_origin": {
+    "epsg31370_e": 147868.29422791934,
+    "epsg31370_n": 169538.62414926197,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
+  "references": [
+    {
+      "id": "miroir_commons_2011",
+      "subject": "Place Reine Astrid / Place du Miroir and Sainte-Madeleine church frontage",
+      "page_url": "https://commons.wikimedia.org/wiki/File:Jette_central_square.jpg",
+      "author": "Soman",
+      "license": "CC BY-SA 3.0",
+      "usage": "facade_square_and_photo_match_reference",
+      "embedded_asset": false,
+      "source_date": "2011",
+      "source_location_semantics": "depicted_place_not_camera_position",
+      "source_wgs84_depicted_place": [4.323006, 50.872178],
+      "source_epsg31370_depicted_place": [146780.00314014248, 173534.72499649227],
+      "source_game_xz_depicted_place": [-1088.291087776859, -3996.100847230293],
+      "source_resolution_px": [720, 450],
+      "source_coordinate_note": "Wikimedia Commons labels these coordinates as Object location / coordinates of depicted place. They are not photographer GPS and must not be used as a surveyed camera position.",
+      "notes": "Reference page supplies depicted-place coordinates and license; any future texture derivative must receive its own registry entry and attribution. A matching in-game camera may be optimized visually around the official UrbIS square geometry, but must remain marked provisional until an explicit camera position is sourced."
+    },
+    {
+      "id": "gare_jette_heritage",
+      "subject": "Jette railway station and historic passenger shelter",
+      "page_url": "https://monument.heritage.brussels/fr/buildings/24833",
+      "authority": "Brussels-Capital Region architectural heritage inventory",
+      "usage": "architectural_reference_only",
+      "embedded_asset": false,
+      "notes": "Use to study massing, brick/stone rhythm and shelter structure; do not embed site photography unless reuse rights are separately verified."
+    },
+    {
+      "id": "jette_station_visit_brussels",
+      "subject": "Jette station public-facing facade",
+      "page_url": "https://www.visit.brussels/fr/visiteurs/venue-details.Gare-de-Jette.50003698",
+      "authority": "visit.brussels",
+      "usage": "visual_reference_only",
+      "embedded_asset": false,
+      "notes": "Reference-only source for facade proportions and current appearance."
+    }
+  ],
+  "reference_policy": {
+    "geometry_authority": ["UrbIS WFS", "UrbIS Landscape", "official orthophoto/LiDAR"],
+    "photo_reference_role": "appearance, silhouette, facade rhythm, clutter and visual validation",
+    "camera_claim_rule": "never infer or label a photographer position from depicted-place/object coordinates",
+    "redistribution_rule": "only vendor photo bytes when the license is explicitly compatible and attribution/provenance requirements are recorded"
+  }
+}

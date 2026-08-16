@@ -1,0 +1,101 @@
+name: Grand Bruxelles Jette Phase 2 Integration
+
+on:
+  push:
+    branches: ["integration/consolidate-jette-phase2-v1"]
+    paths:
+      - ".github/workflows/grand-bruxelles-jette-phase2-integration.yml"
+      - "grand-bruxelles-game/tools/fetch_urbis_jette_phase2.py"
+      - "grand-bruxelles-game/tools/validate_jette_phase2_data.py"
+      - "grand-bruxelles-game/data/reference/laeken_jette/jette_phase2_anchors.json"
+      - "grand-bruxelles-game/data/reference/laeken_jette/jette_photo_references.json"
+      - "grand-bruxelles-game/game/zones/laeken_jette/jette_phase2*"
+      - "grand-bruxelles-game/game/tests/jette_phase2_smoke_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-jette-phase2-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fetch-build-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout fresh integration branch
+        uses: actions/checkout@v4
+        with:
+          ref: integration/consolidate-jette-phase2-v1
+          fetch-depth: 0
+
+      - name: Validate Jette Python tools
+        run: |
+          python3 -m py_compile \
+            grand-bruxelles-game/tools/fetch_urbis_jette_phase2.py \
+            grand-bruxelles-game/tools/validate_jette_phase2_data.py \
+            grand-bruxelles-game/tools/lambert72_to_game_geojson.py
+
+      - name: Fetch official UrbIS Jette phase 2 slice
+        working-directory: grand-bruxelles-game
+        run: |
+          rm -rf data/urbis/laeken_jette/jette_phase2
+          python3 tools/fetch_urbis_jette_phase2.py
+
+      - name: Validate official Jette geometry
+        working-directory: grand-bruxelles-game
+        run: python3 tools/validate_jette_phase2_data.py
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Run isolated Jette phase 2 Godot smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/jette_phase2_smoke_test.gd 2>&1 | tee /tmp/jette-phase2-smoke.log
+          # This isolated gate owns Jette failures only. Current-main autoloads can
+          # emit unrelated NPC/Midi diagnostics while the standalone scene runs.
+          if grep -q "JETTE_PHASE2_SMOKE_FAIL" /tmp/jette-phase2-smoke.log; then
+            exit 1
+          fi
+          grep -q "JETTE_PHASE2_SMOKE_OK" /tmp/jette-phase2-smoke.log
+
+      - name: Commit exact Jette UrbIS phase 2 data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2
+          if git diff --cached --quiet; then
+            echo "Jette phase 2 UrbIS data already up to date."
+            exit 0
+          fi
+
+          git commit -m "data: refresh Jette UrbIS phase 2 [skip ci]"
+
+          for attempt in 1 2 3; do
+            git fetch origin integration/consolidate-jette-phase2-v1
+            git rebase origin/integration/consolidate-jette-phase2-v1
+            if git push origin HEAD:integration/consolidate-jette-phase2-v1; then
+              echo "Jette phase 2 data published after attempt ${attempt}."
+              exit 0
+            fi
+            echo "Concurrent integration update detected during publish attempt ${attempt}; retrying."
+            sleep 2
+          done
+
+          echo "Failed to publish Jette phase 2 data without rewriting branch history."
+          exit 1

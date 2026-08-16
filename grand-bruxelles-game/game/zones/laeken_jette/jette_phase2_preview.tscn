@@ -1,0 +1,28 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://game/zones/laeken_jette/jette_phase2.tscn" id="1_zone"]
+
+[sub_resource type="Environment" id="Environment_preview"]
+background_mode = 1
+background_color = Color(0.63, 0.73, 0.85, 1)
+ambient_light_source = 3
+ambient_light_color = Color(0.80, 0.83, 0.88, 1)
+ambient_light_energy = 0.65
+
+[node name="JettePhase2Preview" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_preview")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-47, -34, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(-450, 160, -5150)
+rotation_degrees = Vector3(-20, 142, 0)
+current = true
+far = 15000.0
+
+[node name="JettePhase2Zone" parent="." instance=ExtResource("1_zone")]

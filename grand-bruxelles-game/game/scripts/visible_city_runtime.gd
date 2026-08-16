@@ -500,13 +500,28 @@ func _build_hud() -> void:
     _hud_label.add_theme_constant_override("shadow_offset_y", 2)
     _hud_panel.add_child(_hud_label)
 
+func _local_ambient_civilian_count() -> int:
+    if not is_instance_valid(_player) or get_tree() == null:
+        return 0
+    var observer_position := _active_player_position()
+    var count := 0
+    for node: Node in get_tree().get_nodes_in_group("ambient_pedestrian"):
+        if not node is Node3D or node.is_in_group("behavioral_civilian"):
+            continue
+        var pedestrian := node as Node3D
+        if not pedestrian.is_visible_in_tree():
+            continue
+        if pedestrian.global_position.distance_to(observer_position) <= zone_activation_radius_m:
+            count += 1
+    return count
+
 func _update_status_hud() -> void:
     if not is_instance_valid(_hud_label):
         return
     if not _status_text.is_empty():
         _hud_label.text = _status_text
         return
-    var active_civilians := 0
+    var active_civilians := _local_ambient_civilian_count()
     var active_police := 0
     for civilian: NpcAgent in _civilians:
         if is_instance_valid(civilian) and civilian.active:
@@ -527,7 +542,7 @@ func status_text_for_test() -> String:
     return _status_text
 
 func visible_population_counts() -> Dictionary:
-    var civilian_count := 0
+    var civilian_count := _local_ambient_civilian_count()
     var police_count := 0
     for civilian: NpcAgent in _civilians:
         if is_instance_valid(civilian):

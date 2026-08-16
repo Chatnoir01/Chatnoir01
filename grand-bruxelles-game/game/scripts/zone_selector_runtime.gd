@@ -1,5 +1,4 @@
 extends CanvasLayer
-class_name ZoneSelectorRuntime
 
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const MAIN_SCENE := "res://game/main.tscn"

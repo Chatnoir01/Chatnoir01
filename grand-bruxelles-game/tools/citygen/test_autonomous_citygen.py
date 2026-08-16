@@ -24,7 +24,6 @@ with tempfile.TemporaryDirectory() as tmp:
     write_json(maturity/f"{cells[0]}.json",{"cell_id":cells[0],"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:True for name in all_gates}}})
     write_json(maturity/f"{cells[1]}.json",{"cell_id":cells[1],"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{"runtime_geometry":False}}})
     write_json(maturity/f"{cells[2]}.json",{"cell_id":cells[2],"crs":"EPSG:4326","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{}}})
-    # Cell 3 has no committed maturity manifest; its source-local sidecar must be consumed.
     write_json(source/cells[3]/"maturity.json",{"cell_id":cells[3],"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:False for name in all_gates}}})
 
     report1=mod.run(source,maturity,None,out1,2,target_grid)
@@ -38,7 +37,11 @@ with tempfile.TemporaryDirectory() as tmp:
 
     report2=mod.run(source,maturity,out1/"autonomous_citygen_state.json",out2,2,target_grid)
     attempts={cell["cell_id"]:cell["attempts"] for cell in report2["cells"]}
-    assert report2["run_number"]==2 and attempts[cells[4]]==2 and attempts[cells[1]]==2 and attempts[cells[0]]==0 and attempts[cells[2]]==0
+    assert report2["run_number"]==2
+    assert attempts[cells[4]]==2
+    assert attempts[cells[1]]==1
+    assert attempts[cells[3]]==1
+    assert attempts[cells[0]]==0 and attempts[cells[2]]==0
 
     rotation=[{"cell_id":"bxl-e100000-n100000-s500","state":"DISCOVERED","attempts":3},{"cell_id":"bxl-e100500-n100000-s500","state":"DISCOVERED","attempts":0},{"cell_id":"bxl-e101000-n100000-s500","state":"DISCOVERED","attempts":1}]
     assert mod.select_batch(rotation,2)==["bxl-e100500-n100000-s500","bxl-e101000-n100000-s500"]

@@ -12,6 +12,7 @@ const MIN_AMPLITUDE_MULTIPLIER := 0.86
 const MAX_AMPLITUDE_MULTIPLIER := 1.14
 const MIN_AMPLITUDE_SPAN := 0.18
 const MIN_CACHED_RIGS := 20
+const EXPECTED_DETAIL_UPDATE_DISTANCE_M := 100.0
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -120,6 +121,16 @@ func _run() -> void:
         _fail("runtime does not declare stable per-pedestrian rig caching")
         return
 
+    if not bool(warmed_stats.get("distance_lod_culling_active", false)):
+        _fail("detailed gait work must stop beyond the profiled NPC distance LOD")
+        return
+    if absf(float(warmed_stats.get("detail_update_distance_m", 0.0)) - EXPECTED_DETAIL_UPDATE_DISTANCE_M) > 0.001:
+        _fail("detailed gait distance must match the 90m LOD plus 10m fade margin")
+        return
+    if not bool(warmed_stats.get("simulation_continues_when_detail_culled", false)):
+        _fail("distance gait culling must never take ownership of pedestrian simulation")
+        return
+
     var profile_count := int(stats.get("cadence_profile_count", 0))
     var cadence_min := float(stats.get("cadence_multiplier_min", 1.0))
     var cadence_max := float(stats.get("cadence_multiplier_max", 1.0))
@@ -152,6 +163,6 @@ func _run() -> void:
         _fail("stride amplitude must be deterministic per pedestrian, not random per frame")
         return
 
-    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f amplitude_profiles=%d amplitude_range=%.3f..%.3f rig_cache=%d rig_discoveries=%d" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max, amplitude_profile_count, amplitude_min, amplitude_max, rig_cache_size, rig_discovery_count])
+    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f amplitude_profiles=%d amplitude_range=%.3f..%.3f rig_cache=%d rig_discoveries=%d detail_update_m=%.1f" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max, amplitude_profile_count, amplitude_min, amplitude_max, rig_cache_size, rig_discovery_count, float(warmed_stats.get("detail_update_distance_m", 0.0))])
     scene.queue_free()
     quit(0)

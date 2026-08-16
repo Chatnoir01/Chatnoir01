@@ -76,7 +76,14 @@ def direct_score(link: dict[str, str]) -> tuple[int, int]:
 
 
 def candidate_haystack(link: dict[str, str]) -> str:
-    return " ".join(str(link.get(key, "")) for key in ("href", "title", "type", "rel")).casefold()
+    """Return only the resolved file URL for actual-file token matching.
+
+    Nested Atom link metadata can describe the parent municipality or advertise
+    several formats at once. Using title/type/rel here can therefore make a SHP
+    file satisfy a GPKG token. Candidate tokens intentionally describe the
+    concrete resolved file, so they must match its href itself.
+    """
+    return str(link.get("href", "")).casefold()
 
 
 def candidate_date(link: dict[str, str]) -> str:

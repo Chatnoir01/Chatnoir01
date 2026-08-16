@@ -1,0 +1,43 @@
+{
+  "schema": "grand-bruxelles-roof-material-identity-v1",
+  "target": {
+    "runtime_node": "GrandPlaceOfficialLod2Next",
+    "urbis_building_id": "https://databrussels.be/id/building/1786758",
+    "role": "Grand-Place L'Etoile + Le Cygne combined official LoD2 roof mass"
+  },
+  "geometry_source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "crs": "EPSG:31370",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "license": "CC0-1.0"
+  },
+  "material_identity_sources": [
+    {
+      "provider": "urban.brussels / Inventaire du patrimoine architectural",
+      "record": "L'Etoile, Urban 31126",
+      "url": "https://monument.heritage.brussels/fr/buildings/31126",
+      "accessed_at": "2026-08-16",
+      "facts": ["L'Etoile is described under a slate-covered gable roof."]
+    },
+    {
+      "provider": "urban.brussels / Inventaire du patrimoine architectural",
+      "record": "Le Cygne, Urban 40020",
+      "url": "https://monument.heritage.brussels/fr/buildings/40020",
+      "accessed_at": "2026-08-16",
+      "facts": ["Le Cygne is described with domical and perpendicular gable roofs covered in slate."]
+    }
+  ],
+  "presentation_contract": {
+    "applies_to": "ROOFSURFACE only",
+    "material_identity": "slate",
+    "geometry_changed": false,
+    "roofing_unit_pattern_authored": false,
+    "dormers_authored": false,
+    "exact_rgb_is_photometric_measurement": false,
+    "coarse_lod2_material_identity_only": true,
+    "runtime_approved": false,
+    "realism_complete": false
+  }
+}

@@ -1,0 +1,48 @@
+name: Grand Bruxelles CityGen Post-Merge Trigger
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen_main_push_trigger.py"
+      - ".github/workflows/grand-bruxelles-citygen-post-merge-trigger.yml"
+  push:
+    branches: [main]
+    paths:
+      - "grand-bruxelles-game/tools/citygen/**"
+      - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
+      - ".github/workflows/grand-bruxelles-citygen-state-refresh.yml"
+      - ".github/workflows/grand-bruxelles-citygen-post-merge-trigger.yml"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: grand-bruxelles-citygen-post-merge-trigger
+  cancel-in-progress: false
+
+jobs:
+  validate-trigger-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate immediate fresh-main dispatch contract
+        run: python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen_main_push_trigger.py
+
+  dispatch-autonomous-pass:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch Autonomous CityGen on exact live main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run grand-bruxelles-autonomous-citygen.yml \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            -f batch_size=4
+          echo "CITYGEN_POST_MERGE_DISPATCH_OK sha=${{ github.sha }}"

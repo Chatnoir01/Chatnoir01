@@ -1,9 +1,9 @@
 class_name NpcDialogueRules
 extends RefCounted
 
-const ACTIONS := PackedStringArray(["idle", "walk", "alert", "defend", "fight", "flee", "hurt"])
+const ACTIONS = ["idle", "walk", "alert", "defend", "fight", "flee", "hurt"]
 const MAX_LINE_LENGTH := 140
-const FORBIDDEN_LINE_MARKERS := PackedStringArray([
+const FORBIDDEN_LINE_MARKERS = [
 	"je suis une ia",
 	"je suis un modèle",
 	"je suis un modele",
@@ -16,7 +16,7 @@ const FORBIDDEN_LINE_MARKERS := PackedStringArray([
 	"prompt système",
 	"prompt systeme",
 	"system prompt",
-])
+]
 
 static func allowed_actions(blackboard: Dictionary) -> PackedStringArray:
 	var allowed := PackedStringArray(["idle", "walk"])

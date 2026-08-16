@@ -59,14 +59,16 @@ def main() -> int:
     assert "_shp_" not in gpkg_only[0]["href"].casefold()
 
     # Workflow-specific guardrail: Brussels municipality code 21001 is Anderlecht;
-    # 21009 is Ixelles. The real secondary-height gate must never combine the
-    # Ixelles code with the Anderlecht municipality token, because that produces
-    # an impossible concrete-file filter and prevents any download/evidence work.
+    # 21009 is Ixelles. The official direct-file naming contract is allowed to use
+    # the stable municipality code without spelling the municipality name in the URL.
+    # Requiring both code and display name can make a valid official GPKG impossible
+    # to select even when the feed metadata identifies the municipality correctly.
     workflow = MODULE_PATH.parents[2] / ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
     workflow_text = workflow.read_text(encoding="utf-8")
-    assert "--candidate-token 21001 --candidate-token Anderlecht" in workflow_text
-    assert "('31370','gpkg','21001','anderlecht')" in workflow_text
-    assert "--candidate-token 21009 --candidate-token Anderlecht" not in workflow_text
+    assert "--candidate-token GPKG --candidate-token 21001 --prefer-latest" in workflow_text
+    assert "assert all(x in folded for x in ('31370','gpkg','21001'))" in workflow_text
+    assert "--candidate-token 21009" not in workflow_text
+    assert "--candidate-token Anderlecht" not in workflow_text
 
     print("URBIS_DISTRIBUTION_SELECTOR_TEST_OK")
     return 0

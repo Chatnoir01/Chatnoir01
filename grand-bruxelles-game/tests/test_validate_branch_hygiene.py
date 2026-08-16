@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).parents[1] / "tools" / "validate_branch_hygiene.py"
+WORKFLOW_PATH = Path(__file__).parents[2] / ".github" / "workflows" / "grand-bruxelles-branch-hygiene.yml"
 SPEC = importlib.util.spec_from_file_location("validate_branch_hygiene", MODULE_PATH)
 assert SPEC and SPEC.loader
 MOD = importlib.util.module_from_spec(SPEC)
@@ -42,6 +43,14 @@ class BranchHygieneTests(unittest.TestCase):
         result = MOD.check("integration/shared-core-bundle", "main", ["grand-bruxelles-game/game/scripts/foo.gd"], ahead=21, behind=0)
         self.assertFalse(result.ok)
         self.assertTrue(any("smaller coherent promotion lots" in error for error in result.errors))
+
+    def test_workflow_pins_policy_to_pull_request_base_sha(self):
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertIn("BASE_SHA: ${{ github.event.pull_request.base.sha }}", workflow)
+        self.assertIn("HEAD_SHA: ${{ github.event.pull_request.head.sha }}", workflow)
+        self.assertIn('git diff --name-only "$BASE_SHA...$HEAD_SHA"', workflow)
+        self.assertIn('git rev-list --count "$BASE_SHA..$HEAD_SHA"', workflow)
+        self.assertIn('git rev-list --count "$HEAD_SHA..$BASE_SHA"', workflow)
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,10 +11,11 @@ jobs:
   branch-hygiene:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout pull request
+      - name: Checkout pull request head snapshot
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Regression-test branch policy
         run: python3 -m unittest grand-bruxelles-game/tests/test_validate_branch_hygiene.py
@@ -24,13 +25,16 @@ jobs:
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
           BASE_BRANCH: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git fetch origin "$BASE_BRANCH" --depth=500 || git fetch origin "$BASE_BRANCH"
-          mapfile -t CHANGED < <(git diff --name-only "origin/$BASE_BRANCH...HEAD")
+          git cat-file -e "$BASE_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA^{commit}"
+          mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
           printf '%s\n' "${CHANGED[@]}" > /tmp/grand-bruxelles-changed-files.txt
-          AHEAD=$(git rev-list --count "origin/$BASE_BRANCH..HEAD")
-          BEHIND=$(git rev-list --count "HEAD..origin/$BASE_BRANCH")
+          AHEAD=$(git rev-list --count "$BASE_SHA..$HEAD_SHA")
+          BEHIND=$(git rev-list --count "$HEAD_SHA..$BASE_SHA")
           python3 grand-bruxelles-game/tools/validate_branch_hygiene.py \
             --head "$HEAD_BRANCH" \
             --base "$BASE_BRANCH" \
@@ -43,10 +47,11 @@ jobs:
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
           BASE_BRANCH: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git fetch origin "$BASE_BRANCH" --depth=1
-          mapfile -t CHANGED < <(git diff --name-only "origin/$BASE_BRANCH...HEAD")
+          mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
           printf '%s\n' "${CHANGED[@]}" > /tmp/grand-bruxelles-changed-files.txt
           echo "Checking ${#CHANGED[@]} changed files on $HEAD_BRANCH -> $BASE_BRANCH"
 
@@ -126,16 +131,17 @@ jobs:
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
           BASE_BRANCH: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git fetch origin "$BASE_BRANCH" --depth=500 || git fetch origin "$BASE_BRANCH"
-          AHEAD=$(git rev-list --count "origin/$BASE_BRANCH..HEAD")
-          BEHIND=$(git rev-list --count "HEAD..origin/$BASE_BRANCH")
+          AHEAD=$(git rev-list --count "$BASE_SHA..$HEAD_SHA")
+          BEHIND=$(git rev-list --count "$HEAD_SHA..$BASE_SHA")
 
           case "$HEAD_BRANCH" in
             zone-laeken-jette|zone-reste-bruxelles-clean|vehicles-traffic)
               if [[ "$BASE_BRANCH" == "main" ]] && (( AHEAD > 50 || BEHIND > 15 )); then
-                echo "::error::Quarantined specialist branch $HEAD_BRANCH is $AHEAD ahead / $BEHIND behind main. Do not merge wholesale. Create a small current-main extraction branch containing one coherent lot."
+                echo "::error::Quarantined specialist branch $HEAD_BRANCH is $AHEAD ahead / $BEHIND behind the pull-request base snapshot. Do not merge wholesale. Create a small current-base extraction branch containing one coherent lot."
                 exit 1
               fi
               ;;
@@ -148,17 +154,20 @@ jobs:
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
           BASE_BRANCH: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git fetch origin "$BASE_BRANCH" --depth=500 || git fetch origin "$BASE_BRANCH"
 
-          AHEAD=$(git rev-list --count "origin/$BASE_BRANCH..HEAD")
-          BEHIND=$(git rev-list --count "HEAD..origin/$BASE_BRANCH")
-          SHARED=$(git diff --name-only "origin/$BASE_BRANCH...HEAD" | grep -E '^(grand-bruxelles-game/game/main\.tscn|grand-bruxelles-game/project\.godot|\.github/workflows/grand-bruxelles-game\.yml)$' || true)
+          AHEAD=$(git rev-list --count "$BASE_SHA..$HEAD_SHA")
+          BEHIND=$(git rev-list --count "$HEAD_SHA..$BASE_SHA")
+          SHARED=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -E '^(grand-bruxelles-game/game/main\.tscn|grand-bruxelles-game/project\.godot|\.github/workflows/grand-bruxelles-game\.yml)$' || true)
 
           {
             echo "### Grand Bruxelles integration-risk report"
             echo "- branch: \`$HEAD_BRANCH\` -> \`$BASE_BRANCH\`"
+            echo "- pinned base SHA: \`$BASE_SHA\`"
+            echo "- pinned head SHA: \`$HEAD_SHA\`"
             echo "- commits ahead: **$AHEAD**"
             echo "- commits behind: **$BEHIND**"
             if [[ -n "$SHARED" ]]; then
@@ -172,10 +181,10 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           if (( AHEAD > 50 )); then
-            echo "::warning::Branch is $AHEAD commits ahead of $BASE_BRANCH. Treat it as a specialist source and extract a small current-base integration branch rather than merging wholesale."
+            echo "::warning::Branch is $AHEAD commits ahead of the pull-request base snapshot. Treat it as a specialist source and extract a small current-base integration branch rather than merging wholesale."
           fi
           if (( BEHIND > 15 )); then
-            echo "::warning::Branch is $BEHIND commits behind $BASE_BRANCH. Do not stack unrelated work or assume technical mergeability means safe integration."
+            echo "::warning::Branch is $BEHIND commits behind the pull-request base snapshot. Do not stack unrelated work or assume technical mergeability means safe integration."
           fi
           if [[ -n "$SHARED" ]]; then
             echo "::warning::Shared integration files are modified. Review for duplicated main-scene/CI ownership before merge."

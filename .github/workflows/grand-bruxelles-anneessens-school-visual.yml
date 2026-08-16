@@ -1,0 +1,74 @@
+name: Grand Bruxelles Anneessens School Visual
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/data/osm/anneessens_school_256375327.game.json"
+      - "grand-bruxelles-game/game/scripts/anneessens_school_hero.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_school_visual_ab_test.gd"
+      - "grand-bruxelles-game/tests/test_anneessens_school_source.py"
+      - "grand-bruxelles-game/tools/fetch_anneessens_school_source.py"
+      - ".github/workflows/grand-bruxelles-anneessens-school-visual.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-player-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Re-acquire exact OSM source and prove committed snapshot
+        run: |
+          python grand-bruxelles-game/tools/fetch_anneessens_school_source.py --output /tmp/anneessens_school_256375327.game.json
+          cmp /tmp/anneessens_school_256375327.game.json grand-bruxelles-game/data/osm/anneessens_school_256375327.game.json
+          python -m pytest -q grand-bruxelles-game/tests/test_anneessens_school_source.py
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Capture frozen natural player-eye A/B
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --script res://game/tests/anneessens_school_visual_ab_test.gd
+      - name: Measure legitimate full-frame impact
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageChops
+          import json
+
+          root = Path('grand-bruxelles-game/artifacts/qa/anneessens_school')
+          before = Image.open(root / 'before_missing_school.png').convert('RGB')
+          after = Image.open(root / 'after_school_restored.png').convert('RGB')
+          if before.size != (1280, 720) or after.size != (1280, 720):
+              raise SystemExit(f'unexpected capture size: {before.size} / {after.size}')
+          total = before.size[0] * before.size[1]
+          a = list(before.getdata())
+          b = list(after.getdata())
+          changed3 = sum(1 for p, q in zip(a, b) if max(abs(p[i]-q[i]) for i in range(3)) > 3)
+          changed8 = sum(1 for p, q in zip(a, b) if max(abs(p[i]-q[i]) for i in range(3)) > 8)
+          p3 = changed3 * 100.0 / total
+          p8 = changed8 * 100.0 / total
+          report = {'pixels': total, 'changed_gt3': changed3, 'changed_gt8': changed8, 'percent_gt3': p3, 'percent_gt8': p8}
+          (root / 'impact.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+          ImageChops.difference(before, after).save(root / 'diff.png')
+          print('ANNEESSENS_SCHOOL_IMPACT', json.dumps(report))
+          if p3 < 0.50 or p8 < 0.20:
+              raise SystemExit(f'player-visible impact too small: >3={p3:.4f}% >8={p8:.4f}%')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: anneessens-school-player-ab
+          path: grand-bruxelles-game/artifacts/qa/anneessens_school/*

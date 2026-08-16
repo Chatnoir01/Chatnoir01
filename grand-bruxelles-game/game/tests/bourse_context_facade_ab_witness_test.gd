@@ -4,7 +4,7 @@ const SIZE := Vector2i(1280, 960)
 const EVIDENCE := "res://data/qa/photo_match/bourse_2019_geotagged_camera_evidence.json"
 const BEFORE := "res://artifacts/visual/bourse_context_facade_before.png"
 const AFTER := "res://artifacts/visual/bourse_context_facade_after.png"
-const RETREAT_M := 90.0
+const RETREAT_M := 60.0
 const TARGET_Y := 14.0
 
 func _initialize() -> void: call_deferred("_run")

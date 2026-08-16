@@ -77,12 +77,12 @@ func _run() -> void:
     camera.look_at(ENTRANCE + Vector3(0.0, 7.5, 0.0), Vector3.UP)
     camera.current = true
 
-    get_tree().paused = true
+    paused = true
     runtime.set_enhanced_material_enabled(false)
     var before := await _capture(BEFORE_PATH)
     runtime.set_enhanced_material_enabled(true)
     var after := await _capture(AFTER_PATH)
-    get_tree().paused = false
+    paused = false
     if before == null or after == null:
         _fail("capture missing")
         return
@@ -136,6 +136,6 @@ func _capture(path: String) -> Image:
     return image
 
 func _fail(message: String) -> void:
-    get_tree().paused = false
+    paused = false
     push_error("CORRIDOR_SHARED_GLAZING_WITNESS_FAIL: " + message)
     quit(1)

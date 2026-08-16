@@ -5,6 +5,27 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parents[2]
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "grand-bruxelles-autonomous-citygen.yml"
+EXPECTED_REGION_GATES = (
+    "source_requirements",
+    "crs",
+    "runtime_geometry",
+    "collisions",
+    "streaming",
+    "terrain",
+    "heights",
+    "materials",
+    "facade",
+    "clutter",
+    "mobility",
+    "verification",
+    "license",
+    "region_scalable",
+    "photo_match",
+    "performance",
+)
+
 SPEC = importlib.util.spec_from_file_location("bootstrap_cell_maturity", HERE / "bootstrap_cell_maturity.py")
 mod = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mod)
@@ -41,7 +62,8 @@ with tempfile.TemporaryDirectory() as tmp:
     assert result["maturity"]["state"] == "data_ready"
     assert result["geometry"]["authoritative_geometry_ready"] is True
     assert result["geometry"]["building_feature_count"] == 1
-    assert set(result["maturity"]["gates"]) == set(mod.GATES)
+    assert tuple(mod.GATES) == EXPECTED_REGION_GATES, mod.GATES
+    assert tuple(result["maturity"]["gates"]) == EXPECTED_REGION_GATES
     assert all(value is False for value in result["maturity"]["gates"].values())
     assert result["terrain"]["status"] == "evidence_pending"
     assert result["heights"]["status"] == "evidence_pending"
@@ -68,4 +90,9 @@ with tempfile.TemporaryDirectory() as tmp:
     else:
         raise AssertionError("source count mismatch must fail closed")
 
-print("BOOTSTRAP_CELL_MATURITY_GUARDRAILS_OK deterministic=true gates_false=true quarantine=true")
+workflow_text = WORKFLOW.read_text(encoding="utf-8")
+assert "python3 grand-bruxelles-game/tools/citygen/test_bootstrap_cell_maturity.py" in workflow_text, (
+    "Autonomous CityGen CI must execute the canonical maturity-contract regression"
+)
+
+print("BOOTSTRAP_CELL_MATURITY_GUARDRAILS_OK deterministic=true gates_false=true quarantine=true regional_contract_locked=true ci_covered=true")

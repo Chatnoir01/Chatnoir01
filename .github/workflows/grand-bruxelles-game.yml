@@ -162,6 +162,19 @@ jobs:
           grep -q "Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active" /tmp/godot-run.log
           grep -q "Grand Bruxelles UrbIS mask:" /tmp/godot-run.log
 
+      - name: Authored player locomotion regression
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/authored_player_locomotion_test.gd 2>&1 | tee /tmp/authored-player-locomotion.log
+          if grep -E "SCRIPT ERROR|Parse Error:|AUTHORED_PLAYER_LOCOMOTION_FAIL" /tmp/authored-player-locomotion.log; then
+            exit 1
+          fi
+          grep -q "AUTHORED_PLAYER_LOCOMOTION_OK" /tmp/authored-player-locomotion.log
+
       - name: Authoritative Bourse geometry test
         shell: bash
         run: |

@@ -1,0 +1,71 @@
+name: Grand Bruxelles Grand-Place Maison du Roi Materialize
+
+on:
+  push:
+    branches:
+      - visual/grand-place-maison-du-roi-8a7a63c
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-maison-du-roi-materialize.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: visual/grand-place-maison-du-roi-8a7a63c
+      - name: Materialize exact official LoD2
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
+          EXPECTED="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148170_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          ROOT="$(dirname "$FACE")"
+          python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
+            --source-root "$ROOT" --prefix UrbISBuildings3D_148170 \
+            --building-id "https://databrussels.be/id/building/1654360" \
+            --context-id "grand_place_maison_du_roi" --name "Grand-Place Maison du Roi" \
+            --package-url "$URL" --package-sha256 "$EXPECTED" \
+            --package-revision "2026-08-08" --accessed-at "2026-08-16" \
+            --origin-e 147868.29422791934 --origin-n 169538.62414926197 --world-x -668.5 --world-z 627.84 \
+            --output /tmp/1654360.game.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/1654360.game.json')
+          d=json.loads(p.read_text())
+          e=d['evidence']; t=e['face_type_counts']
+          assert d['source']['building_2d_id']=='https://databrussels.be/id/building/1654360'
+          assert d['source']['package_sha256']=='cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2'
+          assert e['face_count']==71 and e['triangle_count']==230
+          assert t=={'ROOFSURFACE':22,'WALLSURFACE':48,'GROUNDSURFACE':1}
+          assert abs(float(e['height_m'])-30.387)<0.001
+          out=Path('grand-bruxelles-game/data/urbis/grand_place_lod2/1654360.game.json')
+          out.parent.mkdir(parents=True,exist_ok=True)
+          out.write_bytes(p.read_bytes())
+          print('MAISON_DU_ROI_MATERIALIZED_OK')
+          PY
+      - name: Commit generated source lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add grand-bruxelles-game/data/urbis/grand_place_lod2/1654360.game.json
+          if git diff --cached --quiet; then
+            echo "already materialized"
+            exit 0
+          fi
+          git commit -m "data(grand-place): materialize Maison du Roi official LoD2"
+          git push origin HEAD:visual/grand-place-maison-du-roi-8a7a63c

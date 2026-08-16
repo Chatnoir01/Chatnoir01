@@ -4,8 +4,8 @@ const HUMANOID_VISUAL_SCRIPT := preload("res://game/scripts/humanoid_visual.gd")
 const EXPECTED_AMBIENT := 20
 const MAX_DISCOVERY_FRAMES := 120
 const PROXY_Y_OFFSET := 0.67
-const LOD_SWITCH_DISTANCE_M := 48.0
-const LOD_TRANSITION_MARGIN_M := 6.0
+const LOD_SWITCH_DISTANCE_M := 90.0
+const LOD_TRANSITION_MARGIN_M := 10.0
 const LEGACY_VISUAL_NAMES := ["Torso", "LeftLeg", "RightLeg", "LeftArm", "RightArm", "Head", "Bag"]
 
 var _bridged_scene_ids: Dictionary = {}
@@ -250,6 +250,6 @@ func truth_contract() -> Dictionary:
         "simulation_proxy_disabled": true,
         "visual_pipeline": "NpcAgent + humanoid_visual.gd profiled NPC path",
         "material_sharing": "exact-equivalent StandardMaterial3D reuse",
-        "distance_lod": "profiled meshes near / existing legacy primitives beyond 48m with 6m self-fade margin",
+        "distance_lod": "profiled meshes near / existing legacy primitives beyond 90m with 10m self-fade margin",
         "external_assets": 0,
     }

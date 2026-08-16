@@ -1,15 +1,26 @@
 extends "res://game/scripts/midi_hero_zone.gd"
 
 # Heritage-backed material identity for Bruxelles-Midi / Brussel-Zuid.
-# Geometry remains owned by the existing Midi hero zone. Texture scale, colors,
-# roughness and block cadence are authored presentation values, not survey data.
+# The exact-plan UrbIS runtime owns the station building envelope. This layer
+# keeps only the authored Fonsny entrance and street-level hero details so the
+# old hand-built station massing cannot overlap the official footprints.
 
 const CONCRETE_TEXTURE_METRES := 1.80
 const GLASS_BLOCK_TEXTURE_METRES := 1.60
 const CORRIDOR_FACADE_DEPTH_RUNTIME := preload("res://game/scripts/corridor_facade_depth_runtime.gd")
 
 func _ready() -> void:
-    super._ready()
+    _make_materials()
+    # Do not call the inherited _build_station_complex(): UrbISMidiExact already
+    # renders the station-area building footprints from the committed UrbIS
+    # runtime. Keeping both produced two independently authored envelopes.
+    _build_station_entrance()
+    _build_fonsny_forecourt()
+    _build_fonsny_crossing()
+    _build_fonsny_street_furniture()
+    _build_shelters()
+    _build_tram_railings()
+    print("Grand Bruxelles hero zone: Bruxelles-Midi UrbIS envelope + Fonsny details active")
     call_deferred("_install_corridor_facade_depth")
 
 func _install_corridor_facade_depth() -> void:

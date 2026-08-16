@@ -1,7 +1,6 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
-const ANNEESSENS := Vector2(-272.04, -217.07)
 const MIDI := Vector2(-668.50, 627.84)
 
 func _initialize() -> void:
@@ -44,13 +43,18 @@ func _run() -> void:
     var identity := root.get_node_or_null("AnneessensPlaceIdentity")
     if identity == null or not bool(identity.get("source_loaded")):
         _fail("identity/source not ready"); return
+    var plinth := identity.find_child("AnneessensBlueStonePlinth", true, false) as Node3D
+    if plinth == null:
+        _fail("source-backed monument centre missing"); return
     _mask_dynamic(main)
     var camera := Camera3D.new(); camera.name = "AnneessensFrozenCorridorCamera"; root.add_child(camera)
-    var route := (ANNEESSENS - MIDI).normalized()
-    var approach := ANNEESSENS - route * 58.0
+    var target := Vector2(plinth.global_position.x, plinth.global_position.z)
+    var route := (target - MIDI).normalized()
+    var approach := target - route * 58.0
     camera.position = Vector3(approach.x, 7.2, approach.y)
-    camera.look_at(Vector3(ANNEESSENS.x, 3.0, ANNEESSENS.y), Vector3.UP)
+    camera.look_at(Vector3(target.x, 3.0, target.y), Vector3.UP)
     camera.fov = 58.0; camera.current = true
+    print("ANNEESSENS_PLACE_IDENTITY_VISUAL_CAMERA target=%.3f,%.3f approach=%.3f,%.3f" % [target.x,target.y,approach.x,approach.y])
     identity.call("set_identity_visible", false)
     var before := await _capture("/tmp/anneessens_before.png")
     identity.call("set_identity_visible", true)

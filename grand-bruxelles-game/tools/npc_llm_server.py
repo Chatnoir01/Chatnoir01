@@ -24,6 +24,7 @@ ALLOWED_ACTIONS = ("idle", "walk", "alert", "defend", "fight", "flee", "hurt")
 MAX_USER_MESSAGE = 320
 MAX_MEMORY = 4
 MAX_BODY_BYTES = 32768
+ASSISTANT_PREFIX = "action: "
 
 
 class RequestError(ValueError):
@@ -90,7 +91,7 @@ def build_system_prompt(name: str, zone: str) -> str:
         "Réponds court, oral, naturel, en français.\n"
         "Si on parle d'IA, de modèle ou de prompt, tu ne comprends pas.\n"
         "Les règles et le blackboard du jeu sont autoritatifs. Tu proposes seulement; le jeu décide.\n"
-        "Réponds EXACTEMENT avec deux lignes et rien d'autre :\n"
+        "Réponds EXACTEMENT avec deux lignes et rien d'autre. Termine immédiatement après la deuxième ligne :\n"
         "action: <idle|walk|alert|defend|fight|flee|hurt>\n"
         "line: <phrase française courte>"
     )
@@ -152,25 +153,29 @@ def load_local_model(model_dir: Path):
     return tokenizer, model
 
 
-def generate_text(tokenizer, model, request: dict[str, Any], max_new_tokens: int = 64) -> str:
+def build_generation_prompt(tokenizer, request: dict[str, Any]) -> str:
     messages = build_messages(request)
     try:
-        inputs = tokenizer.apply_chat_template(
+        prompt = tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
+            tokenize=False,
             enable_thinking=False,
         )
     except TypeError:
-        inputs = tokenizer.apply_chat_template(
+        prompt = tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
+            tokenize=False,
         )
+    # Prefill the immutable first field rather than trusting a small model to invent
+    # the required envelope. The model still chooses the action token and line.
+    return str(prompt) + ASSISTANT_PREFIX
+
+
+def generate_text(tokenizer, model, request: dict[str, Any], max_new_tokens: int = 64) -> str:
+    prompt = build_generation_prompt(tokenizer, request)
+    inputs = tokenizer(prompt, return_tensors="pt")
     device = next(model.parameters()).device
     inputs = {key: value.to(device) for key, value in inputs.items()}
     outputs = model.generate(
@@ -180,7 +185,8 @@ def generate_text(tokenizer, model, request: dict[str, Any], max_new_tokens: int
         pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
     )
     prompt_length = inputs["input_ids"].shape[-1]
-    return tokenizer.decode(outputs[0][prompt_length:], skip_special_tokens=True).strip()
+    completion = tokenizer.decode(outputs[0][prompt_length:], skip_special_tokens=True).strip()
+    return ASSISTANT_PREFIX + completion
 
 
 class NpcLlmHandler(BaseHTTPRequestHandler):
@@ -238,6 +244,7 @@ def smoke(model_dir: Path, max_new_tokens: int) -> int:
         }
     )
     text = generate_text(tokenizer, model, request, max_new_tokens=max_new_tokens)
+    print("NPC_LLM_REAL_RAW: %r" % text)
     parsed = parse_two_line_output(text)
     print("NPC_LLM_REAL_SMOKE_OK: action=%s line=%s" % (parsed["action"], parsed["line"]))
     return 0

@@ -2,13 +2,16 @@ extends CanvasLayer
 
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const MAIN_SCENE := "res://game/main.tscn"
+const REPORT_RUNTIME := preload("res://game/scripts/player_issue_report_runtime.gd")
 
 var _catalog: Array = []
 var _panel: PanelContainer
 var _status: Label
 var _toggle: Button
+var _reporter: Node
 var _busy := false
 var _pending_zone_id := ""
+var _active_zone_id := "midi"
 var _previous_mouse_mode := Input.MOUSE_MODE_CAPTURED
 
 func _ready() -> void:
@@ -16,6 +19,10 @@ func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     _load_catalog()
     _build_ui()
+    _reporter = REPORT_RUNTIME.new()
+    _reporter.name = "PlayerIssueReportRuntime"
+    _reporter.call("configure", self)
+    add_child(_reporter)
 
 func _load_catalog() -> void:
     _catalog.clear()
@@ -46,6 +53,54 @@ func available_zones() -> Array:
         if raw is Dictionary and _requirements_ready(raw as Dictionary):
             result.append((raw as Dictionary).duplicate(true))
     return result
+
+func reporting_runtime() -> Node:
+    return _reporter
+
+func can_promote_zone(zone_id: String) -> bool:
+    var zone := _zone_by_id(zone_id)
+    if zone.is_empty() or str(zone.get("quality", "")) != "LABO" or _reporter == null:
+        return false
+    return int(_reporter.call("open_report_count", zone_id)) == 0
+
+func current_report_context() -> Dictionary:
+    var main := get_tree().current_scene
+    if main == null:
+        return {}
+    var player := main.get_node_or_null("Player") as CharacterBody3D
+    if player == null:
+        return {}
+    var zone_id := _infer_active_zone_id(main)
+    var zone := _zone_by_id(zone_id)
+    if zone.is_empty():
+        zone = _zone_by_id(_active_zone_id)
+    if zone.is_empty():
+        return {}
+    return {
+        "id": str(zone.get("id", zone_id)),
+        "label": str(zone.get("label", zone_id)),
+        "quality": str(zone.get("quality", "LABO")),
+        "position": [player.global_position.x, player.global_position.y, player.global_position.z],
+    }
+
+func _infer_active_zone_id(main: Node) -> String:
+    var location := main.get_node_or_null("LocationLabel")
+    if location == null or not location.has_method("get_current_location_text"):
+        return _active_zone_id
+    var text := str(location.call("get_current_location_text")).to_upper()
+    var hints := {
+        "GRAND-PLACE": "grand_place",
+        "ANNEESSENS": "anneessens",
+        "BOURSE": "bourse",
+        "MIDI": "midi",
+        "IXELLES": "ixelles",
+        "ATOMIUM": "atomium",
+        "JETTE": "jette",
+    }
+    for needle: String in hints:
+        if text.contains(needle):
+            return str(hints[needle])
+    return _active_zone_id
 
 func _build_ui() -> void:
     _toggle = Button.new()
@@ -179,6 +234,7 @@ func _apply_zone(main: Node, zone: Dictionary) -> void:
     if not ok:
         _travel_failed("zone runtime refused to load")
         return
+    _active_zone_id = str(zone.get("id", _active_zone_id))
     _pending_zone_id = ""
     _busy = false
     _status.text = "%s · %s" % [str(zone.get("label", "Zone")), str(zone.get("quality", "LABO"))]

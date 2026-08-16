@@ -1,0 +1,193 @@
+name: Grand Bruxelles Grand-Place Maison du Roi Source
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-maison-du-roi-source.yml"
+      - "grand-bruxelles-game/tools/extract_urbis_3d_context.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve official City record to one UrbIS building
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/maison-du-roi
+          python3 - <<'PY'
+          import json, math, urllib.parse, urllib.request
+          from pathlib import Path
+
+          city_url = (
+              "https://opendata.bruxelles.be/api/explore/v2.1/catalog/datasets/"
+              "description-des-batiments-de-la-grand-place/records?"
+              + urllib.parse.urlencode({"where": 'nom="La Maison du Roi"', "limit": 5})
+          )
+          req = urllib.request.Request(city_url, headers={"User-Agent":"Grand-Bruxelles-Game/1.0","Accept":"application/json"})
+          with urllib.request.urlopen(req, timeout=90) as response:
+              city = json.loads(response.read().decode("utf-8"))
+          rows = city.get("results", [])
+          if len(rows) != 1:
+              raise SystemExit(f"expected exactly one City Maison du Roi record, got {len(rows)}")
+          record = rows[0]
+          point = record.get("geo_point") or {}
+          if isinstance(point, dict):
+              lat = float(point.get("lat")); lon = float(point.get("lon"))
+          elif isinstance(point, list) and len(point) >= 2:
+              lat, lon = float(point[0]), float(point[1])
+          else:
+              raise SystemExit("City Maison du Roi geo_point missing")
+          city_height = float(record.get("hauteur_totale", 0.0))
+          if not (0.0 < city_height < 150.0):
+              raise SystemExit(f"invalid City total height: {city_height}")
+
+          pad = 0.00055
+          params = {
+              "service":"WFS", "version":"2.0.0", "request":"GetFeature",
+              "typeNames":"urbisvector:Buildings", "outputFormat":"application/json",
+              "srsName":"EPSG:4326",
+              "bbox":f"{lon-pad},{lat-pad},{lon+pad},{lat+pad},EPSG:4326",
+          }
+          wfs_url = "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs?" + urllib.parse.urlencode(params)
+          req = urllib.request.Request(wfs_url, headers={"User-Agent":"Grand-Bruxelles-Game/1.0","Accept":"application/json"})
+          with urllib.request.urlopen(req, timeout=90) as response:
+              wfs = json.loads(response.read().decode("utf-8"))
+          if wfs.get("type") != "FeatureCollection":
+              raise SystemExit("UrbIS Buildings response is not a FeatureCollection")
+
+          def exterior_rings(geometry):
+              coordinates = geometry.get("coordinates") or []
+              if geometry.get("type") == "Polygon":
+                  return [coordinates[0]] if coordinates else []
+              if geometry.get("type") == "MultiPolygon":
+                  return [polygon[0] for polygon in coordinates if polygon]
+              return []
+
+          def contains(ring, x, y):
+              inside = False
+              n = len(ring)
+              for i in range(n):
+                  x1, y1 = float(ring[i][0]), float(ring[i][1])
+                  x2, y2 = float(ring[(i + 1) % n][0]), float(ring[(i + 1) % n][1])
+                  if (y1 > y) != (y2 > y):
+                      cross_x = (x2 - x1) * (y - y1) / (y2 - y1) + x1
+                      if x < cross_x:
+                          inside = not inside
+              return inside
+
+          matches = []
+          for feature in wfs.get("features", []):
+              geometry = feature.get("geometry") or {}
+              if not any(contains(ring, lon, lat) for ring in exterior_rings(geometry)):
+                  continue
+              props = feature.get("properties") or {}
+              inspire = str(props.get("INSPIRE_ID") or props.get("inspire_id") or "")
+              if not inspire.startswith("https://databrussels.be/id/building/"):
+                  continue
+              matches.append({"id": inspire, "feature_id": feature.get("id"), "properties": props})
+          if len(matches) != 1:
+              raise SystemExit(f"City point must resolve to exactly one containing UrbIS building, got {len(matches)}: {[m['id'] for m in matches]}")
+
+          resolved = {
+              "schema":"grand-bruxelles-grand-place-maison-du-roi-source-v1",
+              "city_source": {
+                  "provider":"Ville de Bruxelles / Data Management",
+                  "dataset":"description-des-batiments-de-la-grand-place",
+                  "license":"CC BY 4.0",
+                  "name":record.get("nom"),
+                  "address":record.get("adresse"),
+                  "height_m":city_height,
+                  "geo_point":[lat,lon],
+              },
+              "urbis_2d_building_id":matches[0]["id"],
+              "runtime_approved":False,
+              "realism_complete":False,
+          }
+          Path("/tmp/maison-du-roi/source_resolution.json").write_text(json.dumps(resolved, indent=2, ensure_ascii=False) + "\n")
+          Path("/tmp/maison-du-roi/building_id.txt").write_text(matches[0]["id"] + "\n")
+          print("MAISON_DU_ROI_2D_OK", json.dumps(resolved, ensure_ascii=False))
+          PY
+
+      - name: Download locked UrbIS 3D package
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
+          EXPECTED="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148170_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source_root.txt
+
+      - name: Extract exact Maison du Roi LoD2
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"
+          ID="$(cat /tmp/maison-du-roi/building_id.txt)"
+          python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
+            --source-root "$ROOT" --prefix UrbISBuildings3D_148170 \
+            --building-id "$ID" \
+            --context-id "grand_place_maison_du_roi" --name "Grand-Place Maison du Roi" \
+            --package-url "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip" \
+            --package-sha256 "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2" \
+            --package-revision "2026-08-08" --accessed-at "2026-08-16" \
+            --origin-e 147868.29422791934 --origin-n 169538.62414926197 --world-x -668.5 --world-z 627.84 \
+            --output /tmp/maison-du-roi/maison_du_roi.game.json
+
+      - name: Cross-check source identity and impact envelope
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          source=json.loads(Path('/tmp/maison-du-roi/source_resolution.json').read_text())
+          lod2=json.loads(Path('/tmp/maison-du-roi/maison_du_roi.game.json').read_text())
+          evidence=lod2.get('evidence', {})
+          actual=str((lod2.get('source') or {}).get('building_2d_id',''))
+          expected=str(source['urbis_2d_building_id'])
+          if actual != expected:
+              raise SystemExit(f'2D/3D identity mismatch: {actual} != {expected}')
+          h=float(evidence.get('height_m',0.0))
+          city_h=float(source['city_source']['height_m'])
+          bbox=evidence.get('source_bbox_xy') or []
+          if h <= 0 or len(bbox) != 4:
+              raise SystemExit('invalid extracted LoD2 envelope')
+          width=float(bbox[2])-float(bbox[0]); depth=float(bbox[3])-float(bbox[1])
+          summary={
+              'building_id':actual,
+              'city_height_m':city_h,
+              'lod2_height_m':h,
+              'height_delta_m':abs(city_h-h),
+              'width_m':width,
+              'depth_m':depth,
+              'face_count':int(evidence.get('face_count',0)),
+              'triangle_count':int(evidence.get('triangle_count',0)),
+              'face_type_counts':evidence.get('face_type_counts',{}),
+          }
+          if summary['height_delta_m'] > 6.0:
+              raise SystemExit(f'City/UrbIS identity height cross-check too far apart: {summary}')
+          if max(width, depth) < 20.0 or h < 25.0:
+              raise SystemExit(f'Maison du Roi LoD2 is below large-landmark pre-gate: {summary}')
+          Path('/tmp/maison-du-roi/impact_summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print('MAISON_DU_ROI_SOURCE_GATE_OK',json.dumps(summary))
+          PY
+
+      - name: Upload source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-maison-du-roi-source
+          path: /tmp/maison-du-roi
+          if-no-files-found: error

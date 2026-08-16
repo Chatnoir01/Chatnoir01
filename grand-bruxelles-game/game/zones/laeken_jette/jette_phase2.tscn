@@ -1,6 +1,10 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://game/zones/laeken_jette/jette_phase2_zone.gd" id="1_jette"]
+[ext_resource type="Script" path="res://game/zones/laeken_jette/jette_station_visual_pass.gd" id="2_visual"]
 
 [node name="JettePhase2Zone" type="Node3D"]
 script = ExtResource("1_jette")
+
+[node name="JetteStationVisualPass" type="Node3D" parent="."]
+script = ExtResource("2_visual")

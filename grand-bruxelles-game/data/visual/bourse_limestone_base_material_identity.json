@@ -1,0 +1,34 @@
+{
+  "schema": "grand-bruxelles-material-identity-v1",
+  "target": {
+    "runtime_node": "BoursePorticoArticulation",
+    "role": "existing provisional monumental stair/base surfaces whose material identity is independently source-backed as dressed limestone",
+    "surface_name_prefixes": ["MonumentalStair_"],
+    "expected_surface_count": 16,
+    "excluded_roles": ["Column_*", "RearPilaster_*", "PorticoEntablature", "openings", "clock"]
+  },
+  "material_identity_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "La Bourse, Urban 31241",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Place_de_la_Bourse/A001/31241",
+    "accessed_at": "2026-08-16",
+    "facts": [
+      "The official heritage record separately describes the Bourse high base as dressed limestone.",
+      "The existing white-stone material contract intentionally excludes MonumentalStair_* because the stair/base is a separate limestone role."
+    ]
+  },
+  "presentation_contract": {
+    "material_identity": "limestone",
+    "scope": "material response only on the named existing provisional monumental stair/base surfaces",
+    "geometry_changed": false,
+    "candidate_geometry_promoted": false,
+    "masonry_joints_authored": false,
+    "tooling_marks_authored": false,
+    "exact_stone_species_claimed": false,
+    "exact_reflectance_claimed": false,
+    "exact_rgb_is_photometric_measurement": false,
+    "external_texture_asset": false,
+    "runtime_approved": false,
+    "realism_complete": false
+  }
+}

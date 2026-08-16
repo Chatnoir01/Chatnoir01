@@ -4,11 +4,14 @@ on:
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-ixelles-direct-player.yml"
+      - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/game/scripts/player_controller.gd"
       - "grand-bruxelles-game/game/scripts/brussels_source_plan_streamed_cell.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_unclassified_massing_surface_runtime.gd"
       - "grand-bruxelles-game/game/scripts/brussels_world_streaming_runtime.gd"
       - "grand-bruxelles-game/game/tests/ixelles_direct_spawn_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_source_plan_cluster_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_unclassified_massing_surface_test.gd"
       - "grand-bruxelles-game/game/zones/ixelles/**"
       - "grand-bruxelles-game/data/terrain/ixelles/**"
       - "grand-bruxelles-game/game/main.tscn"
@@ -34,6 +37,13 @@ jobs:
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
       - name: Import project
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Validate reusable unclassified massing material
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_unclassified_massing_surface_test.gd 2>&1 | tee /tmp/brussels-unclassified-massing.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_UNCLASSIFIED_MASSING_FAIL" /tmp/brussels-unclassified-massing.log; then exit 1; fi
+          grep -F "BRUSSELS_UNCLASSIFIED_MASSING_OK" /tmp/brussels-unclassified-massing.log
       - name: Validate production player entry and capture 1280x720
         shell: bash
         run: |
@@ -59,6 +69,7 @@ jobs:
           path: |
             grand-bruxelles-game/artifacts/ixelles/ixelles_direct_player_1280x720.png
             grand-bruxelles-game/artifacts/ixelles/ixelles_source_plan_east_1280x720.png
+            /tmp/brussels-unclassified-massing.log
             /tmp/ixelles-direct-player.log
             /tmp/ixelles-source-plan-east.log
           if-no-files-found: warn

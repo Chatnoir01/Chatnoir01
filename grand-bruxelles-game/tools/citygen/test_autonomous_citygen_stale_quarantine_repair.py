@@ -19,6 +19,17 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
+def candidate(cell_id: str, state: str, blockers: list[str]) -> dict[str, object]:
+    return {
+        "format": "grand-bruxelles-cell-candidate-package-v1",
+        "cell_id": cell_id,
+        "crs": "EPSG:31370",
+        "state": state,
+        "blockers": blockers,
+        "authority": {"buildings_source_present": True},
+    }
+
+
 with tempfile.TemporaryDirectory() as td:
     root = Path(td)
     source = root / "source"
@@ -32,34 +43,18 @@ with tempfile.TemporaryDirectory() as td:
 
     write_json(
         candidates / f"{stale}.json",
-        {
-            "cell_id": stale,
-            "status": "QUARANTINE",
-            "blockers": ["authoritative_geometry_not_ready", "invalid_building_features_present"],
-            "authority": {"buildings_source_present": True},
-        },
+        candidate(stale, "QUARANTINE", ["authoritative_geometry_not_ready", "invalid_building_features_present"]),
     )
     write_json(
         candidates / f"{already_present}.json",
-        {
-            "cell_id": already_present,
-            "status": "QUARANTINE",
-            "blockers": ["invalid_building_features_present"],
-        },
+        candidate(already_present, "QUARANTINE", ["invalid_building_features_present"]),
     )
     write_json(source / already_present / "manifest.json", {"cell_id": already_present})
     write_json(
         candidates / f"{unrelated_quarantine}.json",
-        {
-            "cell_id": unrelated_quarantine,
-            "status": "QUARANTINE",
-            "blockers": ["secondary_height_validation_pending"],
-        },
+        candidate(unrelated_quarantine, "QUARANTINE", ["secondary_height_validation_pending"]),
     )
-    write_json(
-        candidates / f"{fresh}.json",
-        {"cell_id": fresh, "status": "READY", "blockers": []},
-    )
+    write_json(candidates / f"{fresh}.json", candidate(fresh, "EVIDENCE_PENDING", []))
     write_json(
         target,
         {
@@ -79,10 +74,14 @@ with tempfile.TemporaryDirectory() as td:
     assert [row["cell_id"] for row in repairs] == [stale], repairs
     assert repairs[0]["bbox"] == [142000, 167000, 142500, 167500]
 
-    # Fail closed: malformed candidate identity must not be repaired.
+    # Fail closed: malformed identity and wrong candidate format must never be repaired.
     bad = "bxl-e142500-n167000-s500"
-    write_json(candidates / f"{bad}.json", {"cell_id": stale, "status": "QUARANTINE", "blockers": [mod.REPAIR_BLOCKER]})
+    malformed = candidate(stale, "QUARANTINE", [mod.REPAIR_BLOCKER])
+    write_json(candidates / f"{bad}.json", malformed)
+    wrong_format = candidate("bxl-e142500-n167500-s500", "QUARANTINE", [mod.REPAIR_BLOCKER])
+    wrong_format["format"] = "unexpected-candidate-format"
+    write_json(candidates / "bxl-e142500-n167500-s500.json", wrong_format)
     repairs = mod.select_repairs(candidates, source, target, 4)
     assert [row["cell_id"] for row in repairs] == [stale], repairs
 
-print("AUTONOMOUS_CITYGEN_STALE_QUARANTINE_REPAIR_OK")
+print("AUTONOMOUS_CITYGEN_STALE_QUARANTINE_REPAIR_OK candidate_state_contract=true")

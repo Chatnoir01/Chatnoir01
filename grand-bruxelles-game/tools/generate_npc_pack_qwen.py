@@ -104,9 +104,13 @@ def validate_generated_identity(draft: dict[str, Any], profile_id: str, zone: st
         raise BAKER.BakeError("Qwen must generate exactly one profile")
     row = rows[0]
     expected = {"id": profile_id, "zone": zone, "archetype": archetype, "locale": locale}
-    for key, value in expected.items():
-        if str(row.get(key, "")) != value:
-            raise BAKER.BakeError(f"Qwen changed imposed field {key}")
+    actual = {key: str(row.get(key, "")) for key in expected}
+    if actual != expected:
+        differences = ", ".join(
+            f"{key}: expected={expected[key]!r} actual={actual[key]!r}"
+            for key in expected if actual[key] != expected[key]
+        )
+        raise BAKER.BakeError("Qwen changed imposed identity: " + differences)
 
 
 def generate_raw_text(tokenizer, model, prompt: str, max_new_tokens: int = 900) -> str:

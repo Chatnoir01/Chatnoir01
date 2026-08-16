@@ -336,7 +336,7 @@ func _build_buildings(buildings: Array, root: Node3D, replacement_ids: Dictionar
         solid.polygon = polygon
         solid.depth = height
         solid.rotation_degrees.x = -90.0
-        solid.position = Vector3(center.x, height * 0.5, center.y)
+        solid.position = Vector3(center.x, height, center.y)
         solid.material = _building_material_for(building)
         solid.use_collision = build_collisions
         root.add_child(solid)

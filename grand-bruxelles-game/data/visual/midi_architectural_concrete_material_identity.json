@@ -1,0 +1,32 @@
+{
+  "schema": "grand-bruxelles-material-identity-v1",
+  "target": {
+    "runtime_node": "MidiHeroZone",
+    "role": "existing source-designated Bruxelles-Midi concrete bay frames, facade grid and entrance canopy",
+    "surface_name_prefixes": ["HorizontalBand_", "VerticalMullion_"],
+    "surface_names": ["VerticalGlassTowerFrame", "EntranceConcreteCanopy"]
+  },
+  "material_identity_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Gare du Midi / Zuidstation et bâtiments annexes, Urban 9423",
+    "url": "https://monument.heritage.brussels/fr/Saint-Gilles/Avenue_Fonsny/47/9423",
+    "accessed_at": "2026-08-16",
+    "facts": [
+      "The heritage description identifies concrete for the structures framing the bays and for canopies of the Fonsny complex.",
+      "For no. 47 it describes windows and spandrels set in a concrete grid, and the station access includes a large concrete canopy."
+    ]
+  },
+  "presentation_contract": {
+    "material_identity": "architectural_concrete",
+    "scope": "existing surfaces already authored as concrete in the Midi hero runtime only",
+    "geometry_changed": false,
+    "new_location_specific_placement": false,
+    "formwork_pattern_authored": false,
+    "aggregate_scale_claimed": false,
+    "exact_rgb_is_photometric_measurement": false,
+    "procedural_texture_external_asset": false,
+    "runtime_approved": false,
+    "runtime_approval_basis": "Pending deterministic normal-distance A/B and release-gate validation on this PR.",
+    "realism_complete": false
+  }
+}

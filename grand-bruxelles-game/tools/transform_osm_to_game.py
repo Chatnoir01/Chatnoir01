@@ -3,6 +3,7 @@
 
 The converter projects latitude/longitude into local metric coordinates, keeps
 road centerlines, and turns closed OSM building ways into simple footprints.
+Supported point furniture is preserved only when its OSM semantics are explicit.
 This is a greybox pipeline: landmark modelling and facade work remain separate.
 """
 
@@ -70,12 +71,6 @@ def truthy_osm_tag(tags: dict[str, Any], key: str) -> bool:
 
 
 def railway_vertical_metadata(tags: dict[str, Any]) -> dict[str, Any]:
-    """Preserve OSM vertical-topology evidence instead of flattening every rail to y=0.
-
-    `surface_visible` is a conservative runtime hint derived only from explicit OSM
-    vertical tags. It does not invent depth; tunnel/covered or negative-layer ways
-    must not be drawn as surface track by a renderer that understands this field.
-    """
     tunnel = truthy_osm_tag(tags, "tunnel")
     covered = truthy_osm_tag(tags, "covered")
     raw_layer = numeric_tag(tags, "layer")
@@ -125,6 +120,16 @@ def geometry_points(element: dict[str, Any], origin: tuple[float, float]) -> lis
     return out
 
 
+def environment_point_kind(tags: dict[str, Any]) -> str | None:
+    if tags.get("natural") == "tree":
+        return "tree"
+    if tags.get("highway") == "street_lamp":
+        return "street_lamp"
+    if tags.get("barrier") == "bollard":
+        return "bollard"
+    return None
+
+
 def polygon_area(points: list[list[float]]) -> float:
     if len(points) < 3:
         return 0.0
@@ -139,11 +144,22 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
     roads: list[dict[str, Any]] = []
     buildings: list[dict[str, Any]] = []
     railways: list[dict[str, Any]] = []
+    environment_points: list[dict[str, Any]] = []
 
     for element in data.get("elements", []):
+        tags = element.get("tags", {}) or {}
+        if element.get("type") == "node":
+            kind = environment_point_kind(tags)
+            if kind and "lat" in element and "lon" in element:
+                environment_points.append({
+                    "osm_id": element.get("id"),
+                    "kind": kind,
+                    "position": metric_point(float(element["lat"]), float(element["lon"]), *origin),
+                })
+            continue
         if element.get("type") != "way":
             continue
-        tags = element.get("tags", {}) or {}
+
         points = geometry_points(element, origin)
         if len(points) < 2:
             continue
@@ -190,6 +206,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
     bounds = [0.0, 0.0, 0.0, 0.0]
     all_points = [p for road in roads for p in road["points"]]
     all_points += [p for b in buildings for p in b["footprint"]]
+    all_points += [p["position"] for p in environment_points]
     if all_points:
         xs = [p[0] for p in all_points]
         zs = [p[1] for p in all_points]
@@ -197,6 +214,7 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
 
     roads.sort(key=lambda r: (not r["drivable"], str(r["class"]), int(r["osm_id"] or 0)))
     buildings.sort(key=lambda b: (-float(b["area"]), int(b["osm_id"] or 0)))
+    environment_points.sort(key=lambda p: (str(p["kind"]), int(p["osm_id"] or 0)))
 
     return {
         "format": "grand-bruxelles-osm-v1",
@@ -209,10 +227,12 @@ def convert(data: dict[str, Any], origin: tuple[float, float]) -> dict[str, Any]
             "drivable_roads": sum(1 for road in roads if road["drivable"]),
             "buildings": len(buildings),
             "railways": len(railways),
+            "environment_points": len(environment_points),
         },
         "roads": roads,
         "buildings": buildings,
         "railways": railways,
+        "environment_points": environment_points,
     }
 
 
@@ -239,7 +259,7 @@ def main() -> int:
     print(
         "converted "
         f"{stats['roads']} roads / {stats['buildings']} buildings / "
-        f"{stats['railways']} railways -> {args.output}"
+        f"{stats['railways']} railways / {stats['environment_points']} environment points -> {args.output}"
     )
     return 0
 

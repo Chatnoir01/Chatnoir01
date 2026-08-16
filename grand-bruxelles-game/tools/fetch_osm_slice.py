@@ -34,6 +34,9 @@ def build_query(bbox: tuple[float, float, float, float]) -> str:
   way[\"railway\"]({box});
   way[\"leisure\"]({box});
   way[\"landuse\"]({box});
+  node[\"natural\"=\"tree\"]({box});
+  node[\"highway\"=\"street_lamp\"]({box});
+  node[\"barrier\"=\"bollard\"]({box});
 );
 out geom;
 """.strip()

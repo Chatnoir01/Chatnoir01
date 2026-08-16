@@ -85,7 +85,19 @@ with tempfile.TemporaryDirectory() as tmp:
     assert attempts[cells[0]] == 0
     assert attempts[cells[2]] == 0
 
+    # Equal-state work must rotate toward the least-attempted cells instead of
+    # starving later lexical IDs forever.
+    rotation = [
+        {"cell_id": "bxl-e100000-n100000-s500", "state": "DISCOVERED", "attempts": 3},
+        {"cell_id": "bxl-e100500-n100000-s500", "state": "DISCOVERED", "attempts": 0},
+        {"cell_id": "bxl-e101000-n100000-s500", "state": "DISCOVERED", "attempts": 1},
+    ]
+    assert mod.select_batch(rotation, 2) == [
+        "bxl-e100500-n100000-s500",
+        "bxl-e101000-n100000-s500",
+    ]
+
     # Deterministic ordering is independent of filesystem creation order.
     assert mod.discover_cells(source) == sorted(cells[:4])
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK target_cells=5 missing_source=1 deterministic=true fail_closed=true resume=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK target_cells=5 missing_source=1 deterministic=true fair_rotation=true fail_closed=true resume=true")

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const HUMANOID_VISUAL := preload("res://game/scripts/humanoid_visual.gd")
+const LOCOMOTION_RUNTIME := preload("res://game/scripts/authored_player_locomotion_runtime.gd")
 const REAL_ASSET := "res://assets/characters/player_character.glb"
 
 func _fail(message: String) -> void:
@@ -26,11 +27,15 @@ func _run() -> void:
     if not visual.is_using_authored_character():
         _fail("Player did not select authored character")
         return
-    if not visual.has_method("authored_locomotion_animations") or not visual.has_method("authored_current_animation"):
-        _fail("production visual has no authored locomotion runtime contract")
+
+    var runtime := LOCOMOTION_RUNTIME.new()
+    runtime.process_mode = Node.PROCESS_MODE_DISABLED
+    root.add_child(runtime)
+    if not runtime.bind_target(actor, visual):
+        _fail("authored locomotion runtime could not bind to production Player")
         return
 
-    var locomotion: Dictionary = visual.call("authored_locomotion_animations")
+    var locomotion: Dictionary = runtime.resolved_locomotion_animations()
     for key: String in ["idle", "walk", "run"]:
         if String(locomotion.get(key, "")).is_empty():
             _fail("missing resolved %s animation" % key)
@@ -40,24 +45,29 @@ func _run() -> void:
         return
 
     actor.velocity = Vector3.ZERO
-    await process_frame
-    var idle_name := String(visual.call("authored_current_animation"))
+    runtime.update_from_speed()
+    var idle_name := runtime.current_animation()
     if idle_name != String(locomotion["idle"]):
         _fail("zero speed did not select idle: %s" % idle_name)
         return
 
     actor.velocity = Vector3(2.5, 0.0, 0.0)
-    await process_frame
-    var walk_name := String(visual.call("authored_current_animation"))
+    runtime.update_from_speed()
+    var walk_name := runtime.current_animation()
     if walk_name != String(locomotion["walk"]):
         _fail("walking speed did not select walk: %s" % walk_name)
         return
 
     actor.velocity = Vector3(7.0, 0.0, 0.0)
-    await process_frame
-    var run_name := String(visual.call("authored_current_animation"))
+    runtime.update_from_speed()
+    var run_name := runtime.current_animation()
     if run_name != String(locomotion["run"]):
         _fail("running speed did not select run: %s" % run_name)
+        return
+
+    var player := runtime.bound_animation_player()
+    if player == null or player.current_animation != run_name or not player.is_playing():
+        _fail("resolved running animation was not actually played")
         return
 
     print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s" % [idle_name, walk_name, run_name])

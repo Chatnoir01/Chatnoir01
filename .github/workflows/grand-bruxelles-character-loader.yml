@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/scripts/authored_player_locomotion_runtime.gd"
       - "grand-bruxelles-game/game/tests/humanoid_authored_player_test.gd"
       - "grand-bruxelles-game/game/tests/real_authored_player_asset_test.gd"
       - "grand-bruxelles-game/game/tests/authored_player_locomotion_test.gd"
@@ -11,6 +12,7 @@ on:
       - "grand-bruxelles-game/assets/characters/player/thandi/**"
       - "grand-bruxelles-game/assets/characters/player/kaykit_rogue/**"
       - "grand-bruxelles-game/assets/characters/player_character.glb"
+      - "grand-bruxelles-game/project.godot"
       - ".github/workflows/grand-bruxelles-character-loader.yml"
   workflow_dispatch:
 

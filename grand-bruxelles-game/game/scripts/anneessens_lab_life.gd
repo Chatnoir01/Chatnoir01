@@ -5,8 +5,10 @@ extends Node3D
 const CIVILIAN_VEHICLE_VISUAL := preload("res://game/scripts/civilian_vehicle_visual.gd")
 const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 const BOURSE := Vector3(83.44, 0.0, -663.42)
-const CORRIDOR_AXIS := Vector3(BOURSE.x - ANNEESSENS.x, 0.0, BOURSE.z - ANNEESSENS.z).normalized()
-const SIDE_AXIS := Vector3(-CORRIDOR_AXIS.z, 0.0, CORRIDOR_AXIS.x)
+# Precomputed from the existing Anneessens -> Bourse runtime anchors. Keep these
+# literal so GDScript accepts them as compile-time constants.
+const CORRIDOR_AXIS := Vector3(0.6229837800457486, 0.0, -0.7822347536385165)
+const SIDE_AXIS := Vector3(0.7822347536385165, 0.0, 0.6229837800457486)
 
 @export var civilian_count: int = 10
 @export var parked_vehicle_count: int = 6

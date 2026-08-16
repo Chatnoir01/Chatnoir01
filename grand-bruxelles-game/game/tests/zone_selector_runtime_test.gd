@@ -31,7 +31,6 @@ func _run() -> void:
             _fail("zone row invalid")
             return
         var zone := raw as Dictionary
-        var zone_id := str(zone.get("id", ""))
         var quality := str(zone.get("quality", ""))
         if quality not in ["JOUABLE", "LABO"]:
             _fail("invalid quality %s" % quality)
@@ -40,7 +39,7 @@ func _run() -> void:
             if not ResourceLoader.exists(str(requirement)) and not FileAccess.file_exists(str(requirement)):
                 _fail("missing requirement %s" % str(requirement))
                 return
-        ids.append(zone_id)
+        ids.append(str(zone.get("id", "")))
     if ids != EXPECTED_IDS:
         _fail("unexpected listed zones %s" % str(ids))
         return
@@ -53,5 +52,15 @@ func _run() -> void:
     if available.size() != EXPECTED_IDS.size():
         _fail("runtime filtered a proven zone")
         return
+    if "capture=1" in OS.get_cmdline_user_args():
+        var main := (load("res://game/main.tscn") as PackedScene).instantiate()
+        get_root().add_child(main)
+        current_scene = main
+        selector.call("set_menu_open", true)
+        for _frame: int in range(8): await process_frame
+        DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts/visual"))
+        var result := get_root().get_viewport().get_texture().get_image().save_png("res://artifacts/visual/zone_selector_1280x720.png")
+        if result != OK: _fail("witness save failed"); return
+        print("ZONE_SELECTOR_WITNESS_OK: 1280x720")
     print("ZONE_SELECTOR_OK: listed=%d playable=1 lab=4 no_invisible_quarantine=true" % available.size())
     quit(0)

@@ -41,22 +41,32 @@ def main() -> int:
     # happens to contain the word GPKG.
     mixed_anderlecht = [
         {
-            "href": "https://datastore.brussels/download/332_31370_shp_21009_anderlecht.zip",
+            "href": "https://datastore.brussels/download/332_31370_shp_21001_anderlecht.zip",
             "title": "Anderlecht GPKG SHP",
             "type": "application/gpkg+zip",
             "rel": "enclosure",
         },
         {
-            "href": "https://datastore.brussels/download/332_31370_gpkg_21009_anderlecht.zip",
+            "href": "https://datastore.brussels/download/332_31370_gpkg_21001_anderlecht.zip",
             "title": "Anderlecht GPKG SHP",
             "type": "application/zip",
             "rel": "enclosure",
         },
     ]
-    gpkg_only = module.filter_candidates(mixed_anderlecht, ["31370", "GPKG", "21009", "Anderlecht"])
+    gpkg_only = module.filter_candidates(mixed_anderlecht, ["31370", "GPKG", "21001", "Anderlecht"])
     assert len(gpkg_only) == 1, gpkg_only
     assert "_gpkg_" in gpkg_only[0]["href"].casefold()
     assert "_shp_" not in gpkg_only[0]["href"].casefold()
+
+    # Workflow-specific guardrail: Brussels municipality code 21001 is Anderlecht;
+    # 21009 is Ixelles. The real secondary-height gate must never combine the
+    # Ixelles code with the Anderlecht municipality token, because that produces
+    # an impossible concrete-file filter and prevents any download/evidence work.
+    workflow = MODULE_PATH.parents[2] / ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
+    workflow_text = workflow.read_text(encoding="utf-8")
+    assert "--candidate-token 21001 --candidate-token Anderlecht" in workflow_text
+    assert "('31370','gpkg','21001','anderlecht')" in workflow_text
+    assert "--candidate-token 21009 --candidate-token Anderlecht" not in workflow_text
 
     print("URBIS_DISTRIBUTION_SELECTOR_TEST_OK")
     return 0

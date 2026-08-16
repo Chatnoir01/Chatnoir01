@@ -56,7 +56,7 @@ func _run() -> void:
         return
 
     player.set_meta("combat_guarding", true)
-    dodge.call("reset_cooldown_for_test")
+    player.set_meta("combat_next_dodge_ms", 0)
     var guarded: Dictionary = dodge.call("request_dodge", player, Vector3.RIGHT)
     if not _expect(not bool(guarded.get("dodged", false)) and String(guarded.get("reason", "")) == "guarding", "dodge ignored active guard state"):
         return

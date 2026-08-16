@@ -48,23 +48,28 @@ def maturity_status(path: Path | None, cell_id: str) -> tuple[str,list[str],dict
 def build(cell_dir: Path, maturity_path: Path | None) -> dict[str,Any]:
     cell_id=cell_dir.name; source_manifest_path=cell_dir/"manifest.json"; buildings_path=cell_dir/"raw"/"buildings.geojson"
     if not source_manifest_path.exists(): raise ValueError("authoritative source manifest missing")
-    if not buildings_path.exists(): raise ValueError("authoritative buildings.geojson missing")
-    source_manifest=read_object(source_manifest_path); collection=read_object(buildings_path)
-    if collection.get("type") != "FeatureCollection": raise ValueError("buildings source is not a FeatureCollection")
+    source_manifest=read_object(source_manifest_path)
     if maturity_path is None:
         sidecar=cell_dir/"maturity.json"
         if sidecar.exists(): maturity_path=sidecar
-    records={}; invalid_features=0
-    for feature in collection.get("features") or []:
-        row=polygon_record(feature,cell_id)
-        if row is None: invalid_features+=1; continue
-        if row["building_id"] in records: raise ValueError(f"duplicate INSPIRE_ID in cell: {row['building_id']}")
-        records[row["building_id"]]=row
+
+    records={}; invalid_features=0; buildings_source_present=buildings_path.exists()
+    if buildings_source_present:
+        collection=read_object(buildings_path)
+        if collection.get("type") != "FeatureCollection": raise ValueError("buildings source is not a FeatureCollection")
+        for feature in collection.get("features") or []:
+            row=polygon_record(feature,cell_id)
+            if row is None: invalid_features+=1; continue
+            if row["building_id"] in records: raise ValueError(f"duplicate INSPIRE_ID in cell: {row['building_id']}")
+            records[row["building_id"]]=row
+
     state,blockers,maturity=maturity_status(maturity_path,cell_id)
+    if not buildings_source_present:
+        state="QUARANTINE"; blockers=sorted(set(blockers+["authoritative_buildings_missing"]))
     if invalid_features: state="QUARANTINE"; blockers=sorted(set(blockers+["invalid_building_features_present"]))
-    if not records: state="QUARANTINE"; blockers=sorted(set(blockers+["no_valid_authoritative_buildings"]))
+    if buildings_source_present and not records: state="QUARANTINE"; blockers=sorted(set(blockers+["no_valid_authoritative_buildings"]))
     buildings=[records[k] for k in sorted(records)]
-    package={"format":FORMAT,"cell_id":cell_id,"crs":"EPSG:31370","state":state,"blockers":blockers,"authority":{"geometry":"UrbIS raw EPSG:31370 building footprints","source_manifest_digest":digest(source_manifest),"maturity_manifest_digest":digest(maturity) if maturity else None},"summary":{"valid_buildings":len(buildings),"invalid_features":invalid_features,"total_vertices":sum(row["vertex_count"] for row in buildings),"runtime_approved_buildings":0},"buildings":buildings,"promotion_policy":"no_runtime_mutation_until_independent_height_facade_collision_streaming_photo_performance_gates_pass"}
+    package={"format":FORMAT,"cell_id":cell_id,"crs":"EPSG:31370","state":state,"blockers":blockers,"authority":{"geometry":"UrbIS raw EPSG:31370 building footprints","buildings_source_present":buildings_source_present,"source_manifest_digest":digest(source_manifest),"maturity_manifest_digest":digest(maturity) if maturity else None},"summary":{"valid_buildings":len(buildings),"invalid_features":invalid_features,"total_vertices":sum(row["vertex_count"] for row in buildings),"runtime_approved_buildings":0},"buildings":buildings,"promotion_policy":"no_runtime_mutation_until_independent_height_facade_collision_streaming_photo_performance_gates_pass"}
     package["package_digest"]=digest(package); return package
 
 

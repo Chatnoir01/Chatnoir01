@@ -13,6 +13,7 @@ ORIGIN = (50.8419, 4.3480)
 OSM_ID = 256375327
 SOURCE_URL = f"https://api.openstreetmap.org/api/0.6/way/{OSM_ID}/full.json"
 USER_AGENT = "GrandBruxellesGame/0.2 (source-backed Anneessens landmark fetcher)"
+VERTICAL_TAGS = ("height", "building:levels", "roof:height", "roof:levels", "roof:shape")
 
 
 def metric_point(lat: float, lon: float) -> list[float]:
@@ -51,6 +52,7 @@ def build_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError("Anneessens school OSM way has unresolved node references")
     footprint = [metric_point(*nodes[ref]) for ref in refs[:-1]]
     tags = way.get("tags", {}) or {}
+    vertical_tags = {key: tags[key] for key in VERTICAL_TAGS if key in tags}
     return {
         "format": "grand-bruxelles-hero-source-v1",
         "source": "OpenStreetMap contributors",
@@ -63,6 +65,7 @@ def build_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         "name": str(tags.get("name", "")),
         "building": str(tags.get("building", "")),
         "amenity": str(tags.get("amenity", "")),
+        "vertical_tags": vertical_tags,
         "footprint": footprint,
         "heritage_contract": {
             "source": "monument.heritage.brussels",

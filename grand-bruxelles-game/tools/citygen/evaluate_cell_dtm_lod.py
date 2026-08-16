@@ -18,6 +18,7 @@ FORMAT = "grand-bruxelles-cell-dtm-lod-evidence-v1"
 RASTER_FORMAT = "grand-bruxelles-cell-elevation-raster-validation-v1"
 VALUE_FORMAT = "grand-bruxelles-cell-elevation-value-evidence-v1"
 CRS = "EPSG:31370"
+CRS_EPSG = 31370
 DEFAULT_RESOLUTIONS_M = (1.0, 2.0, 4.0, 8.0)
 DEFAULT_P95_THRESHOLD_M = 0.15
 RUNTIME_GATES = ["seams", "normals", "collisions", "streaming", "performance", "photo_match"]
@@ -116,24 +117,53 @@ def select_resolution(levels: list[dict[str,Any]], p95_threshold_m: float=DEFAUL
     return {"p95_threshold_m":float(p95_threshold_m),"selection_policy":"coarsest_candidate_with_p95_at_or_below_threshold","selected_resolution_m":float(selected["resolution_m"]) if selected else None,"selected_p95_abs_error_m":float(selected["p95_abs_error_m"]) if selected else None,"selected_vertex_count":int(selected["vertex_count"]) if selected and "vertex_count" in selected else None,"blockers":blockers,"runtime_approved":False,"remaining_runtime_gates":list(RUNTIME_GATES)}
 
 
-def _find_dtm_tiffs(validation: dict[str,Any], extract_root: Path) -> list[Path]:
+def _validated_dtm_crs_is_acceptable(embedded_epsg: int | None, validated_epsg: Any, crs_basis: Any) -> bool:
+    """Honor the prior fail-closed raster validation without broadening CRS trust.
+
+    Official UrbIS packages can omit embedded CRS metadata. The raster validator
+    accepts that case only by binding the TIFF to the locked authoritative source
+    manifest and normalizing `crs_epsg` to 31370. LOD evaluation must preserve
+    that exact decision instead of demanding metadata the source did not contain.
+    """
+    try:
+        normalized_validated = int(validated_epsg)
+    except (TypeError, ValueError):
+        return False
+    if normalized_validated != CRS_EPSG:
+        return False
+    if embedded_epsg is not None:
+        return int(embedded_epsg) == CRS_EPSG
+    return crs_basis == "authoritative_source_manifest"
+
+
+def _find_dtm_sources(validation: dict[str,Any], extract_root: Path) -> list[dict[str,Any]]:
     rows=(validation.get("dtm") or {}).get("rasters") or []
     if not rows: raise ValueError("validated DTM raster list is empty")
-    paths=[]
+    sources=[]
     for row in sorted(rows,key=lambda item:str(item.get("tile"))):
-        tile=str(row.get("tile")); filename=str((row.get("raster") or {}).get("filename")); matches=sorted((extract_root/"dtm"/tile).rglob(filename))
+        tile=str(row.get("tile")); raster=row.get("raster") or {}; filename=str(raster.get("filename")); matches=sorted((extract_root/"dtm"/tile).rglob(filename))
         if len(matches)!=1: raise ValueError(f"dtm/{tile}: expected one extracted TIFF named {filename}, found {matches}")
-        paths.append(matches[0])
-    return paths
+        sources.append({"path":matches[0],"tile":tile,"validated_epsg":raster.get("crs_epsg"),"crs_basis":raster.get("crs_basis")})
+    return sources
 
 
-def _open_dtm_mosaic(paths: list[Path]) -> tuple[Any,Any]:
+def _open_dtm_mosaic(sources: list[dict[str,Any]]) -> tuple[Any,Any]:
     import numpy as np, rasterio
     from rasterio.merge import merge
-    datasets=[rasterio.open(path) for path in paths]
+    datasets=[rasterio.open(source["path"]) for source in sources]
     try:
         if any(d.count!=1 for d in datasets): raise ValueError("DTM rasters must be single-band")
-        if any(d.crs is None or d.crs.to_epsg()!=31370 for d in datasets): raise ValueError("DTM rasters must be EPSG:31370")
+        embedded_epsgs=[]
+        for dataset, source in zip(datasets, sources):
+            embedded=dataset.crs.to_epsg() if dataset.crs else None
+            embedded_epsgs.append(embedded)
+            if not _validated_dtm_crs_is_acceptable(embedded, source.get("validated_epsg"), source.get("crs_basis")):
+                raise ValueError(f"DTM raster {source.get('tile')} CRS is not validated as EPSG:31370")
+        # rasterio.merge requires matching CRS objects. A set of manifest-backed
+        # CRS-less official rasters is safe because the preceding validation also
+        # locked their bounds, transforms, resolutions and DSM/DTM alignment.
+        if any(value is None for value in embedded_epsgs) and not all(value is None for value in embedded_epsgs):
+            raise ValueError("DTM raster set mixes embedded and manifest-backed CRS metadata")
         mosaic,transform=merge(datasets,nodata=np.nan,dtype="float64")
         return np.asarray(mosaic[0],dtype="float64"),transform
     finally:
@@ -151,7 +181,7 @@ def build(raster_validation_path: Path, value_evidence_path: Path, extract_root:
     if not isinstance(bbox_raw,list) or len(bbox_raw)!=4: raise ValueError("terrain LOD requires canonical cell bbox")
     bbox=tuple(float(v) for v in bbox_raw)
     if not (bbox[0]<bbox[2] and bbox[1]<bbox[3]): raise ValueError("terrain LOD bbox is invalid")
-    array,transform=_open_dtm_mosaic(_find_dtm_tiffs(validation,extract_root)); evaluated=evaluate_array(array,transform,bbox,resolutions_m); selection=select_resolution(evaluated["levels"],p95_threshold_m)
+    array,transform=_open_dtm_mosaic(_find_dtm_sources(validation,extract_root)); evaluated=evaluate_array(array,transform,bbox,resolutions_m); selection=select_resolution(evaluated["levels"],p95_threshold_m)
     result={"format":FORMAT,"cell_id":cell_id,"crs":CRS,"bbox":list(bbox),"source":"official_validated_DTM","source_raster_validation_digest":validation.get("validation_digest"),"source_value_evidence_digest":values.get("evidence_digest"),"method":"sample_official_DTM_to_candidate_grids_then_bilinearly_reconstruct_at_source_pixel_centres","candidate_resolutions_m":[float(v) for v in resolutions_m],"source_pixel_size_m":evaluated["source_pixel_size_m"],"source_valid_samples":evaluated["source_valid_samples"],"levels":evaluated["levels"],"selection":selection,"status":"terrain_lod_candidate_selected_pending_runtime_validation" if selection["selected_resolution_m"] is not None else "terrain_lod_no_candidate_pending_review","runtime_approved":False,"maturity_effect":{"terrain_gate":False,"reason":"lod_error_only_seams_normals_collisions_streaming_performance_and_photo_match_still_required"}}
     result["evidence_digest"]=_digest(result); return result
 

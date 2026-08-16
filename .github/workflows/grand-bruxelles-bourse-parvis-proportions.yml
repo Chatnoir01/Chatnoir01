@@ -1,0 +1,104 @@
+name: Grand Bruxelles Bourse Parvis Proportions
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/bourse_parvis_proportions_evidence.json"
+      - "grand-bruxelles-game/tools/extract_bourse_adjacent_street_surfaces.py"
+      - "grand-bruxelles-game/tools/measure_bourse_parvis_proportions.py"
+      - "grand-bruxelles-game/game/tests/bourse_parvis_proportions_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_parvis_proportions_capture_test.gd"
+      - "grand-bruxelles-game/data/qa/photo_match/manifest.json"
+      - ".github/workflows/grand-bruxelles-bourse-parvis-proportions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Consolidate exact adjacent StreetSurfaces
+        run: |
+          python3 grand-bruxelles-game/tools/extract_bourse_adjacent_street_surfaces.py \
+            --output /tmp/bourse-adjacent-street-surfaces.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/bourse-adjacent-street-surfaces.json', encoding='utf-8'))
+          assert d['surface_count'] == 4
+          assert d['runtime_approved'] is False
+          assert d['realism_complete'] is False
+          print('BOURSE_ADJACENT_SURFACE_CONSOLIDATION_OK')
+          PY
+
+      - name: Measure source-backed proportions
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/bourse-parvis-proportions
+          python3 grand-bruxelles-game/tools/measure_bourse_parvis_proportions.py \
+            --output grand-bruxelles-game/artifacts/bourse-parvis-proportions/measurement.json
+          python3 - <<'PY'
+          import json, math
+          p='grand-bruxelles-game/artifacts/bourse-parvis-proportions/measurement.json'
+          d=json.load(open(p, encoding='utf-8'))
+          assert d['target_inspire_id'].endswith('/22358')
+          assert math.isclose(d['invariants']['centroid_axis_translation_m'], 1.8, abs_tol=1e-6)
+          assert d['invariants']['shape_area_delta_m2'] <= 1e-6
+          assert d['human_gate'] == 'pending'
+          assert d['runtime_approved'] is False
+          assert d['realism_complete'] is False
+          print('BOURSE_PARVIS_MEASUREMENT_OK')
+          PY
+
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+
+      - name: Validate QA contract
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/bourse_parvis_proportions_test.gd 2>&1 | tee /tmp/bourse-parvis-proportions-test.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_PARVIS_PROPORTIONS_FAIL" /tmp/bourse-parvis-proportions-test.log; then exit 1; fi
+          grep -F "BOURSE_PARVIS_PROPORTIONS_TEST_OK" /tmp/bourse-parvis-proportions-test.log
+
+      - name: Render fixed-camera A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility \
+            --resolution 1280x960 --script res://game/tests/bourse_parvis_proportions_capture_test.gd \
+            2>&1 | tee /tmp/bourse-parvis-proportions-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_PARVIS_PROPORTIONS_CAPTURE_FAIL" /tmp/bourse-parvis-proportions-capture.log; then exit 1; fi
+          grep -F "BOURSE_PARVIS_PROPORTIONS_CAPTURE_OK" /tmp/bourse-parvis-proportions-capture.log
+          test -f grand-bruxelles-game/artifacts/photo-match/bourse_parvis_proportions_before.png
+          test -f grand-bruxelles-game/artifacts/photo-match/bourse_parvis_proportions_candidate_22358_plus_1_8m_camera_axis.png
+
+      - name: Upload human gate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-parvis-proportions-human-gate
+          path: |
+            grand-bruxelles-game/artifacts/bourse-parvis-proportions/measurement.json
+            grand-bruxelles-game/artifacts/photo-match/bourse_parvis_proportions_before.png
+            grand-bruxelles-game/artifacts/photo-match/bourse_parvis_proportions_candidate_22358_plus_1_8m_camera_axis.png
+            /tmp/bourse-parvis-proportions-test.log
+            /tmp/bourse-parvis-proportions-capture.log
+          if-no-files-found: error

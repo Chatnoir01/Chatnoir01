@@ -1,0 +1,26 @@
+name: Grand Bruxelles CityGen Source Completeness
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
+      - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen_source_completeness.py"
+      - ".github/workflows/grand-bruxelles-citygen-source-completeness.yml"
+  push:
+    branches: [main]
+    paths:
+      - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
+      - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen_source_completeness.py"
+      - ".github/workflows/grand-bruxelles-citygen-source-completeness.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-completeness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject incomplete declared source cells
+        run: python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen_source_completeness.py

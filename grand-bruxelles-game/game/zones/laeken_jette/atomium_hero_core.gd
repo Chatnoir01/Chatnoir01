@@ -143,7 +143,7 @@ func _make_materials() -> void:
     _sphere_material.albedo_color = Color(0.82, 0.85, 0.87, 1.0)
     _sphere_material.metallic = 0.96
     _sphere_material.roughness = 0.16
-    sphere_skin_semantics_applied = bool(SPHERE_SKIN_SEMANTICS_SCRIPT.apply_to_material(_sphere_material))
+    sphere_skin_semantics_applied = bool(SPHERE_SKIN_SEMANTICS_SCRIPT.apply_to(_sphere_material))
     _tube_material = StandardMaterial3D.new()
     _tube_material.albedo_color = Color(0.57, 0.61, 0.64, 1.0)
     _tube_material.metallic = 0.78

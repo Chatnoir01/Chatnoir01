@@ -27,8 +27,16 @@ func _run() -> void:
         return
 
     var source_contract: Dictionary = data.get("source_contract", {})
-    if not str(source_contract.get("heritage_front_fact", "")).contains("six Corinthian columns"):
+    var front_fact := str(source_contract.get("heritage_front_fact", ""))
+    if not front_fact.contains("six Corinthian columns"):
         _fail("six-column heritage fact missing")
+        return
+    if not front_fact.contains("triangular pediment"):
+        _fail("triangular-pediment heritage fact missing")
+        return
+    var peristyle_fact := str(source_contract.get("heritage_peristyle_fact", ""))
+    if not peristyle_fact.contains("two additional Corinthian columns"):
+        _fail("inner-peristyle heritage fact missing")
         return
     var rear_fact := str(source_contract.get("heritage_rear_fact", ""))
     if not rear_fact.contains("pilasters"):
@@ -48,7 +56,16 @@ func _run() -> void:
     await process_frame
 
     if articulation.diagnostic_column_count() != 6:
-        _fail("expected six source-backed columns, got %d" % articulation.diagnostic_column_count())
+        _fail("expected six source-backed outer columns, got %d" % articulation.diagnostic_column_count())
+        return
+    if articulation.diagnostic_inner_column_count() != 2:
+        _fail("expected two source-backed inner columns, got %d" % articulation.diagnostic_inner_column_count())
+        return
+    if articulation.diagnostic_pediment_count() != 1:
+        _fail("expected one source-backed triangular pediment, got %d" % articulation.diagnostic_pediment_count())
+        return
+    if not bool(articulation.get_meta("source_semantics_completed", false)):
+        _fail("source semantic completion marker missing")
         return
     if articulation.diagnostic_step_count() != 16:
         _fail("expected sixteen bounded stair treads, got %d" % articulation.diagnostic_step_count())
@@ -118,9 +135,13 @@ func _run() -> void:
         _fail("oval-light proxy exceeds source-bounded colonnade height")
         return
 
-    var shaft_count := 0
-    var base_count := 0
-    var capital_count := 0
+    var outer_shaft_count := 0
+    var outer_base_count := 0
+    var outer_capital_count := 0
+    var inner_shaft_count := 0
+    var inner_base_count := 0
+    var inner_capital_count := 0
+    var pediment_nodes := 0
     var stair_nodes := 0
     var pilaster_nodes := 0
     var entry_nodes := 0
@@ -128,33 +149,55 @@ func _run() -> void:
     var entablature_nodes := 0
     var clock_nodes := 0
     for child: Node in articulation.get_children():
-        if child.name.contains("_Shaft"):
-            shaft_count += 1
-        elif child.name.contains("_Base"):
-            base_count += 1
-        elif child.name.contains("_Capital"):
-            capital_count += 1
-        elif child.name.begins_with("MonumentalStair_"):
+        var child_name := String(child.name)
+        if child_name.begins_with("Column_") and child_name.ends_with("_Shaft"):
+            outer_shaft_count += 1
+        elif child_name.begins_with("Column_") and child_name.ends_with("_Base"):
+            outer_base_count += 1
+        elif child_name.begins_with("Column_") and child_name.ends_with("_Capital"):
+            outer_capital_count += 1
+        elif child_name.begins_with("SourceInnerColumn_") and child_name.ends_with("_Shaft"):
+            inner_shaft_count += 1
+        elif child_name.begins_with("SourceInnerColumn_") and child_name.ends_with("_Base"):
+            inner_base_count += 1
+        elif child_name.begins_with("SourceInnerColumn_") and child_name.ends_with("_Capital"):
+            inner_capital_count += 1
+        elif child_name == "SourceTriangularPediment":
+            pediment_nodes += 1
+        elif child_name.begins_with("MonumentalStair_"):
             stair_nodes += 1
-        elif child.name.begins_with("RearPilaster_"):
+        elif child_name.begins_with("RearPilaster_"):
             pilaster_nodes += 1
-        elif child.name == "RearCentralEntry" or child.name.begins_with("RearSideEntry_"):
+        elif child_name == "RearCentralEntry" or child_name.begins_with("RearSideEntry_"):
             entry_nodes += 1
-        elif child.name.begins_with("RearOvalLight_"):
+        elif child_name.begins_with("RearOvalLight_"):
             oval_nodes += 1
-        elif child.name == "PorticoEntablature":
+        elif child_name == "PorticoEntablature":
             entablature_nodes += 1
-        elif child.name == "RearFacadeClock":
+        elif child_name == "RearFacadeClock":
             clock_nodes += 1
-    if shaft_count != 6 or base_count != 6 or capital_count != 6 or stair_nodes != 16:
-        _fail("front portico generated node counts drifted")
+    if outer_shaft_count != 6 or outer_base_count != 6 or outer_capital_count != 6 or stair_nodes != 16:
+        _fail("outer front portico generated node counts drifted")
+        return
+    if inner_shaft_count != 2 or inner_base_count != 2 or inner_capital_count != 2 or pediment_nodes != 1:
+        _fail("source semantic completion generated node counts drifted")
+        return
+    var pediment := articulation.get_node_or_null("SourceTriangularPediment") as MeshInstance3D
+    if pediment == null or pediment.mesh == null:
+        _fail("source pediment mesh missing")
+        return
+    if bool(pediment.get_meta("sculptural_relief_authored", true)):
+        _fail("source completion must not invent pediment relief")
+        return
+    if not bool(pediment.get_meta("bounded_by_authoritative_front_envelope", false)):
+        _fail("source pediment must remain bounded by authoritative envelope")
         return
     if pilaster_nodes != 4 or entry_nodes != 3 or oval_nodes != 2 or entablature_nodes != 1 or clock_nodes != 1:
         _fail("rear facade generated node counts drifted")
         return
 
     print(
-        "BOURSE_PORTICO_ARTICULATION_OK: columns=6 steps=16 pilasters=4 openings=3 ovals=2 entablature=1 clock=1 span=%.3f stair_width=%.3f column_top=%.3f runtime_approved=false" %
+        "BOURSE_PORTICO_ARTICULATION_OK: outer_columns=6 inner_columns=2 pediment=1 steps=16 pilasters=4 openings=3 ovals=2 entablature=1 clock=1 span=%.3f stair_width=%.3f column_top=%.3f runtime_approved=false" %
         [span, stair_width, column_top]
     )
     articulation.queue_free()

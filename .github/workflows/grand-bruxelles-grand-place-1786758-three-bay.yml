@@ -1,0 +1,47 @@
+name: Grand Bruxelles Grand-Place 1786758 Three Bay
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-1786758-three-bay.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_1786758_three_bay_contract.json"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/grand_place_1786758_three_bay_runtime.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_1786758_three_bay_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_1786758_three_bay_ab_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  three-bay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-1786758-three-bay-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-1786758-three-bay-import.log; then exit 1; fi
+      - name: Validate source-bounded three-bay contract
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_1786758_three_bay_test.gd
+      - name: Render deterministic player-eye A/B
+        run: xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/grand_place_1786758_three_bay_ab_test.gd
+      - name: Upload player-eye evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-1786758-three-bay-ab
+          path: |
+            /tmp/grand-place-1786758-three-bay-before.png
+            /tmp/grand-place-1786758-three-bay-after.png
+          if-no-files-found: error

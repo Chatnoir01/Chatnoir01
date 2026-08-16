@@ -53,6 +53,13 @@ with tempfile.TemporaryDirectory() as tmp:
         {"cell_id":"bxl-e101000-n100000-s500","state":"DATA_READY","attempts":1,"evidence_progress":6},
     ]
     assert mod.select_batch(frontier,2)==["bxl-e101000-n100000-s500","bxl-e100500-n100000-s500"]
+
+    frontier_cell = cells[3]
+    for filename, _action in mod.EVIDENCE_STAGES:
+        write_json(source/frontier_cell/filename, {"cell_id": frontier_cell})
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == len(mod.EVIDENCE_STAGES)
+    assert action == "assess_terrain_lod_and_building_height_samples"
     assert mod.discover_cells(source)==sorted(cells[:4])
 
 print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true")

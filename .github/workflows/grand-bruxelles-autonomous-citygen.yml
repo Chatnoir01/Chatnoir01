@@ -39,6 +39,7 @@ jobs:
           python3 grand-bruxelles-game/tools/citygen/test_validate_cell_elevation_archives.py
           python3 grand-bruxelles-game/tools/citygen/test_validate_cell_elevation_rasters.py
           python3 grand-bruxelles-game/tools/citygen/test_assess_cell_elevation_values.py
+          python3 grand-bruxelles-game/tools/citygen/test_build_cell_elevation_candidate_frontier.py
       - name: Existing city-generation guardrails
         run: |
           set -euo pipefail
@@ -187,7 +188,7 @@ jobs:
               --archive-cache /tmp/citygen-elevation-archive-cache \
               --extract-root /tmp/citygen-raster-extract \
               --output "$D/elevation_raster_validation.json" >"$RLOG" 2>&1; then
-              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json"
+              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json"
               echo "ELEVATION_RASTER_VALIDATION_PENDING ${CELL}"
               continue
             fi
@@ -199,12 +200,12 @@ jobs:
               --output "$D/elevation_value_evidence.json" >"$VLOG" 2>&1; then
               rm -f "$VLOG"
             else
-              rm -f "$D/elevation_value_evidence.json"
+              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json"
               echo "ELEVATION_VALUE_ASSESSMENT_PENDING ${CELL}"
             fi
           done < /tmp/citygen-out/worklist.txt
 
-      - name: Build authoritative candidate packages
+      - name: Build authoritative candidate packages and elevation frontiers
         run: |
           set -euo pipefail
           mkdir -p /tmp/citygen-out/candidates
@@ -213,7 +214,16 @@ jobs:
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
             MATURITY="grand-bruxelles-game/data/cell_manifests/${CELL}.json"
             MATURITY_ARGS=(); [ -f "$MATURITY" ] && MATURITY_ARGS=(--maturity "$MATURITY")
-            python3 grand-bruxelles-game/tools/citygen/build_cell_candidate_package.py --cell-dir "$D" "${MATURITY_ARGS[@]}" --output "/tmp/citygen-out/candidates/${CELL}.json"
+            PACKAGE="/tmp/citygen-out/candidates/${CELL}.json"
+            python3 grand-bruxelles-game/tools/citygen/build_cell_candidate_package.py --cell-dir "$D" "${MATURITY_ARGS[@]}" --output "$PACKAGE"
+            if [ -f "$D/elevation_value_evidence.json" ]; then
+              python3 grand-bruxelles-game/tools/citygen/build_cell_elevation_candidate_frontier.py \
+                --value-evidence "$D/elevation_value_evidence.json" \
+                --candidate-package "$PACKAGE" \
+                --output "$D/elevation_candidate_frontier.json"
+            else
+              rm -f "$D/elevation_candidate_frontier.json"
+            fi
           done < /tmp/citygen-out/worklist.txt
           python3 - <<'PY'
           from pathlib import Path

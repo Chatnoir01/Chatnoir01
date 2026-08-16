@@ -150,7 +150,7 @@ func open_for_npc(npc: Node3D) -> bool:
     _title.text = "%s · MIDI" % _display_name(npc)
     var greeting := "Salut."
     if _catalog != null:
-        var baked := _catalog.select_line("midi_resident_01", "greeting", int(abs(_npc_id(npc).hash())))
+        var baked: String = str(_catalog.select_line("midi_resident_01", "greeting", int(abs(_npc_id(npc).hash()))))
         if not baked.is_empty():
             greeting = baked
     _apply_result({

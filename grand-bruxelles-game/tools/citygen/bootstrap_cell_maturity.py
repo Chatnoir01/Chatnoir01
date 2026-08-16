@@ -53,6 +53,92 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
+def assess_source_requirements(source: dict[str, Any], cell_dir: Path) -> dict[str, Any]:
+    """Assess the source-file contract explicitly declared by one cell manifest.
+
+    Only `layers[*].file` entries are requirements. Legacy/list-style manifests do
+    not gain maturity merely by existing: without an explicit file contract this
+    assessment remains pending. Paths are fail-closed, payloads must be JSON objects,
+    and declared feature counts must match when present.
+    """
+    layers = source.get("layers")
+    requirements: list[dict[str, Any]] = []
+    blockers: list[str] = []
+    if isinstance(layers, dict):
+        for layer_name, spec in sorted(layers.items()):
+            if not isinstance(spec, dict):
+                continue
+            declared = spec.get("file")
+            if not isinstance(declared, str) or not declared.strip():
+                continue
+            declared = declared.strip()
+            row: dict[str, Any] = {"layer": str(layer_name), "file": declared}
+            relative = Path(declared)
+            blocker_prefix = f"{layer_name}:{declared}"
+            if relative.is_absolute() or ".." in relative.parts:
+                row["status"] = "unsafe_path"
+                blockers.append(f"unsafe_declared_source_file:{blocker_prefix}")
+                requirements.append(row)
+                continue
+            source_path = cell_dir / relative
+            if not source_path.is_file():
+                row["status"] = "missing"
+                blockers.append(f"missing_declared_source_file:{blocker_prefix}")
+                requirements.append(row)
+                continue
+            try:
+                payload = _read(source_path)
+            except (OSError, ValueError, json.JSONDecodeError):
+                row["status"] = "invalid_json"
+                blockers.append(f"invalid_declared_source_file:{blocker_prefix}")
+                requirements.append(row)
+                continue
+
+            row["content_digest"] = _digest(payload)
+            if "features" in spec:
+                declared_features = spec.get("features")
+                row["declared_features"] = declared_features
+                actual_features = payload.get("features")
+                if isinstance(actual_features, list):
+                    row["actual_features"] = len(actual_features)
+                else:
+                    row["actual_features"] = None
+                if not isinstance(declared_features, int) or isinstance(declared_features, bool):
+                    row["status"] = "invalid_declared_feature_count"
+                    blockers.append(f"invalid_declared_feature_count:{blocker_prefix}")
+                    requirements.append(row)
+                    continue
+                if not isinstance(actual_features, list):
+                    row["status"] = "features_not_list"
+                    blockers.append(f"source_features_not_list:{blocker_prefix}")
+                    requirements.append(row)
+                    continue
+                if len(actual_features) != declared_features:
+                    row["status"] = "feature_count_mismatch"
+                    blockers.append(
+                        f"declared_source_feature_count_mismatch:{blocker_prefix}:"
+                        f"declared={declared_features}:actual={len(actual_features)}"
+                    )
+                    requirements.append(row)
+                    continue
+            row["status"] = "validated"
+            requirements.append(row)
+
+    if not requirements:
+        blockers.append("no_explicit_declared_source_files")
+    complete = bool(requirements) and not blockers
+    evidence = {
+        "status": "validated" if complete else "evidence_pending",
+        "complete": complete,
+        "contract": "manifest.layers[*].file",
+        "required_file_count": len(requirements),
+        "requirements": requirements,
+        "blockers": blockers,
+    }
+    evidence["requirements_digest"] = _digest(requirements)
+    return evidence
+
+
 def build(cell_dir: Path) -> dict[str, Any]:
     manifest_path = cell_dir / "manifest.json"
     buildings_path = cell_dir / "raw" / "buildings.geojson"
@@ -85,10 +171,15 @@ def build(cell_dir: Path) -> dict[str, Any]:
     if declared_count != actual_count:
         raise ValueError(f"building feature count mismatch manifest={declared_count} source={actual_count}")
 
+    source_requirements = assess_source_requirements(source, cell_dir)
     invalid_ownership = int(building_layer.get("invalid_ownership_features", 0) or 0)
     authoritative_ready = invalid_ownership == 0
+    source_gate_ready = bool(source_requirements["complete"] and authoritative_ready)
+    source_requirements["gate_ready"] = source_gate_ready
+    gates = {gate: False for gate in GATES}
+    gates["source_requirements"] = source_gate_ready
+
     uncertainties = [
-        "full source requirements (UrbIS/OSM/DTM as applicable) not proven",
         "independent CRS maturity evidence not persisted",
         "runtime geometry not generated or validated",
         "collision quality not validated",
@@ -105,6 +196,8 @@ def build(cell_dir: Path) -> dict[str, Any]:
         "photo-match not evaluated for this cell",
         "streamed-cell performance not measured",
     ]
+    if not source_gate_ready:
+        uncertainties.insert(0, "explicitly declared source requirements are incomplete or invalid")
     if invalid_ownership:
         uncertainties.insert(0, "authoritative building source contains features with invalid canonical ownership")
 
@@ -115,14 +208,16 @@ def build(cell_dir: Path) -> dict[str, Any]:
         "bbox": bbox,
         "maturity": {
             "state": "data_ready" if authoritative_ready else "quarantine",
-            "gates": {gate: False for gate in GATES},
+            "gates": gates,
         },
         "provenance": {
             "source_records_present": True,
             "primary": "UrbIS WFS / Paradigm",
             "source_manifest_digest": _digest(source),
             "buildings_source_digest": _digest(buildings),
+            "source_requirements_digest": _digest(source_requirements),
         },
+        "source_requirements": source_requirements,
         "geometry": {
             "authoritative_geometry_ready": authoritative_ready,
             "source_manifest": f"data/urbis/remaining_brussels/cells/{cell_id}/manifest.json",

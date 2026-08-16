@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import re
+import subprocess
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -26,6 +27,8 @@ USER_AGENT = "Grand-Bruxelles-Game/1.0 (+https://github.com/Chatnoir01/Chatnoir0
 EXPECTED_MUNICIPALITIES = 19
 GRID_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 GRID_AUTHORITY = "UrbIS Municipalities official geometry"
+DURABLE_GRID_REF = "refs/remotes/origin/citygen-autonomous-state"
+DURABLE_GRID_PATH = "grand-bruxelles-game/data/qa/brussels_regional_target_grid.json"
 
 
 def digest(value: Any) -> str:
@@ -213,9 +216,7 @@ def build_regional_grid(boundary_dir: Path, cell_size: float = 500.0) -> dict[st
     return result
 
 
-def load_fallback_grid(path: Path, cell_size: float) -> dict[str, Any]:
-    """Load a previously persisted official grid, rejecting stale/corrupt contracts."""
-    payload = json.loads(path.read_text(encoding="utf-8"))
+def _validate_fallback_grid(payload: Any, cell_size: float) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("durable regional grid must be a JSON object")
     if payload.get("format") != GRID_FORMAT:
@@ -245,6 +246,24 @@ def load_fallback_grid(path: Path, cell_size: float) -> dict[str, Any]:
     return payload
 
 
+def load_fallback_grid(path: Path, cell_size: float) -> dict[str, Any]:
+    """Load a previously persisted official grid, rejecting stale/corrupt contracts."""
+    return _validate_fallback_grid(json.loads(path.read_text(encoding="utf-8")), cell_size)
+
+
+def _load_git_fallback_grid(cell_size: float) -> dict[str, Any] | None:
+    """Read the durable grid already fetched by the scheduled workflow, if present."""
+    proc = subprocess.run(
+        ["git", "show", f"{DURABLE_GRID_REF}:{DURABLE_GRID_PATH}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return None
+    return _validate_fallback_grid(json.loads(proc.stdout), cell_size)
+
+
 def resolve_regional_grid(
     boundary_dir: Path,
     cell_size: float,
@@ -257,10 +276,17 @@ def resolve_regional_grid(
     try:
         fetch_official(boundary_dir / "urbis_municipalities.geojson")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        if fallback_grid is None or not fallback_grid.is_file():
+        recovered = None
+        source = ""
+        if fallback_grid is not None and fallback_grid.is_file():
+            recovered = load_fallback_grid(fallback_grid, cell_size)
+            source = str(fallback_grid)
+        else:
+            recovered = _load_git_fallback_grid(cell_size)
+            source = f"{DURABLE_GRID_REF}:{DURABLE_GRID_PATH}"
+        if recovered is None:
             raise
-        recovered = load_fallback_grid(fallback_grid, cell_size)
-        print(f"BRUSSELS_REGIONAL_GRID_NETWORK_FALLBACK source={fallback_grid} reason={type(exc).__name__}")
+        print(f"BRUSSELS_REGIONAL_GRID_NETWORK_FALLBACK source={source} reason={type(exc).__name__}")
         return recovered
     grid = build_regional_grid(boundary_dir, cell_size)
     if grid["summary"]["municipality_count"] != EXPECTED_MUNICIPALITIES:
@@ -279,8 +305,7 @@ def main() -> int:
     grid = resolve_regional_grid(args.boundary_dir, args.cell_size, args.fetch_official, args.fallback_grid)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(grid,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    mode = "fallback" if args.fetch_official and args.fallback_grid and not (args.boundary_dir / "urbis_municipalities.geojson").exists() else "live"
-    print(f"BRUSSELS_REGIONAL_GRID_OK municipalities={grid['summary']['municipality_count']} cells={grid['summary']['cell_count']} digest={grid['grid_digest']} mode={mode}")
+    print(f"BRUSSELS_REGIONAL_GRID_OK municipalities={grid['summary']['municipality_count']} cells={grid['summary']['cell_count']} digest={grid['grid_digest']}")
     return 0
 
 if __name__ == "__main__": raise SystemExit(main())

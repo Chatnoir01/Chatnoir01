@@ -143,4 +143,40 @@ with tempfile.TemporaryDirectory() as tmp:
     assert built_result["runtime_approved_count"] == 0
     assert built_result["runtime_promotion_allowed"] is False
 
-print("CELL_BUILDING_HEIGHT_CANDIDATE_GUARDRAILS_OK confidence=true deterministic=true frontier=true pending_height_pair=true built_cell=true runtime_approval=false")
+# Regression from Autonomous CityGen #139 after durable-cache restoration:
+# the authoritative candidate package rejects raw features without INSPIRE_ID and
+# non-Polygon footprints, but height sampling previously accepted both, inflating
+# the sample set and producing frontier_building_target_count_mismatch.
+with tempfile.TemporaryDirectory() as tmp:
+    root = Path(tmp)
+    cell = root / "bxl-e142000-n169000-s500"
+    (cell / "raw").mkdir(parents=True)
+    (cell / "manifest.json").write_text(json.dumps({
+        "format": mod.SOURCE_FORMAT,
+        "cell_id": cell.name,
+        "crs": mod.CRS,
+        "bbox": [142000,169000,142500,169500],
+    }), encoding="utf-8")
+    valid = {"id":"Buildings.valid","type":"Feature","properties":{"INSPIRE_ID":"B-valid","AREA":100.0},"geometry":{"type":"Polygon","coordinates":[[[142010,169010],[142020,169010],[142020,169020],[142010,169020],[142010,169010]]]}}
+    missing_inspire = {"id":"Buildings.no-inspire","type":"Feature","properties":{"AREA":20.0},"geometry":{"type":"Polygon","coordinates":[[[142030,169030],[142040,169030],[142040,169040],[142030,169040],[142030,169030]]]}}
+    multipolygon = {"id":"Buildings.multi","type":"Feature","properties":{"INSPIRE_ID":"B-multi","AREA":30.0},"geometry":{"type":"MultiPolygon","coordinates":[[[[142050,169050],[142060,169050],[142060,169060],[142050,169060],[142050,169050]]]]}}
+    (cell / "raw" / "buildings.geojson").write_text(json.dumps({"type":"FeatureCollection","features":[valid,missing_inspire,multipolygon]}), encoding="utf-8")
+    value = cell / "elevation_value_evidence.json"
+    value.write_text(json.dumps({"format":mod.VALUE_FORMAT,"cell_id":cell.name,"crs":mod.CRS,"height_source_pair_ready":True,"evidence_digest":"d"*64}), encoding="utf-8")
+    frontier = cell / "elevation_candidate_frontier.json"
+    frontier.write_text(json.dumps({"format":mod.FRONTIER_FORMAT,"cell_id":cell.name,"crs":mod.CRS,"heights":{"source_pair_ready":True,"building_sample_target_count":1},"frontier_digest":"e"*64,"runtime_promotion_allowed":False}), encoding="utf-8")
+    raster = cell / "elevation_raster_validation.json"
+    raster.write_text(json.dumps({"format":mod.RASTER_FORMAT,"cell_id":cell.name,"crs":mod.CRS,"validation_digest":"f"*64,"dsm":{"rasters":[]},"dtm":{"rasters":[]}}), encoding="utf-8")
+    original = mod.sample_building
+    mod.sample_building = lambda feature, *_: ([8.0]*64,64)
+    try:
+        aligned = mod.build(cell, value, frontier, raster, root)
+    finally:
+        mod.sample_building = original
+    assert aligned["building_count"] == 1, aligned
+    assert [row["building_id"] for row in aligned["buildings"]] == ["B-valid"], aligned
+    assert "frontier_building_target_count_mismatch" not in aligned["blockers"], aligned
+    assert aligned["runtime_approved_count"] == 0
+    assert aligned["runtime_promotion_allowed"] is False
+
+print("CELL_BUILDING_HEIGHT_CANDIDATE_GUARDRAILS_OK confidence=true deterministic=true frontier=true pending_height_pair=true built_cell=true candidate_contract=true runtime_approval=false")

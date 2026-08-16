@@ -1,0 +1,39 @@
+{
+  "schema": "grand-bruxelles-material-identity-v1",
+  "target": {
+    "runtime_node": "BruxellesMidiStation",
+    "role": "existing large yellow Fauquenberg facing-brick surfaces on the Bruxelles-Midi Fonsny hero reconstruction",
+    "surface_names": ["StationLowerBrick", "FauquenbergBrick"],
+    "expected_surface_count": 4,
+    "excluded_roles": ["StationMasonryJoint", "BlueStoneBase", "HorizontalBand_*", "VerticalMullion_*", "Window_*", "GroundOpening_*", "FlatRoof"]
+  },
+  "material_identity_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Gare du Midi et bâtiments annexes, Urban 9423",
+    "url": "https://monument.heritage.brussels/fr/buildings/9423",
+    "accessed_at": "2026-08-16",
+    "facts": [
+      "The official heritage inventory documents smooth yellow Fauquenberg facing brick on the Fonsny station/administrative ensemble.",
+      "The documented brick format is 24 x 4 x 9 cm with wide 2 cm joints."
+    ]
+  },
+  "source_dimensions_m": {
+    "brick_length": 0.24,
+    "brick_height": 0.04,
+    "brick_depth": 0.09,
+    "joint_width": 0.02
+  },
+  "presentation_contract": {
+    "material_identity": "fauquenberg_yellow_facing_brick",
+    "scope": "material response only on four already-existing brick-cladding surfaces",
+    "geometry_changed": false,
+    "surface_selection_changed": false,
+    "new_architectural_detail_authored": false,
+    "exact_bond_pattern_claimed": false,
+    "exact_reflectance_claimed": false,
+    "exact_rgb_is_photometric_measurement": false,
+    "external_texture_asset": false,
+    "runtime_approved": true,
+    "realism_complete": false
+  }
+}

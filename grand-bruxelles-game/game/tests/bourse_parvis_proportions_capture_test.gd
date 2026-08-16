@@ -88,23 +88,41 @@ func _polygon(raw_polygon: Array) -> PackedVector2Array:
         polygon.remove_at(polygon.size() - 1)
     return polygon
 
+func _translated_polygon(source: PackedVector2Array, shift: Vector2) -> PackedVector2Array:
+    var translated := PackedVector2Array()
+    for point: Vector2 in source:
+        translated.append(point + shift)
+    return translated
+
 func _mesh_for_polygon(polygon: PackedVector2Array, surface_type: String) -> ArrayMesh:
     if polygon.size() < 3:
         return null
-    var indices := Geometry2D.triangulate_polygon(polygon)
+    var working := polygon.duplicate()
+    var indices := Geometry2D.triangulate_polygon(working)
     if indices.size() < 3:
-        polygon.reverse()
-        indices = Geometry2D.triangulate_polygon(polygon)
+        working.reverse()
+        indices = Geometry2D.triangulate_polygon(working)
     if indices.size() < 3:
         return null
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     tool.set_material(_material(surface_type))
     for raw_index: int in indices:
-        var point := polygon[raw_index]
+        var point := working[raw_index]
         tool.set_normal(Vector3.UP)
         tool.add_vertex(Vector3(point.x, PRESENTATION_Y_OFFSET_M, point.y))
     return tool.commit()
+
+func _target_source_surface() -> Dictionary:
+    for data_path: String in SURFACE_PATHS:
+        var data := _json(data_path)
+        for raw_surface: Variant in data.get("surfaces", []):
+            if typeof(raw_surface) != TYPE_DICTIONARY:
+                continue
+            var surface := raw_surface as Dictionary
+            if str(surface.get("inspire_id", "")) == TARGET_ID:
+                return surface
+    return {}
 
 func _install_qa_surface_overlay(scene: Node) -> MeshInstance3D:
     var production_surface_context := scene.get_node_or_null("UrbISBourseSurfaceContext") as Node3D
@@ -199,6 +217,17 @@ func _run() -> void:
         _fail("candidate shift is not 1.8 m")
         return
 
+    var source_target := _target_source_surface()
+    if source_target.is_empty():
+        _fail("source target 22358 is missing")
+        return
+    var target_rings: Array = source_target.get("world_rings_xz", [])
+    if target_rings.size() != 1:
+        _fail("source target 22358 does not have exactly one world ring")
+        return
+    var source_polygon := _polygon(target_rings[0] as Array)
+    var target_type := str(source_target.get("type_uninterpreted", ""))
+
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
         _fail("main scene did not load")
@@ -252,8 +281,8 @@ func _run() -> void:
         await process_frame
     _hide_capture_noise(scene)
 
-    # Freeze every process-driven system before A/B. The only mutation after this point
-    # is the explicit QA translation of the isolated 22358 MeshInstance3D.
+    # Freeze every process-driven system before A/B. Both captures reuse the exact
+    # same world and camera. Only the isolated 22358 mesh resource changes.
     scene.process_mode = Node.PROCESS_MODE_DISABLED
     await process_frame
 
@@ -262,15 +291,24 @@ func _run() -> void:
         viewport.queue_free()
         return
 
-    target_instance.position = Vector3(shift.x, 0.0, shift.y)
+    var candidate_polygon := _translated_polygon(source_polygon, shift)
+    var candidate_mesh := _mesh_for_polygon(candidate_polygon, target_type)
+    if candidate_mesh == null:
+        _fail("candidate 22358 mesh did not triangulate")
+        viewport.queue_free()
+        return
+    target_instance.mesh = candidate_mesh
+    RenderingServer.force_draw()
     await process_frame
+    await process_frame
+
     if not await _save_viewport(viewport, CANDIDATE_PATH):
         _fail("candidate capture failed")
         viewport.queue_free()
         return
 
     print(
-        "BOURSE_PARVIS_PROPORTIONS_CAPTURE_OK: same_scene=true target=22358 shift=%s before=%s candidate=%s" %
+        "BOURSE_PARVIS_PROPORTIONS_CAPTURE_OK: same_scene=true mesh_replaced=true target=22358 shift=%s before=%s candidate=%s" %
         [str(shift), BEFORE_PATH, CANDIDATE_PATH]
     )
     viewport.queue_free()

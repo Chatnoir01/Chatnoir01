@@ -4,7 +4,7 @@ const MATERIAL_FACTORY := preload("res://game/scripts/brussels_white_stone_mater
 const HERO_GEOMETRY_PATH := "res://data/urbis/heroes/bourse_lod2.game.json"
 const CANDIDATE_PATH := "res://data/qa/bourse_portico_articulation_candidate.json"
 const SOURCE_PACKAGE_SHA256 := "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
-const FRONT_PLANE_TOLERANCE_M := 0.55
+const SOURCE_COORD_EPSILON_M := 0.02
 const SURFACE_OFFSET_M := 0.025
 
 var _surface: MeshInstance3D
@@ -12,6 +12,7 @@ var _enabled := true
 var _ready_complete := false
 var _identity_failure := false
 var _source_triangle_count := 0
+var _source_face_id := ""
 
 
 func _ready() -> void:
@@ -59,42 +60,71 @@ func _sources_are_safe(hero: Dictionary, candidate: Dictionary) -> bool:
     return true
 
 
-func _front_triangle(
-    a: Vector3,
-    b: Vector3,
-    c: Vector3,
+func _triangle_points(raw_triangle: Variant) -> Array[Vector3]:
+    var points: Array[Vector3] = []
+    if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
+        return points
+    for raw_point: Variant in raw_triangle:
+        var point := _point(raw_point)
+        if not point.is_finite():
+            return []
+        points.append(point)
+    return points
+
+
+func _is_source_pediment_triangle(
+    triangle: Array[Vector3],
     plane_xz: Vector2,
     toward_xz: Vector2,
     tangent_xz: Vector2,
     t_min: float,
     t_max: float,
-    pediment_floor_y: float,
     source_y_max: float
 ) -> bool:
-    var centroid := (a + b + c) / 3.0
-    var centroid_xz := Vector2(centroid.x, centroid.z)
-    var relative := centroid_xz - plane_xz
-    if absf(relative.dot(toward_xz)) > FRONT_PLANE_TOLERANCE_M:
+    if triangle.size() != 3:
         return false
-    var along := relative.dot(tangent_xz)
-    if along < t_min or along > t_max:
+
+    # A classical triangular pediment is represented by a single planar
+    # triangular WALLSURFACE face in the committed LoD2. Identify its topology
+    # from source coordinates only: one apex reaches the authoritative front
+    # y_max and the other two source vertices form a level base. No authored
+    # pediment width, height or entablature elevation participates here.
+    var ys := [triangle[0].y, triangle[1].y, triangle[2].y]
+    ys.sort()
+    if absf(float(ys[2]) - source_y_max) > SOURCE_COORD_EPSILON_M:
         return false
-    # The lower boundary comes from the already-registered portico candidate;
-    # the upper boundary comes from the authoritative front envelope. No
-    # pediment width/height is authored in this runtime.
-    if centroid.y < pediment_floor_y or centroid.y > source_y_max + 0.01:
+    if absf(float(ys[0]) - float(ys[1])) > SOURCE_COORD_EPSILON_M:
         return false
+    if float(ys[2]) - float(ys[1]) <= SOURCE_COORD_EPSILON_M:
+        return false
+
+    for point: Vector3 in triangle:
+        var relative := Vector2(point.x, point.z) - plane_xz
+        var along := relative.dot(tangent_xz)
+        if along < t_min - SOURCE_COORD_EPSILON_M or along > t_max + SOURCE_COORD_EPSILON_M:
+            return false
+
+    # The front-envelope plane is the ordering anchor, not a guessed distance
+    # cutoff. Candidate triangular source faces are ranked by absolute distance
+    # to this plane and the nearest one is selected below.
     return true
 
 
-func _append_source_triangle(tool: SurfaceTool, triangle: Array, toward_camera: Vector3) -> bool:
+func _triangle_plane_distance(
+    triangle: Array[Vector3],
+    plane_xz: Vector2,
+    toward_xz: Vector2
+) -> float:
+    var centroid := (triangle[0] + triangle[1] + triangle[2]) / 3.0
+    return absf((Vector2(centroid.x, centroid.z) - plane_xz).dot(toward_xz))
+
+
+func _append_source_triangle(tool: SurfaceTool, triangle: Array[Vector3], toward_camera: Vector3) -> bool:
     if triangle.size() != 3:
         return false
-    var a := _point(triangle[0])
-    var b := _point(triangle[1])
-    var c := _point(triangle[2])
-    if not a.is_finite() or not b.is_finite() or not c.is_finite():
-        return false
+    var a := triangle[0]
+    var b := triangle[1]
+    var c := triangle[2]
     var normal := (b - a).cross(c - a).normalized()
     if not normal.is_finite() or normal.length_squared() < 0.5:
         return false
@@ -119,7 +149,6 @@ func _build() -> void:
         return
 
     var envelope := candidate.get("authoritative_front_envelope", {}) as Dictionary
-    var visual := candidate.get("provisional_visualization", {}) as Dictionary
     var plane_xz := _vec2(envelope.get("plane_point_game_x_z", []))
     var toward_xz := _vec2(envelope.get("toward_camera_x_z", []))
     var tangent_xz := _vec2(envelope.get("tangent_x_z", []))
@@ -134,48 +163,57 @@ func _build() -> void:
     var t_min := float(envelope.get("tangent_min_m", 0.0))
     var t_max := float(envelope.get("tangent_max_m", 0.0))
     var source_y_max := float(envelope.get("y_max_m", 0.0))
-    var pediment_floor_y := float(visual.get("entablature_center_y_m", 0.0)) + float(visual.get("entablature_height_m", 0.0)) * 0.5
-    if t_max <= t_min or source_y_max <= pediment_floor_y:
+    if t_max <= t_min or source_y_max <= 0.0:
         _identity_failure = true
         _ready_complete = true
         push_error("Bourse pediment source bounds invalid")
         return
 
-    var material := MATERIAL_FACTORY.create(
-        Color(0.76, 0.745, 0.69, 1.0),
-        Color(0.89, 0.86, 0.78, 1.0),
-        0.79,
-        "Bourse Urban 31241 triangular pediment; exact source LoD2 wall triangles"
-    )
-    var tool := SurfaceTool.new()
-    tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-    tool.set_material(material)
-
+    var best_triangle: Array[Vector3] = []
+    var best_face_id := ""
+    var best_distance := INF
+    var candidate_count := 0
     for raw_face: Variant in hero.get("faces", []):
         if typeof(raw_face) != TYPE_DICTIONARY:
             continue
         var face := raw_face as Dictionary
         if str(face.get("type", "")) != "WALLSURFACE":
             continue
-        for raw_triangle: Variant in face.get("triangles", []):
-            if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
-                continue
-            var triangle := raw_triangle as Array
-            var a := _point(triangle[0])
-            var b := _point(triangle[1])
-            var c := _point(triangle[2])
-            if not a.is_finite() or not b.is_finite() or not c.is_finite():
-                continue
-            if not _front_triangle(a, b, c, plane_xz, toward_xz, tangent_xz, t_min, t_max, pediment_floor_y, source_y_max):
-                continue
-            if _append_source_triangle(tool, triangle, toward_camera):
-                _source_triangle_count += 1
+        var triangles := face.get("triangles", []) as Array
+        if triangles.size() != 1:
+            continue
+        var triangle := _triangle_points(triangles[0])
+        if not _is_source_pediment_triangle(triangle, plane_xz, toward_xz, tangent_xz, t_min, t_max, source_y_max):
+            continue
+        candidate_count += 1
+        var distance := _triangle_plane_distance(triangle, plane_xz, toward_xz)
+        if distance < best_distance:
+            best_distance = distance
+            best_triangle = triangle
+            best_face_id = str(face.get("id", ""))
 
-    if _source_triangle_count <= 0:
+    if best_triangle.size() != 3 or best_face_id.is_empty():
         _identity_failure = true
         _ready_complete = true
-        push_error("Bourse pediment source selection returned zero triangles")
+        push_error("Bourse pediment topology selection returned no triangular front face")
         return
+
+    var material := MATERIAL_FACTORY.create(
+        Color(0.76, 0.745, 0.69, 1.0),
+        Color(0.89, 0.86, 0.78, 1.0),
+        0.79,
+        "Bourse Urban 31241 triangular pediment; exact source LoD2 wall face"
+    )
+    var tool := SurfaceTool.new()
+    tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+    tool.set_material(material)
+    if not _append_source_triangle(tool, best_triangle, toward_camera):
+        _identity_failure = true
+        _ready_complete = true
+        push_error("Bourse pediment source face failed to append")
+        return
+    _source_triangle_count = 1
+    _source_face_id = best_face_id
 
     var mesh := tool.commit()
     if mesh == null or mesh.get_surface_count() == 0:
@@ -187,13 +225,16 @@ func _build() -> void:
     _surface.name = "BourseOfficialPedimentSourceSurface"
     _surface.mesh = mesh
     _surface.set_meta("geometry_source_triangles", _source_triangle_count)
+    _surface.set_meta("geometry_source_face_id", _source_face_id)
+    _surface.set_meta("source_face_candidates", candidate_count)
+    _surface.set_meta("source_plane_distance_m", best_distance)
     _surface.set_meta("source_package_sha256", SOURCE_PACKAGE_SHA256)
     _surface.set_meta("geometry_dimensions_authored", false)
     _surface.set_meta("presentation_offset_m", SURFACE_OFFSET_M)
     _surface.set_meta("heritage_semantic", "six Corinthian columns carrying a triangular pediment")
     add_child(_surface)
     _ready_complete = true
-    print("BOURSE_OFFICIAL_PEDIMENT_SURFACE_READY: source_triangles=%d authored_dimensions=false offset_m=%.3f" % [_source_triangle_count, SURFACE_OFFSET_M])
+    print("BOURSE_OFFICIAL_PEDIMENT_SURFACE_READY: face=%s candidates=%d plane_distance=%.3f source_triangles=1 authored_dimensions=false offset_m=%.3f" % [_source_face_id, candidate_count, best_distance, SURFACE_OFFSET_M])
 
 
 func set_enabled(enabled: bool) -> void:
@@ -216,3 +257,7 @@ func diagnostic_identity_failure() -> bool:
 
 func diagnostic_source_triangle_count() -> int:
     return _source_triangle_count
+
+
+func diagnostic_source_face_id() -> String:
+    return _source_face_id

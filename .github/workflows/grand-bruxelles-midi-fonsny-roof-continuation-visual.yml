@@ -76,6 +76,7 @@ jobs:
           assert r3 <= 0.35, f'changed3 {r3:.5f} > 0.35 overreach guard'
           PY
       - name: Upload full-frame evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: midi-fonsny-roof-continuation-visual-evidence

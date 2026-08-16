@@ -12,7 +12,7 @@ const MAJOR_BASE := Color(0.075, 0.08, 0.085, 1.0)
 
 var _local_material: StandardMaterial3D
 var _major_material: StandardMaterial3D
-var _applied_count := 0
+var _applied_count: int = 0
 
 func _ready() -> void:
     _local_material = _make_asphalt_material(LOCAL_BASE, 0.96, "local")
@@ -20,11 +20,11 @@ func _ready() -> void:
     call_deferred("_apply_when_ready")
 
 func _apply_when_ready() -> void:
-    var scene_root := get_parent()
+    var scene_root: Node = get_parent()
     if scene_root == null:
         return
     for _attempt: int in range(120):
-        var roads_root := scene_root.get_node_or_null("BrusselsOSM/GeneratedRoads")
+        var roads_root: Node = scene_root.get_node_or_null("BrusselsOSM/GeneratedRoads")
         if roads_root != null:
             _applied_count = apply_to_roads(roads_root)
             print("Grand Bruxelles shared asphalt: applied=%d" % _applied_count)
@@ -35,7 +35,7 @@ func _apply_when_ready() -> void:
 func apply_to_roads(roads_root: Node) -> int:
     if roads_root == null:
         return 0
-    var changed := 0
+    var changed: int = 0
     for child: Node in roads_root.get_children():
         if not child.name.begins_with("Road_"):
             continue
@@ -48,7 +48,7 @@ func apply_to_roads(roads_root: Node) -> int:
         # The source builder already distinguishes major roads using a darker
         # flat material. Preserve that classification rather than inferring a
         # new road type from names or geography.
-        var major := current.albedo_color.r < 0.09 or str(current.get_meta("asphalt_road_family", "")) == "major"
+        var major: bool = current.albedo_color.r < 0.09 or str(current.get_meta("asphalt_road_family", "")) == "major"
         road.material = _major_material if major else _local_material
         changed += 1
     return changed
@@ -80,10 +80,11 @@ func _make_asphalt_material(base: Color, roughness: float, family: String) -> St
     # Broad mineral variation keeps the material readable at gameplay distance
     # without fabricating cracks, patches, lane wear or site-specific repairs.
     const CELL := 16
-    for tile_y: int in range(TEXTURE_SIZE / CELL):
-        for tile_x: int in range(TEXTURE_SIZE / CELL):
-            var hash_value := (tile_x * 41 + tile_y * 67 + tile_x * tile_y * 11) % 17
-            var delta := (float(hash_value) - 8.0) * 0.0026
+    const TILE_COUNT := TEXTURE_SIZE / CELL
+    for tile_y: int in range(TILE_COUNT):
+        for tile_x: int in range(TILE_COUNT):
+            var hash_value: int = (tile_x * 41 + tile_y * 67 + tile_x * tile_y * 11) % 17
+            var delta: float = (float(hash_value) - 8.0) * 0.0026
             var patch := Color(
                 clampf(base.r + delta, 0.0, 1.0),
                 clampf(base.g + delta * 1.02, 0.0, 1.0),
@@ -95,9 +96,9 @@ func _make_asphalt_material(base: Color, roughness: float, family: String) -> St
     # Sparse deterministic aggregate flecks. These are generic authored
     # material response, not claims about a particular Brussels road surface.
     for index: int in range(1450):
-        var x := posmod(index * 73 + index * index * 19, TEXTURE_SIZE)
-        var y := posmod(index * 131 + index * index * 7, TEXTURE_SIZE)
-        var tone := 0.020 if index % 3 != 0 else -0.014
+        var x: int = (index * 73 + index * index * 19) % TEXTURE_SIZE
+        var y: int = (index * 131 + index * index * 7) % TEXTURE_SIZE
+        var tone: float = 0.020 if index % 3 != 0 else -0.014
         var existing := image.get_pixel(x, y)
         var fleck := Color(
             clampf(existing.r + tone, 0.0, 1.0),

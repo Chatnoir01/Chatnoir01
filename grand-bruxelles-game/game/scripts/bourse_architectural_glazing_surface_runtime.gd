@@ -2,6 +2,7 @@ extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_architectural_glazing_material.gd")
 const IDENTITY_PATH := "res://data/visual/bourse_architectural_glazing_material_identity.json"
+const TARGET_NODE := "BoursePorticoArticulation"
 const TARGET_NAMES := ["RearCentralEntry", "RearSideEntry_00", "RearSideEntry_01", "RearOvalLight_00", "RearOvalLight_01"]
 const EXPECTED_SURFACES := 5
 
@@ -16,13 +17,13 @@ func _ready() -> void:
 
 func _bind_when_ready() -> void:
     for _attempt: int in range(120):
-        var portico := get_tree().root.find_child("BoursePorticoArticulation", true, false)
+        var portico := get_tree().root.find_child(TARGET_NODE, true, false)
         if portico != null:
             bind_portico(portico)
             return
         await get_tree().process_frame
     _identity_failure = true
-    push_error("Bourse glazing runtime: BoursePorticoArticulation missing")
+    push_error("Bourse glazing runtime: %s missing" % TARGET_NODE)
 
 func bind_portico(portico: Node) -> void:
     _targets.clear()
@@ -49,11 +50,31 @@ func _read_identity() -> Dictionary:
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(IDENTITY_PATH))
     return parsed as Dictionary if typeof(parsed) == TYPE_DICTIONARY else {}
 
+func _surface_contract_matches(raw_names: Variant) -> bool:
+    if typeof(raw_names) != TYPE_ARRAY:
+        return false
+    var provided: Array = raw_names as Array
+    if provided.size() != TARGET_NAMES.size():
+        return false
+    var expected_names: Array[String] = []
+    var actual_names: Array[String] = []
+    for expected_name: String in TARGET_NAMES:
+        expected_names.append(expected_name)
+    for raw_name: Variant in provided:
+        actual_names.append(str(raw_name))
+    expected_names.sort()
+    actual_names.sort()
+    return actual_names == expected_names
+
 func _runtime_identity_allowed(identity: Dictionary) -> bool:
     if str(identity.get("schema", "")) != "grand-bruxelles-material-identity-v1":
         return false
     var target := identity.get("target", {}) as Dictionary
+    if str(target.get("runtime_node", "")) != TARGET_NODE:
+        return false
     if int(target.get("expected_surface_count", -1)) != EXPECTED_SURFACES:
+        return false
+    if not _surface_contract_matches(target.get("surface_names", [])):
         return false
     var contract := identity.get("presentation_contract", {}) as Dictionary
     if str(contract.get("material_identity", "")) != "architectural_glazing":

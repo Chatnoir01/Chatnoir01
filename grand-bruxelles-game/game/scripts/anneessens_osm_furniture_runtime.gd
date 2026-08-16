@@ -115,6 +115,7 @@ func _add_tree(osm_id: int, world_position: Vector3, foliage: Material, trunk: M
     tree.add_child(crown)
 
     var collision := CollisionShape3D.new()
+    collision.name = "CollisionShape3D"
     var shape := CylinderShape3D.new()
     shape.radius = 0.28
     shape.height = 2.6

@@ -7,6 +7,10 @@ const MIN_CADENCE_PROFILES := 5
 const MIN_CADENCE_MULTIPLIER := 0.90
 const MAX_CADENCE_MULTIPLIER := 1.10
 const MIN_CADENCE_SPAN := 0.12
+const MIN_AMPLITUDE_PROFILES := 5
+const MIN_AMPLITUDE_MULTIPLIER := 0.86
+const MAX_AMPLITUDE_MULTIPLIER := 1.14
+const MIN_AMPLITUDE_SPAN := 0.18
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -110,6 +114,22 @@ func _run() -> void:
         _fail("cadence must be deterministic per pedestrian, not random per frame")
         return
 
-    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max])
+    var amplitude_profile_count := int(stats.get("amplitude_profile_count", 0))
+    var amplitude_min := float(stats.get("amplitude_multiplier_min", 1.0))
+    var amplitude_max := float(stats.get("amplitude_multiplier_max", 1.0))
+    if amplitude_profile_count < MIN_AMPLITUDE_PROFILES:
+        _fail("crowd stride amplitude is too uniform: profiles=%d" % amplitude_profile_count)
+        return
+    if amplitude_min < MIN_AMPLITUDE_MULTIPLIER or amplitude_max > MAX_AMPLITUDE_MULTIPLIER:
+        _fail("stride amplitude variation escaped visual-only safe range: min=%.3f max=%.3f" % [amplitude_min, amplitude_max])
+        return
+    if amplitude_max - amplitude_min < MIN_AMPLITUDE_SPAN:
+        _fail("stride amplitude spread is too small to vary body language: min=%.3f max=%.3f" % [amplitude_min, amplitude_max])
+        return
+    if not bool(stats.get("amplitude_is_stable_per_pedestrian", false)):
+        _fail("stride amplitude must be deterministic per pedestrian, not random per frame")
+        return
+
+    print("MIDI_PROFILED_NPC_GAIT_OK moved=%d animated=%d tracked=%d cadence_profiles=%d cadence_range=%.3f..%.3f amplitude_profiles=%d amplitude_range=%.3f..%.3f" % [moved, animated, int(stats.get("tracked_pedestrians", 0)), profile_count, cadence_min, cadence_max, amplitude_profile_count, amplitude_min, amplitude_max])
     scene.queue_free()
     quit(0)

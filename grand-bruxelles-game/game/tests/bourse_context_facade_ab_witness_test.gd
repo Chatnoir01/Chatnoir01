@@ -46,7 +46,7 @@ func _changed(a: Image, b: Image, threshold: int) -> float:
     return float(changed) / float(a.get_width() * a.get_height())
 
 func _run() -> void:
-    var parsed := JSON.parse_string(FileAccess.get_file_as_string(EVIDENCE))
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(EVIDENCE))
     if typeof(parsed) != TYPE_DICTIONARY: _fail("camera evidence missing"); return
     var candidate := (parsed as Dictionary).get("candidate_game_camera_transform", {}) as Dictionary
     var hfov := float(candidate.get("horizontal_fov_degrees", 0.0))

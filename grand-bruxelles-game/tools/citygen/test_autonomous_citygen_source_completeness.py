@@ -73,11 +73,14 @@ with tempfile.TemporaryDirectory() as tmp:
     good_state, good_blockers = mod.classify_cell(good, source, maturity)
     assert good_state == "DATA_READY", (good_state, good_blockers)
 
-    report = mod.run(source, maturity, None, out, 2, target)
+    # A physically incomplete source cell is repair work, not regional expansion.
+    # It must outrank ordinary DATA_READY evidence advancement so a stale manifest
+    # cannot remain indefinitely starved behind the mature-source frontier.
+    report = mod.run(source, maturity, None, out, 1, target)
     broken_row = next(row for row in report["cells"] if row["cell_id"] == broken)
     assert broken_row["state"] == "MISSING_SOURCE", broken_row
     assert broken_row["evidence_progress"] == 0, broken_row
     assert broken_row["next_action"] == "materialize_authoritative_source", broken_row
-    assert broken in report["selected_batch"], report["selected_batch"]
+    assert report["selected_batch"] == [broken], report["selected_batch"]
 
-print("AUTONOMOUS_CITYGEN_SOURCE_COMPLETENESS_OK fail_closed=true rematerialize=true")
+print("AUTONOMOUS_CITYGEN_SOURCE_COMPLETENESS_OK fail_closed=true rematerialize=true repair_priority=true")

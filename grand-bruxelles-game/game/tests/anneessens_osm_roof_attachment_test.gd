@@ -81,12 +81,12 @@ func _run() -> void:
         _fail("%d/%d nearby OSM roofs detached; max_gap=%.3f m" % [detached, nearby_pairs, max_gap])
         return
 
-    # Freeze the settled runtime, then recreate the exact old solid placement only for
-    # BEFORE. Restoring saved positions produces AFTER with identical camera/actors.
+    # Freeze only production processing, not this SceneTree test coroutine. Recreate the
+    # exact old solid placement for BEFORE, then restore saved positions for AFTER.
     player.rotation_degrees.y = 180.0
     for _frame: int in range(6):
         await process_frame
-    paused = true
+    main.process_mode = Node.PROCESS_MODE_DISABLED
 
     var solids: Array[CSGPolygon3D] = []
     var original_positions: Array[Vector3] = []
@@ -112,7 +112,7 @@ func _run() -> void:
         _fail("AFTER witness capture failed")
         return
 
-    paused = false
-    print("ANNEESSENS_ROOF_AB_OK: frozen=true before=%s after=%s" % [BEFORE_PATH, AFTER_PATH])
+    main.process_mode = Node.PROCESS_MODE_INHERIT
+    print("ANNEESSENS_ROOF_AB_OK: production_frozen=true before=%s after=%s" % [BEFORE_PATH, AFTER_PATH])
     print("ANNEESSENS_ROOF_ATTACHMENT_OK: pairs=%d detached=0" % nearby_pairs)
     quit(0)

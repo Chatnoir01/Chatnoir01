@@ -26,21 +26,21 @@ for required_path in [
     assert required_path in trigger_block, f"missing main-push path guard: {required_path}"
 
 assert "  actions: write\n" in trigger_text, "dispatch workflow needs Actions write permission"
-assert "gh workflow run grand-bruxelles-autonomous-citygen.yml" in trigger_text
-assert "gh workflow run grand-bruxelles-citygen-stale-quarantine-repair.yml" in trigger_text, (
-    "GITHUB_TOKEN-dispatched Autonomous runs do not reliably emit the downstream workflow_run hop; "
-    "stale quarantine repair must therefore be dispatched directly from the main-push trigger"
-)
-assert '--ref main' in trigger_text, "dispatch must resolve the exact live main ref"
-assert '-f batch_size=4' in trigger_text, "post-merge pass must keep the established bounded batch size"
-assert '-f limit=4' in trigger_text, "stale quarantine repair must remain a bounded batch"
+assert "gh workflow run grand-bruxelles-citygen-stale-quarantine-repair.yml" in trigger_text, "main pushes must enter the serialized repair-first pipeline"
+assert "gh workflow run grand-bruxelles-autonomous-citygen.yml" not in trigger_text, "post-merge must not start Autonomous in parallel with stale repair"
+assert '--ref main' in trigger_text
+assert '-f limit=4' in trigger_text
 
 autonomous_text = AUTONOMOUS.read_text(encoding="utf-8")
-assert "  workflow_dispatch:\n" in autonomous_text, "target Autonomous CityGen workflow must remain dispatchable"
-assert "if: github.event_name != 'pull_request'" in autonomous_text, "dispatched runs must execute the real evidence pass"
+assert "  workflow_dispatch:\n" in autonomous_text
+assert "if: github.event_name != 'pull_request'" in autonomous_text
 
 stale_repair_text = STALE_REPAIR.read_text(encoding="utf-8")
-assert "  workflow_dispatch:\n" in stale_repair_text, "stale quarantine repair must remain directly dispatchable"
-assert "github.event_name == 'workflow_dispatch'" in stale_repair_text, "direct repair dispatch must execute the repair job"
+assert "  workflow_dispatch:\n" in stale_repair_text
+assert "github.event_name == 'workflow_dispatch'" in stale_repair_text
+assert "Dispatch Autonomous CityGen after repair stage" in stale_repair_text
+assert "if: always() && needs.repair.result == 'success'" in stale_repair_text
+assert "gh workflow run grand-bruxelles-autonomous-citygen.yml" in stale_repair_text
+assert '-f batch_size=4' in stale_repair_text
 
-print("AUTONOMOUS_CITYGEN_MAIN_PUSH_TRIGGER_OK direct_stale_repair_dispatch=true")
+print("AUTONOMOUS_CITYGEN_MAIN_PUSH_TRIGGER_OK serialized_repair_then_autonomous=true")

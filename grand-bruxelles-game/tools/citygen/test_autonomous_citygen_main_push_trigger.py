@@ -14,9 +14,12 @@ assert "  push:\n" in trigger_block, "relevant CityGen merges must trigger an im
 assert "    branches: [main]\n" in trigger_block, "post-merge trigger must be restricted to main"
 for required_path in [
     '      - "grand-bruxelles-game/tools/citygen/**"',
+    '      - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"',
+    '      - "grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py"',
     '      - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"',
     '      - ".github/workflows/grand-bruxelles-citygen-state-refresh.yml"',
     '      - ".github/workflows/grand-bruxelles-citygen-post-merge-trigger.yml"',
+    '      - ".github/workflows/grand-bruxelles-urbis3d-semantic-height-generic.yml"',
 ]:
     assert required_path in trigger_block, f"missing main-push path guard: {required_path}"
 

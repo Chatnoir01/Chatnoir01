@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Select stale CityGen quarantine candidates whose authoritative source cache vanished.
 
-This is deliberately narrow: only a previously generated QUARANTINE candidate with
-`invalid_building_features_present` is eligible, and only when no durable source
-directory exists. The selector never reconstructs geometry itself; it emits the
-canonical target-grid bbox so the existing UrbIS WFS materializer can rebuild the
-cell from authority.
+This is deliberately narrow: only a previously generated candidate package in the
+canonical QUARANTINE state with `invalid_building_features_present` is eligible,
+and only when no durable source directory exists. The selector never reconstructs
+geometry itself; it emits the canonical target-grid bbox so the existing UrbIS WFS
+materializer can rebuild the cell from authority.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
+CANDIDATE_FORMAT = "grand-bruxelles-cell-candidate-package-v1"
 REPAIR_BLOCKER = "invalid_building_features_present"
 
 
@@ -57,10 +58,15 @@ def select_repairs(candidate_root: Path, source_root: Path, target_grid: Path, l
         cell_id = candidate.get("cell_id") or path.stem
         if cell_id != path.stem or cell_id not in bboxes:
             continue
-        if candidate.get("status") != "QUARANTINE":
+        if candidate.get("format") != CANDIDATE_FORMAT or candidate.get("crs") != "EPSG:31370":
+            continue
+        if candidate.get("state") != "QUARANTINE":
             continue
         blockers = candidate.get("blockers") or []
         if not isinstance(blockers, list) or REPAIR_BLOCKER not in blockers:
+            continue
+        authority = candidate.get("authority") or {}
+        if not isinstance(authority, dict) or authority.get("buildings_source_present") is not True:
             continue
         if (source_root / cell_id).exists():
             continue

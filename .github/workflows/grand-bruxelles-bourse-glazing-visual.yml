@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/bourse_architectural_glazing_surface_runtime.gd"
       - "grand-bruxelles-game/game/scripts/brussels_architectural_glazing_material.gd"
       - "grand-bruxelles-game/game/tests/bourse_architectural_glazing_material_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/bourse_architectural_glazing_target_contract_test.gd"
       - "grand-bruxelles-game/project.godot"
       - ".github/workflows/grand-bruxelles-bourse-glazing-visual.yml"
   workflow_dispatch:
@@ -33,6 +34,13 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log; then exit 1; fi
+      - name: Bourse glazing target contract regression
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/bourse_architectural_glazing_target_contract_test.gd 2>&1 | tee /tmp/target-contract.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GLAZING_TARGET_CONTRACT_FAIL" /tmp/target-contract.log; then exit 1; fi
+          grep -q "BOURSE_GLAZING_TARGET_CONTRACT_OK" /tmp/target-contract.log
       - name: Bourse glazing deterministic A/B
         shell: bash
         run: |

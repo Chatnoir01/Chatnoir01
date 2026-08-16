@@ -13,6 +13,7 @@ import json
 import math
 import re
 import unicodedata
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -23,6 +24,8 @@ WFS_URL = "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
 LAYER = "urbisvector:Municipalities"
 USER_AGENT = "Grand-Bruxelles-Game/1.0 (+https://github.com/Chatnoir01/Chatnoir01)"
 EXPECTED_MUNICIPALITIES = 19
+GRID_FORMAT = "grand-bruxelles-regional-target-grid-v1"
+GRID_AUTHORITY = "UrbIS Municipalities official geometry"
 
 
 def digest(value: Any) -> str:
@@ -205,26 +208,79 @@ def build_regional_grid(boundary_dir: Path, cell_size: float = 500.0) -> dict[st
     ordered=[]
     for cid in sorted(cells):
         row=cells[cid]; row["municipalities"].sort(); ordered.append(row)
-    result={"format":"grand-bruxelles-regional-target-grid-v1","authority":"UrbIS Municipalities official geometry","crs":CRS,"cell_size_m":cell_size,"summary":{"municipality_count":len(municipalities),"cell_count":len(ordered)},"cells":ordered}
+    result={"format":GRID_FORMAT,"authority":GRID_AUTHORITY,"crs":CRS,"cell_size_m":cell_size,"summary":{"municipality_count":len(municipalities),"cell_count":len(ordered)},"cells":ordered}
     result["grid_digest"]=digest(result)
     return result
+
+
+def load_fallback_grid(path: Path, cell_size: float) -> dict[str, Any]:
+    """Load a previously persisted official grid, rejecting stale/corrupt contracts."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("durable regional grid must be a JSON object")
+    if payload.get("format") != GRID_FORMAT:
+        raise ValueError("durable regional grid format mismatch")
+    if payload.get("authority") != GRID_AUTHORITY:
+        raise ValueError("durable regional grid authority mismatch")
+    if payload.get("crs") != CRS:
+        raise ValueError(f"durable regional grid must use {CRS}")
+    try:
+        stored_cell_size = float(payload.get("cell_size_m"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("durable regional grid cell size missing") from exc
+    if not math.isclose(stored_cell_size, cell_size, abs_tol=1e-8):
+        raise ValueError("durable regional grid cell size mismatch")
+    summary = payload.get("summary") or {}
+    cells = payload.get("cells") or []
+    if summary.get("municipality_count") != EXPECTED_MUNICIPALITIES:
+        raise ValueError(f"durable regional grid must contain {EXPECTED_MUNICIPALITIES} municipalities")
+    if not isinstance(cells, list) or summary.get("cell_count") != len(cells) or not cells:
+        raise ValueError("durable regional grid cell count mismatch")
+    ids = [cell.get("cell_id") for cell in cells if isinstance(cell, dict)]
+    if len(ids) != len(cells) or len(set(ids)) != len(ids) or any(not isinstance(cid, str) or not cid for cid in ids):
+        raise ValueError("durable regional grid cell ids are invalid")
+    expected_digest = digest({k: v for k, v in payload.items() if k != "grid_digest"})
+    if payload.get("grid_digest") != expected_digest:
+        raise ValueError("durable regional grid digest mismatch")
+    return payload
+
+
+def resolve_regional_grid(
+    boundary_dir: Path,
+    cell_size: float,
+    fetch_requested: bool,
+    fallback_grid: Path | None = None,
+) -> dict[str, Any]:
+    """Prefer fresh UrbIS boundaries; reuse only a fully revalidated durable grid on network failure."""
+    if not fetch_requested:
+        return build_regional_grid(boundary_dir, cell_size)
+    try:
+        fetch_official(boundary_dir / "urbis_municipalities.geojson")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        if fallback_grid is None or not fallback_grid.is_file():
+            raise
+        recovered = load_fallback_grid(fallback_grid, cell_size)
+        print(f"BRUSSELS_REGIONAL_GRID_NETWORK_FALLBACK source={fallback_grid} reason={type(exc).__name__}")
+        return recovered
+    grid = build_regional_grid(boundary_dir, cell_size)
+    if grid["summary"]["municipality_count"] != EXPECTED_MUNICIPALITIES:
+        raise ValueError(f"official grid must contain {EXPECTED_MUNICIPALITIES} municipalities")
+    return grid
 
 
 def main() -> int:
     ap=argparse.ArgumentParser()
     ap.add_argument("--boundary-dir", type=Path, required=True)
     ap.add_argument("--fetch-official", action="store_true")
+    ap.add_argument("--fallback-grid", type=Path)
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--cell-size", type=float, default=500.0)
     args=ap.parse_args()
-    if args.fetch_official:
-        fetch_official(args.boundary_dir / "urbis_municipalities.geojson")
-    grid=build_regional_grid(args.boundary_dir,args.cell_size)
-    if args.fetch_official and grid["summary"]["municipality_count"] != EXPECTED_MUNICIPALITIES:
-        raise SystemExit(f"official grid must contain {EXPECTED_MUNICIPALITIES} municipalities")
+    grid = resolve_regional_grid(args.boundary_dir, args.cell_size, args.fetch_official, args.fallback_grid)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(grid,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    print(f"BRUSSELS_REGIONAL_GRID_OK municipalities={grid['summary']['municipality_count']} cells={grid['summary']['cell_count']} digest={grid['grid_digest']}")
+    mode = "fallback" if args.fetch_official and args.fallback_grid and not (args.boundary_dir / "urbis_municipalities.geojson").exists() else "live"
+    print(f"BRUSSELS_REGIONAL_GRID_OK municipalities={grid['summary']['municipality_count']} cells={grid['summary']['cell_count']} digest={grid['grid_digest']} mode={mode}")
     return 0
 
 if __name__ == "__main__": raise SystemExit(main())

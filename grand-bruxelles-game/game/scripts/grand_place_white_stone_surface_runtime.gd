@@ -8,8 +8,8 @@ const TARGETS := [
         "wall_name": "GrandPlace1655673_WALLSURFACE",
         "identity_path": "res://data/visual/grand_place_1655673_material_identity.json",
         "building_id": "https://databrussels.be/id/building/1655673",
-        "cool": Color(0.70, 0.685, 0.64, 1.0),
-        "warm": Color(0.84, 0.82, 0.755, 1.0),
+        "cool": Color(0.60, 0.58, 0.52, 1.0),
+        "warm": Color(0.84, 0.81, 0.72, 1.0),
         "roughness": 0.82,
     },
     {
@@ -17,8 +17,8 @@ const TARGETS := [
         "wall_name": "GrandPlace1786758_WALLSURFACE",
         "identity_path": "res://data/visual/grand_place_1786758_material_identity.json",
         "building_id": "https://databrussels.be/id/building/1786758",
-        "cool": Color(0.76, 0.74, 0.69, 1.0),
-        "warm": Color(0.88, 0.855, 0.79, 1.0),
+        "cool": Color(0.66, 0.64, 0.58, 1.0),
+        "warm": Color(0.88, 0.84, 0.75, 1.0),
         "roughness": 0.76,
     },
 ]

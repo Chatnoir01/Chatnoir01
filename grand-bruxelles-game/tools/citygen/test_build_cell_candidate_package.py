@@ -27,6 +27,18 @@ with tempfile.TemporaryDirectory() as td:
     root = Path(td)
     cell = root / "bxl-e149000-n169000-s500"
     write_json(cell / "manifest.json", {"cell_id": cell.name, "source": "UrbIS"})
+
+    # Regression from Autonomous CityGen pass 51: a discovered/materialized cell
+    # may have a valid source manifest before raw buildings.geojson exists. That
+    # must yield an explicit quarantine package instead of aborting the whole batch.
+    missing = mod.build(cell, None)
+    assert missing["state"] == "QUARANTINE"
+    assert "authoritative_buildings_missing" in missing["blockers"]
+    assert missing["summary"] == {"valid_buildings": 0, "invalid_features": 0, "total_vertices": 0, "runtime_approved_buildings": 0}
+    assert missing["buildings"] == []
+    assert missing["authority"]["buildings_source_present"] is False
+    assert missing["package_digest"] == mod.digest({k: v for k, v in missing.items() if k != "package_digest"})
+
     # Deliberately reverse feature order: package must sort by building identity.
     write_json(cell / "raw" / "buildings.geojson", {"type": "FeatureCollection", "features": [feature("building-b", 149020), feature("building-a", 149000)]})
 
@@ -36,6 +48,7 @@ with tempfile.TemporaryDirectory() as td:
     assert [row["building_id"] for row in pending["buildings"]] == ["building-a", "building-b"]
     assert pending["summary"]["valid_buildings"] == 2
     assert pending["summary"]["runtime_approved_buildings"] == 0
+    assert pending["authority"]["buildings_source_present"] is True
     assert all(row["height_m"] is None and row["runtime_approved"] is False for row in pending["buildings"])
 
     maturity = root / "maturity.json"
@@ -61,4 +74,4 @@ with tempfile.TemporaryDirectory() as td:
     assert invalid["state"] == "QUARANTINE"
     assert invalid["summary"]["invalid_features"] == 1
 
-print("CELL_CANDIDATE_PACKAGE_GUARDRAILS_OK deterministic=true epsg31370=true fail_closed=true runtime_promotion=false")
+print("CELL_CANDIDATE_PACKAGE_GUARDRAILS_OK deterministic=true epsg31370=true missing_buildings=quarantine fail_closed=true runtime_promotion=false")

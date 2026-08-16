@@ -1,0 +1,23 @@
+name: Grand Bruxelles CityGen Frontier Starvation
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
+      - "grand-bruxelles-game/tools/citygen/test_skip_manual_frontier_starvation.py"
+      - ".github/workflows/grand-bruxelles-citygen-frontier-starvation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reproduce and guard manual-frontier starvation
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_skip_manual_frontier_starvation.py
+          python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py

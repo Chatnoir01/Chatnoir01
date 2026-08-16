@@ -1,0 +1,48 @@
+name: Grand Bruxelles Anneessens Midi Sidewalk
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-anneessens-midi-sidewalk.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
+      - "grand-bruxelles-game/game/tests/anneessens_midi_sidewalk_witness_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/anneessens-sidewalk-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/anneessens-sidewalk-import.log; then exit 1; fi
+      - name: Anneessens 1280x720 player-eye A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/anneessens_midi_sidewalk_witness_test.gd 2>&1 | tee /tmp/anneessens-sidewalk.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ANNEESSENS_MIDI_SIDEWALK_FAIL" /tmp/anneessens-sidewalk.log; then exit 1; fi
+          grep -q "ANNEESSENS_MIDI_SIDEWALK_OK" /tmp/anneessens-sidewalk.log
+      - name: Upload Anneessens evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-midi-sidewalk-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_before.png
+            grand-bruxelles-game/artifacts/visual/anneessens_sidewalk_after.png
+          if-no-files-found: error

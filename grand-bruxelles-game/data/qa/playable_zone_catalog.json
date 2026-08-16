@@ -2,46 +2,12 @@
   "schema": "grand-bruxelles-playable-zone-catalog-v1",
   "policy": "List only zones already present on main whose required runtime resources exist. LABO means visitable but not human-approved as JOUABLE.",
   "zones": [
-    {
-      "id": "midi",
-      "label": "Midi",
-      "quality": "JOUABLE",
-      "mode": "fast_travel",
-      "destination": "midi",
-      "requires": ["res://game/main.tscn", "res://game/scripts/player_controller.gd"]
-    },
-    {
-      "id": "bourse",
-      "label": "Bourse",
-      "quality": "LABO",
-      "mode": "fast_travel",
-      "destination": "bourse",
-      "requires": ["res://game/main.tscn", "res://game/scripts/player_controller.gd", "res://game/scripts/bourse_portico_articulation.gd"]
-    },
-    {
-      "id": "ixelles",
-      "label": "Ixelles",
-      "quality": "LABO",
-      "mode": "player_method",
-      "method": "_activate_ixelles_direct_spawn",
-      "requires": ["res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd"]
-    },
-    {
-      "id": "atomium",
-      "label": "Atomium / Heysel",
-      "quality": "LABO",
-      "mode": "player_method",
-      "method": "_activate_atomium_direct_spawn",
-      "requires": ["res://game/zones/laeken_jette/atomium_dtm_terrain.gd", "res://game/zones/laeken_jette/atomium_hero_core.gd", "res://game/zones/laeken_jette/atomium_hero_reflection_environment.gd"]
-    },
-    {
-      "id": "jette",
-      "label": "Jette",
-      "quality": "LABO",
-      "mode": "script_zone",
-      "script": "res://game/zones/laeken_jette/jette_phase2_zone.gd",
-      "spawn": [-687.700268506218, 1.05, -4952.774160383269],
-      "requires": ["res://game/zones/laeken_jette/jette_phase2_zone.gd", "res://data/urbis/laeken_jette/jette_phase2/buildings.game.json", "res://data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json"]
-    }
+    {"id":"midi","label":"Midi","quality":"JOUABLE","mode":"fast_travel","destination":"midi","requires":["res://game/main.tscn","res://game/scripts/player_controller.gd"]},
+    {"id":"anneessens","label":"Anneessens","quality":"LABO","mode":"position","spawn":[-272.04,1.05,-217.07],"requires":["res://game/main.tscn","res://data/osm/vertical_slice_01.game.json"]},
+    {"id":"bourse","label":"Bourse","quality":"LABO","mode":"fast_travel","destination":"bourse","requires":["res://game/main.tscn","res://game/scripts/player_controller.gd","res://game/scripts/bourse_portico_articulation.gd"]},
+    {"id":"grand_place","label":"Grand-Place","quality":"LABO","mode":"position","spawn":[319.01,1.05,-535.20],"requires":["res://game/main.tscn","res://game/scripts/grand_place_official_lod2_1655673.gd","res://game/scripts/grand_place_official_lod2_1786758.gd"]},
+    {"id":"ixelles","label":"Ixelles","quality":"LABO","mode":"player_method","method":"_activate_ixelles_direct_spawn","requires":["res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd"]},
+    {"id":"atomium","label":"Atomium / Heysel","quality":"LABO","mode":"player_method","method":"_activate_atomium_direct_spawn","requires":["res://game/zones/laeken_jette/atomium_dtm_terrain.gd","res://game/zones/laeken_jette/atomium_hero_core.gd","res://game/zones/laeken_jette/atomium_hero_reflection_environment.gd"]},
+    {"id":"jette","label":"Jette","quality":"LABO","mode":"script_zone","script":"res://game/zones/laeken_jette/jette_phase2_zone.gd","spawn":[-687.700268506218,1.05,-4952.774160383269],"requires":["res://game/zones/laeken_jette/jette_phase2_zone.gd","res://data/urbis/laeken_jette/jette_phase2/buildings.game.json","res://data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json"]}
   ]
 }

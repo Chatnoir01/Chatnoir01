@@ -57,18 +57,74 @@ func _run() -> void:
     if walk_name != String(locomotion["walk"]):
         _fail("walking speed did not select walk: %s" % walk_name)
         return
+    var walk_scale_reference := runtime.current_playback_speed_scale()
 
-    actor.velocity = Vector3(7.0, 0.0, 0.0)
+    actor.velocity = Vector3(1.25, 0.0, 0.0)
+    runtime.update_from_speed()
+    var walk_scale_slow := runtime.current_playback_speed_scale()
+    actor.velocity = Vector3(3.75, 0.0, 0.0)
+    runtime.update_from_speed()
+    var walk_scale_fast := runtime.current_playback_speed_scale()
+    if not (walk_scale_slow < walk_scale_reference and walk_scale_reference < walk_scale_fast):
+        _fail("walk animation playback is not synchronized to movement speed: slow=%.3f ref=%.3f fast=%.3f" % [walk_scale_slow, walk_scale_reference, walk_scale_fast])
+        return
+
+    # Near the run threshold, remain walking until the enter threshold is crossed.
+    actor.velocity = Vector3(5.0, 0.0, 0.0)
+    runtime.update_from_speed()
+    if runtime.current_animation() != walk_name:
+        _fail("walk/run boundary chatters before run enter threshold")
+        return
+
+    actor.velocity = Vector3(5.4, 0.0, 0.0)
     runtime.update_from_speed()
     var run_name := runtime.current_animation()
     if run_name != String(locomotion["run"]):
         _fail("running speed did not select run: %s" % run_name)
         return
 
+    # Once running, small speed drops must not immediately flip back to walk.
+    actor.velocity = Vector3(4.8, 0.0, 0.0)
+    runtime.update_from_speed()
+    if runtime.current_animation() != run_name:
+        _fail("run/walk boundary has no hysteresis")
+        return
+    actor.velocity = Vector3(4.3, 0.0, 0.0)
+    runtime.update_from_speed()
+    if runtime.current_animation() != walk_name:
+        _fail("run did not exit after crossing the lower hysteresis threshold")
+        return
+
+    # Walk/idle uses the same anti-chatter policy.
+    actor.velocity = Vector3(0.30, 0.0, 0.0)
+    runtime.update_from_speed()
+    if runtime.current_animation() != walk_name:
+        _fail("low walking speed should still select walk")
+        return
+    actor.velocity = Vector3(0.18, 0.0, 0.0)
+    runtime.update_from_speed()
+    if runtime.current_animation() != walk_name:
+        _fail("walk/idle boundary has no hysteresis")
+        return
+    actor.velocity = Vector3(0.10, 0.0, 0.0)
+    runtime.update_from_speed()
+    if runtime.current_animation() != idle_name:
+        _fail("idle did not engage after crossing the lower hysteresis threshold")
+        return
+    if absf(runtime.current_playback_speed_scale() - 1.0) > 0.001:
+        _fail("idle playback speed must return to 1.0")
+        return
+
+    actor.velocity = Vector3(7.0, 0.0, 0.0)
+    runtime.update_from_speed()
+    run_name = runtime.current_animation()
+    if run_name != String(locomotion["run"]):
+        _fail("running speed did not reselect run: %s" % run_name)
+        return
     var player := runtime.bound_animation_player()
     if player == null or player.current_animation != run_name or not player.is_playing():
         _fail("resolved running animation was not actually played")
         return
 
-    print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s" % [idle_name, walk_name, run_name])
+    print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s walk_scale=%.3f/%.3f/%.3f run_scale=%.3f" % [idle_name, walk_name, run_name, walk_scale_slow, walk_scale_reference, walk_scale_fast, runtime.current_playback_speed_scale()])
     quit(0)

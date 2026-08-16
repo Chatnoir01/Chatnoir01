@@ -73,14 +73,21 @@ func _run() -> void:
     if manifest.is_empty():
         _fail("Laeken/Jette manifest missing or invalid")
         return
-    if str(manifest.get("crs", "")) != "EPSG:31370":
-        _fail("manifest CRS drifted")
+    if str(manifest.get("source_crs", "")) != "EPSG:31370":
+        _fail("manifest source_crs drifted")
+        return
+    if str(manifest.get("source", "")) != "Paradigm / Brussels-Capital Region UrbIS vector WFS":
+        _fail("UrbIS source identity drifted")
         return
 
     var layers: Dictionary = manifest.get("layers", {}) as Dictionary
     var surface_layer: Dictionary = layers.get("street_surfaces", {}) as Dictionary
-    if int(surface_layer.get("feature_count", 0)) != 959:
-        _fail("street-surface manifest count drifted")
+    var expected_features := int(surface_layer.get("features", 0))
+    if expected_features <= 0:
+        _fail("street-surface manifest count missing")
+        return
+    if str(surface_layer.get("type_name", "")) != "urbisvector:StreetSurfaces":
+        _fail("street-surface source class drifted")
         return
 
     var document := _load_dictionary(SURFACES_PATH)
@@ -88,8 +95,8 @@ func _run() -> void:
         _fail("street-surface game dataset missing or invalid")
         return
     var features: Variant = document.get("features", [])
-    if not features is Array or features.size() != 959:
-        _fail("street-surface feature count does not match manifest")
+    if not features is Array or features.size() != expected_features:
+        _fail("street-surface feature count does not match manifest: manifest=%d game=%d" % [expected_features, features.size() if features is Array else -1])
         return
 
     var feature_distances: Array[float] = []
@@ -126,5 +133,5 @@ func _run() -> void:
         return
 
     print("ATOMIUM_STREET_SURFACE_PROBE_METRICS: nearest=%.3fm polygons=%d r30=%d r60=%d r100=%d r160=%d" % [nearest, polygon_count, counts[0], counts[1], counts[2], counts[3]])
-    print("ATOMIUM_STREET_SURFACE_PROBE_OK: source=INSPIRE_STREET_SURFACE features=%d crs=EPSG:31370" % features.size())
+    print("ATOMIUM_STREET_SURFACE_PROBE_OK: source=urbisvector:StreetSurfaces features=%d source_crs=EPSG:31370" % features.size())
     quit(0)

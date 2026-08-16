@@ -58,8 +58,10 @@ jobs:
           mkdir -p /tmp/stale-repair-cache
           git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
           for ITEM in autonomous_candidates autonomous_sources; do
-            if git ls-tree -r --name-only origin/citygen-autonomous-state -- "grand-bruxelles-game/data/qa/${ITEM}" | grep -q .; then
-              git archive origin/citygen-autonomous-state "grand-bruxelles-game/data/qa/${ITEM}" | tar -x -C /tmp/stale-repair-cache
+            CACHE_PATH="grand-bruxelles-game/data/qa/${ITEM}"
+            if git cat-file -e "origin/citygen-autonomous-state:${CACHE_PATH}" 2>/dev/null; then
+              git archive origin/citygen-autonomous-state "${CACHE_PATH}" | tar -x -C /tmp/stale-repair-cache
+              test -d "/tmp/stale-repair-cache/${CACHE_PATH}" || { echo "failed to recover durable cache: ${ITEM}" >&2; exit 1; }
             fi
           done
           git show origin/citygen-autonomous-state:grand-bruxelles-game/data/qa/brussels_regional_target_grid.json > /tmp/stale-repair-cache/target-grid.json

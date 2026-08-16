@@ -1,0 +1,23 @@
+name: Grand Bruxelles OSM Furniture Ingestion
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-osm-furniture-ingestion.yml"
+      - "grand-bruxelles-game/tools/fetch_osm_slice.py"
+      - "grand-bruxelles-game/tools/transform_osm_to_game.py"
+      - "grand-bruxelles-game/tools/make_runtime_slice.py"
+      - "grand-bruxelles-game/tools/test_osm_furniture_ingestion.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  furniture-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source-backed environment point ingestion
+        run: python3 grand-bruxelles-game/tools/test_osm_furniture_ingestion.py

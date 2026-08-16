@@ -33,7 +33,8 @@ FORBIDDEN = (
     "prompt systeme",
 )
 LINE_PREFIX_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)-])\s*")
-THRESHOLD_RE = re.compile(r"\b(fear|aggression|flee_health)\s*[:=]\s*(0(?:\.\d+)?|1(?:\.0+)?)\b", re.IGNORECASE)
+THRESHOLD_RE = re.compile(r"\b(fear|aggression|flee_health)\s*[:=]\s*(0(?:[.,]\d+)?|1(?:[.,]0+)?)\b", re.IGNORECASE)
+JSON_LINE_KEYS = {"lines", "phrases", "text", "line", *INTENTS}
 
 
 class GenerationError(ValueError):
@@ -82,7 +83,7 @@ def parse_persona_output(raw: str) -> dict[str, str]:
 def parse_threshold_output(raw: str) -> dict[str, float]:
     values: dict[str, float] = {}
     for key, raw_value in THRESHOLD_RE.findall(raw):
-        values[key.lower()] = float(raw_value)
+        values[key.lower()] = float(raw_value.replace(",", "."))
     required = {"fear", "aggression", "flee_health"}
     if set(values) != required:
         raise GenerationError("threshold output must contain fear, aggression and flee_health")
@@ -91,17 +92,59 @@ def parse_threshold_output(raw: str) -> dict[str, float]:
     return {key: round(values[key], 4) for key in ("fear", "aggression", "flee_health")}
 
 
+def _strip_code_fence(raw: str) -> str:
+    candidate = raw.strip()
+    if candidate.startswith("```"):
+        lines = candidate.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        candidate = "\n".join(lines).strip()
+    return candidate
+
+
+def _collect_json_strings(value: Any, trusted: bool = False) -> list[str]:
+    result: list[str] = []
+    if isinstance(value, str):
+        if trusted:
+            result.append(value)
+        return result
+    if isinstance(value, list):
+        for item in value:
+            result.extend(_collect_json_strings(item, True))
+        return result
+    if isinstance(value, dict):
+        for raw_key, item in value.items():
+            key = str(raw_key).casefold()
+            if trusted or key in JSON_LINE_KEYS or key.isdigit():
+                result.extend(_collect_json_strings(item, True))
+        return result
+    return result
+
+
 def parse_dialogue_lines(raw: str) -> list[str]:
     result: list[str] = []
-    for source_line in raw.replace("\r", "").splitlines():
+    candidate = _strip_code_fence(raw)
+    if candidate.startswith(("[", "{")):
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            parsed = None
+        if parsed is not None:
+            for value in _collect_json_strings(parsed):
+                line = _clean_text(value, 180)
+                if line and line.casefold() not in INTENTS and line not in result:
+                    result.append(line)
+    for source_line in candidate.replace("\r", "").splitlines():
         line = source_line.strip()
-        if not line or line.startswith("```"):
+        if not line or line.startswith("```") or line.startswith(("[", "{", "]", "}")):
             continue
-        line = LINE_PREFIX_RE.sub("", line).strip()
+        line = LINE_PREFIX_RE.sub("", line).strip().rstrip(",")
         if line.casefold().startswith(("phrases:", "répliques:", "repliques:")):
             continue
         line = _clean_text(line, 180)
-        if line and line not in result:
+        if line and line.casefold() not in INTENTS and line not in result:
             result.append(line)
     return result
 
@@ -198,11 +241,12 @@ def generate_thresholds(tokenizer, model, zone: str, archetype: str, summary: st
 def generate_intent_lines(tokenizer, model, intent: str, zone: str, archetype: str, persona: dict[str, str], globally_used: list[str], target: int = 4, attempts: int = 5) -> tuple[list[str], list[str]]:
     collected: list[str] = []
     raw_attempts: list[str] = []
-    for _attempt in range(attempts):
+    for attempt in range(1, attempts + 1):
         needed = target - len(collected)
         if needed <= 0:
             break
         prompt = build_dialogue_prompt(intent, zone, archetype, persona, needed, globally_used + collected)
+        prompt += f"\nEssai de format {attempt}: respecte les puces, sans texte avant ou après."
         raw = _chat_completion(tokenizer, model, prompt, max(48, needed * 32))
         raw_attempts.append(raw)
         for candidate in parse_dialogue_lines(raw):
@@ -211,7 +255,8 @@ def generate_intent_lines(tokenizer, model, intent: str, zone: str, archetype: s
                 if len(collected) == target:
                     break
     if len(collected) != target:
-        raise GenerationError(f"{intent} generation produced {len(collected)}/{target} unique valid lines")
+        last_raw = raw_attempts[-1][-600:] if raw_attempts else "<no output>"
+        raise GenerationError(f"{intent} generation produced {len(collected)}/{target} unique valid lines; last_raw={last_raw!r}")
     return collected, raw_attempts
 
 

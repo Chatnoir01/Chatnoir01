@@ -1,0 +1,31 @@
+name: Grand Bruxelles CityGen Secondary Persistence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py"
+      - ".github/workflows/grand-bruxelles-citygen-secondary-persistence.yml"
+      - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
+  push:
+    branches:
+      - "main"
+    paths:
+      - "grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py"
+      - ".github/workflows/grand-bruxelles-citygen-secondary-persistence.yml"
+      - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-closed secondary evidence persistence regression
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py

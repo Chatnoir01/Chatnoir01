@@ -29,8 +29,13 @@
     "exact_reflectance_claimed": false,
     "exact_rgb_is_photometric_measurement": false,
     "external_texture_asset": false,
-    "runtime_approved": false,
-    "runtime_approval_basis": "Pending deterministic 1280x960 Bourse geotagged-camera A/B and affected CI gates on this PR.",
+    "runtime_approved": true,
+    "runtime_approval_basis": "Deterministic 1280x960 Bourse geotagged-camera A/B on PR #452 changed 5.3080% of the whole frame at >3/255 RGB and 1.4733% at >8/255, above the predeclared 1.5% / 0.5% gates. Game CI, Photo Match QA, Performance Baseline, Web Export, PC Desktop Export and Branch Hygiene passed on the validated candidate head.",
+    "evidence_artifact": {
+      "name": "bourse-white-stone-ab",
+      "artifact_id": 9260881750,
+      "sha256": "b9b49e6d399547284628b01f247079f9ce00ff7607a0fc3f1df1a1f5c1a1b8d6"
+    },
     "realism_complete": false
   }
 }

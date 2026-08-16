@@ -7,6 +7,8 @@ on:
     paths:
       - "grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py"
       - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/select_urbis_distribution.py"
+      - "grand-bruxelles-game/tools/test_select_urbis_distribution.py"
       - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
   pull_request:
     paths:
@@ -14,6 +16,8 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
       - "grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py"
       - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
+      - "grand-bruxelles-game/tools/select_urbis_distribution.py"
+      - "grand-bruxelles-game/tools/test_select_urbis_distribution.py"
       - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
   workflow_dispatch:
 
@@ -38,6 +42,7 @@ jobs:
       - name: Regression-test regional semantic comparison
         run: |
           set -euo pipefail
+          python3 grand-bruxelles-game/tools/test_select_urbis_distribution.py
           python3 grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py
           python3 grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
           python3 grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py

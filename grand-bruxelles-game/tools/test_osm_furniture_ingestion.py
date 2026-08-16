@@ -17,6 +17,7 @@ def load_module(name: str, path: Path):
 
 fetch_osm = load_module("fetch_osm_slice", ROOT / "fetch_osm_slice.py")
 transform = load_module("transform_osm_to_game", ROOT / "transform_osm_to_game.py")
+runtime_slice = load_module("make_runtime_slice", ROOT / "make_runtime_slice.py")
 
 
 def test_query_requests_only_supported_environment_points() -> None:
@@ -46,7 +47,27 @@ def test_converter_preserves_exact_supported_point_semantics() -> None:
     assert converted["license"] == "ODbL-1.0"
 
 
+def test_runtime_slice_keeps_only_supported_corridor_points() -> None:
+    source = [
+        {"osm_id": 1, "kind": "tree", "position": [5.0, 2.0]},
+        {"osm_id": 2, "kind": "street_lamp", "position": [25.0, 8.0]},
+        {"osm_id": 3, "kind": "bollard", "position": [55.0, 3.0]},
+        {"osm_id": 4, "kind": "bench", "position": [5.0, 1.0]},
+        {"osm_id": 5, "kind": "tree", "position": [5.0, 80.0]},
+    ]
+    selected = runtime_slice.select_environment_points(
+        source,
+        [(0.0, 0.0), (60.0, 0.0)],
+        radius=10.0,
+        max_points=10,
+    )
+    assert [point["osm_id"] for point in selected] == [1, 3, 2]
+    assert all(point["kind"] in {"tree", "street_lamp", "bollard"} for point in selected)
+    assert runtime_slice.selected_bounds(selected) == [5.0, 2.0, 55.0, 8.0]
+
+
 if __name__ == "__main__":
     test_query_requests_only_supported_environment_points()
     test_converter_preserves_exact_supported_point_semantics()
-    print("OSM_FURNITURE_INGESTION_OK: tree/street_lamp/bollard nodes are queried and preserved with exact source placement")
+    test_runtime_slice_keeps_only_supported_corridor_points()
+    print("OSM_FURNITURE_INGESTION_OK: tree/street_lamp/bollard nodes are queried, projected and carried into the playable corridor contract")

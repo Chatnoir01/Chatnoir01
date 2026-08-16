@@ -24,6 +24,16 @@ none = mod.select_resolution([{"resolution_m":1.0,"p95_abs_error_m":0.30}], 0.15
 assert none["selected_resolution_m"] is None
 assert "no_candidate_meets_p95_threshold" in none["blockers"]
 
+# Regression from Autonomous CityGen pass 46: the raster validator accepts an
+# official TIFF with no embedded CRS when the locked source manifest supplies
+# EPSG:31370. Terrain LOD must honor that validated basis instead of rejecting
+# the same raster later merely because rasterio reports dataset.crs == None.
+assert mod._validated_dtm_crs_is_acceptable(None, 31370, "authoritative_source_manifest") is True
+assert mod._validated_dtm_crs_is_acceptable(31370, 31370, "embedded_raster") is True
+assert mod._validated_dtm_crs_is_acceptable(None, 31370, "embedded_raster") is False
+assert mod._validated_dtm_crs_is_acceptable(3812, 31370, "embedded_raster") is False
+assert mod._validated_dtm_crs_is_acceptable(None, 3812, "authoritative_source_manifest") is False
+
 try:
     import numpy as np
     from affine import Affine

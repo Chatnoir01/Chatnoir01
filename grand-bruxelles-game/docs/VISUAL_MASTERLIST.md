@@ -12,6 +12,8 @@ Judge **3-second first impression**, **30-second immersion**, then **10-minute p
 - **LABO**: the zone is on `main`, loads and is directly visitable, but is explicitly experimental until a human visit promotes it.
 - **Not listed**: missing, empty or failing load contracts. Do not replace this with an invisible quarantine.
 - The zone selector is the player-facing truth for what can actually be visited. CI may prove loadability; only human play can promote LABO → JOUABLE.
+- **SIGNALER** is the human defect proof: one click captures the current view before the note UI opens, then one optional short note creates one OPEN ticket with zone + player position + screenshot. The ticket is self-contained; the Web build downloads it without embedding a GitHub secret in the client.
+- **No LABO → JOUABLE promotion while that zone has an OPEN player report.** Fix/resolve the observed defect first; green CI alone never overrides an open human report.
 
 ## Current production checkpoint — 2026-08-16
 
@@ -62,7 +64,7 @@ Owns PC/Desktop target, Web preview/QA, mobile readability/controls, LOD/materia
 ## Production rules
 
 1. Exact current `main` is the only production truth.
-2. **Do not hide loadable work already on `main`.** Expose it through the zone selector as **LABO** until human play/feel validation promotes it to **JOUABLE**. Missing/empty/crashing zones are not listed.
+2. **Do not hide loadable work already on `main`.** Expose it through the zone selector as **LABO** until human play/feel validation promotes it to **JOUABLE**. Missing/empty/crashing zones are not listed. Any OPEN in-game player report blocks promotion for that zone.
 3. One active lot per exact problem/domain; avoid duplicate PRs.
 4. Fresh-main, small, source/licence-safe lots only.
 5. Every visual lot needs deterministic player-facing capture or direct playable evidence plus human full-frame verdict.

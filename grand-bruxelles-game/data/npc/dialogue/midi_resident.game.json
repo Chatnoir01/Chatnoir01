@@ -1,0 +1,38 @@
+{
+  "schema": "grand-bruxelles-npc-dialogue-v1",
+  "generator": {
+    "mode": "offline_llm_bake",
+    "version": "1",
+    "provider": "curated-fallback",
+    "model": "human-reviewed"
+  },
+  "personas": [
+    {
+      "id": "midi_resident_01",
+      "zone": "midi",
+      "locale": "fr-BE",
+      "intents": {
+        "greeting": [
+          "Salut, ça va ?",
+          "Bonjour, je peux t'aider ?",
+          "Oui, dis-moi."
+        ],
+        "smalltalk": [
+          "Je passe souvent par Midi.",
+          "Il y a toujours du monde ici.",
+          "Je rentre tranquillement chez moi."
+        ],
+        "warning": [
+          "Doucement, reste calme.",
+          "Hé, garde tes distances.",
+          "Ça suffit, recule un peu."
+        ],
+        "hurt": [
+          "Aïe, doucement !",
+          "Hé, ça fait mal !",
+          "Laisse-moi tranquille !"
+        ]
+      }
+    }
+  ]
+}

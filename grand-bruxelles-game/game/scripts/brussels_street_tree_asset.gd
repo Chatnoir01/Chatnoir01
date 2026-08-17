@@ -93,13 +93,13 @@ static func foliage_is_light(index: int) -> bool:
 
 static func tree_variation_scale(osm_id: int) -> float:
     ## Bounded authored variation only; no source-measured crown-size claim.
-    var bucket := abs(osm_id * 37 + 11) % 11
+    var bucket: int = abs(osm_id * 37 + 11) % 11
     return 0.92 + float(bucket) * 0.016
 
 static func foliage_tone_variation(osm_id: int) -> float:
     ## Exposed deterministic presentation hint for future batched palette splits.
     ## It intentionally does not encode species, season, health or measured RGB.
-    var bucket := abs(osm_id * 53 + 7) % 9
+    var bucket: int = abs(osm_id * 53 + 7) % 9
     return (float(bucket) - 4.0) / 4.0
 
 static func foliage_lobe_transform(base_position: Vector3, osm_id: int, index: int) -> Transform3D:

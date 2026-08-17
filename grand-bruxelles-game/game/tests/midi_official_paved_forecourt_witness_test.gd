@@ -6,10 +6,11 @@ const BEFORE_PATH := OUTPUT_DIR + "/midi_official_paved_forecourt_before.png"
 const AFTER_PATH := OUTPUT_DIR + "/midi_official_paved_forecourt_after.png"
 const WIDTH := 1280
 const HEIGHT := 720
-const MIN_CHANGED_OVER_3 := 0.010
-const MIN_CHANGED_OVER_8 := 0.0035
+const MIN_CHANGED_OVER_3 := 0.030
+const MIN_CHANGED_OVER_8 := 0.015
+const MIN_BBOX_WIDTH := 700
+const MIN_BBOX_HEIGHT := 160
 
-# Same Midi arrival anchor family already used by production material witnesses.
 const ENTRANCE := Vector3(-672.2905, 0.0, 615.8035)
 const ROAD_SIDE := Vector3(0.779, 0.0, 0.627)
 
@@ -30,7 +31,6 @@ func _run() -> void:
     current_scene = world
     await process_frame
     await process_frame
-
     _freeze_and_mask_dynamics(world)
 
     var runtime := get_root().get_node_or_null("MidiOfficialPavedForecourtRuntime")
@@ -76,6 +76,10 @@ func _run() -> void:
 
     var over3 := 0
     var over8 := 0
+    var min_x := WIDTH
+    var min_y := HEIGHT
+    var max_x := -1
+    var max_y := -1
     var total := WIDTH * HEIGHT
     for y: int in range(HEIGHT):
         for x: int in range(WIDTH):
@@ -84,18 +88,27 @@ func _run() -> void:
             var delta := maxf(absf(a.r - b.r) * 255.0, maxf(absf(a.g - b.g) * 255.0, absf(a.b - b.b) * 255.0))
             if delta > 3.0:
                 over3 += 1
+                min_x = mini(min_x, x)
+                min_y = mini(min_y, y)
+                max_x = maxi(max_x, x)
+                max_y = maxi(max_y, y)
             if delta > 8.0:
                 over8 += 1
     var ratio3 := float(over3) / float(total)
     var ratio8 := float(over8) / float(total)
-    print("MIDI_OFFICIAL_PAVED_FORECOURT_DELTA over3=%d ratio3=%.6f over8=%d ratio8=%.6f" % [over3, ratio3, over8, ratio8])
+    var bbox_width := 0 if max_x < min_x else max_x - min_x + 1
+    var bbox_height := 0 if max_y < min_y else max_y - min_y + 1
+    print("MIDI_OFFICIAL_PAVED_FORECOURT_DELTA over3=%d ratio3=%.6f over8=%d ratio8=%.6f bbox=%dx%d" % [over3, ratio3, over8, ratio8, bbox_width, bbox_height])
     if ratio3 < MIN_CHANGED_OVER_3:
-        _fail("full-frame >3 RGB area below predeclared 1.0% anti-micro gate")
+        _fail("full-frame >3 RGB area below locked 3.0% anti-micro gate")
         return
     if ratio8 < MIN_CHANGED_OVER_8:
-        _fail("full-frame >8 RGB area below predeclared 0.35% recognition gate")
+        _fail("full-frame >8 RGB area below locked 1.5% recognition gate")
         return
-    print("MIDI_OFFICIAL_PAVED_FORECOURT_WITNESS_OK")
+    if bbox_width < MIN_BBOX_WIDTH or bbox_height < MIN_BBOX_HEIGHT:
+        _fail("changed region below locked 700x160 full-frame extent gate")
+        return
+    print("MIDI_OFFICIAL_PAVED_FORECOURT_WITNESS_OK human_full_frame_3_second_verdict=REQUIRED")
     quit(0)
 
 func _freeze_and_mask_dynamics(node: Node) -> void:

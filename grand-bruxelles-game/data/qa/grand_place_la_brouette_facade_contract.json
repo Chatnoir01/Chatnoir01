@@ -1,0 +1,47 @@
+{
+  "schema": "grand-bruxelles-grand-place-la-brouette-facade-contract-v1",
+  "source_contract": {
+    "building_id": "https://databrussels.be/id/building/1607758",
+    "frontage_face_id": "https://databrussels.be/id/buildingface/10897437",
+    "urbis_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "frontage_triangles_sha256": "389ae669684659e6c943c531700c50e5324115b7f499f7f17e61d1b0898e857e",
+    "heritage_source": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/2/31120",
+    "heritage_id": "Urban 31120",
+    "documented_levels": 4,
+    "documented_bays": 4,
+    "documented_style": "baroque",
+    "documented_orders_by_level": ["doric_pilasters", "ionic_columns", "corinthian_columns", "composite_pilasters"],
+    "documented_gable": "baroque gable; two-register upper composition with terminal triangular pediment and niche",
+    "source_note": "Discrete level/bay/order/gable semantics are source-backed. Exact opening/support dimensions and register heights below are visualization conventions, not survey geometry."
+  },
+  "official_frontage": {
+    "baseline_start_game": [286.2588, 0.0, -577.4229],
+    "baseline_end_game": [281.0838, 0.0, -572.0269],
+    "player_side_game": [319.01, 1.72, -535.20],
+    "triangles": [
+      [[286.2588,20.254,-577.4229],[286.2588,0.0,-577.4229],[281.0838,0.0,-572.0269]],
+      [[286.2588,20.254,-577.4229],[281.0838,0.0,-572.0269],[281.0838,17.984,-572.0269]],
+      [[281.0838,17.984,-572.0269],[283.4968,23.444,-574.5439],[284.1348,22.004,-575.2079]],
+      [[281.0838,17.984,-572.0269],[284.1348,22.004,-575.2079],[286.2588,20.254,-577.4229]]
+    ]
+  },
+  "provisional_visualization": {
+    "status": "source_bounded_facade_articulation_not_architectural_survey",
+    "register_bottom_y_m": 0.55,
+    "register_top_y_m": 17.55,
+    "opening_width_ratio_of_bay": 0.56,
+    "opening_height_ratio_of_register": 0.58,
+    "surface_forward_offset_m": 0.045,
+    "opening_forward_offset_m": 0.075,
+    "support_forward_offset_m": 0.095,
+    "flat_support_width_m": 0.12,
+    "round_support_radius_m": 0.09,
+    "material_family": "brussels_source_verified_white_stone",
+    "ornament_authored": false,
+    "exact_opening_dimensions_source_backed": false,
+    "exact_support_dimensions_source_backed": false
+  },
+  "runtime_approved": false,
+  "realism_complete": false,
+  "required_visual_gate": "deterministic 1280x720 real Grand-Place player-spawn A/B with dynamic world and UI masked; reject if facade floats, clips, reads as generic grid, or weakens the official gable silhouette"
+}

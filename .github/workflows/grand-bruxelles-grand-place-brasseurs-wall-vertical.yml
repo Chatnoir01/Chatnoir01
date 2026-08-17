@@ -1,0 +1,43 @@
+name: Grand Bruxelles Grand-Place Brasseurs Wall Vertical
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-brasseurs-wall-vertical.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_brasseurs_photo_plan.json"
+      - "grand-bruxelles-game/data/qa/grand_place_brasseurs_wall_vertical.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-wall-vertical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate persisted official wall evidence
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          wall=json.loads(Path('grand-bruxelles-game/data/qa/grand_place_brasseurs_wall_vertical.json').read_text())
+          plan=json.loads(Path('grand-bruxelles-game/data/qa/grand_place_brasseurs_photo_plan.json').read_text())
+          assert wall['schema']=='grand-bruxelles-brasseurs-wall-vertical-v1'
+          assert wall['building_id']=='1639974' and wall['front_wall_id']=='10945501'
+          assert wall['face_type']=='WALLSURFACE' and wall['triangle_count']==3
+          assert wall['source']=='UrbIS - 3D Constructions' and wall['license']=='CC0-1.0'
+          assert wall['package_sha256']=='cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2'
+          assert wall['extracted_building_sha256']=='7d5927902e43d74b62120436a4f928c56f33185c40428ff4c18aa15fa51b56e1'
+          assert wall['vertical_world_scale_source']=='official_lod2_wall'
+          assert wall['photo_used_for_vertical_scale'] is False and wall['runtime_approved'] is False
+          assert abs(float(wall['world_y_min_m']))<0.001
+          assert abs(float(wall['world_y_max_m'])-24.746)<0.001
+          assert abs(float(wall['wall_horizontal_span_m'])-float(plan['placement']['front_wall_span_m']))<0.001
+          expected=[[317.9358,0.0,-487.4869],[317.9358,19.166,-487.4869],[321.6678,24.746,-485.7699],[325.8848,0.0,-483.8319],[325.8848,18.966,-483.8319]]
+          assert wall['unique_world_vertices']==expected
+          assert wall['source_evidence_artifact_id']==9293108863
+          assert wall['source_evidence_artifact_digest']=='sha256:84049fc81c51501f7495b4a4e1a7145ade6cd58c2401bf494780add946a8471a'
+          print('BRASSEURS_WALL_VERTICAL_EVIDENCE_OK: wall=10945501 triangles=3 y=0..24.746 span=8.749036 artifact=9293108863')
+          PY

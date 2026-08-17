@@ -98,7 +98,7 @@ func _run() -> void:
     for _frame: int in range(12):
         await process_frame
 
-    var runtime := root.get_node_or_null("BrusselsSharedRailSurfaceRuntime") as BrusselsSharedRailSurfaceRuntime
+    var runtime = root.get_node_or_null("BrusselsSharedRailSurfaceRuntime")
     if runtime == null or not runtime.ready_applied():
         _fail("shared rail runtime did not reach ready state")
         return

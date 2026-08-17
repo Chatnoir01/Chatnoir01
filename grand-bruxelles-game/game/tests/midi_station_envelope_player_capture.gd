@@ -2,12 +2,12 @@ extends SceneTree
 
 const WIDTH := 1280
 const HEIGHT := 720
-const WARMUP_FRAMES := 140
+const WARMUP_FRAMES := 70
 const MIDI := Vector3(-668.5, 0.0, 627.84)
-const ROAD_SIDE := Vector3(0.779, 0.0, 0.627)
-const FONSNY_AXIS := Vector3(-0.627, 0.0, 0.779)
-const CAMERA_POSITION := MIDI + ROAD_SIDE * 29.0 - FONSNY_AXIS * 10.0 + Vector3(0.0, 1.72, 0.0)
-const TARGET := MIDI + Vector3(0.0, 6.0, 0.0)
+# Production Player node starts at (-652, 1.05, 621). The witness uses the
+# same ground position at natural eye height and only turns toward the station.
+const CAMERA_POSITION := Vector3(-652.0, 1.72, 621.0)
+const TARGET := MIDI + Vector3(0.0, 5.5, 0.0)
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -60,7 +60,7 @@ func _run() -> void:
         gameplay_camera.current = false
     var camera := Camera3D.new()
     camera.name = "MidiStationFrozenPlayerWitness"
-    camera.fov = 68.0
+    camera.fov = 69.0
     camera.position = CAMERA_POSITION
     scene.add_child(camera)
     camera.look_at(TARGET, Vector3.UP)
@@ -80,5 +80,5 @@ func _run() -> void:
     if image.save_png(absolute) != OK:
         _fail("save failed")
         return
-    print("MIDI_STATION_ENVELOPE_CAPTURE_OK path=%s camera=%s target=%s ui_masked=true dynamics_frozen=true" % [absolute, str(CAMERA_POSITION), str(TARGET)])
+    print("MIDI_STATION_ENVELOPE_CAPTURE_OK path=%s camera=%s target=%s production_spawn_ground=true ui_masked=true dynamics_frozen=true" % [absolute, str(CAMERA_POSITION), str(TARGET)])
     quit(0)

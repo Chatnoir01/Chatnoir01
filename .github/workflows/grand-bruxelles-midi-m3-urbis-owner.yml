@@ -46,10 +46,11 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|MIDI_M3_URBIS_OWNER_VISUAL_FAIL" /tmp/midi-m3-visual.log; then exit 1; fi
           grep -q "MIDI_M3_URBIS_OWNER_VISUAL_OK" /tmp/midi-m3-visual.log
       - name: Upload M3 player evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: midi-m3-urbis-station-owner-ab
           path: |
             grand-bruxelles-game/artifacts/visual/midi_m3_station_before.png
             grand-bruxelles-game/artifacts/visual/midi_m3_station_after.png
-          if-no-files-found: error
+          if-no-files-found: warn

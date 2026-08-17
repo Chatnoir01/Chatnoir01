@@ -66,9 +66,45 @@ jobs:
               print('::warning::Playable Web build exceeds 90 MiB; mobile first-load optimization remains required.')
           PY
 
-  deploy_pages:
+  pages_state:
     if: github.event_name != 'pull_request'
     needs: verify_local
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - name: Detect one-time GitHub Pages enablement
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
+          code="$(curl --silent --show-error --location \
+            --output "$response" --write-out '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pages")"
+          if [ "$code" = "200" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "PAGES_SITE_READY"
+          elif [ "$code" = "404" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::PAGES_ENABLEMENT_REQUIRED: repository Settings → Pages → Build and deployment → Source = GitHub Actions. This is a one-time administrator action; the game build itself is present."
+            echo "PAGES_ENABLEMENT_REQUIRED"
+          else
+            cat "$response"
+            echo "::error::Unexpected GitHub Pages API status: $code"
+            exit 1
+          fi
+
+  deploy_pages:
+    if: github.event_name != 'pull_request' && needs.pages_state.outputs.enabled == 'true'
+    needs: [verify_local, pages_state]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -85,10 +121,8 @@ jobs:
         with:
           ref: main
 
-      - name: Configure or enable GitHub Pages
+      - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
-        with:
-          enablement: true
 
       - name: Upload playable build
         uses: actions/upload-pages-artifact@v4
@@ -100,8 +134,8 @@ jobs:
         uses: actions/deploy-pages@v4
 
   verify_public:
-    if: github.event_name != 'pull_request'
-    needs: deploy_pages
+    if: github.event_name != 'pull_request' && needs.pages_state.outputs.enabled == 'true'
+    needs: [pages_state, deploy_pages]
     runs-on: ubuntu-latest
     steps:
       - name: Verify stable Pages URL and Godot assets
@@ -126,3 +160,25 @@ jobs:
               "$base/$asset" --output /dev/null
           done
           echo "PLAYABLE_PAGES_OK url=$base/"
+
+  access_status:
+    if: always() && github.event_name != 'pull_request'
+    needs: [verify_local, pages_state, deploy_pages, verify_public]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish access state
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.verify_local.result }}" != "success" ]; then
+            echo "::error::PLAYABLE_ACCESS_BUILD_INVALID"
+            exit 1
+          fi
+          if [ "${{ needs.pages_state.outputs.enabled }}" != "true" ]; then
+            echo "PAGES_ENABLEMENT_REQUIRED: Settings → Pages → Build and deployment → Source = GitHub Actions"
+            exit 0
+          fi
+          if [ "${{ needs.deploy_pages.result }}" != "success" ] || [ "${{ needs.verify_public.result }}" != "success" ]; then
+            echo "::error::PLAYABLE_PAGES_DEPLOYMENT_FAILED"
+            exit 1
+          fi
+          echo "PLAYABLE_ACCESS_READY"

@@ -1,0 +1,26 @@
+name: Grand Bruxelles Player Report Repo Contract
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/player_reports/**'
+      - 'grand-bruxelles-game/game/scripts/player_issue_report_runtime.gd'
+      - 'grand-bruxelles-game/tools/continuity/continuity.py'
+      - 'grand-bruxelles-game/tests/test_player_report_repo_contract.py'
+      - '.github/workflows/grand-bruxelles-player-report-repo-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'grand-bruxelles-game/data/qa/player_reports/**'
+      - 'grand-bruxelles-game/game/scripts/player_issue_report_runtime.gd'
+      - 'grand-bruxelles-game/tools/continuity/continuity.py'
+      - 'grand-bruxelles-game/tests/test_player_report_repo_contract.py'
+      - '.github/workflows/grand-bruxelles-player-report-repo-contract.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate durable player report contract and fixture ingestion
+        run: python3 grand-bruxelles-game/tests/test_player_report_repo_contract.py

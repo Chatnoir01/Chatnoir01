@@ -10,6 +10,31 @@ func _fail(message: String) -> void:
     quit(1)
 
 func _run() -> void:
+    if BADGE.runtime_visual_ready(null):
+        _fail("missing current scene must not be treated as a ready procedural player")
+        return
+
+    var fake_scene := Node3D.new()
+    fake_scene.name = "Main"
+    var fake_player := CharacterBody3D.new()
+    fake_player.name = "Player"
+    fake_scene.add_child(fake_player)
+    var fake_visual := Node3D.new()
+    fake_visual.name = "VisualUpgrade"
+    fake_player.add_child(fake_visual)
+
+    if BADGE.runtime_visual_ready(fake_scene):
+        _fail("visual outside the SceneTree must not be considered runtime-ready")
+        return
+
+    root.add_child(fake_scene)
+    await process_frame
+    if not BADGE.runtime_visual_ready(fake_scene):
+        _fail("ready Player/VisualUpgrade must unlock identity publication")
+        fake_scene.queue_free()
+        return
+    fake_scene.queue_free()
+
     var kaykit := {
         "regime": "PLAYER_FALLBACK",
         "resolved_path": "res://assets/characters/player_character.glb",
@@ -42,5 +67,5 @@ func _run() -> void:
         _fail("production identity must not show a fallback badge")
         return
 
-    print("PLAYER_IDENTITY_BADGE_OK: fallback is explicit; production is silent")
+    print("PLAYER_IDENTITY_BADGE_OK: waits for runtime visual; fallback explicit; production silent")
     quit(0)

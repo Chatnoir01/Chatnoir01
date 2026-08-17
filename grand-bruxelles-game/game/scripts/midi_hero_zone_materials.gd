@@ -11,6 +11,7 @@ const GLASS_BLOCK_TEXTURE_METRES := 1.60
 const CORRIDOR_FACADE_DEPTH_RUNTIME := preload("res://game/scripts/corridor_facade_depth_runtime.gd")
 
 func _ready() -> void:
+    set_meta("midi_urbis_envelope_owner", true)
     _make_materials()
     # Inherited ready builds a second hand-authored station complex on top of
     # UrbISMidiExact, so production intentionally keeps only street-level detail.

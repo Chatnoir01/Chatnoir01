@@ -1,0 +1,25 @@
+name: Grand Bruxelles City Machine
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_machine/**"
+      - "grand-bruxelles-game/tools/validate_jette_phase2_data.py"
+      - "grand-bruxelles-game/tools/lambert72_to_game_geojson.py"
+      - "grand-bruxelles-game/data/qa/playable_zone_catalog.json"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/**"
+      - "grand-bruxelles-game/game/zones/laeken_jette/jette_phase2_zone.gd"
+      - ".github/workflows/grand-bruxelles-city-machine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate fixed machine registry
+        run: python3 grand-bruxelles-game/tools/city_machine/test_registry.py

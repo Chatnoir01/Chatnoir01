@@ -31,7 +31,7 @@ func _read_plan() -> Dictionary:
 
 func _count_valid_arc_meshes(node: Node) -> int:
     var total := 0
-    if node is MeshInstance3D and node.name.begins_with("ArcadeArch_"):
+    if node is MeshInstance3D and str(node.name).begins_with("ArcadeArch_"):
         var instance := node as MeshInstance3D
         if instance.mesh != null and instance.mesh.get_surface_count() > 0:
             total += 1

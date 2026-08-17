@@ -1,5 +1,6 @@
 extends Node
 
+const IDENTITY_RESOLVER := preload("res://game/scripts/player_identity_resolver.gd")
 const BADGE_NODE_NAME := "PlayerFallbackIdentityBadge"
 const KAYKIT_PATH := "res://assets/characters/player_character.glb"
 const MAX_RUNTIME_WAIT_FRAMES := 180
@@ -20,6 +21,17 @@ func _process(_delta: float) -> void:
     if _runtime_wait_frames >= MAX_RUNTIME_WAIT_FRAMES:
         _set_badge_text("PLAYER FALLBACK · VISUAL UNRESOLVED")
         set_process(false)
+
+static func resolve_runtime_scene(tree: SceneTree) -> Node:
+    if tree == null or tree.root == null:
+        return null
+    var current := tree.current_scene
+    if current != null and current.get_node_or_null("Player/VisualUpgrade") != null:
+        return current
+    for child: Node in tree.root.get_children():
+        if child.get_node_or_null("Player/VisualUpgrade") != null:
+            return child
+    return null
 
 static func runtime_visual_ready(scene: Node) -> bool:
     if scene == null:
@@ -42,13 +54,11 @@ func refresh_badge() -> void:
     _try_refresh_badge()
 
 func _try_refresh_badge() -> bool:
-    var scene := get_tree().current_scene
+    var scene := resolve_runtime_scene(get_tree())
     if not runtime_visual_ready(scene):
         return false
-    var resolver := get_node_or_null("/root/PlayerIdentityResolver")
-    if resolver == null:
-        return false
-    var identity: Dictionary = resolver.call("refresh_runtime_identity")
+    var visual: Node = scene.get_node_or_null("Player/VisualUpgrade")
+    var identity: Dictionary = IDENTITY_RESOLVER.classify_runtime_visual(visual)
     var badge_text := badge_text_for_identity(identity)
     if badge_text.is_empty():
         _remove_badge()

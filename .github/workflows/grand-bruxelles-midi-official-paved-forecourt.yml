@@ -1,0 +1,59 @@
+name: Grand Bruxelles Midi Official Paved Forecourt
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/midi_official_paved_forecourt_runtime.gd"
+      - "grand-bruxelles-game/game/tests/midi_official_paved_forecourt_material_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_official_paved_forecourt_witness_test.gd"
+      - "grand-bruxelles-game/project.godot"
+      - ".github/workflows/grand-bruxelles-midi-official-paved-forecourt.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paved-forecourt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Verify official paved presentation contract
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_official_paved_forecourt_material_test.gd 2>&1 | tee /tmp/midi-paved-contract.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_OFFICIAL_PAVED_FORECOURT_FAIL" /tmp/midi-paved-contract.log; then exit 1; fi
+          grep -q "MIDI_OFFICIAL_PAVED_FORECOURT_OK" /tmp/midi-paved-contract.log
+      - name: Render deterministic 1280x720 BEFORE/AFTER
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 90s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_official_paved_forecourt_witness_test.gd 2>&1 | tee /tmp/midi-paved-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_OFFICIAL_PAVED_FORECOURT_WITNESS_FAIL" /tmp/midi-paved-witness.log; then exit 1; fi
+          grep -q "MIDI_OFFICIAL_PAVED_FORECOURT_WITNESS_OK" /tmp/midi-paved-witness.log
+          test -f grand-bruxelles-game/artifacts/visual/midi_official_paved_forecourt_before.png
+          test -f grand-bruxelles-game/artifacts/visual/midi_official_paved_forecourt_after.png
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-official-paved-forecourt-visual-evidence
+          path: |
+            grand-bruxelles-game/artifacts/visual/midi_official_paved_forecourt_before.png
+            grand-bruxelles-game/artifacts/visual/midi_official_paved_forecourt_after.png
+            /tmp/midi-paved-contract.log
+            /tmp/midi-paved-witness.log
+          if-no-files-found: error

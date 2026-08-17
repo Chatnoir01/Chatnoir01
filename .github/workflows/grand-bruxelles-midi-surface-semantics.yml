@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
       - "grand-bruxelles-game/game/tests/midi_surface_semantics_test.gd"
       - "grand-bruxelles-game/game/tests/midi_surface_semantics_ab_compare_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_surface_stability_ab_compare_test.gd"
       - "grand-bruxelles-game/tools/make_urbis_midi_runtime.py"
       - "grand-bruxelles-game/tools/test_make_urbis_midi_runtime.py"
       - ".github/workflows/grand-bruxelles-midi-surface-semantics.yml"
@@ -74,6 +75,33 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           path: head
 
+      - name: Classify collision-only change
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git -C head fetch origin "$BASE_SHA" --depth=1
+          mapfile -t changed < <(git -C head diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          physics_only=true
+          for path in "${changed[@]}"; do
+            case "$path" in
+              grand-bruxelles-game/game/scripts/urbis_midi_builder.gd|\
+              grand-bruxelles-game/game/tests/midi_exact_building_collision_test.gd|\
+              grand-bruxelles-game/game/tests/midi_surface_stability_ab_compare_test.gd|\
+              .github/workflows/grand-bruxelles-midi-solid-world.yml|\
+              .github/workflows/grand-bruxelles-midi-surface-semantics.yml)
+                ;;
+              *)
+                physics_only=false
+                ;;
+            esac
+          done
+          echo "physics_only=$physics_only" >> "$GITHUB_OUTPUT"
+          printf 'MIDI_SURFACE_SCOPE: physics_only=%s files=%s\n' "$physics_only" "${changed[*]}"
+
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
@@ -123,7 +151,22 @@ jobs:
           test -f /tmp/midi-surface-before.png
           test -f /tmp/midi-surface-after.png
 
+      - name: Enforce physics-only pixel stability
+        if: steps.scope.outputs.physics_only == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path head/grand-bruxelles-game \
+            --script res://game/tests/midi_surface_stability_ab_compare_test.gd -- \
+            /tmp/midi-surface-before.png /tmp/midi-surface-after.png 2>&1 | tee /tmp/midi-surface-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_SURFACE_STABILITY_AB_FAIL" /tmp/midi-surface-ab.log; then
+            exit 1
+          fi
+          grep -q "MIDI_SURFACE_STABILITY_AB_OK" /tmp/midi-surface-ab.log
+
       - name: Enforce broad player-visible correction
+        if: steps.scope.outputs.physics_only != 'true'
         shell: bash
         run: |
           set -o pipefail

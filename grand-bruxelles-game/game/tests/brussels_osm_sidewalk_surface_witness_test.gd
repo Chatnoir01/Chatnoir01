@@ -5,6 +5,7 @@ const HEIGHT := 720
 const BEFORE_PATH := "res://artifacts/visual/osm_sidewalk_surface_before.png"
 const AFTER_PATH := "res://artifacts/visual/osm_sidewalk_surface_after.png"
 const MIDI := Vector2(-668.5, 627.84)
+const MIN_RADIUS_M := 250.0
 const SEARCH_RADIUS_M := 300.0
 const MIN_CHANGED_3 := 0.06
 const MIN_CHANGED_8 := 0.03
@@ -76,8 +77,11 @@ func _select_midi_sidewalk(roads_root: Node3D) -> CSGBox3D:
         var sidewalk := child as CSGBox3D
         if not _is_sidewalk(sidewalk):
             continue
+        if not sidewalk.visible or not sidewalk.is_visible_in_tree():
+            continue
         var midpoint := Vector2(sidewalk.global_position.x, sidewalk.global_position.z)
-        if midpoint.distance_to(MIDI) > SEARCH_RADIUS_M:
+        var distance := midpoint.distance_to(MIDI)
+        if distance < MIN_RADIUS_M or distance > SEARCH_RADIUS_M:
             continue
         if sidewalk.size.z < 14.0:
             continue
@@ -113,6 +117,8 @@ func _run() -> void:
     if not bool(runtime.call("ready_complete")) or bool(runtime.call("failed")):
         _fail("production sidewalk-surface runtime did not bind cleanly")
         return
+    for _frame: int in range(12):
+        await process_frame
 
     var roads_root := scene.get_node_or_null("BrusselsOSM/GeneratedRoads") as Node3D
     if roads_root == null:
@@ -120,7 +126,7 @@ func _run() -> void:
         return
     var sidewalk := _select_midi_sidewalk(roads_root)
     if sidewalk == null:
-        _fail("no legitimate long generated sidewalk found near Midi")
+        _fail("no visible long generated sidewalk found in outer Midi detail ring")
         return
 
     var original_transform := sidewalk.global_transform
@@ -156,7 +162,7 @@ func _run() -> void:
 
     var changed_3 := _changed_fraction(before, after, 3)
     var changed_8 := _changed_fraction(before, after, 8)
-    print("BRUSSELS_OSM_SIDEWALK_SURFACE_VISUAL_METRICS: sidewalk=%s length=%.2f width=%.2f changed_gt3=%.6f changed_gt8=%.6f" % [sidewalk.name, sidewalk.size.z, sidewalk.size.x, changed_3, changed_8])
+    print("BRUSSELS_OSM_SIDEWALK_SURFACE_VISUAL_METRICS: sidewalk=%s length=%.2f width=%.2f midi_distance=%.2f changed_gt3=%.6f changed_gt8=%.6f" % [sidewalk.name, sidewalk.size.z, sidewalk.size.x, Vector2(sidewalk.global_position.x, sidewalk.global_position.z).distance_to(MIDI), changed_3, changed_8])
     if changed_3 < MIN_CHANGED_3 or changed_8 < MIN_CHANGED_8:
         _fail("full-frame sidewalk change too weak: gt3=%.4f%% gt8=%.4f%%" % [changed_3 * 100.0, changed_8 * 100.0])
         return

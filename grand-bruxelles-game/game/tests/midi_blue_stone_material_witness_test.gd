@@ -9,6 +9,7 @@ const WIDTH := 1280
 const HEIGHT := 720
 const MIN_CHANGED_OVER_3 := 0.010
 const MIN_CHANGED_OVER_8 := 0.0035
+const EXPECTED_SURFACES := 3
 
 const ENTRANCE := Vector3(-672.2905, 0.0, 615.8035)
 const ROAD_SIDE := Vector3(0.779, 0.0, 0.627)
@@ -60,8 +61,11 @@ func _run() -> void:
     if not runtime.ready_complete() or runtime.identity_failure():
         _fail("runtime identity/application failed")
         return
-    if runtime.applied_surface_count() != 4:
-        _fail("expected exactly four pre-existing blue-stone base surfaces")
+    if runtime.applied_surface_count() != EXPECTED_SURFACES:
+        _fail("expected exactly %d surviving blue-stone base surfaces, got %d" % [EXPECTED_SURFACES, runtime.applied_surface_count()])
+        return
+    if world.find_child("StationBaseBlueStone", true, false) != null:
+        _fail("superseded StationBaseBlueStone envelope surface must stay absent")
         return
     var material := runtime.enhanced_material() as ShaderMaterial
     if material == null:

@@ -14,6 +14,7 @@ FINISH_REGISTRY = HERE / "finish_registry.json"
 BASE_REGISTRY = HERE / "registry.json"
 GEOMETRY_STAGE = HERE / "finish_geometry_stage.py"
 ENVIRONMENT_STAGE = HERE / "finish_environment_stage.py"
+MATERIAL_STAGE = HERE / "finish_material_stage.py"
 PROOF_STAGE = HERE / "finish_proof_stage.py"
 EXPECTED_FAMILIES = ["geometry", "osm_environment", "finish_materials", "life", "proof"]
 VALID_STATUS = {"wired", "disabled", "missing", "blocked"}
@@ -85,12 +86,18 @@ def run(zone_id: str, dry_run: bool) -> int:
     if rc:
         return rc
 
-    for family in ("finish_materials", "life"):
-        row = rows[family]
-        status = str(row["status"])
-        if status == "wired":
-            raise FinishPipelineError(f"{family} is marked wired but has no production stage")
-        print(f"CITY_MACHINE_FAMILY SKIP {family} status={status} reason={row['reason']}", flush=True)
+    material_row = rows["finish_materials"]
+    if str(material_row["status"]) == "wired":
+        rc = run_stage(MATERIAL_STAGE, zone_id, dry_run)
+        if rc:
+            return rc
+    else:
+        print(f"CITY_MACHINE_FAMILY SKIP finish_materials status={material_row['status']} reason={material_row['reason']}", flush=True)
+
+    life_row = rows["life"]
+    if str(life_row["status"]) == "wired":
+        raise FinishPipelineError("life is marked wired but has no production stage")
+    print(f"CITY_MACHINE_FAMILY SKIP life status={life_row['status']} reason={life_row['reason']}", flush=True)
 
     log_disabled_base_layers(zone_id)
 

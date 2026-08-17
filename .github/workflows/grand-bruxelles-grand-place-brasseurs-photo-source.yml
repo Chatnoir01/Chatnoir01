@@ -1,0 +1,139 @@
+name: Grand Bruxelles Grand-Place Brasseurs Photo Source
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-brasseurs-photo-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  photo-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve licensed Commons facade photo and official placement
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/brasseurs-photo
+          python3 - <<'PY'
+          import hashlib, json, re, time, unicodedata, urllib.parse, urllib.request
+          from pathlib import Path
+
+          def get_json(url, attempts=3, timeout=90):
+              last=None
+              for attempt in range(1, attempts+1):
+                  try:
+                      req=urllib.request.Request(url,headers={'User-Agent':'Grand-Bruxelles-Game/1.0','Accept':'application/json'})
+                      with urllib.request.urlopen(req,timeout=timeout) as r:
+                          return json.loads(r.read().decode('utf-8'))
+                  except Exception as exc:
+                      last=exc
+                      print(f'NETWORK_RETRY {attempt}/{attempts} {url} {exc!r}')
+                      if attempt < attempts: time.sleep(4*attempt)
+              raise last
+
+          title='File:Grand-Place 10, Bruxelles.01.jpg'
+          api='https://commons.wikimedia.org/w/api.php?'+urllib.parse.urlencode({
+              'action':'query','format':'json','formatversion':'2','titles':title,
+              'prop':'imageinfo','iiprop':'url|sha1|size|mime|timestamp|extmetadata'
+          })
+          meta=get_json(api)
+          pages=meta.get('query',{}).get('pages',[])
+          if len(pages)!=1 or 'imageinfo' not in pages[0] or len(pages[0]['imageinfo'])!=1:
+              raise SystemExit(f'expected one Commons imageinfo record, got {pages!r}')
+          ii=pages[0]['imageinfo'][0]; ext=ii.get('extmetadata') or {}
+          def value(name): return str((ext.get(name) or {}).get('value') or '')
+          license_short=value('LicenseShortName')
+          artist=re.sub('<[^>]+>','',value('Artist')).strip()
+          credit=re.sub('<[^>]+>','',value('Credit')).strip()
+          if license_short not in {'CC BY-SA 4.0','CC-BY-SA-4.0'}:
+              raise SystemExit(f'photo license must be CC BY-SA 4.0, got {license_short!r}')
+          if int(ii.get('width',0)) != 2737 or int(ii.get('height',0)) != 5600:
+              raise SystemExit(f'photo dimensions drifted: {ii.get("width")}x{ii.get("height")}')
+          if ii.get('mime') != 'image/jpeg':
+              raise SystemExit(f'photo mime drifted: {ii.get("mime")}')
+          if 'Nenea' not in artist and 'hartia' not in artist.lower():
+              raise SystemExit(f'photo artist drifted: {artist!r}')
+          image_url=str(ii['url'])
+          req=urllib.request.Request(image_url,headers={'User-Agent':'Grand-Bruxelles-Game/1.0'})
+          with urllib.request.urlopen(req,timeout=120) as r:
+              photo=r.read()
+          sha256=hashlib.sha256(photo).hexdigest()
+          Path('/tmp/brasseurs-photo/reference.jpg').write_bytes(photo)
+          commons={
+              'schema':'grand-bruxelles-brasseurs-photo-source-v1',
+              'commons_title':title,
+              'commons_page':'https://commons.wikimedia.org/wiki/File:Grand-Place_10,_Bruxelles.01.jpg',
+              'original_url':image_url,
+              'width_px':ii['width'],'height_px':ii['height'],'mime':ii['mime'],
+              'commons_sha1':ii.get('sha1'),'download_sha256':sha256,
+              'timestamp':ii.get('timestamp'),'artist':artist,'credit':credit,
+              'license':'CC BY-SA 4.0',
+              'intended_use':'reference_only_for_photo_constrained_facade_reconstruction',
+              'runtime_asset_approved':False,
+              'derivative_share_alike_required_if_shipped':True
+          }
+          Path('/tmp/brasseurs-photo/commons.json').write_text(json.dumps(commons,ensure_ascii=False,indent=2)+'\n')
+          print('BRASSEURS_COMMONS_OK',json.dumps(commons,ensure_ascii=False))
+
+          city_url='https://opendata.brussels.be/api/explore/v2.1/catalog/datasets/description-des-batiments-de-la-grand-place/records?limit=100'
+          city=get_json(city_url)
+          def norm(v):
+              t=unicodedata.normalize('NFKD',str(v or ''))
+              t=''.join(ch for ch in t if not unicodedata.combining(ch)).lower()
+              return re.sub(r'[^a-z0-9]+',' ',t).strip()
+          rows=[]
+          for row in city.get('results',[]):
+              if 'brasseurs' in norm(row.get('nom')) and 'grand place' in norm(row.get('adresse')) and re.search(r'(^| )10($| )',norm(row.get('adresse'))):
+                  rows.append(row)
+          if len(rows)!=1: raise SystemExit(f'expected one City Brasseurs record, got {len(rows)}')
+          rec=rows[0]; gp=rec.get('geo_point') or {}
+          lon=float(gp['lon']); lat=float(gp['lat']); pad=0.00035
+          params={'service':'WFS','version':'2.0.0','request':'GetFeature','typeNames':'urbisvector:Buildings','outputFormat':'application/json','srsName':'EPSG:4326','bbox':f'{lon-pad},{lat-pad},{lon+pad},{lat+pad},EPSG:4326'}
+          fc=get_json('https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs?'+urllib.parse.urlencode(params))
+          def point_in_ring(x,y,ring):
+              pts=[p for p in ring if isinstance(p,list) and len(p)>=2]
+              inside=False; j=len(pts)-1
+              for i in range(len(pts)):
+                  xi,yi=float(pts[i][0]),float(pts[i][1]); xj,yj=float(pts[j][0]),float(pts[j][1])
+                  if ((yi>y)!=(yj>y)) and x < (xj-xi)*(y-yi)/((yj-yi) or 1e-30)+xi: inside=not inside
+                  j=i
+              return inside
+          def contains(g,x,y):
+              c=(g or {}).get('coordinates',[]); typ=(g or {}).get('type')
+              polys=[c] if typ=='Polygon' else c if typ=='MultiPolygon' else []
+              return any(poly and point_in_ring(x,y,poly[0]) and not any(point_in_ring(x,y,h) for h in poly[1:]) for poly in polys)
+          def bid(f):
+              p=f.get('properties') or {}
+              for v in (p.get('INSPIRE_ID'),p.get('ID'),f.get('id')):
+                  tail=str(v or '').rstrip('/').split('/')[-1].split('.')[-1]
+                  if tail.isdigit(): return tail
+              return ''
+          hits=sorted(set(bid(f) for f in fc.get('features',[]) if contains(f.get('geometry'),lon,lat) and bid(f)),key=int)
+          if hits != ['1639974']:
+              raise SystemExit(f'Brasseurs City point must resolve exactly to UrbIS 1639974, got {hits}')
+          placement={
+              'schema':'grand-bruxelles-brasseurs-photo-placement-v1',
+              'city_id':rec.get('id'),'city_name':rec.get('nom'),'city_address':rec.get('adresse'),
+              'geo_point':gp,'building_id':'1639974',
+              'official_front_wall_id':'10945501',
+              'official_front_wall_span_m':8.7490357183,
+              'world_placement_owner':'UrbIS',
+              'photo_role':'facade_feature_and_proportion_reference_only',
+              'geometry_claimed_surveyed_from_photo':False,
+              'runtime_approved':False
+          }
+          Path('/tmp/brasseurs-photo/placement.json').write_text(json.dumps(placement,ensure_ascii=False,indent=2)+'\n')
+          print('BRASSEURS_PHOTO_PLACEMENT_OK',json.dumps(placement,ensure_ascii=False))
+          PY
+      - name: Upload source audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-brasseurs-photo-source
+          path: /tmp/brasseurs-photo
+          if-no-files-found: error

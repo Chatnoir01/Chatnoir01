@@ -24,21 +24,45 @@ jobs:
           set -euo pipefail
           python3 grand-bruxelles-game/tools/continuity/continuity.py validate | tee /tmp/continuity-validate.log
           grep -F "CONTINUITY_REGISTRY_OK zones=7 catalog=grand-bruxelles-playable-zone-catalog-v2 midi_baseline=M6 automation_ceiling=M5" /tmp/continuity-validate.log
-      - name: Prove deterministic next lots
+      - name: Prove deterministic next lots before report sync
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone anneessens | tee /tmp/anneessens-next.log
           grep -F '"next_lot": "report_ingest_then_ready_proof"' /tmp/anneessens-next.log
+          grep -F '"report_sync_required_before_M5": true' /tmp/anneessens-next.log
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone jette | tee /tmp/jette-next.log
           grep -F '"next_lot": "midi_material_kit"' /tmp/jette-next.log
           python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone midi | tee /tmp/midi-next.log
           grep -F '"decision": "protect_human_jouable_baseline"' /tmp/midi-next.log
-      - name: Prove oldest SIGNALER report wins
+      - name: Prove explicit empty Anneessens export becomes durable zero-open proof
         run: |
           set -euo pipefail
-          mkdir -p /tmp/reports
-          printf '%s\n' '{"schema":"grand-bruxelles-player-report-v1","id":"new","status":"open","zone":{"id":"jette"},"captured_unix":200,"note":"newer"}' > /tmp/reports/new.gbreport.json
-          printf '%s\n' '{"schema":"grand-bruxelles-player-report-v1","id":"old","status":"open","zone":{"id":"jette"},"captured_unix":100,"note":"oldest"}' > /tmp/reports/old.gbreport.json
-          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone jette --reports-dir /tmp/reports | tee /tmp/report-next.log
+          mkdir -p /tmp/anneessens-empty
+          python3 grand-bruxelles-game/tools/continuity/continuity.py sync --zone anneessens --reports-dir /tmp/anneessens-empty --out /tmp/anneessens-sync.json | tee /tmp/anneessens-sync.log
+          grep -F 'CONTINUITY_REPORT_SYNC_OK zone=anneessens open=0 zero_open_is_proven=true' /tmp/anneessens-sync.log
+          grep -F '"zero_open_is_proven": true' /tmp/anneessens-sync.json
+          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone anneessens --report-sync /tmp/anneessens-sync.json | tee /tmp/anneessens-after-sync.log
+          grep -F '"report_sync_complete": true' /tmp/anneessens-after-sync.log
+          grep -F '"report_sync_required_before_M5": false' /tmp/anneessens-after-sync.log
+      - name: Prove oldest synced Anneessens report wins
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/anneessens-open
+          printf '%s\n' '{"schema":"grand-bruxelles-player-report-v1","id":"new","status":"open","zone":{"id":"anneessens"},"captured_unix":200,"note":"newer"}' > /tmp/anneessens-open/new.gbreport.json
+          printf '%s\n' '{"schema":"grand-bruxelles-player-report-v1","id":"old","status":"open","zone":{"id":"anneessens"},"captured_unix":100,"note":"oldest"}' > /tmp/anneessens-open/old.gbreport.json
+          python3 grand-bruxelles-game/tools/continuity/continuity.py sync --zone anneessens --reports-dir /tmp/anneessens-open --out /tmp/anneessens-open-sync.json
+          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone anneessens --report-sync /tmp/anneessens-open-sync.json | tee /tmp/report-next.log
           grep -F '"decision": "fix_oldest_open_report"' /tmp/report-next.log
           grep -F '"report_id": "old"' /tmp/report-next.log
+      - name: Reject malformed or foreign-zone exports
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/bad-schema /tmp/foreign-zone
+          printf '%s\n' '{"schema":"wrong","id":"bad","status":"open","zone":{"id":"anneessens"},"captured_unix":1}' > /tmp/bad-schema/bad.gbreport.json
+          if python3 grand-bruxelles-game/tools/continuity/continuity.py sync --zone anneessens --reports-dir /tmp/bad-schema --out /tmp/bad.json; then
+            echo "malformed schema was incorrectly accepted" >&2; exit 1
+          fi
+          printf '%s\n' '{"schema":"grand-bruxelles-player-report-v1","id":"jette-report","status":"open","zone":{"id":"jette"},"captured_unix":1}' > /tmp/foreign-zone/jette.gbreport.json
+          if python3 grand-bruxelles-game/tools/continuity/continuity.py sync --zone anneessens --reports-dir /tmp/foreign-zone --out /tmp/foreign.json; then
+            echo "foreign-zone export was incorrectly accepted" >&2; exit 1
+          fi

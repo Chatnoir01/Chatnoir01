@@ -1,0 +1,40 @@
+name: Grand Bruxelles Grand-Place Clean Player Witness
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-clean-witness.yml"
+      - "grand-bruxelles-game/game/tests/grand_place_clean_player_witness_test.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clean-player-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-clean-witness-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-clean-witness-import.log; then exit 1; fi
+      - name: Render and assert clean player-eye frame
+        run: xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/grand_place_clean_player_witness_test.gd
+      - name: Upload clean player-eye evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-clean-player-witness
+          path: /tmp/grand-place-clean-player-witness.png
+          if-no-files-found: warn

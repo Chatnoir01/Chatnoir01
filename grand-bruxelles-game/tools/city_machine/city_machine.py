@@ -2,7 +2,6 @@
 """Fail-closed Grand Bruxelles zone rebuild orchestrator."""
 from __future__ import annotations
 import argparse, hashlib, json, subprocess, sys
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -10,9 +9,6 @@ HERE=Path(__file__).resolve().parent
 PROJECT=HERE.parents[1]
 REGISTRY=HERE/"registry.json"
 CATALOG=PROJECT/"data/qa/playable_zone_catalog.json"
-OSM_SOURCE="OpenStreetMap contributors via Overpass API"
-OSM_LICENSE="ODbL-1.0"
-OSM_KINDS={"tree","street_lamp","bollard"}
 
 class MachineError(RuntimeError): pass
 class GateError(MachineError):
@@ -31,10 +27,6 @@ def p(raw:str)->Path:
 
 def sha(path:Path)->str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
-
-def canonical_digest(value:dict[str,Any])->str:
-    raw=json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()
-    return hashlib.sha256(raw).hexdigest()
 
 def load_registry()->dict[str,Any]:
     r=read_json(REGISTRY)
@@ -71,15 +63,6 @@ def materialize(layer:dict[str,Any],profile:dict[str,Any],m:dict[str,Any])->None
     run([sys.executable,str(p(layer["script"])),str(root/f"{slug}.geojson"),str(root/f"{slug}.game.json"),
          "--origin-e",str(origin["e"]),"--origin-n",str(origin["n"]),"--origin-altitude",str(origin["altitude"])],
         f"materialize:{slug}")
-
-def materialize_osm(layer:dict[str,Any],profile:dict[str,Any],zone_id:str)->None:
-    env=profile["osm_environment"]
-    run([sys.executable,str(p(layer["script"])),
-         "--manifest",str(p(profile["source_root"])/"manifest.json"),
-         "--zone",zone_id,
-         "--raw-cache",str(p(env["cache"])),
-         "--output",str(p(env["runtime"]))],
-        "materialize:osm_environment")
 
 def gate_g1(layer:dict[str,Any],profile:dict[str,Any])->dict[str,str]:
     r=subprocess.run([sys.executable,str(p(layer["script"])),str(p(profile["source_root"]))],cwd=PROJECT,text=True,capture_output=True)
@@ -127,46 +110,10 @@ def gate_finish(layer:dict[str,Any])->dict[str,str]:
     print(f"CITY_MACHINE_GATE PASS G4_runtime_finish detail={detail}")
     return {"gate":"G4_runtime_finish","status":"PASS","detail":detail}
 
-def gate_osm_environment(zone_id:str,profile:dict[str,Any],m:dict[str,Any],cache_path:Path|None=None,runtime_path:Path|None=None)->dict[str,str]:
-    env=profile["osm_environment"]
-    cache=read_json(cache_path or p(env["cache"])); runtime=read_json(runtime_path or p(env["runtime"]))
-    if cache.get("format")!="grand-bruxelles-osm-zone-environment-cache-v1": raise GateError("G5_osm_environment","bad cache format")
-    if runtime.get("format")!="grand-bruxelles-osm-zone-environment-v1": raise GateError("G5_osm_environment","bad runtime format")
-    if cache.get("source")!=OSM_SOURCE or runtime.get("source")!=OSM_SOURCE: raise GateError("G5_osm_environment","OSM source mismatch")
-    if cache.get("license")!=OSM_LICENSE or runtime.get("license")!=OSM_LICENSE: raise GateError("G5_osm_environment","OSM ODbL license missing")
-    if runtime.get("zone")!=zone_id or runtime.get("projection_crs")!="EPSG:31370": raise GateError("G5_osm_environment","zone/projection mismatch")
-    if [float(v) for v in runtime.get("bbox_31370",[])]!=[float(v) for v in m["bbox"]]: raise GateError("G5_osm_environment","runtime bbox differs from Jette source bbox")
-    expected_digest=canonical_digest(cache)
-    if runtime.get("source_digest")!=expected_digest: raise GateError("G5_osm_environment","cache/runtime source digest mismatch")
-    points=runtime.get("environment_points")
-    if not isinstance(points,list): raise GateError("G5_osm_environment","environment_points missing")
-    counts:Counter[str]=Counter()
-    xmin,zmin,xmax,zmax=game_bounds(m); tolerance=float(env["bounds_tolerance_m"])
-    for point in points:
-        if not isinstance(point,dict) or point.get("kind") not in OSM_KINDS: raise GateError("G5_osm_environment","unsupported environment point")
-        pos=point.get("position")
-        if not isinstance(pos,list) or len(pos)<2: raise GateError("G5_osm_environment","environment point position missing")
-        x,z=map(float,pos[:2])
-        if not (xmin-tolerance<=x<=xmax+tolerance and zmin-tolerance<=z<=zmax+tolerance):
-            raise GateError("G5_osm_environment",f"point {point.get('osm_id')} outside Jette bounds+tolerance")
-        counts[str(point["kind"])]+=1
-    stats=runtime.get("stats") or {}
-    if int(stats.get("total",-1))!=len(points): raise GateError("G5_osm_environment","runtime total/count mismatch")
-    for kind in OSM_KINDS:
-        if int(stats.get(kind,-1))!=counts[kind] or int((cache.get("counts") or {}).get(kind,-1))!=counts[kind]:
-            raise GateError("G5_osm_environment",f"{kind} count mismatch")
-    if counts["tree"]<int(env["minimum_trees"]): raise GateError("G5_osm_environment",f"trees={counts['tree']}")
-    detail=f"trees={counts['tree']} lamps={counts['street_lamp']} bollards={counts['bollard']} total={len(points)} digest={expected_digest[:16]} bounds_tolerance={tolerance:.1f}m"
-    print(f"CITY_MACHINE_GATE PASS G5_osm_environment detail={detail}")
-    return {"gate":"G5_osm_environment","status":"PASS","detail":detail}
-
 def runtime_outputs(profile:dict[str,Any])->list[dict[str,Any]]:
     root=p(profile["source_root"])
-    outputs=[{"path":str((root/f"{s}.game.json").relative_to(PROJECT)),"sha256":sha(root/f"{s}.game.json"),
-              "features":feature_count(root/f"{s}.game.json")} for s in profile["materialized_slugs"]]
-    env_path=p(profile["osm_environment"]["runtime"]); env=read_json(env_path)
-    outputs.append({"path":str(env_path.relative_to(PROJECT)),"sha256":sha(env_path),"environment_points":int((env.get("stats") or {}).get("total",0)),"trees":int((env.get("stats") or {}).get("tree",0))})
-    return outputs
+    return [{"path":str((root/f"{s}.game.json").relative_to(PROJECT)),"sha256":sha(root/f"{s}.game.json"),
+             "features":feature_count(root/f"{s}.game.json")} for s in profile["materialized_slugs"]]
 
 def receipt(zone:dict[str,Any],registry:dict[str,Any],profile:dict[str,Any],m:dict[str,Any],gates:list[dict[str,str]],layers:list[str],out:Path)->Path:
     outputs=runtime_outputs(profile)
@@ -187,13 +134,10 @@ def build(zone_id:str,dry:bool=False,out:Path|None=None)->Path|None:
         if kind=="resolve_zone": pass
         elif kind=="materialize_geojson":
             if not dry: materialize(layer,profile,m)
-        elif kind=="materialize_osm_environment":
-            if not dry: materialize_osm(layer,profile,zone_id)
         elif kind=="validate_existing": gates.append(gate_g1(layer,profile))
         elif kind=="gate_spawn_ground": gates.append(gate_spawn(zone,profile,m))
         elif kind=="gate_runtime_content": gates.append(gate_content(profile))
         elif kind=="gate_finish_contract": gates.append(gate_finish(layer))
-        elif kind=="gate_osm_environment": gates.append(gate_osm_environment(zone_id,profile,m))
         else: raise MachineError(f"unsupported layer kind '{kind}'")
         done.append(lid); print(f"CITY_MACHINE_LAYER END {lid}")
     if dry:

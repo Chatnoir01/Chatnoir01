@@ -1,0 +1,146 @@
+name: Grand Bruxelles Web First Load Budget
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-web-first-load-budget.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-first-load-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove Web-only exclusion contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('grand-bruxelles-game/export_presets.cfg').read_text(encoding='utf-8')
+          sections = text.split('[preset.')
+          web = next(s for s in sections if 'name="Web"' in s)
+          pc = next(s for s in sections if 'name="PC Desktop (Linux)"' in s)
+          expected = 'exclude_filter="game/tests/*,data/sources/midi/discovered_urbis_distributions.json"'
+          if expected not in web:
+              raise SystemExit('WEB_FIRST_LOAD_CONTRACT_FAIL expected safe exclusions missing')
+          if 'export_filter="all_resources"' not in web:
+              raise SystemExit('WEB_FIRST_LOAD_CONTRACT_FAIL Web must remain all_resources plus explicit exclusions')
+          if 'exclude_filter=""' not in pc:
+              raise SystemExit('WEB_FIRST_LOAD_CONTRACT_FAIL PC preset must remain unchanged')
+          print('WEB_FIRST_LOAD_CONTRACT_OK web_only=true')
+          PY
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Cache Godot export templates
+        id: templates-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/4.7.1.stable
+          key: godot-4.7.1-stable-export-templates-v1
+
+      - name: Install Godot export templates
+        if: steps.templates-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 5 -o /tmp/templates.tpz \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz
+          mkdir -p /tmp/templates-unpack
+          unzip -q /tmp/templates.tpz -d /tmp/templates-unpack
+          mkdir -p ~/.local/share/godot/export_templates/4.7.1.stable
+          cp -a /tmp/templates-unpack/templates/. ~/.local/share/godot/export_templates/4.7.1.stable/
+
+      - name: Import project
+        run: |
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit
+
+      - name: Export production Web preset
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/web-budget && mkdir -p /tmp/web-budget
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --export-release "Web" /tmp/web-budget/index.html
+          for asset in index.html index.js index.wasm index.pck; do
+            test -s "/tmp/web-budget/$asset"
+          done
+
+      - name: Prove excluded evidence is absent and runtime payload remains
+        run: |
+          set -euo pipefail
+          cat > /tmp/check_pack.gd <<'GD'
+          extends SceneTree
+
+          func _init() -> void:
+              var forbidden := "res://data/sources/midi/discovered_urbis_distributions.json"
+              var required := [
+                  "res://data/qa/playable_zone_catalog.json",
+                  "res://data/urbis/midi/midi_runtime.game.json",
+                  "res://data/urbis/laeken_jette/jette_phase2/buildings.game.json",
+              ]
+              if FileAccess.file_exists(forbidden):
+                  push_error("WEB_PACK_FAIL forbidden discovery evidence is still exported")
+                  quit(2)
+                  return
+              for path in required:
+                  if not FileAccess.file_exists(path):
+                      push_error("WEB_PACK_FAIL required runtime payload missing: %s" % path)
+                      quit(3)
+                      return
+              print("WEB_PACK_CONTENT_OK discovery_excluded=true runtime_payload=true")
+              quit(0)
+          GD
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --main-pack /tmp/web-budget/index.pck \
+            --script /tmp/check_pack.gd
+
+      - name: Boot exported production pack
+        run: |
+          set -euo pipefail
+          timeout 35s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --main-pack /tmp/web-budget/index.pck --quit-after 120 \
+            > /tmp/web-boot.log 2>&1 || status=$?
+          status=${status:-0}
+          cat /tmp/web-boot.log
+          if grep -Eqi 'Failed to load|Cannot open|Parse Error|SCRIPT ERROR|Error loading|does not exist' /tmp/web-boot.log; then
+            echo 'WEB_FIRST_LOAD_BOOT_FAIL resource/runtime error detected'
+            exit 1
+          fi
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            echo "WEB_FIRST_LOAD_BOOT_FAIL exit=$status"
+            exit "$status"
+          fi
+          for marker in VISIBLE_CITY_RUNTIME_READY LIVING_CITY_SHOWCASE_READY GRAND_PLACE_LOD2_1655673_READY BRUSSELS_WORLD_STREAMING_READY; do
+            grep -q "$marker" /tmp/web-boot.log || { echo "WEB_FIRST_LOAD_BOOT_FAIL missing_marker=$marker"; exit 1; }
+          done
+          echo 'WEB_FIRST_LOAD_BOOT_OK'
+
+      - name: Enforce first-load byte budget
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('/tmp/web-budget')
+          pck = (root / 'index.pck').stat().st_size
+          wasm = (root / 'index.wasm').stat().st_size
+          total = sum(p.stat().st_size for p in root.iterdir() if p.is_file())
+          print(f'WEB_FIRST_LOAD_BUDGET pck={pck} wasm={wasm} total={total} total_mib={total/1024/1024:.2f}')
+          if pck > 54_000_000:
+              raise SystemExit(f'WEB_FIRST_LOAD_BUDGET_FAIL pck={pck} > 54000000')
+          if total > 94_500_000:
+              raise SystemExit(f'WEB_FIRST_LOAD_BUDGET_FAIL total={total} > 94500000')
+          PY

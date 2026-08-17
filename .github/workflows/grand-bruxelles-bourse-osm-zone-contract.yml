@@ -1,0 +1,23 @@
+name: Grand Bruxelles Bourse OSM Zone Contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-osm-zone-contract.yml"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/osm/zones/bourse/**"
+      - "grand-bruxelles-game/tools/city_machine/test_bourse_osm_zone_contract.py"
+      - "grand-bruxelles-game/tools/city_machine/extract_osm_environment_anchor_view.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zone-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Bourse standard OSM zone contract
+        run: python3 grand-bruxelles-game/tools/city_machine/test_bourse_osm_zone_contract.py

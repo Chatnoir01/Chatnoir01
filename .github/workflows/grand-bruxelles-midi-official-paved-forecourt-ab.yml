@@ -8,6 +8,7 @@ on:
       - ".github/workflows/grand-bruxelles-midi-official-paved-forecourt-ab.yml"
       - "grand-bruxelles-game/game/scripts/midi_official_paved_forecourt_runtime.gd"
       - "grand-bruxelles-game/game/tests/midi_station_envelope_player_capture.gd"
+      - "grand-bruxelles-game/game/tests/midi_official_paved_forecourt_witness_test.gd"
       - "grand-bruxelles-game/project.godot"
   workflow_dispatch:
 
@@ -63,9 +64,17 @@ jobs:
           px=list(diff.getdata()); n=len(px)
           gt3=sum(max(p)>3 for p in px); gt8=sum(max(p)>8 for p in px)
           r3=gt3/n; r8=gt8/n
-          mask=diff.convert('L').point(lambda v: 255 if v>3 else 0)
-          bbox=mask.getbbox()
-          bw=(bbox[2]-bbox[0]) if bbox else 0; bh=(bbox[3]-bbox[1]) if bbox else 0
+          coords=[]
+          for y in range(720):
+              for x in range(1280):
+                  if max(diff.getpixel((x,y))) > 3:
+                      coords.append((x,y))
+          if coords:
+              xs=[p[0] for p in coords]; ys=[p[1] for p in coords]
+              bbox=(min(xs),min(ys),max(xs)+1,max(ys)+1)
+              bw=bbox[2]-bbox[0]; bh=bbox[3]-bbox[1]
+          else:
+              bbox=None; bw=bh=0
           print(f'changed_gt3={gt3} ratio_gt3={r3:.6f}')
           print(f'changed_gt8={gt8} ratio_gt8={r8:.6f}')
           print(f'bbox={bbox} bbox_width={bw} bbox_height={bh}')
@@ -75,6 +84,13 @@ jobs:
           assert bw >= 700 and bh >= 160, 'changed region too localized for Midi arrival giveaway'
           print('MIDI_OFFICIAL_PAVED_FORECOURT_AB_OK human_full_frame_3_second_verdict=REQUIRED')
           PY
+      - name: Verify same-scene material-only witness uses identical locked gates
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_official_paved_forecourt_witness_test.gd 2>&1 | tee /tmp/same-scene.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_OFFICIAL_PAVED_FORECOURT_WITNESS_FAIL" /tmp/same-scene.log; then exit 1; fi
+          grep -q "MIDI_OFFICIAL_PAVED_FORECOURT_WITNESS_OK" /tmp/same-scene.log
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,4 +102,7 @@ jobs:
             /tmp/before.log
             /tmp/after.log
             /tmp/metrics.log
+            /tmp/same-scene.log
+            head/grand-bruxelles-game/artifacts/visual/midi_official_paved_forecourt_before.png
+            head/grand-bruxelles-game/artifacts/visual/midi_official_paved_forecourt_after.png
           if-no-files-found: error

@@ -1,6 +1,6 @@
 {
-  "schema": "grand-bruxelles-brasseurs-photo-features-v1",
-  "status": "evidence_only",
+  "schema": "grand-bruxelles-brasseurs-photo-features-v2",
+  "status": "runtime_input_candidate",
   "runtime_approved": false,
   "source": {
     "commons_title": "File:Grand-Place 10, Bruxelles.01.jpg",
@@ -14,14 +14,21 @@
     "facade_left_px": 590,
     "facade_right_px": 2245,
     "facade_ground_y_px": 5360,
+    "official_wall_shoulder_photo_y_px": 2395,
     "official_wall_apex_photo_y_px": 1775,
     "official_wall_span_m": 8.7490357183,
-    "official_wall_height_m": 24.746,
+    "official_wall_left_shoulder_y_m": 19.166,
+    "official_wall_right_shoulder_y_m": 18.966,
+    "official_wall_shoulder_reference_y_m": 19.066,
+    "official_wall_apex_y_m": 24.746,
+    "official_wall_apex_x_fraction": 0.46954,
     "horizontal_world_source": "official_urbis_wall_span",
-    "vertical_world_source": "official_lod2_wall",
+    "vertical_world_source": "official_lod2_wall_piecewise_anchors",
+    "vertical_mapping": "piecewise_ground_to_shoulder_then_shoulder_to_apex",
     "photo_role": "relative_feature_proportions_only",
     "photo_geometry_claimed_surveyed": false,
-    "raw_photo_pixels_shipped": false
+    "raw_photo_pixels_shipped": false,
+    "depth_source": "bounded_visualization_convention_not_survey"
   },
   "colossal_order": {
     "column_center_x_px": [720, 1125, 1580, 2035],
@@ -47,7 +54,7 @@
     {"id":"ground_right","bay":2,"left_px":1670,"right_px":1975,"arch_top_y_px":4210,"spring_y_px":4380,"bottom_px":5070}
   ],
   "major_bands": [
-    {"id":"main_entablature","y_px":2395},
+    {"id":"main_entablature","y_px":2395,"official_anchor":"shoulder"},
     {"id":"principal_order_base","y_px":3990},
     {"id":"ground_entablature","y_px":4235}
   ],
@@ -55,6 +62,7 @@
     "control_point_tolerance_px": 30,
     "lower_right_occlusion": true,
     "neighbor_edge_contamination": true,
-    "decorative_microdetail_not_encoded": true
+    "decorative_microdetail_not_encoded": true,
+    "no_global_photo_vertical_scale": true
   }
 }

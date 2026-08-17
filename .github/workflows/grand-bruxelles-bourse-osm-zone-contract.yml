@@ -19,5 +19,27 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Regenerate Bourse standard OSM zone contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/city_machine/extract_osm_environment_anchor_view.py \
+            --source grand-bruxelles-game/data/osm/vertical_slice_01.game.json \
+            --output grand-bruxelles-game/data/osm/zones/bourse/environment.game.json \
+            --project-root grand-bruxelles-game \
+            --anchor-id bourse
       - name: Validate Bourse standard OSM zone contract
         run: python3 grand-bruxelles-game/tools/city_machine/test_bourse_osm_zone_contract.py
+      - name: Require committed deterministic output
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=grand-bruxelles-game/data/osm/zones/bourse/environment.game.json
+          status="$(git status --porcelain -- "$target")"
+          if [ -n "$status" ]; then
+            echo "BOURSE_OSM_ZONE_CONTRACT_DRIFT: $status"
+            cat "$target"
+            git diff -- "$target" || true
+            exit 1
+          fi
+          echo "BOURSE_OSM_ZONE_CONTRACT_OK"

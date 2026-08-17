@@ -3,9 +3,10 @@ extends SceneTree
 const WIDTH := 1280
 const HEIGHT := 720
 const WARMUP_FRAMES := 100
-const TARGET := Vector3(346.6, 10.5, -565.5)
-const SQUARE_DIRECTION := Vector3(-1.0, 0.0, 1.0).normalized()
-const CAMERA_POSITION := TARGET + SQUARE_DIRECTION * 38.0 + Vector3(0.0, -8.8, 0.0)
+# Exact midpoint of official UrbIS WALLSURFACE 10843911 front segment.
+const TARGET := Vector3(347.5223, 10.5, -575.0274)
+# Player-eye witness from the Grand-Place side, 38 m along the normalized square-facing diagonal.
+const CAMERA_POSITION := Vector3(320.6522, 1.7, -548.1573)
 
 func _initialize() -> void:
     call_deferred("_run")

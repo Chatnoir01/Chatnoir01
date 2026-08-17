@@ -1,0 +1,37 @@
+name: Grand Bruxelles Jette OSM Environment Runtime
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-jette-osm-environment-runtime.yml"
+      - "grand-bruxelles-game/data/osm/zones/jette/environment.game.json"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/jette_phase2_zone.gd"
+      - "grand-bruxelles-game/game/tests/jette_osm_environment_runtime_contract_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  jette-environment-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/jette-environment-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/jette-environment-import.log; then exit 1; fi
+      - name: Validate generic renderer contract
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/jette_osm_environment_runtime_contract_test.gd 2>&1 | tee /tmp/jette-environment-contract.log
+          if grep -E "SCRIPT ERROR|Parse Error:|JETTE_OSM_ENVIRONMENT_CONTRACT_FAIL" /tmp/jette-environment-contract.log; then exit 1; fi
+          grep -q "JETTE_OSM_ENVIRONMENT_CONTRACT_OK" /tmp/jette-environment-contract.log

@@ -1,5 +1,4 @@
 extends Node
-class_name BrusselsSharedRailSurfaceRuntime
 
 const MATERIAL_FAMILY := "brussels_shared_rail_surface_v1"
 const TARGET_ROOT := "GeneratedRails"

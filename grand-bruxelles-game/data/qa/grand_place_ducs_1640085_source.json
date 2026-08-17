@@ -1,0 +1,38 @@
+{
+  "schema": "grand-bruxelles-grand-place-ducs-source-v1",
+  "hero_id": "grand_place_ducs_de_brabant",
+  "official_building_id": "https://databrussels.be/id/building/1640085",
+  "city_source": "Ville de Bruxelles open data — Description des bâtiments de la Grand-Place",
+  "city_addresses": ["Grand-Place, 13", "Grand-Place, 14", "Grand-Place, 15", "Grand-Place, 16", "Grand-Place, 17", "Grand-Place, 18", "Grand-Place, 19"],
+  "city_house_count": 7,
+  "city_height_each_m": 17.0,
+  "heritage_source": "urban.brussels Inventaire du patrimoine architectural — Urban 31130",
+  "heritage_facts": {
+    "common_facade": true,
+    "bay_count": 19,
+    "levels_plus_mezzanine": "three levels plus mezzanine",
+    "bay_grouping": "three groups of six bays plus one bay at the extreme right",
+    "central_projection_bays": 6,
+    "monumental_white_stone_facade": true,
+    "colossal_pilaster_orders": 2
+  },
+  "urbis3d": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "solid_count": 2,
+    "face_count": 146,
+    "triangle_count": 476,
+    "wall_face_count": 93,
+    "roof_face_count": 51,
+    "ground_face_count": 2,
+    "lod2_height_m": 26.999,
+    "source_bbox_epsg31370": [148880.44, 170635.335, 148938.79, 170678.213]
+  },
+  "vertical_note": "City open-data height and UrbIS LoD2 vertical envelope differ; no rescaling is performed in this lot.",
+  "placement_semantics": "official_lod2_with_heritage_identity_no_surveyed_openings",
+  "openings_authored": false,
+  "runtime_approved": false,
+  "realism_complete": false
+}

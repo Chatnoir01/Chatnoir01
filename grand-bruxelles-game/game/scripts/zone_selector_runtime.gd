@@ -3,6 +3,9 @@ extends CanvasLayer
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const MAIN_SCENE := "res://game/main.tscn"
 const REPORT_RUNTIME := preload("res://game/scripts/player_issue_report_runtime.gd")
+const CATALOG_SCHEMA_V1 := "grand-bruxelles-playable-zone-catalog-v1"
+const CATALOG_SCHEMA_V2 := "grand-bruxelles-playable-zone-catalog-v2"
+const STORED_QUALITIES := ["JOUABLE", "LABO", "LABO_BRUT"]
 
 var _catalog: Array = []
 var _panel: PanelContainer
@@ -33,9 +36,66 @@ func _load_catalog() -> void:
     if typeof(parsed) != TYPE_DICTIONARY:
         push_error("Zone selector catalog invalid")
         return
-    var rows: Variant = (parsed as Dictionary).get("zones", [])
-    if rows is Array:
-        _catalog = rows
+    _catalog = parse_catalog_document(parsed as Dictionary)
+
+func parse_catalog_document(document: Dictionary) -> Array:
+    var schema := str(document.get("schema", ""))
+    if schema != CATALOG_SCHEMA_V1 and schema != CATALOG_SCHEMA_V2:
+        push_error("Zone selector catalog unsupported schema: %s" % schema)
+        return []
+    var rows: Variant = document.get("zones", [])
+    if not rows is Array:
+        push_error("Zone selector catalog zones must be an array")
+        return []
+    var result: Array = []
+    var seen_ids := {}
+    for raw: Variant in rows:
+        if not raw is Dictionary:
+            push_error("Zone selector catalog row must be an object")
+            continue
+        var zone := (raw as Dictionary).duplicate(true)
+        var zone_id := str(zone.get("id", "")).strip_edges()
+        var label := str(zone.get("label", "")).strip_edges()
+        var quality := str(zone.get("quality", "")).strip_edges().to_upper()
+        if zone_id.is_empty() or label.is_empty():
+            push_error("Zone selector catalog row missing id/label")
+            continue
+        if seen_ids.has(zone_id):
+            push_error("Zone selector catalog duplicate id: %s" % zone_id)
+            continue
+        if quality not in STORED_QUALITIES:
+            push_error("Zone selector catalog unknown stored quality for %s: %s" % [zone_id, quality])
+            continue
+        if schema == CATALOG_SCHEMA_V1 and quality == "LABO_BRUT":
+            push_error("Zone selector catalog v1 cannot store LABO_BRUT: %s" % zone_id)
+            continue
+        if not _catalog_row_shape_valid(zone):
+            push_error("Zone selector catalog malformed runtime contract: %s" % zone_id)
+            continue
+        zone["quality"] = quality
+        seen_ids[zone_id] = true
+        result.append(zone)
+    return result
+
+func _catalog_row_shape_valid(zone: Dictionary) -> bool:
+    var requirements: Variant = zone.get("requires", [])
+    if not requirements is Array or requirements.is_empty():
+        return false
+    for raw: Variant in requirements:
+        if str(raw).strip_edges().is_empty():
+            return false
+    var mode := str(zone.get("mode", ""))
+    if mode == "fast_travel":
+        return not str(zone.get("destination", "")).strip_edges().is_empty()
+    if mode == "position":
+        var spawn: Variant = zone.get("spawn", [])
+        return spawn is Array and spawn.size() >= 3
+    if mode == "player_method":
+        return not str(zone.get("method", "")).strip_edges().is_empty()
+    if mode == "script_zone":
+        var spawn: Variant = zone.get("spawn", [])
+        return not str(zone.get("script", "")).strip_edges().is_empty() and spawn is Array and spawn.size() >= 3
+    return false
 
 func _requirements_ready(zone: Dictionary) -> bool:
     var requirements: Variant = zone.get("requires", [])

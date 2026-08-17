@@ -5,6 +5,10 @@ const ATTACK_RADIUS := 0.92
 const ATTACK_REACH := 1.45
 const ATTACK_HEIGHT := 0.95
 const ATTACK_COOLDOWN_MS := 430
+const ATTACK_WINDUP_MS := 60
+const ATTACK_ACTIVE_MS := 90
+const ATTACK_RECOVERY_MS := ATTACK_COOLDOWN_MS - ATTACK_WINDUP_MS - ATTACK_ACTIVE_MS
+const HIT_KNOCKBACK_M := 0.32
 const DEFEND_HOLD_MS := 650
 const FIGHT_WINDOW_MS := 5200
 const COUNTER_COOLDOWN_MS := 900
@@ -56,6 +60,10 @@ func _process(_delta: float) -> void:
     var now := Time.get_ticks_msec()
     if _feedback_label != null and now >= _feedback_hide_ms:
         _feedback_label.visible = false
+    var player := _current_player()
+    if player != null and String(player.get_meta("combat_attack_phase", "ready")) != "ready":
+        if now >= int(player.get_meta("combat_attack_recovery_until_ms", 0)):
+            player.set_meta("combat_attack_phase", "ready")
     _tick_reactions(now)
 
 func _current_player() -> CharacterBody3D:
@@ -66,6 +74,8 @@ func _current_player() -> CharacterBody3D:
 
 func set_guarding(player: CharacterBody3D, enabled: bool) -> void:
     if player == null or not is_instance_valid(player):
+        return
+    if enabled and _is_attack_recovering(player, Time.get_ticks_msec()):
         return
     _guarding = enabled
     player.set_meta("combat_guarding", enabled)
@@ -81,13 +91,28 @@ func set_guarding(player: CharacterBody3D, enabled: bool) -> void:
 func is_guarding(player: CharacterBody3D) -> bool:
     return player != null and bool(player.get_meta("combat_guarding", false))
 
+func _is_attack_recovering(player: CharacterBody3D, now: int) -> bool:
+    return player != null and now < int(player.get_meta("combat_attack_recovery_until_ms", 0))
+
 func request_attack(player: CharacterBody3D) -> Dictionary:
+    if player == null or not is_instance_valid(player) or not player.is_inside_tree():
+        return {"hit": false, "reason": "player_unavailable"}
     if is_guarding(player):
         return {"hit": false, "reason": "guarding"}
     var now := Time.get_ticks_msec()
+    if now < int(player.get_meta("combat_dodge_until_ms", 0)):
+        return {"hit": false, "reason": "dodging"}
+    if _is_attack_recovering(player, now):
+        return {"hit": false, "reason": "recovery"}
     if now < _next_attack_allowed_ms:
         return {"hit": false, "reason": "cooldown"}
-    _next_attack_allowed_ms = now + ATTACK_COOLDOWN_MS
+
+    var recovery_until := now + ATTACK_COOLDOWN_MS
+    _next_attack_allowed_ms = recovery_until
+    player.set_meta("combat_attack_phase", "recovery")
+    player.set_meta("combat_attack_started_ms", now)
+    player.set_meta("combat_attack_recovery_until_ms", recovery_until)
+    player.set_meta("combat_attack_count", int(player.get_meta("combat_attack_count", 0)) + 1)
     _animate_player_swing(player)
     var result := perform_attack(player)
     if bool(result.get("hit", false)):
@@ -97,6 +122,7 @@ func request_attack(player: CharacterBody3D) -> Dictionary:
             _show_feedback("TOUCHÉ  -%d" % int(ATTACK_DAMAGE), 280)
     else:
         _show_feedback("COUP", 150)
+    result["recovery_ms"] = ATTACK_COOLDOWN_MS
     return result
 
 func perform_attack(player: CharacterBody3D) -> Dictionary:
@@ -153,6 +179,7 @@ func perform_attack(player: CharacterBody3D) -> Dictionary:
         "reaction": reaction,
         "attack_origin": origin,
         "attack_radius": ATTACK_RADIUS,
+        "knockback_m": float(target.get_meta("combat_last_hit_knockback_m", 0.0)),
     }
 
 func request_loot(player: CharacterBody3D) -> Dictionary:
@@ -221,6 +248,24 @@ func _npc_from_collider(value: Variant) -> NpcAgent:
         current = current.get_parent()
     return null
 
+func apply_player_hit_feedback(target: CharacterBody3D, player: CharacterBody3D) -> Dictionary:
+    if target == null or player == null or not is_instance_valid(target) or not is_instance_valid(player):
+        return {"distance_m": 0.0, "collided": false}
+    if not target.is_inside_tree() or not player.is_inside_tree():
+        return {"distance_m": 0.0, "collided": false}
+    var direction := target.global_position - player.global_position
+    direction.y = 0.0
+    if direction.length_squared() <= 0.0001:
+        direction = -player.global_transform.basis.z
+        direction.y = 0.0
+    direction = direction.normalized()
+    var start := target.global_position
+    var collision := target.move_and_collide(direction * HIT_KNOCKBACK_M)
+    var travelled := target.global_position.distance_to(start)
+    target.set_meta("combat_last_hit_knockback_m", travelled)
+    target.set_meta("combat_last_hit_feedback_ms", Time.get_ticks_msec())
+    return {"distance_m": travelled, "collided": collision != null}
+
 func _apply_hit(npc: NpcAgent, player: CharacterBody3D, damage: float) -> StringName:
     var health := float(npc.get_meta("melee_health", 100.0))
     health = maxf(0.0, health - maxf(damage, 0.0))
@@ -228,6 +273,7 @@ func _apply_hit(npc: NpcAgent, player: CharacterBody3D, damage: float) -> String
     npc.set_meta("melee_hit_count", int(npc.get_meta("melee_hit_count", 0)) + 1)
     npc.set_meta("melee_hurt_feedback", true)
     npc.set_meta("last_melee_attacker_id", player.get_instance_id())
+    apply_player_hit_feedback(npc, player)
 
     if health <= 0.0:
         _knock_out(npc)
@@ -363,8 +409,10 @@ func _animate_player_swing(player: CharacterBody3D) -> void:
         return
     var base_x := visual.rotation.x
     var tween := create_tween()
-    tween.tween_property(visual, "rotation:x", base_x - 0.18, 0.07)
-    tween.tween_property(visual, "rotation:x", base_x, 0.12)
+    tween.tween_property(visual, "rotation:x", base_x + 0.08, float(ATTACK_WINDUP_MS) / 1000.0)
+    tween.tween_property(visual, "rotation:x", base_x - 0.31, float(ATTACK_ACTIVE_MS) / 1000.0)
+    tween.tween_interval(0.04)
+    tween.tween_property(visual, "rotation:x", base_x, float(maxi(ATTACK_RECOVERY_MS - 40, 1)) / 1000.0)
 
 func _spawn_hurt_feedback(npc: NpcAgent, reaction: StringName) -> void:
     var marker := Label3D.new()

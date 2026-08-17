@@ -9,7 +9,7 @@ on:
       - ".github/workflows/grand-bruxelles-city-machine-osm-bootstrap.yml"
   workflow_dispatch:
 
-# Read-only proof: live Overpass refresh is never part of nominal PR validation.
+# Read-only proof: no branch writes and no live Overpass during nominal PR validation.
 permissions:
   contents: read
 

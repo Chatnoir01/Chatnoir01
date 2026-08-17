@@ -16,9 +16,11 @@ permissions:
 jobs:
   jette-environment-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -29,9 +31,16 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/jette-environment-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/jette-environment-import.log; then exit 1; fi
-      - name: Validate generic renderer contract
+      - name: Validate runtime and capture 1280x720 A/B
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/jette_osm_environment_runtime_contract_test.gd 2>&1 | tee /tmp/jette-environment-contract.log
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/jette_osm_environment_runtime_contract_test.gd 2>&1 | tee /tmp/jette-environment-contract.log
           if grep -E "SCRIPT ERROR|Parse Error:|JETTE_OSM_ENVIRONMENT_CONTRACT_FAIL" /tmp/jette-environment-contract.log; then exit 1; fi
           grep -q "JETTE_OSM_ENVIRONMENT_CONTRACT_OK" /tmp/jette-environment-contract.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jette-osm-environment-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/jette_osm_environment_before.png
+            grand-bruxelles-game/artifacts/visual/jette_osm_environment_after.png
+          if-no-files-found: error

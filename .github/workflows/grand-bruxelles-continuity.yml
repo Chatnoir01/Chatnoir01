@@ -1,0 +1,48 @@
+name: Grand Bruxelles Continuity
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/playable_zone_catalog.json"
+      - "grand-bruxelles-game/data/qa/zone_maturity_audit.json"
+      - "grand-bruxelles-game/data/qa/zone_maturity_registry.json"
+      - "grand-bruxelles-game/tools/continuity/**"
+      - ".github/workflows/grand-bruxelles-continuity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate seven-zone maturity registry
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/continuity/continuity.py validate | tee /tmp/continuity-validate.log
+          grep -F "CONTINUITY_REGISTRY_OK zones=7 midi_baseline=M6 automation_ceiling=M5" /tmp/continuity-validate.log
+      - name: Prove deterministic next lots
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone anneessens | tee /tmp/anneessens-next.log
+          grep -F '"next_lot": "report_ingest_then_ready_proof"' /tmp/anneessens-next.log
+          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone jette | tee /tmp/jette-next.log
+          grep -F '"next_lot": "midi_material_kit"' /tmp/jette-next.log
+          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone midi | tee /tmp/midi-next.log
+          grep -F '"decision": "protect_human_jouable_baseline"' /tmp/midi-next.log
+      - name: Prove oldest SIGNALER report wins
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/reports
+          cat > /tmp/reports/new.gbreport.json <<'JSON'
+          {"schema":"grand-bruxelles-player-report-v1","id":"new","status":"open","zone":{"id":"jette"},"captured_unix":200,"note":"newer"}
+          JSON
+          cat > /tmp/reports/old.gbreport.json <<'JSON'
+          {"schema":"grand-bruxelles-player-report-v1","id":"old","status":"open","zone":{"id":"jette"},"captured_unix":100,"note":"oldest"}
+          JSON
+          python3 grand-bruxelles-game/tools/continuity/continuity.py next --zone jette --reports-dir /tmp/reports | tee /tmp/report-next.log
+          grep -F '"decision": "fix_oldest_open_report"' /tmp/report-next.log
+          grep -F '"report_id": "old"' /tmp/report-next.log

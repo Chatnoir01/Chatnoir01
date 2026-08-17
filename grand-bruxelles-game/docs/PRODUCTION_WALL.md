@@ -1,66 +1,71 @@
 # Production Wall
 
 ## Main
-- sha: `e87e317754e3cf78ca932cea20733dce25e92eed`
-- last_verified: `2026-08-17T12:51Z`
-- rule: re-read live `main` + open PRs before every branch, PR, merge, rejection or new claim. If this SHA is stale, refresh this wall before trusting it.
+- observed_main_before_this_edit: `ed715f13653758014bf5e96bb5ce464c5e293124`
+- last_verified: `2026-08-17T12:54Z`
+- rule: this SHA is the last main observed before this wall edit, not a claim that it equals future HEAD. Always re-read live `main` + open PRs before every branch, PR, merge, rejection or claim.
 
 ## Active ownership
-- Grand-Place / architecture / Maison des Brasseurs source — PR #627 — source gate only — ACTIVE
-- Continuity / LABO v2 maturity registry — PR #630 — production-state logic — ACTIVE
+- Grand-Place / architecture / Maison des Brasseurs source — THIS SHIFT — planned branch `visual/grand-place-brasseurs-<live>` — ACTIVE CLAIM
 - Player / fallback identity badge — PR #631 — player presentation truth — ACTIVE
-- Shared Environment / corridor OSM trees — PR #628 — shared tree runtime — ACTIVE
-- Shared Environment / generic window surface family — PR #629 — shared generic window material/runtime — ACTIVE
 - LABO selector UI workspace — PR #634 — validation workspace only, do not merge directly — ACTIVE QA
 - Bourse / parvis proportions QA — PR #596 — Bourse surfaces/proportions evidence — ACTIVE
+- Bourse / triangular pediment — PR #592 — stale specialist visual evidence; do not overlap or merge wholesale — ACTIVE LEGACY
 - Anneessens / west-side school landmark — PR #572 — Anneessens architecture — ACTIVE
 - Midi / station envelope — PR #535 + #537 — Midi station plan/envelope — ACTIVE
 - NPC / offline profile pack — PR #577 — NPC profile/dialogue system — ACTIVE
+- Atomium specialist branches #588/#589/#593/#594 and Laeken/Jette #2 retain their scopes; do not overlap.
 
 ## Recently shipped
-- SIGNALER active-zone truth — now in `main` at `e87e317...`; stale duplicate PRs must not be treated as new work.
-- #622 — LABO v2 truth contract; catalog/runtime semantics are production truth.
+- #635 — shared Production Wall established.
+- SIGNALER active-zone truth — production truth since `e87e317...`.
+- #622 — LABO v2 truth contract.
 - #621 — explicit player production-vs-fallback identity contract.
 - #620 — city-machine operator contract hardened and campaign closed.
-- #595 — Grand-Place Town Hall window rhythm accepted into production.
-- #474 — Fonsny crossing: 13 × 0.50 m white bands, 0.50 m gaps, 4.0 m length across 12.5 m carriageway.
-- #469 — Bourse glazing is production truth.
-- #465 — official UrbIS surface-level correction is production truth.
+- #595 — Grand-Place Town Hall window rhythm accepted.
+- #474 — Fonsny crossing production truth.
+- #469/#465 — Bourse glazing + official UrbIS surface correction production truths.
+
+## Closed evidence since previous wall
+- #627 Brasseurs source — closed stale after WFS timeout/retry window; do not merge wholesale. Rebuild from live main.
+- #628 corridor OSM trees — closed stale; preserve evidence only.
+- #629 generic windows — closed for ownership collision + stale base; do not revive wholesale.
+- #630 continuity registry — closed stale; no production progress claimed.
 
 ## Blocked / do not repeat
-- Maison du Roi / Broodhuis — raw UrbIS LoD2 had large pixel impact but failed full-frame architectural fidelity. Do not retry raw LoD2 alone. Unlock: higher-detail facade/photogrammetry/reconstruction source.
+- Maison du Roi — raw UrbIS LoD2 failed architectural fidelity. Unlock: higher-detail facade/photogrammetry/reconstruction source.
 - Ducs de Brabant — blind generic LoD2 mass failed human gate. Do not retry LoD2-only facade.
-- Grand-Place `1786758` — micro window rhythm had insufficient 3-second impact. Do not enlarge windows just to pass thresholds.
-- Roi d'Espagne — generic facade articulation + proxy dome failed human gate; dome read as a floating sphere. Do not retry same proxy strategy.
-- La Brouette — LoD2 + generic window grid failed architectural read and A/B UI masking was incomplete. Do not repeat window-grid strategy; fix masking before future visual witness.
+- Grand-Place `1786758` — micro window rhythm insufficient impact. Do not enlarge to game thresholds.
+- Roi d'Espagne — proxy facade + sphere dome failed. Do not retry same proxy strategy.
+- La Brouette — LoD2 + generic window grid failed; UI masking claim was false. Do not repeat window-grid strategy.
 
 ## NOW / NEXT / LATER
-- NOW: #627 Maison des Brasseurs — reproduce unique City record -> UrbIS `1639974` -> audited LoD2 on current live main. No runtime before source PASS.
-- NEXT: if source PASS, red-first large-form Brasseurs articulation focused on curved pediment + colossal order + projected axial bay, then deterministic full-frame A/B with dynamics/UI truly masked.
-- LATER: when ownership releases, prioritize Bourse proportions, Midi arrival/station envelope, then Anneessens west frontage by highest visible player impact.
+- NOW: rebuild Maison des Brasseurs source gate from exact live main; separate network timeout from source failure.
+- NEXT: if source PASS, red-first large-form Brasseurs articulation: curved pediment + colossal order + projected axial bay, then deterministic full-frame A/B with dynamics/UI truly masked.
+- LATER: after ownership release, prioritize Bourse proportions, Midi station arrival/envelope, then Anneessens west frontage by visible impact.
 
 ## Known visible debt
-- Grand-Place still lacks high-fidelity facade/silhouette treatment across several landmark houses.
-- Bourse parvis/street/sidewalk proportions remain unresolved at human gate.
-- Midi station envelope ownership conflict remains unresolved.
-- Anneessens west-side monumental frontage is not yet production-shipped.
-- Generic corridor presentation still needs human validation for shared trees/windows before any merge.
-- Player fallback identity is now explicit in logic but visible badge proof is still pending in #631.
+- Grand-Place landmark-house facade/silhouette fidelity remains weak.
+- Bourse parvis/street/sidewalk proportions unresolved at human gate.
+- Midi station envelope conflict unresolved.
+- Anneessens west-side monumental frontage not production-shipped.
+- Corridor vegetation/material polish needs a fresh exact-main lot after Environment ownership is free.
+- Player fallback badge proof remains pending in #631.
 
 ## Important invariants
 - `main` is the only production truth; a green unmerged PR is not shipped progress.
-- Never merge a stale visual PR for convenience; rebuild/revalidate from live `main`.
-- Human full-frame visual verdict overrides green CI for landmark work.
-- Never lower a predeclared gate to rescue a failing correction.
-- Freeze/mask dynamic state and UI in deterministic A/B; a false masking claim is a FAIL.
-- Two failures with the same solution family require a pivot, not another cosmetic variation.
-- Claims are narrow: zone + system + objective. Release them immediately after merge/reject/abandon.
-- Validation-workspace PRs such as #634 are evidence only unless rebuilt from exact live main as an integration lot.
+- Never merge stale visual PRs; rebuild/revalidate from live `main`.
+- Human full-frame verdict overrides green CI for landmarks.
+- Never lower a predeclared gate to rescue a correction.
+- Freeze/mask dynamic state and UI in deterministic A/B; false masking is FAIL.
+- Two failures with the same solution family require a pivot.
+- Claims are narrow and released immediately after merge/reject/abandon.
+- Validation workspaces are evidence only unless rebuilt from exact live main.
 
 ## Shift handoff
-- What changed: Production Wall established from live `e87e317...`; SIGNALER zone truth is now production truth; new active claims #628–#634 recorded.
-- What is proven: #624 previously passed the Brasseurs source chain on an older base; #627 still must reproduce it on current production before runtime work.
-- What is NOT proven: no Brasseurs runtime geometry, no current-main Brasseurs A/B, no human PASS; shared trees/windows and fallback badge also remain unmerged.
-- What must not be redone: raw LoD2-only landmarks, generic window grids, proxy sphere dome, threshold lowering, duplicate SIGNALER fixes.
-- Exact next action: finish #627 source gate after re-reading live main; if PASS, take a narrow red-first architecture claim only if no new ownership conflict appeared.
-- Current blocker: Bourse/Midi/Anneessens remain actively owned; shared Environment is owned by #628/#629; player presentation is owned by #631.
+- What changed: wall refreshed after #627/#628/#629/#630 closures; current shift claims Brasseurs source only.
+- What is proven: older Brasseurs gates resolved City record to UrbIS `1639974`; latest #627 failure was a network timeout, not a source contradiction.
+- What is NOT proven: Brasseurs source chain on current main, runtime geometry, A/B or human PASS.
+- What must not be redone: raw LoD2 landmarks, generic window grids, proxy sphere dome, threshold lowering, stale branch merges.
+- Exact next action: merge this wall refresh, re-read live main/open PRs, rebuild Brasseurs source gate from that exact HEAD.
+- Current blocker: Bourse/Midi/Anneessens/player/NPC and specialist Atomium scopes remain owned elsewhere.

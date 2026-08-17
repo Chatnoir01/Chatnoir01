@@ -2,17 +2,19 @@
 
 Prototype de jeu d’action-aventure en monde ouvert, en vue à la troisième personne, inspiré de Bruxelles.
 
-## Lien Web actuel — JOUABLE
+## Accès Web
 
-**URL canonique Grand Bruxelles Game :**
+**URL canonique prévue Grand Bruxelles Game :**
 
 https://chatnoir01.github.io/Chatnoir01/
 
-Cette URL GitHub Pages est la porte d’entrée Web officielle. Elle sert directement la build Godot générée depuis `grand-bruxelles-game/web-preview/` (`index.html`, `index.js`, `index.wasm`, `index.pck`) et ne dépend pas de RawGitHack.
+Le build Godot jouable est bien publié dans `main`, sous `grand-bruxelles-game/web-preview/` (`index.html`, `index.js`, `index.wasm`, `index.pck`). Le workflow `Grand Bruxelles Playable Link` est désormais GitHub-Pages-first : une fois GitHub Pages activé pour ce dépôt, il déploie automatiquement ce même dossier et vérifie publiquement l’HTML ainsi que les trois assets Godot.
+
+**État d’activation :** GitHub Pages doit encore être activé une première fois par un administrateur du dépôt via **Settings → Pages → Build and deployment → Source = GitHub Actions**. GitHub refuse actuellement au `GITHUB_TOKEN` de créer lui-même le site Pages initial. Tant que cette action unique n’est pas faite, l’URL ci-dessus ne doit pas être présentée comme une preuve que le jeu est déjà accessible publiquement.
 
 Le lien RawGitHack historique n’est plus la porte officielle. Il peut rester utile uniquement comme secours technique ponctuel, mais il peut être saturé ou répondre `429` et ne doit plus être communiqué comme URL joueur principale.
 
-La build Web reste lourde : le couple `index.pck` + `index.wasm` dépasse actuellement 100 Mo avant les autres fichiers. Le workflow d’accès publie désormais la taille exacte, avertit au-delà de 90 MiB et bloque au-delà de 150 MiB. La réduction du premier téléchargement mobile est un lot ACCESS/performance séparé afin de ne pas modifier les ressources du jeu sans mesure.
+La build Web reste lourde : le couple `index.pck` + `index.wasm` dépasse actuellement 100 Mo avant les autres fichiers. Le workflow d’accès publie la taille exacte, avertit au-delà de 90 MiB et bloque au-delà de 150 MiB. La réduction du premier téléchargement mobile est un lot ACCESS/performance séparé afin de ne pas modifier les ressources du jeu sans mesure.
 
 La build Web comprend aussi des contrôles tactiles pour téléphone/tablette : directions, SAUT, RUN et E pour entrer/sortir du véhicule.
 
@@ -46,7 +48,7 @@ Critère de réussite :
 - GDScript pour le prototype
 - rendu GL Compatibility pour desktop + WebGL 2.0
 - export Web Godot automatisé
-- publication GitHub Pages automatisée depuis le même build `web-preview/`
+- publication GitHub Pages automatisée depuis le même build `web-preview/` après activation initiale du dépôt
 - monde découpé en cellules / secteurs chargeables
 - NavigationServer3D prévu pour les piétons
 - données OSM/Open Data comme aides à la reconstruction, pas comme rendu final brut
@@ -93,7 +95,8 @@ grand-bruxelles-game/
 - [x] Contrôles tactiles Web/mobile
 - [x] Tests automatiques Godot pour scène, voiture et mission
 - [x] Build Godot Web automatisée
-- [x] Publication GitHub Pages intégrée au workflow Playable Link
+- [x] Pipeline GitHub Pages automatisé et contrôlé
+- [ ] Activation initiale GitHub Pages du dépôt par un administrateur
 - [x] Personnage riggé avec animations repos/marche/course
 - [x] Trafic
 - [x] Piétons

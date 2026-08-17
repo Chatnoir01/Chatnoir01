@@ -10,6 +10,8 @@ var _body_batch: MultiMeshInstance3D = null
 var _cap_batch: MultiMeshInstance3D = null
 var _collision_body: StaticBody3D = null
 var _source_positions: Array[Vector3] = []
+var _body_transforms: Array[Transform3D] = []
+var _cap_transforms: Array[Transform3D] = []
 var _ready_complete := false
 var _failed := false
 var _visual_enabled := true
@@ -45,6 +47,8 @@ func bind_scene(scene: Node3D) -> void:
     _cap_batch = null
     _collision_body = null
     _source_positions.clear()
+    _body_transforms.clear()
+    _cap_transforms.clear()
     _failed = false
     _ready_complete = false
     _build()
@@ -86,12 +90,21 @@ func _build() -> void:
         return
 
     _source_positions.clear()
+    _body_transforms.clear()
+    _cap_transforms.clear()
     for raw: Variant in points:
         var parsed_position: Variant = _point_base_position(raw)
         if not parsed_position is Vector3:
             _fail("malformed source point")
             return
-        _source_positions.append(parsed_position as Vector3)
+        var source_base := parsed_position as Vector3
+        _source_positions.append(source_base)
+        _body_transforms.append(ASSET.body_transform(source_base))
+        _cap_transforms.append(ASSET.cap_transform(source_base))
+
+    if not _placement_contract_matches_source():
+        _fail("authored placement contract moved source positions")
+        return
 
     var materials := ASSET.create_materials()
     var body_multimesh := MultiMesh.new()
@@ -105,20 +118,10 @@ func _build() -> void:
     cap_multimesh.mesh = ASSET.create_cap_mesh(materials["cap"] as Material)
 
     for index: int in range(_source_positions.size()):
-        var source_base := _source_positions[index]
-        body_multimesh.set_instance_transform(index, ASSET.body_transform(source_base))
-        cap_multimesh.set_instance_transform(index, ASSET.cap_transform(source_base))
+        body_multimesh.set_instance_transform(index, _body_transforms[index])
+        cap_multimesh.set_instance_transform(index, _cap_transforms[index])
     body_multimesh.visible_instance_count = _source_positions.size()
     cap_multimesh.visible_instance_count = _source_positions.size()
-
-    for index: int in range(_source_positions.size()):
-        var source_base := _source_positions[index]
-        if not _same_source_xz(body_multimesh.get_instance_transform(index).origin, source_base):
-            _fail("body MultiMesh placement buffer mismatch")
-            return
-        if not _same_source_xz(cap_multimesh.get_instance_transform(index).origin, source_base):
-            _fail("cap MultiMesh placement buffer mismatch")
-            return
 
     _root = Node3D.new()
     _root.name = "BrusselsSourceBackedBollards"
@@ -206,6 +209,21 @@ func _same_source_xz(actual: Vector3, source: Vector3) -> bool:
 func _same_authored_y(actual_y: float, expected_y: float) -> bool:
     return absf(actual_y - expected_y) <= POSITION_EPSILON_METERS
 
+func _placement_contract_matches_source() -> bool:
+    if _source_positions.size() != _body_transforms.size() or _source_positions.size() != _cap_transforms.size():
+        return false
+    for index: int in range(_source_positions.size()):
+        var source_base := _source_positions[index]
+        var body_origin := _body_transforms[index].origin
+        var cap_origin := _cap_transforms[index].origin
+        if not _same_source_xz(body_origin, source_base) or not _same_source_xz(cap_origin, source_base):
+            return false
+        if not _same_authored_y(body_origin.y, ASSET.BODY_HEIGHT * 0.5):
+            return false
+        if not _same_authored_y(cap_origin.y, ASSET.BODY_HEIGHT + ASSET.CAP_HEIGHT * 0.5):
+            return false
+    return true
+
 func source_positions_unchanged() -> bool:
     if not is_instance_valid(_body_batch) or not is_instance_valid(_cap_batch) or not is_instance_valid(_collision_body):
         return false
@@ -213,18 +231,11 @@ func source_positions_unchanged() -> bool:
         return false
     if collision_count() != _source_positions.size():
         return false
+    if not _placement_contract_matches_source():
+        return false
 
     for index: int in range(_source_positions.size()):
         var source_base := _source_positions[index]
-        var body_origin := _body_batch.multimesh.get_instance_transform(index).origin
-        var cap_origin := _cap_batch.multimesh.get_instance_transform(index).origin
-        if not _same_source_xz(body_origin, source_base) or not _same_source_xz(cap_origin, source_base):
-            return false
-        if not _same_authored_y(body_origin.y, ASSET.BODY_HEIGHT * 0.5):
-            return false
-        if not _same_authored_y(cap_origin.y, ASSET.BODY_HEIGHT + ASSET.CAP_HEIGHT * 0.5):
-            return false
-
         var collision := _collision_body.get_child(index) as CollisionShape3D
         if collision == null:
             return false

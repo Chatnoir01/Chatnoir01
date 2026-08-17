@@ -1,68 +1,52 @@
-name: Grand Bruxelles City Machine OSM Bootstrap
+name: Grand Bruxelles City Machine OSM Cache
 
 on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py"
       - "grand-bruxelles-game/tools/city_machine/test_osm_environment_zone.py"
+      - "grand-bruxelles-game/data/osm/zones/jette/**"
       - ".github/workflows/grand-bruxelles-city-machine-osm-bootstrap.yml"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  jette-osm-bootstrap:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+  jette-osm-cache:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
       - name: Install exact CRS dependency
         run: python3 -m pip install --disable-pip-version-check "pyproj>=3.7,<4"
       - name: Test zone projection adapter
         run: python3 grand-bruxelles-game/tools/city_machine/test_osm_environment_zone.py
-      - name: Bootstrap exact Jette environment cache
+      - name: Rebuild committed Jette environment from cache
         run: |
           set -euo pipefail
-          RAW=grand-bruxelles-game/data/osm/zones/jette/environment.raw.json
-          GAME=grand-bruxelles-game/data/osm/zones/jette/environment.game.json
           python3 grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py \
             --manifest grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/manifest.json \
-            --zone jette --raw-cache "$RAW" --output "$GAME" --refresh \
-            | tee /tmp/jette-osm-bootstrap.log
+            --zone jette \
+            --raw-cache grand-bruxelles-game/data/osm/zones/jette/environment.raw.json \
+            --output /tmp/jette.environment.game.json | tee /tmp/jette-osm-cache.log
+          cmp /tmp/jette.environment.game.json grand-bruxelles-game/data/osm/zones/jette/environment.game.json
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p=json.loads(Path('grand-bruxelles-game/data/osm/zones/jette/environment.game.json').read_text())
-          assert p['format']=='grand-bruxelles-osm-zone-environment-v1'
+          p=json.loads(Path('/tmp/jette.environment.game.json').read_text())
           assert p['source']=='OpenStreetMap contributors via Overpass API'
           assert p['license']=='ODbL-1.0'
           assert p['projection_crs']=='EPSG:31370'
-          assert p['stats']['tree'] > 0 and p['stats']['total'] >= p['stats']['tree']
+          assert p['stats']['tree'] > 0
+          assert p['stats']['total'] == len(p['environment_points'])
           assert len(p['source_digest']) == 64
-          print('JETTE_OSM_BOOTSTRAP_OK', p['stats'], p['bbox_wgs84'], p['bounds_m'], p['source_digest'])
+          print('JETTE_OSM_CACHE_OK', p['stats'], p['bounds_m'], p['source_digest'])
           PY
-      - name: Commit normalized cache to this integration branch
-        run: |
-          set -euo pipefail
-          git add grand-bruxelles-game/data/osm/zones/jette/environment.raw.json \
-                  grand-bruxelles-game/data/osm/zones/jette/environment.game.json
-          if git diff --cached --quiet; then
-            echo "OSM cache unchanged"
-            exit 0
-          fi
-          git config user.name "grand-bruxelles-city-machine"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "data(osm): cache exact Jette environment points"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: city-machine-jette-osm-bootstrap
+          name: city-machine-jette-osm-cache-proof
           path: |
-            grand-bruxelles-game/data/osm/zones/jette/environment.raw.json
-            grand-bruxelles-game/data/osm/zones/jette/environment.game.json
-            /tmp/jette-osm-bootstrap.log
+            /tmp/jette.environment.game.json
+            /tmp/jette-osm-cache.log

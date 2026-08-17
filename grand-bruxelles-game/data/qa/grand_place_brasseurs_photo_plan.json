@@ -1,0 +1,71 @@
+{
+  "schema": "grand-bruxelles-brasseurs-photo-plan-v1",
+  "status": "evidence_only",
+  "runtime_approved": false,
+  "realism_complete": false,
+  "source": {
+    "commons_title": "File:Grand-Place 10, Bruxelles.01.jpg",
+    "artist": "Nenea hartia",
+    "license": "CC BY-SA 4.0",
+    "width_px": 2737,
+    "height_px": 5600,
+    "commons_sha1": "348793b13acb74b99f038014a645a46ecb74752f",
+    "download_sha256": "fff8d81aaca8b3dd82247ef8d171bdb61cb1e294d530185a16566298569ed322",
+    "source_evidence_pr": 655,
+    "source_artifact_id": 9290319836
+  },
+  "placement": {
+    "owner": "UrbIS",
+    "building_id": "1639974",
+    "front_wall_id": "10945501",
+    "front_wall_span_m": 8.7490357183,
+    "vertical_world_scale": "unresolved",
+    "photo_geometry_claimed_surveyed": false
+  },
+  "measurement_method": {
+    "kind": "human_curated_image_space_control_points",
+    "purpose": "constrain facade proportions and feature rhythm only",
+    "pixel_tolerance": 18,
+    "perspective_rectification": "not_yet_applied",
+    "raw_photo_quad_shipping_allowed": false
+  },
+  "principal_order": {
+    "left_px": 590,
+    "right_px": 2245,
+    "top_px": 2460,
+    "bottom_px": 4020,
+    "column_center_x_px": [720, 1125, 1580, 2035],
+    "bay_count": 3,
+    "column_count": 4,
+    "column_order": "colossal_corinthian_visible_in_reference",
+    "normalized_column_x": [0.07855, 0.32326, 0.59819, 0.87311]
+  },
+  "horizontal_registers": {
+    "main_entablature_y_px": 2395,
+    "upper_window_sill_band_y_px": 3185,
+    "principal_order_base_y_px": 3990,
+    "ground_entablature_y_px": 4235,
+    "ground_opening_spring_y_px": 4420,
+    "facade_ground_y_px": 5360
+  },
+  "crowning_profile": {
+    "pediment_base_y_px": 2325,
+    "arched_pediment_crown_y_px": 1775,
+    "lantern_body_top_y_px": 1165,
+    "golden_statue_top_y_px": 415,
+    "central_axis_x_px": 1375,
+    "curved_pediment": true,
+    "axial_crowning_stack": true
+  },
+  "derived_horizontal_world_constraints": {
+    "principal_order_span_m": 8.7490357183,
+    "column_center_offsets_from_left_m": [0.6872, 2.8278, 5.2337, 7.6396],
+    "bay_center_spacing_m": [2.1406, 2.4059, 2.4059],
+    "derivation": "normalized image-space x multiplied by official UrbIS wall span; not surveyed decorative geometry"
+  },
+  "occlusion_notes": [
+    "lower-right facade partly occluded by lamp, vegetation and people",
+    "neighbor buildings contaminate left/right outer image edges",
+    "do not ship raw source pixels as a single unrectified facade texture"
+  ]
+}

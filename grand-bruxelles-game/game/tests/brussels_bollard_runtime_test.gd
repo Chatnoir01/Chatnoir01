@@ -22,6 +22,27 @@ func _load_data() -> Dictionary:
     var parsed: Variant = JSON.parse_string(file.get_as_text())
     return parsed as Dictionary if parsed is Dictionary else {}
 
+func _print_position_diagnostics(scene: Node3D, points: Array) -> void:
+    var root_node := scene.get_node_or_null("BrusselsSourceBackedBollards") as Node3D
+    if root_node == null:
+        print("BRUSSELS_BOLLARD_DIAG: runtime root missing")
+        return
+    var body_batch := root_node.get_node_or_null("BollardBodies") as MultiMeshInstance3D
+    var cap_batch := root_node.get_node_or_null("BollardCaps") as MultiMeshInstance3D
+    var collision_body := root_node.get_node_or_null("BollardCollisions") as StaticBody3D
+    if body_batch == null or cap_batch == null or collision_body == null:
+        print("BRUSSELS_BOLLARD_DIAG: body/cap/collision nodes missing")
+        return
+    for index: int in range(mini(points.size(), body_batch.multimesh.instance_count)):
+        var point := points[index] as Dictionary
+        var position := point.get("position", []) as Array
+        var source := Vector3(float(position[0]), 0.0, float(position[1]))
+        var body_origin := body_batch.multimesh.get_instance_transform(index).origin
+        var cap_origin := cap_batch.multimesh.get_instance_transform(index).origin
+        var collision := collision_body.get_child(index) as CollisionShape3D
+        var collision_origin := collision.position if collision != null else Vector3.INF
+        print("BRUSSELS_BOLLARD_DIAG: index=%d osm=%d source=(%.9f,%.9f) body=(%.9f,%.9f,%.9f) cap=(%.9f,%.9f,%.9f) collision=(%.9f,%.9f,%.9f) dx_body=%.9f dz_body=%.9f dx_cap=%.9f dz_cap=%.9f dx_collision=%.9f dz_collision=%.9f" % [index, int(point.get("osm_id", 0)), source.x, source.z, body_origin.x, body_origin.y, body_origin.z, cap_origin.x, cap_origin.y, cap_origin.z, collision_origin.x, collision_origin.y, collision_origin.z, absf(body_origin.x-source.x), absf(body_origin.z-source.z), absf(cap_origin.x-source.x), absf(cap_origin.z-source.z), absf(collision_origin.x-source.x), absf(collision_origin.z-source.z)])
+
 func _run() -> void:
     var data := _load_data()
     if data.is_empty():
@@ -111,6 +132,7 @@ func _run() -> void:
         _fail("asset family mismatch")
         return
     if not bool(runtime.call("source_positions_unchanged")):
+        _print_position_diagnostics(scene, points)
         _fail("runtime moved source positions")
         return
 

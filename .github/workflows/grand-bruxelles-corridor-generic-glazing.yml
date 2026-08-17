@@ -1,0 +1,52 @@
+name: Grand Bruxelles Corridor Generic Glazing
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/corridor_facade_depth_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_corridor_generic_glazing_material.gd'
+      - 'grand-bruxelles-game/game/tests/corridor_generic_glazing_visual_test.gd'
+      - 'grand-bruxelles-game/tests/test_corridor_generic_glazing_material.py'
+      - '.github/workflows/grand-bruxelles-corridor-generic-glazing.yml'
+  workflow_dispatch:
+
+jobs:
+  corridor-generic-glazing:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Require source-safe existing-owner glazing family
+        run: python grand-bruxelles-game/tests/test_corridor_generic_glazing_material.py
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: '4.7.1'
+          use-dotnet: false
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/corridor-glazing-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|SHADER ERROR|Shader compilation failed' /tmp/corridor-glazing-import.log; then exit 1; fi
+      - name: Prove normal-player generic glazing impact
+        if: hashFiles('grand-bruxelles-game/game/tests/corridor_generic_glazing_visual_test.gd') != ''
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+          set -o pipefail
+          timeout 120s xvfb-run -a godot --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/corridor_generic_glazing_visual_test.gd 2>&1 | tee /tmp/corridor-glazing-visual.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|SHADER ERROR|Shader compilation failed|CORRIDOR_GENERIC_GLAZING_VISUAL_FAIL' /tmp/corridor-glazing-visual.log; then exit 1; fi
+          grep -q 'CORRIDOR_GENERIC_GLAZING_VISUAL_OK' /tmp/corridor-glazing-visual.log
+      - name: Upload player A/B evidence
+        if: always() && hashFiles('grand-bruxelles-game/game/tests/corridor_generic_glazing_visual_test.gd') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: corridor-generic-glazing-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/corridor_generic_glazing_before.png
+            grand-bruxelles-game/artifacts/visual/corridor_generic_glazing_after.png
+            /tmp/corridor-glazing-visual.log

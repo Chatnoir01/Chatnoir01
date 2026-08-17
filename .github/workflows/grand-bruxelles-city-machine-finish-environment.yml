@@ -1,0 +1,27 @@
+name: Grand Bruxelles City Machine Finish Environment
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_machine/finish_environment_stage.py"
+      - "grand-bruxelles-game/tools/city_machine/test_finish_environment_stage.py"
+      - ".github/workflows/grand-bruxelles-city-machine-finish-environment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  environment-stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install exact CRS dependency
+        run: python3 -m pip install --disable-pip-version-check "pyproj>=3.7,<4"
+      - name: Test OSM-only stage
+        run: python3 grand-bruxelles-game/tools/city_machine/test_finish_environment_stage.py
+      - name: Execute real Jette OSM environment stage
+        run: python3 grand-bruxelles-game/tools/city_machine/finish_environment_stage.py --zone jette
+      - name: Prove OSM runtime output remains deterministic
+        run: git diff --exit-code -- grand-bruxelles-game/data/osm/zones/jette/environment.game.json

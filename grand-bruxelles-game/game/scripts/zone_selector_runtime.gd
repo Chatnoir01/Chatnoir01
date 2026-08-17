@@ -14,6 +14,9 @@ var _panel: PanelContainer
 var _status: Label
 var _toggle: Button
 var _reporter: Node
+var _zone_list: VBoxContainer
+var _report_help: Label
+var _zone_buttons: Dictionary = {}
 var _busy := false
 var _pending_zone_id := ""
 var _active_zone_id := "midi"
@@ -23,11 +26,13 @@ func _ready() -> void:
     layer = 120
     process_mode = Node.PROCESS_MODE_ALWAYS
     _load_catalog()
-    _build_ui()
     _reporter = REPORT_RUNTIME.new()
     _reporter.name = "PlayerIssueReportRuntime"
     _reporter.call("configure", self)
     add_child(_reporter)
+    if _reporter.has_signal("report_created"):
+        _reporter.connect("report_created", _on_report_created)
+    _build_ui()
 
 func _load_catalog() -> void:
     _catalog.clear()
@@ -90,31 +95,120 @@ func _catalog_row_shape_valid(zone: Dictionary) -> bool:
     if mode == "fast_travel":
         return not str(zone.get("destination", "")).strip_edges().is_empty()
     if mode == "position":
-        var spawn: Variant = zone.get("spawn", [])
-        return spawn is Array and spawn.size() >= 3
+        return _spawn_contract_ready(zone)
     if mode == "player_method":
         return not str(zone.get("method", "")).strip_edges().is_empty()
     if mode == "script_zone":
-        var spawn: Variant = zone.get("spawn", [])
-        return not str(zone.get("script", "")).strip_edges().is_empty() and spawn is Array and spawn.size() >= 3
+        return not str(zone.get("script", "")).strip_edges().is_empty() and _spawn_contract_ready(zone)
     return false
 
 func _requirements_ready(zone: Dictionary) -> bool:
     var requirements: Variant = zone.get("requires", [])
-    if not requirements is Array:
+    if not requirements is Array or requirements.is_empty():
         return false
     for raw: Variant in requirements:
-        var path := str(raw)
-        if not ResourceLoader.exists(path) and not FileAccess.file_exists(path):
+        var path := str(raw).strip_edges()
+        if path.is_empty() or (not ResourceLoader.exists(path) and not FileAccess.file_exists(path)):
             return false
     return true
 
+func _spawn_contract_ready(zone: Dictionary) -> bool:
+    var spawn: Variant = zone.get("spawn", [])
+    if not spawn is Array or spawn.size() < 3:
+        return false
+    for index: int in range(3):
+        var value: Variant = spawn[index]
+        if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
+            return false
+        var number := float(value)
+        if is_nan(number) or is_inf(number):
+            return false
+    return true
+
+func _runtime_route_ready(zone: Dictionary, main: Node) -> bool:
+    var life_script := str(zone.get("life_script", "")).strip_edges()
+    if not life_script.is_empty():
+        if not ResourceLoader.exists(life_script):
+            return false
+        var life_resource: Resource = load(life_script)
+        if not life_resource is Script:
+            return false
+    var mode := str(zone.get("mode", ""))
+    if mode == "script_zone":
+        var script_path := str(zone.get("script", "")).strip_edges()
+        if not ResourceLoader.exists(script_path):
+            return false
+        var zone_resource: Resource = load(script_path)
+        if not zone_resource is Script:
+            return false
+    if main == null:
+        return true
+    var player := main.get_node_or_null("Player")
+    if player == null:
+        return false
+    if mode == "fast_travel":
+        return player.has_method("fast_travel_to")
+    if mode == "position":
+        return _spawn_contract_ready(zone)
+    if mode == "player_method":
+        return player.has_method(str(zone.get("method", "")))
+    if mode == "script_zone":
+        return _spawn_contract_ready(zone)
+    return false
+
+func _listing_failure_reason(zone: Dictionary, main: Node = null) -> String:
+    var quality := str(zone.get("quality", "")).to_upper()
+    if quality not in STORED_QUALITIES:
+        return "honest_quality"
+    if not _requirements_ready(zone):
+        return "requires_resources"
+    var mode := str(zone.get("mode", ""))
+    if (mode == "position" or mode == "script_zone") and not _spawn_contract_ready(zone):
+        return "spawn_stable"
+    if not _runtime_route_ready(zone, main):
+        return "load_without_crash"
+    return ""
+
+func listing_state(zone: Dictionary, main: Node = null) -> String:
+    var effective_main := main
+    if effective_main == null:
+        effective_main = get_tree().current_scene
+    if not _listing_failure_reason(zone, effective_main).is_empty():
+        return "NON_LISTE"
+    var quality := str(zone.get("quality", "LABO"))
+    if quality != "JOUABLE" and _open_report_count(str(zone.get("id", ""))) > 0:
+        return "LABO_REPORT"
+    return quality
+
+func _badge_text(state: String) -> String:
+    if state == "LABO_BRUT":
+        return "LABO·BRUT"
+    if state == "LABO_REPORT":
+        return "LABO·REPORT"
+    return state
+
 func available_zones() -> Array:
     var result: Array = []
+    var main := get_tree().current_scene
     for raw: Variant in _catalog:
-        if raw is Dictionary and _requirements_ready(raw as Dictionary):
-            result.append((raw as Dictionary).duplicate(true))
+        if not raw is Dictionary:
+            continue
+        var zone := raw as Dictionary
+        if listing_state(zone, main) == "NON_LISTE":
+            continue
+        result.append(zone.duplicate(true))
     return result
+
+func _catalog_zone_by_id(zone_id: String) -> Dictionary:
+    for raw: Variant in _catalog:
+        if raw is Dictionary and str((raw as Dictionary).get("id", "")) == zone_id:
+            return (raw as Dictionary).duplicate(true)
+    return {}
+
+func _open_report_count(zone_id: String) -> int:
+    if _reporter == null or not _reporter.has_method("open_report_count"):
+        return 0
+    return int(_reporter.call("open_report_count", zone_id))
 
 func reporting_runtime() -> Node:
     return _reporter
@@ -123,7 +217,7 @@ func can_promote_zone(zone_id: String) -> bool:
     var zone := _zone_by_id(zone_id)
     if zone.is_empty() or str(zone.get("quality", "")) != "LABO" or _reporter == null:
         return false
-    return int(_reporter.call("open_report_count", zone_id)) == 0
+    return _open_report_count(zone_id) == 0
 
 func current_report_context() -> Dictionary:
     var main := get_tree().current_scene
@@ -133,9 +227,9 @@ func current_report_context() -> Dictionary:
     if player == null:
         return {}
     var zone_id := _infer_active_zone_id(main)
-    var zone := _zone_by_id(zone_id)
+    var zone := _catalog_zone_by_id(zone_id)
     if zone.is_empty():
-        zone = _zone_by_id(_active_zone_id)
+        zone = _catalog_zone_by_id(_active_zone_id)
     if zone.is_empty():
         return {}
     return {
@@ -148,7 +242,7 @@ func current_report_context() -> Dictionary:
 func _infer_active_zone_id(main: Node) -> String:
     if main.has_meta(ACTIVE_ZONE_ID_META):
         var explicit_id := str(main.get_meta(ACTIVE_ZONE_ID_META, "")).strip_edges()
-        if not explicit_id.is_empty() and not _zone_by_id(explicit_id).is_empty():
+        if not explicit_id.is_empty() and not _catalog_zone_by_id(explicit_id).is_empty():
             return explicit_id
     var location := main.get_node_or_null("LocationLabel")
     if location == null or not location.has_method("get_current_location_text"):
@@ -181,34 +275,38 @@ func _build_ui() -> void:
     _panel = PanelContainer.new()
     _panel.name = "ZoneSelectorPanel"
     _panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-    _panel.position = Vector2(-382.0, 70.0)
-    _panel.size = Vector2(364.0, 540.0)
+    _panel.position = Vector2(-410.0, 70.0)
+    _panel.size = Vector2(392.0, 590.0)
     add_child(_panel)
 
     var box := VBoxContainer.new()
     box.add_theme_constant_override("separation", 9)
     _panel.add_child(box)
     var title := Label.new()
-    title.text = "BRUXELLES · ZONES SUR MAIN"
+    title.text = "BRUXELLES · ZONES"
     title.add_theme_font_size_override("font_size", 20)
     box.add_child(title)
     var hint := Label.new()
-    hint.text = "JOUABLE = validé · LABO = à tester en jouant"
+    hint.text = "JOUABLE = validé humain · LABO = testable · BRUT = encore indigne du standard Midi"
     hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     box.add_child(hint)
 
-    for zone: Dictionary in available_zones():
-        var button := Button.new()
-        button.name = "Zone_%s" % str(zone.get("id", "unknown"))
-        button.text = "%s  —  %s" % [str(zone.get("label", "Zone")), str(zone.get("quality", "LABO"))]
-        button.custom_minimum_size = Vector2(330.0, 44.0)
-        button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-        button.pressed.connect(_on_zone_pressed.bind(str(zone.get("id", ""))))
-        box.add_child(button)
+    _report_help = Label.new()
+    _report_help.name = "ZoneReportHelp"
+    _report_help.text = "LABO·REPORT = défaut joueur ouvert · promotion qualité bloquée"
+    _report_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _report_help.visible = false
+    box.add_child(_report_help)
+
+    _zone_list = VBoxContainer.new()
+    _zone_list.name = "ZoneList"
+    _zone_list.add_theme_constant_override("separation", 7)
+    box.add_child(_zone_list)
+    _rebuild_zone_rows()
 
     _status = Label.new()
     _status.name = "ZoneSelectorStatus"
-    _status.text = "Choisis une zone. Le menu ne liste que les runtimes présents."
+    _status.text = "Seules les zones qui passent les gates minimum sont listées."
     _status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     box.add_child(_status)
     var close := Button.new()
@@ -217,9 +315,38 @@ func _build_ui() -> void:
     box.add_child(close)
     _panel.visible = false
 
+func _rebuild_zone_rows() -> void:
+    if _zone_list == null:
+        return
+    for child: Node in _zone_list.get_children():
+        _zone_list.remove_child(child)
+        child.queue_free()
+    _zone_buttons.clear()
+    var report_count := 0
+    for zone: Dictionary in available_zones():
+        var state := listing_state(zone, get_tree().current_scene)
+        var zone_id := str(zone.get("id", "unknown"))
+        if state == "LABO_REPORT":
+            report_count += 1
+        var button := Button.new()
+        button.name = "Zone_%s" % zone_id
+        button.text = "%s  —  %s" % [str(zone.get("label", "Zone")), _badge_text(state)]
+        button.custom_minimum_size = Vector2(356.0, 44.0)
+        button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+        button.pressed.connect(_on_zone_pressed.bind(zone_id))
+        _zone_list.add_child(button)
+        _zone_buttons[zone_id] = button
+    if _report_help != null:
+        _report_help.visible = report_count > 0
+
+func _on_report_created(_report_id: String, _zone_id: String, _report_path: String) -> void:
+    _rebuild_zone_rows()
+
 func set_menu_open(open: bool) -> void:
     if _panel == null:
         return
+    if open:
+        _rebuild_zone_rows()
     _panel.visible = open
     if open:
         _previous_mouse_mode = Input.mouse_mode
@@ -243,7 +370,7 @@ func _on_zone_pressed(zone_id: String) -> void:
         return
     var zone := _zone_by_id(zone_id)
     if zone.is_empty():
-        _status.text = "Zone indisponible : elle n'est plus listable."
+        _status.text = "NON LISTÉ · un gate minimum échoue."
         return
     _busy = true
     _pending_zone_id = zone_id
@@ -282,7 +409,7 @@ func _apply_zone(main: Node, zone: Dictionary) -> void:
         ok = bool(player.call("fast_travel_to", str(zone.get("destination", ""))))
     elif mode == "position":
         var spawn: Variant = zone.get("spawn", [])
-        if spawn is Array and spawn.size() >= 3:
+        if _spawn_contract_ready(zone):
             player.global_position = Vector3(float(spawn[0]), float(spawn[1]), float(spawn[2]))
             player.velocity = Vector3.ZERO
             if player.has_method("_restore_runtime_hud"):
@@ -307,8 +434,9 @@ func _apply_zone(main: Node, zone: Dictionary) -> void:
     _publish_active_zone(main, zone)
     _pending_zone_id = ""
     _busy = false
-    _status.text = "%s · %s" % [str(zone.get("label", "Zone")), str(zone.get("quality", "LABO"))]
-    print("ZONE_VISIT_READY: id=%s quality=%s" % [str(zone.get("id", "")), str(zone.get("quality", ""))])
+    var state := listing_state(zone, main)
+    _status.text = "%s · %s" % [str(zone.get("label", "Zone")), _badge_text(state)]
+    print("ZONE_VISIT_READY: id=%s quality=%s state=%s" % [str(zone.get("id", "")), str(zone.get("quality", "")), state])
 
 func _publish_active_zone(main: Node, zone: Dictionary) -> void:
     if main == null:
@@ -362,7 +490,7 @@ func _mount_script_zone(main: Node, player: CharacterBody3D, zone: Dictionary) -
         lab.queue_free()
         return false
     var spawn: Variant = zone.get("spawn", [])
-    if not spawn is Array or spawn.size() < 3:
+    if not _spawn_contract_ready(zone):
         lab.queue_free()
         return false
     player.global_position = Vector3(float(spawn[0]), float(spawn[1]), float(spawn[2]))
@@ -371,7 +499,7 @@ func _mount_script_zone(main: Node, player: CharacterBody3D, zone: Dictionary) -
         player.call("_restore_runtime_hud")
     var location := main.get_node_or_null("LocationLabel")
     if location != null and location.has_method("set_forced_label"):
-        location.call("set_forced_label", "%s · LABO" % str(zone.get("label", "ZONE")))
+        location.call("set_forced_label", "%s · %s" % [str(zone.get("label", "ZONE")), _badge_text(listing_state(zone, main))])
     return true
 
 func _travel_failed(message: String) -> void:
@@ -379,5 +507,5 @@ func _travel_failed(message: String) -> void:
     _pending_zone_id = ""
     _busy = false
     if _status != null:
-        _status.text = "INDISPONIBLE · non validé, non promu"
+        _status.text = "INDISPONIBLE · NON LISTÉ tant que le gate échoue"
     set_menu_open(true)

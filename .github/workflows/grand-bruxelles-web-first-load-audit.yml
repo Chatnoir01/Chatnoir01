@@ -21,8 +21,7 @@ jobs:
       - name: Install Godot 4.7.1
         run: |
           set -euo pipefail
-          curl -fL -o /tmp/godot.zip \
-            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
 
@@ -37,23 +36,18 @@ jobs:
         if: steps.templates-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          curl -fL --retry 3 --retry-delay 5 -o /tmp/templates.tpz \
-            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz
+          curl -fL --retry 3 --retry-delay 5 -o /tmp/templates.tpz https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz
           mkdir -p /tmp/templates-unpack
           unzip -q /tmp/templates.tpz -d /tmp/templates-unpack
           mkdir -p ~/.local/share/godot/export_templates/4.7.1.stable
           cp -a /tmp/templates-unpack/templates/. ~/.local/share/godot/export_templates/4.7.1.stable/
 
       - name: Import project
-        run: |
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game --editor --quit
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
 
       - name: Record production baseline
         run: |
           set -euo pipefail
-          test -f grand-bruxelles-game/web-preview/index.pck
-          test -f grand-bruxelles-game/web-preview/index.wasm
           python3 - <<'PY'
           from pathlib import Path
           root = Path('grand-bruxelles-game/web-preview')
@@ -64,66 +58,7 @@ jobs:
           Path('/tmp/baseline.txt').write_text(f'{pck} {wasm} {total}\n', encoding='utf-8')
           PY
 
-      - name: Profile published PCK contents
-        run: |
-          set -euo pipefail
-          cat > /tmp/profile_pack.gd <<'GD'
-          extends SceneTree
-
-          var entries: Array[Dictionary] = []
-
-          func _init() -> void:
-              _walk("res://")
-              entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.size) > int(b.size))
-              var groups := {}
-              var tests_bytes := 0
-              for item in entries:
-                  var path := String(item.path)
-                  var rel := path.trim_prefix("res://")
-                  var parts := rel.split("/", false)
-                  var key := parts[0] if parts.size() > 0 else "root"
-                  if parts.size() > 1 and parts[0] in ["game", "data"]:
-                      key = "%s/%s" % [parts[0], parts[1]]
-                  groups[key] = int(groups.get(key, 0)) + int(item.size)
-                  if path.begins_with("res://game/tests/"):
-                      tests_bytes += int(item.size)
-              var group_rows: Array[Dictionary] = []
-              for key in groups:
-                  group_rows.append({"key": key, "size": groups[key]})
-              group_rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.size) > int(b.size))
-              print("PCK_PROFILE files=%d tests_bytes=%d" % [entries.size(), tests_bytes])
-              for row in group_rows.slice(0, mini(20, group_rows.size())):
-                  print("PCK_GROUP %s %d" % [row.key, row.size])
-              for item in entries.slice(0, mini(30, entries.size())):
-                  print("PCK_TOP %d %s" % [item.size, item.path])
-              quit(0)
-
-          func _walk(path: String) -> void:
-              var dir := DirAccess.open(path)
-              if dir == null:
-                  return
-              dir.list_dir_begin()
-              while true:
-                  var name := dir.get_next()
-                  if name.is_empty():
-                      break
-                  if name == "." or name == "..":
-                      continue
-                  var child := path.path_join(name)
-                  if dir.current_is_dir():
-                      _walk(child)
-                  else:
-                      var file := FileAccess.open(child, FileAccess.READ)
-                      if file != null:
-                          entries.append({"path": child, "size": file.get_length()})
-              dir.list_dir_end()
-          GD
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --main-pack grand-bruxelles-game/web-preview/index.pck \
-            --script /tmp/profile_pack.gd | tee /tmp/pck-profile.log
-          grep -q '^PCK_PROFILE ' /tmp/pck-profile.log
-
-      - name: Build tests-excluded candidate
+      - name: Build source-safe exclusion candidate
         run: |
           set -euo pipefail
           cp grand-bruxelles-game/export_presets.cfg /tmp/export_presets.original.cfg
@@ -132,28 +67,25 @@ jobs:
           path = Path('grand-bruxelles-game/export_presets.cfg')
           text = path.read_text(encoding='utf-8')
           needle = 'exclude_filter=""'
+          exclusion = 'game/tests/*,data/sources/midi/discovered_urbis_distributions.json'
           if needle not in text:
               raise SystemExit('WEB_AUDIT_FAIL Web exclude_filter marker missing')
-          text = text.replace(needle, 'exclude_filter="game/tests/*"', 1)
+          text = text.replace(needle, f'exclude_filter="{exclusion}"', 1)
           path.write_text(text, encoding='utf-8')
+          print(f'WEB_CANDIDATE_EXCLUDE {exclusion}')
           PY
-          rm -rf /tmp/web-candidate
-          mkdir -p /tmp/web-candidate
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
-            --export-release "Web" /tmp/web-candidate/index.html
+          rm -rf /tmp/web-candidate && mkdir -p /tmp/web-candidate
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --export-release "Web" /tmp/web-candidate/index.html
           test -s /tmp/web-candidate/index.html
           test -s /tmp/web-candidate/index.js
           test -s /tmp/web-candidate/index.wasm
           test -s /tmp/web-candidate/index.pck
 
-      - name: Prove candidate pack can boot the production project
+      - name: Prove candidate pack boots production
         run: |
           set -euo pipefail
           set +e
-          timeout 35s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --main-pack /tmp/web-candidate/index.pck --quit-after 120 \
-            > /tmp/candidate-boot.log 2>&1
+          timeout 35s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --main-pack /tmp/web-candidate/index.pck --quit-after 120 > /tmp/candidate-boot.log 2>&1
           status=$?
           set -e
           cat /tmp/candidate-boot.log
@@ -162,9 +94,11 @@ jobs:
             exit 1
           fi
           if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
-            echo "WEB_CANDIDATE_BOOT_FAIL exit=$status"
             exit "$status"
           fi
+          for marker in VISIBLE_CITY_RUNTIME_READY LIVING_CITY_SHOWCASE_READY GRAND_PLACE_LOD2_1655673_READY BRUSSELS_WORLD_STREAMING_READY; do
+            grep -q "$marker" /tmp/candidate-boot.log || { echo "WEB_CANDIDATE_BOOT_FAIL missing_marker=$marker"; exit 1; }
+          done
           echo 'WEB_CANDIDATE_BOOT_OK'
 
       - name: Measure first-load reduction
@@ -180,22 +114,12 @@ jobs:
           saved = baseline_total - candidate_total
           pct = saved / baseline_total * 100.0
           pck_saved = baseline_pck - candidate_pck
-          print(
-              'WEB_FIRST_LOAD_AUDIT '
-              f'candidate=exclude_game_tests baseline_total={baseline_total} candidate_total={candidate_total} '
-              f'saved={saved} saved_pct={pct:.2f} '
-              f'baseline_pck={baseline_pck} candidate_pck={candidate_pck} pck_saved={pck_saved} '
-              f'wasm_delta={candidate_wasm-baseline_wasm}'
-          )
-          if candidate_total >= baseline_total:
-              raise SystemExit('WEB_FIRST_LOAD_FAIL candidate did not reduce first-load bytes')
-          if candidate_pck >= baseline_pck:
-              raise SystemExit('WEB_FIRST_LOAD_FAIL candidate did not reduce PCK bytes')
+          print(f'WEB_FIRST_LOAD_AUDIT candidate=exclude_tests_and_discovery baseline_total={baseline_total} candidate_total={candidate_total} saved={saved} saved_pct={pct:.2f} baseline_pck={baseline_pck} candidate_pck={candidate_pck} pck_saved={pck_saved} wasm_delta={candidate_wasm-baseline_wasm}')
+          if saved < 10 * 1024 * 1024:
+              raise SystemExit(f'WEB_FIRST_LOAD_FAIL expected >=10MiB safe reduction, got {saved}')
           PY
 
       - name: Restore working preset
         if: always()
         run: |
-          if [ -f /tmp/export_presets.original.cfg ]; then
-            cp /tmp/export_presets.original.cfg grand-bruxelles-game/export_presets.cfg
-          fi
+          if [ -f /tmp/export_presets.original.cfg ]; then cp /tmp/export_presets.original.cfg grand-bruxelles-game/export_presets.cfg; fi

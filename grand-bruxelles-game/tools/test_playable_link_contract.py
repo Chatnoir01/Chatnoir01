@@ -4,7 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-LIVE_URL = (
+LIVE_URL = "https://chatnoir01.github.io/Chatnoir01/"
+RAWGITHACK_URL = (
     "https://raw.githack.com/Chatnoir01/Chatnoir01/main/"
     "grand-bruxelles-game/web-preview/index.html"
 )
@@ -22,21 +23,33 @@ def main() -> None:
         repository_root / ".github/workflows/grand-bruxelles-web.yml"
     ).read_text(encoding="utf-8")
 
-    assert LIVE_URL in readme, "README must expose the verified playable URL"
+    assert LIVE_URL in readme, "README must expose the canonical GitHub Pages playable URL"
     assert DEAD_URL not in readme, "README must not advertise the removed Vercel deployment"
+    assert "ne doit plus être communiqué comme URL joueur principale" in readme
 
     assert "name: Grand Bruxelles Playable Link" in workflow
     assert "pull_request:" in workflow
+    assert "workflow_run:" in workflow
+    assert 'workflows: ["Grand Bruxelles Playable Web Build"]' in workflow
     assert "name: Checkout proposed source" in workflow
     assert "if: github.event_name == 'workflow_run'" in workflow
-    assert "PLAYABLE_PUBLIC_BASE:" in workflow
-    assert LIVE_URL.rsplit("/", 1)[0] in workflow
     assert "python3 grand-bruxelles-game/tools/test_playable_link_contract.py" in workflow
-    assert "name: Verify public playable link" in workflow
 
     assert "deploy_pages:" in workflow
-    assert "github.event_name == 'workflow_dispatch' && inputs.deploy_pages" in workflow
+    assert "if: github.event_name != 'pull_request'" in workflow
+    assert "pages: write" in workflow
+    assert "id-token: write" in workflow
+    assert "uses: actions/configure-pages@v6" in workflow
+    assert "enablement: true" in workflow
+    assert "uses: actions/upload-pages-artifact@v4" in workflow
+    assert "path: grand-bruxelles-game/web-preview" in workflow
     assert "uses: actions/deploy-pages@v4" in workflow
+
+    assert "verify_public:" in workflow
+    assert "PLAYABLE_PUBLIC_BASE: ${{ needs.deploy_pages.outputs.page_url }}" in workflow
+    assert "PLAYABLE_PAGES_OK" in workflow
+    assert "raw.githack.com" not in workflow, "public verification must not depend on RawGitHack"
+    assert RAWGITHACK_URL not in workflow
 
     publish_markers = [
         "for publish_attempt in 1 2 3",
@@ -54,7 +67,7 @@ def main() -> None:
         "Web publishing race guards must run in fetch/rebase/push order"
     )
 
-    print("PLAYABLE_LINK_CONTRACT_TEST_OK")
+    print("PLAYABLE_LINK_CONTRACT_TEST_OK pages_first=true rawgithack_primary=false")
 
 
 if __name__ == "__main__":

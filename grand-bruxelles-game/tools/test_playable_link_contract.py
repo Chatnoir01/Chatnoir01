@@ -16,12 +16,19 @@ def main() -> None:
     game_root = Path(__file__).resolve().parents[1]
     repository_root = game_root.parent
     readme = (game_root / "README.md").read_text(encoding="utf-8")
+    play = (game_root / "PLAY.md").read_text(encoding="utf-8")
     workflow = (
         repository_root / ".github/workflows/grand-bruxelles-pages.yml"
     ).read_text(encoding="utf-8")
     web_build_workflow = (
         repository_root / ".github/workflows/grand-bruxelles-web.yml"
     ).read_text(encoding="utf-8")
+
+    assert CANONICAL_URL in play, "PLAY.md must expose the single canonical GitHub Pages URL"
+    assert "Lien unique" in play
+    assert "PLAYABLE_PAGES_OK" in play
+    assert "RawGitHack n’est pas une solution finale" in play
+    assert "Settings → Pages → Build and deployment → Source → GitHub Actions" in play
 
     assert CANONICAL_URL in readme, "README must document the canonical GitHub Pages URL"
     assert DEAD_URL not in readme, "README must not advertise the removed Vercel deployment"
@@ -30,6 +37,7 @@ def main() -> None:
     assert "ne doit plus être communiqué comme URL joueur principale" in readme
 
     assert "name: Grand Bruxelles Playable Link" in workflow
+    assert '"grand-bruxelles-game/PLAY.md"' in workflow
     assert "pull_request:" in workflow
     assert "workflow_run:" in workflow
     assert 'workflows: ["Grand Bruxelles Playable Web Build"]' in workflow
@@ -80,7 +88,8 @@ def main() -> None:
 
     print(
         "PLAYABLE_LINK_CONTRACT_TEST_OK "
-        "pages_first=true pages_initial_admin_gate=explicit rawgithack_primary=false"
+        "single_play_entry=true pages_first=true "
+        "pages_initial_admin_gate=explicit rawgithack_primary=false"
     )
 
 

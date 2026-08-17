@@ -92,9 +92,8 @@ func _run() -> void:
     if runtime == null:
         _fail("BrusselsBollardRuntime autoload missing")
         return
-    for _frame: int in range(180):
-        if bool(runtime.call("ready_complete")):
-            break
+    runtime.call("bind_scene", scene)
+    for _frame: int in range(12):
         await process_frame
     if not bool(runtime.call("ready_complete")) or bool(runtime.call("failed")):
         _fail("runtime did not bind cleanly")

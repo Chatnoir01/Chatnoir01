@@ -19,8 +19,9 @@ func _run() -> void:
     root.add_child(selector)
     await process_frame
 
-    selector.set("_active_zone_id", "jette")
     var fake_main := Node3D.new()
+    fake_main.set_meta("grand_bruxelles_active_zone_id", "jette")
+    fake_main.set_meta("grand_bruxelles_active_zone_label", "Jette")
     var location := FakeLocationLabel.new()
     location.name = "LocationLabel"
     location.text = "Bourse"
@@ -28,7 +29,7 @@ func _run() -> void:
 
     var inferred := str(selector.call("_infer_active_zone_id", fake_main))
     if inferred != "jette":
-        _fail("active Jette was overwritten by stale LocationLabel: %s" % inferred)
+        _fail("explicit active Jette was overwritten by stale LocationLabel: %s" % inferred)
         return
 
     var zone: Dictionary = selector.call("_zone_by_id", inferred)

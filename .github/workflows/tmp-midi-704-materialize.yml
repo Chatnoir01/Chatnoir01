@@ -1,0 +1,66 @@
+name: TEMP Midi 704 Materialize
+
+on:
+  push:
+    branches: [visual/midi-urbis-envelope-887f2e8]
+    paths:
+      - ".github/workflows/tmp-midi-704-materialize.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: visual/midi-urbis-envelope-887f2e8
+      - name: Apply source-plan ownership surgically
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          hero = Path('grand-bruxelles-game/game/scripts/midi_hero_zone.gd')
+          s = hero.read_text()
+          old = '''# Bruxelles-Midi / Brussel-Zuid hero zone.\n# Coordinates remain aligned with the committed OSM corridor. The station\n# composition is a hand-built visual reconstruction pass informed by the\n# Brussels architectural heritage inventory while the exact UrbIS 3D import\n# pipeline is being prepared.\n\nconst MIDI: Vector3 = Vector3(-668.5, 0.0, 627.84)'''
+          new = '''# Bruxelles-Midi / Brussel-Zuid hero zone.\n# Coordinates remain aligned with the committed OSM corridor. Hero facade\n# articulation remains authored, while the station plan envelope is delegated\n# to the official UrbIS footprint already rendered by UrbISMidiExact.\n\nconst MidiStationSourcePlan = preload("res://game/scripts/midi_station_source_plan.gd")\nconst MIDI_STATION_BUILDING_ID := "https://databrussels.be/id/building/1633645"\nconst MIDI: Vector3 = Vector3(-668.5, 0.0, 627.84)'''
+          assert old in s, 'hero header drifted'
+          s = s.replace(old, new, 1)
+
+          marker = '''func _build_station_complex() -> void:\n    var station: Node3D = _station_root()\n\n    # Low station base / covered frontage running along Avenue Fonsny.\n    _add_box(station, "StationBaseBlueStone", Vector3(45.0, 3.25, 171.0), Vector3(0.0, 1.625, 0.0), _blue_stone)\n    _add_box(station, "StationLowerBrick", Vector3(44.6, 4.1, 170.0), Vector3(-0.1, 5.30, 0.0), _brick_yellow)\n    _add_box(station, "StationLongGlassBand", Vector3(0.18, 2.0, 164.0), Vector3(22.40, 5.55, 0.0), _glass)\n    _add_box(station, "StationRoofLine", Vector3(48.0, 0.55, 176.0), Vector3(0.0, 7.55, 0.0), _metal)'''
+          replacement = '''func _source_station_footprint() -> PackedVector2Array:\n    if MidiStationSourcePlan.MIDI_STATION_BUILDING_ID != MIDI_STATION_BUILDING_ID:\n        push_error("Midi station source selector ID mismatch")\n        return PackedVector2Array()\n    return MidiStationSourcePlan.source_station_footprint()\n\n\nfunc _build_station_complex() -> void:\n    var source_footprint: PackedVector2Array = _source_station_footprint()\n    if source_footprint.size() < 3:\n        push_error("Midi hero station detail disabled: authoritative UrbIS footprint unavailable")\n        return\n\n    # UrbISMidiExact is the sole station plan-envelope authority. Its current\n    # vertical value is temporary_area_heuristic, so this lot deliberately does\n    # not promote that height as authoritative. The remaining facade elements\n    # are visual articulation only and preserve the existing Fonsny character.\n    var station: Node3D = _station_root()\n    _add_box(station, "StationLongGlassBand", Vector3(0.18, 2.0, 164.0), Vector3(22.40, 5.55, 0.0), _glass)'''
+          assert marker in s, 'station envelope block drifted'
+          s = s.replace(marker, replacement, 1)
+          assert 'Vector3(45.0, 3.25, 171.0)' not in s
+          assert 'Vector3(44.6, 4.1, 170.0)' not in s
+          assert 'Vector3(48.0, 0.55, 176.0)' not in s
+          hero.write_text(s)
+
+          blue = Path('grand-bruxelles-game/game/tests/midi_blue_stone_material_witness_test.gd')
+          b = blue.read_text()
+          assert 'runtime.applied_surface_count() != 4' in b
+          b = b.replace('runtime.applied_surface_count() != 4', 'runtime.applied_surface_count() != 3', 1)
+          b = b.replace('expected exactly four pre-existing blue-stone base surfaces', 'expected exactly three surviving blue-stone facade base surfaces', 1)
+          blue.write_text(b)
+
+          fauq = Path('grand-bruxelles-game/game/tests/midi_fauquenberg_brick_material_witness_test.gd')
+          f = fauq.read_text()
+          assert 'const EXPECTED_SURFACES := 4' in f
+          f = f.replace('const EXPECTED_SURFACES := 4', 'const EXPECTED_SURFACES := 3', 1)
+          fauq.write_text(f)
+          PY
+      - name: Remove temporary workflow and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/tmp-midi-704-materialize.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add grand-bruxelles-game/game/scripts/midi_hero_zone.gd \
+                  grand-bruxelles-game/game/tests/midi_blue_stone_material_witness_test.gd \
+                  grand-bruxelles-game/game/tests/midi_fauquenberg_brick_material_witness_test.gd
+          git commit -m "fix(midi): delegate station envelope to official UrbIS footprint"
+          git push origin HEAD:visual/midi-urbis-envelope-887f2e8

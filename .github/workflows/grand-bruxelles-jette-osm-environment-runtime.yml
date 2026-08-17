@@ -38,6 +38,7 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|JETTE_OSM_ENVIRONMENT_CONTRACT_FAIL" /tmp/jette-environment-contract.log; then exit 1; fi
           grep -q "JETTE_OSM_ENVIRONMENT_CONTRACT_OK" /tmp/jette-environment-contract.log
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: jette-osm-environment-ab
           path: |

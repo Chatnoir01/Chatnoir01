@@ -7,15 +7,15 @@ class_name BrusselsStreetLampAsset
 ## measurements, manufacturer identification or photometric claims.
 
 const ASSET_FAMILY := "brussels_street_lamp_v1"
-const POLE_HEIGHT := 5.4
-const POLE_RADIUS := 0.065
-const ARM_HEIGHT := 0.10
-const ARM_LENGTH := 0.72
-const LUMINAIRE_LENGTH := 0.46
-const LUMINAIRE_WIDTH := 0.18
-const LUMINAIRE_HEIGHT := 0.12
-const COLLISION_HEIGHT := 5.4
-const COLLISION_RADIUS := 0.09
+const POLE_HEIGHT := 6.3
+const POLE_RADIUS := 0.085
+const ARM_HEIGHT := 0.12
+const ARM_LENGTH := 0.90
+const LUMINAIRE_LENGTH := 0.62
+const LUMINAIRE_WIDTH := 0.28
+const LUMINAIRE_HEIGHT := 0.18
+const COLLISION_HEIGHT := 6.3
+const COLLISION_RADIUS := 0.11
 
 static func create_materials() -> Dictionary:
     var metal := StandardMaterial3D.new()

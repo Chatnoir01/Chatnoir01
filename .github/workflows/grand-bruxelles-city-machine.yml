@@ -16,10 +16,37 @@ permissions:
   contents: read
 
 jobs:
-  registry:
+  jette-machine:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Validate fixed machine registry
-        run: python3 grand-bruxelles-game/tools/city_machine/test_registry.py
+      - name: Validate registry and hard gates
+        run: |
+          python3 grand-bruxelles-game/tools/city_machine/test_registry.py
+          python3 grand-bruxelles-game/tools/city_machine/test_city_machine.py
+      - name: Dry-run production Jette plan
+        run: python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --dry-run
+      - name: Rebuild Jette twice and prove idempotence
+        run: |
+          set -euo pipefail
+          OUT=/tmp/city-machine-jette
+          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --output-dir "$OUT" | tee /tmp/city-machine-build-1.log
+          RECEIPT=$(find "$OUT" -maxdepth 1 -name 'build-*.json' -type f | sort)
+          test "$(printf '%s\n' "$RECEIPT" | sed '/^$/d' | wc -l)" -eq 1
+          sha256sum "$RECEIPT" > /tmp/city-machine-receipt.sha
+          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --output-dir "$OUT" | tee /tmp/city-machine-build-2.log
+          sha256sum -c /tmp/city-machine-receipt.sha
+          test "$(find "$OUT" -maxdepth 1 -name 'build-*.json' -type f | wc -l)" -eq 1
+          git diff --exit-code -- \
+            grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/buildings.game.json \
+            grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json \
+            grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/street_axes.game.json \
+            grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/train_network.game.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: city-machine-jette-proof
+          path: |
+            /tmp/city-machine-jette/*.json
+            /tmp/city-machine-build-*.log

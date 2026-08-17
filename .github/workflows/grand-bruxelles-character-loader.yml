@@ -4,9 +4,11 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
+      - "grand-bruxelles-game/game/scripts/player_identity_resolver.gd"
       - "grand-bruxelles-game/game/scripts/authored_player_locomotion_runtime.gd"
       - "grand-bruxelles-game/game/tests/humanoid_authored_player_test.gd"
       - "grand-bruxelles-game/game/tests/real_authored_player_asset_test.gd"
+      - "grand-bruxelles-game/game/tests/player_identity_contract_test.gd"
       - "grand-bruxelles-game/game/tests/authored_player_locomotion_test.gd"
       - "grand-bruxelles-game/game/tests/fixtures/rigged_character_fixture.tscn"
       - "grand-bruxelles-game/assets/characters/player/thandi/**"
@@ -26,45 +28,38 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Godot 4.7.1
         uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.7.1
           use-dotnet: false
-
       - name: Import project and authored GLB completely
         run: godot --headless --path grand-bruxelles-game --editor --quit
-
       - name: Run production authored player loader test
         shell: bash
         run: |
           set -o pipefail
-          timeout 45s godot --headless --path grand-bruxelles-game \
-            --script res://game/tests/humanoid_authored_player_test.gd 2>&1 | tee /tmp/character-loader.log
-          if grep -E "SCRIPT ERROR|Parse Error:|HUMANOID_AUTHORED_PLAYER_FAIL" /tmp/character-loader.log; then
-            exit 1
-          fi
+          timeout 45s godot --headless --path grand-bruxelles-game --script res://game/tests/humanoid_authored_player_test.gd 2>&1 | tee /tmp/character-loader.log
+          if grep -E "SCRIPT ERROR|Parse Error:|HUMANOID_AUTHORED_PLAYER_FAIL" /tmp/character-loader.log; then exit 1; fi
           grep -q "HUMANOID_AUTHORED_PLAYER_OK" /tmp/character-loader.log
-
       - name: Prove real authored player rig material animation and selection
         shell: bash
         run: |
           set -o pipefail
-          timeout 60s godot --headless --path grand-bruxelles-game \
-            --script res://game/tests/real_authored_player_asset_test.gd 2>&1 | tee /tmp/real-player.log
-          if grep -E "SCRIPT ERROR|Parse Error:|REAL_AUTHORED_PLAYER_FAIL" /tmp/real-player.log; then
-            exit 1
-          fi
+          timeout 60s godot --headless --path grand-bruxelles-game --script res://game/tests/real_authored_player_asset_test.gd 2>&1 | tee /tmp/real-player.log
+          if grep -E "SCRIPT ERROR|Parse Error:|REAL_AUTHORED_PLAYER_FAIL" /tmp/real-player.log; then exit 1; fi
           grep -q "REAL_AUTHORED_PLAYER_OK" /tmp/real-player.log
-
+      - name: Prove production versus fallback identity contract
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s godot --headless --path grand-bruxelles-game --script res://game/tests/player_identity_contract_test.gd 2>&1 | tee /tmp/player-identity.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PLAYER_IDENTITY_CONTRACT_FAIL" /tmp/player-identity.log; then exit 1; fi
+          grep -q "PLAYER_IDENTITY_CONTRACT_OK" /tmp/player-identity.log
       - name: Prove authored idle walk run locomotion selection
         shell: bash
         run: |
           set -o pipefail
-          timeout 60s godot --headless --path grand-bruxelles-game \
-            --script res://game/tests/authored_player_locomotion_test.gd 2>&1 | tee /tmp/authored-locomotion.log
-          if grep -E "SCRIPT ERROR|Parse Error:|AUTHORED_PLAYER_LOCOMOTION_FAIL" /tmp/authored-locomotion.log; then
-            exit 1
-          fi
+          timeout 60s godot --headless --path grand-bruxelles-game --script res://game/tests/authored_player_locomotion_test.gd 2>&1 | tee /tmp/authored-locomotion.log
+          if grep -E "SCRIPT ERROR|Parse Error:|AUTHORED_PLAYER_LOCOMOTION_FAIL" /tmp/authored-locomotion.log; then exit 1; fi
           grep -q "AUTHORED_PLAYER_LOCOMOTION_OK" /tmp/authored-locomotion.log

@@ -2,9 +2,9 @@
   "schema": "grand-bruxelles-material-identity-v1",
   "target": {
     "runtime_node": "BruxellesMidiStation",
-    "role": "existing large yellow Fauquenberg facing-brick surfaces on the Bruxelles-Midi Fonsny hero reconstruction",
-    "surface_names": ["StationLowerBrick", "FauquenbergBrick"],
-    "expected_surface_count": 4,
+    "role": "existing yellow Fauquenberg facing-brick surfaces on the Bruxelles-Midi Fonsny authored facade articulation",
+    "surface_names": ["FauquenbergBrick"],
+    "expected_surface_count": 3,
     "excluded_roles": ["StationMasonryJoint", "BlueStoneBase", "HorizontalBand_*", "VerticalMullion_*", "Window_*", "GroundOpening_*", "FlatRoof"]
   },
   "material_identity_source": {
@@ -25,7 +25,7 @@
   },
   "presentation_contract": {
     "material_identity": "fauquenberg_yellow_facing_brick",
-    "scope": "material response only on four already-existing brick-cladding surfaces",
+    "scope": "material response only on the three surviving already-existing authored brick-cladding surfaces; the removed StationLowerBrick belonged to the superseded hand-built station envelope",
     "geometry_changed": false,
     "surface_selection_changed": false,
     "new_architectural_detail_authored": false,

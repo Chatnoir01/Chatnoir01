@@ -1,0 +1,36 @@
+{
+  "format": "grand-bruxelles-osm-street-lamp-cluster-v1",
+  "source": "OpenStreetMap contributors via Overpass API",
+  "license": "ODbL-1.0",
+  "source_evidence": {
+    "merged_pr": 568,
+    "workflow_run": 31968909830,
+    "artifact_id": 9269237615,
+    "artifact_digest": "sha256:9c900c0f4d59e3daadb5505b7183203bd0f15ab96b2b3927518fd5a79f142234",
+    "captured_at": "2026-08-16",
+    "source_class": "highway=street_lamp"
+  },
+  "scope": {
+    "name": "vertical_slice_corridor_street_lamps",
+    "selection": "all 8 exact OSM street_lamp points measured within 130 m of the merged #568 playable corridor",
+    "geography_promoted": false
+  },
+  "claims": {
+    "position_source_backed": true,
+    "street_lamp_presence_source_backed": true,
+    "style_source_backed": false,
+    "dimensions_source_backed": false,
+    "material_source_backed": false,
+    "light_photometry_source_backed": false
+  },
+  "points": [
+    {"kind":"street_lamp","osm_id":9895155106,"corridor_distance_m":32.154,"position":[-148.138,-425.753]},
+    {"kind":"street_lamp","osm_id":9895155107,"corridor_distance_m":80.265,"position":[-219.613,-412.895]},
+    {"kind":"street_lamp","osm_id":9895155108,"corridor_distance_m":35.777,"position":[-147.118,-432.888]},
+    {"kind":"street_lamp","osm_id":9895155109,"corridor_distance_m":36.562,"position":[-144.011,-438.087]},
+    {"kind":"street_lamp","osm_id":9895155110,"corridor_distance_m":41.252,"position":[-154.949,-431.808]},
+    {"kind":"street_lamp","osm_id":9895155111,"corridor_distance_m":54.135,"position":[-166.583,-437.864]},
+    {"kind":"street_lamp","osm_id":9895155132,"corridor_distance_m":87.135,"position":[-205.139,-442.295]},
+    {"kind":"street_lamp","osm_id":9895155134,"corridor_distance_m":112.558,"position":[-234.761,-445.812]}
+  ]
+}

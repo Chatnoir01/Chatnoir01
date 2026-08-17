@@ -5,7 +5,7 @@ const EXPECTED_WIDTHS := [1.85, 2.55]
 const WIDTH_TOLERANCE := 0.02
 const HEIGHT := 0.12
 const HEIGHT_TOLERANCE := 0.005
-const EDGE_WIDTH := 0.03
+const EDGE_WIDTH := 0.12
 const EDGE_HEIGHT := 0.10
 const placement_provenance := "authored_presentation_from_existing_sidewalk_geometry"
 const source_height_claimed := false
@@ -45,9 +45,11 @@ func _is_generated_sidewalk(box: CSGBox3D) -> bool:
 
 func _make_material() -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
-    material.albedo_color = Color(0.255, 0.275, 0.285, 1.0)
+    material.albedo_color = Color(0.225, 0.235, 0.240, 1.0)
     material.roughness = 0.96
     material.metallic = 0.0
+    material.set_meta("material_family", MATERIAL_FAMILY)
+    material.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
     return material
 
 func bind_scene(scene: Node3D) -> void:

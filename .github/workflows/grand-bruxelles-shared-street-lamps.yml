@@ -41,3 +41,18 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_street_lamp_runtime_test.gd 2>&1 | tee /tmp/shared-street-lamps-runtime.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_STREET_LAMP_FAIL" /tmp/shared-street-lamps-runtime.log; then exit 1; fi
           grep -q "BRUSSELS_STREET_LAMP_OK" /tmp/shared-street-lamps-runtime.log
+      - name: 1280x720 normal-player street lamp A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_street_lamp_witness_test.gd 2>&1 | tee /tmp/shared-street-lamps-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_STREET_LAMP_VISUAL_FAIL" /tmp/shared-street-lamps-witness.log; then exit 1; fi
+          grep -q "BRUSSELS_STREET_LAMP_VISUAL_OK" /tmp/shared-street-lamps-witness.log
+      - name: Upload shared street lamp evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-shared-street-lamps-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/street_lamps_before.png
+            grand-bruxelles-game/artifacts/visual/street_lamps_after.png
+          if-no-files-found: error

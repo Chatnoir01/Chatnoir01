@@ -4,79 +4,52 @@
 
 ## Rebuild Jette
 
-From the repository root:
+Exact OSM projection uses PROJ through pyproj:
 
 ```bash
+python3 -m pip install "pyproj>=3.7,<4"
 python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette
 ```
 
-Read-only preflight:
+Preflight: `python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --dry-run`.
 
-```bash
-python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --dry-run
-```
+A success ends with `LABO_DATA_READY ... promotion=false` and writes a deterministic receipt under `grand-bruxelles-game/artifacts/city_machine/jette/`.
 
-A full success ends with `CITY_MACHINE_OK zone=jette mode=build result=LABO_DATA_READY ... promotion=false` and writes a deterministic receipt under:
+## Fixed Jette pipeline — registry v2
 
-`grand-bruxelles-game/artifacts/city_machine/jette/build-<digest>.json`
+1. resolve Jette from the playable-zone catalogue
+2. replay cached UrbIS buildings, street surfaces, street axes and train network to runtime JSON
+3. replay committed OSM environment cache to exact EPSG:31370-aligned runtime points
+4. **G1** source CRS/provenance/licence + existing Jette validator
+5. **G2** catalogue spawn inside source-derived ground footprint
+6. **G3** buildings + street surfaces non-empty
+7. **G4** existing Godot materials/ground/official-geometry finish hooks present
+8. **G5** OSM cache/runtime digest, ODbL source, EPSG:31370 projection, supported semantics, non-zero trees and ≤2 m bbox tolerance
 
-The receipt records the source contract, fixed layer list, gate results, runtime output paths/counts/SHA256, disabled layers and `promotion_performed: false`. The build ID contains no wall-clock time: identical inputs produce the same receipt name and bytes.
+Any hard gate fails non-zero. There is no “continue anyway” path.
 
-## Fixed Jette pipeline — registry v1
+## OSM environment contract
 
-`registry.json` is execution order, not documentation-only metadata. Every row records `layer_id`, script, inputs, outputs, gate and enabled zones.
+Committed source: `data/osm/zones/jette/environment.raw.json`. Machine output: `data/osm/zones/jette/environment.game.json`. Current evidence contains **3,832 trees, 603 street lamps and 149 bollards (4,584 points)**.
 
-1. resolve `jette` from `data/qa/playable_zone_catalog.json`
-2. replay cached `buildings.geojson` through the existing Lambert72→game converter
-3. replay cached `street_surfaces.geojson`
-4. replay cached `street_axes.geojson`
-5. replay cached `train_network.geojson`
-6. **G1** run the existing Jette validator: source CRS/provenance/licence, manifest parity and required layers
-7. **G2** prove the catalogue spawn lies inside the runtime ground footprint derived from the manifest EPSG:31370 bbox/game origin, with sane vertical clearance
-8. **G3** prove rebuilt buildings and street surfaces are non-empty
-9. **G4** prove the existing Jette Godot runtime still exposes materials, ground and official-geometry finish hooks
+Only explicit OSM tags `natural=tree`, `highway=street_lamp` and `barrier=bollard` are carried forward. Jette points are projected **WGS84 → EPSG:31370 with PROJ → game axes** using the Jette manifest origin. Live evidence bounds are `[-2969.44,-5761.07,-168.12,-3460.32]`, within the hard 2 m reprojection tolerance of the UrbIS footprint.
 
-Any hard gate fails with a non-zero exit code. There is no “continue anyway” path.
+**Nominal builds never call Overpass.** Live refresh is a separate disabled registry layer; production consumes the committed normalized ODbL cache.
 
-## Real production evidence
+## Production proof
 
-The CI job `.github/workflows/grand-bruxelles-city-machine.yml` runs unit/fail-closed tests, a real Jette dry-run, then **two full Jette rebuilds**. It requires:
+`.github/workflows/grand-bruxelles-city-machine.yml` runs registry/unit/failure tests, dry-run, then two complete rebuilds. It requires identical receipt SHA on pass two and `git diff --exit-code` for the four UrbIS runtime outputs plus `environment.game.json`.
 
-- G1: 12,648 buildings, 4,458 street surfaces, 1,314 street axes, 204 train features, plus the committed ancillary layers
-- G2: Jette spawn inside the source-derived runtime ground bounds
-- G3: 12,648 rebuilt buildings and 4,458 rebuilt street surfaces
-- G4: runtime materials + ground + geometry hooks present
-- same deterministic receipt after the second run
-- `git diff --exit-code` for all four regenerated `.game.json` outputs
+The dedicated OSM-cache workflow independently regenerates `environment.game.json` from the committed cache and byte-compares it with production. Both workflows are read-only.
 
-The first integrated proof produced `build-2a241c55e0169113.json` twice with the same SHA256 and no tracked runtime diff.
+## Product boundary
 
-## Before / after
-
-**Before:** 19 callable `tools/citygen/` scripts, 5 deterministic `tools/city_generation/` candidate/QA scripts, durable autonomous cell state, Jette-specific UrbIS fetch/validate/convert tools and a loadable Jette runtime existed, but rebuilding a zone required knowing which tool to call and in what order.
-
-**After:** the nominal Jette data-ready rebuild is one command. Layer order, inputs, outputs and gates are machine-readable; CI proves it is idempotent. An agent is no longer the production scheduler for this path.
-
-## Deliberately outside the machine
-
-- hero/landmark art and subjective visual polish
-- human `LABO` → `JOUABLE` approval
-- LLM/NPC dialogue/content
-- Godot streaming/engine redesign
-- live WFS refresh in the nominal reproducible path
-- facade candidates until they have a real runtime application contract
-
-A machine PASS means **data-ready LABO**, not “looks finished to a player”.
+Outside the machine on purpose: hero art, subjective visual approval, human `LABO`→`JOUABLE`, LLM/NPC content, engine/streaming redesign, live WFS/Overpass in the nominal path, and facade candidates without a runtime application contract. A machine PASS means **data-ready LABO**, not visible polish.
 
 ## Add a layer
 
-1. Prefer a wrapper around an existing deterministic tool; do not rewrite the pipe.
-2. Add one ordered `registry.json` row with real script, inputs, outputs, gate and `enabled_zones`.
-3. If the existing `kind` dispatcher fits, reuse it. A new `kind` requires an explicit fail-closed handler in `city_machine.py`.
-4. Add a measurable gate or explicitly keep the layer disabled with `disabled_reason`; never fake success.
-5. Add a unit/failure case and include the layer in the CI rebuild/idempotence proof.
-6. Keep paths project-relative and outputs deterministic. A nominal rebuild must not require secrets or mutate the catalogue.
+Prefer wrappers over existing deterministic tools. Add one ordered registry row with real inputs/outputs/gate/zones; new `kind` values require an explicit fail-closed handler. Add positive + negative tests and include the output in idempotence proof. Keep paths relative, outputs deterministic, no secrets and no catalogue mutation.
 
-## Next layer
+## Next machine increment
 
-**OSM environment by zone bbox, trees first.** The repo already queries/projects `tree`, `street_lamp` and `bollard`, but that pipe is currently bound to the central corridor anchors. The next machine increment should adapt those existing functions to a catalogue-zone bbox/runtime output contract, then enable the layer for Jette only after its own gate is real.
+**Generic runtime environment renderer.** Consume the machine-produced `tree/street_lamp/bollard` artifact through one reusable Godot layer, not a Jette-specific art lot, then prove Jette loads it without changing `LABO` quality.

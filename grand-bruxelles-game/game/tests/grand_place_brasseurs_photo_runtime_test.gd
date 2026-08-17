@@ -29,6 +29,16 @@ func _read_plan() -> Dictionary:
         return {}
     return parsed as Dictionary
 
+func _count_valid_arc_meshes(node: Node) -> int:
+    var total := 0
+    if node is MeshInstance3D and node.name.begins_with("ArcadeArch_"):
+        var instance := node as MeshInstance3D
+        if instance.mesh != null and instance.mesh.get_surface_count() > 0:
+            total += 1
+    for child: Node in node.get_children():
+        total += _count_valid_arc_meshes(child)
+    return total
+
 func _run() -> void:
     var plan := _read_plan()
     if plan.is_empty(): return
@@ -62,5 +72,7 @@ func _run() -> void:
     if bool(runtime.get("raw_photo_pixels_shipped")): _fail("raw Commons photo quad/pixels are forbidden in this runtime"); return
     if bool(runtime.get("geometry_claimed_surveyed")): _fail("photo-constrained geometry must not claim survey accuracy"); return
     if str(runtime.get("vertical_world_scale_source")) != "official_lod2_wall": _fail("runtime requires independent official LoD2 wall vertical source before implementation"); return
-    print("GRAND_PLACE_BRASSEURS_PHOTO_RUNTIME_OK: building=1639974 wall=10945501 bays=3 span=8.749036 photo_pixels=false surveyed=false vertical_source=official_lod2_wall")
+    if int(runtime.get("feature_count")) < 57: _fail("runtime must build the complete bounded facade feature set"); return
+    if _count_valid_arc_meshes(runtime) != 3: _fail("runtime must expose three real curved arcade meshes"); return
+    print("GRAND_PLACE_BRASSEURS_PHOTO_RUNTIME_OK: building=1639974 wall=10945501 bays=3 span=8.749036 features=%d curved_arcades=3 photo_pixels=false surveyed=false vertical_source=official_lod2_wall" % int(runtime.get("feature_count")))
     quit(0)

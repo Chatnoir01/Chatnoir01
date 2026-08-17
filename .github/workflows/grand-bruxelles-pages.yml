@@ -19,12 +19,6 @@ on:
     workflows: ["Grand Bruxelles Playable Web Build"]
     types: [completed]
   workflow_dispatch:
-    inputs:
-      deploy_pages:
-        description: "Deploy GitHub Pages after Pages is enabled in repository settings"
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -34,27 +28,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  verify_local:
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
-    env:
-      PLAYABLE_PUBLIC_BASE: https://raw.githack.com/Chatnoir01/Chatnoir01/main/grand-bruxelles-game/web-preview
     steps:
       - name: Checkout latest published main
         if: github.event_name == 'workflow_run'
         uses: actions/checkout@v6
         with:
-          # The Web Build workflow commits web-preview after its original head SHA.
-          # Always deploy the resulting main, not workflow_run.head_sha.
           ref: main
 
       - name: Checkout proposed source
         if: github.event_name != 'workflow_run'
         uses: actions/checkout@v6
 
-      - name: Verify playable Godot export
+      - name: Verify playable Godot export and Pages contract
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/test_playable_link_contract.py
@@ -63,34 +53,22 @@ jobs:
           test -f grand-bruxelles-game/web-preview/index.wasm
           test -f grand-bruxelles-game/web-preview/index.pck
           grep -q 'index.pck' grand-bruxelles-game/web-preview/index.html
-
-      - name: Verify public playable link
-        shell: bash
-        run: |
-          set -euo pipefail
-          public_index="$(mktemp)"
-          trap 'rm -f "$public_index"' EXIT
-
-          curl --fail --silent --show-error --location \
-            --retry 5 --retry-all-errors --retry-delay 5 \
-            --connect-timeout 15 --max-time 120 \
-            "$PLAYABLE_PUBLIC_BASE/index.html" \
-            --output "$public_index"
-          grep -q '<title>Grand Bruxelles Game</title>' "$public_index"
-          grep -q 'index.pck' "$public_index"
-
-          for asset in index.js index.wasm index.pck; do
-            curl --fail --silent --show-error --location \
-              --retry 5 --retry-all-errors --retry-delay 5 \
-              --connect-timeout 15 --max-time 180 \
-              --range 0-0 \
-              "$PLAYABLE_PUBLIC_BASE/$asset" \
-              --output /dev/null
-          done
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('grand-bruxelles-game/web-preview')
+          total = sum(p.stat().st_size for p in root.iterdir() if p.is_file())
+          pck = (root / 'index.pck').stat().st_size
+          wasm = (root / 'index.wasm').stat().st_size
+          print(f'PLAYABLE_ACCESS_WEIGHT total_bytes={total} total_mib={total / 1024 / 1024:.2f} pck={pck} wasm={wasm}')
+          if total > 150 * 1024 * 1024:
+              raise SystemExit(f'PLAYABLE_ACCESS_FAIL build exceeds 150 MiB: {total}')
+          if total > 90 * 1024 * 1024:
+              print('::warning::Playable Web build exceeds 90 MiB; mobile first-load optimization remains required.')
+          PY
 
   deploy_pages:
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_pages
-    needs: verify
+    if: github.event_name != 'pull_request'
+    needs: verify_local
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -99,14 +77,18 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout latest published main
         uses: actions/checkout@v6
         with:
           ref: main
 
-      - name: Configure GitHub Pages
+      - name: Configure or enable GitHub Pages
         uses: actions/configure-pages@v6
+        with:
+          enablement: true
 
       - name: Upload playable build
         uses: actions/upload-pages-artifact@v4
@@ -116,3 +98,31 @@ jobs:
       - name: Deploy playable build
         id: deployment
         uses: actions/deploy-pages@v4
+
+  verify_public:
+    if: github.event_name != 'pull_request'
+    needs: deploy_pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify stable Pages URL and Godot assets
+        env:
+          PLAYABLE_PUBLIC_BASE: ${{ needs.deploy_pages.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${PLAYABLE_PUBLIC_BASE%/}"
+          public_index="$(mktemp)"
+          trap 'rm -f "$public_index"' EXIT
+          curl --fail --silent --show-error --location \
+            --retry 6 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 15 --max-time 120 \
+            "$base/" --output "$public_index"
+          grep -q '<title>Grand Bruxelles Game</title>' "$public_index"
+          grep -q 'index.pck' "$public_index"
+          for asset in index.js index.wasm index.pck; do
+            curl --fail --silent --show-error --location \
+              --retry 6 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 15 --max-time 180 \
+              --range 0-0 \
+              "$base/$asset" --output /dev/null
+          done
+          echo "PLAYABLE_PAGES_OK url=$base/"

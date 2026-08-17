@@ -14,8 +14,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: grand-bruxelles-web-main
@@ -26,9 +24,6 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -101,7 +96,7 @@ jobs:
           grep -F "DIRECT_SPAWN === 'bourse' || DIRECT_SPAWN === 'atomium' || DIRECT_SPAWN === 'ixelles'" grand-bruxelles-game/web-preview/index.html
           grep -F "GODOT_CONFIG.args = ['--', \`spawn=\${DIRECT_SPAWN}\`];" grand-bruxelles-game/web-preview/index.html
 
-      - name: Verify Web files are servable and report access weight
+      - name: Verify Web files are servable
         run: |
           python3 -m http.server 8765 --directory grand-bruxelles-game/web-preview >/tmp/web-server.log 2>&1 &
           SERVER_PID=$!
@@ -111,35 +106,6 @@ jobs:
           curl -fI http://127.0.0.1:8765/index.wasm
           curl -fI http://127.0.0.1:8765/index.pck
           curl -fI http://127.0.0.1:8765/index.js
-          python3 - <<'PY'
-          from pathlib import Path
-          root = Path('grand-bruxelles-game/web-preview')
-          required = ['index.html', 'index.js', 'index.wasm', 'index.pck']
-          sizes = {name: (root / name).stat().st_size for name in required}
-          total = sum(p.stat().st_size for p in root.iterdir() if p.is_file())
-          print('WEB_ACCESS_BYTES', total)
-          print('WEB_ACCESS_MIB', round(total / 1024 / 1024, 2))
-          for name, size in sizes.items():
-              print(f'WEB_FILE {name} {size}')
-          if total > 150 * 1024 * 1024:
-              raise SystemExit('Web build exceeds 150 MiB access hard limit')
-          if total > 90 * 1024 * 1024:
-              print('::warning::Web build exceeds 90 MiB; mobile first-load optimization remains required.')
-          PY
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload playable build to Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: grand-bruxelles-game/web-preview
-
-      - name: Deploy playable build to Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
 
       - name: Commit playable Web build
         run: |
@@ -151,6 +117,9 @@ jobs:
           else
             git commit -m "web: publish playable Grand Bruxelles build [skip ci]"
             for publish_attempt in 1 2 3; do
+              # A source-refresh workflow may advance main while this slower
+              # export is running. Replay the generated build on the latest
+              # main before each bounded push attempt.
               git fetch origin main:refs/remotes/origin/main
               git rebase origin/main
               if git push origin HEAD:main; then

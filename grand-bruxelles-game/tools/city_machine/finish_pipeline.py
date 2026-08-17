@@ -12,7 +12,9 @@ HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parents[1]
 FINISH_REGISTRY = HERE / "finish_registry.json"
 BASE_REGISTRY = HERE / "registry.json"
-CITY_MACHINE = HERE / "city_machine.py"
+GEOMETRY_STAGE = HERE / "finish_geometry_stage.py"
+ENVIRONMENT_STAGE = HERE / "finish_environment_stage.py"
+PROOF_STAGE = HERE / "finish_proof_stage.py"
 EXPECTED_FAMILIES = ["geometry", "osm_environment", "finish_materials", "life", "proof"]
 VALID_STATUS = {"wired", "disabled", "missing", "blocked"}
 
@@ -51,12 +53,20 @@ def validate_finish_registry(zone_id: str) -> dict[str, Any]:
     return reg
 
 
+def run_stage(script: Path, zone_id: str, dry_run: bool = False) -> int:
+    cmd = [sys.executable, str(script), "--zone", zone_id]
+    if dry_run and script != PROOF_STAGE:
+        cmd.append("--dry-run")
+    result = subprocess.run(cmd, cwd=PROJECT)
+    if result.returncode != 0:
+        print(f"CITY_MACHINE_FINISH_FAIL zone={zone_id} stage={script.name} rc={result.returncode}", file=sys.stderr)
+    return result.returncode
+
+
 def log_disabled_base_layers(zone_id: str) -> None:
     reg = read_json(BASE_REGISTRY)
     for row in reg.get("layers", []):
-        if not isinstance(row, dict):
-            continue
-        if zone_id in row.get("enabled_zones", []):
+        if not isinstance(row, dict) or zone_id in row.get("enabled_zones", []):
             continue
         reason = str(row.get("disabled_reason") or "not_enabled_for_zone")
         print(f"CITY_MACHINE_LAYER SKIP {row.get('layer_id')} reason={reason}")
@@ -64,22 +74,30 @@ def log_disabled_base_layers(zone_id: str) -> None:
 
 def run(zone_id: str, dry_run: bool) -> int:
     reg = validate_finish_registry(zone_id)
+    rows = {str(row["family_id"]): row for row in reg["families"]}
     print(f"CITY_MACHINE_FINISH_START zone={zone_id} auto_jouable=false")
-    for row in reg["families"]:
-        family = str(row["family_id"])
+
+    rc = run_stage(GEOMETRY_STAGE, zone_id, dry_run)
+    if rc:
+        return rc
+
+    rc = run_stage(ENVIRONMENT_STAGE, zone_id, dry_run)
+    if rc:
+        return rc
+
+    for family in ("finish_materials", "life"):
+        row = rows[family]
         status = str(row["status"])
         if status == "wired":
-            print(f"CITY_MACHINE_FAMILY READY {family} status=wired")
-        else:
-            print(f"CITY_MACHINE_FAMILY SKIP {family} status={status} reason={row['reason']}")
+            raise FinishPipelineError(f"{family} is marked wired but has no production stage")
+        print(f"CITY_MACHINE_FAMILY SKIP {family} status={status} reason={row['reason']}")
+
     log_disabled_base_layers(zone_id)
-    cmd = [sys.executable, str(CITY_MACHINE), "build", "--zone", zone_id]
-    if dry_run:
-        cmd.append("--dry-run")
-    result = subprocess.run(cmd, cwd=PROJECT)
-    if result.returncode != 0:
-        print(f"CITY_MACHINE_FINISH_FAIL zone={zone_id} delegated_rc={result.returncode}", file=sys.stderr)
-        return result.returncode
+
+    rc = run_stage(PROOF_STAGE, zone_id, False)
+    if rc:
+        return rc
+
     print(f"CITY_MACHINE_FINISH_END zone={zone_id} result=LABO_DATA_READY promotion=false")
     return 0
 

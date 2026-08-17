@@ -1,6 +1,8 @@
 extends SceneTree
 
 const BUILDER := preload("res://game/scripts/urbis_midi_builder.gd")
+const SIMULATED_SECONDS := 60
+const SIMULATED_FPS := 60
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -81,6 +83,51 @@ func _run() -> void:
         _fail("forced contact hit was not a StaticBody3D building collider")
         return
 
-    print("MIDI_EXACT_BUILDING_COLLISION_OK: %d exact mesh batches solid; forced wall contact blocked" % mesh_count)
+    var wall_hit_position: Vector3 = hit.get("position", center)
+    var wall_normal: Vector3 = hit.get("normal", normal).normalized()
+    if wall_normal.length_squared() < 0.5:
+        _fail("physics hit returned an invalid wall normal")
+        return
+
+    var probe := CharacterBody3D.new()
+    probe.name = "SixtySecondPlayerCapsuleProbe"
+    probe.collision_layer = 1
+    probe.collision_mask = 1
+    var capsule_shape := CapsuleShape3D.new()
+    capsule_shape.radius = 0.38
+    capsule_shape.height = 1.75
+    var collision_shape := CollisionShape3D.new()
+    collision_shape.shape = capsule_shape
+    probe.add_child(collision_shape)
+    builder.add_child(probe)
+    probe.global_position = wall_hit_position + wall_normal * 0.85
+    await physics_frame
+
+    var tangent := Vector3.UP.cross(wall_normal).normalized()
+    if tangent.length_squared() < 0.5:
+        tangent = Vector3.RIGHT
+    var collision_frames := 0
+    var minimum_wall_distance := INF
+    var total_steps := SIMULATED_SECONDS * SIMULATED_FPS
+    for step: int in range(total_steps):
+        var tangent_sign := 1.0 if ((step / 30) % 2 == 0) else -1.0
+        var motion := tangent * (0.005 * tangent_sign) - wall_normal * 0.02
+        var contact := probe.move_and_collide(motion)
+        if contact != null:
+            collision_frames += 1
+        var signed_distance := (probe.global_position - wall_hit_position).dot(wall_normal)
+        minimum_wall_distance = minf(minimum_wall_distance, signed_distance)
+        if signed_distance < 0.20:
+            _fail("player capsule penetrated the exact Midi wall during 60s-equivalent pressure: %.3fm" % signed_distance)
+            return
+
+    if collision_frames < total_steps - 60:
+        _fail("player capsule did not remain in sustained wall contact: %d/%d collision frames" % [collision_frames, total_steps])
+        return
+
+    print(
+        "MIDI_EXACT_BUILDING_COLLISION_OK: %d exact mesh batches solid; forced wall contact blocked; 60s-equivalent capsule pressure held (min distance %.3fm)" %
+        [mesh_count, minimum_wall_distance]
+    )
     builder.queue_free()
     quit(0)

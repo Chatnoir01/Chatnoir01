@@ -35,3 +35,18 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/brouette-import.log; then exit 1; fi
       - name: Validate La Brouette facade contract
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_la_brouette_facade_test.gd
+      - name: Render deterministic player-exposure A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/grand_place_la_brouette_facade_ab_test.gd 2>&1 | tee /tmp/brouette-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_LA_BROUETTE_FACADE_AB_FAIL" /tmp/brouette-ab.log; then exit 1; fi
+          grep -q "GRAND_PLACE_LA_BROUETTE_FACADE_AB_OK" /tmp/brouette-ab.log
+      - name: Upload player-exposure evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-la-brouette-facade-ab
+          path: |
+            /tmp/grand-place-la-brouette-facade-before.png
+            /tmp/grand-place-la-brouette-facade-after.png
+          if-no-files-found: error

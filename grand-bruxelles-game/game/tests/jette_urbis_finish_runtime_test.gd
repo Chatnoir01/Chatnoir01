@@ -1,6 +1,7 @@
 extends SceneTree
 
 const JETTE_ZONE := "res://game/zones/laeken_jette/jette_phase2_zone.gd"
+const JETTE_ENV_DATA := "res://data/osm/zones/jette/environment.game.json"
 const BEFORE := "res://artifacts/visual/jette_urbis_finish_before.png"
 const AFTER := "res://artifacts/visual/jette_urbis_finish_after.png"
 const SPAWN := Vector3(-687.700268506218, 1.05, -4952.774160383269)
@@ -26,6 +27,19 @@ func _changed(before: Image, after: Image) -> float:
             if max(abs(a.r-b.r), max(abs(a.g-b.g), abs(a.b-b.b))) > 0.02: changed += 1
     return float(changed) / float(max(total, 1))
 
+func _nearest_tree() -> Vector3:
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(JETTE_ENV_DATA))
+    var nearest := SPAWN; var nearest_distance := INF
+    if not parsed is Dictionary: return nearest
+    for variant in (parsed as Dictionary).get("environment_points", []):
+        var row := variant as Dictionary
+        if str(row.get("kind", "")) != "tree": continue
+        var p: Array = row.get("position", [])
+        if p.size() < 2: continue
+        var world := Vector3(float(p[0]), 0.0, float(p[1])); var distance := Vector2(world.x-SPAWN.x, world.z-SPAWN.z).length()
+        if distance < nearest_distance: nearest_distance = distance; nearest = world
+    return nearest
+
 func _run() -> void:
     var viewport := SubViewport.new(); viewport.size = Vector2i(1280,720); viewport.own_world_3d = true; viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS; root.add_child(viewport)
     var world_root := Node3D.new(); viewport.add_child(world_root)
@@ -50,7 +64,9 @@ func _run() -> void:
     var road_transform := road.global_transform
     var building_transform := buildings.global_transform
 
-    var camera := Camera3D.new(); camera.position = SPAWN + Vector3(0.0, 7.5, 18.0); camera.look_at_from_position(camera.position, SPAWN + Vector3(0.0, 4.0, -28.0), Vector3.UP); camera.fov = 70.0; camera.current = true; world_root.add_child(camera)
+    var anchor := _nearest_tree(); var toward_spawn := Vector3(SPAWN.x-anchor.x, 0.0, SPAWN.z-anchor.z).normalized()
+    if toward_spawn.length_squared() < 0.5: toward_spawn = Vector3.FORWARD
+    var camera := Camera3D.new(); camera.position = anchor + toward_spawn*12.0 + Vector3(0.0,1.65,0.0); camera.look_at_from_position(camera.position, anchor + Vector3(0.0,2.8,0.0), Vector3.UP); camera.fov = 70.0; camera.current = true; world_root.add_child(camera)
     runtime.call("set_enhanced_enabled", false); for _frame in range(3): await process_frame
     var before := await _capture(viewport, BEFORE)
     runtime.call("set_enhanced_enabled", true); for _frame in range(3): await process_frame

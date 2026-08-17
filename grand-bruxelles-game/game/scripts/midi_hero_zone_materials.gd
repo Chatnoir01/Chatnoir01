@@ -21,7 +21,7 @@ func _ready() -> void:
     _build_fonsny_street_furniture()
     _build_shelters()
     _build_tram_railings()
-    print("Grand Bruxelles hero zone: Bruxelles-Midi UrbIS masses + Fonsny street details active")
+    print("Grand Bruxelles hero zone: Bruxelles-Midi Fonsny reconstruction active — street details only; UrbIS owns station masses")
     call_deferred("_install_corridor_facade_depth")
 
 func _install_corridor_facade_depth() -> void:

@@ -12,6 +12,7 @@ var _source_positions: Array[Vector3] = []
 var _ready_complete := false
 var _failed := false
 var _visual_enabled := true
+var _manual_binding := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -19,14 +20,32 @@ func _ready() -> void:
 
 func _bind_when_ready() -> void:
     for _attempt: int in range(180):
+        if _manual_binding or _ready_complete:
+            return
         var current := get_tree().current_scene
         if current is Node3D:
             _scene = current as Node3D
-            break
+            _build()
+            return
         await get_tree().process_frame
-    if _scene == null:
+    if not _manual_binding and not _ready_complete:
         _fail("production scene missing")
+
+func bind_scene(scene: Node3D) -> void:
+    if scene == null:
+        _fail("manual scene binding received null scene")
         return
+    if is_instance_valid(_root):
+        _root.queue_free()
+    _scene = scene
+    _manual_binding = true
+    _root = null
+    _body_batch = null
+    _cap_batch = null
+    _collision_body = null
+    _source_positions.clear()
+    _failed = false
+    _ready_complete = false
     _build()
 
 func _fail(message: String) -> void:
@@ -44,6 +63,9 @@ func _load_data() -> Dictionary:
     return parsed as Dictionary if parsed is Dictionary else {}
 
 func _build() -> void:
+    if _scene == null:
+        _fail("scene missing during build")
+        return
     var data := _load_data()
     if data.is_empty():
         _fail("source payload missing")

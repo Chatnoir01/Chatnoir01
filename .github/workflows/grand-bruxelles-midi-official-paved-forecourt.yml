@@ -1,0 +1,33 @@
+name: Grand Bruxelles Midi Official Paved Forecourt
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/midi_official_paved_forecourt_runtime.gd"
+      - "grand-bruxelles-game/game/tests/midi_official_paved_forecourt_material_test.gd"
+      - "grand-bruxelles-game/project.godot"
+      - ".github/workflows/grand-bruxelles-midi-official-paved-forecourt.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paved-forecourt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+      - name: Import
+        run: godot --headless --path grand-bruxelles-game --editor --quit
+      - name: Verify official paved presentation contract
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s godot --headless --path grand-bruxelles-game --script res://game/tests/midi_official_paved_forecourt_material_test.gd 2>&1 | tee /tmp/midi-paved.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_OFFICIAL_PAVED_FORECOURT_FAIL" /tmp/midi-paved.log; then exit 1; fi
+          grep -q "MIDI_OFFICIAL_PAVED_FORECOURT_OK" /tmp/midi-paved.log

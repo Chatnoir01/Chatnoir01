@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "grand-bruxelles-player-report-v1",
+  "title": "Grand Bruxelles player report v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema", "id", "status", "zone", "player_position", "note", "captured_unix"],
+  "properties": {
+    "schema": {"const": "grand-bruxelles-player-report-v1"},
+    "id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["open", "closed", "archived"]},
+    "zone": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "label": {"type": "string"},
+        "quality": {"type": "string"}
+      }
+    },
+    "player_position": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"type": "number"}
+    },
+    "note": {"type": "string", "maxLength": 80},
+    "captured_unix": {"type": "integer", "minimum": 0},
+    "build": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "sha": {"type": "string", "minLength": 7},
+        "source": {"type": "string"}
+      }
+    },
+    "screenshot_file": {"type": "string"},
+    "screenshot": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "encoding": {"const": "base64-png"},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "data": {"type": "string"}
+      }
+    }
+  }
+}

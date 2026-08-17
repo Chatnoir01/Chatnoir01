@@ -97,7 +97,7 @@ func _append_flat_polygon(tool: SurfaceTool, polygon: PackedVector2Array, y: flo
     return true
 
 
-func _commit_tool(tool: SurfaceTool, name: String, root: Node3D) -> void:
+func _commit_tool(tool: SurfaceTool, name: String, root: Node3D, make_solid: bool = false) -> void:
     var mesh: ArrayMesh = tool.commit()
     if mesh.get_surface_count() == 0:
         return
@@ -105,6 +105,13 @@ func _commit_tool(tool: SurfaceTool, name: String, root: Node3D) -> void:
     instance.name = name
     instance.mesh = mesh
     root.add_child(instance)
+    if make_solid:
+        instance.create_trimesh_collision()
+        for child: Node in instance.get_children():
+            if child is StaticBody3D:
+                var static_body := child as StaticBody3D
+                static_body.collision_layer = 1
+                static_body.collision_mask = 1
 
 
 func surface_family(surface_type: String, level: float) -> String:
@@ -240,5 +247,5 @@ func _build_buildings(features: Array) -> int:
             count += 1
 
     for index: int in range(tools.size()):
-        _commit_tool(tools[index], "ExactBuildings_%d" % index, root)
+        _commit_tool(tools[index], "ExactBuildings_%d" % index, root, true)
     return count

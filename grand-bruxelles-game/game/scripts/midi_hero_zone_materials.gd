@@ -1,15 +1,26 @@
 extends "res://game/scripts/midi_hero_zone.gd"
 
 # Heritage-backed material identity for Bruxelles-Midi / Brussel-Zuid.
-# Geometry remains owned by the existing Midi hero zone. Texture scale, colors,
-# roughness and block cadence are authored presentation values, not survey data.
+# Official UrbIS owns the station building envelope/masses. This layer keeps
+# source-informed Fonsny street-level details only; material scale, colors,
+# roughness and block cadence remain authored presentation values.
 
+const MIDI_URBIS_ENVELOPE_OWNER := true
 const CONCRETE_TEXTURE_METRES := 1.80
 const GLASS_BLOCK_TEXTURE_METRES := 1.60
 const CORRIDOR_FACADE_DEPTH_RUNTIME := preload("res://game/scripts/corridor_facade_depth_runtime.gd")
 
 func _ready() -> void:
-    super._ready()
+    _make_materials()
+    # Inherited ready builds a second hand-authored station complex on top of
+    # UrbISMidiExact, so production intentionally keeps only street-level detail.
+    _build_station_entrance()
+    _build_fonsny_forecourt()
+    _build_fonsny_crossing()
+    _build_fonsny_street_furniture()
+    _build_shelters()
+    _build_tram_railings()
+    print("Grand Bruxelles hero zone: Bruxelles-Midi UrbIS masses + Fonsny street details active")
     call_deferred("_install_corridor_facade_depth")
 
 func _install_corridor_facade_depth() -> void:
@@ -42,7 +53,6 @@ func _architectural_concrete_material() -> StandardMaterial3D:
     var image := Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RGBA8)
     var base := Color(0.47, 0.485, 0.475, 1.0)
     image.fill(base)
-    # Large, quiet deterministic mineral variation. No high-frequency noise.
     for tile_y: int in range(8):
         for tile_x: int in range(8):
             var hash_value := (tile_x * 37 + tile_y * 61 + tile_x * tile_y * 7) % 11
@@ -79,8 +89,6 @@ func _glass_block_material() -> StandardMaterial3D:
             var parity := ((x / CELL) + (y / CELL)) % 2
             var glass := glass_a if parity == 0 else glass_b
             _fill_image_rect(image, x + JOINT, y + JOINT, x + CELL - JOINT, y + CELL - JOINT, glass)
-            # Soft authored centre highlight makes the blocks read as translucent
-            # masonry rather than a flat cyan checker at normal distance.
             _fill_image_rect(image, x + 9, y + 9, x + CELL - 9, y + CELL - 9, glass.lightened(0.045))
     var material := StandardMaterial3D.new()
     material.albedo_color = Color.WHITE

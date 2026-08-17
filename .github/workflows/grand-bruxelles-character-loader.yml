@@ -5,10 +5,12 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/humanoid_visual.gd"
       - "grand-bruxelles-game/game/scripts/player_identity_resolver.gd"
+      - "grand-bruxelles-game/game/scripts/player_identity_badge_runtime.gd"
       - "grand-bruxelles-game/game/scripts/authored_player_locomotion_runtime.gd"
       - "grand-bruxelles-game/game/tests/humanoid_authored_player_test.gd"
       - "grand-bruxelles-game/game/tests/real_authored_player_asset_test.gd"
       - "grand-bruxelles-game/game/tests/player_identity_contract_test.gd"
+      - "grand-bruxelles-game/game/tests/player_identity_badge_test.gd"
       - "grand-bruxelles-game/game/tests/authored_player_locomotion_test.gd"
       - "grand-bruxelles-game/game/tests/fixtures/rigged_character_fixture.tscn"
       - "grand-bruxelles-game/assets/characters/player/thandi/**"
@@ -70,6 +72,17 @@ jobs:
             exit 1
           fi
           grep -q "PLAYER_IDENTITY_CONTRACT_OK" /tmp/player-identity.log
+
+      - name: Prove fallback badge truth contract
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/player_identity_badge_test.gd 2>&1 | tee /tmp/player-identity-badge.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PLAYER_IDENTITY_BADGE_FAIL" /tmp/player-identity-badge.log; then
+            exit 1
+          fi
+          grep -q "PLAYER_IDENTITY_BADGE_OK" /tmp/player-identity-badge.log
 
       - name: Prove authored idle walk run locomotion selection
         shell: bash

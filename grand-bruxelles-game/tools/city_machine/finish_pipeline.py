@@ -59,7 +59,7 @@ def run_stage(script: Path, zone_id: str, dry_run: bool = False) -> int:
         cmd.append("--dry-run")
     result = subprocess.run(cmd, cwd=PROJECT)
     if result.returncode != 0:
-        print(f"CITY_MACHINE_FINISH_FAIL zone={zone_id} stage={script.name} rc={result.returncode}", file=sys.stderr)
+        print(f"CITY_MACHINE_FINISH_FAIL zone={zone_id} stage={script.name} rc={result.returncode}", file=sys.stderr, flush=True)
     return result.returncode
 
 
@@ -69,13 +69,13 @@ def log_disabled_base_layers(zone_id: str) -> None:
         if not isinstance(row, dict) or zone_id in row.get("enabled_zones", []):
             continue
         reason = str(row.get("disabled_reason") or "not_enabled_for_zone")
-        print(f"CITY_MACHINE_LAYER SKIP {row.get('layer_id')} reason={reason}")
+        print(f"CITY_MACHINE_LAYER SKIP {row.get('layer_id')} reason={reason}", flush=True)
 
 
 def run(zone_id: str, dry_run: bool) -> int:
     reg = validate_finish_registry(zone_id)
     rows = {str(row["family_id"]): row for row in reg["families"]}
-    print(f"CITY_MACHINE_FINISH_START zone={zone_id} auto_jouable=false")
+    print(f"CITY_MACHINE_FINISH_START zone={zone_id} auto_jouable=false", flush=True)
 
     rc = run_stage(GEOMETRY_STAGE, zone_id, dry_run)
     if rc:
@@ -90,7 +90,7 @@ def run(zone_id: str, dry_run: bool) -> int:
         status = str(row["status"])
         if status == "wired":
             raise FinishPipelineError(f"{family} is marked wired but has no production stage")
-        print(f"CITY_MACHINE_FAMILY SKIP {family} status={status} reason={row['reason']}")
+        print(f"CITY_MACHINE_FAMILY SKIP {family} status={status} reason={row['reason']}", flush=True)
 
     log_disabled_base_layers(zone_id)
 
@@ -98,7 +98,7 @@ def run(zone_id: str, dry_run: bool) -> int:
     if rc:
         return rc
 
-    print(f"CITY_MACHINE_FINISH_END zone={zone_id} result=LABO_DATA_READY promotion=false")
+    print(f"CITY_MACHINE_FINISH_END zone={zone_id} result=LABO_DATA_READY promotion=false", flush=True)
     return 0
 
 
@@ -112,7 +112,7 @@ def main() -> int:
     try:
         return run(args.zone, args.dry_run)
     except (OSError, json.JSONDecodeError, FinishPipelineError) as exc:
-        print(f"CITY_MACHINE_FINISH_FAIL {exc}", file=sys.stderr)
+        print(f"CITY_MACHINE_FINISH_FAIL {exc}", file=sys.stderr, flush=True)
         return 2
 
 

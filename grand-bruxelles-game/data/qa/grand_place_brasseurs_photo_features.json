@@ -1,0 +1,60 @@
+{
+  "schema": "grand-bruxelles-brasseurs-photo-features-v1",
+  "status": "evidence_only",
+  "runtime_approved": false,
+  "source": {
+    "commons_title": "File:Grand-Place 10, Bruxelles.01.jpg",
+    "download_sha256": "fff8d81aaca8b3dd82247ef8d171bdb61cb1e294d530185a16566298569ed322",
+    "width_px": 2737,
+    "height_px": 5600,
+    "license": "CC BY-SA 4.0",
+    "artist": "Nenea hartia"
+  },
+  "mapping": {
+    "facade_left_px": 590,
+    "facade_right_px": 2245,
+    "facade_ground_y_px": 5360,
+    "official_wall_apex_photo_y_px": 1775,
+    "official_wall_span_m": 8.7490357183,
+    "official_wall_height_m": 24.746,
+    "horizontal_world_source": "official_urbis_wall_span",
+    "vertical_world_source": "official_lod2_wall",
+    "photo_role": "relative_feature_proportions_only",
+    "photo_geometry_claimed_surveyed": false,
+    "raw_photo_pixels_shipped": false
+  },
+  "colossal_order": {
+    "column_center_x_px": [720, 1125, 1580, 2035],
+    "shaft_top_y_px": 2590,
+    "shaft_bottom_y_px": 3920,
+    "capital_top_y_px": 2440,
+    "capital_bottom_y_px": 2635,
+    "base_top_y_px": 3890,
+    "base_bottom_y_px": 4070,
+    "count": 4
+  },
+  "principal_windows": [
+    {"id":"upper_left","bay":0,"tier":1,"left_px":805,"right_px":1030,"top_px":2520,"bottom_px":3180},
+    {"id":"upper_center","bay":1,"tier":1,"left_px":1210,"right_px":1495,"top_px":2520,"bottom_px":3180},
+    {"id":"upper_right","bay":2,"tier":1,"left_px":1680,"right_px":1945,"top_px":2520,"bottom_px":3180},
+    {"id":"lower_left","bay":0,"tier":0,"left_px":790,"right_px":1040,"top_px":3270,"bottom_px":3960},
+    {"id":"lower_center","bay":1,"tier":0,"left_px":1190,"right_px":1515,"top_px":3270,"bottom_px":3960},
+    {"id":"lower_right","bay":2,"tier":0,"left_px":1660,"right_px":1960,"top_px":3270,"bottom_px":3960}
+  ],
+  "ground_arcades": [
+    {"id":"ground_left","bay":0,"left_px":775,"right_px":1050,"arch_top_y_px":4210,"spring_y_px":4380,"bottom_px":5070},
+    {"id":"ground_center","bay":1,"left_px":1165,"right_px":1605,"arch_top_y_px":4190,"spring_y_px":4380,"bottom_px":5110},
+    {"id":"ground_right","bay":2,"left_px":1670,"right_px":1975,"arch_top_y_px":4210,"spring_y_px":4380,"bottom_px":5070}
+  ],
+  "major_bands": [
+    {"id":"main_entablature","y_px":2395},
+    {"id":"principal_order_base","y_px":3990},
+    {"id":"ground_entablature","y_px":4235}
+  ],
+  "uncertainty": {
+    "control_point_tolerance_px": 30,
+    "lower_right_occlusion": true,
+    "neighbor_edge_contamination": true,
+    "decorative_microdetail_not_encoded": true
+  }
+}

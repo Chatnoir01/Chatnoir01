@@ -1,0 +1,37 @@
+name: Grand Bruxelles Grand-Place Maison du Roi Fix Compile
+on:
+  push:
+    branches: [visual/grand-place-maison-roi-articulation-580ef7e]
+    paths: [".github/workflows/grand-bruxelles-grand-place-maison-roi-fix-compile.yml"]
+permissions: {contents: write}
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: visual/grand-place-maison-roi-articulation-580ef7e}
+      - name: Patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          r=Path('grand-bruxelles-game/game/scripts/grand_place_maison_roi_articulation_runtime.gd')
+          r.write_text(r.read_text().replace('const FRONT_TO_SQUARE := Vector3(-1.0, 0.0, 1.0).normalized()','const FRONT_TO_SQUARE := Vector3(-0.70710678, 0.0, 0.70710678)'))
+          p=Path('grand-bruxelles-game/project.godot'); s=p.read_text(); line='GrandPlaceMaisonRoiArticulationRuntime="*res://game/scripts/grand_place_maison_roi_articulation_runtime.gd"\n'
+          if line not in s: p.write_text(s.replace('[autoload]\n','[autoload]\n'+line,1))
+          PY
+      - name: Godot
+        run: |
+          curl -fL -o /tmp/g.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/g.zip -d /tmp/g && chmod +x /tmp/g/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/g/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/i.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/i.log
+          /tmp/g/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_maison_roi_articulation_test.gd 2>&1 | tee /tmp/t.log
+          grep -q GRAND_PLACE_MAISON_ROI_ARTICULATION_OK /tmp/t.log
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add grand-bruxelles-game/game/scripts/grand_place_maison_roi_articulation_runtime.gd grand-bruxelles-game/project.godot
+          git commit -m 'fix(grand-place): make Maison du Roi runtime compile-safe'
+          git push origin HEAD:visual/grand-place-maison-roi-articulation-580ef7e

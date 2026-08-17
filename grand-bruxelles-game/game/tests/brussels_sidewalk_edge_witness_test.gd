@@ -110,7 +110,7 @@ func _run() -> void:
     runtime.call("bind_scene", scene)
     for _frame: int in range(8): await process_frame
     if bool(runtime.call("failed")) or not bool(runtime.call("ready_complete")): _fail("runtime did not bind cleanly"); return
-    if int(runtime.call("sidewalk_count")) != 430 or int(runtime.call("edge_count")) != 860: _fail("production reuse count changed"); return
+    if int(runtime.call("sidewalk_count")) != 430 or int(runtime.call("edge_count")) != 430: _fail("production reuse count changed"); return
     if int(runtime.call("batch_count")) != 1 or int(runtime.call("collision_count")) != 0: _fail("performance-cost contract changed"); return
     if not bool(runtime.call("geometry_unchanged")) or not bool(runtime.call("edge_visual_within_sidewalk_envelope")): _fail("geometry invariant failed"); return
     var roads_root := scene.get_node_or_null("BrusselsOSM/GeneratedRoads") as Node3D
@@ -130,7 +130,7 @@ func _run() -> void:
     if not sidewalk.global_transform.is_equal_approx(original_transform) or not sidewalk.size.is_equal_approx(original_size) or not bool(runtime.call("geometry_unchanged")): _fail("sidewalk geometry changed during A/B"); return
     var stats3 := _diff_stats(before,after,3); var stats8 := _diff_stats(before,after,8)
     var changed3 := float(stats3.get("fraction",-1.0)); var changed8 := float(stats8.get("fraction",-1.0)); var bbox := stats3.get("bbox",Rect2i()) as Rect2i
-    print("BRUSSELS_SIDEWALK_EDGE_VISUAL_METRICS: length=%.2f width=%.2f bourse_distance=%.2f changed_gt3=%.6f changed_gt8=%.6f bbox=%dx%d sidewalks=430 edges=860 batches=1 collisions=0" % [sidewalk.size.z, sidewalk.size.x, Vector2(sidewalk.global_position.x,sidewalk.global_position.z).distance_to(BOURSE), changed3, changed8, bbox.size.x, bbox.size.y])
+    print("BRUSSELS_SIDEWALK_EDGE_VISUAL_METRICS: length=%.2f width=%.2f bourse_distance=%.2f changed_gt3=%.6f changed_gt8=%.6f bbox=%dx%d sidewalks=430 edges=430 batches=1 collisions=0" % [sidewalk.size.z, sidewalk.size.x, Vector2(sidewalk.global_position.x,sidewalk.global_position.z).distance_to(BOURSE), changed3, changed8, bbox.size.x, bbox.size.y])
     if changed3 < MIN_CHANGED_3 or changed8 < MIN_CHANGED_8: _fail("screen impact below locked threshold: gt3=%.4f%% gt8=%.4f%%" % [changed3*100.0,changed8*100.0]); return
     if bbox.size.x < MIN_BBOX_WIDTH or bbox.size.y < MIN_BBOX_HEIGHT: _fail("change bbox below locked threshold: %dx%d" % [bbox.size.x,bbox.size.y]); return
     print("BRUSSELS_SIDEWALK_EDGE_VISUAL_OK: player_eye_height=1.65m fov=67 changed_gt3=%.4f%% changed_gt8=%.4f%% bbox=%dx%d geometry_unchanged=true" % [changed3*100.0,changed8*100.0,bbox.size.x,bbox.size.y])

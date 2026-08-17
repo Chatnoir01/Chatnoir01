@@ -1,0 +1,59 @@
+name: Grand Bruxelles Grand-Place Maison du Roi Player A-B
+on:
+  push:
+    branches: [visual/grand-place-maison-roi-articulation-580ef7e]
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-maison-roi-player-ab.yml"
+      - "grand-bruxelles-game/game/tests/grand_place_maison_roi_player_capture.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_maison_roi_articulation_runtime.gd"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/1654360.game.json"
+      - "grand-bruxelles-game/project.godot"
+permissions: {contents: read}
+jobs:
+  player-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: 580ef7ec86d554ad3a71fc8ad649917f4a62f31e, path: base}
+      - uses: actions/checkout@v4
+        with: {ref: visual/grand-place-maison-roi-articulation-580ef7e, path: head}
+      - run: cp head/grand-bruxelles-game/game/tests/grand_place_maison_roi_player_capture.gd base/grand-bruxelles-game/game/tests/grand_place_maison_roi_player_capture.gd
+      - name: Install renderer
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/g.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/g.zip -d /tmp/g && chmod +x /tmp/g/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/g/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/base-import.log
+          /tmp/g/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/head-import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/base-import.log /tmp/head-import.log
+      - name: Capture
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/g/Godot_v4.7.1-stable_linux.x86_64 --path base/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_maison_roi_player_capture.gd -- /tmp/before.png 2>&1 | tee /tmp/before.log
+          xvfb-run -a /tmp/g/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_maison_roi_player_capture.gd -- /tmp/after.png 2>&1 | tee /tmp/after.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|GRAND_PLACE_MAISON_ROI_CAPTURE_FAIL' /tmp/before.log /tmp/after.log
+          test -s /tmp/before.png && test -s /tmp/after.png
+      - name: Measure
+        run: |
+          python3 - <<'PY' | tee /tmp/metrics.log
+          from PIL import Image,ImageChops
+          a=Image.open('/tmp/before.png').convert('RGB'); b=Image.open('/tmp/after.png').convert('RGB'); assert a.size==b.size==(1280,720)
+          p=list(ImageChops.difference(a,b).getdata()); n=len(p); c=sum(max(x)>3 for x in p); s=sum(max(x)>12 for x in p)
+          print(f'changed_gt3={c} ratio_gt3={c/n:.6f}'); print(f'changed_gt12={s} ratio_gt12={s/n:.6f}'); print('human_full_frame_3_second_verdict=REQUIRED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-maison-roi-player-ab
+          path: |
+            /tmp/before.png
+            /tmp/after.png
+            /tmp/before.log
+            /tmp/after.log
+            /tmp/metrics.log
+          if-no-files-found: error

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed on automated LABO -> JOUABLE catalog promotion.
+"""Fail closed on automated LABO-family -> JOUABLE catalog promotion.
 
 This validator compares the PR base catalog with the proposed catalog and
 refuses any new JOUABLE state. Runtime-local player reports remain useful human
@@ -14,8 +14,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "grand-bruxelles-playable-zone-catalog-v1"
-ALLOWED_QUALITIES = {"LABO", "JOUABLE"}
+SCHEMA_V1 = "grand-bruxelles-playable-zone-catalog-v1"
+SCHEMA_V2 = "grand-bruxelles-playable-zone-catalog-v2"
+ALLOWED_SCHEMAS = {SCHEMA_V1, SCHEMA_V2}
+ALLOWED_QUALITIES = {"LABO", "LABO_BRUT", "JOUABLE"}
 BLOCK_MARKER = "HUMAN_PROMOTION_REQUIRED"
 OK_MARKER = "HUMAN_PROMOTION_GATE_OK"
 
@@ -25,7 +27,7 @@ def _load_catalog(path: Path) -> dict[str, Any]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"cannot read catalog {path}: {exc}") from exc
-    if not isinstance(data, dict) or data.get("schema") != SCHEMA:
+    if not isinstance(data, dict) or data.get("schema") not in ALLOWED_SCHEMAS:
         raise ValueError(f"invalid catalog schema in {path}")
     zones = data.get("zones")
     if not isinstance(zones, list):
@@ -35,6 +37,7 @@ def _load_catalog(path: Path) -> dict[str, Any]:
 
 def _zone_map(catalog: dict[str, Any]) -> dict[str, str]:
     result: dict[str, str] = {}
+    schema = catalog.get("schema")
     for raw in catalog["zones"]:
         if not isinstance(raw, dict):
             raise ValueError("zone entry is not an object")
@@ -46,6 +49,8 @@ def _zone_map(catalog: dict[str, Any]) -> dict[str, str]:
             raise ValueError(f"duplicate zone id: {zone_id}")
         if quality not in ALLOWED_QUALITIES:
             raise ValueError(f"unsupported quality for {zone_id}: {quality}")
+        if schema == SCHEMA_V1 and quality == "LABO_BRUT":
+            raise ValueError(f"LABO_BRUT requires catalog v2 for {zone_id}")
         result[zone_id] = quality
     return result
 
@@ -76,18 +81,18 @@ def validate(base_path: Path, head_path: Path) -> int:
         print(
             f"{BLOCK_MARKER}: "
             + ", ".join(blocked)
-            + " changed from LABO/missing to JOUABLE. Automated CI must stay red; only a human repository decision may override this gate.",
+            + " changed from LABO-family/missing to JOUABLE. Automated CI must stay red; only a human repository decision may override this gate.",
             file=sys.stderr,
         )
         return 2
 
-    print(f"{OK_MARKER}: no automated LABO -> JOUABLE transition")
+    print(f"{OK_MARKER}: no automated LABO-family -> JOUABLE transition")
     return 0
 
 
-def _catalog(*pairs: tuple[str, str]) -> dict[str, Any]:
+def _catalog(*pairs: tuple[str, str], schema: str = SCHEMA_V1) -> dict[str, Any]:
     return {
-        "schema": SCHEMA,
+        "schema": schema,
         "zones": [{"id": zone_id, "quality": quality} for zone_id, quality in pairs],
     }
 
@@ -99,13 +104,16 @@ def self_test() -> int:
         ("promotion", _catalog(("bourse", "LABO")), _catalog(("bourse", "JOUABLE")), ["bourse"]),
         ("new-jouable", _catalog(), _catalog(("ixelles", "JOUABLE")), ["ixelles"]),
         ("downgrade", _catalog(("midi", "JOUABLE")), _catalog(("midi", "LABO")), []),
+        ("v1-to-v2", _catalog(("bourse", "LABO")), _catalog(("bourse", "LABO"), schema=SCHEMA_V2), []),
+        ("brut-steady", _catalog(("bourse", "LABO_BRUT"), schema=SCHEMA_V2), _catalog(("bourse", "LABO_BRUT"), schema=SCHEMA_V2), []),
+        ("brut-promotion", _catalog(("bourse", "LABO_BRUT"), schema=SCHEMA_V2), _catalog(("bourse", "JOUABLE"), schema=SCHEMA_V2), ["bourse"]),
     ]
     for name, base, head, expected in cases:
         actual = blocked_promotions(base, head)
         if actual != expected:
             print(f"SELF_TEST_FAIL {name}: expected={expected} actual={actual}", file=sys.stderr)
             return 1
-    print("HUMAN_PROMOTION_GATE_SELF_TEST_OK: fail_closed=true cases=5")
+    print("HUMAN_PROMOTION_GATE_SELF_TEST_OK: fail_closed=true cases=8 schemas=v1,v2")
     return 0
 
 

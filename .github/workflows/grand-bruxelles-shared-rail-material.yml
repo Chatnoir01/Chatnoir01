@@ -37,7 +37,7 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/shared-rail-import.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/shared-rail-import.log; then exit 1; fi
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|SHADER ERROR|Shader compilation failed" /tmp/shared-rail-import.log; then exit 1; fi
       - name: Prove normal-player shared rail impact
         shell: bash
         env:
@@ -45,7 +45,7 @@ jobs:
         run: |
           set -o pipefail
           timeout 120s xvfb-run -a godot --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_shared_rail_material_visual_test.gd 2>&1 | tee /tmp/shared-rail-visual.log
-          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_SHARED_RAIL_VISUAL_FAIL" /tmp/shared-rail-visual.log; then exit 1; fi
+          if grep -E "SCRIPT ERROR|Parse Error:|SHADER ERROR|Shader compilation failed|BRUSSELS_SHARED_RAIL_VISUAL_FAIL" /tmp/shared-rail-visual.log; then exit 1; fi
           grep -q "BRUSSELS_SHARED_RAIL_VISUAL_OK" /tmp/shared-rail-visual.log
       - name: Upload player A/B evidence
         if: always()

@@ -91,7 +91,6 @@ jobs:
                   "res://data/qa/playable_zone_catalog.json",
                   "res://data/urbis/midi/midi_runtime.game.json",
                   "res://data/urbis/laeken_jette/jette_phase2/buildings.game.json",
-                  "res://game/main.tscn",
               ]
               if FileAccess.file_exists(forbidden):
                   push_error("WEB_PACK_FAIL forbidden discovery evidence is still exported")

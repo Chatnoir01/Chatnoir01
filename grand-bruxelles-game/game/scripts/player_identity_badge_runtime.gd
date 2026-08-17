@@ -2,13 +2,30 @@ extends Node
 
 const BADGE_NODE_NAME := "PlayerFallbackIdentityBadge"
 const KAYKIT_PATH := "res://assets/characters/player_character.glb"
+const MAX_RUNTIME_WAIT_FRAMES := 180
 
 var _badge_layer: CanvasLayer
 var _badge_panel: PanelContainer
 var _badge_label: Label
+var _runtime_wait_frames: int = 0
 
 func _ready() -> void:
-    call_deferred("refresh_badge")
+    set_process(true)
+
+func _process(_delta: float) -> void:
+    if _try_refresh_badge():
+        set_process(false)
+        return
+    _runtime_wait_frames += 1
+    if _runtime_wait_frames >= MAX_RUNTIME_WAIT_FRAMES:
+        _set_badge_text("PLAYER FALLBACK · VISUAL UNRESOLVED")
+        set_process(false)
+
+static func runtime_visual_ready(scene: Node) -> bool:
+    if scene == null:
+        return false
+    var visual := scene.get_node_or_null("Player/VisualUpgrade")
+    return visual != null and visual.is_inside_tree() and visual.is_node_ready()
 
 static func badge_text_for_identity(identity: Dictionary) -> String:
     if String(identity.get("regime", "")) != "PLAYER_FALLBACK":
@@ -22,17 +39,26 @@ static func badge_text_for_identity(identity: Dictionary) -> String:
     return "PLAYER FALLBACK · PROCEDURAL"
 
 func refresh_badge() -> void:
+    _try_refresh_badge()
+
+func _try_refresh_badge() -> bool:
+    var scene := get_tree().current_scene
+    if not runtime_visual_ready(scene):
+        return false
     var resolver := get_node_or_null("/root/PlayerIdentityResolver")
     if resolver == null:
-        _remove_badge()
-        return
+        return false
     var identity: Dictionary = resolver.call("refresh_runtime_identity")
     var badge_text := badge_text_for_identity(identity)
     if badge_text.is_empty():
         _remove_badge()
-        return
+    else:
+        _set_badge_text(badge_text)
+    return true
+
+func _set_badge_text(text: String) -> void:
     _ensure_badge()
-    _badge_label.text = badge_text
+    _badge_label.text = text
 
 func _ensure_badge() -> void:
     if is_instance_valid(_badge_layer):

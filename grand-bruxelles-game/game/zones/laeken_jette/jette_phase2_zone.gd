@@ -4,6 +4,8 @@ extends Node3D
 ## Jette station and Parc Roi Baudouin. This scene is intentionally standalone.
 
 const DATA_ROOT := "res://data/urbis/laeken_jette/jette_phase2"
+const OSM_ENVIRONMENT_RUNTIME := preload("res://game/scripts/brussels_osm_environment_runtime.gd")
+const OSM_ENVIRONMENT_DATA := "res://data/osm/zones/jette/environment.game.json"
 const JETTE_STATION_XZ := Vector2(-687.700268506218, -4952.774160383269)
 const MIROIR_XZ := Vector2(-977.468223091797, -4051.878040528856)
 const ROI_BAUDOUIN_XZ := Vector2(-1357.8384465064446, -5020.906404124573)
@@ -34,7 +36,15 @@ func _ready() -> void:
     _make_materials()
     _build_ground_reference()
     _build_official_geometry()
+    _build_osm_environment()
     print("JETTE_PHASE2_ZONE_READY: %s station_feature_distance=%.2f" % [JSON.stringify(last_stats), station_feature_distance_m])
+
+
+func _build_osm_environment() -> void:
+    var runtime := OSM_ENVIRONMENT_RUNTIME.new()
+    runtime.name = "BrusselsOsmEnvironment"
+    runtime.data_path = OSM_ENVIRONMENT_DATA
+    add_child(runtime)
 
 
 func _material(color: Color, roughness: float, metallic: float = 0.0) -> StandardMaterial3D:

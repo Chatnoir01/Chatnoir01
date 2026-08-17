@@ -10,6 +10,7 @@ var _material: ShaderMaterial
 var _ready_complete := false
 var _identity_failure := false
 var _enabled := true
+var _urbis_owner_skip := false
 
 func _ready() -> void:
     call_deferred("_apply_when_ready")
@@ -28,6 +29,11 @@ func _apply_when_ready() -> void:
         _identity_failure = true
         _ready_complete = true
         return
+    if bool(midi.get_meta("midi_urbis_envelope_owner", false)):
+        _urbis_owner_skip = true
+        _ready_complete = true
+        print("Midi blue-stone runtime: SKIP legacy station-mass surfaces; UrbISMidiExact owns station masses")
+        return
     _targets.clear()
     _collect_targets(midi)
     if _targets.size() != 4:
@@ -35,12 +41,7 @@ func _apply_when_ready() -> void:
         _identity_failure = true
         _ready_complete = true
         return
-    _material = MATERIAL_FACTORY.create(
-        Color(0.095, 0.125, 0.145, 1.0),
-        Color(0.255, 0.275, 0.285, 1.0),
-        0.78,
-        "Midi Urban 9423 blue-stone bases"
-    )
+    _material = MATERIAL_FACTORY.create(Color(0.095, 0.125, 0.145, 1.0), Color(0.255, 0.275, 0.285, 1.0), 0.78, "Midi Urban 9423 blue-stone bases")
     for target in _targets:
         _original_materials[target.get_instance_id()] = target.material_override
         target.material_override = _material
@@ -65,45 +66,25 @@ func _read_identity() -> Dictionary:
 
 func _runtime_identity_allowed(identity: Dictionary) -> bool:
     var contract := identity.get("presentation_contract", {}) as Dictionary
-    if str(identity.get("schema", "")) != "grand-bruxelles-material-identity-v1":
-        return false
-    if str(contract.get("material_identity", "")) != "blue_stone":
-        return false
-    if bool(contract.get("geometry_changed", true)) or bool(contract.get("new_location_specific_placement", true)):
-        return false
-    if bool(contract.get("masonry_joints_authored", true)) or bool(contract.get("tooling_pattern_authored", true)):
-        return false
-    if not bool(contract.get("runtime_approved", false)):
-        return false
-    return true
+    if str(identity.get("schema", "")) != "grand-bruxelles-material-identity-v1": return false
+    if str(contract.get("material_identity", "")) != "blue_stone": return false
+    if bool(contract.get("geometry_changed", true)) or bool(contract.get("new_location_specific_placement", true)): return false
+    if bool(contract.get("masonry_joints_authored", true)) or bool(contract.get("tooling_pattern_authored", true)): return false
+    return bool(contract.get("runtime_approved", false))
 
 func _collect_targets(node: Node) -> void:
-    if node is MeshInstance3D and node.name in TARGET_NAMES:
-        _targets.append(node as MeshInstance3D)
-    for child in node.get_children():
-        _collect_targets(child)
+    if node is MeshInstance3D and node.name in TARGET_NAMES: _targets.append(node as MeshInstance3D)
+    for child in node.get_children(): _collect_targets(child)
 
 func set_enhanced_material_enabled(enabled: bool) -> void:
     _enabled = enabled
-    if not _ready_complete or _identity_failure:
-        return
+    if not _ready_complete or _identity_failure or _urbis_owner_skip: return
     for target in _targets:
-        if enabled:
-            target.material_override = _material
-        else:
-            target.material_override = _original_materials.get(target.get_instance_id(), null)
+        target.material_override = _material if enabled else _original_materials.get(target.get_instance_id(), null)
 
-func enhanced_material_enabled() -> bool:
-    return _enabled
-
-func ready_complete() -> bool:
-    return _ready_complete
-
-func identity_failure() -> bool:
-    return _identity_failure
-
-func applied_surface_count() -> int:
-    return _targets.size() if _ready_complete and not _identity_failure else 0
-
-func enhanced_material() -> ShaderMaterial:
-    return _material
+func enhanced_material_enabled() -> bool: return _enabled
+func ready_complete() -> bool: return _ready_complete
+func identity_failure() -> bool: return _identity_failure
+func applied_surface_count() -> int: return _targets.size() if _ready_complete and not _identity_failure else 0
+func enhanced_material() -> ShaderMaterial: return _material
+func urbis_owner_skip() -> bool: return _urbis_owner_skip

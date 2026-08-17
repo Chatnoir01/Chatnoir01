@@ -63,6 +63,15 @@ func _load_data() -> Dictionary:
     var parsed: Variant = JSON.parse_string(file.get_as_text())
     return parsed as Dictionary if parsed is Dictionary else {}
 
+func _point_base_position(raw: Variant) -> Variant:
+    if not raw is Dictionary:
+        return null
+    var point := raw as Dictionary
+    var position_value := point.get("position", []) as Array
+    if position_value.size() != 2:
+        return null
+    return Vector3(float(position_value[0]), 0.0, float(position_value[1]))
+
 func _build() -> void:
     if _scene == null:
         _fail("scene missing during build")
@@ -76,6 +85,48 @@ func _build() -> void:
         _fail("source payload has no points")
         return
 
+    # Freeze the exact source positions before creating any presentation resources.
+    # This keeps OSM placement truth independent from renderer-side representation.
+    _source_positions.clear()
+    for raw: Variant in points:
+        var parsed_position: Variant = _point_base_position(raw)
+        if not parsed_position is Vector3:
+            _fail("malformed source point")
+            return
+        _source_positions.append(parsed_position as Vector3)
+
+    var materials := ASSET.create_materials()
+    var body_multimesh := MultiMesh.new()
+    body_multimesh.transform_format = MultiMesh.TRANSFORM_3D
+    body_multimesh.instance_count = _source_positions.size()
+    body_multimesh.mesh = ASSET.create_body_mesh(materials["body"] as Material)
+
+    var cap_multimesh := MultiMesh.new()
+    cap_multimesh.transform_format = MultiMesh.TRANSFORM_3D
+    cap_multimesh.instance_count = _source_positions.size()
+    cap_multimesh.mesh = ASSET.create_cap_mesh(materials["cap"] as Material)
+
+    # Populate the renderer buffers before binding the MultiMesh resources to scene
+    # nodes. On headless Godot 4.7.1, assigning an empty MultiMeshInstance3D first
+    # caused later readback to remain at identity transforms even though collisions
+    # were correct. Pre-population gives deterministic CPU/readback and rendering.
+    for index: int in range(_source_positions.size()):
+        var source_base := _source_positions[index]
+        body_multimesh.set_instance_transform(index, ASSET.body_transform(source_base))
+        cap_multimesh.set_instance_transform(index, ASSET.cap_transform(source_base))
+    body_multimesh.visible_instance_count = _source_positions.size()
+    cap_multimesh.visible_instance_count = _source_positions.size()
+
+    # Fail closed before scene binding if the batch buffer itself lost placement.
+    for index: int in range(_source_positions.size()):
+        var source_base := _source_positions[index]
+        if not _same_source_xz(body_multimesh.get_instance_transform(index).origin, source_base):
+            _fail("body MultiMesh placement buffer mismatch")
+            return
+        if not _same_source_xz(cap_multimesh.get_instance_transform(index).origin, source_base):
+            _fail("cap MultiMesh placement buffer mismatch")
+            return
+
     _root = Node3D.new()
     _root.name = "BrusselsSourceBackedBollards"
     _root.set_meta("asset_family", ASSET.ASSET_FAMILY)
@@ -87,19 +138,6 @@ func _build() -> void:
     _root.set_meta("visual_colour_source_backed", false)
     _root.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
     _scene.add_child(_root)
-
-    var materials := ASSET.create_materials()
-    var body_multimesh := MultiMesh.new()
-    body_multimesh.transform_format = MultiMesh.TRANSFORM_3D
-    body_multimesh.mesh = ASSET.create_body_mesh(materials["body"] as Material)
-    body_multimesh.instance_count = points.size()
-    body_multimesh.visible_instance_count = points.size()
-
-    var cap_multimesh := MultiMesh.new()
-    cap_multimesh.transform_format = MultiMesh.TRANSFORM_3D
-    cap_multimesh.mesh = ASSET.create_cap_mesh(materials["cap"] as Material)
-    cap_multimesh.instance_count = points.size()
-    cap_multimesh.visible_instance_count = points.size()
 
     _body_batch = MultiMeshInstance3D.new()
     _body_batch.name = "BollardBodies"
@@ -116,20 +154,8 @@ func _build() -> void:
     _root.add_child(_collision_body)
 
     for index: int in range(points.size()):
-        var raw: Variant = points[index]
-        if not raw is Dictionary:
-            _fail("malformed source point")
-            return
-        var point := raw as Dictionary
-        var position_value := point.get("position", []) as Array
-        if position_value.size() != 2:
-            _fail("invalid source position")
-            return
-        var base_position := Vector3(float(position_value[0]), 0.0, float(position_value[1]))
-        _source_positions.append(base_position)
-        body_multimesh.set_instance_transform(index, ASSET.body_transform(base_position))
-        cap_multimesh.set_instance_transform(index, ASSET.cap_transform(base_position))
-
+        var point := points[index] as Dictionary
+        var base_position := _source_positions[index]
         var collision := CollisionShape3D.new()
         collision.name = "Bollard_%d" % int(point.get("osm_id", 0))
         collision.shape = ASSET.collision_shape()
@@ -195,10 +221,6 @@ func source_positions_unchanged() -> bool:
     if collision_count() != _source_positions.size():
         return false
 
-    # OSM proves only horizontal point placement for this payload. MultiMesh stores
-    # transforms at renderer precision, so validate source X/Z independently from
-    # the authored vertical presentation offsets instead of reconstructing a full
-    # Vector3 through subtraction and treating float quantization as relocation.
     for index: int in range(_source_positions.size()):
         var source_base := _source_positions[index]
         var body_origin := _body_batch.multimesh.get_instance_transform(index).origin

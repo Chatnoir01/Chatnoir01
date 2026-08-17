@@ -4,11 +4,15 @@ Prototype de jeu d’action-aventure en monde ouvert, en vue à la troisième pe
 
 ## Lien Web actuel — JOUABLE
 
-**Grand Bruxelles Game :**
+**URL canonique Grand Bruxelles Game :**
 
-https://raw.githack.com/Chatnoir01/Chatnoir01/main/grand-bruxelles-game/web-preview/index.html
+https://chatnoir01.github.io/Chatnoir01/
 
-Cette URL charge directement la build Godot Web publiée dans `main` et reste identique au fil des mises à jour. RawGitHack peut afficher une page de confirmation lors du premier accès à un fichier HTML du dépôt ; vérifier que la destination commence par `raw.githack.com/Chatnoir01/Chatnoir01/`, puis continuer.
+Cette URL GitHub Pages est la porte d’entrée Web officielle. Elle sert directement la build Godot générée depuis `grand-bruxelles-game/web-preview/` (`index.html`, `index.js`, `index.wasm`, `index.pck`) et ne dépend pas de RawGitHack.
+
+Le lien RawGitHack historique n’est plus la porte officielle. Il peut rester utile uniquement comme secours technique ponctuel, mais il peut être saturé ou répondre `429` et ne doit plus être communiqué comme URL joueur principale.
+
+La build Web reste lourde : le couple `index.pck` + `index.wasm` dépasse actuellement 100 Mo avant les autres fichiers. Le workflow Web publie désormais la taille exacte, avertit au-delà de 90 MiB et bloque au-delà de 150 MiB. La réduction du premier téléchargement mobile est un lot ACCESS/performance séparé afin de ne pas modifier les ressources du jeu sans mesure.
 
 La build Web comprend aussi des contrôles tactiles pour téléphone/tablette : directions, SAUT, RUN et E pour entrer/sortir du véhicule.
 
@@ -42,6 +46,7 @@ Critère de réussite :
 - GDScript pour le prototype
 - rendu GL Compatibility pour desktop + WebGL 2.0
 - export Web Godot automatisé
+- publication GitHub Pages automatisée depuis le même build `web-preview/`
 - monde découpé en cellules / secteurs chargeables
 - NavigationServer3D prévu pour les piétons
 - données OSM/Open Data comme aides à la reconstruction, pas comme rendu final brut
@@ -88,7 +93,7 @@ grand-bruxelles-game/
 - [x] Contrôles tactiles Web/mobile
 - [x] Tests automatiques Godot pour scène, voiture et mission
 - [x] Build Godot Web automatisée
-- [x] URL Web jouable RawGitHack surveillée
+- [x] Publication GitHub Pages intégrée au workflow Web
 - [x] Personnage riggé avec animations repos/marche/course
 - [x] Trafic
 - [x] Piétons

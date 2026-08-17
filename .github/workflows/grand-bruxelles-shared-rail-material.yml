@@ -5,12 +5,20 @@ on:
     paths:
       - 'grand-bruxelles-game/game/scripts/osm_city_builder.gd'
       - 'grand-bruxelles-game/game/scripts/brussels_shared_rail_material.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_shared_rail_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_shared_rail_material_visual_test.gd'
       - 'grand-bruxelles-game/tests/test_brussels_shared_rail_material.py'
+      - 'grand-bruxelles-game/project.godot'
       - '.github/workflows/grand-bruxelles-shared-rail-material.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   shared-rail-material:
     runs-on: ubuntu-24.04
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,3 +26,34 @@ jobs:
           python-version: '3.12'
       - name: Require source-safe reusable rail material
         run: python grand-bruxelles-game/tests/test_brussels_shared_rail_material.py
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/shared-rail-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/shared-rail-import.log; then exit 1; fi
+      - name: Prove normal-player shared rail impact
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a godot --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_shared_rail_material_visual_test.gd 2>&1 | tee /tmp/shared-rail-visual.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_SHARED_RAIL_VISUAL_FAIL" /tmp/shared-rail-visual.log; then exit 1; fi
+          grep -q "BRUSSELS_SHARED_RAIL_VISUAL_OK" /tmp/shared-rail-visual.log
+      - name: Upload player A/B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-shared-rail-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/brussels_shared_rail_before.png
+            grand-bruxelles-game/artifacts/visual/brussels_shared_rail_after.png
+            /tmp/shared-rail-visual.log
+          if-no-files-found: warn

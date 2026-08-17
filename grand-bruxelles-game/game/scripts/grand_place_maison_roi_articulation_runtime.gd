@@ -17,7 +17,7 @@ const OPENING_DIMENSIONS_SOURCE_EXPLICIT := false
 const GOTHIC_VERTICAL_READ_FROM_SOURCE := true
 const RUNTIME_GEOMETRY_RESCALED := false
 const HEIGHT_PROVENANCE := "official_urbis_lod2"
-const FRONT_TO_SQUARE := Vector3(-1.0, 0.0, 1.0).normalized()
+const FRONT_TO_SQUARE := Vector3(-0.70710678, 0.0, 0.70710678)
 const PRESENTATION_DEPTH := 0.16
 
 var geometry_loaded := false
@@ -188,10 +188,14 @@ func _horizontal_bounds(faces: Array) -> Rect2:
                     continue
                 var xz := Vector2(p.x, p.z)
                 if first:
-                    lo = xz; hi = xz; first = false
+                    lo = xz
+                    hi = xz
+                    first = false
                 else:
-                    lo.x = minf(lo.x, xz.x); lo.y = minf(lo.y, xz.y)
-                    hi.x = maxf(hi.x, xz.x); hi.y = maxf(hi.y, xz.y)
+                    lo.x = minf(lo.x, xz.x)
+                    lo.y = minf(lo.y, xz.y)
+                    hi.x = maxf(hi.x, xz.x)
+                    hi.y = maxf(hi.y, xz.y)
     return Rect2(lo, hi - lo) if not first else Rect2()
 
 func _frontage_points(faces: Array) -> Array[Vector3]:
@@ -202,7 +206,9 @@ func _frontage_points(faces: Array) -> Array[Vector3]:
         for raw_triangle: Variant in raw_face.get("triangles", []):
             if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
                 continue
-            var a := _point(raw_triangle[0]); var b := _point(raw_triangle[1]); var c := _point(raw_triangle[2])
+            var a := _point(raw_triangle[0])
+            var b := _point(raw_triangle[1])
+            var c := _point(raw_triangle[2])
             if not a.is_finite() or not b.is_finite() or not c.is_finite():
                 continue
             var n := (b-a).cross(c-a).normalized()
@@ -211,7 +217,9 @@ func _frontage_points(faces: Array) -> Array[Vector3]:
                 continue
             hn = hn.normalized()
             if absf(hn.dot(FRONT_TO_SQUARE)) >= 0.62:
-                points.append(a); points.append(b); points.append(c)
+                points.append(a)
+                points.append(b)
+                points.append(c)
     return points
 
 func _build_source_bounded_frontage(faces: Array) -> void:
@@ -220,12 +228,17 @@ func _build_source_bounded_frontage(faces: Array) -> void:
         push_error("Maison du Roi frontage selection insufficient")
         return
     var tangent := Vector3(FRONT_TO_SQUARE.z, 0.0, -FRONT_TO_SQUARE.x).normalized()
-    var min_u := INF; var max_u := -INF; var min_y := INF; var max_y := -INF
+    var min_u := INF
+    var max_u := -INF
+    var min_y := INF
+    var max_y := -INF
     var plane_d := 0.0
     for p: Vector3 in points:
         var u := p.dot(tangent)
-        min_u = minf(min_u, u); max_u = maxf(max_u, u)
-        min_y = minf(min_y, p.y); max_y = maxf(max_y, p.y)
+        min_u = minf(min_u, u)
+        max_u = maxf(max_u, u)
+        min_y = minf(min_y, p.y)
+        max_y = maxf(max_y, p.y)
         plane_d += p.dot(FRONT_TO_SQUARE)
     plane_d /= float(points.size())
     var facade_height := minf(max_y - min_y, 21.0)

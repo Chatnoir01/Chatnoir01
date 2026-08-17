@@ -1,45 +1,82 @@
 # Grand Bruxelles City Machine
 
-`city_machine` is the production orchestrator being built above the existing CityGen and zone-specific data pipes. Its contract is fail-closed: a successful build may produce **LABO_DATA_READY** evidence, but it never edits `playable_zone_catalog.json` and never promotes a zone to `JOUABLE`.
+`city_machine` is the fail-closed production orchestrator above the existing CityGen and zone data pipes. A successful build produces **LABO_DATA_READY** evidence only. It never edits `playable_zone_catalog.json` and never promotes `LABO` to `JOUABLE`.
 
-## Phase 0 — cold map
+## Rebuild Jette
 
-Pilot zone: **Jette**, because production already has a complete cached UrbIS phase, a validator, a Lambert72→game converter, a loadable Godot runtime and a catalogue LABO spawn.
+From the repository root:
 
-Source contract: `data/urbis/laeken_jette/jette_phase2/manifest.json` declares EPSG:31370, the project game origin, provenance/licence, and these current counts: 12,648 buildings, 4,458 street surfaces, 1,314 street axes, 204 tram features, 204 train features, 6 bridges and 3 tunnels.
+```bash
+python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette
+```
 
-Runtime contract: `game/zones/laeken_jette/jette_phase2_zone.gd` loads the `.game.json` layers, builds a collision ground covering the source bbox, creates buildings/roads/rail geometry, and applies its existing materials. Midi is read-only reference and is not touched by this machine.
+Read-only preflight:
 
-## Existing tool park before the machine
+```bash
+python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --dry-run
+```
 
-`tools/citygen/` contains 19 callable production scripts covering the regional grid, 500 m UrbIS cell materialization, durable autonomous scheduling, DSM/DTM resolution and validation, height candidates, terrain LOD, quarantine/frontier evidence and maturity. The exact inventory is frozen in `registry.json`.
+A full success ends with `CITY_MACHINE_OK zone=jette mode=build result=LABO_DATA_READY ... promotion=false` and writes a deterministic receipt under:
 
-`tools/city_generation/` contains 5 callable facade/candidate QA scripts. They explicitly do not mutate runtime, so they are not treated as a finished-zone layer in Jette v0.
+`grand-bruxelles-game/artifacts/city_machine/jette/build-<digest>.json`
 
-Jette already has `fetch_urbis_jette_phase2.py`, `validate_jette_phase2_data.py` and `lambert72_to_game_geojson.py`; what is missing is one ordered executor above them.
+The receipt records the source contract, fixed layer list, gate results, runtime output paths/counts/SHA256, disabled layers and `promotion_performed: false`. The build ID contains no wall-clock time: identical inputs produce the same receipt name and bytes.
 
-## Fixed Jette order in registry v1
+## Fixed Jette pipeline — registry v1
 
-1. resolve catalogue zone
-2. materialize cached buildings → runtime JSON
-3. materialize cached street surfaces → runtime JSON
-4. materialize cached street axes → runtime JSON
-5. materialize cached train network → runtime JSON
-6. G1 source/CRS/provenance validator
-7. G2 catalogue spawn inside the converted runtime ground footprint
-8. G3 buildings and street surfaces non-empty
-9. G4 existing Godot finish contract (materials + ground + official geometry hooks)
+`registry.json` is execution order, not documentation-only metadata. Every row records `layer_id`, script, inputs, outputs, gate and enabled zones.
 
-Every layer row records `layer_id`, script, inputs, outputs, gate and enabled zones. Order is data, not agent memory.
+1. resolve `jette` from `data/qa/playable_zone_catalog.json`
+2. replay cached `buildings.geojson` through the existing Lambert72→game converter
+3. replay cached `street_surfaces.geojson`
+4. replay cached `street_axes.geojson`
+5. replay cached `train_network.geojson`
+6. **G1** run the existing Jette validator: source CRS/provenance/licence, manifest parity and required layers
+7. **G2** prove the catalogue spawn lies inside the runtime ground footprint derived from the manifest EPSG:31370 bbox/game origin, with sane vertical clearance
+8. **G3** prove rebuilt buildings and street surfaces are non-empty
+9. **G4** prove the existing Jette Godot runtime still exposes materials, ground and official-geometry finish hooks
 
-## Deliberately disabled in v0
+Any hard gate fails with a non-zero exit code. There is no “continue anyway” path.
 
-- **OSM environment/trees:** the repository already queries/projects `tree`, `street_lamp` and `bollard`, but the current runtime-slice contract is tied to the central corridor bbox/anchors. There is no Jette zone-bbox adapter yet.
-- **Facade candidate pipeline:** deterministic and useful, but candidate/QA-only and wired to `remaining_brussels` cells rather than Jette phase2 runtime artifacts.
-- **Live UrbIS refresh:** available, but not a nominal rebuild dependency. Nominal builds must be reproducible from committed/cached authoritative raw data.
+## Real production evidence
 
-## Product boundary
+The CI job `.github/workflows/grand-bruxelles-city-machine.yml` runs unit/fail-closed tests, a real Jette dry-run, then **two full Jette rebuilds**. It requires:
 
-Outside the machine on purpose: hero art, subjective visual approval, LABO→JOUABLE promotion, LLM/NPC content, and engine/streaming redesign. A machine PASS is not a human quality promotion.
+- G1: 12,648 buildings, 4,458 street surfaces, 1,314 street axes, 204 train features, plus the committed ancillary layers
+- G2: Jette spawn inside the source-derived runtime ground bounds
+- G3: 12,648 rebuilt buildings and 4,458 rebuilt street surfaces
+- G4: runtime materials + ground + geometry hooks present
+- same deterministic receipt after the second run
+- `git diff --exit-code` for all four regenerated `.game.json` outputs
 
-Phase 1 adds the stable CLI executor over this registry. The next global layer after the executor/gates is the zone-bbox OSM environment adapter, starting with trees.
+The first integrated proof produced `build-2a241c55e0169113.json` twice with the same SHA256 and no tracked runtime diff.
+
+## Before / after
+
+**Before:** 19 callable `tools/citygen/` scripts, 5 deterministic `tools/city_generation/` candidate/QA scripts, durable autonomous cell state, Jette-specific UrbIS fetch/validate/convert tools and a loadable Jette runtime existed, but rebuilding a zone required knowing which tool to call and in what order.
+
+**After:** the nominal Jette data-ready rebuild is one command. Layer order, inputs, outputs and gates are machine-readable; CI proves it is idempotent. An agent is no longer the production scheduler for this path.
+
+## Deliberately outside the machine
+
+- hero/landmark art and subjective visual polish
+- human `LABO` → `JOUABLE` approval
+- LLM/NPC dialogue/content
+- Godot streaming/engine redesign
+- live WFS refresh in the nominal reproducible path
+- facade candidates until they have a real runtime application contract
+
+A machine PASS means **data-ready LABO**, not “looks finished to a player”.
+
+## Add a layer
+
+1. Prefer a wrapper around an existing deterministic tool; do not rewrite the pipe.
+2. Add one ordered `registry.json` row with real script, inputs, outputs, gate and `enabled_zones`.
+3. If the existing `kind` dispatcher fits, reuse it. A new `kind` requires an explicit fail-closed handler in `city_machine.py`.
+4. Add a measurable gate or explicitly keep the layer disabled with `disabled_reason`; never fake success.
+5. Add a unit/failure case and include the layer in the CI rebuild/idempotence proof.
+6. Keep paths project-relative and outputs deterministic. A nominal rebuild must not require secrets or mutate the catalogue.
+
+## Next layer
+
+**OSM environment by zone bbox, trees first.** The repo already queries/projects `tree`, `street_lamp` and `bollard`, but that pipe is currently bound to the central corridor anchors. The next machine increment should adapt those existing functions to a catalogue-zone bbox/runtime output contract, then enable the layer for Jette only after its own gate is real.

@@ -3,6 +3,7 @@ extends Control
 signal report_created(report_id: String, zone_id: String, report_path: String)
 
 const SCHEMA := "grand-bruxelles-player-report-v1"
+const REPORT_SYNC_SCHEMA := "grand-bruxelles-continuity-report-sync-v1"
 const REPORT_DIR := "user://player_reports/open"
 const MAX_NOTE_LENGTH := 80
 
@@ -52,7 +53,7 @@ func _build_ui() -> void:
     _panel.mouse_filter = Control.MOUSE_FILTER_STOP
     _panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
     _panel.position = Vector2(-230.0, 84.0)
-    _panel.size = Vector2(460.0, 185.0)
+    _panel.size = Vector2(460.0, 220.0)
     add_child(_panel)
 
     var box := VBoxContainer.new()
@@ -78,10 +79,20 @@ func _build_ui() -> void:
     send.text = "ENVOYER"
     send.pressed.connect(_submit_pending)
     actions.add_child(send)
+    var export_state := Button.new()
+    export_state.name = "ReportSyncExportButton"
+    export_state.text = "EXPORTER ÉTAT"
+    export_state.tooltip_text = "Télécharge l'état complet des reports OPEN de cette zone, même s'il y en a zéro."
+    export_state.pressed.connect(_export_pending_zone_snapshot)
+    actions.add_child(export_state)
     var cancel := Button.new()
     cancel.text = "ANNULER"
     cancel.pressed.connect(_cancel_pending)
     actions.add_child(cancel)
+    var export_hint := Label.new()
+    export_hint.text = "EXPORTER ÉTAT = preuve de continuité de la zone (0 report inclus)."
+    export_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    box.add_child(export_hint)
     _panel.visible = false
 
     _status_timer = Timer.new()
@@ -182,20 +193,70 @@ func create_report_from_context(note: String, image: Image, context: Dictionary,
     return report_path
 
 func open_report_count(zone_id: String) -> int:
-    if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(REPORT_DIR)):
-        return 0
-    var count := 0
-    for filename: String in DirAccess.get_files_at(REPORT_DIR):
+    return _open_report_rows(zone_id, REPORT_DIR).size()
+
+func build_report_sync_snapshot(zone_id: String, report_dir := REPORT_DIR) -> Dictionary:
+    var clean_zone_id := zone_id.strip_edges()
+    if clean_zone_id.is_empty():
+        return {}
+    var rows := _open_report_rows(clean_zone_id, report_dir)
+    var oldest: Variant = null
+    if not rows.is_empty():
+        oldest = str((rows[0] as Dictionary).get("id", ""))
+    return {
+        "schema": REPORT_SYNC_SCHEMA,
+        "state": "complete_snapshot",
+        "zone_id": clean_zone_id,
+        "source": "exported_SIGNALER_open_directory",
+        "open_count": rows.size(),
+        "open_reports": rows,
+        "oldest_open_report_id": oldest,
+        "zero_open_is_proven": rows.is_empty(),
+    }
+
+func export_current_zone_snapshot() -> String:
+    if _selector == null or not _selector.has_method("current_report_context"):
+        return ""
+    var context: Variant = _selector.call("current_report_context")
+    if not context is Dictionary:
+        return ""
+    var zone_id := str((context as Dictionary).get("id", "")).strip_edges()
+    return _export_zone_snapshot(zone_id)
+
+func _open_report_rows(zone_id: String, report_dir: String) -> Array:
+    var rows: Array = []
+    if zone_id.is_empty() or not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(report_dir)):
+        return rows
+    for filename: String in DirAccess.get_files_at(report_dir):
         if not filename.ends_with(".gbreport.json"):
             continue
-        var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(REPORT_DIR.path_join(filename)))
+        var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(report_dir.path_join(filename)))
         if not parsed is Dictionary:
             continue
         var report := parsed as Dictionary
         var zone: Variant = report.get("zone", {})
-        if report.get("schema", "") == SCHEMA and report.get("status", "") == "open" and zone is Dictionary and str((zone as Dictionary).get("id", "")) == zone_id:
-            count += 1
-    return count
+        if report.get("schema", "") != SCHEMA or report.get("status", "") != "open" or not zone is Dictionary:
+            continue
+        if str((zone as Dictionary).get("id", "")) != zone_id:
+            continue
+        var report_id := str(report.get("id", "")).strip_edges()
+        if report_id.is_empty():
+            continue
+        rows.append({
+            "id": report_id,
+            "zone_id": zone_id,
+            "captured_unix": int(report.get("captured_unix", 0)),
+            "note": str(report.get("note", "")),
+            "source_file": filename,
+        })
+    rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+        var at := int(a.get("captured_unix", 0))
+        var bt := int(b.get("captured_unix", 0))
+        if at == bt:
+            return str(a.get("id", "")) < str(b.get("id", ""))
+        return at < bt
+    )
+    return rows
 
 func _submit_pending() -> void:
     if _pending_image == null or _pending_context.is_empty():
@@ -208,6 +269,34 @@ func _submit_pending() -> void:
         _flash_status("ÉCHEC SIGNALER · ticket non créé")
     else:
         _flash_status("SIGNALÉ · %s" % label)
+
+func _export_pending_zone_snapshot() -> void:
+    var zone_id := str(_pending_context.get("id", "")).strip_edges()
+    if zone_id.is_empty():
+        _flash_status("EXPORT ÉTAT impossible · zone inconnue")
+        return
+    var filename := _export_zone_snapshot(zone_id)
+    if filename.is_empty():
+        _flash_status("EXPORT ÉTAT impossible")
+        return
+    var snapshot := build_report_sync_snapshot(zone_id)
+    _flash_status("ÉTAT EXPORTÉ · %s · %d OPEN" % [zone_id, int(snapshot.get("open_count", 0))])
+
+func _export_zone_snapshot(zone_id: String) -> String:
+    var snapshot := build_report_sync_snapshot(zone_id)
+    if snapshot.is_empty():
+        return ""
+    var filename := "%s_report_sync.json" % zone_id.replace("/", "-")
+    var payload := JSON.stringify(snapshot, "  ")
+    if not _download_json(filename, payload):
+        return ""
+    print("PLAYER_REPORT_SYNC_EXPORTED: zone=%s open=%d zero_open_is_proven=%s file=%s" % [
+        zone_id,
+        int(snapshot.get("open_count", 0)),
+        str(snapshot.get("zero_open_is_proven", false)),
+        filename,
+    ])
+    return filename
 
 func _cancel_pending() -> void:
     _clear_pending()
@@ -225,17 +314,23 @@ func _flash_status(message: String) -> void:
     _status_timer.start()
 
 func _export_ticket(report_id: String, payload: String) -> void:
-    var filename := "%s.gbreport.json" % report_id
+    _download_json("%s.gbreport.json" % report_id, payload)
+
+func _download_json(filename: String, payload: String) -> bool:
+    if filename.is_empty() or payload.is_empty():
+        return false
     if OS.has_feature("web"):
         var encoded := Marshalls.raw_to_base64(payload.to_utf8_buffer())
         var script := "(function(){const b=atob('%s');const a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);const u=URL.createObjectURL(new Blob([a],{type:'application/json'}));const e=document.createElement('a');e.href=u;e.download='%s';e.click();setTimeout(()=>URL.revokeObjectURL(u),1000);})();" % [encoded, filename]
         JavaScriptBridge.eval(script)
-        return
+        return true
     var downloads := OS.get_system_dir(OS.SYSTEM_DIR_DOWNLOADS)
     if downloads.is_empty():
-        return
+        return false
     DirAccess.make_dir_recursive_absolute(downloads)
     var file := FileAccess.open(downloads.path_join(filename), FileAccess.WRITE)
-    if file != null:
-        file.store_string(payload)
-        file.close()
+    if file == null:
+        return false
+    file.store_string(payload)
+    file.close()
+    return true

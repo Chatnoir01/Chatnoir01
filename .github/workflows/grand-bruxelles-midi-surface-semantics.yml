@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
       - "grand-bruxelles-game/game/tests/midi_surface_semantics_test.gd"
       - "grand-bruxelles-game/game/tests/midi_surface_semantics_ab_compare_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_surface_stability_ab_compare_test.gd"
       - "grand-bruxelles-game/tools/make_urbis_midi_runtime.py"
       - "grand-bruxelles-game/tools/test_make_urbis_midi_runtime.py"
       - ".github/workflows/grand-bruxelles-midi-surface-semantics.yml"
@@ -25,37 +26,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
             https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
-
       - name: Verify generator preserves official LVL
         run: python3 grand-bruxelles-game/tools/test_make_urbis_midi_runtime.py
-
       - name: Import project headless
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-surface-import.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-surface-import.log; then
-            exit 1
-          fi
-
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-surface-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-surface-import.log; then exit 1; fi
       - name: Verify official surface classification
         shell: bash
         run: |
           set -o pipefail
-          timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path grand-bruxelles-game \
+          timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game \
             --script res://game/tests/midi_surface_semantics_test.gd 2>&1 | tee /tmp/midi-surface-semantics.log
-          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_SURFACE_SEMANTICS_FAIL" /tmp/midi-surface-semantics.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_SURFACE_SEMANTICS_FAIL" /tmp/midi-surface-semantics.log; then exit 1; fi
           grep -q "MIDI_SURFACE_SEMANTICS_OK" /tmp/midi-surface-semantics.log
 
   prove-player-visible-correction:
@@ -67,75 +58,89 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: base
-
       - name: Checkout head
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: head
-
+      - name: Classify collision-only change
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git -C head fetch origin "$BASE_SHA" --depth=1
+          mapfile -t changed < <(git -C head diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          physics_only=true
+          for path in "${changed[@]}"; do
+            case "$path" in
+              grand-bruxelles-game/game/scripts/urbis_midi_builder.gd|\
+              grand-bruxelles-game/game/tests/midi_exact_building_collision_test.gd|\
+              grand-bruxelles-game/game/tests/midi_surface_stability_ab_compare_test.gd|\
+              .github/workflows/grand-bruxelles-midi-solid-world.yml|\
+              .github/workflows/grand-bruxelles-midi-surface-semantics.yml)
+                ;;
+              *) physics_only=false ;;
+            esac
+          done
+          echo "physics_only=$physics_only" >> "$GITHUB_OUTPUT"
+          printf 'MIDI_SURFACE_SCOPE: physics_only=%s files=%s\n' "$physics_only" "${changed[*]}"
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
             https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
-
       - name: Install software renderer dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
-
       - name: Install identical capture harness in base checkout
         run: |
           cp head/grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd \
              base/grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd
-
       - name: Import base and head projects
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-surface-base-import.log
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-surface-head-import.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-surface-base-import.log /tmp/midi-surface-head-import.log; then
-            exit 1
-          fi
-
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-surface-base-import.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-surface-head-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-surface-base-import.log /tmp/midi-surface-head-import.log; then exit 1; fi
       - name: Capture frozen player camera before and after
         shell: bash
         run: |
           set -o pipefail
-          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --path base/grand-bruxelles-game --display-driver x11 \
-            --rendering-method gl_compatibility --resolution 1280x720 \
-            --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- \
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path base/grand-bruxelles-game --display-driver x11 \
+            --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- \
             /tmp/midi-surface-before.png 2>&1 | tee /tmp/midi-surface-before.log
-          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --path head/grand-bruxelles-game --display-driver x11 \
-            --rendering-method gl_compatibility --resolution 1280x720 \
-            --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- \
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 \
+            --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- \
             /tmp/midi-surface-after.png 2>&1 | tee /tmp/midi-surface-after.log
-          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AMBIENT_VEHICLE_CAPTURE_FAIL" /tmp/midi-surface-before.log /tmp/midi-surface-after.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AMBIENT_VEHICLE_CAPTURE_FAIL" /tmp/midi-surface-before.log /tmp/midi-surface-after.log; then exit 1; fi
           test -f /tmp/midi-surface-before.png
           test -f /tmp/midi-surface-after.png
-
-      - name: Enforce broad player-visible correction
+      - name: Enforce physics-only pixel stability
+        if: steps.scope.outputs.physics_only == 'true'
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
-            --headless --path head/grand-bruxelles-game \
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game \
+            --script res://game/tests/midi_surface_stability_ab_compare_test.gd -- \
+            /tmp/midi-surface-before.png /tmp/midi-surface-after.png 2>&1 | tee /tmp/midi-surface-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_SURFACE_STABILITY_AB_FAIL" /tmp/midi-surface-ab.log; then exit 1; fi
+          grep -q "MIDI_SURFACE_STABILITY_AB_OK" /tmp/midi-surface-ab.log
+      - name: Enforce broad player-visible correction
+        if: steps.scope.outputs.physics_only != 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game \
             --script res://game/tests/midi_surface_semantics_ab_compare_test.gd -- \
             /tmp/midi-surface-before.png /tmp/midi-surface-after.png 2>&1 | tee /tmp/midi-surface-ab.log
-          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_SURFACE_SEMANTICS_AB_FAIL" /tmp/midi-surface-ab.log; then
-            exit 1
-          fi
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_SURFACE_SEMANTICS_AB_FAIL" /tmp/midi-surface-ab.log; then exit 1; fi
           grep -q "MIDI_SURFACE_SEMANTICS_AB_OK" /tmp/midi-surface-ab.log
-
       - name: Stage A/B evidence
         if: always()
         run: |
@@ -143,7 +148,6 @@ jobs:
           cp /tmp/midi-surface-before.png head/grand-bruxelles-game/artifacts/qa/midi_surface_semantics_ab/before.png 2>/dev/null || true
           cp /tmp/midi-surface-after.png head/grand-bruxelles-game/artifacts/qa/midi_surface_semantics_ab/after.png 2>/dev/null || true
           cp /tmp/midi-surface-ab.log head/grand-bruxelles-game/artifacts/qa/midi_surface_semantics_ab/metrics.log 2>/dev/null || true
-
       - name: Upload A/B evidence
         if: always()
         uses: actions/upload-artifact@v4

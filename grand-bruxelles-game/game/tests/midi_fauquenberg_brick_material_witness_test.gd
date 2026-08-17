@@ -9,7 +9,7 @@ const WIDTH := 1280
 const HEIGHT := 720
 const MIN_CHANGED_OVER_3 := 0.02
 const MIN_CHANGED_OVER_8 := 0.005
-const EXPECTED_SURFACES := 4
+const EXPECTED_SURFACES := 3
 
 const ENTRANCE := Vector3(-672.2905, 0.0, 615.8035)
 const ROAD_SIDE := Vector3(0.779, 0.0, 0.627)
@@ -40,7 +40,10 @@ func _run() -> void:
         _fail("runtime identity/application failed")
         return
     if runtime.applied_surface_count() != EXPECTED_SURFACES:
-        _fail("expected exactly %d existing brick surfaces, got %d" % [EXPECTED_SURFACES, runtime.applied_surface_count()])
+        _fail("expected exactly %d surviving brick surfaces, got %d" % [EXPECTED_SURFACES, runtime.applied_surface_count()])
+        return
+    if world.find_child("StationLowerBrick", true, false) != null:
+        _fail("superseded StationLowerBrick envelope surface must stay absent")
         return
 
     var parsed_identity: Variant = JSON.parse_string(FileAccess.get_file_as_string(IDENTITY_PATH))

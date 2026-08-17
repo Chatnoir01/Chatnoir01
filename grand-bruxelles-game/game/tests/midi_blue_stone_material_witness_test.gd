@@ -60,8 +60,8 @@ func _run() -> void:
     if not runtime.ready_complete() or runtime.identity_failure():
         _fail("runtime identity/application failed")
         return
-    if runtime.applied_surface_count() != 4:
-        _fail("expected exactly four pre-existing blue-stone base surfaces")
+    if runtime.applied_surface_count() != 3:
+        _fail("expected exactly three surviving blue-stone facade base surfaces")
         return
     var material := runtime.enhanced_material() as ShaderMaterial
     if material == null:

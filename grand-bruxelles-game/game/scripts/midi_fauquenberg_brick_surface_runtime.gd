@@ -2,8 +2,8 @@ extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_fauquenberg_brick_material.gd")
 const IDENTITY_PATH := "res://data/visual/midi_fauquenberg_brick_material_identity.json"
-const EXPECTED_SURFACES := 4
-const TARGET_NAMES := ["StationLowerBrick", "FauquenbergBrick"]
+const EXPECTED_SURFACES := 3
+const TARGET_NAMES := ["FauquenbergBrick"]
 
 var _targets: Array[Node] = []
 var _original_materials: Dictionary = {}

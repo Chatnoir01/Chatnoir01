@@ -1,6 +1,6 @@
 extends Node
 
-const DATA_PATH := "res://data/osm/anneessens_environment_points.game.json"
+const DATA_PATH := "res://data/osm/zones/anneessens/environment.game.json"
 const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 const TREE_ASSET := preload("res://game/scripts/brussels_street_tree_asset.gd")
 
@@ -78,11 +78,20 @@ func _build_once() -> void:
         push_error("Anneessens OSM furniture JSON invalid")
         return
     var data := parsed as Dictionary
-    if str(data.get("format", "")) != "grand-bruxelles-osm-environment-points-v1":
+    if str(data.get("format", "")) != "grand-bruxelles-osm-zone-environment-v1":
         push_error("Anneessens OSM furniture schema invalid")
+        return
+    if str(data.get("zone", "")) != "anneessens":
+        push_error("Anneessens OSM furniture zone invalid")
+        return
+    if str(data.get("source", "")) != "OpenStreetMap contributors via Overpass API":
+        push_error("Anneessens OSM furniture source invalid")
         return
     if str(data.get("license", "")) != "ODbL-1.0":
         push_error("Anneessens OSM furniture license missing")
+        return
+    if str(data.get("coordinate_space", "")) != "game_xz_m":
+        push_error("Anneessens OSM furniture coordinate space invalid")
         return
 
     _root = Node3D.new()
@@ -91,7 +100,7 @@ func _build_once() -> void:
     _tree_materials = TREE_ASSET.create_materials()
 
     var built := 0
-    for raw: Variant in data.get("points", []):
+    for raw: Variant in data.get("environment_points", []):
         if not raw is Dictionary:
             continue
         var point := raw as Dictionary

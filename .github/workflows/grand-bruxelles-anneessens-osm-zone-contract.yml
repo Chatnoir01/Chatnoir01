@@ -1,0 +1,51 @@
+name: Grand Bruxelles Anneessens OSM Zone Contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-anneessens-osm-zone-contract.yml"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/osm/anneessens_environment_points.game.json"
+      - "grand-bruxelles-game/data/osm/zones/anneessens/**"
+      - "grand-bruxelles-game/tools/city_machine/test_anneessens_osm_zone_contract.py"
+      - "grand-bruxelles-game/tools/city_machine/extract_osm_environment_zone_view.py"
+      - "grand-bruxelles-game/game/scripts/anneessens_osm_furniture_runtime.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zone-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate Anneessens standard OSM zone contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/city_machine/extract_osm_environment_zone_view.py \
+            --source grand-bruxelles-game/data/osm/vertical_slice_01.game.json \
+            --legacy grand-bruxelles-game/data/osm/anneessens_environment_points.game.json \
+            --output grand-bruxelles-game/data/osm/zones/anneessens/environment.game.json \
+            --project-root grand-bruxelles-game \
+            --zone anneessens \
+            --anchor-x -272.04 \
+            --anchor-z -217.07 \
+            --radius-m 130
+      - name: Validate Anneessens standard OSM zone contract
+        run: python3 grand-bruxelles-game/tools/city_machine/test_anneessens_osm_zone_contract.py
+      - name: Require committed deterministic output
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=grand-bruxelles-game/data/osm/zones/anneessens/environment.game.json
+          status="$(git status --porcelain -- "$target")"
+          if [ -n "$status" ]; then
+            echo "ANNEESSENS_OSM_ZONE_CONTRACT_DRIFT: $status"
+            cat "$target"
+            git diff -- "$target" || true
+            exit 1
+          fi
+          echo "ANNEESSENS_OSM_ZONE_CONTRACT_OK"

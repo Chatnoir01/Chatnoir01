@@ -1,0 +1,62 @@
+name: Grand Bruxelles Web Access
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-web.yml"
+      - ".github/workflows/grand-bruxelles-web-access.yml"
+      - "grand-bruxelles-game/README.md"
+      - "grand-bruxelles-game/web-preview/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  access-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove canonical Pages access contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('grand-bruxelles-game/web-preview')
+          required = ['index.html', 'index.js', 'index.wasm', 'index.pck']
+          missing = [name for name in required if not (root / name).is_file()]
+          if missing:
+              raise SystemExit(f'WEB_ACCESS_FAIL missing={missing}')
+
+          sizes = {name: (root / name).stat().st_size for name in required}
+          total = sum(p.stat().st_size for p in root.iterdir() if p.is_file())
+          if any(size <= 0 for size in sizes.values()):
+              raise SystemExit(f'WEB_ACCESS_FAIL empty_required={sizes}')
+          if total > 150 * 1024 * 1024:
+              raise SystemExit(f'WEB_ACCESS_FAIL total_too_large={total}')
+
+          workflow = Path('.github/workflows/grand-bruxelles-web.yml').read_text(encoding='utf-8')
+          for needle in [
+              'pages: write',
+              'id-token: write',
+              'actions/configure-pages@v5',
+              'enablement: true',
+              'actions/upload-pages-artifact@v3',
+              'path: grand-bruxelles-game/web-preview',
+              'actions/deploy-pages@v4',
+          ]:
+              if needle not in workflow:
+                  raise SystemExit(f'WEB_ACCESS_FAIL workflow_missing={needle}')
+
+          readme = Path('grand-bruxelles-game/README.md').read_text(encoding='utf-8')
+          canonical = 'https://chatnoir01.github.io/Chatnoir01/'
+          if canonical not in readme:
+              raise SystemExit('WEB_ACCESS_FAIL canonical_pages_url_missing')
+          if 'RawGitHack' not in readme or 'ne doit plus être communiqué comme URL joueur principale' not in readme:
+              raise SystemExit('WEB_ACCESS_FAIL rawgithack_deprecation_missing')
+
+          print(f'WEB_ACCESS_OK canonical={canonical} total_bytes={total} total_mib={total/1024/1024:.2f} pck={sizes["index.pck"]} wasm={sizes["index.wasm"]}')
+          PY

@@ -1,0 +1,61 @@
+{
+  "schema": "grand-bruxelles-city-machine-finish-registry-v1",
+  "pilot_zone": "jette",
+  "pilot_choice": {
+    "midi_condition": "not_proven_machine_rebuildable_from_zone-scoped buildings+streets inputs on current main",
+    "jette_condition": "proven: UrbIS phase2 buildings+street_surfaces and one-command city_machine rebuild exist",
+    "locked_for_campaign": true
+  },
+  "source_registry": "tools/city_machine/registry.json",
+  "command": "python3 tools/city_machine/city_machine.py build --zone jette",
+  "automation_ceiling": "LABO_DATA_READY",
+  "auto_jouable": false,
+  "families": [
+    {
+      "order": 1,
+      "family_id": "geometry",
+      "status": "wired",
+      "source": "UrbIS Jette phase2 committed cache",
+      "layers": ["materialize_buildings_runtime", "materialize_street_surfaces_runtime", "materialize_street_axes_runtime", "materialize_train_network_runtime"],
+      "gates": ["G1_sources_crs", "G2_spawn_ground", "G3_buildings_streets", "G4_runtime_finish"],
+      "reason": "buildings and streets are deterministic machine outputs; runtime finish contract proves stable ground/material hooks"
+    },
+    {
+      "order": 2,
+      "family_id": "osm_environment",
+      "status": "wired",
+      "source": "OpenStreetMap committed Jette zone cache, ODbL-1.0",
+      "layers": ["osm_environment_points"],
+      "gates": ["G5_osm_environment"],
+      "reason": "trees, street lamps and bollards are source-backed machine outputs; generic Godot renderer remains the next runtime increment"
+    },
+    {
+      "order": 3,
+      "family_id": "finish_materials",
+      "status": "missing",
+      "source": "existing Jette Godot material/ground hooks",
+      "layers": [],
+      "gates": ["G4_runtime_finish"],
+      "reason": "G4 proves hooks exist but no generic deterministic finish executor is yet on the machine path",
+      "next_action": "wrap existing reusable finish/material path; do not copy a hero-specific material script"
+    },
+    {
+      "order": 4,
+      "family_id": "life",
+      "status": "disabled",
+      "source": null,
+      "layers": [],
+      "gates": [],
+      "reason": "optional family: no generic Jette life adapter is proven on current main; SKIP until an existing ambient system can be parameterized by zone_id"
+    },
+    {
+      "order": 5,
+      "family_id": "proof",
+      "status": "wired",
+      "source": "city_machine hard gates + deterministic receipt/idempotence CI",
+      "layers": ["validate_urbis_source_contract", "gate_spawn_ground", "gate_runtime_content", "runtime_finish_contract", "gate_osm_environment"],
+      "gates": ["G1_sources_crs", "G2_spawn_ground", "G3_buildings_streets", "G4_runtime_finish", "G5_osm_environment"],
+      "reason": "hard gate failure returns non-zero and CI rebuilds twice to prove deterministic outputs"
+    }
+  ]
+}

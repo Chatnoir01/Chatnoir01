@@ -23,16 +23,45 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/roi/extracted
           python3 - <<'PY'
-          import json, urllib.parse, urllib.request
+          import json, re, unicodedata, urllib.parse, urllib.request
           from pathlib import Path
 
           CITY_API = 'https://opendata.brussels.be/api/explore/v2.1/catalog/datasets/description-des-batiments-de-la-grand-place/records?limit=100'
           req = urllib.request.Request(CITY_API, headers={'User-Agent':'Grand-Bruxelles-Game/1.0','Accept':'application/json'})
           with urllib.request.urlopen(req, timeout=90) as r:
               city = json.loads(r.read().decode('utf-8'))
-          rows = [r for r in city.get('results', []) if str(r.get('nom','')).strip() == "Le Roi d'Espagne"]
+
+          def norm(value):
+              text = unicodedata.normalize('NFKD', str(value or ''))
+              text = ''.join(ch for ch in text if not unicodedata.combining(ch))
+              text = text.replace('’', "'").replace('`', "'").lower()
+              return re.sub(r'[^a-z0-9]+', ' ', text).strip()
+
+          all_rows = city.get('results', [])
+          candidates = []
+          for row in all_rows:
+              name = norm(row.get('nom'))
+              address = norm(row.get('adresse'))
+              name_match = 'roi' in name.split() and 'espagne' in name.split()
+              address_match = ('grand place' in address and re.search(r'(^| )1($| )', address) is not None)
+              if name_match or address_match:
+                  candidates.append(row)
+
+          rows = [
+              row for row in candidates
+              if 'roi' in norm(row.get('nom')).split()
+              and 'espagne' in norm(row.get('nom')).split()
+              and 'grand place' in norm(row.get('adresse'))
+              and re.search(r'(^| )1($| )', norm(row.get('adresse'))) is not None
+          ]
           if len(rows) != 1:
-              raise SystemExit(f'expected exactly one Le Roi d\'Espagne City record, got {len(rows)}')
+              diagnostic = [
+                  {'nom': r.get('nom'), 'adresse': r.get('adresse'), 'id': r.get('id')}
+                  for r in candidates
+              ]
+              raise SystemExit(
+                  f"expected exactly one City record for Roi d'Espagne at Grand-Place 1, got {len(rows)}; candidates={json.dumps(diagnostic, ensure_ascii=False)}"
+              )
           rec = rows[0]
           gp = rec.get('geo_point') or {}
           if not isinstance(gp, dict) or 'lon' not in gp or 'lat' not in gp:

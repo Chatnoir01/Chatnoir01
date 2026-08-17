@@ -6,6 +6,7 @@ on:
     paths:
       - "grand-bruxelles-game/web-preview/**"
       - ".github/workflows/grand-bruxelles-pages.yml"
+      - "grand-bruxelles-game/PLAY.md"
       - "grand-bruxelles-game/README.md"
       - "grand-bruxelles-game/tools/test_playable_link_contract.py"
   pull_request:
@@ -13,6 +14,7 @@ on:
     paths:
       - "grand-bruxelles-game/web-preview/**"
       - ".github/workflows/grand-bruxelles-pages.yml"
+      - "grand-bruxelles-game/PLAY.md"
       - "grand-bruxelles-game/README.md"
       - "grand-bruxelles-game/tools/test_playable_link_contract.py"
   workflow_run:

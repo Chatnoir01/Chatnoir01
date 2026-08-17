@@ -1,11 +1,12 @@
 extends Node3D
 
 # Bruxelles-Midi / Brussel-Zuid hero zone.
-# Coordinates remain aligned with the committed OSM corridor. The station
-# composition is a hand-built visual reconstruction pass informed by the
-# Brussels architectural heritage inventory while the exact UrbIS 3D import
-# pipeline is being prepared.
+# Coordinates remain aligned with the committed OSM corridor. Hero facade
+# articulation remains authored, while the station plan envelope is delegated
+# to the official UrbIS footprint already rendered by UrbISMidiExact.
 
+const MidiStationSourcePlan = preload("res://game/scripts/midi_station_source_plan.gd")
+const MIDI_STATION_BUILDING_ID := "https://databrussels.be/id/building/1633645"
 const MIDI: Vector3 = Vector3(-668.5, 0.0, 627.84)
 const FONSNY_AXIS: Vector3 = Vector3(-0.627, 0.0, 0.779)
 const STATION_SIDE: Vector3 = Vector3(-0.779, 0.0, -0.627)
@@ -182,23 +183,30 @@ func _station_root() -> Node3D:
     return station
 
 
+func _source_station_footprint() -> PackedVector2Array:
+    if MidiStationSourcePlan.MIDI_STATION_BUILDING_ID != MIDI_STATION_BUILDING_ID:
+        push_error("Midi station source selector ID mismatch")
+        return PackedVector2Array()
+    return MidiStationSourcePlan.source_station_footprint()
+
+
 func _build_station_complex() -> void:
+    var source_footprint: PackedVector2Array = _source_station_footprint()
+    if source_footprint.size() < 3:
+        push_error("Midi hero station detail disabled: authoritative UrbIS footprint unavailable")
+        return
+
+    # UrbISMidiExact is the sole station plan-envelope authority. Its current
+    # vertical value is temporary_area_heuristic, so this lot deliberately does
+    # not promote that height as authoritative. The remaining facade elements
+    # are visual articulation only and preserve the existing Fonsny character.
     var station: Node3D = _station_root()
-
-    # Low station base / covered frontage running along Avenue Fonsny.
-    _add_box(station, "StationBaseBlueStone", Vector3(45.0, 3.25, 171.0), Vector3(0.0, 1.625, 0.0), _blue_stone)
-    _add_box(station, "StationLowerBrick", Vector3(44.6, 4.1, 170.0), Vector3(-0.1, 5.30, 0.0), _brick_yellow)
     _add_box(station, "StationLongGlassBand", Vector3(0.18, 2.0, 164.0), Vector3(22.40, 5.55, 0.0), _glass)
-    _add_box(station, "StationRoofLine", Vector3(48.0, 0.55, 176.0), Vector3(0.0, 7.55, 0.0), _metal)
 
-    # Distinct Fonsny administrative/postal volumes instead of one generic box.
-    # The centre block is intentionally taller, reflecting the heritage facade
-    # rhythm visible on Fonsny 47-49.
     _add_office_block(station, "FonsnyWingSouth", -57.0, 48.0, 6, false)
     _add_office_block(station, "FonsnyCentral", 0.0, 61.0, 7, true)
     _add_office_block(station, "FonsnyWingNorth", 60.0, 52.0, 6, false)
 
-    # Break up the long station volume with vertical masonry joints.
     for local_z: float in [-82.0, -41.0, 39.0, 82.0]:
         _add_box(station, "StationMasonryJoint", Vector3(0.22, 6.0, 0.55), Vector3(22.56, 4.5, local_z), _brick_shadow)
 

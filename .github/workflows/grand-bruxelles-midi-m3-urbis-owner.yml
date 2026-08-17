@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/game/scripts/midi_hero_zone_materials.gd"
       - "grand-bruxelles-game/tests/test_midi_station_arrival_urbis_owner.py"
+      - "grand-bruxelles-game/game/tests/midi_station_urbis_owner_witness_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -16,6 +17,7 @@ permissions:
 jobs:
   source-owner:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,3 +25,31 @@ jobs:
           python-version: "3.12"
       - name: Require official UrbIS station envelope owner
         run: python grand-bruxelles-game/tests/test_midi_station_arrival_urbis_owner.py
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-m3-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-m3-import.log; then exit 1; fi
+      - name: Prove player-visible station ownership correction
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/midi_station_urbis_owner_witness_test.gd 2>&1 | tee /tmp/midi-m3-visual.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_M3_URBIS_OWNER_VISUAL_FAIL" /tmp/midi-m3-visual.log; then exit 1; fi
+          grep -q "MIDI_M3_URBIS_OWNER_VISUAL_OK" /tmp/midi-m3-visual.log
+      - name: Upload M3 player evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-m3-urbis-station-owner-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/midi_m3_station_before.png
+            grand-bruxelles-game/artifacts/visual/midi_m3_station_after.png
+          if-no-files-found: error

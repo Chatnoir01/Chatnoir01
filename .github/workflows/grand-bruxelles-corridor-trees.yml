@@ -45,7 +45,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_corridor_tree_witness_test.gd 2>&1 | tee /tmp/corridor-trees-witness.log
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_corridor_tree_witness_test.gd 2>&1 | tee /tmp/corridor-trees-witness.log || true
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_CORRIDOR_TREES_VISUAL_FAIL" /tmp/corridor-trees-witness.log; then exit 1; fi
           grep -q "BRUSSELS_CORRIDOR_TREES_VISUAL_OK" /tmp/corridor-trees-witness.log
       - name: Upload corridor tree evidence

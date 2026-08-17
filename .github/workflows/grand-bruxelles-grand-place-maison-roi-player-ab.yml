@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
-        with: {ref: 580ef7ec86d554ad3a71fc8ad649917f4a62f31e, path: base}
+        with: {ref: 9bf5cc3d496c4a2e0efedd83530e12412390ad2f, path: base}
       - uses: actions/checkout@v4
         with: {ref: visual/grand-place-maison-roi-articulation-580ef7e, path: head}
       - run: cp head/grand-bruxelles-game/game/tests/grand_place_maison_roi_player_capture.gd base/grand-bruxelles-game/game/tests/grand_place_maison_roi_player_capture.gd

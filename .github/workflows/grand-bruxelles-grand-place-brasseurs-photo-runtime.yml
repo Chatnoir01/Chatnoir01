@@ -6,9 +6,11 @@ on:
       - ".github/workflows/grand-bruxelles-grand-place-brasseurs-photo-runtime.yml"
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/data/qa/grand_place_brasseurs_photo_plan.json"
+      - "grand-bruxelles-game/data/qa/grand_place_brasseurs_photo_features.json"
       - "grand-bruxelles-game/data/qa/grand_place_brasseurs_wall_vertical.json"
       - "grand-bruxelles-game/game/scripts/grand_place_brasseurs_photo_facade_runtime.gd"
       - "grand-bruxelles-game/game/tests/grand_place_brasseurs_photo_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_brasseurs_photo_facade_ab_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -33,3 +35,14 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/brasseurs-photo-runtime-import.log; then exit 1; fi
       - name: Validate Brasseurs photo-constrained runtime contract
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_brasseurs_photo_runtime_test.gd
+      - name: Render deterministic player-eye A/B
+        run: xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/grand_place_brasseurs_photo_facade_ab_test.gd
+      - name: Upload player-eye evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-brasseurs-photo-facade-ab
+          path: |
+            /tmp/brasseurs-photo-before.png
+            /tmp/brasseurs-photo-after.png
+          if-no-files-found: warn

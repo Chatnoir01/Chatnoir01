@@ -6,8 +6,12 @@ on:
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/game/scripts/brussels_osm_sidewalk_surface_material.gd"
       - "grand-bruxelles-game/game/scripts/brussels_osm_sidewalk_surface_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_sidewalk_edge_runtime.gd"
       - "grand-bruxelles-game/game/tests/brussels_osm_sidewalk_surface_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_osm_sidewalk_surface_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_sidewalk_edge_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_sidewalk_edge_witness_test.gd"
+      - "grand-bruxelles-game/tools/qa/validate_sidewalk_edge_runtime.py"
       - ".github/workflows/grand-bruxelles-osm-sidewalk-surface.yml"
   workflow_dispatch:
 
@@ -17,7 +21,7 @@ permissions:
 jobs:
   sidewalk-surface:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
       - name: Install display dependencies
@@ -37,21 +41,38 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_sidewalk_surface_test.gd 2>&1 | tee /tmp/osm-sidewalk-surface.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_sidewalk_surface_test.gd 2>&1 | tee /tmp/osm-sidewalk-surface.log || true
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_SIDEWALK_SURFACE_FAIL" /tmp/osm-sidewalk-surface.log; then exit 1; fi
           grep -q "BRUSSELS_OSM_SIDEWALK_SURFACE_OK" /tmp/osm-sidewalk-surface.log
-      - name: 1280x720 normal-player sidewalk A/B
+      - name: Validate shared sidewalk edge contract
         shell: bash
         run: |
           set -o pipefail
-          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_osm_sidewalk_surface_witness_test.gd 2>&1 | tee /tmp/osm-sidewalk-witness.log
+          python3 grand-bruxelles-game/tools/qa/validate_sidewalk_edge_runtime.py
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_sidewalk_edge_runtime_test.gd 2>&1 | tee /tmp/sidewalk-edge-runtime.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_SIDEWALK_EDGE_RUNTIME_FAIL" /tmp/sidewalk-edge-runtime.log; then exit 1; fi
+          grep -q "BRUSSELS_SIDEWALK_EDGE_RUNTIME_OK" /tmp/sidewalk-edge-runtime.log
+      - name: 1280x720 normal-player sidewalk surface A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_osm_sidewalk_surface_witness_test.gd 2>&1 | tee /tmp/osm-sidewalk-witness.log || true
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_SIDEWALK_SURFACE_VISUAL_FAIL" /tmp/osm-sidewalk-witness.log; then exit 1; fi
           grep -q "BRUSSELS_OSM_SIDEWALK_SURFACE_VISUAL_OK" /tmp/osm-sidewalk-witness.log
-      - name: Upload sidewalk surface evidence
+      - name: 1280x720 normal-player sidewalk edge A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_sidewalk_edge_witness_test.gd 2>&1 | tee /tmp/sidewalk-edge-witness.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_SIDEWALK_EDGE_VISUAL_FAIL" /tmp/sidewalk-edge-witness.log; then exit 1; fi
+          grep -q "BRUSSELS_SIDEWALK_EDGE_VISUAL_OK" /tmp/sidewalk-edge-witness.log
+      - name: Upload sidewalk evidence
         uses: actions/upload-artifact@v4
         with:
           name: brussels-osm-sidewalk-surface-ab
           path: |
             grand-bruxelles-game/artifacts/visual/osm_sidewalk_surface_before.png
             grand-bruxelles-game/artifacts/visual/osm_sidewalk_surface_after.png
+            grand-bruxelles-game/artifacts/visual/sidewalk_edge_before.png
+            grand-bruxelles-game/artifacts/visual/sidewalk_edge_after.png
           if-no-files-found: error

@@ -1,0 +1,22 @@
+name: Grand Bruxelles Midi Fonsny Heritage Porch
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-fonsny-heritage-porch.yml"
+      - "grand-bruxelles-game/data/reconstruction/midi_source_manifest.json"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/tools/test_midi_fonsny_heritage_porch.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  heritage-porch-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source-backed Fonsny porch identity
+        run: python3 grand-bruxelles-game/tools/test_midi_fonsny_heritage_porch.py

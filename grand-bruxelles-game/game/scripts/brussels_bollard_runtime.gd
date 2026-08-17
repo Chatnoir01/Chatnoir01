@@ -2,6 +2,7 @@ extends Node
 
 const DATA_PATH := "res://data/osm/fontainas_bollards.game.json"
 const ASSET := preload("res://game/scripts/brussels_bollard_asset.gd")
+const POSITION_EPSILON_METERS := 0.0005
 
 var _root: Node3D = null
 var _scene: Node3D = null
@@ -180,6 +181,12 @@ func visual_batch_count() -> int:
 func asset_family() -> String:
     return ASSET.ASSET_FAMILY
 
+func _same_source_xz(actual: Vector3, source: Vector3) -> bool:
+    return absf(actual.x - source.x) <= POSITION_EPSILON_METERS and absf(actual.z - source.z) <= POSITION_EPSILON_METERS
+
+func _same_authored_y(actual_y: float, expected_y: float) -> bool:
+    return absf(actual_y - expected_y) <= POSITION_EPSILON_METERS
+
 func source_positions_unchanged() -> bool:
     if not is_instance_valid(_body_batch) or not is_instance_valid(_cap_batch) or not is_instance_valid(_collision_body):
         return false
@@ -187,14 +194,30 @@ func source_positions_unchanged() -> bool:
         return false
     if collision_count() != _source_positions.size():
         return false
+
+    # OSM proves only horizontal point placement for this payload. MultiMesh stores
+    # transforms at renderer precision, so validate source X/Z independently from
+    # the authored vertical presentation offsets instead of reconstructing a full
+    # Vector3 through subtraction and treating float quantization as relocation.
     for index: int in range(_source_positions.size()):
         var source_base := _source_positions[index]
-        var body_base := _body_batch.multimesh.get_instance_transform(index).origin - Vector3(0.0, ASSET.BODY_HEIGHT * 0.5, 0.0)
-        var cap_base := _cap_batch.multimesh.get_instance_transform(index).origin - Vector3(0.0, ASSET.BODY_HEIGHT + ASSET.CAP_HEIGHT * 0.5, 0.0)
-        if not body_base.is_equal_approx(source_base) or not cap_base.is_equal_approx(source_base):
+        var body_origin := _body_batch.multimesh.get_instance_transform(index).origin
+        var cap_origin := _cap_batch.multimesh.get_instance_transform(index).origin
+        if not _same_source_xz(body_origin, source_base) or not _same_source_xz(cap_origin, source_base):
             return false
+        if not _same_authored_y(body_origin.y, ASSET.BODY_HEIGHT * 0.5):
+            return false
+        if not _same_authored_y(cap_origin.y, ASSET.BODY_HEIGHT + ASSET.CAP_HEIGHT * 0.5):
+            return false
+
         var collision := _collision_body.get_child(index) as CollisionShape3D
-        var collision_base := collision.position - Vector3(0.0, ASSET.COLLISION_HEIGHT * 0.5, 0.0)
-        if not collision_base.is_equal_approx(source_base):
+        if collision == null:
+            return false
+        if not _same_source_xz(collision.position, source_base):
+            return false
+        if not _same_authored_y(collision.position.y, ASSET.COLLISION_HEIGHT * 0.5):
+            return false
+        var metadata_position: Variant = collision.get_meta("source_base_position", null)
+        if not metadata_position is Vector3 or not (metadata_position as Vector3).is_equal_approx(source_base):
             return false
     return true

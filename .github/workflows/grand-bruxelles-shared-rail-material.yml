@@ -1,0 +1,20 @@
+name: Grand Bruxelles Shared Rail Material
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/osm_city_builder.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_shared_rail_material.gd'
+      - 'grand-bruxelles-game/tests/test_brussels_shared_rail_material.py'
+      - '.github/workflows/grand-bruxelles-shared-rail-material.yml'
+
+jobs:
+  shared-rail-material:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Require source-safe reusable rail material
+        run: python grand-bruxelles-game/tests/test_brussels_shared_rail_material.py

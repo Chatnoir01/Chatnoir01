@@ -4,8 +4,8 @@ class_name BrusselsStreetTreeAsset
 ## Reusable low-poly Brussels street-tree presentation asset.
 ## OSM may prove that a tree exists at a point, but the source snapshot used by
 ## Grand Bruxelles does not prove species, trunk diameter, crown size or height.
-## All dimensions/colors below are deterministic authored presentation values.
-## Location/provenance remain owned by the caller.
+## All dimensions/colors below are therefore deterministic authored presentation
+## values. Location/provenance remain owned by the caller.
 
 const ASSET_FAMILY := "brussels_street_tree_v1"
 const FOLIAGE_LOBE_COUNT := 6

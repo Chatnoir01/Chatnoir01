@@ -26,6 +26,9 @@ def main() -> None:
     assert 'exact_rgb_is_photometric_measurement' in text
     assert 'OpenStreetMap contributors' in text
     assert 'ODbL-1.0' in text
+    assert 'WORLD_MATRIX' not in text
+    assert text.count('varying vec3 world_position;') == 2
+    assert text.count('MODEL_MATRIX * vec4(VERTEX, 1.0)') == 2
 
     assert 'TARGET_ROOT := "GeneratedRails"' in runtime
     assert 'box.material =' in runtime

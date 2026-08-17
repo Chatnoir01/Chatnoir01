@@ -23,18 +23,27 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
           text = Path('grand-bruxelles-game/export_presets.cfg').read_text(encoding='utf-8')
           sections = text.split('[preset.')
           web = next(s for s in sections if 'name="Web"' in s)
           pc = next(s for s in sections if 'name="PC Desktop (Linux)"' in s)
-          expected = 'exclude_filter="game/tests/*,data/sources/midi/discovered_urbis_distributions.json"'
-          if expected not in web:
-              raise SystemExit('WEB_FIRST_LOAD_CONTRACT_FAIL expected safe exclusions missing')
+          match = re.search(r'^exclude_filter="([^"]*)"$', web, re.MULTILINE)
+          if match is None:
+              raise SystemExit('WEB_FIRST_LOAD_CONTRACT_FAIL Web exclude_filter missing')
+          exclusions = {item for item in match.group(1).split(',') if item}
+          required = {
+              'game/tests/*',
+              'data/sources/midi/discovered_urbis_distributions.json',
+          }
+          missing = sorted(required - exclusions)
+          if missing:
+              raise SystemExit(f'WEB_FIRST_LOAD_CONTRACT_FAIL required safe exclusions missing: {missing}')
           if 'export_filter="all_resources"' not in web:
               raise SystemExit('WEB_FIRST_LOAD_CONTRACT_FAIL Web must remain all_resources plus explicit exclusions')
           if 'exclude_filter=""' not in pc:
               raise SystemExit('WEB_FIRST_LOAD_CONTRACT_FAIL PC preset must remain unchanged')
-          print('WEB_FIRST_LOAD_CONTRACT_OK web_only=true')
+          print(f'WEB_FIRST_LOAD_CONTRACT_OK web_only=true exclusions={len(exclusions)}')
           PY
 
       - name: Install Godot 4.7.1

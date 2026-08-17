@@ -5,7 +5,11 @@ on:
     paths:
       - "grand-bruxelles-game/tools/city_machine/finish_registry.json"
       - "grand-bruxelles-game/tools/city_machine/finish_pipeline.py"
+      - "grand-bruxelles-game/tools/city_machine/finish_geometry_stage.py"
+      - "grand-bruxelles-game/tools/city_machine/finish_environment_stage.py"
+      - "grand-bruxelles-game/tools/city_machine/finish_proof_stage.py"
       - "grand-bruxelles-game/tools/city_machine/test_finish_pipeline.py"
+      - "grand-bruxelles-game/tools/city_machine/test_finish_proof_stage.py"
       - ".github/workflows/grand-bruxelles-city-machine-finish.yml"
   workflow_dispatch:
 
@@ -15,12 +19,18 @@ permissions:
 jobs:
   finish-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Install exact CRS dependency
         run: python3 -m pip install --disable-pip-version-check "pyproj>=3.7,<4"
-      - name: Prove CLI skeleton and fail-closed pilot lock
+      - name: Prove strict order and pilot lock
         run: python3 grand-bruxelles-game/tools/city_machine/test_finish_pipeline.py
-      - name: Prove one-command Jette dry-run
-        run: python3 grand-bruxelles-game/tools/city_machine/finish_pipeline.py build --zone jette --dry-run
+      - name: Prove hard gate failure returns non-zero
+        run: python3 grand-bruxelles-game/tools/city_machine/test_finish_proof_stage.py
+      - name: Execute one-command Jette rebuild
+        run: python3 grand-bruxelles-game/tools/city_machine/finish_pipeline.py build --zone jette
+      - name: Prove deterministic tracked outputs
+        run: |
+          git diff --exit-code -- grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/*.game.json
+          git diff --exit-code -- grand-bruxelles-game/data/osm/zones/jette/environment.game.json

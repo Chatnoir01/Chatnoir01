@@ -6,10 +6,10 @@ const PROBE_WIDTH := 320
 const PROBE_HEIGHT := 180
 const BEFORE_PATH := "res://artifacts/visual/osm_sidewalk_surface_before.png"
 const AFTER_PATH := "res://artifacts/visual/osm_sidewalk_surface_after.png"
-const MIDI := Vector2(-668.5, 627.84)
-const SEARCH_RADIUS_M := 360.0
-const MIN_LENGTH_M := 14.0
-const MAX_PROBES := 24
+const BOURSE := Vector2(81.54, -664.58)
+const SEARCH_RADIUS_M := 220.0
+const MIN_LENGTH_M := 12.0
+const MAX_PROBES := 32
 const MIN_PROBE_CHANGED := 0.008
 const MIN_CHANGED_3 := 0.06
 const MIN_CHANGED_8 := 0.03
@@ -84,7 +84,7 @@ func _candidate_sidewalks(roads_root: Node3D) -> Array[CSGBox3D]:
         if not _is_sidewalk(sidewalk) or sidewalk.size.z < MIN_LENGTH_M:
             continue
         var midpoint := Vector2(sidewalk.global_position.x, sidewalk.global_position.z)
-        if midpoint.distance_to(MIDI) > SEARCH_RADIUS_M:
+        if midpoint.distance_to(BOURSE) > SEARCH_RADIUS_M:
             continue
         candidates.append(sidewalk)
     candidates.sort_custom(func(a: CSGBox3D, b: CSGBox3D) -> bool: return a.size.z > b.size.z)
@@ -126,7 +126,7 @@ func _select_rendered_sidewalk(viewport: SubViewport, camera: Camera3D, candidat
         sidewalk.material = legacy
         var changed := _changed_fraction(baseline, highlighted, 12)
         if changed >= MIN_PROBE_CHANGED:
-            print("BRUSSELS_OSM_SIDEWALK_SURFACE_PROBE_OK: index=%d length=%.2f width=%.2f midi_distance=%.2f visible_fraction=%.5f" % [index, sidewalk.size.z, sidewalk.size.x, Vector2(sidewalk.global_position.x, sidewalk.global_position.z).distance_to(MIDI), changed])
+            print("BRUSSELS_OSM_SIDEWALK_SURFACE_PROBE_OK: index=%d length=%.2f width=%.2f bourse_distance=%.2f visible_fraction=%.5f" % [index, sidewalk.size.z, sidewalk.size.x, Vector2(sidewalk.global_position.x, sidewalk.global_position.z).distance_to(BOURSE), changed])
             return sidewalk
     return null
 
@@ -166,7 +166,7 @@ func _run() -> void:
         return
     var candidates := _candidate_sidewalks(roads_root)
     if candidates.is_empty():
-        _fail("no legitimate long generated sidewalk candidates near Midi")
+        _fail("no legitimate long generated sidewalk candidates near Bourse")
         return
 
     var camera := Camera3D.new()
@@ -174,7 +174,7 @@ func _run() -> void:
     scene.add_child(camera)
     var sidewalk := await _select_rendered_sidewalk(viewport, camera, candidates, runtime)
     if sidewalk == null:
-        _fail("no actually rendered sidewalk found after probing top candidates")
+        _fail("no actually rendered Bourse-context sidewalk found after probing top candidates")
         return
 
     var original_transform := sidewalk.global_transform
@@ -203,7 +203,7 @@ func _run() -> void:
 
     var changed_3 := _changed_fraction(before, after, 3)
     var changed_8 := _changed_fraction(before, after, 8)
-    print("BRUSSELS_OSM_SIDEWALK_SURFACE_VISUAL_METRICS: length=%.2f width=%.2f midi_distance=%.2f changed_gt3=%.6f changed_gt8=%.6f" % [sidewalk.size.z, sidewalk.size.x, Vector2(sidewalk.global_position.x, sidewalk.global_position.z).distance_to(MIDI), changed_3, changed_8])
+    print("BRUSSELS_OSM_SIDEWALK_SURFACE_VISUAL_METRICS: length=%.2f width=%.2f bourse_distance=%.2f changed_gt3=%.6f changed_gt8=%.6f" % [sidewalk.size.z, sidewalk.size.x, Vector2(sidewalk.global_position.x, sidewalk.global_position.z).distance_to(BOURSE), changed_3, changed_8])
     if changed_3 < MIN_CHANGED_3 or changed_8 < MIN_CHANGED_8:
         _fail("full-frame sidewalk change too weak: gt3=%.4f%% gt8=%.4f%%" % [changed_3 * 100.0, changed_8 * 100.0])
         return

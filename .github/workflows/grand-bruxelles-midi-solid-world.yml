@@ -1,0 +1,41 @@
+name: Grand Bruxelles Midi Solid World
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
+      - "grand-bruxelles-game/game/tests/midi_exact_building_collision_test.gd"
+      - "grand-bruxelles-game/data/urbis/midi/**"
+      - ".github/workflows/grand-bruxelles-midi-solid-world.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  midi-solid-world:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Godot 4.7.1
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+
+      - name: Import project
+        run: godot --headless --path grand-bruxelles-game --editor --quit
+
+      - name: Force contact against exact Midi building walls
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s godot --headless --path grand-bruxelles-game \
+            --script res://game/tests/midi_exact_building_collision_test.gd 2>&1 | tee /tmp/midi-solid-world.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_EXACT_BUILDING_COLLISION_FAIL" /tmp/midi-solid-world.log; then
+            exit 1
+          fi
+          grep -q "MIDI_EXACT_BUILDING_COLLISION_OK" /tmp/midi-solid-world.log

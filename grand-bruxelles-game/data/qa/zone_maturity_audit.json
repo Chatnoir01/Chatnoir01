@@ -1,0 +1,32 @@
+{
+  "schema": "grand-bruxelles-zone-maturity-audit-v1",
+  "source_main_sha": "1d6bf002d069914e1eb195689f9334f0236b1957",
+  "catalog_schema": "grand-bruxelles-playable-zone-catalog-v2",
+  "measured_at": "2026-08-17T14:52:53+02:00",
+  "automation_ceiling": "M5_JOUABLE_READY",
+  "policy": {
+    "M0_NON_LISTED": "crash, empty or missing required runtime resource",
+    "M1_LABO_BRUT": "loads and spawns but is still below stable-zone contract",
+    "M2_LABO_STABLE": "spawn, ground, collision and stable masses/roofs are evidenced",
+    "M3_LABO_LOOK": "M2 plus reusable Midi-style base material/lighting finish is evidenced",
+    "M4_LABO_ALIVE": "M3 plus truthful life_minimum with at least one civilian or moving vehicle",
+    "M5_JOUABLE_READY": "M4 plus no blocking open player report and a human tour can be performed",
+    "M6_JOUABLE": "human decision only; never assigned by continuity automation"
+  },
+  "report_truth": {
+    "runtime_source": "user://player_reports/open/*.gbreport.json",
+    "catalog_derived_badge": "LABO_REPORT",
+    "active_zone_truth": "main:e87e317754e3cf78ca932cea20733dce25e92eed",
+    "repo_visibility": "not_directly_visible_without_ticket_ingest",
+    "consequence": "an empty registry open_reports array is not proof that zero player reports exist until report_sync is complete"
+  },
+  "zones": [
+    {"zone_id":"midi","catalog_quality":"JOUABLE","measured_maturity":"M6_JOUABLE","target_maturity":"M6_JOUABLE","human_existing_promotion":true,"evidence":["catalog v2 human JOUABLE label","production main scene/player path"],"defects":[],"next_lot":"protect_baseline_only"},
+    {"zone_id":"anneessens","catalog_quality":"LABO","measured_maturity":"M4_LABO_ALIVE","target_maturity":"M5_JOUABLE_READY","human_existing_promotion":false,"evidence":["catalog v2 spawn","anneessens_lab_life.gd","life_minimum civilians=1 moving_vehicles=1","Midi sidewalk runtime","OSM furniture runtime"],"defects":["player report inventory not yet ingested into repo continuity registry","JOUABLE_READY proof pack absent"],"next_lot":"report_ingest_then_ready_proof"},
+    {"zone_id":"bourse","catalog_quality":"LABO","measured_maturity":"M3_LABO_LOOK","target_maturity":"M5_JOUABLE_READY","human_existing_promotion":false,"evidence":["catalog v2 fast travel destination","source-backed Bourse architecture scripts","blue-stone/limestone/glazing surface runtimes"],"defects":["no zone life_minimum contract in catalog","player report inventory not yet ingested"],"next_lot":"life_minimum"},
+    {"zone_id":"grand_place","catalog_quality":"LABO","measured_maturity":"M3_LABO_LOOK","target_maturity":"M5_JOUABLE_READY","human_existing_promotion":false,"evidence":["catalog v2 spawn","official LoD2 1655673","official LoD2 1786758","existing Grand-Place surface/material runtime families"],"defects":["no zone life_minimum contract in catalog","player report inventory not yet ingested"],"next_lot":"life_minimum"},
+    {"zone_id":"ixelles","catalog_quality":"LABO","measured_maturity":"M2_LABO_STABLE","target_maturity":"M5_JOUABLE_READY","human_existing_promotion":false,"evidence":["catalog v2 direct player spawn method","draped intersection runtime","source-backed terrain/building base present on main"],"defects":["Midi-style LOOK finish not proven on main","no zone life_minimum contract","player report inventory not yet ingested"],"next_lot":"midi_material_kit"},
+    {"zone_id":"atomium","catalog_quality":"LABO","measured_maturity":"M2_LABO_STABLE","target_maturity":"M5_JOUABLE_READY","human_existing_promotion":false,"evidence":["catalog v2 direct player spawn method","DTM terrain","Atomium hero core","reflection environment"],"defects":["zone-wide LOOK contract not proven","no zone life_minimum contract","player report inventory not yet ingested"],"next_lot":"midi_equivalent_material_kit"},
+    {"zone_id":"jette","catalog_quality":"LABO","measured_maturity":"M2_LABO_STABLE","target_maturity":"M5_JOUABLE_READY","human_existing_promotion":false,"evidence":["catalog v2 script_zone spawn","official UrbIS buildings/street surfaces","city_machine deterministic Jette rebuild with G1-G4 fail-closed gates","SIGNALER active-zone truth shipped"],"defects":["LOOK finish beyond data-ready hooks not proven","no zone life_minimum contract","player report inventory not yet ingested"],"next_lot":"midi_material_kit"}
+  ]
+}

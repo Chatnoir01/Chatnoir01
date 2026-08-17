@@ -1,0 +1,27 @@
+name: Grand Bruxelles City Machine Finish Geometry
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_machine/finish_geometry_stage.py"
+      - "grand-bruxelles-game/tools/city_machine/test_finish_geometry_stage.py"
+      - ".github/workflows/grand-bruxelles-city-machine-finish-geometry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  geometry-stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install exact CRS dependency
+        run: python3 -m pip install --disable-pip-version-check "pyproj>=3.7,<4"
+      - name: Test geometry-only stage
+        run: python3 grand-bruxelles-game/tools/city_machine/test_finish_geometry_stage.py
+      - name: Execute real Jette geometry stage
+        run: python3 grand-bruxelles-game/tools/city_machine/finish_geometry_stage.py --zone jette
+      - name: Prove geometry outputs remain deterministic
+        run: git diff --exit-code -- grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/*.game.json

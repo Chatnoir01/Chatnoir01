@@ -6,15 +6,21 @@ class_name BrusselsStreetTreeAsset
 ## Grand Bruxelles does not prove species, trunk diameter, crown size or height.
 ## All dimensions/colors below are therefore deterministic authored presentation
 ## values. Location/provenance remain owned by the caller.
+##
+## Silhouette revision 2 keeps the exact same source points and batching model,
+## while reducing the repeated six-sphere look with two smaller crown lobes and
+## bounded deterministic per-tree scale variation. These are presentation-only
+## choices and must never be interpreted as measured crown dimensions/species.
 
 const ASSET_FAMILY := "brussels_street_tree_v1"
-const FOLIAGE_LOBE_COUNT := 6
+const SILHOUETTE_REVISION := 2
+const FOLIAGE_LOBE_COUNT := 8
 const TRUNK_HEIGHT := 2.6
 const TRUNK_TOP_RADIUS := 0.15
 const TRUNK_BOTTOM_RADIUS := 0.22
 const FOLIAGE_RADIUS := 1.05
 const FOLIAGE_HEIGHT := 2.10
-const LIGHT_LOBE_INDICES := [0, 4]
+const LIGHT_LOBE_INDICES := [0, 4, 6]
 const LOBE_OFFSETS := [
     Vector3(0.0, 3.35, 0.0),
     Vector3(0.72, 3.18, 0.02),
@@ -22,6 +28,8 @@ const LOBE_OFFSETS := [
     Vector3(0.05, 3.10, -0.72),
     Vector3(0.22, 3.82, 0.22),
     Vector3(-0.38, 3.62, -0.30),
+    Vector3(0.54, 3.56, -0.38),
+    Vector3(-0.52, 3.42, -0.56),
 ]
 const LOBE_SCALES := [
     Vector3(1.02, 0.92, 1.08),
@@ -30,6 +38,8 @@ const LOBE_SCALES := [
     Vector3(0.86, 0.74, 0.92),
     Vector3(0.72, 0.78, 0.70),
     Vector3(0.74, 0.70, 0.82),
+    Vector3(0.62, 0.66, 0.58),
+    Vector3(0.58, 0.62, 0.64),
 ]
 
 static func create_materials() -> Dictionary:
@@ -37,14 +47,23 @@ static func create_materials() -> Dictionary:
     foliage_dark.albedo_color = Color(0.145, 0.245, 0.115, 1.0)
     foliage_dark.roughness = 0.97
     foliage_dark.metallic = 0.0
+    foliage_dark.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
+    foliage_dark.set_meta("source_dimensions_measured", false)
+    foliage_dark.set_meta("species_claimed", false)
     var foliage_light := StandardMaterial3D.new()
     foliage_light.albedo_color = Color(0.235, 0.345, 0.165, 1.0)
     foliage_light.roughness = 0.96
     foliage_light.metallic = 0.0
+    foliage_light.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
+    foliage_light.set_meta("source_dimensions_measured", false)
+    foliage_light.set_meta("species_claimed", false)
     var trunk := StandardMaterial3D.new()
     trunk.albedo_color = Color(0.175, 0.125, 0.085, 1.0)
     trunk.roughness = 0.99
     trunk.metallic = 0.0
+    trunk.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
+    trunk.set_meta("source_dimensions_measured", false)
+    trunk.set_meta("species_claimed", false)
     return {"foliage_dark": foliage_dark, "foliage_light": foliage_light, "trunk": trunk}
 
 static func create_trunk_mesh(material: Material) -> CylinderMesh:
@@ -61,8 +80,8 @@ static func create_foliage_mesh(material: Material) -> SphereMesh:
     var mesh := SphereMesh.new()
     mesh.radius = FOLIAGE_RADIUS
     mesh.height = FOLIAGE_HEIGHT
-    mesh.radial_segments = 12
-    mesh.rings = 6
+    mesh.radial_segments = 10
+    mesh.rings = 5
     mesh.material = material
     return mesh
 
@@ -72,26 +91,42 @@ static func trunk_transform(base_position: Vector3) -> Transform3D:
 static func foliage_is_light(index: int) -> bool:
     return index in LIGHT_LOBE_INDICES
 
+static func tree_variation_scale(osm_id: int) -> float:
+    ## Bounded authored variation only; no source-measured crown-size claim.
+    var bucket := abs(osm_id * 37 + 11) % 11
+    return 0.92 + float(bucket) * 0.016
+
+static func foliage_tone_variation(osm_id: int) -> float:
+    ## Exposed deterministic presentation hint for future batched palette splits.
+    ## It intentionally does not encode species, season, health or measured RGB.
+    var bucket := abs(osm_id * 53 + 7) % 9
+    return (float(bucket) - 4.0) / 4.0
+
 static func foliage_lobe_transform(base_position: Vector3, osm_id: int, index: int) -> Transform3D:
     var phase := deg_to_rad(float(abs(osm_id) % 360))
-    var jitter := float((abs(osm_id) % 13) - 6) * 0.018
+    var height_jitter := float((abs(osm_id) % 13) - 6) * 0.018
+    var crown_scale := tree_variation_scale(osm_id)
+    var tone_hint := foliage_tone_variation(osm_id)
     var offset: Vector3 = LOBE_OFFSETS[index]
     var rotated := Vector3(
         offset.x * cos(phase) - offset.z * sin(phase),
-        offset.y + jitter,
+        offset.y + height_jitter + tone_hint * 0.025,
         offset.x * sin(phase) + offset.z * cos(phase)
     )
-    var basis := Basis.IDENTITY.scaled(LOBE_SCALES[index] as Vector3)
+    var lobe_scale := (LOBE_SCALES[index] as Vector3) * crown_scale
+    var basis := Basis.IDENTITY.scaled(lobe_scale)
     return Transform3D(basis, base_position + rotated)
 
 static func populate(tree: StaticBody3D, osm_id: int, materials: Dictionary) -> Node3D:
     var visual := Node3D.new()
     visual.name = "StreetTreeVisual"
     visual.set_meta("asset_family", ASSET_FAMILY)
+    visual.set_meta("silhouette_revision", SILHOUETTE_REVISION)
     visual.set_meta("source_dimensions_measured", false)
     visual.set_meta("species_claimed", false)
     tree.add_child(visual)
     tree.set_meta("asset_family", ASSET_FAMILY)
+    tree.set_meta("silhouette_revision", SILHOUETTE_REVISION)
     tree.set_meta("source_dimensions_measured", false)
     tree.set_meta("species_claimed", false)
     tree.set_meta("visual_dimensions_provenance", "authored_presentation_not_source_measurement")

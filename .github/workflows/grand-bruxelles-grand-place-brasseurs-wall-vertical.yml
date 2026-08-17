@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   resolve-wall-vertical:
@@ -18,33 +19,60 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Download audited UrbIS Buildings3D package
+      - name: Acquire audited official building extraction
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          mkdir -p /tmp/brasseurs-wall
           URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
-          EXPECTED="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
-          curl -fL --retry 4 --retry-all-errors --retry-delay 5 --connect-timeout 30 --max-time 300 -o /tmp/urbis3d.zip "$URL"
-          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
-          mkdir -p /tmp/urbis3d /tmp/brasseurs-wall
-          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
-          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148170_BuildingFaces.shp' -print -quit)"
-          test -n "$FACE"
-          dirname "$FACE" > /tmp/source_root.txt
-      - name: Extract building and exact official front wall
+          PACKAGE_SHA="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+          EXTRACT_SHA="7d5927902e43d74b62120436a4f928c56f33185c40428ff4c18aa15fa51b56e1"
+          if curl -fL --retry 1 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 180 -o /tmp/urbis3d.zip "$URL"; then
+            echo "$PACKAGE_SHA  /tmp/urbis3d.zip" | sha256sum -c -
+            mkdir -p /tmp/urbis3d
+            unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+            FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148170_BuildingFaces.shp' -print -quit)"
+            test -n "$FACE"
+            ROOT="$(dirname "$FACE")"
+            python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
+              --source-root "$ROOT" --prefix UrbISBuildings3D_148170 \
+              --building-id "https://databrussels.be/id/building/1639974" \
+              --context-id "grand_place_brasseurs_1639974" --name "Grand-Place Maison des Brasseurs 1639974" \
+              --package-url "$URL" --package-sha256 "$PACKAGE_SHA" \
+              --package-revision "2026-08-08" --accessed-at "2026-08-17" \
+              --origin-e 147868.29422791934 --origin-n 169538.62414926197 --world-x -668.5 --world-z 627.84 \
+              --output /tmp/brasseurs-wall/building.game.json
+            echo "BRASSEURS_SOURCE_PATH=live_urbis_package"
+          else
+            echo "BRASSEURS_SOURCE_NETWORK_UNAVAILABLE: falling back to immutable prior official extraction artifact 9289395301"
+            curl -fL --retry 3 --retry-delay 2 \
+              -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              -o /tmp/prior-source.zip \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9289395301/zip"
+            mkdir -p /tmp/prior-source
+            unzip -q /tmp/prior-source.zip -d /tmp/prior-source
+            PRIOR="$(find /tmp/prior-source -type f -path '*/extracted/1639974.game.json' -print -quit)"
+            test -n "$PRIOR"
+            echo "$EXTRACT_SHA  $PRIOR" | sha256sum -c -
+            cp "$PRIOR" /tmp/brasseurs-wall/building.game.json
+            echo "BRASSEURS_SOURCE_PATH=hash_locked_prior_official_artifact"
+          fi
+          echo "$EXTRACT_SHA  /tmp/brasseurs-wall/building.game.json" | sha256sum -c -
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/brasseurs-wall/building.game.json'))
+          s=d['source']
+          assert s['package_sha256']=='cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2'
+          assert s['building_2d_id']=='https://databrussels.be/id/building/1639974'
+          assert s['license']=='CC0-1.0'
+          print('BRASSEURS_OFFICIAL_EXTRACTION_OK', s['package_sha256'], s['building_faces_shp_sha256'])
+          PY
+      - name: Resolve exact official front-wall vertical
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$(cat /tmp/source_root.txt)"
-          python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
-            --source-root "$ROOT" --prefix UrbISBuildings3D_148170 \
-            --building-id "https://databrussels.be/id/building/1639974" \
-            --context-id "grand_place_brasseurs_1639974" --name "Grand-Place Maison des Brasseurs 1639974" \
-            --package-url "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip" \
-            --package-sha256 "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2" \
-            --package-revision "2026-08-08" --accessed-at "2026-08-17" \
-            --origin-e 147868.29422791934 --origin-n 169538.62414926197 --world-x -668.5 --world-z 627.84 \
-            --output /tmp/brasseurs-wall/building.game.json
           python3 - <<'PY'
           import hashlib, json, math
           from pathlib import Path
@@ -71,6 +99,7 @@ jobs:
           official_span=float(plan['placement']['front_wall_span_m'])
           if abs(max_h-official_span)>0.01:
               raise SystemExit(f'wall horizontal span mismatch face={max_h} plan={official_span}')
+          unique=sorted({tuple(round(float(v),4) for v in pt) for pt in pts})
           out={
             'schema':'grand-bruxelles-brasseurs-wall-vertical-v1',
             'building_id':'1639974',
@@ -79,6 +108,7 @@ jobs:
             'source':'UrbIS - 3D Constructions',
             'source_crs':'EPSG:31370',
             'package_sha256':'cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2',
+            'extracted_building_sha256':'7d5927902e43d74b62120436a4f928c56f33185c40428ff4c18aa15fa51b56e1',
             'package_revision':'2026-08-08',
             'license':'CC0-1.0',
             'world_y_min_m':round(min_y,4),
@@ -86,10 +116,15 @@ jobs:
             'wall_vertical_extent_m':round(max_y-min_y,4),
             'wall_horizontal_span_m':round(max_h,6),
             'triangle_count':len(face['triangles']),
+            'unique_world_vertices':unique,
             'vertical_world_scale_source':'official_lod2_wall',
             'photo_used_for_vertical_scale':False,
             'runtime_approved':False
           }
+          if out['triangle_count'] != 3:
+              raise SystemExit(f'official front wall triangle count drifted: {out["triangle_count"]}')
+          if abs(out['world_y_min_m']-0.0)>0.001 or abs(out['world_y_max_m']-24.746)>0.001:
+              raise SystemExit(f'official wall vertical drifted: {out["world_y_min_m"]}..{out["world_y_max_m"]}')
           payload=json.dumps(out,sort_keys=True,separators=(',',':'))+'\n'
           Path('/tmp/brasseurs-wall/wall_vertical.json').write_text(json.dumps(out,indent=2)+'\n')
           Path('/tmp/brasseurs-wall/wall_vertical.sha256').write_text(hashlib.sha256(payload.encode()).hexdigest()+'\n')

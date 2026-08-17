@@ -1,0 +1,189 @@
+name: Grand Bruxelles Web Laeken Phase1 Prune
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-web-laeken-phase1-prune.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-laeken-phase1-prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove Web-only exclusion contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('grand-bruxelles-game/export_presets.cfg').read_text(encoding='utf-8')
+          sections = text.split('[preset.')
+          web = next(s for s in sections if 'name="Web"' in s)
+          pc = next(s for s in sections if 'name="PC Desktop (Linux)"' in s)
+          required = [
+              'data/urbis/laeken_jette/bridges.game.json',
+              'data/urbis/laeken_jette/buildings.game.json',
+              'data/urbis/laeken_jette/street_axes.game.json',
+              'data/urbis/laeken_jette/street_surfaces.game.json',
+              'data/urbis/laeken_jette/train_network.game.json',
+              'data/urbis/laeken_jette/tram_network.game.json',
+              'data/urbis/laeken_jette/tunnels.game.json',
+          ]
+          if 'export_filter="all_resources"' not in web:
+              raise SystemExit('LAEKEN_PRUNE_CONTRACT_FAIL Web must remain all_resources')
+          for path in required:
+              if path not in web:
+                  raise SystemExit(f'LAEKEN_PRUNE_CONTRACT_FAIL missing exclusion {path}')
+          if 'exclude_filter=""' not in pc:
+              raise SystemExit('LAEKEN_PRUNE_CONTRACT_FAIL PC preset changed')
+          print('LAEKEN_PRUNE_CONTRACT_OK web_only=true')
+          PY
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Cache Godot export templates
+        id: templates-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/4.7.1.stable
+          key: godot-4.7.1-stable-export-templates-v1
+
+      - name: Install Godot export templates
+        if: steps.templates-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 5 -o /tmp/templates.tpz https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz
+          mkdir -p /tmp/templates-unpack
+          unzip -q /tmp/templates.tpz -d /tmp/templates-unpack
+          mkdir -p ~/.local/share/godot/export_templates/4.7.1.stable
+          cp -a /tmp/templates-unpack/templates/. ~/.local/share/godot/export_templates/4.7.1.stable/
+
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+
+      - name: Export production Web preset
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/web-prune && mkdir -p /tmp/web-prune
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --export-release "Web" /tmp/web-prune/index.html
+          for asset in index.html index.js index.wasm index.pck; do test -s "/tmp/web-prune/$asset"; done
+
+      - name: Prove old Laeken phase1 payload absent and live zone payload present
+        run: |
+          set -euo pipefail
+          cat > /tmp/check_pack.gd <<'GD'
+          extends SceneTree
+          func _init() -> void:
+              var forbidden := [
+                  "res://data/urbis/laeken_jette/bridges.game.json",
+                  "res://data/urbis/laeken_jette/buildings.game.json",
+                  "res://data/urbis/laeken_jette/street_axes.game.json",
+                  "res://data/urbis/laeken_jette/street_surfaces.game.json",
+                  "res://data/urbis/laeken_jette/train_network.game.json",
+                  "res://data/urbis/laeken_jette/tram_network.game.json",
+                  "res://data/urbis/laeken_jette/tunnels.game.json",
+              ]
+              var required := [
+                  "res://data/urbis/laeken_jette/jette_phase2/buildings.game.json",
+                  "res://data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json",
+                  "res://data/terrain/laeken_jette/atomium_dtm.game.json",
+                  "res://game/zones/laeken_jette/atomium_hero_core.gd",
+                  "res://game/zones/laeken_jette/jette_phase2_zone.gd",
+              ]
+              for path in forbidden:
+                  if FileAccess.file_exists(path):
+                      push_error("LAEKEN_PRUNE_PACK_FAIL forbidden payload remains: %s" % path)
+                      quit(2)
+                      return
+              for path in required:
+                  if not ResourceLoader.exists(path) and not FileAccess.file_exists(path):
+                      push_error("LAEKEN_PRUNE_PACK_FAIL required payload missing: %s" % path)
+                      quit(3)
+                      return
+              print("LAEKEN_PRUNE_PACK_OK")
+              quit(0)
+          GD
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --main-pack /tmp/web-prune/index.pck --script /tmp/check_pack.gd
+
+      - name: Boot default production pack
+        run: |
+          set -euo pipefail
+          timeout 35s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --main-pack /tmp/web-prune/index.pck --quit-after 120 > /tmp/default.log 2>&1 || status=$?
+          status=${status:-0}
+          cat /tmp/default.log
+          if grep -Eqi 'Failed to load|Cannot open|Parse Error|SCRIPT ERROR|Error loading|does not exist' /tmp/default.log; then exit 1; fi
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then exit "$status"; fi
+          grep -q 'VISIBLE_CITY_RUNTIME_READY' /tmp/default.log
+          grep -q 'BRUSSELS_WORLD_STREAMING_READY' /tmp/default.log
+          echo 'LAEKEN_PRUNE_DEFAULT_BOOT_OK'
+
+      - name: Boot Atomium direct spawn from exported pack
+        run: |
+          set -euo pipefail
+          timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --main-pack /tmp/web-prune/index.pck --quit-after 180 -- spawn=atomium > /tmp/atomium.log 2>&1 || status=$?
+          status=${status:-0}
+          cat /tmp/atomium.log
+          if grep -Eqi 'Failed to load|Cannot open|Parse Error|SCRIPT ERROR|Error loading|does not exist|Atomium direct spawn: .*failed|Atomium direct spawn: .*unavailable' /tmp/atomium.log; then exit 1; fi
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then exit "$status"; fi
+          grep -q 'Direct test spawn: Atomium / Heysel' /tmp/atomium.log
+          echo 'LAEKEN_PRUNE_ATOMIUM_OK'
+
+      - name: Instantiate Jette phase2 from exported pack
+        run: |
+          set -euo pipefail
+          cat > /tmp/jette_pack_test.gd <<'GD'
+          extends SceneTree
+          func _init() -> void:
+              call_deferred("_run")
+          func _run() -> void:
+              var script := load("res://game/zones/laeken_jette/jette_phase2_zone.gd") as Script
+              if script == null:
+                  push_error("JETTE_PACK_FAIL script missing")
+                  quit(2)
+                  return
+              var zone := Node3D.new()
+              zone.set_script(script)
+              get_root().add_child(zone)
+              for _i in range(5):
+                  await process_frame
+              var stats: Variant = zone.get("last_stats")
+              if not stats is Dictionary:
+                  push_error("JETTE_PACK_FAIL stats missing")
+                  quit(3)
+                  return
+              if int(stats.get("buildings", 0)) <= 0 or int(stats.get("street_surfaces", 0)) <= 0:
+                  push_error("JETTE_PACK_FAIL runtime geometry missing: %s" % JSON.stringify(stats))
+                  quit(4)
+                  return
+              print("JETTE_PACK_OK stats=%s" % JSON.stringify(stats))
+              quit(0)
+          GD
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --main-pack /tmp/web-prune/index.pck --script /tmp/jette_pack_test.gd
+
+      - name: Enforce reduced first-load budget
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('/tmp/web-prune')
+          pck = (root / 'index.pck').stat().st_size
+          wasm = (root / 'index.wasm').stat().st_size
+          total = sum(p.stat().st_size for p in root.iterdir() if p.is_file())
+          print(f'LAEKEN_PRUNE_BUDGET pck={pck} wasm={wasm} total={total} total_mib={total/1024/1024:.2f}')
+          if pck > 39_500_000:
+              raise SystemExit(f'LAEKEN_PRUNE_BUDGET_FAIL pck={pck} > 39500000')
+          if total > 79_500_000:
+              raise SystemExit(f'LAEKEN_PRUNE_BUDGET_FAIL total={total} > 79500000')
+          PY

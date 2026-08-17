@@ -32,3 +32,13 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/brasseurs-articulation-import.log; then exit 1; fi
       - name: Validate Brasseurs large-form articulation contract
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_brasseurs_articulation_test.gd
+      - name: Render deterministic player-eye A/B
+        run: xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/grand_place_brasseurs_articulation_ab_test.gd
+      - name: Upload player-eye evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-brasseurs-articulation-ab
+          path: |
+            /tmp/grand-place-brasseurs-articulation-before.png
+            /tmp/grand-place-brasseurs-articulation-after.png
+          if-no-files-found: error

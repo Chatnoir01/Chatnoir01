@@ -1,0 +1,147 @@
+name: Grand Bruxelles Grand-Place Brasseurs Source
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-brasseurs-source.yml"
+      - "grand-bruxelles-game/tools/extract_urbis_3d_context.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve City record to official UrbIS building
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/brasseurs/extracted
+          python3 - <<'PY'
+          import json, re, time, unicodedata, urllib.parse, urllib.request
+          from pathlib import Path
+
+          HEADERS={'User-Agent':'Grand-Bruxelles-Game/1.0','Accept':'application/json'}
+          def fetch_json(url, label):
+              errors=[]
+              for attempt in range(1,5):
+                  try:
+                      req=urllib.request.Request(url,headers=HEADERS)
+                      with urllib.request.urlopen(req,timeout=60) as r:
+                          data=r.read().decode('utf-8')
+                      parsed=json.loads(data)
+                      print(f'{label}_FETCH_OK attempt={attempt} bytes={len(data)}')
+                      return parsed
+                  except Exception as exc:
+                      errors.append(f'attempt {attempt}: {type(exc).__name__}: {exc}')
+                      print(f'{label}_FETCH_RETRY attempt={attempt} error={exc}')
+                      if attempt < 4: time.sleep(5 * attempt)
+              raise SystemExit(f'{label} fetch failed after 4 attempts: {errors}')
+
+          CITY_API='https://opendata.brussels.be/api/explore/v2.1/catalog/datasets/description-des-batiments-de-la-grand-place/records?limit=100'
+          city=fetch_json(CITY_API,'CITY')
+
+          def norm(v):
+              t=unicodedata.normalize('NFKD',str(v or ''))
+              t=''.join(ch for ch in t if not unicodedata.combining(ch)).replace('’',"'").replace('`',"'").lower()
+              return re.sub(r'[^a-z0-9]+',' ',t).strip()
+
+          candidates=[]
+          for row in city.get('results',[]):
+              name=norm(row.get('nom')); address=norm(row.get('adresse'))
+              if 'brasseurs' in name or ('grand place' in address and re.search(r'(^| )10($| )',address)):
+                  candidates.append(row)
+          rows=[r for r in candidates if 'brasseurs' in norm(r.get('nom')) and 'grand place' in norm(r.get('adresse')) and re.search(r'(^| )10($| )',norm(r.get('adresse')))]
+          if len(rows)!=1:
+              diag=[{'nom':r.get('nom'),'adresse':r.get('adresse'),'id':r.get('id')} for r in candidates]
+              raise SystemExit(f'expected one Maison des Brasseurs / Grand-Place 10 record, got {len(rows)}; candidates={json.dumps(diag,ensure_ascii=False)}')
+          rec=rows[0]; gp=rec.get('geo_point') or {}
+          if not isinstance(gp,dict) or 'lon' not in gp or 'lat' not in gp:
+              raise SystemExit('City record missing geo_point')
+          Path('/tmp/brasseurs/city_record.json').write_text(json.dumps(rec,ensure_ascii=False,indent=2)+'\n')
+
+          lon=float(gp['lon']); lat=float(gp['lat']); pad=0.00035
+          params={'service':'WFS','version':'2.0.0','request':'GetFeature','typeNames':'urbisvector:Buildings','outputFormat':'application/json','srsName':'EPSG:4326','bbox':f'{lon-pad},{lat-pad},{lon+pad},{lat+pad},EPSG:4326'}
+          url='https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs?'+urllib.parse.urlencode(params)
+          fc=fetch_json(url,'URBIS_WFS')
+          Path('/tmp/brasseurs/urbis_buildings.geojson').write_text(json.dumps(fc,ensure_ascii=False)+'\n')
+
+          def point_in_ring(x,y,ring):
+              pts=[p for p in ring if isinstance(p,list) and len(p)>=2]
+              if len(pts)<3:return False
+              inside=False; j=len(pts)-1
+              for i in range(len(pts)):
+                  xi,yi=float(pts[i][0]),float(pts[i][1]); xj,yj=float(pts[j][0]),float(pts[j][1])
+                  if ((yi>y)!=(yj>y)) and x < (xj-xi)*(y-yi)/((yj-yi) or 1e-30)+xi: inside=not inside
+                  j=i
+              return inside
+          def contains(g,x,y):
+              if not g:return False
+              c=g.get('coordinates',[]); typ=g.get('type')
+              polys=[c] if typ=='Polygon' else c if typ=='MultiPolygon' else []
+              return any(poly and point_in_ring(x,y,poly[0]) and not any(point_in_ring(x,y,h) for h in poly[1:]) for poly in polys)
+          def bid(f):
+              p=f.get('properties') or {}
+              for v in (p.get('INSPIRE_ID'),p.get('ID'),f.get('id')):
+                  if v is None:continue
+                  tail=str(v).rstrip('/').split('/')[-1].split('.')[-1]
+                  if tail.isdigit():return tail
+              return ''
+
+          hits=sorted(set(bid(f) for f in fc.get('features',[]) if contains(f.get('geometry'),lon,lat) and bid(f)),key=int)
+          if len(hits)!=1:
+              raise SystemExit(f'Maison des Brasseurs point must resolve to exactly one UrbIS building, got {hits}')
+          out={'schema':'grand-bruxelles-grand-place-brasseurs-source-resolution-v1','city_dataset':'description-des-batiments-de-la-grand-place','city_name':rec.get('nom'),'city_address':rec.get('adresse'),'city_id':rec.get('id'),'geo_point':gp,'heritage_record':'Urban 31127','building_id':hits[0],'heritage_semantics':{'levels':3,'bays':3,'colossal_corinthian_half_columns':True,'curved_pediment':True,'axial_bay_wider_and_projecting':True},'runtime_approved':False,'realism_complete':False}
+          Path('/tmp/brasseurs/resolution.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          Path('/tmp/brasseurs/id.txt').write_text(hits[0]+'\n')
+          print('BRASSEURS_RESOLVED',json.dumps(out,ensure_ascii=False))
+          PY
+
+      - name: Download audited UrbIS Buildings3D package
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
+          EXPECTED="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+          curl -fL --retry 5 --retry-all-errors --retry-delay 4 --connect-timeout 30 --max-time 300 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148170_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source_root.txt
+
+      - name: Extract exact LoD2 building
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"; ID="$(cat /tmp/brasseurs/id.txt)"
+          python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
+            --source-root "$ROOT" --prefix UrbISBuildings3D_148170 \
+            --building-id "https://databrussels.be/id/building/$ID" \
+            --context-id "grand_place_brasseurs_$ID" --name "Grand-Place Maison des Brasseurs $ID" \
+            --package-url "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip" \
+            --package-sha256 "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2" \
+            --package-revision "2026-08-08" --accessed-at "2026-08-17" \
+            --origin-e 147868.29422791934 --origin-n 169538.62414926197 --world-x -668.5 --world-z 627.84 \
+            --output "/tmp/brasseurs/extracted/$ID.game.json"
+          python3 - <<'PY'
+          import json,pathlib
+          p=next(pathlib.Path('/tmp/brasseurs/extracted').glob('*.game.json'))
+          d=json.loads(p.read_text()); ev=d['evidence']; b=ev['source_bbox_xy']
+          summary={'schema':'grand-bruxelles-grand-place-brasseurs-lod2-summary-v1','building_id':pathlib.Path(p).stem.split('.')[0],'width_m':round(b[2]-b[0],3),'depth_m':round(b[3]-b[1],3),'height_m':ev['height_m'],'faces':ev['face_count'],'triangles':ev['triangle_count'],'face_types':ev['face_type_counts'],'source_bbox_epsg31370':b,'runtime_approved':False,'realism_complete':False}
+          pathlib.Path('/tmp/brasseurs/lod2_summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print('BRASSEURS_LOD2',json.dumps(summary))
+          PY
+
+      - name: Upload source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-brasseurs-source
+          path: /tmp/brasseurs
+          if-no-files-found: error

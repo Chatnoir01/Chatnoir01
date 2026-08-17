@@ -1,0 +1,91 @@
+name: Grand Bruxelles Midi Station Envelope A-B
+
+on:
+  push:
+    branches: [visual/midi-urbis-envelope-887f2e8]
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-station-envelope-ab.yml"
+      - "grand-bruxelles-game/game/tests/midi_station_envelope_player_capture.gd"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/scripts/midi_station_source_plan.gd"
+      - "grand-bruxelles-game/data/visual/midi_blue_stone_material_identity.json"
+      - "grand-bruxelles-game/data/visual/midi_fauquenberg_brick_material_identity.json"
+      - "grand-bruxelles-game/game/scripts/midi_blue_stone_surface_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/midi_fauquenberg_brick_surface_runtime.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  station-envelope-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 887f2e812c311c4ac089bb92e47000de9168165f
+          path: base
+      - uses: actions/checkout@v4
+        with:
+          ref: visual/midi-urbis-envelope-887f2e8
+          path: head
+      - name: Install identical capture harness in base
+        run: cp head/grand-bruxelles-game/game/tests/midi_station_envelope_player_capture.gd base/grand-bruxelles-game/game/tests/midi_station_envelope_player_capture.gd
+      - name: Install renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import exact base and head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/base-import.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/head-import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/base-import.log /tmp/head-import.log
+      - name: Capture frozen player arrival before and after
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path base/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_station_envelope_player_capture.gd -- /tmp/before.png 2>&1 | tee /tmp/before.log
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_station_envelope_player_capture.gd -- /tmp/after.png 2>&1 | tee /tmp/after.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|MIDI_STATION_ENVELOPE_CAPTURE_FAIL' /tmp/before.log /tmp/after.log
+          test -s /tmp/before.png && test -s /tmp/after.png
+      - name: Enforce predeclared large-impact gate
+        shell: bash
+        run: |
+          python3 - <<'PY' | tee /tmp/metrics.log
+          from PIL import Image, ImageChops
+          a=Image.open('/tmp/before.png').convert('RGB')
+          b=Image.open('/tmp/after.png').convert('RGB')
+          assert a.size==b.size==(1280,720)
+          d=ImageChops.difference(a,b)
+          pixels=list(d.getdata()); n=len(pixels)
+          c3=sum(max(p)>3 for p in pixels); c8=sum(max(p)>8 for p in pixels)
+          bbox=d.getbbox()
+          r3=c3/n; r8=c8/n
+          print(f'changed_gt3={c3} ratio_gt3={r3:.6f}')
+          print(f'changed_gt8={c8} ratio_gt8={r8:.6f}')
+          print(f'bbox={bbox}')
+          assert bbox is not None
+          bw=bbox[2]-bbox[0]; bh=bbox[3]-bbox[1]
+          print(f'bbox_width={bw} bbox_height={bh}')
+          assert r3 >= 0.08, f'large-impact gate >3 failed: {r3:.6f}'
+          assert r8 >= 0.05, f'large-impact gate >8 failed: {r8:.6f}'
+          assert bw >= 700 and bh >= 250, f'bbox gate failed: {bw}x{bh}'
+          print('MIDI_STATION_ENVELOPE_AB_OK human_full_frame_3_second_verdict=REQUIRED')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: midi-station-envelope-ab
+          path: |
+            /tmp/before.png
+            /tmp/after.png
+            /tmp/before.log
+            /tmp/after.log
+            /tmp/metrics.log
+          if-no-files-found: warn

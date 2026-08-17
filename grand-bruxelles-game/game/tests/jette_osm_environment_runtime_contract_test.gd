@@ -70,7 +70,9 @@ func _run() -> void:
     for child in runtime.get_children():
         if not child is MultiMeshInstance3D: _fail("environment child is not MultiMeshInstance3D"); return
 
-    var camera := Camera3D.new(); camera.position = SPAWN + Vector3(0.0,0.6,0.0); camera.look_at_from_position(camera.position, nearest_tree + Vector3(0.0,2.8,0.0), Vector3.UP); camera.fov = 70.0; camera.current = true; world_root.add_child(camera)
+    var toward_spawn := Vector3(SPAWN.x-nearest_tree.x, 0.0, SPAWN.z-nearest_tree.z).normalized()
+    if toward_spawn.length_squared() < 0.5: toward_spawn = Vector3.FORWARD
+    var camera := Camera3D.new(); camera.position = nearest_tree + toward_spawn*12.0 + Vector3(0.0,1.65,0.0); camera.look_at_from_position(camera.position, nearest_tree + Vector3(0.0,2.8,0.0), Vector3.UP); camera.fov = 70.0; camera.current = true; world_root.add_child(camera)
     runtime.visible = false; for _frame in range(3): await process_frame
     var before := await _capture(viewport, BEFORE)
     runtime.visible = true; for _frame in range(3): await process_frame

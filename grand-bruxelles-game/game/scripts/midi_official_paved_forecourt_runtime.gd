@@ -3,6 +3,9 @@ extends Node
 const FAMILY := "urbis_official_paved_area_v1"
 var applied := false
 var paved_feature_count := 0
+var _paved_mesh: MeshInstance3D = null
+var _original_material: Material = null
+var _enhanced_material: ShaderMaterial = null
 
 func _ready() -> void:
     call_deferred("_apply_when_ready")
@@ -23,12 +26,26 @@ func _apply_when_ready() -> void:
         paved_feature_count = int(counts.get("paved", 0))
         if paved_feature_count <= 0:
             return
-        paved.mesh.surface_set_material(0, _material())
+        _paved_mesh = paved
+        _original_material = paved.mesh.surface_get_material(0)
+        _enhanced_material = _material()
+        paved.mesh.surface_set_material(0, _enhanced_material)
         paved.set_meta("source_semantics", "UrbIS StreetSurface TYPE=P")
         paved.set_meta("geometry_changed", false)
         applied = true
         print("MIDI_OFFICIAL_PAVED_FORECOURT_READY: paved_features=%d geometry_changed=false" % paved_feature_count)
         return
+
+func set_enhanced_material_enabled(enabled: bool) -> void:
+    if _paved_mesh == null or _paved_mesh.mesh == null or _paved_mesh.mesh.get_surface_count() == 0:
+        return
+    _paved_mesh.mesh.surface_set_material(0, _enhanced_material if enabled else _original_material)
+
+func enhanced_material() -> ShaderMaterial:
+    return _enhanced_material
+
+func original_material() -> Material:
+    return _original_material
 
 func _material() -> ShaderMaterial:
     var shader := Shader.new()

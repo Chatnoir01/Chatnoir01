@@ -1,23 +1,22 @@
 # Production Wall
 
 ## Main
-- observed_main_before_this_edit: `ed715f13653758014bf5e96bb5ce464c5e293124`
-- last_verified: `2026-08-17T12:54Z`
+- observed_main_before_this_edit: `ee99dac2f4cde0905300d2b8717554f63c3d03de`
+- last_verified: `2026-08-17T13:00Z`
 - rule: this SHA is the last main observed before this wall edit, not a claim that it equals future HEAD. Always re-read live `main` + open PRs before every branch, PR, merge, rejection or claim.
 
 ## Active ownership
-- Grand-Place / architecture / Maison des Brasseurs source — THIS SHIFT — planned branch `visual/grand-place-brasseurs-<live>` — ACTIVE CLAIM
-- Player / fallback identity badge — PR #631 — player presentation truth — ACTIVE
-- LABO selector UI workspace — PR #634 — validation workspace only, do not merge directly — ACTIVE QA
-- Bourse / parvis proportions QA — PR #596 — Bourse surfaces/proportions evidence — ACTIVE
-- Bourse / triangular pediment — PR #592 — stale specialist visual evidence; do not overlap or merge wholesale — ACTIVE LEGACY
-- Anneessens / west-side school landmark — PR #572 — Anneessens architecture — ACTIVE
-- Midi / station envelope — PR #535 + #537 — Midi station plan/envelope — ACTIVE
-- NPC / offline profile pack — PR #577 — NPC profile/dialogue system — ACTIVE
-- Atomium specialist branches #588/#589/#593/#594 and Laeken/Jette #2 retain their scopes; do not overlap.
+- Grand-Place / architecture / Maison des Brasseurs source — PR #642 — ACTIVE
+- Player / fallback identity badge — PR #631 — ACTIVE
+- LABO selector UI v2 — PR #643 — ACTIVE; #641 is duplicate/stale and must close
+- Shared Environment / corridor OSM trees — PR #637 — ACTIVE
+- Bourse / parvis proportions QA — PR #596 — ACTIVE LEGACY
+- Anneessens / west-side school landmark — PR #572 — ACTIVE LEGACY
+- Midi / station envelope — PR #535 + #537 — ACTIVE LEGACY
+- NPC / offline profile pack — PR #577 — ACTIVE LEGACY
 
 ## Recently shipped
-- #635 — shared Production Wall established.
+- #639 — continuity maturity registry + deterministic next-lot selector; automation capped at M5.
 - SIGNALER active-zone truth — production truth since `e87e317...`.
 - #622 — LABO v2 truth contract.
 - #621 — explicit player production-vs-fallback identity contract.
@@ -27,10 +26,11 @@
 - #469/#465 — Bourse glazing + official UrbIS surface correction production truths.
 
 ## Closed evidence since previous wall
-- #627 Brasseurs source — closed stale after WFS timeout/retry window; do not merge wholesale. Rebuild from live main.
-- #628 corridor OSM trees — closed stale; preserve evidence only.
-- #629 generic windows — closed for ownership collision + stale base; do not revive wholesale.
-- #630 continuity registry — closed stale; no production progress claimed.
+- #627 Brasseurs source — closed stale; rebuilt as #642.
+- #628 corridor OSM trees — closed stale; rebuilt as #637.
+- #629 generic windows — closed for ownership collision + stale base.
+- #630 continuity registry — closed stale; replaced by shipped #639.
+- #617/#632 duplicate SIGNALER fixes — closed; truth already shipped.
 
 ## Blocked / do not repeat
 - Maison du Roi — raw UrbIS LoD2 failed architectural fidelity. Unlock: higher-detail facade/photogrammetry/reconstruction source.
@@ -40,20 +40,24 @@
 - La Brouette — LoD2 + generic window grid failed; UI masking claim was false. Do not repeat window-grid strategy.
 
 ## NOW / NEXT / LATER
-- NOW: rebuild Maison des Brasseurs source gate from exact live main; separate network timeout from source failure.
-- NEXT: if source PASS, red-first large-form Brasseurs articulation: curved pediment + colossal order + projected axial bay, then deterministic full-frame A/B with dynamics/UI truly masked.
-- LATER: after ownership release, prioritize Bourse proportions, Midi station arrival/envelope, then Anneessens west frontage by visible impact.
+- NOW continuity: Phase 0/1 foundation is shipped as #639. Next continuity lot is Anneessens report ingestion/synchronisation only; if no blocking OPEN report is proven, then a separate M4→M5 JOUABLE_READY proof pack.
+- NOW visual: #642 Brasseurs source gate remains independent.
+- NEXT LABO regime: #643 ZONES truth UI remains independent from continuity.
+- LATER continuity: only after Anneessens pilot is stable, advance the second zone from the registry.
 
 ## Known visible debt
 - Grand-Place landmark-house facade/silhouette fidelity remains weak.
 - Bourse parvis/street/sidewalk proportions unresolved at human gate.
 - Midi station envelope conflict unresolved.
 - Anneessens west-side monumental frontage not production-shipped.
-- Corridor vegetation/material polish needs a fresh exact-main lot after Environment ownership is free.
+- Corridor vegetation/material polish needs human validation.
 - Player fallback badge proof remains pending in #631.
 
 ## Important invariants
 - `main` is the only production truth; a green unmerged PR is not shipped progress.
+- Continuity never auto-promotes M6 JOUABLE.
+- OPEN player report blocks JOUABLE readiness/promotion and wins oldest-first.
+- One defect may have only one active lot; close duplicate PRs.
 - Never merge stale visual PRs; rebuild/revalidate from live `main`.
 - Human full-frame verdict overrides green CI for landmarks.
 - Never lower a predeclared gate to rescue a correction.
@@ -63,9 +67,8 @@
 - Validation workspaces are evidence only unless rebuilt from exact live main.
 
 ## Shift handoff
-- What changed: wall refreshed after #627/#628/#629/#630 closures; current shift claims Brasseurs source only.
-- What is proven: older Brasseurs gates resolved City record to UrbIS `1639974`; latest #627 failure was a network timeout, not a source contradiction.
-- What is NOT proven: Brasseurs source chain on current main, runtime geometry, A/B or human PASS.
-- What must not be redone: raw LoD2 landmarks, generic window grids, proxy sphere dome, threshold lowering, stale branch merges.
-- Exact next action: merge this wall refresh, re-read live main/open PRs, rebuild Brasseurs source gate from that exact HEAD.
-- Current blocker: Bourse/Midi/Anneessens/player/NPC and specialist Atomium scopes remain owned elsewhere.
+- What changed: continuity foundation #639 is shipped; registry/selector are now production truth.
+- What is proven: seven-zone maturity registry, Midi M6 baseline protection, M5 automation ceiling, oldest OPEN report priority.
+- What is NOT proven: repo has not yet ingested runtime-local SIGNALER tickets; therefore `open_reports=[]` is not proof of zero blockers.
+- What must not be redone: SIGNALER zone-truth fix, continuity Phase 0/1 registry, duplicate ZONES UI extraction.
+- Exact next continuity action: build Anneessens report-ingestion/sync lot from live main without touching west-side school landmark ownership.

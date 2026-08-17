@@ -106,9 +106,8 @@ func _run() -> void:
     if runtime == null:
         _fail("production bollard autoload missing")
         return
-    for _frame: int in range(180):
-        if bool(runtime.call("ready_complete")):
-            break
+    runtime.call("bind_scene", scene)
+    for _frame: int in range(12):
         await process_frame
     if not bool(runtime.call("ready_complete")) or bool(runtime.call("failed")):
         _fail("production bollard runtime did not bind cleanly")
@@ -125,7 +124,6 @@ func _run() -> void:
     var best_after: Image = null
     var best_changed := -1.0
     var best_index := -1
-    var best_stats: Dictionary = {}
 
     for index: int in range(CAMERA_CANDIDATES.size()):
         _set_camera(camera, CAMERA_CANDIDATES[index] as Array)
@@ -144,7 +142,6 @@ func _run() -> void:
             best_before = before
             best_after = after
             best_index = index
-            best_stats = stats
 
     if best_before == null or best_after == null or best_index < 0:
         _fail("failed to obtain deterministic player-eye A/B")

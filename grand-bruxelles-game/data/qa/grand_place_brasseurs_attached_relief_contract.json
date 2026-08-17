@@ -1,0 +1,29 @@
+{
+  "schema": "grand-bruxelles-brasseurs-attached-relief-v1",
+  "status": "runtime_candidate",
+  "runtime_approved": false,
+  "building_id": "1639974",
+  "front_wall_id": "10945501",
+  "depends_on_skin_schema": "grand-bruxelles-brasseurs-wall-skin-v1",
+  "photo_plan_schema": "grand-bruxelles-brasseurs-photo-plan-v1",
+  "source_roles": {
+    "UrbIS": "world wall position, span and envelope",
+    "Commons_photo": "relative horizontal rhythm and broad facade hierarchy only",
+    "heritage_inventory": "three bays, colossal Corinthian half-columns, wider/slightly projecting central bay, curved pediment identity"
+  },
+  "bay_count": 3,
+  "column_count": 4,
+  "column_center_offsets_m": [0.6872, 2.8278, 5.2337, 7.6396],
+  "central_bay_projection": true,
+  "central_bay_projection_depth_m": 0.10,
+  "column_max_projection_depth_m": 0.22,
+  "band_max_projection_depth_m": 0.08,
+  "attachment_policy": "all_relief_children_of_coherent_skin_runtime_and_within_official_wall_envelope",
+  "free_standing_grid_allowed": false,
+  "raw_photo_pixels_shipped": false,
+  "exact_depths_claimed_surveyed": false,
+  "window_openings_claimed_surveyed": false,
+  "curved_pediment_geometry_in_this_lot": false,
+  "micro_ornament_in_this_lot": false,
+  "clean_witness_pr": 711
+}

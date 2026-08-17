@@ -1,0 +1,25 @@
+name: Grand Bruxelles Midi M3 UrbIS Station Owner
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-m3-urbis-owner.yml"
+      - "grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone_materials.gd"
+      - "grand-bruxelles-game/tests/test_midi_station_arrival_urbis_owner.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-owner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Require official UrbIS station envelope owner
+        run: python grand-bruxelles-game/tests/test_midi_station_arrival_urbis_owner.py

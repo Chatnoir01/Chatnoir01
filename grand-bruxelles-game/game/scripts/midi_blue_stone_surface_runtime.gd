@@ -2,7 +2,8 @@ extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_blue_stone_material.gd")
 const IDENTITY_PATH := "res://data/visual/midi_blue_stone_material_identity.json"
-const TARGET_NAMES := ["StationBaseBlueStone", "BlueStoneBase"]
+const EXPECTED_SURFACES := 3
+const TARGET_NAMES := ["BlueStoneBase"]
 
 var _targets: Array[MeshInstance3D] = []
 var _original_materials: Dictionary = {}
@@ -30,8 +31,8 @@ func _apply_when_ready() -> void:
         return
     _targets.clear()
     _collect_targets(midi)
-    if _targets.size() != 4:
-        push_error("Midi blue-stone runtime: expected 4 verified base surfaces, got %d" % _targets.size())
+    if _targets.size() != EXPECTED_SURFACES:
+        push_error("Midi blue-stone runtime: expected %d verified base surfaces, got %d" % [EXPECTED_SURFACES, _targets.size()])
         _identity_failure = true
         _ready_complete = true
         return
@@ -45,6 +46,7 @@ func _apply_when_ready() -> void:
         _original_materials[target.get_instance_id()] = target.material_override
         target.material_override = _material
     _ready_complete = true
+    print("Midi blue-stone runtime: surfaces=%d material_only=true" % _targets.size())
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):
@@ -66,6 +68,9 @@ func _read_identity() -> Dictionary:
 func _runtime_identity_allowed(identity: Dictionary) -> bool:
     var contract := identity.get("presentation_contract", {}) as Dictionary
     if str(identity.get("schema", "")) != "grand-bruxelles-material-identity-v1":
+        return false
+    var target := identity.get("target", {}) as Dictionary
+    if int(target.get("expected_surface_count", -1)) != EXPECTED_SURFACES:
         return false
     if str(contract.get("material_identity", "")) != "blue_stone":
         return false

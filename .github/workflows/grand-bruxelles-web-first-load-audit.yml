@@ -1,0 +1,146 @@
+name: Grand Bruxelles Web First Load Audit
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-web-first-load-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare-web-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Cache Godot export templates
+        id: templates-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/4.7.1.stable
+          key: godot-4.7.1-stable-export-templates-v1
+
+      - name: Install Godot export templates
+        if: steps.templates-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 5 -o /tmp/templates.tpz \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz
+          mkdir -p /tmp/templates-unpack
+          unzip -q /tmp/templates.tpz -d /tmp/templates-unpack
+          mkdir -p ~/.local/share/godot/export_templates/4.7.1.stable
+          cp -a /tmp/templates-unpack/templates/. ~/.local/share/godot/export_templates/4.7.1.stable/
+
+      - name: Import project
+        run: |
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit
+
+      - name: Record production baseline
+        run: |
+          set -euo pipefail
+          test -f grand-bruxelles-game/web-preview/index.pck
+          test -f grand-bruxelles-game/web-preview/index.wasm
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('grand-bruxelles-game/web-preview')
+          pck = (root / 'index.pck').stat().st_size
+          wasm = (root / 'index.wasm').stat().st_size
+          total = sum(p.stat().st_size for p in root.iterdir() if p.is_file())
+          print(f'WEB_BASELINE pck={pck} wasm={wasm} total={total} total_mib={total/1024/1024:.2f}')
+          Path('/tmp/baseline.txt').write_text(f'{pck} {wasm} {total}\n', encoding='utf-8')
+          PY
+
+      - name: Build selected-main-scene candidate
+        run: |
+          set -euo pipefail
+          cp grand-bruxelles-game/export_presets.cfg /tmp/export_presets.original.cfg
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/export_presets.cfg')
+          text = path.read_text(encoding='utf-8')
+          marker = 'export_filter="all_resources"'
+          if text.count(marker) < 2:
+              raise SystemExit('WEB_AUDIT_FAIL expected Web and PC all_resources presets')
+          text = text.replace(
+              marker,
+              'export_filter="scenes"\nexport_files=PackedStringArray("res://game/main.tscn")',
+              1,
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+          rm -rf /tmp/web-candidate
+          mkdir -p /tmp/web-candidate
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --export-release "Web" /tmp/web-candidate/index.html
+          test -s /tmp/web-candidate/index.html
+          test -s /tmp/web-candidate/index.js
+          test -s /tmp/web-candidate/index.wasm
+          test -s /tmp/web-candidate/index.pck
+
+      - name: Prove candidate pack can boot the production project
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 35s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --main-pack /tmp/web-candidate/index.pck --quit-after 120 \
+            > /tmp/candidate-boot.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/candidate-boot.log
+          if grep -Eqi 'Failed to load|Cannot open|Parse Error|SCRIPT ERROR|Error loading|does not exist' /tmp/candidate-boot.log; then
+            echo 'WEB_CANDIDATE_BOOT_FAIL resource/runtime error detected'
+            exit 1
+          fi
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            echo "WEB_CANDIDATE_BOOT_FAIL exit=$status"
+            exit "$status"
+          fi
+          echo 'WEB_CANDIDATE_BOOT_OK'
+
+      - name: Measure first-load reduction
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          baseline_pck, baseline_wasm, baseline_total = map(int, Path('/tmp/baseline.txt').read_text().split())
+          root = Path('/tmp/web-candidate')
+          candidate_pck = (root / 'index.pck').stat().st_size
+          candidate_wasm = (root / 'index.wasm').stat().st_size
+          candidate_total = sum(p.stat().st_size for p in root.iterdir() if p.is_file())
+          saved = baseline_total - candidate_total
+          pct = saved / baseline_total * 100.0
+          pck_saved = baseline_pck - candidate_pck
+          print(
+              'WEB_FIRST_LOAD_AUDIT '
+              f'baseline_total={baseline_total} candidate_total={candidate_total} '
+              f'saved={saved} saved_pct={pct:.2f} '
+              f'baseline_pck={baseline_pck} candidate_pck={candidate_pck} pck_saved={pck_saved} '
+              f'wasm_delta={candidate_wasm-baseline_wasm}'
+          )
+          if candidate_total >= baseline_total:
+              raise SystemExit('WEB_FIRST_LOAD_FAIL candidate did not reduce first-load bytes')
+          if candidate_pck >= baseline_pck:
+              raise SystemExit('WEB_FIRST_LOAD_FAIL candidate did not reduce PCK bytes')
+          PY
+
+      - name: Restore working preset
+        if: always()
+        run: |
+          if [ -f /tmp/export_presets.original.cfg ]; then
+            cp /tmp/export_presets.original.cfg grand-bruxelles-game/export_presets.cfg
+          fi

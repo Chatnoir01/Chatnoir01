@@ -17,8 +17,17 @@ func _run() -> void:
     if traffic_manager != null:
         traffic_manager.set("auto_spawn_runtime", false)
     root.add_child(scene)
-    for _frame: int in range(8):
+    current_scene = scene
+    var applied := false
+    for _frame: int in range(40):
         await process_frame
+        var runtime := root.get_node_or_null("MidiOfficialPavedForecourtRuntime")
+        if runtime != null and bool(runtime.get("applied")):
+            applied = true
+            break
+    if not applied:
+        _fail("forecourt autoload did not apply to current production scene")
+        return
     var builder := scene.get_node_or_null("UrbISMidiExact")
     if builder == null:
         _fail("UrbIS Midi exact builder missing")
@@ -36,7 +45,7 @@ func _run() -> void:
         return
     var material := paved.mesh.surface_get_material(0)
     if not material is ShaderMaterial:
-        _fail("red-first witness: official paved areas still use flat StandardMaterial3D")
+        _fail("official paved areas did not receive authored presentation shader")
         return
     if str(material.get_meta("surface_family", "")) != "urbis_official_paved_area_v1":
         _fail("official paved presentation family metadata missing")

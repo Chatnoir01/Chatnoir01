@@ -27,17 +27,16 @@
       "source": "OpenStreetMap committed Jette zone cache, ODbL-1.0",
       "layers": ["osm_environment_points"],
       "gates": ["G5_osm_environment"],
-      "reason": "trees, street lamps and bollards are source-backed machine outputs; generic Godot renderer remains owned by its separate runtime stream"
+      "reason": "trees, street lamps and bollards are source-backed machine outputs and the generic Godot renderer is shipped"
     },
     {
       "order": 3,
       "family_id": "finish_materials",
-      "status": "missing",
-      "source": "existing Jette Godot material/ground hooks",
-      "layers": [],
-      "gates": ["G4_runtime_finish"],
-      "reason": "G4 proves hooks exist but no generic deterministic finish executor is yet on the machine path",
-      "next_action": "wrap an existing reusable finish/material path only after ownership is free; do not copy a hero-specific material script"
+      "status": "wired",
+      "source": "UrbIS geometry/placement with authored non-measured Brussels presentation finish",
+      "layers": ["urbis_finish_material_runtime"],
+      "gates": ["G4_runtime_finish", "jette_urbis_finish_ab"],
+      "reason": "generic Jette road/building meshes receive a reusable UrbIS-safe procedural finish without geometry or material-identity claims"
     },
     {
       "order": 4,

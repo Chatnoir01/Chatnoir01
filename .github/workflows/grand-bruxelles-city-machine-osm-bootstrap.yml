@@ -1,0 +1,53 @@
+name: Grand Bruxelles City Machine OSM Cache
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py"
+      - "grand-bruxelles-game/tools/city_machine/test_osm_environment_zone.py"
+      - "grand-bruxelles-game/data/osm/zones/jette/**"
+      - ".github/workflows/grand-bruxelles-city-machine-osm-bootstrap.yml"
+  workflow_dispatch:
+
+# Read-only proof: no branch writes and no live Overpass during nominal PR validation.
+permissions:
+  contents: read
+
+jobs:
+  jette-osm-cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install exact CRS dependency
+        run: python3 -m pip install --disable-pip-version-check "pyproj>=3.7,<4"
+      - name: Test zone projection adapter
+        run: python3 grand-bruxelles-game/tools/city_machine/test_osm_environment_zone.py
+      - name: Rebuild committed Jette environment from cache
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py \
+            --manifest grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/manifest.json \
+            --zone jette \
+            --raw-cache grand-bruxelles-game/data/osm/zones/jette/environment.raw.json \
+            --output /tmp/jette.environment.game.json | tee /tmp/jette-osm-cache.log
+          cmp /tmp/jette.environment.game.json grand-bruxelles-game/data/osm/zones/jette/environment.game.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/tmp/jette.environment.game.json').read_text())
+          assert p['source']=='OpenStreetMap contributors via Overpass API'
+          assert p['license']=='ODbL-1.0'
+          assert p['projection_crs']=='EPSG:31370'
+          assert p['stats']['tree'] > 0
+          assert p['stats']['total'] == len(p['environment_points'])
+          assert len(p['source_digest']) == 64
+          print('JETTE_OSM_CACHE_OK', p['stats'], p['bounds_m'], p['source_digest'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: city-machine-jette-osm-cache-proof
+          path: |
+            /tmp/jette.environment.game.json
+            /tmp/jette-osm-cache.log

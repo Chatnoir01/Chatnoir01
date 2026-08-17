@@ -8,12 +8,12 @@ class_name BrusselsStreetLampAsset
 
 const ASSET_FAMILY := "brussels_street_lamp_v1"
 const POLE_HEIGHT := 6.3
-const POLE_RADIUS := 0.085
-const ARM_HEIGHT := 0.12
+const POLE_RADIUS := 0.095
+const ARM_HEIGHT := 0.14
 const ARM_LENGTH := 0.90
-const LUMINAIRE_LENGTH := 0.62
-const LUMINAIRE_WIDTH := 0.28
-const LUMINAIRE_HEIGHT := 0.18
+const LUMINAIRE_LENGTH := 0.68
+const LUMINAIRE_WIDTH := 0.32
+const LUMINAIRE_HEIGHT := 0.20
 const COLLISION_HEIGHT := 6.3
 const COLLISION_RADIUS := 0.11
 

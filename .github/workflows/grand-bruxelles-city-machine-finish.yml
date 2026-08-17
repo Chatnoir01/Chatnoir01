@@ -1,0 +1,26 @@
+name: Grand Bruxelles City Machine Finish
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_machine/finish_registry.json"
+      - "grand-bruxelles-game/tools/city_machine/finish_pipeline.py"
+      - "grand-bruxelles-game/tools/city_machine/test_finish_pipeline.py"
+      - ".github/workflows/grand-bruxelles-city-machine-finish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  finish-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install exact CRS dependency
+        run: python3 -m pip install --disable-pip-version-check "pyproj>=3.7,<4"
+      - name: Prove CLI skeleton and fail-closed pilot lock
+        run: python3 grand-bruxelles-game/tools/city_machine/test_finish_pipeline.py
+      - name: Prove one-command Jette dry-run
+        run: python3 grand-bruxelles-game/tools/city_machine/finish_pipeline.py build --zone jette --dry-run

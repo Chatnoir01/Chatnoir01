@@ -4,6 +4,7 @@ const WIDTH := 1280
 const HEIGHT := 720
 const BEFORE_PATH := "res://artifacts/visual/shared_road_paint_before.png"
 const AFTER_PATH := "res://artifacts/visual/shared_road_paint_after.png"
+const ANNEESSENS := Vector3(-272.04, 0.0, -217.07)
 const MIN_MARKINGS := 12
 const MIN_CHANGED_3 := 0.0008
 const MIN_CHANGED_8 := 0.00035
@@ -20,8 +21,7 @@ func _fail(message: String) -> void:
 func _hide_canvas(node: Node) -> void:
     if node is CanvasItem:
         (node as CanvasItem).visible = false
-    for child: Node in node.get_children():
-        _hide_canvas(child)
+    for child: Node in node.get_children(): _hide_canvas(child)
 
 func _freeze(scene: Node3D) -> void:
     var traffic := scene.get_node_or_null("TrafficManager")
@@ -37,6 +37,31 @@ func _freeze(scene: Node3D) -> void:
     if player != null:
         player.set_process(false); player.set_physics_process(false)
     _hide_canvas(scene)
+
+func _aim_player_at_generic_marking(scene: Node3D, runtime: Node) -> bool:
+    var player := scene.get_node_or_null("Player") as Node3D
+    if player == null: return false
+    var best: CSGBox3D = null
+    var best_distance := INF
+    var targets: Array = runtime.get("_targets")
+    for target: Variant in targets:
+        if not target is CSGBox3D: continue
+        var dash := target as CSGBox3D
+        var delta := dash.global_position - ANNEESSENS
+        var distance := Vector2(delta.x, delta.z).length()
+        if distance < best_distance:
+            best_distance = distance
+            best = dash
+    if best == null: return false
+    var axis := best.global_transform.basis.z.normalized()
+    axis.y = 0.0
+    if axis.length_squared() < 0.9: return false
+    axis = axis.normalized()
+    var target_position := best.global_position + Vector3(0.0, 0.18, 0.0)
+    player.global_position = target_position + axis * 10.0 + Vector3(0.0, 0.88, 0.0)
+    player.look_at(target_position + Vector3(0.0, 0.8, 0.0), Vector3.UP)
+    print("SHARED_BRUSSELS_ROAD_PAINT_PLAYER_VIEW: target=(%.2f,%.2f) anneessens_distance=%.2fm" % [best.global_position.x, best.global_position.z, best_distance])
+    return true
 
 func _capture(path: String) -> Image:
     RenderingServer.force_draw(); await process_frame; await RenderingServer.frame_post_draw
@@ -98,7 +123,9 @@ func _run() -> void:
         _fail("road-paint runtime did not settle cleanly"); return
     var count := int(runtime.call("applied_marking_count"))
     if count < MIN_MARKINGS: _fail("too few generic lane dashes for reusable visible lot: %d" % count); return
+    if not _aim_player_at_generic_marking(scene, runtime): _fail("could not establish legitimate player view near Anneessens"); return
     _freeze(scene)
+    for _i: int in range(8): await process_frame
     var geometry := _geometry_snapshot(runtime)
     if geometry.size() != count: _fail("geometry snapshot does not cover all targets"); return
     runtime.call("set_enhanced_enabled", false)

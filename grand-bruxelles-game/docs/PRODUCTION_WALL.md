@@ -1,12 +1,12 @@
 # Production Wall
 
 ## Main
-- observed_main_before_this_edit: `2198f1247933626cb268467196947459224812c1`
-- last_verified: `2026-08-17T13:15Z`
+- observed_main_before_this_edit: `ce8addae6b47e07d8fecbd93525adb4e32d903cf`
+- last_verified: `2026-08-17T13:16Z`
 - rule: this SHA is the last main observed before this wall edit, not a claim that it equals future HEAD. Always re-read live `main` + open PRs before every branch, PR, merge, rejection or claim.
 
 ## Active ownership
-- Grand-Place / architecture — FREE after Brasseurs #647 human FAIL; next claim must use a different source/solution family, not primitive proxies.
+- Grand-Place / photo-constrained facade source audit / Maison des Brasseurs — THIS SHIFT — Wikimedia Commons 2024 high-resolution CC BY-SA 4.0 reference + official UrbIS placement; source gate only until license/hash/reference suitability pass — ACTIVE CLAIM.
 - Player / fallback identity badge — PR #651 — ACTIVE.
 - LABO selector UI v2 — PR #643 — ACTIVE.
 - Shared Environment / corridor trees — PR #637 — ACTIVE.
@@ -39,12 +39,12 @@
 - Grand-Place `1786758` — micro window rhythm insufficient impact. Do not enlarge to game thresholds.
 - Roi d'Espagne — proxy facade + sphere dome failed. Do not retry primitive proxy strategy.
 - La Brouette — LoD2 + generic window grid failed. Do not repeat window-grid strategy.
-- Maison des Brasseurs — primitive large-form proxy (thin columns + slab + arc) failed human gate despite measurable impact. Do not retry primitive/procedural proxy family. Unlock: materially higher-fidelity facade source or constrained reconstruction method.
+- Maison des Brasseurs — primitive large-form proxy (thin columns + slab + arc) failed human gate despite measurable impact. Do not retry primitive/procedural proxy family. Photo-constrained reconstruction is a distinct source/method family and is the only current Brasseurs retry allowed.
 
 ## NOW / NEXT / LATER
-- NOW visual: audit a genuinely different high-detail source/method for a large Grand-Place facade/landmark; if none is legally/source-wise usable, leave Grand-Place blocked rather than manufacture detail.
+- NOW visual: validate the 2024 Wikimedia Commons Grand-Place 10 image through MediaWiki metadata, license, dimensions, immutable file identity and download hash; pair it with official UrbIS `1639974` / wall `10945501`. No runtime before this gate.
 - NOW continuity: #648 has ingested Anneessens report snapshots; let continuity owner decide next M4→M5 proof from live registry/report state.
-- NEXT visual: if no high-detail Grand-Place source exists, choose the highest-impact FREE corridor defect outside currently owned Bourse/Midi/Anneessens/shared Environment scopes.
+- NEXT visual: only if the photo gate is strong enough, create a photo-constrained reconstruction plan that extracts real facade proportions/features rather than hand-waving primitives. Otherwise release the claim and pivot.
 - NEXT LABO regime: #643 ZONES truth UI remains independent.
 - LATER: after ownership release, prioritize Bourse proportions, Midi station arrival/envelope, then Anneessens frontage.
 
@@ -65,13 +65,14 @@
 - Human full-frame verdict overrides green CI for landmarks.
 - Never lower a predeclared gate to rescue a correction.
 - Strict Brasseurs A/B UI masking pattern is reusable: recursively mask CanvasLayer/CanvasItem and fail capture if any UI remains visible.
-- Two failures with the same solution family require a pivot; Grand-Place primitive proxies are now a blocked family.
+- Two failures with the same solution family require a pivot; Grand-Place primitive proxies are now blocked.
+- A photo may constrain proportions/visible features only when its license/provenance is explicit; UrbIS remains owner of world placement/scale.
 - Claims are narrow and released immediately after merge/reject/abandon.
 
 ## Shift handoff
-- What changed: #647 rejected and claim released; wall now forces a different source/method family for Grand-Place.
-- What is proven: Brasseurs source `1639974`, wall `10945501`, structural contract, strict UI-masked A/B harness and measured impact all work; visual result does not.
-- What is NOT proven: no higher-fidelity Grand-Place facade source/pipeline is yet production-ready.
+- What changed: Grand-Place claim reopened only for a distinct photo-constrained source audit, not another proxy implementation.
+- What is proven: Commons has a 2024 2737x5600 Grand-Place 10 photo under CC BY-SA 4.0; prior UrbIS building/wall identity and strict A/B harness are proven evidence.
+- What is NOT proven: immutable photo hash/metadata in CI, suitability for proportion extraction, or any photo-constrained runtime reconstruction.
 - What must not be redone: raw LoD2 landmarks, window grids, sphere domes, thin-column/slab/arc primitive facade proxies, lowered gates.
-- Exact next action: audit high-detail facade/3D sources; if none qualifies, pivot to another free high-impact corridor defect.
+- Exact next action: merge this claim, re-read live main/open PRs, run source-only photo+UrbIS gate.
 - Current blocker: Bourse/Midi/Anneessens/player/NPC/shared Environment/Jette machine scopes are owned elsewhere.

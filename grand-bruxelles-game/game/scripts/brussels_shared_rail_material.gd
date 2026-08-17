@@ -23,8 +23,14 @@ static func create_rail_material() -> ShaderMaterial:
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
+varying vec3 world_position;
+
+void vertex() {
+    world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+
 void fragment() {
-    float broad = 0.5 + 0.5 * sin((WORLD_MATRIX * vec4(VERTEX, 1.0)).z * 0.115 + (WORLD_MATRIX * vec4(VERTEX, 1.0)).x * 0.071);
+    float broad = 0.5 + 0.5 * sin(world_position.z * 0.115 + world_position.x * 0.071);
     vec3 base = mix(vec3(0.145, 0.158, 0.170), vec3(0.205, 0.218, 0.232), broad * 0.28);
     ALBEDO = base;
     METALLIC = 0.72;
@@ -41,9 +47,14 @@ static func create_sleeper_material() -> ShaderMaterial:
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
+varying vec3 world_position;
+
+void vertex() {
+    world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+
 void fragment() {
-    vec3 world = (WORLD_MATRIX * vec4(VERTEX, 1.0)).xyz;
-    float broad = 0.5 + 0.5 * sin(world.x * 0.083 + world.z * 0.129);
+    float broad = 0.5 + 0.5 * sin(world_position.x * 0.083 + world_position.z * 0.129);
     vec3 base = mix(vec3(0.185, 0.180, 0.168), vec3(0.255, 0.247, 0.228), broad * 0.36);
     ALBEDO = base;
     METALLIC = 0.0;

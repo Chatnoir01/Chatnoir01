@@ -1,0 +1,60 @@
+name: Grand Bruxelles Grand-Place Ducs Visual
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-ducs-visual.yml"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/1640085.indexed.json"
+      - "grand-bruxelles-game/data/qa/grand_place_ducs_1640085_source.json"
+      - "grand-bruxelles-game/game/scripts/grand_place_ducs_official_lod2.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_ducs_official_lod2_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_ducs_official_lod2_ab_test.gd"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/ducs-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/ducs-import.log; then exit 1; fi
+      - name: Validate source and runtime contract
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_ducs_official_lod2_test.gd 2>&1 | tee /tmp/ducs-contract.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_DUCS_LOD2_FAIL" /tmp/ducs-contract.log; then exit 1; fi
+          grep -q "GRAND_PLACE_DUCS_LOD2_OK" /tmp/ducs-contract.log
+      - name: Render deterministic player-eye A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 150s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/grand_place_ducs_official_lod2_ab_test.gd 2>&1 | tee /tmp/ducs-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_DUCS_AB_FAIL" /tmp/ducs-ab.log; then exit 1; fi
+          grep -q "GRAND_PLACE_DUCS_AB_OK" /tmp/ducs-ab.log
+      - name: Upload player-eye evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-ducs-ab
+          path: |
+            /tmp/grand-place-ducs-before.png
+            /tmp/grand-place-ducs-after.png
+            /tmp/ducs-contract.log
+            /tmp/ducs-ab.log
+          if-no-files-found: error

@@ -1,0 +1,105 @@
+name: Grand Bruxelles Grand-Place Brasseurs Wall Vertical
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-brasseurs-wall-vertical.yml"
+      - "grand-bruxelles-game/tools/extract_urbis_3d_context.py"
+      - "grand-bruxelles-game/data/qa/grand_place_brasseurs_photo_plan.json"
+      - "grand-bruxelles-game/data/qa/grand_place_brasseurs_wall_vertical.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-wall-vertical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download audited UrbIS Buildings3D package
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
+          EXPECTED="cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+          curl -fL --retry 4 --retry-all-errors --retry-delay 5 --connect-timeout 30 --max-time 300 -o /tmp/urbis3d.zip "$URL"
+          echo "$EXPECTED  /tmp/urbis3d.zip" | sha256sum -c -
+          mkdir -p /tmp/urbis3d /tmp/brasseurs-wall
+          unzip -q /tmp/urbis3d.zip -d /tmp/urbis3d
+          FACE="$(find /tmp/urbis3d -type f -name 'UrbISBuildings3D_148170_BuildingFaces.shp' -print -quit)"
+          test -n "$FACE"
+          dirname "$FACE" > /tmp/source_root.txt
+      - name: Extract building and exact official front wall
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(cat /tmp/source_root.txt)"
+          python3 grand-bruxelles-game/tools/extract_urbis_3d_context.py \
+            --source-root "$ROOT" --prefix UrbISBuildings3D_148170 \
+            --building-id "https://databrussels.be/id/building/1639974" \
+            --context-id "grand_place_brasseurs_1639974" --name "Grand-Place Maison des Brasseurs 1639974" \
+            --package-url "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip" \
+            --package-sha256 "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2" \
+            --package-revision "2026-08-08" --accessed-at "2026-08-17" \
+            --origin-e 147868.29422791934 --origin-n 169538.62414926197 --world-x -668.5 --world-z 627.84 \
+            --output /tmp/brasseurs-wall/building.game.json
+          python3 - <<'PY'
+          import hashlib, json, math
+          from pathlib import Path
+          p=Path('/tmp/brasseurs-wall/building.game.json')
+          d=json.loads(p.read_text())
+          matches=[f for f in d['faces'] if str(f.get('id','')).rstrip('/').split('/')[-1]=='10945501']
+          if len(matches)!=1:
+              raise SystemExit(f'expected exactly one face 10945501, got {len(matches)}')
+          face=matches[0]
+          if face.get('type')!='WALLSURFACE':
+              raise SystemExit(f'10945501 must be WALLSURFACE, got {face.get("type")}')
+          pts=[pt for tri in face['triangles'] for pt in tri]
+          if not pts:
+              raise SystemExit('official wall has no points')
+          ys=[float(pt[1]) for pt in pts]
+          min_y,max_y=min(ys),max(ys)
+          if not (math.isfinite(min_y) and math.isfinite(max_y) and max_y>min_y):
+              raise SystemExit('non-finite/degenerate wall vertical extent')
+          max_h=0.0
+          for a in pts:
+              for b in pts:
+                  max_h=max(max_h, math.hypot(float(a[0])-float(b[0]), float(a[2])-float(b[2])))
+          plan=json.loads(Path('grand-bruxelles-game/data/qa/grand_place_brasseurs_photo_plan.json').read_text())
+          official_span=float(plan['placement']['front_wall_span_m'])
+          if abs(max_h-official_span)>0.01:
+              raise SystemExit(f'wall horizontal span mismatch face={max_h} plan={official_span}')
+          out={
+            'schema':'grand-bruxelles-brasseurs-wall-vertical-v1',
+            'building_id':'1639974',
+            'front_wall_id':'10945501',
+            'face_type':'WALLSURFACE',
+            'source':'UrbIS - 3D Constructions',
+            'source_crs':'EPSG:31370',
+            'package_sha256':'cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2',
+            'package_revision':'2026-08-08',
+            'license':'CC0-1.0',
+            'world_y_min_m':round(min_y,4),
+            'world_y_max_m':round(max_y,4),
+            'wall_vertical_extent_m':round(max_y-min_y,4),
+            'wall_horizontal_span_m':round(max_h,6),
+            'triangle_count':len(face['triangles']),
+            'vertical_world_scale_source':'official_lod2_wall',
+            'photo_used_for_vertical_scale':False,
+            'runtime_approved':False
+          }
+          payload=json.dumps(out,sort_keys=True,separators=(',',':'))+'\n'
+          Path('/tmp/brasseurs-wall/wall_vertical.json').write_text(json.dumps(out,indent=2)+'\n')
+          Path('/tmp/brasseurs-wall/wall_vertical.sha256').write_text(hashlib.sha256(payload.encode()).hexdigest()+'\n')
+          print('BRASSEURS_WALL_VERTICAL_OK',json.dumps(out,sort_keys=True))
+          PY
+      - name: Upload exact wall vertical evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-brasseurs-wall-vertical
+          path: |
+            /tmp/brasseurs-wall/wall_vertical.json
+            /tmp/brasseurs-wall/wall_vertical.sha256
+          if-no-files-found: error

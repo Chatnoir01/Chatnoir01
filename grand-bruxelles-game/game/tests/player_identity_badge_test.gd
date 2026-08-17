@@ -33,7 +33,12 @@ func _run() -> void:
         _fail("ready Player/VisualUpgrade must unlock identity publication")
         fake_scene.queue_free()
         return
+    if BADGE.resolve_runtime_scene(self) != fake_scene:
+        _fail("runtime scene resolver must find instantiated Main when current_scene is unset")
+        fake_scene.queue_free()
+        return
     fake_scene.queue_free()
+    await process_frame
 
     var kaykit := {
         "regime": "PLAYER_FALLBACK",
@@ -67,5 +72,5 @@ func _run() -> void:
         _fail("production identity must not show a fallback badge")
         return
 
-    print("PLAYER_IDENTITY_BADGE_OK: waits for runtime visual; fallback explicit; production silent")
+    print("PLAYER_IDENTITY_BADGE_OK: runtime scene resolved; fallback explicit; production silent")
     quit(0)

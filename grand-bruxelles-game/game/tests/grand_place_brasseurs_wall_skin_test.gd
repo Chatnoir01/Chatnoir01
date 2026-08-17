@@ -25,7 +25,7 @@ func _run() -> void:
     if not FileAccess.file_exists(CONTRACT_PATH):
         _fail("official wall skin contract missing")
         return
-    var raw := JSON.parse_string(FileAccess.get_file_as_string(CONTRACT_PATH))
+    var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(CONTRACT_PATH))
     if not (raw is Dictionary):
         _fail("wall skin contract malformed")
         return

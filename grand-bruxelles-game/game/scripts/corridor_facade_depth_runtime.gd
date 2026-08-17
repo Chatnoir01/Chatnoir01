@@ -61,6 +61,10 @@ var glass_count := 0
 var glass_material_group_count := 0
 var window_glass_count := 0
 var window_glass_material_group_count := 0
+var generic_glazing_enabled := true
+var _generic_glass_nodes: Array[MultiMeshInstance3D] = []
+var _generic_baseline_materials: Array[Material] = []
+var _generic_candidate_materials: Array[Material] = []
 
 func _ready() -> void:
     call_deferred("_build")
@@ -86,6 +90,32 @@ func _unit_multimesh(name: String, transforms: Array[Transform3D], material: Mat
     instance.name = name
     instance.multimesh = multimesh
     return instance
+
+func _register_generic_glass(details: Node3D, node_name: String, transforms: Array[Transform3D], base_color: Color, roughness: float, metallic: float, phase: float, source_label: String) -> void:
+    var baseline := _material(base_color, roughness, metallic)
+    var candidate := BrusselsCorridorGenericGlazingMaterial.create(base_color, roughness, metallic, phase, source_label)
+    var instance := _unit_multimesh(node_name, transforms, candidate if generic_glazing_enabled else baseline)
+    details.add_child(instance)
+    _generic_glass_nodes.append(instance)
+    _generic_baseline_materials.append(baseline)
+    _generic_candidate_materials.append(candidate)
+
+func set_generic_glazing_enabled(enabled: bool) -> void:
+    generic_glazing_enabled = enabled
+    for index: int in range(_generic_glass_nodes.size()):
+        var instance := _generic_glass_nodes[index]
+        if instance == null or instance.multimesh == null:
+            continue
+        var mesh := instance.multimesh.mesh as BoxMesh
+        if mesh == null:
+            continue
+        mesh.material = _generic_candidate_materials[index] if enabled else _generic_baseline_materials[index]
+
+func generic_glazing_target_count() -> int:
+    return window_glass_count + glass_count
+
+func generic_glazing_material_group_count() -> int:
+    return window_glass_material_group_count + glass_material_group_count
 
 func _clean_basis(transform: Transform3D) -> Basis:
     var rotation := transform.basis.orthonormalized()
@@ -229,8 +259,7 @@ func _build_shopfront_glass(details: Node3D, shop_node: MultiMeshInstance3D) -> 
         if transforms.is_empty():
             continue
         var node_name := "CorridorShopfrontGlass" if palette_index == 0 else "CorridorShopfrontGlass_%d" % palette_index
-        var glass_material := _material(SHOP_GLASS_PALETTE[palette_index], SHOP_GLASS_ROUGHNESS[palette_index], SHOP_GLASS_METALLIC[palette_index])
-        details.add_child(_unit_multimesh(node_name, transforms, glass_material))
+        _register_generic_glass(details, node_name, transforms, SHOP_GLASS_PALETTE[palette_index], SHOP_GLASS_ROUGHNESS[palette_index], SHOP_GLASS_METALLIC[palette_index], float(palette_index) * 1.37 + 0.41, "generic corridor shopfront presentation")
         glass_count += transforms.size()
         glass_material_group_count += 1
     shop_node.visible = false
@@ -248,8 +277,7 @@ func _build_window_glass(details: Node3D, windows_node: MultiMeshInstance3D) -> 
         if transforms.is_empty():
             continue
         var node_name := "CorridorWindowGlass" if palette_index == 0 else "CorridorWindowGlass_%d" % palette_index
-        var window_material := _material(WINDOW_GLASS_PALETTE[palette_index], WINDOW_GLASS_ROUGHNESS[palette_index], WINDOW_GLASS_METALLIC[palette_index])
-        details.add_child(_unit_multimesh(node_name, transforms, window_material))
+        _register_generic_glass(details, node_name, transforms, WINDOW_GLASS_PALETTE[palette_index], WINDOW_GLASS_ROUGHNESS[palette_index], WINDOW_GLASS_METALLIC[palette_index], float(palette_index) * 1.11 + 0.19, "generic corridor window presentation")
         window_glass_count += transforms.size()
         window_glass_material_group_count += 1
     windows_node.visible = false
@@ -282,6 +310,6 @@ func _build() -> void:
 
     articulation_ready = lintel_count == windows.instance_count and sill_count == windows.instance_count and jamb_count == windows.instance_count * 2
     if articulation_ready:
-        print("CORRIDOR_FACADE_DEPTH_READY: windows=%d lintels=%d sills=%d jambs=%d trim_groups=%d window_glass=%d window_groups=%d canopies=%d canopy_groups=%d shop_headers=%d shop_jambs=%d shop_mullions=%d glass=%d glass_groups=%d" % [windows.instance_count, lintel_count, sill_count, jamb_count, trim_material_group_count, window_glass_count, window_glass_material_group_count, canopy_count, canopy_material_group_count, shop_header_count, shop_jamb_count, shop_mullion_count, glass_count, glass_material_group_count])
+        print("CORRIDOR_FACADE_DEPTH_READY: windows=%d lintels=%d sills=%d jambs=%d trim_groups=%d window_glass=%d window_groups=%d canopies=%d canopy_groups=%d shop_headers=%d shop_jambs=%d shop_mullions=%d glass=%d glass_groups=%d generic_glazing_family=%s" % [windows.instance_count, lintel_count, sill_count, jamb_count, trim_material_group_count, window_glass_count, window_glass_material_group_count, canopy_count, canopy_material_group_count, shop_header_count, shop_jamb_count, shop_mullion_count, glass_count, glass_material_group_count, BrusselsCorridorGenericGlazingMaterial.FAMILY])
     else:
         push_error("CorridorFacadeDepthRuntime: articulation count mismatch")

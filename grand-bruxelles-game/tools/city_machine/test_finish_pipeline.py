@@ -14,7 +14,7 @@ def main() -> int:
     assert {row["family_id"]: row["status"] for row in reg["families"]} == {
         "geometry": "wired",
         "osm_environment": "wired",
-        "finish_materials": "missing",
+        "finish_materials": "wired",
         "life": "disabled",
         "proof": "wired",
     }
@@ -30,12 +30,13 @@ def main() -> int:
     markers = [
         "CITY_MACHINE_FAMILY START geometry zone=jette",
         "CITY_MACHINE_FAMILY START osm_environment zone=jette",
-        "CITY_MACHINE_FAMILY SKIP finish_materials status=missing",
+        "CITY_MACHINE_FAMILY START finish_materials zone=jette",
         "CITY_MACHINE_FAMILY SKIP life status=disabled",
         "CITY_MACHINE_FAMILY START proof zone=jette",
     ]
     positions = [log.index(marker) for marker in markers]
     assert positions == sorted(positions), positions
+    assert "CITY_MACHINE_FAMILY END finish_materials zone=jette status=wired" in log
     assert "CITY_MACHINE_LAYER SKIP facade_candidate_pipeline" in log
     assert "CITY_MACHINE_FINISH_END zone=jette result=LABO_DATA_READY promotion=false" in log
 
@@ -48,7 +49,7 @@ def main() -> int:
     assert bad.returncode != 0
     assert "pilot locked to jette" in bad.stderr
 
-    print("CITY_MACHINE_FINISH_TESTS_OK pilot=jette strict_order=true skips_visible=true fail_closed=true auto_jouable=false")
+    print("CITY_MACHINE_FINISH_TESTS_OK pilot=jette strict_order=true finish_materials=wired life_skip_visible=true fail_closed=true auto_jouable=false")
     return 0
 
 

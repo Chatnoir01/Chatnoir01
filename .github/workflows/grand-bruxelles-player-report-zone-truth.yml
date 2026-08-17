@@ -1,0 +1,35 @@
+name: Grand Bruxelles Player Report Zone Truth
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-player-report-zone-truth.yml"
+      - "grand-bruxelles-game/game/scripts/zone_selector_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/player_issue_report_runtime.gd"
+      - "grand-bruxelles-game/game/tests/player_issue_report_zone_truth_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove-zone-truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/import.log; then exit 1; fi
+      - name: Reproduce and guard report zone truth
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/player_issue_report_zone_truth_test.gd 2>&1 | tee /tmp/zone-truth.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PLAYER_ISSUE_REPORT_ZONE_TRUTH_FAIL" /tmp/zone-truth.log; then exit 1; fi
+          grep -F "PLAYER_ISSUE_REPORT_ZONE_TRUTH_OK" /tmp/zone-truth.log

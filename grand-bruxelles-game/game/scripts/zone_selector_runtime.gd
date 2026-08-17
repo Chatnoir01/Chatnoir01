@@ -6,6 +6,8 @@ const REPORT_RUNTIME := preload("res://game/scripts/player_issue_report_runtime.
 const CATALOG_SCHEMA_V1 := "grand-bruxelles-playable-zone-catalog-v1"
 const CATALOG_SCHEMA_V2 := "grand-bruxelles-playable-zone-catalog-v2"
 const STORED_QUALITIES := ["JOUABLE", "LABO", "LABO_BRUT"]
+const ACTIVE_ZONE_ID_META := "grand_bruxelles_active_zone_id"
+const ACTIVE_ZONE_LABEL_META := "grand_bruxelles_active_zone_label"
 
 var _catalog: Array = []
 var _panel: PanelContainer
@@ -144,6 +146,10 @@ func current_report_context() -> Dictionary:
     }
 
 func _infer_active_zone_id(main: Node) -> String:
+    if main.has_meta(ACTIVE_ZONE_ID_META):
+        var explicit_id := str(main.get_meta(ACTIVE_ZONE_ID_META, "")).strip_edges()
+        if not explicit_id.is_empty() and not _zone_by_id(explicit_id).is_empty():
+            return explicit_id
     var location := main.get_node_or_null("LocationLabel")
     if location == null or not location.has_method("get_current_location_text"):
         return _active_zone_id
@@ -298,10 +304,21 @@ func _apply_zone(main: Node, zone: Dictionary) -> void:
         _travel_failed("zone loaded but minimum LABO life contract failed")
         return
     _active_zone_id = str(zone.get("id", _active_zone_id))
+    _publish_active_zone(main, zone)
     _pending_zone_id = ""
     _busy = false
     _status.text = "%s · %s" % [str(zone.get("label", "Zone")), str(zone.get("quality", "LABO"))]
     print("ZONE_VISIT_READY: id=%s quality=%s" % [str(zone.get("id", "")), str(zone.get("quality", ""))])
+
+func _publish_active_zone(main: Node, zone: Dictionary) -> void:
+    if main == null:
+        return
+    var zone_id := str(zone.get("id", "")).strip_edges()
+    var zone_label := str(zone.get("label", zone_id)).strip_edges()
+    if zone_id.is_empty() or zone_label.is_empty():
+        return
+    main.set_meta(ACTIVE_ZONE_ID_META, zone_id)
+    main.set_meta(ACTIVE_ZONE_LABEL_META, zone_label)
 
 func _mount_life_if_required(main: Node, zone: Dictionary) -> bool:
     var script_path := str(zone.get("life_script", ""))

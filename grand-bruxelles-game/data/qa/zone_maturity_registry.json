@@ -1,0 +1,28 @@
+{
+  "schema": "grand-bruxelles-zone-maturity-registry-v1",
+  "source_main_sha": "89ebe692074248a6dec40111c1f40330fa85104e",
+  "updated_at": "2026-08-17T13:45:44+02:00",
+  "policy": {
+    "automation_ceiling": "M5_JOUABLE_READY",
+    "human_only": "M6_JOUABLE",
+    "report_priority": "oldest_open_report_first",
+    "one_active_lot_per_defect": true,
+    "anti_regression": "a measured maturity drop requires an explicit alert; Midi may never silently drop below its human JOUABLE baseline",
+    "upgrade_order": ["spawn_ground_collision", "roofs_stable_masses", "midi_material_kit", "life_minimum", "source_backed_landmark_if_data_ok", "jouable_ready_proof"]
+  },
+  "report_sync": {
+    "state": "not_ingested",
+    "runtime_pattern": "user://player_reports/open/*.gbreport.json",
+    "accepted_ticket_schema": "grand-bruxelles-player-report-v1",
+    "note": "SIGNALER tickets are runtime-local/exported files. Until continuity ingests them, open_reports=[] must not be interpreted as proof of zero reports."
+  },
+  "zones": [
+    {"zone_id":"midi","maturity":"M6_JOUABLE","target_maturity":"M6_JOUABLE","open_reports":[],"last_proof":"catalog:JOUABLE","next_lot":"protect_baseline_only","updated_at":"2026-08-17T13:45:44+02:00","active_defect_lots":[]},
+    {"zone_id":"anneessens","maturity":"M4_LABO_ALIVE","target_maturity":"M5_JOUABLE_READY","open_reports":[],"last_proof":"catalog:life_minimum civilians=1 moving_vehicles=1","next_lot":"report_ingest_then_ready_proof","updated_at":"2026-08-17T13:45:44+02:00","active_defect_lots":[]},
+    {"zone_id":"bourse","maturity":"M3_LABO_LOOK","target_maturity":"M5_JOUABLE_READY","open_reports":[],"last_proof":"main:source-backed surfaces+facade material families","next_lot":"life_minimum","updated_at":"2026-08-17T13:45:44+02:00","active_defect_lots":[]},
+    {"zone_id":"grand_place","maturity":"M3_LABO_LOOK","target_maturity":"M5_JOUABLE_READY","open_reports":[],"last_proof":"main:official LoD2+surface material families","next_lot":"life_minimum","updated_at":"2026-08-17T13:45:44+02:00","active_defect_lots":[]},
+    {"zone_id":"ixelles","maturity":"M2_LABO_STABLE","target_maturity":"M5_JOUABLE_READY","open_reports":[],"last_proof":"catalog:draped intersection direct spawn","next_lot":"midi_material_kit","updated_at":"2026-08-17T13:45:44+02:00","active_defect_lots":[]},
+    {"zone_id":"atomium","maturity":"M2_LABO_STABLE","target_maturity":"M5_JOUABLE_READY","open_reports":[],"last_proof":"catalog:DTM+hero core+reflection environment","next_lot":"midi_equivalent_material_kit","updated_at":"2026-08-17T13:45:44+02:00","active_defect_lots":[]},
+    {"zone_id":"jette","maturity":"M2_LABO_STABLE","target_maturity":"M5_JOUABLE_READY","open_reports":[],"last_proof":"city_machine:G1-G4 deterministic Jette rebuild","next_lot":"midi_material_kit","updated_at":"2026-08-17T13:45:44+02:00","active_defect_lots":[]}
+  ]
+}

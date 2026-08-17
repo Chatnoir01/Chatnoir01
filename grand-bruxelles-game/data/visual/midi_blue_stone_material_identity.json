@@ -2,8 +2,9 @@
   "schema": "grand-bruxelles-material-identity-v1",
   "target": {
     "runtime_node": "MidiHeroZone",
-    "role": "existing source-designated Bruxelles-Midi blue-stone base surfaces",
-    "surface_names": ["StationBaseBlueStone", "BlueStoneBase"]
+    "role": "existing source-designated Bruxelles-Midi blue-stone base surfaces on the surviving authored Fonsny facade articulation",
+    "surface_names": ["BlueStoneBase"],
+    "expected_surface_count": 3
   },
   "material_identity_source": {
     "provider": "urban.brussels / Inventaire du patrimoine architectural",
@@ -17,7 +18,7 @@
   },
   "presentation_contract": {
     "material_identity": "blue_stone",
-    "scope": "existing surfaces already designated blue stone by the Midi hero runtime only",
+    "scope": "existing BlueStoneBase surfaces only; StationBaseBlueStone belonged to the superseded hand-built station envelope and is no longer a valid material target",
     "geometry_changed": false,
     "new_location_specific_placement": false,
     "masonry_joints_authored": false,
@@ -25,7 +26,7 @@
     "exact_rgb_is_photometric_measurement": false,
     "procedural_texture_external_asset": false,
     "runtime_approved": true,
-    "runtime_approval_basis": "Human-reviewed deterministic 1280x720 normal-distance A/B from PR #438; source/placement contract and affected release gates were accepted before production merge.",
+    "runtime_approval_basis": "Human-reviewed deterministic 1280x720 normal-distance A/B from PR #438; source/placement contract and affected release gates were accepted before production merge. This dependency update only removes the deleted envelope surface from the target set.",
     "realism_complete": false
   }
 }

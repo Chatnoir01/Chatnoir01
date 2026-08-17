@@ -20,11 +20,15 @@ func _walk(node: Node, visitor: Callable) -> void:
     for child: Node in node.get_children():
         _walk(child, visitor)
 
-func _hide_ui_and_dynamics(scene: Node) -> void:
+func _hide_ui_and_dynamics(scene: Node, player_to_keep: Node) -> void:
     _walk(scene, func(node: Node) -> void:
         if node is CanvasLayer or node is Control:
             if node is CanvasItem:
                 (node as CanvasItem).visible = false
+        if node != player_to_keep and node is CharacterBody3D:
+            (node as Node3D).visible = false
+            node.set_process(false)
+            node.set_physics_process(false)
         if node.is_in_group("vehicle") and node is Node3D:
             (node as Node3D).visible = false
             node.set_process(false)
@@ -117,11 +121,17 @@ func _run() -> void:
         _fail("no production rail visible candidate")
         return
 
-    _hide_ui_and_dynamics(scene)
+    _hide_ui_and_dynamics(scene, player)
     player.look_at(Vector3(nearest.global_position.x, player.global_position.y, nearest.global_position.z), Vector3.UP)
     camera.current = true
     for _frame: int in range(4):
         await process_frame
+
+    # Freeze the production scene after the legitimate player camera is established.
+    # The material runtime is an autoload and remains directly toggleable, while all
+    # in-scene animation/AI/physics is stopped so only rail presentation may differ.
+    scene.process_mode = Node.PROCESS_MODE_DISABLED
+    await process_frame
 
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
     runtime.set_material_enabled(false)

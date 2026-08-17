@@ -27,12 +27,17 @@ def main() -> int:
     )
     assert result.returncode == 0, result.stderr
     log = result.stdout + result.stderr
-    for family in fp.EXPECTED_FAMILIES:
-        assert family in log, family
-    assert "CITY_MACHINE_FAMILY SKIP finish_materials status=missing" in log
-    assert "CITY_MACHINE_FAMILY SKIP life status=disabled" in log
+    markers = [
+        "CITY_MACHINE_FAMILY START geometry zone=jette",
+        "CITY_MACHINE_FAMILY START osm_environment zone=jette",
+        "CITY_MACHINE_FAMILY SKIP finish_materials status=missing",
+        "CITY_MACHINE_FAMILY SKIP life status=disabled",
+        "CITY_MACHINE_FAMILY START proof zone=jette",
+    ]
+    positions = [log.index(marker) for marker in markers]
+    assert positions == sorted(positions), positions
     assert "CITY_MACHINE_LAYER SKIP facade_candidate_pipeline" in log
-    assert "promotion=false" in log
+    assert "CITY_MACHINE_FINISH_END zone=jette result=LABO_DATA_READY promotion=false" in log
 
     bad = subprocess.run(
         [sys.executable, str(fp.HERE / "finish_pipeline.py"), "build", "--zone", "midi", "--dry-run"],
@@ -43,7 +48,7 @@ def main() -> int:
     assert bad.returncode != 0
     assert "pilot locked to jette" in bad.stderr
 
-    print("CITY_MACHINE_FINISH_TESTS_OK pilot=jette families=5 skips_visible=true fail_closed=true auto_jouable=false")
+    print("CITY_MACHINE_FINISH_TESTS_OK pilot=jette strict_order=true skips_visible=true fail_closed=true auto_jouable=false")
     return 0
 
 

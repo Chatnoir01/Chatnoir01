@@ -12,7 +12,6 @@ const EXPECTED_RENDER_TRIANGLES := 213
 const LOD2_HEIGHT_M := 30.387
 const FRONT_A := Vector2(333.6538, -584.4909)
 const FRONT_B := Vector2(361.3908, -565.5639)
-const FRONT_EAVES_M := 19.617
 
 var geometry_loaded := false
 var render_triangle_count := 0
@@ -41,12 +40,12 @@ func _build_when_ready() -> void:
     add_child(_candidate_root)
     _mask_replaced_osm(source_bounds)
     var center := _building_center(faces)
-    render_triangle_count = _build_surface(faces, "WALLSURFACE", _wall_material(), center, false)
+    render_triangle_count = _build_surface(faces, "WALLSURFACE", _wall_material(), center, true)
     render_triangle_count += _build_surface(faces, "ROOFSURFACE", _roof_material(), center, false)
+    render_triangle_count += _build_front_surface(faces, center)
     if render_triangle_count != EXPECTED_RENDER_TRIANGLES:
         push_error("Maison du Roi render triangle contract drifted: %d" % render_triangle_count)
         return
-    _build_front_surface(faces, center)
     geometry_loaded = true
     set_meta("building_id", BUILDING_ID)
     set_meta("source_face_id", FRONT_FACE_ID)
@@ -73,36 +72,26 @@ func _read_geometry() -> Dictionary:
     var data := parsed as Dictionary
     var source := data.get("source", {}) as Dictionary
     var evidence := data.get("evidence", {}) as Dictionary
-    if str(data.get("schema", "")) != "grand-bruxelles-urbis-context-mesh-v1":
-        return {}
-    if str(source.get("building_2d_id", "")) != BUILDING_ID:
-        return {}
-    if str(source.get("package_sha256", "")) != PACKAGE_SHA:
-        return {}
-    if str(source.get("crs", "")) != "EPSG:31370" or str(source.get("license", "")) != "CC0-1.0":
-        return {}
-    if int(evidence.get("face_count", 0)) != EXPECTED_SOURCE_FACES or int(evidence.get("triangle_count", 0)) != EXPECTED_SOURCE_TRIANGLES:
-        return {}
-    if absf(float(evidence.get("height_m", 0.0)) - LOD2_HEIGHT_M) > 0.001:
-        return {}
-    if bool(data.get("runtime_approved", true)):
-        return {}
+    if str(data.get("schema", "")) != "grand-bruxelles-urbis-context-mesh-v1": return {}
+    if str(source.get("building_2d_id", "")) != BUILDING_ID: return {}
+    if str(source.get("package_sha256", "")) != PACKAGE_SHA: return {}
+    if str(source.get("crs", "")) != "EPSG:31370" or str(source.get("license", "")) != "CC0-1.0": return {}
+    if int(evidence.get("face_count", 0)) != EXPECTED_SOURCE_FACES or int(evidence.get("triangle_count", 0)) != EXPECTED_SOURCE_TRIANGLES: return {}
+    if absf(float(evidence.get("height_m", 0.0)) - LOD2_HEIGHT_M) > 0.001: return {}
+    if bool(data.get("runtime_approved", true)): return {}
     return data
 
 func _point(raw: Variant) -> Vector3:
-    if typeof(raw) != TYPE_ARRAY or raw.size() != 3:
-        return Vector3.INF
+    if typeof(raw) != TYPE_ARRAY or raw.size() != 3: return Vector3.INF
     return Vector3(float(raw[0]), float(raw[1]), float(raw[2]))
 
 func _building_center(faces: Array) -> Vector3:
     var total := Vector3.ZERO
     var count := 0
     for raw_face: Variant in faces:
-        if typeof(raw_face) != TYPE_DICTIONARY:
-            continue
+        if typeof(raw_face) != TYPE_DICTIONARY: continue
         for raw_triangle: Variant in raw_face.get("triangles", []):
-            if typeof(raw_triangle) != TYPE_ARRAY:
-                continue
+            if typeof(raw_triangle) != TYPE_ARRAY: continue
             for raw_point: Variant in raw_triangle:
                 var p := _point(raw_point)
                 if p.is_finite():
@@ -115,15 +104,12 @@ func _horizontal_bounds(faces: Array) -> Rect2:
     var lo := Vector2.ZERO
     var hi := Vector2.ZERO
     for raw_face: Variant in faces:
-        if typeof(raw_face) != TYPE_DICTIONARY:
-            continue
+        if typeof(raw_face) != TYPE_DICTIONARY: continue
         for raw_triangle: Variant in raw_face.get("triangles", []):
-            if typeof(raw_triangle) != TYPE_ARRAY:
-                continue
+            if typeof(raw_triangle) != TYPE_ARRAY: continue
             for raw_point: Variant in raw_triangle:
                 var p := _point(raw_point)
-                if not p.is_finite():
-                    continue
+                if not p.is_finite(): continue
                 var xz := Vector2(p.x, p.z)
                 if first:
                     lo = xz
@@ -165,13 +151,10 @@ func _build_surface(faces: Array, face_type: String, material: Material, center:
     tool.set_material(material)
     var count := 0
     for raw_face: Variant in faces:
-        if typeof(raw_face) != TYPE_DICTIONARY or str(raw_face.get("type", "")) != face_type:
-            continue
-        if skip_front and str(raw_face.get("id", "")) == FRONT_FACE_ID:
-            continue
+        if typeof(raw_face) != TYPE_DICTIONARY or str(raw_face.get("type", "")) != face_type: continue
+        if skip_front and str(raw_face.get("id", "")) == FRONT_FACE_ID: continue
         for raw_triangle: Variant in raw_face.get("triangles", []):
-            if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
-                continue
+            if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3: continue
             _append_triangle(tool, _point(raw_triangle[0]), _point(raw_triangle[1]), _point(raw_triangle[2]), face_type, center)
             count += 1
     var mesh := tool.commit()
@@ -180,32 +163,30 @@ func _build_surface(faces: Array, face_type: String, material: Material, center:
         instance.name = "MaisonDuRoi_%s" % face_type
         instance.mesh = mesh
         _candidate_root.add_child(instance)
-        if face_type == "WALLSURFACE":
-            instance.create_trimesh_collision()
+        if face_type == "WALLSURFACE": instance.create_trimesh_collision()
     return count
 
-func _build_front_surface(faces: Array, center: Vector3) -> void:
+func _build_front_surface(faces: Array, center: Vector3) -> int:
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     tool.set_material(_front_material())
-    var found := false
+    var count := 0
     for raw_face: Variant in faces:
-        if typeof(raw_face) != TYPE_DICTIONARY or str(raw_face.get("id", "")) != FRONT_FACE_ID:
-            continue
-        found = true
+        if typeof(raw_face) != TYPE_DICTIONARY or str(raw_face.get("id", "")) != FRONT_FACE_ID: continue
         for raw_triangle: Variant in raw_face.get("triangles", []):
-            if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
-                continue
+            if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3: continue
             _append_triangle(tool, _point(raw_triangle[0]), _point(raw_triangle[1]), _point(raw_triangle[2]), "WALLSURFACE", center)
-    if not found:
+            count += 1
+    if count == 0:
         push_error("Maison du Roi exact front wall missing")
-        return
+        return 0
     var mesh := tool.commit()
     if mesh != null and mesh.get_surface_count() > 0:
         var instance := MeshInstance3D.new()
         instance.name = "MaisonDuRoi_ExactFrontRhythm"
         instance.mesh = mesh
         _candidate_root.add_child(instance)
+    return count
 
 func _wall_material() -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
@@ -226,7 +207,7 @@ func _roof_material() -> StandardMaterial3D:
 func _front_material() -> ShaderMaterial:
     var tangent := (FRONT_B-FRONT_A).normalized()
     var shader := Shader.new()
-    shader.code = "shader_type spatial; render_mode diffuse_burley,specular_schlick_ggx,cull_back; uniform vec2 origin; uniform vec2 tangent; uniform float span; varying vec3 p; void vertex(){p=VERTEX;} void fragment(){float u=dot(p.xz-origin,tangent)/span; float bay_phase=abs(fract(u*9.0+0.5)-0.5); float level_phase=abs(fract(clamp(p.y/19.617,0.0,1.0)*3.0)-0.5); float bay=1.0-smoothstep(0.04,0.09,bay_phase); float level=1.0-smoothstep(0.025,0.07,level_phase); float rhythm=max(bay,level); ALBEDO=mix(vec3(0.44,0.33,0.25),vec3(0.76,0.72,0.64),rhythm*0.82); ROUGHNESS=mix(0.92,0.76,rhythm); }"
+    shader.code = "shader_type spatial; render_mode diffuse_burley,specular_schlick_ggx,cull_back; uniform vec2 origin; uniform vec2 tangent; uniform float span; varying vec3 p; void vertex(){p=VERTEX;} void fragment(){float u=dot(p.xz-origin,tangent)/span; float bp=abs(fract(u*9.0+0.5)-0.5); float vp=abs(fract(clamp(p.y/19.617,0.0,1.0)*3.0)-0.5); float bay=1.0-smoothstep(0.04,0.09,bp); float level=1.0-smoothstep(0.025,0.07,vp); float rhythm=max(bay,level); ALBEDO=mix(vec3(0.44,0.33,0.25),vec3(0.76,0.72,0.64),rhythm*0.82); ROUGHNESS=mix(0.92,0.76,rhythm); }"
     var material := ShaderMaterial.new()
     material.shader = shader
     material.set_shader_parameter("origin", FRONT_A)
@@ -241,33 +222,26 @@ func _front_material() -> ShaderMaterial:
 func _mask_replaced_osm(bounds: Rect2) -> void:
     var main := get_tree().current_scene
     var buildings := main.get_node_or_null("BrusselsOSM/GeneratedBuildings") if main != null else null
-    if buildings == null or bounds.size.length_squared() <= 0.001:
-        return
+    if buildings == null or bounds.size.length_squared() <= 0.001: return
     var expanded := bounds.grow(3.0)
     for child: Node in buildings.get_children():
-        if not child is Node3D:
-            continue
+        if not child is Node3D: continue
         var node := child as Node3D
-        if not expanded.has_point(Vector2(node.global_position.x, node.global_position.z)):
-            continue
+        if not expanded.has_point(Vector2(node.global_position.x, node.global_position.z)): continue
         _masked_nodes.append(node)
         _masked_visibility.append(node.visible)
         node.visible = false
         node.set_meta("replaced_by_urbis_building", "1654360")
-        if node is CSGShape3D:
-            (node as CSGShape3D).use_collision = false
+        if node is CSGShape3D: (node as CSGShape3D).use_collision = false
         masked_osm_count += 1
 
 func set_candidate_visible(enabled: bool) -> void:
-    if _candidate_root != null:
-        _candidate_root.visible = enabled
+    if _candidate_root != null: _candidate_root.visible = enabled
     for i: int in range(_masked_nodes.size()):
         var node := _masked_nodes[i]
-        if not is_instance_valid(node):
-            continue
+        if not is_instance_valid(node): continue
         node.visible = false if enabled else _masked_visibility[i]
-        if node is CSGShape3D:
-            (node as CSGShape3D).use_collision = not enabled
+        if node is CSGShape3D: (node as CSGShape3D).use_collision = not enabled
 
 func candidate_visible() -> bool:
     return _candidate_root != null and _candidate_root.visible

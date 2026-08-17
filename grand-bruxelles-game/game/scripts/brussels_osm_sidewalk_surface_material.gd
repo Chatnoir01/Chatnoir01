@@ -17,16 +17,16 @@ static func _shader() -> Shader:
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
-uniform vec4 dark_color : source_color = vec4(0.315, 0.305, 0.285, 1.0);
-uniform vec4 light_color : source_color = vec4(0.455, 0.442, 0.410, 1.0);
+uniform vec4 dark_color : source_color = vec4(0.325, 0.316, 0.297, 1.0);
+uniform vec4 light_color : source_color = vec4(0.438, 0.426, 0.400, 1.0);
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.93;
 
 varying vec3 world_pos;
 
 float hash21(vec2 p) {
-    p = fract(p * vec2(127.1, 311.7));
-    p += dot(p, p + 19.19);
-    return fract(p.x * p.y);
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
 }
 
 float value_noise(vec2 p) {
@@ -40,20 +40,31 @@ float value_noise(vec2 p) {
     return mix(mix(a, b, smooth_local.x), mix(c, d, smooth_local.x), smooth_local.y);
 }
 
+vec2 rotate2(vec2 p, float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    return mat2(vec2(c, s), vec2(-s, c)) * p;
+}
+
 void vertex() {
     world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
 void fragment() {
     vec2 xz = world_pos.xz;
-    float broad = value_noise(xz * 0.11 + vec2(5.0, 29.0));
-    float medium = value_noise(xz * 0.48 + vec2(37.0, 13.0));
-    float fine = value_noise(xz * 1.35 + vec2(73.0, 47.0));
-    float authored_tone = clamp(broad * 0.58 + medium * 0.30 + fine * 0.12, 0.0, 1.0);
+    vec2 p0 = rotate2(xz, 0.61);
+    vec2 warp = vec2(
+        value_noise(rotate2(xz, -0.37) * 0.055 + vec2(19.0, 7.0)),
+        value_noise(rotate2(xz, 0.83) * 0.061 + vec2(3.0, 31.0))
+    ) - vec2(0.5);
+    vec2 warped = p0 + warp * 4.3;
+    float broad = value_noise(warped * 0.075 + vec2(11.0, 23.0));
+    float secondary = value_noise(rotate2(warped, -0.92) * 0.145 + vec2(41.0, 5.0));
+    float authored_tone = clamp(broad * 0.72 + secondary * 0.28, 0.0, 1.0);
     ALBEDO = mix(dark_color.rgb, light_color.rgb, authored_tone);
-    ROUGHNESS = clamp(base_roughness + (0.5 - authored_tone) * 0.045, 0.86, 0.99);
+    ROUGHNESS = clamp(base_roughness + (0.5 - authored_tone) * 0.032, 0.88, 0.98);
     METALLIC = 0.0;
-    SPECULAR = 0.13;
+    SPECULAR = 0.12;
 }
 """
     return shader
@@ -61,8 +72,8 @@ void fragment() {
 static func create_material() -> ShaderMaterial:
     var material := ShaderMaterial.new()
     material.shader = _shader()
-    material.set_shader_parameter("dark_color", Color(0.315, 0.305, 0.285, 1.0))
-    material.set_shader_parameter("light_color", Color(0.455, 0.442, 0.410, 1.0))
+    material.set_shader_parameter("dark_color", Color(0.325, 0.316, 0.297, 1.0))
+    material.set_shader_parameter("light_color", Color(0.438, 0.426, 0.400, 1.0))
     material.set_shader_parameter("base_roughness", 0.93)
     material.set_meta("material_family", MATERIAL_FAMILY)
     material.set_meta("source_label", SOURCE_LABEL)

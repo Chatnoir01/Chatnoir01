@@ -2,12 +2,12 @@ extends Node
 
 ## Shared presentation-only pass for generic OSM roofs already built by BrusselsOSM.
 ## Geometry, placement, depth, collision and source height remain owned by the
-## existing city builder. This runtime swaps only the roof material and can restore
-## the exact original material for deterministic same-run A/B evidence.
+## existing city builder. CSG material_override is used so the presentation swap
+## is immediate without rebuilding or mutating the builder-owned roof material.
 
 var _enhanced_material: ShaderMaterial
 var _enhanced_enabled := true
-var _original_materials: Dictionary = {}
+var _original_overrides: Dictionary = {}
 var _known_roofs: Dictionary = {}
 
 func _ready() -> void:
@@ -43,19 +43,20 @@ func _apply_to_root(root: Node) -> void:
             continue
         var roof := child as CSGPolygon3D
         var key := roof.get_instance_id()
-        if not _original_materials.has(key):
-            _original_materials[key] = roof.material
+        if not _original_overrides.has(key):
+            _original_overrides[key] = roof.material_override
             _known_roofs[key] = roof
             added += 1
         roof.set_meta("generic_osm_roof", true)
         roof.set_meta("geometry_unchanged", true)
+        roof.set_meta("builder_material_unchanged", true)
         roof.set_meta("material_family", BrusselsOsmRoofSurfaceMaterial.MATERIAL_FAMILY)
         roof.set_meta("source", BrusselsOsmRoofSurfaceMaterial.SOURCE)
         roof.set_meta("license", BrusselsOsmRoofSurfaceMaterial.LICENSE)
-        roof.material = _enhanced_material if _enhanced_enabled else _original_materials[key]
+        roof.material_override = _enhanced_material if _enhanced_enabled else _original_overrides[key]
     _prune_dead_roofs()
     if added > 0:
-        print("BRUSSELS_OSM_ROOF_SURFACE_READY: roofs=%d family=%s source=OSM license=ODbL-1.0 geometry_changed=false" % [_live_roof_count(), BrusselsOsmRoofSurfaceMaterial.MATERIAL_FAMILY])
+        print("BRUSSELS_OSM_ROOF_SURFACE_READY: roofs=%d family=%s source=OSM license=ODbL-1.0 geometry_changed=false builder_material_changed=false" % [_live_roof_count(), BrusselsOsmRoofSurfaceMaterial.MATERIAL_FAMILY])
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled
@@ -64,7 +65,7 @@ func set_enhanced_enabled(enabled: bool) -> void:
         var roof := _known_roofs[key] as CSGPolygon3D
         if roof == null or not is_instance_valid(roof):
             continue
-        roof.material = _enhanced_material if enabled else _original_materials.get(key, roof.material)
+        roof.material_override = _enhanced_material if enabled else _original_overrides.get(key)
 
 func enhanced_enabled() -> bool:
     return _enhanced_enabled
@@ -86,4 +87,4 @@ func _prune_dead_roofs() -> void:
         var roof := _known_roofs[key] as CSGPolygon3D
         if roof == null or not is_instance_valid(roof):
             _known_roofs.erase(key)
-            _original_materials.erase(key)
+            _original_overrides.erase(key)

@@ -27,6 +27,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 # Dedicated exact-head structural + legitimate player-eye A/B gate.
 jobs:
@@ -80,3 +82,17 @@ jobs:
             grand-bruxelles-game/artifacts/visual/sidewalk_edge_before.png
             grand-bruxelles-game/artifacts/visual/sidewalk_edge_after.png
           if-no-files-found: error
+      - name: Publish witness locator and metrics
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          METRICS="$(grep 'BRUSSELS_SIDEWALK_EDGE_VISUAL_METRICS' /tmp/sidewalk-edge-witness.log 2>/dev/null | tail -1 || true)"
+          VERDICT="$(grep -E 'BRUSSELS_SIDEWALK_EDGE_VISUAL_(OK|FAIL)' /tmp/sidewalk-edge-witness.log 2>/dev/null | tail -1 || true)"
+          BODY=$(printf 'SIDEWALK_EDGE_WITNESS_RUN\nrun_id=%s\nhead_sha=%s\nmetrics=%s\nverdict=%s\nartifact=brussels-sidewalk-edge-ab' "$RUN_ID" "$HEAD_SHA" "$METRICS" "$VERDICT")
+          gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body "$BODY"

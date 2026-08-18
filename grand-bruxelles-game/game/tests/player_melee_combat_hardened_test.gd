@@ -37,7 +37,6 @@ func _run() -> void:
 
     var expected_moves: Array[StringName] = [&"jab_left", &"cross_right", &"hook_left", &"front_kick_right"]
     var sides: Dictionary = {}
-    var previous_stagger := 0
     for move_id: StringName in expected_moves:
         var profile := HARDENED.melee_reaction_profile(move_id)
         if profile.is_empty():
@@ -49,7 +48,6 @@ func _run() -> void:
         var stagger_ms := int(profile.get("stagger_ms", 0))
         if stagger_ms < 250 or stagger_ms > 800:
             _fail("stagger outside playable bounds for %s" % move_id); return
-        previous_stagger = stagger_ms
     if sides.size() < 3:
         _fail("melee reactions must distinguish left/right/center directions"); return
 
@@ -61,5 +59,10 @@ func _run() -> void:
     if source.find("combat_guard_started_ms") < 0:
         _fail("guard start timestamp required for perfect guard window"); return
 
-    print("PLAYER_MELEE_HARDENED_OK: evade=0 parry=0 block=2 open=8 telegraph_ms=%d directional_profiles=4" % HARDENED.COUNTER_TELEGRAPH_MS)
+    var project_text := FileAccess.get_file_as_string("res://project.godot")
+    var expected_autoload := "PlayerMeleeCombatRuntime=\"*res://game/scripts/player_melee_combat_hardened_runtime.gd\""
+    if project_text.find(expected_autoload) < 0:
+        _fail("project must activate the hardened melee runtime"); return
+
+    print("PLAYER_MELEE_HARDENED_OK: evade=0 parry=0 block=2 open=8 telegraph_ms=%d directional_profiles=4 autoload=green" % HARDENED.COUNTER_TELEGRAPH_MS)
     quit(0)

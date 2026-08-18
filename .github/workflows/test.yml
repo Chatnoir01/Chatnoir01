@@ -3,7 +3,13 @@ name: test
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "grand-bruxelles-game/docs/**"
+      - "**/*.md"
   pull_request:
+    paths-ignore:
+      - "grand-bruxelles-game/docs/**"
+      - "**/*.md"
 
 permissions:
   contents: read

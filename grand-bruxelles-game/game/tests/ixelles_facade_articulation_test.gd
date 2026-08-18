@@ -4,6 +4,7 @@ const MAIN_SCENE := preload("res://game/main.tscn")
 const EXPECTED_FAMILY := "ixelles_source_facade_articulation_v1"
 const EXPECTED_BUILDINGS := 260
 const EXPECTED_PALETTE_PROFILES := 3
+const MIN_STREAMED_CONTEXT_CELLS := 2
 const STASSART_124_BUILDING_ID := "https://databrussels.be/id/building/1737877"
 
 func _initialize() -> void:
@@ -57,6 +58,10 @@ func _run() -> void:
         return
     if not _expect(int(facade.get("palette_profiles", 0)) == EXPECTED_PALETTE_PROFILES, "facade palette profile count drifted"):
         return
+    if not _expect(int(facade.get("streamed_context_cells", 0)) >= MIN_STREAMED_CONTEXT_CELLS, "visible streamed Ixelles context facades were not articulated"):
+        return
+    if not _expect(not bool(facade.get("streamed_context_geometry_added", true)), "streamed facade treatment added geometry"):
+        return
 
     var buildings_root := slice.get_node_or_null("StrongSourceBackedIxellesBuildings")
     if not _expect(buildings_root != null, "source-backed Ixelles building root missing"):
@@ -85,5 +90,5 @@ func _run() -> void:
     if not _expect(str(stassart.get_meta("source_building_id", "")) == STASSART_124_BUILDING_ID, "Stassart 124 source identity drifted"):
         return
 
-    print("IXELLES_FACADE_ARTICULATION_OK: zone=ixelles status=LABO buildings=%d palette_profiles=%d family=%s presentation_only=true geometry_changed=false collision_changed=false building_material_claimed=false window_geometry_claimed=false stassart124_preserved=true" % [EXPECTED_BUILDINGS, EXPECTED_PALETTE_PROFILES, EXPECTED_FAMILY])
+    print("IXELLES_FACADE_ARTICULATION_OK: zone=ixelles status=LABO buildings=%d palette_profiles=%d streamed_context_cells>=%d family=%s presentation_only=true geometry_changed=false collision_changed=false building_material_claimed=false window_geometry_claimed=false stassart124_preserved=true" % [EXPECTED_BUILDINGS, EXPECTED_PALETTE_PROFILES, MIN_STREAMED_CONTEXT_CELLS, EXPECTED_FAMILY])
     quit(0)

@@ -1,0 +1,21 @@
+name: Grand Bruxelles Town Hall Left Gallery Face Map
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/grand_place_town_hall_left_gallery_face_map.json'
+      - 'grand-bruxelles-game/data/urbis/grand_place_lod2/1655673.game.json'
+      - 'grand-bruxelles-game/tools/check_town_hall_left_gallery_face_map.py'
+      - '.github/workflows/grand-bruxelles-town-hall-left-gallery-face-map.yml'
+  workflow_dispatch:
+
+jobs:
+  face-map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate exact UrbIS face mapping
+        run: python grand-bruxelles-game/tools/check_town_hall_left_gallery_face_map.py

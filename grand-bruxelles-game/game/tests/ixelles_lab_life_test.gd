@@ -6,6 +6,7 @@ const EXPECTED_AXIS_ID := "https://databrussels.be/id/streetaxe/71374:1"
 const EXPECTED_TARGET_AXIS_ID := "https://databrussels.be/id/streetaxe/71306:2"
 const EXPECTED_CIVILIANS := 8
 const EXPECTED_MOVING_VEHICLES := 2
+const EXPECTED_VISUAL_PROFILE := "profiled_humanoid_v2"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -95,6 +96,26 @@ func _run() -> void:
     for civilian: Node in civilians:
         if not _expect(str(civilian.get_meta("source_surface_type", "")) == "SW" and bool(civilian.get_meta("source_point_inside_official_surface", false)) and bool(civilian.get_meta("source_point_in_direct_spawn_view", false)), "civilian source/view provenance missing"):
             return
+        if not _expect(str(civilian.get_meta("visual_profile", "")) == EXPECTED_VISUAL_PROFILE and bool(civilian.get_meta("shared_humanoid_pipeline", false)), "civilian did not receive shared profiled humanoid visual"):
+            return
+        var proxy := civilian.get_node_or_null("VisualAgent") as NpcAgent
+        if not _expect(proxy != null and not proxy.active, "stationary Ixelles visual NpcAgent proxy missing or active"):
+            return
+        var visual := proxy.get_node_or_null("HumanoidVisual") as Node3D
+        if not _expect(visual != null and visual.get_node_or_null("Torso") != null and visual.get_node_or_null("Head") != null and visual.get_node_or_null("LeftArm") != null and visual.get_node_or_null("RightLeg") != null, "profiled humanoid mesh parts missing"):
+            return
+        if not _expect(str(visual.get_meta("custom_mesh_pipeline", "")) == "array_mesh_profiled_v2", "Ixelles civilian is not using profiled NPC mesh pipeline"):
+            return
+        var visible_legacy := 0
+        for child: Node in civilian.get_children():
+            if child is VisualInstance3D and (child as VisualInstance3D).visible:
+                visible_legacy += 1
+        if not _expect(visible_legacy == 0, "legacy cuboid civilian visual remains visible"):
+            return
+
+    var life_runtime := root.find_child("IxellesLabLifeRuntime", true, false)
+    if not _expect(life_runtime != null and life_runtime.has_method("upgraded_civilian_count") and int(life_runtime.call("upgraded_civilian_count")) == EXPECTED_CIVILIANS, "Ixelles runtime did not upgrade all civilian visuals"):
+        return
 
     var before: Variant = life.call("moving_probe_position") if life.has_method("moving_probe_position") else null
     if not _expect(before is Vector3, "moving vehicle probe unavailable"):
@@ -105,5 +126,5 @@ func _run() -> void:
     if not _expect(after is Vector3 and (after as Vector3).distance_to(before as Vector3) > 0.02, "Ixelles moving vehicle did not move"):
         return
 
-    print("IXELLES_LAB_LIFE_OK: zone=ixelles status=LABO civilians=%d moving=%d vehicle_axis=%s target_axis=%s pedestrian_surface=SW direct_entry=true anchors_in_spawn_view=true geography_expanded=false" % [EXPECTED_CIVILIANS, EXPECTED_MOVING_VEHICLES, EXPECTED_AXIS_ID, EXPECTED_TARGET_AXIS_ID])
+    print("IXELLES_LAB_LIFE_OK: zone=ixelles status=LABO civilians=%d moving=%d vehicle_axis=%s target_axis=%s pedestrian_surface=SW direct_entry=true anchors_in_spawn_view=true humanoid_profile=%s geography_expanded=false" % [EXPECTED_CIVILIANS, EXPECTED_MOVING_VEHICLES, EXPECTED_AXIS_ID, EXPECTED_TARGET_AXIS_ID, EXPECTED_VISUAL_PROFILE])
     quit(0)

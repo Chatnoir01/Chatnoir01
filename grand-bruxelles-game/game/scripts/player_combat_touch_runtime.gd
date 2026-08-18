@@ -4,6 +4,11 @@ extends Node
 # movement controls so combat can evolve without destabilising mobile locomotion.
 
 const WEAPON_CYCLE: Array[StringName] = [&"", &"bx9", &"cbr4", &"sct8"]
+const WEAPON_LABELS: Dictionary = {
+    &"bx9": "BX-9",
+    &"cbr4": "CBR-4",
+    &"sct8": "SCT-8",
+}
 const HOLD_RETRY_MS := 45
 
 var _layer: CanvasLayer = null
@@ -163,10 +168,7 @@ func _refresh_labels(arsenal: Node) -> void:
         _mode_button.text = "ARME"
         return
     var weapon_id := StringName(arsenal.call("equipped_weapon"))
-    var profile_variant: Variant = arsenal.call("weapon_profile", weapon_id)
-    var label := String(weapon_id).to_upper()
-    if profile_variant is Dictionary:
-        label = String((profile_variant as Dictionary).get("label", label))
+    var label := String(WEAPON_LABELS.get(weapon_id, String(weapon_id).to_upper()))
     var ammo_variant: Variant = arsenal.call("ammo_state", weapon_id)
     var mag := 0
     var reserve := 0

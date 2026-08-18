@@ -74,8 +74,14 @@
       "quality": "LABO",
       "mode": "player_method",
       "method": "_activate_ixelles_direct_spawn",
+      "life_script": "res://game/scripts/ixelles_lab_life.gd",
+      "life_minimum": {
+        "civilians": 1,
+        "moving_vehicles": 1
+      },
       "requires": [
-        "res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd"
+        "res://game/zones/ixelles/ixelles_microslice_draped_intersection.gd",
+        "res://game/scripts/ixelles_lab_life.gd"
       ]
     },
     {

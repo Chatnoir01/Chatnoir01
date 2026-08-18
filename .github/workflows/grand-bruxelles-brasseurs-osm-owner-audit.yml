@@ -1,0 +1,27 @@
+name: Grand Bruxelles Brasseurs OSM Owner Audit
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-brasseurs-osm-owner-audit.yml"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/tools/audit_brasseurs_osm_owner.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  owner-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Identify generic OSM owner nearest official Brasseurs wall
+        run: python3 grand-bruxelles-game/tools/audit_brasseurs_osm_owner.py
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brasseurs-osm-owner-audit
+          path: grand-bruxelles-game/artifacts/qa/brasseurs_osm_owner_audit.json
+          if-no-files-found: error

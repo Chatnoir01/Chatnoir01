@@ -8,6 +8,10 @@ extends RefCounted
 
 const FAMILY := "ixelles_authored_facade_depth_v1"
 const ROOT_NAME := "IxellesAuthoredFacadeDepth"
+const STASSART_124_BUILDING_ID := "https://databrussels.be/id/building/1737877"
+const PRESERVE_IDENTITY_BUILDING_IDS := {
+    STASSART_124_BUILDING_ID: true,
+}
 const MAX_RECESS_PANELS_PER_TARGET := 4200
 const MIN_EDGE_LENGTH_M := 3.4
 const EDGE_MARGIN_M := 0.55
@@ -182,22 +186,27 @@ static func build_from_contract(
             "headers": int(existing.get_meta("headers", 0)),
             "jambs": int(existing.get_meta("jambs", 0)),
             "source_buildings": int(existing.get_meta("source_buildings", 0)),
+            "identity_buildings_excluded": int(existing.get_meta("identity_buildings_excluded", 0)),
         }
 
     var heights := _eligible_heights(height_contract)
     var buildings: Variant = cell_contract.get("buildings", [])
     if not buildings is Array or heights.is_empty():
-        return {"panels": 0, "headers": 0, "jambs": 0, "source_buildings": 0}
+        return {"panels": 0, "headers": 0, "jambs": 0, "source_buildings": 0, "identity_buildings_excluded": 0}
 
     var panels: Array[Transform3D] = []
     var headers: Array[Transform3D] = []
     var jambs: Array[Transform3D] = []
     var source_buildings := 0
+    var identity_buildings_excluded := 0
     for feature: Variant in buildings:
         if not feature is Dictionary:
             continue
         var building_id := str(feature.get("id", ""))
         if not heights.has(building_id):
+            continue
+        if PRESERVE_IDENTITY_BUILDING_IDS.has(building_id):
+            identity_buildings_excluded += 1
             continue
         var ring := _ring(feature.get("footprint", []))
         if ring.size() < 3:
@@ -208,7 +217,7 @@ static func build_from_contract(
             break
 
     if panels.is_empty():
-        return {"panels": 0, "headers": 0, "jambs": 0, "source_buildings": source_buildings}
+        return {"panels": 0, "headers": 0, "jambs": 0, "source_buildings": source_buildings, "identity_buildings_excluded": identity_buildings_excluded}
 
     var root := Node3D.new()
     root.name = ROOT_NAME
@@ -227,6 +236,8 @@ static func build_from_contract(
     root.set_meta("headers", headers.size())
     root.set_meta("jambs", jambs.size())
     root.set_meta("source_buildings", source_buildings)
+    root.set_meta("identity_buildings_excluded", identity_buildings_excluded)
+    root.set_meta("stassart_124_identity_preserved", true)
 
     var panel_material := _material(Color(0.065, 0.105, 0.125, 1.0), 0.42, 0.08)
     var frame_material := _material(Color(0.43, 0.395, 0.35, 1.0), 0.84, 0.02)
@@ -240,4 +251,5 @@ static func build_from_contract(
         "headers": headers.size(),
         "jambs": jambs.size(),
         "source_buildings": source_buildings,
+        "identity_buildings_excluded": identity_buildings_excluded,
     }

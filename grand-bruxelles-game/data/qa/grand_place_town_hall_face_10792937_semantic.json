@@ -1,0 +1,88 @@
+{
+  "schema": "grand-bruxelles-town-hall-face-semantic-audit-v1",
+  "status": "evidence_only",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "face_id": "https://databrussels.be/id/buildingface/10792937",
+    "official_geometry_path": "data/urbis/grand_place_lod2/1655673.game.json",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "license": "CC0-1.0"
+  },
+  "known_topology": {
+    "already_treated_gallery_face": "10798452",
+    "intervening_return_face": "10792936",
+    "next_corner_face": "10832750",
+    "expected_target_triangle_count": 2,
+    "expected_target_vertical_range_m": [0.0, 23.712],
+    "expected_target_horizontal_span_m": 3.1863123,
+    "expected_return_span_m": 2.3500281,
+    "expected_parallel_dot_with_10798452": 0.999993,
+    "expected_perpendicular_abs_dot_with_return": 0.0028,
+    "expected_centroid_distance_from_building_east_bbox_m": 1.0095
+  },
+  "heritage_sources": {
+    "urban_31125": {
+      "provider": "urban.brussels / Inventaire du patrimoine architectural",
+      "record": "Hôtel de ville, Grand-Place 8, 31125",
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+      "accessed_at": "2026-08-18",
+      "facts_used": [
+        "The Gothic east wing fronts the Grand-Place and has a return along rue Charles Buls.",
+        "The main facade of the east wing was restored in 1860-1867, including Jamaer's reconstruction of the gallery and perron.",
+        "The north-east corner turret was partly reconstructed in 1869-1871.",
+        "The east lateral facade was renewed in 1883-1893."
+      ],
+      "semantic_limit": "These facts identify the east-wing/corner context but do not by themselves prove whether UrbIS face 10792937 is a turret, pavilion, portal, stair bay, buttress or another architectural motif."
+    },
+    "kcml_b1499_candidate": {
+      "provider": "Agentschap Onroerend Erfgoed / KCML Beeldbank",
+      "image_id": 431679,
+      "archive_number": "B1499",
+      "url": "https://beeldbank.onroerenderfgoed.be/images/431679",
+      "title_scope": "Hôtel de Ville de Bruxelles. Galerie vers la grande place à droite de la tour - Etat actuel",
+      "plan_type": "gallery plan",
+      "sheet_mm": [1620, 529],
+      "scale": "1/20",
+      "designer": "Pierre Victor Jamaer",
+      "date": "1867-02-28",
+      "license": "Public Domain Mark 1.0",
+      "status": "candidate_for_future_raster_registration",
+      "used_for_dimensions_now": false
+    },
+    "kcml_b1501_candidate": {
+      "provider": "Agentschap Onroerend Erfgoed / KCML Beeldbank",
+      "image_id": 431747,
+      "archive_number": "B1501",
+      "url": "https://beeldbank.onroerenderfgoed.be/images/431747",
+      "title_scope": "Hôtel de Ville de Bruxelles. Galerie vers la grande place à droite de la tour - Etat actuel",
+      "plan_type": "gallery plan",
+      "sheet_mm": [1564, 471],
+      "scale": "1/20",
+      "designer": "Pierre Victor Jamaer",
+      "date": "1867-02-28",
+      "license": "Public Domain Mark 1.0",
+      "status": "candidate_for_future_raster_registration",
+      "used_for_dimensions_now": false
+    }
+  },
+  "decision_policy": {
+    "coarse_spatial_identity_allowed": "east-end stepped/projection zone of the east wing at the Grand-Place to rue Charles Buls transition",
+    "exact_architectural_identity_resolved": false,
+    "next_step": "acquire_and_register_B1499_B1501_plan_rasters_against_UrbIS_corner_footprint",
+    "implementation_authorized": false,
+    "reuse_783_dimensions": false,
+    "portal_depth_authorized": false,
+    "tower_detail_authorized": false,
+    "turret_detail_authorized": false,
+    "statuary_authorized": false,
+    "openings_authorized": false
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "camera_changed": false,
+    "source_vertices_changed": false,
+    "exact_identity_claim_without_plan_registration": false,
+    "realism_complete": false
+  }
+}

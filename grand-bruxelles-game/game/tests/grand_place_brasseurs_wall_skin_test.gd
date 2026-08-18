@@ -170,7 +170,7 @@ func _run() -> void:
         _fail("runtime must emit exactly three triangles / nine vertices")
         return
     for i: int in range(9):
-        var expected: Vector3 = EXPECTED_TRIANGLES[i / 3][i % 3]
+        var expected: Vector3 = EXPECTED_TRIANGLES[int(i / 3)][i % 3]
         if not _same(emitted[i], expected):
             _fail("runtime official triangle topology/order drifted at emitted vertex %d" % i)
             return

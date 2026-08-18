@@ -23,6 +23,9 @@ func _v3(raw: Variant) -> Vector3:
         return Vector3.INF
     return Vector3(float(raw[0]), float(raw[1]), float(raw[2]))
 
+func _near(actual: float, expected: float, tolerance: float = 0.003) -> bool:
+    return absf(actual - expected) <= tolerance
+
 func _capture(path: String) -> Image:
     for _frame: int in range(8):
         RenderingServer.force_draw()
@@ -73,18 +76,35 @@ func _mask_canvas_tree(node: Node) -> void:
 
 func _run() -> void:
     var contract := _json(CONTRACT_PATH)
-    if contract.is_empty():
-        _fail("contract missing")
+    if contract.is_empty() or str(contract.get("schema", "")) != "grand-bruxelles-town-hall-right-gallery-v2":
+        _fail("corrected source-fidelity contract missing")
         return
     var hard: Dictionary = contract.get("hard_rules", {})
-    for key: String in ["character_npc_changed","shared_environment_changed","citygen_changed","official_geometry_changed","portal_depth_authored","statuary_authored","runtime_approved","realism_complete"]:
+    for key: String in ["character_npc_changed","shared_environment_changed","citygen_changed","official_geometry_changed","portal_depth_authored","statuary_authored","bezier_arch_authored","unsupported_internal_dimensions","runtime_approved","realism_complete"]:
         if bool(hard.get(key, true)):
             _fail("hard rule drift: " + key)
             return
+
     var visual: Dictionary = contract.get("visualization", {})
     if int(visual.get("bay_count", 0)) != 6 or absf(float(visual.get("opening_depth_m", 1.0))) > 0.0001:
         _fail("source-backed six-bay flat-articulation contract drift")
         return
+    if str(visual.get("arch_construction", "")) != "two_circle_source_trace":
+        _fail("unsupported arch construction")
+        return
+    if not _near(float(visual.get("gallery_band_top_m", 0.0)), 4.9611) or not _near(float(visual.get("arch_apex_m", 0.0)), 3.8295) or not _near(float(visual.get("arch_spring_m", 0.0)), 2.5340):
+        _fail("B1500 vertical anchors drifted")
+        return
+    if not _near(float(visual.get("opening_width_m", 0.0)), 1.9922) or not _near(float(visual.get("side_margin_m", 0.0)), 0.3325744573):
+        _fail("B1500 opening-width anchors drifted")
+        return
+    if absf(float(visual.get("base_height_m", 1.0))) > 0.0001:
+        _fail("opening must remain ground-anchored")
+        return
+    if float(visual.get("gallery_band_top_m", 0.0)) - float(visual.get("arch_apex_m", 0.0)) < 0.8:
+        _fail("arch apex incorrectly conflated with gallery-band top")
+        return
+
     var target: Dictionary = contract.get("target", {})
     var geometry := _json(str(target.get("official_geometry_path", "")))
     var source: Dictionary = geometry.get("source", {})
@@ -133,11 +153,20 @@ func _run() -> void:
         return
     _mask_canvas_tree(root)
     if not official.has_method("set_right_gallery_visible") or not official.has_method("right_gallery_contract"):
-        _fail("RED-first witness: right-gallery runtime missing")
+        _fail("corrected right-gallery runtime missing")
         return
     var runtime_contract: Dictionary = official.call("right_gallery_contract") as Dictionary
     if int(runtime_contract.get("bay_count", 0)) != 6 or str(runtime_contract.get("source_face_chain", "")) != "10792525+10798452":
         _fail("runtime source contract mismatch")
+        return
+    if str(runtime_contract.get("arch_construction", "")) != "two_circle_source_trace":
+        _fail("RED-first fidelity witness: runtime still uses unsupported arch construction")
+        return
+    if not _near(float(runtime_contract.get("gallery_band_top_m", 0.0)), 4.9611) or not _near(float(runtime_contract.get("arch_apex_m", 0.0)), 3.8295) or not _near(float(runtime_contract.get("arch_spring_m", 0.0)), 2.5340):
+        _fail("RED-first fidelity witness: runtime vertical anchors still wrong")
+        return
+    if not _near(float(runtime_contract.get("opening_width_m", 0.0)), 1.9922) or absf(float(runtime_contract.get("base_height_m", 1.0))) > 0.0001:
+        _fail("RED-first fidelity witness: runtime opening dimensions still wrong")
         return
 
     official.call("set_right_gallery_visible", false)
@@ -158,7 +187,7 @@ func _run() -> void:
         _fail("bbox visibility gate failed: %s" % metrics)
         return
     var out := FileAccess.open("/tmp/grand-place-town-hall-right-gallery-metrics.json", FileAccess.WRITE)
-    out.store_string(JSON.stringify({"schema":"grand-bruxelles-town-hall-right-gallery-witness-v1","metrics":metrics,"contract":runtime_contract}, "  "))
+    out.store_string(JSON.stringify({"schema":"grand-bruxelles-town-hall-right-gallery-witness-v2","metrics":metrics,"contract":runtime_contract}, "  "))
     out.close()
     print("GRAND_PLACE_TOWN_HALL_RIGHT_GALLERY_OK " + JSON.stringify(metrics))
     quit(0)

@@ -1,12 +1,19 @@
 {
-  "schema": "grand-bruxelles-town-hall-right-gallery-v1",
-  "status": "visual_candidate",
+  "schema": "grand-bruxelles-town-hall-right-gallery-v2",
+  "status": "fidelity_correction_candidate",
   "target": {
     "urbis_building_id": "https://databrussels.be/id/building/1655673",
     "official_geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
     "official_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
-    "face_ids": ["https://databrussels.be/id/buildingface/10792525", "https://databrussels.be/id/buildingface/10798452"],
-    "chain_points": [[292.0918,0.0,-515.2239],[297.4498,0.0,-508.7339],[302.2418,0.0,-502.9279]],
+    "face_ids": [
+      "https://databrussels.be/id/buildingface/10792525",
+      "https://databrussels.be/id/buildingface/10798452"
+    ],
+    "chain_points": [
+      [292.0918, 0.0, -515.2239],
+      [297.4498, 0.0, -508.7339],
+      [302.2418, 0.0, -502.9279]
+    ],
     "official_chain_span_m": 15.9440934873
   },
   "heritage_sources": {
@@ -16,33 +23,60 @@
       "archive_number": "B1500",
       "record_url": "https://beeldbank.onroerenderfgoed.be/images/431760",
       "source_sha256": "94db156fc3f7e8aa97e475a138982f2cb3b7190964bc0ac165cb91465898dd8d",
-      "pixel_dimensions": [12062,7469],
-      "sheet_mm": [1000,602],
+      "pixel_dimensions": [12062, 7469],
+      "sheet_mm": [1000, 602],
       "scale": "1/20",
       "designer": "Pierre Victor Jamaer",
       "date": "1867-02-28",
       "license": "Public Domain Mark 1.0",
       "scope_text": "Galerie vers la grande place à droite de la tour",
+      "sheet_bounds_full_px": [120, 166, 11956, 7369],
+      "horizontal_px_per_sheet_mm": 11.836,
+      "vertical_px_per_sheet_mm": 11.9651162791,
       "elevation_ground_anchor_full_y_px": 5116,
-      "elevation_gallery_top_anchor_full_y_px": 2148,
-      "derived_gallery_band_height_m": 4.785,
-      "measurement_uncertainty_m": 0.30,
-      "measurement_method": "manual image-space anchors on full verified scan; scale converted from stated 602 mm sheet height at 1/20; no depth inferred"
+      "elevation_gallery_band_top_full_y_px": 2148,
+      "elevation_arch_apex_full_y_px": 2825,
+      "elevation_arch_spring_full_y_px": 3600,
+      "opening_inner_left_full_x_px": 8451,
+      "opening_inner_right_full_x_px": 9630,
+      "derived_gallery_band_top_m": 4.9611,
+      "derived_arch_apex_m": 3.8295,
+      "derived_arch_spring_m": 2.5340,
+      "derived_opening_width_m": 1.9922,
+      "vertical_measurement_uncertainty_m": 0.20,
+      "opening_width_uncertainty_m": 0.12,
+      "source_trace_check": {
+        "construction": "two-circle pointed arch from measured spring/apex/opening width",
+        "manual_inner_left_trace_rows_px": [2850, 2900, 3000, 3100, 3200, 3300, 3400, 3500, 3600],
+        "manual_inner_left_trace_x_px": [8933, 8849, 8711, 8608, 8542, 8505, 8465, 8448, 8451],
+        "max_observed_fit_deviation_m": 0.052,
+        "fit_tolerance_m": 0.08
+      },
+      "measurement_method": "manual full-scan anchors calibrated against detected sheet bounds and stated 1000x602 mm sheet at 1/20; x/y calibrated separately; dimensions are visualization bounds, not UrbIS survey geometry"
     },
     "urban_31125": {
       "provider": "urban.brussels / Inventaire du patrimoine architectural",
       "record": "Hôtel de ville, Grand-Place 8, 31125",
       "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
-      "facts_used": ["The ground floor has galleries on either side of the portal under the tower.","The gallery to the right of the portal has six bays.","The gallery openings are pointed arches."]
+      "facts_used": [
+        "The ground floor has galleries on either side of the portal under the tower.",
+        "The gallery to the right of the portal has six bays.",
+        "The gallery openings are pointed arches."
+      ]
     }
   },
   "visualization": {
     "bay_count": 6,
-    "gallery_height_m": 4.785,
-    "spring_height_m": 2.95,
-    "base_height_m": 0.20,
+    "bay_pitch_m": 2.6573489146,
+    "gallery_band_top_m": 4.9611,
+    "arch_apex_m": 3.8295,
+    "arch_spring_m": 2.5340,
+    "opening_width_m": 1.9922,
+    "side_margin_m": 0.3325744573,
+    "base_height_m": 0.0,
+    "arch_construction": "two_circle_source_trace",
     "surface_offset_m": 0.018,
-    "arch_edge_samples": 8,
+    "arch_edge_samples": 16,
     "presentation_only": true,
     "opening_depth_m": 0.0,
     "collision_changed": false,
@@ -56,7 +90,7 @@
     "min_changed_gt3_percent": 0.80,
     "min_changed_gt8_percent": 0.40,
     "min_bbox_width_px": 250,
-    "min_bbox_height_px": 100,
+    "min_bbox_height_px": 80,
     "freeze_dynamic_world": true,
     "human_full_frame_required": true
   },
@@ -68,6 +102,8 @@
     "official_geometry_changed": false,
     "portal_depth_authored": false,
     "statuary_authored": false,
+    "bezier_arch_authored": false,
+    "unsupported_internal_dimensions": false,
     "runtime_approved": false,
     "realism_complete": false
   }

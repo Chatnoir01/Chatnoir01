@@ -22,6 +22,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Install render and image-diff dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+          python3 -m pip install --disable-pip-version-check pillow
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -36,7 +41,7 @@ jobs:
       - name: Assert exact coherent source wall
         run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_brasseurs_wall_skin_test.gd
       - name: Render deterministic current-vs-candidate A/B
-        run: xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --script res://game/tests/grand_place_brasseurs_wall_skin_ab_test.gd
+        run: xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_brasseurs_wall_skin_ab_test.gd
       - name: Enforce frozen visual-impact gate
         run: python3 grand-bruxelles-game/tools/check_brasseurs_wall_skin_ab.py /tmp/brasseurs-wall-before.png /tmp/brasseurs-wall-after.png
       - name: Upload full-frame evidence

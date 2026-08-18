@@ -1,0 +1,39 @@
+name: Grand Bruxelles Town Hall Face 10792937 Semantic Audit
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-face-10792937-semantic.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_town_hall_face_10792937_semantic.json"
+      - "grand-bruxelles-game/tools/audit_town_hall_face_10792937_semantic.py"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/1655673.game.json"
+  push:
+    branches:
+      - "qa/town-hall-face10792937-semantic-*"
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-face-10792937-semantic.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_town_hall_face_10792937_semantic.json"
+      - "grand-bruxelles-game/tools/audit_town_hall_face_10792937_semantic.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit official face topology and semantic bounds
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/audit_town_hall_face_10792937_semantic.py 2>&1 | tee /tmp/face10792937-semantic.log
+          grep -q "TOWN_HALL_FACE_10792937_SEMANTIC_OK" /tmp/face10792937-semantic.log
+      - name: Upload semantic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: town-hall-face-10792937-semantic
+          path: grand-bruxelles-game/artifacts/qa/grand_place_town_hall_face_10792937_semantic.json
+          if-no-files-found: error

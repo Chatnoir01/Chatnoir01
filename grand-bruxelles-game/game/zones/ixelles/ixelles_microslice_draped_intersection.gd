@@ -5,6 +5,13 @@ extends "res://game/zones/ixelles/ixelles_microslice_draped.gd"
 ## Every emitted triangle is contained in one exact official source polygon and one exact
 ## 2 m DTM render triangle, then receives the existing renderer-only 3.5 cm depth bias.
 
+const FACADE_MATERIAL_FACTORY := preload("res://game/scripts/ixelles_source_facade_material.gd")
+const FACADE_ARTICULATION_ENV := "GB_IXELLES_FACADE_ARTICULATION"
+const IXELLES_CONTEXT_SOURCE_PLAN_CELLS := {
+    "bxl-e149000-n169500-s500": true,
+    "bxl-e149500-n169000-s500": true,
+    "bxl-e149500-n169500-s500": true,
+}
 const STASSART_124_BUILDING_ID := "https://databrussels.be/id/building/1737877"
 const STASSART_124_LEVEL_COUNT := 4.0
 const STASSART_124_CUE_ENV := "GB_IXELLES_STASSART124_CUE"
@@ -13,6 +20,22 @@ var street_drape_source_intersection_piece_count := 0
 var street_drape_source_intersection_empty_count := 0
 var street_drape_source_polygon_count := 0
 var stassart_124_blue_stone_cue_built := false
+var facade_articulation_enabled := false
+var facade_material_profile_count := 0
+var facade_streamed_context_cell_count := 0
+var _facade_context_processed: Dictionary = {}
+var _facade_context_scan_frame := 0
+
+func _process(_delta: float) -> void:
+    if not facade_articulation_enabled:
+        return
+    _facade_context_scan_frame += 1
+    if _facade_context_scan_frame <= 16:
+        if _facade_context_scan_frame % 2 != 0:
+            return
+    elif _facade_context_scan_frame % 30 != 0:
+        return
+    _apply_streamed_context_facades()
 
 func _emit_bounded_piece(target: SurfaceTool, bounded_piece: PackedVector2Array) -> void:
     if bounded_piece.size() < 3:
@@ -125,8 +148,105 @@ func _build_street_surfaces() -> void:
 
     print("IXELLES_STREET_DRAPE: surfaces=%d source_polygons=%d source_intersections=%d triangles=%d vertices=%d outside_source=%d unsupported=%d min_clearance=%.5f max_leaf_edge=%.3f max_sampler_render_lift=%.5f" % [street_surface_count, street_drape_source_polygon_count, street_drape_source_intersection_piece_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_unsupported_triangle_count, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_sampler_render_lift_m])
 
+func _apply_facade_articulation() -> void:
+    facade_articulation_enabled = false
+    facade_material_profile_count = 0
+    facade_streamed_context_cell_count = 0
+    _facade_context_processed.clear()
+    if OS.get_environment(FACADE_ARTICULATION_ENV) == "0":
+        print("IXELLES_FACADE_ARTICULATION_DISABLED: geometry_changed=false collision_changed=false")
+        return
+
+    var buildings_root := get_node_or_null("StrongSourceBackedIxellesBuildings")
+    if buildings_root == null:
+        push_error("Ixelles facade articulation: source-backed building root missing")
+        return
+
+    for child: Node in buildings_root.get_children():
+        if not child is MeshInstance3D:
+            continue
+        var instance := child as MeshInstance3D
+        var mesh := instance.mesh as ArrayMesh
+        if mesh == null or mesh.get_surface_count() != 1:
+            push_error("Ixelles facade articulation: unexpected building mesh on %s" % instance.name)
+            return
+        var legacy := mesh.surface_get_material(0)
+        if not legacy is StandardMaterial3D:
+            push_error("Ixelles facade articulation: unsupported legacy material on %s" % instance.name)
+            return
+        var standard := legacy as StandardMaterial3D
+        var material := FACADE_MATERIAL_FACTORY.create_material(standard.albedo_color, standard.roughness, facade_material_profile_count)
+        mesh.surface_set_material(0, material)
+        instance.set_meta("material_family", FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY)
+        instance.set_meta("presentation_only", true)
+        instance.set_meta("geometry_changed_by_ixelles_facade", false)
+        instance.set_meta("collision_changed_by_ixelles_facade", false)
+        facade_material_profile_count += 1
+
+    if facade_material_profile_count != _building_materials.size():
+        push_error("Ixelles facade articulation: palette coverage drifted %d/%d" % [facade_material_profile_count, _building_materials.size()])
+        return
+    facade_articulation_enabled = true
+    _apply_streamed_context_facades()
+    print("IXELLES_FACADE_ARTICULATION_READY: buildings=%d palette_profiles=%d family=%s presentation_only=true geometry_changed=false collision_changed=false material_identity_claimed=false surveyed_windows=false" % [building_count, facade_material_profile_count, FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY])
+
+func _apply_streamed_context_facades() -> void:
+    if not facade_articulation_enabled:
+        return
+    for candidate: Node in get_tree().root.find_children("StreamedCell_*", "", true, false):
+        var context_cell_id := str(candidate.get_meta("streamed_cell_id", ""))
+        if not IXELLES_CONTEXT_SOURCE_PLAN_CELLS.has(context_cell_id):
+            continue
+        var candidate_instance_id := candidate.get_instance_id()
+        if int(_facade_context_processed.get(context_cell_id, 0)) == candidate_instance_id:
+            continue
+        var massing := candidate.get_node_or_null("VisualCandidateBuildingMassing") as MeshInstance3D
+        if massing == null:
+            continue
+        var mesh := massing.mesh as ArrayMesh
+        if mesh == null or mesh.get_surface_count() != 1:
+            continue
+        var current := mesh.surface_get_material(0)
+        if current is ShaderMaterial and str(current.get_meta("material_family", "")) == FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY:
+            _facade_context_processed[context_cell_id] = candidate_instance_id
+            facade_streamed_context_cell_count = _facade_context_processed.size()
+            continue
+        if not current is StandardMaterial3D:
+            push_error("Ixelles facade articulation: unexpected streamed context material %s" % context_cell_id)
+            continue
+        var legacy := current as StandardMaterial3D
+        var cell_seed := absi(context_cell_id.hash()) % 11
+        var articulated := FACADE_MATERIAL_FACTORY.create_material(Color.WHITE, legacy.roughness, cell_seed, true)
+        mesh.surface_set_material(0, articulated)
+        massing.set_meta("material_family", FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY)
+        massing.set_meta("presentation_only", true)
+        massing.set_meta("geometry_changed_by_ixelles_facade", false)
+        massing.set_meta("collision_changed_by_ixelles_facade", false)
+        massing.set_meta("vertex_color_baseline_preserved", true)
+        _facade_context_processed[context_cell_id] = candidate_instance_id
+        facade_streamed_context_cell_count = _facade_context_processed.size()
+        print("IXELLES_FACADE_CONTEXT_READY: cell=%s visual_buildings=%d family=%s vertex_tones_preserved=true geometry_changed=false collision_changed=false" % [context_cell_id, int(candidate.get("rendered_building_count")), FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY])
+
+func facade_presentation_contract() -> Dictionary:
+    return {
+        "material_family": FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY,
+        "enabled": facade_articulation_enabled,
+        "presentation_only": true,
+        "geometry_changed": false,
+        "collision_changed": false,
+        "building_material_claimed": false,
+        "window_geometry_claimed": false,
+        "floor_count_claimed": false,
+        "source_backed_buildings": building_count,
+        "palette_profiles": facade_material_profile_count,
+        "streamed_context_cells": facade_streamed_context_cell_count,
+        "streamed_context_geometry_added": false,
+        "source_cell": cell_id,
+    }
+
 func _build_strong_height_candidate_buildings() -> void:
     super._build_strong_height_candidate_buildings()
+    _apply_facade_articulation()
     if OS.get_environment(STASSART_124_CUE_ENV) == "0":
         return
     _build_stassart_124_blue_stone_ground_floor()

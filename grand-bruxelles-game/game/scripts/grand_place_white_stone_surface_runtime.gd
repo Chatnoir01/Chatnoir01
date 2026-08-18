@@ -1,6 +1,7 @@
 extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_white_stone_material.gd")
+const BRASSEURS_WALL_SKIN_RUNTIME := preload("res://game/scripts/grand_place_brasseurs_wall_skin_runtime.gd")
 
 const TARGETS := [
     {
@@ -30,9 +31,21 @@ var _enabled := true
 var _applied_surface_count := 0
 var _ready_complete := false
 var _identity_failure := false
+var _brasseurs_wall_skin: Node = null
 
 func _ready() -> void:
+    _ensure_brasseurs_wall_skin()
     call_deferred("_apply_when_ready")
+
+func _ensure_brasseurs_wall_skin() -> void:
+    if is_instance_valid(_brasseurs_wall_skin):
+        return
+    _brasseurs_wall_skin = BRASSEURS_WALL_SKIN_RUNTIME.new()
+    _brasseurs_wall_skin.name = "GrandPlaceBrasseursWallSkinRuntime"
+    add_child(_brasseurs_wall_skin)
+
+func brasseurs_wall_skin_runtime() -> Node:
+    return _brasseurs_wall_skin
 
 func _read_identity(path: String, expected_building_id: String) -> Dictionary:
     if not FileAccess.file_exists(path):
@@ -51,9 +64,6 @@ func _read_identity(path: String, expected_building_id: String) -> Dictionary:
         push_error("Grand-Place white-stone runtime: building identity drifted %s" % path)
         _identity_failure = true
         return {}
-    # Existing evidence phrases the scope as "WALLSURFACE only". Accept that
-    # exact wall-only wording (and a future normalized WALLSURFACE value), while
-    # rejecting every other scope so roof/ground surfaces can never inherit it.
     var applies_to := str(contract.get("applies_to", ""))
     if applies_to != "WALLSURFACE" and applies_to != "WALLSURFACE only":
         push_error("Grand-Place white-stone runtime: wall-only contract drifted %s" % path)

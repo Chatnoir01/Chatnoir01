@@ -27,9 +27,12 @@ func _ready() -> void:
 func _apply_production_when_ready() -> void:
     for _attempt: int in range(180):
         await get_tree().process_frame
-        var scene := get_tree().current_scene as Node3D
-        if scene != null and scene.find_child("GeneratedRoads", true, false) != null:
-            bind_scene(scene)
+        var roads_root := get_tree().root.find_child("GeneratedRoads", true, false) as Node3D
+        if roads_root != null:
+            var bind_root := roads_root.get_parent() as Node3D
+            if bind_root == null:
+                bind_root = roads_root
+            bind_scene(bind_root)
             return
     _failed = true
     _ready_complete = true
@@ -78,6 +81,8 @@ func bind_scene(scene: Node3D) -> void:
     _failed = false
     _ready_complete = false
     var roads_root := scene.find_child("GeneratedRoads", true, false) as Node3D
+    if roads_root == null and scene.name == "GeneratedRoads":
+        roads_root = scene
     if roads_root == null:
         _failed = true
         _ready_complete = true

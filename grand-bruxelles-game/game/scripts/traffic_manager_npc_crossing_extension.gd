@@ -1,14 +1,27 @@
 extends "res://game/scripts/traffic_manager_official_density_extension.gd"
 class_name TrafficManagerNpcCrossingExtension
 
+const CIVILIAN_VEHICLE_VISUAL_SCRIPT := preload("res://game/scripts/civilian_vehicle_visual.gd")
+
 @export var pedestrian_gap_reaction_s: float = 0.8
 @export var pedestrian_gap_min_clearance_m: float = 3.2
 @export var pedestrian_gap_max_lookahead_m: float = 22.0
 @export var pedestrian_gap_extra_buffer_m: float = 1.5
 @export var pedestrian_gap_min_closing_speed_mps: float = 0.35
 
+
+func _add_car_visual(vehicle: Node3D) -> void:
+    super._add_car_visual(vehicle)
+    var visual := CIVILIAN_VEHICLE_VISUAL_SCRIPT.new()
+    visual.name = "VisualUpgrade"
+    visual.set("paint_color", MIXED_COLORS[_spawn_serial % MIXED_COLORS.size()])
+    visual.set("body_style", _spawn_serial % 3)
+    vehicle.add_child(visual)
+
+
 func get_npc_crossing_system() -> RefCounted:
     return _crossing_system
+
 
 func is_crossing_gap_safe(crossing_id: int, pedestrian_position: Vector3 = Vector3.ZERO) -> bool:
     if _crossing_system == null or _traffic_root == null:

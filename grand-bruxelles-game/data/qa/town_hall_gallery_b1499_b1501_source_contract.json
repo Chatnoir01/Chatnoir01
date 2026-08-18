@@ -1,0 +1,69 @@
+{
+  "schema": "grand-bruxelles-town-hall-gallery-b1499-b1501-source-v1",
+  "status": "source_acquisition_only",
+  "production_base": "570a7c5c89566e863edf1d7364bf9a401f835619",
+  "target_context": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "target_face_id": "https://databrussels.be/id/buildingface/10792937",
+    "known_corner_chain": ["10798452", "10792936", "10792937", "10832750"],
+    "coarse_identity_only": "east-end stepped/projection zone of the east wing at the Grand-Place to rue Charles Buls transition",
+    "exact_architectural_identity_resolved": false
+  },
+  "archive_sources": [
+    {
+      "provider": "Agentschap Onroerend Erfgoed / KCML Beeldbank",
+      "image_id": 431679,
+      "archive_number": "B1499",
+      "record_url": "https://beeldbank.onroerenderfgoed.be/images/431679",
+      "title_scope": "Hôtel de Ville de Bruxelles. Galerie vers la grande place à droite de la tour - Etat actuel",
+      "plan_type": "gallery plan",
+      "sheet_mm": [1620, 529],
+      "stated_scale": "1/20",
+      "designer": "Jamaer, Pierre Victor",
+      "date": "1867-02-28",
+      "license": "Public Domain Mark 1.0"
+    },
+    {
+      "provider": "Agentschap Onroerend Erfgoed / KCML Beeldbank",
+      "image_id": 431747,
+      "archive_number": "B1501",
+      "record_url": "https://beeldbank.onroerenderfgoed.be/images/431747",
+      "title_scope": "Hôtel de Ville de Bruxelles. Galerie vers la grande place à droite de la tour - Etat actuel",
+      "plan_type": "gallery plan",
+      "sheet_mm": [1564, 471],
+      "stated_scale": "1/20",
+      "designer": "Jamaer, Pierre Victor",
+      "date": "1867-02-28",
+      "license": "Public Domain Mark 1.0"
+    }
+  ],
+  "acquisition_policy": {
+    "discover_format_links_from_record_html": true,
+    "prefer_public_content_full": true,
+    "persist_source_binary_in_git": false,
+    "upload_source_binary_as_ci_artifact": true,
+    "upload_review_preview": true,
+    "hash_sha256": true,
+    "inspect_detected_format_and_pixel_dimensions": true,
+    "registration_authorized_after_human_scan_review": false,
+    "metric_measurement_authorized": false
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "camera_changed": false,
+    "source_vertices_changed": false,
+    "plan_warp_authorized": false,
+    "plan_registration_claimed": false,
+    "exact_identity_claimed": false,
+    "reuse_783_dimensions": false,
+    "portal_depth_authorized": false,
+    "tower_detail_authorized": false,
+    "turret_detail_authorized": false,
+    "statuary_authorized": false,
+    "openings_authorized": false,
+    "visual_candidate_approved": false,
+    "realism_complete": false
+  },
+  "next_decision": "Inspect both acquired full scans. Only if a plan naturally exposes enough footprint/corner geometry to register against the official UrbIS chain may a later evidence commit attempt plan registration without warping."
+}

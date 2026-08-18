@@ -29,6 +29,10 @@ func _run() -> void:
     var touch_text := FileAccess.get_file_as_string("res://game/scripts/player_combat_touch_runtime.gd")
     if touch_text.find("func _toggle_aim()") < 0 or touch_text.find("set_aiming") < 0:
         _fail("touch aim bridge must use the public aiming API"); return
+    if touch_text.find("set_guarding") < 0 or touch_text.find("PlayerDodgeRuntime") < 0:
+        _fail("touch melee mode must expose guard and dodge"); return
+    if touch_text.find("_aim_button.button_down.connect(_secondary_down)") < 0 or touch_text.find("_aim_button.button_up.connect(_secondary_up)") < 0:
+        _fail("touch guard must be hold/release rather than a sticky toggle"); return
 
     if ARSENAL.MELEE_MOVES.size() < 4:
         _fail("expected at least four distinct melee moves"); return
@@ -77,5 +81,5 @@ func _run() -> void:
     if ARSENAL.damage_at_distance(25.0, 999.0, 50.0, 0.5) < 12.49:
         _fail("falloff must clamp at the configured minimum factor"); return
 
-    print("PLAYER_COMBAT_ARSENAL_OK: input_order=green touch_aim=green visual_runtime=green hardened_melee=green hardened_arsenal=green moves=%d weapons=%d deterministic tuning invariants green" % [ARSENAL.MELEE_MOVES.size(), expected_weapons.size()])
+    print("PLAYER_COMBAT_ARSENAL_OK: input_order=green touch_aim=green touch_guard_dodge=green visual_runtime=green hardened_melee=green hardened_arsenal=green moves=%d weapons=%d deterministic tuning invariants green" % [ARSENAL.MELEE_MOVES.size(), expected_weapons.size()])
     quit(0)

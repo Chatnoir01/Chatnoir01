@@ -72,10 +72,40 @@ func _run() -> void:
 		return
 	if not _expect(animation_player.current_animation.to_lower().contains("walk"), "moving civilian should resolve a walk clip"):
 		return
+	if not _expect(String(civilian.get_meta("authored_npc_motion_source", "")) == "actor_velocity", "normal NpcAgent locomotion must remain velocity-driven"):
+		return
 	var before_count := runtime.binding_count()
 	if not _expect(runtime.apply_to_actor(civilian), "authored application should be idempotent"):
 		return
 	if not _expect(runtime.binding_count() == before_count, "idempotent authored application must not duplicate bindings"):
+		return
+
+	var ambient_parent := Node3D.new()
+	ambient_parent.name = "AmbientPedestrian_Test"
+	ambient_parent.add_to_group("ambient_pedestrian")
+	var ambient_proxy := _make_actor("ProfiledNpcProxy", NpcBehaviorModel.Role.CIVILIAN, 23)
+	ambient_proxy.process_mode = Node.PROCESS_MODE_DISABLED
+	ambient_parent.add_child(ambient_proxy)
+	root.add_child(ambient_parent)
+	await process_frame
+	if not _expect(runtime.apply_to_actor(ambient_proxy), "disabled Midi profiled proxy should accept the authored rig"):
+		return
+	if not _expect(String(ambient_proxy.get_meta("authored_npc_motion_source", "")) == "parent_transform", "Midi profiled proxy must observe its moving ambient parent"):
+		return
+	if not _expect(ambient_proxy.velocity.is_zero_approx(), "Midi visual proxy should not need to own gameplay velocity"):
+		return
+	var ambient_visual := ambient_proxy.get_node("VisualUpgrade") as Node3D
+	var ambient_authored := ambient_visual.get_node_or_null("AuthoredNpcCharacter") as Node3D
+	if not _expect(ambient_authored != null, "Midi ambient proxy authored character node is missing"):
+		return
+	var ambient_animation_player := _find_animation_player(ambient_authored)
+	if not _expect(ambient_animation_player != null, "Midi ambient proxy authored character must expose AnimationPlayer"):
+		return
+	ambient_parent.position += Vector3(0.03, 0.0, 0.0)
+	runtime.update_actor_now(ambient_proxy, 1.0 / 60.0)
+	if not _expect(ambient_animation_player.is_playing(), "moving Midi ambient parent should drive authored proxy locomotion"):
+		return
+	if not _expect(ambient_animation_player.current_animation.to_lower().contains("walk"), "moving Midi ambient parent should resolve a walk clip instead of idle"):
 		return
 
 	var police := _make_actor("AuthoredPolice", NpcBehaviorModel.Role.POLICE, 31)
@@ -99,8 +129,9 @@ func _run() -> void:
 	if not _expect(not label.visible, "floating police label must remain hidden"):
 		return
 
-	print("AUTHORED_NPC_VISUAL_RUNTIME_OK: source=%s bindings=%d civilian_clip=%s" % [runtime.resolved_source_path(), runtime.binding_count(), animation_player.current_animation])
+	print("AUTHORED_NPC_VISUAL_RUNTIME_OK: source=%s bindings=%d civilian_clip=%s ambient_clip=%s" % [runtime.resolved_source_path(), runtime.binding_count(), animation_player.current_animation, ambient_animation_player.current_animation])
 	civilian.queue_free()
+	ambient_parent.queue_free()
 	police.queue_free()
 	runtime.queue_free()
 	quit(0)

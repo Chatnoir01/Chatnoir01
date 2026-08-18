@@ -85,8 +85,8 @@ func _build() -> void:
     material.albedo_color = Color(0.69, 0.61, 0.49, 1.0)
     material.roughness = 0.84
     material.metallic = 0.0
-    # UrbIS face winding is preserved exactly. Two-sided presentation avoids
-    # changing source triangle order merely to satisfy a camera-facing winding.
+    # Preserve official UrbIS winding exactly instead of reversing triangles for
+    # this witness. Two-sided presentation changes no source geometry.
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     material.set_meta("authored_visibility_presentation", true)
     material.set_meta("measured_photometry", false)
@@ -96,7 +96,9 @@ func _build() -> void:
     _wall.name = WALL_NODE
     _wall.mesh = mesh
     _wall.material_override = material
-    _wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+    # Visibility proof must not pass because of a ground shadow. Candidate pixels
+    # must come from the exact wall skin itself.
+    _wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(_wall)
 
     set_meta("building_id", "1639974")
@@ -110,8 +112,9 @@ func _build() -> void:
     set_meta("runtime_approved", false)
     set_meta("realism_complete", false)
     set_meta("two_sided_presentation_preserves_source_winding", true)
+    set_meta("casts_shadow_in_visibility_gate", false)
     wall_ready = true
-    print("BRASSEURS_EXACT_WALL_READY: building=1639974 wall=10945501 triangles=3 details=0 offset=0 hide_neighbor=false")
+    print("BRASSEURS_EXACT_WALL_READY: building=1639974 wall=10945501 triangles=3 details=0 offset=0 hide_neighbor=false shadow=false")
 
 func source_contract() -> Dictionary:
     return {
@@ -125,6 +128,7 @@ func source_contract() -> Dictionary:
         "outward_offset_used": false,
         "neighbor_geometry_hidden": false,
         "raw_photo_pixels_shipped": false,
+        "casts_shadow_in_visibility_gate": false,
         "runtime_approved": false,
         "realism_complete": false,
     }

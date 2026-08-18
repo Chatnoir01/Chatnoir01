@@ -1,12 +1,15 @@
 extends Node
 
 const QUALITY_META := "npc_visual_quality_pass"
-const QUALITY_VERSION := "v3"
+const QUALITY_VERSION := "v4"
+const AMBIENT_QUALITY_META := "ambient_pedestrian_visual_quality"
+const AMBIENT_QUALITY_VERSION := "v1"
 const HUMANOID_VISUAL_SCRIPT := preload("res://game/scripts/humanoid_visual.gd")
 
 const POLICE_NAVY := Color(0.025, 0.055, 0.12, 1.0)
 const POLICE_DARK := Color(0.018, 0.026, 0.05, 1.0)
 const POLICE_REFLECTIVE := Color(0.66, 0.71, 0.10, 1.0)
+const AMBIENT_SKIN_FALLBACK := Color(0.62, 0.43, 0.31, 1.0)
 
 
 func _ready() -> void:
@@ -23,10 +26,18 @@ func _exit_tree() -> void:
 func _polish_existing() -> void:
 	for agent_node: Node in get_tree().get_nodes_in_group("npc_agent"):
 		_polish_agent(agent_node)
+	for pedestrian_node: Node in get_tree().get_nodes_in_group("ambient_pedestrian"):
+		if pedestrian_node is Node3D:
+			polish_ambient_pedestrian(pedestrian_node as Node3D)
 
 
 func _on_node_added(node: Node) -> void:
 	if node == null:
+		return
+	if node.is_in_group("ambient_pedestrian") and node is Node3D:
+		# MidiUrbanLife adds the person node before its body parts. Deferred polish
+		# therefore observes the complete lightweight pedestrian on the next idle turn.
+		call_deferred("polish_ambient_pedestrian", node)
 		return
 	if node.is_in_group("npc_agent"):
 		call_deferred("_polish_agent", node)
@@ -106,7 +117,79 @@ func polish_visual(visual: Node3D, police_hint: bool = false) -> void:
 		_polish_police(visual)
 
 	visual.set_meta(QUALITY_META, QUALITY_VERSION)
-	visual.set_meta("npc_visual_quality_silhouette", "human-proportioned-v3")
+	visual.set_meta("npc_visual_quality_silhouette", "human-proportioned-v4")
+
+
+func polish_ambient_pedestrian(person: Node3D) -> void:
+	if person == null or person.get_meta(AMBIENT_QUALITY_META, "") == AMBIENT_QUALITY_VERSION:
+		return
+	if person.get_node_or_null("Torso") == null or person.get_node_or_null("Head") == null:
+		return
+
+	# Midi's 20 ambient pedestrians are a second, older population layer and are
+	# not NpcAgent instances. Correct them too, otherwise the largest close-camera
+	# civilians still keep the old box + oversized-sphere prototype silhouette.
+	_scale_part(person, &"Head", Vector3(0.70, 0.70, 0.70))
+	_offset_part(person, &"Head", Vector3(0.0, -0.030, 0.0))
+	_scale_part(person, &"Torso", Vector3(0.86, 1.10, 0.86))
+	_scale_part(person, &"LeftArm", Vector3(0.72, 1.08, 0.72))
+	_scale_part(person, &"RightArm", Vector3(0.72, 1.08, 0.72))
+	_scale_part(person, &"LeftLeg", Vector3(0.86, 1.10, 0.82))
+	_scale_part(person, &"RightLeg", Vector3(0.86, 1.10, 0.82))
+	_scale_part(person, &"Bag", Vector3(0.82, 0.92, 0.82))
+	_move_part_x_toward_center(person, &"LeftArm", 0.90)
+	_move_part_x_toward_center(person, &"RightArm", 0.90)
+	_move_part_x_toward_center(person, &"LeftLeg", 0.94)
+	_move_part_x_toward_center(person, &"RightLeg", 0.94)
+
+	if person.get_node_or_null("AmbientQualityDetails") == null:
+		var details := Node3D.new()
+		details.name = "AmbientQualityDetails"
+		person.add_child(details)
+
+		var skin_material := _mesh_material(person.get_node_or_null("Head") as MeshInstance3D)
+		if skin_material == null:
+			skin_material = _material(AMBIENT_SKIN_FALLBACK, 0.80)
+		var shoe_material := _material(Color(0.045, 0.05, 0.06, 1.0), 0.90)
+		var hair_variant := posmod(str(person.name).hash(), 3)
+		var hair_color := Color(0.035, 0.027, 0.022, 1.0)
+		if hair_variant == 1:
+			hair_color = Color(0.10, 0.058, 0.035, 1.0)
+		elif hair_variant == 2:
+			hair_color = Color(0.20, 0.13, 0.075, 1.0)
+		var hair_material := _material(hair_color, 0.92)
+
+		var head := person.get_node_or_null("Head") as Node3D
+		var head_position := Vector3(0.0, 1.64, 0.0)
+		if head != null:
+			head_position = head.position
+		var hair := _add_sphere(details, &"HairCap", 0.158, head_position + Vector3(0.0, 0.105, 0.012), hair_material)
+		hair.scale = Vector3(1.02, 0.42, 1.02)
+
+		var left_arm := person.get_node_or_null("LeftArm") as Node3D
+		var right_arm := person.get_node_or_null("RightArm") as Node3D
+		var left_hand_x := -0.297
+		var right_hand_x := 0.297
+		if left_arm != null:
+			left_hand_x = left_arm.position.x
+		if right_arm != null:
+			right_hand_x = right_arm.position.x
+		_add_sphere(details, &"LeftHand", 0.052, Vector3(left_hand_x, 0.785, 0.0), skin_material)
+		_add_sphere(details, &"RightHand", 0.052, Vector3(right_hand_x, 0.785, 0.0), skin_material)
+
+		var left_leg := person.get_node_or_null("LeftLeg") as Node3D
+		var right_leg := person.get_node_or_null("RightLeg") as Node3D
+		var left_shoe_x := -0.122
+		var right_shoe_x := 0.122
+		if left_leg != null:
+			left_shoe_x = left_leg.position.x
+		if right_leg != null:
+			right_shoe_x = right_leg.position.x
+		_add_box(details, &"LeftShoe", Vector3(0.145, 0.095, 0.245), Vector3(left_shoe_x, 0.095, -0.045), shoe_material)
+		_add_box(details, &"RightShoe", Vector3(0.145, 0.095, 0.245), Vector3(right_shoe_x, 0.095, -0.045), shoe_material)
+
+	person.set_meta(AMBIENT_QUALITY_META, AMBIENT_QUALITY_VERSION)
+	person.set_meta("ambient_pedestrian_silhouette", "midi-human-v1")
 
 
 func _scale_part(root: Node3D, child_name: StringName, multiplier: Vector3) -> void:
@@ -132,6 +215,16 @@ func _move_part_x_toward_center(root: Node3D, child_name: StringName, factor: fl
 	if part == null:
 		return
 	part.position.x *= factor
+
+
+func _mesh_material(mesh_instance: MeshInstance3D) -> Material:
+	if mesh_instance == null:
+		return null
+	if mesh_instance.material_override != null:
+		return mesh_instance.material_override
+	if mesh_instance.mesh != null and mesh_instance.mesh.get_surface_count() > 0:
+		return mesh_instance.mesh.surface_get_material(0)
+	return null
 
 
 func _polish_police(visual: Node3D) -> void:
@@ -187,6 +280,22 @@ func _add_box(parent: Node3D, part_name: StringName, size: Vector3, position: Ve
 	var box := BoxMesh.new()
 	box.size = size
 	mesh_instance.mesh = box
+	mesh_instance.position = position
+	mesh_instance.material_override = material
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mesh_instance)
+	return mesh_instance
+
+
+func _add_sphere(parent: Node3D, part_name: StringName, radius: float, position: Vector3, material: Material) -> MeshInstance3D:
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = part_name
+	var sphere := SphereMesh.new()
+	sphere.radius = radius
+	sphere.height = radius * 2.0
+	sphere.radial_segments = 10
+	sphere.rings = 5
+	mesh_instance.mesh = sphere
 	mesh_instance.position = position
 	mesh_instance.material_override = material
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

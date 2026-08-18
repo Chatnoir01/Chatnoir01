@@ -20,27 +20,53 @@ jobs:
       - name: Install image inspection dependency
         run: python3 -m pip install --disable-pip-version-check --quiet Pillow
 
-      - name: Acquire official KCML B1500 original
+      - name: Discover official B1500 public format links
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE_URL="https://beeldbank.onroerenderfgoed.be/images/431760/content/original"
           RECORD_URL="https://beeldbank.onroerenderfgoed.be/images/431760"
-          curl --fail --location --retry 4 --retry-all-errors --retry-delay 3 \
-            --connect-timeout 20 --max-time 300 \
-            "$SOURCE_URL" -o /tmp/b1500-original
-          test -s /tmp/b1500-original
           curl --fail --location --retry 3 --retry-all-errors --retry-delay 2 \
-            --connect-timeout 20 --max-time 120 \
-            "$RECORD_URL" -o /tmp/b1500-record.html
+            --connect-timeout 20 --max-time 120 "$RECORD_URL" -o /tmp/b1500-record.html
           grep -F "B1500" /tmp/b1500-record.html
           grep -F "1/20" /tmp/b1500-record.html
           grep -F "28-02-1867" /tmp/b1500-record.html
           grep -F "Jamaer" /tmp/b1500-record.html
-          file /tmp/b1500-original
-          sha256sum /tmp/b1500-original | tee /tmp/b1500-original.sha256
+          python3 - <<'PY'
+          from pathlib import Path
+          import html, re
+          text = Path('/tmp/b1500-record.html').read_text(encoding='utf-8', errors='replace')
+          values = []
+          for raw in re.findall(r'''(?:href|src)=["']([^"']+)["']''', text, re.I):
+              value = html.unescape(raw)
+              if '431760' in value or '/content/' in value:
+                  values.append(value)
+          values = list(dict.fromkeys(values))
+          Path('/tmp/b1500-format-links.txt').write_text('\n'.join(values) + ('\n' if values else ''), encoding='utf-8')
+          print('B1500_FORMAT_LINKS')
+          print('\n'.join(values))
+          PY
 
-      - name: Inspect original and create review preview
+      - name: Acquire official KCML B1500 full public scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_URL="$(python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urljoin
+          base='https://beeldbank.onroerenderfgoed.be/images/431760'
+          links=Path('/tmp/b1500-format-links.txt').read_text().splitlines()
+          preferred=[x for x in links if '/content/full' in x]
+          print(urljoin(base, preferred[0]) if preferred else base + '/content/full')
+          PY
+          )"
+          printf '%s\n' "$SOURCE_URL" | tee /tmp/b1500-selected-url.txt
+          curl --fail --location --retry 4 --retry-all-errors --retry-delay 3 \
+            --connect-timeout 20 --max-time 300 "$SOURCE_URL" -o /tmp/b1500-source
+          test -s /tmp/b1500-source
+          file /tmp/b1500-source
+          sha256sum /tmp/b1500-source | tee /tmp/b1500-source.sha256
+
+      - name: Inspect source and create review preview
         shell: bash
         run: |
           set -euo pipefail
@@ -48,44 +74,37 @@ jobs:
           from pathlib import Path
           import hashlib, json
           from PIL import Image
-
-          source = Path('/tmp/b1500-original')
-          raw = source.read_bytes()
-          digest = hashlib.sha256(raw).hexdigest()
+          source=Path('/tmp/b1500-source')
+          selected=Path('/tmp/b1500-selected-url.txt').read_text().strip()
+          raw=source.read_bytes()
           with Image.open(source) as im:
-              fmt = im.format
-              mode = im.mode
-              width, height = im.size
-              frames = getattr(im, 'n_frames', 1)
-              preview = im.convert('RGB')
-              preview.thumbnail((2400, 2400), Image.Resampling.LANCZOS)
-              preview.save('/tmp/b1500-preview.jpg', quality=92, optimize=True)
-              metadata = {
-                  'schema': 'grand-bruxelles-town-hall-gallery-b1500-acquisition-v1',
-                  'source_image_id': 431760,
-                  'archive_number': 'B1500',
-                  'source_url': 'https://beeldbank.onroerenderfgoed.be/images/431760/content/original',
-                  'record_url': 'https://beeldbank.onroerenderfgoed.be/images/431760',
-                  'sha256': digest,
-                  'detected_format': fmt,
-                  'mode': mode,
-                  'pixel_width': width,
-                  'pixel_height': height,
-                  'frame_count': frames,
-                  'stated_sheet_mm': [1000, 602],
-                  'stated_scale': '1/20',
-                  'designer': 'Jamaer, Pierre Victor',
-                  'date': '1867-02-28',
-                  'license': 'Public Domain Mark 1.0',
-                  'metric_measurement_authorized': False,
-                  'runtime_changed': False,
-                  'geometry_changed': False,
+              metadata={
+                  'schema':'grand-bruxelles-town-hall-gallery-b1500-acquisition-v1',
+                  'source_image_id':431760,
+                  'archive_number':'B1500',
+                  'selected_source_url':selected,
+                  'record_url':'https://beeldbank.onroerenderfgoed.be/images/431760',
+                  'sha256':hashlib.sha256(raw).hexdigest(),
+                  'detected_format':im.format,
+                  'mode':im.mode,
+                  'pixel_width':im.width,
+                  'pixel_height':im.height,
+                  'frame_count':getattr(im,'n_frames',1),
+                  'stated_sheet_mm':[1000,602],
+                  'stated_scale':'1/20',
+                  'designer':'Jamaer, Pierre Victor',
+                  'date':'1867-02-28',
+                  'license':'Public Domain Mark 1.0',
+                  'metric_measurement_authorized':False,
+                  'runtime_changed':False,
+                  'geometry_changed':False,
               }
-          Path('/tmp/b1500-acquisition.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
-          print('B1500_SOURCE_ACQUISITION ' + json.dumps(metadata, sort_keys=True))
+              preview=im.convert('RGB')
+              preview.thumbnail((2400,2400), Image.Resampling.LANCZOS)
+              preview.save('/tmp/b1500-preview.jpg', quality=92, optimize=True)
+          Path('/tmp/b1500-acquisition.json').write_text(json.dumps(metadata,indent=2),encoding='utf-8')
+          print('B1500_SOURCE_ACQUISITION '+json.dumps(metadata,sort_keys=True))
           PY
-          test -s /tmp/b1500-preview.jpg
-          test -s /tmp/b1500-acquisition.json
 
       - name: Assert acquisition-only contract
         shell: bash
@@ -94,14 +113,14 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          contract = json.loads(Path('grand-bruxelles-game/data/qa/town_hall_gallery_b1500_source_contract.json').read_text())
-          hard = contract['hard_rules']
-          assert contract['status'] == 'source_acquisition_only'
-          assert contract['archive_source']['image_id'] == 431760
-          assert contract['archive_source']['archive_number'] == 'B1500'
-          assert contract['archive_source']['stated_scale'] == '1/20'
-          assert contract['measurement_policy']['metric_measurement_authorized'] is False
-          assert all(hard[k] is False for k in ['runtime_changed','geometry_changed','gallery_band_resolved','arcade_geometry_authorized','visual_candidate_approved','realism_complete'])
+          c=json.loads(Path('grand-bruxelles-game/data/qa/town_hall_gallery_b1500_source_contract.json').read_text())
+          h=c['hard_rules']
+          assert c['status']=='source_acquisition_only'
+          assert c['archive_source']['image_id']==431760
+          assert c['archive_source']['archive_number']=='B1500'
+          assert c['archive_source']['stated_scale']=='1/20'
+          assert c['measurement_policy']['metric_measurement_authorized'] is False
+          assert all(h[k] is False for k in ['runtime_changed','geometry_changed','gallery_band_resolved','arcade_geometry_authorized','visual_candidate_approved','realism_complete'])
           print('B1500_SOURCE_CONTRACT_OK')
           PY
 
@@ -111,9 +130,11 @@ jobs:
         with:
           name: town-hall-gallery-b1500-source
           path: |
-            /tmp/b1500-original
-            /tmp/b1500-original.sha256
             /tmp/b1500-record.html
+            /tmp/b1500-format-links.txt
+            /tmp/b1500-selected-url.txt
+            /tmp/b1500-source
+            /tmp/b1500-source.sha256
             /tmp/b1500-preview.jpg
             /tmp/b1500-acquisition.json
           if-no-files-found: warn

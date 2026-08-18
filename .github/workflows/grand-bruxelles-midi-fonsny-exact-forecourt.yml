@@ -1,0 +1,67 @@
+name: Grand Bruxelles Midi Fonsny Exact Forecourt
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-fonsny-exact-forecourt.yml"
+      - "grand-bruxelles-game/data/runtime/modules/midi_fonsny_exact_forecourt.json"
+      - "grand-bruxelles-game/game/scripts/midi_fonsny_exact_forecourt_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
+      - "grand-bruxelles-game/game/tests/midi_fonsny_exact_forecourt_witness_test.gd"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source and registry contract
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          root=pathlib.Path('grand-bruxelles-game')
+          d=json.loads((root/'data/runtime/modules/midi_fonsny_exact_forecourt.json').read_text())
+          assert d['schema']=='grand-bruxelles-runtime-module-v1' and d['enabled'] is True
+          assert d['name']=='MidiFonsnyExactForecourtRuntime'
+          hero=(root/'game/scripts/midi_hero_zone.gd').read_text()
+          assert 'FonsnyStationForecourt' in hero and 'Vector3(18.0, 0.10, 174.0)' in hero
+          urbis=(root/'game/scripts/urbis_midi_builder.gd').read_text()
+          for token in ['ExactRoadCarriageways','ExactSidewalks','ExactPavedAreas','official street-surface level contract']: assert token in urbis
+          print('MIDI_FONSNY_EXACT_FORECOURT_CONTRACT_OK')
+          PY
+  visual:
+    needs: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-forecourt-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-forecourt-import.log; then exit 1; fi
+      - name: Locked 1280x720 Fonsny A/B
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --path grand-bruxelles-game --script res://game/tests/midi_fonsny_exact_forecourt_witness_test.gd 2>&1 | tee /tmp/midi-fonsny-exact-forecourt.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_FONSNY_EXACT_FORECOURT_FAIL" /tmp/midi-fonsny-exact-forecourt.log; then exit 1; fi
+          grep -F "MIDI_FONSNY_EXACT_FORECOURT_OK" /tmp/midi-fonsny-exact-forecourt.log
+      - name: Upload full-frame evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-fonsny-exact-forecourt-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/midi_fonsny_exact_forecourt_before.png
+            grand-bruxelles-game/artifacts/visual/midi_fonsny_exact_forecourt_after.png
+            /tmp/midi-fonsny-exact-forecourt.log
+          if-no-files-found: warn

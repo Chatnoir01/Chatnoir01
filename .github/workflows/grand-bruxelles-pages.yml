@@ -1,22 +1,16 @@
 name: Grand Bruxelles Playable Link
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - "grand-bruxelles-game/web-preview/**"
-      - ".github/workflows/grand-bruxelles-pages.yml"
-      - "grand-bruxelles-game/PLAY.md"
-      - "grand-bruxelles-game/README.md"
-      - "grand-bruxelles-game/tools/test_playable_link_contract.py"
   pull_request:
     branches: ["main"]
     paths:
       - "grand-bruxelles-game/web-preview/**"
       - ".github/workflows/grand-bruxelles-pages.yml"
+      - ".github/workflows/grand-bruxelles-web.yml"
       - "grand-bruxelles-game/PLAY.md"
       - "grand-bruxelles-game/README.md"
       - "grand-bruxelles-game/tools/test_playable_link_contract.py"
+      - "grand-bruxelles-game/tools/test_web_publication_discipline.py"
   workflow_run:
     workflows: ["Grand Bruxelles Playable Web Build"]
     types: [completed]
@@ -24,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: "grand-bruxelles-playable-link"
@@ -36,15 +31,29 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout latest published main
+      - name: Checkout exact Web source commit
         if: github.event_name == 'workflow_run'
         uses: actions/checkout@v6
         with:
-          ref: main
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Checkout proposed source
         if: github.event_name != 'workflow_run'
         uses: actions/checkout@v6
+
+      - name: Replace committed snapshot with triggering Web artifact
+        if: github.event_name == 'workflow_run'
+        run: rm -rf grand-bruxelles-game/web-preview
+
+      - name: Download triggering playable Web artifact
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: grand-bruxelles-playable-web
+          path: grand-bruxelles-game/web-preview
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
 
       - name: Verify playable Godot export and Pages contract
         run: |
@@ -110,6 +119,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
       pages: write
       id-token: write
     environment:
@@ -118,10 +128,31 @@ jobs:
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout latest published main
+      - name: Checkout exact Web source commit
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Checkout latest main for manual deployment
+        if: github.event_name != 'workflow_run'
         uses: actions/checkout@v6
         with:
           ref: main
+
+      - name: Replace committed snapshot with triggering Web artifact
+        if: github.event_name == 'workflow_run'
+        run: rm -rf grand-bruxelles-game/web-preview
+
+      - name: Download triggering playable Web artifact
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: grand-bruxelles-playable-web
+          path: grand-bruxelles-game/web-preview
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6

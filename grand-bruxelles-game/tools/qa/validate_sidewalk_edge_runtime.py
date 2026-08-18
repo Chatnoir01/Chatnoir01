@@ -11,6 +11,7 @@ SURFACE_RUNTIME = ROOT / "game/scripts/brussels_osm_sidewalk_surface_runtime.gd"
 EDGE_RUNTIME = ROOT / "game/scripts/brussels_sidewalk_edge_runtime.gd"
 PROJECT = ROOT / "project.godot"
 
+# Dedicated contract intentionally locks presentation-only edge semantics.
 
 def fail(message: str) -> None:
     print(f"BRUSSELS_SIDEWALK_EDGE_FAIL: {message}", file=sys.stderr)

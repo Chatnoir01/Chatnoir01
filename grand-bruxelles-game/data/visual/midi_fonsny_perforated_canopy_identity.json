@@ -1,0 +1,45 @@
+{
+  "schema": "grand-bruxelles-midi-fonsny-canopy-v1",
+  "zone": "midi",
+  "target": {
+    "runtime_node": "MidiMainEntranceFonsny",
+    "superseded_surface_name": "EntranceConcreteCanopy",
+    "replacement_root_name": "EntranceSourceBackedPerforatedCanopy"
+  },
+  "heritage_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Gare du Midi et bâtiments annexes, Urban 9423",
+    "urban_id": 9423,
+    "url": "https://monument.heritage.brussels/fr/Saint-Gilles/Avenue_Fonsny/47/9423",
+    "accessed_at": "2026-08-18",
+    "facts": [
+      "The Avenue Fonsny station access is described as a vast porch supported by polygonal columns and organized in three registers.",
+      "The porch has a vast concrete canopy perforated with glass blocks.",
+      "The middle register is described with three long bays with concrete crosswork and glass-block infill; the last register is blind."
+    ]
+  },
+  "existing_presentation_envelope": {
+    "authority": "existing_authored_visualization_convention_not_survey_geometry",
+    "source_file": "game/scripts/midi_hero_zone.gd",
+    "surface_name": "EntranceConcreteCanopy",
+    "size_m": [17.8, 0.48, 25.0],
+    "local_position_m": [-7.0, 4.55, 0.0],
+    "preserve_size": true,
+    "preserve_local_position": true,
+    "preserve_entrance_root_transform": true
+  },
+  "replacement_contract": {
+    "single_defect": "solid_concrete_canopy_missing_documented_glass_block_perforation",
+    "replace_existing_surface_in_place": true,
+    "additive_duplicate_forbidden": true,
+    "concrete_frame_required": true,
+    "glass_block_infill_required": true,
+    "panel_count_is_source_measured": false,
+    "rib_spacing_is_source_measured": false,
+    "thickness_is_source_measured": false,
+    "new_station_plan_geometry": false,
+    "urbis_station_plan_authority_preserved": true,
+    "runtime_approved": false,
+    "realism_complete": false
+  }
+}

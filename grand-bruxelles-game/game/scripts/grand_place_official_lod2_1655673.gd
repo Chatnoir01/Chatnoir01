@@ -8,6 +8,22 @@ const WHITE_STONE_WALL_COLOR := Color(0.78, 0.76, 0.70, 1.0)
 const NEUTRAL_WALL_ROUGHNESS := 0.88
 const WHITE_STONE_WALL_ROUGHNESS := 0.82
 
+# Source-bounded presentation articulation for the Grand-Place gallery to the
+# right of the tower. The path is the exact connected UrbIS WALLSURFACE chain
+# proven by #776. Vertical/bay semantics come from KCML/Jamaer B1500 and
+# Urban 31125; this overlay never changes official vertices or collision.
+const RIGHT_GALLERY_FACE_CHAIN := "10792525+10798452"
+const RIGHT_GALLERY_P0 := Vector3(292.0918, 0.0, -515.2239)
+const RIGHT_GALLERY_P1 := Vector3(297.4498, 0.0, -508.7339)
+const RIGHT_GALLERY_P2 := Vector3(302.2418, 0.0, -502.9279)
+const RIGHT_GALLERY_BAYS := 6
+const RIGHT_GALLERY_HEIGHT_M := 4.785
+const RIGHT_GALLERY_HEIGHT_UNCERTAINTY_M := 0.30
+const RIGHT_GALLERY_SPRING_M := 2.95
+const RIGHT_GALLERY_BASE_M := 0.20
+const RIGHT_GALLERY_SURFACE_OFFSET_M := 0.018
+const RIGHT_GALLERY_ARCH_SAMPLES := 8
+
 var geometry_loaded := false
 var render_triangle_count := 0
 var masked_osm_count := 0
@@ -19,6 +35,7 @@ var _official_collision_bodies: Array[CollisionObject3D] = []
 var _official_visible := true
 var _built := false
 var _wall_material: StandardMaterial3D
+var _right_gallery_mesh: MeshInstance3D
 
 
 func _ready() -> void:
@@ -42,6 +59,7 @@ func _build_when_scene_ready() -> void:
     source_height_m = float(evidence.get("height_m", 0.0))
     _mask_replaced_osm(source_bounds)
     _build_geometry(faces)
+    _build_right_gallery()
     _built = true
     geometry_loaded = true
     set_meta("building_id", BUILDING_ID)
@@ -51,7 +69,11 @@ func _build_when_scene_ready() -> void:
     set_meta("wall_material_identity", "official_heritage_white_stone")
     set_meta("wall_material_source", MATERIAL_IDENTITY_PATH)
     set_meta("official_collision_completed", not _official_collision_bodies.is_empty())
+    set_meta("right_gallery_source_face_chain", RIGHT_GALLERY_FACE_CHAIN)
+    set_meta("right_gallery_bays", RIGHT_GALLERY_BAYS)
+    set_meta("right_gallery_geometry_changed", false)
     print("GRAND_PLACE_LOD2_1655673_READY: triangles=%d masked_osm=%d height=%.3f white_stone=true collision_bodies=%d" % [render_triangle_count, masked_osm_count, source_height_m, _official_collision_bodies.size()])
+    print("GRAND_PLACE_TOWN_HALL_RIGHT_GALLERY_READY: bays=%d face_chain=%s height=%.3f presentation_only=true" % [RIGHT_GALLERY_BAYS, RIGHT_GALLERY_FACE_CHAIN, RIGHT_GALLERY_HEIGHT_M])
 
 
 func _read_geometry() -> Dictionary:
@@ -238,6 +260,130 @@ func _build_geometry(faces: Array) -> void:
     var center := _building_center(faces)
     render_triangle_count = _build_surface(faces, "WALLSURFACE", mats["WALLSURFACE"], center)
     render_triangle_count += _build_surface(faces, "ROOFSURFACE", mats["ROOFSURFACE"], center)
+
+
+func _gallery_segment_1_length() -> float:
+    return Vector2(RIGHT_GALLERY_P0.x, RIGHT_GALLERY_P0.z).distance_to(Vector2(RIGHT_GALLERY_P1.x, RIGHT_GALLERY_P1.z))
+
+
+func _gallery_total_length() -> float:
+    return _gallery_segment_1_length() + Vector2(RIGHT_GALLERY_P1.x, RIGHT_GALLERY_P1.z).distance_to(Vector2(RIGHT_GALLERY_P2.x, RIGHT_GALLERY_P2.z))
+
+
+func _gallery_path_point(distance_m: float) -> Vector3:
+    var first_length := _gallery_segment_1_length()
+    var total := _gallery_total_length()
+    var s := clampf(distance_m, 0.0, total)
+    if s <= first_length:
+        return RIGHT_GALLERY_P0.lerp(RIGHT_GALLERY_P1, s / first_length)
+    var second_length := total - first_length
+    return RIGHT_GALLERY_P1.lerp(RIGHT_GALLERY_P2, (s - first_length) / second_length)
+
+
+func _gallery_path_normal(distance_m: float) -> Vector3:
+    var first_length := _gallery_segment_1_length()
+    var tangent := RIGHT_GALLERY_P1 - RIGHT_GALLERY_P0 if distance_m <= first_length else RIGHT_GALLERY_P2 - RIGHT_GALLERY_P1
+    tangent.y = 0.0
+    tangent = tangent.normalized()
+    return Vector3(tangent.z, 0.0, -tangent.x).normalized()
+
+
+func _gallery_world(local: Vector2) -> Vector3:
+    var base := _gallery_path_point(local.x)
+    var normal := _gallery_path_normal(local.x)
+    return Vector3(base.x, local.y, base.z) + normal * RIGHT_GALLERY_SURFACE_OFFSET_M
+
+
+func _append_gallery_polygon(tool: SurfaceTool, polygon: PackedVector2Array) -> int:
+    var indices := Geometry2D.triangulate_polygon(polygon)
+    var triangle_count := 0
+    for index: int in range(0, indices.size(), 3):
+        if index + 2 >= indices.size():
+            break
+        for corner: int in range(3):
+            var point := polygon[indices[index + corner]]
+            tool.set_normal(_gallery_path_normal(point.x))
+            tool.add_vertex(_gallery_world(point))
+        triangle_count += 1
+    return triangle_count
+
+
+func _gallery_bay_polygon(left_s: float, right_s: float) -> PackedVector2Array:
+    var polygon := PackedVector2Array()
+    var width := right_s - left_s
+    var side_margin := minf(0.22, width * 0.11)
+    var left := left_s + side_margin
+    var right := right_s - side_margin
+    var apex_x := (left + right) * 0.5
+    polygon.append(Vector2(left, RIGHT_GALLERY_BASE_M))
+    polygon.append(Vector2(left, RIGHT_GALLERY_SPRING_M))
+    for sample: int in range(1, RIGHT_GALLERY_ARCH_SAMPLES + 1):
+        var t := float(sample) / float(RIGHT_GALLERY_ARCH_SAMPLES)
+        var omt := 1.0 - t
+        var x := omt * omt * left + 2.0 * omt * t * (left + width * 0.16) + t * t * apex_x
+        var y := omt * omt * RIGHT_GALLERY_SPRING_M + 2.0 * omt * t * RIGHT_GALLERY_HEIGHT_M + t * t * RIGHT_GALLERY_HEIGHT_M
+        polygon.append(Vector2(x, y))
+    for sample: int in range(1, RIGHT_GALLERY_ARCH_SAMPLES + 1):
+        var t := float(sample) / float(RIGHT_GALLERY_ARCH_SAMPLES)
+        var omt := 1.0 - t
+        var x := omt * omt * apex_x + 2.0 * omt * t * (right - width * 0.16) + t * t * right
+        var y := omt * omt * RIGHT_GALLERY_HEIGHT_M + 2.0 * omt * t * RIGHT_GALLERY_HEIGHT_M + t * t * RIGHT_GALLERY_SPRING_M
+        polygon.append(Vector2(x, y))
+    polygon.append(Vector2(right, RIGHT_GALLERY_BASE_M))
+    return polygon
+
+
+func _build_right_gallery() -> void:
+    var total := _gallery_total_length()
+    if absf(total - 15.9440934873) > 0.002:
+        push_error("Town Hall right-gallery official source chain span drifted")
+        return
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color(0.13, 0.125, 0.115, 1.0)
+    material.roughness = 0.94
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    var tool := SurfaceTool.new()
+    tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+    tool.set_material(material)
+    var bay_width := total / float(RIGHT_GALLERY_BAYS)
+    var triangle_count := 0
+    for bay: int in range(RIGHT_GALLERY_BAYS):
+        triangle_count += _append_gallery_polygon(tool, _gallery_bay_polygon(float(bay) * bay_width, float(bay + 1) * bay_width))
+    var mesh := tool.commit()
+    if mesh == null or mesh.get_surface_count() == 0 or triangle_count <= 0:
+        push_error("Town Hall right-gallery presentation mesh failed")
+        return
+    _right_gallery_mesh = MeshInstance3D.new()
+    _right_gallery_mesh.name = "GrandPlaceTownHallRightGalleryB1500"
+    _right_gallery_mesh.mesh = mesh
+    _right_gallery_mesh.set_meta("presentation_only", true)
+    _right_gallery_mesh.set_meta("source_face_chain", RIGHT_GALLERY_FACE_CHAIN)
+    _right_gallery_mesh.set_meta("source_archive", "KCML B1500")
+    _right_gallery_mesh.set_meta("bay_count", RIGHT_GALLERY_BAYS)
+    _right_gallery_mesh.set_meta("opening_depth_m", 0.0)
+    add_child(_right_gallery_mesh)
+
+
+func right_gallery_contract() -> Dictionary:
+    return {
+        "source_face_chain": RIGHT_GALLERY_FACE_CHAIN,
+        "bay_count": RIGHT_GALLERY_BAYS,
+        "gallery_height_m": RIGHT_GALLERY_HEIGHT_M,
+        "gallery_height_uncertainty_m": RIGHT_GALLERY_HEIGHT_UNCERTAINTY_M,
+        "source_archive": "KCML B1500",
+        "source_image_id": 431760,
+        "source_heritage_record": 31125,
+        "presentation_only": true,
+        "opening_depth_m": 0.0,
+        "collision_changed": false,
+        "official_vertices_changed": false,
+        "survey_geometry_claimed": false,
+    }
+
+
+func set_right_gallery_visible(enabled: bool) -> void:
+    if _right_gallery_mesh != null:
+        _right_gallery_mesh.visible = enabled
 
 
 func set_sourced_wall_material(enabled: bool) -> void:

@@ -1,0 +1,56 @@
+name: Grand Bruxelles Authored NPC Rig
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/characters/**"
+      - "grand-bruxelles-game/data/runtime/modules/authored_npc_visual.json"
+      - "grand-bruxelles-game/game/scripts/authored_npc_visual_runtime.gd"
+      - "grand-bruxelles-game/game/tests/authored_npc_asset_contract_test.gd"
+      - "grand-bruxelles-game/game/tests/authored_npc_visual_runtime_test.gd"
+      - ".github/workflows/grand-bruxelles-authored-npc-rig.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/assets/characters/**"
+      - "grand-bruxelles-game/data/runtime/modules/authored_npc_visual.json"
+      - "grand-bruxelles-game/game/scripts/authored_npc_visual_runtime.gd"
+      - "grand-bruxelles-game/game/tests/authored_npc_asset_contract_test.gd"
+      - "grand-bruxelles-game/game/tests/authored_npc_visual_runtime_test.gd"
+      - ".github/workflows/grand-bruxelles-authored-npc-rig.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-authored-rig:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project headless
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/authored-npc-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/authored-npc-import.log; then exit 1; fi
+      - name: Validate committed authored rig
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/authored_npc_asset_contract_test.gd 2>&1 | tee /tmp/authored-npc-rig.log
+          grep -q "AUTHORED_NPC_ASSET_CONTRACT_OK" /tmp/authored-npc-rig.log
+          if grep -E "SCRIPT ERROR|Parse Error:|AUTHORED_NPC_ASSET_CONTRACT_FAIL" /tmp/authored-npc-rig.log; then exit 1; fi
+      - name: Validate authored NPC runtime
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/authored_npc_visual_runtime_test.gd 2>&1 | tee /tmp/authored-npc-runtime.log
+          grep -q "AUTHORED_NPC_VISUAL_RUNTIME_OK" /tmp/authored-npc-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|AUTHORED_NPC_VISUAL_RUNTIME_FAIL" /tmp/authored-npc-runtime.log; then exit 1; fi

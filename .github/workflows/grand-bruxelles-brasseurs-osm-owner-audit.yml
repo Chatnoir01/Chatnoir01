@@ -1,10 +1,11 @@
-name: Grand Bruxelles Brasseurs OSM Owner Audit
+name: Grand Bruxelles Brasseurs Geometry Owner Audit
 
 on:
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-brasseurs-osm-owner-audit.yml"
       - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/game/tests/grand_place_brasseurs_geometry_owner_probe.gd"
       - "grand-bruxelles-game/tools/audit_brasseurs_osm_owner.py"
   workflow_dispatch:
 
@@ -14,14 +15,32 @@ permissions:
 jobs:
   owner-audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Identify generic OSM owner nearest official Brasseurs wall
+      - name: Reject false generic-OSM ownership hypothesis
         run: python3 grand-bruxelles-game/tools/audit_brasseurs_osm_owner.py
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Probe rendered scene geometry at official Brasseurs wall
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_brasseurs_geometry_owner_probe.gd 2>&1 | tee /tmp/brasseurs-owner-probe.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRASSEURS_GEOMETRY_OWNER_PROBE_FAIL" /tmp/brasseurs-owner-probe.log; then exit 1; fi
+          grep -F "BRASSEURS_GEOMETRY_OWNER_PROBE_OK" /tmp/brasseurs-owner-probe.log
       - name: Upload evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: brasseurs-osm-owner-audit
-          path: grand-bruxelles-game/artifacts/qa/brasseurs_osm_owner_audit.json
+          name: brasseurs-geometry-owner-audit
+          path: |
+            grand-bruxelles-game/artifacts/qa/brasseurs_osm_owner_audit.json
+            grand-bruxelles-game/artifacts/qa/brasseurs_scene_geometry_probe.json
+            /tmp/brasseurs-owner-probe.log
           if-no-files-found: error

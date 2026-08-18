@@ -102,8 +102,12 @@ func _run() -> void:
     if packed == null: _fail("production main scene missing"); return
     var viewport := SubViewport.new(); viewport.size = Vector2i(PROBE_WIDTH,PROBE_HEIGHT); viewport.own_world_3d = true; viewport.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS; viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS; root.add_child(viewport)
     var scene := packed.instantiate() as Node3D; viewport.add_child(scene); _hide_dynamic(scene)
-    var runtime := root.get_node_or_null("BrusselsSidewalkEdgeRuntime")
-    if runtime == null: _fail("registry-backed sidewalk edge runtime missing"); return
+    var runtime: Node = null
+    for _frame: int in range(30):
+        await process_frame
+        runtime = root.get_node_or_null("BrusselsSidewalkEdgeRuntime")
+        if runtime != null: break
+    if runtime == null: _fail("registry-backed sidewalk edge runtime missing after bootstrap wait"); return
     for _frame: int in range(180):
         if scene.find_child("GeneratedRoads", true, false) != null: break
         await process_frame

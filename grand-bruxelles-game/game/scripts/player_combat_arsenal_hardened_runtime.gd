@@ -73,7 +73,11 @@ func request_melee_combo(player: CharacterBody3D) -> Dictionary:
     return result
 
 func _apply_weapon_hit(npc: NpcAgent, player: CharacterBody3D, damage: float) -> bool:
+    if player != null and is_instance_valid(player):
+        player.set_meta("combat_weapon_hit_inflight", true)
     var applied := super._apply_weapon_hit(npc, player, damage)
+    if player != null and is_instance_valid(player):
+        player.set_meta("combat_weapon_hit_inflight", false)
     if not applied or npc == null or not is_instance_valid(npc):
         return applied
     _retag_weapon_hit_feedback(npc, damage)

@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "format": "grand-bruxelles-atomium-current-basin-footprint-v1",
+  "source": {
+    "dataset": "Paradigm / Brussels-Capital Region UrbIS raster orthophoto",
+    "layer": "Ortho",
+    "capture_year": 2024,
+    "crs": "EPSG:31370",
+    "wms_crop_sha256": "41707c269211c43550527be37c5a06285f6c96c141f59db2352496386f5047ac",
+    "evidence_pr": 585,
+    "evidence_workflow_run": 31972173789,
+    "evidence_artifact": 9270085107
+  },
+  "geometry": {
+    "type": "CircleWitness",
+    "center_epsg31370": [148118.780004, 176213.619996],
+    "radius_m": 26.944,
+    "radius_uncertainty_m": 0.8,
+    "source_pixel_center": [1293.4, 931.4],
+    "source_pixel_radius": 134.72,
+    "source_pixel_uncertainty": 4.0
+  },
+  "runtime_policy": {
+    "role": "current_site_footprint_context_only",
+    "terrain_following": true,
+    "collision": false,
+    "water_level_resolved": false,
+    "wall_height_resolved": false,
+    "jet_geometry_resolved": false,
+    "material_photometry_resolved": false,
+    "historical_2006_identity_resolved": false,
+    "historical_photo_match_alignment_resolved": false,
+    "surface_offset_m": 0.035,
+    "presentation_only_surface": true
+  },
+  "historical_alignment_blocker": {
+    "commons_camera_epsg31370": [147928.4114, 176347.3521],
+    "atomium_anchor_epsg31370": [148093.22038698208, 176091.76722726133],
+    "basin_center_lateral_offset_from_camera_target_axis_m": 87.517,
+    "meaning": "Current 2024 basin placement must not be moved or reinterpreted to force the 2006 reference composition."
+  }
+}

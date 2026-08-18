@@ -1,0 +1,74 @@
+{
+  "schema": "grand-bruxelles-town-hall-right-gallery-v1",
+  "status": "visual_candidate",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "official_geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "official_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "face_ids": ["https://databrussels.be/id/buildingface/10792525", "https://databrussels.be/id/buildingface/10798452"],
+    "chain_points": [[292.0918,0.0,-515.2239],[297.4498,0.0,-508.7339],[302.2418,0.0,-502.9279]],
+    "official_chain_span_m": 15.9440934873
+  },
+  "heritage_sources": {
+    "kcml_b1500": {
+      "provider": "Agentschap Onroerend Erfgoed / KCML Beeldbank",
+      "image_id": 431760,
+      "archive_number": "B1500",
+      "record_url": "https://beeldbank.onroerenderfgoed.be/images/431760",
+      "source_sha256": "94db156fc3f7e8aa97e475a138982f2cb3b7190964bc0ac165cb91465898dd8d",
+      "pixel_dimensions": [12062,7469],
+      "sheet_mm": [1000,602],
+      "scale": "1/20",
+      "designer": "Pierre Victor Jamaer",
+      "date": "1867-02-28",
+      "license": "Public Domain Mark 1.0",
+      "scope_text": "Galerie vers la grande place à droite de la tour",
+      "elevation_ground_anchor_full_y_px": 5116,
+      "elevation_gallery_top_anchor_full_y_px": 2148,
+      "derived_gallery_band_height_m": 4.785,
+      "measurement_uncertainty_m": 0.30,
+      "measurement_method": "manual image-space anchors on full verified scan; scale converted from stated 602 mm sheet height at 1/20; no depth inferred"
+    },
+    "urban_31125": {
+      "provider": "urban.brussels / Inventaire du patrimoine architectural",
+      "record": "Hôtel de ville, Grand-Place 8, 31125",
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+      "facts_used": ["The ground floor has galleries on either side of the portal under the tower.","The gallery to the right of the portal has six bays.","The gallery openings are pointed arches."]
+    }
+  },
+  "visualization": {
+    "bay_count": 6,
+    "gallery_height_m": 4.785,
+    "spring_height_m": 2.95,
+    "base_height_m": 0.20,
+    "surface_offset_m": 0.018,
+    "arch_edge_samples": 8,
+    "presentation_only": true,
+    "opening_depth_m": 0.0,
+    "collision_changed": false,
+    "official_vertices_changed": false,
+    "survey_geometry_claimed": false
+  },
+  "witness": {
+    "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+    "width": 1280,
+    "height": 720,
+    "min_changed_gt3_percent": 0.80,
+    "min_changed_gt8_percent": 0.40,
+    "min_bbox_width_px": 250,
+    "min_bbox_height_px": 100,
+    "freeze_dynamic_world": true,
+    "human_full_frame_required": true
+  },
+  "hard_rules": {
+    "grand_place_only": true,
+    "character_npc_changed": false,
+    "shared_environment_changed": false,
+    "citygen_changed": false,
+    "official_geometry_changed": false,
+    "portal_depth_authored": false,
+    "statuary_authored": false,
+    "runtime_approved": false,
+    "realism_complete": false
+  }
+}

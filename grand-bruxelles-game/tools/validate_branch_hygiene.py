@@ -28,7 +28,14 @@ def classify(branch: str) -> str:
     return "other"
 
 
-def check(head: str, base: str, changed: list[str], ahead: int = 0, behind: int = 0) -> Result:
+def check(
+    head: str,
+    base: str,
+    changed: list[str],
+    ahead: int = 0,
+    behind: int = 0,
+    docs_only_drift: bool = False,
+) -> Result:
     errors: list[str] = []
     warnings: list[str] = []
     kind = classify(head)
@@ -71,16 +78,21 @@ def check(head: str, base: str, changed: list[str], ahead: int = 0, behind: int 
                 errors.append(f"{kind} branch contains cross-workstream path: {path}")
                 break
 
-    # `behind` is measured against live origin/main by the workflow, not the
-    # pull-request base snapshot. Any merge candidate that is even one commit
-    # stale must resync and rerun all gates. Long-lived specialist branches are
-    # intentionally allowed to stay draft/red; they are extraction sources, not
-    # wholesale merge candidates.
+    # `behind` is measured against live origin/main. Product/runtime/workflow
+    # drift remains a hard failure. A narrow exception is allowed when the
+    # workflow has proven that every live-main-only change is under
+    # grand-bruxelles-game/docs/ AND none of those paths overlap this PR.
     if base == "main" and behind > 0:
-        errors.append(
-            f"{head} is {behind} commits behind live main; resync onto current main "
-            "and rerun all gates before merge"
-        )
+        if docs_only_drift:
+            warnings.append(
+                f"{head} is {behind} commits behind live main only because of non-overlapping docs; "
+                "runtime gates remain reusable"
+            )
+        else:
+            errors.append(
+                f"{head} is {behind} commits behind live main; resync onto current main "
+                "and rerun all gates before merge"
+            )
 
     if kind != "integration" and ahead > 50:
         errors.append(
@@ -108,6 +120,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--changed-file-list", type=Path, required=True)
     parser.add_argument("--ahead", type=int, default=0, help="commits head is ahead of live main")
     parser.add_argument("--behind", type=int, default=0, help="commits head is behind live main")
+    parser.add_argument(
+        "--docs-only-drift",
+        action="store_true",
+        help="live-main-only drift is proven non-overlapping grand-bruxelles-game/docs content",
+    )
     args = parser.parse_args(argv)
 
     changed = [
@@ -115,7 +132,14 @@ def main(argv: list[str] | None = None) -> int:
         for line in args.changed_file_list.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    result = check(args.head, args.base, changed, args.ahead, args.behind)
+    result = check(
+        args.head,
+        args.base,
+        changed,
+        args.ahead,
+        args.behind,
+        docs_only_drift=args.docs_only_drift,
+    )
     for warning in result.warnings:
         print(f"WARNING: {warning}")
     for error in result.errors:

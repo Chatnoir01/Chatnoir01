@@ -114,10 +114,10 @@ func _run() -> void:
         return
     for _frame: int in range(480):
         await process_frame
-        if bool(runtime.get("articulation_ready")) and runtime.has_method("cross_detail_count") and int(runtime.call("cross_detail_count")) == 38:
+        if bool(runtime.get("articulation_ready")) and runtime.has_method("cross_detail_count") and int(runtime.call("cross_detail_count")) == 20:
             break
-    if not bool(runtime.get("articulation_ready")) or not runtime.has_method("set_cross_detail_visible") or int(runtime.call("cross_detail_count")) != 38:
-        _fail("cross-window runtime not ready")
+    if not bool(runtime.get("articulation_ready")) or not runtime.has_method("set_cross_detail_visible") or int(runtime.call("cross_detail_count")) != 20 or int(runtime.call("cross_strip_count")) != 40:
+        _fail("east cross-window runtime not ready")
         return
 
     var old_camera := main.get_viewport().get_camera_3d()
@@ -159,8 +159,9 @@ func _run() -> void:
         "schema": "grand-bruxelles-town-hall-window-cross-ab-v1",
         "camera_source_pr": int(camera_contract.get("source_pr", 0)),
         "panels_preserved": 38,
-        "crosses": int(runtime.call("cross_detail_count")),
+        "east_crosses": int(runtime.call("cross_detail_count")),
         "strips": int(runtime.call("cross_strip_count")),
+        "west_special_ordination_deferred": true,
         "hidden_ui_operations": hidden_ui,
         "frozen_dynamic_nodes": frozen,
         "metrics": metrics,
@@ -176,5 +177,5 @@ func _run() -> void:
     output.store_string(JSON.stringify(output_data, "  "))
     output.close()
     print("GRAND_PLACE_TOWN_HALL_WINDOW_CROSS_AB_JSON " + JSON.stringify(output_data))
-    print("GRAND_PLACE_TOWN_HALL_WINDOW_CROSS_AB_OK: pixels=%d bbox=%dx%d crosses=38 clean_player=true" % [int(metrics.get("changed_gt8_pixels",0)), int(metrics.get("bbox_width",0)), int(metrics.get("bbox_height",0))])
+    print("GRAND_PLACE_TOWN_HALL_WINDOW_CROSS_AB_OK: pixels=%d bbox=%dx%d east_crosses=20 west_deferred=true clean_player=true" % [int(metrics.get("changed_gt8_pixels",0)), int(metrics.get("bbox_width",0)), int(metrics.get("bbox_height",0))])
     quit(0)

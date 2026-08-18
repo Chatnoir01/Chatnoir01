@@ -1,0 +1,23 @@
+name: Grand Bruxelles Midi Fonsny Perforated Canopy
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-fonsny-perforated-canopy.yml"
+      - "grand-bruxelles-game/data/visual/midi_fonsny_perforated_canopy_identity.json"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/tests/midi_fonsny_perforated_canopy_witness_test.gd"
+      - "grand-bruxelles-game/tools/test_midi_fonsny_perforated_canopy.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Fonsny source-backed canopy replacement contract
+        run: python3 grand-bruxelles-game/tools/test_midi_fonsny_perforated_canopy.py

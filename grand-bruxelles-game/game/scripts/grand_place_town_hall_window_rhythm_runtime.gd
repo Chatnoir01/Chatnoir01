@@ -49,27 +49,28 @@ func _bind_when_ready() -> void:
         Color(0.68, 0.66, 0.60, 1.0),
         Color(0.86, 0.82, 0.74, 1.0),
         0.82,
-        "Urban Brussels 31125 fenetres a croisee; cross-member dimensions authored presentation only"
+        "Urban Brussels 31125 east-wing fenetres a croisee; cross-member dimensions authored presentation only"
     )
-    _build_wing(EAST_FROM, EAST_TO, east_bay_count, "East")
-    _build_wing(WEST_FROM, WEST_TO, west_bay_count, "West")
+    _build_wing(EAST_FROM, EAST_TO, east_bay_count, "East", true)
+    _build_wing(WEST_FROM, WEST_TO, west_bay_count, "West", false)
     window_panel_count = _panels.size()
-    articulation_ready = window_panel_count == 38 and _cross_count == 38 and _cross_details.size() == 76
+    articulation_ready = window_panel_count == 38 and _cross_count == 20 and _cross_details.size() == 40
     set_meta("building_id", BUILDING_ID)
     set_meta("heritage_source", "urban.brussels/31125")
     set_meta("east_bays_documented", 10)
     set_meta("west_bays_documented", 9)
     set_meta("window_registers_documented", 2)
-    set_meta("window_identity", "fenetres_a_croisee")
+    set_meta("east_window_identity", "fenetres_a_croisee")
+    set_meta("west_special_ordination_deferred", true)
     set_meta("placement_semantics", placement_semantics)
     set_meta("cross_dimensions_source", CROSS_DIMENSIONS_SOURCE)
     set_meta("geometry_changed", false)
     set_meta("new_openings_authored", false)
     set_meta("runtime_approved", false)
     set_meta("realism_complete", false)
-    print("GRAND_PLACE_TOWN_HALL_WINDOW_RHYTHM_READY: east=%d west=%d registers=%d panels=%d crosses=%d strips=%d surveyed=false" % [east_bay_count, west_bay_count, window_register_count, window_panel_count, _cross_count, _cross_details.size()])
+    print("GRAND_PLACE_TOWN_HALL_WINDOW_RHYTHM_READY: east=%d west=%d registers=%d panels=%d east_crosses=%d strips=%d west_deferred=true surveyed=false" % [east_bay_count, west_bay_count, window_register_count, window_panel_count, _cross_count, _cross_details.size()])
 
-func _build_wing(a: Vector3, b: Vector3, bays: int, label: String) -> void:
+func _build_wing(a: Vector3, b: Vector3, bays: int, label: String, add_crosses: bool) -> void:
     var tangent := Vector3(b.x - a.x, 0.0, b.z - a.z).normalized()
     var segment_length := Vector2(b.x - a.x, b.z - a.z).length()
     var bay_spacing := segment_length / float(bays)
@@ -89,7 +90,8 @@ func _build_wing(a: Vector3, b: Vector3, bays: int, label: String) -> void:
             panel.mesh = _panel_mesh(center, tangent, horizontal_normal, width, PANEL_HEIGHT)
             add_child(panel)
             _panels.append(panel)
-            _add_cross_detail(center, tangent, horizontal_normal, width, PANEL_HEIGHT, label, register_index, bay)
+            if add_crosses:
+                _add_cross_detail(center, tangent, horizontal_normal, width, PANEL_HEIGHT, label, register_index, bay)
 
 func _panel_mesh(center: Vector3, tangent: Vector3, normal: Vector3, width: float, height: float) -> ArrayMesh:
     var half_w := tangent * width * 0.5
@@ -171,8 +173,9 @@ func cross_source_truth() -> Dictionary:
     return {
         "heritage_record": "Urban Brussels 31125",
         "window_identity": "fenetres_a_croisee",
-        "placement_semantics": "existing_window_panels_only",
+        "placement_semantics": "existing_east_window_panels_only",
         "dimensions_source": CROSS_DIMENSIONS_SOURCE,
+        "west_special_ordination_deferred": true,
         "dimensions_claimed_surveyed": false,
         "urbis_mesh_modified": false,
         "new_openings_authored": false,

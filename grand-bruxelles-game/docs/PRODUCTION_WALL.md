@@ -1,63 +1,63 @@
 # Production Wall
 
 ## Main
-- observed_main_before_this_edit: `3558ba527652ead8c6761cbcab447d7487005415`
-- last_verified: `2026-08-17T23:15:32Z`
-- rule: this SHA is the last main observed before this wall edit, not a claim that it equals future HEAD. Always re-read live `main` + open PRs before every branch, PR, merge, rejection or claim.
+- observed_main_before_this_edit: `ce640963f6468cce2ccf786f26f53c3dfa0bb9c0`
+- last_verified: `2026-08-18T02:56:03Z`
+- substantive_parent: `cf2433da792d3bd4616f2a27e6924de412c474aa` — shared presentation-only OSM rail surface shipped; player/release gates passed before publication.
+- rule: this SHA is the last `main` observed before this wall edit, not a claim about future HEAD. Re-read live `main` + open PRs before every branch, merge, rejection or production claim.
 
 ## Active ownership
-- Grand-Place / Maison des Brasseurs / coherent official-wall facade skin — THIS SHIFT — ACTIVE CLAIM. Start from exact live main after this wall lands; one continuous wall-envelope implementation only.
-- Midi remains actively owned by current visual/gameplay PRs; Bourse, shared Environment, continuity, player/NPC and specialist zones must be re-read before any work.
+- #11 — long-lived rest-of-Brussels mapping/data/tooling specialist workstream. Never merge wholesale; extract one coherent checkpoint from current main.
+- #2 — long-lived Laeken + Jette / Heysel / Atomium specialist workstream. Never merge wholesale; extract current-main checkpoints only.
+- No exact-current-main visual implementation PR remains open after #737 and #738 were rejected. Old Bourse/Atomium/Anneessens/UI/NPC drafts are evidence/specialist workspaces, not current-main integration candidates.
 
 ## Recently shipped
-- #733 — Bourse standardized OSM zone environment view. Data-only: exact committed corridor anchor `[81.54,-664.58]`, 130 m source-declared radius, 26 exact supported OSM points (7 trees, 19 bollards, 0 street lamps), `coverage_complete=false`, deterministic no-drift gate. No Bourse runtime/visual geometry changed.
-- #730 — Anneessens standardized OSM zone environment contract. Existing seven player-visible OSM tree IDs/positions preserved exactly; runtime moved from bespoke legacy path to `data/osm/zones/anneessens/environment.game.json`; dedicated Godot/runtime/A-B and release gates passed before merge.
-- #711 — reusable Grand-Place clean player-eye witness. Dedicated gate PASS; inspected 1280x720 artifact `9302931262` contains no mission/minimap/money/HUD. Artifact digest `sha256:51b16c9b563c67d3bf8a4cad48ed8565982ca590c37559324389ce79978c1648`.
-- #680 — Brasseurs photo-plan contract: source hash/license + UrbIS wall span + image-space facade control points; no runtime geometry.
-- #595 — Grand-Place Town Hall window rhythm accepted.
-- #474/#469/#465 — Fonsny crossing + Bourse glazing/UrbIS surface production truths.
+- `cf2433da...` / publication `ce640963...` — reusable shared OSM rail presentation surface on existing geometry; no geometry claim.
+- #733 — Bourse standardized OSM zone environment view: exact committed corridor anchor `[81.54,-664.58]`, source-declared 130 m radius, 26 supported OSM points (7 trees, 19 bollards, 0 street lamps), `coverage_complete=false`.
+- #730 — Anneessens standardized OSM zone environment contract; seven existing OSM tree IDs/positions preserved and runtime moved to the deterministic zone path.
+- #711 — reusable clean Grand-Place 1280x720 player-eye witness; no visible mission/minimap/money/HUD in accepted artifact.
+- #680 — Brasseurs photo-plan contract; source/license/hash + exact UrbIS wall constraints, no runtime geometry.
 
 ## Closed evidence since previous wall
-- #728 — production-capability roadmap draft closed without merge after #730/#733 made its Jette-only OSM statement stale and #730 proved the existing merge -> Web publish path for a data+runtime change. Rebuild any future roadmap from live main.
-- #713 — duplicate clean-frame implementation closed after #711 shipped; do not maintain competing witness harnesses.
-- #696 — Brasseurs photo-constrained runtime technical PASS but mandatory human FAIL; CLOSED WITHOUT MERGE. `changed3=1.4677%`, `changed8=1.4586%`, artifact `9295974123`.
-- #696 root cause: no coherent facade skin existed; bands, cylinders and dark boxes floated ~5.5 cm in front of an anonymous LoD2 mass, creating an architectural scaffold rather than one building.
-- #655/#680 source chain remains valid: Commons photo `File:Grand-Place 10, Bruxelles.01.jpg`, Nenea hartia, CC BY-SA 4.0, SHA-256 `fff8d81a...ed322`; City `010` -> UrbIS building `1639974`, wall `10945501`, span `8.7490357183 m`.
+- #738 — generic OSM roof material/runtime rejected without merge. 139 roofs register and technical/release gates are green, but legitimate Anneessens street-level A/B fails twice: locked `>3 RGB ratio = 0.0`. Artifact `9309080809`, digest `sha256:45ecb3cb352c7f5118742635bbf2d2ae51934fe288a85ae667541faa999202a3`. Full-frame review confirms roofs are not meaningfully visible from the normal player view. Do not revive with elevated/artificial camera or lower thresholds.
+- #737 — Fonsny heritage porch overlay rejected without merge. All structural/Web/PC/general gates green, but strict player-eye A/B is exact zero: `ratio3=0`, `ratio8=0`, `bbox=0x0`. Artifact `9309055116`, digest `sha256:9503f23d0fb16567b01cb5000fe5baaef737cd5f26680aeb680a824dd3a407b9`. Candidate porch sits largely inside/behind existing entrance articulation, so it contributes no visible pixels. Future Fonsny work must replace/correct a wrong existing feature rather than add an occluded duplicate.
+- #726 — stale Brasseurs coherent-wall workspace closed. It was based on `b5f2f427...` and its own continuation rule required a fresh live-main read before implementation.
+- #662 — stale shared sidewalk-edge workspace closed by its own rule after `main` advanced far beyond `2ab2a6c...`; current production already has later shared OSM sidewalk presentation.
+- #681 — obsolete Web first-load audit closed. Its ~66 MB PCK baseline was superseded by later production reductions to the ~38 MB class.
+- #728 — stale production-capability roadmap closed after Anneessens/Bourse OSM zone contracts shipped.
+- #696 — Brasseurs photo-constrained runtime technical PASS but mandatory human FAIL; primitive/free-standing overlays read as scaffold, not a coherent facade.
 
 ## Blocked / do not repeat
-- Maison du Roi — raw UrbIS LoD2 failed architectural fidelity. Unlock: higher-detail facade/photogrammetry/reconstruction source.
-- Ducs de Brabant — blind generic LoD2 mass failed human gate. Do not retry LoD2-only facade.
-- Grand-Place `1786758` — micro window rhythm insufficient impact. Do not enlarge to thresholds.
-- Roi d'Espagne — proxy facade + sphere dome failed. Do not retry primitive proxy strategy.
-- La Brouette — LoD2 + generic window grid failed. Do not repeat window-grid strategy.
-- Maison des Brasseurs — primitive/free-standing column/slab/arc or rectangle/window-grid overlays failed human gates. Never cosmetically tune or promote those runtimes.
-- Maison des Brasseurs — raw photo quad blocked; photo remains a constraint/reference source only.
+- Generic OSM roof treatment from a normal street-level context where roofs are not visible: no player value. Do not game the camera/gate.
+- Fonsny porch as an additive duplicate behind the existing `MidiMainEntranceFonsny` wall/glazing/canopy: exact-zero visible gain. Replace/correct existing articulation if source-backed, do not stack another porch.
+- Maison du Roi raw UrbIS LoD2; Ducs de Brabant blind LoD2 mass; Roi d'Espagne primitive proxy/sphere dome; La Brouette generic window grid: previous human fidelity failures.
+- Maison des Brasseurs free-standing bars/columns/slabs/arches/window-grid overlays and raw photo quad: rejected. Photo remains a constraint/reference source unless a compliant licensed derivative strategy is explicitly approved.
+- Never lower a predeclared visual threshold after failure.
 
 ## NOW / NEXT / LATER
-- NOW visual: RED-first contract for a single coherent Brasseurs facade skin using exact official wall `10945501` geometry before any architectural relief. Local official envelope: `(0,0) -> (0,19.166) -> (4.10803,24.746) -> (8.749036,18.966) -> (8.749036,0)` and exactly the 3 official wall triangles.
-- NEXT visual: once the official-wall skin passes structurally, integrate only shallow photo-constrained relief/openings into that skin. Columns must read half-embedded/attached, openings recessed, and bands/pediment integrated; no free-standing bars.
-- A/B must reuse shipped #711 clean-player witness invariant, freeze dynamics, lock thresholds before first render and require mandatory human full-frame three-second PASS.
-- LATER: if this representation still fails human fidelity, stop Brasseurs proxy reconstruction and pivot to a genuinely higher-detail licensed facade/mesh source or another unowned high-impact Centre defect.
+- NOW: no exact-current-main visual candidate is approved for integration. Production remains on `ce640963...`; do not merge any old draft merely to create activity.
+- NEXT: choose one fresh, unowned, normal-player-visible defect from current main. Highest-value Midi lesson from #737: if the Fonsny entrance is wrong, operate as a source-backed replacement/correction of the existing entrance articulation, with BEFORE from current production and AFTER replacing it — not an overlay hidden inside it.
+- Alternative Centre path: rebuild any Brasseurs attempt from live main only, preserving exact wall `10945501` / building `1639974` constraints and #711 clean witness; one coherent wall skin, no primitive scaffold.
+- LATER: continue OSM zone-environment standardization only on zones not actively owned by #2/#11 or another live specialist.
 
 ## Known visible debt
-- Grand-Place landmark-house facade/silhouette fidelity remains weak.
-- Maison des Brasseurs has strong source identity/placement/proportion constraints but no production-quality runtime facade has passed the human gate.
-- Bourse/Midi/Anneessens debt must be reassessed against current ownership before work begins.
+- Midi/Fonsny station entrance remains visually generic despite strong existing material/geometry systems; #737 proved that additive hidden detail is not the answer.
+- Grand-Place landmark-house facade/silhouette fidelity remains weak; no production-quality Brasseurs facade has passed the human three-second gate.
+- Bourse/Atomium/Anneessens old drafts must be rebuilt from current main before any integration decision.
 
 ## Important invariants
 - `main` is the only production truth; green unmerged PRs are not shipped progress.
-- Standardized OSM zone-environment production coverage is currently Jette + Anneessens + Bourse (3/7 catalogue zones). This is contract coverage, not JOUABLE promotion and not a claim of globally complete OSM coverage.
-- Never merge stale visual PRs; rebuild/revalidate from live `main`.
+- Standardized OSM zone-environment production coverage remains Jette + Anneessens + Bourse (3/7 catalogue zones). This is contract coverage, not JOUABLE promotion and not a global OSM completeness claim.
+- Never merge stale visual PRs; rebuild/revalidate from live main.
 - One defect may have only one active implementation; close duplicates rather than race them.
-- Human full-frame verdict overrides green CI for landmarks; never lower a predeclared gate.
-- #711 is the canonical clean Grand-Place player-eye witness pattern; no visual PR may claim `ui_masked=true` without the same zero-visible-CanvasItem invariant.
-- Photo measurements are image-space constraints, not surveyed geometry. UrbIS owns position/span/official wall shape.
-- Piecewise vertical anchoring is retained; global photo-Y to metres is rejected.
-- Commons pixels are not shipped by current contracts; any future derivative using them must satisfy CC BY-SA 4.0 obligations.
+- Human full-frame verdict overrides green CI for visual lots; technical PASS cannot rescue invisible work.
+- #711 remains the canonical clean Grand-Place player-eye witness pattern.
+- UrbIS owns official placement/span/wall shape where available; photo measurements are image-space constraints, not survey geometry.
+- Commons pixels are not shipped by current contracts; any future derivative must satisfy the applicable license obligations.
 
 ## Shift handoff
-- What changed: #711 shipped a genuinely clean UI-free player-eye witness; duplicate #713 closed. Brasseurs claim advances from QA repair to coherent official-wall facade skin. Separately, #730 and #733 establish standardized OSM zone-environment contracts for Anneessens and Bourse; together with Jette this is now 3/7 catalogue zones.
-- What is proven: clean 1280x720 Grand-Place witness; Commons source identity/license/hash; City `010` -> UrbIS `1639974`; wall `10945501`; span `8.7490357183 m`; photo-plan proportions; official piecewise vertical anchors; deterministic OSM zone contracts on Jette/Anneessens/Bourse.
-- What is NOT proven: a production-quality Brasseurs facade or three-second human recognition PASS; standardized OSM environment contracts for Midi, Grand-Place, Ixelles or Atomium/Heysel.
-- What must not be redone: raw LoD2 landmarks, generic/free-standing grids, primitive column overlays, sphere domes, raw photo quad, global photo vertical scale, lowered gates; do not recreate Anneessens/Bourse zone contracts under new bespoke names.
-- Exact next action: re-read live main/owners. Brasseurs continues only in its single active coherent-wall workspace; further OSM zone standardization must skip any zone with an active data/geometry owner.
+- What changed: shared OSM rail presentation shipped and was published; #738 roof material and #737 Fonsny porch were both rejected on genuine player-visible gates despite broad green CI; stale #726/#662/#681 were closed to remove false ownership.
+- What is proven: release remains on `ce640963...`; generic roofs are not a worthwhile street-level presentation target in the tested Anneessens view; the current Fonsny camera correctly frames the entrance and additive porch geometry contributes exactly zero visible change.
+- What is NOT proven: that the existing Fonsny entrance is architecturally correct, or that a replacement would pass; a production-quality Brasseurs facade; standard OSM environment contracts for Midi, Grand-Place, Ixelles or Atomium/Heysel.
+- What must not be redone: invisible roof autoload, hidden duplicate Fonsny porch, stale Brasseurs branch, stale sidewalk-edge branch, obsolete ~66 MB Web audit, lowered visual gates.
+- Exact next action: re-read live main/owners. If Midi/Fonsny remains unowned, audit the current entrance nodes against the existing Urban 9423 source contract and create a RED-first replacement/correction lot only for the single biggest visible mismatch. Otherwise select another unowned normal-player-visible defect.

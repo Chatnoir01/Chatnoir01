@@ -1,0 +1,69 @@
+name: Grand Bruxelles Town Hall Dormer Runtime
+
+on:
+  push:
+    branches:
+      - "feat/grand-place-town-hall-dormers-*"
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-dormer-runtime.yml"
+      - "grand-bruxelles-game/data/visual/grand_place_town_hall_dormer_visualization.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_town_hall_dormers.json"
+      - "grand-bruxelles-game/game/scripts/grand_place_town_hall_dormer_runtime.gd"
+      - "grand-bruxelles-game/tools/test_grand_place_town_hall_dormers.py"
+      - "grand-bruxelles-game/game/tests/grand_place_town_hall_dormer_visual_test.gd"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-dormer-runtime.yml"
+      - "grand-bruxelles-game/data/visual/grand_place_town_hall_dormer_visualization.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_town_hall_dormers.json"
+      - "grand-bruxelles-game/game/scripts/grand_place_town_hall_dormer_runtime.gd"
+      - "grand-bruxelles-game/tools/test_grand_place_town_hall_dormers.py"
+      - "grand-bruxelles-game/game/tests/grand_place_town_hall_dormer_visual_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dormer-runtime-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Town Hall dormer runtime contract
+        run: python3 grand-bruxelles-game/tools/test_grand_place_town_hall_dormers.py
+
+  dormer-visual-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project and reject script errors
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/dormer-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/dormer-import.log; then exit 1; fi
+      - name: Run canonical Grand-Place dormer A/B witness
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 150s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --resolution 1280x720 --script res://game/tests/grand_place_town_hall_dormer_visual_test.gd 2>&1 | tee /tmp/dormer-visual.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_TOWN_HALL_DORMER_VISUAL_FAIL" /tmp/dormer-visual.log; then exit 1; fi
+          grep -q "GRAND_PLACE_TOWN_HALL_DORMER_VISUAL_OK" /tmp/dormer-visual.log
+      - name: Upload full-frame before/after evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-town-hall-dormer-visual
+          path: |
+            grand-bruxelles-game/artifacts/qa/grand_place_town_hall_dormer_visual.json
+            grand-bruxelles-game/artifacts/qa/grand_place_town_hall_dormer_before.png
+            grand-bruxelles-game/artifacts/qa/grand_place_town_hall_dormer_after.png
+          if-no-files-found: error

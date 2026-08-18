@@ -133,6 +133,10 @@ static func _build_feature_transforms(
     if ring.size() < 3 or semantic_height < PANEL_HEIGHT_M + 0.6:
         return
     var center := _centroid(ring)
+    # Match the existing source-backed building base exactly: one base elevation per
+    # building, derived from its footprint centroid for the direct Ixelles slice and
+    # from the streamed cell's fixed building_base_y for source-plan context cells.
+    var building_base_y := _base_y(center, sampler, fallback_base_y)
     for edge_index: int in range(ring.size()):
         if panels.size() >= MAX_RECESS_PANELS_PER_TARGET:
             return
@@ -162,8 +166,7 @@ static func _build_feature_transforms(
                 return
             var along := EDGE_MARGIN_M + (float(bay_index) + 0.5) * bay_span
             var point := a + tangent * along
-            var ground_y := _base_y(point, sampler, fallback_base_y)
-            var origin := Vector3(point.x, ground_y + panel_center_y, point.y)
+            var origin := Vector3(point.x, building_base_y + panel_center_y, point.y)
             panels.append(Transform3D(rotation.scaled(Vector3(panel_width, PANEL_HEIGHT_M, PANEL_DEPTH_M)), origin + outward3 * PANEL_WALL_OFFSET_M))
             headers.append(Transform3D(rotation.scaled(Vector3(panel_width + 0.22, HEADER_HEIGHT_M, FRAME_DEPTH_M)), origin + Vector3.UP * (PANEL_HEIGHT_M * 0.5 + HEADER_HEIGHT_M * 0.45) + outward3 * FRAME_WALL_OFFSET_M))
             var jamb_scale := Vector3(JAMB_WIDTH_M, PANEL_HEIGHT_M + 0.10, FRAME_DEPTH_M)

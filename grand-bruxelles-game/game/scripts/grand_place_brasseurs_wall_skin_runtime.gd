@@ -16,13 +16,13 @@ func _build_from_source() -> void:
     if not FileAccess.file_exists(SOURCE_PATH):
         _fail("source contract missing")
         return
-    var parsed := JSON.parse_string(FileAccess.get_file_as_string(SOURCE_PATH))
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(SOURCE_PATH))
     if typeof(parsed) != TYPE_DICTIONARY:
         _fail("source contract invalid")
         return
     _source = parsed as Dictionary
-    var target := _source.get("target", {}) as Dictionary
-    var presentation := _source.get("presentation_contract", {}) as Dictionary
+    var target: Dictionary = _source.get("target", {}) as Dictionary
+    var presentation: Dictionary = _source.get("presentation_contract", {}) as Dictionary
     if str(target.get("building_id", "")) != "1639974" or str(target.get("front_wall_id", "")) != "10945501":
         _fail("source target drifted")
         return
@@ -30,8 +30,8 @@ func _build_from_source() -> void:
         _fail("base wall proof must stay details=0 and offset=0")
         return
 
-    var raw_vertices := target.get("official_unique_vertices_world", []) as Array
-    var raw_triangles := target.get("continuous_skin_triangle_indices", []) as Array
+    var raw_vertices: Array = target.get("official_unique_vertices_world", []) as Array
+    var raw_triangles: Array = target.get("continuous_skin_triangle_indices", []) as Array
     if raw_vertices.size() != 5 or raw_triangles.size() != 3:
         _fail("expected five exact boundary vertices and three triangles")
         return
@@ -43,26 +43,26 @@ func _build_from_source() -> void:
             return
         vertices.append(Vector3(float(raw[0]), float(raw[1]), float(raw[2])))
 
-    var tool := SurfaceTool.new()
+    var tool: SurfaceTool = SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     for raw_triangle: Variant in raw_triangles:
         if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
             _fail("invalid triangle index record")
             return
-        var a := vertices[int(raw_triangle[0])]
-        var b := vertices[int(raw_triangle[1])]
-        var c := vertices[int(raw_triangle[2])]
-        var normal := (b - a).cross(c - a).normalized()
+        var a: Vector3 = vertices[int(raw_triangle[0])]
+        var b: Vector3 = vertices[int(raw_triangle[1])]
+        var c: Vector3 = vertices[int(raw_triangle[2])]
+        var normal: Vector3 = (b - a).cross(c - a).normalized()
         for vertex: Vector3 in [a, b, c]:
             tool.set_normal(normal)
             tool.add_vertex(vertex)
 
-    var mesh := tool.commit()
+    var mesh: ArrayMesh = tool.commit()
     if mesh == null or mesh.get_surface_count() != 1:
         _fail("continuous wall mesh commit failed")
         return
 
-    var material := StandardMaterial3D.new()
+    var material: StandardMaterial3D = StandardMaterial3D.new()
     material.albedo_color = Color(0.73, 0.67, 0.56, 1.0)
     material.roughness = 0.88
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -87,8 +87,8 @@ func candidate_visible() -> bool:
     return is_instance_valid(_mesh_instance) and _mesh_instance.visible
 
 func source_contract() -> Dictionary:
-    var target := _source.get("target", {}) as Dictionary
-    var presentation := _source.get("presentation_contract", {}) as Dictionary
+    var target: Dictionary = _source.get("target", {}) as Dictionary
+    var presentation: Dictionary = _source.get("presentation_contract", {}) as Dictionary
     return {
         "building_id": str(target.get("building_id", "")),
         "front_wall_id": str(target.get("front_wall_id", "")),

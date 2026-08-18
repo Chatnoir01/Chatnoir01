@@ -29,8 +29,15 @@ jobs:
         run: python grand-bruxelles-game/tools/fetch_anneessens_school_source.py --output /tmp/anneessens_school_256375327.game.json
       - name: Compare live source with committed snapshot
         run: cmp /tmp/anneessens_school_256375327.game.json grand-bruxelles-game/data/osm/anneessens_school_256375327.game.json
-      - name: Validate source contract
-        run: python -m pytest -q grand-bruxelles-game/tests/test_anneessens_school_source.py
+      - name: Validate source contract without external test dependency
+        run: |
+          python - <<'PY'
+          import runpy
+          namespace = runpy.run_path('grand-bruxelles-game/tests/test_anneessens_school_source.py')
+          namespace['test_school_landmark_is_committed_from_exact_osm_way']()
+          namespace['test_heritage_contract_only_claims_documented_frontage_traits']()
+          print('ANNEESSENS_SOURCE_CONTRACT_OK')
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: anneessens-school-source

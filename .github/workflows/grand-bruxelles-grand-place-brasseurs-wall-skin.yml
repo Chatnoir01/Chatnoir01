@@ -8,17 +8,25 @@ on:
       - "grand-bruxelles-game/data/qa/grand_place_clean_player_witness.json"
       - "grand-bruxelles-game/game/scripts/grand_place_brasseurs_wall_skin_runtime.gd"
       - "grand-bruxelles-game/game/tests/grand_place_brasseurs_wall_skin_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_brasseurs_wall_skin_ab_test.gd"
+      - "grand-bruxelles-game/tools/check_brasseurs_wall_skin_ab.py"
+      - "grand-bruxelles-game/game/main.tscn"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  exact-wall-red-green:
+  exact-wall-visibility:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
+      - name: Install render and image-diff dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+          python3 -m pip install --disable-pip-version-check pillow
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -37,3 +45,23 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_brasseurs_wall_skin_test.gd 2>&1 | tee /tmp/brasseurs-wall-test.log
           if grep -E "SCRIPT ERROR|Parse Error:" /tmp/brasseurs-wall-test.log; then exit 1; fi
           grep -F "BRASSEURS_WALL_SKIN_OK" /tmp/brasseurs-wall-test.log
+      - name: Render canonical no-shadow current-vs-wall A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_brasseurs_wall_skin_ab_test.gd 2>&1 | tee /tmp/brasseurs-wall-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRASSEURS_WALL_SKIN_AB_FAIL" /tmp/brasseurs-wall-ab.log; then exit 1; fi
+          grep -F "BRASSEURS_WALL_SKIN_AB_CAPTURE_OK" /tmp/brasseurs-wall-ab.log
+      - name: Enforce frozen visual-impact gate
+        run: python3 grand-bruxelles-game/tools/check_brasseurs_wall_skin_ab.py /tmp/brasseurs-wall-before.png /tmp/brasseurs-wall-after.png
+      - name: Upload full-frame evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-brasseurs-exact-wall-ab
+          path: |
+            /tmp/brasseurs-wall-before.png
+            /tmp/brasseurs-wall-after.png
+            /tmp/brasseurs-wall-ab-metrics.json
+            /tmp/brasseurs-wall-ab.log
+          if-no-files-found: warn

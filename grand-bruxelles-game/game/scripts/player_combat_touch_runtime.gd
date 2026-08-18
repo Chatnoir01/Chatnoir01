@@ -143,10 +143,8 @@ func _toggle_aim() -> void:
     if arsenal == null or player == null or not bool(arsenal.call("is_armed")):
         return
     var next_aim := not bool(player.get_meta("combat_weapon_aiming", false))
-    arsenal.set("_aiming", next_aim)
-    player.set_meta("combat_weapon_aiming", next_aim)
-    if arsenal.has_method("_refresh_hud"):
-        arsenal.call("_refresh_hud", player)
+    if arsenal.has_method("set_aiming"):
+        arsenal.call("set_aiming", player, next_aim)
     _refresh_labels(arsenal)
 
 func _request_reload() -> void:

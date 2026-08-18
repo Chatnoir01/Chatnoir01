@@ -32,6 +32,46 @@ func set_aiming(player: CharacterBody3D, aiming: bool) -> bool:
     _refresh_hud(player)
     return true
 
+func request_melee_combo(player: CharacterBody3D) -> Dictionary:
+    if player == null or not is_instance_valid(player):
+        return {"hit": false, "reason": "player_unavailable"}
+    if is_armed():
+        return {"hit": false, "reason": "weapon_equipped"}
+    var melee_runtime := get_node_or_null("/root/PlayerMeleeCombatRuntime")
+    if melee_runtime == null or not melee_runtime.has_method("request_attack"):
+        return {"hit": false, "reason": "melee_runtime_unavailable"}
+
+    var now := Time.get_ticks_msec()
+    if now - _last_melee_ms > COMBO_RESET_MS:
+        _combo_index = 0
+    var move := melee_move(_combo_index)
+
+    # The melee runtime resolves its hit synchronously. Publish the move before
+    # request_attack so directional hurt reactions see the correct hand/leg.
+    var previous_move_id := player.get_meta("combat_move_id", &"")
+    var previous_move_label := player.get_meta("combat_move_label", "")
+    player.set_meta("combat_move_id", move.get("id", &""))
+    player.set_meta("combat_move_label", move.get("label", ""))
+
+    var result_variant: Variant = melee_runtime.call("request_attack", player)
+    if not result_variant is Dictionary:
+        player.set_meta("combat_move_id", previous_move_id)
+        player.set_meta("combat_move_label", previous_move_label)
+        return {"hit": false, "reason": "invalid_melee_result"}
+    var result := result_variant as Dictionary
+    if not result.has("recovery_ms"):
+        player.set_meta("combat_move_id", previous_move_id)
+        player.set_meta("combat_move_label", previous_move_label)
+        return result
+
+    _combo_index = (_combo_index + 1) % MELEE_MOVES.size()
+    _last_melee_ms = now
+    player.set_meta("combat_combo_step", _combo_index)
+    _animate_melee_move(player, move)
+    result["move_id"] = move.get("id", &"")
+    result["move_label"] = move.get("label", "")
+    return result
+
 func _apply_weapon_hit(npc: NpcAgent, player: CharacterBody3D, damage: float) -> bool:
     var applied := super._apply_weapon_hit(npc, player, damage)
     if not applied or npc == null or not is_instance_valid(npc):

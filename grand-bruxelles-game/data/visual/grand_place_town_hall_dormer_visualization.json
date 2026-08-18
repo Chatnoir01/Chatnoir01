@@ -1,0 +1,73 @@
+{
+  "schema": "grand-bruxelles-town-hall-dormer-visualization-v1",
+  "status": "runtime_visualization_candidate",
+  "production_base": "213a7a851c24866fef91e9efa0e011786b197ca8",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "roof_face_id": "https://databrussels.be/id/buildingface/9369301",
+    "gallery_wall_faces": [
+      "https://databrussels.be/id/buildingface/10792525",
+      "https://databrussels.be/id/buildingface/10798452"
+    ],
+    "eave_start": [292.0918, 23.712, -515.2239],
+    "eave_end": [302.2418, 23.712, -502.9279],
+    "eave_span_m": 15.9440934873,
+    "photo_fit_face_center": [294.79137723, 29.3225968, -507.11629203]
+  },
+  "source_alignment": {
+    "heritage_record": {
+      "provider": "Urban Brussels - Inventaire du patrimoine architectural",
+      "record_id": "31125",
+      "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+      "supported_fact": "four rows of hipped dormers on the slate gabled roof",
+      "supports_exact_positions": false,
+      "supports_exact_dimensions": false
+    },
+    "photo_sources": [
+      {"id":"commons_michielverbeek_2015","page":"https://commons.wikimedia.org/wiki/File:Brussels,_townhall_oeg2043-00090_foto3_2015-06-07_08.38.jpg","author":"Michielverbeek","date":"2015-06-07","license":"CC BY-SA 4.0","width":2921,"height":3899,"sha256":"1bd1eff924d3b1a9b21ec83a63693d83f689aff06d47acea975095c9915178b1"},
+      {"id":"commons_zairon_2016","page":"https://commons.wikimedia.org/wiki/File:Bruxelles_Grand-Place_Hotel_de_Ville_01.jpg","author":"Zairon","date":"2016-04-19","license":"CC BY-SA 4.0","width":3334,"height":3661,"sha256":"c8d4123381926ed0473f08d82e54110c572d52a32e10b21d6fd90efb69658be8"},
+      {"id":"commons_emdee_2011","page":"https://commons.wikimedia.org/wiki/File:Belgique_-_Bruxelles_-_Hotel_de_Ville_-_01.jpg","author":"EmDee","date":"2011-04-07","license":"CC BY-SA 4.0","width":2552,"height":3498,"sha256":"339bec2eec75ee8e95ead893f532dc229008d6a66f3a6850f5c4fda93621854c"}
+    ],
+    "visible_population_top_to_bottom": [3, 4, 4, 5],
+    "staggered_rows": true,
+    "morphology": "small hipped dormers projecting from dark slate roof",
+    "visible_population_is_total_inventory_claim": false
+  },
+  "visualization_convention": {
+    "placement_source": "photo_fit_visualization_convention_not_survey_coordinates",
+    "dimensions_source": "photo_fit_visualization_convention_not_survey_dimensions",
+    "roof_basis_source": "official_UrbIS_face_9369301",
+    "row_slope_distance_from_eave_m_top_to_bottom": [9.8, 7.4, 5.2, 3.0],
+    "row_u_fractions_top_to_bottom": [[0.20,0.50,0.80],[0.12,0.38,0.64,0.90],[0.20,0.43,0.66,0.89],[0.10,0.30,0.50,0.70,0.90]],
+    "dormer_width_m": 0.72,
+    "front_height_m": 0.82,
+    "hip_depth_m": 0.72,
+    "hip_rise_m": 0.34
+  },
+  "truth_boundary": {
+    "exact_3d_positions_resolved": false,
+    "exact_dimensions_resolved": false,
+    "photo_points_are_survey_coordinates": false,
+    "urbis_mesh_modified": false,
+    "candidate_requires_visual_gate": true
+  },
+  "predeclared_visual_gate": {
+    "canonical": {
+      "resolution": [1280,720],
+      "rgb_delta_threshold": 8,
+      "minimum_changed_pixels": 350,
+      "minimum_bbox_width_px": 50,
+      "minimum_bbox_height_px": 25
+    },
+    "player_look_up": {
+      "same_ground_position_as_canonical": true,
+      "target": [294.79137723,29.3225968,-507.11629203],
+      "fov_deg": 45.0,
+      "rgb_delta_threshold": 8,
+      "minimum_changed_pixels": 1000,
+      "minimum_bbox_width_px": 120,
+      "minimum_bbox_height_px": 80,
+      "minimum_frame_margin_px": 20
+    }
+  }
+}

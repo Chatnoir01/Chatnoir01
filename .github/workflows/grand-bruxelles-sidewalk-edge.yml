@@ -1,0 +1,26 @@
+name: Grand Bruxelles Shared Sidewalk Edge
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-sidewalk-edge.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/osm_city_builder.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_sidewalk_surface_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_sidewalk_edge_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_sidewalk_edge_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_sidewalk_edge_witness_test.gd"
+      - "grand-bruxelles-game/tools/qa/validate_sidewalk_edge_runtime.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sidewalk-edge-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate fail-closed shared sidewalk edge contract
+        run: python3 grand-bruxelles-game/tools/qa/validate_sidewalk_edge_runtime.py

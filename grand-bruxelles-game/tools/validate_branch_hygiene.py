@@ -71,42 +71,43 @@ def check(head: str, base: str, changed: list[str], ahead: int = 0, behind: int 
                 errors.append(f"{kind} branch contains cross-workstream path: {path}")
                 break
 
+    # `behind` is measured against live origin/main by the workflow, not the
+    # pull-request base snapshot. Any merge candidate that is even one commit
+    # stale must resync and rerun all gates. Long-lived specialist branches are
+    # intentionally allowed to stay draft/red; they are extraction sources, not
+    # wholesale merge candidates.
+    if base == "main" and behind > 0:
+        errors.append(
+            f"{head} is {behind} commits behind live main; resync onto current main "
+            "and rerun all gates before merge"
+        )
+
     if kind != "integration" and ahead > 50:
         errors.append(
-            f"{head} is {ahead} commits ahead of {base}; extract a coherent lot onto current main "
+            f"{head} is {ahead} commits ahead of live main; extract a coherent lot onto current main "
             "instead of wholesale merge"
         )
-    if kind != "integration" and behind > 15:
-        errors.append(f"{head} is {behind} commits behind {base}; refresh/extract before integration")
 
-    # Integration branches are the final promotion boundary. They must be built on
-    # the exact current main so a technically mergeable but stale lot cannot bypass
-    # conflicts or validation introduced after its base commit.
-    if kind == "integration" and behind > 0:
-        errors.append(
-            f"integration branch {head!r} is {behind} commits behind {base}; "
-            "refresh onto current main and rerun all gates before merge"
-        )
     if kind == "integration" and ahead > 20:
         errors.append(
-            f"integration branch {head!r} is {ahead} commits ahead of {base}; "
+            f"integration branch {head!r} is {ahead} commits ahead of live main; "
             "split it into smaller coherent promotion lots"
         )
     elif kind == "integration" and ahead > 10:
         warnings.append(
-            f"integration branch is {ahead} commits ahead of {base}; keep promotion lots short-lived"
+            f"integration branch is {ahead} commits ahead of live main; keep promotion lots short-lived"
         )
 
     return Result(tuple(dict.fromkeys(errors)), tuple(dict.fromkeys(warnings)))
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Grand Bruxelles branch ownership hard gate")
+    parser = argparse.ArgumentParser(description="Grand Bruxelles branch ownership and live-main hard gate")
     parser.add_argument("--head", required=True)
     parser.add_argument("--base", required=True)
     parser.add_argument("--changed-file-list", type=Path, required=True)
-    parser.add_argument("--ahead", type=int, default=0)
-    parser.add_argument("--behind", type=int, default=0)
+    parser.add_argument("--ahead", type=int, default=0, help="commits head is ahead of live main")
+    parser.add_argument("--behind", type=int, default=0, help="commits head is behind live main")
     args = parser.parse_args(argv)
 
     changed = [

@@ -128,9 +128,6 @@ func _clip_line_to_rect(start: Vector2, finish: Vector2, half_extents: Vector2) 
     return Vector2(t0, t1)
 
 func _intersection_interval(sidewalk: CSGBox3D, local_x: float, start_z: float, end_z: float, other_road: CSGBox3D) -> Vector2:
-    # Work strictly in world X/Z. CSG local conversion is sensitive to parent
-    # transforms in synthetic/runtime harnesses; explicit projection onto the
-    # road's normalized world axes makes the 2D overlap contract deterministic.
     var start_world_3d := sidewalk.global_transform * Vector3(local_x, 0.0, start_z)
     var end_world_3d := sidewalk.global_transform * Vector3(local_x, 0.0, end_z)
     var center := Vector2(other_road.global_position.x, other_road.global_position.z)
@@ -148,7 +145,7 @@ func _intersection_interval(sidewalk: CSGBox3D, local_x: float, start_z: float, 
         Vector2(other_road.size.x * 0.5 + INTERSECTION_CLEARANCE_M, other_road.size.z * 0.5 + INTERSECTION_CLEARANCE_M)
     )
     if clipped.x < 0.0:
-        return clipped
+        return Vector2(INF, -INF)
     var z0 := lerpf(start_z, end_z, clipped.x)
     var z1 := lerpf(start_z, end_z, clipped.y)
     return Vector2(minf(z0, z1), maxf(z0, z1))
@@ -175,9 +172,7 @@ func _usable_edge_ranges(sidewalk: CSGBox3D, matched_road: CSGBox3D, roads: Arra
         if other_road == matched_road:
             continue
         var interval := _intersection_interval(sidewalk, local_x, start_z, end_z, other_road)
-        if interval.x < 0.0:
-            continue
-        if interval.y - interval.x <= 0.001:
+        if interval.y <= interval.x:
             continue
         exclusions.append(interval)
     var merged := _merge_intervals(exclusions)

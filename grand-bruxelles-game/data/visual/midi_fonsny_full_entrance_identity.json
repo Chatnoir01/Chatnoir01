@@ -1,0 +1,62 @@
+{
+  "schema": "grand-bruxelles-midi-fonsny-full-entrance-v1",
+  "zone": "midi",
+  "target": {
+    "runtime_node": "MidiMainEntranceFonsny",
+    "replacement_root_name": "EntranceSourceBackedFonsnyPorch",
+    "superseded_existing_nodes": [
+      "EntranceBlueStoneWall",
+      "EntranceGlazing",
+      "EntranceConcreteCanopy",
+      "CanopyMetalEdge",
+      "EntranceColumn*"
+    ]
+  },
+  "heritage_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Gare du Midi et bâtiments annexes, Urban 9423",
+    "urban_id": 9423,
+    "url": "https://monument.heritage.brussels/fr/Saint-Gilles/Avenue_Fonsny/47/9423",
+    "accessed_at": "2026-08-18",
+    "facts": [
+      "The Avenue Fonsny station access is described as a vast porch supported by polygonal columns and organized in three registers.",
+      "The middle register has three long bays with concrete crosswork and glass-block infill; the last register is blind.",
+      "The porch has a vast concrete canopy perforated with glass blocks."
+    ]
+  },
+  "existing_presentation_contract": {
+    "station_plan_authority": "official UrbIS",
+    "entrance_root_transform_preserved": true,
+    "canopy_existing_size_m": [17.8, 0.48, 25.0],
+    "canopy_existing_local_position_m": [-7.0, 4.55, 0.0],
+    "canopy_envelope_preserved": true,
+    "production_material_families_reused": true
+  },
+  "replacement_contract": {
+    "scope": "full_existing_fonsny_entrance_articulation",
+    "predeclared_before_first_render": true,
+    "replace_existing_objects_in_place": true,
+    "additive_duplicate_forbidden": true,
+    "three_registers_required": true,
+    "polygonal_columns_required": true,
+    "glass_block_perforated_canopy_required": true,
+    "register_dimensions_are_source_measured": false,
+    "panel_count_is_source_measured": false,
+    "rib_spacing_is_source_measured": false,
+    "column_positions_are_source_measured": false,
+    "new_station_plan_geometry": false,
+    "urbis_station_plan_authority_preserved": true,
+    "camera_rescue_forbidden": true,
+    "threshold_lowering_forbidden": true,
+    "material_brightening_for_pixel_count_forbidden": true,
+    "realism_complete": false
+  },
+  "locked_player_eye_gate": {
+    "resolution": [1280, 720],
+    "camera_position": [-652.0, 1.72, 621.0],
+    "fov": 69.0,
+    "min_ratio_over_3_rgb": 0.03,
+    "min_ratio_over_8_rgb": 0.015,
+    "min_bbox": [700, 160]
+  }
+}

@@ -234,7 +234,8 @@ func enhanced_enabled() -> bool: return _enhanced_enabled
 func ready_complete() -> bool: return _ready_complete
 func failed() -> bool: return _failed
 func sidewalk_count() -> int: return _sidewalks.size() if _ready_complete and not _failed else 0
-func edge_count() -> int: return _edge_segment_count if _ready_complete and not _failed else 0
+func edge_count() -> int: return sidewalk_count()
+func edge_segment_count() -> int: return _edge_segment_count if _ready_complete and not _failed else 0
 func crossing_clip_count() -> int: return _crossing_clip_count if _ready_complete and not _failed else 0
 func batch_count() -> int: return 1 if is_instance_valid(_visual) else 0
 func collision_count() -> int: return 0

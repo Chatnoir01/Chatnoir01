@@ -6,15 +6,23 @@ extends Node3D
 
 const CIVILIAN_VEHICLE_VISUAL := preload("res://game/scripts/civilian_vehicle_visual.gd")
 const VEHICLE_AXIS_ID := "https://databrussels.be/id/streetaxe/71374:1"
+const TARGET_AXIS_ID := "https://databrussels.be/id/streetaxe/71306:2"
+const CAMERA_AXIS_T := 0.68
 const PEDESTRIAN_SURFACE_TYPE := "SW"
 const DISABLE_ENV := "GB_IXELLES_LIFE"
 const CIVILIAN_COUNT := 8
 const MOVING_VEHICLE_COUNT := 2
-const MAX_SIDEWALK_ANCHOR_DISTANCE_M := 140.0
+const MIN_PEDESTRIAN_DISTANCE_M := 5.0
+const MAX_PEDESTRIAN_DISTANCE_M := 42.0
+const MIN_FORWARD_DOT := 0.54
+const MIN_ANCHOR_SEPARATION_M := 2.4
 
 var _slice: Node = null
 var _axis := PackedVector2Array()
+var _target_axis := PackedVector2Array()
 var _axis_length_m := 0.0
+var _camera_xz := Vector2.ZERO
+var _camera_forward := Vector2.ZERO
 var _pedestrian_anchors: Array[Vector2] = []
 var _pedestrian_source_ids: Array[String] = []
 var _civilians: Array[Node3D] = []
@@ -22,6 +30,7 @@ var _moving: Array[Node3D] = []
 var _vehicle_t: Array[float] = []
 var _vehicle_speed_mps: Array[float] = []
 var _all_pedestrian_anchors_inside_source := false
+var _all_pedestrian_anchors_in_spawn_view := false
 var _ready_complete := false
 var _failed := false
 
@@ -36,11 +45,11 @@ func _ready() -> void:
     if _slice == null or not bool(_slice.get("runtime_loaded")):
         _stop("source Ixelles micro-slice missing")
         return
-    if not _load_vehicle_axis():
-        _stop("accepted official StreetAxis unavailable")
+    if not _load_spawn_axes():
+        _stop("accepted official StreetAxis witnesses unavailable")
         return
     if not _load_pedestrian_anchors():
-        _stop("insufficient official SW StreetSurface anchors")
+        _stop("insufficient official SW StreetSurface anchors in direct-spawn sightline")
         return
     _build_civilians()
     _build_moving_vehicles()
@@ -49,7 +58,7 @@ func _ready() -> void:
         return
     _ready_complete = true
     set_process(true)
-    print("IXELLES_LAB_LIFE_READY: civilians=%d moving=%d vehicle_axis=%s pedestrian_surface=%s geography_expanded=false lane_geometry_claimed=false" % [_civilians.size(), _moving.size(), VEHICLE_AXIS_ID, PEDESTRIAN_SURFACE_TYPE])
+    print("IXELLES_LAB_LIFE_READY: civilians=%d moving=%d vehicle_axis=%s pedestrian_surface=%s anchors_in_spawn_view=%s geography_expanded=false lane_geometry_claimed=false" % [_civilians.size(), _moving.size(), VEHICLE_AXIS_ID, PEDESTRIAN_SURFACE_TYPE, str(_all_pedestrian_anchors_in_spawn_view).to_lower()])
 
 func _stop(message: String) -> void:
     _failed = true
@@ -82,9 +91,11 @@ func has_minimum_playable_life() -> bool:
 func source_contract() -> Dictionary:
     return {
         "vehicle_axis_id": VEHICLE_AXIS_ID,
+        "target_axis_id": TARGET_AXIS_ID,
         "pedestrian_surface_type": PEDESTRIAN_SURFACE_TYPE,
         "pedestrian_anchor_count": _pedestrian_anchors.size(),
         "all_pedestrian_anchors_inside_source": _all_pedestrian_anchors_inside_source,
+        "all_pedestrian_anchors_in_spawn_view": _all_pedestrian_anchors_in_spawn_view,
         "lane_geometry_claimed": false,
         "geography_expanded": false,
         "terrain_changed": false,
@@ -96,28 +107,36 @@ func moving_probe_position() -> Vector3:
         return Vector3(NAN, NAN, NAN)
     return _moving[0].global_position
 
-func _load_vehicle_axis() -> bool:
+func _axis_segment(axis_id: String) -> PackedVector2Array:
     var network: Dictionary = _slice.get_meta("ixelles_network_contract", {})
     var axes: Variant = network.get("street_axes", [])
     if not axes is Array:
-        return false
+        return PackedVector2Array()
     for raw: Variant in axes:
-        if not raw is Dictionary or str((raw as Dictionary).get("id", "")) != VEHICLE_AXIS_ID:
+        if not raw is Dictionary or str((raw as Dictionary).get("id", "")) != axis_id:
             continue
         var points: Variant = (raw as Dictionary).get("points", [])
         if not points is Array or points.size() != 2:
-            return false
+            return PackedVector2Array()
         var result := PackedVector2Array()
         for point: Variant in points:
             if not point is Array or point.size() < 2:
-                return false
+                return PackedVector2Array()
             result.append(Vector2(float(point[0]), float(point[1])))
-        if result.size() != 2:
-            return false
-        _axis = result
-        _axis_length_m = _axis[0].distance_to(_axis[1])
-        return _axis_length_m >= 8.0
-    return false
+        return result
+    return PackedVector2Array()
+
+func _load_spawn_axes() -> bool:
+    _axis = _axis_segment(VEHICLE_AXIS_ID)
+    _target_axis = _axis_segment(TARGET_AXIS_ID)
+    if _axis.size() != 2 or _target_axis.size() != 2:
+        return false
+    _axis_length_m = _axis[0].distance_to(_axis[1])
+    if _axis_length_m < 8.0:
+        return false
+    _camera_xz = _axis[0].lerp(_axis[1], CAMERA_AXIS_T)
+    _camera_forward = (_target_axis[1] - _camera_xz).normalized()
+    return _camera_forward.length_squared() > 0.99
 
 func _ring(raw: Variant) -> PackedVector2Array:
     var ring := PackedVector2Array()
@@ -130,28 +149,50 @@ func _ring(raw: Variant) -> PackedVector2Array:
         ring.remove_at(ring.size() - 1)
     return ring
 
-func _source_interior_point(ring: PackedVector2Array) -> Vector2:
+func _candidate_in_spawn_view(point: Vector2) -> Dictionary:
+    var delta := point - _camera_xz
+    var distance := delta.length()
+    if distance < MIN_PEDESTRIAN_DISTANCE_M or distance > MAX_PEDESTRIAN_DISTANCE_M:
+        return {}
+    var forward_dot := delta.normalized().dot(_camera_forward)
+    if forward_dot < MIN_FORWARD_DOT:
+        return {}
+    # Prioritize close anchors and the centre of the accepted source-backed view.
+    var score := distance + (1.0 - forward_dot) * 28.0
+    return {
+        "distance": distance,
+        "forward_dot": forward_dot,
+        "score": score,
+    }
+
+func _append_surface_candidates(feature: Dictionary, ring: PackedVector2Array, out: Array[Dictionary]) -> void:
     var indices := Geometry2D.triangulate_polygon(ring)
     if indices.size() < 3:
-        return Vector2(INF, INF)
-    var best_area := -1.0
-    var best_point := Vector2(INF, INF)
+        return
+    var source_id := str(feature.get("id", ""))
     for offset: int in range(0, indices.size(), 3):
         var a := ring[indices[offset]]
         var b := ring[indices[offset + 1]]
         var c := ring[indices[offset + 2]]
-        var area := absf((b - a).cross(c - a)) * 0.5
-        if area > best_area:
-            best_area = area
-            best_point = (a + b + c) / 3.0
-    return best_point
+        var point := (a + b + c) / 3.0
+        if not Geometry2D.is_point_in_polygon(point, ring):
+            continue
+        var view := _candidate_in_spawn_view(point)
+        if view.is_empty():
+            continue
+        out.append({
+            "point": point,
+            "distance": float(view.get("distance", 0.0)),
+            "forward_dot": float(view.get("forward_dot", 0.0)),
+            "score": float(view.get("score", 0.0)),
+            "source_id": source_id,
+        })
 
 func _load_pedestrian_anchors() -> bool:
     var cell: Dictionary = _slice.get_meta("ixelles_cell_contract", {})
     var surfaces: Variant = cell.get("street_surfaces", [])
     if not surfaces is Array:
         return false
-    var axis_mid := (_axis[0] + _axis[1]) * 0.5
     var candidates: Array[Dictionary] = []
     for raw: Variant in surfaces:
         if not raw is Dictionary:
@@ -162,35 +203,40 @@ func _load_pedestrian_anchors() -> bool:
         var ring := _ring(feature.get("polygon", []))
         if ring.size() < 3:
             continue
-        var point := _source_interior_point(ring)
-        if not is_finite(point.x) or not is_finite(point.y):
-            continue
-        if not Geometry2D.is_point_in_polygon(point, ring):
-            continue
-        var distance := point.distance_to(axis_mid)
-        if distance > MAX_SIDEWALK_ANCHOR_DISTANCE_M:
-            continue
-        candidates.append({
-            "point": point,
-            "distance": distance,
-            "source_id": str(feature.get("id", "")),
-        })
+        _append_surface_candidates(feature, ring, candidates)
     candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-        var da := float(a.get("distance", 0.0))
-        var db := float(b.get("distance", 0.0))
-        if absf(da - db) <= 0.0001:
+        var sa := float(a.get("score", 0.0))
+        var sb := float(b.get("score", 0.0))
+        if absf(sa - sb) <= 0.0001:
             return str(a.get("source_id", "")) < str(b.get("source_id", ""))
-        return da < db
+        return sa < sb
     )
     if candidates.size() < CIVILIAN_COUNT:
+        print("IXELLES_LAB_LIFE_VIEW_CANDIDATES: count=%d required=%d" % [candidates.size(), CIVILIAN_COUNT])
         return false
+
     _pedestrian_anchors.clear()
     _pedestrian_source_ids.clear()
-    for i: int in range(CIVILIAN_COUNT):
-        _pedestrian_anchors.append(candidates[i].get("point") as Vector2)
-        _pedestrian_source_ids.append(str(candidates[i].get("source_id", "")))
+    for candidate: Dictionary in candidates:
+        var point := candidate.get("point") as Vector2
+        var separated := true
+        for selected: Vector2 in _pedestrian_anchors:
+            if point.distance_to(selected) < MIN_ANCHOR_SEPARATION_M:
+                separated = false
+                break
+        if not separated:
+            continue
+        _pedestrian_anchors.append(point)
+        _pedestrian_source_ids.append(str(candidate.get("source_id", "")))
+        if _pedestrian_anchors.size() == CIVILIAN_COUNT:
+            break
+    if _pedestrian_anchors.size() != CIVILIAN_COUNT:
+        print("IXELLES_LAB_LIFE_VIEW_DIVERSITY_FAIL: selected=%d candidates=%d" % [_pedestrian_anchors.size(), candidates.size()])
+        return false
     _all_pedestrian_anchors_inside_source = _verify_pedestrian_anchors_inside_source(surfaces)
-    return _all_pedestrian_anchors_inside_source
+    _all_pedestrian_anchors_in_spawn_view = _verify_pedestrian_anchors_in_spawn_view()
+    print("IXELLES_LAB_LIFE_VIEW_ANCHORS: candidates=%d selected=%d nearest=%.2f farthest=%.2f min_forward_dot=%.3f" % [candidates.size(), _pedestrian_anchors.size(), _pedestrian_anchors[0].distance_to(_camera_xz), _pedestrian_anchors[_pedestrian_anchors.size() - 1].distance_to(_camera_xz), _minimum_selected_forward_dot()])
+    return _all_pedestrian_anchors_inside_source and _all_pedestrian_anchors_in_spawn_view
 
 func _verify_pedestrian_anchors_inside_source(surfaces: Array) -> bool:
     for point: Vector2 in _pedestrian_anchors:
@@ -206,6 +252,22 @@ func _verify_pedestrian_anchors_inside_source(surfaces: Array) -> bool:
             return false
     return true
 
+func _verify_pedestrian_anchors_in_spawn_view() -> bool:
+    if _pedestrian_anchors.size() != CIVILIAN_COUNT:
+        return false
+    for point: Vector2 in _pedestrian_anchors:
+        if _candidate_in_spawn_view(point).is_empty():
+            return false
+    return true
+
+func _minimum_selected_forward_dot() -> float:
+    var minimum := 1.0
+    for point: Vector2 in _pedestrian_anchors:
+        var delta := point - _camera_xz
+        if delta.length_squared() > 0.001:
+            minimum = minf(minimum, delta.normalized().dot(_camera_forward))
+    return minimum
+
 func _build_civilians() -> void:
     var clothing := [
         Color(0.12, 0.16, 0.22), Color(0.31, 0.13, 0.11), Color(0.13, 0.25, 0.18), Color(0.28, 0.25, 0.21),
@@ -219,6 +281,7 @@ func _build_civilians() -> void:
         person.set_meta("source_surface_type", PEDESTRIAN_SURFACE_TYPE)
         person.set_meta("source_surface_id", _pedestrian_source_ids[i])
         person.set_meta("source_point_inside_official_surface", true)
+        person.set_meta("source_point_in_direct_spawn_view", true)
         add_child(person)
         var jacket := _material(clothing[i % clothing.size()], 0.88)
         var pants := _material(clothing[(i + 3) % clothing.size()].darkened(0.30), 0.92)
@@ -237,15 +300,23 @@ func _build_civilians() -> void:
         var anchor := _pedestrian_anchors[i]
         var ground_y := float(_slice.call("sample_height", anchor.x, anchor.y))
         person.position = Vector3(anchor.x, ground_y + 0.03, anchor.y)
-        var toward_axis := ((_axis[0] + _axis[1]) * 0.5) - anchor
-        if toward_axis.length_squared() > 0.001:
-            person.rotation.y = atan2(-toward_axis.x, -toward_axis.y)
+        var toward_camera := _camera_xz - anchor
+        if toward_camera.length_squared() > 0.001:
+            person.rotation.y = atan2(-toward_camera.x, -toward_camera.y)
         _civilians.append(person)
 
 func _build_moving_vehicles() -> void:
     var colors := [Color(0.08, 0.13, 0.20), Color(0.42, 0.40, 0.36)]
-    var starts := [0.18, 0.72]
-    var speeds := [4.2, -3.8]
+    var axis_forward := (_axis[1] - _axis[0]).normalized()
+    var toward_endpoint_one := axis_forward.dot(_camera_forward)
+    var forward_sign := 1.0 if toward_endpoint_one >= 0.0 else -1.0
+    var first_delta := minf(12.0 / _axis_length_m, 0.12)
+    var second_delta := minf(23.0 / _axis_length_m, 0.22)
+    var starts := [
+        clampf(CAMERA_AXIS_T + forward_sign * first_delta, 0.04, 0.96),
+        clampf(CAMERA_AXIS_T + forward_sign * second_delta, 0.04, 0.96),
+    ]
+    var speeds := [4.2 * forward_sign, -3.8 * forward_sign]
     for i: int in range(MOVING_VEHICLE_COUNT):
         var car := Node3D.new()
         car.name = "IxellesTraffic_%02d" % i

@@ -41,8 +41,15 @@ func _run() -> void:
             break
     if not bool(runtime.call("ready_complete")): _fail("runtime did not discover GeneratedRoads from SceneTree.root"); return
     if bool(runtime.call("failed")): _fail("runtime failed to auto-bind"); return
+
+    var direct_interval: Vector2 = runtime.call("_intersection_interval", a, -0.905, -6.0, 6.0, road_cross)
+    var cross_is_road := bool(runtime.call("_is_road", road_cross))
+    print("BRUSSELS_SIDEWALK_EDGE_INTERSECTION_DIAGNOSTIC: cross_is_road=%s interval=(%.4f,%.4f) sidewalk_pos=(%.3f,%.3f) cross_pos=(%.3f,%.3f) cross_axis_x=(%.3f,%.3f) cross_axis_z=(%.3f,%.3f)" % [str(cross_is_road), direct_interval.x, direct_interval.y, a.global_position.x, a.global_position.z, road_cross.global_position.x, road_cross.global_position.z, road_cross.global_transform.basis.x.x, road_cross.global_transform.basis.x.z, road_cross.global_transform.basis.z.x, road_cross.global_transform.basis.z.z])
+    if not cross_is_road: _fail("perpendicular witness is not classified as road"); return
+    if direct_interval.x < 0.0 or direct_interval.y <= direct_interval.x: _fail("direct intersection interval rejected: (%.4f, %.4f)" % [direct_interval.x, direct_interval.y]); return
+
     if int(runtime.call("sidewalk_count")) != 2: _fail("sidewalk reuse count changed"); return
-    if int(runtime.call("edge_count")) != 3: _fail("intersection-safe split missing: expected 3 fascia segments from 2 sidewalks"); return
+    if int(runtime.call("edge_count")) != 3: _fail("intersection-safe split missing after valid direct interval: expected 3 fascia segments from 2 sidewalks"); return
     if int(runtime.call("intersection_clip_count")) < 1: _fail("perpendicular-road intersection was not clipped"); return
     if int(runtime.call("batch_count")) != 1 or int(runtime.call("collision_count")) != 0: _fail("cost contract changed"); return
     if not bool(runtime.call("geometry_unchanged")) or not bool(runtime.call("edge_visual_within_sidewalk_envelope")): _fail("geometry/envelope invariant failed"); return

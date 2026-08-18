@@ -17,10 +17,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - name: Fetch live main
+        run: git fetch --no-tags origin main:refs/remotes/origin/main
+
       - name: Regression-test branch policy
         run: python3 -m unittest grand-bruxelles-game/tests/test_validate_branch_hygiene.py
 
-      - name: Enforce branch base, ownership and drift hard gate
+      - name: Enforce branch base, ownership and live-main drift hard gate
         shell: bash
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
@@ -31,10 +34,15 @@ jobs:
           set -euo pipefail
           git cat-file -e "$BASE_SHA^{commit}"
           git cat-file -e "$HEAD_SHA^{commit}"
+          LIVE_MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          git cat-file -e "$LIVE_MAIN_SHA^{commit}"
+          echo "Pinned PR base SHA: $BASE_SHA"
+          echo "Pinned PR head SHA: $HEAD_SHA"
+          echo "Observed live main SHA: $LIVE_MAIN_SHA"
           mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
           printf '%s\n' "${CHANGED[@]}" > /tmp/grand-bruxelles-changed-files.txt
-          AHEAD=$(git rev-list --count "$BASE_SHA..$HEAD_SHA")
-          BEHIND=$(git rev-list --count "$HEAD_SHA..$BASE_SHA")
+          AHEAD=$(git rev-list --count "$LIVE_MAIN_SHA..$HEAD_SHA")
+          BEHIND=$(git rev-list --count "$HEAD_SHA..$LIVE_MAIN_SHA")
           python3 grand-bruxelles-game/tools/validate_branch_hygiene.py \
             --head "$HEAD_BRANCH" \
             --base "$BASE_BRANCH" \
@@ -131,17 +139,17 @@ jobs:
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
           BASE_BRANCH: ${{ github.base_ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          AHEAD=$(git rev-list --count "$BASE_SHA..$HEAD_SHA")
-          BEHIND=$(git rev-list --count "$HEAD_SHA..$BASE_SHA")
+          LIVE_MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          AHEAD=$(git rev-list --count "$LIVE_MAIN_SHA..$HEAD_SHA")
+          BEHIND=$(git rev-list --count "$HEAD_SHA..$LIVE_MAIN_SHA")
 
           case "$HEAD_BRANCH" in
             zone-laeken-jette|zone-reste-bruxelles-clean|vehicles-traffic)
-              if [[ "$BASE_BRANCH" == "main" ]] && (( AHEAD > 50 || BEHIND > 15 )); then
-                echo "::error::Quarantined specialist branch $HEAD_BRANCH is $AHEAD ahead / $BEHIND behind the pull-request base snapshot. Do not merge wholesale. Create a small current-base extraction branch containing one coherent lot."
+              if [[ "$BASE_BRANCH" == "main" ]] && (( AHEAD > 50 || BEHIND > 0 )); then
+                echo "::error::Quarantined specialist branch $HEAD_BRANCH is $AHEAD ahead / $BEHIND behind live main. Do not merge wholesale. Create a small current-main extraction branch containing one coherent lot."
                 exit 1
               fi
               ;;
@@ -159,17 +167,19 @@ jobs:
         run: |
           set -euo pipefail
 
-          AHEAD=$(git rev-list --count "$BASE_SHA..$HEAD_SHA")
-          BEHIND=$(git rev-list --count "$HEAD_SHA..$BASE_SHA")
+          LIVE_MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          AHEAD=$(git rev-list --count "$LIVE_MAIN_SHA..$HEAD_SHA")
+          BEHIND=$(git rev-list --count "$HEAD_SHA..$LIVE_MAIN_SHA")
           SHARED=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -E '^(grand-bruxelles-game/game/main\.tscn|grand-bruxelles-game/project\.godot|\.github/workflows/grand-bruxelles-game\.yml)$' || true)
 
           {
             echo "### Grand Bruxelles integration-risk report"
             echo "- branch: \`$HEAD_BRANCH\` -> \`$BASE_BRANCH\`"
-            echo "- pinned base SHA: \`$BASE_SHA\`"
+            echo "- PR base SHA (diff scope): \`$BASE_SHA\`"
+            echo "- live main SHA (drift authority): \`$LIVE_MAIN_SHA\`"
             echo "- pinned head SHA: \`$HEAD_SHA\`"
-            echo "- commits ahead: **$AHEAD**"
-            echo "- commits behind: **$BEHIND**"
+            echo "- commits ahead of live main: **$AHEAD**"
+            echo "- commits behind live main: **$BEHIND**"
             if [[ -n "$SHARED" ]]; then
               echo "- shared integration files touched:"
               while IFS= read -r path; do
@@ -181,10 +191,11 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           if (( AHEAD > 50 )); then
-            echo "::warning::Branch is $AHEAD commits ahead of the pull-request base snapshot. Treat it as a specialist source and extract a small current-base integration branch rather than merging wholesale."
+            echo "::warning::Branch is $AHEAD commits ahead of live main. Treat it as a specialist source and extract a small current-main integration branch rather than merging wholesale."
           fi
-          if (( BEHIND > 15 )); then
-            echo "::warning::Branch is $BEHIND commits behind the pull-request base snapshot. Do not stack unrelated work or assume technical mergeability means safe integration."
+          if (( BEHIND > 0 )); then
+            echo "::error::Branch is $BEHIND commits behind live main. Resync onto the live main SHA and rerun all gates before merge."
+            exit 1
           fi
           if [[ -n "$SHARED" ]]; then
             echo "::warning::Shared integration files are modified. Review for duplicated main-scene/CI ownership before merge."

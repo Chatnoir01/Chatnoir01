@@ -18,6 +18,7 @@ const REQUIRED_PARTS := [
     "WheelRR",
 ]
 
+
 func _initialize() -> void:
     call_deferred("_run")
 
@@ -34,6 +35,19 @@ func _mesh_count(node: Node) -> int:
     return total
 
 
+func _vertex_count(mesh_instance: MeshInstance3D) -> int:
+    if mesh_instance == null or mesh_instance.mesh == null:
+        return 0
+    var total := 0
+    for surface_index: int in range(mesh_instance.mesh.get_surface_count()):
+        var arrays: Array = mesh_instance.mesh.surface_get_arrays(surface_index)
+        if arrays.size() <= Mesh.ARRAY_VERTEX:
+            continue
+        var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+        total += vertices.size()
+    return total
+
+
 func _assert_style(style: int, expected_name: String) -> bool:
     var host := Node3D.new()
     root.add_child(host)
@@ -46,8 +60,14 @@ func _assert_style(style: int, expected_name: String) -> bool:
         _fail("visual contract API is missing")
         return false
     var contract: Dictionary = visual.call("get_visual_contract")
-    if str(contract.get("quality", "")) != "realistic_european_car_v2":
-        _fail("quality contract is not v2 for style %d" % style)
+    if str(contract.get("quality", "")) != "realistic_european_car_v3":
+        _fail("quality contract is not v3 for style %d" % style)
+        return false
+    if int(contract.get("body_stations", 0)) < 14:
+        _fail("body needs at least 14 longitudinal shaping stations")
+        return false
+    if int(contract.get("ring_vertices", 0)) < 10:
+        _fail("body cross-section needs at least 10 vertices for rounded shoulders")
         return false
     if str(contract.get("body_style", "")) != expected_name:
         _fail("wrong body style identity for style %d" % style)
@@ -65,6 +85,17 @@ func _assert_style(style: int, expected_name: String) -> bool:
             return false
     if _mesh_count(visual) < 34:
         _fail("%s is still too primitive: only %d mesh parts" % [expected_name, _mesh_count(visual)])
+        return false
+
+    var body := visual.get_node_or_null("BodyShell") as MeshInstance3D
+    var glass := visual.get_node_or_null("GlassHouse") as MeshInstance3D
+    var body_vertices := _vertex_count(body)
+    var glass_vertices := _vertex_count(glass)
+    if body_vertices < 420:
+        _fail("%s body shell is still low density: %d vertices (<420)" % [expected_name, body_vertices])
+        return false
+    if glass_vertices < 240:
+        _fail("%s glass house is still low density: %d vertices (<240)" % [expected_name, glass_vertices])
         return false
 
     for wheel_name: String in ["WheelFL", "WheelFR", "WheelRL", "WheelRR"]:
@@ -108,5 +139,5 @@ func _run() -> void:
         _fail("legacy traffic box body/cabin must remain hidden after the realistic upgrade")
         return
 
-    print("REAL_CIVILIAN_VEHICLE_VISUAL_OK: sedan+hatchback+wagon detailed visuals; moving traffic wired")
+    print("REAL_CIVILIAN_VEHICLE_VISUAL_OK: v3 dense sedan+hatchback+wagon shells; moving traffic wired")
     quit(0)

@@ -49,6 +49,28 @@ class BranchHygieneTests(unittest.TestCase):
         result = MOD.check("visual/midi-fonsny", "main", ["grand-bruxelles-game/game/scripts/foo.gd"], ahead=2, behind=1)
         self.assertFalse(result.ok)
 
+    def test_accepts_non_overlapping_docs_only_live_main_drift(self):
+        result = MOD.check(
+            "visual/midi-fonsny",
+            "main",
+            ["grand-bruxelles-game/game/scripts/foo.gd"],
+            ahead=2,
+            behind=2,
+            docs_only_drift=True,
+        )
+        self.assertTrue(result.ok)
+        self.assertTrue(any("non-overlapping docs" in warning for warning in result.warnings))
+
+    def test_docs_exception_is_not_implicit(self):
+        result = MOD.check(
+            "visual/midi-fonsny",
+            "main",
+            ["grand-bruxelles-game/game/scripts/foo.gd"],
+            ahead=2,
+            behind=2,
+        )
+        self.assertFalse(result.ok)
+
     def test_rejects_oversized_integration_lot(self):
         result = MOD.check("integration/shared-core-bundle", "main", ["grand-bruxelles-game/game/scripts/foo.gd"], ahead=21, behind=0)
         self.assertFalse(result.ok)
@@ -63,6 +85,11 @@ class BranchHygieneTests(unittest.TestCase):
         self.assertIn('LIVE_MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"', workflow)
         self.assertIn('git rev-list --count "$LIVE_MAIN_SHA..$HEAD_SHA"', workflow)
         self.assertIn('git rev-list --count "$HEAD_SHA..$LIVE_MAIN_SHA"', workflow)
+        self.assertIn('MERGE_BASE="$(git merge-base "$HEAD_SHA" "$LIVE_MAIN_SHA")"', workflow)
+        self.assertIn('^grand-bruxelles-game/docs/', workflow)
+        self.assertIn("DOCS_ONLY_DRIFT", workflow)
+        self.assertIn("OVERLAP", workflow)
+        self.assertIn("--docs-only-drift", workflow)
         self.assertIn("live main SHA", workflow)
 
 

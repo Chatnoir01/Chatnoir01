@@ -1,0 +1,45 @@
+{
+  "schema": "grand-bruxelles-town-hall-left-gallery-face-map-v1",
+  "status": "evidence_only",
+  "base_main_sha": "dd57d043300769251e719b049f55ae7d86cc447b",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "official_geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "official_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "candidate_face_id": "https://databrussels.be/id/buildingface/10792523",
+    "face_type": "WALLSURFACE",
+    "ground_chain_points": [
+      [280.0258, 0.0, -507.4259],
+      [262.6058, 0.0, -528.4359]
+    ],
+    "official_chain_span_m": 27.292425689190726
+  },
+  "heritage_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Hôtel de ville, Grand-Place 8, Urban 31125",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+    "facts_used": [
+      "The ground-floor principal facades have projecting galleries on both sides of the portal under the tower.",
+      "The gallery to the left of the portal has eleven bays.",
+      "The gallery arcades are pointed arches.",
+      "The east/left gallery is rhythmically supported by buttressed piers and includes a stair/perron interruption described by the inventory."
+    ]
+  },
+  "interpretation": {
+    "side": "left_of_portal_in_heritage_description_east_wing",
+    "mapping_reason": "The official WALLSURFACE 10792523 is the large continuous ground-level Grand-Place-facing chain immediately opposite the already-shipped right-gallery chain and has a 27.2924 m source span consistent with the longer eleven-bay east/left gallery described by Urban 31125.",
+    "confidence": "candidate_requires_screen_space_confirmation",
+    "runtime_authorized": false,
+    "openings_authorized": false,
+    "arch_dimensions_authorized": false,
+    "right_gallery_dimensions_reusable": false
+  },
+  "next_gate": {
+    "required": "deterministic current-main screen-space mask of face 10792523 plus source-specific dimensional evidence for the left gallery before any runtime motif",
+    "reject_if": [
+      "face 10792523 is not naturally exposed from the canonical Grand-Place player camera",
+      "the face overlaps the tower/portal ownership rather than the left gallery",
+      "implementation requires copying B1500 right-gallery dimensions without a left-gallery source"
+    ]
+  }
+}

@@ -2,8 +2,7 @@ extends SceneTree
 
 const VISUAL_RUNTIME_SCRIPT := preload("res://game/scripts/midi_ambient_npc_visual_runtime.gd")
 const GAIT_RUNTIME_SCRIPT := preload("res://game/scripts/midi_profiled_npc_gait_runtime.gd")
-const VISUAL_MODULE_PATH := "res://data/runtime/modules/midi_ambient_npc_visual.json"
-const GAIT_MODULE_PATH := "res://data/runtime/modules/midi_profiled_npc_gait.json"
+const PROJECT_CONFIG_PATH := "res://project.godot"
 
 
 func _init() -> void:
@@ -69,7 +68,11 @@ func _init() -> void:
     var second: Dictionary = runtime.bridge_scene(fixture)
     if int(second.get("bridged", 0)) != 0 or int(second.get("already", 0)) != 1:
         failures.append("visual bridge must be idempotent")
-    if person.find_children("ProfiledNpcProxy", "NpcAgent", false, false).size() != 1:
+    var proxy_count := 0
+    for child: Node in person.get_children():
+        if child.name == "ProfiledNpcProxy":
+            proxy_count += 1
+    if proxy_count != 1:
         failures.append("visual bridge must never duplicate the proxy")
 
     # The gait runtime uses the same ProfiledNpcProxy/VisualUpgrade contract. Verify
@@ -87,8 +90,7 @@ func _init() -> void:
     if bool(gait_stats.get("changes_navigation", true)):
         failures.append("gait runtime must remain visual-only")
 
-    _assert_module_descriptor(failures, VISUAL_MODULE_PATH, "MidiAmbientNpcVisualRuntime", "res://game/scripts/midi_ambient_npc_visual_runtime.gd")
-    _assert_module_descriptor(failures, GAIT_MODULE_PATH, "MidiProfiledNpcGaitRuntime", "res://game/scripts/midi_profiled_npc_gait_runtime.gd")
+    _assert_direct_autoloads(failures)
 
     var contract: Dictionary = runtime.truth_contract()
     if bool(contract.get("ambient_density_changed", true)):
@@ -118,20 +120,14 @@ func _add_legacy_box(parent: Node3D, part_name: String) -> void:
     parent.add_child(part)
 
 
-func _assert_module_descriptor(failures: Array[String], path: String, expected_name: String, expected_script: String) -> void:
-    if not FileAccess.file_exists(path):
-        failures.append("runtime module descriptor missing: %s" % path)
+func _assert_direct_autoloads(failures: Array[String]) -> void:
+    if not FileAccess.file_exists(PROJECT_CONFIG_PATH):
+        failures.append("project.godot is missing")
         return
-    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-    if not parsed is Dictionary:
-        failures.append("runtime module descriptor is not valid JSON: %s" % path)
-        return
-    var descriptor := parsed as Dictionary
-    if str(descriptor.get("schema", "")) != "grand-bruxelles-runtime-module-v1":
-        failures.append("runtime module descriptor schema mismatch: %s" % path)
-    if str(descriptor.get("name", "")) != expected_name:
-        failures.append("runtime module descriptor name mismatch: %s" % path)
-    if str(descriptor.get("path", "")) != expected_script:
-        failures.append("runtime module descriptor path mismatch: %s" % path)
-    if not bool(descriptor.get("enabled", false)):
-        failures.append("runtime module descriptor must be enabled: %s" % path)
+    var project_text := FileAccess.get_file_as_string(PROJECT_CONFIG_PATH)
+    var visual_line := "MidiAmbientNpcVisualRuntime=\"*res://game/scripts/midi_ambient_npc_visual_runtime.gd\""
+    var gait_line := "MidiProfiledNpcGaitRuntime=\"*res://game/scripts/midi_profiled_npc_gait_runtime.gd\""
+    if project_text.find(visual_line) < 0:
+        failures.append("Midi ambient visual runtime must remain a direct autoload")
+    if project_text.find(gait_line) < 0:
+        failures.append("Midi profiled gait runtime must remain a direct autoload")

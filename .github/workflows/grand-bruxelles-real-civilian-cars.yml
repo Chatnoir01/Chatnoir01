@@ -1,0 +1,39 @@
+name: Grand Bruxelles Real Civilian Cars
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-real-civilian-cars.yml"
+      - "grand-bruxelles-game/game/scripts/civilian_vehicle_visual.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_manager_core.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/tests/real_civilian_vehicle_visual_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  realistic-civilian-cars:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/real-cars-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/real-cars-import.log; then exit 1; fi
+      - name: Validate realistic civilian vehicle visuals
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/real_civilian_vehicle_visual_test.gd 2>&1 | tee /tmp/real-civilian-cars.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|REAL_CIVILIAN_VEHICLE_VISUAL_FAIL" /tmp/real-civilian-cars.log; then exit 1; fi
+          grep -F "REAL_CIVILIAN_VEHICLE_VISUAL_OK" /tmp/real-civilian-cars.log

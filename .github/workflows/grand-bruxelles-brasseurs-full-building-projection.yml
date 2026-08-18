@@ -1,0 +1,28 @@
+name: Grand Bruxelles Brasseurs Full Building Projection
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-brasseurs-full-building-projection.yml"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/1639974.game.json"
+      - "grand-bruxelles-game/data/qa/grand_place_clean_player_witness.json"
+      - "grand-bruxelles-game/tools/audit_brasseurs_full_building_projection.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  projection-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Project all official Brasseurs wall faces through canonical player camera
+        run: python3 grand-bruxelles-game/tools/audit_brasseurs_full_building_projection.py
+      - name: Upload reproducible projection evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brasseurs-full-building-projection
+          path: grand-bruxelles-game/artifacts/qa/brasseurs_full_building_projection.json
+          if-no-files-found: error

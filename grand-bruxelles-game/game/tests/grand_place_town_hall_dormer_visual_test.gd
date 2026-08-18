@@ -48,9 +48,13 @@ func _freeze_dynamics() -> int:
     return count
 
 func _capture(path: String) -> Image:
+    # Mask from SceneTree root on every render frame. Some overlay controls are
+    # attached/updated after scene readiness, so a one-shot hide is not a clean witness.
     for _frame: int in range(6):
+        _hide_canvas_recursive(root)
         RenderingServer.force_draw()
         await process_frame
+    _hide_canvas_recursive(root)
     var texture := root.get_viewport().get_texture()
     if texture == null:
         _fail("viewport texture unavailable; real GL renderer required")

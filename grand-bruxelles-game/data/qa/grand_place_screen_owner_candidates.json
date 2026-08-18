@@ -1,0 +1,49 @@
+{
+  "schema": "grand-bruxelles-grand-place-screen-owner-candidates-v1",
+  "status": "evidence_only",
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "screen_region_of_interest": "right_half",
+  "candidates": [
+    {
+      "id": "official_hotel_de_ville_1655673",
+      "node_path_from_root": "GrandPlaceOfficialLod2",
+      "kind": "official_architectural_mass",
+      "urbis_building_id": "1655673",
+      "role": "Grand-Place Hotel de Ville landmark mass",
+      "identity_source_path": "res://data/visual/grand_place_1655673_material_identity.json",
+      "eligible_next_owner": true
+    },
+    {
+      "id": "official_etoile_cygne_1786758",
+      "node_path_from_root": "GrandPlaceOfficialLod2Next",
+      "kind": "official_architectural_mass",
+      "urbis_building_id": "1786758",
+      "role": "Grand-Place L'Etoile + Le Cygne combined official LoD2 mass",
+      "identity_source_path": "res://data/visual/grand_place_1786758_material_identity.json",
+      "eligible_next_owner": true
+    },
+    {
+      "id": "generic_osm_buildings_group",
+      "node_path_from_root": "Main/BrusselsOSM/GeneratedBuildings",
+      "kind": "generic_architectural_group",
+      "role": "all currently rendered generic OSM Building_* masses",
+      "eligible_next_owner": false,
+      "requires_drilldown_if_dominant": true
+    },
+    {
+      "id": "town_hall_window_rhythm",
+      "node_path_from_root": "GrandPlaceTownHallWindowRhythmRuntime",
+      "kind": "presentation_detail",
+      "urbis_building_id": "1655673",
+      "role": "procedural current Town Hall window rhythm",
+      "eligible_next_owner": false
+    },
+    {
+      "id": "official_granite_paving_control",
+      "node_path_from_root": "GrandPlaceGranitePaving",
+      "kind": "non_architectural_control",
+      "role": "official Grand-Place granite paving control",
+      "eligible_next_owner": false
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+name: Grand Bruxelles Grand-Place Screen Owner Audit
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-screen-owner-audit.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_screen_owner_candidates.json"
+      - "grand-bruxelles-game/data/qa/grand_place_clean_player_witness.json"
+      - "grand-bruxelles-game/game/tests/grand_place_screen_owner_audit_test.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1655673.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1786758.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screen-owner-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-screen-owner-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-screen-owner-import.log; then exit 1; fi
+      - name: Measure canonical Grand-Place screen ownership
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/grand_place_screen_owner_audit_test.gd 2>&1 | tee /tmp/grand-place-screen-owner.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_SCREEN_OWNER_AUDIT_FAIL" /tmp/grand-place-screen-owner.log; then exit 1; fi
+          grep -F "GRAND_PLACE_SCREEN_OWNER_AUDIT_OK" /tmp/grand-place-screen-owner.log
+      - name: Hash baseline witness
+        if: always()
+        run: |
+          if [ -f /tmp/grand-place-screen-owner-baseline.png ]; then sha256sum /tmp/grand-place-screen-owner-baseline.png; fi
+      - name: Upload owner evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-screen-owner-audit
+          path: |
+            grand-bruxelles-game/artifacts/qa/grand_place_screen_owner_audit.json
+            /tmp/grand-place-screen-owner-baseline.png
+            /tmp/grand-place-screen-owner-*-hidden.png
+            /tmp/grand-place-screen-owner.log
+          if-no-files-found: error

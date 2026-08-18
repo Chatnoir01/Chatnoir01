@@ -1,12 +1,13 @@
 # Production Wall
 
 ## Main
-- observed_main_before_this_edit: `bffe110b9212ace10e1d4847436b51542bd95ab0`
-- last_verified: `2026-08-18T22:05Z`
+- observed_main_before_this_edit: `213a7a851c24866fef91e9efa0e011786b197ca8`
+- last_verified: `2026-08-18T23:14Z`
 - rule: `main` is the sole production truth. Re-read live main, open PRs, changed-file ownership and this wall before every branch, merge, rejection or production claim.
 - six-point campaign status: **6/6 merged**.
 - latest substantive Grand-Place visual correction remains **#783** Hôtel de Ville right-gallery B1500 fidelity correction.
-- latest substantive zone change on observed main: **Ixelles source-anchored LABO life**.
+- latest shipped Ixelles visual change: **#819** source-backed facade articulation.
+- current main HEAD is **#833** Atomium evidence-only anchor-semantics rejection; it authorizes no runtime move, support geometry, camera or terrain change.
 
 ## Six-point campaign — SHIPPED
 1. **#749** Midi official StreetSurface collision.
@@ -16,6 +17,16 @@
 5. **#766** LABO→JOUABLE fail-closed gate; Midi remains sole JOUABLE.
 6. **#767** Web artifact-only publication + live-main Branch Hygiene.
 
+## Ixelles — current truth
+- Ixelles remains **LABO**. Do not auto-promote it from data readiness or visual improvement alone.
+- **#810 SHIPPED**: source-anchored LABO street life using existing procedural systems: 8 pedestrians + 2 moving vehicles, with no geography expansion.
+- **#819 SHIPPED**: renderer-only authored facade articulation applied to the 260 direct source-backed Ixelles buildings and already-loaded whitelisted source-plan context cells. It preserves source geometry/collision and does not claim surveyed windows, real materials or floor counts.
+- #819 accepted player-eye gate on run `32191703486`: `30.31%` pixels >3 RGB, `18.62%` >8 RGB, bbox `[9,0,1265,607]`; full-frame human PASS. Thresholds were not lowered.
+- Stassart 124 identity cue remains protected: source building `https://databrussels.be/id/building/1737877`, semantic height `18.892 m`; generic authored detail must not overwrite its renderer-only blue-stone ground-floor cue.
+- **#842 ACTIVE / NOT SHIPPED**: exact-main authored facade-depth candidate. Current head at this wall edit: `e21bcf9f6855120c8a35c5d8f36e4e5089c2b51f`; 3 commits ahead / 0 behind `213a7a85...`, exactly 4 changed files. Frozen gate remains 1280×720, >=`1.2%` pixels >3 RGB, >=`0.6%` >8 RGB, >8 bbox >=`550×140`; no camera/threshold rescue.
+- #842 static audit hardened placement before CI: direct detail now matches the source-backed one-centroid terrain base; exterior wall side is resolved per source polygon edge instead of relying on a simple-average centroid for concave footprints.
+- GitHub-hosted Actions for #842 are currently queued. No current-head CI PASS, numerical A/B PASS or full-frame human PASS is claimed. Keep draft and do not merge until those proofs exist.
+
 ## Atomium / Heysel — current truth
 - Production direct arrival is the player path itself: Atomium anchor + `120 m` X offset, FOV `69`, camera pitch `20°`, spring `4.9 m`. Do not move this camera merely to rescue a visual candidate.
 - Production already mounts the accepted Atomium DTM and official `LandCover.1038` (`GB`, ~`54,537.55 m²`). LandCover material photometry and vegetation geometry remain unresolved presentation semantics.
@@ -23,6 +34,7 @@
 - **#814 CLOSED WITHOUT MERGE**: registry-mounted basin technical PASS but mandatory player-eye human FAIL. Dedicated run `32188452215`; numerical `0.148220%` >3 RGB, bbox `204x243`; artifact `9343342997`, digest `sha256:cea51939abe7b48cc837a7d5e47c30eaffd88f3ee3b09826f143df7082b6b683`. Full-frame change was not a readable basin improvement. Never move basin/camera or lower the gate to retry this path.
 - **#817 CLOSED evidence-only**: official `urbisvector:StreetSurfaces` source coverage is genuinely present around the legitimate arrival. Dedicated run `32190187496` PASS: nearest to Atomium `0.000 m`, nearest to spawn `7.461 m`; anchor counts r30/r60/r100/r160 = `11/21/30/51`; spawn counts = `2/7/30/61`; real 60 m-wide spawn→Atomium corridor contains `14` StreetSurface features / ~`17,046.21 m²` polygon area.
 - **#820 CLOSED WITHOUT MERGE**: source-bounded StreetSurface DTM drape technical PASS but numerical + human player-eye FAIL. Runtime built `52` selected features / `52` polygons / `1,475` triangles in the prelocked `160 m` radius while keeping LandCover visible. Dedicated run `32190712500`; `0.225803%` >3 RGB, `0.144097%` >8, bbox `204x244`, against frozen `1.50% / 0.75% / 500x180`. Artifact `9344113292`, digest `sha256:93fdcd0af31e84ea9091ae2f252d397c3240db13a09b6285e12c7dc773553650`. BEFORE/AFTER are effectively indistinguishable as ground/parvis context; diff is concentrated around the central player silhouette.
+- **#833 SHIPPED evidence-only**: the current DTM reference point resolves to the ticket-shop POI, while a separate monument-relation witness is ~`29 m` away in the frozen official orthophoto. This rejects treating the ticket-shop point as the Atomium hero centre. It authorizes **no** replacement anchor, runtime move, support geometry, camera or terrain change.
 - **Atomium stop rule:** do not retry the 2024 basin or generic neutral StreetSurface drape from this same player arrival with stronger colour, wider radius, moved geometry, moved camera or lowered thresholds. A future Atomium visual lot needs either (a) a separately source-backed reason to change arrival composition, or (b) a different naturally visible defect with source evidence before runtime.
 - #585 remains an evidence bank only; #2 remains a long-lived Laeken/Jette specialist. Never merge either wholesale.
 
@@ -47,7 +59,8 @@
 
 ## Active ownership / stale workspaces
 - Always re-read open PRs because concurrent agents move quickly.
-- At this observed main, #812 generic OSM glazing and #813 NPC silhouettes were created from older `6b165d44...`; do not merge them without exact-current-main rebuild/revalidation. #812's own contract says close if main advances.
+- **#842** owns only the current Ixelles authored facade-depth implementation until it merges or closes. Do not open a competing Ixelles facade-depth implementation.
+- Generic shared-facade, vehicle, combat, Midi, Grand-Place, Atomium and NPC PRs do not become Ixelles source-geometry owners merely because they run Ixelles regression checks.
 - #652 Anneessens SIGNALER export, #643 LABO selector, #596/#592 Bourse and many older drafts are stale historical workspaces unless rebuilt from live main.
 - #2 / #11 long-lived geography specialists: never merge wholesale; extract one coherent exact-current-main lot only.
 - Closed evidence/source workspaces own nothing.
@@ -62,14 +75,15 @@
 - No threshold reduction, camera rescue or geometry displacement after a visual FAIL.
 
 ## NOW / NEXT / LATER
-- **NOW:** observed production `bffe110b...`; Atomium basin and neutral StreetSurface arrival paths have been tested and rejected visually without corrupting source geometry. Grand-Place #783 remains the latest accepted landmark correction; Ixelles LABO life is present on observed main.
-- **NEXT Atomium:** evidence-only identification of a **different naturally visible defect** in the legitimate arrival frame, or a separate source-backed arrival-composition/geolocation audit. No runtime until that evidence selects a target. Do not retry basin/StreetSurface presentation.
+- **NOW:** production `213a7a85...`; #819 Ixelles facade articulation and #833 Atomium anchor-semantics rejection are shipped. #842 Ixelles facade-depth is active but unshipped because its exact-head CI/A-B/full-frame proof has not executed yet.
+- **NEXT Ixelles:** finish #842 only through its frozen direct-player proof path. If the visual gate or human frame fails, fix/reject the actual relief; do not lower thresholds or move the camera. If it passes and merges, inspect the new full frame before selecting any further Ixelles defect.
+- **NEXT Atomium:** evidence-only identification of a **different naturally visible defect** in the legitimate arrival frame, or a separate source-backed arrival-composition/geolocation audit. #833 rejects the ticket-shop point as hero centre but does not itself authorize a replacement.
 - **NEXT Grand-Place:** registration-only audit of B1499/B1501 against the official corner chain, preserving existing-state vs restoration-project semantics and forbidding warp/metric/runtime claims until registration succeeds naturally.
 - **LATER:** continue one source-backed visible defect at a time; no broad visual soup and no LABO auto-promotion.
 
 ## Shift handoff
-- What changed: #806 shipped the 2024 basin component unmounted; #814 proved mounting it is not player-visible enough and closed. #817 proved official StreetSurface coverage is strong in the arrival corridor. #820 then proved that a correct 160 m DTM-draped neutral StreetSurface treatment still does not read at the legitimate player eye and closed without merge.
-- What is proven: official ground data exists; the failure is not absence of source data. The current arrival framing/player-eye composition does not expose basin or neutral StreetSurface treatment strongly enough to justify those runtime additions.
-- What is NOT proven: that the player spawn/camera is geographically wrong, that another material identity is justified, or that a different Atomium architectural defect lacks source support.
-- What must not be redone: move basin, enlarge StreetSurface radius, exaggerate neutral ground colour, move camera, lower gates, or merge old #585/#2/#593 wholesale.
-- Exact next action: re-read live main/owners, then run an evidence-only screen-space/source audit of the current Atomium arrival to identify the next naturally visible source-backed defect before writing any new runtime.
+- What changed on main: #819 shipped player-visible Ixelles facade articulation; #833 then shipped evidence-only Atomium anchor semantics, making `213a7a85...` the current production HEAD.
+- What is active but not shipped: #842 authored Ixelles facade depth on exact current main. It preserves 260 direct source-backed buildings, source geometry/collision and Stassart 124 identity, and has frozen visual thresholds. Actions are queued, so no PASS is claimed.
+- What is proven about #842 statically: direct relief uses the same footprint-centroid terrain base as the existing direct building massing; streamed source-plan cells use their existing fixed `building_base_y`; exterior panel placement is resolved against the actual polygon side with winding fallback for degenerate probes.
+- What is NOT proven yet: that #842 imports/runs on the current head, meets the frozen A/B numerical gate, passes performance/export regressions, or improves the full player frame enough for human acceptance.
+- Exact next action: re-read live main/owners and #842 workflow state; when the runner executes, inspect logs + A/B artifact + full-frame BEFORE/AFTER before any merge.

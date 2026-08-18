@@ -78,16 +78,18 @@ func _build_if_touch() -> void:
 
     _mode_button = _make_button("MODE", Vector2(8.0, 34.0), Vector2(78.0, 72.0))
     _action_button = _make_button("FRAPPER", Vector2(94.0, 34.0), Vector2(92.0, 72.0))
-    _aim_button = _make_button("VISER", Vector2(194.0, 34.0), Vector2(72.0, 72.0))
-    _reload_button = _make_button("RECH.", Vector2(274.0, 34.0), Vector2(64.0, 72.0))
+    _aim_button = _make_button("GARDE", Vector2(194.0, 34.0), Vector2(72.0, 72.0))
+    _reload_button = _make_button("ESQUIVE", Vector2(274.0, 34.0), Vector2(64.0, 72.0))
     _panel.add_child(_mode_button)
     _panel.add_child(_action_button)
     _panel.add_child(_aim_button)
     _panel.add_child(_reload_button)
 
     _mode_button.pressed.connect(_cycle_weapon)
-    _aim_button.pressed.connect(_toggle_aim)
-    _reload_button.pressed.connect(_request_reload)
+    _aim_button.button_down.connect(_secondary_down)
+    _aim_button.button_up.connect(_secondary_up)
+    _aim_button.mouse_exited.connect(_secondary_up)
+    _reload_button.pressed.connect(_utility_action)
     _action_button.button_down.connect(_primary_down)
     _action_button.button_up.connect(_primary_up)
     _action_button.mouse_exited.connect(_primary_up)
@@ -137,6 +139,29 @@ func _cycle_weapon() -> void:
     arsenal.call("equip_weapon", player, WEAPON_CYCLE[next_index])
     _refresh_labels(arsenal)
 
+func _secondary_down() -> void:
+    var arsenal := _arsenal()
+    var player := _current_player()
+    if arsenal == null or player == null:
+        return
+    if bool(arsenal.call("is_armed")):
+        _toggle_aim()
+        return
+    var melee := _melee()
+    if melee != null and melee.has_method("set_guarding"):
+        melee.call("set_guarding", player, true)
+    _refresh_labels(arsenal)
+
+func _secondary_up() -> void:
+    var arsenal := _arsenal()
+    var player := _current_player()
+    if arsenal == null or player == null or bool(arsenal.call("is_armed")):
+        return
+    var melee := _melee()
+    if melee != null and melee.has_method("set_guarding"):
+        melee.call("set_guarding", player, false)
+    _refresh_labels(arsenal)
+
 func _toggle_aim() -> void:
     var arsenal := _arsenal()
     var player := _current_player()
@@ -147,12 +172,17 @@ func _toggle_aim() -> void:
         arsenal.call("set_aiming", player, next_aim)
     _refresh_labels(arsenal)
 
-func _request_reload() -> void:
+func _utility_action() -> void:
     var arsenal := _arsenal()
     var player := _current_player()
     if arsenal == null or player == null:
         return
-    arsenal.call("request_reload", player)
+    if bool(arsenal.call("is_armed")):
+        arsenal.call("request_reload", player)
+        return
+    var dodge := _dodge()
+    if dodge != null and dodge.has_method("request_dodge"):
+        dodge.call("request_dodge", player, Vector3.ZERO)
 
 func _primary_down() -> void:
     _action_held = true
@@ -176,11 +206,14 @@ func _refresh_labels(arsenal: Node) -> void:
         return
     var armed := bool(arsenal.call("is_armed"))
     if not armed:
-        _status_label.text = "COMBAT · MAINS NUES"
+        var player := _current_player()
+        var guarding := player != null and bool(player.get_meta("combat_guarding", false))
+        _status_label.text = "COMBAT · MAINS NUES%s" % (" · GARDE" if guarding else "")
         _action_button.text = "FRAPPER"
-        _aim_button.text = "VISER"
-        _aim_button.disabled = true
-        _reload_button.disabled = true
+        _aim_button.text = "GARDE"
+        _aim_button.disabled = false
+        _reload_button.text = "ESQUIVE"
+        _reload_button.disabled = false
         _mode_button.text = "ARME"
         return
     var weapon_id := StringName(arsenal.call("equipped_weapon"))
@@ -197,11 +230,18 @@ func _refresh_labels(arsenal: Node) -> void:
     _action_button.text = "TIR"
     _aim_button.text = "VISÉE" if aiming else "VISER"
     _aim_button.disabled = false
+    _reload_button.text = "RECH."
     _reload_button.disabled = false
     _mode_button.text = "CHANGER"
 
 func _arsenal() -> Node:
     return get_node_or_null("/root/PlayerCombatArsenalRuntime")
+
+func _melee() -> Node:
+    return get_node_or_null("/root/PlayerMeleeCombatRuntime")
+
+func _dodge() -> Node:
+    return get_node_or_null("/root/PlayerDodgeRuntime")
 
 func _current_player() -> CharacterBody3D:
     var scene := get_tree().current_scene

@@ -5,6 +5,8 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-brasseurs-osm-owner-audit.yml"
       - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/qa/grand_place_clean_player_witness.json"
+      - "grand-bruxelles-game/game/tests/grand_place_clean_player_witness_test.gd"
       - "grand-bruxelles-game/game/tests/grand_place_brasseurs_geometry_owner_probe.gd"
       - "grand-bruxelles-game/game/tests/grand_place_brasseurs_camera_ray_owner_probe.gd"
       - "grand-bruxelles-game/tools/audit_brasseurs_osm_owner.py"
@@ -35,7 +37,7 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_brasseurs_geometry_owner_probe.gd 2>&1 | tee /tmp/brasseurs-owner-probe.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRASSEURS_GEOMETRY_OWNER_PROBE_FAIL" /tmp/brasseurs-owner-probe.log; then exit 1; fi
           grep -F "BRASSEURS_GEOMETRY_OWNER_PROBE_OK" /tmp/brasseurs-owner-probe.log
-      - name: Raycast clean player-eye witness to official Brasseurs wall
+      - name: Raycast exact shared #711 player-eye witness to official Brasseurs wall
         shell: bash
         run: |
           set -o pipefail

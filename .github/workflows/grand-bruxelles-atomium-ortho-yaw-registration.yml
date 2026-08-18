@@ -1,0 +1,43 @@
+name: Grand Bruxelles Atomium Ortho Yaw Registration
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-ortho-yaw-registration.yml"
+      - "grand-bruxelles-game/data/qa/atomium_ortho_yaw_registration_contract.json"
+      - "grand-bruxelles-game/data/sources/laeken_jette/atomium_hero_core_evidence.json"
+      - "grand-bruxelles-game/tools/audit_atomium_ortho_yaw_registration.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  orientation-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install evidence dependencies
+        run: python3 -m pip install --disable-pip-version-check numpy pillow opencv-python-headless
+      - name: Register Atomium plan orientation from exact 2024 official ortho
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tools/audit_atomium_ortho_yaw_registration.py 2>&1 | tee /tmp/atomium-ortho-yaw.log
+          grep -F "ATOMIUM_ORTHO_YAW_REGISTRATION_OK" /tmp/atomium-ortho-yaw.log
+          grep -F "ATOMIUM_ORTHO_YAW_REGISTRATION_METRICS" /tmp/atomium-ortho-yaw.log
+          test -s artifacts/qa/atomium_ortho_yaw_registration/ortho_2024.jpg
+          test -s artifacts/qa/atomium_ortho_yaw_registration/orientation_overlay.png
+          test -s artifacts/qa/atomium_ortho_yaw_registration/orientation_report.json
+      - name: Upload evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-ortho-yaw-registration-evidence
+          path: |
+            grand-bruxelles-game/artifacts/qa/atomium_ortho_yaw_registration/ortho_2024.jpg
+            grand-bruxelles-game/artifacts/qa/atomium_ortho_yaw_registration/orientation_overlay.png
+            grand-bruxelles-game/artifacts/qa/atomium_ortho_yaw_registration/orientation_report.json
+            /tmp/atomium-ortho-yaw.log
+          if-no-files-found: error

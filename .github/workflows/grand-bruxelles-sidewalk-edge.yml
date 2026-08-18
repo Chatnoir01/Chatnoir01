@@ -27,8 +27,9 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
-# Dedicated exact-head structural + legitimate player-eye A/B gate.
 jobs:
   sidewalk-edge-contract:
     runs-on: ubuntu-latest
@@ -80,3 +81,20 @@ jobs:
             grand-bruxelles-game/artifacts/visual/sidewalk_edge_before.png
             grand-bruxelles-game/artifacts/visual/sidewalk_edge_after.png
           if-no-files-found: error
+
+  publish-locator:
+    needs: [sidewalk-edge-contract, sidewalk-edge-visual]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish isolated witness run locator
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+          CONTRACT_RESULT: ${{ needs.sidewalk-edge-contract.result }}
+          VISUAL_RESULT: ${{ needs.sidewalk-edge-visual.result }}
+        run: |
+          BODY=$(printf 'SIDEWALK_EDGE_ISOLATED_RUN\nrun_id=%s\nhead_sha=%s\ncontract=%s\nvisual=%s\nartifact=brussels-sidewalk-edge-ab' "$RUN_ID" "$HEAD_SHA" "$CONTRACT_RESULT" "$VISUAL_RESULT")
+          gh pr comment 800 --repo "$REPOSITORY" --body "$BODY"

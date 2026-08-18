@@ -1,0 +1,56 @@
+{
+  "schema": "grand-bruxelles-town-hall-remaining-wall-face-audit-v1",
+  "status": "evidence_only",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "expected_wall_face_count": 62,
+    "expected_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+  },
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "inherited_evidence_method": {
+    "source_pr": 776,
+    "method": "exact official face overlay, displaced only for QA visibility along the source-derived outward normal",
+    "overlay_offset_m": 0.012,
+    "reason": "Reuse the already-human-reviewed #776 face-ownership witness mechanism; this offset is evidence-only and never modifies production/source geometry."
+  },
+  "excluded_from_winner": [
+    {
+      "face_id": "10792525",
+      "reason": "Already occupied by shipped #783 right-gallery B1500 correction."
+    },
+    {
+      "face_id": "10798452",
+      "reason": "Already occupied by shipped #783 right-gallery B1500 correction."
+    },
+    {
+      "face_id": "10792523",
+      "reason": "#787 proved this left-gallery face is outside the canonical player camera."
+    }
+  ],
+  "grouping_policy": {
+    "wall_face_type": "WALLSURFACE",
+    "minimum_camera_facing_dot": 0.02,
+    "connected_endpoint_tolerance_m": 0.08,
+    "parallel_horizontal_normal_dot_min": 0.985,
+    "overlay_offset_m": 0.012,
+    "minimum_visible_gt8_pixels": 1,
+    "max_candidate_groups": 32
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "camera_changed": false,
+    "excluded_faces_reintroduced": false,
+    "author_openings": false,
+    "author_portal_depth": false,
+    "author_tower_detail": false,
+    "author_statuary": false,
+    "reuse_783_dimensions": false,
+    "implementation_authorized": false,
+    "visual_candidate_approved": false,
+    "realism_complete": false
+  },
+  "decision_goal": "Rank the remaining naturally exposed, edge-connected and near-coplanar official WALLSURFACE groups of UrbIS building 1655673 by actual >8 RGB player-view overlay pixels from the canonical #753/#711 camera, after excluding the shipped #783 face chain and #787 off-camera face. The winner only nominates the next source/metric evidence acquisition; it authorizes no runtime geometry."
+}

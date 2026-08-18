@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Identify the production OSM building block nearest the official Brasseurs wall.
+"""Test whether the selected production OSM slice owns the Brasseurs wall space.
 
 Evidence-only diagnostic. It reads the exact committed vertical-slice payload and
 compares every selected OSM building footprint with the exact UrbIS front-wall
@@ -21,6 +21,7 @@ URBIS_WALL_ID = "10945501"
 WALL_A = (317.93637041315284, -487.48588343904734)
 WALL_B = (325.884743245733, -483.8294664611034)
 MID = ((WALL_A[0] + WALL_B[0]) * 0.5, (WALL_A[1] + WALL_B[1]) * 0.5)
+NEARBY_AUDIT_RADIUS_M = 20.0  # diagnostic search neighborhood, not a source tolerance
 
 
 def point_segment_distance(p: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -71,7 +72,7 @@ def point_in_polygon(p: tuple[float, float], ring: list[tuple[float, float]]) ->
         pj = ring[j]
         if on_segment(pj, pi, p):
             return True
-        if ((pi[1] > p[1]) != (pj[1] > p[1])):
+        if (pi[1] > p[1]) != (pj[1] > p[1]):
             x_hit = (pj[0] - pi[0]) * (p[1] - pi[1]) / (pj[1] - pi[1]) + pi[0]
             if p[0] < x_hit:
                 inside = not inside
@@ -136,9 +137,9 @@ def main() -> int:
         raise SystemExit("BRASSEURS_OSM_OWNER_FAIL: no comparable buildings")
 
     winner = nearest[0]
-    gap = float(nearest[1]["wall_segment_distance_m"]) - float(winner["wall_segment_distance_m"]) if len(nearest) > 1 else math.inf
+    nearby = [r for r in rows if float(r["wall_segment_distance_m"]) <= NEARBY_AUDIT_RADIUS_M]
     evidence = {
-        "schema": "grand-bruxelles-brasseurs-osm-owner-audit-v1",
+        "schema": "grand-bruxelles-brasseurs-osm-owner-audit-v2",
         "status": "evidence_only",
         "urbis": {
             "building_id": URBIS_BUILDING_ID,
@@ -151,14 +152,24 @@ def main() -> int:
             "generic_building_node_pattern": "Building_<osm_id>",
             "generic_building_representation": "single_CSGPolygon3D_extrusion_per_OSM_footprint",
         },
+        "diagnostic_nearby_radius_m": NEARBY_AUDIT_RADIUS_M,
+        "nearby_selected_osm_building_count": len(nearby),
         "nearest": nearest,
-        "candidate": {
+        "nearest_selected_osm_building": {
             "osm_id": winner["osm_id"],
             "runtime_node_name": f"Building_{winner['osm_id']}",
             "wall_segment_distance_m": winner["wall_segment_distance_m"],
-            "runner_up_distance_gap_m": gap,
+            "wall_midpoint_distance_m": winner["wall_midpoint_distance_m"],
+        },
+        "conclusion": {
+            "generic_osm_owner_resolved": False,
+            "generic_osm_owner_hypothesis": "rejected_for_current_selected_slice" if len(nearby) == 0 else "unresolved_nearby_candidates_exist",
             "safe_to_hide_whole_building": False,
-            "reason": "audit identifies the nearest monolithic generic OSM block only; it does not prove that removing the full block is safe or that a complete official replacement envelope exists",
+            "reason": (
+                "no selected OSM building footprint lies within the diagnostic neighborhood of the exact UrbIS wall; inspect the rendered scene graph rather than assigning the distant nearest OSM block"
+                if len(nearby) == 0
+                else "nearby OSM footprints exist but proximity alone does not prove geometry ownership"
+            ),
         },
     }
 
@@ -168,9 +179,9 @@ def main() -> int:
     print(json.dumps(evidence, separators=(",", ":"), sort_keys=True))
     print(
         "BRASSEURS_OSM_OWNER_AUDIT_OK "
-        f"candidate={winner['osm_id']} wall_distance_m={winner['wall_segment_distance_m']:.6f} "
-        f"midpoint_distance_m={winner['wall_midpoint_distance_m']:.6f} runner_up_gap_m={gap:.6f} "
-        "safe_to_hide_whole_building=false"
+        f"nearest={winner['osm_id']} wall_distance_m={winner['wall_segment_distance_m']:.6f} "
+        f"nearby_within_{NEARBY_AUDIT_RADIUS_M:.0f}m={len(nearby)} "
+        f"hypothesis={evidence['conclusion']['generic_osm_owner_hypothesis']}"
     )
     return 0
 

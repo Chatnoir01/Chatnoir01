@@ -10,19 +10,28 @@ const WHITE_STONE_WALL_ROUGHNESS := 0.82
 
 # Source-bounded presentation articulation for the Grand-Place gallery to the
 # right of the tower. The path is the exact connected UrbIS WALLSURFACE chain
-# proven by #776. Vertical/bay semantics come from KCML/Jamaer B1500 and
-# Urban 31125; this overlay never changes official vertices or collision.
+# proven by #776. Vertical/opening anchors come from the verified KCML/Jamaer
+# B1500 scan; six-bay/pointed-arch semantics come from Urban 31125. This
+# presentation overlay never changes official vertices, depth or collision.
 const RIGHT_GALLERY_FACE_CHAIN := "10792525+10798452"
 const RIGHT_GALLERY_P0 := Vector3(292.0918, 0.0, -515.2239)
 const RIGHT_GALLERY_P1 := Vector3(297.4498, 0.0, -508.7339)
 const RIGHT_GALLERY_P2 := Vector3(302.2418, 0.0, -502.9279)
 const RIGHT_GALLERY_BAYS := 6
-const RIGHT_GALLERY_HEIGHT_M := 4.785
-const RIGHT_GALLERY_HEIGHT_UNCERTAINTY_M := 0.30
-const RIGHT_GALLERY_SPRING_M := 2.95
-const RIGHT_GALLERY_BASE_M := 0.20
+const RIGHT_GALLERY_BAND_TOP_M := 4.9611
+const RIGHT_GALLERY_ARCH_APEX_M := 3.8295
+const RIGHT_GALLERY_ARCH_SPRING_M := 2.5340
+const RIGHT_GALLERY_OPENING_WIDTH_M := 1.9922
+const RIGHT_GALLERY_BAY_PITCH_M := 2.6573489146
+const RIGHT_GALLERY_SIDE_MARGIN_M := 0.3325744573
+const RIGHT_GALLERY_BASE_M := 0.0
+const RIGHT_GALLERY_VERTICAL_UNCERTAINTY_M := 0.20
+const RIGHT_GALLERY_WIDTH_UNCERTAINTY_M := 0.12
+const RIGHT_GALLERY_SOURCE_TRACE_MAX_DEVIATION_M := 0.052
+const RIGHT_GALLERY_SOURCE_TRACE_TOLERANCE_M := 0.08
 const RIGHT_GALLERY_SURFACE_OFFSET_M := 0.018
-const RIGHT_GALLERY_ARCH_SAMPLES := 8
+const RIGHT_GALLERY_ARCH_SAMPLES := 16
+const RIGHT_GALLERY_ARCH_CONSTRUCTION := "two_circle_source_trace"
 
 var geometry_loaded := false
 var render_triangle_count := 0
@@ -73,7 +82,7 @@ func _build_when_scene_ready() -> void:
     set_meta("right_gallery_bays", RIGHT_GALLERY_BAYS)
     set_meta("right_gallery_geometry_changed", false)
     print("GRAND_PLACE_LOD2_1655673_READY: triangles=%d masked_osm=%d height=%.3f white_stone=true collision_bodies=%d" % [render_triangle_count, masked_osm_count, source_height_m, _official_collision_bodies.size()])
-    print("GRAND_PLACE_TOWN_HALL_RIGHT_GALLERY_READY: bays=%d face_chain=%s height=%.3f presentation_only=true" % [RIGHT_GALLERY_BAYS, RIGHT_GALLERY_FACE_CHAIN, RIGHT_GALLERY_HEIGHT_M])
+    print("GRAND_PLACE_TOWN_HALL_RIGHT_GALLERY_READY: bays=%d face_chain=%s apex=%.3f spring=%.3f construction=%s presentation_only=true" % [RIGHT_GALLERY_BAYS, RIGHT_GALLERY_FACE_CHAIN, RIGHT_GALLERY_ARCH_APEX_M, RIGHT_GALLERY_ARCH_SPRING_M, RIGHT_GALLERY_ARCH_CONSTRUCTION])
 
 
 func _read_geometry() -> Dictionary:
@@ -310,28 +319,33 @@ func _append_gallery_polygon(tool: SurfaceTool, polygon: PackedVector2Array) -> 
 
 func _gallery_bay_polygon(left_s: float, right_s: float) -> PackedVector2Array:
     var polygon := PackedVector2Array()
-    var width := right_s - left_s
-    var side_margin := minf(0.22, width * 0.11)
+    var bay_width := right_s - left_s
+    var side_margin := (bay_width - RIGHT_GALLERY_OPENING_WIDTH_M) * 0.5
+    if absf(bay_width - RIGHT_GALLERY_BAY_PITCH_M) > 0.003 or absf(side_margin - RIGHT_GALLERY_SIDE_MARGIN_M) > 0.003:
+        push_error("Town Hall right-gallery B1500 bay/opening pitch drifted")
+        return polygon
     var left := left_s + side_margin
     var right := right_s - side_margin
     var apex_x := (left + right) * 0.5
-    var rise := RIGHT_GALLERY_HEIGHT_M - RIGHT_GALLERY_SPRING_M
-    var left_control := Vector2(left + width * 0.24, RIGHT_GALLERY_SPRING_M + rise * 0.62)
-    var right_control := Vector2(right - width * 0.24, RIGHT_GALLERY_SPRING_M + rise * 0.62)
+    var half_width := RIGHT_GALLERY_OPENING_WIDTH_M * 0.5
+    var rise := RIGHT_GALLERY_ARCH_APEX_M - RIGHT_GALLERY_ARCH_SPRING_M
+    if half_width <= 0.0 or rise <= 0.0:
+        return polygon
+    var circle_offset := (rise * rise - half_width * half_width) / (2.0 * half_width)
+    var radius := circle_offset + half_width
+    if radius <= 0.0:
+        return polygon
+
     polygon.append(Vector2(left, RIGHT_GALLERY_BASE_M))
-    polygon.append(Vector2(left, RIGHT_GALLERY_SPRING_M))
+    polygon.append(Vector2(left, RIGHT_GALLERY_ARCH_SPRING_M))
     for sample: int in range(1, RIGHT_GALLERY_ARCH_SAMPLES + 1):
-        var t := float(sample) / float(RIGHT_GALLERY_ARCH_SAMPLES)
-        var omt := 1.0 - t
-        var x := omt * omt * left + 2.0 * omt * t * left_control.x + t * t * apex_x
-        var y := omt * omt * RIGHT_GALLERY_SPRING_M + 2.0 * omt * t * left_control.y + t * t * RIGHT_GALLERY_HEIGHT_M
-        polygon.append(Vector2(x, y))
-    for sample: int in range(1, RIGHT_GALLERY_ARCH_SAMPLES + 1):
-        var t := float(sample) / float(RIGHT_GALLERY_ARCH_SAMPLES)
-        var omt := 1.0 - t
-        var x := omt * omt * apex_x + 2.0 * omt * t * right_control.x + t * t * right
-        var y := omt * omt * RIGHT_GALLERY_HEIGHT_M + 2.0 * omt * t * right_control.y + t * t * RIGHT_GALLERY_SPRING_M
-        polygon.append(Vector2(x, y))
+        var y_rel := rise * float(sample) / float(RIGHT_GALLERY_ARCH_SAMPLES)
+        var root_term := sqrt(maxf(0.0, radius * radius - y_rel * y_rel))
+        polygon.append(Vector2(apex_x + circle_offset - root_term, RIGHT_GALLERY_ARCH_SPRING_M + y_rel))
+    for sample: int in range(RIGHT_GALLERY_ARCH_SAMPLES - 1, -1, -1):
+        var y_rel := rise * float(sample) / float(RIGHT_GALLERY_ARCH_SAMPLES)
+        var root_term := sqrt(maxf(0.0, radius * radius - y_rel * y_rel))
+        polygon.append(Vector2(apex_x - circle_offset + root_term, RIGHT_GALLERY_ARCH_SPRING_M + y_rel))
     polygon.append(Vector2(right, RIGHT_GALLERY_BASE_M))
     return polygon
 
@@ -341,6 +355,13 @@ func _build_right_gallery() -> void:
     if absf(total - 15.9440934873) > 0.002:
         push_error("Town Hall right-gallery official source chain span drifted")
         return
+    var bay_width := total / float(RIGHT_GALLERY_BAYS)
+    if absf(bay_width - RIGHT_GALLERY_BAY_PITCH_M) > 0.003:
+        push_error("Town Hall right-gallery six-bay pitch drifted")
+        return
+    if RIGHT_GALLERY_SOURCE_TRACE_MAX_DEVIATION_M > RIGHT_GALLERY_SOURCE_TRACE_TOLERANCE_M:
+        push_error("Town Hall right-gallery B1500 source-trace fit exceeds frozen tolerance")
+        return
     var material := StandardMaterial3D.new()
     material.albedo_color = Color(0.13, 0.125, 0.115, 1.0)
     material.roughness = 0.94
@@ -348,7 +369,6 @@ func _build_right_gallery() -> void:
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     tool.set_material(material)
-    var bay_width := total / float(RIGHT_GALLERY_BAYS)
     var triangle_count := 0
     for bay: int in range(RIGHT_GALLERY_BAYS):
         triangle_count += _append_gallery_polygon(tool, _gallery_bay_polygon(float(bay) * bay_width, float(bay + 1) * bay_width))
@@ -364,6 +384,7 @@ func _build_right_gallery() -> void:
     _right_gallery_mesh.set_meta("source_archive", "KCML B1500")
     _right_gallery_mesh.set_meta("bay_count", RIGHT_GALLERY_BAYS)
     _right_gallery_mesh.set_meta("opening_depth_m", 0.0)
+    _right_gallery_mesh.set_meta("arch_construction", RIGHT_GALLERY_ARCH_CONSTRUCTION)
     add_child(_right_gallery_mesh)
 
 
@@ -371,8 +392,18 @@ func right_gallery_contract() -> Dictionary:
     return {
         "source_face_chain": RIGHT_GALLERY_FACE_CHAIN,
         "bay_count": RIGHT_GALLERY_BAYS,
-        "gallery_height_m": RIGHT_GALLERY_HEIGHT_M,
-        "gallery_height_uncertainty_m": RIGHT_GALLERY_HEIGHT_UNCERTAINTY_M,
+        "gallery_band_top_m": RIGHT_GALLERY_BAND_TOP_M,
+        "arch_apex_m": RIGHT_GALLERY_ARCH_APEX_M,
+        "arch_spring_m": RIGHT_GALLERY_ARCH_SPRING_M,
+        "opening_width_m": RIGHT_GALLERY_OPENING_WIDTH_M,
+        "bay_pitch_m": RIGHT_GALLERY_BAY_PITCH_M,
+        "side_margin_m": RIGHT_GALLERY_SIDE_MARGIN_M,
+        "base_height_m": RIGHT_GALLERY_BASE_M,
+        "vertical_measurement_uncertainty_m": RIGHT_GALLERY_VERTICAL_UNCERTAINTY_M,
+        "opening_width_uncertainty_m": RIGHT_GALLERY_WIDTH_UNCERTAINTY_M,
+        "source_trace_max_deviation_m": RIGHT_GALLERY_SOURCE_TRACE_MAX_DEVIATION_M,
+        "source_trace_tolerance_m": RIGHT_GALLERY_SOURCE_TRACE_TOLERANCE_M,
+        "arch_construction": RIGHT_GALLERY_ARCH_CONSTRUCTION,
         "source_archive": "KCML B1500",
         "source_image_id": 431760,
         "source_heritage_record": 31125,

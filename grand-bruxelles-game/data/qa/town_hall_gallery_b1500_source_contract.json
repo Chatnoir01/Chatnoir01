@@ -1,0 +1,60 @@
+{
+  "schema": "grand-bruxelles-town-hall-gallery-b1500-source-contract-v1",
+  "status": "source_acquisition_only",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "proven_wall_face_ids": [
+      "https://databrussels.be/id/buildingface/10792525",
+      "https://databrussels.be/id/buildingface/10798452"
+    ],
+    "proven_connected_span_m": 15.9440822601318,
+    "face_map_evidence_pr": 776,
+    "face_map_run_id": 32133587934,
+    "face_map_artifact_id": 9323125300,
+    "face_map_artifact_sha256": "4a2bf0b64d3a9df220d040ab3a5ad9bdbae3776148ef9d1bb2477a96308592c4"
+  },
+  "archive_source": {
+    "provider": "Agentschap Onroerend Erfgoed / Beeldbank Onroerend Erfgoed",
+    "collection": "Koninklijke Commissie voor Monumenten en Landschappen (KCML)",
+    "image_id": 431760,
+    "reference_uri": "https://id.erfgoed.net/afbeeldingen/431760",
+    "record_url": "https://beeldbank.onroerenderfgoed.be/images/431760",
+    "download_url": "https://beeldbank.onroerenderfgoed.be/images/431760/content/original",
+    "archive_number": "B1500",
+    "title": "Stadhuis",
+    "inscription": "Hôtel de Ville de Bruxelles. Galerie vers la grande place à droite de la tour. Plan de l'aucrage ayant soutenu les Culs-de-Lamps.",
+    "plan_description": "opstand voorgevel/galerij, plattegrond en doorsnede galerij",
+    "designer": "Jamaer, Pierre Victor",
+    "date": "1867-02-28",
+    "sheet_height_mm": 602,
+    "sheet_width_mm": 1000,
+    "stated_scale": "1/20",
+    "license": "Public Domain Mark 1.0"
+  },
+  "acquisition_policy": {
+    "download_original_only": true,
+    "record_sha256": true,
+    "record_detected_format_and_pixel_dimensions": true,
+    "create_preview_without_altering_source": true,
+    "preview_max_dimension_px": 2400,
+    "commit_scan_to_repository": false
+  },
+  "measurement_policy": {
+    "metric_measurement_authorized": false,
+    "reason": "The source must first be acquired and visually inspected. Scale metadata alone is insufficient to derive a gallery height before confirming the exact elevation/section region, sheet bounds and any written dimensions or scale marks.",
+    "allowed_after_acquisition": [
+      "visual identification of elevation and section regions",
+      "reading explicit written dimensions if legible",
+      "measuring image-space ratios with uncertainty",
+      "proposing a separate evidence contract for any metric conversion"
+    ]
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "gallery_band_resolved": false,
+    "arcade_geometry_authorized": false,
+    "visual_candidate_approved": false,
+    "realism_complete": false
+  }
+}

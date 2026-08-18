@@ -6,7 +6,9 @@ extends "res://game/zones/ixelles/ixelles_microslice_draped.gd"
 ## 2 m DTM render triangle, then receives the existing renderer-only 3.5 cm depth bias.
 
 const FACADE_MATERIAL_FACTORY := preload("res://game/scripts/ixelles_source_facade_material.gd")
+const FACADE_DEPTH_RUNTIME := preload("res://game/scripts/ixelles_facade_depth_runtime.gd")
 const FACADE_ARTICULATION_ENV := "GB_IXELLES_FACADE_ARTICULATION"
+const FACADE_DEPTH_ENV := "GB_IXELLES_FACADE_DEPTH"
 const IXELLES_CONTEXT_SOURCE_PLAN_CELLS := {
     "bxl-e149000-n169500-s500": true,
     "bxl-e149500-n169000-s500": true,
@@ -23,11 +25,17 @@ var stassart_124_blue_stone_cue_built := false
 var facade_articulation_enabled := false
 var facade_material_profile_count := 0
 var facade_streamed_context_cell_count := 0
+var facade_depth_enabled := false
+var facade_depth_direct_recess_panels := 0
+var facade_depth_total_recess_panels := 0
+var facade_depth_streamed_context_cell_count := 0
 var _facade_context_processed: Dictionary = {}
+var _facade_depth_context_processed: Dictionary = {}
+var _facade_depth_context_panel_counts: Dictionary = {}
 var _facade_context_scan_frame := 0
 
 func _process(_delta: float) -> void:
-    if not facade_articulation_enabled:
+    if not facade_articulation_enabled and not facade_depth_enabled:
         return
     _facade_context_scan_frame += 1
     if _facade_context_scan_frame <= 16:
@@ -35,7 +43,10 @@ func _process(_delta: float) -> void:
             return
     elif _facade_context_scan_frame % 30 != 0:
         return
-    _apply_streamed_context_facades()
+    if facade_articulation_enabled:
+        _apply_streamed_context_facades()
+    if facade_depth_enabled:
+        _apply_streamed_context_depth()
 
 func _emit_bounded_piece(target: SurfaceTool, bounded_piece: PackedVector2Array) -> void:
     if bounded_piece.size() < 3:
@@ -227,6 +238,60 @@ func _apply_streamed_context_facades() -> void:
         facade_streamed_context_cell_count = _facade_context_processed.size()
         print("IXELLES_FACADE_CONTEXT_READY: cell=%s visual_buildings=%d family=%s vertex_tones_preserved=true geometry_changed=false collision_changed=false" % [context_cell_id, int(candidate.get("rendered_building_count")), FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY])
 
+func _facade_depth_direct_base_y(point: Vector2) -> float:
+    return sample_height(point.x, point.y) + 0.06
+
+func _apply_facade_depth() -> void:
+    facade_depth_enabled = false
+    facade_depth_direct_recess_panels = 0
+    facade_depth_total_recess_panels = 0
+    facade_depth_streamed_context_cell_count = 0
+    _facade_depth_context_processed.clear()
+    _facade_depth_context_panel_counts.clear()
+    if OS.get_environment(FACADE_DEPTH_ENV) == "0":
+        print("IXELLES_FACADE_DEPTH_DISABLED: source_geometry_changed=false collision_changed=false")
+        return
+    var cell: Dictionary = get_meta("ixelles_cell_contract", {})
+    var heights: Dictionary = get_meta("ixelles_height_contract", {})
+    var stats: Dictionary = FACADE_DEPTH_RUNTIME.build_from_contract(self, cell, heights, Callable(self, "_facade_depth_direct_base_y"), 0.04, cell_id)
+    facade_depth_direct_recess_panels = int(stats.get("panels", 0))
+    facade_depth_total_recess_panels = facade_depth_direct_recess_panels
+    if facade_depth_direct_recess_panels <= 0:
+        push_error("Ixelles facade depth: direct source-wall detail generation failed")
+        return
+    facade_depth_enabled = true
+    _apply_streamed_context_depth()
+    print("IXELLES_FACADE_DEPTH_READY: cell=%s direct_panels=%d total_panels=%d context_cells=%d family=%s renderer_only=true source_geometry_changed=false collision_changed=false surveyed_openings=false" % [cell_id, facade_depth_direct_recess_panels, facade_depth_total_recess_panels, facade_depth_streamed_context_cell_count, FACADE_DEPTH_RUNTIME.FAMILY])
+
+func _apply_streamed_context_depth() -> void:
+    if not facade_depth_enabled:
+        return
+    for candidate: Node in get_tree().root.find_children("StreamedCell_*", "", true, false):
+        var context_cell_id := str(candidate.get_meta("streamed_cell_id", ""))
+        if not IXELLES_CONTEXT_SOURCE_PLAN_CELLS.has(context_cell_id):
+            continue
+        var candidate_instance_id := candidate.get_instance_id()
+        if int(_facade_depth_context_processed.get(context_cell_id, 0)) == candidate_instance_id:
+            continue
+        if candidate.get_node_or_null("VisualCandidateBuildingMassing") == null:
+            continue
+        var raw_cell: Variant = candidate.get("_cell")
+        var raw_heights: Variant = candidate.get("_strong_heights")
+        if not raw_cell is Dictionary or not raw_heights is Dictionary:
+            continue
+        var fallback_base_y := float(candidate.get("building_base_y"))
+        var stats: Dictionary = FACADE_DEPTH_RUNTIME.build_from_contract(candidate as Node3D, raw_cell as Dictionary, raw_heights as Dictionary, Callable(), fallback_base_y, context_cell_id)
+        var panels := int(stats.get("panels", 0))
+        if panels <= 0:
+            continue
+        _facade_depth_context_processed[context_cell_id] = candidate_instance_id
+        _facade_depth_context_panel_counts[context_cell_id] = panels
+        facade_depth_streamed_context_cell_count = _facade_depth_context_processed.size()
+        facade_depth_total_recess_panels = facade_depth_direct_recess_panels
+        for value: Variant in _facade_depth_context_panel_counts.values():
+            facade_depth_total_recess_panels += int(value)
+        print("IXELLES_FACADE_DEPTH_CONTEXT_READY: cell=%s panels=%d source_buildings=%d family=%s renderer_only=true collision_changed=false" % [context_cell_id, panels, int(stats.get("source_buildings", 0)), FACADE_DEPTH_RUNTIME.FAMILY])
+
 func facade_presentation_contract() -> Dictionary:
     return {
         "material_family": FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY,
@@ -244,9 +309,30 @@ func facade_presentation_contract() -> Dictionary:
         "source_cell": cell_id,
     }
 
+func facade_depth_contract() -> Dictionary:
+    return {
+        "family": FACADE_DEPTH_RUNTIME.FAMILY,
+        "enabled": facade_depth_enabled,
+        "presentation_only": true,
+        "renderer_only": true,
+        "source_geometry_changed": false,
+        "collision_changed": false,
+        "surveyed_openings_claimed": false,
+        "exact_depth_claimed": false,
+        "floor_count_claimed": false,
+        "building_material_claimed": false,
+        "source_backed_buildings": building_count,
+        "direct_recess_panels": facade_depth_direct_recess_panels,
+        "streamed_context_cells": facade_depth_streamed_context_cell_count,
+        "total_recess_panels": facade_depth_total_recess_panels,
+        "new_building_footprints_added": false,
+        "source_cell": cell_id,
+    }
+
 func _build_strong_height_candidate_buildings() -> void:
     super._build_strong_height_candidate_buildings()
     _apply_facade_articulation()
+    _apply_facade_depth()
     if OS.get_environment(STASSART_124_CUE_ENV) == "0":
         return
     _build_stassart_124_blue_stone_ground_floor()

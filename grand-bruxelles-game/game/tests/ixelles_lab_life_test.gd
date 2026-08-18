@@ -3,6 +3,7 @@ extends SceneTree
 const MAIN_SCENE := preload("res://game/main.tscn")
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const EXPECTED_AXIS_ID := "https://databrussels.be/id/streetaxe/71374:1"
+const EXPECTED_TARGET_AXIS_ID := "https://databrussels.be/id/streetaxe/71306:2"
 const EXPECTED_CIVILIANS := 8
 const EXPECTED_MOVING_VEHICLES := 2
 
@@ -75,11 +76,15 @@ func _run() -> void:
         return
     if not _expect(str((contract as Dictionary).get("vehicle_axis_id", "")) == EXPECTED_AXIS_ID, "moving vehicles are not bound to accepted official StreetAxis"):
         return
+    if not _expect(str((contract as Dictionary).get("target_axis_id", "")) == EXPECTED_TARGET_AXIS_ID, "life sightline drifted from accepted Ixelles target StreetAxis"):
+        return
     if not _expect(str((contract as Dictionary).get("pedestrian_surface_type", "")) == "SW", "pedestrians are not bound to official sidewalk surfaces"):
         return
     if not _expect(int((contract as Dictionary).get("pedestrian_anchor_count", 0)) == EXPECTED_CIVILIANS, "pedestrian source-anchor count drifted"):
         return
     if not _expect(bool((contract as Dictionary).get("all_pedestrian_anchors_inside_source", false)), "one or more pedestrian anchors escaped official sidewalk polygons"):
+        return
+    if not _expect(bool((contract as Dictionary).get("all_pedestrian_anchors_in_spawn_view", false)), "one or more pedestrian anchors escaped the accepted direct-spawn view"):
         return
     if not _expect(not bool((contract as Dictionary).get("lane_geometry_claimed", true)), "LABO traffic presentation incorrectly claims surveyed lane geometry"):
         return
@@ -88,7 +93,7 @@ func _run() -> void:
     if not _expect(civilians.size() == EXPECTED_CIVILIANS, "visible Ixelles civilian nodes missing"):
         return
     for civilian: Node in civilians:
-        if not _expect(str(civilian.get_meta("source_surface_type", "")) == "SW" and bool(civilian.get_meta("source_point_inside_official_surface", false)), "civilian source provenance missing"):
+        if not _expect(str(civilian.get_meta("source_surface_type", "")) == "SW" and bool(civilian.get_meta("source_point_inside_official_surface", false)) and bool(civilian.get_meta("source_point_in_direct_spawn_view", false)), "civilian source/view provenance missing"):
             return
 
     var before: Variant = life.call("moving_probe_position") if life.has_method("moving_probe_position") else null
@@ -100,5 +105,5 @@ func _run() -> void:
     if not _expect(after is Vector3 and (after as Vector3).distance_to(before as Vector3) > 0.02, "Ixelles moving vehicle did not move"):
         return
 
-    print("IXELLES_LAB_LIFE_OK: zone=ixelles status=LABO civilians=%d moving=%d vehicle_axis=%s pedestrian_surface=SW direct_entry=true geography_expanded=false" % [EXPECTED_CIVILIANS, EXPECTED_MOVING_VEHICLES, EXPECTED_AXIS_ID])
+    print("IXELLES_LAB_LIFE_OK: zone=ixelles status=LABO civilians=%d moving=%d vehicle_axis=%s target_axis=%s pedestrian_surface=SW direct_entry=true anchors_in_spawn_view=true geography_expanded=false" % [EXPECTED_CIVILIANS, EXPECTED_MOVING_VEHICLES, EXPECTED_AXIS_ID, EXPECTED_TARGET_AXIS_ID])
     quit(0)

@@ -1,0 +1,118 @@
+name: Grand Bruxelles Atomium Current Basin Registry
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-current-basin-registry.yml"
+      - "grand-bruxelles-game/data/runtime/modules/atomium_current_basin.json"
+      - "grand-bruxelles-game/game/scripts/atomium_current_basin_runtime.gd"
+      - "grand-bruxelles-game/game/tests/atomium_current_basin_registry_witness_test.gd"
+      - "grand-bruxelles-game/data/environment/laeken_jette/atomium_current_basin_footprint.game.json"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_current_basin_footprint.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_dtm_terrain.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_core.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_reflection_environment.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/scripts/grand_brussels_runtime_bootstrap.gd"
+      - "grand-bruxelles-game/data/runtime/runtime_registry.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registry-player-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1 and Pillow
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          python3 -m pip install --disable-pip-version-check pillow
+      - name: Validate permanent runtime registry
+        run: python3 grand-bruxelles-game/tools/qa/validate_runtime_bootstrap.py
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/atomium-registry-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/atomium-registry-import.log; then exit 1; fi
+      - name: Validate source-bounded basin smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/atomium_current_basin_footprint_test.gd 2>&1 | tee /tmp/atomium-basin-smoke.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_CURRENT_BASIN_FOOTPRINT_FAIL" /tmp/atomium-basin-smoke.log; then exit 1; fi
+          grep -F "ATOMIUM_CURRENT_BASIN_FOOTPRINT_OK" /tmp/atomium-basin-smoke.log
+      - name: Capture production player-eye BEFORE and AFTER
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/atomium_current_basin_registry_witness_test.gd \
+            2>&1 | tee /tmp/atomium-basin-registry-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_CURRENT_BASIN_REGISTRY_WITNESS_FAIL" /tmp/atomium-basin-registry-witness.log; then exit 1; fi
+          grep -F "ATOMIUM_CURRENT_BASIN_REGISTRY_WITNESS_OK" /tmp/atomium-basin-registry-witness.log
+          test -s grand-bruxelles-game/artifacts/qa/atomium_current_basin_registry/before.png
+          test -s grand-bruxelles-game/artifacts/qa/atomium_current_basin_registry/after.png
+      - name: Measure frozen A-B gate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageChops
+
+          root = Path('grand-bruxelles-game/artifacts/qa/atomium_current_basin_registry')
+          before = Image.open(root / 'before.png').convert('RGB')
+          after = Image.open(root / 'after.png').convert('RGB')
+          if before.size != after.size or before.size != (1280, 720):
+              raise SystemExit('ATOMIUM_CURRENT_BASIN_REGISTRY_AB_FAIL: capture size mismatch')
+
+          a, b = before.load(), after.load()
+          xs, ys = [], []
+          for y in range(before.height):
+              for x in range(before.width):
+                  if max(abs(a[x, y][i] - b[x, y][i]) for i in range(3)) > 3:
+                      xs.append(x)
+                      ys.append(y)
+
+          total = before.width * before.height
+          changed_pct = 100.0 * len(xs) / total
+          if xs:
+              bbox = (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
+              bbox_area_pct = 100.0 * (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) / total
+          else:
+              bbox = (0, 0, 0, 0)
+              bbox_area_pct = 0.0
+
+          ImageChops.difference(before, after).save(root / 'diff.png')
+          passed = bool(xs) and changed_pct >= 0.03 and changed_pct <= 12.0 and bbox_area_pct <= 55.0
+          metrics = (
+              f'ATOMIUM_CURRENT_BASIN_REGISTRY_AB_METRICS: changed_gt3={changed_pct:.6f}% '
+              f'bbox={bbox} bbox_area={bbox_area_pct:.4f}% '
+              f'floor=0.03% ceiling=12.0% bbox_ceiling=55.0% numerical_gate={"PASS" if passed else "FAIL"}\n'
+          )
+          (root / 'metrics.log').write_text(metrics, encoding='utf-8')
+          print(metrics, end='')
+          PY
+          cp /tmp/atomium-basin-registry-witness.log grand-bruxelles-game/artifacts/qa/atomium_current_basin_registry/witness.log
+          cp /tmp/atomium-basin-smoke.log grand-bruxelles-game/artifacts/qa/atomium_current_basin_registry/smoke.log
+      - name: Upload player-eye A-B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-current-basin-registry-player-ab
+          path: grand-bruxelles-game/artifacts/qa/atomium_current_basin_registry
+          if-no-files-found: error
+      - name: Enforce frozen numerical gate
+        run: grep -F "numerical_gate=PASS" grand-bruxelles-game/artifacts/qa/atomium_current_basin_registry/metrics.log

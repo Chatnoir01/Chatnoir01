@@ -5,8 +5,11 @@ const EXPECTED_WIDTHS := [1.85, 2.55]
 const WIDTH_TOLERANCE := 0.02
 const HEIGHT := 0.12
 const HEIGHT_TOLERANCE := 0.005
-const EDGE_WIDTH := 0.12
-const EDGE_HEIGHT := 0.10
+const EDGE_WIDTH := 0.04
+const MIN_EDGE_HEIGHT := 0.02
+const MIN_EDGE_LENGTH := 0.50
+const MIN_END_SETBACK := 1.50
+const MAX_END_SETBACK := 5.00
 const ROAD_LENGTH_TOLERANCE := 0.02
 const ROAD_AXIS_DOT_MIN := 0.999
 const ROAD_MATCH_MAX_M := 8.0
@@ -66,12 +69,39 @@ func _matched_road(sidewalk: CSGBox3D, roads: Array[CSGBox3D]) -> CSGBox3D:
 
 func _make_material() -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
-    material.albedo_color = Color(0.225, 0.235, 0.240, 1.0)
-    material.roughness = 0.96
+    # Warm neutral fascia: intentionally close to the shared sidewalk family so
+    # the edge reads as masonry/curb articulation rather than a dark rail.
+    material.albedo_color = Color(0.420, 0.415, 0.400, 1.0)
+    material.roughness = 0.97
     material.metallic = 0.0
     material.set_meta("material_family", MATERIAL_FAMILY)
+    material.set_meta("presentation_role", "road_facing_sidewalk_fascia")
     material.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
     return material
+
+func _edge_transform(sidewalk: CSGBox3D, road: CSGBox3D) -> Transform3D:
+    var toward_road := road.global_position - sidewalk.global_position
+    var local_x_axis := sidewalk.global_transform.basis.x.normalized()
+    var road_side := 1.0 if toward_road.dot(local_x_axis) >= 0.0 else -1.0
+
+    # Keep the visual volume inside the authored sidewalk footprint. Vertically,
+    # expose only the existing slab difference above the matched road top.
+    var local_x := road_side * (sidewalk.size.x * 0.5 - EDGE_WIDTH * 0.5)
+    var sidewalk_top := sidewalk.global_position.y + sidewalk.size.y * 0.5
+    var road_top := road.global_position.y + road.size.y * 0.5
+    var edge_height := clampf(sidewalk_top - road_top, MIN_EDGE_HEIGHT, HEIGHT)
+    var edge_center_y := road_top + edge_height * 0.5
+    var local_y := edge_center_y - sidewalk.global_position.y
+
+    # Generic OSM slabs run centreline-node to centreline-node. A full-length
+    # fascia therefore creates rail-like lines through intersections. Clip each
+    # end by half the matched road width (bounded), without changing the slab.
+    var end_setback := clampf(road.size.x * 0.5, MIN_END_SETBACK, MAX_END_SETBACK)
+    var edge_length := maxf(sidewalk.size.z - end_setback * 2.0, MIN_EDGE_LENGTH)
+
+    var edge_basis := sidewalk.global_transform.basis.scaled(Vector3(EDGE_WIDTH, edge_height, edge_length))
+    var edge_origin := sidewalk.global_transform * Vector3(local_x, local_y, 0.0)
+    return Transform3D(edge_basis, edge_origin)
 
 func bind_scene(scene: Node3D) -> void:
     _clear_visual()
@@ -108,14 +138,9 @@ func bind_scene(scene: Node3D) -> void:
         sidewalk.set_meta("sidewalk_edge_material_family", MATERIAL_FAMILY)
         sidewalk.set_meta("sidewalk_edge_placement_provenance", placement_provenance)
         sidewalk.set_meta("sidewalk_edge_source_height_claimed", source_height_claimed)
+        sidewalk.set_meta("sidewalk_edge_endpoint_setback", true)
         sidewalk.set_meta("geometry_changed_by_sidewalk_edge_runtime", false)
-        var toward_road := road.global_position - sidewalk.global_position
-        var local_x_axis := sidewalk.global_transform.basis.x.normalized()
-        var road_side := 1.0 if toward_road.dot(local_x_axis) >= 0.0 else -1.0
-        var local_x := road_side * (sidewalk.size.x * 0.5 - EDGE_WIDTH * 0.5)
-        var edge_basis := sidewalk.global_transform.basis.scaled(Vector3(EDGE_WIDTH, EDGE_HEIGHT, sidewalk.size.z))
-        var edge_origin := sidewalk.global_transform * Vector3(local_x, 0.0, 0.0)
-        transforms.append(Transform3D(edge_basis, edge_origin))
+        transforms.append(_edge_transform(sidewalk, road))
     if _sidewalks.is_empty() or transforms.size() != _sidewalks.size():
         _failed = true
         _ready_complete = true
@@ -134,12 +159,14 @@ func bind_scene(scene: Node3D) -> void:
     _visual.multimesh = multimesh
     _visual.set_meta("material_family", MATERIAL_FAMILY)
     _visual.set_meta("placement_provenance", placement_provenance)
+    _visual.set_meta("presentation_role", "road_facing_sidewalk_fascia")
+    _visual.set_meta("endpoint_setback", true)
     _visual.set_meta("source_height_claimed", source_height_claimed)
     _visual.set_meta("collision_count", 0)
     scene.add_child(_visual)
     _visual.visible = _enhanced_enabled
     _ready_complete = true
-    print("BRUSSELS_SIDEWALK_EDGE_READY: sidewalks=%d edges=%d batches=1 collisions=0 road_facing_only=true family=%s source_height_claimed=false" % [_sidewalks.size(), transforms.size(), MATERIAL_FAMILY])
+    print("BRUSSELS_SIDEWALK_EDGE_READY: sidewalks=%d edges=%d batches=1 collisions=0 road_facing_fascia=true endpoint_setback=true family=%s source_height_claimed=false" % [_sidewalks.size(), transforms.size(), MATERIAL_FAMILY])
 
 func _clear_visual() -> void:
     if is_instance_valid(_visual):
@@ -184,4 +211,4 @@ func geometry_unchanged() -> bool:
     return true
 
 func edge_visual_within_sidewalk_envelope() -> bool:
-    return EDGE_WIDTH <= minf(EXPECTED_WIDTHS[0], EXPECTED_WIDTHS[1]) and EDGE_HEIGHT <= HEIGHT
+    return EDGE_WIDTH <= minf(EXPECTED_WIDTHS[0], EXPECTED_WIDTHS[1]) and MIN_EDGE_HEIGHT <= HEIGHT and MAX_END_SETBACK >= MIN_END_SETBACK

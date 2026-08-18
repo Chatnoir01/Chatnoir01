@@ -430,18 +430,7 @@ func _wheel_assembly(name_value: String, pos: Vector3, tire_material: Material, 
     hub.position.y = face_y
     root_wheel.add_child(hub)
 
-    for index: int in range(5):
-        var angle: float = TAU * float(index) / 5.0
-        var spoke_mesh := BoxMesh.new()
-        spoke_mesh.size = Vector3(0.032, 0.022, 0.145)
-        spoke_mesh.material = rim_material
-        var spoke := MeshInstance3D.new()
-        spoke.name = "Spoke%d" % index
-        spoke.mesh = spoke_mesh
-        spoke.position = Vector3(sin(angle) * 0.105, face_y, cos(angle) * 0.105)
-        spoke.rotation.y = angle
-        spoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-        root_wheel.add_child(spoke)
+    _wheel_spoke_star(root_wheel, face_y, rim_material)
 
     var caliper_mesh := BoxMesh.new()
     caliper_mesh.size = Vector3(0.060, 0.024, 0.082)
@@ -452,3 +441,25 @@ func _wheel_assembly(name_value: String, pos: Vector3, tire_material: Material, 
     caliper.position = Vector3(0.0, brake_y, 0.115)
     root_wheel.add_child(caliper)
     return root_wheel
+
+
+func _wheel_spoke_star(root_wheel: Node3D, face_y: float, material: Material) -> MeshInstance3D:
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    for index: int in range(5):
+        var angle: float = TAU * float(index) / 5.0
+        var radial := Vector3(sin(angle), 0.0, cos(angle))
+        var tangent := Vector3(cos(angle), 0.0, -sin(angle)) * 0.022
+        var center_offset := Vector3(0.0, face_y, 0.0)
+        var inner := center_offset + radial * 0.052
+        var outer := center_offset + radial * 0.180
+        _quad(surface, inner - tangent, outer - tangent, outer + tangent, inner + tangent)
+    surface.generate_normals()
+    var mesh: ArrayMesh = surface.commit()
+    var star := MeshInstance3D.new()
+    star.name = "SpokeStar"
+    star.mesh = mesh
+    star.material_override = material
+    star.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+    root_wheel.add_child(star)
+    return star

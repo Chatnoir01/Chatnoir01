@@ -32,6 +32,10 @@ func _process(delta: float) -> void:
     _elapsed = 0.0
     _try_mount()
 
+func _selector_owns_current_transition() -> bool:
+    var selector := get_tree().root.get_node_or_null("ZoneSelectorRuntime")
+    return selector != null and bool(selector.get("_busy"))
+
 func _try_mount() -> void:
     var slice := get_tree().root.find_child(SLICE_NAME, true, false)
     if slice == null or not bool(slice.get("runtime_loaded")):
@@ -45,6 +49,10 @@ func _try_mount() -> void:
         if world_id != _last_world_instance_id:
             _validate_life(existing)
             _last_world_instance_id = world_id
+        return
+    # The zone selector already owns life_script mounting during a menu travel.
+    # Yield to it so the registry bridge never races it into a duplicate node.
+    if _selector_owns_current_transition():
         return
 
     var life := Node3D.new()

@@ -28,7 +28,13 @@ jobs:
         run: |
           python grand-bruxelles-game/tools/fetch_anneessens_school_source.py --output /tmp/anneessens_school_256375327.game.json
           cmp /tmp/anneessens_school_256375327.game.json grand-bruxelles-game/data/osm/anneessens_school_256375327.game.json
-          python -m pytest -q grand-bruxelles-game/tests/test_anneessens_school_source.py
+          python - <<'PY'
+          import runpy
+          namespace = runpy.run_path('grand-bruxelles-game/tests/test_anneessens_school_source.py')
+          namespace['test_school_landmark_is_committed_from_exact_osm_way']()
+          namespace['test_heritage_contract_only_claims_documented_frontage_traits']()
+          print('ANNEESSENS_SOURCE_CONTRACT_OK')
+          PY
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip

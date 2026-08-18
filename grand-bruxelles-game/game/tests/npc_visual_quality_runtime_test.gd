@@ -33,28 +33,28 @@ func _init() -> void:
 	_add_part(civilian, &"OuterLayer")
 
 	runtime.polish_visual(civilian, false)
-	_assert_scale(failures, civilian, "Head", Vector3(0.78, 0.84, 0.82), "civilian head should use compact human proportions")
-	_assert_scale(failures, civilian, "LeftHand", Vector3(0.64, 0.72, 0.64), "civilian hands should be clearly reduced")
-	_assert_scale(failures, civilian, "LeftLeg", Vector3(0.84, 1.08, 0.84), "civilian legs should be slimmer and taller")
-	_assert_scale(failures, civilian, "Torso", Vector3(0.88, 1.07, 0.84), "civilian torso should be narrower, taller and less deep")
-	_assert_scale(failures, civilian, "OuterLayer", Vector3(0.91, 1.03, 0.88), "civilian outer layer should follow the corrected silhouette")
-	_assert_position(failures, civilian, "Head", Vector3(0.0, 0.905, 0.0), "civilian head should sit slightly higher")
-	_assert_position(failures, civilian, "LeftArm", Vector3(-0.376, 0.30, 0.0), "civilian arms should sit closer to the torso")
-	_assert_position(failures, civilian, "RightArm", Vector3(0.376, 0.30, 0.0), "civilian arms should sit closer to the torso")
-	_assert_position(failures, civilian, "LeftShoe", Vector3(-0.1056, -0.845, -0.07), "civilian shoes should be tighter to the leg line")
+	_assert_scale(failures, civilian, "Head", Vector3(0.36, 0.40, 0.38), "civilian head should use adult human proportions")
+	_assert_scale(failures, civilian, "LeftHand", Vector3(0.50, 0.70, 0.50), "civilian hands should be compact")
+	_assert_scale(failures, civilian, "LeftLeg", Vector3(0.62, 1.05, 0.64), "civilian legs should be slimmer without becoming shorter")
+	_assert_scale(failures, civilian, "Torso", Vector3(0.68, 1.06, 0.76), "civilian torso should match the narrower adult silhouette")
+	_assert_scale(failures, civilian, "OuterLayer", Vector3(0.74, 1.02, 0.80), "civilian outer layer should follow the corrected silhouette")
+	_assert_position(failures, civilian, "Head", Vector3(0.0, 0.87, 0.0), "civilian head centre should preserve neck alignment")
+	_assert_position(failures, civilian, "LeftArm", Vector3(-0.304, 0.30, 0.0), "civilian arms should sit on the narrowed shoulder line")
+	_assert_position(failures, civilian, "RightArm", Vector3(0.304, 0.30, 0.0), "civilian arms should sit on the narrowed shoulder line")
+	_assert_position(failures, civilian, "LeftShoe", Vector3(-0.1012, -0.842, -0.07), "civilian shoes should remain under the leg line")
 	if civilian.get_node_or_null("PoliceQualityDetails") != null:
 		failures.append("civilian must not receive police-only gear")
-	if civilian.get_meta("npc_visual_quality_pass", "") != "v2":
-		failures.append("civilian quality pass should be marked as v2")
-	if civilian.get_meta("npc_visual_quality_silhouette", "") != "human-proportioned-v2":
-		failures.append("civilian quality pass should publish the silhouette contract")
+	if civilian.get_meta("npc_visual_quality_pass", "") != "v3":
+		failures.append("civilian quality pass should be marked as v3")
+	if civilian.get_meta("npc_visual_quality_silhouette", "") != "human-proportioned-v3":
+		failures.append("civilian quality pass should publish the v3 silhouette contract")
 
 	var head_scale_before := (civilian.get_node("Head") as Node3D).scale
-	var head_position_before := (civilian.get_node("Head") as Node3D).position
+	var arm_position_before := (civilian.get_node("LeftArm") as Node3D).position
 	runtime.polish_visual(civilian, false)
 	if (civilian.get_node("Head") as Node3D).scale.distance_to(head_scale_before) > 0.0001:
 		failures.append("quality pass scale must be idempotent")
-	if (civilian.get_node("Head") as Node3D).position.distance_to(head_position_before) > 0.0001:
+	if (civilian.get_node("LeftArm") as Node3D).position.distance_to(arm_position_before) > 0.0001:
 		failures.append("quality pass position must be idempotent")
 
 	var police := Node3D.new()
@@ -71,7 +71,8 @@ func _init() -> void:
 	runtime.polish_visual(police, false)
 	if label.visible:
 		failures.append("floating police label should be hidden")
-	_assert_scale(failures, police, "HiVisVest", Vector3(0.86, 0.90, 0.76), "police vest should be compact rather than a fluorescent block")
+	_assert_scale(failures, police, "HiVisVest", Vector3(0.70, 0.96, 0.72), "police vest should follow the torso instead of reading as a block")
+	_assert_scale(failures, police, "PoliceCap", Vector3(0.46, 0.62, 0.48), "police cap should fit the reduced head")
 	if vest.material_override == null:
 		failures.append("police vest should receive restrained navy material")
 	var details := police.get_node_or_null("PoliceQualityDetails") as Node3D

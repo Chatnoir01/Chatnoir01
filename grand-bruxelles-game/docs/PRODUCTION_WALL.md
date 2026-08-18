@@ -1,12 +1,12 @@
 # Production Wall
 
 ## Main
-- observed_main_before_this_edit: `bffe110b9212ace10e1d4847436b51542bd95ab0`
-- last_verified: `2026-08-18T22:05Z`
+- observed_main_before_this_edit: `e19c4eb6af633bde2c13fd1357964f9c356f92e1`
+- last_verified: `2026-08-18T22:39Z`
 - rule: `main` is the sole production truth. Re-read live main, open PRs, changed-file ownership and this wall before every branch, merge, rejection or production claim.
 - six-point campaign status: **6/6 merged**.
 - latest substantive Grand-Place visual correction remains **#783** Hôtel de Ville right-gallery B1500 fidelity correction.
-- latest substantive zone change on observed main: **Ixelles source-anchored LABO life**.
+- latest substantive zone change on observed main: **#819 Ixelles source-safe authored facade articulation**.
 
 ## Six-point campaign — SHIPPED
 1. **#749** Midi official StreetSurface collision.
@@ -23,7 +23,9 @@
 - **#814 CLOSED WITHOUT MERGE**: registry-mounted basin technical PASS but mandatory player-eye human FAIL. Dedicated run `32188452215`; numerical `0.148220%` >3 RGB, bbox `204x243`; artifact `9343342997`, digest `sha256:cea51939abe7b48cc837a7d5e47c30eaffd88f3ee3b09826f143df7082b6b683`. Full-frame change was not a readable basin improvement. Never move basin/camera or lower the gate to retry this path.
 - **#817 CLOSED evidence-only**: official `urbisvector:StreetSurfaces` source coverage is genuinely present around the legitimate arrival. Dedicated run `32190187496` PASS: nearest to Atomium `0.000 m`, nearest to spawn `7.461 m`; anchor counts r30/r60/r100/r160 = `11/21/30/51`; spawn counts = `2/7/30/61`; real 60 m-wide spawn→Atomium corridor contains `14` StreetSurface features / ~`17,046.21 m²` polygon area.
 - **#820 CLOSED WITHOUT MERGE**: source-bounded StreetSurface DTM drape technical PASS but numerical + human player-eye FAIL. Runtime built `52` selected features / `52` polygons / `1,475` triangles in the prelocked `160 m` radius while keeping LandCover visible. Dedicated run `32190712500`; `0.225803%` >3 RGB, `0.144097%` >8, bbox `204x244`, against frozen `1.50% / 0.75% / 500x180`. Artifact `9344113292`, digest `sha256:93fdcd0af31e84ea9091ae2f252d397c3240db13a09b6285e12c7dc773553650`. BEFORE/AFTER are effectively indistinguishable as ground/parvis context; diff is concentrated around the central player silhouette.
-- **Atomium stop rule:** do not retry the 2024 basin or generic neutral StreetSurface drape from this same player arrival with stronger colour, wider radius, moved geometry, moved camera or lowered thresholds. A future Atomium visual lot needs either (a) a separately source-backed reason to change arrival composition, or (b) a different naturally visible defect with source evidence before runtime.
+- **#833 ACTIVE DRAFT, QA-only**: exact-current-main audit of the DTM `atomium_reference` semantics. Current production reference `[148093.22038698208,176091.76722726133]` is being tested against the OSM ticket-shop POI witness `node/13156161818` and a separate monument-relation position witness `relation/1243821`. Hard rails remain `replacement_anchor_approved=false`, `runtime_move_authorized=false`, `support_pillar_geometry_authorized=false`. Dedicated run `32192754697` is still `queued`; no CI PASS is claimed.
+- **#836 ACTIVE DRAFT, separate QA owner**: 2024 orthophoto yaw registration modulo 60°. Its files do not overlap #833. It may resolve plan yaw only under its own frozen source/fit gate; it does not authorize centre replacement or support geometry.
+- **Atomium stop rule:** do not retry the 2024 basin or generic neutral StreetSurface drape from this same player arrival with stronger colour, wider radius, moved geometry, moved camera or lowered thresholds. Do not build the three bipod supports until centre/orientation and support-foot evidence are separately resolved.
 - #585 remains an evidence bank only; #2 remains a long-lived Laeken/Jette specialist. Never merge either wholesale.
 
 ## Grand-Place chain — current truth
@@ -47,7 +49,9 @@
 
 ## Active ownership / stale workspaces
 - Always re-read open PRs because concurrent agents move quickly.
-- At this observed main, #812 generic OSM glazing and #813 NPC silhouettes were created from older `6b165d44...`; do not merge them without exact-current-main rebuild/revalidation. #812's own contract says close if main advances.
+- Atomium: #833 owns anchor-semantics QA only; #836 owns orthophoto-yaw QA only. Neither owns runtime relocation/support construction.
+- #835 owns shared generic OSM glazing. #823 owns civilian vehicle visuals. #824 owns Town Hall dormers. Do not collide with those files/scopes.
+- #813 NPC silhouettes and #812 older glazing workspace were created from older main states; never merge stale workspaces without exact-current-main rebuild/revalidation.
 - #652 Anneessens SIGNALER export, #643 LABO selector, #596/#592 Bourse and many older drafts are stale historical workspaces unless rebuilt from live main.
 - #2 / #11 long-lived geography specialists: never merge wholesale; extract one coherent exact-current-main lot only.
 - Closed evidence/source workspaces own nothing.
@@ -62,14 +66,14 @@
 - No threshold reduction, camera rescue or geometry displacement after a visual FAIL.
 
 ## NOW / NEXT / LATER
-- **NOW:** observed production `bffe110b...`; Atomium basin and neutral StreetSurface arrival paths have been tested and rejected visually without corrupting source geometry. Grand-Place #783 remains the latest accepted landmark correction; Ixelles LABO life is present on observed main.
-- **NEXT Atomium:** evidence-only identification of a **different naturally visible defect** in the legitimate arrival frame, or a separate source-backed arrival-composition/geolocation audit. No runtime until that evidence selects a target. Do not retry basin/StreetSurface presentation.
+- **NOW Atomium:** finish #833 anchor-semantics QA on its unchanged exact-current-main head. No runtime movement while its dedicated run is queued. In parallel, #836 may independently test orthophoto yaw under its own frozen gate; do not merge their conclusions into one claim.
+- **NEXT Atomium:** only after the evidence gates complete, register a source-backed monument footprint/base-pavilion centre with explicit uncertainty against the official orthophoto. No support geometry until centre + yaw + support-foot evidence are resolved.
 - **NEXT Grand-Place:** registration-only audit of B1499/B1501 against the official corner chain, preserving existing-state vs restoration-project semantics and forbidding warp/metric/runtime claims until registration succeeds naturally.
 - **LATER:** continue one source-backed visible defect at a time; no broad visual soup and no LABO auto-promotion.
 
 ## Shift handoff
-- What changed: #806 shipped the 2024 basin component unmounted; #814 proved mounting it is not player-visible enough and closed. #817 proved official StreetSurface coverage is strong in the arrival corridor. #820 then proved that a correct 160 m DTM-draped neutral StreetSurface treatment still does not read at the legitimate player eye and closed without merge.
-- What is proven: official ground data exists; the failure is not absence of source data. The current arrival framing/player-eye composition does not expose basin or neutral StreetSurface treatment strongly enough to justify those runtime additions.
-- What is NOT proven: that the player spawn/camera is geographically wrong, that another material identity is justified, or that a different Atomium architectural defect lacks source support.
-- What must not be redone: move basin, enlarge StreetSurface radius, exaggerate neutral ground colour, move camera, lower gates, or merge old #585/#2/#593 wholesale.
-- Exact next action: re-read live main/owners, then run an evidence-only screen-space/source audit of the current Atomium arrival to identify the next naturally visible source-backed defect before writing any new runtime.
+- What changed: #819 shipped Ixelles facade articulation. Atomium basin and neutral StreetSurface arrival retries remain closed. #833 now isolates the semantic problem of the production DTM Atomium reference without moving anything; #836 separately owns yaw registration.
+- What is proven: official ground data exists; basin/neutral StreetSurface are not readable improvements from the legitimate arrival. The production DTM currently contains `atomium_reference=[148093.22038698208,176091.76722726133]` and runtime uses it as the hero anchor.
+- What is NOT yet CI-proven in production: the semantic invalidation of that reference as architectural centre; #833's dedicated run is still queued. No replacement centre, runtime move, support feet or support geometry is approved.
+- What must not be redone: move basin, enlarge StreetSurface radius, exaggerate neutral ground colour, move camera, lower gates, invent bipod feet, or merge old #585/#2 wholesale.
+- Exact next action: re-read live main and #833. If its dedicated audit executes green and main/head remain unchanged, finish required repository gates and integrate the QA-only evidence. If main advances first, close stale and rebuild the same three-file audit from the new HEAD. No runtime relocation in the same lot.

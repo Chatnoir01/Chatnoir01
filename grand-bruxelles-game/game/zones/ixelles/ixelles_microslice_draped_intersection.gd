@@ -239,7 +239,7 @@ func _apply_streamed_context_facades() -> void:
         print("IXELLES_FACADE_CONTEXT_READY: cell=%s visual_buildings=%d family=%s vertex_tones_preserved=true geometry_changed=false collision_changed=false" % [context_cell_id, int(candidate.get("rendered_building_count")), FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY])
 
 func _facade_depth_direct_base_y(point: Vector2) -> float:
-    return sample_height(point.x, point.y) + 0.06
+    return sample_height(point.x, point.y) + 0.05
 
 func _apply_facade_depth() -> void:
     facade_depth_enabled = false

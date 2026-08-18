@@ -1,0 +1,43 @@
+{
+  "schema": "grand-bruxelles-atomium-anchor-semantics-v1",
+  "target": "Atomium hero horizontal anchor semantics",
+  "crs": "EPSG:31370",
+  "production_dtm_path": "data/terrain/laeken_jette/atomium_dtm.game.json",
+  "current_reference_epsg31370": [148093.22038698208, 176091.76722726133],
+  "current_reference_wgs84_witness": {
+    "lat": 50.89517,
+    "lon": 4.34165,
+    "osm_object": "node/13156161818",
+    "semantics": "shop=ticket Atomium ticket shop POI",
+    "source_url": "https://www.openstreetmap.org/node/13156161818",
+    "secondary_index_url": "https://mapcarta.com/26242882"
+  },
+  "monument_relation_position_witness": {
+    "lat": 50.894922,
+    "lon": 4.341523,
+    "osm_object": "relation/1243821",
+    "semantics": "Atomium monument relation object position witness",
+    "source_url": "https://www.openstreetmap.org/relation/1243821",
+    "secondary_metadata_url": "https://de.wikivoyage.org/wiki/Datei:The_Atomium_during_civil_twilight_(DSCF1135).jpg"
+  },
+  "official_orthophoto_crosscheck": {
+    "evidence_pr": 585,
+    "workflow_run": 31972173789,
+    "artifact_id": 9270085107,
+    "artifact_digest": "sha256:adc6df9784984c572fa151aa0724305371107ec54522b62fa43487b9e5511400",
+    "source": "Paradigm / Brussels-Capital Region UrbIS 2024 orthophoto",
+    "bbox_epsg31370": [147860.0, 176020.0, 148160.0, 176400.0],
+    "raster_size_px": [1500, 1900],
+    "ground_resolution_m_per_px": [0.2, 0.2],
+    "recorded_current_reference_pixel": [1165, 1540]
+  },
+  "status": {
+    "current_reference_semantically_valid_as_architectural_center": false,
+    "replacement_anchor_approved": false,
+    "runtime_move_authorized": false,
+    "support_pillar_geometry_authorized": false,
+    "realism_complete": false
+  },
+  "interpretation": "The production DTM Atomium reference numerically resolves to a ticket-shop POI coordinate, not a proven architectural centre. A separate monument-relation position witness is about 29 m away and projects to a different location in the already-frozen official orthophoto. This audit invalidates the current reference semantics for hero-centre claims but does not itself approve a replacement anchor or any runtime movement.",
+  "next_required_evidence": "Resolve a replacement centre from a source-backed monument footprint/base-pavilion registration against the official orthophoto, with explicit uncertainty, before moving hero, spawn, basin, supports or terrain reference."
+}

@@ -19,6 +19,8 @@ const WALK_PLAYBACK_MIN := 0.68
 const WALK_PLAYBACK_MAX := 1.55
 const RUN_PLAYBACK_MIN := 0.82
 const RUN_PLAYBACK_MAX := 1.28
+const TRANSFORM_TELEPORT_GUARD_M := 6.0
+const TRANSFORM_SPEED_MAX_MPS := 8.0
 const REJECT_ACTION_TOKENS: Array[String] = [
 	"attack", "combat", "melee", "sword", "staff", "bow", "gun", "shoot",
 	"hit", "hurt", "death", "jump", "roll", "cast", "spell"
@@ -45,7 +47,7 @@ func _exit_tree() -> void:
 	_bindings.clear()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _bindings.is_empty():
 		return
 	for raw_id: Variant in _bindings.keys().duplicate():
@@ -60,7 +62,7 @@ func _process(_delta: float) -> void:
 		if not is_instance_valid(actor) or not is_instance_valid(animation_player):
 			_bindings.erase(actor_id)
 			continue
-		_update_binding(binding)
+		_update_binding(binding, delta)
 
 
 func _resolve_authored_scene() -> bool:
@@ -148,6 +150,7 @@ func apply_to_actor(raw_actor: Node) -> bool:
 
 	_configure_locomotion_loops(animation_player, locomotion)
 	_hide_procedural_visuals(visual, authored, actor.role == NpcBehaviorModel.Role.POLICE)
+	var motion_source := _motion_source_for(actor)
 	var binding := {
 		"actor": actor,
 		"visual": visual,
@@ -156,11 +159,15 @@ func apply_to_actor(raw_actor: Node) -> bool:
 		"locomotion": locomotion,
 		"state": "idle",
 		"animation": "",
+		"motion_source": motion_source,
+		"observe_transform_delta": motion_source != actor,
+		"last_motion_position": motion_source.global_position,
 	}
 	_bindings[actor.get_instance_id()] = binding
 	actor.set_meta(APPLIED_META, true)
 	actor.set_meta(SOURCE_META, _resolved_source_path)
-	_update_binding(binding)
+	actor.set_meta("authored_npc_motion_source", "parent_transform" if motion_source != actor else "actor_velocity")
+	_update_binding(binding, 0.0)
 	return true
 
 
@@ -170,6 +177,13 @@ func _find_visual(actor: Node) -> Node3D:
 		if visual != null:
 			return visual
 	return null
+
+
+func _motion_source_for(actor: NpcAgent) -> Node3D:
+	var parent := actor.get_parent() as Node3D
+	if actor.process_mode == Node.PROCESS_MODE_DISABLED and actor.name == &"ProfiledNpcProxy" and parent != null and parent.is_in_group("ambient_pedestrian"):
+		return parent
+	return actor
 
 
 func _find_animation_player(node: Node) -> AnimationPlayer:
@@ -285,7 +299,28 @@ func _playback_scale(state: String, speed: float) -> float:
 			return 1.0
 
 
-func _update_binding(binding: Dictionary) -> void:
+func _speed_for_binding(binding: Dictionary, delta: float) -> float:
+	var actor := binding.get("actor") as CharacterBody3D
+	if actor == null:
+		return 0.0
+	if not bool(binding.get("observe_transform_delta", false)):
+		return Vector2(actor.velocity.x, actor.velocity.z).length()
+	var source := binding.get("motion_source") as Node3D
+	if not is_instance_valid(source):
+		return 0.0
+	var current := source.global_position
+	var previous_value: Variant = binding.get("last_motion_position")
+	binding["last_motion_position"] = current
+	if delta <= 0.0 or not (previous_value is Vector3):
+		return 0.0
+	var previous: Vector3 = previous_value
+	var displacement := Vector2(current.x - previous.x, current.z - previous.z).length()
+	if displacement > TRANSFORM_TELEPORT_GUARD_M:
+		return 0.0
+	return clampf(displacement / delta, 0.0, TRANSFORM_SPEED_MAX_MPS)
+
+
+func _update_binding(binding: Dictionary, delta: float = 0.0) -> void:
 	var actor := binding.get("actor") as CharacterBody3D
 	var animation_player := binding.get("animation_player") as AnimationPlayer
 	if actor == null or animation_player == null:
@@ -294,7 +329,7 @@ func _update_binding(binding: Dictionary) -> void:
 	if not (locomotion_value is Dictionary):
 		return
 	var locomotion: Dictionary = locomotion_value
-	var speed := Vector2(actor.velocity.x, actor.velocity.z).length()
+	var speed := _speed_for_binding(binding, delta)
 	var previous_state := String(binding.get("state", "idle"))
 	var target_state := _resolve_state(previous_state, speed)
 	var target_animation := String(locomotion.get(target_state, ""))
@@ -308,13 +343,13 @@ func _update_binding(binding: Dictionary) -> void:
 	binding["animation"] = target_animation
 
 
-func update_actor_now(actor: NpcAgent) -> void:
+func update_actor_now(actor: NpcAgent, delta: float = 0.0) -> void:
 	if actor == null:
 		return
 	var value: Variant = _bindings.get(actor.get_instance_id())
 	if value is Dictionary:
 		var binding: Dictionary = value
-		_update_binding(binding)
+		_update_binding(binding, delta)
 
 
 func is_actor_authored(actor: NpcAgent) -> bool:

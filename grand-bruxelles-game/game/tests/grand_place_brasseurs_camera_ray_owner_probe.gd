@@ -2,7 +2,7 @@ extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
 const OUTPUT := "res://artifacts/qa/brasseurs_camera_ray_owner_probe.json"
-const CAMERA := Vector3(324.9581, 3.3, -512.8388)
+const CAMERA_CONTRACT_PATH := "res://data/qa/grand_place_clean_player_witness.json"
 const WALL_A_XZ := Vector2(317.93637041315284, -487.48588343904734)
 const WALL_B_XZ := Vector2(325.884743245733, -483.8294664611034)
 const SAMPLE_HEIGHTS := [3.0, 7.0, 11.0, 15.0, 18.0]
@@ -15,11 +15,36 @@ func _fail(message: String) -> void:
     push_error("BRASSEURS_CAMERA_RAY_OWNER_PROBE_FAIL: " + message)
     quit(1)
 
+func _read_camera_contract() -> Dictionary:
+    if not FileAccess.file_exists(CAMERA_CONTRACT_PATH):
+        return {}
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(CAMERA_CONTRACT_PATH))
+    return parsed as Dictionary if typeof(parsed) == TYPE_DICTIONARY else {}
+
+func _v3(raw: Variant) -> Vector3:
+    if typeof(raw) != TYPE_ARRAY or raw.size() != 3:
+        return Vector3.INF
+    return Vector3(float(raw[0]), float(raw[1]), float(raw[2]))
+
 func _target(u: float, y: float) -> Vector3:
     var xz := WALL_A_XZ.lerp(WALL_B_XZ, u)
     return Vector3(xz.x, y, xz.y)
 
 func _run() -> void:
+    var camera_contract := _read_camera_contract()
+    if camera_contract.is_empty():
+        _fail("canonical #711 camera contract missing or invalid")
+        return
+    if str(camera_contract.get("schema", "")) != "grand-bruxelles-grand-place-clean-player-witness-v1" or int(camera_contract.get("source_pr", 0)) != 711:
+        _fail("canonical #711 camera contract identity drifted")
+        return
+    var camera := _v3(camera_contract.get("camera_position", []))
+    var camera_target := _v3(camera_contract.get("camera_target", []))
+    var camera_fov := float(camera_contract.get("camera_fov_deg", 0.0))
+    if not camera.is_finite() or not camera_target.is_finite() or camera_fov <= 1.0 or camera_fov >= 179.0:
+        _fail("canonical #711 camera contract values invalid")
+        return
+
     var main := MAIN_SCENE.instantiate()
     root.add_child(main)
     current_scene = main
@@ -44,8 +69,8 @@ func _run() -> void:
             var target := _target(u, y)
             # Extend 1.5 m beyond the official wall point so the first hit is
             # observable even when the target itself lies numerically on a face.
-            var direction := (target - CAMERA).normalized()
-            var query := PhysicsRayQueryParameters3D.create(CAMERA, target + direction * 1.5, 1)
+            var direction := (target - camera).normalized()
+            var query := PhysicsRayQueryParameters3D.create(camera, target + direction * 1.5, 1)
             query.collide_with_bodies = true
             query.collide_with_areas = false
             var hit := state.intersect_ray(query)
@@ -74,16 +99,20 @@ func _run() -> void:
                 row["collider_parent_path"] = parent_path
                 row["position"] = [position.x, position.y, position.z]
                 row["normal"] = [normal.x, normal.y, normal.z]
-                row["distance_from_camera_m"] = CAMERA.distance_to(position)
+                row["distance_from_camera_m"] = camera.distance_to(position)
                 var key := path if path != "" else name
                 collider_counts[key] = int(collider_counts.get(key, 0)) + 1
             rays.append(row)
 
     var evidence := {
-        "schema": "grand-bruxelles-brasseurs-camera-ray-owner-probe-v1",
+        "schema": "grand-bruxelles-brasseurs-camera-ray-owner-probe-v2",
         "status": "evidence_only",
-        "camera": [CAMERA.x, CAMERA.y, CAMERA.z],
-        "camera_contract": "merged #711 clean Grand-Place player-eye witness",
+        "camera": [camera.x, camera.y, camera.z],
+        "camera_target": [camera_target.x, camera_target.y, camera_target.z],
+        "camera_fov_deg": camera_fov,
+        "camera_contract_path": CAMERA_CONTRACT_PATH,
+        "camera_contract_source_pr": int(camera_contract.get("source_pr", 0)),
+        "camera_contract": "shared exact merged #711 clean Grand-Place player-eye witness",
         "urbis_building_id": "1639974",
         "urbis_front_wall_id": "10945501",
         "wall_world_xz": [[WALL_A_XZ.x, WALL_A_XZ.y], [WALL_B_XZ.x, WALL_B_XZ.y]],
@@ -94,7 +123,7 @@ func _run() -> void:
         "collider_counts": collider_counts,
         "rays": rays,
         "safe_to_hide_any_collider": false,
-        "safety_reason": "ray ownership proves first collision along the player-eye line only; selective replacement still requires exact source-face ownership",
+        "safety_reason": "ray ownership proves first collision along the canonical player-eye line only; selective replacement still requires exact source-face ownership",
     }
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts/qa"))
     var f := FileAccess.open(OUTPUT, FileAccess.WRITE)
@@ -104,5 +133,5 @@ func _run() -> void:
     f.store_string(JSON.stringify(evidence, "  "))
     f.close()
     print("BRASSEURS_CAMERA_RAY_OWNER_PROBE_JSON " + JSON.stringify(evidence))
-    print("BRASSEURS_CAMERA_RAY_OWNER_PROBE_OK rays=%d hits=%d colliders=%s" % [rays.size(), hit_count, JSON.stringify(collider_counts)])
+    print("BRASSEURS_CAMERA_RAY_OWNER_PROBE_OK rays=%d hits=%d camera=(%.2f,%.2f,%.2f) source_pr=711 colliders=%s" % [rays.size(), hit_count, camera.x, camera.y, camera.z, JSON.stringify(collider_counts)])
     quit(0)

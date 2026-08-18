@@ -5,6 +5,8 @@ extends "res://game/zones/ixelles/ixelles_microslice_draped.gd"
 ## Every emitted triangle is contained in one exact official source polygon and one exact
 ## 2 m DTM render triangle, then receives the existing renderer-only 3.5 cm depth bias.
 
+const FACADE_MATERIAL_FACTORY := preload("res://game/scripts/ixelles_source_facade_material.gd")
+const FACADE_ARTICULATION_ENV := "GB_IXELLES_FACADE_ARTICULATION"
 const STASSART_124_BUILDING_ID := "https://databrussels.be/id/building/1737877"
 const STASSART_124_LEVEL_COUNT := 4.0
 const STASSART_124_CUE_ENV := "GB_IXELLES_STASSART124_CUE"
@@ -13,6 +15,8 @@ var street_drape_source_intersection_piece_count := 0
 var street_drape_source_intersection_empty_count := 0
 var street_drape_source_polygon_count := 0
 var stassart_124_blue_stone_cue_built := false
+var facade_articulation_enabled := false
+var facade_material_profile_count := 0
 
 func _emit_bounded_piece(target: SurfaceTool, bounded_piece: PackedVector2Array) -> void:
     if bounded_piece.size() < 3:
@@ -125,8 +129,63 @@ func _build_street_surfaces() -> void:
 
     print("IXELLES_STREET_DRAPE: surfaces=%d source_polygons=%d source_intersections=%d triangles=%d vertices=%d outside_source=%d unsupported=%d min_clearance=%.5f max_leaf_edge=%.3f max_sampler_render_lift=%.5f" % [street_surface_count, street_drape_source_polygon_count, street_drape_source_intersection_piece_count, street_drape_triangle_count, street_drape_vertex_count, street_drape_outside_source_vertices, street_drape_unsupported_triangle_count, street_drape_min_check_clearance_m, street_drape_max_leaf_edge_m, street_drape_max_sampler_render_lift_m])
 
+func _apply_facade_articulation() -> void:
+    facade_articulation_enabled = false
+    facade_material_profile_count = 0
+    if OS.get_environment(FACADE_ARTICULATION_ENV) == "0":
+        print("IXELLES_FACADE_ARTICULATION_DISABLED: geometry_changed=false collision_changed=false")
+        return
+
+    var buildings_root := get_node_or_null("StrongSourceBackedIxellesBuildings")
+    if buildings_root == null:
+        push_error("Ixelles facade articulation: source-backed building root missing")
+        return
+
+    for child: Node in buildings_root.get_children():
+        if not child is MeshInstance3D:
+            continue
+        var instance := child as MeshInstance3D
+        var mesh := instance.mesh as ArrayMesh
+        if mesh == null or mesh.get_surface_count() != 1:
+            push_error("Ixelles facade articulation: unexpected building mesh on %s" % instance.name)
+            return
+        var legacy := mesh.surface_get_material(0)
+        if not legacy is StandardMaterial3D:
+            push_error("Ixelles facade articulation: unsupported legacy material on %s" % instance.name)
+            return
+        var standard := legacy as StandardMaterial3D
+        var material := FACADE_MATERIAL_FACTORY.create_material(standard.albedo_color, standard.roughness, facade_material_profile_count)
+        mesh.surface_set_material(0, material)
+        instance.set_meta("material_family", FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY)
+        instance.set_meta("presentation_only", true)
+        instance.set_meta("geometry_changed_by_ixelles_facade", false)
+        instance.set_meta("collision_changed_by_ixelles_facade", false)
+        facade_material_profile_count += 1
+
+    if facade_material_profile_count != _building_materials.size():
+        push_error("Ixelles facade articulation: palette coverage drifted %d/%d" % [facade_material_profile_count, _building_materials.size()])
+        return
+    facade_articulation_enabled = true
+    print("IXELLES_FACADE_ARTICULATION_READY: buildings=%d palette_profiles=%d family=%s presentation_only=true geometry_changed=false collision_changed=false material_identity_claimed=false surveyed_windows=false" % [building_count, facade_material_profile_count, FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY])
+
+func facade_presentation_contract() -> Dictionary:
+    return {
+        "material_family": FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY,
+        "enabled": facade_articulation_enabled,
+        "presentation_only": true,
+        "geometry_changed": false,
+        "collision_changed": false,
+        "building_material_claimed": false,
+        "window_geometry_claimed": false,
+        "floor_count_claimed": false,
+        "source_backed_buildings": building_count,
+        "palette_profiles": facade_material_profile_count,
+        "source_cell": cell_id,
+    }
+
 func _build_strong_height_candidate_buildings() -> void:
     super._build_strong_height_candidate_buildings()
+    _apply_facade_articulation()
     if OS.get_environment(STASSART_124_CUE_ENV) == "0":
         return
     _build_stassart_124_blue_stone_ground_floor()

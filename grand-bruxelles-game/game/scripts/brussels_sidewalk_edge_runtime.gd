@@ -128,13 +128,23 @@ func _clip_line_to_rect(start: Vector2, finish: Vector2, half_extents: Vector2) 
     return Vector2(t0, t1)
 
 func _intersection_interval(sidewalk: CSGBox3D, local_x: float, start_z: float, end_z: float, other_road: CSGBox3D) -> Vector2:
-    var start_world := sidewalk.global_transform * Vector3(local_x, 0.0, start_z)
-    var end_world := sidewalk.global_transform * Vector3(local_x, 0.0, end_z)
-    var start_local := other_road.to_local(start_world)
-    var end_local := other_road.to_local(end_world)
+    # Work strictly in world X/Z. CSG local conversion is sensitive to parent
+    # transforms in synthetic/runtime harnesses; explicit projection onto the
+    # road's normalized world axes makes the 2D overlap contract deterministic.
+    var start_world_3d := sidewalk.global_transform * Vector3(local_x, 0.0, start_z)
+    var end_world_3d := sidewalk.global_transform * Vector3(local_x, 0.0, end_z)
+    var center := Vector2(other_road.global_position.x, other_road.global_position.z)
+    var axis_x_3d := other_road.global_transform.basis.x.normalized()
+    var axis_z_3d := other_road.global_transform.basis.z.normalized()
+    var axis_x := Vector2(axis_x_3d.x, axis_x_3d.z).normalized()
+    var axis_z := Vector2(axis_z_3d.x, axis_z_3d.z).normalized()
+    var start_delta := Vector2(start_world_3d.x, start_world_3d.z) - center
+    var end_delta := Vector2(end_world_3d.x, end_world_3d.z) - center
+    var start_local := Vector2(start_delta.dot(axis_x), start_delta.dot(axis_z))
+    var end_local := Vector2(end_delta.dot(axis_x), end_delta.dot(axis_z))
     var clipped := _clip_line_to_rect(
-        Vector2(start_local.x, start_local.z),
-        Vector2(end_local.x, end_local.z),
+        start_local,
+        end_local,
         Vector2(other_road.size.x * 0.5 + INTERSECTION_CLEARANCE_M, other_road.size.z * 0.5 + INTERSECTION_CLEARANCE_M)
     )
     if clipped.x < 0.0:

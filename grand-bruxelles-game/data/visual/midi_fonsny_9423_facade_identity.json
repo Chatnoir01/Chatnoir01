@@ -1,0 +1,40 @@
+{
+  "schema": "grand-bruxelles-visual-source-contract-v1",
+  "target": "Bruxelles-Midi / Brussel-Zuid Fonsny administrative frontage",
+  "source": {
+    "publisher": "Inventaire du patrimoine architectural, Région de Bruxelles-Capitale",
+    "title": "Gare du Midi et bâtiments annexes",
+    "urban_id": 9423,
+    "url": "https://monument.heritage.brussels/fr/Saint-Gilles/Avenue_Fonsny/47/9423",
+    "facts_used": [
+      "The three Fonsny administrative/postal buildings use aluminium frames with a fixed lower part, top-hung transom and sunshade.",
+      "No. 47 is symmetrically organized in three bodies; the axial body has seven levels and the end bodies six.",
+      "No. 47 windows and spandrels are set in a concrete grid with projecting-brick spandrels.",
+      "In the axial body of no. 47, lateral bays run through the full height of the upper storeys with a beveled reveal and a bowed glass-block wall."
+    ]
+  },
+  "production_mapping": {
+    "scope": "existing authored FonsnyWingSouth, FonsnyCentral and FonsnyWingNorth presentation only",
+    "mapping_claim": "The existing three-block Fonsny hero is a visualization convention for the documented administrative/postal frontage; this contract does not assert survey-address registration of each authored block.",
+    "central_body_convention": "FonsnyCentral already carries seven authored upper levels and the legacy VerticalGlassTower presentation; replacing that legacy single tower with two lateral full-height glass-block bays is a source-bounded visualization convention, not a cadastral or survey placement claim."
+  },
+  "authored_not_measured": {
+    "aluminium_pbr": [0.49, 0.515, 0.53, 0.34, 0.56],
+    "sunshade_projection_m": 0.42,
+    "sunshade_thickness_m": 0.09,
+    "transom_thickness_m": 0.07,
+    "lateral_bay_position_fraction_of_existing_central_length": 0.32,
+    "bow_depth_m": 0.42,
+    "bow_segments": 7,
+    "bevel_angle_degrees": 18.0
+  },
+  "hard_invariants": {
+    "urbis_plan_geometry_changed": false,
+    "building_height_changed": false,
+    "floor_count_changed": false,
+    "collision_changed": false,
+    "new_window_openings_authored": false,
+    "survey_coordinates_claimed": false,
+    "realism_complete": false
+  }
+}

@@ -10,6 +10,16 @@ func _fail(message: String) -> void:
     quit(1)
 
 func _run() -> void:
+    var project_text := FileAccess.get_file_as_string("res://project.godot")
+    var melee_pos := project_text.find("PlayerMeleeCombatRuntime=\"*res://game/scripts/player_melee_combat_runtime.gd\"")
+    var arsenal_pos := project_text.find("PlayerCombatArsenalRuntime=\"*res://game/scripts/player_combat_arsenal_runtime.gd\"")
+    if melee_pos < 0 or arsenal_pos < 0:
+        _fail("combat autoloads missing from project.godot"); return
+    # Godot sends _input in reverse depth-first order. Arsenal must therefore be
+    # declared after legacy melee so it receives and consumes fire/melee input first.
+    if arsenal_pos <= melee_pos:
+        _fail("arsenal autoload must be declared after legacy melee for input priority"); return
+
     if ARSENAL.MELEE_MOVES.size() < 4:
         _fail("expected at least four distinct melee moves"); return
     var move_ids: Dictionary = {}
@@ -57,5 +67,5 @@ func _run() -> void:
     if ARSENAL.damage_at_distance(25.0, 999.0, 50.0, 0.5) < 12.49:
         _fail("falloff must clamp at the configured minimum factor"); return
 
-    print("PLAYER_COMBAT_ARSENAL_OK: moves=%d weapons=%d deterministic tuning invariants green" % [ARSENAL.MELEE_MOVES.size(), expected_weapons.size()])
+    print("PLAYER_COMBAT_ARSENAL_OK: input_order=green moves=%d weapons=%d deterministic tuning invariants green" % [ARSENAL.MELEE_MOVES.size(), expected_weapons.size()])
     quit(0)

@@ -30,6 +30,7 @@ permissions:
   issues: write
   pull-requests: write
 
+# QA-only carrier: inherit the exact #800 product tree and run the dedicated witness.
 jobs:
   sidewalk-edge-contract:
     runs-on: ubuntu-latest
@@ -43,7 +44,7 @@ jobs:
     needs: sidewalk-edge-contract
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: ${{ success() && hashFiles('grand-bruxelles-game/game/scripts/brussels_sidewalk_edge_runtime.gd') != '' }}
+    if: ${{ success() }}
     steps:
       - uses: actions/checkout@v4
       - name: Install display dependencies

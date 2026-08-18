@@ -6,11 +6,13 @@ on:
       - ".github/workflows/grand-bruxelles-combat-arsenal.yml"
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/game/scripts/player_combat_arsenal_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/player_combat_arsenal_hardened_runtime.gd"
       - "grand-bruxelles-game/game/scripts/player_combat_touch_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_weapon_visual_upgrade_runtime.gd"
       - "grand-bruxelles-game/game/scripts/player_melee_combat_runtime.gd"
       - "grand-bruxelles-game/game/scripts/player_dodge_runtime.gd"
       - "grand-bruxelles-game/game/tests/player_combat_arsenal_test.gd"
+      - "grand-bruxelles-game/game/tests/player_combat_arsenal_hardening_test.gd"
       - "grand-bruxelles-game/game/tests/combat_weapon_visual_upgrade_test.gd"
   workflow_dispatch:
 
@@ -41,6 +43,13 @@ jobs:
           timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/player_combat_arsenal_test.gd 2>&1 | tee /tmp/combat-arsenal-test.log || true
           if grep -E "SCRIPT ERROR|Parse Error:|PLAYER_COMBAT_ARSENAL_FAIL" /tmp/combat-arsenal-test.log; then exit 1; fi
           grep -F "PLAYER_COMBAT_ARSENAL_OK" /tmp/combat-arsenal-test.log
+      - name: Validate combat arsenal hardening test
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/player_combat_arsenal_hardening_test.gd 2>&1 | tee /tmp/combat-arsenal-hardening-test.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|PLAYER_COMBAT_HARDENING_FAIL" /tmp/combat-arsenal-hardening-test.log; then exit 1; fi
+          grep -F "PLAYER_COMBAT_HARDENING_OK" /tmp/combat-arsenal-hardening-test.log
       - name: Validate weapon visual upgrade test
         shell: bash
         run: |

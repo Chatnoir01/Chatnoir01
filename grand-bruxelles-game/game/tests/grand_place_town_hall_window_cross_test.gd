@@ -31,11 +31,11 @@ func _run() -> void:
         if not runtime.has_method(method_name):
             _fail("cross-window implementation missing method: " + method_name)
             return
-    if int(runtime.call("cross_detail_count")) != 38:
-        _fail("expected one cross per existing panel")
+    if int(runtime.call("cross_detail_count")) != 20:
+        _fail("expected explicit east-wing 10 bays x 2 registers only")
         return
-    if int(runtime.call("cross_strip_count")) != 76:
-        _fail("expected 38 mullions + 38 transoms")
+    if int(runtime.call("cross_strip_count")) != 40:
+        _fail("expected 20 mullions + 20 transoms")
         return
     var truth: Dictionary = runtime.call("cross_source_truth")
     if str(truth.get("heritage_record", "")) != "Urban Brussels 31125":
@@ -44,11 +44,14 @@ func _run() -> void:
     if str(truth.get("window_identity", "")) != "fenetres_a_croisee":
         _fail("cross-window source identity drift")
         return
-    if str(truth.get("placement_semantics", "")) != "existing_window_panels_only":
-        _fail("cross details escaped existing panel ownership")
+    if str(truth.get("placement_semantics", "")) != "existing_east_window_panels_only":
+        _fail("cross details escaped explicit east-wing ownership")
         return
     if str(truth.get("dimensions_source", "")) != "visualization_convention_not_survey_dimensions":
         _fail("dimension truth boundary drift")
+        return
+    if bool(truth.get("west_special_ordination_deferred", false)) is not true:
+        _fail("west-wing exceptions must stay fail-closed")
         return
     if bool(truth.get("dimensions_claimed_surveyed", true)):
         _fail("authored cross dimensions claimed surveyed")
@@ -56,5 +59,5 @@ func _run() -> void:
     if bool(truth.get("urbis_mesh_modified", true)) or bool(truth.get("new_openings_authored", true)):
         _fail("official mesh/opening rail drift")
         return
-    print("GRAND_PLACE_TOWN_HALL_WINDOW_CROSS_OK: panels=38 crosses=38 strips=76 source=Urban31125 surveyed_dimensions=false")
+    print("GRAND_PLACE_TOWN_HALL_WINDOW_CROSS_OK: panels=38 east_crosses=20 strips=40 west_deferred=true source=Urban31125 surveyed_dimensions=false")
     quit(0)

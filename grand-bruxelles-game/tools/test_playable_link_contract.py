@@ -10,6 +10,7 @@ RAWGITHACK_URL = (
     "grand-bruxelles-game/web-preview/index.html"
 )
 DEAD_URL = "https://grand-bruxelles-game-hchxi.vercel.app"
+ARTIFACT_NAME = "grand-bruxelles-playable-web"
 
 
 def main() -> None:
@@ -44,6 +45,14 @@ def main() -> None:
     assert "name: Checkout proposed source" in workflow
     assert "if: github.event_name == 'workflow_run'" in workflow
     assert "python3 grand-bruxelles-game/tools/test_playable_link_contract.py" in workflow
+    assert 'ref: ${{ github.event.workflow_run.head_sha }}' in workflow
+    assert 'run-id: ${{ github.event.workflow_run.id }}' in workflow
+    assert workflow.count("uses: actions/download-artifact@v4") >= 2
+    assert workflow.count(f"name: {ARTIFACT_NAME}") >= 2
+    assert "push:\n    branches: [\"main\"]" not in workflow, (
+        "Pages production deployment must be driven by the successful Web workflow artifact, "
+        "not a second push-main path that can deploy an old committed snapshot"
+    )
 
     assert "pages_state:" in workflow
     assert "https://api.github.com/repos/${GITHUB_REPOSITORY}/pages" in workflow
@@ -56,6 +65,7 @@ def main() -> None:
     assert "needs.pages_state.outputs.enabled == 'true'" in workflow
     assert "pages: write" in workflow
     assert "id-token: write" in workflow
+    assert "actions: read" in workflow
     assert "uses: actions/configure-pages@v6" in workflow
     assert "enablement: true" not in workflow, "workflow must not retry forbidden first-time Pages creation"
     assert "uses: actions/upload-pages-artifact@v4" in workflow
@@ -70,26 +80,20 @@ def main() -> None:
     assert "raw.githack.com" not in workflow, "public verification must not depend on RawGitHack"
     assert RAWGITHACK_URL not in workflow
 
-    publish_markers = [
-        "for publish_attempt in 1 2 3",
-        "git fetch origin main",
-        "git rebase origin/main",
-        "if git push origin HEAD:main; then",
-        "Playable Web build push lost three main-branch races",
-    ]
-    marker_offsets = [web_build_workflow.find(marker) for marker in publish_markers]
-    assert all(offset >= 0 for offset in marker_offsets), (
-        "Web publishing must retry a bounded fetch/rebase/push after concurrent "
-        "main-branch automation"
-    )
-    assert marker_offsets == sorted(marker_offsets), (
-        "Web publishing race guards must run in fetch/rebase/push order"
-    )
+    assert "permissions:\n  contents: read" in web_build_workflow
+    assert "contents: write" not in web_build_workflow
+    assert "uses: actions/upload-artifact@v4" in web_build_workflow
+    assert f"name: {ARTIFACT_NAME}" in web_build_workflow
+    assert "if-no-files-found: error" in web_build_workflow
+    for forbidden in ("git push", "git commit", "git rebase", "git add -f"):
+        assert forbidden not in web_build_workflow, (
+            f"Web publication must not mutate main; forbidden command remains: {forbidden}"
+        )
 
     print(
         "PLAYABLE_LINK_CONTRACT_TEST_OK "
-        "single_play_entry=true pages_first=true "
-        "pages_initial_admin_gate=explicit rawgithack_primary=false"
+        "single_play_entry=true pages_first=true artifact_handoff=true "
+        "main_mutation=false pages_initial_admin_gate=explicit rawgithack_primary=false"
     )
 
 

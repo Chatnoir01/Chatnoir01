@@ -1,0 +1,27 @@
+{
+  "schema": "grand-bruxelles-zone-promotion-contract-v1",
+  "catalog_path": "grand-bruxelles-game/data/qa/playable_zone_catalog.json",
+  "proof_directory": "grand-bruxelles-game/data/qa/zone_promotion",
+  "proof_schema": "grand-bruxelles-zone-promotion-proof-v1",
+  "allowed_catalog_qualities": ["JOUABLE", "LABO", "LABO_BRUT"],
+  "approved_jouable_decisions": ["KEEP_JOUABLE", "APPROVE_JOUABLE"],
+  "required_stages": [
+    "source_verified",
+    "runtime_validated",
+    "player_ground_collision",
+    "hero_anchor_visible",
+    "full_frame_player_proof",
+    "performance_exports_green",
+    "human_visual_verdict"
+  ],
+  "policy": {
+    "human_only_promotion": true,
+    "jouable_requires_proof": true,
+    "jouable_requires_human_pass": true,
+    "city_machine_may_promote": false,
+    "labo_data_ready_is_not_jouable": true,
+    "labo_may_hold_approved_jouable_decision": false,
+    "missing_or_broken_evidence_fails_closed": true,
+    "proof_does_not_mean_realism_complete": true
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema": "grand-bruxelles-town-hall-face-map-contract-v1",
+  "status": "evidence_only",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "expected_wall_face_count": 62,
+    "expected_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+  },
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "heritage_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Hotel de ville, Grand-Place 8, Urban 31125",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+    "accessed_at": "2026-08-18",
+    "facts_used": [
+      "The Grand-Place-facing Gothic composition has an east wing, a shorter west wing and the tower between them.",
+      "The principal ground-floor facades are characterized by a projecting gallery/portico.",
+      "On either side of the portal below the tower, the ground-floor galleries have eleven bays on the left and six on the right.",
+      "The gallery openings are pointed arches; east and west galleries have documented but different support treatment."
+    ]
+  },
+  "mapping_policy": {
+    "wall_face_type": "WALLSURFACE",
+    "max_prefilter_faces_to_render": 14,
+    "gallery_plane_y_min_max_m": 1.0,
+    "gallery_plane_y_max_min_m": 18.0,
+    "gallery_plane_y_max_max_m": 30.0,
+    "gallery_plane_min_horizontal_span_m": 12.0,
+    "minimum_camera_facing_dot": 0.02,
+    "overlay_offset_m": 0.012,
+    "minimum_visible_gt8_pixels": 1
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "author_openings": false,
+    "author_arcades": false,
+    "author_portal_depth": false,
+    "author_statuary": false,
+    "visual_candidate_approved": false,
+    "realism_complete": false
+  },
+  "decision_goal": "Identify the exact camera-facing official WALLSURFACE IDs for the two Grand-Place-facing lower wing planes. Heritage semantics may nominate the gallery/portico as one later motif only after those source faces are proven."
+}

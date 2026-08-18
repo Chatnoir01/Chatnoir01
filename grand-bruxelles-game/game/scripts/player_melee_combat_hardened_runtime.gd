@@ -51,6 +51,8 @@ func resolve_counter_hit(player: CharacterBody3D) -> int:
 
 func _apply_hit(npc: NpcAgent, player: CharacterBody3D, damage: float) -> StringName:
     var reaction := super._apply_hit(npc, player, damage)
+    if player != null and is_instance_valid(player) and bool(player.get_meta("combat_weapon_hit_inflight", false)):
+        return reaction
     if npc == null or not is_instance_valid(npc) or reaction == &"ko":
         return reaction
     var move_id := StringName(player.get_meta("combat_move_id", &"")) if player != null else &""

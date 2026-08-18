@@ -1,0 +1,55 @@
+{
+  "schema": "grand-bruxelles-atomium-ortho-yaw-registration-v1",
+  "purpose": "Evidence-only rigid orientation audit from the exact official 2024 UrbIS orthophoto. No runtime geometry is authorized.",
+  "source": {
+    "service": "https://geoservices-grid.irisnet.be/geoserver/urbisgrid/ows",
+    "layer": "Ortho",
+    "crs": "EPSG:31370",
+    "bbox_epsg31370": [147860.0, 176020.0, 148160.0, 176400.0],
+    "raster_size_px": [1500, 1900],
+    "ground_resolution_m_per_px": 0.2,
+    "expected_response_sha256": "41707c269211c43550527be37c5a06285f6c96c141f59db2352496386f5047ac",
+    "prior_evidence_pr": 585,
+    "prior_evidence_run": 31972173789,
+    "prior_evidence_artifact": 9270085107
+  },
+  "topology_source": "res://data/sources/laeken_jette/atomium_hero_core_evidence.json",
+  "topology_policy": {
+    "same_height_triangle_indices": [1, 2, 3],
+    "outer_sphere_indices": [1, 2, 3, 4, 5, 6],
+    "free_scale_allowed": false,
+    "reflection_allowed": false,
+    "perspective_warp_allowed": false,
+    "manual_circle_centres_allowed": false,
+    "post_failure_parameter_changes_allowed": false
+  },
+  "detector": {
+    "roi_xyxy_px": [850, 1150, 1500, 1900],
+    "gaussian_kernel": [7, 7],
+    "gaussian_sigma": 1.5,
+    "hough_dp": 1.2,
+    "hough_min_dist_px": 60.0,
+    "hough_param1": 120.0,
+    "hough_param2": 40.0,
+    "hough_min_radius_px": 30,
+    "hough_max_radius_px": 70
+  },
+  "acceptance": {
+    "candidate_count_min": 6,
+    "candidate_count_max": 12,
+    "triangle_side_rms_m_max": 0.75,
+    "triangle_side_max_error_m_max": 1.0,
+    "triangle_rigid_fit_rms_m_max": 0.5,
+    "triangle_rigid_fit_max_error_m_max": 0.75,
+    "second_best_triangle_margin_m_min": 5.0
+  },
+  "interpretation_limits": {
+    "yaw_resolution": "modulo_60_degrees_only",
+    "exact_global_yaw_resolved": false,
+    "lower_vs_upper_triangle_parity_resolved": false,
+    "support_foot_coordinates_resolved": false,
+    "support_geometry_authorized": false,
+    "runtime_authorized": false,
+    "note": "A same-altitude sphere triad can resolve plan rotation modulo the sixfold 60-degree ambiguity. It cannot identify lower/upper parity or bipod feet by itself."
+  }
+}

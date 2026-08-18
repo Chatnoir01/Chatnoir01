@@ -1,0 +1,60 @@
+{
+  "schema": "grand-bruxelles-town-hall-roof-semantic-registration-v1",
+  "status": "source_semantic_registration_only",
+  "production_base": "6b165d44ab4bd8fa1cc61ef70e040ccf04b7906a",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "official_geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "official_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "roof_face_id": "https://databrussels.be/id/buildingface/9369301",
+    "semantic_scope": "Grand-Place right-of-tower gallery roof plane",
+    "shared_gallery_wall_face_ids": [
+      "https://databrussels.be/id/buildingface/10792525",
+      "https://databrussels.be/id/buildingface/10798452"
+    ],
+    "shared_eave_points": [
+      [292.0918, 23.712, -515.2239],
+      [297.4498, 23.712, -508.7339],
+      [302.2418, 23.712, -502.9279]
+    ],
+    "shared_eave_span_m": 15.9440934873,
+    "shared_eave_point_count": 3
+  },
+  "existing_registration": {
+    "right_gallery_contract_path": "res://data/qa/grand_place_town_hall_right_gallery_contract.json",
+    "expected_scope_text": "Galerie vers la grande place à droite de la tour",
+    "expected_gallery_face_chain": [
+      "https://databrussels.be/id/buildingface/10792525",
+      "https://databrussels.be/id/buildingface/10798452"
+    ],
+    "expected_chain_span_m": 15.9440934873,
+    "roof_material_identity_path": "res://data/visual/grand_place_1655673_roof_material_identity.json"
+  },
+  "heritage_scope": {
+    "urban_record": "Hôtel de ville, Grand-Place 8, Urban 31125",
+    "building_wing_fact": "The heritage description documents four rows of dormers in the vast slate-covered gable roof.",
+    "dormer_row_count_building_scope": 4,
+    "dormer_rows_assigned_to_face": false,
+    "dormer_positions_resolved": false,
+    "dormer_dimensions_resolved": false,
+    "tower_spire_detail_resolved": false
+  },
+  "decision": {
+    "roof_plane_semantic_owner_resolved": true,
+    "direct_shared_eave_geometry_required": true,
+    "gallery_chain_span_match_required": true,
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "material_changed": false,
+    "official_vertices_changed": false,
+    "dormers_authored": false,
+    "implementation_authorized": false,
+    "visual_candidate_approved": false,
+    "realism_complete": false
+  },
+  "provenance": {
+    "current_main_roof_face_evidence_pr": 808,
+    "historical_right_gallery_runtime_pr": 783,
+    "note": "This registration identifies the official roof plane directly above the already source-registered right-of-tower gallery. It deliberately does not infer dormer placement from a building/wing-level heritage statement."
+  }
+}

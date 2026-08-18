@@ -88,16 +88,17 @@ func _face_points(face: Dictionary) -> Array[Vector3]:
                 points.append(point)
     return points
 
-func _building_center(faces: Array) -> Vector3:
-    var total := Vector3.ZERO
-    var count := 0
-    for raw_face: Variant in faces:
-        if typeof(raw_face) != TYPE_DICTIONARY:
-            continue
-        for point: Vector3 in _face_points(raw_face as Dictionary):
-            total += point
-            count += 1
-    return total / float(count) if count > 0 else Vector3.ZERO
+func _unique_points(points: Array[Vector3]) -> Array[Vector3]:
+    var unique: Array[Vector3] = []
+    for point: Vector3 in points:
+        var found := false
+        for existing: Vector3 in unique:
+            if existing.distance_to(point) <= 0.0001:
+                found = true
+                break
+        if not found:
+            unique.append(point)
+    return unique
 
 func _centroid(points: Array[Vector3]) -> Vector3:
     if points.is_empty():
@@ -106,6 +107,13 @@ func _centroid(points: Array[Vector3]) -> Vector3:
     for point: Vector3 in points:
         total += point
     return total / float(points.size())
+
+func _building_center(faces: Array) -> Vector3:
+    var points: Array[Vector3] = []
+    for raw_face: Variant in faces:
+        if typeof(raw_face) == TYPE_DICTIONARY:
+            points.append_array(_face_points(raw_face as Dictionary))
+    return _centroid(points) if not points.is_empty() else Vector3.ZERO
 
 func _face_normal(face: Dictionary, building_center: Vector3) -> Vector3:
     var normal := Vector3.ZERO
@@ -123,39 +131,40 @@ func _face_normal(face: Dictionary, building_center: Vector3) -> Vector3:
             break
     if normal.length_squared() < 0.5:
         return Vector3.ZERO
-    var points := _face_points(face)
-    var center := _centroid(points)
+    var center := _centroid(_face_points(face))
     var outward := Vector3(center.x - building_center.x, 0.0, center.z - building_center.z)
     var horizontal_normal := Vector3(normal.x, 0.0, normal.z)
     if outward.length_squared() > 0.0001 and horizontal_normal.length_squared() > 0.0001 and horizontal_normal.dot(outward) < 0.0:
         normal = -normal
     return normal
 
-func _horizontal_span(points: Array[Vector3]) -> float:
-    var span := 0.0
-    for i: int in range(points.size()):
-        for j: int in range(i + 1, points.size()):
-            var a := Vector2(points[i].x, points[i].z)
-            var b := Vector2(points[j].x, points[j].z)
-            span = maxf(span, a.distance_to(b))
-    return span
+func _horizontal_normal(normal: Vector3) -> Vector3:
+    var horizontal := Vector3(normal.x, 0.0, normal.z)
+    return horizontal.normalized() if horizontal.length_squared() > 0.000001 else Vector3.ZERO
 
 func _height_bounds(points: Array[Vector3]) -> Vector2:
     if points.is_empty():
         return Vector2.INF
-    var lo := INF
-    var hi := -INF
+    var low := INF
+    var high := -INF
     for point: Vector3 in points:
-        lo = minf(lo, point.y)
-        hi = maxf(hi, point.y)
-    return Vector2(lo, hi)
+        low = minf(low, point.y)
+        high = maxf(high, point.y)
+    return Vector2(low, high)
+
+func _horizontal_span(points: Array[Vector3]) -> float:
+    var span := 0.0
+    for i: int in range(points.size()):
+        for j: int in range(i + 1, points.size()):
+            span = maxf(span, Vector2(points[i].x, points[i].z).distance_to(Vector2(points[j].x, points[j].z)))
+    return span
 
 func _projected_bbox(camera: Camera3D, points: Array[Vector3]) -> Dictionary:
     var min_x := float(WIDTH)
     var min_y := float(HEIGHT)
     var max_x := 0.0
     var max_y := 0.0
-    var projected_count := 0
+    var projected := 0
     for point: Vector3 in points:
         if camera.is_position_behind(point):
             continue
@@ -166,21 +175,21 @@ func _projected_bbox(camera: Camera3D, points: Array[Vector3]) -> Dictionary:
         min_y = minf(min_y, screen.y)
         max_x = maxf(max_x, screen.x)
         max_y = maxf(max_y, screen.y)
-        projected_count += 1
-    if projected_count == 0:
-        return {"visible": false, "bbox": null, "area_px2": 0.0}
-    var clip_min_x := clampf(min_x, 0.0, float(WIDTH - 1))
-    var clip_min_y := clampf(min_y, 0.0, float(HEIGHT - 1))
-    var clip_max_x := clampf(max_x, 0.0, float(WIDTH - 1))
-    var clip_max_y := clampf(max_y, 0.0, float(HEIGHT - 1))
-    var width := maxf(0.0, clip_max_x - clip_min_x)
-    var height := maxf(0.0, clip_max_y - clip_min_y)
+        projected += 1
+    if projected == 0:
+        return {"visible": false, "bbox": null, "width_px": 0.0, "height_px": 0.0, "area_px2": 0.0}
+    var x0 := clampf(min_x, 0.0, float(WIDTH - 1))
+    var y0 := clampf(min_y, 0.0, float(HEIGHT - 1))
+    var x1 := clampf(max_x, 0.0, float(WIDTH - 1))
+    var y1 := clampf(max_y, 0.0, float(HEIGHT - 1))
+    var width := maxf(0.0, x1 - x0)
+    var height := maxf(0.0, y1 - y0)
     return {
         "visible": width > 0.0 and height > 0.0,
-        "bbox": [clip_min_x, clip_min_y, clip_max_x, clip_max_y],
-        "area_px2": width * height,
+        "bbox": [x0, y0, x1, y1],
         "width_px": width,
-        "height_px": height
+        "height_px": height,
+        "area_px2": width * height
     }
 
 func _diff_metrics(baseline: Image, overlay: Image) -> Dictionary:
@@ -221,7 +230,63 @@ func _diff_metrics(baseline: Image, overlay: Image) -> Dictionary:
         "bbox_height_px": bbox_height
     }
 
-func _make_overlay(face: Dictionary, normal: Vector3, offset_m: float, label: String) -> MeshInstance3D:
+func _faces_connected(a: Dictionary, b: Dictionary, endpoint_tolerance: float, parallel_dot_min: float) -> bool:
+    var normal_a := _horizontal_normal(_v3(a.get("normal", [])))
+    var normal_b := _horizontal_normal(_v3(b.get("normal", [])))
+    if normal_a.length_squared() < 0.5 or normal_b.length_squared() < 0.5:
+        return false
+    if normal_a.dot(normal_b) < parallel_dot_min:
+        return false
+    var points_a: Array[Vector3] = a.get("points", [])
+    var points_b: Array[Vector3] = b.get("points", [])
+    for point_a: Vector3 in points_a:
+        for point_b: Vector3 in points_b:
+            if Vector2(point_a.x, point_a.z).distance_to(Vector2(point_b.x, point_b.z)) <= endpoint_tolerance:
+                return true
+    return false
+
+func _build_groups(rows: Array[Dictionary], endpoint_tolerance: float, parallel_dot_min: float) -> Array[Array]:
+    var groups: Array[Array] = []
+    var visited: Dictionary = {}
+    for start_index: int in range(rows.size()):
+        if visited.has(start_index):
+            continue
+        var group: Array = []
+        var queue: Array[int] = [start_index]
+        visited[start_index] = true
+        while not queue.is_empty():
+            var index := queue.pop_front()
+            group.append(rows[index])
+            for other_index: int in range(rows.size()):
+                if visited.has(other_index):
+                    continue
+                var connects := false
+                for member: Variant in group:
+                    if _faces_connected(member as Dictionary, rows[other_index], endpoint_tolerance, parallel_dot_min):
+                        connects = true
+                        break
+                if connects:
+                    visited[other_index] = true
+                    queue.append(other_index)
+        groups.append(group)
+    return groups
+
+func _group_points(group: Array) -> Array[Vector3]:
+    var points: Array[Vector3] = []
+    for raw_row: Variant in group:
+        var row: Dictionary = raw_row
+        var row_points: Array[Vector3] = row.get("points", [])
+        points.append_array(row_points)
+    return _unique_points(points)
+
+func _group_face_ids(group: Array) -> Array[String]:
+    var ids: Array[String] = []
+    for raw_row: Variant in group:
+        ids.append(str((raw_row as Dictionary).get("face_id", "")))
+    ids.sort()
+    return ids
+
+func _make_group_overlay(group: Array, face_by_id: Dictionary, offset_m: float, label: String) -> MeshInstance3D:
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     var material := StandardMaterial3D.new()
@@ -229,41 +294,31 @@ func _make_overlay(face: Dictionary, normal: Vector3, offset_m: float, label: St
     material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     tool.set_material(material)
-    for raw_triangle: Variant in face.get("triangles", []):
-        if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
+    for raw_row: Variant in group:
+        var row: Dictionary = raw_row
+        var face_id := str(row.get("face_id", ""))
+        var face: Dictionary = face_by_id.get(face_id, {})
+        var normal := _v3(row.get("normal", []))
+        if face.is_empty() or not normal.is_finite():
             continue
-        for raw_point: Variant in raw_triangle:
-            var point := _v3(raw_point)
-            if not point.is_finite():
+        for raw_triangle: Variant in face.get("triangles", []):
+            if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
                 continue
-            tool.set_normal(normal)
-            tool.add_vertex(point + normal * offset_m)
+            for raw_point: Variant in raw_triangle:
+                var point := _v3(raw_point)
+                if point.is_finite():
+                    tool.set_normal(normal)
+                    tool.add_vertex(point + normal * offset_m)
     var overlay := MeshInstance3D.new()
-    overlay.name = "TownHallFaceOverlay_%s" % label
+    overlay.name = "TownHallFaceGroupOverlay_%s" % label
     overlay.mesh = tool.commit()
     return overlay
 
-func _sort_projected_desc(a: Dictionary, b: Dictionary) -> bool:
+func _sort_group_projected_desc(a: Dictionary, b: Dictionary) -> bool:
     return float(a.get("projected_bbox_area_px2", 0.0)) > float(b.get("projected_bbox_area_px2", 0.0))
 
-func _best_visible(rows: Array[Dictionary], side: String, building_center_x: float) -> Dictionary:
-    var best: Dictionary = {}
-    var best_pixels := -1
-    for row: Dictionary in rows:
-        var centroid_raw: Variant = row.get("centroid", [])
-        if typeof(centroid_raw) != TYPE_ARRAY or centroid_raw.size() != 3:
-            continue
-        var x := float(centroid_raw[0])
-        if side == "east" and x <= building_center_x:
-            continue
-        if side == "west" and x >= building_center_x:
-            continue
-        var metrics: Dictionary = row.get("visible_metrics", {})
-        var pixels := int(metrics.get("changed_gt8_pixels", 0))
-        if pixels > best_pixels:
-            best_pixels = pixels
-            best = row
-    return best
+func _sort_group_visible_desc(a: Dictionary, b: Dictionary) -> bool:
+    return int((a.get("visible_metrics", {}) as Dictionary).get("changed_gt8_pixels", 0)) > int((b.get("visible_metrics", {}) as Dictionary).get("changed_gt8_pixels", 0))
 
 func _run() -> void:
     var contract := _read_json(CONTRACT_PATH)
@@ -274,26 +329,25 @@ func _run() -> void:
         _fail("contract must remain evidence_only")
         return
     var hard_rules: Dictionary = contract.get("hard_rules", {})
-    for forbidden_true: String in ["runtime_changed", "geometry_changed", "source_vertices_changed", "author_openings", "author_arcades", "author_portal_depth", "author_statuary", "visual_candidate_approved", "realism_complete"]:
-        if bool(hard_rules.get(forbidden_true, true)):
-            _fail("hard rule drifted: %s" % forbidden_true)
+    for key: String in ["runtime_changed", "geometry_changed", "source_vertices_changed", "author_openings", "author_arcades", "author_portal_depth", "author_statuary", "visual_candidate_approved", "realism_complete"]:
+        if bool(hard_rules.get(key, true)):
+            _fail("hard rule drifted: %s" % key)
             return
 
     var target: Dictionary = contract.get("target", {})
-    var geometry_path := str(target.get("geometry_path", ""))
-    var geometry := _read_json(geometry_path)
+    var geometry := _read_json(str(target.get("geometry_path", "")))
     if geometry.is_empty() or str(geometry.get("schema", "")) != "grand-bruxelles-urbis-context-mesh-v1":
         _fail("official geometry missing or invalid")
         return
     var source: Dictionary = geometry.get("source", {})
-    var evidence: Dictionary = geometry.get("evidence", {})
+    var source_evidence: Dictionary = geometry.get("evidence", {})
     if str(source.get("building_2d_id", "")) != str(target.get("urbis_building_id", "")):
         _fail("building identity drifted")
         return
     if str(source.get("package_sha256", "")) != str(target.get("expected_package_sha256", "")):
         _fail("official package digest drifted")
         return
-    if int(evidence.get("face_type_counts", {}).get("WALLSURFACE", 0)) != int(target.get("expected_wall_face_count", 0)):
+    if int((source_evidence.get("face_type_counts", {}) as Dictionary).get("WALLSURFACE", 0)) != int(target.get("expected_wall_face_count", 0)):
         _fail("official WALLSURFACE count drifted")
         return
 
@@ -307,10 +361,10 @@ func _run() -> void:
     var camera_fov := float(camera_contract.get("camera_fov_deg", 0.0))
     var resolution: Variant = camera_contract.get("resolution", [])
     if not camera_position.is_finite() or not camera_target.is_finite() or camera_fov <= 1.0:
-        _fail("camera values invalid")
+        _fail("canonical camera values invalid")
         return
     if typeof(resolution) != TYPE_ARRAY or resolution.size() != 2 or int(resolution[0]) != WIDTH or int(resolution[1]) != HEIGHT:
-        _fail("camera resolution drifted")
+        _fail("canonical camera resolution drifted")
         return
 
     var main := MAIN_SCENE.instantiate()
@@ -339,7 +393,7 @@ func _run() -> void:
         _fail("production official Town Hall runtime did not load")
         return
     if str(official.get_meta("building_id", "")) != str(target.get("urbis_building_id", "")):
-        _fail("production official Town Hall runtime identity drifted")
+        _fail("production official Town Hall identity drifted")
         return
 
     var baseline := await _capture("/tmp/grand-place-town-hall-face-map-baseline.png")
@@ -347,18 +401,21 @@ func _run() -> void:
         _fail("baseline capture failed")
         return
 
-    var faces: Array = geometry.get("faces", [])
-    var building_center := _building_center(faces)
     var policy: Dictionary = contract.get("mapping_policy", {})
-    var minimum_facing := float(policy.get("minimum_camera_facing_dot", 0.02))
-    var y_min_max := float(policy.get("gallery_plane_y_min_max_m", 1.0))
-    var y_max_min := float(policy.get("gallery_plane_y_max_min_m", 18.0))
-    var y_max_max := float(policy.get("gallery_plane_y_max_max_m", 30.0))
-    var min_span := float(policy.get("gallery_plane_min_horizontal_span_m", 12.0))
-    var max_render := int(policy.get("max_prefilter_faces_to_render", 14))
+    var max_faces := int(policy.get("max_lower_faces_to_render", 20))
+    var y_min_max := float(policy.get("lower_face_y_min_max_m", 1.0))
+    var y_max_min := float(policy.get("lower_face_y_max_min_m", 15.0))
+    var y_max_max := float(policy.get("lower_face_y_max_max_m", 30.0))
+    var min_segment_span := float(policy.get("lower_segment_min_horizontal_span_m", 0.25))
+    var min_facing := float(policy.get("minimum_camera_facing_dot", 0.02))
+    var endpoint_tolerance := float(policy.get("connected_endpoint_tolerance_m", 0.08))
+    var parallel_dot_min := float(policy.get("parallel_horizontal_normal_dot_min", 0.985))
+    var min_group_span := float(policy.get("dominant_group_min_horizontal_span_m", 12.0))
     var offset_m := float(policy.get("overlay_offset_m", 0.012))
     var min_visible_pixels := int(policy.get("minimum_visible_gt8_pixels", 1))
 
+    var faces: Array = geometry.get("faces", [])
+    var building_center := _building_center(faces)
     var rows: Array[Dictionary] = []
     var face_by_id: Dictionary = {}
     for raw_face: Variant in faces:
@@ -368,108 +425,114 @@ func _run() -> void:
         if str(face.get("type", "")) != "WALLSURFACE":
             continue
         var face_id := str(face.get("id", ""))
-        var points := _face_points(face)
-        if face_id == "" or points.is_empty():
+        var points := _unique_points(_face_points(face))
+        if face_id == "" or points.size() < 3:
             continue
-        var centroid := _centroid(points)
+        var height := _height_bounds(points)
+        var span := _horizontal_span(points)
+        if height.x > y_min_max or height.y < y_max_min or height.y > y_max_max or span < min_segment_span:
+            continue
         var normal := _face_normal(face, building_center)
         if normal.length_squared() < 0.5:
             continue
-        var camera_vector := (camera_position - centroid).normalized()
+        var center := _centroid(points)
+        var camera_vector := (camera_position - center).normalized()
         var facing_dot := normal.dot(camera_vector)
-        if facing_dot < minimum_facing:
+        if facing_dot < min_facing:
             continue
         var projected := _projected_bbox(camera, points)
         if not bool(projected.get("visible", false)):
             continue
-        var height_bounds := _height_bounds(points)
-        var span := _horizontal_span(points)
-        var lower_gallery_candidate := height_bounds.x <= y_min_max and height_bounds.y >= y_max_min and height_bounds.y <= y_max_max and span >= min_span
-        var row: Dictionary = {
+        rows.append({
             "face_id": face_id,
-            "centroid": [centroid.x, centroid.y, centroid.z],
+            "points": points,
+            "centroid": [center.x, center.y, center.z],
             "normal": [normal.x, normal.y, normal.z],
             "camera_facing_dot": facing_dot,
-            "y_min_m": height_bounds.x,
-            "y_max_m": height_bounds.y,
+            "y_min_m": height.x,
+            "y_max_m": height.y,
             "horizontal_span_m": span,
             "projected_bbox": projected.get("bbox", null),
             "projected_bbox_width_px": projected.get("width_px", 0.0),
             "projected_bbox_height_px": projected.get("height_px", 0.0),
-            "projected_bbox_area_px2": projected.get("area_px2", 0.0),
-            "lower_gallery_plane_candidate": lower_gallery_candidate
-        }
-        rows.append(row)
+            "projected_bbox_area_px2": projected.get("area_px2", 0.0)
+        })
         face_by_id[face_id] = face
 
     if rows.is_empty():
-        _fail("no camera-facing official WALLSURFACE faces found")
+        _fail("no camera-facing lower official WALLSURFACE faces found")
         return
-    rows.sort_custom(_sort_projected_desc)
+    if rows.size() > max_faces:
+        _fail("lower camera-facing face set exceeds frozen render cap: %d > %d" % [rows.size(), max_faces])
+        return
 
-    var render_rows: Array[Dictionary] = []
-    var selected_ids: Dictionary = {}
-    for row: Dictionary in rows:
-        if bool(row.get("lower_gallery_plane_candidate", false)):
-            render_rows.append(row)
-            selected_ids[str(row.get("face_id", ""))] = true
-    for row: Dictionary in rows:
-        if render_rows.size() >= max_render:
-            break
-        var face_id := str(row.get("face_id", ""))
-        if selected_ids.has(face_id):
-            continue
-        render_rows.append(row)
-        selected_ids[face_id] = true
+    var raw_groups := _build_groups(rows, endpoint_tolerance, parallel_dot_min)
+    var group_records: Array[Dictionary] = []
+    for group_index: int in range(raw_groups.size()):
+        var group: Array = raw_groups[group_index]
+        var group_points := _group_points(group)
+        var group_span := _horizontal_span(group_points)
+        var projected := _projected_bbox(camera, group_points)
+        var face_ids := _group_face_ids(group)
+        group_records.append({
+            "group_index": group_index,
+            "face_ids": face_ids,
+            "face_count": face_ids.size(),
+            "horizontal_span_m": group_span,
+            "projected_bbox": projected.get("bbox", null),
+            "projected_bbox_width_px": projected.get("width_px", 0.0),
+            "projected_bbox_height_px": projected.get("height_px", 0.0),
+            "projected_bbox_area_px2": projected.get("area_px2", 0.0),
+            "raw_group": group
+        })
+    group_records.sort_custom(_sort_group_projected_desc)
 
-    var rendered: Array[Dictionary] = []
-    for row: Dictionary in render_rows:
-        var face_id := str(row.get("face_id", ""))
-        var face: Dictionary = face_by_id.get(face_id, {})
-        if face.is_empty():
-            _fail("face lookup failed for %s" % face_id)
-            return
-        var normal_raw: Variant = row.get("normal", [])
-        var normal := _v3(normal_raw)
-        var label := face_id.replace("https://databrussels.be/id/buildingface/", "")
-        var overlay := _make_overlay(face, normal, offset_m, label)
+    var rendered_groups: Array[Dictionary] = []
+    for display_index: int in range(group_records.size()):
+        var record := group_records[display_index]
+        var group: Array = record.get("raw_group", [])
+        var label := "%02d" % [display_index + 1]
+        var overlay := _make_group_overlay(group, face_by_id, offset_m, label)
         main.add_child(overlay)
         for _frame: int in range(3):
             _freeze_dynamics(main)
             _mask_ui()
             RenderingServer.force_draw()
             await process_frame
-        var capture_path := "/tmp/grand-place-town-hall-face-%s.png" % label
+        var capture_path := "/tmp/grand-place-town-hall-face-group-%s.png" % label
         var image := await _capture(capture_path)
         overlay.queue_free()
         await process_frame
         if image == null:
-            _fail("overlay capture failed for %s" % face_id)
+            _fail("group overlay capture failed: %s" % label)
             return
-        var measured := row.duplicate(true)
-        measured["visible_metrics"] = _diff_metrics(baseline, image)
-        measured["overlay_capture"] = capture_path
-        rendered.append(measured)
+        var clean_record := record.duplicate(true)
+        clean_record.erase("raw_group")
+        clean_record["visible_metrics"] = _diff_metrics(baseline, image)
+        clean_record["overlay_capture"] = capture_path
+        rendered_groups.append(clean_record)
 
-    var gallery_visible: Array[Dictionary] = []
-    for row: Dictionary in rendered:
-        if not bool(row.get("lower_gallery_plane_candidate", false)):
-            continue
-        var metrics: Dictionary = row.get("visible_metrics", {})
-        if int(metrics.get("changed_gt8_pixels", 0)) >= min_visible_pixels:
-            gallery_visible.append(row)
-    if gallery_visible.size() < 2:
-        _fail("fewer than two visible lower Grand-Place-facing wing-plane candidates")
+    rendered_groups.sort_custom(_sort_group_visible_desc)
+    var dominant: Dictionary = {}
+    for record: Dictionary in rendered_groups:
+        var metrics: Dictionary = record.get("visible_metrics", {})
+        if float(record.get("horizontal_span_m", 0.0)) >= min_group_span and int(metrics.get("changed_gt8_pixels", 0)) >= min_visible_pixels:
+            dominant = record
+            break
+    if dominant.is_empty():
+        _fail("no connected official lower-face group meets the frozen 12 m source span plus real pixel visibility requirement")
         return
 
-    var east := _best_visible(gallery_visible, "east", building_center.x)
-    var west := _best_visible(gallery_visible, "west", building_center.x)
-    if east.is_empty() or west.is_empty():
-        _fail("could not map distinct east/west lower wing planes around the tower")
-        return
-    if str(east.get("face_id", "")) == str(west.get("face_id", "")):
-        _fail("east/west wing mapping collapsed to one face")
-        return
+    var candidate_rows: Array[Dictionary] = []
+    for row: Dictionary in rows:
+        var clean := row.duplicate(true)
+        clean.erase("points")
+        candidate_rows.append(clean)
+
+    var visible_group_count := 0
+    for record: Dictionary in rendered_groups:
+        if int((record.get("visible_metrics", {}) as Dictionary).get("changed_gt8_pixels", 0)) >= min_visible_pixels:
+            visible_group_count += 1
 
     var evidence_out := {
         "schema": "grand-bruxelles-town-hall-face-map-evidence-v1",
@@ -478,26 +541,32 @@ func _run() -> void:
         "geometry_changed": false,
         "camera_contract_path": camera_path,
         "camera_source_pr": 711,
+        "camera_position": [camera_position.x, camera_position.y, camera_position.z],
+        "camera_target": [camera_target.x, camera_target.y, camera_target.z],
+        "camera_fov_deg": camera_fov,
         "resolution": [WIDTH, HEIGHT],
         "urbis_building_id": str(target.get("urbis_building_id", "")),
         "official_package_sha256": str(source.get("package_sha256", "")),
-        "wall_face_count": int(evidence.get("face_type_counts", {}).get("WALLSURFACE", 0)),
-        "building_center": [building_center.x, building_center.y, building_center.z],
-        "camera_facing_faces_ranked": rows,
-        "rendered_prefilter_faces": rendered,
-        "visible_lower_gallery_plane_candidates": gallery_visible,
+        "wall_face_count": int((source_evidence.get("face_type_counts", {}) as Dictionary).get("WALLSURFACE", 0)),
+        "camera_facing_lower_face_count": rows.size(),
+        "connected_group_count": rendered_groups.size(),
+        "visible_connected_group_count": visible_group_count,
+        "camera_facing_lower_faces": candidate_rows,
+        "connected_groups_ranked_by_visible_pixels": rendered_groups,
         "decision": {
-            "east_wing_face_id": str(east.get("face_id", "")),
-            "west_wing_face_id": str(west.get("face_id", "")),
-            "east_visible_metrics": east.get("visible_metrics", {}),
-            "west_visible_metrics": west.get("visible_metrics", {}),
+            "dominant_connected_face_ids": dominant.get("face_ids", []),
+            "dominant_group_horizontal_span_m": dominant.get("horizontal_span_m", 0.0),
+            "dominant_group_visible_metrics": dominant.get("visible_metrics", {}),
+            "heritage_two_wing_identity_proven_by_this_camera": false,
             "heritage_motif_nominated_for_later_only": "ground_floor_gallery_portico",
             "heritage_left_gallery_bays": 11,
             "heritage_right_gallery_bays": 6,
             "visual_candidate_approved": false,
-            "next_step": "Review exact mapped face IDs and their full-frame overlays; only a separate current-main implementation PR may attempt one bounded gallery/portico motif."
+            "reason": "The canonical camera proves exact connected official lower facade coverage. It does not by itself prove east/west heritage wing identity or authorize arcade/opening placement.",
+            "next_step": "Human-review the dominant exact-face overlay and IDs. If legitimate, close this evidence PR and create a separate current-main visual proposal limited to one heritage-backed motif on the proven source plane."
         },
         "heritage_source": contract.get("heritage_source", {}),
+        "first_run_finding": contract.get("first_run_finding", {}),
         "hard_rules": hard_rules
     }
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts/qa"))
@@ -508,5 +577,10 @@ func _run() -> void:
     output.store_string(JSON.stringify(evidence_out, "  "))
     output.close()
     print("GRAND_PLACE_TOWN_HALL_FACE_MAP_JSON " + JSON.stringify(evidence_out))
-    print("GRAND_PLACE_TOWN_HALL_FACE_MAP_OK east=%s west=%s gallery_candidates=%d" % [str(east.get("face_id", "")), str(west.get("face_id", "")), gallery_visible.size()])
+    print("GRAND_PLACE_TOWN_HALL_FACE_MAP_OK dominant=%s span=%.3f visible_gt8=%d groups=%d" % [
+        ",".join(dominant.get("face_ids", [])),
+        float(dominant.get("horizontal_span_m", 0.0)),
+        int((dominant.get("visible_metrics", {}) as Dictionary).get("changed_gt8_pixels", 0)),
+        rendered_groups.size()
+    ])
     quit(0)

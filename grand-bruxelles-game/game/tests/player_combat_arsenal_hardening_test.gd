@@ -32,6 +32,8 @@ func _run() -> void:
         _fail("touch aiming needs a public arsenal API"); return
     if source.find("IMPACT  -%d") < 0 or source.find("_animate_weapon_flinch") < 0:
         _fail("weapon impacts need accurate damage feedback and visible flinch"); return
+    if source.find("combat_weapon_hit_inflight") < 0:
+        _fail("weapon hits must be isolated from melee directional flinch"); return
 
     var move_publish_pos := source.find("player.set_meta(\"combat_move_id\"")
     var melee_call_pos := source.find("melee_runtime.call(\"request_attack\", player)")
@@ -43,5 +45,5 @@ func _run() -> void:
     if project_text.find(expected) < 0:
         _fail("project must autoload the hardened arsenal runtime"); return
 
-    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green")
+    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green flinch_isolation=green")
     quit(0)

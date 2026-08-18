@@ -19,7 +19,8 @@
     "image_id": 431760,
     "reference_uri": "https://id.erfgoed.net/afbeeldingen/431760",
     "record_url": "https://beeldbank.onroerenderfgoed.be/images/431760",
-    "download_url": "https://beeldbank.onroerenderfgoed.be/images/431760/content/original",
+    "preferred_public_format": "full",
+    "preferred_download_url": "https://beeldbank.onroerenderfgoed.be/images/431760/content/full",
     "archive_number": "B1500",
     "title": "Stadhuis",
     "inscription": "Hôtel de Ville de Bruxelles. Galerie vers la grande place à droite de la tour. Plan de l'aucrage ayant soutenu les Culs-de-Lamps.",
@@ -32,12 +33,20 @@
     "license": "Public Domain Mark 1.0"
   },
   "acquisition_policy": {
-    "download_original_only": true,
+    "discover_public_format_links_from_record_page": true,
+    "download_full_public_format": true,
+    "record_selected_download_url": true,
     "record_sha256": true,
     "record_detected_format_and_pixel_dimensions": true,
     "create_preview_without_altering_source": true,
     "preview_max_dimension_px": 2400,
     "commit_scan_to_repository": false
+  },
+  "first_run_finding": {
+    "run_id": 32134841400,
+    "failure": "direct /content/original returned HTTP 400 before record-page acquisition",
+    "policy_change_kind": "access_route_correction_only",
+    "measurement_rules_changed": false
   },
   "measurement_policy": {
     "metric_measurement_authorized": false,

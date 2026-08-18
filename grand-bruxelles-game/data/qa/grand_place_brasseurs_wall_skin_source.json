@@ -1,0 +1,57 @@
+{
+  "schema": "grand-bruxelles-brasseurs-wall-skin-v1",
+  "status": "candidate_pending_visual_gate",
+  "runtime_approved": false,
+  "realism_complete": false,
+  "source": {
+    "product": "UrbIS - 3D Constructions",
+    "license": "CC0-1.0",
+    "source_crs": "EPSG:31370",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "extracted_building_sha256": "7d5927902e43d74b62120436a4f928c56f33185c40428ff4c18aa15fa51b56e1",
+    "source_evidence_pr": 684,
+    "source_evidence_artifact_id": 9293108863,
+    "source_evidence_artifact_digest": "sha256:84049fc81c51501f7495b4a4e1a7145ade6cd58c2401bf494780add946a8471a"
+  },
+  "target": {
+    "building_id": "1639974",
+    "front_wall_id": "10945501",
+    "face_type": "WALLSURFACE",
+    "horizontal_span_m": 8.749036,
+    "world_y_min_m": 0.0,
+    "world_y_max_m": 24.746,
+    "source_triangle_count": 3,
+    "official_unique_vertices_world": [
+      [317.9358, 0.0, -487.4869],
+      [317.9358, 19.166, -487.4869],
+      [321.6678, 24.746, -485.7699],
+      [325.8848, 0.0, -483.8319],
+      [325.8848, 18.966, -483.8319]
+    ],
+    "continuous_skin_triangle_indices": [[0, 3, 4], [0, 4, 2], [0, 2, 1]],
+    "triangulation_note": "deterministic three-triangle fill over the exact five official boundary vertices; no boundary vertex, wall span, vertical extent or outward placement is changed"
+  },
+  "presentation_contract": {
+    "details": 0,
+    "outward_offset_m": 0.0,
+    "hide_neighbor_geometry": false,
+    "raw_commons_pixels_shipped": false,
+    "photo_used_for_world_scale": false,
+    "material_identity_source_measured": false,
+    "exact_rgb_is_photometric_measurement": false,
+    "material_note": "authored warm neutral wall presentation for visibility test only; not a measured stone or colour claim"
+  },
+  "visual_gate": {
+    "width": 1280,
+    "height": 720,
+    "camera_position": [324.9581, 3.3, -512.8388],
+    "camera_target": [321.9103, 11.8, -485.6584],
+    "fov_degrees": 62.0,
+    "min_ratio_gt3_rgb": 0.02,
+    "min_ratio_gt8_rgb": 0.01,
+    "min_bbox_width_px": 300,
+    "min_bbox_height_px": 260,
+    "thresholds_frozen_before_first_candidate_render": true
+  }
+}

@@ -1,0 +1,28 @@
+name: Grand Bruxelles Web Publication Discipline
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/grand-bruxelles-web.yml"
+      - ".github/workflows/grand-bruxelles-pages.yml"
+      - ".github/workflows/grand-bruxelles-branch-hygiene.yml"
+      - ".github/workflows/grand-bruxelles-web-publication-discipline.yml"
+      - "grand-bruxelles-game/tools/validate_branch_hygiene.py"
+      - "grand-bruxelles-game/tests/test_validate_branch_hygiene.py"
+      - "grand-bruxelles-game/tools/test_web_publication_discipline.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publication-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove artifact-only Web publication
+        run: python3 grand-bruxelles-game/tools/test_web_publication_discipline.py
+      - name: Prove live-main branch hygiene policy
+        run: python3 -m unittest grand-bruxelles-game/tests/test_validate_branch_hygiene.py

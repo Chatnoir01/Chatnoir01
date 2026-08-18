@@ -195,7 +195,10 @@ func _apply_streamed_context_facades() -> void:
         return
     for candidate: Node in get_tree().root.find_children("StreamedCell_*", "", true, false):
         var context_cell_id := str(candidate.get_meta("streamed_cell_id", ""))
-        if not IXELLES_CONTEXT_SOURCE_PLAN_CELLS.has(context_cell_id) or _facade_context_processed.has(context_cell_id):
+        if not IXELLES_CONTEXT_SOURCE_PLAN_CELLS.has(context_cell_id):
+            continue
+        var candidate_instance_id := candidate.get_instance_id()
+        if int(_facade_context_processed.get(context_cell_id, 0)) == candidate_instance_id:
             continue
         var massing := candidate.get_node_or_null("VisualCandidateBuildingMassing") as MeshInstance3D
         if massing == null:
@@ -205,7 +208,8 @@ func _apply_streamed_context_facades() -> void:
             continue
         var current := mesh.surface_get_material(0)
         if current is ShaderMaterial and str(current.get_meta("material_family", "")) == FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY:
-            _facade_context_processed[context_cell_id] = true
+            _facade_context_processed[context_cell_id] = candidate_instance_id
+            facade_streamed_context_cell_count = _facade_context_processed.size()
             continue
         if not current is StandardMaterial3D:
             push_error("Ixelles facade articulation: unexpected streamed context material %s" % context_cell_id)
@@ -219,7 +223,7 @@ func _apply_streamed_context_facades() -> void:
         massing.set_meta("geometry_changed_by_ixelles_facade", false)
         massing.set_meta("collision_changed_by_ixelles_facade", false)
         massing.set_meta("vertex_color_baseline_preserved", true)
-        _facade_context_processed[context_cell_id] = true
+        _facade_context_processed[context_cell_id] = candidate_instance_id
         facade_streamed_context_cell_count = _facade_context_processed.size()
         print("IXELLES_FACADE_CONTEXT_READY: cell=%s visual_buildings=%d family=%s vertex_tones_preserved=true geometry_changed=false collision_changed=false" % [context_cell_id, int(candidate.get("rendered_building_count")), FACADE_MATERIAL_FACTORY.MATERIAL_FAMILY])
 

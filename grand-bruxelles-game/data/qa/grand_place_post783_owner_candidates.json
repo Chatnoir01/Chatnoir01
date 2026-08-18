@@ -1,0 +1,24 @@
+{
+  "schema": "grand-bruxelles-grand-place-post783-owner-candidates-v1",
+  "status": "evidence_only",
+  "base_main": "b9d12ae52d1b5dce0d26f349276af375c38e69d1",
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "camera_source_pr": 711,
+  "resolution": [1280, 720],
+  "runtime_changed": false,
+  "geometry_changed": false,
+  "implementation_authorized": false,
+  "source_basis": {
+    "urbis_building": "1655673",
+    "heritage_record": 31125,
+    "right_gallery_production_pr": 783,
+    "right_gallery_face_chain": "10792525+10798452"
+  },
+  "candidates": [
+    {"id":"town_hall_walls","node_path":"/root/GrandPlaceOfficialLod2/GrandPlace1655673_WALLSURFACE","role":"official UrbIS wall mass after #783"},
+    {"id":"town_hall_roofs","node_path":"/root/GrandPlaceOfficialLod2/GrandPlace1655673_ROOFSURFACE","role":"official UrbIS roof/tower mass"},
+    {"id":"right_gallery_b1500","node_path":"/root/GrandPlaceOfficialLod2/GrandPlaceTownHallRightGalleryB1500","role":"already-shipped six-bay #783 control"},
+    {"id":"window_rhythm","node_path":"/root/GrandPlaceTownHallWindowRhythmRuntime","role":"existing procedural window rhythm control"}
+  ],
+  "decision_rule": "Measure each production owner independently from the frozen canonical player camera. The largest remaining owner may only nominate the next evidence drill-down; this audit never authorizes new openings, portal depth, statuary or tower detail."
+}

@@ -36,7 +36,7 @@ func _points(face: Dictionary) -> Array[Vector3]:
         if typeof(raw_triangle) != TYPE_ARRAY or raw_triangle.size() != 3:
             continue
         for raw_point: Variant in raw_triangle:
-            var point: Vector3 = _v3(raw_point)
+            var point := _v3(raw_point)
             if not point.is_finite():
                 continue
             var duplicate := false
@@ -304,12 +304,16 @@ func _run() -> void:
             return
 
     var camera_contract := _json(str(contract.get("camera_contract_path", "")))
-    if int(camera_contract.get("source_pr", 0)) != 711 or camera_contract.get("resolution", []) != [WIDTH, HEIGHT]:
+    var resolution: Array = camera_contract.get("resolution", [])
+    if int(camera_contract.get("source_pr", 0)) != 711 or resolution.size() != 2 or int(resolution[0]) != WIDTH or int(resolution[1]) != HEIGHT:
         _fail("canonical #711/#753 camera contract drift")
         return
     var camera_position := _v3(camera_contract.get("camera_position", []))
     var camera_target := _v3(camera_contract.get("camera_target", []))
     var camera_fov := float(camera_contract.get("camera_fov_deg", 0.0))
+    if camera_position.distance_to(Vector3(319.01, 1.72, -535.20)) > 0.0001 or camera_target.distance_to(Vector3(321.91, 11.8, -485.66)) > 0.0001 or absf(camera_fov - 62.0) > 0.0001:
+        _fail("canonical #711/#753 camera values drift")
+        return
 
     var main := MAIN_SCENE.instantiate()
     root.add_child(main)

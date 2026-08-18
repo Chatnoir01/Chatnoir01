@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/game/tests/midi_surface_semantics_test.gd"
       - "grand-bruxelles-game/game/tests/midi_surface_semantics_ab_compare_test.gd"
       - "grand-bruxelles-game/game/tests/midi_surface_stability_ab_compare_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_surface_stability_capture_test.gd"
       - "grand-bruxelles-game/tools/make_urbis_midi_runtime.py"
       - "grand-bruxelles-game/tools/test_make_urbis_midi_runtime.py"
       - ".github/workflows/grand-bruxelles-midi-official-street-collision.yml"
@@ -82,6 +83,7 @@ jobs:
               grand-bruxelles-game/game/tests/midi_exact_building_collision_test.gd|\
               grand-bruxelles-game/game/tests/midi_official_street_surface_collision_test.gd|\
               grand-bruxelles-game/game/tests/midi_surface_stability_ab_compare_test.gd|\
+              grand-bruxelles-game/game/tests/midi_surface_stability_capture_test.gd|\
               .github/workflows/grand-bruxelles-midi-official-street-collision.yml|\
               .github/workflows/grand-bruxelles-midi-solid-world.yml|\
               .github/workflows/grand-bruxelles-midi-surface-semantics.yml)
@@ -101,10 +103,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
-      - name: Install identical capture harness in base checkout
+      - name: Install identical capture harnesses in base checkout
         run: |
           cp head/grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd \
              base/grand-bruxelles-game/game/tests/midi_ambient_vehicle_visual_capture_test.gd
+          cp head/grand-bruxelles-game/game/tests/midi_surface_stability_capture_test.gd \
+             base/grand-bruxelles-game/game/tests/midi_surface_stability_capture_test.gd
       - name: Import base and head projects
         shell: bash
         run: |
@@ -112,7 +116,24 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-surface-base-import.log
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-surface-head-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-surface-base-import.log /tmp/midi-surface-head-import.log; then exit 1; fi
-      - name: Capture frozen player camera before and after
+      - name: Capture fixed player camera before and after
+        if: steps.scope.outputs.physics_only == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path base/grand-bruxelles-game --display-driver x11 \
+            --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_surface_stability_capture_test.gd -- \
+            /tmp/midi-surface-before.png 2>&1 | tee /tmp/midi-surface-before.log
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path head/grand-bruxelles-game --display-driver x11 \
+            --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_surface_stability_capture_test.gd -- \
+            /tmp/midi-surface-after.png 2>&1 | tee /tmp/midi-surface-after.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_SURFACE_STABILITY_CAPTURE_FAIL" /tmp/midi-surface-before.log /tmp/midi-surface-after.log; then exit 1; fi
+          grep -q "MIDI_SURFACE_STABILITY_CAPTURE_OK" /tmp/midi-surface-before.log
+          grep -q "MIDI_SURFACE_STABILITY_CAPTURE_OK" /tmp/midi-surface-after.log
+          test -f /tmp/midi-surface-before.png
+          test -f /tmp/midi-surface-after.png
+      - name: Capture normal gameplay camera before and after
+        if: steps.scope.outputs.physics_only != 'true'
         shell: bash
         run: |
           set -o pipefail

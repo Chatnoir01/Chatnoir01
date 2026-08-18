@@ -1,0 +1,48 @@
+name: Grand Bruxelles Atomium Base Pavilion Footprint Discovery
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-base-pavilion-footprint-discovery.yml"
+      - "grand-bruxelles-game/data/qa/photo_match/atomium_base_pavilion_footprint_contract.json"
+      - "grand-bruxelles-game/data/qa/photo_match/atomium_anchor_semantics_evidence.json"
+      - "grand-bruxelles-game/tools/audit_atomium_base_pavilion_footprint.py"
+      - "grand-bruxelles-game/docs/PRODUCTION_WALL.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned official UrbIS BuildingFootprint slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 2 \
+            --output /tmp/laeken_jette_buildings.game.json \
+            "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/5525ad370ff4ddc1d34b02ab82cc3fbba3f56cb7/grand-bruxelles-game/data/urbis/laeken_jette/buildings.game.json"
+          test -s /tmp/laeken_jette_buildings.game.json
+      - name: Discover source-bounded 26 m pavilion candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/audit_atomium_base_pavilion_footprint.py \
+            --source /tmp/laeken_jette_buildings.game.json \
+            --report /tmp/atomium_base_pavilion_footprint_discovery.json \
+            2>&1 | tee /tmp/atomium_base_pavilion_footprint_discovery.log
+          grep -F "ATOMIUM_BASE_PAVILION_DISCOVERY_OK" /tmp/atomium_base_pavilion_footprint_discovery.log
+          grep -F "ATOMIUM_BASE_PAVILION_RUNTIME_REFUSAL_OK" /tmp/atomium_base_pavilion_footprint_discovery.log
+          test -s /tmp/atomium_base_pavilion_footprint_discovery.json
+      - name: Upload evidence report
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-base-pavilion-footprint-discovery
+          path: |
+            /tmp/atomium_base_pavilion_footprint_discovery.json
+            /tmp/atomium_base_pavilion_footprint_discovery.log
+          if-no-files-found: error

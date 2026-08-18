@@ -19,16 +19,24 @@ func _run() -> void:
     if HARDENED.fire_preflight_reason(true, true, true) != &"":
         _fail("valid fire preflight should pass"); return
 
+    var low_flinch := HARDENED.weapon_flinch_angle_deg(5.0)
+    var medium_flinch := HARDENED.weapon_flinch_angle_deg(25.0)
+    var high_flinch := HARDENED.weapon_flinch_angle_deg(80.0)
+    if low_flinch < 3.49 or medium_flinch <= low_flinch or high_flinch < medium_flinch or high_flinch > 10.01:
+        _fail("weapon flinch must scale monotonically inside readable bounds"); return
+
     var source := FileAccess.get_file_as_string("res://game/scripts/player_combat_arsenal_hardened_runtime.gd")
     if source.find("_next_fire_ms = 0") < 0:
         _fail("weapon switch must reset inherited cadence gate"); return
     if source.find("func set_aiming") < 0:
         _fail("touch aiming needs a public arsenal API"); return
+    if source.find("IMPACT  -%d") < 0 or source.find("_animate_weapon_flinch") < 0:
+        _fail("weapon impacts need accurate damage feedback and visible flinch"); return
 
     var project_text := FileAccess.get_file_as_string("res://project.godot")
     var expected := "PlayerCombatArsenalRuntime=\"*res://game/scripts/player_combat_arsenal_hardened_runtime.gd\""
     if project_text.find(expected) < 0:
         _fail("project must autoload the hardened arsenal runtime"); return
 
-    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green")
+    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green")
     quit(0)

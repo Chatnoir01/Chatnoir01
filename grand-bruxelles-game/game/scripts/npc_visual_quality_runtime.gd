@@ -1,7 +1,7 @@
 extends Node
 
 const QUALITY_META := "npc_visual_quality_pass"
-const QUALITY_VERSION := "v2"
+const QUALITY_VERSION := "v3"
 const HUMANOID_VISUAL_SCRIPT := preload("res://game/scripts/humanoid_visual.gd")
 
 const POLICE_NAVY := Color(0.025, 0.055, 0.12, 1.0)
@@ -61,49 +61,52 @@ func polish_visual(visual: Node3D, police_hint: bool = false) -> void:
 	if visual == null or visual.get_meta(QUALITY_META, "") == QUALITY_VERSION:
 		return
 
-	# Keep the existing procedural mesh as the Web-safe fallback, but push it much
-	# closer to a human silhouette: smaller head/hands/feet, longer/slimmer limbs,
-	# narrower torso depth and less "toy" spacing between the body and extremities.
-	_scale_part(visual, &"Head", Vector3(0.78, 0.84, 0.82))
-	_scale_part(visual, &"Nose", Vector3(0.34, 0.50, 0.34))
-	_scale_part(visual, &"Neck", Vector3(0.82, 1.04, 0.82))
-	_scale_part(visual, &"LeftHand", Vector3(0.64, 0.72, 0.64))
-	_scale_part(visual, &"RightHand", Vector3(0.64, 0.72, 0.64))
-	_scale_part(visual, &"LeftShoe", Vector3(0.78, 0.84, 0.74))
-	_scale_part(visual, &"RightShoe", Vector3(0.78, 0.84, 0.74))
-	_scale_part(visual, &"LeftArm", Vector3(0.82, 1.05, 0.82))
-	_scale_part(visual, &"RightArm", Vector3(0.82, 1.05, 0.82))
-	_scale_part(visual, &"LeftLeg", Vector3(0.84, 1.08, 0.84))
-	_scale_part(visual, &"RightLeg", Vector3(0.84, 1.08, 0.84))
-	_scale_part(visual, &"Torso", Vector3(0.88, 1.07, 0.84))
-	_scale_part(visual, &"Hips", Vector3(0.88, 0.98, 0.86))
-	_scale_part(visual, &"OuterLayer", Vector3(0.91, 1.03, 0.88))
-	_scale_part(visual, &"HairCrown", Vector3(0.88, 0.86, 0.90))
-	_scale_part(visual, &"HairVolume", Vector3(0.88, 0.86, 0.90))
-	_scale_part(visual, &"HairBun", Vector3(0.84, 0.84, 0.84))
-	_scale_part(visual, &"Beanie", Vector3(0.90, 0.88, 0.90))
-	_scale_part(visual, &"CapCrown", Vector3(0.90, 0.88, 0.90))
-	_scale_part(visual, &"CapPeak", Vector3(0.82, 0.84, 0.80))
-	_scale_part(visual, &"RaisedHood", Vector3(0.91, 0.92, 0.91))
+	# The procedural generator uses generous half-extents that read as toy-like at
+	# player distance. These factors target a roughly 7-7.5-head human silhouette
+	# while retaining the lightweight mesh/variation system needed by Web builds.
+	_scale_part(visual, &"Head", Vector3(0.36, 0.40, 0.38))
+	_scale_part(visual, &"Nose", Vector3(0.42, 0.58, 0.42))
+	_scale_part(visual, &"Neck", Vector3(0.58, 0.96, 0.60))
+	_scale_part(visual, &"LeftHand", Vector3(0.50, 0.70, 0.50))
+	_scale_part(visual, &"RightHand", Vector3(0.50, 0.70, 0.50))
+	_scale_part(visual, &"LeftShoe", Vector3(0.72, 0.82, 0.72))
+	_scale_part(visual, &"RightShoe", Vector3(0.72, 0.82, 0.72))
+	_scale_part(visual, &"LeftArm", Vector3(0.52, 1.06, 0.54))
+	_scale_part(visual, &"RightArm", Vector3(0.52, 1.06, 0.54))
+	_scale_part(visual, &"LeftLeg", Vector3(0.62, 1.05, 0.64))
+	_scale_part(visual, &"RightLeg", Vector3(0.62, 1.05, 0.64))
+	_scale_part(visual, &"Torso", Vector3(0.68, 1.06, 0.76))
+	_scale_part(visual, &"Hips", Vector3(0.76, 0.98, 0.78))
+	_scale_part(visual, &"OuterLayer", Vector3(0.74, 1.02, 0.80))
+	_scale_part(visual, &"HairCrown", Vector3(0.40, 0.42, 0.42))
+	_scale_part(visual, &"HairVolume", Vector3(0.40, 0.42, 0.42))
+	_scale_part(visual, &"HairBun", Vector3(0.55, 0.55, 0.55))
+	_scale_part(visual, &"Beanie", Vector3(0.44, 0.50, 0.46))
+	_scale_part(visual, &"CapCrown", Vector3(0.44, 0.50, 0.46))
+	_scale_part(visual, &"CapPeak", Vector3(0.52, 0.64, 0.50))
+	_scale_part(visual, &"RaisedHood", Vector3(0.52, 0.54, 0.54))
 
-	_offset_part(visual, &"Head", Vector3(0.0, 0.035, 0.0))
-	_move_part_x_toward_center(visual, &"LeftArm", 0.94)
-	_move_part_x_toward_center(visual, &"RightArm", 0.94)
-	_move_part_x_toward_center(visual, &"LeftHand", 0.94)
-	_move_part_x_toward_center(visual, &"RightHand", 0.94)
-	_move_part_x_toward_center(visual, &"LeftLeg", 0.96)
-	_move_part_x_toward_center(visual, &"RightLeg", 0.96)
-	_move_part_x_toward_center(visual, &"LeftShoe", 0.96)
-	_move_part_x_toward_center(visual, &"RightShoe", 0.96)
-	_offset_part(visual, &"LeftShoe", Vector3(0.0, -0.015, 0.0))
-	_offset_part(visual, &"RightShoe", Vector3(0.0, -0.015, 0.0))
+	# Bring limbs back onto the torso/hip lines after narrowing the geometry.
+	_move_part_x_toward_center(visual, &"LeftArm", 0.76)
+	_move_part_x_toward_center(visual, &"RightArm", 0.76)
+	_move_part_x_toward_center(visual, &"LeftHand", 0.76)
+	_move_part_x_toward_center(visual, &"RightHand", 0.76)
+	_move_part_x_toward_center(visual, &"LeftLeg", 0.92)
+	_move_part_x_toward_center(visual, &"RightLeg", 0.92)
+	_move_part_x_toward_center(visual, &"LeftShoe", 0.92)
+	_move_part_x_toward_center(visual, &"RightShoe", 0.92)
+	_offset_part(visual, &"Beanie", Vector3(0.0, -0.075, 0.0))
+	_offset_part(visual, &"CapCrown", Vector3(0.0, -0.075, 0.0))
+	_offset_part(visual, &"CapPeak", Vector3(0.0, -0.075, 0.06))
+	_offset_part(visual, &"LeftShoe", Vector3(0.0, -0.012, 0.0))
+	_offset_part(visual, &"RightShoe", Vector3(0.0, -0.012, 0.0))
 
 	var police := police_hint or visual.get_node_or_null("HiVisVest") != null or visual.get_node_or_null("UniformPoliceLabel") != null
 	if police:
 		_polish_police(visual)
 
 	visual.set_meta(QUALITY_META, QUALITY_VERSION)
-	visual.set_meta("npc_visual_quality_silhouette", "human-proportioned-v2")
+	visual.set_meta("npc_visual_quality_silhouette", "human-proportioned-v3")
 
 
 func _scale_part(root: Node3D, child_name: StringName, multiplier: Vector3) -> void:
@@ -138,11 +141,13 @@ func _polish_police(visual: Node3D) -> void:
 
 	var vest := visual.get_node_or_null("HiVisVest") as MeshInstance3D
 	if vest != null:
-		vest.scale = Vector3(vest.scale.x * 0.86, vest.scale.y * 0.90, vest.scale.z * 0.76)
+		vest.scale = Vector3(vest.scale.x * 0.70, vest.scale.y * 0.96, vest.scale.z * 0.72)
 		vest.material_override = _material(POLICE_NAVY, 0.88)
 
-	_scale_part(visual, &"PoliceCap", Vector3(0.86, 0.86, 0.86))
-	_scale_part(visual, &"PoliceCapPeak", Vector3(0.74, 0.78, 0.72))
+	_scale_part(visual, &"PoliceCap", Vector3(0.46, 0.62, 0.48))
+	_scale_part(visual, &"PoliceCapPeak", Vector3(0.55, 0.70, 0.50))
+	_offset_part(visual, &"PoliceCap", Vector3(0.0, -0.10, 0.0))
+	_offset_part(visual, &"PoliceCapPeak", Vector3(0.0, -0.10, 0.10))
 
 	if visual.get_node_or_null("PoliceQualityDetails") != null:
 		return
@@ -155,25 +160,25 @@ func _polish_police(visual: Node3D) -> void:
 	var dark := _material(POLICE_DARK, 0.92)
 	var navy := _material(POLICE_NAVY.lightened(0.08), 0.90)
 	var chest_y := 0.31
-	var chest_z := -0.16
+	var chest_z := -0.14
 	if vest != null:
 		chest_y = vest.position.y
-		chest_z = vest.position.z - 0.15
+		chest_z = vest.position.z - 0.13
 
-	_add_box(details, &"ReflectiveBandUpper", Vector3(0.44, 0.028, 0.022), Vector3(0.0, chest_y + 0.070, chest_z), reflective)
-	_add_box(details, &"ReflectiveBandLower", Vector3(0.40, 0.026, 0.022), Vector3(0.0, chest_y - 0.075, chest_z), reflective)
-	_add_box(details, &"ShoulderPatchLeft", Vector3(0.085, 0.035, 0.055), Vector3(-0.20, chest_y + 0.23, -0.08), navy)
-	_add_box(details, &"ShoulderPatchRight", Vector3(0.085, 0.035, 0.055), Vector3(0.20, chest_y + 0.23, -0.08), navy)
-	_add_box(details, &"BodyCamera", Vector3(0.060, 0.085, 0.030), Vector3(0.075, chest_y + 0.095, chest_z - 0.02), dark)
-	_add_box(details, &"Radio", Vector3(0.055, 0.115, 0.035), Vector3(-0.15, chest_y + 0.080, chest_z - 0.015), dark)
+	_add_box(details, &"ReflectiveBandUpper", Vector3(0.36, 0.024, 0.018), Vector3(0.0, chest_y + 0.065, chest_z), reflective)
+	_add_box(details, &"ReflectiveBandLower", Vector3(0.34, 0.022, 0.018), Vector3(0.0, chest_y - 0.070, chest_z), reflective)
+	_add_box(details, &"ShoulderPatchLeft", Vector3(0.065, 0.030, 0.045), Vector3(-0.16, chest_y + 0.21, -0.06), navy)
+	_add_box(details, &"ShoulderPatchRight", Vector3(0.065, 0.030, 0.045), Vector3(0.16, chest_y + 0.21, -0.06), navy)
+	_add_box(details, &"BodyCamera", Vector3(0.052, 0.072, 0.026), Vector3(0.060, chest_y + 0.090, chest_z - 0.02), dark)
+	_add_box(details, &"Radio", Vector3(0.048, 0.095, 0.030), Vector3(-0.12, chest_y + 0.075, chest_z - 0.015), dark)
 
 	var hips := visual.get_node_or_null("Hips") as Node3D
 	var belt_y := -0.08
 	if hips != null:
-		belt_y = hips.position.y + 0.045
-	_add_box(details, &"DutyBelt", Vector3(0.39, 0.045, 0.17), Vector3(0.0, belt_y, -0.005), dark)
-	_add_box(details, &"BeltPouchLeft", Vector3(0.070, 0.090, 0.055), Vector3(-0.15, belt_y - 0.045, -0.095), dark)
-	_add_box(details, &"BeltPouchRight", Vector3(0.070, 0.090, 0.055), Vector3(0.15, belt_y - 0.045, -0.095), dark)
+		belt_y = hips.position.y + 0.040
+	_add_box(details, &"DutyBelt", Vector3(0.33, 0.038, 0.14), Vector3(0.0, belt_y, -0.005), dark)
+	_add_box(details, &"BeltPouchLeft", Vector3(0.058, 0.075, 0.045), Vector3(-0.125, belt_y - 0.038, -0.080), dark)
+	_add_box(details, &"BeltPouchRight", Vector3(0.058, 0.075, 0.045), Vector3(0.125, belt_y - 0.038, -0.080), dark)
 
 
 func _add_box(parent: Node3D, part_name: StringName, size: Vector3, position: Vector3, material: Material) -> MeshInstance3D:

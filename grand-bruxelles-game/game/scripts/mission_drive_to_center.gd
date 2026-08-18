@@ -8,7 +8,7 @@ signal mission_completed(reward_cents: int)
 @export var completion_reward_cents: int = 35000
 
 @onready var player: CharacterBody3D = get_node("../Player")
-@onready var car: CharacterBody3D = get_node("../PrototypeCar")
+@onready var car: Node3D = get_node("../PhysicalCarB")
 @onready var mission_label: Label = get_node("../MissionLabel")
 
 var _stage: int = 0
@@ -22,6 +22,8 @@ var _car_spawn_transform: Transform3D
 
 const MISSION_ID: String = "midi_to_centre_01"
 const STATE_SCHEMA_VERSION: int = 1
+const PRIMARY_VEHICLE_NODE := "PhysicalCarB"
+const PRIMARY_VEHICLE_LABEL := "B · PHYSIQUE 60 HZ"
 
 const CHECKPOINTS: Array[Dictionary] = [
     {
@@ -83,8 +85,8 @@ func _physics_process(delta: float) -> void:
 
     if not bool(car.call("has_driver")):
         mission_label.text = (
-            "MISSION 01 · MIDI → CENTRE · %s\nRemonte dans la voiture · E" %
-            _format_time(_time_remaining)
+            "MISSION 01 · MIDI → CENTRE · %s\nRemonte dans la voiture %s · E" %
+            [_format_time(_time_remaining), PRIMARY_VEHICLE_LABEL]
         )
         return
 
@@ -115,8 +117,8 @@ func _update_ui() -> void:
 
     if _stage == 0:
         mission_label.text = (
-            "MISSION 01 · MIDI → CENTRE · %s\nMonte dans la voiture · E" %
-            _format_time(time_limit_seconds)
+            "MISSION 01 · MIDI → CENTRE · %s\nMonte dans la voiture %s · E" %
+            [_format_time(time_limit_seconds), PRIMARY_VEHICLE_LABEL]
         )
         _marker.visible = false
         return
@@ -151,14 +153,28 @@ func _fail_mission() -> void:
     _update_ui()
 
 
+func _reset_primary_vehicle() -> void:
+    car.global_transform = _car_spawn_transform
+    if car is RigidBody3D:
+        var rigid := car as RigidBody3D
+        rigid.linear_velocity = Vector3.ZERO
+        rigid.angular_velocity = Vector3.ZERO
+        rigid.sleeping = false
+    elif car is CharacterBody3D:
+        var character := car as CharacterBody3D
+        character.velocity = Vector3.ZERO
+        if "speed" in character:
+            character.set("speed", 0.0)
+    if car.has_method("clear_control_override"):
+        car.call("clear_control_override")
+
+
 func restart_mission() -> void:
     if bool(car.call("has_driver")):
         car.call("exit_driver")
     player.global_transform = _player_spawn_transform
     player.velocity = Vector3.ZERO
-    car.global_transform = _car_spawn_transform
-    car.velocity = Vector3.ZERO
-    car.set("speed", 0.0)
+    _reset_primary_vehicle()
     _stage = 0
     _failed = false
     _reward_claimed = false
@@ -253,3 +269,7 @@ func get_time_remaining() -> float:
 
 func is_failed() -> bool:
     return _failed
+
+
+func primary_vehicle_node_name() -> String:
+    return PRIMARY_VEHICLE_NODE

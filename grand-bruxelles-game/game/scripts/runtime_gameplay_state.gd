@@ -3,12 +3,21 @@ extends Node
 const STATE_SCHEMA_VERSION := 1
 const MAX_WORLD_COORDINATE := 10000.0
 const MAX_LINEAR_VELOCITY := 250.0
+const MAX_ANGULAR_VELOCITY := 40.0
 
 @onready var mission: Node = get_node("../MissionDriveToCenter")
 @onready var return_mission: Node = get_node("../MissionReturnToBourse")
 @onready var player: CharacterBody3D = get_node("../Player")
-@onready var vehicle: CharacterBody3D = get_node("../PrototypeCar")
+@onready var vehicle: Node3D = _resolve_primary_vehicle()
 @onready var wallet: Node = get_node("../Wallet")
+
+
+func _resolve_primary_vehicle() -> Node3D:
+    var mission_node: Node = get_node("../MissionDriveToCenter")
+    var vehicle_name := "PrototypeCar"
+    if mission_node.has_method("primary_vehicle_node_name"):
+        vehicle_name = str(mission_node.call("primary_vehicle_node_name"))
+    return get_node("../%s" % vehicle_name) as Node3D
 
 
 func export_state() -> Dictionary:
@@ -23,8 +32,9 @@ func export_state() -> Dictionary:
         "vehicle": {
             "position": _vector_to_array(vehicle.global_position),
             "rotation": _vector_to_array(vehicle.rotation),
-            "velocity": _vector_to_array(vehicle.velocity),
-            "speed": float(vehicle.get("speed")),
+            "velocity": _vector_to_array(_vehicle_linear_velocity()),
+            "angular_velocity": _vector_to_array(_vehicle_angular_velocity()),
+            "speed": _vehicle_scalar_speed(),
             "driver_active": bool(vehicle.call("has_driver")),
         },
         "wallet": wallet.call("export_state"),
@@ -72,6 +82,8 @@ func can_restore_state(state: Dictionary) -> bool:
         return false
     if not _valid_vector(vehicle_data.get("velocity"), MAX_LINEAR_VELOCITY):
         return false
+    if vehicle_data.has("angular_velocity") and not _valid_vector(vehicle_data.get("angular_velocity"), MAX_ANGULAR_VELOCITY):
+        return false
     if not vehicle_data.get("driver_active") is bool:
         return false
 
@@ -79,7 +91,7 @@ func can_restore_state(state: Dictionary) -> bool:
     if not _valid_number(speed_value):
         return false
     var speed := float(speed_value)
-    if absf(speed) > maxf(float(vehicle.get("max_forward_speed")), float(vehicle.get("max_reverse_speed"))) + 1.0:
+    if absf(speed) > _vehicle_speed_limit() + 1.0:
         return false
     return true
 
@@ -104,8 +116,12 @@ func _apply_state(state: Dictionary) -> bool:
 
     vehicle.global_position = _array_to_vector(vehicle_state["position"])
     vehicle.rotation = _array_to_vector(vehicle_state["rotation"])
-    vehicle.velocity = _array_to_vector(vehicle_state["velocity"])
-    vehicle.set("speed", float(vehicle_state["speed"]))
+    var restored_velocity := _array_to_vector(vehicle_state["velocity"])
+    var restored_angular_velocity := Vector3.ZERO
+    if vehicle_state.has("angular_velocity"):
+        restored_angular_velocity = _array_to_vector(vehicle_state["angular_velocity"])
+    var restored_speed := float(vehicle_state["speed"])
+    _set_vehicle_motion(restored_velocity, restored_angular_velocity, restored_speed)
 
     player.global_position = _array_to_vector(player_state["position"])
     player.rotation = _array_to_vector(player_state["rotation"])
@@ -114,8 +130,9 @@ func _apply_state(state: Dictionary) -> bool:
     var driver_active: bool = bool(vehicle_state["driver_active"])
     if driver_active:
         vehicle.call("enter_driver", player)
-        vehicle.velocity = _array_to_vector(vehicle_state["velocity"])
-        vehicle.set("speed", float(vehicle_state["speed"]))
+        # Both vehicle controllers intentionally zero their motion on enter.
+        # Reapply the saved physical state after restoring driver ownership.
+        _set_vehicle_motion(restored_velocity, restored_angular_velocity, restored_speed)
     else:
         player.call("set_vehicle_mode", false)
 
@@ -129,6 +146,46 @@ func _apply_state(state: Dictionary) -> bool:
     else:
         return_mission.call("restore_legacy_state", int(mission_state["stage"]) == int(mission_state["stage_count"]))
     return wallet_restored and mission_restored and return_restored
+
+
+func _vehicle_linear_velocity() -> Vector3:
+    if vehicle is RigidBody3D:
+        return (vehicle as RigidBody3D).linear_velocity
+    if vehicle is CharacterBody3D:
+        return (vehicle as CharacterBody3D).velocity
+    return Vector3.ZERO
+
+
+func _vehicle_angular_velocity() -> Vector3:
+    if vehicle is RigidBody3D:
+        return (vehicle as RigidBody3D).angular_velocity
+    return Vector3.ZERO
+
+
+func _vehicle_scalar_speed() -> float:
+    if vehicle.has_method("forward_speed_ms"):
+        return float(vehicle.call("forward_speed_ms"))
+    if vehicle is CharacterBody3D:
+        return float(vehicle.get("speed"))
+    return _vehicle_linear_velocity().length()
+
+
+func _vehicle_speed_limit() -> float:
+    if vehicle is CharacterBody3D:
+        return maxf(float(vehicle.get("max_forward_speed")), float(vehicle.get("max_reverse_speed")))
+    return MAX_LINEAR_VELOCITY
+
+
+func _set_vehicle_motion(linear: Vector3, angular: Vector3, scalar_speed: float) -> void:
+    if vehicle is RigidBody3D:
+        var rigid := vehicle as RigidBody3D
+        rigid.linear_velocity = linear
+        rigid.angular_velocity = angular
+        rigid.sleeping = false
+    elif vehicle is CharacterBody3D:
+        var character := vehicle as CharacterBody3D
+        character.velocity = linear
+        character.set("speed", scalar_speed)
 
 
 func _valid_vector(value: Variant, absolute_limit: float) -> bool:

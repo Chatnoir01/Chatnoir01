@@ -2,21 +2,38 @@ extends SceneTree
 
 const AUTOSAVE_PATH := "user://grand_bruxelles_reward_autosave_test.json"
 const CHECKPOINTS: Array[Vector3] = [
-    Vector3(-272.04, 0.08, -217.07),
-    Vector3(81.54, 0.08, -664.58),
-    Vector3(319.01, 0.08, -535.20),
+    Vector3(-272.04, 0.0, -217.07),
+    Vector3(81.54, 0.0, -664.58),
+    Vector3(319.01, 0.0, -535.20),
 ]
-
 
 func _initialize() -> void:
     call_deferred("_run")
-
 
 func _fail(message: String) -> void:
     push_error("MISSION_REWARD_WALLET_FAIL: %s" % message)
     _cleanup()
     quit(1)
 
+func _primary_vehicle(scene: Node, mission: Node) -> Node3D:
+    var vehicle_name := "PrototypeCar"
+    if mission.has_method("primary_vehicle_node_name"):
+        vehicle_name = str(mission.call("primary_vehicle_node_name"))
+    return scene.get_node_or_null(vehicle_name) as Node3D
+
+func _set_vehicle_motion(vehicle: Node3D, linear: Vector3, angular: Vector3 = Vector3.ZERO, scalar_speed: float = 0.0) -> void:
+    if vehicle is RigidBody3D:
+        var rigid := vehicle as RigidBody3D
+        rigid.linear_velocity = linear
+        rigid.angular_velocity = angular
+    elif vehicle is CharacterBody3D:
+        var character := vehicle as CharacterBody3D
+        character.velocity = linear
+        character.set("speed", scalar_speed)
+
+func _move_vehicle_xz(vehicle: Node3D, target: Vector3) -> void:
+    vehicle.global_position = Vector3(target.x, vehicle.global_position.y, target.z)
+    _set_vehicle_motion(vehicle, Vector3.ZERO)
 
 func _run() -> void:
     _cleanup()
@@ -36,7 +53,10 @@ func _run() -> void:
     var wallet_label: Label = scene.get_node("WalletLabel")
     var mission_label: Label = scene.get_node("MissionLabel")
     var player: CharacterBody3D = scene.get_node("Player")
-    var vehicle: CharacterBody3D = scene.get_node("PrototypeCar")
+    var vehicle: Node3D = _primary_vehicle(scene, mission)
+    if vehicle == null:
+        _fail("mission primary vehicle missing")
+        return
     if int(wallet.call("get_cash_cents")) != 0 or wallet_label.text != "0 €":
         _fail("wallet did not start empty")
         return
@@ -44,9 +64,7 @@ func _run() -> void:
     vehicle.call("enter_driver", player)
     await physics_frame
     for checkpoint: Vector3 in CHECKPOINTS:
-        vehicle.global_position = checkpoint
-        vehicle.velocity = Vector3.ZERO
-        vehicle.set("speed", 0.0)
+        _move_vehicle_xz(vehicle, checkpoint)
         await physics_frame
         await process_frame
 
@@ -79,11 +97,8 @@ func _run() -> void:
     legacy_runtime.erase("wallet")
     wallet.call("reset")
     wallet.call("credit", 12500)
-    if not bool(runtime.call("can_restore_state", legacy_runtime)):
+    if not bool(runtime.call("can_restore_state", legacy_runtime)) or not bool(runtime.call("restore_state", legacy_runtime)):
         _fail("pre-wallet runtime save is not backward compatible")
-        return
-    if not bool(runtime.call("restore_state", legacy_runtime)):
-        _fail("pre-wallet runtime save could not load")
         return
     if int(wallet.call("get_cash_cents")) != 12500:
         _fail("pre-wallet runtime save overwrote current cash")
@@ -101,11 +116,8 @@ func _run() -> void:
     var invalid_state := completed_state.duplicate(true)
     invalid_state["wallet"]["cash_cents"] = -1
     var cash_before_rejection := int(wallet.call("get_cash_cents"))
-    if bool(runtime.call("can_restore_state", invalid_state)):
-        _fail("negative wallet passed restore precheck")
-        return
-    if bool(runtime.call("restore_state", invalid_state)):
-        _fail("negative wallet state was restored")
+    if bool(runtime.call("can_restore_state", invalid_state)) or bool(runtime.call("restore_state", invalid_state)):
+        _fail("negative wallet state was accepted")
         return
     if int(wallet.call("get_cash_cents")) != cash_before_rejection:
         _fail("rejected wallet state mutated live cash")
@@ -114,9 +126,8 @@ func _run() -> void:
     scene.queue_free()
     await process_frame
     _cleanup()
-    print("MISSION_REWARD_WALLET_OK")
+    print("MISSION_REWARD_WALLET_OK: reward flow follows mission primary vehicle at physical ride height")
     quit(0)
-
 
 func _cleanup() -> void:
     var absolute := ProjectSettings.globalize_path(AUTOSAVE_PATH)

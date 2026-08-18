@@ -17,7 +17,7 @@ const BOURSE := Vector3(81.54, 0.08, -664.58)
 
 @onready var primary_mission: Node = get_node("../MissionDriveToCenter")
 @onready var player: CharacterBody3D = get_node("../Player")
-@onready var car: CharacterBody3D = get_node("../PrototypeCar")
+@onready var car: Node3D = _resolve_primary_vehicle()
 @onready var mission_label: Label = get_node("../MissionLabel")
 
 var _state := LOCKED
@@ -25,6 +25,14 @@ var _reward_claimed := false
 var _offer_delay_remaining := 0.0
 var _marker: CSGCylinder3D
 var _marker_material: StandardMaterial3D
+
+
+func _resolve_primary_vehicle() -> Node3D:
+    var vehicle_name := "PrototypeCar"
+    var primary := get_node("../MissionDriveToCenter")
+    if primary.has_method("primary_vehicle_node_name"):
+        vehicle_name = str(primary.call("primary_vehicle_node_name"))
+    return get_node("../%s" % vehicle_name) as Node3D
 
 
 func _ready() -> void:

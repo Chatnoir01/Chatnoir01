@@ -183,11 +183,14 @@ func _build_street_surfaces(features: Array) -> int:
         if _append_flat_polygon(target, polygon, 0.075):
             count += 1
 
-    _commit_tool(road_tool, "ExactRoadCarriageways", root)
-    _commit_tool(sidewalk_tool, "ExactSidewalks", root)
-    _commit_tool(island_tool, "ExactTrafficIslands", root)
-    _commit_tool(paved_tool, "ExactPavedAreas", root)
-    _commit_tool(other_tool, "ExactOtherStreetSurfaces", root)
+    # Reuse the exact official rendered triangles as static collision. This
+    # changes no polygon, level or placement; it only makes the existing
+    # street-level UrbIS surfaces physically support the player.
+    _commit_tool(road_tool, "ExactRoadCarriageways", root, true)
+    _commit_tool(sidewalk_tool, "ExactSidewalks", root, true)
+    _commit_tool(island_tool, "ExactTrafficIslands", root, true)
+    _commit_tool(paved_tool, "ExactPavedAreas", root, true)
+    _commit_tool(other_tool, "ExactOtherStreetSurfaces", root, true)
     return count
 
 

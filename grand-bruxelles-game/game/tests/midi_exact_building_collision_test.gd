@@ -11,6 +11,25 @@ func _fail(message: String) -> void:
     push_error("MIDI_EXACT_BUILDING_COLLISION_FAIL: %s" % message)
     quit(1)
 
+func _remove_non_building_surface_colliders(builder: Node3D) -> int:
+    # This probe owns only the exact-building wall contract. Official Midi
+    # street-surface colliders have their own dedicated production-scene gate.
+    # Remove them only from this isolated stress harness so 3,600 wall-pressure
+    # queries exercise the building wall exactly as they did before floor
+    # collision shipped. Production collision nodes are never changed.
+    var surfaces := builder.get_node_or_null("UrbISStreetSurfaces")
+    if surfaces == null:
+        return 0
+    var removed := 0
+    for mesh_node: Node in surfaces.get_children():
+        if mesh_node is not MeshInstance3D:
+            continue
+        for nested: Node in mesh_node.get_children():
+            if nested is StaticBody3D:
+                nested.queue_free()
+                removed += 1
+    return removed
+
 func _run() -> void:
     var builder: Node3D = BUILDER.new()
     builder.name = "MidiCollisionProbe"
@@ -60,6 +79,10 @@ func _run() -> void:
     if static_body_count != mesh_count:
         _fail("expected one valid static collision per exact building mesh batch")
         return
+
+    var removed_surface_bodies := _remove_non_building_surface_colliders(builder)
+    await process_frame
+    await physics_frame
 
     var arrays := first_mesh.mesh.surface_get_arrays(0)
     var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -125,6 +148,6 @@ func _run() -> void:
         _fail("player capsule did not remain in sustained wall contact: %d/%d collision frames" % [collision_frames, total_steps])
         return
 
-    print("MIDI_EXACT_BUILDING_COLLISION_OK: %d exact mesh batches solid; forced wall contact blocked; 60s-equivalent capsule pressure held (min distance %.3fm)" % [mesh_count, minimum_wall_distance])
+    print("MIDI_EXACT_BUILDING_COLLISION_OK: %d exact mesh batches solid; forced wall contact blocked; 60s-equivalent capsule pressure held (min distance %.3fm); isolated_surface_bodies=%d" % [mesh_count, minimum_wall_distance, removed_surface_bodies])
     builder.queue_free()
     quit(0)

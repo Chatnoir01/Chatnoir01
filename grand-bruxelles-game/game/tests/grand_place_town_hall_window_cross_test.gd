@@ -50,7 +50,7 @@ func _run() -> void:
     if str(truth.get("dimensions_source", "")) != "visualization_convention_not_survey_dimensions":
         _fail("dimension truth boundary drift")
         return
-    if bool(truth.get("west_special_ordination_deferred", false)) is not true:
+    if not bool(truth.get("west_special_ordination_deferred", false)):
         _fail("west-wing exceptions must stay fail-closed")
         return
     if bool(truth.get("dimensions_claimed_surveyed", true)):

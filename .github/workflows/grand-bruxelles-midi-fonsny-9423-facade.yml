@@ -1,0 +1,85 @@
+name: Grand Bruxelles Midi Fonsny Urban 9423 Facade
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-fonsny-9423-facade.yml"
+      - "grand-bruxelles-game/data/runtime/modules/midi_fonsny_9423_facade_identity.json"
+      - "grand-bruxelles-game/data/visual/midi_fonsny_9423_facade_identity.json"
+      - "grand-bruxelles-game/game/scripts/midi_fonsny_9423_facade_identity_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/midi_hero_zone.gd"
+      - "grand-bruxelles-game/game/tests/midi_fonsny_9423_facade_identity_witness_test.gd"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source, registry and no-massing contract
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          root=pathlib.Path('grand-bruxelles-game')
+          descriptor=json.loads((root/'data/runtime/modules/midi_fonsny_9423_facade_identity.json').read_text())
+          assert descriptor == {
+            'schema':'grand-bruxelles-runtime-module-v1',
+            'enabled':True,
+            'name':'MidiFonsny9423FacadeIdentityRuntime',
+            'path':'res://game/scripts/midi_fonsny_9423_facade_identity_runtime.gd'
+          }
+          contract=json.loads((root/'data/visual/midi_fonsny_9423_facade_identity.json').read_text())
+          assert contract['source']['urban_id'] == 9423
+          assert 'monument.heritage.brussels' in contract['source']['url']
+          facts=' '.join(contract['source']['facts_used']).lower()
+          for token in ['aluminium','sunshade','seven levels','concrete grid','bowed glass-block wall']:
+            assert token in facts, token
+          hard=contract['hard_invariants']
+          for key in ['urbis_plan_geometry_changed','building_height_changed','floor_count_changed','collision_changed','new_window_openings_authored','survey_coordinates_claimed','realism_complete']:
+            assert hard[key] is False, key
+          hero=(root/'game/scripts/midi_hero_zone.gd').read_text()
+          for token in ['FonsnyWingSouth','FonsnyCentral','FonsnyWingNorth','VerticalGlassTowerFrame','VerticalGlassTower']:
+            assert token in hero, token
+          runtime=(root/'game/scripts/midi_fonsny_9423_facade_identity_runtime.gd').read_text()
+          assert 'WINDOW_PREFIX := "Window_"' in runtime
+          assert 'LATERAL_BAY_FRACTION := 0.32' in runtime
+          assert 'BOW_SEGMENTS := 7' in runtime
+          assert 'collision_count_added()' in runtime
+          print('MIDI_FONSNY_9423_FACADE_CONTRACT_OK')
+          PY
+  visual:
+    needs: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-9423-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/midi-9423-import.log; then exit 1; fi
+      - name: Locked 1280x720 broad Fonsny A/B
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --path grand-bruxelles-game --script res://game/tests/midi_fonsny_9423_facade_identity_witness_test.gd 2>&1 | tee /tmp/midi-fonsny-9423-facade.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_FONSNY_9423_FACADE_FAIL" /tmp/midi-fonsny-9423-facade.log; then exit 1; fi
+          grep -F "MIDI_FONSNY_9423_FACADE_OK" /tmp/midi-fonsny-9423-facade.log
+      - name: Upload full-frame evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-fonsny-9423-facade-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/midi_fonsny_9423_facade_before.png
+            grand-bruxelles-game/artifacts/visual/midi_fonsny_9423_facade_after.png
+            grand-bruxelles-game/artifacts/visual/midi_fonsny_9423_facade_metrics.json
+            /tmp/midi-fonsny-9423-facade.log
+          if-no-files-found: warn

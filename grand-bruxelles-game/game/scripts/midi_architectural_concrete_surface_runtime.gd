@@ -1,6 +1,7 @@
 extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_architectural_concrete_material.gd")
+const FONSNY_PORCH_RUNTIME := preload("res://game/scripts/midi_fonsny_heritage_porch_runtime.gd")
 const IDENTITY_PATH := "res://data/visual/midi_architectural_concrete_material_identity.json"
 const EXACT_NAMES := ["VerticalGlassTowerFrame", "EntranceConcreteCanopy"]
 const PREFIXES := ["HorizontalBand_", "VerticalMullion_"]
@@ -12,8 +13,15 @@ var _ready_complete := false
 var _identity_failure := false
 var _enabled := false
 var _identity: Dictionary = {}
+var _fonsny_porch_runtime: Node
 
 func _ready() -> void:
+    # Reuse an already-shipped Midi-only visual autoload as the mount point so
+    # this lot does not touch shared project autoload registration owned by
+    # unrelated Environment work. The material contract below remains unchanged.
+    _fonsny_porch_runtime = FONSNY_PORCH_RUNTIME.new()
+    _fonsny_porch_runtime.name = "MidiFonsnyHeritagePorchRuntime"
+    add_child(_fonsny_porch_runtime)
     call_deferred("_apply_when_ready")
 
 func _apply_when_ready() -> void:
@@ -111,3 +119,6 @@ func applied_surface_count() -> int:
 
 func enhanced_material() -> ShaderMaterial:
     return _material
+
+func fonsny_porch_runtime() -> Node:
+    return _fonsny_porch_runtime

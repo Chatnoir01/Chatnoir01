@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Evidence-only screen-space audit for official UrbIS building 1639974.
 
-No runtime or rendering. Projects every official WALLSURFACE vertex through the
-canonical merged #711/#753 player camera and computes an optimistic union bbox.
-Because the union includes every wall regardless of real occlusion/backface, it is
-an upper bound for any same-building wall subset at that camera.
+Projects every official WALLSURFACE vertex through the canonical merged #711/#753
+player camera. The all-wall union deliberately ignores occlusion/backface and is
+therefore an optimistic upper bound for any same-building wall subset.
 """
 
 from __future__ import annotations
@@ -21,7 +20,12 @@ BUILDING_PATH = ROOT / "data" / "urbis" / "grand_place_lod2" / "1639974.game.jso
 CAMERA_PATH = ROOT / "data" / "qa" / "grand_place_clean_player_witness.json"
 OUTPUT_PATH = ROOT / "artifacts" / "qa" / "brasseurs_full_building_projection.json"
 
-EXPECTED_BUILDING_SHA256 = "7d5927902e43d74b62120436a4f928c56f33185c40428ff4c18aa15fa51b56e1"
+# Binary SHA belongs to the immutable source artifact extracted in #684. The
+# committed JSON snapshot may serialize whitespace differently, so its geometry
+# is verified with a canonical semantic JSON SHA instead of pretending its bytes
+# must equal the artifact ZIP member.
+SOURCE_ARTIFACT_BINARY_SHA256 = "7d5927902e43d74b62120436a4f928c56f33185c40428ff4c18aa15fa51b56e1"
+EXPECTED_CANONICAL_JSON_SHA256 = "9969e6e2f0e02cb58d9f89e27454e09cca15e75ea52f5724c773df5929a90dad"
 EXPECTED_PACKAGE_SHA256 = "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
 TARGET_FACE_ID = "10945501"
 FROZEN_WIDTH_GATE_PX = 300
@@ -38,10 +42,6 @@ def v3(raw: object) -> tuple[float, float, float]:
     if not isinstance(raw, list) or len(raw) != 3:
         fail(f"invalid vec3: {raw!r}")
     return float(raw[0]), float(raw[1]), float(raw[2])
-
-
-def add(a, b):
-    return tuple(x + y for x, y in zip(a, b))
 
 
 def sub(a, b):
@@ -64,12 +64,8 @@ def cross(a, b):
     )
 
 
-def norm(a) -> float:
-    return math.sqrt(dot(a, a))
-
-
 def normalized(a):
-    length = norm(a)
+    length = math.sqrt(dot(a, a))
     if length <= 1e-12:
         fail("zero-length camera basis vector")
     return mul(a, 1.0 / length)
@@ -80,8 +76,7 @@ def short_face_id(face: dict) -> str:
 
 
 def quantized_vertex(raw: object) -> tuple[int, int, int]:
-    p = v3(raw)
-    return tuple(round(value * 10000.0) for value in p)
+    return tuple(round(value * 10000.0) for value in v3(raw))
 
 
 def unique_face_vertices(face: dict) -> set[tuple[int, int, int]]:
@@ -117,13 +112,16 @@ def main() -> None:
         fail("required building/camera source missing")
 
     building_bytes = BUILDING_PATH.read_bytes()
-    building_sha = hashlib.sha256(building_bytes).hexdigest()
-    if building_sha != EXPECTED_BUILDING_SHA256:
-        fail(f"official building SHA drifted: {building_sha}")
-
+    committed_bytes_sha = hashlib.sha256(building_bytes).hexdigest()
     building = json.loads(building_bytes)
-    camera = json.loads(CAMERA_PATH.read_text(encoding="utf-8"))
+    canonical_bytes = json.dumps(
+        building, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    canonical_sha = hashlib.sha256(canonical_bytes).hexdigest()
+    if canonical_sha != EXPECTED_CANONICAL_JSON_SHA256:
+        fail(f"official building semantic JSON drifted: {canonical_sha}")
 
+    camera = json.loads(CAMERA_PATH.read_text(encoding="utf-8"))
     if building.get("schema") != "grand-bruxelles-urbis-context-mesh-v1":
         fail("building schema drifted")
     source = building.get("source", {})
@@ -139,7 +137,7 @@ def main() -> None:
 
     if camera.get("schema") != "grand-bruxelles-grand-place-clean-player-witness-v1" or camera.get("source_pr") != 711:
         fail("canonical camera contract identity drifted")
-    width, height = [int(v) for v in camera.get("resolution", [])]
+    width, height = [int(value) for value in camera.get("resolution", [])]
     if (width, height) != (1280, 720):
         fail("canonical camera resolution drifted")
     camera_position = v3(camera.get("camera_position"))
@@ -149,8 +147,7 @@ def main() -> None:
         fail("canonical #711/#753 camera values drifted")
 
     forward = normalized(sub(camera_target, camera_position))
-    world_up = (0.0, 1.0, 0.0)
-    right = normalized(cross(forward, world_up))
+    right = normalized(cross(forward, (0.0, 1.0, 0.0)))
     corrected_up = normalized(cross(right, forward))
     tan_v = math.tan(math.radians(fov_deg * 0.5))
     tan_h = tan_v * (width / height)
@@ -163,10 +160,8 @@ def main() -> None:
             fail(f"official point behind canonical camera: {point}")
         local_x = dot(delta, right)
         local_y = dot(delta, corrected_up)
-        ndc_x = local_x / (depth * tan_h)
-        ndc_y = local_y / (depth * tan_v)
-        px = (ndc_x + 1.0) * width * 0.5
-        py = (1.0 - ndc_y) * height * 0.5
+        px = (local_x / (depth * tan_h) + 1.0) * width * 0.5
+        py = (1.0 - local_y / (depth * tan_v)) * height * 0.5
         return px, py, depth
 
     wall_faces = [face for face in building.get("faces", []) if face.get("type") == "WALLSURFACE"]
@@ -198,8 +193,8 @@ def main() -> None:
             }
         )
 
-    # Edge-connected wall adjacency: require >=2 shared source vertices so a mere
-    # corner touch does not count as one coherent wall edge.
+    # Require a shared source edge (>=2 exact vertices); corner-only contact does
+    # not count as one coherent wall edge.
     adjacency: dict[str, list[str]] = defaultdict(list)
     ids = sorted(face_vertices)
     for index, left_id in enumerate(ids):
@@ -232,10 +227,10 @@ def main() -> None:
         fail(f"projection does not reproduce #755 height: {target_box['height_px']:.3f}px")
 
     union_box = bbox(all_projected)
-    max_same_building_width = union_box["width_px"]
-    max_same_building_height = union_box["height_px"]
-    can_meet_width_gate = max_same_building_width >= FROZEN_WIDTH_GATE_PX
-    can_meet_height_gate = max_same_building_height >= FROZEN_HEIGHT_GATE_PX
+    max_width = union_box["width_px"]
+    max_height = union_box["height_px"]
+    can_meet_width = max_width >= FROZEN_WIDTH_GATE_PX
+    can_meet_height = max_height >= FROZEN_HEIGHT_GATE_PX
 
     result = {
         "schema": "grand-bruxelles-brasseurs-full-building-projection-v1",
@@ -244,7 +239,9 @@ def main() -> None:
         "building": {
             "id": "1639974",
             "source_path": str(BUILDING_PATH.relative_to(ROOT)),
-            "source_sha256": building_sha,
+            "committed_bytes_sha256": committed_bytes_sha,
+            "canonical_semantic_json_sha256": canonical_sha,
+            "source_artifact_binary_sha256": SOURCE_ARTIFACT_BINARY_SHA256,
             "package_sha256": EXPECTED_PACKAGE_SHA256,
             "license": "CC0-1.0",
             "wall_surface_count": len(wall_faces),
@@ -274,15 +271,15 @@ def main() -> None:
         },
         "decision": {
             "all_wall_union_is_optimistic_upper_bound": True,
-            "can_any_same_building_wall_subset_meet_755_width_gate": can_meet_width_gate,
-            "can_all_building_walls_meet_755_height_gate": can_meet_height_gate,
-            "max_same_building_wall_width_px": max_same_building_width,
-            "max_same_building_wall_height_px": max_same_building_height,
-            "width_gate_fraction": max_same_building_width / FROZEN_WIDTH_GATE_PX,
-            "recommend_same_building_visual_retry": can_meet_width_gate,
+            "can_any_same_building_wall_subset_meet_755_width_gate": can_meet_width,
+            "can_all_building_walls_meet_755_height_gate": can_meet_height,
+            "max_same_building_wall_width_px": max_width,
+            "max_same_building_wall_height_px": max_height,
+            "width_gate_fraction": max_width / FROZEN_WIDTH_GATE_PX,
+            "recommend_same_building_visual_retry": can_meet_width,
             "reason": (
                 "Even the optimistic union of all six official WALLSURFACE faces stays below the frozen 300px width gate; no same-building wall subset can be wider."
-                if not can_meet_width_gate
+                if not can_meet_width
                 else "Official same-building wall geometry has enough projected width to justify a separate coherent-frontage visual experiment."
             ),
         },
@@ -293,8 +290,8 @@ def main() -> None:
     print(
         "BRASSEURS_FULL_BUILDING_PROJECTION_OK "
         f"target={target_box['width_px']:.3f}x{target_box['height_px']:.3f}px "
-        f"all_walls={max_same_building_width:.3f}x{max_same_building_height:.3f}px "
-        f"width_gate={FROZEN_WIDTH_GATE_PX}px can_meet={str(can_meet_width_gate).lower()} "
+        f"all_walls={max_width:.3f}x{max_height:.3f}px "
+        f"width_gate={FROZEN_WIDTH_GATE_PX}px can_meet={str(can_meet_width).lower()} "
         f"connected_faces={len(rooted_component)}"
     )
 

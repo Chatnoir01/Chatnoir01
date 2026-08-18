@@ -85,15 +85,44 @@ func _run() -> void:
 
     var terrain: Node = null
     var basin: Node3D = null
-    for _attempt: int in range(360):
+    var pivot: Node3D = null
+    var arm: SpringArm3D = null
+    var camera: Camera3D = null
+    var expected_xz := Vector3.ZERO
+    var expected_y := 0.0
+    var arrival_complete := false
+    for _attempt: int in range(480):
         await process_frame
         main = current_scene
         if main == null:
             continue
         terrain = main.get_node_or_null("AtomiumDirectTerrain")
         basin = runtime.call("basin_node") as Node3D
-        if terrain != null and bool(terrain.get("terrain_loaded")) and basin != null and bool(runtime.call("ready_complete")):
-            break
+        if terrain == null or not bool(terrain.get("terrain_loaded")) or basin == null or not bool(runtime.call("ready_complete")):
+            continue
+        if main.get_node_or_null("AtomiumDirectHero") == null or main.get_node_or_null("AtomiumDirectReflectionEnvironment") == null:
+            continue
+
+        var anchor: Vector3 = terrain.get("atomium_game_position")
+        expected_xz = anchor + EXPECTED_SPAWN_OFFSET
+        expected_y = float(terrain.call("sample_height", expected_xz.x, expected_xz.z)) + EXPECTED_EYE_HEIGHT_M
+        pivot = player.get_node_or_null("CameraPivot") as Node3D
+        arm = player.get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
+        camera = player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
+        if pivot == null or arm == null or camera == null or not camera.current:
+            continue
+        if Vector2(player.global_position.x, player.global_position.z).distance_to(Vector2(expected_xz.x, expected_xz.z)) > 0.02:
+            continue
+        if absf(player.global_position.y - expected_y) > 0.05:
+            continue
+        if absf(camera.fov - EXPECTED_FOV) > 0.01 or absf(pivot.rotation_degrees.x - EXPECTED_PITCH_DEGREES) > 0.01 or absf(arm.spring_length - EXPECTED_SPRING_LENGTH) > 0.01:
+            continue
+        arrival_complete = true
+        break
+
+    if not arrival_complete:
+        _fail("Atomium direct spawn did not reach the exact production arrival contract")
+        return
     if terrain == null or basin == null or not bool(terrain.get("terrain_loaded")):
         _fail("Atomium direct terrain / registry basin did not become ready")
         return
@@ -106,20 +135,12 @@ func _run() -> void:
     if basin.visible:
         _fail("BEFORE toggle did not hide basin")
         return
-
-    var anchor: Vector3 = terrain.get("atomium_game_position")
-    var expected_xz := anchor + EXPECTED_SPAWN_OFFSET
-    var expected_y := float(terrain.call("sample_height", expected_xz.x, expected_xz.z)) + EXPECTED_EYE_HEIGHT_M
     if Vector2(player.global_position.x, player.global_position.z).distance_to(Vector2(expected_xz.x, expected_xz.z)) > 0.02:
         _fail("player arrival camera position was moved")
         return
     if absf(player.global_position.y - expected_y) > 0.05:
         _fail("player arrival eye height drifted")
         return
-
-    var pivot := player.get_node_or_null("CameraPivot") as Node3D
-    var arm := player.get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
-    var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
     if pivot == null or arm == null or camera == null or not camera.current:
         _fail("production player camera unavailable")
         return

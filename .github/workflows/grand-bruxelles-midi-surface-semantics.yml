@@ -5,11 +5,13 @@ on:
     paths:
       - "grand-bruxelles-game/data/urbis/midi/midi_runtime.game.json"
       - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
+      - "grand-bruxelles-game/game/tests/midi_official_street_surface_collision_test.gd"
       - "grand-bruxelles-game/game/tests/midi_surface_semantics_test.gd"
       - "grand-bruxelles-game/game/tests/midi_surface_semantics_ab_compare_test.gd"
       - "grand-bruxelles-game/game/tests/midi_surface_stability_ab_compare_test.gd"
       - "grand-bruxelles-game/tools/make_urbis_midi_runtime.py"
       - "grand-bruxelles-game/tools/test_make_urbis_midi_runtime.py"
+      - ".github/workflows/grand-bruxelles-midi-official-street-collision.yml"
       - ".github/workflows/grand-bruxelles-midi-surface-semantics.yml"
 
 permissions:
@@ -78,7 +80,9 @@ jobs:
             case "$path" in
               grand-bruxelles-game/game/scripts/urbis_midi_builder.gd|\
               grand-bruxelles-game/game/tests/midi_exact_building_collision_test.gd|\
+              grand-bruxelles-game/game/tests/midi_official_street_surface_collision_test.gd|\
               grand-bruxelles-game/game/tests/midi_surface_stability_ab_compare_test.gd|\
+              .github/workflows/grand-bruxelles-midi-official-street-collision.yml|\
               .github/workflows/grand-bruxelles-midi-solid-world.yml|\
               .github/workflows/grand-bruxelles-midi-surface-semantics.yml)
                 ;;

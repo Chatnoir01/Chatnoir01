@@ -77,6 +77,10 @@ func _run() -> void:
         return
     if not _expect(str(depth_root.get_meta("family", "")) == EXPECTED_FAMILY, "direct depth root family missing"):
         return
+    if not _expect(int(depth_root.get_meta("identity_buildings_excluded", 0)) >= 1, "identity building exclusion missing"):
+        return
+    if not _expect(bool(depth_root.get_meta("stassart_124_identity_preserved", false)), "Stassart 124 was not protected from generic facade depth"):
+        return
     if not _expect(depth_root.get_node_or_null("RecessPanels") is MultiMeshInstance3D, "batched recess panels missing"):
         return
     if not _expect(depth_root.get_node_or_null("Headers") is MultiMeshInstance3D, "batched headers missing"):
@@ -90,5 +94,5 @@ func _run() -> void:
     if not _expect(str(stassart.get_meta("source_building_id", "")) == STASSART_124_BUILDING_ID, "Stassart 124 source identity drifted"):
         return
 
-    print("IXELLES_FACADE_DEPTH_OK: zone=ixelles status=LABO buildings=%d direct_panels>=%d total_panels>=%d context_cells>=%d family=%s presentation_only=true renderer_only=true source_geometry_changed=false collision_changed=false surveyed_openings_claimed=false exact_depth_claimed=false" % [EXPECTED_BUILDINGS, MIN_DIRECT_RECESS_PANELS, MIN_TOTAL_RECESS_PANELS, MIN_STREAMED_CONTEXT_CELLS, EXPECTED_FAMILY])
+    print("IXELLES_FACADE_DEPTH_OK: zone=ixelles status=LABO buildings=%d direct_panels>=%d total_panels>=%d context_cells>=%d family=%s presentation_only=true renderer_only=true source_geometry_changed=false collision_changed=false surveyed_openings_claimed=false exact_depth_claimed=false stassart124_preserved=true" % [EXPECTED_BUILDINGS, MIN_DIRECT_RECESS_PANELS, MIN_TOTAL_RECESS_PANELS, MIN_STREAMED_CONTEXT_CELLS, EXPECTED_FAMILY])
     quit(0)

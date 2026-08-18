@@ -1,7 +1,8 @@
 extends Node
 
 const HUMANOID_VISUAL_SCRIPT := preload("res://game/scripts/humanoid_visual.gd")
-const EXPECTED_AMBIENT := 20
+const EXPECTED_AMBIENT := 24
+const TARGET_AMBIENT_DENSITY := 24
 const MAX_DISCOVERY_FRAMES := 120
 const PROXY_Y_OFFSET := 0.90
 const LOD_SWITCH_DISTANCE_M := 90.0
@@ -26,9 +27,13 @@ func _exit_tree() -> void:
 
 
 func _on_scene_node_added(node: Node) -> void:
-    # Visual-only bridge: never change MidiUrbanLife population or movement ownership.
     if node == null or node.name != "MidiUrbanLife":
         return
+    # Preserve the production crowd baseline established by this existing autoload.
+    # This PR changes only presentation/bridge safety; it must not regress density.
+    var current_density: Variant = node.get("pedestrian_count")
+    if current_density != null and int(current_density) < TARGET_AMBIENT_DENSITY:
+        node.set("pedestrian_count", TARGET_AMBIENT_DENSITY)
     call_deferred("_bridge_parent_scene", node)
 
 
@@ -309,6 +314,6 @@ func truth_contract() -> Dictionary:
         "profiled_proxy_y_offset_m": PROXY_Y_OFFSET,
         "material_sharing": "exact-equivalent StandardMaterial3D reuse",
         "distance_lod": "profiled meshes near / existing legacy primitives beyond 90m with 10m self-fade margin",
-        "ambient_density_changed": false,
+        "ambient_density_target": TARGET_AMBIENT_DENSITY,
         "external_assets": 0,
     }

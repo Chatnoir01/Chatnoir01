@@ -1,0 +1,37 @@
+{
+  "schema": "grand-bruxelles-town-hall-roof-face-audit-v1",
+  "status": "evidence_only",
+  "production_base": "0748e960b13c17c755a0939e0b231c2296201e37",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "expected_roof_face_count": 19,
+    "expected_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+  },
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "method": {
+    "face_type": "ROOFSURFACE",
+    "overlay_offset_m": 0.015,
+    "overlay_color": [1.0, 0.02, 0.58, 1.0],
+    "minimum_visible_gt8_pixels": 250,
+    "minimum_bbox_width_px": 20,
+    "minimum_bbox_height_px": 20,
+    "max_candidate_faces": 19,
+    "freeze_dynamic_groups": ["vehicle", "npc", "ambient_pedestrian", "ambient_traffic"],
+    "hide_canvas_layers": true
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "camera_changed": false,
+    "material_changed": false,
+    "tower_detail_authored": false,
+    "statuary_authored": false,
+    "spire_detail_authored": false,
+    "implementation_authorized": false,
+    "visual_candidate_approved": false,
+    "realism_complete": false
+  },
+  "decision_goal": "Rank the 19 official UrbIS ROOFSURFACE faces of Town Hall building 1655673 by actual deterministic >8 RGB overlay pixels from canonical camera #711/#753. The winner only identifies the next source/semantic target; no runtime or material change is authorized by this audit."
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "grand-bruxelles-town-hall-left-gallery-screen-contract-v1",
+  "status": "evidence_only",
+  "base_main_sha": "ceabf432ef0a15d03219fa5773dffcc45acee1c4",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "expected_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "candidate_face_id": "https://databrussels.be/id/buildingface/10792523",
+    "face_type": "WALLSURFACE",
+    "official_chain_span_m": 27.292425689190726
+  },
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "heritage_source": {
+    "provider": "urban.brussels / Inventaire du patrimoine architectural",
+    "record": "Hotel de ville, Grand-Place 8, Urban 31125",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+    "facts_used": [
+      "The gallery to the left of the portal has eleven bays.",
+      "The gallery arcades are pointed arches.",
+      "The east/left gallery has distinct support/perron treatment and must not inherit right-gallery dimensions by assumption."
+    ]
+  },
+  "visibility_gate": {
+    "width": 1280,
+    "height": 720,
+    "overlay_offset_m": 0.012,
+    "minimum_changed_gt8_pixels": 5000,
+    "minimum_bbox_width_px": 180,
+    "minimum_bbox_height_px": 100
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "openings_authorized": false,
+    "arch_dimensions_authorized": false,
+    "right_gallery_dimensions_reusable": false,
+    "visual_candidate_approved": false
+  },
+  "decision_goal": "Prove whether official WALLSURFACE 10792523 is naturally exposed from the canonical Grand-Place player camera. This evidence does not authorize arches or copy any #783 right-gallery dimensions."
+}

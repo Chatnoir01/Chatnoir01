@@ -1,0 +1,27 @@
+{
+  "schema": "grand-bruxelles-town-hall-roof-winner-strict-v1",
+  "production_base": "39f6471a8872024f909728c9187e678b83e2e115",
+  "source_audit_pr": 804,
+  "candidate_face_id": "9369301",
+  "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "expected_building_id": "https://databrussels.be/id/building/1655673",
+  "expected_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+  "resolution": [1280, 720],
+  "overlay_offset_m": 0.015,
+  "minimum_changed_gt8_pixels": 250,
+  "minimum_bbox_width_px": 20,
+  "minimum_bbox_height_px": 20,
+  "require_hidden_canvas_items": true,
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "camera_changed": false,
+    "material_changed": false,
+    "implementation_authorized": false,
+    "visual_candidate_approved": false,
+    "realism_complete": false
+  },
+  "purpose": "Re-prove the nominated roof face on exact current main with all CanvasLayer and CanvasItem UI recursively hidden after scene readiness. Historical PR #804 only supplies the previous nomination; this current-main run must independently retain the frozen visibility thresholds and authorizes no implementation."
+}

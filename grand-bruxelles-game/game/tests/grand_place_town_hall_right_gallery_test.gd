@@ -63,6 +63,14 @@ func _diff(a: Image, b: Image) -> Dictionary:
         "bbox_height": y1 - y0 + 1 if gt3 > 0 else 0
     }
 
+func _mask_canvas_tree(node: Node) -> void:
+    if node is CanvasLayer:
+        (node as CanvasLayer).visible = false
+    elif node is CanvasItem:
+        (node as CanvasItem).visible = false
+    for child: Node in node.get_children():
+        _mask_canvas_tree(child)
+
 func _run() -> void:
     var contract := _json(CONTRACT_PATH)
     if contract.is_empty():
@@ -112,9 +120,7 @@ func _run() -> void:
         node.process_mode = Node.PROCESS_MODE_DISABLED
         if node is Node3D:
             (node as Node3D).visible = false
-    for child: Node in main.get_children():
-        if child is CanvasLayer:
-            (child as CanvasLayer).visible = false
+    _mask_canvas_tree(main)
 
     var official: Node = null
     for _frame: int in range(240):
@@ -125,6 +131,9 @@ func _run() -> void:
     if official == null or not bool(official.get("geometry_loaded")):
         _fail("official Town Hall did not load")
         return
+    # UI can be added deferred by runtime/autoloads, so enforce the mask again
+    # after the official geometry has finished loading and immediately before A/B.
+    _mask_canvas_tree(main)
     if not official.has_method("set_right_gallery_visible") or not official.has_method("right_gallery_contract"):
         _fail("RED-first witness: right-gallery runtime missing")
         return
@@ -134,8 +143,10 @@ func _run() -> void:
         return
 
     official.call("set_right_gallery_visible", false)
+    _mask_canvas_tree(main)
     var before := await _capture("/tmp/grand-place-town-hall-right-gallery-before.png")
     official.call("set_right_gallery_visible", true)
+    _mask_canvas_tree(main)
     var after := await _capture("/tmp/grand-place-town-hall-right-gallery-after.png")
     var metrics := _diff(before, after)
     var witness: Dictionary = contract.get("witness", {})

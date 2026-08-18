@@ -1,0 +1,174 @@
+name: Grand Bruxelles Town Hall B1499 B1501 Source
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-b1499-b1501-source.yml"
+      - "grand-bruxelles-game/data/qa/town_hall_gallery_b1499_b1501_source_contract.json"
+  push:
+    branches:
+      - "qa/town-hall-b1499-b1501-source-*"
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-b1499-b1501-source.yml"
+      - "grand-bruxelles-game/data/qa/town_hall_gallery_b1499_b1501_source_contract.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acquire-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install image inspection dependency
+        run: python3 -m pip install --disable-pip-version-check --quiet Pillow
+
+      - name: Assert acquisition-only contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/qa/town_hall_gallery_b1499_b1501_source_contract.json')
+          c=json.loads(p.read_text(encoding='utf-8'))
+          assert c['schema']=='grand-bruxelles-town-hall-gallery-b1499-b1501-source-v1'
+          assert c['status']=='source_acquisition_only'
+          rows=c['archive_sources']
+          assert [(r['image_id'],r['archive_number']) for r in rows]==[(431679,'B1499'),(431747,'B1501')]
+          assert all(r['stated_scale']=='1/20' for r in rows)
+          assert all(r['designer']=='Jamaer, Pierre Victor' for r in rows)
+          assert all(r['date']=='1867-02-28' for r in rows)
+          assert all(r['license']=='Public Domain Mark 1.0' for r in rows)
+          a=c['acquisition_policy']
+          assert a['metric_measurement_authorized'] is False
+          assert a['registration_authorized_after_human_scan_review'] is False
+          h=c['hard_rules']
+          assert all(h[k] is False for k in h)
+          print('B1499_B1501_SOURCE_CONTRACT_OK')
+          PY
+
+      - name: Discover and acquire official KCML full scans
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kcml
+          python3 - <<'PY' > /tmp/kcml/rows.tsv
+          import json
+          from pathlib import Path
+          c=json.loads(Path('grand-bruxelles-game/data/qa/town_hall_gallery_b1499_b1501_source_contract.json').read_text(encoding='utf-8'))
+          for r in c['archive_sources']:
+              print(f"{r['archive_number']}\t{r['image_id']}\t{r['record_url']}")
+          PY
+          while IFS=$'\t' read -r ARCHIVE IMAGE_ID RECORD_URL; do
+            PREFIX="/tmp/kcml/${ARCHIVE,,}"
+            echo "ACQUIRE $ARCHIVE $IMAGE_ID $RECORD_URL"
+            curl --fail --location --retry 4 --retry-all-errors --retry-delay 3 \
+              --connect-timeout 20 --max-time 180 "$RECORD_URL" -o "${PREFIX}-record.html"
+            grep -F "$ARCHIVE" "${PREFIX}-record.html"
+            grep -F "1/20" "${PREFIX}-record.html"
+            grep -F "28-02-1867" "${PREFIX}-record.html"
+            grep -F "Jamaer" "${PREFIX}-record.html"
+            python3 - "$RECORD_URL" "${PREFIX}-record.html" "${PREFIX}-format-links.txt" <<'PY'
+          import html, re, sys
+          from pathlib import Path
+          from urllib.parse import urljoin
+          record_url, html_path, out_path = sys.argv[1:]
+          text=Path(html_path).read_text(encoding='utf-8',errors='replace')
+          values=[]
+          for raw in re.findall(r'''(?:href|src)=["']([^"']+)["']''',text,re.I):
+              value=html.unescape(raw)
+              if '/content/' in value or record_url.rsplit('/',1)[-1] in value:
+                  values.append(urljoin(record_url,value))
+          values=list(dict.fromkeys(values))
+          Path(out_path).write_text('\n'.join(values)+('\n' if values else ''),encoding='utf-8')
+          print('\n'.join(values))
+          PY
+            SOURCE_URL="$(python3 - "$RECORD_URL" "${PREFIX}-format-links.txt" <<'PY'
+          import sys
+          from pathlib import Path
+          from urllib.parse import urljoin
+          base,path=sys.argv[1:]
+          links=Path(path).read_text(encoding='utf-8').splitlines()
+          preferred=[x for x in links if '/content/full' in x]
+          print(preferred[0] if preferred else urljoin(base.rstrip('/')+'/', 'content/full'))
+          PY
+            )"
+            printf '%s\n' "$SOURCE_URL" > "${PREFIX}-selected-url.txt"
+            curl --fail --location --retry 4 --retry-all-errors --retry-delay 3 \
+              --connect-timeout 20 --max-time 420 "$SOURCE_URL" -o "${PREFIX}-source"
+            test -s "${PREFIX}-source"
+            file "${PREFIX}-source"
+            sha256sum "${PREFIX}-source" > "${PREFIX}-source.sha256"
+          done < /tmp/kcml/rows.tsv
+
+      - name: Inspect scans and build review previews
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          from PIL import Image
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/town_hall_gallery_b1499_b1501_source_contract.json').read_text(encoding='utf-8'))
+          combined={'schema':'grand-bruxelles-town-hall-b1499-b1501-acquisition-v1','status':'source_acquisition_only','sources':[],'registration_authorized':False,'metric_measurement_authorized':False,'runtime_changed':False,'geometry_changed':False}
+          for row in contract['archive_sources']:
+              archive=row['archive_number']
+              prefix=Path('/tmp/kcml')/archive.lower()
+              source=Path(str(prefix)+'-source')
+              raw=source.read_bytes()
+              with Image.open(source) as im:
+                  meta={
+                      'image_id':row['image_id'],
+                      'archive_number':archive,
+                      'record_url':row['record_url'],
+                      'selected_source_url':Path(str(prefix)+'-selected-url.txt').read_text().strip(),
+                      'sha256':hashlib.sha256(raw).hexdigest(),
+                      'detected_format':im.format,
+                      'mode':im.mode,
+                      'pixel_width':im.width,
+                      'pixel_height':im.height,
+                      'frame_count':getattr(im,'n_frames',1),
+                      'stated_sheet_mm':row['sheet_mm'],
+                      'stated_scale':row['stated_scale'],
+                      'designer':row['designer'],
+                      'date':row['date'],
+                      'license':row['license'],
+                      'registration_authorized':False,
+                      'metric_measurement_authorized':False,
+                  }
+                  preview=im.convert('RGB')
+                  preview.thumbnail((3200,3200),Image.Resampling.LANCZOS)
+                  preview.save(str(prefix)+'-preview.jpg',quality=92,optimize=True)
+              Path(str(prefix)+'-acquisition.json').write_text(json.dumps(meta,indent=2),encoding='utf-8')
+              combined['sources'].append(meta)
+              print(archive+'_SOURCE_ACQUISITION '+json.dumps(meta,sort_keys=True))
+          Path('/tmp/kcml/b1499-b1501-acquisition.json').write_text(json.dumps(combined,indent=2),encoding='utf-8')
+          print('B1499_B1501_SOURCE_ACQUISITION_OK')
+          PY
+
+      - name: Upload official source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: town-hall-b1499-b1501-source
+          path: |
+            /tmp/kcml/b1499-record.html
+            /tmp/kcml/b1499-format-links.txt
+            /tmp/kcml/b1499-selected-url.txt
+            /tmp/kcml/b1499-source
+            /tmp/kcml/b1499-source.sha256
+            /tmp/kcml/b1499-preview.jpg
+            /tmp/kcml/b1499-acquisition.json
+            /tmp/kcml/b1501-record.html
+            /tmp/kcml/b1501-format-links.txt
+            /tmp/kcml/b1501-selected-url.txt
+            /tmp/kcml/b1501-source
+            /tmp/kcml/b1501-source.sha256
+            /tmp/kcml/b1501-preview.jpg
+            /tmp/kcml/b1501-acquisition.json
+            /tmp/kcml/b1499-b1501-acquisition.json
+          if-no-files-found: warn

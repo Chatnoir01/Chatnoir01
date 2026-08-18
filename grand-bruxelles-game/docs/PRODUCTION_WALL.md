@@ -1,79 +1,61 @@
 # Production Wall
 
 ## Main
-- observed_main_before_this_edit: `8809b5ed25f4dd67a337af9cd9669c7602f0499e`
-- last_verified: `2026-08-18T04:44:30Z`
-- latest_verified_publication: `f713299f23aff7805228db00706ccfec9f8771fd` — Web publication after QA #753. #758 is QA/data only; re-read live main before assuming a later publication.
-- latest substantive gameplay: #749 official Midi street-surface solidity + #750 player melee feel.
-- rule: `main` is sole production truth. Re-read live main, open PRs, changed-file ownership and this wall before every branch, merge, rejection or production claim.
+- observed_main: `3be7b244cd9f6fe423870a0a7e012cb19f9292bb`
+- last_verified: `2026-08-18T07:35Z`
+- rule: `main` is the sole production truth. Re-read live main, open PRs, changed-file ownership and this wall before every branch, merge, rejection or production claim.
+- six-point campaign status: **6/6 merged**.
+- current production pipeline: #767 removed generated Web commits to `main`; Web build is repository-read-only and hands an immutable `grand-bruxelles-playable-web` artifact to Pages. Branch Hygiene now computes stale drift against live `origin/main`, not only the PR event base.
+- post-#767 repository observation: the latest commit is still #767 itself; no `web: publish ...` automation commit has appeared after the merge. The connector available in this session does not enumerate push/workflow_run runs, so keep the first live Web→artifact→Pages workflow-run result as a production verification item rather than inventing a PASS.
+
+## Six-point campaign — SHIPPED
+1. **#749 — Midi official street collision**: official StreetSurface families are physically solid under the player. Dedicated ray + `CharacterBody3D` proof passed; building collision and visual/performance gates remained green.
+2. **#750 — player melee feel**: readable recovery/anti-spam, no attack during dodge, collision-aware reaction, with existing KO/loot flow preserved.
+3. **#752 — PhysicalCarB primary**: Mission 01 uses the physical B car; A remains fallback/comparison. Quicksave, autosave/cold resume, reward flow and Retour Express follow the mission primary vehicle and support rigid-body velocity state.
+4. **#765 — Midi/Fonsny full entrance**: generic wall/glazing/slab articulation replaced in place with the Urban 9423 source-backed three-register porch, polygonal supports, glass-block bays and perforated canopy. Locked player-eye result: `4.9336%` >3 RGB, `4.2255%` >8 RGB, bbox `903x185`; human full-frame PASS. UrbIS remains plan authority; bounded presentation dimensions are not survey claims.
+5. **#766 — LABO→JOUABLE promotion gate**: Midi remains the only JOUABLE. Six other catalog zones remain LABO. Promotion is fail-closed and requires source/runtime/collision/hero/full-frame/performance-export/human evidence; City Machine cannot promote.
+6. **#767 — Web/integration discipline**: Web no longer commits generated `web-preview` back to `main`; Pages production path consumes the exact successful Web workflow artifact/head SHA. Any PR to main with `behind > 0` against live main is fail-closed until resync + gate rerun.
 
 ## Active ownership
-- #752 — vehicle / Mission 01 physical B primary. Current head `c4b62eb2...` has its full listed gates green, but it started from an older production base and is not shipped until synchronized/revalidated from live main and merged. Do not overlap mission/vehicle files.
-- #11 — long-lived rest-of-Brussels mapping/data/tooling specialist. Never merge wholesale; extract one current-main checkpoint only.
-- #2 — long-lived Laeken + Jette / Heysel / Atomium specialist. Never merge wholesale; extract one current-main checkpoint only.
-- #759 generic OSM facade articulation is CLOSED WITHOUT MERGE after main advanced through #758. It owns nothing now; do not reopen stale.
-- Old #665/#652/#643/Bourse/Atomium/NPC drafts are stale evidence/specialist workspaces, not current-main integration candidates.
-
-## Recently shipped
-- #758 / `8809b5ed...` — evidence-only full-building Maison des Brasseurs projection audit; official building `1639974` persisted from UrbIS LoD2, no runtime/material/scene change.
-- #757 / `289bca77...` — production wall recorded #755 exact single-face rejection.
-- #753 / `1296b057...` / publication `f713299f...` — canonical Grand-Place camera contract. Exact #711 witness: 1280x720, camera `[319.01,1.72,-535.20]`, target `[321.91,11.8,-485.66]`, FOV 62. Clean image SHA-256 `d869abcbd1cbc500954b85e5de07ee25ab4f2ecf96f0d5a593e9762a762d0798`.
-- #750 / `4615e481...` — player melee readable-weight lot.
-- #749 / `815f5a6e...` — official Midi StreetSurface families made solid.
-- #711 — clean Grand-Place player-eye witness pattern, now backed by #753 shared camera contract.
-
-## Maison des Brasseurs — CLOSED SAME-BUILDING PATH
-Official source target is UrbIS building `1639974`; face `10945501` was the first exact wall experiment.
-
-### #755 exact face result
-- exact five official vertices / three official triangles; `details=0`, offset=0, no neighbor hide, shadow disabled.
-- canonical run `32099235835`, artifact `9310999041`, digest `sha256:58991676c2359c8583c7f51cca704b21c94170f799dadac35f379e29796fdc15`.
-- frozen metrics: ratio >3 RGB `2.5597%` PASS; >8 RGB `2.5597%` PASS; bbox `96x287` FAIL versus frozen `300x260` because width `96 < 300`.
-- human full-frame FAIL: visible exact wall reads as a thin pale slab/gable, not a recognizable Maison des Brasseurs facade in three seconds.
-
-### #758 decisive full-building upper bound
-- source: official UrbIS 3D Constructions building `1639974`, one solid, 6 WALLSURFACE faces, CC0-1.0.
-- source artifact binary SHA-256 `7d5927902e43d74b62120436a4f928c56f33185c40428ff4c18aa15fa51b56e1`; committed semantic canonical JSON SHA-256 `9969e6e2f0e02cb58d9f89e27454e09cca15e75ea52f5724c773df5929a90dad`; package SHA `cf8449d1...`.
-- dedicated run `32099922488` PASS; artifact `9311195340`; zip digest `sha256:b56314a4b02df0ed8fcb2281653d1ecae649ba4c67af52c9f2ac8c3bb179660f`.
-- projection calibrates to the real #755 render: face `10945501` = `95.973x287.869 px` versus rendered `96x287`.
-- all six official wall faces are edge-connected.
-- optimistic union of ALL six WALLSURFACE faces = `174.526x287.869 px`.
-- width upper bound is only `58.175%` of the already-frozen 300 px width requirement.
-- `can_any_same_building_wall_subset_meet_755_width_gate=false` and `recommend_same_building_visual_retry=false`.
-- because the union includes every official wall regardless of occlusion/backface, no subset of the same building can be wider.
-
-### Hard conclusion
-STOP all visual retries restricted to building `1639974` from the canonical camera. Do not lower thresholds, move the camera, hide neighbors, widen/invent geometry, brighten material for pixel count, or add decorative detail after the base geometry failure. A future Brasseurs attempt would require a genuinely broader separately sourced product scope beyond this single official building; otherwise Brasseurs is closed.
-
-## Other rejected paths — do not repeat
-- #740 Fonsny canopy-only: `1.2509% / 1.0272% / 649x149` versus locked `3.00% / 1.50% / 700x160`; insufficient 3-second impact.
-- #738 generic street-level roofs: `>3 RGB = 0.0`; no player value from legitimate camera.
-- #737 additive Fonsny porch: exact-zero visible gain.
-- #696 Brasseurs detached primitive overlay: technical PASS, human FAIL; scaffold, not facade.
-- Maison du Roi raw UrbIS LoD2, Ducs de Brabant blind LoD2 mass, Roi d'Espagne primitive dome/proxy and La Brouette generic window grid remain previous human fidelity failures.
-- never use `Vector3(324.9581,3.3,-512.8388)` as “#711”; #753 shared camera contract is the sole Grand-Place camera truth.
-
-## NOW / NEXT / LATER
-- NOW: production HEAD observed `8809b5ed...`. No failed Brasseurs runtime is in production. #752 owns vehicle/Mission 01 but is unmerged. Generic OSM articulation #759 is closed stale.
-- NEXT Centre action: leave Brasseurs. Use the canonical #753 Grand-Place witness to identify the largest source-backed production geometry occupying the visually weak/blank screen mass, with an evidence-only screen-space ownership audit first. Do not choose a landmark by name before the node/building ID is proven.
-- Selection rule: choose a large normal-player-visible defect that is not already a known rejected pathway and is not owned by another PR. If the large screen owner resolves to Maison du Roi/Ducs/Roi d'Espagne/La Brouette in a previously rejected form, do not repeat that form; either find a different source-backed correction strategy or move to another Centre defect.
-- LATER: generic OSM articulation may be rebuilt from then-live main only if still valuable and unowned, preserving its frozen Anneessens gate. Vehicle integration remains #752's ownership.
+- **#768** — exact-current-main generic `Building_*` OSM facade articulation, base `3be7b244...`. Owns only generic OSM facade presentation; do not overlap shared OSM facade material/articulation paths. Historical #764 is closed without merge and superseded by #768.
+- **#652** — Anneessens SIGNALER sync export, old/stale draft. Do not treat green historical evidence as current-main integration authorization.
+- **#643** — LABO selector UI, old/stale draft. Its promotion semantics must not bypass #766.
+- **#596 / #592** — Bourse QA/architecture old drafts; source/evidence only until rebuilt from current main.
+- **#2 / #11** — long-lived Laeken/Jette and rest-of-Brussels specialist branches. Never merge wholesale; extract one coherent lot from then-current main.
+- Other old Atomium/NPC/evidence drafts are specialist/history workspaces, not current-main merge candidates.
 
 ## Known visible debt
-- canonical Grand-Place view remains visually sparse and weak; large blank/generic building masses dominate, while Brasseurs cannot lawfully be enlarged to solve it.
-- Midi/Fonsny entrance remains generic; additive detail and canopy-only correction were insufficient from normal player distance.
-- physical B vehicle as Mission 01 primary remains unshipped until #752 is current-main integrated.
+- Grand-Place remains visually sparse/weak in the canonical #753 view; large generic/blank building masses still dominate.
+- Midi/Fonsny is materially better at the targeted entrance after #765, but this does **not** mean the complete Midi station facade or district is realism-complete.
+- Six LABO zones remain LABO by design. #766 prevents status inflation; future promotion still needs full player-visible evidence and human PASS.
+- Generic OSM facade articulation is active in #768 and must not be duplicated by another workstream.
+
+## Rejected / closed visual paths — do not repeat
+- **#740 Fonsny canopy-only**: `1.2509% / 1.0272% / 649x149` versus locked `3.00% / 1.50% / 700x160`; insufficient. Superseded by the full in-place #765 solution.
+- **#737 additive Fonsny porch**: exact-zero visible gain because production articulation occluded it. Do not return to additive layering at that entrance.
+- **#738 generic street-level roofs**: `>3 RGB = 0.0`; no legitimate player-eye value.
+- Maison des Brasseurs same-building path (`UrbIS 1639974`) is mathematically closed under the frozen canonical gate: #755 exact wall rendered only `96x287 px`; #758 optimistic union of all six official WALLSURFACE faces reached only `174.526x287.869 px`, below the frozen 300 px width requirement. Do not lower thresholds, move camera, widen/invent geometry or hide neighbours to rescue it.
+- Maison du Roi raw UrbIS LoD2, Ducs de Brabant blind LoD2 mass, Roi d'Espagne primitive dome/proxy and La Brouette generic window grid remain previous human fidelity failures; do not repeat the same forms.
+- Never use `Vector3(324.9581,3.3,-512.8388)` as “#711”; #753 shared Grand-Place camera contract is the canonical camera truth.
 
 ## Important invariants
 - green unmerged PRs are not shipped progress.
-- one defect may have only one active implementation.
+- exact-current-main is mandatory at merge time; `behind > 0` is now a Branch Hygiene failure.
+- one defect may have only one active implementation owner.
 - human full-frame verdict overrides green CI for visual lots.
 - UrbIS owns official geometry where available; photo measurements are image-space constraints, not survey geometry.
-- Commons/photo pixels are not shipped by current Centre contracts.
+- LABO data readiness is not JOUABLE; only a human-approved proof satisfying #766 can change that status.
+- Web publication must remain artifact-only and repository-read-only; reintroducing `git commit`, `git rebase` or `git push` in the Web build is a regression.
+
+## NOW / NEXT / LATER
+- **NOW**: production HEAD `3be7b244...`; six-point campaign is merged. Protect #768 ownership while its fresh current-main gates run. Do not reopen #764.
+- **NEXT production verification**: record the first successful post-#767 `Grand Bruxelles Playable Web Build` artifact and the downstream `Grand Bruxelles Playable Link` workflow_run deployment. Confirm `main` remains unchanged by publication.
+- **NEXT visual selection**: after ownership reread, use the canonical #753 Grand-Place player-eye witness to identify the largest source-backed production geometry owning the weak screen mass. Start with evidence-only screen-space ownership, not a landmark chosen by name.
+- **LATER**: promote no LABO zone until its #766 evidence file can honestly PASS every required stage.
 
 ## Shift handoff
-- What changed: #755 proved the exact Brasseurs wall is visible but only 96 px wide; #758 proved even all six official walls together max out at 174.526 px, so the same-building Brasseurs path is mathematically closed under the frozen player-eye gate. #759 generic facade articulation was closed stale after main advanced.
-- What is proven: Brasseurs same-building geometry cannot satisfy the 300 px width requirement from the canonical #753/#711 camera without violating source/gate rails.
-- What is NOT proven: which exact production node/building owns the large weak screen mass in the canonical Grand-Place view, or which next Centre correction will pass a human 3-second gate.
-- What must not be redone: any building-1639974 Brasseurs visual retry, camera rescue, threshold lowering, destructive neighbor hide, geometry widening/invention, #703 detached overlay, stale #759 merge.
-- Exact next action: re-read live main/owners, then run one evidence-only canonical-camera screen-space owner audit of the large Grand-Place mass. No new visual runtime until that owner is identified and its previous failure history is checked.
+- What changed: collisions, melee, physical mission car, Fonsny entrance, promotion discipline and Web/integration discipline are all merged.
+- What is proven: Point 1–5 player/runtime gates passed; Point 6 PR contract/Playable Link/Branch Hygiene/Game CI/tests passed and no post-merge generated publication commit has appeared on `main`.
+- What remains to verify externally: the first post-#767 push-triggered Web artifact → Pages workflow-run chain, because the session connector exposes PR-triggered Action runs but not push/workflow_run listings.
+- What must not be redone: old Fonsny additive/canopy-only attempts, same-building Brasseurs rescue, stale wholesale specialist merges, or Web publication by committing generated files to `main`.
+- Exact next action: observe #768 ownership/gates and the first artifact-backed Pages production run; if `main` moves independently, every open merge candidate must resync and rerun before integration.

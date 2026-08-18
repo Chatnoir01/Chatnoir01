@@ -1,0 +1,39 @@
+name: Grand Bruxelles Primary Physical Vehicle
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/mission_drive_to_center.gd"
+      - "grand-bruxelles-game/game/scripts/vehicle_dynamics_60hz.gd"
+      - "grand-bruxelles-game/game/scripts/vehicle_physics_controller.gd"
+      - "grand-bruxelles-game/game/tests/primary_physical_vehicle_test.gd"
+      - ".github/workflows/grand-bruxelles-primary-physical-vehicle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  primary-physical-vehicle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/primary-vehicle-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/primary-vehicle-import.log; then exit 1; fi
+      - name: Prove physical B mission vehicle and driving tune
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/primary_physical_vehicle_test.gd 2>&1 | tee /tmp/primary-vehicle.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PRIMARY_PHYSICAL_VEHICLE_FAIL" /tmp/primary-vehicle.log; then exit 1; fi
+          grep -q "PRIMARY_PHYSICAL_VEHICLE_OK" /tmp/primary-vehicle.log

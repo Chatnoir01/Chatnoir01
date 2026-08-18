@@ -14,6 +14,48 @@ func _fail(message: String) -> void:
     quit(1)
 
 
+func _primary_vehicle(scene: Node, mission: Node) -> Node3D:
+    var vehicle_name := "PrototypeCar"
+    if mission.has_method("primary_vehicle_node_name"):
+        vehicle_name = str(mission.call("primary_vehicle_node_name"))
+    return scene.get_node_or_null(vehicle_name) as Node3D
+
+
+func _set_vehicle_motion(vehicle: Node3D, linear: Vector3, angular: Vector3 = Vector3.ZERO, scalar_speed: float = 0.0) -> void:
+    if vehicle is RigidBody3D:
+        var rigid := vehicle as RigidBody3D
+        rigid.linear_velocity = linear
+        rigid.angular_velocity = angular
+    elif vehicle is CharacterBody3D:
+        var character := vehicle as CharacterBody3D
+        character.velocity = linear
+        character.set("speed", scalar_speed)
+
+
+func _move_vehicle_xz(vehicle: Node3D, target: Vector3) -> void:
+    vehicle.global_position = Vector3(target.x, vehicle.global_position.y, target.z)
+    _set_vehicle_motion(vehicle, Vector3.ZERO)
+
+
+func _vehicle_linear_velocity(vehicle: Node3D) -> Vector3:
+    if vehicle is RigidBody3D:
+        return (vehicle as RigidBody3D).linear_velocity
+    if vehicle is CharacterBody3D:
+        return (vehicle as CharacterBody3D).velocity
+    return Vector3.ZERO
+
+
+func _vehicle_angular_velocity(vehicle: Node3D) -> Vector3:
+    if vehicle is RigidBody3D:
+        return (vehicle as RigidBody3D).angular_velocity
+    return Vector3.ZERO
+
+
+func _vehicle_horizontal_speed(vehicle: Node3D) -> float:
+    var velocity := _vehicle_linear_velocity(vehicle)
+    return Vector2(velocity.x, velocity.z).length()
+
+
 func _run() -> void:
     _cleanup_save()
     var packed: PackedScene = load("res://game/main.tscn")
@@ -27,9 +69,9 @@ func _run() -> void:
     await physics_frame
 
     var player: CharacterBody3D = scene.get_node_or_null("Player") as CharacterBody3D
-    var car: CharacterBody3D = scene.get_node_or_null("PrototypeCar") as CharacterBody3D
     var mission: Node = scene.get_node_or_null("MissionDriveToCenter")
     var label: Label = scene.get_node_or_null("MissionLabel") as Label
+    var car: Node3D = _primary_vehicle(scene, mission) if mission != null else null
 
     if player == null or car == null or mission == null or label == null:
         _fail("mission dependencies missing")
@@ -61,7 +103,7 @@ func _run() -> void:
     car.call("enter_driver", player)
     await physics_frame
     if int(mission.call("get_stage")) != 1:
-        _fail("entering the car should start route stage 1")
+        _fail("entering the mission primary vehicle should start route stage 1")
         return
 
     var stage_one_state: Dictionary = mission.call("export_state")
@@ -78,14 +120,13 @@ func _run() -> void:
         return
 
     var checkpoints: Array[Vector3] = [
-        Vector3(-272.04, 0.58, -217.07),
-        Vector3(81.54, 0.58, -664.58),
-        Vector3(319.01, 0.58, -535.20),
+        Vector3(-272.04, 0.0, -217.07),
+        Vector3(81.54, 0.0, -664.58),
+        Vector3(319.01, 0.0, -535.20),
     ]
 
     for index: int in range(checkpoints.size()):
-        car.global_position = checkpoints[index]
-        car.velocity = Vector3.ZERO
+        _move_vehicle_xz(car, checkpoints[index])
         await physics_frame
         await physics_frame
         var expected_stage: int = index + 2
@@ -136,7 +177,7 @@ func _run() -> void:
         _fail("failed mission HUD should explain the time failure")
         return
 
-    car.set("speed", 12.0)
+    _set_vehicle_motion(car, Vector3(12.0, 0.0, -4.0), Vector3(0.0, 1.5, 0.0), 12.0)
     mission.call("restart_mission")
     await physics_frame
     if int(mission.call("get_stage")) != 0 or bool(mission.call("is_failed")):
@@ -156,12 +197,14 @@ func _run() -> void:
         car.global_position.x - initial_car_position.x,
         car.global_position.z - initial_car_position.z
     ).length()
-    if car_horizontal_error > 0.01 or absf(car.global_position.y - initial_car_position.y) > 0.25:
+    if car_horizontal_error > 0.01 or absf(car.global_position.y - initial_car_position.y) > 0.35:
         _fail("mission restart did not restore the vehicle spawn")
         return
-    var car_horizontal_velocity := Vector2(car.velocity.x, car.velocity.z).length()
-    if absf(float(car.get("speed"))) > 0.001 or car_horizontal_velocity > 0.01:
-        _fail("mission restart did not reset vehicle motion")
+    if _vehicle_horizontal_speed(car) > 0.05 or _vehicle_angular_velocity(car).length() > 0.05:
+        _fail("mission restart retained horizontal or angular vehicle motion")
+        return
+    if car is CharacterBody3D and absf(float(car.get("speed"))) > 0.001:
+        _fail("mission restart did not reset arcade scalar speed")
         return
 
     var load_result: Dictionary = MissionSaveCoordinator.load_mission(SAVE_PATH, mission)
@@ -215,7 +258,7 @@ func _run() -> void:
         _fail("failed state before mission start must be rejected")
         return
 
-    print("MISSION_SMOKE_OK: timed route progression + fail/restart + state snapshot/restore passed")
+    print("MISSION_SMOKE_OK: timed route progression + fail/restart + state snapshot/restore passed on mission primary vehicle")
     _cleanup_save()
     scene.queue_free()
     await process_frame

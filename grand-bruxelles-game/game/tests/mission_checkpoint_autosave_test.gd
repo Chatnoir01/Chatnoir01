@@ -2,7 +2,7 @@ extends SceneTree
 
 const AUTOSAVE_PATH := "user://grand_bruxelles_checkpoint_autosave_test.json"
 const CORRUPT_PATH := "user://grand_bruxelles_checkpoint_autosave_corrupt_test.json"
-const FIRST_CHECKPOINT := Vector3(-272.04, 0.08, -217.07)
+const FIRST_CHECKPOINT := Vector3(-272.04, 0.0, -217.07)
 
 
 func _initialize() -> void:
@@ -13,6 +13,29 @@ func _fail(message: String) -> void:
     push_error("MISSION_CHECKPOINT_AUTOSAVE_FAIL: %s" % message)
     _cleanup()
     quit(1)
+
+
+func _primary_vehicle(scene: Node, mission: Node) -> Node3D:
+    var vehicle_name := "PrototypeCar"
+    if mission.has_method("primary_vehicle_node_name"):
+        vehicle_name = str(mission.call("primary_vehicle_node_name"))
+    return scene.get_node_or_null(vehicle_name) as Node3D
+
+
+func _set_vehicle_motion(vehicle: Node3D, linear: Vector3, angular: Vector3 = Vector3.ZERO, scalar_speed: float = 0.0) -> void:
+    if vehicle is RigidBody3D:
+        var rigid := vehicle as RigidBody3D
+        rigid.linear_velocity = linear
+        rigid.angular_velocity = angular
+    elif vehicle is CharacterBody3D:
+        var character := vehicle as CharacterBody3D
+        character.velocity = linear
+        character.set("speed", scalar_speed)
+
+
+func _move_vehicle_xz(vehicle: Node3D, target: Vector3) -> void:
+    vehicle.global_position = Vector3(target.x, vehicle.global_position.y, target.z)
+    _set_vehicle_motion(vehicle, Vector3.ZERO)
 
 
 func _run() -> void:
@@ -27,8 +50,12 @@ func _run() -> void:
     var autosave: Node = first_scene.get_node("MissionCheckpointAutosave")
     var quick_save: Node = first_scene.get_node("MissionQuickSave")
     var player: CharacterBody3D = first_scene.get_node("Player")
-    var vehicle: CharacterBody3D = first_scene.get_node("PrototypeCar")
+    var vehicle: Node3D = _primary_vehicle(first_scene, mission)
     var status_label: Label = first_scene.get_node("SaveStatusLabel")
+
+    if vehicle == null:
+        _fail("mission primary vehicle missing")
+        return
 
     quick_save.call("_show_feedback", "RETOUR QUICKSAVE", false)
     autosave.call("_show_feedback", "RETOUR AUTOSAVE", false)
@@ -44,15 +71,13 @@ func _run() -> void:
     vehicle.call("enter_driver", player)
     await physics_frame
     if int(mission.call("get_stage")) != 1:
-        _fail("mission did not start when the player entered the vehicle")
+        _fail("mission did not start when the player entered the declared primary vehicle")
         return
     if FileAccess.file_exists(AUTOSAVE_PATH):
         _fail("autosave was written before a checkpoint")
         return
 
-    vehicle.global_position = FIRST_CHECKPOINT
-    vehicle.velocity = Vector3.ZERO
-    vehicle.set("speed", 0.0)
+    _move_vehicle_xz(vehicle, FIRST_CHECKPOINT)
     await physics_frame
     await process_frame
     if int(mission.call("get_stage")) != 2:
@@ -80,13 +105,21 @@ func _run() -> void:
     mission = resumed_scene.get_node("MissionDriveToCenter")
     var return_mission: Node = resumed_scene.get_node("MissionReturnToBourse")
     autosave = resumed_scene.get_node("MissionCheckpointAutosave")
-    vehicle = resumed_scene.get_node("PrototypeCar")
+    vehicle = _primary_vehicle(resumed_scene, mission)
     status_label = resumed_scene.get_node("SaveStatusLabel")
+    if vehicle == null:
+        _fail("cold resume mission primary vehicle missing")
+        return
     if int(mission.call("get_stage")) != 2:
         _fail("cold resume did not restore the completed checkpoint")
         return
-    if vehicle.global_position.distance_to(saved_vehicle_position) > 0.15:
-        _fail("cold resume did not restore the checkpoint vehicle position")
+    var horizontal_resume_error := Vector2(
+        vehicle.global_position.x - saved_vehicle_position.x,
+        vehicle.global_position.z - saved_vehicle_position.z
+    ).length()
+    var vertical_resume_error := absf(vehicle.global_position.y - saved_vehicle_position.y)
+    if horizontal_resume_error > 0.15 or vertical_resume_error > 0.35:
+        _fail("cold resume drifted from checkpoint: horizontal=%.3fm vertical=%.3fm" % [horizontal_resume_error, vertical_resume_error])
         return
     if not bool(vehicle.call("has_driver")):
         _fail("cold resume did not restore the active driver")
@@ -149,7 +182,7 @@ func _run() -> void:
     corrupt_scene.queue_free()
     await process_frame
     _cleanup()
-    print("MISSION_CHECKPOINT_AUTOSAVE_OK")
+    print("MISSION_CHECKPOINT_AUTOSAVE_OK: cold resume follows mission primary vehicle at physical ride height")
     quit(0)
 
 

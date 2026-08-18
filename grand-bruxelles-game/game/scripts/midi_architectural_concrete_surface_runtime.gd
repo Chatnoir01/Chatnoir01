@@ -1,6 +1,7 @@
 extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_architectural_concrete_material.gd")
+const FONSNY_FULL_ENTRANCE_RUNTIME := preload("res://game/scripts/midi_fonsny_full_entrance_runtime.gd")
 const IDENTITY_PATH := "res://data/visual/midi_architectural_concrete_material_identity.json"
 const EXACT_NAMES := ["VerticalGlassTowerFrame", "EntranceConcreteCanopy"]
 const PREFIXES := ["HorizontalBand_", "VerticalMullion_"]
@@ -12,8 +13,14 @@ var _ready_complete := false
 var _identity_failure := false
 var _enabled := false
 var _identity: Dictionary = {}
+var _fonsny_full_entrance_runtime: Node
 
 func _ready() -> void:
+    # Midi-only mount point: keep this exact-location replacement isolated from
+    # shared OSM facade/autoload ownership.
+    _fonsny_full_entrance_runtime = FONSNY_FULL_ENTRANCE_RUNTIME.new()
+    _fonsny_full_entrance_runtime.name = "MidiFonsnyFullEntranceRuntime"
+    add_child(_fonsny_full_entrance_runtime)
     call_deferred("_apply_when_ready")
 
 func _apply_when_ready() -> void:
@@ -111,3 +118,6 @@ func applied_surface_count() -> int:
 
 func enhanced_material() -> ShaderMaterial:
     return _material
+
+func fonsny_full_entrance_runtime() -> Node:
+    return _fonsny_full_entrance_runtime

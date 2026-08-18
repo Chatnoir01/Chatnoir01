@@ -8,7 +8,7 @@ on:
       - "grand-bruxelles-game/data/qa/grand_place_clean_player_witness.json"
       - "grand-bruxelles-game/data/urbis/grand_place_lod2/1655673.game.json"
       - "grand-bruxelles-game/game/scripts/grand_place_official_lod2_1655673.gd"
-      - "grand-bruxelles-game/game/tests/grand_place_town_hall_face_map_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_town_hall_face_chain_test.gd"
       - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/project.godot"
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-town-hall-face-map-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-town-hall-face-map-import.log; then exit 1; fi
-      - name: Map official Town Hall wall faces from canonical player camera
+      - name: Map official Town Hall face chains from canonical player camera
         shell: bash
         run: |
           set -o pipefail
@@ -46,7 +46,7 @@ jobs:
             --display-driver x11 \
             --rendering-method gl_compatibility \
             --resolution 1280x720 \
-            --script res://game/tests/grand_place_town_hall_face_map_test.gd \
+            --script res://game/tests/grand_place_town_hall_face_chain_test.gd \
             2>&1 | tee /tmp/grand-place-town-hall-face-map.log
           if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_TOWN_HALL_FACE_MAP_FAIL" /tmp/grand-place-town-hall-face-map.log; then exit 1; fi
           grep -F "GRAND_PLACE_TOWN_HALL_FACE_MAP_OK" /tmp/grand-place-town-hall-face-map.log
@@ -58,7 +58,7 @@ jobs:
           path: |
             grand-bruxelles-game/artifacts/qa/grand_place_town_hall_face_map.json
             /tmp/grand-place-town-hall-face-map-baseline.png
-            /tmp/grand-place-town-hall-face-*.png
+            /tmp/grand-place-town-hall-face-group-*.png
             /tmp/grand-place-town-hall-face-map.log
             /tmp/grand-place-town-hall-face-map-import.log
           if-no-files-found: warn

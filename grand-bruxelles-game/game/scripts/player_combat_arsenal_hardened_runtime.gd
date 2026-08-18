@@ -3,6 +3,8 @@ extends "res://game/scripts/player_combat_arsenal_runtime.gd"
 # Thin hardening layer over the feature-rich arsenal runtime.
 # Keeps the base combat implementation stable while enforcing safe preflight rules.
 
+const WEAPON_FLINCH_THROTTLE_MS := 90
+
 func equip_weapon(player: CharacterBody3D, weapon_id: StringName) -> bool:
     var equipped := super.equip_weapon(player, weapon_id)
     if equipped:
@@ -30,6 +32,53 @@ func set_aiming(player: CharacterBody3D, aiming: bool) -> bool:
     _refresh_hud(player)
     return true
 
+func _apply_weapon_hit(npc: NpcAgent, player: CharacterBody3D, damage: float) -> bool:
+    var applied := super._apply_weapon_hit(npc, player, damage)
+    if not applied or npc == null or not is_instance_valid(npc):
+        return applied
+    _retag_weapon_hit_feedback(npc, damage)
+    if not bool(npc.get_meta("melee_knocked_out", false)):
+        _animate_weapon_flinch(npc, player, damage)
+    return true
+
+func _retag_weapon_hit_feedback(npc: NpcAgent, damage: float) -> void:
+    if bool(npc.get_meta("melee_knocked_out", false)):
+        return
+    var reaction := StringName(npc.get_meta("melee_reaction", &"hit"))
+    for child: Node in npc.get_children():
+        if child is Label3D and child.name == "MeleeHurtFeedback":
+            var marker := child as Label3D
+            marker.text = "IMPACT  -%d\n%s" % [int(round(maxf(damage, 0.0))), String(reaction).to_upper()]
+
+func _animate_weapon_flinch(npc: NpcAgent, player: CharacterBody3D, damage: float) -> void:
+    var now := Time.get_ticks_msec()
+    if now < int(npc.get_meta("combat_weapon_flinch_until_ms", 0)):
+        return
+    npc.set_meta("combat_weapon_flinch_until_ms", now + WEAPON_FLINCH_THROTTLE_MS)
+
+    var visual := npc.get_node_or_null("ProfiledNpcProxy") as Node3D
+    if visual == null:
+        visual = npc.get_node_or_null("VisualUpgrade") as Node3D
+    if visual == null:
+        return
+
+    var sign := -1.0 if posmod(npc.get_instance_id(), 2) == 0 else 1.0
+    if player != null and is_instance_valid(player):
+        var local_hit := npc.to_local(player.global_position)
+        if absf(local_hit.x) > 0.05:
+            sign = -signf(local_hit.x)
+
+    var angle_deg := weapon_flinch_angle_deg(damage)
+    var base_z := visual.rotation.z
+    var base_x := visual.position.x
+    npc.set_meta("combat_weapon_flinch_angle_deg", angle_deg)
+
+    var tween := create_tween()
+    tween.tween_property(visual, "rotation:z", base_z + deg_to_rad(angle_deg * sign), 0.045)
+    tween.parallel().tween_property(visual, "position:x", base_x + 0.035 * sign, 0.045)
+    tween.tween_property(visual, "rotation:z", base_z, 0.13)
+    tween.parallel().tween_property(visual, "position:x", base_x, 0.13)
+
 static func fire_preflight_reason(player_available: bool, armed: bool, camera_available: bool) -> StringName:
     if not player_available:
         return &"player_unavailable"
@@ -38,3 +87,7 @@ static func fire_preflight_reason(player_available: bool, armed: bool, camera_av
     if not camera_available:
         return &"camera_unavailable"
     return &""
+
+static func weapon_flinch_angle_deg(damage: float) -> float:
+    var t := clampf(maxf(damage, 0.0) / 55.0, 0.0, 1.0)
+    return lerpf(3.5, 10.0, t)

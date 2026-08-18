@@ -11,6 +11,12 @@ const REPLACEMENT_NAME := "EntranceSourceBackedFonsnyPorch"
 const CANOPY_SIZE := Vector3(17.8, 0.48, 25.0)
 const CANOPY_POSITION := Vector3(-7.0, 4.55, 0.0)
 const SUPERSEDED_EXACT := ["EntranceBlueStoneWall", "EntranceGlazing", "EntranceConcreteCanopy", "CanopyMetalEdge"]
+const EXISTING_COLUMN_RADIUS := 0.14
+const EXISTING_COLUMN_HEIGHT := 4.25
+const EXISTING_COLUMN_X := -13.9
+const EXISTING_COLUMN_Y := 2.125
+const EXISTING_COLUMN_Z := [-9.1, -3.1, 3.1, 9.1]
+const MATCH_EPSILON := 0.002
 const X_CELLS := 4
 const Z_CELLS := 5
 
@@ -106,15 +112,21 @@ func _identity_allowed(identity: Dictionary) -> bool:
     return bool(contract.get("urbis_station_plan_authority_preserved", false))
 
 func _collect_and_validate_superseded() -> bool:
+    _superseded.clear()
     for node_name in SUPERSEDED_EXACT:
         var node := _entrance.get_node_or_null(node_name) as Node3D
         if node == null:
             _fail("superseded production node missing: %s" % node_name)
             return false
         _superseded.append(node)
+    var matched_columns := 0
     for child in _entrance.get_children():
-        if child is Node3D and str(child.name).begins_with("EntranceColumn"):
+        if _is_existing_entrance_column(child):
             _superseded.append(child as Node3D)
+            matched_columns += 1
+    if matched_columns != 4:
+        _fail("expected 4 production entrance columns by geometry, got %d" % matched_columns)
+        return false
     if _superseded.size() != 8:
         _fail("expected 8 superseded entrance objects, got %d" % _superseded.size())
         return false
@@ -127,6 +139,28 @@ func _collect_and_validate_superseded() -> bool:
         _fail("production canopy envelope drifted")
         return false
     return true
+
+func _is_existing_entrance_column(node: Node) -> bool:
+    if not (node is MeshInstance3D):
+        return false
+    var instance := node as MeshInstance3D
+    if not (instance.mesh is CylinderMesh):
+        return false
+    var cylinder := instance.mesh as CylinderMesh
+    if absf(cylinder.height - EXISTING_COLUMN_HEIGHT) > MATCH_EPSILON:
+        return false
+    if absf(cylinder.top_radius - EXISTING_COLUMN_RADIUS) > MATCH_EPSILON:
+        return false
+    if absf(cylinder.bottom_radius - EXISTING_COLUMN_RADIUS) > MATCH_EPSILON:
+        return false
+    if absf(instance.position.x - EXISTING_COLUMN_X) > MATCH_EPSILON:
+        return false
+    if absf(instance.position.y - EXISTING_COLUMN_Y) > MATCH_EPSILON:
+        return false
+    for expected_z in EXISTING_COLUMN_Z:
+        if absf(instance.position.z - float(expected_z)) <= MATCH_EPSILON:
+            return true
+    return false
 
 func _effective_material(instance: MeshInstance3D) -> Material:
     if instance == null:

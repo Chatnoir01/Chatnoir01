@@ -1,7 +1,7 @@
 extends SceneTree
 
 const VISUAL_SCRIPT := preload("res://game/scripts/civilian_vehicle_visual.gd")
-const TRAFFIC_MANAGER_SCRIPT := preload("res://game/scripts/traffic_manager_core.gd")
+const TRAFFIC_MANAGER_SCRIPT := preload("res://game/scripts/traffic_manager_npc_crossing_extension.gd")
 
 const REQUIRED_PARTS := [
     "BodyShell",
@@ -21,15 +21,18 @@ const REQUIRED_PARTS := [
 func _initialize() -> void:
     call_deferred("_run")
 
+
 func _fail(message: String) -> void:
     push_error("REAL_CIVILIAN_VEHICLE_VISUAL_FAIL: %s" % message)
     quit(1)
+
 
 func _mesh_count(node: Node) -> int:
     var total := 1 if node is MeshInstance3D else 0
     for child: Node in node.get_children():
         total += _mesh_count(child)
     return total
+
 
 func _assert_style(style: int, expected_name: String) -> bool:
     var host := Node3D.new()
@@ -74,6 +77,7 @@ func _assert_style(style: int, expected_name: String) -> bool:
     await process_frame
     return true
 
+
 func _run() -> void:
     if not await _assert_style(0, "sedan"):
         return
@@ -87,6 +91,7 @@ func _run() -> void:
     manager.auto_spawn_runtime = false
     manager.scooter_share = 0.0
     manager.motorcycle_share = 0.0
+    manager.official_density_enabled = false
     root.add_child(manager)
     await process_frame
 

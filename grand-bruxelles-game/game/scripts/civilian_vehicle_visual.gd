@@ -453,7 +453,10 @@ func _wheel_spoke_star(root_wheel: Node3D, face_y: float, material: Material) ->
         var center_offset := Vector3(0.0, face_y, 0.0)
         var inner := center_offset + radial * 0.052
         var outer := center_offset + radial * 0.180
-        _quad(surface, inner - tangent, outer - tangent, outer + tangent, inner + tangent)
+        if face_y >= 0.0:
+            _quad(surface, inner - tangent, outer - tangent, outer + tangent, inner + tangent)
+        else:
+            _quad(surface, inner + tangent, outer + tangent, outer - tangent, inner - tangent)
     surface.generate_normals()
     var mesh: ArrayMesh = surface.commit()
     var star := MeshInstance3D.new()

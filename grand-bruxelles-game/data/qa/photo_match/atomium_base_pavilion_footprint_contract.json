@@ -1,0 +1,51 @@
+{
+  "schema": "grand-bruxelles-atomium-base-pavilion-footprint-discovery-v1",
+  "target": "Atomium replacement architectural-centre evidence",
+  "purpose": "Discover whether the pinned official UrbIS BuildingFootprint slice contains a geometrically plausible footprint for the documented circular 26 m base pavilion. Discovery does not approve a replacement anchor or any runtime movement.",
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region UrbIS",
+    "layer": "urbis:BuildingFootprint",
+    "specialist_commit": "5525ad370ff4ddc1d34b02ab82cc3fbba3f56cb7",
+    "path": "grand-bruxelles-game/data/urbis/laeken_jette/buildings.game.json",
+    "raw_url": "https://raw.githubusercontent.com/Chatnoir01/Chatnoir01/5525ad370ff4ddc1d34b02ab82cc3fbba3f56cb7/grand-bruxelles-game/data/urbis/laeken_jette/buildings.game.json",
+    "expected_git_blob_sha1": "517c6f0aa6823bcc0cd76ca0cd43e77a709c89f9",
+    "expected_feature_count": 9518,
+    "crs": "EPSG:31370",
+    "integration_policy": "source-read-only; never merge the long-lived specialist branch wholesale"
+  },
+  "project_coordinate_contract": {
+    "origin_e": 147868.29422791934,
+    "origin_n": 169538.62414926197,
+    "game_x": "e - origin_e",
+    "game_z": "-(n - origin_n)"
+  },
+  "independent_position_witnesses": {
+    "production_ticket_reference_epsg31370": [148093.22038698208, 176091.76722726133],
+    "monument_relation_position_epsg31370": [148084.276, 176064.182],
+    "monument_relation_osm_object": "relation/1243821",
+    "semantic_status": "position witness only; not an approved architectural centre"
+  },
+  "authoritative_plan_constraint": {
+    "source": "urban.brussels / Inventaire du patrimoine architectural, Atomium — Square de l'Atomium",
+    "fact": "base sphere rests on a circular pavilion 26 m in diameter",
+    "diameter_m": 26.0,
+    "runtime_geometry_authorized": false
+  },
+  "frozen_discovery_filters": {
+    "max_centroid_distance_from_monument_witness_m": 80.0,
+    "equivalent_circle_diameter_m": [22.1, 29.9],
+    "max_bbox_aspect_ratio": 1.25,
+    "max_bbox_span_m": 32.0,
+    "min_circularity_4pi_area_over_perimeter_sq": 0.75
+  },
+  "result_policy": {
+    "zero_candidates": "valid evidence outcome; do not loosen filters",
+    "one_candidate": "candidate only; require separate official-orthophoto registration with explicit uncertainty before approval",
+    "multiple_candidates": "ambiguous evidence outcome; do not pick by eye or nearest-distance alone",
+    "replacement_anchor_approved": false,
+    "runtime_move_authorized": false,
+    "support_pillar_geometry_authorized": false,
+    "yaw_authorized": false,
+    "realism_complete": false
+  }
+}

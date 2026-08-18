@@ -93,8 +93,8 @@ func _init() -> void:
     _assert_direct_autoloads(failures)
 
     var contract: Dictionary = runtime.truth_contract()
-    if bool(contract.get("ambient_density_changed", true)):
-        failures.append("NPC quality pass must not silently raise the Midi population")
+    if int(contract.get("ambient_density_target", 0)) != 24:
+        failures.append("NPC quality pass must preserve the established 24-pedestrian Midi baseline")
     if str(contract.get("visual_profile", "")) != "profiled_humanoid_v2":
         failures.append("truth contract should expose the current humanoid profile")
 

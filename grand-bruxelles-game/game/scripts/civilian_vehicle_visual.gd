@@ -376,69 +376,79 @@ func _wheel_assembly(name_value: String, pos: Vector3, tire_material: Material, 
     root_wheel.rotation.z = PI * 0.5
     add_child(root_wheel)
 
-    var tire_mesh := CylinderMesh.new()
-    tire_mesh.top_radius = 0.315
-    tire_mesh.bottom_radius = 0.315
-    tire_mesh.height = 0.225
-    tire_mesh.radial_segments = 32
+    var outward_sign: float = 1.0 if pos.x < 0.0 else -1.0
+    var face_y: float = outward_sign * 0.108
+    var brake_y: float = outward_sign * 0.078
+
+    var tire_mesh := TorusMesh.new()
+    tire_mesh.inner_radius = 0.205
+    tire_mesh.outer_radius = 0.315
+    tire_mesh.rings = 32
+    tire_mesh.ring_segments = 10
     tire_mesh.material = tire_material
     var tire := MeshInstance3D.new()
     tire.name = "Tire"
     tire.mesh = tire_mesh
+    tire.scale = Vector3(1.0, 2.0, 1.0)
     tire.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
     root_wheel.add_child(tire)
 
-    var rim_mesh := CylinderMesh.new()
-    rim_mesh.top_radius = 0.205
-    rim_mesh.bottom_radius = 0.205
-    rim_mesh.height = 0.233
-    rim_mesh.radial_segments = 24
+    var rim_mesh := TorusMesh.new()
+    rim_mesh.inner_radius = 0.145
+    rim_mesh.outer_radius = 0.205
+    rim_mesh.rings = 24
+    rim_mesh.ring_segments = 8
     rim_mesh.material = rim_material
     var rim := MeshInstance3D.new()
     rim.name = "Rim"
     rim.mesh = rim_mesh
+    rim.position.y = face_y
     rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
     root_wheel.add_child(rim)
 
     var disc_mesh := CylinderMesh.new()
-    disc_mesh.top_radius = 0.145
-    disc_mesh.bottom_radius = 0.145
-    disc_mesh.height = 0.238
-    disc_mesh.radial_segments = 24
+    disc_mesh.top_radius = 0.142
+    disc_mesh.bottom_radius = 0.142
+    disc_mesh.height = 0.020
+    disc_mesh.radial_segments = 28
     disc_mesh.material = disc_material
     var disc := MeshInstance3D.new()
     disc.name = "BrakeDisc"
     disc.mesh = disc_mesh
+    disc.position.y = brake_y
     root_wheel.add_child(disc)
 
     var hub_mesh := CylinderMesh.new()
     hub_mesh.top_radius = 0.052
     hub_mesh.bottom_radius = 0.052
-    hub_mesh.height = 0.246
+    hub_mesh.height = 0.026
     hub_mesh.radial_segments = 20
     hub_mesh.material = rim_material
     var hub := MeshInstance3D.new()
     hub.name = "Hub"
     hub.mesh = hub_mesh
+    hub.position.y = face_y
     root_wheel.add_child(hub)
 
     for index: int in range(5):
+        var angle: float = TAU * float(index) / 5.0
         var spoke_mesh := BoxMesh.new()
-        spoke_mesh.size = Vector3(0.035, 0.242, 0.145)
+        spoke_mesh.size = Vector3(0.032, 0.022, 0.145)
         spoke_mesh.material = rim_material
         var spoke := MeshInstance3D.new()
         spoke.name = "Spoke%d" % index
         spoke.mesh = spoke_mesh
-        spoke.position = Vector3(0.0, 0.0, 0.075)
-        spoke.rotation.y = TAU * float(index) / 5.0
+        spoke.position = Vector3(sin(angle) * 0.105, face_y, cos(angle) * 0.105)
+        spoke.rotation.y = angle
+        spoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
         root_wheel.add_child(spoke)
 
     var caliper_mesh := BoxMesh.new()
-    caliper_mesh.size = Vector3(0.065, 0.245, 0.085)
+    caliper_mesh.size = Vector3(0.060, 0.024, 0.082)
     caliper_mesh.material = caliper_material
     var caliper := MeshInstance3D.new()
     caliper.name = "BrakeCaliper"
     caliper.mesh = caliper_mesh
-    caliper.position = Vector3(0.0, 0.0, 0.115)
+    caliper.position = Vector3(0.0, brake_y, 0.115)
     root_wheel.add_child(caliper)
     return root_wheel

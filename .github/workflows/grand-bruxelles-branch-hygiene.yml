@@ -39,16 +39,44 @@ jobs:
           echo "Pinned PR base SHA: $BASE_SHA"
           echo "Pinned PR head SHA: $HEAD_SHA"
           echo "Observed live main SHA: $LIVE_MAIN_SHA"
+
           mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
           printf '%s\n' "${CHANGED[@]}" > /tmp/grand-bruxelles-changed-files.txt
           AHEAD=$(git rev-list --count "$LIVE_MAIN_SHA..$HEAD_SHA")
           BEHIND=$(git rev-list --count "$HEAD_SHA..$LIVE_MAIN_SHA")
-          python3 grand-bruxelles-game/tools/validate_branch_hygiene.py \
-            --head "$HEAD_BRANCH" \
-            --base "$BASE_BRANCH" \
-            --changed-file-list /tmp/grand-bruxelles-changed-files.txt \
-            --ahead "$AHEAD" \
+
+          DOCS_ONLY_DRIFT=false
+          OVERLAP=false
+          if (( BEHIND > 0 )); then
+            MERGE_BASE="$(git merge-base "$HEAD_SHA" "$LIVE_MAIN_SHA")"
+            mapfile -t LIVE_DRIFT < <(git diff --name-only "$MERGE_BASE..$LIVE_MAIN_SHA")
+            if (( ${#LIVE_DRIFT[@]} > 0 )); then
+              DOCS_ONLY_DRIFT=true
+              for path in "${LIVE_DRIFT[@]}"; do
+                if [[ ! "$path" =~ ^grand-bruxelles-game/docs/ ]]; then
+                  DOCS_ONLY_DRIFT=false
+                fi
+                for pr_path in "${CHANGED[@]}"; do
+                  if [[ "$path" == "$pr_path" ]]; then
+                    OVERLAP=true
+                  fi
+                done
+              done
+            fi
+          fi
+
+          ARGS=(
+            --head "$HEAD_BRANCH"
+            --base "$BASE_BRANCH"
+            --changed-file-list /tmp/grand-bruxelles-changed-files.txt
+            --ahead "$AHEAD"
             --behind "$BEHIND"
+          )
+          if [[ "$DOCS_ONLY_DRIFT" == true && "$OVERLAP" == false ]]; then
+            echo "Safe docs-only live-main drift detected; preserving already-run runtime gates."
+            ARGS+=(--docs-only-drift)
+          fi
+          python3 grand-bruxelles-game/tools/validate_branch_hygiene.py "${ARGS[@]}"
 
       - name: Validate specialist branch ownership
         shell: bash
@@ -172,6 +200,29 @@ jobs:
           BEHIND=$(git rev-list --count "$HEAD_SHA..$LIVE_MAIN_SHA")
           SHARED=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -E '^(grand-bruxelles-game/game/main\.tscn|grand-bruxelles-game/project\.godot|\.github/workflows/grand-bruxelles-game\.yml)$' || true)
 
+          mapfile -t CHANGED < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          DOCS_ONLY_DRIFT=false
+          OVERLAP=false
+          LIVE_DRIFT_TEXT="none"
+          if (( BEHIND > 0 )); then
+            MERGE_BASE="$(git merge-base "$HEAD_SHA" "$LIVE_MAIN_SHA")"
+            mapfile -t LIVE_DRIFT < <(git diff --name-only "$MERGE_BASE..$LIVE_MAIN_SHA")
+            if (( ${#LIVE_DRIFT[@]} > 0 )); then
+              LIVE_DRIFT_TEXT="$(printf '%s, ' "${LIVE_DRIFT[@]}")"
+              DOCS_ONLY_DRIFT=true
+              for path in "${LIVE_DRIFT[@]}"; do
+                if [[ ! "$path" =~ ^grand-bruxelles-game/docs/ ]]; then
+                  DOCS_ONLY_DRIFT=false
+                fi
+                for pr_path in "${CHANGED[@]}"; do
+                  if [[ "$path" == "$pr_path" ]]; then
+                    OVERLAP=true
+                  fi
+                done
+              done
+            fi
+          fi
+
           {
             echo "### Grand Bruxelles integration-risk report"
             echo "- branch: \`$HEAD_BRANCH\` -> \`$BASE_BRANCH\`"
@@ -180,6 +231,9 @@ jobs:
             echo "- pinned head SHA: \`$HEAD_SHA\`"
             echo "- commits ahead of live main: **$AHEAD**"
             echo "- commits behind live main: **$BEHIND**"
+            echo "- live-main-only drift: $LIVE_DRIFT_TEXT"
+            echo "- docs-only drift: **$DOCS_ONLY_DRIFT**"
+            echo "- path overlap with live drift: **$OVERLAP**"
             if [[ -n "$SHARED" ]]; then
               echo "- shared integration files touched:"
               while IFS= read -r path; do
@@ -194,8 +248,12 @@ jobs:
             echo "::warning::Branch is $AHEAD commits ahead of live main. Treat it as a specialist source and extract a small current-main integration branch rather than merging wholesale."
           fi
           if (( BEHIND > 0 )); then
-            echo "::error::Branch is $BEHIND commits behind live main. Resync onto the live main SHA and rerun all gates before merge."
-            exit 1
+            if [[ "$DOCS_ONLY_DRIFT" == true && "$OVERLAP" == false ]]; then
+              echo "::warning::Branch is $BEHIND commits behind live main, but drift is non-overlapping docs-only. Runtime gates remain valid."
+            else
+              echo "::error::Branch is $BEHIND commits behind live main with product/workflow drift or overlapping docs. Resync onto live main and rerun gates before merge."
+              exit 1
+            fi
           fi
           if [[ -n "$SHARED" ]]; then
             echo "::warning::Shared integration files are modified. Review for duplicated main-scene/CI ownership before merge."

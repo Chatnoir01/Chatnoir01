@@ -4,11 +4,29 @@ on:
   push:
     branches: ["main"]
     paths:
-      - "grand-bruxelles-game/**"
+      - "grand-bruxelles-game/game/**"
+      - "grand-bruxelles-game/data/**"
+      - "grand-bruxelles-game/assets/**"
+      - "grand-bruxelles-game/tools/**"
+      - "grand-bruxelles-game/tests/**"
+      - "grand-bruxelles-game/web-preview/**"
+      - "grand-bruxelles-game/character-preview/**"
+      - "grand-bruxelles-game/character-3d-preview/**"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/export_presets.cfg"
       - ".github/workflows/grand-bruxelles-game.yml"
   pull_request:
     paths:
-      - "grand-bruxelles-game/**"
+      - "grand-bruxelles-game/game/**"
+      - "grand-bruxelles-game/data/**"
+      - "grand-bruxelles-game/assets/**"
+      - "grand-bruxelles-game/tools/**"
+      - "grand-bruxelles-game/tests/**"
+      - "grand-bruxelles-game/web-preview/**"
+      - "grand-bruxelles-game/character-preview/**"
+      - "grand-bruxelles-game/character-3d-preview/**"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/export_presets.cfg"
       - ".github/workflows/grand-bruxelles-game.yml"
   workflow_dispatch:
 

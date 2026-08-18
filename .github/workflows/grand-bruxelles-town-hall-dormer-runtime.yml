@@ -1,0 +1,32 @@
+name: Grand Bruxelles Town Hall Dormer Runtime
+
+on:
+  push:
+    branches:
+      - "feat/grand-place-town-hall-dormers-*"
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-dormer-runtime.yml"
+      - "grand-bruxelles-game/data/visual/grand_place_town_hall_dormer_visualization.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_town_hall_dormers.json"
+      - "grand-bruxelles-game/game/scripts/grand_place_town_hall_dormer_runtime.gd"
+      - "grand-bruxelles-game/tools/test_grand_place_town_hall_dormers.py"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-dormer-runtime.yml"
+      - "grand-bruxelles-game/data/visual/grand_place_town_hall_dormer_visualization.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_town_hall_dormers.json"
+      - "grand-bruxelles-game/game/scripts/grand_place_town_hall_dormer_runtime.gd"
+      - "grand-bruxelles-game/tools/test_grand_place_town_hall_dormers.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dormer-runtime-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Town Hall dormer runtime contract
+        run: python3 grand-bruxelles-game/tools/test_grand_place_town_hall_dormers.py

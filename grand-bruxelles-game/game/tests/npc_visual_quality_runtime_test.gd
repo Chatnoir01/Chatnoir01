@@ -44,10 +44,10 @@ func _init() -> void:
 	_assert_position(failures, civilian, "LeftShoe", Vector3(-0.1012, -0.842, -0.07), "civilian shoes should remain under the leg line")
 	if civilian.get_node_or_null("PoliceQualityDetails") != null:
 		failures.append("civilian must not receive police-only gear")
-	if civilian.get_meta("npc_visual_quality_pass", "") != "v3":
-		failures.append("civilian quality pass should be marked as v3")
-	if civilian.get_meta("npc_visual_quality_silhouette", "") != "human-proportioned-v3":
-		failures.append("civilian quality pass should publish the v3 silhouette contract")
+	if civilian.get_meta("npc_visual_quality_pass", "") != "v4":
+		failures.append("civilian quality pass should be marked as v4")
+	if civilian.get_meta("npc_visual_quality_silhouette", "") != "human-proportioned-v4":
+		failures.append("civilian quality pass should publish the v4 silhouette contract")
 
 	var head_scale_before := (civilian.get_node("Head") as Node3D).scale
 	var arm_position_before := (civilian.get_node("LeftArm") as Node3D).position
@@ -93,8 +93,48 @@ func _init() -> void:
 			if details.get_node_or_null(detail_name) == null:
 				failures.append("police detail missing: %s" % detail_name)
 
+	var ambient := Node3D.new()
+	ambient.name = "AmbientPedestrian_00"
+	_add_part(ambient, &"Torso").position = Vector3(0.0, 1.17, 0.0)
+	var ambient_head := _add_part(ambient, &"Head")
+	ambient_head.position = Vector3(0.0, 1.67, 0.0)
+	var ambient_left_arm := _add_part(ambient, &"LeftArm")
+	ambient_left_arm.position = Vector3(-0.33, 1.14, 0.0)
+	var ambient_right_arm := _add_part(ambient, &"RightArm")
+	ambient_right_arm.position = Vector3(0.33, 1.14, 0.0)
+	var ambient_left_leg := _add_part(ambient, &"LeftLeg")
+	ambient_left_leg.position = Vector3(-0.13, 0.48, 0.0)
+	var ambient_right_leg := _add_part(ambient, &"RightLeg")
+	ambient_right_leg.position = Vector3(0.13, 0.48, 0.0)
+	_add_part(ambient, &"Bag")
+
+	runtime.polish_ambient_pedestrian(ambient)
+	_assert_scale(failures, ambient, "Head", Vector3(0.70, 0.70, 0.70), "Midi ambient head should be reduced")
+	_assert_scale(failures, ambient, "Torso", Vector3(0.86, 1.10, 0.86), "Midi ambient torso should be taller and narrower")
+	_assert_scale(failures, ambient, "LeftArm", Vector3(0.72, 1.08, 0.72), "Midi ambient arms should be slimmer")
+	_assert_scale(failures, ambient, "LeftLeg", Vector3(0.86, 1.10, 0.82), "Midi ambient legs should be slightly taller and slimmer")
+	_assert_position(failures, ambient, "Head", Vector3(0.0, 1.64, 0.0), "Midi ambient head should reconnect to the torso")
+	_assert_position(failures, ambient, "LeftArm", Vector3(-0.297, 1.14, 0.0), "Midi ambient arm spacing should be narrower")
+	_assert_position(failures, ambient, "LeftLeg", Vector3(-0.1222, 0.48, 0.0), "Midi ambient leg spacing should be natural")
+	var ambient_details := ambient.get_node_or_null("AmbientQualityDetails") as Node3D
+	if ambient_details == null:
+		failures.append("Midi ambient pedestrian should receive close-camera details")
+	else:
+		for detail_name: String in ["HairCap", "LeftHand", "RightHand", "LeftShoe", "RightShoe"]:
+			if ambient_details.get_node_or_null(detail_name) == null:
+				failures.append("Midi ambient detail missing: %s" % detail_name)
+	if ambient.get_meta("ambient_pedestrian_visual_quality", "") != "v1":
+		failures.append("Midi ambient quality pass should be marked as v1")
+	if ambient.get_meta("ambient_pedestrian_silhouette", "") != "midi-human-v1":
+		failures.append("Midi ambient silhouette contract should be published")
+	var ambient_head_before := (ambient.get_node("Head") as Node3D).scale
+	runtime.polish_ambient_pedestrian(ambient)
+	if (ambient.get_node("Head") as Node3D).scale.distance_to(ambient_head_before) > 0.0001:
+		failures.append("Midi ambient quality pass must be idempotent")
+
 	civilian.free()
 	police.free()
+	ambient.free()
 	runtime.free()
 
 	if failures.is_empty():

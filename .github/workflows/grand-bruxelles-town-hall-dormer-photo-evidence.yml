@@ -1,0 +1,40 @@
+name: Grand Bruxelles Town Hall Dormer Photo Evidence
+
+on:
+  push:
+    branches:
+      - "qa/grand-place-town-hall-dormer-photo-evidence-*"
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-dormer-photo-evidence.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_town_hall_dormer_photo_evidence.json"
+      - "grand-bruxelles-game/tools/validate_grand_place_town_hall_dormer_photo_evidence.py"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-town-hall-dormer-photo-evidence.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_town_hall_dormer_photo_evidence.json"
+      - "grand-bruxelles-game/tools/validate_grand_place_town_hall_dormer_photo_evidence.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dormer-photo-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install image validator dependency
+        run: python3 -m pip install --disable-pip-version-check pillow
+      - name: Validate independent photo evidence
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/validate_grand_place_town_hall_dormer_photo_evidence.py 2>&1 | tee /tmp/dormer-photo-evidence.log
+          grep -q "GRAND_PLACE_DORMER_PHOTO_EVIDENCE_OK" /tmp/dormer-photo-evidence.log
+      - name: Upload annotated evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-town-hall-dormer-photo-evidence
+          path: grand-bruxelles-game/artifacts/qa/grand_place_town_hall_dormer_photo_evidence/
+          if-no-files-found: error

@@ -48,6 +48,21 @@ func _vertex_count(mesh_instance: MeshInstance3D) -> int:
     return total
 
 
+func _average_normal_y(mesh_instance: MeshInstance3D) -> float:
+    if mesh_instance == null or mesh_instance.mesh == null or mesh_instance.mesh.get_surface_count() == 0:
+        return 0.0
+    var arrays: Array = mesh_instance.mesh.surface_get_arrays(0)
+    if arrays.size() <= Mesh.ARRAY_NORMAL:
+        return 0.0
+    var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+    if normals.is_empty():
+        return 0.0
+    var total := 0.0
+    for normal: Vector3 in normals:
+        total += normal.y
+    return total / float(normals.size())
+
+
 func _assert_style(style: int, expected_name: String) -> bool:
     var host := Node3D.new()
     root.add_child(host)
@@ -126,6 +141,11 @@ func _assert_style(style: int, expected_name: String) -> bool:
             if wheel.get_node_or_null("Spoke%d" % spoke_index) != null:
                 _fail("%s still uses separate spoke mesh nodes instead of one optimized star" % wheel_name)
                 return false
+        var normal_y := _average_normal_y(spoke_star)
+        var expected_sign := 1.0 if wheel_name.ends_with("L") else -1.0
+        if normal_y * expected_sign < 0.80:
+            _fail("%s spoke faces are wound away from the exterior camera (normal_y=%.3f)" % [wheel_name, normal_y])
+            return false
 
     host.queue_free()
     await process_frame

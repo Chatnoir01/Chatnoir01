@@ -22,12 +22,15 @@
   },
   "mapping_policy": {
     "wall_face_type": "WALLSURFACE",
-    "max_prefilter_faces_to_render": 14,
-    "gallery_plane_y_min_max_m": 1.0,
-    "gallery_plane_y_max_min_m": 18.0,
-    "gallery_plane_y_max_max_m": 30.0,
-    "gallery_plane_min_horizontal_span_m": 12.0,
+    "max_lower_faces_to_render": 20,
+    "lower_face_y_min_max_m": 1.0,
+    "lower_face_y_max_min_m": 15.0,
+    "lower_face_y_max_max_m": 30.0,
+    "lower_segment_min_horizontal_span_m": 0.25,
     "minimum_camera_facing_dot": 0.02,
+    "connected_endpoint_tolerance_m": 0.08,
+    "parallel_horizontal_normal_dot_min": 0.985,
+    "dominant_group_min_horizontal_span_m": 12.0,
     "overlay_offset_m": 0.012,
     "minimum_visible_gt8_pixels": 1
   },
@@ -42,5 +45,13 @@
     "visual_candidate_approved": false,
     "realism_complete": false
   },
-  "decision_goal": "Identify the exact camera-facing official WALLSURFACE IDs for the two Grand-Place-facing lower wing planes. Heritage semantics may nominate the gallery/portico as one later motif only after those source faces are proven."
+  "first_run_finding": {
+    "run_id": 32132438313,
+    "artifact_id": 9322715096,
+    "artifact_sha256": "f620b6fcfbf4c5a79923079120474ade80aa6b3ac648af23ab4d54fa21cf4e77",
+    "failure": "fewer than two visible lower Grand-Place-facing wing-plane candidates",
+    "diagnosis": "The single-face span assumption was invalid for this UrbIS LoD2. Large camera-visible lower facade coverage is split across connected official WALLSURFACE segments; for example faces 10798452 and 10792525 share the exact official endpoint [297.4498, 0.0, -508.7339]. The evidence gate must map connected official face chains instead of forcing one face per heritage wing.",
+    "policy_change_kind": "classifier_correction_not_camera_or_visibility_threshold_relaxation"
+  },
+  "decision_goal": "Identify connected camera-visible lower WALLSURFACE chains on official building 1655673 and record every exact buildingface ID in the dominant chain. Do not force two heritage wings to be visible from the canonical camera. Heritage wing identity and gallery semantics remain separate claims; this evidence may only nominate one later gallery/portico motif after source-face review."
 }

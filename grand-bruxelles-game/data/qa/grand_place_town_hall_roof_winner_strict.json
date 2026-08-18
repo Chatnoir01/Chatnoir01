@@ -1,0 +1,27 @@
+{
+  "schema": "grand-bruxelles-town-hall-roof-winner-strict-v1",
+  "production_base": "0748e960b13c17c755a0939e0b231c2296201e37",
+  "source_audit_pr": 804,
+  "candidate_face_id": "9369301",
+  "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "expected_building_id": "https://databrussels.be/id/building/1655673",
+  "expected_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+  "resolution": [1280, 720],
+  "overlay_offset_m": 0.015,
+  "minimum_changed_gt8_pixels": 250,
+  "minimum_bbox_width_px": 20,
+  "minimum_bbox_height_px": 20,
+  "require_hidden_canvas_items": true,
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "camera_changed": false,
+    "material_changed": false,
+    "implementation_authorized": false,
+    "visual_candidate_approved": false,
+    "realism_complete": false
+  },
+  "purpose": "Re-prove the nominated roof face with all CanvasLayer and CanvasItem UI recursively hidden after scene readiness. This supersedes the first audit screenshots for visual cleanliness only; it does not authorize implementation."
+}

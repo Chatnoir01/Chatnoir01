@@ -83,8 +83,13 @@ func _assert_style(style: int, expected_name: String) -> bool:
         if visual.get_node_or_null(required_name) == null:
             _fail("missing detailed part %s on %s" % [required_name, expected_name])
             return false
-    if _mesh_count(visual) < 34:
-        _fail("%s is still too primitive: only %d mesh parts" % [expected_name, _mesh_count(visual)])
+
+    var mesh_parts := _mesh_count(visual)
+    if mesh_parts < 34:
+        _fail("%s is still too primitive: only %d mesh parts" % [expected_name, mesh_parts])
+        return false
+    if mesh_parts > 66:
+        _fail("%s uses too many draw-bearing mesh nodes: %d (>66)" % [expected_name, mesh_parts])
         return false
 
     var body := visual.get_node_or_null("BodyShell") as MeshInstance3D
@@ -104,6 +109,7 @@ func _assert_style(style: int, expected_name: String) -> bool:
         var rim := wheel.get_node_or_null("Rim") as MeshInstance3D
         var disc := wheel.get_node_or_null("BrakeDisc") as MeshInstance3D
         var caliper := wheel.get_node_or_null("BrakeCaliper") as MeshInstance3D
+        var spoke_star := wheel.get_node_or_null("SpokeStar") as MeshInstance3D
         if tire == null or rim == null or disc == null or caliper == null:
             _fail("%s lacks tire/rim/brake/caliper detail" % wheel_name)
             return false
@@ -113,18 +119,12 @@ func _assert_style(style: int, expected_name: String) -> bool:
         if not rim.mesh is TorusMesh:
             _fail("%s rim must be open so brake detail remains visible" % wheel_name)
             return false
+        if spoke_star == null or _vertex_count(spoke_star) < 30:
+            _fail("%s must consolidate five alloy spokes into one radial mesh" % wheel_name)
+            return false
         for spoke_index: int in range(5):
-            var spoke := wheel.get_node_or_null("Spoke%d" % spoke_index) as MeshInstance3D
-            if spoke == null or not spoke.mesh is BoxMesh:
-                _fail("%s missing alloy spoke %d" % [wheel_name, spoke_index])
-                return false
-            var spoke_box := spoke.mesh as BoxMesh
-            if spoke_box.size.y > 0.05:
-                _fail("%s spoke %d is too thick along the wheel axle" % [wheel_name, spoke_index])
-                return false
-            var radial_offset := Vector2(spoke.position.x, spoke.position.z).length()
-            if radial_offset < 0.07:
-                _fail("%s spoke %d is not positioned radially" % [wheel_name, spoke_index])
+            if wheel.get_node_or_null("Spoke%d" % spoke_index) != null:
+                _fail("%s still uses separate spoke mesh nodes instead of one optimized star" % wheel_name)
                 return false
 
     host.queue_free()
@@ -162,5 +162,5 @@ func _run() -> void:
         _fail("legacy traffic box body/cabin must remain hidden after the realistic upgrade")
         return
 
-    print("REAL_CIVILIAN_VEHICLE_VISUAL_OK: v3 dense shells + open alloy wheels; moving traffic wired")
+    print("REAL_CIVILIAN_VEHICLE_VISUAL_OK: v3 dense shells + open optimized alloy wheels; moving traffic wired")
     quit(0)

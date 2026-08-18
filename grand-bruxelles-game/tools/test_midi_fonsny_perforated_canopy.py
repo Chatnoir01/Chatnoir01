@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import json
-import re
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 IDENTITY = ROOT / "data/visual/midi_fonsny_perforated_canopy_identity.json"
 HERO = ROOT / "game/scripts/midi_hero_zone.gd"
+RUNTIME = ROOT / "game/scripts/midi_fonsny_perforated_canopy_runtime.gd"
+MOUNT = ROOT / "game/scripts/midi_architectural_concrete_surface_runtime.gd"
 
 OLD_CANOPY = (
     '_add_box(entrance, "EntranceConcreteCanopy", '
@@ -20,6 +21,8 @@ class MidiFonsnyPerforatedCanopyContractTest(unittest.TestCase):
     def test_source_contract_and_in_place_replacement(self) -> None:
         identity = json.loads(IDENTITY.read_text(encoding="utf-8"))
         hero = HERO.read_text(encoding="utf-8")
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        mount = MOUNT.read_text(encoding="utf-8")
 
         self.assertEqual(identity["schema"], "grand-bruxelles-midi-fonsny-canopy-v1")
         self.assertEqual(identity["zone"], "midi")
@@ -54,23 +57,27 @@ class MidiFonsnyPerforatedCanopyContractTest(unittest.TestCase):
         self.assertFalse(contract["runtime_approved"])
         self.assertFalse(contract["realism_complete"])
 
-        # RED-first guard: production currently owns one solid authored canopy.
-        # The implementation must replace that exact surface in place rather
-        # than stacking another porch/canopy behind it.
-        self.assertIn(OLD_CANOPY, hero, "expected current production solid-canopy baseline moved unexpectedly")
-        self.assertIn(
-            "EntranceSourceBackedPerforatedCanopy",
-            hero,
-            "source-backed Fonsny canopy replacement missing",
-        )
-        self.assertRegex(hero, r"CanopyConcreteRib_[^\n]*")
-        self.assertRegex(hero, r"CanopyGlassBlockPanel_[^\n]*")
-        self.assertIn("fonsny_canopy_dimensions_are_visualization_convention", hero)
+        # Preserve the exact current-production slab as a hidden same-run A/B
+        # baseline. The candidate runtime, not MidiHero geometry placement,
+        # owns the visible replacement and must never show both at once.
+        self.assertIn(OLD_CANOPY, hero, "current production canopy baseline drifted")
+        self.assertIn("EntranceSourceBackedPerforatedCanopy", runtime)
+        self.assertIn("CanopyConcreteRib_X_", runtime)
+        self.assertIn("CanopyConcreteRib_Z_", runtime)
+        self.assertIn("CanopyGlassBlockPanel_", runtime)
+        self.assertIn("fonsny_canopy_dimensions_are_visualization_convention", runtime)
+        self.assertIn('const CANOPY_SIZE := Vector3(17.8, 0.48, 25.0)', runtime)
+        self.assertIn('const CANOPY_POSITION := Vector3(-7.0, 4.55, 0.0)', runtime)
+        self.assertIn("_baseline.visible = not enabled", runtime)
+        self.assertIn("_replacement.visible = enabled", runtime)
+        self.assertIn("set_source_backed_enabled(true)", runtime)
+        self.assertIn("panel_count_source_measured", runtime)
+        self.assertIn("rib_spacing_source_measured", runtime)
+        self.assertIn('official_station_plan_authority", "UrbIS"', runtime)
 
-        replacement_call = re.search(
-            r'_build_fonsny_source_backed_canopy\(entrance[^\n]*\)', hero
-        )
-        self.assertIsNotNone(replacement_call, "Fonsny source-backed canopy builder is not mounted")
+        self.assertIn('preload("res://game/scripts/midi_fonsny_perforated_canopy_runtime.gd")', mount)
+        self.assertIn('name = "MidiFonsnyPerforatedCanopyRuntime"', mount)
+        self.assertIn("func fonsny_canopy_runtime() -> Node:", mount)
 
 
 if __name__ == "__main__":

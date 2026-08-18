@@ -1,0 +1,88 @@
+{
+  "schema": "grand-bruxelles-zone-promotion-proof-v1",
+  "zone_id": "midi",
+  "catalog_quality": "JOUABLE",
+  "decision": "KEEP_JOUABLE",
+  "scope": "existing_jouable_baseline_certified_after_points_1_to_4",
+  "realism_complete": false,
+  "stages": {
+    "source_verified": {
+      "status": "PASS",
+      "evidence": [
+        "grand-bruxelles-game/data/visual/midi_fonsny_full_entrance_identity.json",
+        ".github/workflows/grand-bruxelles-midi-fonsny-full-entrance.yml"
+      ]
+    },
+    "runtime_validated": {
+      "status": "PASS",
+      "evidence": [
+        "grand-bruxelles-game/game/tests/midi_fonsny_full_entrance_test.gd",
+        ".github/workflows/grand-bruxelles-midi-fonsny-full-entrance.yml"
+      ],
+      "validated_head": "54cee7be50649f610d2fd5cd39025f40921ab7e3",
+      "workflow_run_id": 32110153842
+    },
+    "player_ground_collision": {
+      "status": "PASS",
+      "evidence": [
+        "grand-bruxelles-game/game/tests/midi_official_street_surface_collision_test.gd",
+        ".github/workflows/grand-bruxelles-midi-official-street-collision.yml"
+      ],
+      "merged_via_pr": 749
+    },
+    "hero_anchor_visible": {
+      "status": "PASS",
+      "evidence": [
+        "grand-bruxelles-game/game/tests/midi_fonsny_full_entrance_witness_test.gd",
+        ".github/workflows/grand-bruxelles-midi-fonsny-full-entrance-visual.yml"
+      ],
+      "locked_metrics": {
+        "changed_over_3_rgb_ratio": 0.049336,
+        "changed_over_8_rgb_ratio": 0.042255,
+        "bbox": [903, 185]
+      }
+    },
+    "full_frame_player_proof": {
+      "status": "PASS",
+      "evidence": [
+        "grand-bruxelles-game/game/tests/midi_fonsny_full_entrance_witness_test.gd",
+        ".github/workflows/grand-bruxelles-midi-fonsny-full-entrance-visual.yml"
+      ],
+      "validated_head": "54cee7be50649f610d2fd5cd39025f40921ab7e3",
+      "workflow_run_id": 32110153941,
+      "camera_locked": true,
+      "thresholds_unchanged": true
+    },
+    "performance_exports_green": {
+      "status": "PASS",
+      "evidence": [
+        ".github/workflows/grand-bruxelles-performance.yml",
+        ".github/workflows/grand-bruxelles-web-export.yml",
+        ".github/workflows/grand-bruxelles-desktop-export.yml",
+        ".github/workflows/grand-bruxelles-photo-match-qa.yml",
+        ".github/workflows/grand-bruxelles-game.yml",
+        ".github/workflows/grand-bruxelles-branch-hygiene.yml"
+      ],
+      "validated_head": "54cee7be50649f610d2fd5cd39025f40921ab7e3",
+      "workflow_runs": {
+        "performance": 32110153840,
+        "web": 32110153902,
+        "pc": 32110153825,
+        "photo_match": 32110153881,
+        "game_ci": 32110153843,
+        "branch_hygiene": 32110153930
+      }
+    },
+    "human_visual_verdict": {
+      "status": "PASS",
+      "verdict": "PASS",
+      "scope": "full-frame player-eye review of the Midi/Fonsny Point 4 evidence",
+      "reviewed_at": "2026-08-18",
+      "realism_complete": false,
+      "evidence": [
+        "grand-bruxelles-game/game/tests/midi_fonsny_full_entrance_witness_test.gd",
+        ".github/workflows/grand-bruxelles-midi-fonsny-full-entrance-visual.yml"
+      ]
+    }
+  }
+}

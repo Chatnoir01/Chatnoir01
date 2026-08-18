@@ -1,0 +1,98 @@
+{
+  "schema": "grand-bruxelles-town-hall-dormer-photo-evidence-v1",
+  "status": "evidence_only",
+  "production_base": "6b165d44ab4bd8fa1cc61ef70e040ccf04b7906a",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "roof_face_id": "https://databrussels.be/id/buildingface/9369301",
+    "semantic_scope": "Grand-Place west/right-of-tower Gothic wing roof above the already registered gallery",
+    "right_gallery_span_m": 15.9440934873,
+    "right_gallery_bays": 6
+  },
+  "heritage_source": {
+    "provider": "Urban Brussels - Inventaire du patrimoine architectural",
+    "record_id": "31125",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+    "supported_fact": "Trois niveaux sous une vaste batiere d'ardoises percee de quatre rangs de lucarnes a croupe.",
+    "supported_row_count": 4,
+    "supports_exact_dormer_positions": false,
+    "supports_exact_dormer_dimensions": false
+  },
+  "photo_sources": [
+    {
+      "id": "commons_michielverbeek_2015",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Brussels,_townhall_oeg2043-00090_foto3_2015-06-07_08.38.jpg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/1/13/Brussels%2C_townhall_oeg2043-00090_foto3_2015-06-07_08.38.jpg",
+      "author": "Michielverbeek",
+      "date": "2015-06-07",
+      "license": "CC BY-SA 4.0",
+      "width": 2921,
+      "height": 3899,
+      "sha256": "1bd1eff924d3b1a9b21ec83a63693d83f689aff06d47acea975095c9915178b1",
+      "crop_xyxy": [1650, 2000, 2350, 2850],
+      "row_points_crop_xy": [
+        [[230,410],[310,420],[380,445]],
+        [[235,460],[300,475],[375,500],[435,515]],
+        [[235,525],[300,550],[375,565],[445,585]],
+        [[245,610],[315,635],[390,650],[465,665],[525,680]]
+      ]
+    },
+    {
+      "id": "commons_zairon_2016",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Bruxelles_Grand-Place_Hotel_de_Ville_01.jpg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/8/82/Bruxelles_Grand-Place_H%C3%B4tel_de_Ville_01.jpg",
+      "author": "Zairon",
+      "date": "2016-04-19",
+      "license": "CC BY-SA 4.0",
+      "width": 3334,
+      "height": 3661,
+      "sha256": "c8d4123381926ed0473f08d82e54110c572d52a32e10b21d6fd90efb69658be8",
+      "crop_xyxy": [1850, 1750, 2700, 2500],
+      "row_points_crop_xy": [
+        [[278,452],[366,463],[440,485]],
+        [[278,490],[350,505],[435,530],[510,550]],
+        [[278,555],[350,580],[440,605],[510,620]],
+        [[292,645],[380,665],[445,690],[530,705],[605,720]]
+      ]
+    },
+    {
+      "id": "commons_emdee_2011",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Belgique_-_Bruxelles_-_Hotel_de_Ville_-_01.jpg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/a/aa/Belgique_-_Bruxelles_-_H%C3%B4tel_de_Ville_-_01.jpg",
+      "author": "EmDee",
+      "date": "2011-04-07",
+      "license": "CC BY-SA 4.0",
+      "width": 2552,
+      "height": 3498,
+      "sha256": "339bec2eec75ee8e95ead893f532dc229008d6a66f3a6850f5c4fda93621854c",
+      "crop_xyxy": [1450, 1750, 2250, 2600],
+      "row_points_crop_xy": [
+        [[360,485],[450,495],[525,510]],
+        [[360,540],[445,555],[525,570],[590,590]],
+        [[360,595],[445,610],[525,625],[590,640]],
+        [[380,650],[460,665],[535,680],[610,695],[680,710]]
+      ]
+    }
+  ],
+  "cross_source_observation": {
+    "required_source_count": 3,
+    "required_row_count": 4,
+    "required_visible_population_by_row_top_to_bottom": [3,4,4,5],
+    "morphology": "small hipped dormers projecting from dark slate roof",
+    "staggered_rows": true,
+    "photo_points_are_manual_visual_annotations": true,
+    "photo_points_are_survey_coordinates": false
+  },
+  "decision": {
+    "four_rows_confirmed": true,
+    "visible_population_pattern_confirmed": true,
+    "exact_3d_positions_resolved": false,
+    "exact_dimensions_resolved": false,
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "dormers_authored": false,
+    "implementation_authorized": false,
+    "visual_candidate_approved": false,
+    "realism_complete": false
+  }
+}

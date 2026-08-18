@@ -315,19 +315,22 @@ func _gallery_bay_polygon(left_s: float, right_s: float) -> PackedVector2Array:
     var left := left_s + side_margin
     var right := right_s - side_margin
     var apex_x := (left + right) * 0.5
+    var rise := RIGHT_GALLERY_HEIGHT_M - RIGHT_GALLERY_SPRING_M
+    var left_control := Vector2(left + width * 0.24, RIGHT_GALLERY_SPRING_M + rise * 0.62)
+    var right_control := Vector2(right - width * 0.24, RIGHT_GALLERY_SPRING_M + rise * 0.62)
     polygon.append(Vector2(left, RIGHT_GALLERY_BASE_M))
     polygon.append(Vector2(left, RIGHT_GALLERY_SPRING_M))
     for sample: int in range(1, RIGHT_GALLERY_ARCH_SAMPLES + 1):
         var t := float(sample) / float(RIGHT_GALLERY_ARCH_SAMPLES)
         var omt := 1.0 - t
-        var x := omt * omt * left + 2.0 * omt * t * (left + width * 0.16) + t * t * apex_x
-        var y := omt * omt * RIGHT_GALLERY_SPRING_M + 2.0 * omt * t * RIGHT_GALLERY_HEIGHT_M + t * t * RIGHT_GALLERY_HEIGHT_M
+        var x := omt * omt * left + 2.0 * omt * t * left_control.x + t * t * apex_x
+        var y := omt * omt * RIGHT_GALLERY_SPRING_M + 2.0 * omt * t * left_control.y + t * t * RIGHT_GALLERY_HEIGHT_M
         polygon.append(Vector2(x, y))
     for sample: int in range(1, RIGHT_GALLERY_ARCH_SAMPLES + 1):
         var t := float(sample) / float(RIGHT_GALLERY_ARCH_SAMPLES)
         var omt := 1.0 - t
-        var x := omt * omt * apex_x + 2.0 * omt * t * (right - width * 0.16) + t * t * right
-        var y := omt * omt * RIGHT_GALLERY_HEIGHT_M + 2.0 * omt * t * RIGHT_GALLERY_HEIGHT_M + t * t * RIGHT_GALLERY_SPRING_M
+        var x := omt * omt * apex_x + 2.0 * omt * t * right_control.x + t * t * right
+        var y := omt * omt * RIGHT_GALLERY_HEIGHT_M + 2.0 * omt * t * right_control.y + t * t * RIGHT_GALLERY_SPRING_M
         polygon.append(Vector2(x, y))
     polygon.append(Vector2(right, RIGHT_GALLERY_BASE_M))
     return polygon

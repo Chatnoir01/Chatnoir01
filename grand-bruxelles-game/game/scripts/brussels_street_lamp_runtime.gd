@@ -23,13 +23,22 @@ func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     call_deferred("_bind_when_ready")
 
+func _resolve_production_scene() -> Node3D:
+    var current := get_tree().current_scene
+    if current is Node3D:
+        return current as Node3D
+    var roads := get_tree().root.find_child("GeneratedRoads", true, false)
+    if roads != null and roads.get_parent() is Node3D:
+        return roads.get_parent() as Node3D
+    return null
+
 func _bind_when_ready() -> void:
     for _attempt: int in range(180):
         if _manual_binding or _ready_complete:
             return
-        var current := get_tree().current_scene
-        if current is Node3D:
-            _scene = current as Node3D
+        var discovered := _resolve_production_scene()
+        if discovered != null:
+            _scene = discovered
             _build()
             return
         await get_tree().process_frame

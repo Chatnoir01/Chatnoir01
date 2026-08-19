@@ -5,7 +5,9 @@ on:
     paths:
       - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json"
       - "grand-bruxelles-game/tools/qa/prepare_region_lod2_source_materialization.py"
+      - "grand-bruxelles-game/tools/qa/download_locked_urbis_package.py"
       - "grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard.py"
+      - "grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard_cached.py"
       - "grand-bruxelles-game/tools/qa/aggregate_region_lod2_source_materialization.py"
       - ".github/workflows/grand-bruxelles-region-lod2-c01-source-materialization.yml"
   workflow_dispatch:
@@ -38,6 +40,56 @@ jobs:
           assert contract["materialization"].get("measurement_required_before_final_gate") is False
           print(f"C01_FINAL_INDEX_DIGEST_LOCKED: {digest}")
           PY
+
+      - name: RED - prove trickle connection is wall-clock bounded
+        run: |
+          set -euo pipefail
+          python - <<'PY' >"$RUNNER_TEMP/slow-server.log" 2>&1 &
+          import time
+          from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+          class SlowHandler(BaseHTTPRequestHandler):
+              def log_message(self, *_args):
+                  pass
+
+              def do_GET(self):
+                  self.send_response(200)
+                  self.send_header("Content-Type", "application/octet-stream")
+                  self.send_header("Content-Length", str(1024 * 1024))
+                  self.end_headers()
+                  try:
+                      for _ in range(200):
+                          self.wfile.write(b"x" * 512)
+                          self.wfile.flush()
+                          time.sleep(0.2)
+                  except (BrokenPipeError, ConnectionResetError):
+                      pass
+
+          ThreadingHTTPServer(("127.0.0.1", 18765), SlowHandler).serve_forever()
+          PY
+          SLOW_PID=$!
+          trap 'kill "$SLOW_PID" 2>/dev/null || true' EXIT
+          sleep 0.5
+          START="$(date +%s)"
+          if python grand-bruxelles-game/tools/qa/download_locked_urbis_package.py \
+            --url http://127.0.0.1:18765/slow \
+            --allowed-host 127.0.0.1 \
+            --allow-http \
+            --output "$RUNNER_TEMP/slow.bin" \
+            --connect-timeout-seconds 1 \
+            --attempt-max-seconds 2 \
+            --slow-speed-bytes-per-second 1048576 \
+            --slow-speed-window-seconds 1 \
+            --retries 1; then
+            echo "RED gate unexpectedly accepted trickle connection" >&2
+            exit 1
+          fi
+          ELAPSED=$(( $(date +%s) - START ))
+          test "$ELAPSED" -lt 10
+          test ! -f "$RUNNER_TEMP/slow.bin"
+          kill "$SLOW_PID" 2>/dev/null || true
+          trap - EXIT
+          echo "C01_BOUNDED_DOWNLOAD_RED_OK: trickle rejected elapsed=${ELAPSED}s"
 
       - name: Download immutable C01 selection and source summary
         env:
@@ -102,7 +154,7 @@ jobs:
   materialize-shards:
     needs: prepare
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       max-parallel: 16
@@ -133,14 +185,47 @@ jobs:
           echo "SELECTION=$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.selection.json' -print -quit)" >> "$GITHUB_ENV"
           echo "SUMMARY=$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.summary.json' -print -quit)" >> "$GITHUB_ENV"
 
-      - name: Materialize exact locked source shard directly
+      - name: Resolve exact locked source URL and package SHA
         run: |
-          python grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard.py \
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          key = os.environ["DISTRIBUTION_KEY"]
+          summary = json.loads(Path(os.environ["SUMMARY"]).read_text())
+          shard = summary["source_shards"][key]
+          source = shard["source"]
+          assert source["distribution_url"].startswith("https://urbisdownload.datastore.brussels/")
+          digest = source["package_sha256"]
+          assert isinstance(digest, str) and len(digest) == 64
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"LOCKED_URL={source['distribution_url']}\n")
+              env.write(f"LOCKED_PACKAGE_SHA={digest}\n")
+          print(f"C01_LOCKED_SOURCE_RESOLVED: key={key} sha256={digest}")
+          PY
+        env:
+          DISTRIBUTION_KEY: ${{ matrix.distribution_key }}
+
+      - name: Download exact locked source package with bounded transport
+        run: |
+          python grand-bruxelles-game/tools/qa/download_locked_urbis_package.py \
+            --url "$LOCKED_URL" \
+            --expected-sha256 "$LOCKED_PACKAGE_SHA" \
+            --output "$RUNNER_TEMP/source-package.zip" \
+            --connect-timeout-seconds 20 \
+            --attempt-max-seconds 240 \
+            --slow-speed-bytes-per-second 1024 \
+            --slow-speed-window-seconds 30 \
+            --retries 4
+
+      - name: Materialize exact locked source shard from verified local package
+        run: |
+          python grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard_cached.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --selection "$SELECTION" \
             --summary "$SUMMARY" \
             --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json \
             --distribution-key "${{ matrix.distribution_key }}" \
+            --package "$RUNNER_TEMP/source-package.zip" \
             --output-root "$RUNNER_TEMP/materialized"
 
       - uses: actions/upload-artifact@v4

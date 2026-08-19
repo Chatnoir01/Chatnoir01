@@ -1,0 +1,67 @@
+name: Grand Bruxelles Anderlecht LoD2 Batch B01
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json"
+      - "grand-bruxelles-game/tools/qa/verify_urbis_lod2_source_batch.py"
+      - ".github/workflows/grand-bruxelles-anderlecht-lod2-batch-b01.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-source-batch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source reader dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely
+
+      - name: Verify Anderlecht E145500 N169000 B01 from official UrbIS LoD2
+        run: |
+          python grand-bruxelles-game/tools/qa/verify_urbis_lod2_source_batch.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json \
+            --output-dir "$RUNNER_TEMP/anderlecht_lod2_b01"
+
+      - name: Publish source-batch summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "anderlecht_lod2_b01" / "verification.json").read_text()
+          )
+          lines = [
+              "## Anderlecht LoD2 source batch B01",
+              "",
+              f"- Cell missing owners: **{result['cell_missing_owner_count']}**",
+              f"- Selected owners: **{result['selected_owner_count']}**",
+              f"- BU_ID range: **{result['selected_first_building_id']} → {result['selected_last_building_id']}**",
+              f"- Selected official solids: **{result['selected_total_solids']}**",
+              f"- Package SHA-256: `{result['source']['package_sha256']}`",
+              "",
+              "Source evidence only — runtime_authorized=false; materialization_authorized=false.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+
+      - name: Upload verified owner evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anderlecht-e145500-n169000-b01-source-evidence
+          path: ${{ runner.temp }}/anderlecht_lod2_b01/*
+          if-no-files-found: error

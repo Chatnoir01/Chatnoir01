@@ -1,0 +1,48 @@
+{
+  "schema": "grand-bruxelles-urbis-lod2-source-batch-contract-v2",
+  "batch_id": "anderlecht-E145500_N169000-B03",
+  "production_base_sha": "b9e18e6bf1672a6bbe92c510497784656481e011",
+  "municipality": {
+    "slug": "anderlecht",
+    "name": "Anderlecht",
+    "wfs_layer": "urbisvector:Municipalities"
+  },
+  "cell": {
+    "crs": "EPSG:31370",
+    "id": "E145500_N169000",
+    "bbox": [
+      145500.0,
+      169000.0,
+      146000.0,
+      169500.0
+    ]
+  },
+  "selection": {
+    "order": "numeric BU_ID ascending",
+    "batch_index": 3,
+    "max_owners": 250,
+    "planner_cell_owner_count": 911,
+    "expected_owner_count": 250,
+    "expected_first_building_id": "1681377",
+    "expected_last_building_id": "1741131"
+  },
+  "source": {
+    "dataset": "UrbIS - 3D Constructions",
+    "dataset_id": "e9ec2aa4-cffd-11ee-bccc-00090ffe0001",
+    "revision": "20260808",
+    "distribution_key": "urbisbuildings3d_31370_shp_145169_{date}.zip",
+    "license": "CC0-1.0"
+  },
+  "planning_evidence": {
+    "planner_pr": 898,
+    "planner_run_id": 32269055058,
+    "planner_artifact_id": 9371456570,
+    "planner_artifact_sha256": "5c45f328f06bf951631c1f71fe4360b7f503c04a2da3bcbd2093d7a7fd5c4535"
+  },
+  "hard_rules": {
+    "runtime_authorized": false,
+    "materialization_authorized": false,
+    "geometry_modified": false,
+    "semantic_names_authorized": false
+  }
+}

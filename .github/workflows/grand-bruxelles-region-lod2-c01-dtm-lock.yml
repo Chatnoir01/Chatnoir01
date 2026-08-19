@@ -1,0 +1,170 @@
+name: Grand Bruxelles Region LoD2 C01 DTM Lock
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor.lock.json"
+      - "grand-bruxelles-game/tools/qa/lock_region_lod2_c01_dtm_rigid_anchor.py"
+      - ".github/workflows/grand-bruxelles-region-lod2-c01-dtm-lock.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  reproduce-locked-30k-dtm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Require exact lock contract and closed authorization rails
+        run: |
+          python - <<'PY'
+          import copy, json, subprocess, sys, tempfile
+          from pathlib import Path
+
+          contract_path = Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor.lock.json")
+          contract = json.loads(contract_path.read_text())
+          assert contract["production_base_sha"] == "d947e75ed4ed8175b38d39f6b854c1163acce965"
+          assert contract["source_shards"]["measurement_pr"] == 973
+          assert contract["source_shards"]["workflow_run_id"] == 32313490805
+          assert contract["source_shards"]["head_sha"] == "ca96a62061a4e86048b89b5580a58986772cab88"
+          assert len(contract["source_shards"]["artifact_locks"]) == 8
+          assert contract["expected_measurement"]["owners"] == 30000
+          assert contract["expected_measurement"]["unique_ground_samples"] == 270619
+          assert contract["expected_measurement"]["dtm_tile_count"] == 48
+          assert contract["expected_measurement"]["selected_quantile"] == 0.5
+          assert len(contract["expected_output_sha256"]) == 4
+          for key in [
+              "runtime_authorized", "runtime_mount_authorized", "collision_authorized",
+              "final_world_y_authorized", "terrain_runtime_authorized",
+              "source_geometry_modified", "jouable_promotion_authorized",
+          ]:
+              assert contract["hard_rules"][key] is False, key
+          assert contract["hard_rules"]["owner_rigid_translation_only"] is True
+          assert contract["hard_rules"]["artifact_only"] is True
+          print("C01_DTM_LOCK_CONTRACT_OK: owners=30000 samples=270619 tiles=48 q=0.50")
+          PY
+
+      - name: RED - reject warp and premature world-Y authorization
+        run: |
+          python - <<'PY'
+          import copy, json, sys
+          from pathlib import Path
+          sys.path.insert(0, "grand-bruxelles-game/tools/qa")
+          import lock_region_lod2_c01_dtm_rigid_anchor as lock
+
+          source = Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor.lock.json")
+          contract = json.loads(source.read_text())
+
+          bad = copy.deepcopy(contract)
+          bad["policy"]["source_vertex_warping_allowed"] = True
+          try:
+              lock.validate_contract(bad)
+          except RuntimeError:
+              pass
+          else:
+              raise SystemExit("RED failed: vertex warping was accepted")
+
+          bad = copy.deepcopy(contract)
+          bad["hard_rules"]["final_world_y_authorized"] = True
+          try:
+              lock.validate_contract(bad)
+          except RuntimeError:
+              pass
+          else:
+              raise SystemExit("RED failed: final world Y was accepted")
+
+          print("C01_DTM_LOCK_RED_OK: warp=false final_world_y=false")
+          PY
+
+      - name: Download and verify the eight green source-measurement shards
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/shards"
+          python - <<'PY' > "$RUNNER_TEMP/artifacts.tsv"
+          import json
+          from pathlib import Path
+          c = json.loads(Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor.lock.json").read_text())
+          for row in c["source_shards"]["artifact_locks"]:
+              print(row["group"], row["artifact_id"], row["archive_sha256"], sep="\t")
+          PY
+          while IFS=$'\t' read -r GROUP ID SHA; do
+            ZIP="$RUNNER_TEMP/group-${GROUP}.zip"
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}/zip" \
+              > "$ZIP"
+            echo "$SHA  $ZIP" | sha256sum -c -
+            unzip -q "$ZIP" -d "$RUNNER_TEMP/shards"
+          done < "$RUNNER_TEMP/artifacts.tsv"
+          test "$(find "$RUNNER_TEMP/shards" -name 'residuals_*.csv' | wc -l)" -eq 48
+          test "$(find "$RUNNER_TEMP/shards" -name 'dtm_evidence_*.json' | wc -l)" -eq 48
+          echo "C01_DTM_LOCK_SHARDS_OK: groups=8 tiles=48 source_head=ca96a62061a4e86048b89b5580a58986772cab88"
+
+      - name: GREEN - reproduce exact exhaustive C01 rigid-anchor result
+        run: |
+          python grand-bruxelles-game/tools/qa/lock_region_lod2_c01_dtm_rigid_anchor.py \
+            --input-dir "$RUNNER_TEMP/shards" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor.lock.json \
+            --output-dir "$RUNNER_TEMP/result"
+
+      - name: Require exact 30k accounting and fail-closed result
+        run: |
+          python - <<'PY'
+          import csv, json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "result"
+          report = json.loads((root / "dtm_rigid_anchor_locked.json").read_text())
+          owners = json.loads((root / "rigid_anchor_selected_by_owner.json").read_text())
+          locks = json.loads((root / "dtm_tile_locks.json").read_text())
+          hashes = json.loads((root / "result.sha256.json").read_text())
+          with (root / "rigid_anchor_selected_per_owner.csv").open(newline="") as handle:
+              rows = list(csv.DictReader(handle))
+
+          assert report["input"]["owners"] == 30000
+          assert report["input"]["unique_ground_samples"] == 270619
+          assert report["input"]["dtm_tile_count"] == 48
+          assert report["same_xy_distinct_source_z_sample_count"] == 2461
+          assert report["sample_identity"] == "official_BU_ID+easting+northing+source_ground_z"
+          assert len(owners) == len(rows) == 30000
+          assert len(locks) == 48
+          assert len(hashes) == 4
+          selected = report["selected_numerical_candidate"]
+          assert selected["quantile"] == 0.5
+          assert selected["post_residual_m"]["abs_p95"] < report["input"]["baseline_vertex_abs_p95_m"]
+          for key in [
+              "runtime_authorized", "runtime_mount_authorized", "collision_authorized",
+              "final_world_y_authorized", "terrain_runtime_authorized",
+              "source_geometry_modified", "jouable_promotion_authorized",
+          ]:
+              assert report[key] is False, key
+          assert report["artifact_only"] is True
+          print(
+              "C01_DTM_LOCK_REPRODUCTION_OK: "
+              f"owners={len(owners)} samples={report['input']['unique_ground_samples']} "
+              f"q={selected['quantile']:.2f} "
+              f"baseline_p95={report['input']['baseline_vertex_abs_p95_m']:.10f} "
+              f"post_p95={selected['post_residual_m']['abs_p95']:.10f}"
+          )
+          PY
+
+      - name: Publish locked output hashes
+        run: |
+          cat "$RUNNER_TEMP/result/result.sha256.json" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-dtm-rigid-anchor-locked
+          path: ${{ runner.temp }}/result/*
+          if-no-files-found: error
+          compression-level: 9

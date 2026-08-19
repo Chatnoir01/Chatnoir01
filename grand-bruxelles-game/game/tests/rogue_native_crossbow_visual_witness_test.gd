@@ -4,6 +4,9 @@ const MAIN_SCENE := "res://game/main.tscn"
 const OUT_DIR := "res://artifacts/qa/rogue_native_crossbow"
 const WIDTH := 1280
 const HEIGHT := 720
+const MIN_CROSSBOW_EXTENT_PX := Vector2(160.0, 70.0)
+const MAX_CROSSBOW_HAND_REGION_GAP_M := 0.12
+const EXPECTED_CARRY_DEG := Vector3(-12.0, 24.0, 5.0)
 const NATIVE_WEAPONS: Array[String] = [
     "Knife_Offhand",
     "1H_Crossbow",
@@ -57,6 +60,30 @@ func _assert_visibility(player: CharacterBody3D, expected_visible: String) -> bo
             return false
     return true
 
+func _projected_extent(mesh_instance: MeshInstance3D, camera: Camera3D) -> Vector2:
+    if mesh_instance == null or mesh_instance.mesh == null or camera == null:
+        return Vector2.ZERO
+    var aabb := mesh_instance.get_aabb()
+    var minp := Vector2(INF, INF)
+    var maxp := Vector2(-INF, -INF)
+    var visible_count := 0
+    for xi: int in [0, 1]:
+        for yi: int in [0, 1]:
+            for zi: int in [0, 1]:
+                var local := aabb.position + Vector3(aabb.size.x * xi, aabb.size.y * yi, aabb.size.z * zi)
+                var world := mesh_instance.global_transform * local
+                if camera.is_position_behind(world):
+                    continue
+                var screen := camera.unproject_position(world)
+                minp.x = minf(minp.x, screen.x)
+                minp.y = minf(minp.y, screen.y)
+                maxp.x = maxf(maxp.x, screen.x)
+                maxp.y = maxf(maxp.y, screen.y)
+                visible_count += 1
+    if visible_count == 0:
+        return Vector2.ZERO
+    return maxp - minp
+
 func _capture(path: String, player: CharacterBody3D) -> bool:
     for _frame: int in range(12):
         _mask_canvas(root)
@@ -72,6 +99,9 @@ func _capture(path: String, player: CharacterBody3D) -> bool:
 func _run() -> void:
     if root.get_node_or_null("CombatAuthoredPoseRuntime") != null:
         _fail("unsafe authored pose runtime is active")
+        return
+    if root.get_node_or_null("CombatRogueCrossbowPresentationRuntime") == null:
+        _fail("safe crossbow presentation runtime is not active")
         return
     if change_scene_to_file(MAIN_SCENE) != OK:
         _fail("main scene load failed")
@@ -91,6 +121,10 @@ func _run() -> void:
     var arsenal := root.get_node_or_null("PlayerCombatArsenalRuntime")
     if arsenal == null:
         _fail("arsenal unavailable")
+        return
+    var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
+    if camera == null:
+        _fail("production camera unavailable")
         return
 
     player.velocity = Vector3.ZERO
@@ -112,9 +146,30 @@ func _run() -> void:
     if not bool(arsenal.call("equip_weapon", player, &"crossbow")):
         _fail("crossbow equip failed")
         return
-    for _frame: int in range(18):
+    for _attempt: int in range(180):
         await process_frame
+        if bool(player.get_meta("combat_native_crossbow_orientation_locked", false)):
+            break
     if not _assert_visibility(player, "2H_Crossbow"):
+        return
+    if not bool(player.get_meta("combat_native_crossbow_orientation_locked", false)):
+        _fail("native crossbow presentation never locked to authored hand region")
+        return
+    var gap_m := float(player.get_meta("combat_native_crossbow_hand_region_gap_m", 999.0))
+    if gap_m > MAX_CROSSBOW_HAND_REGION_GAP_M:
+        _fail("native crossbow hand-region gap %.4fm > %.4fm" % [gap_m, MAX_CROSSBOW_HAND_REGION_GAP_M])
+        return
+    var carry_variant: Variant = player.get_meta("combat_native_crossbow_carry_rotation_deg", Vector3.ZERO)
+    if not carry_variant is Vector3 or (carry_variant as Vector3).distance_to(EXPECTED_CARRY_DEG) > 0.01:
+        _fail("native crossbow carry rotation drifted: %s" % str(carry_variant))
+        return
+    var crossbow := player.find_child("2H_Crossbow", true, false) as MeshInstance3D
+    if crossbow == null:
+        _fail("2H crossbow mesh unavailable for player-view gate")
+        return
+    var extent_px := _projected_extent(crossbow, camera)
+    if extent_px.x < MIN_CROSSBOW_EXTENT_PX.x or extent_px.y < MIN_CROSSBOW_EXTENT_PX.y:
+        _fail("crossbow too edge-on/small in player view: %.1fx%.1fpx < %.1fx%.1fpx" % [extent_px.x, extent_px.y, MIN_CROSSBOW_EXTENT_PX.x, MIN_CROSSBOW_EXTENT_PX.y])
         return
     if player.get_node_or_null("CombatWeaponVisual") != null:
         _fail("procedural holder exists during native crossbow")
@@ -139,5 +194,5 @@ func _run() -> void:
         _fail("BX-9 capture failed")
         return
 
-    print("ROGUE_NATIVE_CROSSBOW_VISUAL_OK: 1280x720 unarmed=native_hidden crossbow=2H_only bx9=native_hidden unsafe_pose=false")
+    print("ROGUE_NATIVE_CROSSBOW_VISUAL_OK: 1280x720 unarmed=native_hidden crossbow=2H_only carry=(-12,24,5) extent=%.1fx%.1fpx gap_m=%.4f bx9=native_hidden unsafe_pose=false" % [extent_px.x, extent_px.y, gap_m])
     quit(0)

@@ -1,0 +1,72 @@
+{
+  "schema": "grand-bruxelles-grand-place-phase0-coverage-v1",
+  "status": "evidence_only",
+  "base_main": "0807581e4a711d21b535a7def66f089da037a2f4",
+  "camera_contract": "data/qa/grand_place_clean_player_witness.json",
+  "resolution": [1280, 720],
+  "owners": [
+    {
+      "id": "town_hall_1655673",
+      "semantic_name": "Hotel de Ville",
+      "building_id": "1655673",
+      "geometry_path": "data/urbis/grand_place_lod2/1655673.game.json",
+      "semantic_status": "registered",
+      "production_status": "PARTIAL"
+    },
+    {
+      "id": "brasseurs_1639974",
+      "semantic_name": "Grand-Place 10 / Brasseurs source-backed front",
+      "building_id": "1639974",
+      "geometry_path": "data/urbis/grand_place_lod2/1639974.game.json",
+      "semantic_status": "registered_evidence_only",
+      "production_status": "PARTIAL"
+    },
+    {
+      "id": "context_1786758",
+      "semantic_name": null,
+      "building_id": "1786758",
+      "geometry_path": "data/urbis/grand_place_lod2/1786758.game.json",
+      "semantic_status": "unregistered",
+      "production_status": "UNMEASURED"
+    }
+  ],
+  "required_missing_coverage": [
+    {
+      "id": "maison_du_roi",
+      "status": "MISSING_OR_UNREGISTERED",
+      "rule": "Do not infer building identity from proximity; identify the exact UrbIS owner before runtime work."
+    },
+    {
+      "id": "remaining_guild_house_fronts",
+      "status": "MISSING",
+      "rule": "Persist official owners for every major visible contiguous front before claiming full-square coverage."
+    },
+    {
+      "id": "square_ground_and_street_joins",
+      "status": "MISSING_OR_UNINVENTORIED",
+      "rule": "Inventory official ground/street surfaces and collision continuity before visual completion."
+    },
+    {
+      "id": "visible_street_exit_masses",
+      "status": "MISSING_OR_UNINVENTORIED",
+      "rule": "Register visible corner/exit owners in frozen traversal views."
+    }
+  ],
+  "measurement": {
+    "kind": "deterministic_camera_projection_union_mask",
+    "surface_types": ["WALLSURFACE", "ROOFSURFACE"],
+    "near_plane_m": 0.05,
+    "purpose": "Phase0 coverage nomination only",
+    "authorizes_runtime": false,
+    "authorizes_architectural_detail": false,
+    "realistic_shaded_probe_still_required_for_visual_candidate": true
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "camera_rescue": false,
+    "semantic_guessing": false,
+    "missing_owner_may_be_marked_done": false
+  }
+}

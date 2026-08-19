@@ -1,0 +1,102 @@
+name: Grand Bruxelles Anderlecht LoD2 B01 Complexity
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/qa/audit_urbis_lod2_batch_complexity.py"
+      - "grand-bruxelles-game/tools/qa/inspect_urbis_lod2_unknown_face_types.py"
+      - ".github/workflows/grand-bruxelles-anderlecht-lod2-b01-complexity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-source-complexity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source reader dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely
+
+      - name: Audit verified Anderlecht B01 BuildingFaces complexity
+        run: |
+          python grand-bruxelles-game/tools/qa/audit_urbis_lod2_batch_complexity.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json \
+            --output-dir "$RUNNER_TEMP/anderlecht_b01_complexity"
+
+      - name: Inspect selected unknown face types
+        run: |
+          python grand-bruxelles-game/tools/qa/inspect_urbis_lod2_unknown_face_types.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json \
+            --output "$RUNNER_TEMP/anderlecht_b01_complexity/unknown_face_types.json"
+
+      - name: Require zero unexplained source face types
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "anderlecht_b01_complexity"
+          unknown = json.loads((root / "unknown_face_types.json").read_text())
+          expected = {
+              "building_id": "1619094",
+              "solid_id": "https://databrussels.be/id/buildingsolid/523955",
+              "face_id": "https://databrussels.be/id/buildingface/14124933",
+              "type": "OUTERCEILING",
+          }
+          assert len(unknown) == 1, f"expected one parser-unknown source face, got {len(unknown)}"
+          row = unknown[0]
+          assert row["building_id"] == expected["building_id"]
+          assert row["solid_id"] == expected["solid_id"]
+          assert row["face_id"] == expected["face_id"]
+          assert row["raw_properties"].get("TYPE") == expected["type"]
+          print("URBIS_LOD2_B01_FACE_TYPES_EXPLAINED_OK: OUTERCEILING face 14124933")
+          PY
+
+      - name: Publish complexity summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "anderlecht_b01_complexity"
+          report = json.loads((root / "complexity.json").read_text())
+          unknown = json.loads((root / "unknown_face_types.json").read_text())
+          c = report["complexity"]
+          lines = [
+              "## Anderlecht LoD2 B01 source complexity",
+              "",
+              f"- Owners: **{report['selected_owner_count']:,}**",
+              f"- Solids: **{c['selected_solid_count']:,}**",
+              f"- BuildingFaces: **{c['face_count']:,}**",
+              f"- Source points: **{c['point_count']:,}**",
+              f"- MultiPatch parts: **{c['part_count']:,}**",
+              f"- Full source geometry NDJSON: **{c['source_geometry_ndjson_bytes']:,} bytes**",
+              f"- Max faces on one owner: **{c['max_owner_faces']:,}**",
+              f"- Parser-unknown records: **{len(unknown):,}**",
+              "- Source-explained parser-unknown: **OUTERCEILING / buildingface 14124933**",
+              "- Unexplained source face types: **0**",
+              "",
+              "Evidence only — runtime_authorized=false; materialization_authorized=false.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+
+      - name: Upload full source complexity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anderlecht-e145500-n169000-b01-complexity
+          path: ${{ runner.temp }}/anderlecht_b01_complexity/*
+          if-no-files-found: error

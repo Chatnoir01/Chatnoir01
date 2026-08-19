@@ -39,6 +39,20 @@ func _run() -> void:
     var result: Dictionary = dodge.call("request_dodge", player, Vector3.RIGHT)
     if not _expect(bool(result.get("dodged", false)), "dodge request did not execute"):
         return
+    if not _expect(player.global_position.distance_to(start) <= 0.02, "dodge moved immediately instead of scheduling physical motion"):
+        return
+    if not _expect(bool(player.get_meta("combat_dodge_motion_active", false)), "dodge physical motion window was not armed"):
+        return
+    if not _expect(int(player.get_meta("combat_dodge_motion_until_ms", 0)) > Time.get_ticks_msec(), "dodge motion deadline was not armed"):
+        return
+
+    dodge.call("_tick_dodge_motion", player, 1.0 / 60.0)
+    var first_step := player.global_position.distance_to(start)
+    if not _expect(first_step > 0.02 and first_step < 0.40, "first dodge physics step was not incremental"):
+        return
+
+    for _index: int in range(20):
+        dodge.call("_tick_dodge_motion", player, 1.0 / 60.0)
     var travelled := player.global_position.distance_to(start)
     if not _expect(travelled >= 1.50 and travelled <= 1.70, "dodge travel escaped the bounded quick-step distance"):
         return
@@ -61,6 +75,6 @@ func _run() -> void:
     if not _expect(not bool(guarded.get("dodged", false)) and String(guarded.get("reason", "")) == "guarding", "dodge ignored active guard state"):
         return
 
-    print("PLAYER_DODGE_OK: distance=%.2f counter_reach_cleared=true cooldown=true guard_exclusive=true" % travelled)
+    print("PLAYER_DODGE_OK: distance=%.2f first_step=%.3f temporal=true counter_reach_cleared=true cooldown=true guard_exclusive=true" % [travelled, first_step])
     world.queue_free()
     quit(0)

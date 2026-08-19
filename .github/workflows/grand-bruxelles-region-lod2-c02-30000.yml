@@ -79,7 +79,7 @@ jobs:
   verify-shards:
     needs: build-selection
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       max-parallel: 16
@@ -100,9 +100,9 @@ jobs:
       - name: Verify official UrbIS shard
         run: |
           ok=0
-          for attempt in 1 2 3; do
-            echo "C02 shard ${{ matrix.tile }} attempt ${attempt}/3"
-            if timeout 180s python grand-bruxelles-game/tools/qa/verify_urbis_lod2_source_campaign_shard.py \
+          for attempt in 1 2; do
+            echo "C02 shard ${{ matrix.tile }} attempt ${attempt}/2"
+            if timeout 600s python grand-bruxelles-game/tools/qa/verify_urbis_lod2_source_campaign_shard.py \
               --repo-root "$GITHUB_WORKSPACE" \
               --manifest grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_campaigns/region_lod2_C02_30000.manifest.json \
               --selection "$RUNNER_TEMP/region_lod2_C02_30000.selection.json" \

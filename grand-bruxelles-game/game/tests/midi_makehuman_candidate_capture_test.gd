@@ -94,10 +94,10 @@ func _run() -> void:
         return
 
     var metrics := {
-        "schema": "grand-bruxelles-makehuman-candidate-witness-v7",
+        "schema": "grand-bruxelles-makehuman-candidate-witness-v8",
         "production_authorized": false,
         "diagnostic_mode": "art_v2_binary_fbx_patched_normal_indices",
-        "pose_mode": "relaxed_shoulders_binary_rig",
+        "pose_mode": "distributed_shoulder_upperarm_review_pose",
         "lighting_mode": "neutral_low_energy_review",
         "resource": RESOURCE_PATH,
         "target_height_m": TARGET_HEIGHT_M,
@@ -136,18 +136,26 @@ func _save_after_frames(viewport: SubViewport, path: String, frame_count: int) -
     return image.save_png(path) == OK
 
 func _apply_relaxed_review_pose(skeleton: Skeleton3D) -> Array[String]:
-    # The patched binary FBX path preserves the skin bind, so the witness may now use
-    # the same deterministic shoulder relaxation that worked before the ASCII detour.
-    # This remains review-only; production locomotion will supply authored animation.
+    # Keep the same total arm drop as run #38, but distribute it across the
+    # shoulder and upper-arm joints so the witness does not create a hard,
+    # artificial shoulder corner. Review-only; production uses authored motion.
     var applied: Array[String] = []
-    var left := skeleton.find_bone("upperarm01.L")
-    var right := skeleton.find_bone("upperarm01.R")
+    var left_shoulder := skeleton.find_bone("shoulder01.L")
+    var right_shoulder := skeleton.find_bone("shoulder01.R")
+    var left_upperarm := skeleton.find_bone("upperarm01.L")
+    var right_upperarm := skeleton.find_bone("upperarm01.R")
     var z_axis := Vector3(0.0, 0.0, 1.0)
-    if left >= 0:
-        skeleton.set_bone_pose_rotation(left, Quaternion(z_axis, deg_to_rad(-68.0)))
+    if left_shoulder >= 0:
+        skeleton.set_bone_pose_rotation(left_shoulder, Quaternion(z_axis, deg_to_rad(-15.0)))
+        applied.append("shoulder01.L")
+    if right_shoulder >= 0:
+        skeleton.set_bone_pose_rotation(right_shoulder, Quaternion(z_axis, deg_to_rad(15.0)))
+        applied.append("shoulder01.R")
+    if left_upperarm >= 0:
+        skeleton.set_bone_pose_rotation(left_upperarm, Quaternion(z_axis, deg_to_rad(-53.0)))
         applied.append("upperarm01.L")
-    if right >= 0:
-        skeleton.set_bone_pose_rotation(right, Quaternion(z_axis, deg_to_rad(68.0)))
+    if right_upperarm >= 0:
+        skeleton.set_bone_pose_rotation(right_upperarm, Quaternion(z_axis, deg_to_rad(53.0)))
         applied.append("upperarm01.R")
     return applied
 

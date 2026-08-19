@@ -1,0 +1,35 @@
+{
+  "schema": "grand-bruxelles-urbis-lod2-rigid-anchor-candidate-v1",
+  "batch_id": "anderlecht-E145500_N169000-B01",
+  "production_base_sha": "7e5b5a8ef86514100e320fbdf803c59627bdebf1",
+  "dtm_alignment_contract": "grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.dtm_alignment.json",
+  "policy": {
+    "translation_scope": "one vertical translation per official BU_ID owner",
+    "translation_formula": "shift_m = quantile_q(dtm_z - source_ground_z) over unique official ground-face vertices for the owner",
+    "candidate_quantiles": [0.0, 0.1, 0.25, 0.5, 0.75, 1.0],
+    "post_residual_formula": "source_ground_z + shift_m - dtm_z",
+    "positive_post_residual_meaning": "building base above sampled terrain (potential float)",
+    "negative_post_residual_meaning": "building base below sampled terrain (potential burial)",
+    "float_burial_deadband_m": 0.05,
+    "selection_metric": "lowest vertex absolute residual p95 among tested quantiles",
+    "tie_breaker": "lower owner max-absolute-residual p95, then lower absolute quantile distance from 0.5",
+    "source_vertex_warping_allowed": false,
+    "authorization_threshold": null,
+    "note": "Policy comparison only. Even the selected numerical candidate is not a final world-Y or runtime authorization."
+  },
+  "expected_input": {
+    "owners": 250,
+    "ground_vertex_samples": 2161,
+    "unshifted_vertex_abs_p95_m": 1.986819
+  },
+  "hard_rules": {
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "final_world_y_authorized": false,
+    "terrain_runtime_authorized": false,
+    "source_geometry_modified": false,
+    "owner_rigid_translation_only": true,
+    "artifact_only": true
+  }
+}

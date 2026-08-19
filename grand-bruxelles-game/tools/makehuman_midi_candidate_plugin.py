@@ -12,6 +12,7 @@ import traceback
 import gui
 import gui3d
 import mh
+import material
 
 OUTPUT_FBX = os.environ.get("GB_MAKEHUMAN_OUTPUT", "/tmp/gb_makehuman_female_pilot.fbx")
 
@@ -22,13 +23,6 @@ def _pick_exact(paths, basename):
     if not matches:
         raise RuntimeError("required MakeHuman system asset missing: %s" % basename)
     return sorted(matches)[0]
-
-
-def _pick_first(paths, label):
-    paths = sorted(paths)
-    if not paths:
-        raise RuntimeError("no MakeHuman system %s assets available" % label)
-    return paths[0]
 
 
 def _run(app):
@@ -42,20 +36,30 @@ def _run(app):
         human.setAgeYears(34)
         human.setWeight(0.48)
         human.setMuscle(0.42)
-        human.setHeight(0.52)
+        human.setHeight(0.58)
         human.applyAllTargets()
 
-        clothes = _pick_exact(api.assets.getAvailableSystemClothes(), "female_elegantsuit01.mhclo")
-        api.assets.unequipAllClothes()
-        api.assets.equipClothes(clothes)
+        # The first witness accidentally exported the viewport/default skin, which made
+        # the Godot result nearly white. Force a real CC0 system skin so the FBX exporter
+        # emits the diffuse material used by the character.
+        skin = _pick_exact(api.assets.getAvailableSystemSkins(), "young_caucasian_female.mhmat")
+        human.material = material.fromFile(skin)
 
-        hair = _pick_first(api.assets.getAvailableSystemHair(), "hair")
+        # Prefer the simple full-body casual outfit over the alpha-heavy elegant skirt,
+        # then add real shoes. These remain candidate-only until the visual gate passes.
+        casual = _pick_exact(api.assets.getAvailableSystemClothes(), "female_casualsuit01.mhclo")
+        shoes = _pick_exact(api.assets.getAvailableSystemClothes(), "shoes01.mhclo")
+        api.assets.unequipAllClothes()
+        api.assets.equipClothes(casual)
+        api.assets.equipClothes(shoes)
+
+        hair = _pick_exact(api.assets.getAvailableSystemHair(), "ponytail01.mhclo")
         api.assets.equipHair(hair)
 
-        eyebrows = _pick_first(api.assets.getAvailableSystemEyebrows(), "eyebrow")
+        eyebrows = _pick_exact(api.assets.getAvailableSystemEyebrows(), "eyebrow004.mhclo")
         api.assets.equipEyebrows(eyebrows)
 
-        eyelashes = _pick_first(api.assets.getAvailableSystemEyelashes(), "eyelash")
+        eyelashes = _pick_exact(api.assets.getAvailableSystemEyelashes(), "eyelashes01.mhclo")
         api.assets.equipEyelashes(eyelashes)
 
         skeleton_task = api.ui.getTaskView("Pose/Animate", "Skeleton")
@@ -76,13 +80,18 @@ def _run(app):
         if not os.path.isfile(OUTPUT_FBX) or os.path.getsize(OUTPUT_FBX) < 1024:
             raise RuntimeError("MakeHuman FBX export missing or implausibly small: %s" % OUTPUT_FBX)
 
-        print("GB_MAKEHUMAN_CANDIDATE_OK output=%s bytes=%d height_cm=%.2f hair=%s clothes=%s" % (
-            OUTPUT_FBX,
-            os.path.getsize(OUTPUT_FBX),
-            human.getHeightCm(),
-            os.path.basename(hair),
-            os.path.basename(clothes),
-        ))
+        print(
+            "GB_MAKEHUMAN_CANDIDATE_OK output=%s bytes=%d height_cm=%.2f skin=%s hair=%s clothes=%s shoes=%s"
+            % (
+                OUTPUT_FBX,
+                os.path.getsize(OUTPUT_FBX),
+                human.getHeightCm(),
+                os.path.basename(skin),
+                os.path.basename(hair),
+                os.path.basename(casual),
+                os.path.basename(shoes),
+            )
+        )
         sys.stdout.flush()
         gui.QtWidgets.QApplication.instance().quit()
     except Exception as exc:

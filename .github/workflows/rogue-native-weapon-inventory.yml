@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - agent/rogue-native-weapon-inventory-a215fd2
+  pull_request:
+    branches:
+      - main
+    paths:
+      - grand-bruxelles-game/assets/characters/player_character.glb
+      - .github/workflows/rogue-native-weapon-inventory.yml
 
 jobs:
   inspect-glb:

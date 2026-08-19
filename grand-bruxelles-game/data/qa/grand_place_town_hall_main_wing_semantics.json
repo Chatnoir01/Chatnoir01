@@ -1,0 +1,72 @@
+{
+  "schema": "grand-bruxelles-town-hall-main-wing-semantics-v1",
+  "status": "evidence_only",
+  "base_main": "202d0b452a2c8e34c1d950b5c84252289b7605a1",
+  "building": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+  },
+  "faces": {
+    "east_main_wing": {
+      "urbis_face_id": "https://databrussels.be/id/buildingface/10796610",
+      "expected_triangle_count": 5,
+      "expected_unique_vertex_count": 7,
+      "ground_edge_a": [278.0758, 0.0, -482.9369],
+      "ground_edge_b": [302.7318, 0.0, -499.9249],
+      "ground_edge_length_m": 29.9417848499,
+      "documented_bays": 10,
+      "screen_exposure_source_pr": 860,
+      "screen_exposure_gt8_fraction": 0.066842447917
+    },
+    "west_main_wing": {
+      "urbis_face_id": "https://databrussels.be/id/buildingface/10796609",
+      "expected_triangle_count": 5,
+      "expected_unique_vertex_count": 7,
+      "ground_edge_a": [263.2768, 0.0, -496.3369],
+      "ground_edge_b": [275.1758, 0.0, -481.0559],
+      "ground_edge_length_m": 19.3673736475,
+      "documented_bays": 9,
+      "screen_exposure_source_pr": 860,
+      "screen_exposure_gt8_fraction": 0.030849609375
+    }
+  },
+  "heritage_source": {
+    "provider": "Urban Brussels",
+    "inventory_id": "31125",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+    "documented_main_front": "Facing Grand-Place: left/east Gothic wing and right/west Gothic wing, separated by the off-axis tower.",
+    "documented_east_main_bays": 10,
+    "documented_west_main_bays": 9,
+    "documented_tete_d_or_lateral_bays": 3,
+    "scope_note": "This registration authorizes wing identity and documented bay counts only. It does not authorize exact opening coordinates, statue positions, portal depth, dimensions of architectural details, or reuse of right-gallery measurements."
+  },
+  "semantic_correction": {
+    "previous_evidence_pr": 862,
+    "previous_face": "10796610",
+    "previous_registration": "west_gothic_wing_lateral_facade_toward_rue_de_la_tete_d_or",
+    "previous_documented_bays": 3,
+    "status": "rejected_by_current_geometry_and_heritage_consistency",
+    "reason": "Face 10796610 is the longer, more easterly naturally exposed main-front wing face; Urban 31125 documents the east main wing with 10 bays and the west main wing with 9 bays, while the Tete d'Or lateral facade has only 3 bays. The previous 3-bay lateral semantics are therefore not safe to reuse."
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "implementation_authorized": false,
+    "opening_coordinates_authorized": false,
+    "statuary_positions_authorized": false,
+    "exact_detail_dimensions_authorized": false,
+    "reuse_tete_d_or_three_bay_layout_on_10796610": false,
+    "reuse_right_gallery_dimensions": false,
+    "camera_rescue": false,
+    "threshold_rescue": false
+  },
+  "next_candidate": {
+    "face_id": "10796609",
+    "semantic_identity": "west_gothic_main_wing_facing_grand_place",
+    "documented_bays": 9,
+    "nomination_only": true,
+    "note": "10796609 is the next naturally exposed unresolved main-wing face from PR 860. A visual implementation still requires a separate current-main photo/plan registration for opening rhythm and a new deterministic player A/B."
+  }
+}

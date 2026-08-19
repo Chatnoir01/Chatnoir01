@@ -26,31 +26,61 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git-lfs xvfb python3-numpy python3-opengl python3-pyqt5 \
+            xvfb python3-numpy python3-opengl python3-pyqt5 \
             python3-pyqt5.qtopengl python3-pyqt5.qtsvg \
             libgl1-mesa-dri libglx-mesa0 mesa-utils
-          git lfs install
 
-      - name: Fetch pinned MakeHuman code and official CC0 assets
+      - name: Fetch pinned MakeHuman code and official CC0 system-assets ZIP
         shell: bash
         run: |
           set -euo pipefail
           MAKEHUMAN_COMMIT=a8bc2d54ff0ac92e78ff71431b1023eda42bf482
+          ASSET_PAGE=https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
+          ASSET_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          ASSET_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+
           git clone --filter=blob:none https://github.com/makehumancommunity/makehuman.git /tmp/makehuman-src
           git -C /tmp/makehuman-src checkout "$MAKEHUMAN_COMMIT"
           test "$(git -C /tmp/makehuman-src rev-parse HEAD)" = "$MAKEHUMAN_COMMIT"
-
-          # Candidate-stage asset source. We record the resolved immutable SHA in the artifact;
-          # production authorization will pin that SHA explicitly before any vendoring/runtime use.
-          git clone --depth=1 https://github.com/makehumancommunity/makehuman-assets.git /tmp/makehuman-assets
-          git -C /tmp/makehuman-assets lfs pull
-          ASSET_COMMIT="$(git -C /tmp/makehuman-assets rev-parse HEAD)"
           printf '%s\n' "$MAKEHUMAN_COMMIT" > /tmp/makehuman-code-commit.txt
-          printf '%s\n' "$ASSET_COMMIT" > /tmp/makehuman-assets-commit.txt
-          test -s /tmp/makehuman-assets/LICENSE.txt
-          rsync -a /tmp/makehuman-assets/base/ /tmp/makehuman-src/makehuman/data/
+
+          # Fail closed on the official listing: it must still identify this system pack,
+          # the clothing used by the pilot, and CC0 before we accept the archive for review.
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-system-assets.html "$ASSET_PAGE"
+          grep -qi "makehuman_system_assets" /tmp/makehuman-system-assets.html
+          grep -qi "female_elegantsuit01" /tmp/makehuman-system-assets.html
+          grep -qi "CC0" /tmp/makehuman-system-assets.html
+
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+              -o /tmp/makehuman_system_assets_cc0.zip "$ASSET_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+              -o /tmp/makehuman_system_assets_cc0.zip "$ASSET_URL_FALLBACK"
+          fi
+          test -s /tmp/makehuman_system_assets_cc0.zip
+          sha256sum /tmp/makehuman_system_assets_cc0.zip | tee /tmp/makehuman-assets-archive-sha256.txt
+          printf '%s\n%s\n%s\n' "$ASSET_PAGE" "$ASSET_URL_PRIMARY" "$ASSET_URL_FALLBACK" > /tmp/makehuman-assets-source-urls.txt
+
+          rm -rf /tmp/makehuman-assets-unpacked
+          mkdir -p /tmp/makehuman-assets-unpacked
+          unzip -q /tmp/makehuman_system_assets_cc0.zip -d /tmp/makehuman-assets-unpacked
+
+          CLOTHING_PATH="$(find /tmp/makehuman-assets-unpacked -type f -name female_elegantsuit01.mhclo -print -quit)"
+          test -n "$CLOTHING_PATH"
+          ASSET_BASE="$(python3 - "$CLOTHING_PATH" <<'PY'
+          import pathlib, sys
+          p = pathlib.Path(sys.argv[1]).resolve()
+          # .../<asset-base>/clothes/female_elegantsuit01/female_elegantsuit01.mhclo
+          if p.parent.parent.name != 'clothes':
+              raise SystemExit(f'unexpected MakeHuman pack layout: {p}')
+          print(p.parent.parent.parent)
+          PY
+          )"
+          test -d "$ASSET_BASE/clothes"
+          rsync -a "$ASSET_BASE/" /tmp/makehuman-src/makehuman/data/
+
           test -s /tmp/makehuman-src/makehuman/data/clothes/female_elegantsuit01/female_elegantsuit01.mhclo
           test -s /tmp/makehuman-src/makehuman/data/rigs/default.mhskel
+          find /tmp/makehuman-src/makehuman/data/clothes/female_elegantsuit01 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort | tee /tmp/makehuman-pilot-clothes-files.txt
 
       - name: Generate one rigged authored civilian candidate
         shell: bash
@@ -125,10 +155,12 @@ jobs:
           cp /tmp/makehuman-candidate-runtime.log "$OUT/runtime.log" 2>/dev/null || true
           cp /tmp/makehuman-output-files.txt "$OUT/output_files.txt" 2>/dev/null || true
           cp /tmp/makehuman-code-commit.txt "$OUT/makehuman_code_commit.txt" 2>/dev/null || true
-          cp /tmp/makehuman-assets-commit.txt "$OUT/makehuman_assets_commit.txt" 2>/dev/null || true
-          cp /tmp/makehuman-assets/LICENSE.txt "$OUT/LICENSE_ASSETS_CC0.txt" 2>/dev/null || true
+          cp /tmp/makehuman-assets-archive-sha256.txt "$OUT/makehuman_assets_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-assets-source-urls.txt "$OUT/makehuman_assets_source_urls.txt" 2>/dev/null || true
+          cp /tmp/makehuman-system-assets.html "$OUT/makehuman_system_assets_listing.html" 2>/dev/null || true
+          cp /tmp/makehuman-pilot-clothes-files.txt "$OUT/pilot_clothes_files.txt" 2>/dev/null || true
           cp /tmp/makehuman-src/LICENSE.md "$OUT/MAKEHUMAN_LICENSE_OVERVIEW.md" 2>/dev/null || true
-          printf '{"production_authorized":false,"status":"candidate_review_only"}\n' > "$OUT/authorization.json"
+          printf '{"asset_pack":"makehuman_system_assets_cc0.zip","license":"CC0","production_authorized":false,"status":"candidate_review_only"}\n' > "$OUT/authorization.json"
 
       - name: Upload MakeHuman fidelity pilot
         if: always()

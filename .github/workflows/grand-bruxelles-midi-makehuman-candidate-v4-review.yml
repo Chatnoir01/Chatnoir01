@@ -1,0 +1,311 @@
+name: Grand Bruxelles Midi MakeHuman Candidate V4 Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/makehuman_midi_candidate_v4_plugin.py"
+      - "grand-bruxelles-game/game/tests/midi_makehuman_candidate_v4_capture_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-makehuman-candidate-v4-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-makehuman-v4-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  makehuman-v4-fidelity-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MakeHuman runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v xvfb-run
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libglu1-mesa libopengl0 \
+            libx11-xcb1 libxcb1 libxcb-util1 libxcb-image0 libxcb-keysyms1 \
+            libxcb-icccm4 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 \
+            libxcb-xkb1 libxcb-shape0 libxkbcommon-x11-0 libxcb-cursor0
+          ldconfig -p | grep -q 'libGL.so.1'
+          ldconfig -p | grep -q 'libGLU.so.1'
+          ldconfig -p | grep -q 'libOpenGL.so.0'
+          python3 -m pip install --disable-pip-version-check --no-cache-dir \
+            'numpy==1.26.4' 'PyOpenGL==3.1.7' 'PyQt5==5.15.10'
+          python3 - <<'PY'
+          import numpy
+          import OpenGL
+          from PyQt5 import QtCore, QtGui, QtOpenGL, QtSvg, QtWidgets
+          print('MAKEHUMAN_V4_PYTHON_DEPS_OK', numpy.__version__, OpenGL.__version__, QtCore.PYQT_VERSION_STR)
+          PY
+          QXCB="$(python3 - <<'PY'
+          import pathlib, PyQt5
+          print(pathlib.Path(PyQt5.__file__).resolve().parent / 'Qt5/plugins/platforms/libqxcb.so')
+          PY
+          )"
+          test -s "$QXCB"
+          ldd "$QXCB" | tee /tmp/pyqt-qxcb-ldd.txt
+          if grep -q 'not found' /tmp/pyqt-qxcb-ldd.txt; then
+            echo 'PYQT_XCB_RUNTIME_FAIL'
+            exit 1
+          fi
+          echo 'PYQT_XCB_RUNTIME_OK'
+
+      - name: Fetch pinned MakeHuman code and verified CC0 art packs
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAKEHUMAN_COMMIT=a8bc2d54ff0ac92e78ff71431b1023eda42bf482
+          SYSTEM_PAGE=https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
+          SYSTEM_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          SYSTEM_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          SHIRTS_PAGE=https://static.makehumancommunity.org/assets/assetpacks/shirts01.html
+          SHIRTS_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip
+          SHIRTS_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip
+          PANTS_PAGE=https://static.makehumancommunity.org/assets/assetpacks/pants01.html
+          PANTS_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/pants01/pants01_cc0.zip
+          PANTS_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/pants01/pants01_cc0.zip
+          SKINS_PAGE=https://static.makehumancommunity.org/assets/assetpacks/skins01.html
+          SKINS_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/skins01/skins01_cc0.zip
+          SKINS_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/skins01/skins01_cc0.zip
+
+          git clone --filter=blob:none https://github.com/makehumancommunity/makehuman.git /tmp/makehuman-src
+          git -C /tmp/makehuman-src checkout "$MAKEHUMAN_COMMIT"
+          test "$(git -C /tmp/makehuman-src rev-parse HEAD)" = "$MAKEHUMAN_COMMIT"
+          printf '%s\n' "$MAKEHUMAN_COMMIT" > /tmp/makehuman-code-commit.txt
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/makehuman-src/makehuman/plugins/9_export_fbx/fbx_binary.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'elem_data_single_int32_array(lay_nor, b"NormalsIndex", fvert_.astype(np.int32).reshape(-1))'
+          new = 'elem_data_single_int32_array(lay_nor, b"NormalsIndex", fvert.astype(np.int32).reshape(-1))'
+          if text.count(old) != 1:
+              raise SystemExit(f'MAKEHUMAN_BINARY_NORMAL_INDEX_PATCH_FAIL expected_one_match got={text.count(old)}')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          verified = path.read_text(encoding='utf-8')
+          if old in verified or new not in verified:
+              raise SystemExit('MAKEHUMAN_BINARY_NORMAL_INDEX_PATCH_FAIL verification')
+          Path('/tmp/makehuman-binary-normal-index-patch.txt').write_text(
+              'Pinned MakeHuman a8bc2d54: NormalsIndex changed from fvert_ to positive fvert indices.\n',
+              encoding='utf-8'
+          )
+          print('MAKEHUMAN_BINARY_NORMAL_INDEX_PATCH_OK')
+          PY
+
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-system-assets.html "$SYSTEM_PAGE"
+          grep -qi "ponytail01" /tmp/makehuman-system-assets.html
+          grep -qi "shoes04" /tmp/makehuman-system-assets.html
+          grep -qi "CC0" /tmp/makehuman-system-assets.html
+
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-shirts01.html "$SHIRTS_PAGE"
+          grep -qi "toigo_basic_tucked_t-shirt" /tmp/makehuman-shirts01.html
+          grep -qi "CC0" /tmp/makehuman-shirts01.html
+
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-pants01.html "$PANTS_PAGE"
+          grep -qi "cortu_cargo_pants" /tmp/makehuman-pants01.html
+          grep -qi "CC0" /tmp/makehuman-pants01.html
+
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-skins01.html "$SKINS_PAGE"
+          grep -qi "onlytheghosts_young_eurasian_female" /tmp/makehuman-skins01.html
+          grep -qi "CC0" /tmp/makehuman-skins01.html
+
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/makehuman_system_assets_cc0.zip "$SYSTEM_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/makehuman_system_assets_cc0.zip "$SYSTEM_URL_FALLBACK"
+          fi
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/shirts01_cc0.zip "$SHIRTS_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/shirts01_cc0.zip "$SHIRTS_URL_FALLBACK"
+          fi
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/pants01_cc0.zip "$PANTS_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/pants01_cc0.zip "$PANTS_URL_FALLBACK"
+          fi
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/skins01_cc0.zip "$SKINS_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/skins01_cc0.zip "$SKINS_URL_FALLBACK"
+          fi
+          test -s /tmp/makehuman_system_assets_cc0.zip
+          test -s /tmp/shirts01_cc0.zip
+          test -s /tmp/pants01_cc0.zip
+          test -s /tmp/skins01_cc0.zip
+          sha256sum /tmp/makehuman_system_assets_cc0.zip | tee /tmp/makehuman-assets-archive-sha256.txt
+          sha256sum /tmp/shirts01_cc0.zip | tee /tmp/makehuman-shirts01-archive-sha256.txt
+          sha256sum /tmp/pants01_cc0.zip | tee /tmp/makehuman-pants01-archive-sha256.txt
+          sha256sum /tmp/skins01_cc0.zip | tee /tmp/makehuman-skins01-archive-sha256.txt
+          printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
+            "$SYSTEM_PAGE" "$SYSTEM_URL_PRIMARY" "$SYSTEM_URL_FALLBACK" \
+            "$SHIRTS_PAGE" "$SHIRTS_URL_PRIMARY" "$SHIRTS_URL_FALLBACK" \
+            "$PANTS_PAGE" "$PANTS_URL_PRIMARY" "$PANTS_URL_FALLBACK" \
+            "$SKINS_PAGE" "$SKINS_URL_PRIMARY" "$SKINS_URL_FALLBACK" \
+            > /tmp/makehuman-assets-source-urls.txt
+
+          rm -rf /tmp/makehuman-assets-unpacked /tmp/makehuman-shirts-unpacked /tmp/makehuman-pants-unpacked /tmp/makehuman-skins-unpacked
+          mkdir -p /tmp/makehuman-assets-unpacked /tmp/makehuman-shirts-unpacked /tmp/makehuman-pants-unpacked /tmp/makehuman-skins-unpacked
+          unzip -q /tmp/makehuman_system_assets_cc0.zip -d /tmp/makehuman-assets-unpacked
+          unzip -q /tmp/shirts01_cc0.zip -d /tmp/makehuman-shirts-unpacked
+          unzip -q /tmp/pants01_cc0.zip -d /tmp/makehuman-pants-unpacked
+          unzip -q /tmp/skins01_cc0.zip -d /tmp/makehuman-skins-unpacked
+
+          SYSTEM_CLOTHING_PATH="$(find /tmp/makehuman-assets-unpacked -type f -name shoes04.mhclo -print -quit)"
+          test -n "$SYSTEM_CLOTHING_PATH"
+          SYSTEM_ASSET_BASE="$(python3 - "$SYSTEM_CLOTHING_PATH" <<'PY'
+          import pathlib, sys
+          p = pathlib.Path(sys.argv[1]).resolve()
+          if p.parent.parent.name != 'clothes':
+              raise SystemExit(f'unexpected MakeHuman system pack layout: {p}')
+          print(p.parent.parent.parent)
+          PY
+          )"
+          test -d "$SYSTEM_ASSET_BASE/clothes"
+          rsync -a "$SYSTEM_ASSET_BASE/" /tmp/makehuman-src/makehuman/data/
+
+          TOP_PATH="$(find /tmp/makehuman-shirts-unpacked -type f -name 'toigo_basic_tucked_t-shirt.mhclo' -print -quit)"
+          TROUSERS_PATH="$(find /tmp/makehuman-pants-unpacked -type f -name 'cortu_cargo_pants.mhclo' -print -quit)"
+          SKIN_PATH="$(find /tmp/makehuman-skins-unpacked -type f -name 'onlytheghosts_young_eurasian_female.mhmat' -print -quit)"
+          test -n "$TOP_PATH"
+          test -n "$TROUSERS_PATH"
+          test -n "$SKIN_PATH"
+          cp -a "$(dirname "$TOP_PATH")" /tmp/makehuman-src/makehuman/data/clothes/
+          cp -a "$(dirname "$TROUSERS_PATH")" /tmp/makehuman-src/makehuman/data/clothes/
+          cp -a "$(dirname "$SKIN_PATH")" /tmp/makehuman-src/makehuman/data/skins/
+
+          test -s "$(find /tmp/makehuman-src/makehuman/data/clothes -type f -name 'toigo_basic_tucked_t-shirt.mhclo' -print -quit)"
+          test -s "$(find /tmp/makehuman-src/makehuman/data/clothes -type f -name 'cortu_cargo_pants.mhclo' -print -quit)"
+          test -s "$(find /tmp/makehuman-src/makehuman/data/skins -type f -name 'onlytheghosts_young_eurasian_female.mhmat' -print -quit)"
+          test -s /tmp/makehuman-src/makehuman/data/clothes/shoes04/shoes04.mhclo
+          test -s /tmp/makehuman-src/makehuman/data/hair/ponytail01/ponytail01.mhclo
+          test -s /tmp/makehuman-src/makehuman/data/rigs/default.mhskel
+
+          {
+            echo "skin=$SKIN_PATH"
+            echo "top=$TOP_PATH"
+            echo "trousers=$TROUSERS_PATH"
+            echo "hair=/tmp/makehuman-src/makehuman/data/hair/ponytail01/ponytail01.mhclo"
+            echo "shoes=/tmp/makehuman-src/makehuman/data/clothes/shoes04/shoes04.mhclo"
+            find "$(dirname "$SKIN_PATH")" -maxdepth 1 -type f -printf 'skin_file=%f %s bytes\n' | sort
+            find "$(dirname "$TOP_PATH")" -maxdepth 1 -type f -printf 'top_file=%f %s bytes\n' | sort
+            find "$(dirname "$TROUSERS_PATH")" -maxdepth 1 -type f -printf 'trousers_file=%f %s bytes\n' | sort
+          } | tee /tmp/makehuman-v4-pilot-files.txt
+
+      - name: Generate V4 rigged authored civilian candidate
+        shell: bash
+        env:
+          GB_MAKEHUMAN_OUTPUT: /tmp/makehuman-v4-output/FemalePilot.fbx
+          QT_X11_NO_MITSHM: "1"
+          QT_DEBUG_PLUGINS: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/makehuman-v4-output
+          cp grand-bruxelles-game/tools/makehuman_midi_candidate_v4_plugin.py \
+            /tmp/makehuman-src/makehuman/plugins/z_grand_bruxelles_candidate.py
+          cd /tmp/makehuman-src/makehuman
+          timeout 300s xvfb-run -a python3 makehuman.py 2>&1 | tee /tmp/makehuman-v4-generate.log
+          grep -q "GB_MAKEHUMAN_V4_CANDIDATE_OK" /tmp/makehuman-v4-generate.log
+          grep -q "skin=onlytheghosts_young_eurasian_female.mhmat" /tmp/makehuman-v4-generate.log
+          grep -q "hair=ponytail01.mhclo" /tmp/makehuman-v4-generate.log
+          grep -q "top=toigo_basic_tucked_t-shirt.mhclo" /tmp/makehuman-v4-generate.log
+          grep -q "trousers=cortu_cargo_pants.mhclo" /tmp/makehuman-v4-generate.log
+          grep -q "shoes=shoes04.mhclo" /tmp/makehuman-v4-generate.log
+          grep -q "fbx_binary=true" /tmp/makehuman-v4-generate.log
+          grep -q "art_variant=civilian_v4_natural_skin_face_clear_casual" /tmp/makehuman-v4-generate.log
+          if grep -q "GB_MAKEHUMAN_V4_CANDIDATE_FAIL" /tmp/makehuman-v4-generate.log; then exit 1; fi
+          test -s /tmp/makehuman-v4-output/FemalePilot.fbx
+          find /tmp/makehuman-v4-output -maxdepth 3 -type f -printf '%p %s bytes\n' | sort | tee /tmp/makehuman-v4-output-files.txt
+          test "$(find /tmp/makehuman-v4-output/textures -type f | wc -l)" -ge 7
+
+      - name: Stage review-only V4 output into Godot workspace
+        run: |
+          REVIEW=grand-bruxelles-game/assets/characters/_review/makehuman_midi_v4/FemalePilot
+          rm -rf "$REVIEW"
+          mkdir -p "$REVIEW"
+          cp -a /tmp/makehuman-v4-output/. "$REVIEW/"
+          test -s "$REVIEW/FemalePilot.fbx"
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import V4 candidate in Godot
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            2>&1 | tee /tmp/makehuman-v4-godot-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Can't open file|Cannot open file|couldn't be loaded" /tmp/makehuman-v4-godot-import.log; then exit 1; fi
+          if grep -F "Clamped index" /tmp/makehuman-v4-godot-import.log; then
+            echo "MAKEHUMAN_V4_BINARY_FBX_NORMAL_INDEX_FAIL"
+            exit 1
+          fi
+          echo "MAKEHUMAN_V4_BINARY_FBX_NORMAL_INDEX_OK"
+
+      - name: Render V4 full close and three-quarter witnesses
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/midi_makehuman_candidate_v4_capture_test.gd -- \
+            /tmp/midi-makehuman-v4-candidate.png \
+            2>&1 | tee /tmp/makehuman-v4-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_MAKEHUMAN_V4_CANDIDATE_FAIL" /tmp/makehuman-v4-runtime.log; then exit 1; fi
+          grep -q "MIDI_MAKEHUMAN_V4_CANDIDATE_OK" /tmp/makehuman-v4-runtime.log
+          test -s /tmp/midi-makehuman-v4-candidate.png
+          test -s /tmp/midi-makehuman-v4-candidate_close.png
+          test -s /tmp/midi-makehuman-v4-candidate_three_quarter.png
+          test -s /tmp/midi-makehuman-v4-candidate.metrics.json
+          grep -q '"production_authorized": false' /tmp/midi-makehuman-v4-candidate.metrics.json
+          grep -q '"isolated_subviewport": true' /tmp/midi-makehuman-v4-candidate.metrics.json
+          grep -q '"diagnostic_mode": "art_v4_natural_skin_face_clear_casual_binary_fbx"' /tmp/midi-makehuman-v4-candidate.metrics.json
+          grep -q '"pose_mode": "upperarm_relaxed_62deg_no_shoulder_override"' /tmp/midi-makehuman-v4-candidate.metrics.json
+          grep -q '"lighting_mode": "neutral_low_energy_review"' /tmp/midi-makehuman-v4-candidate.metrics.json
+
+      - name: Stage V4 owner-review evidence
+        if: always()
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_makehuman_candidate_v4
+          mkdir -p "$OUT"
+          cp /tmp/midi-makehuman-v4-candidate.png "$OUT/candidate.png" 2>/dev/null || true
+          cp /tmp/midi-makehuman-v4-candidate_close.png "$OUT/candidate_close.png" 2>/dev/null || true
+          cp /tmp/midi-makehuman-v4-candidate_three_quarter.png "$OUT/candidate_three_quarter.png" 2>/dev/null || true
+          cp /tmp/midi-makehuman-v4-candidate.metrics.json "$OUT/metrics.json" 2>/dev/null || true
+          cp /tmp/makehuman-v4-generate.log "$OUT/generate.log" 2>/dev/null || true
+          cp /tmp/makehuman-v4-godot-import.log "$OUT/import.log" 2>/dev/null || true
+          cp /tmp/makehuman-v4-runtime.log "$OUT/runtime.log" 2>/dev/null || true
+          cp /tmp/makehuman-v4-output-files.txt "$OUT/output_files.txt" 2>/dev/null || true
+          cp /tmp/makehuman-binary-normal-index-patch.txt "$OUT/binary_normal_index_patch.txt" 2>/dev/null || true
+          cp /tmp/makehuman-code-commit.txt "$OUT/makehuman_code_commit.txt" 2>/dev/null || true
+          cp /tmp/makehuman-assets-archive-sha256.txt "$OUT/makehuman_assets_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-shirts01-archive-sha256.txt "$OUT/shirts01_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-pants01-archive-sha256.txt "$OUT/pants01_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-skins01-archive-sha256.txt "$OUT/skins01_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-assets-source-urls.txt "$OUT/makehuman_assets_source_urls.txt" 2>/dev/null || true
+          cp /tmp/makehuman-system-assets.html "$OUT/makehuman_system_assets_listing.html" 2>/dev/null || true
+          cp /tmp/makehuman-shirts01.html "$OUT/shirts01_listing.html" 2>/dev/null || true
+          cp /tmp/makehuman-pants01.html "$OUT/pants01_listing.html" 2>/dev/null || true
+          cp /tmp/makehuman-skins01.html "$OUT/skins01_listing.html" 2>/dev/null || true
+          cp /tmp/makehuman-v4-pilot-files.txt "$OUT/pilot_files.txt" 2>/dev/null || true
+          cp /tmp/pyqt-qxcb-ldd.txt "$OUT/pyqt_qxcb_ldd.txt" 2>/dev/null || true
+          cp /tmp/makehuman-src/LICENSE.md "$OUT/MAKEHUMAN_LICENSE_OVERVIEW.md" 2>/dev/null || true
+          printf '{"asset_packs":["makehuman_system_assets_cc0.zip","shirts01_cc0.zip","pants01_cc0.zip","skins01_cc0.zip"],"license":"CC0","production_authorized":false,"status":"candidate_review_only","fbx_mode":"binary","binary_normal_index_patch":true,"art_variant":"civilian_v4_natural_skin_face_clear_casual"}\n' > "$OUT/authorization.json"
+
+      - name: Upload V4 MakeHuman fidelity pilot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-makehuman-v4-pilot
+          path: grand-bruxelles-game/artifacts/qa/midi_makehuman_candidate_v4
+          if-no-files-found: warn

@@ -1,77 +1,67 @@
 # Production Wall
 
-## Main
-- last_verified: `2026-08-19T15:56Z`
-- rule: `main` is the sole production truth. Re-read live main, open PR ownership and this wall before every branch, merge, rejection or production claim.
-- current production HEAD: `3869ca0593975a5fef49631b0deb8253af743f32`
-- current production change: Anderlecht official LoD2 batch verification; it does not overlap Grand-Place runtime ownership.
-- immediately prior Grand-Place production change: **#899 SHIPPED** — complete official Grand-Place LoD2 source owner set persisted.
+## Main observation
+- observed_main_before_this_wall_edit: `13ccbd58255a52fc5b6904599d037e84b800b223`
+- observed_at: `2026-08-19T16:06Z`
+- rule: `main` is the sole production truth. This field records the SHA observed **before** the wall edit; it is not a self-referential claim that can remain equal after the wall itself is merged. Re-read live GitHub `main` before every branch, merge, rejection or production claim.
+- observed production change: #909 fixed-source Kenney intake CI only; no Grand-Place runtime authorization or geometry change.
+- immediately prior Grand-Place production chain: #899 complete source-owner persistence, then #906 wall refresh.
 
 ## Core invariants
 - Exact-current-main is mandatory. If `main` advances before integration, do not merge a stale candidate; rebuild from live main.
 - One coherent lot per PR. One active owner per defect.
-- UrbIS owns official geometry. Heritage/archive evidence can constrain presentation only after explicit source registration/measurement.
-- Source acquisition, source registration, metric conversion, visual implementation and promotion are separate decisions.
+- UrbIS owns official geometry. Heritage/archive evidence constrains presentation only after exact source registration.
+- Source acquisition, source registration, runtime geometry, visual identity and promotion are separate decisions.
 - Green CI alone does not authorize a visual merge.
-- Owner visual review rule: technical/legal blockers may reject immediately; subjective visual FAIL requires owner-visible full-frame evidence before final rejection/closure.
-- Never lower a frozen threshold, move the camera, broaden geometry or displace source geometry merely to rescue a visual gate.
-- LABO data/readiness is not JOUABLE.
+- Subjective visual rejection requires owner-visible full-frame evidence; owner verdict is KEEP / IMPROVE / DROP.
+- Never lower a frozen threshold, move a frozen camera or broaden/displace source geometry to rescue a FAIL.
+- LABO/readiness is not JOUABLE.
 
-## Current open ownership — verified 2026-08-19T15:56Z
-- **#874** remains the durable Grand-Place full-square campaign/governance workspace; its base is historical, so do not merge it wholesale.
-- **#898** owns regional UrbIS LoD2 planning only; no Grand-Place runtime/materialization authorization.
-- **#903** owns shared street-lamp/bollard root-binding reliability only; no art-direction change.
-- **#887** owns Combat V2 weapon hand-grip work.
-- **#892** owns Midi civilian vehicle body-style presentation.
-- **#875 / #831 / #829 / #813** own or preserve Midi/NPC visual work; do not overlap.
-- **#880** remains Bourse triangular-pediment owner-review candidate; no auto-merge/reject.
-- **#596** remains Bourse proportions QA, human review required.
-- **#2 / #11** are long-lived specialist geography branches; never merge wholesale.
-- At this verification there is **no other active owner for Grand-Place complete contour runtime from the 25-owner source registry**.
+## Current ownership — recalculated 2026-08-19T16:06Z
+- Grand-Place complete contour: branch `visual/grand-place-complete-contour-13ccbd5` owns the 23 official owners not already handled by dedicated production loaders. Scope = runtime mesh/collision + canonical A/B only.
+- #874 remains the durable historical Grand-Place campaign workspace; do not merge wholesale.
+- #907 owns Anderlecht B01 source-complexity QA only.
+- #898 owns regional LoD2 planning only; no Grand-Place runtime/materialization authorization.
+- #903 owns shared street-lamp/bollard root-binding reliability only.
+- #905/#887 own Combat V2 posture/grip only.
+- #900/#892 own vehicle asset intake / Midi vehicle presentation only.
+- #875/#831/#829/#813 own or preserve Midi/NPC visual work.
+- #880 remains Bourse owner-review candidate; #596 Bourse proportions QA.
+- #2/#11 are long-lived specialist geography branches; never merge wholesale.
 
-## Grand-Place — production truth
-- Canonical player witness remains #711/#753: camera `[319.01,1.72,-535.20]` -> `[321.91,11.8,-485.66]`, FOV `62`, resolution `1280x720`.
-- Correct Hôtel de Ville owner = UrbIS building `1655673`.
-- **#783 SHIPPED**: source-constrained right-gallery correction on `10792525 + 10798452`; full-frame human PASS.
-- **#848 SHIPPED**: east-wing cross-window articulation; full-frame human PASS.
-- **#891 SHIPPED**: official Maison du Roi owner `1654360` persisted as source truth.
-- **#899 SHIPPED**: `data/urbis/grand_place_lod2/` contains the complete 25-owner official Grand-Place set from UrbIS 3D revision `2026-08-08`, package SHA-256 `cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2`, EPSG:31370, CC0-1.0.
-- #899 dedicated source gate: **25 owners / 715 faces / 2170 triangles**, Game CI GREEN, Performance GREEN, tests GREEN, Branch Hygiene GREEN, Zone Promotion Readiness GREEN.
-- Existing production runtime loaders already cover `1655673` and `1786758`.
-- Next non-overlapping implementation target: load the remaining **23** official owners as source geometry + wall collisions using the runtime registry, with neutral presentation only and no semantic façade guessing.
-- Brasseurs `1639974` remains source-valid but historically too small as an isolated canonical-camera micro-candidate; handle it as part of the complete contiguous contour, not alone.
-- Maison du Roi exact source owner is `1654360`; raw LoD2 is source truth only and does not by itself authorize detailed neo-Gothic articulation.
-- `10792523` remains out-of-frame; do not retry or move camera.
-- `10792937` remains semantically unresolved for special architectural registration; do not force-fit B1499/B1501.
-- `10796610` / `10796609` prior crude/narrow visual treatments must not be repeated unchanged.
+## Grand-Place production truth
+- Canonical player witness #711/#753: camera `[319.01,1.72,-535.20]` -> `[321.91,11.8,-485.66]`, FOV `62`, resolution `1280x720`.
+- Hôtel de Ville owner = `1655673`; #783 and #848 are shipped visual corrections and must be preserved.
+- Maison du Roi exact official source owner = `1654360`.
+- #899 SHIPPED: `data/urbis/grand_place_lod2/` contains the complete **25-owner** official Grand-Place set from UrbIS 3D revision `2026-08-08`, EPSG:31370, CC0-1.0, package SHA-256 `cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2`.
+- #899 source gate: **25 owners / 715 faces / 2170 triangles**, Game CI / Performance / tests / Branch Hygiene / Zone Promotion Readiness GREEN.
+- Dedicated production loaders already cover `1655673` and `1786758`.
+- Remaining contour source set = **23 owners / 551 faces / 1712 source triangles**.
+- Contour runtime may render only official WALLSURFACE + ROOFSURFACE and create collisions from official walls. GROUNDSURFACE remains excluded to avoid paving z-fighting.
+- Until exact address/heritage crosswalk exists, unresolved owners use explicitly neutral presentation only; no guessed windows, signs, materials or names.
+- Brasseurs `1639974` is not to be retried as an isolated micro-candidate; it belongs to the contiguous contour.
+- Do not retry `10792523`; do not force-fit `10792937`; do not repeat prior `10796610`/`10796609` crude/narrow treatments unchanged.
 
-## Grand-Place completion campaign — locked order
-1. complete official source-owner coverage — **DONE via #899**;
-2. complete visible building contour runtime from the official set — **NOW**;
-3. full-square multi-view coverage / zero-large-gap witness — **NEXT**;
-4. square ground / street joins / player-foot collision continuity — **NEXT**;
-5. player-height ground floors and identity details only where exact address/heritage crosswalk is proven — **LATER**;
-6. final roofline/silhouette identity pass — **LATER**;
-7. final Game CI / Photo Match / Performance / Web / PC + human multi-view gate.
+## Completion campaign order
+1. complete official source-owner coverage — **DONE #899**;
+2. complete visible contour runtime for remaining 23 owners — **NOW**;
+3. deterministic full-square multi-view / zero-large-gap witness — **NEXT**;
+4. official square ground / street joins / player-foot collision continuity — **NEXT**;
+5. exact address crosswalk then player-height ground floors — **LATER**;
+6. source/heritage-backed roofline and identity detail — **LATER**;
+7. final Game CI / Photo Match / Performance / Web / PC + owner multi-view gate.
 
 ## Ground / street truth
-- Current Grand-Place paving already uses official UrbIS StreetSurface `42405` and builds collision from the same triangulated source mesh.
-- Future join/exit work must use official UrbIS `StreetSurfaces` and official Brussels Mobility / Paradigm sidewalk layer `bm_urbis:urbadm_ssw`; curb elevation is unresolved unless separately sourced.
-- Do not invent curb height, paving joint dimensions or sidewalk profiles.
+- Grand-Place paving already uses official UrbIS StreetSurface `42405` and collision from the same triangulated source mesh.
+- Future exits/joins must use official UrbIS `StreetSurfaces` and Brussels Mobility / Paradigm `bm_urbis:urbadm_ssw` sidewalks.
+- Curb elevation, paving-joint dimensions and sidewalk profiles remain unresolved unless separately sourced; do not invent them.
 
-## Identity / façade truth
-- No nearest-neighbour semantic mapping is allowed for the remaining guild houses.
-- Building→address identity must be proven by an official address point / ground-surface containment crosswalk or equivalent exact official relation before detailed façade/ground-floor identity is authored.
-- Unresolved owners stay neutral LoD2 presentation rather than receiving guessed windows, signs, materials or names.
-
-## Other production truths
-- Ixelles remains LABO unless a separate promotion gate says otherwise.
-- Midi remains the principal JOUABLE witness for gameplay/vehicle/NPC lots.
-- Shared Environment and CityGen remain separate ownership from the Grand-Place contour campaign.
-- Player/NPC/combat files are outside Grand-Place contour ownership.
+## Identity truth
+- No nearest-neighbour semantic mapping for guild houses.
+- Building→address identity must be proven by exact official relation or unambiguous official AddressNumbers-point containment in the official building GROUNDSURFACE.
+- Ambiguous owners remain neutral.
 
 ## NOW / NEXT / LATER
-- **NOW:** production `3869ca0593975a5fef49631b0deb8253af743f32`; complete 25-owner Grand-Place official LoD2 source set remains shipped, with unrelated Anderlecht QA layered after it.
-- **NEXT Grand-Place:** current-main runtime for the 23 owners not already covered by dedicated production loaders, then deterministic multi-view player-eye witness.
-- **NEXT ground:** prove/repair official 42405 continuity and source-backed street/sidewalk joins after the contour is visible.
-- **LATER:** exact address/heritage crosswalk → player-height ground floors → roofline/detail pass → zero-large-gap final review.
+- NOW: build and prove the 23-owner contour on exact observed production `13ccbd58255a52fc5b6904599d037e84b800b223`; canonical A/B numeric PASS is necessary but not sufficient for merge.
+- NEXT: freeze 3–5 normal traversal views and prove no large contour gap, then audit StreetSurface `42405` continuity and source-backed exits.
+- LATER: exact address/heritage crosswalk → ground-floor identity → roofline/detail → final zero-large-gap owner review.

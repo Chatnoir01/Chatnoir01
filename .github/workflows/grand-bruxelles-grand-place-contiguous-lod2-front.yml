@@ -1,0 +1,137 @@
+name: Grand Bruxelles Grand-Place Contiguous LoD2 Front
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/urbis/grand_place_contiguous_lod2_front/**"
+      - "grand-bruxelles-game/game/scripts/grand_place_contiguous_lod2_front_runtime.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_contiguous_lod2_front_ab_test.gd"
+      - "grand-bruxelles-game/project.godot"
+      - ".github/workflows/grand-bruxelles-grand-place-contiguous-lod2-front.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  player-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1 and Pillow
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          python3 -m pip install --disable-pip-version-check pillow
+      - name: Validate exact source set
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('grand-bruxelles-game/data/urbis/grand_place_contiguous_lod2_front')
+          ids = ['1601883','1601884','1635485','1637729','1639985','1643344','1645580','1646728','1647834','1649069','1661439','1781508']
+          package = 'cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2'
+          files = sorted(p.stem.replace('.game','') for p in root.glob('*.game.json'))
+          assert files == sorted(ids), (files, ids)
+          total = render = 0
+          for bid in ids:
+              data = json.loads((root/f'{bid}.game.json').read_text())
+              assert data['source']['building_2d_id'].endswith('/'+bid)
+              assert data['source']['package_sha256'] == package
+              assert data['source']['crs'] == 'EPSG:31370'
+              assert data['source']['license'] == 'CC0-1.0'
+              assert data['runtime_approved'] is False
+              total += data['evidence']['triangle_count']
+              for face in data['faces']:
+                  if face['type'] in ('WALLSURFACE','ROOFSURFACE'):
+                      render += len(face['triangles'])
+          assert total == 680, total
+          assert render == 573, render
+          print(f'GRAND_PLACE_CONTIGUOUS_LOD2_SOURCE_OK: buildings=12 total_triangles={total} render_triangles={render}')
+          PY
+      - name: Validate permanent runtime registry
+        run: python3 grand-bruxelles-game/tools/qa/validate_runtime_bootstrap.py
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/grand-place-contiguous-lod2-front-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/grand-place-contiguous-lod2-front-import.log; then exit 1; fi
+      - name: Capture canonical frozen BEFORE and AFTER
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/grand_place_contiguous_lod2_front_ab_test.gd \
+            2>&1 | tee /tmp/grand-place-contiguous-lod2-front-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_CONTIGUOUS_LOD2_FRONT_AB_FAIL" /tmp/grand-place-contiguous-lod2-front-ab.log; then exit 1; fi
+          grep -F "GRAND_PLACE_CONTIGUOUS_LOD2_FRONT_AB_OK" /tmp/grand-place-contiguous-lod2-front-ab.log
+          test -s grand-bruxelles-game/artifacts/qa/grand_place_contiguous_lod2_front_ab/before.png
+          test -s grand-bruxelles-game/artifacts/qa/grand_place_contiguous_lod2_front_ab/after.png
+      - name: Measure frozen full-frame impact
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageChops
+          root = Path('grand-bruxelles-game/artifacts/qa/grand_place_contiguous_lod2_front_ab')
+          before = Image.open(root/'before.png').convert('RGB')
+          after = Image.open(root/'after.png').convert('RGB')
+          assert before.size == after.size == (1280,720), (before.size, after.size)
+          a, b = before.load(), after.load()
+          xs3=[]; ys3=[]; n8=0
+          for y in range(720):
+              for x in range(1280):
+                  d=max(abs(a[x,y][i]-b[x,y][i]) for i in range(3))
+                  if d>3:
+                      xs3.append(x); ys3.append(y)
+                  if d>8:
+                      n8 += 1
+          total=1280*720
+          r3=100.0*len(xs3)/total
+          r8=100.0*n8/total
+          if xs3:
+              bbox=(min(xs3),min(ys3),max(xs3)+1,max(ys3)+1)
+              bw=bbox[2]-bbox[0]; bh=bbox[3]-bbox[1]
+              ba=100.0*bw*bh/total
+          else:
+              bbox=(0,0,0,0); bw=bh=0; ba=0.0
+          ImageChops.difference(before,after).save(root/'diff.png')
+          passed = (
+              r3 >= 3.00 and r8 >= 1.50 and
+              bw >= 520 and bh >= 220 and
+              r3 <= 35.0 and ba <= 60.0
+          )
+          line=(
+              f'GRAND_PLACE_CONTIGUOUS_LOD2_FRONT_METRICS: changed_gt3={r3:.6f}% '
+              f'changed_gt8={r8:.6f}% bbox={bbox} bbox_size={bw}x{bh} bbox_area={ba:.4f}% '
+              f'floors=3.00%/1.50%/520x220 ceilings=35.0%/60.0% numerical_gate={"PASS" if passed else "FAIL"}'
+          )
+          (root/'metrics.log').write_text(line+'\n')
+          print(line)
+          if not passed:
+              raise SystemExit(1)
+          PY
+      - name: Upload full-frame evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-contiguous-lod2-front-ab
+          path: |
+            grand-bruxelles-game/artifacts/qa/grand_place_contiguous_lod2_front_ab/before.png
+            grand-bruxelles-game/artifacts/qa/grand_place_contiguous_lod2_front_ab/after.png
+            grand-bruxelles-game/artifacts/qa/grand_place_contiguous_lod2_front_ab/diff.png
+            grand-bruxelles-game/artifacts/qa/grand_place_contiguous_lod2_front_ab/metrics.log
+            /tmp/grand-place-contiguous-lod2-front-import.log
+            /tmp/grand-place-contiguous-lod2-front-ab.log
+          if-no-files-found: warn

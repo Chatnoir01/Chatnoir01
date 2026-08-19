@@ -6,12 +6,16 @@ on:
       - codex/kenney-car-kit-intake-pilot
     paths:
       - .github/workflows/grand-bruxelles-kenney-car-intake-pilot.yml
+  pull_request:
+    paths:
+      - .github/workflows/grand-bruxelles-kenney-car-intake-pilot.yml
 
 permissions:
   contents: write
 
 jobs:
   intake:
+    if: github.repository == 'Chatnoir01/Chatnoir01'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

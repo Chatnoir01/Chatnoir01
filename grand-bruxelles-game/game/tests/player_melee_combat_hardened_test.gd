@@ -54,8 +54,26 @@ func _run() -> void:
     if strike_sides.size() != 2:
         _fail("NPC counter sequence must visibly alternate its striking side"); return
 
+    var strike_styles: Dictionary = {}
+    for counter_index: int in range(1, 7):
+        var style := HARDENED.counter_strike_style(17, counter_index)
+        if style not in [&"jab", &"cross", &"hook"]:
+            _fail("NPC counter style escaped jab/cross/hook set"); return
+        if style != HARDENED.counter_strike_style(17, counter_index):
+            _fail("NPC counter style must be deterministic for the same seed/index"); return
+        strike_styles[style] = true
+        var strike_profile := HARDENED.counter_strike_profile(style)
+        var arm_x := float(strike_profile.get("arm_x", 0.0))
+        var arm_z := absf(float(strike_profile.get("arm_z", 0.0)))
+        var body_yaw := absf(float(strike_profile.get("body_yaw", 0.0)))
+        if arm_x > -0.55 or arm_x < -1.35 or arm_z > 0.65 or body_yaw > 0.35:
+            _fail("NPC strike profile escaped readable procedural bounds for %s" % style); return
+    if strike_styles.size() != 3:
+        _fail("NPC counter sequence must expose jab, cross and hook styles"); return
+
     var expected_moves: Array[StringName] = [&"jab_left", &"cross_right", &"hook_left", &"front_kick_right"]
     var sides: Dictionary = {}
+    var previous_hit_recovery := 0
     for move_id: StringName in expected_moves:
         var profile := HARDENED.melee_reaction_profile(move_id)
         if profile.is_empty():
@@ -67,6 +85,16 @@ func _run() -> void:
         var stagger_ms := int(profile.get("stagger_ms", 0))
         if stagger_ms < 250 or stagger_ms > 800:
             _fail("stagger outside playable bounds for %s" % move_id); return
+
+        var hit_recovery := HARDENED.melee_recovery_ms(move_id, true)
+        var whiff_recovery := HARDENED.melee_recovery_ms(move_id, false)
+        if hit_recovery < 330 or hit_recovery > 500:
+            _fail("landed recovery escaped playable bounds for %s" % move_id); return
+        if whiff_recovery <= hit_recovery or whiff_recovery > 560:
+            _fail("whiff recovery must be longer but bounded for %s" % move_id); return
+        if previous_hit_recovery > 0 and hit_recovery < previous_hit_recovery:
+            _fail("heavier combo moves should not recover faster than lighter moves"); return
+        previous_hit_recovery = hit_recovery
     if sides.size() < 3:
         _fail("melee reactions must distinguish left/right/center directions"); return
 
@@ -77,6 +105,10 @@ func _run() -> void:
         _fail("NPC counter telegraph state/visual is missing"); return
     if source.find("counter_strike_impact_ms") < 0 or source.find("_animate_counter_strike") < 0:
         _fail("NPC counter must have a real arm-strike phase before damage resolution"); return
+    if source.find("combat_counter_strike_style") < 0 or source.find("counter_strike_profile") < 0:
+        _fail("NPC counter needs deterministic jab/cross/hook visual style state"); return
+    if source.find("combat_move_recovery_ms") < 0 or source.find("melee_recovery_ms") < 0:
+        _fail("player attack gate must use move-specific recovery"); return
     if source.find("_animate_counter_received") < 0:
         _fail("player needs body reaction when an NPC counter lands"); return
     if source.find("combat_guard_started_ms") < 0:
@@ -87,5 +119,5 @@ func _run() -> void:
     if project_text.find(expected_autoload) < 0:
         _fail("project must activate the hardened melee runtime"); return
 
-    print("PLAYER_MELEE_HARDENED_OK: evade=0 parry=0 block=2 open=8 telegraph_ms=%d strike_impact_ms=%d directional_profiles=4 npc_strikes=green autoload=green" % [HARDENED.COUNTER_TELEGRAPH_MS, HARDENED.COUNTER_STRIKE_IMPACT_MS])
+    print("PLAYER_MELEE_HARDENED_OK: evade=0 parry=0 block=2 open=8 telegraph_ms=%d strike_impact_ms=%d directional_profiles=4 npc_styles=3 move_recovery=green autoload=green" % [HARDENED.COUNTER_TELEGRAPH_MS, HARDENED.COUNTER_STRIKE_IMPACT_MS])
     quit(0)

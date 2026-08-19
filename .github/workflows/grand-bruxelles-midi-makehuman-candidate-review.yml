@@ -70,6 +70,25 @@ jobs:
           test "$(git -C /tmp/makehuman-src rev-parse HEAD)" = "$MAKEHUMAN_COMMIT"
           printf '%s\n' "$MAKEHUMAN_COMMIT" > /tmp/makehuman-code-commit.txt
 
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/makehuman-src/makehuman/plugins/9_export_fbx/fbx_binary.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'elem_data_single_int32_array(lay_nor, b"NormalsIndex", fvert_.astype(np.int32).reshape(-1))'
+          new = 'elem_data_single_int32_array(lay_nor, b"NormalsIndex", fvert.astype(np.int32).reshape(-1))'
+          if text.count(old) != 1:
+              raise SystemExit(f'MAKEHUMAN_BINARY_NORMAL_INDEX_PATCH_FAIL expected_one_match got={text.count(old)}')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          verified = path.read_text(encoding='utf-8')
+          if old in verified or new not in verified:
+              raise SystemExit('MAKEHUMAN_BINARY_NORMAL_INDEX_PATCH_FAIL verification')
+          Path('/tmp/makehuman-binary-normal-index-patch.txt').write_text(
+              'Pinned MakeHuman a8bc2d54: NormalsIndex changed from fvert_ (polygon-end bitwise-negated) to fvert (positive vertex indices).\n',
+              encoding='utf-8'
+          )
+          print('MAKEHUMAN_BINARY_NORMAL_INDEX_PATCH_OK')
+          PY
+
           curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-system-assets.html "$ASSET_PAGE"
           grep -qi "makehuman_system_assets" /tmp/makehuman-system-assets.html
           grep -qi "female_casualsuit01" /tmp/makehuman-system-assets.html
@@ -126,29 +145,14 @@ jobs:
           cd /tmp/makehuman-src/makehuman
           timeout 300s xvfb-run -a python3 makehuman.py 2>&1 | tee /tmp/makehuman-candidate-generate.log
           grep -q "GB_MAKEHUMAN_CANDIDATE_OK" /tmp/makehuman-candidate-generate.log
-          grep -q "GB_MAKEHUMAN_ASCII_TEXTURE_LINKS_OK" /tmp/makehuman-candidate-generate.log
           grep -q "skin=young_caucasian_female.mhmat" /tmp/makehuman-candidate-generate.log
           grep -q "clothes=female_casualsuit01.mhclo" /tmp/makehuman-candidate-generate.log
           grep -q "shoes=shoes01.mhclo" /tmp/makehuman-candidate-generate.log
-          grep -q "fbx_binary=false" /tmp/makehuman-candidate-generate.log
+          grep -q "fbx_binary=true" /tmp/makehuman-candidate-generate.log
           if grep -q "GB_MAKEHUMAN_CANDIDATE_FAIL" /tmp/makehuman-candidate-generate.log; then exit 1; fi
           test -s /tmp/makehuman-output/FemalePilot.fbx
           find /tmp/makehuman-output -maxdepth 3 -type f -printf '%p %s bytes\n' | sort | tee /tmp/makehuman-output-files.txt
           test "$(find /tmp/makehuman-output/textures -type f | wc -l)" -ge 7
-
-          python3 - <<'PY'
-          from pathlib import Path
-          fbx = Path('/tmp/makehuman-output/FemalePilot.fbx').read_text(encoding='utf-8')
-          op_lines = [line.strip() for line in fbx.splitlines() if 'C: "OP"' in line]
-          bad = [line for line in op_lines if '"b\'' in line]
-          diffuse = [line for line in op_lines if '"DiffuseColor"' in line]
-          if bad:
-              raise SystemExit('MAKEHUMAN_ASCII_FBX_TEXTURE_CHANNEL_FAIL byte_channels=' + repr(bad[:8]))
-          if len(diffuse) < 4:
-              raise SystemExit(f'MAKEHUMAN_ASCII_FBX_TEXTURE_CHANNEL_FAIL diffuse_links={len(diffuse)}')
-          Path('/tmp/makehuman-ascii-texture-links.txt').write_text('\n'.join(op_lines) + '\n', encoding='utf-8')
-          print(f'MAKEHUMAN_ASCII_FBX_TEXTURE_CHANNEL_OK diffuse_links={len(diffuse)} op_links={len(op_lines)}')
-          PY
 
       - name: Stage review-only MakeHuman output into Godot workspace
         run: |
@@ -174,10 +178,10 @@ jobs:
             2>&1 | tee /tmp/makehuman-godot-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Can't open file|Cannot open file|couldn't be loaded" /tmp/makehuman-godot-import.log; then exit 1; fi
           if grep -F "Clamped index" /tmp/makehuman-godot-import.log; then
-            echo "MAKEHUMAN_ASCII_FBX_NORMAL_INDEX_FAIL"
+            echo "MAKEHUMAN_BINARY_FBX_NORMAL_INDEX_FAIL"
             exit 1
           fi
-          echo "MAKEHUMAN_ASCII_FBX_NORMAL_INDEX_OK"
+          echo "MAKEHUMAN_BINARY_FBX_NORMAL_INDEX_OK"
 
       - name: Render isolated player-distance and close MakeHuman witnesses
         shell: bash
@@ -199,7 +203,8 @@ jobs:
           test -s /tmp/midi-makehuman-candidate_close.png
           test -s /tmp/midi-makehuman-candidate.metrics.json
           grep -q '"isolated_subviewport": true' /tmp/midi-makehuman-candidate.metrics.json
-          grep -q '"diagnostic_mode": "lit_ascii_fbx_valid_normal_indices"' /tmp/midi-makehuman-candidate.metrics.json
+          grep -q '"diagnostic_mode": "lit_binary_fbx_patched_normal_indices"' /tmp/midi-makehuman-candidate.metrics.json
+          grep -q '"pose_mode": "imported_rest_pose_no_bone_override"' /tmp/midi-makehuman-candidate.metrics.json
 
       - name: Stage owner-review evidence
         if: always()
@@ -213,7 +218,7 @@ jobs:
           cp /tmp/makehuman-godot-import.log "$OUT/import.log" 2>/dev/null || true
           cp /tmp/makehuman-candidate-runtime.log "$OUT/runtime.log" 2>/dev/null || true
           cp /tmp/makehuman-output-files.txt "$OUT/output_files.txt" 2>/dev/null || true
-          cp /tmp/makehuman-ascii-texture-links.txt "$OUT/ascii_texture_links.txt" 2>/dev/null || true
+          cp /tmp/makehuman-binary-normal-index-patch.txt "$OUT/binary_normal_index_patch.txt" 2>/dev/null || true
           cp /tmp/makehuman-code-commit.txt "$OUT/makehuman_code_commit.txt" 2>/dev/null || true
           cp /tmp/makehuman-assets-archive-sha256.txt "$OUT/makehuman_assets_archive_sha256.txt" 2>/dev/null || true
           cp /tmp/makehuman-assets-source-urls.txt "$OUT/makehuman_assets_source_urls.txt" 2>/dev/null || true
@@ -221,7 +226,7 @@ jobs:
           cp /tmp/makehuman-pilot-clothes-files.txt "$OUT/pilot_clothes_files.txt" 2>/dev/null || true
           cp /tmp/pyqt-qxcb-ldd.txt "$OUT/pyqt_qxcb_ldd.txt" 2>/dev/null || true
           cp /tmp/makehuman-src/LICENSE.md "$OUT/MAKEHUMAN_LICENSE_OVERVIEW.md" 2>/dev/null || true
-          printf '{"asset_pack":"makehuman_system_assets_cc0.zip","license":"CC0","production_authorized":false,"status":"candidate_review_only","fbx_mode":"ascii","ascii_texture_channel_repair":true}\n' > "$OUT/authorization.json"
+          printf '{"asset_pack":"makehuman_system_assets_cc0.zip","license":"CC0","production_authorized":false,"status":"candidate_review_only","fbx_mode":"binary","binary_normal_index_patch":true}\n' > "$OUT/authorization.json"
 
       - name: Upload MakeHuman fidelity pilot
         if: always()

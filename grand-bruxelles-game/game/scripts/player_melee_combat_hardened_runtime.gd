@@ -24,6 +24,22 @@ func set_guarding(player: CharacterBody3D, enabled: bool) -> void:
         player.set_meta("combat_guard_released_ms", Time.get_ticks_msec())
         _animate_guard_limbs(player, false)
 
+func request_attack(player: CharacterBody3D) -> Dictionary:
+    var result := super.request_attack(player)
+    if player == null or not is_instance_valid(player) or not result.has("recovery_ms"):
+        return result
+    var move_id := StringName(player.get_meta("combat_move_id", &""))
+    var landed := bool(result.get("hit", false))
+    var recovery_ms := melee_recovery_ms(move_id, landed)
+    var attack_started_ms := int(player.get_meta("combat_attack_started_ms", Time.get_ticks_msec()))
+    var recovery_until := attack_started_ms + recovery_ms
+    _next_attack_allowed_ms = recovery_until
+    player.set_meta("combat_attack_recovery_until_ms", recovery_until)
+    player.set_meta("combat_move_recovery_ms", recovery_ms)
+    player.set_meta("combat_move_recovery_landed", landed)
+    result["recovery_ms"] = recovery_ms
+    return result
+
 func resolve_counter_hit(player: CharacterBody3D) -> int:
     if player == null or not is_instance_valid(player):
         return 0
@@ -137,6 +153,7 @@ func _tick_reactions(now: int) -> void:
         if windup_until > 0:
             if now >= windup_until:
                 var side := StringName(state.get("counter_strike_side", &"right"))
+                var style := StringName(state.get("counter_strike_style", &"cross"))
                 var impact_ms := now + COUNTER_STRIKE_IMPACT_MS
                 state["counter_windup_until_ms"] = 0
                 state["counter_strike_impact_ms"] = impact_ms
@@ -144,20 +161,24 @@ func _tick_reactions(now: int) -> void:
                 npc.set_meta("combat_counter_telegraph_until_ms", 0)
                 npc.set_meta("combat_counter_strike_impact_ms", impact_ms)
                 npc.set_meta("combat_counter_strike_side", side)
-                _animate_counter_strike(npc, side)
+                npc.set_meta("combat_counter_strike_style", style)
+                _animate_counter_strike(npc, side, style)
             continue
 
         if now >= int(state.get("next_counter_ms", 0)):
             var telegraph_until := now + COUNTER_TELEGRAPH_MS
             var telegraph_count := int(npc.get_meta("combat_counter_telegraph_count", 0)) + 1
             var side := counter_strike_side(npc.variation_seed, telegraph_count)
+            var style := counter_strike_style(npc.variation_seed, telegraph_count)
             state["counter_windup_until_ms"] = telegraph_until
             state["counter_strike_side"] = side
+            state["counter_strike_style"] = style
             _reaction_states[instance_id] = state
             npc.set_meta("combat_counter_telegraph_until_ms", telegraph_until)
             npc.set_meta("combat_counter_telegraph_count", telegraph_count)
             npc.set_meta("combat_counter_strike_side", side)
-            _animate_counter_telegraph(npc, side)
+            npc.set_meta("combat_counter_strike_style", style)
+            _animate_counter_telegraph(npc, side, style)
 
     for instance_id: int in expired:
         _reaction_states.erase(instance_id)
@@ -224,15 +245,16 @@ func _animate_directional_hit(npc: NpcAgent, profile: Dictionary) -> void:
     tween.tween_property(visual, "rotation:z", base_z, 0.14)
     tween.parallel().tween_property(visual, "rotation:y", base_y, 0.14)
 
-func _animate_counter_telegraph(npc: NpcAgent, side: StringName) -> void:
+func _animate_counter_telegraph(npc: NpcAgent, side: StringName, style: StringName) -> void:
+    var profile := counter_strike_profile(style)
+    var side_sign := -1.0 if side == &"left" else 1.0
     var visual := _npc_visual(npc)
     if visual != null:
         var base_x := visual.rotation.x
         var base_y := visual.rotation.y
-        var side_sign := -1.0 if side == &"left" else 1.0
         var tween := create_tween()
-        tween.tween_property(visual, "rotation:x", base_x - 0.14, 0.10)
-        tween.parallel().tween_property(visual, "rotation:y", base_y - 0.10 * side_sign, 0.10)
+        tween.tween_property(visual, "rotation:x", base_x + float(profile.get("windup_pitch", -0.14)), 0.10)
+        tween.parallel().tween_property(visual, "rotation:y", base_y - float(profile.get("windup_yaw", 0.10)) * side_sign, 0.10)
         tween.tween_interval(maxf(float(COUNTER_TELEGRAPH_MS) / 1000.0 - 0.15, 0.01))
         tween.tween_property(visual, "rotation:x", base_x, 0.05)
         tween.parallel().tween_property(visual, "rotation:y", base_y, 0.05)
@@ -243,8 +265,8 @@ func _animate_counter_telegraph(npc: NpcAgent, side: StringName) -> void:
             limb.set_meta("combat_counter_base_rotation", limb.rotation)
         var limb_base: Vector3 = limb.get_meta("combat_counter_base_rotation", limb.rotation)
         var windup_target := limb_base
-        windup_target.x += 0.34
-        windup_target.z += 0.16 if side == &"left" else -0.16
+        windup_target.x += float(profile.get("windup_arm_x", 0.34))
+        windup_target.z += float(profile.get("windup_arm_z", 0.16)) * side_sign
         var limb_tween := create_tween()
         limb_tween.tween_property(limb, "rotation", windup_target, 0.11)
 
@@ -259,14 +281,15 @@ func _animate_counter_telegraph(npc: NpcAgent, side: StringName) -> void:
     marker_tween.tween_property(marker, "position:y", 2.40, float(COUNTER_TELEGRAPH_MS) / 1000.0)
     marker_tween.tween_callback(marker.queue_free)
 
-func _animate_counter_strike(npc: NpcAgent, side: StringName) -> void:
-    var limb := _npc_limb(npc, "LeftArm" if side == &"left" else "RightArm")
+func _animate_counter_strike(npc: NpcAgent, side: StringName, style: StringName) -> void:
+    var profile := counter_strike_profile(style)
     var side_sign := -1.0 if side == &"left" else 1.0
+    var limb := _npc_limb(npc, "LeftArm" if side == &"left" else "RightArm")
     if limb != null:
         var base_rotation: Vector3 = limb.get_meta("combat_counter_base_rotation", limb.rotation)
         var strike_target := base_rotation
-        strike_target.x -= 1.08
-        strike_target.z += 0.22 * side_sign
+        strike_target.x += float(profile.get("arm_x", -1.08))
+        strike_target.z += float(profile.get("arm_z", 0.22)) * side_sign
         var limb_tween := create_tween()
         limb_tween.tween_property(limb, "rotation", strike_target, float(COUNTER_STRIKE_IMPACT_MS) / 1000.0)
         limb_tween.tween_property(limb, "rotation", base_rotation, float(COUNTER_STRIKE_RECOVER_MS) / 1000.0)
@@ -276,11 +299,12 @@ func _animate_counter_strike(npc: NpcAgent, side: StringName) -> void:
         var base_y := visual.rotation.y
         var base_z := visual.rotation.z
         var body_tween := create_tween()
-        body_tween.tween_property(visual, "rotation:y", base_y + 0.18 * side_sign, float(COUNTER_STRIKE_IMPACT_MS) / 1000.0)
-        body_tween.parallel().tween_property(visual, "rotation:z", base_z - 0.055 * side_sign, float(COUNTER_STRIKE_IMPACT_MS) / 1000.0)
+        body_tween.tween_property(visual, "rotation:y", base_y + float(profile.get("body_yaw", 0.18)) * side_sign, float(COUNTER_STRIKE_IMPACT_MS) / 1000.0)
+        body_tween.parallel().tween_property(visual, "rotation:z", base_z + float(profile.get("body_roll", -0.055)) * side_sign, float(COUNTER_STRIKE_IMPACT_MS) / 1000.0)
         body_tween.tween_property(visual, "rotation:y", base_y, float(COUNTER_STRIKE_RECOVER_MS) / 1000.0)
         body_tween.parallel().tween_property(visual, "rotation:z", base_z, float(COUNTER_STRIKE_RECOVER_MS) / 1000.0)
     npc.set_meta("combat_counter_strike_count", int(npc.get_meta("combat_counter_strike_count", 0)) + 1)
+    npc.set_meta("combat_last_counter_strike_style", style)
 
 func _npc_visual(npc: NpcAgent) -> Node3D:
     if npc == null:
@@ -313,6 +337,64 @@ static func counter_contact_allowed(distance_m: float) -> bool:
 
 static func counter_strike_side(seed: int, counter_index: int) -> StringName:
     return &"left" if posmod(seed * 17 + counter_index * 11, 2) == 0 else &"right"
+
+static func counter_strike_style(seed: int, counter_index: int) -> StringName:
+    match posmod(seed * 13 + counter_index * 7, 3):
+        0:
+            return &"jab"
+        1:
+            return &"cross"
+        _:
+            return &"hook"
+
+static func counter_strike_profile(style: StringName) -> Dictionary:
+    match style:
+        &"jab":
+            return {
+                "windup_pitch": -0.08,
+                "windup_yaw": 0.05,
+                "windup_arm_x": 0.18,
+                "windup_arm_z": 0.07,
+                "arm_x": -0.88,
+                "arm_z": 0.08,
+                "body_yaw": 0.10,
+                "body_roll": -0.025,
+            }
+        &"hook":
+            return {
+                "windup_pitch": -0.18,
+                "windup_yaw": 0.16,
+                "windup_arm_x": 0.28,
+                "windup_arm_z": 0.28,
+                "arm_x": -0.72,
+                "arm_z": 0.55,
+                "body_yaw": 0.30,
+                "body_roll": -0.09,
+            }
+        _:
+            return {
+                "windup_pitch": -0.14,
+                "windup_yaw": 0.10,
+                "windup_arm_x": 0.34,
+                "windup_arm_z": 0.16,
+                "arm_x": -1.18,
+                "arm_z": 0.18,
+                "body_yaw": 0.22,
+                "body_roll": -0.055,
+            }
+
+static func melee_recovery_ms(move_id: StringName, landed: bool) -> int:
+    match move_id:
+        &"jab_left":
+            return 340 if landed else 385
+        &"cross_right":
+            return 370 if landed else 415
+        &"hook_left":
+            return 435 if landed else 485
+        &"front_kick_right":
+            return 485 if landed else 545
+        _:
+            return ATTACK_COOLDOWN_MS
 
 static func melee_reaction_profile(move_id: StringName) -> Dictionary:
     match move_id:

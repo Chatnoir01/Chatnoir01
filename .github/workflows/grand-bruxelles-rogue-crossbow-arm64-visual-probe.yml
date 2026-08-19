@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/player_combat_arsenal_rogue_runtime.gd"
       - "grand-bruxelles-game/game/tests/rogue_native_crossbow_player_witness_test.gd"
       - "grand-bruxelles-game/game/tests/rogue_native_crossbow_visual_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/rogue_crossbow_orientation_calibration_test.gd"
       - "grand-bruxelles-game/project.godot"
   workflow_dispatch:
 
@@ -65,9 +66,31 @@ jobs:
           test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/unarmed.png
           test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/crossbow.png
           test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/bx9.png
+      - name: Capture safe orientation calibration
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.arm64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/rogue_crossbow_orientation_calibration_test.gd \
+            2>&1 | tee /tmp/rogue-crossbow-orientation.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_CROSSBOW_ORIENTATION_CALIBRATION_FAIL" /tmp/rogue-crossbow-orientation.log; then exit 1; fi
+          grep -F "ROGUE_CROSSBOW_ORIENTATION_CALIBRATION_OK" /tmp/rogue-crossbow-orientation.log
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/baseline.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/player_zero.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/carry_left.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/carry_right.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/quarter_left.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/quarter_right.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/roll_90.png
       - name: Upload ARM64 evidence
         uses: actions/upload-artifact@v4
         with:
           name: rogue-native-crossbow-arm64-player-view
-          path: grand-bruxelles-game/artifacts/qa/rogue_native_crossbow
+          path: |
+            grand-bruxelles-game/artifacts/qa/rogue_native_crossbow
+            grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration
           if-no-files-found: error

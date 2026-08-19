@@ -44,25 +44,24 @@ jobs:
               mi = node['mesh']
               mesh_name = meshes[mi].get('name', '') if isinstance(mi, int) and 0 <= mi < len(meshes) else ''
               print(f'NODE {i}: name={node.get("name", "")!r} mesh={mi} mesh_name={mesh_name!r} skin={node.get("skin")} children={node.get("children", [])}')
-          print('--- WEAPON-LIKE TOKENS ---')
-          tokens = ('cross', 'bow', 'dagger', 'knife', 'blade', 'weapon', 'sword', 'axe', 'quiver', 'arrow', 'bolt')
-          found = 0
-          for i, node in enumerate(nodes):
-              mi = node.get('mesh')
-              mesh_name = meshes[mi].get('name', '') if isinstance(mi, int) and 0 <= mi < len(meshes) else ''
-              hay = (str(node.get('name','')) + ' ' + str(mesh_name)).lower()
-              if any(t in hay for t in tokens):
-                  print(f'WEAPON_NODE {i}: node={node.get("name", "")!r} mesh={mesh_name!r} skin={node.get("skin")}')
-                  found += 1
-          print(f'WEAPON_TOKEN_MATCHES={found}')
-          print('--- ROOT / SKELETON CONTEXT ---')
           parent = {}
           for i, node in enumerate(nodes):
               for c in node.get('children', []):
                   parent[c] = i
+          print('--- NATIVE WEAPON DETAILS ---')
+          native_names = {'Knife_Offhand','Knife','1H_Crossbow','2H_Crossbow','Throwable'}
           for i, node in enumerate(nodes):
               name = str(node.get('name',''))
-              if name.lower() in ('hand.r','hand.l','wrist.r','wrist.l') or 'hand' in name.lower():
+              if name not in native_names:
+                  continue
+              chain=[]; cur=i
+              while cur in parent and len(chain)<8:
+                  cur=parent[cur]; chain.append((cur, nodes[cur].get('name','')))
+              print(f'NATIVE {i}: name={name!r} parent_chain={chain} translation={node.get("translation")} rotation={node.get("rotation")} scale={node.get("scale")}')
+          print('--- HAND CONTEXT ---')
+          for i, node in enumerate(nodes):
+              name = str(node.get('name',''))
+              if name.lower() in ('hand.r','hand.l','wrist.r','wrist.l') or 'handslot' in name.lower():
                   chain=[]; cur=i
                   while cur in parent and len(chain)<6:
                       cur=parent[cur]; chain.append((cur, nodes[cur].get('name','')))

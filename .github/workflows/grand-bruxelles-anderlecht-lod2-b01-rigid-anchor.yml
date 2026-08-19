@@ -1,0 +1,136 @@
+name: Grand Bruxelles Anderlecht LoD2 B01 Rigid DTM Anchor
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.rigid_anchor_candidate.json"
+      - "grand-bruxelles-game/tools/qa/evaluate_urbis_lod2_rigid_dtm_anchor.py"
+      - ".github/workflows/grand-bruxelles-anderlecht-lod2-b01-rigid-anchor.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  evaluate-rigid-anchor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download locked merged DTM evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9374981009/zip" \
+            > "$RUNNER_TEMP/b01-dtm-alignment.zip"
+          echo "f97b23c6b9f556a496e73a6552fc55cfdd724f58e63189b01f79ca1399082b89  $RUNNER_TEMP/b01-dtm-alignment.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/b01-dtm"
+          unzip -q "$RUNNER_TEMP/b01-dtm-alignment.zip" -d "$RUNNER_TEMP/b01-dtm"
+          find "$RUNNER_TEMP/b01-dtm" -type f -maxdepth 3 -print
+
+      - name: Resolve evidence files
+        run: |
+          RESIDUALS="$(find "$RUNNER_TEMP/b01-dtm" -type f -name ground_vertex_residuals.csv -print -quit)"
+          REPORT="$(find "$RUNNER_TEMP/b01-dtm" -type f -name dtm_alignment_report.json -print -quit)"
+          test -n "$RESIDUALS" && test -f "$RESIDUALS"
+          test -n "$REPORT" && test -f "$REPORT"
+          echo "RESIDUALS=$RESIDUALS" >> "$GITHUB_ENV"
+          echo "ALIGNMENT_REPORT=$REPORT" >> "$GITHUB_ENV"
+
+      - name: RED - reject vertex warping authorization
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          source = Path("grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.rigid_anchor_candidate.json")
+          payload = json.loads(source.read_text())
+          payload["policy"]["source_vertex_warping_allowed"] = True
+          bad = Path(os.environ["RUNNER_TEMP"]) / "bad-rigid-anchor.json"
+          bad.write_text(json.dumps(payload))
+          PY
+          if python grand-bruxelles-game/tools/qa/evaluate_urbis_lod2_rigid_dtm_anchor.py \
+            --residuals "$RESIDUALS" \
+            --alignment-report "$ALIGNMENT_REPORT" \
+            --contract "$RUNNER_TEMP/bad-rigid-anchor.json" \
+            --output-dir "$RUNNER_TEMP/red-output"; then
+            echo "RED gate unexpectedly accepted source vertex warping" >&2
+            exit 1
+          fi
+          echo "B01_RIGID_ANCHOR_RED_OK: vertex warping rejected"
+
+      - name: GREEN - evaluate rigid owner translations
+        run: |
+          python grand-bruxelles-game/tools/qa/evaluate_urbis_lod2_rigid_dtm_anchor.py \
+            --residuals "$RESIDUALS" \
+            --alignment-report "$ALIGNMENT_REPORT" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.rigid_anchor_candidate.json \
+            --output-dir "$RUNNER_TEMP/b01-rigid-anchor"
+
+      - name: Require complete fail-closed owner anchor result
+        run: |
+          python - <<'PY'
+          import csv, json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "b01-rigid-anchor"
+          report = json.loads((root / "rigid_anchor_evaluation.json").read_text())
+          owner_map = json.loads((root / "rigid_anchor_selected_by_owner.json").read_text())
+          with (root / "rigid_anchor_selected_per_owner.csv").open(newline="") as handle:
+              rows = list(csv.DictReader(handle))
+          assert report["input"]["owners"] == 250
+          assert report["input"]["ground_vertex_samples"] == 2161
+          assert len(report["candidates"]) == 6
+          assert len(owner_map) == 250 == len(rows)
+          assert set(owner_map) == {row["building_id"] for row in rows}
+          assert report["selected_numerical_candidate"]["owner_count"] == 250
+          assert report["selected_numerical_candidate"]["runtime_authorized"] is False
+          assert report["selected_numerical_candidate"]["final_world_y_authorized"] is False
+          for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "final_world_y_authorized", "terrain_runtime_authorized", "source_geometry_modified"]:
+              assert report[key] is False, key
+          assert report["artifact_only"] is True
+          assert report["input"]["unshifted_vertex_abs_p95_m"] > report["selected_numerical_candidate"]["post_residual_m"]["abs_p95"]
+          print(
+              "B01_RIGID_ANCHOR_GREEN_OK: "
+              f"q={report['selected_numerical_candidate']['quantile']:.2f} "
+              f"owners={len(owner_map)} "
+              f"baseline_p95={report['input']['unshifted_vertex_abs_p95_m']:.6f} "
+              f"post_p95={report['selected_numerical_candidate']['post_residual_m']['abs_p95']:.6f}"
+          )
+          PY
+
+      - name: Publish numerical result
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "b01-rigid-anchor/rigid_anchor_evaluation.json").read_text())
+          selected = report["selected_numerical_candidate"]
+          lines = [
+              "## Anderlecht B01 rigid DTM anchor",
+              "",
+              f"- Locked evidence artifact: `9374981009`",
+              f"- Owners: **{selected['owner_count']}**",
+              f"- Numerical winner: **q={selected['quantile']:.2f}**",
+              f"- Baseline |residual| p95: **{report['input']['unshifted_vertex_abs_p95_m']:.4f} m**",
+              f"- Post-anchor |residual| p95: **{selected['post_residual_m']['abs_p95']:.4f} m**",
+              f"- Median rigid shift: **{selected['shift_m']['median']:.4f} m**",
+              "",
+              "Artifact-only: final world Y, runtime mount and collisions remain unauthorized.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anderlecht-e145500-n169000-b01-rigid-anchor-v2
+          path: ${{ runner.temp }}/b01-rigid-anchor/*
+          if-no-files-found: error

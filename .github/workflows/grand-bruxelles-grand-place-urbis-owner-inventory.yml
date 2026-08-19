@@ -1,0 +1,44 @@
+name: Grand Bruxelles Grand-Place UrbIS Owner Inventory
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-urbis-owner-inventory.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_urbis_owner_inventory_contract.json"
+      - "grand-bruxelles-game/tools/qa/grand_place_urbis_owner_inventory.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  grand-place-urbis-owner-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pyshp
+        run: python -m pip install --disable-pip-version-check pyshp==2.3.1
+
+      - name: Inventory official UrbIS LoD2 owners around Grand-Place
+        shell: bash
+        run: |
+          set -o pipefail
+          python grand-bruxelles-game/tools/qa/grand_place_urbis_owner_inventory.py 2>&1 | tee /tmp/grand-place-urbis-owner-inventory.log
+          grep -F "GRAND_PLACE_URBIS_OWNER_INVENTORY_OK" /tmp/grand-place-urbis-owner-inventory.log
+
+      - name: Upload inventory evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-urbis-owner-inventory
+          path: |
+            grand-bruxelles-game/artifacts/qa/grand_place_urbis_owner_inventory.json
+            /tmp/grand-place-urbis-owner-inventory.log
+          if-no-files-found: warn

@@ -122,7 +122,8 @@ func _run() -> void:
     var metrics := {
         "schema": "grand-bruxelles-makehuman-candidate-witness-v11",
         "production_authorized": false,
-        "diagnostic_mode": "art_v4_natural_skin_face_clear_casual_binary_fbx_sourced_normals",
+        "diagnostic_mode": "art_v4_natural_skin_face_clear_casual_binary_fbx",
+        "material_mode": "source_provided_normal_maps_review_override",
         "pose_mode": "upperarm_relaxed_62deg_no_shoulder_override",
         "lighting_mode": "neutral_low_energy_review",
         "resource": RESOURCE_PATH,

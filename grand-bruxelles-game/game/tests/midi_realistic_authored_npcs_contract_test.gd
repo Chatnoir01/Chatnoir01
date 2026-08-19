@@ -69,12 +69,22 @@ func _check_authored_locomotion_runtime(failures: Array[String]) -> void:
     var runtime := AUTHORED_RUNTIME_SCRIPT.new()
     scene.add_child(runtime)
 
-    var unauthorized := _make_mock_authored_person("UnauthorizedCivil", false)
+    var unauthorized := _make_mock_authored_person("UnauthorizedCivil", false, ["Civil_Idle", "Civil_Walk", "Civil_Run"])
     scene.add_child(unauthorized)
     if bool(runtime.call("bind_person", unauthorized)):
         failures.append("authored runtime accepted production_authorized=false character")
 
-    var person := _make_mock_authored_person("AuthorizedCivil", true)
+    var incomplete := _make_mock_authored_person("IncompleteCivil", true, ["Civil_Idle", "Civil_Walk"])
+    scene.add_child(incomplete)
+    if bool(runtime.call("bind_person", incomplete)):
+        failures.append("authored runtime accepted character without complete idle/walk/run clips")
+
+    var action_run := _make_mock_authored_person("ActionRunCivil", true, ["Civil_Idle", "Civil_Walk", "Attack_Run"])
+    scene.add_child(action_run)
+    if bool(runtime.call("bind_person", action_run)):
+        failures.append("authored runtime accepted combat/action clip as civilian run fallback")
+
+    var person := _make_mock_authored_person("AuthorizedCivil", true, ["Civil_Idle", "Civil_Walk", "Civil_Run"])
     scene.add_child(person)
     if not bool(runtime.call("bind_person", person)):
         failures.append("authored runtime could not bind a complete authorized idle/walk/run character")
@@ -110,6 +120,14 @@ func _check_authored_locomotion_runtime(failures: Array[String]) -> void:
     if str(runtime.call("current_animation_for", person)) != "Civil_Run":
         failures.append("authored runtime did not play resolved run")
 
+    var authored := person.get_node_or_null("ProfiledNpcProxy/AuthoredCharacter") as Node3D
+    if authored == null:
+        failures.append("authorized mock lost AuthoredCharacter before revocation test")
+    else:
+        authored.set_meta("production_authorized", false)
+        if bool(runtime.call("update_person_from_observed_speed", person, 0.95, 1.0 / 60.0)):
+            failures.append("authored runtime kept animating after production authorization was revoked")
+
     var stats: Dictionary = runtime.call("locomotion_stats")
     if bool(stats.get("changes_movement_owner", true)):
         failures.append("authored locomotion must not own pedestrian movement")
@@ -123,12 +141,14 @@ func _check_authored_locomotion_runtime(failures: Array[String]) -> void:
         failures.append("authored locomotion must synchronize playback to observed speed")
     if int(stats.get("authorized_bindings", 0)) < 1:
         failures.append("authored locomotion did not account for authorized binding")
-    if int(stats.get("unauthorized_rejections", 0)) < 1:
-        failures.append("authored locomotion did not account for unauthorized rejection")
+    if int(stats.get("unauthorized_rejections", 0)) < 2:
+        failures.append("authored locomotion did not account for initial and revoked authorization rejection")
+    if int(stats.get("incomplete_clip_rejections", 0)) < 2:
+        failures.append("authored locomotion did not reject both incomplete and action-only locomotion sets")
 
     scene.free()
 
-func _make_mock_authored_person(person_name: String, production_authorized: bool) -> Node3D:
+func _make_mock_authored_person(person_name: String, production_authorized: bool, clip_names: Array[String]) -> Node3D:
     var person := Node3D.new()
     person.name = person_name
     person.add_to_group("ambient_pedestrian")
@@ -145,7 +165,7 @@ func _make_mock_authored_person(person_name: String, production_authorized: bool
     var animation_player := AnimationPlayer.new()
     animation_player.name = "AnimationPlayer"
     var library := AnimationLibrary.new()
-    for clip_name: String in ["Civil_Idle", "Civil_Walk", "Civil_Run"]:
+    for clip_name: String in clip_names:
         var animation := Animation.new()
         animation.length = 1.0
         library.add_animation(clip_name, animation)

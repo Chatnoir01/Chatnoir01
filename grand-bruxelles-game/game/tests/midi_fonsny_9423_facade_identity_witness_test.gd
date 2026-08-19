@@ -53,6 +53,10 @@ func _run() -> void:
         _fail("legacy single vertical bay missing")
         return
     _mask_dynamic(world)
+    var leaked_canvas := _visible_canvas_count(get_root())
+    if leaked_canvas > 0:
+        _fail("visible Canvas UI leaked into locked witness: %d" % leaked_canvas)
+        return
     var camera := Camera3D.new()
     camera.name = "MidiFonsny9423FacadeWitnessCamera"
     camera.position = CAMERA_POSITION
@@ -143,6 +147,18 @@ func _mask_dynamic(node: Node) -> void:
                 break
     for child: Node in node.get_children():
         _mask_dynamic(child)
+
+func _visible_canvas_count(node: Node) -> int:
+    var count := 0
+    if node is CanvasLayer:
+        if (node as CanvasLayer).visible:
+            count += 1
+    elif node is CanvasItem:
+        if (node as CanvasItem).is_visible_in_tree():
+            count += 1
+    for child: Node in node.get_children():
+        count += _visible_canvas_count(child)
+    return count
 
 func _capture(path: String) -> Image:
     await process_frame

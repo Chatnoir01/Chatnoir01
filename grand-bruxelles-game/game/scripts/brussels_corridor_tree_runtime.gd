@@ -16,9 +16,12 @@ var _light_batch: MultiMeshInstance3D = null
 var _collision_body: StaticBody3D = null
 var _source_positions: Array[Vector3] = []
 var _source_ids: Array[int] = []
+var _enhanced_materials: Dictionary = {}
+var _legacy_materials: Dictionary = {}
 var _ready_complete := false
 var _failed := false
 var _visual_enabled := true
+var _material_enhanced_enabled := true
 var _manual_binding := false
 
 func _ready() -> void:
@@ -53,6 +56,8 @@ func bind_scene(scene: Node3D) -> void:
     _collision_body = null
     _source_positions.clear()
     _source_ids.clear()
+    _enhanced_materials.clear()
+    _legacy_materials.clear()
     _ready_complete = false
     _failed = false
     _build()
@@ -136,19 +141,25 @@ func _build() -> void:
         _fail("runtime tree count changed: %d" % _source_positions.size())
         return
 
-    var materials := ASSET.create_materials()
+    _enhanced_materials = ASSET.create_materials()
+    _legacy_materials = ASSET.create_legacy_materials()
     _root = Node3D.new()
     _root.name = "BrusselsCorridorTrees"
     _root.set_meta("asset_family", ASSET.ASSET_FAMILY)
+    _root.set_meta("silhouette_revision", ASSET.SILHOUETTE_REVISION)
+    _root.set_meta("material_revision", ASSET.MATERIAL_REVISION)
     _root.set_meta("source", "OpenStreetMap contributors via Overpass API")
     _root.set_meta("license", "ODbL-1.0")
     _root.set_meta("species_claimed", false)
     _root.set_meta("source_dimensions_measured", false)
+    _root.set_meta("season_claimed", false)
+    _root.set_meta("health_claimed", false)
+    _root.set_meta("geometry_changed_by_tree_material", false)
     _scene.add_child(_root)
 
-    _trunk_batch = _build_batch("TreeTrunks", ASSET.create_trunk_mesh(materials["trunk"] as Material), trunk_transforms)
-    _dark_batch = _build_batch("TreeFoliageDark", ASSET.create_foliage_mesh(materials["foliage_dark"] as Material), dark_transforms)
-    _light_batch = _build_batch("TreeFoliageLight", ASSET.create_foliage_mesh(materials["foliage_light"] as Material), light_transforms)
+    _trunk_batch = _build_batch("TreeTrunks", ASSET.create_trunk_mesh(_enhanced_materials["trunk"] as Material), trunk_transforms)
+    _dark_batch = _build_batch("TreeFoliageDark", ASSET.create_foliage_mesh(_enhanced_materials["foliage_dark"] as Material), dark_transforms)
+    _light_batch = _build_batch("TreeFoliageLight", ASSET.create_foliage_mesh(_enhanced_materials["foliage_light"] as Material), light_transforms)
     _root.add_child(_trunk_batch)
     _root.add_child(_dark_batch)
     _root.add_child(_light_batch)
@@ -165,9 +176,27 @@ func _build() -> void:
         collision.position = base + Vector3(0.0, ASSET.TRUNK_HEIGHT * 0.5, 0.0)
         _collision_body.add_child(collision)
 
+    set_material_enhanced_enabled(_material_enhanced_enabled)
     set_visual_enabled(_visual_enabled)
     _ready_complete = true
-    print("BRUSSELS_CORRIDOR_TREES_READY: source_trees=%d preowned=%d runtime_trees=%d batches=%d source=OSM license=ODbL-1.0" % [all_source_tree_count, preowned.size(), _source_positions.size(), batch_count()])
+    print("BRUSSELS_CORRIDOR_TREES_READY: source_trees=%d preowned=%d runtime_trees=%d batches=%d material_revision=%d source=OSM license=ODbL-1.0" % [all_source_tree_count, preowned.size(), _source_positions.size(), batch_count(), ASSET.MATERIAL_REVISION])
+
+func _set_batch_material(batch: MultiMeshInstance3D, material: Material) -> void:
+    if not is_instance_valid(batch) or batch.multimesh == null or batch.multimesh.mesh == null:
+        return
+    batch.multimesh.mesh.material = material
+
+func set_material_enhanced_enabled(enabled: bool) -> void:
+    _material_enhanced_enabled = enabled
+    if _enhanced_materials.is_empty() or _legacy_materials.is_empty():
+        return
+    var materials := _enhanced_materials if enabled else _legacy_materials
+    _set_batch_material(_trunk_batch, materials["trunk"] as Material)
+    _set_batch_material(_dark_batch, materials["foliage_dark"] as Material)
+    _set_batch_material(_light_batch, materials["foliage_light"] as Material)
+
+func material_enhanced_enabled() -> bool:
+    return _material_enhanced_enabled
 
 func set_visual_enabled(enabled: bool) -> void:
     _visual_enabled = enabled

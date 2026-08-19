@@ -2,7 +2,9 @@ extends SceneTree
 
 const ARSENAL := preload("res://game/scripts/player_combat_arsenal_hardened_runtime.gd")
 const POSE := preload("res://game/scripts/combat_authored_pose_runtime.gd")
+const LOCOMOTION := preload("res://game/scripts/authored_player_locomotion_runtime.gd")
 const FX := preload("res://game/scripts/combat_shot_fx_runtime.gd")
+const REAL_PLAYER := "res://assets/characters/player_character.glb"
 
 func _init() -> void:
     call_deferred("_run")
@@ -26,13 +28,7 @@ func _run() -> void:
         if not ids.has(required):
             _fail("missing required visible move %s" % required)
             return
-        if POSE.melee_pose_profile(required).is_empty():
-            _fail("missing authored skeleton pose for %s" % required)
-            return
 
-    if POSE.weapon_pose_profile(&"bx9", true).is_empty() or POSE.weapon_pose_profile(&"cbr4", true).is_empty() or POSE.weapon_pose_profile(&"sct8", true).is_empty():
-        _fail("all fictional weapons need authored upper-body poses")
-        return
     if FX.muzzle_local(&"bx9").z >= 0.0 or FX.muzzle_local(&"cbr4").z >= 0.0 or FX.muzzle_local(&"sct8").z >= 0.0:
         _fail("muzzle sockets must be forward of the hand grip")
         return
@@ -49,14 +45,19 @@ func _run() -> void:
         _fail("source fixture missing")
         return
 
-    for token: String in ["combat_action_lock_until_ms", "_action_locked()"]:
+    for token: String in ["combat_action_lock_until_ms", "_action_locked()", "resolve_ranged_locomotion", "authored_locomotion_weapon_aware", "_target_animation_for_state"]:
         if locomotion_source.find(token) < 0:
-            _fail("locomotion must respect combat action lock: %s" % token)
+            _fail("locomotion must preserve combat/ranged authored animation contract: %s" % token)
             return
-    for token: String in ["Skeleton3D", "set_bone_global_pose_override", "right_upper_arm", "left_forearm", "right_thigh", "request_melee_pose"]:
+
+    if pose_source.find("set_bone_global_pose_override") >= 0:
+        _fail("combat pose layer must never directly override global bone poses")
+        return
+    for token: String in ["AnimationPlayer", "resolve_melee_animation", "resolve_weapon_shot_animation", "combat_pose_safe_fallback", "request_melee_pose", "request_shot_pose"]:
         if pose_source.find(token) < 0:
-            _fail("authored combat pose layer missing token %s" % token)
+            _fail("safe authored animation layer missing token %s" % token)
             return
+
     for token: String in ["CombatMuzzleFlash", "CombatTracer_", "CombatImpactFx_", "CombatCasing_", "OmniLight3D"]:
         if fx_source.find(token) < 0:
             _fail("shot FX layer missing token %s" % token)
@@ -70,8 +71,67 @@ func _run() -> void:
             _fail("project autoload missing %s" % token)
             return
 
-    print("COMBAT_VISIBLE_FUN_OK: hand_grip=green authored_bones=green moves=10 action_lock=green muzzle=green tracer=green impacts=green casings=green recoil_pose=green")
+    if not ResourceLoader.exists(REAL_PLAYER):
+        _fail("real authored player GLB missing")
+        return
+    var resource := ResourceLoader.load(REAL_PLAYER)
+    if not resource is PackedScene:
+        _fail("real authored player did not import as PackedScene")
+        return
+    var instance := (resource as PackedScene).instantiate()
+    root.add_child(instance)
+    await process_frame
+    var animation_player := _find_animation_player(instance)
+    if animation_player == null:
+        _fail("real authored player AnimationPlayer missing")
+        return
+    var names := animation_player.get_animation_list()
+    if names.size() < 70:
+        _fail("authored animation catalog unexpectedly small: %d" % names.size())
+        return
+
+    var melee_clip := POSE.resolve_melee_animation(names, &"jab_left")
+    var kick_clip := POSE.resolve_melee_animation(names, &"front_kick_right")
+    if melee_clip == &"" or kick_clip == &"":
+        _fail("real KayKit animation catalog must resolve safe melee/kick actions")
+        return
+    var bx9_clip := POSE.resolve_weapon_shot_animation(names, &"bx9")
+    var cbr4_clip := POSE.resolve_weapon_shot_animation(names, &"cbr4")
+    var sct8_clip := POSE.resolve_weapon_shot_animation(names, &"sct8")
+    if bx9_clip == &"" or cbr4_clip == &"" or sct8_clip == &"":
+        _fail("real KayKit animation catalog must resolve 1H/2H ranged shoot clips")
+        return
+
+    var ranged_candidates: Array[String] = []
+    for animation_name: String in names:
+        if animation_name.to_lower().contains("ranged"):
+            ranged_candidates.append(animation_name)
+    print("COMBAT_RANGED_CATALOG: %s" % [ranged_candidates])
+
+    var ranged_1h := LOCOMOTION.resolve_ranged_locomotion(names, "1h")
+    var ranged_2h := LOCOMOTION.resolve_ranged_locomotion(names, "2h")
+    var ranged_1h_idle := String(ranged_1h.get("idle", ""))
+    var ranged_1h_walk := String(ranged_1h.get("walk", ""))
+    var ranged_1h_run := String(ranged_1h.get("run", ""))
+    var ranged_2h_idle := String(ranged_2h.get("idle", ""))
+    var ranged_2h_walk := String(ranged_2h.get("walk", ""))
+    var ranged_2h_run := String(ranged_2h.get("run", ""))
+    if ranged_1h_idle.is_empty() or ranged_2h_idle.is_empty():
+        _fail("real KayKit animation catalog must resolve 1H/2H ranged idle carry; candidates=%s" % [ranged_candidates])
+        return
+    instance.queue_free()
+
+    print("COMBAT_VISIBLE_FUN_OK: hand_grip=green authored_animation_safe=green armed_idle=green moves=10 action_lock=green muzzle=green tracer=green impacts=green casings=green catalog=%d melee=%s kick=%s bx9=%s cbr4=%s sct8=%s ranged1h=[%s,%s,%s] ranged2h=[%s,%s,%s]" % [names.size(), String(melee_clip), String(kick_clip), String(bx9_clip), String(cbr4_clip), String(sct8_clip), ranged_1h_idle, ranged_1h_walk, ranged_1h_run, ranged_2h_idle, ranged_2h_walk, ranged_2h_run])
     quit(0)
+
+func _find_animation_player(node: Node) -> AnimationPlayer:
+    if node is AnimationPlayer:
+        return node as AnimationPlayer
+    for child: Node in node.get_children():
+        var found := _find_animation_player(child)
+        if found != null:
+            return found
+    return null
 
 func _read(path: String) -> String:
     var file := FileAccess.open(path, FileAccess.READ)

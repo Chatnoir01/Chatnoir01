@@ -1,6 +1,7 @@
 extends SceneTree
 
 const HARDENED := preload("res://game/scripts/player_melee_combat_hardened_runtime.gd")
+const NPC_SCRIPT := preload("res://game/scripts/npc_agent.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -113,11 +114,96 @@ func _run() -> void:
         _fail("player needs body reaction when an NPC counter lands"); return
     if source.find("combat_guard_started_ms") < 0:
         _fail("guard start timestamp required for perfect guard window"); return
+    if source.find("combat_attack_input_owner") < 0 or source.find("func _input(event: InputEvent)") < 0:
+        _fail("production hardened melee must explicitly yield attack input ownership to the arsenal"); return
+    if source.find("combat_attack_impact_at_ms") < 0 or source.find("combat_attack_pending") < 0:
+        _fail("player melee must expose a deferred impact timeline instead of damaging on button-down"); return
+
+    if not await _verify_delayed_player_impact():
+        return
 
     var project_text := FileAccess.get_file_as_string("res://project.godot")
     var expected_autoload := "PlayerMeleeCombatRuntime=\"*res://game/scripts/player_melee_combat_hardened_runtime.gd\""
     if project_text.find(expected_autoload) < 0:
         _fail("project must activate the hardened melee runtime"); return
 
-    print("PLAYER_MELEE_HARDENED_OK: evade=0 parry=0 block=2 open=8 telegraph_ms=%d strike_impact_ms=%d directional_profiles=4 npc_styles=3 move_recovery=green autoload=green" % [HARDENED.COUNTER_TELEGRAPH_MS, HARDENED.COUNTER_STRIKE_IMPACT_MS])
+    print("PLAYER_MELEE_HARDENED_OK: evade=0 parry=0 block=2 open=8 telegraph_ms=%d strike_impact_ms=%d directional_profiles=4 npc_styles=3 move_recovery=green delayed_contact=green single_attack_input_owner=green autoload=green" % [HARDENED.COUNTER_TELEGRAPH_MS, HARDENED.COUNTER_STRIKE_IMPACT_MS])
     quit(0)
+
+func _verify_delayed_player_impact() -> bool:
+    var world := Node3D.new()
+    world.name = "DelayedMeleeImpactWorld"
+    root.add_child(world)
+
+    var player := CharacterBody3D.new()
+    player.name = "Player"
+    player.position = Vector3.ZERO
+    player.rotation.y = 0.0
+    world.add_child(player)
+    var player_shape := CollisionShape3D.new()
+    var player_capsule := CapsuleShape3D.new()
+    player_capsule.radius = 0.40
+    player_capsule.height = 1.80
+    player_shape.shape = player_capsule
+    player_shape.position.y = 0.90
+    player.add_child(player_shape)
+
+    var npc := NPC_SCRIPT.new()
+    npc.name = "DelayedImpactNpc"
+    npc.position = Vector3(0.0, 0.0, -1.45)
+    world.add_child(npc)
+    npc.call("set_spawn_context", NpcBehaviorModel.Role.CIVILIAN, 117, npc.position)
+    var npc_shape := CollisionShape3D.new()
+    var npc_capsule := CapsuleShape3D.new()
+    npc_capsule.radius = 0.38
+    npc_capsule.height = 1.75
+    npc_shape.shape = npc_capsule
+    npc_shape.position.y = 0.88
+    npc.add_child(npc_shape)
+
+    var combat := HARDENED.new()
+    combat.name = "DelayedImpactCombat"
+    world.add_child(combat)
+    await physics_frame
+    await physics_frame
+
+    player.set_meta("combat_move_id", &"jab_left")
+    var before_health := float(npc.get_meta("melee_health", 100.0))
+    var result_variant: Variant = combat.call("request_attack", player)
+    if not result_variant is Dictionary:
+        world.queue_free()
+        _fail("delayed melee request did not return a Dictionary")
+        return false
+    var result := result_variant as Dictionary
+    if not bool(result.get("pending", false)):
+        world.queue_free()
+        _fail("melee request must be pending during windup, not resolve the hit immediately")
+        return false
+    if not is_equal_approx(float(npc.get_meta("melee_health", 100.0)), before_health):
+        world.queue_free()
+        _fail("NPC health changed on button-down before the authored strike reached contact")
+        return false
+
+    var impact_at_ms := int(player.get_meta("combat_attack_impact_at_ms", 0))
+    var requested_at_ms := int(player.get_meta("combat_attack_started_ms", 0))
+    if impact_at_ms <= requested_at_ms:
+        world.queue_free()
+        _fail("melee impact timestamp must be strictly after attack start")
+        return false
+
+    var deadline_ms := Time.get_ticks_msec() + 700
+    while Time.get_ticks_msec() < deadline_ms and is_equal_approx(float(npc.get_meta("melee_health", 100.0)), before_health):
+        await process_frame
+
+    if is_equal_approx(float(npc.get_meta("melee_health", 100.0)), before_health):
+        world.queue_free()
+        _fail("deferred melee impact never resolved inside the bounded attack timeline")
+        return false
+    if bool(player.get_meta("combat_attack_pending", true)):
+        world.queue_free()
+        _fail("melee pending flag remained set after impact resolution")
+        return false
+
+    world.queue_free()
+    await process_frame
+    return true

@@ -1,0 +1,55 @@
+name: Grand Bruxelles Combat Upper Body Windows Probe
+
+on:
+  push:
+    branches:
+      - "agent/combat-v2-upper-body-windows-probe"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-visual-probe:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_win64.exe.zip" -OutFile "$env:RUNNER_TEMP\godot.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\godot.zip" -DestinationPath "$env:RUNNER_TEMP\godot" -Force
+          $exe = Get-ChildItem "$env:RUNNER_TEMP\godot" -Filter "Godot_v4.7.1-stable_win64.exe" -Recurse | Select-Object -First 1
+          if (-not $exe) { throw "Godot executable not found" }
+          "GODOT_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Import and parse project
+        shell: pwsh
+        run: |
+          & "$env:GODOT_EXE" --headless --path grand-bruxelles-game --editor --quit 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\combat-upper-body-windows-import.log"
+          $log = Get-Content "$env:RUNNER_TEMP\combat-upper-body-windows-import.log" -Raw
+          if ($log -match "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script") { throw "Godot parse/import failure" }
+      - name: Capture true-player witness with ANGLE
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "grand-bruxelles-game\artifacts\qa\combat_weapon_upper_body_windows" | Out-Null
+          & "$env:GODOT_EXE" `
+            --path grand-bruxelles-game `
+            --audio-driver Dummy `
+            --rendering-method gl_compatibility `
+            --rendering-driver opengl3_angle `
+            --resolution 1280x720 `
+            --script res://game/tests/combat_weapon_upper_body_player_witness_test.gd `
+            2>&1 | Tee-Object -FilePath "grand-bruxelles-game\artifacts\qa\combat_weapon_upper_body_windows\player-witness.log"
+          if (Test-Path "grand-bruxelles-game\artifacts\qa\combat_weapon_upper_body") {
+            Copy-Item "grand-bruxelles-game\artifacts\qa\combat_weapon_upper_body\*" "grand-bruxelles-game\artifacts\qa\combat_weapon_upper_body_windows\" -Recurse -Force
+          }
+          $witnessLog = Get-Content "grand-bruxelles-game\artifacts\qa\combat_weapon_upper_body_windows\player-witness.log" -Raw
+          if ($witnessLog -notmatch "COMBAT_WEAPON_UPPER_BODY_WITNESS_OK") { throw "Witness did not reach PASS marker" }
+      - name: Upload Windows visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: combat-weapon-upper-body-windows-visual-probe
+          path: grand-bruxelles-game/artifacts/qa/combat_weapon_upper_body_windows
+          if-no-files-found: warn

@@ -6,6 +6,7 @@ file to MakeHuman's plugins/z_grand_bruxelles_candidate.py so it executes after
 MHAPI, geometry libraries, skeleton library and exporters are registered.
 """
 import os
+import re
 import sys
 import traceback
 
@@ -23,6 +24,52 @@ def _pick_exact(paths, basename):
     if not matches:
         raise RuntimeError("required MakeHuman system asset missing: %s" % basename)
     return sorted(matches)[0]
+
+
+def _repair_ascii_texture_connection_channels(filepath):
+    """Repair a Python-3 regression in MakeHuman's legacy ASCII FBX writer.
+
+    The pinned exporter passes texture connection channels as bytes (for example
+    b"DiffuseColor"). Its ASCII writer interpolates those bytes with ``%s``. Under
+    Python 2 that produced ``DiffuseColor``; under Python 3 it produces the literal
+    token ``b'DiffuseColor'`` in the FBX OP connection. ufbx/Godot then creates the
+    materials but cannot attach the textures to their intended channels.
+
+    Keep the upstream exporter pinned and repair only those OP channel tokens in the
+    generated review FBX. Geometry, normals, UVs, rig and texture paths are untouched.
+    """
+    with open(filepath, "r", encoding="utf-8") as handle:
+        text = handle.read()
+
+    pattern = re.compile("(?m)(C:\\s*\"OP\",[^\\n]+,\\s*)\"b'([^']+)'\"")
+    repaired_text, repaired_count = pattern.subn(
+        lambda match: match.group(1) + '"' + match.group(2) + '"', text
+    )
+    if repaired_count <= 0:
+        raise RuntimeError("MakeHuman ASCII FBX contained no Python-3 byte channel tokens to repair")
+
+    bad_links = [
+        line.strip()
+        for line in repaired_text.splitlines()
+        if 'C: "OP"' in line and '"b\'' in line
+    ]
+    if bad_links:
+        raise RuntimeError("MakeHuman ASCII FBX still contains byte-valued texture channels: %s" % bad_links[:4])
+
+    diffuse_links = sum(
+        1
+        for line in repaired_text.splitlines()
+        if 'C: "OP"' in line and '"DiffuseColor"' in line
+    )
+    if diffuse_links < 4:
+        raise RuntimeError(
+            "MakeHuman ASCII FBX repaired too few diffuse texture links: %d" % diffuse_links
+        )
+
+    with open(filepath, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(repaired_text)
+
+    return repaired_count, diffuse_links
 
 
 def _run(app):
@@ -91,6 +138,12 @@ def _run(app):
         api.exports.exportAsFBX(OUTPUT_FBX, useExportsDir=False)
         if not os.path.isfile(OUTPUT_FBX) or os.path.getsize(OUTPUT_FBX) < 1024:
             raise RuntimeError("MakeHuman FBX export missing or implausibly small: %s" % OUTPUT_FBX)
+
+        repaired_channels, diffuse_links = _repair_ascii_texture_connection_channels(OUTPUT_FBX)
+        print(
+            "GB_MAKEHUMAN_ASCII_TEXTURE_LINKS_OK repaired=%d diffuse_links=%d"
+            % (repaired_channels, diffuse_links)
+        )
 
         print(
             "GB_MAKEHUMAN_CANDIDATE_OK output=%s bytes=%d height_cm=%.2f skin=%s hair=%s clothes=%s shoes=%s fbx_binary=false"

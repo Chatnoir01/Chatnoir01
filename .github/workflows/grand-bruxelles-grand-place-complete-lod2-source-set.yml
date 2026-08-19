@@ -1,0 +1,57 @@
+name: Grand Bruxelles Grand-Place Complete LoD2 Source Set
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/*.game.json"
+      - ".github/workflows/grand-bruxelles-grand-place-complete-lod2-source-set.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-source-set:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate complete official Grand-Place LoD2 owner set
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('grand-bruxelles-game/data/urbis/grand_place_lod2')
+          expected = {
+              '1601883','1601884','1608847','1608851','1611166','1613517',
+              '1635455','1635485','1637695','1637729','1639974','1639985',
+              '1643344','1645578','1645580','1646728','1647834','1647943',
+              '1649069','1653185','1654360','1655673','1661439','1781508','1786758'
+          }
+          files = {p.stem.split('.')[0] for p in root.glob('*.game.json')}
+          assert files == expected, (sorted(expected-files), sorted(files-expected))
+          package_sha = 'cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2'
+          total_faces = 0
+          total_triangles = 0
+          for bid in sorted(expected, key=int):
+              p = root / f'{bid}.game.json'
+              data = json.loads(p.read_text())
+              assert data['schema'] == 'grand-bruxelles-urbis-context-mesh-v1'
+              assert data['source']['building_2d_id'].endswith('/'+bid)
+              assert data['source']['package_sha256'] == package_sha
+              assert data['source']['crs'] == 'EPSG:31370'
+              assert data['source']['license'] == 'CC0-1.0'
+              assert data['runtime_approved'] is False
+              evidence = data['evidence']
+              assert int(evidence['face_count']) > 0
+              assert int(evidence['triangle_count']) > 0
+              assert len(data['faces']) == int(evidence['face_count'])
+              total_faces += int(evidence['face_count'])
+              total_triangles += int(evidence['triangle_count'])
+          brasseurs = json.loads((root/'1639974.game.json').read_text())['evidence']
+          assert brasseurs['face_count'] == 9 and brasseurs['triangle_count'] == 26
+          mdr = json.loads((root/'1654360.game.json').read_text())['evidence']
+          assert mdr['face_count'] == 71 and mdr['triangle_count'] == 230
+          print(f'GRAND_PLACE_COMPLETE_LOD2_SOURCE_SET_OK: owners={len(expected)} faces={total_faces} triangles={total_triangles}')
+          PY

@@ -2,6 +2,7 @@
   "schema": "grand-bruxelles-midi-realistic-authored-npcs-v1",
   "status": "fidelity_iteration",
   "base_main": "b9e18e6bf1672a6bbe92c510497784656481e011",
+  "latest_main_observed": "d947e75ed4ed8175b38d39f6b854c1163acce965",
   "requires_current_main_rebuild_before_merge": true,
   "zone": "midi",
   "scope": "visual_only",
@@ -10,6 +11,7 @@
   "minimum_civilian_identities": 6,
   "preferred_police_identities": 2,
   "near_quality_range_m": [2.0, 8.0],
+  "roster_multiplication_blocked_until_single_pilot_garder": true,
   "lod": {
     "near_end_m": 20.0,
     "mid_end_m": 60.0,
@@ -20,14 +22,22 @@
     "legacy_cuboid_retired": true,
     "explicit_reactivation_guarded": true,
     "profiled_web_cull_m": 90.0,
-    "movement_ai_navigation_changed": false
+    "movement_ai_navigation_changed": false,
+    "authored_locomotion_adapter_present": true,
+    "authored_locomotion_adapter_dormant_without_authorized_character": true,
+    "authored_locomotion_changes_movement_owner": false,
+    "authored_locomotion_changes_navigation": false
   },
   "red_evidence": {
     "preserved_in_history": true,
-    "workflow_run_id": 32289456340,
-    "artifact_id": 9378905505,
-    "artifact": "midi-realistic-authored-npcs-red",
-    "active_red_test_retired_after_fix": true
+    "legacy_runtime_workflow_run_id": 32289456340,
+    "legacy_runtime_artifact_id": 9378905505,
+    "legacy_runtime_artifact": "midi-realistic-authored-npcs-red",
+    "active_red_test_retired_after_fix": true,
+    "authored_locomotion_red_commit": "143c6150b4bde84539f0759aa60fc5e293b93802",
+    "authored_locomotion_red_workflow_run_id": 32314771026,
+    "authored_locomotion_red_status_at_record": "queued",
+    "authored_locomotion_red_expected_failure": "missing res://game/scripts/midi_realistic_authored_npc_runtime.gd"
   },
   "candidate_state": {
     "rocketbox": {
@@ -35,12 +45,65 @@
       "visual": "JETER",
       "production_authorized": false
     },
-    "makehuman": {
-      "technical_pilot_1": "green",
-      "visual_pilot_1": "AMELIORER",
+    "makehuman_v2": {
+      "head": "0c0060da8ebc2c787fc3d44780fcf38d277d060a",
+      "workflow_run_id": 32310838043,
+      "artifact_id": 9386419678,
+      "technical": "green",
+      "visual": "AMELIORER",
       "production_authorized": false,
-      "next_gate": "real_skin_street_clothes_shoes_relaxed_isolated_full_and_close_witness"
+      "main_visual_defects": [
+        "shoulder pose too angular",
+        "face still synthetic",
+        "skin slightly burned"
+      ]
+    },
+    "makehuman_v3": {
+      "head": "1408c3687a89083bae5f07489beb2a33191434b6",
+      "workflow_run_id": 32311371353,
+      "artifact_id": 9387198155,
+      "artifact_digest": "sha256:4e6c447a80fd8414b8f107fda96001de3f8b728221690c04311cbcb626b344a9",
+      "technical": "green",
+      "visual": "AMELIORER",
+      "production_authorized": false,
+      "main_visual_defects": [
+        "bob hair obscures a large part of the face",
+        "fisherman sweater shows visible skin peeking and mesh defects",
+        "distributed shoulder pose keeps arms too far from torso"
+      ],
+      "material_finding": {
+        "normal_textures_present_in_export": [
+          "cargo_pants_norm.png",
+          "shoes04_normal.png"
+        ],
+        "normal_mapped_surfaces_in_v3_import": 0
+      }
+    },
+    "makehuman_v4": {
+      "visual_direction": "natural skin + face-clear ponytail + clean tucked casual top + cargo + shoes04",
+      "pose": "upperarm 62deg relaxation without shoulder override",
+      "witness_views": ["full_body", "close", "three_quarter"],
+      "sourced_normal_maps_required": [
+        "cargo_pants_norm.png",
+        "shoes04_normal.png"
+      ],
+      "technical_gate": "pending",
+      "visual": "PENDING_HUMAN_REVIEW",
+      "production_authorized": false,
+      "latest_workflow_name": "Grand Bruxelles Midi MakeHuman Candidate V4 Review"
     }
+  },
+  "authored_locomotion": {
+    "runtime": "res://game/scripts/midi_realistic_authored_npc_runtime.gd",
+    "green_candidate_commit": "1dd7bea7e21783c089cb97db1660b724ec164805",
+    "production_authorization_required": true,
+    "movement_source": "observed transform delta from existing ambient pedestrian owner",
+    "changes_movement_owner": false,
+    "changes_navigation": false,
+    "requires_complete_clips": ["idle", "walk", "run"],
+    "speed_synced_playback": true,
+    "state_hysteresis": true,
+    "production_attachment": "blocked_until_single_pilot_visual_garder_and_retarged_clip_proof"
   },
   "required_animation_roles": ["idle", "walk", "run"],
   "banned_civilian_assets": ["res://assets/characters/player_character.glb"],
@@ -62,7 +125,8 @@
   "required_gates": [
     "authored_npc_test", "midi_ambient_npc_visual", "npc_systems", "npc_realism",
     "game_ci", "web_export", "pc_desktop_export", "performance_baseline",
-    "photo_match_qa", "runtime_bootstrap", "branch_hygiene", "general_test"
+    "photo_match_qa", "runtime_bootstrap", "branch_hygiene", "general_test",
+    "authored_idle_walk_run", "human_three_view_v4_review"
   ],
   "human_visual_verdict_required": true,
   "human_visual_verdict": null,

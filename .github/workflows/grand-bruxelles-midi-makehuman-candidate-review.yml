@@ -22,15 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install MakeHuman Python dependencies
+      - name: Install MakeHuman runtime dependencies
         shell: bash
         run: |
           set -euo pipefail
-          # ubuntu-latest already provides Xvfb and Mesa. Installing the whole Qt/X11
-          # dependency graph through apt made this visual gate depend on slow archive
-          # mirrors, so install only the Python modules MakeHuman actually imports.
+          # ubuntu-latest already provides Xvfb and core Mesa. MakeHuman additionally
+          # imports GLU/libOpenGL, so install only those two small system runtimes.
           command -v xvfb-run
+          sudo apt-get install -y --no-install-recommends libglu1-mesa libopengl0
           ldconfig -p | grep -q 'libGL.so.1'
+          ldconfig -p | grep -q 'libGLU.so.1'
+          ldconfig -p | grep -q 'libOpenGL.so.0'
           python3 -m pip install --disable-pip-version-check --no-cache-dir \
             'numpy==1.26.4' 'PyOpenGL==3.1.7' 'PyQt5==5.15.10'
           python3 - <<'PY'

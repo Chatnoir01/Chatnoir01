@@ -1,0 +1,184 @@
+name: Grand Bruxelles Region LoD2 C01 DTM Rigid Anchor Measurement V2
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/qa/sample_region_lod2_c01_dtm_tile_by_bounds.py"
+      - ".github/workflows/grand-bruxelles-region-lod2-c01-dtm-rigid-anchor-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-prepared:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Recover verified prepare artifact from run 32313034593
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9387119757/zip" \
+            > "$RUNNER_TEMP/prepared.zip"
+          echo "a79391d537cf4c6ebf5d10f75331e2a86b6bba3924ec5a8c36571360a5974bcc  $RUNNER_TEMP/prepared.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/prepared"
+          unzip -q "$RUNNER_TEMP/prepared.zip" -d "$RUNNER_TEMP/prepared"
+      - name: Require exact exhaustive prepare payload
+        run: |
+          python - <<'PY'
+          import csv, json, urllib.parse, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "prepared"
+          plan = json.loads((root / "dtm_sample_plan.json").read_text())
+          sources = json.loads((root / "dtm_sources.json").read_text())
+          assert plan["owners"] == plan["owners_with_ground"] == 30000
+          assert plan["unique_ground_samples"] == 270619
+          assert plan["dtm_tile_count"] == 48
+          assert len(sources["tiles"]) == 48
+          assert {r["tile"] for r in plan["dtm_tiles"]} == {r["tile"] for r in sources["tiles"]}
+          for row in sources["tiles"]:
+              u = urllib.parse.urlparse(row["url"])
+              assert u.scheme == "https" and u.hostname == "urbisdownload.datastore.brussels"
+          with (root / "ground_samples.csv").open(newline="") as f:
+              assert sum(1 for _ in csv.DictReader(f)) == 270619
+          print("C01_DTM_PREPARED_V2_OK: owners=30000 samples=270619 tiles=48")
+          PY
+      - name: RED - keep warp and final world Y closed
+        run: |
+          python - <<'PY'
+          import copy, json, sys
+          from pathlib import Path
+          sys.path.insert(0, "grand-bruxelles-game/tools/qa")
+          import audit_region_lod2_c01_dtm_rigid_anchor as core
+          c = json.loads(Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json").read_text())
+          bad = copy.deepcopy(c); bad["policy"]["source_vertex_warping_allowed"] = True
+          try: core.validate_hard_rules(bad)
+          except RuntimeError: pass
+          else: raise SystemExit("warp RED failed")
+          bad = copy.deepcopy(c); bad["hard_rules"]["final_world_y_authorized"] = True
+          try: core.validate_hard_rules(bad)
+          except RuntimeError: pass
+          else: raise SystemExit("world-Y RED failed")
+          print("C01_DTM_V2_RED_OK")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-dtm-prepared-ground-samples-v2
+          path: ${{ runner.temp }}/prepared/*
+          if-no-files-found: error
+          compression-level: 9
+
+  sample-dtm:
+    needs: verify-prepared
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        group: [0, 1, 2, 3, 4, 5, 6, 7]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install raster reader
+        run: python -m pip install --disable-pip-version-check rasterio
+      - uses: actions/download-artifact@v4
+        with:
+          name: region-lod2-c01-dtm-prepared-ground-samples-v2
+          path: ${{ runner.temp }}/prepared
+      - name: Sample six DTM rasters by actual GeoTIFF bounds
+        env:
+          GROUP: ${{ matrix.group }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/group-output" "$RUNNER_TEMP/group-work"
+          TILES="$(python - <<'PY'
+          import json, os
+          from pathlib import Path
+          plan = json.loads((Path(os.environ["RUNNER_TEMP"]) / "prepared/dtm_sample_plan.json").read_text())
+          group = int(os.environ["GROUP"])
+          tiles = [row["tile"] for i, row in enumerate(plan["dtm_tiles"]) if i % 8 == group]
+          assert len(tiles) == 6
+          print(" ".join(tiles))
+          PY
+          )"
+          echo "group=$GROUP tiles=$TILES"
+          for TILE in $TILES; do
+            python grand-bruxelles-game/tools/qa/sample_region_lod2_c01_dtm_tile_by_bounds.py \
+              --tile "$TILE" \
+              --samples "$RUNNER_TEMP/prepared/ground_samples.csv" \
+              --sources "$RUNNER_TEMP/prepared/dtm_sources.json" \
+              --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json \
+              --output-dir "$RUNNER_TEMP/group-output" \
+              --work-dir "$RUNNER_TEMP/group-work/$TILE"
+          done
+          test "$(find "$RUNNER_TEMP/group-output" -name 'residuals_*.csv' | wc -l)" -eq 6
+          test "$(find "$RUNNER_TEMP/group-output" -name 'dtm_evidence_*.json' | wc -l)" -eq 6
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-dtm-v2-group-${{ matrix.group }}
+          path: ${{ runner.temp }}/group-output/*
+          if-no-files-found: error
+          compression-level: 9
+
+  aggregate:
+    needs: sample-dtm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: region-lod2-c01-dtm-v2-group-*
+          path: ${{ runner.temp }}/dtm-shards
+          merge-multiple: true
+      - name: Aggregate all 48 actual-bound rasters
+        run: |
+          python grand-bruxelles-game/tools/qa/audit_region_lod2_c01_dtm_rigid_anchor.py aggregate \
+            --input-dir "$RUNNER_TEMP/dtm-shards" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json \
+            --output-dir "$RUNNER_TEMP/c01-dtm-result"
+      - name: Require exhaustive measurement and closed runtime rails
+        run: |
+          python - <<'PY'
+          import csv, json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "c01-dtm-result"
+          report = json.loads((root / "dtm_rigid_anchor_measurement.json").read_text())
+          owners = json.loads((root / "rigid_anchor_selected_by_owner.json").read_text())
+          locks = json.loads((root / "dtm_tile_locks.json").read_text())
+          with (root / "rigid_anchor_selected_per_owner.csv").open(newline="") as f: rows = list(csv.DictReader(f))
+          assert report["input"]["owners"] == 30000
+          assert report["input"]["unique_ground_samples"] == 270619
+          assert report["input"]["dtm_tile_count"] == 48
+          assert len(owners) == len(rows) == 30000 and len(locks) == 48
+          assert len(report["candidates"]) == 6
+          assert report["selected_numerical_candidate"]["post_residual_m"]["abs_p95"] < report["input"]["baseline_vertex_abs_p95_m"]
+          for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "final_world_y_authorized", "terrain_runtime_authorized", "source_geometry_modified", "jouable_promotion_authorized"]: assert report[key] is False, key
+          assert report["artifact_only"] is True
+          print(f"C01_DTM_V2_GREEN_OK: q={report['selected_numerical_candidate']['quantile']:.2f} baseline_p95={report['input']['baseline_vertex_abs_p95_m']:.6f} post_p95={report['selected_numerical_candidate']['post_residual_m']['abs_p95']:.6f}")
+          PY
+      - name: Publish deterministic result hashes
+        run: |
+          cd "$RUNNER_TEMP/c01-dtm-result"
+          sha256sum dtm_rigid_anchor_measurement.json rigid_anchor_selected_by_owner.json rigid_anchor_selected_per_owner.csv dtm_tile_locks.json | tee result.sha256
+          cat result.sha256 >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-dtm-rigid-anchor-measurement-v2
+          path: ${{ runner.temp }}/c01-dtm-result/*
+          if-no-files-found: error
+          compression-level: 9

@@ -1,0 +1,60 @@
+name: Grand Bruxelles Rogue Crossbow 2H Visual Probe
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-rogue-crossbow-2h-visual-probe.yml"
+      - "grand-bruxelles-game/game/tests/rogue_native_crossbow_2h_visual_probe_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rogue-crossbow-2h-probe-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify renderer dependencies
+        run: |
+          command -v Xvfb
+          ldconfig -p | grep -E 'libGLX|libGL\.so' | head
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/rogue-crossbow-2h-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/rogue-crossbow-2h-import.log; then exit 1; fi
+      - name: Capture 1H vs 2H A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/rogue_native_crossbow_2h_visual_probe_test.gd \
+            2>&1 | tee /tmp/rogue-crossbow-2h-visual.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_CROSSBOW_2H_PROBE_FAIL" /tmp/rogue-crossbow-2h-visual.log; then exit 1; fi
+          grep -F "ROGUE_CROSSBOW_2H_PROBE_OK" /tmp/rogue-crossbow-2h-visual.log
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe/crossbow_1h.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe/crossbow_2h.png
+          cp /tmp/rogue-crossbow-2h-import.log grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe/import.log
+          cp /tmp/rogue-crossbow-2h-visual.log grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe/visual.log
+      - name: Upload A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rogue-crossbow-1h-vs-2h
+          path: grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe
+          if-no-files-found: error

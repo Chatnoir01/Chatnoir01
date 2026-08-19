@@ -69,10 +69,6 @@ func _run() -> void:
         _fail("candidate must import at least four textured surfaces for a useful fidelity review: %s" % str(material_stats))
         return
 
-    # This witness is deliberately lit again. The candidate is now exported through
-    # MakeHuman's ASCII FBX path, whose NormalsIndex values are positive mesh vertex
-    # indices. Any remaining visible faceting is therefore judged under the actual
-    # material/lighting conditions rather than hidden by an unshaded diagnostic.
     _build_floor(world)
     _build_lighting(world)
 
@@ -156,6 +152,7 @@ func _material_stats(root: Node) -> Dictionary:
     var textured_surfaces := 0
     var normal_mapped_surfaces := 0
     var material_names: Array[String] = []
+    var material_classes: Array[String] = []
     var meshes: Array[MeshInstance3D] = []
     _collect_meshes(root, meshes)
     for mesh_node in meshes:
@@ -168,6 +165,7 @@ func _material_stats(root: Node) -> Dictionary:
                 continue
             material_surfaces += 1
             material_names.append(str(mat.resource_name))
+            material_classes.append(str(mat.get_class()))
             if mat is BaseMaterial3D:
                 var base := mat as BaseMaterial3D
                 if base.albedo_texture != null:
@@ -179,7 +177,8 @@ func _material_stats(root: Node) -> Dictionary:
         "material_surfaces": material_surfaces,
         "textured_surfaces": textured_surfaces,
         "normal_mapped_surfaces": normal_mapped_surfaces,
-        "material_names": material_names
+        "material_names": material_names,
+        "material_classes": material_classes
     }
 
 func _build_floor(parent: Node3D) -> void:

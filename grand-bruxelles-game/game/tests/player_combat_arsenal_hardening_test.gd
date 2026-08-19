@@ -42,6 +42,20 @@ func _run() -> void:
     if float(HARDENED.melee_weight_profile(&"cross_right").get("pitch_deg", 0.0)) >= 0.0:
         _fail("cross should drive body forward"); return
 
+    # Combo variation must stay deterministic and recover cleanly after a miss.
+    if HARDENED.next_combo_index(0, false, 1) != 0 or HARDENED.next_combo_index(2, false, 9) != 0:
+        _fail("missed strike must reset combo to jab"); return
+    if HARDENED.next_combo_index(0, true, 1) != 1:
+        _fail("landed jab must advance to cross"); return
+    if HARDENED.next_combo_index(1, true, 1) != 2:
+        _fail("normal landed cross must advance to hook"); return
+    if HARDENED.next_combo_index(1, true, 3) != 3:
+        _fail("every third completed cross must branch to kick"); return
+    if HARDENED.next_combo_index(2, true, 4) != 3:
+        _fail("landed hook must advance to kick"); return
+    if HARDENED.next_combo_index(3, true, 4) != 0:
+        _fail("landed kick must wrap to jab"); return
+
     var source := FileAccess.get_file_as_string("res://game/scripts/player_combat_arsenal_hardened_runtime.gd")
     if source.find("_next_fire_ms = 0") < 0:
         _fail("weapon switch must reset inherited cadence gate"); return
@@ -64,5 +78,5 @@ func _run() -> void:
     if project_text.find(expected) < 0:
         _fail("project must autoload the hardened arsenal runtime"); return
 
-    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green flinch_isolation=green weight_transfer=4")
+    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green combo_variation=green flinch_isolation=green weight_transfer=4")
     quit(0)

@@ -114,6 +114,7 @@ func request_dodge(player: CharacterBody3D, requested_direction: Vector3 = Vecto
     player.set_meta("combat_dodge_target_distance_m", DODGE_DISTANCE_M)
     player.set_meta("combat_dodge_distance_travelled_m", 0.0)
     player.set_meta("combat_dodge_blocked", false)
+    player.set_meta("combat_dodge_failed_effective", false)
     player.set_meta("combat_dodge_count", int(player.get_meta("combat_dodge_count", 0)) + 1)
     player.set_meta("combat_last_dodge_direction", direction)
     player.set_meta("combat_last_dodge_distance_m", 0.0)
@@ -166,11 +167,14 @@ func _tick_dodge_motion(player: CharacterBody3D, delta: float) -> void:
 
 func _finish_dodge_motion(player: CharacterBody3D, blocked: bool) -> void:
     var travelled := float(player.get_meta("combat_dodge_distance_travelled_m", 0.0))
+    var ineffective := blocked and travelled < DODGE_MIN_EFFECTIVE_M
     player.set_meta("combat_dodge_motion_until_ms", 0)
     player.set_meta("combat_dodge_motion_active", false)
     player.set_meta("combat_dodge_blocked", blocked)
+    player.set_meta("combat_dodge_failed_effective", ineffective)
     player.set_meta("combat_last_dodge_distance_m", travelled)
-    if blocked and travelled < DODGE_MIN_EFFECTIVE_M:
+    if ineffective:
+        player.set_meta("combat_dodge_until_ms", Time.get_ticks_msec())
         _show_feedback("ESQUIVE BLOQUÉE", 180)
 
 func _tick_attack_footwork(player: CharacterBody3D, delta: float) -> void:

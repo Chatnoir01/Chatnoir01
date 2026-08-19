@@ -51,7 +51,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://www.kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip'
+          URL='https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/car-kit.zip'
           curl -fL --retry 3 --retry-delay 2 "$URL" -o /tmp/kenney_car-kit.zip
           ARCHIVE_SHA=$(sha256sum /tmp/kenney_car-kit.zip | cut -d' ' -f1)
           rm -rf /tmp/kenney-car-kit
@@ -68,14 +68,14 @@ jobs:
           for src in "${GLBS[@]}"; do cp "$src" "$TARGET/models/$(basename "$src")"; done
           LICENSE_FILE=$(find /tmp/kenney-car-kit -type f -iname 'license*' | head -n1 || true)
           if [ -n "$LICENSE_FILE" ]; then cp "$LICENSE_FILE" "$TARGET/LICENSE.txt"; else
-            printf 'Kenney Car Kit\nLicense: Creative Commons CC0 1.0 Universal\nOfficial page: https://www.kenney.nl/assets/car-kit\n' > "$TARGET/LICENSE.txt"
+            printf 'Kenney Car Kit\nLicense: Creative Commons CC0 1.0 Universal\nOfficial page: https://kenney.nl/assets/car-kit\n' > "$TARGET/LICENSE.txt"
           fi
           printf '%s\n' "${GLBS[@]##*/}" > "$TARGET/MODEL_INDEX.txt"
           cat > "$TARGET/PROVENANCE.md" <<EOF
 # Kenney Car Kit provenance
 
 - Creator: Kenney
-- Official page: https://www.kenney.nl/assets/car-kit
+- Official page: https://kenney.nl/assets/car-kit
 - License: Creative Commons CC0 1.0 Universal
 - Exact archive URL: $URL
 - Archive SHA-256: \`$ARCHIVE_SHA\`

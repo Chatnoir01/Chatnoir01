@@ -1,0 +1,118 @@
+name: Grand Bruxelles Anderlecht LoD2 B01 Rigid DTM Anchor
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.rigid_anchor_candidate.json"
+      - "grand-bruxelles-game/tools/qa/evaluate_urbis_lod2_rigid_dtm_anchor.py"
+      - ".github/workflows/grand-bruxelles-anderlecht-lod2-b01-rigid-anchor.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate-rigid-anchor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source and raster dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely rasterio
+
+      - name: Regenerate immutable B01 official LoD2 source
+        run: |
+          python grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --registry grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.manifest.json \
+            --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source.ndjson" \
+            --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source_report.json"
+
+      - name: Reproduce official DTM residual measurement
+        run: |
+          python grand-bruxelles-game/tools/qa/audit_urbis_lod2_dtm_alignment.py \
+            --source "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source.ndjson" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.dtm_alignment.json \
+            --output-dir "$RUNNER_TEMP/anderlecht_b01_dtm_alignment" \
+            --work-dir "$RUNNER_TEMP/anderlecht_b01_dtm_work"
+
+      - name: Compare rigid owner anchor candidates
+        run: |
+          python grand-bruxelles-game/tools/qa/evaluate_urbis_lod2_rigid_dtm_anchor.py \
+            --residuals "$RUNNER_TEMP/anderlecht_b01_dtm_alignment/ground_vertex_residuals.csv" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.rigid_anchor_candidate.json \
+            --output-dir "$RUNNER_TEMP/anderlecht_b01_rigid_anchor"
+
+      - name: Require candidate-only fail-closed result
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "anderlecht_b01_rigid_anchor/rigid_anchor_evaluation.json").read_text())
+          assert report["input"]["owners"] == 250
+          assert report["input"]["ground_vertex_samples"] == 2161
+          assert len(report["candidates"]) == 6
+          assert report["policy"]["source_vertex_warping_allowed"] is False
+          assert report["policy"]["authorization_threshold"] is None
+          assert report["selected_numerical_candidate"]["runtime_authorized"] is False
+          assert report["selected_numerical_candidate"]["final_world_y_authorized"] is False
+          assert report["interpretation"]["selected_policy_authorized"] is False
+          assert report["interpretation"]["global_vertical_origin_resolved"] is False
+          assert report["runtime_authorized"] is False
+          assert report["runtime_mount_authorized"] is False
+          assert report["collision_authorized"] is False
+          assert report["final_world_y_authorized"] is False
+          assert report["terrain_runtime_authorized"] is False
+          assert report["source_geometry_modified"] is False
+          assert report["artifact_only"] is True
+          print("ANDERLECHT_LOD2_B01_RIGID_ANCHOR_FAIL_CLOSED_OK")
+          PY
+
+      - name: Publish policy comparison
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "anderlecht_b01_rigid_anchor/rigid_anchor_evaluation.json").read_text())
+          lines = [
+              "## Anderlecht B01 rigid DTM anchor comparison",
+              "",
+              f"- Baseline vertex |residual| p95: **{report['input']['unshifted_vertex_abs_p95_m']:.4f} m**",
+          ]
+          for row in report["candidates"]:
+              p = row["post_residual_m"]
+              lines.append(
+                  f"- q={row['quantile']:.2f}: shift median {row['shift_m']['median']:.4f} m; "
+                  f"|residual| p95 {p['abs_p95']:.4f} m; >5cm float {p['positive_fraction']*100:.1f}%; "
+                  f"<-5cm burial {p['negative_fraction']*100:.1f}%"
+              )
+          selected = report["selected_numerical_candidate"]
+          lines += [
+              "",
+              f"Numerical winner for declared p95 metric: **q={selected['quantile']:.2f}**; "
+              f"median rigid shift **{selected['shift_m']['median']:.4f} m**; "
+              f"post |residual| p95 **{selected['post_residual_m']['abs_p95']:.4f} m**.",
+              "",
+              "Candidate only — no final world Y, runtime mount, terrain or collision authorization.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+
+      - name: Upload rigid anchor evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anderlecht-e145500-n169000-b01-rigid-anchor
+          path: |
+            ${{ runner.temp }}/anderlecht_b01_rigid_anchor/*
+            ${{ runner.temp }}/anderlecht_b01_dtm_alignment/dtm_alignment_report.json
+          if-no-files-found: error

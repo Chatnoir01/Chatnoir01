@@ -1,0 +1,121 @@
+name: Grand Bruxelles Atomium Arrival Occluder
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-arrival-occluder.yml"
+      - "grand-bruxelles-game/data/runtime/modules/atomium_arrival_presentation.json"
+      - "grand-bruxelles-game/game/scripts/atomium_arrival_presentation_runtime.gd"
+      - "grand-bruxelles-game/game/tests/atomium_arrival_occluder_player_ab_test.gd"
+      - "grand-bruxelles-game/game/scripts/grand_brussels_runtime_bootstrap.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_dtm_terrain.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_core.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_reflection_environment.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  player-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1 and Pillow
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          python3 -m pip install --disable-pip-version-check pillow
+      - name: Validate permanent runtime registry
+        run: python3 grand-bruxelles-game/tools/qa/validate_runtime_bootstrap.py
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/atomium-arrival-occluder-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/atomium-arrival-occluder-import.log; then exit 1; fi
+      - name: Capture true-player Atomium BEFORE and AFTER
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/atomium_arrival_occluder_player_ab_test.gd \
+            2>&1 | tee /tmp/atomium-arrival-occluder-player-ab.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_ARRIVAL_OCCLUDER_PLAYER_AB_FAIL" /tmp/atomium-arrival-occluder-player-ab.log; then exit 1; fi
+          grep -F "ATOMIUM_ARRIVAL_OCCLUDER_PLAYER_AB_OK" /tmp/atomium-arrival-occluder-player-ab.log
+          test -s grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder/before.png
+          test -s grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder/after.png
+      - name: Measure frozen player-visible gate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageChops
+
+          root = Path('grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder')
+          before = Image.open(root / 'before.png').convert('RGB')
+          after = Image.open(root / 'after.png').convert('RGB')
+          if before.size != after.size or before.size != (1280, 720):
+              raise SystemExit('ATOMIUM_ARRIVAL_OCCLUDER_AB_FAIL: capture size mismatch')
+
+          a, b = before.load(), after.load()
+          xs3, ys3, gt8 = [], [], 0
+          for y in range(before.height):
+              for x in range(before.width):
+                  delta = max(abs(a[x, y][i] - b[x, y][i]) for i in range(3))
+                  if delta > 3:
+                      xs3.append(x)
+                      ys3.append(y)
+                  if delta > 8:
+                      gt8 += 1
+
+          total = before.width * before.height
+          ratio3 = 100.0 * len(xs3) / total
+          ratio8 = 100.0 * gt8 / total
+          if xs3:
+              bbox = (min(xs3), min(ys3), max(xs3) + 1, max(ys3) + 1)
+              bw = bbox[2] - bbox[0]
+              bh = bbox[3] - bbox[1]
+              bbox_area = 100.0 * bw * bh / total
+          else:
+              bbox = (0, 0, 0, 0)
+              bw = bh = 0
+              bbox_area = 0.0
+
+          ImageChops.difference(before, after).save(root / 'diff.png')
+          passed = (
+              ratio3 >= 1.50 and ratio8 >= 1.00 and
+              bw >= 140 and bh >= 220 and
+              ratio3 <= 8.0 and bbox_area <= 8.0
+          )
+          line = (
+              f'ATOMIUM_ARRIVAL_OCCLUDER_AB_METRICS: changed_gt3={ratio3:.6f}% '
+              f'changed_gt8={ratio8:.6f}% bbox={bbox} bbox_size={bw}x{bh} '
+              f'bbox_area={bbox_area:.4f}% floor3=1.50% floor8=1.00% '
+              f'bbox_floor=140x220 changed_ceiling=8.0% bbox_ceiling=8.0% '
+              f'numerical_gate={"PASS" if passed else "FAIL"}\n'
+          )
+          (root / 'metrics.log').write_text(line, encoding='utf-8')
+          print(line, end='')
+          PY
+          cp /tmp/atomium-arrival-occluder-player-ab.log grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder/player-ab.log
+          cp /tmp/atomium-arrival-occluder-import.log grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder/import.log
+      - name: Upload full-frame player A-B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-arrival-occluder-player-ab
+          path: grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder
+          if-no-files-found: error
+      - name: Enforce frozen numerical gate
+        run: grep -F "numerical_gate=PASS" grand-bruxelles-game/artifacts/qa/atomium_arrival_occluder/metrics.log

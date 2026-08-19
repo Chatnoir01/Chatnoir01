@@ -1,0 +1,128 @@
+name: Grand Bruxelles Midi Authored Vehicle Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/vehicles/kenney_car_kit/**"
+      - "grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv"
+      - "grand-bruxelles-game/game/scripts/midi_authored_vehicle_review_runtime.gd"
+      - "grand-bruxelles-game/data/runtime/modules/midi_authored_vehicle_review.json"
+      - "grand-bruxelles-game/game/tests/midi_authored_vehicle_review_runtime_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-authored-vehicle-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-authored-vehicle-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify selected asset provenance and dependencies
+        run: |
+          grep -q "Creative Commons CC0" grand-bruxelles-game/assets/vehicles/kenney_car_kit/PROVENANCE.md
+          grep -q "Imported dependency: models/Textures/colormap.png" grand-bruxelles-game/assets/vehicles/kenney_car_kit/PROVENANCE.md
+          test -s grand-bruxelles-game/assets/vehicles/kenney_car_kit/models/Textures/colormap.png
+          for model in sedan hatchback-sports suv van taxi; do
+            test -s "grand-bruxelles-game/assets/vehicles/kenney_car_kit/models/${model}.glb"
+          done
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import authored vehicle assets
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/midi-authored-vehicle-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Couldn't load project data|ERROR: Can't open file|Cannot open file|couldn't be loaded|Image index .* couldn't be loaded|ERROR: Loading resource:.*colormap" /tmp/midi-authored-vehicle-import.log; then exit 1; fi
+      - name: Validate review runtime
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/midi_authored_vehicle_review_runtime_test.gd 2>&1 | tee /tmp/midi-authored-vehicle-test.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AUTHORED_VEHICLE_REVIEW_FAIL|ERROR: Can't open file|Cannot open file|couldn't be loaded|Image index .* couldn't be loaded" /tmp/midi-authored-vehicle-test.log; then exit 1; fi
+          grep -q "MIDI_AUTHORED_VEHICLE_REVIEW_OK" /tmp/midi-authored-vehicle-test.log
+
+  owner-review-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+      - name: Checkout head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import base and head
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path base/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/base-import.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path head/grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/head-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Can't open file|Cannot open file|couldn't be loaded|Image index .* couldn't be loaded|ERROR: Loading resource:.*colormap" /tmp/base-import.log /tmp/head-import.log; then exit 1; fi
+      - name: Capture full-frame BEFORE and AFTER
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path base/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 \
+            --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- /tmp/midi-authored-before.png 2>&1 | tee /tmp/base-capture.log
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path head/grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 \
+            --script res://game/tests/midi_ambient_vehicle_visual_capture_test.gd -- /tmp/midi-authored-after.png 2>&1 | tee /tmp/head-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AMBIENT_VEHICLE_CAPTURE_FAIL|ERROR: Can't open file|Cannot open file|couldn't be loaded|Image index .* couldn't be loaded" /tmp/base-capture.log /tmp/head-capture.log; then exit 1; fi
+          grep -q "MIDI_AMBIENT_VEHICLE_CAPTURE_OK" /tmp/base-capture.log
+          grep -q "MIDI_AMBIENT_VEHICLE_CAPTURE_OK" /tmp/head-capture.log
+          test -f /tmp/midi-authored-before.png
+          test -f /tmp/midi-authored-after.png
+      - name: Measure player-frame delta
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path head/grand-bruxelles-game \
+            --script res://game/tests/midi_ambient_vehicle_visual_ab_compare_test.gd -- \
+            /tmp/midi-authored-before.png /tmp/midi-authored-after.png 2>&1 | tee /tmp/midi-authored-ab.log || true
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_AMBIENT_VEHICLE_AB_FAIL" /tmp/midi-authored-ab.log; then exit 1; fi
+          grep -q "MIDI_AMBIENT_VEHICLE_AB_OK" /tmp/midi-authored-ab.log
+      - name: Stage owner-review evidence
+        if: always()
+        run: |
+          mkdir -p head/grand-bruxelles-game/artifacts/qa/midi_authored_vehicle_review
+          cp /tmp/midi-authored-before.png head/grand-bruxelles-game/artifacts/qa/midi_authored_vehicle_review/before.png 2>/dev/null || true
+          cp /tmp/midi-authored-after.png head/grand-bruxelles-game/artifacts/qa/midi_authored_vehicle_review/after.png 2>/dev/null || true
+          cp /tmp/midi-authored-ab.log head/grand-bruxelles-game/artifacts/qa/midi_authored_vehicle_review/metrics.log 2>/dev/null || true
+      - name: Upload owner-review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-authored-vehicle-review-ab
+          path: head/grand-bruxelles-game/artifacts/qa/midi_authored_vehicle_review
+          if-no-files-found: warn

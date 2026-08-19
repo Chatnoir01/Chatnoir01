@@ -29,6 +29,11 @@ def _pick_exact(paths, basename):
 def _repair_ascii_texture_connection_channels(filepath):
     """Repair the pinned MakeHuman ASCII FBX writer's Python-3 byte-channel output.
 
+    Run #23 proved ASCII FBX fixed the earlier normal-index corruption: Godot/ufbx
+    imported the candidate with zero `Clamped index` warnings. The same run also
+    exposed the next independent defect: seven material surfaces imported, but zero
+    textures were attached.
+
     Upstream `fbx_material.writeLinks()` passes channel names such as
     ``b"DiffuseColor"`` into `fbx_utils.opLink()`. The ASCII `opLink()` formats that
     value with ``%s``. Under Python 3 the FBX therefore receives the literal property
@@ -57,9 +62,6 @@ def _repair_ascii_texture_connection_channels(filepath):
     if bad_links:
         raise RuntimeError("MakeHuman ASCII FBX still contains byte-valued texture channels: %s" % bad_links[:4])
 
-    # Diffuse attachments are the hard visual invariant. The candidate currently has
-    # body, eyes/brows, hair, clothes and shoes, so fewer than four resolved diffuse
-    # links means the repair is not useful enough to hand to Godot for visual review.
     diffuse_links = sum(
         1
         for line in repaired_text.splitlines()
@@ -118,8 +120,6 @@ def _run(app):
         if exporter is None:
             raise RuntimeError("MakeHuman FBX exporter is unavailable")
 
-        # Binary FBX in this pinned version reuses polygon end markers in NormalsIndex,
-        # which Godot/ufbx clamps. ASCII FBX keeps positive normal indices.
         if not hasattr(exporter, "binary"):
             raise RuntimeError("MakeHuman FBX exporter Binary FBX control is unavailable")
         exporter.binary.setChecked(False)

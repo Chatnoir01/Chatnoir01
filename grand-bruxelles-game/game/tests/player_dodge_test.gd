@@ -18,6 +18,7 @@ func _expect(condition: bool, message: String) -> bool:
 func _run() -> void:
     var world := Node3D.new()
     root.add_child(world)
+    current_scene = world
 
     var player := CharacterBody3D.new()
     player.name = "Player"
@@ -90,6 +91,23 @@ func _run() -> void:
     if not _expect(int(player.get_meta("combat_dodge_until_ms", 0)) <= Time.get_ticks_msec(), "blocked dodge retained a free evade window"):
         return
 
-    print("PLAYER_DODGE_OK: distance=%.2f first_step=%.3f temporal=true blocked_iframe_cancel=true counter_reach_cleared=true cooldown=true guard_exclusive=true" % [travelled, first_step])
+    # Natural deadline expiry must execute the same cleanup path. Otherwise an
+    # ordinary full dodge can leave the controller speed scale stuck at zero.
+    player.set_meta("combat_next_dodge_ms", 0)
+    var expiring: Dictionary = dodge.call("request_dodge", player, Vector3.LEFT)
+    if not _expect(bool(expiring.get("dodged", false)), "natural-expiry fixture could not arm a dodge"):
+        return
+    if not _expect(float(player.get_meta("combat_controller_speed_scale", 1.0)) <= 0.001, "dodge did not suppress controller speed while active"):
+        return
+    player.set_meta("combat_dodge_motion_until_ms", Time.get_ticks_msec() - 1)
+    dodge.call("_physics_process", 1.0 / 60.0)
+    if not _expect(not bool(player.get_meta("combat_dodge_motion_active", true)), "natural dodge expiry left motion active"):
+        return
+    if not _expect(int(player.get_meta("combat_dodge_motion_until_ms", -1)) == 0, "natural dodge expiry did not clear its deadline"):
+        return
+    if not _expect(float(player.get_meta("combat_controller_speed_scale", 0.0)) >= 0.999, "natural dodge expiry left controller speed suppressed"):
+        return
+
+    print("PLAYER_DODGE_OK: distance=%.2f first_step=%.3f temporal=true natural_cleanup=true blocked_iframe_cancel=true counter_reach_cleared=true cooldown=true guard_exclusive=true" % [travelled, first_step])
     world.queue_free()
     quit(0)

@@ -1,0 +1,234 @@
+name: Grand Bruxelles Region LoD2 C01 Source Materialization
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json"
+      - "grand-bruxelles-game/tools/qa/prepare_region_lod2_source_materialization.py"
+      - "grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard.py"
+      - "grand-bruxelles-game/tools/qa/aggregate_region_lod2_source_materialization.py"
+      - ".github/workflows/grand-bruxelles-region-lod2-c01-source-materialization.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download immutable C01 selection and source summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380126488/zip" > "$RUNNER_TEMP/selection.zip"
+          echo "973f9f9a42b9deb17fd8bb8f9ff68beaa187b46caafb7561e3fdd99ca262b4dd  $RUNNER_TEMP/selection.zip" | sha256sum -c -
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380337311/zip" > "$RUNNER_TEMP/source-summary.zip"
+          echo "7fdbe4b6e9abb86fc773410ebb913e2dbe7c96634ef1b9497cdfef1e9ca11567  $RUNNER_TEMP/source-summary.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/selection.zip" -d "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/source-summary.zip" -d "$RUNNER_TEMP/evidence"
+          SELECTION="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.selection.json' -print -quit)"
+          SUMMARY="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.summary.json' -print -quit)"
+          test -f "$SELECTION" && test -f "$SUMMARY"
+          echo "SELECTION=$SELECTION" >> "$GITHUB_ENV"
+          echo "SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+
+      - name: RED - reject runtime-style materialization authorization
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          src = Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json")
+          payload = json.loads(src.read_text())
+          payload["hard_rules"]["artifact_source_materialization_only"] = False
+          bad = Path(os.environ["RUNNER_TEMP"]) / "bad-materialization-contract.json"
+          bad.write_text(json.dumps(payload))
+          PY
+          if python grand-bruxelles-game/tools/qa/prepare_region_lod2_source_materialization.py \
+            --selection "$SELECTION" \
+            --summary "$SUMMARY" \
+            --contract "$RUNNER_TEMP/bad-materialization-contract.json" \
+            --matrix-out "$RUNNER_TEMP/red-matrix.json" \
+            --cells-out "$RUNNER_TEMP/red-cells.csv"; then
+            echo "RED gate unexpectedly accepted non-artifact materialization" >&2
+            exit 1
+          fi
+          echo "C01_SOURCE_MATERIALIZATION_RED_OK: runtime-style materialization rejected"
+
+      - name: GREEN - rebuild exact 47-shard / 132-cell plan
+        id: matrix
+        run: |
+          python grand-bruxelles-game/tools/qa/prepare_region_lod2_source_materialization.py \
+            --selection "$SELECTION" \
+            --summary "$SUMMARY" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json \
+            --matrix-out "$RUNNER_TEMP/materialization-matrix.json" \
+            --cells-out "$RUNNER_TEMP/materialization-cells.csv"
+          echo "matrix=$(cat "$RUNNER_TEMP/materialization-matrix.json")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-source-materialization-plan
+          path: |
+            ${{ runner.temp }}/materialization-matrix.json
+            ${{ runner.temp }}/materialization-cells.csv
+          if-no-files-found: error
+
+  materialize-shards:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source reader dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely
+
+      - name: Download immutable C01 selection and source summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380126488/zip" > "$RUNNER_TEMP/selection.zip"
+          echo "973f9f9a42b9deb17fd8bb8f9ff68beaa187b46caafb7561e3fdd99ca262b4dd  $RUNNER_TEMP/selection.zip" | sha256sum -c -
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380337311/zip" > "$RUNNER_TEMP/source-summary.zip"
+          echo "7fdbe4b6e9abb86fc773410ebb913e2dbe7c96634ef1b9497cdfef1e9ca11567  $RUNNER_TEMP/source-summary.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/selection.zip" -d "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/source-summary.zip" -d "$RUNNER_TEMP/evidence"
+          echo "SELECTION=$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.selection.json' -print -quit)" >> "$GITHUB_ENV"
+          echo "SUMMARY=$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.summary.json' -print -quit)" >> "$GITHUB_ENV"
+
+      - name: Materialize exact locked source shard directly
+        run: |
+          python grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --selection "$SELECTION" \
+            --summary "$SUMMARY" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json \
+            --distribution-key "${{ matrix.distribution_key }}" \
+            --output-root "$RUNNER_TEMP/materialized"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-source-shard-${{ matrix.tile }}
+          path: ${{ runner.temp }}/materialized
+          if-no-files-found: error
+          compression-level: 6
+
+  aggregate:
+    needs: materialize-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download immutable C01 selection and source summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380126488/zip" > "$RUNNER_TEMP/selection.zip"
+          echo "973f9f9a42b9deb17fd8bb8f9ff68beaa187b46caafb7561e3fdd99ca262b4dd  $RUNNER_TEMP/selection.zip" | sha256sum -c -
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380337311/zip" > "$RUNNER_TEMP/source-summary.zip"
+          echo "7fdbe4b6e9abb86fc773410ebb913e2dbe7c96634ef1b9497cdfef1e9ca11567  $RUNNER_TEMP/source-summary.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/selection.zip" -d "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/source-summary.zip" -d "$RUNNER_TEMP/evidence"
+          echo "SELECTION=$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.selection.json' -print -quit)" >> "$GITHUB_ENV"
+          echo "SUMMARY=$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.summary.json' -print -quit)" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: region-lod2-c01-source-shard-*
+          path: ${{ runner.temp }}/shards
+          merge-multiple: true
+
+      - name: Merge 47 verified shards into 132 physical cell payloads
+        run: |
+          python grand-bruxelles-game/tools/qa/aggregate_region_lod2_source_materialization.py \
+            --shards-root "$RUNNER_TEMP/shards" \
+            --selection "$SELECTION" \
+            --summary "$SUMMARY" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json \
+            --output-root "$RUNNER_TEMP/c01-source-materialized"
+
+      - name: Require complete fail-closed 30k artifact
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ["RUNNER_TEMP"]) / "c01-source-materialized/source_materialization_index.json"
+          data = json.loads(path.read_text())
+          assert data["selection"]["owner_count"] == 30000
+          assert data["selection"]["spatial_cell_count"] == 132
+          assert data["selection"]["source_shard_count"] == 47
+          assert data["source_metrics"]["solid_count"] == 30944
+          assert data["source_metrics"]["face_count"] == 532211
+          assert data["source_metrics"]["point_count"] == 3273027
+          assert data["source_metrics"]["part_count"] == 534100
+          assert data["source_metrics"]["canonical_payload_bytes"] == 222598504
+          assert len(data["cells"]) == 132
+          for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "game_world_transform_authorized", "jouable_promotion_authorized", "source_geometry_modified"]:
+              assert data[key] is False, key
+          assert data["artifact_only"] is True
+          print("REGION_LOD2_C01_30000_SOURCE_MATERIALIZATION_GREEN: owners=30000 cells=132 faces=532211")
+          PY
+
+      - name: Publish materialization summary
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "c01-source-materialized"
+          index_path = root / "source_materialization_index.json"
+          data = json.loads(index_path.read_text())
+          digest = hashlib.sha256(index_path.read_bytes()).hexdigest()
+          largest = max(data["cells"].items(), key=lambda item: item[1]["owner_count"])
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("## C01 30k source materialization\n\n")
+              handle.write(f"- Owners: **{data['selection']['owner_count']}**\n")
+              handle.write(f"- Physical cells: **{data['selection']['spatial_cell_count']}**\n")
+              handle.write(f"- Source shards: **{data['selection']['source_shard_count']}**\n")
+              handle.write(f"- BuildingFaces: **{data['source_metrics']['face_count']}**\n")
+              handle.write(f"- Source points: **{data['source_metrics']['point_count']}**\n")
+              handle.write(f"- Raw payload bytes: **{data['source_metrics']['canonical_payload_bytes']}**\n")
+              handle.write(f"- Largest cell: **{largest[0]}**, {largest[1]['owner_count']} owners\n")
+              handle.write(f"- Index SHA-256: `{digest}`\n")
+              handle.write("- Runtime mount/collision/game-world transform: **not authorized**\n")
+          print(f"SOURCE_MATERIALIZATION_INDEX_SHA256={digest}")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-source-materialized-cells
+          path: ${{ runner.temp }}/c01-source-materialized
+          if-no-files-found: error
+          compression-level: 6

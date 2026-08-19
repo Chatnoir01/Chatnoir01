@@ -1,0 +1,24 @@
+{
+  "schema": "grand-bruxelles-authored-npc-candidate-verdict-v1",
+  "candidate": "microsoft/Microsoft-Rocketbox@0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+  "artifact": "midi-realistic-authored-npcs-candidate-pilot",
+  "artifact_id": 9379586964,
+  "workflow_run_id": 32290986960,
+  "technical_result": "green",
+  "visual_result": "JETER",
+  "production_authorized": false,
+  "reasons": [
+    "Civilian pilot still reads as an older generic game-avatar library rather than a contemporary believable street human at player distance.",
+    "Static pilot presentation is visibly rigid and does not establish the required natural near-player locomotion quality.",
+    "Police_Female_01 reads as heavy tactical/military equipment rather than a credible Brussels street-police visual target.",
+    "The lot north-star requires a clearly stronger result than a technically valid rig/import."
+  ],
+  "keep_from_candidate": [
+    "Pinned immutable-source intake pattern",
+    "MIT license/provenance/hash recording pattern",
+    "Complete material dependency intake",
+    "Godot 4.7.1 candidate import gate",
+    "1280x720 owner-review artifact pipeline"
+  ],
+  "next_direction": "Evaluate a higher-fidelity reproducible open character source/generation pipeline; do not vendor or runtime-enable Rocketbox avatars."
+}

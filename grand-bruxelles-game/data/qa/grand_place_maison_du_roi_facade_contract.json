@@ -1,0 +1,68 @@
+{
+  "schema": "grand-bruxelles-maison-du-roi-facade-v1",
+  "base_main": "0807581e4a711d21b535a7def66f089da037a2f4",
+  "status": "runtime_candidate",
+  "official_geometry": {
+    "building_id": "https://databrussels.be/id/building/1654360",
+    "path": "res://data/urbis/grand_place_lod2/1654360.game.json",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "face_count": 71,
+    "source_triangle_count": 230,
+    "render_wall_roof_triangle_count": 213,
+    "lod2_height_m": 30.387,
+    "city_total_height_m": 38.0,
+    "vertical_completeness": false,
+    "geometry_rescaled": false
+  },
+  "architectural_source": {
+    "provider": "Urban Brussels architectural heritage inventory",
+    "record_id": "31143",
+    "url": "https://monument.heritage.brussels/fr/buildings/31143",
+    "facts_used": {
+      "main_facade_levels": 3,
+      "lower_level_bays": 9,
+      "upper_level_bays": 17,
+      "axial_bay_wider": true,
+      "ground_window_lancets": 4,
+      "upper_window_lancets": 2,
+      "pointed_arch_windows": true,
+      "gallery_levels": 2,
+      "roof_material": "slate"
+    }
+  },
+  "presentation": {
+    "method": "source-derived facade plane plus normalized shallow architectural relief",
+    "source_vertices_changed": false,
+    "source_collision_changed": false,
+    "survey_dimensions_claimed": false,
+    "exact_opening_coordinates_claimed": false,
+    "exact_material_rgb_claimed": false,
+    "relief_depth_m": 0.12,
+    "facade_plane_tolerance_m": 1.75,
+    "minimum_resolved_facade_width_m": 18.0,
+    "minimum_resolved_facade_height_m": 15.0
+  },
+  "canonical_witness": {
+    "contract": "res://data/qa/grand_place_clean_player_witness.json",
+    "resolution": [1280, 720],
+    "ui_mask_required": true,
+    "dynamics_mask_required": true
+  },
+  "visual_gate": {
+    "minimum_gt3_percent": 8.0,
+    "minimum_gt8_percent": 4.0,
+    "minimum_bbox_width": 500,
+    "minimum_bbox_height": 350,
+    "camera_rescue_allowed": false,
+    "threshold_rescue_allowed": false,
+    "human_full_frame_pass_required": true
+  },
+  "hard_rules": {
+    "do_not_rescale_lod2_to_city_height": true,
+    "do_not_invent_statues": true,
+    "do_not_claim_surveyed_windows": true,
+    "do_not_reuse_rejected_blind_block_as_final": true,
+    "runtime_approved": false,
+    "realism_complete": false
+  }
+}

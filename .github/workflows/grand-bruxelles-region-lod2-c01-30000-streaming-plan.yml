@@ -1,0 +1,118 @@
+name: Grand Bruxelles Region LoD2 C01 30k Streaming Plan
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.contract.json"
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.streaming.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_campaigns/region_lod2_C01_30000.manifest.json"
+      - "grand-bruxelles-game/tools/qa/build_urbis_lod2_source_campaign_selection.py"
+      - "grand-bruxelles-game/tools/qa/build_region_lod2_streaming_plan.py"
+      - "grand-bruxelles-game/game/scripts/brussels_world_streaming_runtime.gd"
+      - ".github/workflows/grand-bruxelles-region-lod2-c01-30000-streaming-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  streaming-plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download locked regional planner artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9371456570/zip" \
+            > "$RUNNER_TEMP/region-lod2-cell-batch-plan.zip"
+          echo "5c45f328f06bf951631c1f71fe4360b7f503c04a2da3bcbd2093d7a7fd5c4535  $RUNNER_TEMP/region-lod2-cell-batch-plan.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/planner"
+          unzip -q "$RUNNER_TEMP/region-lod2-cell-batch-plan.zip" -d "$RUNNER_TEMP/planner"
+      - name: Rebuild immutable 30k selection
+        run: |
+          python grand-bruxelles-game/tools/qa/build_urbis_lod2_source_campaign_selection.py \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.contract.json \
+            --planner-dir "$RUNNER_TEMP/planner" \
+            --selection-out "$RUNNER_TEMP/region_lod2_C01_30000.selection.json" \
+            --matrix-out "$RUNNER_TEMP/region_lod2_C01_30000.matrix.json"
+      - name: Rebuild exact compact streaming plan
+        run: |
+          python grand-bruxelles-game/tools/qa/build_region_lod2_streaming_plan.py \
+            --selection "$RUNNER_TEMP/region_lod2_C01_30000.selection.json" \
+            --runtime-script grand-bruxelles-game/game/scripts/brussels_world_streaming_runtime.gd \
+            --summary-out "$RUNNER_TEMP/region_lod2_C01_30000.streaming.json" \
+            --cells-out "$RUNNER_TEMP/region_lod2_C01_30000.streaming_cells.csv"
+          cmp \
+            grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.streaming.json \
+            "$RUNNER_TEMP/region_lod2_C01_30000.streaming.json"
+      - name: Validate accounting and fail-closed runtime rails
+        run: |
+          python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          from copy import deepcopy
+          from pathlib import Path
+          import os
+
+          base = Path("grand-bruxelles-game")
+          manifest = json.loads((base / "data/urbis/remaining_brussels/lod2_source_campaigns/region_lod2_C01_30000.manifest.json").read_text())
+          plan_path = base / "data/qa/region_lod2_campaigns/region_lod2_C01_30000.streaming.json"
+          cells_path = Path(os.environ["RUNNER_TEMP"]) / "region_lod2_C01_30000.streaming_cells.csv"
+          plan = json.loads(plan_path.read_text())
+          rows = list(csv.DictReader(cells_path.open(newline="", encoding="utf-8")))
+
+          def safety_gate(candidate):
+              rules = candidate["streaming_rules"]
+              auth = candidate["authorization"]
+              if not rules["global_mount_forbidden"]:
+                  raise RuntimeError("unsafe global 30k mount accepted")
+              if rules["source_geometry_modified"]:
+                  raise RuntimeError("source geometry mutation accepted")
+              for key in [
+                  "geometry_materialization_authorized",
+                  "game_world_transform_authorized",
+                  "runtime_mount_authorized",
+                  "collision_authorized",
+                  "jouable_promotion_authorized",
+              ]:
+                  if auth[key]:
+                      raise RuntimeError(f"unauthorized escalation: {key}")
+
+          bad = deepcopy(plan)
+          bad["streaming_rules"]["global_mount_forbidden"] = False
+          try:
+              safety_gate(bad)
+          except RuntimeError as exc:
+              print(f"RED_GUARD_OK: {exc}")
+          else:
+              raise RuntimeError("red guard did not reject naive global mount")
+
+          safety_gate(plan)
+          selected = manifest["selection"]
+          assert plan["campaign_id"] == manifest["campaign_id"]
+          assert plan["campaign_owner_count"] == selected["owner_count"] == 30000
+          assert plan["campaign_owner_sequence_sha256"] == selected["owner_sequence_sha256"]
+          assert plan["source_partition_count"] == selected["cell_count"] == 134
+          assert plan["planner_group_count"] == selected["planner_group_count"] == 212
+          assert plan["spatial_cell_count"] == len(rows) == 132
+          assert sum(int(row["owner_count"]) for row in rows) == 30000
+          assert sum(int(row["source_partition_count"]) for row in rows) == 134
+          assert sum(int(row["planner_group_count"]) for row in rows) == 212
+          assert plan["spatial_cell_table_sha256"] == hashlib.sha256(cells_path.read_bytes()).hexdigest()
+          assert plan["streaming_policy"]["max_active_cells"] == 4
+          assert plan["streaming_policy"]["max_operations_per_tick"] == 1
+          print("REGION_LOD2_C01_STREAMING_PLAN_OK: owners=30000 source_partitions=134 spatial_cells=132 groups=212 active_cap=4 ops_per_tick=1")
+          PY
+      - name: Upload exact 132-cell streaming table
+        uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-streaming-cells
+          path: ${{ runner.temp }}/region_lod2_C01_30000.streaming_cells.csv
+          if-no-files-found: error

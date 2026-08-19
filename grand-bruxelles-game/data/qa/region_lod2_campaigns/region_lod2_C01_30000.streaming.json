@@ -1,0 +1,37 @@
+{
+  "schema": "grand-bruxelles-region-lod2-streaming-plan-v1",
+  "campaign_id": "region-lod2-C01-30000",
+  "source_revision": "20260808",
+  "campaign_owner_count": 30000,
+  "campaign_owner_sequence_sha256": "19acf5707d4daba092a41c20ca780e337d06ee4648813fb2f259cc7f77c004f6",
+  "source_partition_count": 134,
+  "spatial_cell_count": 132,
+  "planner_group_count": 212,
+  "cell_size_m": 500,
+  "spatial_cell_table": "generated CI artifact: region_lod2_C01_30000.streaming_cells.csv",
+  "runtime_bridge": "res://game/scripts/brussels_world_streaming_runtime.gd",
+  "streaming_policy": {
+    "visual_load_radius_m": 650.0,
+    "visual_unload_radius_m": 850.0,
+    "collision_radius_m": 260.0,
+    "lookahead_seconds": 4.0,
+    "max_operations_per_tick": 1,
+    "max_active_cells": 4
+  },
+  "streaming_rules": {
+    "single_campaign": true,
+    "physical_cells_deduplicate_municipality_boundaries": true,
+    "global_mount_forbidden": true,
+    "source_geometry_modified": false
+  },
+  "authorization": {
+    "source_registered": true,
+    "streaming_plan_authorized": true,
+    "geometry_materialization_authorized": false,
+    "game_world_transform_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "jouable_promotion_authorized": false
+  },
+  "spatial_cell_table_sha256": "963586e610d553b8ded14a872aef68fe01566fc30d949f2c9997de33af6ae25c"
+}

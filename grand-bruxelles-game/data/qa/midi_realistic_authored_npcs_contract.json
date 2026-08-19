@@ -1,7 +1,8 @@
 {
   "schema": "grand-bruxelles-midi-realistic-authored-npcs-v1",
-  "status": "red_first",
+  "status": "fidelity_iteration",
   "base_main": "b9e18e6bf1672a6bbe92c510497784656481e011",
+  "requires_current_main_rebuild_before_merge": true,
   "zone": "midi",
   "scope": "visual_only",
   "runtime_authorized": false,
@@ -14,6 +15,32 @@
     "mid_end_m": 60.0,
     "legacy_cuboid_fallback_allowed": false,
     "far_policy": "authored_humanoid_lod_or_cull"
+  },
+  "structural_state": {
+    "legacy_cuboid_retired": true,
+    "explicit_reactivation_guarded": true,
+    "profiled_web_cull_m": 90.0,
+    "movement_ai_navigation_changed": false
+  },
+  "red_evidence": {
+    "preserved_in_history": true,
+    "workflow_run_id": 32289456340,
+    "artifact_id": 9378905505,
+    "artifact": "midi-realistic-authored-npcs-red",
+    "active_red_test_retired_after_fix": true
+  },
+  "candidate_state": {
+    "rocketbox": {
+      "technical": "green",
+      "visual": "JETER",
+      "production_authorized": false
+    },
+    "makehuman": {
+      "technical_pilot_1": "green",
+      "visual_pilot_1": "AMELIORER",
+      "production_authorized": false,
+      "next_gate": "real_skin_street_clothes_shoes_relaxed_isolated_full_and_close_witness"
+    }
   },
   "required_animation_roles": ["idle", "walk", "run"],
   "banned_civilian_assets": ["res://assets/characters/player_character.glb"],

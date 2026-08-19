@@ -5,6 +5,7 @@ const CONTRACT_PATH := "res://data/qa/grand_place_complete_contour_witness_contr
 const SOURCE_DIR := "res://data/urbis/grand_place_lod2"
 const PACKAGE_SHA := "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
 const TRIANGLE_CROSS_EPSILON_SQ := 1.0e-12
+const EXPECTED_BASE_MAIN := "a215fd2eed4f16f963724f7ef0e963389a13fb04"
 const EXPECTED_OWNER_IDS := [
     "1601883", "1601884", "1608847", "1608851", "1611166", "1613517",
     "1635455", "1635485", "1637695", "1637729", "1639974", "1639985",
@@ -70,7 +71,7 @@ func _run() -> void:
     if contract.is_empty() or str(contract.get("schema", "")) != "grand-bruxelles-grand-place-complete-contour-witness-v2":
         _fail("witness v2 contract missing or invalid")
         return
-    if str(contract.get("base_main", "")) != "d3c0a64fa34749b6257f4f70254bcd931c8fec8c":
+    if str(contract.get("base_main", "")) != EXPECTED_BASE_MAIN:
         _fail("witness base main drifted")
         return
     var hard: Dictionary = contract.get("hard_rules", {})

@@ -15,7 +15,7 @@ permissions:
 jobs:
   extract-and-persist:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,6 +25,17 @@ jobs:
           python-version: "3.12"
       - name: Install pyshp
         run: python -m pip install --disable-pip-version-check pyshp==2.3.1
+      - name: Prefetch locked UrbIS package with retries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache="grand-bruxelles-game/.cache/grand_place_perimeter_lod2"
+          mkdir -p "$cache"
+          curl -fL --retry 5 --retry-all-errors --retry-delay 10 \
+            --connect-timeout 30 --max-time 900 \
+            -o "$cache/urbis_buildings3d.zip" \
+            "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip"
+          echo "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2  $cache/urbis_buildings3d.zip" | sha256sum -c -
       - name: Extract exact official perimeter owners
         shell: bash
         run: |

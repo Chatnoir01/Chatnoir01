@@ -110,8 +110,14 @@ def main() -> None:
 
     reader = shapefile.Reader(str(solid_path))
     field_names = [f[0] for f in reader.fields[1:]]
-    building_field = choose_field(field_names, ["building_2d", "building2d", "buildingid", "building_id", "building"])
-    solid_field = choose_field(field_names, ["solidid", "solid_id", "solid"])
+    # Official UrbIS BuildingSolids schema observed in the locked 2026-08-08 package:
+    # BU_ID carries the parent Building URI and INSPIRE_ID carries the BuildingSolid URI.
+    building_field = "BU_ID" if "BU_ID" in field_names else choose_field(
+        field_names, ["building_2d", "building2d", "buildingid", "building_id", "building"]
+    )
+    solid_field = "INSPIRE_ID" if "INSPIRE_ID" in field_names else choose_field(
+        field_names, ["solidid", "solid_id", "solid"]
+    )
     print(json.dumps({
         "source_shapefile": solid_path.name,
         "dbf_fields": field_names,

@@ -14,6 +14,8 @@ class_name BrusselsStreetTreeAsset
 
 const ASSET_FAMILY := "brussels_street_tree_v1"
 const SILHOUETTE_REVISION := 2
+const MATERIAL_REVISION := 2
+const MATERIAL_FACTORY := preload("res://game/scripts/brussels_street_tree_material.gd")
 const FOLIAGE_LOBE_COUNT := 8
 const TRUNK_HEIGHT := 2.6
 const TRUNK_TOP_RADIUS := 0.15
@@ -43,28 +45,13 @@ const LOBE_SCALES := [
 ]
 
 static func create_materials() -> Dictionary:
-    var foliage_dark := StandardMaterial3D.new()
-    foliage_dark.albedo_color = Color(0.145, 0.245, 0.115, 1.0)
-    foliage_dark.roughness = 0.97
-    foliage_dark.metallic = 0.0
-    foliage_dark.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
-    foliage_dark.set_meta("source_dimensions_measured", false)
-    foliage_dark.set_meta("species_claimed", false)
-    var foliage_light := StandardMaterial3D.new()
-    foliage_light.albedo_color = Color(0.235, 0.345, 0.165, 1.0)
-    foliage_light.roughness = 0.96
-    foliage_light.metallic = 0.0
-    foliage_light.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
-    foliage_light.set_meta("source_dimensions_measured", false)
-    foliage_light.set_meta("species_claimed", false)
-    var trunk := StandardMaterial3D.new()
-    trunk.albedo_color = Color(0.175, 0.125, 0.085, 1.0)
-    trunk.roughness = 0.99
-    trunk.metallic = 0.0
-    trunk.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
-    trunk.set_meta("source_dimensions_measured", false)
-    trunk.set_meta("species_claimed", false)
-    return {"foliage_dark": foliage_dark, "foliage_light": foliage_light, "trunk": trunk}
+    return MATERIAL_FACTORY.create_materials()
+
+static func create_legacy_materials() -> Dictionary:
+    return MATERIAL_FACTORY.create_legacy_materials()
+
+static func material_is_enhanced(material: Material) -> bool:
+    return material is ShaderMaterial and int(material.get_meta("material_revision", 0)) == MATERIAL_REVISION
 
 static func create_trunk_mesh(material: Material) -> CylinderMesh:
     var mesh := CylinderMesh.new()
@@ -122,11 +109,13 @@ static func populate(tree: StaticBody3D, osm_id: int, materials: Dictionary) -> 
     visual.name = "StreetTreeVisual"
     visual.set_meta("asset_family", ASSET_FAMILY)
     visual.set_meta("silhouette_revision", SILHOUETTE_REVISION)
+    visual.set_meta("material_revision", MATERIAL_REVISION)
     visual.set_meta("source_dimensions_measured", false)
     visual.set_meta("species_claimed", false)
     tree.add_child(visual)
     tree.set_meta("asset_family", ASSET_FAMILY)
     tree.set_meta("silhouette_revision", SILHOUETTE_REVISION)
+    tree.set_meta("material_revision", MATERIAL_REVISION)
     tree.set_meta("source_dimensions_measured", false)
     tree.set_meta("species_claimed", false)
     tree.set_meta("visual_dimensions_provenance", "authored_presentation_not_source_measurement")

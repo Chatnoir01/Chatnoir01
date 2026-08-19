@@ -141,11 +141,12 @@ func _apply_relaxed_review_pose(skeleton: Skeleton3D) -> Array[String]:
     # this is witness-only and not the final idle animation.
     var left := skeleton.find_bone("upperarm01.L")
     var right := skeleton.find_bone("upperarm01.R")
+    var z_axis := Vector3(0.0, 0.0, 1.0)
     if left >= 0:
-        skeleton.set_bone_pose_rotation(left, Quaternion(Vector3(0.0, 0.0, deg_to_rad(-68.0))))
+        skeleton.set_bone_pose_rotation(left, Quaternion(z_axis, deg_to_rad(-68.0)))
         applied.append("upperarm01.L")
     if right >= 0:
-        skeleton.set_bone_pose_rotation(right, Quaternion(Vector3(0.0, 0.0, deg_to_rad(68.0))))
+        skeleton.set_bone_pose_rotation(right, Quaternion(z_axis, deg_to_rad(68.0)))
         applied.append("upperarm01.R")
     return applied
 

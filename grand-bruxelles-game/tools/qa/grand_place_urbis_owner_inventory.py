@@ -66,15 +66,10 @@ def choose_field(fields, patterns):
 
 
 def shape_bbox_xy(shape):
-    """Return a 2D bbox for any pyshp shape, including MULTIPATCH.
-
-    pyshp does not expose ``shape.bbox`` on all MULTIPATCH Shape objects, so
-    derive the authoritative XY extent directly from the source vertices.
-    No geometry is altered or approximated.
-    """
+    """Return authoritative 2D extent from source XY vertices, or None when empty."""
     points = getattr(shape, "points", None) or []
     if not points:
-        fail("encountered official solid with no source points")
+        return None
     xs = [float(point[0]) for point in points]
     ys = [float(point[1]) for point in points]
     return [min(xs), min(ys), max(xs), max(ys)]
@@ -120,15 +115,25 @@ def main() -> None:
 
     records = []
     recovered_known = set()
+    empty_geometry_record_count = 0
+    empty_geometry_examples = []
+
     for shape_record in reader.iterShapeRecords():
-        bbox = shape_bbox_xy(shape_record.shape)
-        if not intersects(bbox, window):
-            continue
         attrs = {field_names[i]: clean(value) for i, value in enumerate(shape_record.record)}
         building_raw = attrs.get(building_field) if building_field else None
         solid_raw = attrs.get(solid_field) if solid_field else None
         building_id = compact_id(building_raw)
         solid_id = compact_id(solid_raw)
+
+        bbox = shape_bbox_xy(shape_record.shape)
+        if bbox is None:
+            empty_geometry_record_count += 1
+            if len(empty_geometry_examples) < 10:
+                empty_geometry_examples.append({"building_id": building_id, "solid_id": solid_id})
+            continue
+
+        if not intersects(bbox, window):
+            continue
         if building_id in known:
             recovered_known.add(building_id)
         records.append({
@@ -158,6 +163,9 @@ def main() -> None:
         "detected_solid_field": solid_field,
         "inventory_window_lambert72": window,
         "bbox_method": "source_vertex_xy_extent",
+        "empty_geometry_policy": "skip_and_report; never nominate or persist empty source geometry",
+        "empty_geometry_record_count": empty_geometry_record_count,
+        "empty_geometry_examples": empty_geometry_examples,
         "intersecting_solid_count": len(records),
         "known_persisted_building_ids": sorted(known, key=int),
         "recovered_known_building_ids": sorted(recovered_known, key=int),
@@ -168,7 +176,11 @@ def main() -> None:
         "semantic_registration_authorized": False,
     }
     OUT_PATH.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"GRAND_PLACE_URBIS_OWNER_INVENTORY_OK: {len(records)} solids, {len(new_buildings)} new building candidates")
+    print(
+        "GRAND_PLACE_URBIS_OWNER_INVENTORY_OK: "
+        f"{len(records)} solids, {len(new_buildings)} new building candidates, "
+        f"{empty_geometry_record_count} empty source records skipped"
+    )
     print(json.dumps({"new_candidate_building_ids": new_buildings}, ensure_ascii=False))
 
 

@@ -27,8 +27,19 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python grand-bruxelles-game/tools/qa/extract_grand_place_contiguous_lod2_front.py 2>&1 | tee /tmp/grand-place-contiguous-lod2-front-source.log
-          grep -F "GRAND_PLACE_CONTIGUOUS_LOD2_EXTRACT_OK" /tmp/grand-place-contiguous-lod2-front-source.log
+          ok=0
+          for attempt in 1 2 3; do
+            echo "UrbIS extraction attempt $attempt/3"
+            rm -rf grand-bruxelles-game/.cache/grand_place_contiguous_lod2_front
+            if timeout 55s python grand-bruxelles-game/tools/qa/extract_grand_place_contiguous_lod2_front.py 2>&1 | tee /tmp/grand-place-contiguous-lod2-front-source.log; then
+              if grep -F "GRAND_PLACE_CONTIGUOUS_LOD2_EXTRACT_OK" /tmp/grand-place-contiguous-lod2-front-source.log; then
+                ok=1
+                break
+              fi
+            fi
+            sleep 3
+          done
+          test "$ok" -eq 1
       - name: Persist exact target source files on PR branch
         if: github.event_name == 'pull_request'
         shell: bash

@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   realistic-civilian-cars:
@@ -37,3 +37,61 @@ jobs:
           timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/real_civilian_vehicle_visual_test.gd 2>&1 | tee /tmp/real-civilian-cars.log || true
           if grep -E "SCRIPT ERROR|Parse Error:|REAL_CIVILIAN_VEHICLE_VISUAL_FAIL" /tmp/real-civilian-cars.log; then exit 1; fi
           grep -F "REAL_CIVILIAN_VEHICLE_VISUAL_OK" /tmp/real-civilian-cars.log
+
+  kenney-car-intake-pilot:
+    if: github.event_name == 'pull_request' && github.head_ref == 'codex/kenney-car-kit-intake-pilot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout pilot head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Download, verify and stage official CC0 Kenney Car Kit
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://www.kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip'
+          curl -fL --retry 3 --retry-delay 2 "$URL" -o /tmp/kenney_car-kit.zip
+          ARCHIVE_SHA=$(sha256sum /tmp/kenney_car-kit.zip | cut -d' ' -f1)
+          rm -rf /tmp/kenney-car-kit
+          mkdir -p /tmp/kenney-car-kit
+          unzip -q /tmp/kenney_car-kit.zip -d /tmp/kenney-car-kit
+          mapfile -t GLBS < <(find /tmp/kenney-car-kit -type f -iname '*.glb' | sort)
+          if [ "${#GLBS[@]}" -lt 8 ]; then
+            echo "KENNEY_CAR_INTAKE_FAIL: only ${#GLBS[@]} GLBs found" >&2
+            exit 1
+          fi
+          TARGET='grand-bruxelles-game/assets/vehicles/kenney_car_kit'
+          mkdir -p "$TARGET/models"
+          rm -f "$TARGET/models"/*.glb
+          for src in "${GLBS[@]}"; do cp "$src" "$TARGET/models/$(basename "$src")"; done
+          LICENSE_FILE=$(find /tmp/kenney-car-kit -type f -iname 'license*' | head -n1 || true)
+          if [ -n "$LICENSE_FILE" ]; then cp "$LICENSE_FILE" "$TARGET/LICENSE.txt"; else
+            printf 'Kenney Car Kit\nLicense: Creative Commons CC0 1.0 Universal\nOfficial page: https://www.kenney.nl/assets/car-kit\n' > "$TARGET/LICENSE.txt"
+          fi
+          printf '%s\n' "${GLBS[@]##*/}" > "$TARGET/MODEL_INDEX.txt"
+          cat > "$TARGET/PROVENANCE.md" <<EOF
+# Kenney Car Kit provenance
+
+- Creator: Kenney
+- Official page: https://www.kenney.nl/assets/car-kit
+- License: Creative Commons CC0 1.0 Universal
+- Exact archive URL: $URL
+- Archive SHA-256: \`$ARCHIVE_SHA\`
+- Intake date: 2026-08-19
+- Imported format: GLB only
+- Imported GLB count: ${#GLBS[@]}
+- Runtime authorization: false pending player-camera visual/performance review
+EOF
+          echo "KENNEY_CAR_INTAKE_OK count=${#GLBS[@]} sha256=$ARCHIVE_SHA"
+      - name: Commit staged CC0 models to pilot branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'grand-bruxelles-intake-bot'
+          git config user.email 'grand-bruxelles-intake-bot@users.noreply.github.com'
+          git add grand-bruxelles-game/assets/vehicles/kenney_car_kit
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'assets(vehicle): intake Kenney Car Kit CC0 GLBs'
+          git push origin HEAD:${{ github.head_ref }}

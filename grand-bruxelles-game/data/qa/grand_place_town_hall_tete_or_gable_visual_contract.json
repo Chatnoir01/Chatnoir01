@@ -1,0 +1,77 @@
+{
+  "schema": "grand-bruxelles-town-hall-tete-or-gable-visual-v1",
+  "status": "current_main_visual_candidate",
+  "base_main": "202d0b452a2c8e34c1d950b5c84252289b7605a1",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "urbis_face_id": "https://databrussels.be/id/buildingface/10796609",
+    "official_geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "official_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "ground_edge_a": [263.2768, 0.0, -496.3369],
+    "ground_edge_b": [275.1758, 0.0, -481.0559],
+    "ground_edge_length_m": 19.3673736475,
+    "source_triangle_count": 5,
+    "source_vertex_count_unique": 6,
+    "gable_apex": [270.7408, 35.462, -486.7499]
+  },
+  "screen_exposure_basis": {
+    "source_pr": 860,
+    "canonical_camera": "#711",
+    "resolution": [1280, 720],
+    "pixels_gt8": 28431,
+    "full_frame_fraction_gt8": 0.030849609375,
+    "bbox": [1154, 100, 1279, 507],
+    "human_exposure_basis": "exact-face overlay from frozen clean player frame"
+  },
+  "heritage_source": {
+    "provider": "Urban Brussels",
+    "inventory_id": "31125",
+    "url": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/8/31125",
+    "semantic_registration": "west_gothic_wing_gable_and_lateral_facade_toward_rue_de_la_tete_d_or",
+    "facts_used": [
+      "west gothic wing has no return and terminates with a gable toward rue de la Tete d'Or",
+      "lateral facade toward rue de la Tete d'Or has three bays",
+      "stepped projecting gables rise above the terminal balustrade",
+      "four octagonal corbelled corner turrets are topped by spires"
+    ]
+  },
+  "presentation": {
+    "contract": "town_hall_tete_or_gable_relief_v1",
+    "bay_count": 3,
+    "stepped_gable_semantics": true,
+    "corner_turret_cues": 2,
+    "method": "normalized shallow relief and silhouette cues bounded to the exact UrbIS face; no face fill replacement",
+    "survey_geometry_claimed": false,
+    "opening_coordinates_claimed": false,
+    "exact_dimensions_claimed": false,
+    "statuary_authored": false,
+    "collision_changed": false,
+    "source_vertices_changed": false
+  },
+  "witness": {
+    "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+    "width": 1280,
+    "height": 720,
+    "min_changed_gt3_percent": 0.85,
+    "min_changed_gt8_percent": 0.45,
+    "min_bbox_width_px": 105,
+    "min_bbox_height_px": 300,
+    "freeze_dynamic_world": true,
+    "hide_all_canvas": true,
+    "human_full_frame_required": true,
+    "camera_rescue": false,
+    "threshold_rescue": false
+  },
+  "hard_rules": {
+    "grand_place_only": true,
+    "character_npc_changed": false,
+    "shared_environment_changed": false,
+    "citygen_changed": false,
+    "official_geometry_changed": false,
+    "official_collision_changed": false,
+    "right_gallery_dimensions_reused": false,
+    "tete_or_10796610_presentation_reused": false,
+    "runtime_approved": false,
+    "realism_complete": false
+  }
+}

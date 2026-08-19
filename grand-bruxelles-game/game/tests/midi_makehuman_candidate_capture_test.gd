@@ -94,10 +94,11 @@ func _run() -> void:
         return
 
     var metrics := {
-        "schema": "grand-bruxelles-makehuman-candidate-witness-v6",
+        "schema": "grand-bruxelles-makehuman-candidate-witness-v7",
         "production_authorized": false,
-        "diagnostic_mode": "lit_binary_fbx_patched_normal_indices",
-        "pose_mode": "imported_rest_pose_no_bone_override",
+        "diagnostic_mode": "art_v2_binary_fbx_patched_normal_indices",
+        "pose_mode": "relaxed_shoulders_binary_rig",
+        "lighting_mode": "neutral_low_energy_review",
         "resource": RESOURCE_PATH,
         "target_height_m": TARGET_HEIGHT_M,
         "raw_height": bounds.size.y,
@@ -134,10 +135,21 @@ func _save_after_frames(viewport: SubViewport, path: String, frame_count: int) -
         return false
     return image.save_png(path) == OK
 
-func _apply_relaxed_review_pose(_skeleton: Skeleton3D) -> Array[String]:
-    # Keep the imported rest pose unchanged while validating the patched binary writer.
-    # This prevents runtime bone overrides from hiding or introducing skin-bind defects.
-    return []
+func _apply_relaxed_review_pose(skeleton: Skeleton3D) -> Array[String]:
+    # The patched binary FBX path preserves the skin bind, so the witness may now use
+    # the same deterministic shoulder relaxation that worked before the ASCII detour.
+    # This remains review-only; production locomotion will supply authored animation.
+    var applied: Array[String] = []
+    var left := skeleton.find_bone("upperarm01.L")
+    var right := skeleton.find_bone("upperarm01.R")
+    var z_axis := Vector3(0.0, 0.0, 1.0)
+    if left >= 0:
+        skeleton.set_bone_pose_rotation(left, Quaternion(z_axis, deg_to_rad(-68.0)))
+        applied.append("upperarm01.L")
+    if right >= 0:
+        skeleton.set_bone_pose_rotation(right, Quaternion(z_axis, deg_to_rad(68.0)))
+        applied.append("upperarm01.R")
+    return applied
 
 func _material_stats(root: Node) -> Dictionary:
     var surfaces := 0
@@ -186,14 +198,16 @@ func _build_floor(parent: Node3D) -> void:
     parent.add_child(floor)
 
 func _build_lighting(parent: Node3D) -> void:
+    # Run #35 proved the old 1.05 + 2.5 + 0.42 light rig burned out skin detail.
+    # Use a neutral, lower-energy review setup so albedo/face quality is judgeable.
     var key := DirectionalLight3D.new()
     key.rotation_degrees = Vector3(-48.0, -24.0, 0.0)
-    key.light_energy = 1.05
+    key.light_energy = 0.62
     key.shadow_enabled = true
     parent.add_child(key)
     var fill := OmniLight3D.new()
     fill.position = Vector3(-2.2, 3.0, 2.5)
-    fill.light_energy = 2.5
+    fill.light_energy = 0.85
     fill.omni_range = 8.0
     parent.add_child(fill)
     var environment := WorldEnvironment.new()
@@ -202,7 +216,7 @@ func _build_lighting(parent: Node3D) -> void:
     env.background_color = Color(0.10, 0.115, 0.14)
     env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     env.ambient_light_color = Color(0.66, 0.70, 0.76)
-    env.ambient_light_energy = 0.42
+    env.ambient_light_energy = 0.20
     environment.environment = env
     parent.add_child(environment)
 

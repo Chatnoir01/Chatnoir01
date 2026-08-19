@@ -1,9 +1,11 @@
 extends "res://game/scripts/player_combat_arsenal_runtime.gd"
 
-# Combat V2 hardening: safe fire preflight + hand-locked recoil + varied melee.
+# Combat V3 hardening: safe fire preflight + hand-locked recoil + contact-timed,
+# buffered melee. This runtime is the single production owner of attack inputs.
 
 const WEAPON_FLINCH_THROTTLE_MS := 90
 const ACTION_LOCK_EXTRA_MS := 70
+const MELEE_BUFFER_MS := 180
 const MELEE_MOVES_V2: Array[Dictionary] = [
     {"id": &"jab_left", "label": "DIRECT GAUCHE", "limb": "LeftArm", "windup_s": 0.055, "active_s": 0.085, "recover_s": 0.19, "yaw_deg": -11.0, "roll_deg": 3.0, "lunge_m": 0.08, "limb_x_deg": -78.0, "limb_z_deg": -4.0},
     {"id": &"cross_right", "label": "DIRECT DROIT", "limb": "RightArm", "windup_s": 0.070, "active_s": 0.090, "recover_s": 0.20, "yaw_deg": 18.0, "roll_deg": -5.0, "lunge_m": 0.12, "limb_x_deg": -92.0, "limb_z_deg": 5.0},
@@ -17,10 +19,23 @@ const MELEE_MOVES_V2: Array[Dictionary] = [
     {"id": &"elbow_right", "label": "COUDE DROIT", "limb": "RightArm", "windup_s": 0.080, "active_s": 0.090, "recover_s": 0.22, "yaw_deg": 32.0, "roll_deg": -9.0, "lunge_m": 0.06, "limb_x_deg": -44.0, "limb_z_deg": 40.0},
 ]
 
+var _buffered_melee_move: Dictionary = {}
+var _buffered_melee_until_ms := 0
+var _buffered_melee_player_id := 0
+
+func _process(delta: float) -> void:
+    super._process(delta)
+    var player := _current_player()
+    if player != null:
+        player.set_meta("combat_attack_input_owner", "arsenal")
+        _tick_melee_buffer(player)
+
 func equip_weapon(player: CharacterBody3D, weapon_id: StringName) -> bool:
     var equipped := super.equip_weapon(player, weapon_id)
     if equipped:
         _next_fire_ms = 0
+        if weapon_id != &"":
+            _clear_melee_buffer(player, "weapon_equipped")
     return equipped
 
 func _rebuild_weapon_visual(player: CharacterBody3D) -> void:
@@ -69,33 +84,71 @@ func request_melee_combo(player: CharacterBody3D) -> Dictionary:
     if is_armed():
         return {"hit": false, "reason": "weapon_equipped"}
     var melee_runtime := get_node_or_null("/root/PlayerMeleeCombatRuntime")
-    if melee_runtime == null or not melee_runtime.has_method("request_attack"):
+    if melee_runtime == null or not melee_runtime.has_method("request_attack_with_move"):
         return {"hit": false, "reason": "melee_runtime_unavailable"}
 
     var now := Time.get_ticks_msec()
-    if now - _last_melee_ms > COMBO_RESET_MS:
+    if now - _last_melee_ms > COMBO_RESET_MS and _buffered_melee_move.is_empty():
         _combo_index = 0
-    var move := melee_move_v2(_combo_index)
+
+    var recovery_until := int(player.get_meta("combat_attack_recovery_until_ms", 0))
+    if now < recovery_until:
+        var remaining_ms := recovery_until - now
+        if remaining_ms <= MELEE_BUFFER_MS:
+            if not _buffered_melee_move.is_empty():
+                return {
+                    "hit": false,
+                    "buffered": true,
+                    "reason": "buffer_full",
+                    "move_id": _buffered_melee_move.get("id", &""),
+                    "remaining_ms": remaining_ms,
+                }
+            var buffered_move := melee_move_v2(_combo_index)
+            _buffered_melee_move = buffered_move.duplicate(true)
+            _buffered_melee_until_ms = now + MELEE_BUFFER_MS
+            _buffered_melee_player_id = player.get_instance_id()
+            player.set_meta("combat_melee_buffered", true)
+            player.set_meta("combat_melee_buffered_move_id", buffered_move.get("id", &""))
+            player.set_meta("combat_melee_buffer_until_ms", _buffered_melee_until_ms)
+            return {
+                "hit": false,
+                "buffered": true,
+                "reason": "buffered",
+                "move_id": buffered_move.get("id", &""),
+                "remaining_ms": remaining_ms,
+            }
+        return {"hit": false, "reason": "recovery", "remaining_ms": remaining_ms}
+
+    return _commit_melee_move(player, melee_move_v2(_combo_index), melee_runtime)
+
+func _commit_melee_move(player: CharacterBody3D, move: Dictionary, melee_runtime: Node = null) -> Dictionary:
+    if player == null or not is_instance_valid(player):
+        return {"hit": false, "reason": "player_unavailable"}
+    if melee_runtime == null:
+        melee_runtime = get_node_or_null("/root/PlayerMeleeCombatRuntime")
+    if melee_runtime == null or not melee_runtime.has_method("request_attack_with_move"):
+        return {"hit": false, "reason": "melee_runtime_unavailable"}
 
     var previous_move_id: Variant = player.get_meta("combat_move_id", &"")
     var previous_move_label: Variant = player.get_meta("combat_move_label", "")
     player.set_meta("combat_move_id", move.get("id", &""))
     player.set_meta("combat_move_label", move.get("label", ""))
+    player.set_meta("combat_attack_input_owner", "arsenal")
 
-    var result_variant: Variant = melee_runtime.call("request_attack", player)
+    var result_variant: Variant = melee_runtime.call("request_attack_with_move", player, move)
     if not result_variant is Dictionary:
         player.set_meta("combat_move_id", previous_move_id)
         player.set_meta("combat_move_label", previous_move_label)
         return {"hit": false, "reason": "invalid_melee_result"}
     var result := result_variant as Dictionary
-    if not result.has("recovery_ms"):
+    if not bool(result.get("pending", false)):
         player.set_meta("combat_move_id", previous_move_id)
         player.set_meta("combat_move_label", previous_move_label)
         return result
 
-    var landed := bool(result.get("hit", false))
+    var now := Time.get_ticks_msec()
     var attack_count := int(player.get_meta("combat_attack_count", 0))
-    _combo_index = next_combo_index_v2(_combo_index, landed, attack_count)
+    _combo_index = next_combo_index_v2(_combo_index, true, attack_count)
     _last_melee_ms = now
     player.set_meta("combat_combo_step", _combo_index)
     player.set_meta("combat_combo_next_move_id", melee_move_v2(_combo_index).get("id", &""))
@@ -104,6 +157,35 @@ func request_melee_combo(player: CharacterBody3D) -> Dictionary:
     result["move_label"] = move.get("label", "")
     result["next_move_id"] = melee_move_v2(_combo_index).get("id", &"")
     return result
+
+func _tick_melee_buffer(player: CharacterBody3D) -> void:
+    if _buffered_melee_move.is_empty():
+        return
+    var now := Time.get_ticks_msec()
+    if player.get_instance_id() != _buffered_melee_player_id or is_armed():
+        _clear_melee_buffer(player, "owner_changed")
+        return
+    if now > _buffered_melee_until_ms:
+        _clear_melee_buffer(player, "expired")
+        return
+    var recovery_until := int(player.get_meta("combat_attack_recovery_until_ms", 0))
+    if now < recovery_until:
+        return
+
+    var move := _buffered_melee_move.duplicate(true)
+    _clear_melee_buffer(player, "released")
+    var result := _commit_melee_move(player, move)
+    player.set_meta("combat_melee_buffer_fired_ms", now)
+    player.set_meta("combat_melee_buffer_fired", bool(result.get("pending", false)))
+
+func _clear_melee_buffer(player: CharacterBody3D, reason: String) -> void:
+    _buffered_melee_move.clear()
+    _buffered_melee_until_ms = 0
+    _buffered_melee_player_id = 0
+    if player != null and is_instance_valid(player):
+        player.set_meta("combat_melee_buffered", false)
+        player.set_meta("combat_melee_buffer_clear_reason", reason)
+        player.set_meta("combat_melee_buffered_move_id", &"")
 
 func _animate_melee_move(player: CharacterBody3D, move: Dictionary) -> void:
     var total_ms := int(round((float(move.get("windup_s", 0.07)) + float(move.get("active_s", 0.09)) + float(move.get("recover_s", 0.20))) * 1000.0))

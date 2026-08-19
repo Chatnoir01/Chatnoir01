@@ -12,6 +12,21 @@ func equip_weapon(player: CharacterBody3D, weapon_id: StringName) -> bool:
         _next_fire_ms = 0
     return equipped
 
+func _rebuild_weapon_visual(player: CharacterBody3D) -> void:
+    # Base runtime frees the previous holder with queue_free(). If a new holder
+    # is created in the same frame, Godot can suffix its name because the old
+    # CombatWeaponVisual still exists until frame end. The hand-mount runtime
+    # then resolves the retired holder instead of the newly equipped weapon.
+    # Retire the old canonical name first so every live weapon owns the exact
+    # CombatWeaponVisual path immediately, including rapid 2 -> 3 -> 4 swaps.
+    if _weapon_visual != null and is_instance_valid(_weapon_visual):
+        _weapon_visual.name = "CombatWeaponVisualRetired_%d" % _weapon_visual.get_instance_id()
+    super._rebuild_weapon_visual(player)
+    if _weapon_visual != null and is_instance_valid(_weapon_visual):
+        _weapon_visual.name = "CombatWeaponVisual"
+        _weapon_visual.set_meta("combat_weapon_canonical_holder", true)
+        _weapon_visual.set_meta("combat_weapon_holder_weapon_id", _equipped_weapon)
+
 func request_fire(player: CharacterBody3D) -> Dictionary:
     var player_available := player != null and is_instance_valid(player) and player.is_inside_tree()
     var armed := is_armed()
@@ -31,6 +46,16 @@ func set_aiming(player: CharacterBody3D, aiming: bool) -> bool:
     player.set_meta("combat_weapon_aiming", aiming)
     _refresh_hud(player)
     return true
+
+func _apply_recoil(profile: Dictionary) -> void:
+    # Camera recoil stays intact, but the weapon holder itself must never be
+    # translated away from the hand. The visual V3 layer turns the same shot
+    # metadata into a rotation around the grip pivot instead.
+    _recoil_pitch = minf(_recoil_pitch + float(profile.get("recoil_pitch_deg", 1.0)), 6.5)
+    var yaw_amount := float(profile.get("recoil_yaw_deg", 0.25))
+    _recoil_yaw = clampf(_recoil_yaw + _rng.randf_range(-yaw_amount, yaw_amount), -3.0, 3.0)
+    if _weapon_visual != null and is_instance_valid(_weapon_visual):
+        _weapon_visual.set_meta("combat_weapon_recoil_mount_locked", true)
 
 func request_melee_combo(player: CharacterBody3D) -> Dictionary:
     if player == null or not is_instance_valid(player):

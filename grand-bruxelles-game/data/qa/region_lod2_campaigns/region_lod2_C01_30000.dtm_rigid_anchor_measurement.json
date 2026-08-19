@@ -1,0 +1,76 @@
+{
+  "schema": "grand-bruxelles-region-lod2-c01-dtm-rigid-anchor-measurement-contract-v1",
+  "campaign_id": "region-lod2-C01-30000",
+  "production_base_sha": "d947e75ed4ed8175b38d39f6b854c1163acce965",
+  "source_materialization": {
+    "workflow_run_id": 32310817567,
+    "artifact_id": 9386657484,
+    "artifact_name": "region-lod2-c01-30000-source-materialized-cells",
+    "archive_sha256": "6d5358ed20ac100e091a9ebca38cd5da4f43c89f1741f7cbc236ad0b55b28601"
+  },
+  "expected_source": {
+    "owners": 30000,
+    "spatial_cells": 132,
+    "source_distributions": 47,
+    "index_sha256": "288ff7815900d1cb07e0980168b8375c024a18be02144275a63918ae991e17a3",
+    "unique_ground_samples": 270619,
+    "dtm_tile_count": 48,
+    "dtm_tiles": [
+      "141167", "141168", "141169", "142166", "142167", "142168", "142169", "143166",
+      "143167", "143168", "143169", "144166", "144167", "144168", "144169", "144170",
+      "145166", "145167", "145168", "145169", "145170", "145171", "146167", "146168",
+      "146169", "146170", "146171", "146175", "146176", "147168", "147169", "147170",
+      "147171", "147173", "147175", "147176", "148169", "148170", "148171", "148172",
+      "148173", "148176", "149168", "149169", "149170", "149171", "149172", "149173"
+    ]
+  },
+  "dtm": {
+    "name": "Paradigm UrbIS Digital Terrain Model 2021",
+    "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
+    "atom_feed": "https://urbisdownload.datastore.brussels/atomfeed/1d7bd49d-fe83-4388-af85-6f5dc8ec7909-en.xml",
+    "source_crs": "EPSG:31370",
+    "expected_resolution_m": 0.5,
+    "license": "CC0 per official Paradigm/Geobru metadata recorded by the project",
+    "measurement_pass": 1,
+    "locked_tile_hashes_required": false
+  },
+  "horizontal_transform": {
+    "lambert_origin_e": 147868.29422791934,
+    "lambert_origin_n": 169538.62414926197,
+    "world_anchor_x": -668.5,
+    "world_anchor_z": 627.84,
+    "formula_world_x": "source_e - lambert_origin_e + world_anchor_x",
+    "formula_world_z": "-(source_n - lambert_origin_n) + world_anchor_z",
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres",
+    "runtime_quantization_decimals": 3
+  },
+  "policy": {
+    "translation_scope": "one vertical translation per official BU_ID owner",
+    "translation_formula": "shift_m = quantile_q(dtm_z - source_ground_z) over unique official ground-face vertices for the owner",
+    "candidate_quantiles": [0.0, 0.1, 0.25, 0.5, 0.75, 1.0],
+    "b01_reference_winner_quantile": 0.5,
+    "b01_reference_baseline_abs_p95_m": 1.986819,
+    "b01_reference_post_abs_p95_m": 0.568892,
+    "post_residual_formula": "source_ground_z + shift_m - dtm_z",
+    "positive_post_residual_meaning": "building base above sampled terrain (potential float)",
+    "negative_post_residual_meaning": "building base below sampled terrain (potential burial)",
+    "float_burial_deadband_m": 0.05,
+    "selection_metric": "lowest vertex absolute residual p95 among tested quantiles",
+    "tie_breaker": "lower owner max-absolute-residual p95, then lower absolute quantile distance from 0.5",
+    "source_vertex_warping_allowed": false,
+    "authorization_threshold": null,
+    "note": "Measurement only. A later locked reproduction must authorize any final world-Y candidate; source vertices remain unchanged."
+  },
+  "hard_rules": {
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "final_world_y_authorized": false,
+    "terrain_runtime_authorized": false,
+    "source_geometry_modified": false,
+    "jouable_promotion_authorized": false,
+    "owner_rigid_translation_only": true,
+    "artifact_only": true
+  }
+}

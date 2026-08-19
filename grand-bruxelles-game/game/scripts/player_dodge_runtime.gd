@@ -32,6 +32,7 @@ func _physics_process(delta: float) -> void:
         _tick_dodge_motion(player, delta)
         return
     _tick_attack_footwork(player, delta)
+    apply_combat_input_scale(player, float(player.get_meta("combat_attack_input_scale", 1.0)))
 
 func _input(event: InputEvent) -> void:
     if not event is InputEventKey:
@@ -107,7 +108,7 @@ func request_dodge(player: CharacterBody3D, requested_direction: Vector3 = Vecto
 
     var until_ms := now + DODGE_DURATION_MS
     _capture_controller_speeds(player)
-    _set_controller_speed_scale(player, 0.0)
+    apply_combat_input_scale(player, 0.0)
     player.velocity.x = 0.0
     player.velocity.z = 0.0
     player.set_meta("combat_next_dodge_ms", now + DODGE_COOLDOWN_MS)
@@ -179,10 +180,15 @@ func _finish_dodge_motion(player: CharacterBody3D, blocked: bool) -> void:
     player.set_meta("combat_dodge_failed_effective", ineffective)
     player.set_meta("combat_last_dodge_distance_m", travelled)
     var attack_scale := clampf(float(player.get_meta("combat_attack_input_scale", 1.0)), 0.0, 1.0)
-    _set_controller_speed_scale(player, attack_scale)
+    apply_combat_input_scale(player, attack_scale)
     if ineffective:
         player.set_meta("combat_dodge_until_ms", Time.get_ticks_msec())
         _show_feedback("ESQUIVE BLOQUÉE", 180)
+
+func apply_combat_input_scale(player: CharacterBody3D, scale: float) -> void:
+    if player == null or not is_instance_valid(player):
+        return
+    _set_controller_speed_scale(player, scale)
 
 func _capture_controller_speeds(player: CharacterBody3D) -> void:
     if _has_property(player, &"walk_speed") and not player.has_meta(BASE_WALK_META):

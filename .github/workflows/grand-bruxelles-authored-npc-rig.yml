@@ -29,6 +29,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Install software renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
       - name: Install Godot 4.7.1
         run: |
           curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -53,4 +57,28 @@ jobs:
           set -o pipefail
           timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/authored_npc_visual_runtime_test.gd 2>&1 | tee /tmp/authored-npc-runtime.log
           grep -q "AUTHORED_NPC_VISUAL_RUNTIME_OK" /tmp/authored-npc-runtime.log
+          grep -q "lifecycle_purge=true" /tmp/authored-npc-runtime.log
           if grep -E "SCRIPT ERROR|Parse Error:|AUTHORED_NPC_VISUAL_RUNTIME_FAIL" /tmp/authored-npc-runtime.log; then exit 1; fi
+      - name: Capture production visual witness
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GB_VISUAL_BASELINE_RECORD: "1"
+        run: |
+          set -o pipefail
+          mkdir -p grand-bruxelles-game/artifacts
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --rendering-method gl_compatibility \
+            --script res://game/tests/rendered_main_baseline_test.gd 2>&1 | tee /tmp/authored-npc-witness.log
+          grep -q "RENDERED_MAIN_BASELINE_OK" /tmp/authored-npc-witness.log
+          test -s grand-bruxelles-game/artifacts/rendered-main-baseline.png
+          test -s grand-bruxelles-game/artifacts/rendered-main-fingerprint.json
+          if grep -E "SCRIPT ERROR|Parse Error:|RENDERED_MAIN_BASELINE_FAIL" /tmp/authored-npc-witness.log; then exit 1; fi
+      - name: Upload authored NPC production witness
+        uses: actions/upload-artifact@v4
+        with:
+          name: authored-npc-production-witness
+          path: |
+            grand-bruxelles-game/artifacts/rendered-main-baseline.png
+            grand-bruxelles-game/artifacts/rendered-main-fingerprint.json

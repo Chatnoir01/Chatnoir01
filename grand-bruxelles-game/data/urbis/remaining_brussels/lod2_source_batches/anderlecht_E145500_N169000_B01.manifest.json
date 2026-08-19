@@ -1,0 +1,68 @@
+{
+  "schema": "grand-bruxelles-urbis-lod2-source-batch-v1",
+  "batch_id": "anderlecht-E145500_N169000-B01",
+  "production_base_sha": "6e88df612bc2668f073ffae461b1aa1a54a85684",
+  "contract": "grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json",
+  "cell": {
+    "municipality": "Anderlecht",
+    "crs": "EPSG:31370",
+    "id": "E145500_N169000",
+    "bbox": [145500.0, 169000.0, 146000.0, 169500.0]
+  },
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "dataset_id": "e9ec2aa4-cffd-11ee-bccc-00090ffe0001",
+    "revision": "20260808",
+    "distribution_key": "urbisbuildings3d_31370_shp_145169_{date}.zip",
+    "license": "CC0-1.0",
+    "package_sha256": "81e8f250b718e401d470007926184c4e7ffde2046001e8575db039cf0f87de1f",
+    "building_solids_shp_sha256": "33e6aedc43a14a14979960ba36d0c8e24d1ea5c851071138155b358410a00eda",
+    "building_solids_dbf_sha256": "615c0c87b653b26ec3bb235c1372ae16f794ca82ca61c2007c5fb4741e86f70c",
+    "building_faces_shp_sha256": "e2ddcdd445212f1ad6debd9280c12ea18472ebc9119ac5d26c13028a14f72bd8",
+    "building_faces_dbf_sha256": "d52f98d9d474963729cec60c05ae8119314b4df89ae705b015d51d91173d9530"
+  },
+  "selection": {
+    "owner_count": 250,
+    "solid_count": 251,
+    "face_count": 4195,
+    "point_count": 26027,
+    "part_count": 4200,
+    "first_building_id": "1615528",
+    "last_building_id": "1629704",
+    "selected_owner_ids_sha256": "d7ca1b9df68da017801c242d460e9495a4a0eaea6257e5e4db33a54a3ff07db4",
+    "face_type_counts": {
+      "GROUNDSURFACE": 251,
+      "OUTERCEILING": 1,
+      "ROOFSURFACE": 1095,
+      "WALLSURFACE": 2848
+    }
+  },
+  "payload": {
+    "file": "anderlecht_E145500_N169000_B01.source.ndjson.gz",
+    "format": "gzip-compressed NDJSON; one official BuildingFace per line",
+    "coordinate_space": "original EPSG:31370 XYZ source coordinates",
+    "uncompressed_bytes": 1716659,
+    "uncompressed_sha256": "516a174a97b9c6009aeb3f14759d53e34c0883a5e0fc9452fe9172d627c5c3ec",
+    "compressed_bytes": 243743,
+    "compressed_sha256": "2f5505ee336a381c127a7eb279ffd71041402398704641cdd181eee52d2b7513"
+  },
+  "evidence": {
+    "source_verification_pr": 902,
+    "source_verification_run": 32270209590,
+    "complexity_pr": 910,
+    "complexity_run": 32274154413,
+    "raw_face_type_resolution": {
+      "building_id": "1619094",
+      "solid_id": "https://databrussels.be/id/buildingsolid/523955",
+      "face_id": "https://databrussels.be/id/buildingface/14124933",
+      "type": "OUTERCEILING"
+    }
+  },
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "geometry_modified": false,
+  "semantic_names_authorized": false,
+  "note": "Persisted source geometry only. Runtime transform, mounting, collisions and visual promotion require separate gates."
+}

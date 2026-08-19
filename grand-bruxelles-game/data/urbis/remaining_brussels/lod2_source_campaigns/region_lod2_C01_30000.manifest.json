@@ -18,8 +18,25 @@
     "last_sequence_owner": "1636347"
   },
   "source_shards": {},
-  "campaign_metrics_status": "pending_measurement",
-  "campaign_metrics": null,
+  "campaign_metrics_status": "locked_exact",
+  "campaign_metrics": {
+    "owner_count": 30000,
+    "solid_count": 30944,
+    "face_count": 532211,
+    "point_count": 3273027,
+    "part_count": 534100,
+    "canonical_payload_bytes": 222598504,
+    "face_type_counts": {
+      "GROUNDSURFACE": 30997,
+      "OTHER": 63,
+      "OUTERCEILING": 607,
+      "OUTERFLOOR": 112,
+      "ROOFSURFACE": 132646,
+      "WALLSURFACE": 367786
+    },
+    "source_shard_count": 47,
+    "source_shards_sha256": "42e13006ff548116f305c8d48f96b88aa6e66a78e57635654492cd86a0c77cdb"
+  },
   "runtime_authorized": false,
   "runtime_mount_authorized": false,
   "collision_authorized": false,
@@ -27,5 +44,5 @@
   "semantic_names_authorized": false,
   "game_world_transform_authorized": false,
   "jouable_promotion_authorized": false,
-  "note": "30k immutable source campaign; exact owner list is deterministically regenerated from planner artifact 9371456570 whose SHA-256 is locked by the contract."
+  "note": "30k immutable source campaign. Selection is rebuilt from locked planner artifact 9371456570. Exact aggregate source/selection/payload signature for all 47 official distribution shards is locked by campaign_metrics.source_shards_sha256 from measurement run 32292229433; full shard evidence remains in the workflow artifact."
 }

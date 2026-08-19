@@ -189,8 +189,8 @@ jobs:
 
           locked = manifest.get("campaign_metrics")
           if locked is not None:
+              assert manifest.get("campaign_metrics_status") == "locked_exact"
               assert metrics == locked, (metrics, locked)
-              assert manifest.get("source_shards") == source_shards
               status = "locked-exact"
           else:
               status = "measurement"

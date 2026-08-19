@@ -1,0 +1,70 @@
+name: Grand Bruxelles Rogue Crossbow Transform Probe ARM64
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-rogue-crossbow-2h-arm64-witness.yml"
+      - "grand-bruxelles-game/game/tests/rogue_native_crossbow_transform_probe_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rogue-crossbow-transform-arm64-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  transform-probe:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure renderer dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          if ! command -v Xvfb >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends xvfb xauth libgl1 libgl1-mesa-dri libglx-mesa0
+          fi
+          command -v Xvfb
+          ldconfig -p | grep -E 'libGLX|libGL\.so' | head
+      - name: Install Godot 4.7.1 ARM64
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.arm64.zip
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.arm64
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/crossbow-transform-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/crossbow-transform-import.log; then exit 1; fi
+      - name: Capture handslot transform candidates
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.arm64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/rogue_native_crossbow_transform_probe_test.gd \
+            2>&1 | tee /tmp/crossbow-transform.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_CROSSBOW_TRANSFORM_PROBE_FAIL" /tmp/crossbow-transform.log; then exit 1; fi
+          grep -F "ROGUE_CROSSBOW_TRANSFORM_PROBE_OK" /tmp/crossbow-transform.log
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/x90.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/x90_x_p10.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/x90_z_m20.png
+          cp /tmp/crossbow-transform-import.log grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/import.log
+          cp /tmp/crossbow-transform.log grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/probe.log
+      - name: Upload transform grid
+        uses: actions/upload-artifact@v4
+        with:
+          name: rogue-crossbow-transform-grid
+          path: grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe
+          if-no-files-found: error

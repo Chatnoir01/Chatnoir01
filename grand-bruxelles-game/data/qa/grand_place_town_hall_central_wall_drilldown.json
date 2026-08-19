@@ -1,0 +1,41 @@
+{
+  "schema": "grand-bruxelles-town-hall-central-wall-drilldown-v1",
+  "status": "evidence_only",
+  "base_main": "fdd8d7b622d2434627e7c9ee9c39fa90bbe1e474",
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "expected_wall_face_count": 62,
+    "expected_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+  },
+  "known_faces": {
+    "production_right_gallery": ["10792525", "10798452"],
+    "rejected_left_gallery_offscreen": ["10792523"],
+    "unregistered_semantic_face": ["10792937"]
+  },
+  "source_basis": {
+    "geometry": "Paradigm / Brussels-Capital Region UrbIS 3D Constructions, CC0-1.0",
+    "heritage_identity": "Urban Brussels 31125 — Hotel de ville, Grand-Place 8",
+    "heritage_scope": "identity and documented architectural context only; this drilldown does not authorize openings, portal depth, statuary or dimensions"
+  },
+  "gate": {
+    "minimum_gt8_pixels": 5000,
+    "minimum_bbox_width": 80,
+    "minimum_bbox_height": 100,
+    "overlay_offset_m": 0.012
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "implementation_authorized": false,
+    "author_openings": false,
+    "author_portal_depth": false,
+    "author_statuary": false,
+    "reuse_right_gallery_dimensions": false,
+    "camera_rescue": false,
+    "threshold_rescue": false
+  },
+  "decision_rule": "Rank each exact official WALLSURFACE independently in the frozen canonical player frame. Exclude already-shipped, rejected-offscreen, and semantically-unregistered faces from implementation nomination. A winner only nominates the next source-registration lot; it never authorizes visual geometry by itself."
+}

@@ -27,16 +27,17 @@ def _pick_exact(paths, basename):
 
 
 def _repair_ascii_texture_connection_channels(filepath):
-    """Repair a Python-3 regression in MakeHuman's legacy ASCII FBX writer.
+    """Repair the pinned MakeHuman ASCII FBX writer's Python-3 byte-channel output.
 
-    The pinned exporter passes texture connection channels as bytes (for example
-    b"DiffuseColor"). Its ASCII writer interpolates those bytes with ``%s``. Under
-    Python 2 that produced ``DiffuseColor``; under Python 3 it produces the literal
-    token ``b'DiffuseColor'`` in the FBX OP connection. ufbx/Godot then creates the
-    materials but cannot attach the textures to their intended channels.
+    Upstream `fbx_material.writeLinks()` passes channel names such as
+    ``b"DiffuseColor"`` into `fbx_utils.opLink()`. The ASCII `opLink()` formats that
+    value with ``%s``. Under Python 3 the FBX therefore receives the literal property
+    name ``b'DiffuseColor'`` instead of ``DiffuseColor``. ufbx/Godot can still create
+    the material objects but cannot attach those textures to the intended properties.
 
-    Keep the upstream exporter pinned and repair only those OP channel tokens in the
-    generated review FBX. Geometry, normals, UVs, rig and texture paths are untouched.
+    Repair only OP connection property names in the generated review FBX. Geometry,
+    vertex/normal indices, UVs, rig, material identities and texture paths are left
+    byte-for-byte untouched outside those connection lines.
     """
     with open(filepath, "r", encoding="utf-8") as handle:
         text = handle.read()
@@ -86,14 +87,12 @@ def _run(app):
         human.setHeight(0.58)
         human.applyAllTargets()
 
-        # The first witness accidentally exported the viewport/default skin, which made
-        # the Godot result nearly white. Force a real CC0 system skin so the FBX exporter
-        # emits the diffuse material used by the character.
+        # Force a real CC0 system skin so the FBX exporter emits the civilian diffuse
+        # material rather than the nearly-white viewport/default material.
         skin = _pick_exact(api.assets.getAvailableSystemSkins(), "young_caucasian_female.mhmat")
         human.material = material.fromFile(skin)
 
-        # Prefer the simple full-body casual outfit over the alpha-heavy elegant skirt,
-        # then add real shoes. These remain candidate-only until the visual gate passes.
+        # Review-only wardrobe until the human visual gate passes.
         casual = _pick_exact(api.assets.getAvailableSystemClothes(), "female_casualsuit01.mhclo")
         shoes = _pick_exact(api.assets.getAvailableSystemClothes(), "shoes01.mhclo")
         api.assets.unequipAllClothes()
@@ -102,10 +101,8 @@ def _run(app):
 
         hair = _pick_exact(api.assets.getAvailableSystemHair(), "ponytail01.mhclo")
         api.assets.equipHair(hair)
-
         eyebrows = _pick_exact(api.assets.getAvailableSystemEyebrows(), "eyebrow004.mhclo")
         api.assets.equipEyebrows(eyebrows)
-
         eyelashes = _pick_exact(api.assets.getAvailableSystemEyelashes(), "eyelashes01.mhclo")
         api.assets.equipEyelashes(eyelashes)
 
@@ -123,11 +120,8 @@ def _run(app):
         if exporter is None:
             raise RuntimeError("MakeHuman FBX exporter is unavailable")
 
-        # MakeHuman's pinned binary-FBX writer reuses PolygonVertexIndex's bitwise-
-        # negated end-of-polygon entries as NormalsIndex. Godot/ufbx consequently logs
-        # thousands of `Clamped index` warnings and the lit witness shows visible
-        # triangle/facet noise. The official ASCII path builds NormalsIndex from the
-        # original positive mesh.fvert values, so use that path for this candidate.
+        # Binary FBX in this pinned version reuses polygon end markers in NormalsIndex,
+        # which Godot/ufbx clamps. ASCII FBX keeps positive normal indices.
         if not hasattr(exporter, "binary"):
             raise RuntimeError("MakeHuman FBX exporter Binary FBX control is unavailable")
         exporter.binary.setChecked(False)
@@ -144,7 +138,6 @@ def _run(app):
             "GB_MAKEHUMAN_ASCII_TEXTURE_LINKS_OK repaired=%d diffuse_links=%d"
             % (repaired_channels, diffuse_links)
         )
-
         print(
             "GB_MAKEHUMAN_CANDIDATE_OK output=%s bytes=%d height_cm=%.2f skin=%s hair=%s clothes=%s shoes=%s fbx_binary=false"
             % (

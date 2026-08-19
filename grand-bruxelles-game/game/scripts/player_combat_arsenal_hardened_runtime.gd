@@ -64,12 +64,16 @@ func request_melee_combo(player: CharacterBody3D) -> Dictionary:
         player.set_meta("combat_move_label", previous_move_label)
         return result
 
-    _combo_index = (_combo_index + 1) % MELEE_MOVES.size()
+    var landed := bool(result.get("hit", false))
+    var attack_count := int(player.get_meta("combat_attack_count", 0))
+    _combo_index = next_combo_index(_combo_index, landed, attack_count)
     _last_melee_ms = now
     player.set_meta("combat_combo_step", _combo_index)
+    player.set_meta("combat_combo_next_move_id", melee_move(_combo_index).get("id", &""))
     _animate_melee_move(player, move)
     result["move_id"] = move.get("id", &"")
     result["move_label"] = move.get("label", "")
+    result["next_move_id"] = melee_move(_combo_index).get("id", &"")
     return result
 
 func _animate_melee_move(player: CharacterBody3D, move: Dictionary) -> void:
@@ -187,3 +191,18 @@ static func melee_weight_profile(move_id: StringName) -> Dictionary:
             return {"id": &"kick_balance", "pitch_deg": 5.5, "drop_m": 0.027, "brace_limb": "LeftLeg", "brace_x_deg": -12.0, "brace_z_deg": -3.0}
         _:
             return {"id": &"neutral", "pitch_deg": -2.0, "drop_m": 0.010, "brace_limb": "", "brace_x_deg": 0.0, "brace_z_deg": 0.0}
+
+static func next_combo_index(current_index: int, landed: bool, attack_count: int) -> int:
+    if not landed:
+        return 0
+    match current_index:
+        0:
+            return 1
+        1:
+            # Most chains go through the hook, but every third completed cross
+            # branches straight to the kick so repeated tapping is less robotic.
+            return 3 if posmod(attack_count, 3) == 0 else 2
+        2:
+            return 3
+        _:
+            return 0

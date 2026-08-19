@@ -75,13 +75,25 @@ def _run(app):
         exporter = api.exports.getFBXExporter()
         if exporter is None:
             raise RuntimeError("MakeHuman FBX exporter is unavailable")
+
+        # MakeHuman's pinned binary-FBX writer reuses PolygonVertexIndex's bitwise-
+        # negated end-of-polygon entries as NormalsIndex. Godot/ufbx consequently logs
+        # thousands of `Clamped index` warnings and the lit witness shows visible
+        # triangle/facet noise. The official ASCII path builds NormalsIndex from the
+        # original positive mesh.fvert values, so use that path for this candidate.
+        if not hasattr(exporter, "binary"):
+            raise RuntimeError("MakeHuman FBX exporter Binary FBX control is unavailable")
+        exporter.binary.setChecked(False)
+        if bool(exporter.binary.selected):
+            raise RuntimeError("MakeHuman FBX exporter refused ASCII mode")
+
         os.makedirs(os.path.dirname(OUTPUT_FBX), exist_ok=True)
         api.exports.exportAsFBX(OUTPUT_FBX, useExportsDir=False)
         if not os.path.isfile(OUTPUT_FBX) or os.path.getsize(OUTPUT_FBX) < 1024:
             raise RuntimeError("MakeHuman FBX export missing or implausibly small: %s" % OUTPUT_FBX)
 
         print(
-            "GB_MAKEHUMAN_CANDIDATE_OK output=%s bytes=%d height_cm=%.2f skin=%s hair=%s clothes=%s shoes=%s"
+            "GB_MAKEHUMAN_CANDIDATE_OK output=%s bytes=%d height_cm=%.2f skin=%s hair=%s clothes=%s shoes=%s fbx_binary=false"
             % (
                 OUTPUT_FBX,
                 os.path.getsize(OUTPUT_FBX),

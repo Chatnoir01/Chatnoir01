@@ -1,0 +1,95 @@
+name: Grand Bruxelles 1000 Building Counter
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/bruxelles_1000_building_counter.contract.json"
+      - "grand-bruxelles-game/tools/qa/bruxelles_1000_building_counter.py"
+      - ".github/workflows/grand-bruxelles-1000-building-counter.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+jobs:
+  count:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require exact live production base
+        run: |
+          git fetch --no-tags origin main
+          expected="56dd6440d4018826c9f3a7edcc59efb31fc4c910"
+          current="$(git rev-parse origin/main)"
+          base="$(git merge-base HEAD origin/main)"
+          test "$current" = "$expected" || { echo "BRUXELLES_1000_COUNTER_STALE_MAIN: current=$current expected=$expected"; exit 1; }
+          test "$base" = "$expected" || { echo "BRUXELLES_1000_COUNTER_STALE_BASE: base=$base expected=$expected"; exit 1; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install geospatial readers
+        run: python -m pip install --disable-pip-version-check pyshp shapely pyproj
+      - name: Download locked regional LoD2 planner
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9371456570/zip" > "$RUNNER_TEMP/region-lod2-cell-batch-plan.zip"
+          echo "5c45f328f06bf951631c1f71fe4360b7f503c04a2da3bcbd2093d7a7fd5c4535  $RUNNER_TEMP/region-lod2-cell-batch-plan.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/planner" && unzip -q "$RUNNER_TEMP/region-lod2-cell-batch-plan.zip" -d "$RUNNER_TEMP/planner"
+      - name: Download official NGI postal-canton geometry
+        run: |
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 --max-time 240 \
+            -A "Grand-Bruxelles-1000-Building-Counter/2.0" \
+            "https://ac.ngi.be/remoteclient-open/ngi-standard-open/Vectordata/TerritorialDivisions/TerritorialDivisions-All/1cd00540-b0ca-11ec-a863-186571a04de2_x-shapefile_4326.zip" \
+            -o "$RUNNER_TEMP/territorial-divisions-4326.zip"
+      - name: Read active C02 source-draft contract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/939" --jq '.state')" = "open"
+          c02_head="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/939" --jq '.head.sha')"
+          gh api "/repos/${GITHUB_REPOSITORY}/contents/grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C02_30000.contract.json?ref=${c02_head}" \
+            --jq '.content' | tr -d '\n' | base64 -d > "$RUNNER_TEMP/c02.contract.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          c=json.loads((Path(os.environ["RUNNER_TEMP"])/"c02.contract.json").read_text())
+          assert c["campaign_id"]=="region-lod2-C02-30000"
+          assert c["expected"]["owner_sequence_sha256"]=="c1e3cd3451943f0b597030d582ca4f2677d1733fe51869edcc68dc77bf66060e"
+          PY
+      - name: Build exact 1000 completion counter
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/bruxelles-1000-counter"
+          python grand-bruxelles-game/tools/qa/bruxelles_1000_building_counter.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --contract grand-bruxelles-game/data/qa/bruxelles_1000_building_counter.contract.json \
+            --planner-dir "$RUNNER_TEMP/planner" \
+            --ngi-postal-zip "$RUNNER_TEMP/territorial-divisions-4326.zip" \
+            --c01-contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.contract.json \
+            --c02-contract "$RUNNER_TEMP/c02.contract.json" \
+            --output-json "$RUNNER_TEMP/bruxelles-1000-counter/bruxelles_1000_building_counter.json" \
+            --output-csv "$RUNNER_TEMP/bruxelles-1000-counter/bruxelles_1000_building_counter.csv"
+      - name: Publish summary
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json,os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"bruxelles-1000-counter/bruxelles_1000_building_counter.json").read_text()); c=d["counts"]
+          print("# 1000 Bruxelles — exact building counter\n")
+          for k in ["official_building_owner_total","finished_perfect","started_open_pr","started_main_runtime","source_registered_main","source_draft","unstarted","unresolved","remaining_to_perfect"]: print(f"- **{k}**: {c[k]:,}")
+          print(f"\nNGI SHA: `{d['postal_boundary']['archive_sha256']}`")
+          print(f"UrbIS owner SHA: `{d['buildings']['owner_sha256']}`")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bruxelles-1000-building-counter
+          path: ${{ runner.temp }}/bruxelles-1000-counter/
+          if-no-files-found: error

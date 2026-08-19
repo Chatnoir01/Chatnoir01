@@ -5,12 +5,15 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-combat-visible-fun.yml"
       - "grand-bruxelles-game/game/scripts/player_combat_arsenal_hardened_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/player_melee_combat_hardened_runtime.gd"
       - "grand-bruxelles-game/game/scripts/authored_player_locomotion_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_authored_pose_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_shot_fx_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_weapon_visual_upgrade_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_weapon_hand_orientation_runtime.gd"
       - "grand-bruxelles-game/game/tests/combat_visible_fun_test.gd"
+      - "grand-bruxelles-game/game/tests/player_melee_combat_hardened_test.gd"
+      - "grand-bruxelles-game/game/tests/combat_rig_safety_player_witness_test.gd"
       - "grand-bruxelles-game/project.godot"
   workflow_dispatch:
 
@@ -41,6 +44,13 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/combat_visible_fun_test.gd 2>&1 | tee /tmp/combat-visible-fun-test.log
           if grep -E "SCRIPT ERROR|Parse Error:|COMBAT_VISIBLE_FUN_FAIL" /tmp/combat-visible-fun-test.log; then exit 1; fi
           grep -F "COMBAT_VISIBLE_FUN_OK" /tmp/combat-visible-fun-test.log
+      - name: Run authored rig deformation witness
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/combat_rig_safety_player_witness_test.gd 2>&1 | tee /tmp/combat-rig-safety.log
+          if grep -E "SCRIPT ERROR|Parse Error:|COMBAT_RIG_SAFETY_WITNESS_FAIL" /tmp/combat-rig-safety.log; then exit 1; fi
+          grep -F "COMBAT_RIG_SAFETY_WITNESS_OK" /tmp/combat-rig-safety.log
       - name: Run existing combat contracts
         shell: bash
         run: |

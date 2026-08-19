@@ -1,7 +1,8 @@
 extends "res://game/scripts/player_melee_combat_runtime.gd"
 
-# Feel/defence layer over the stable melee runtime.
-# Keeps hit detection, KO, loot and world reactions in the base implementation.
+# Production feel/defence layer over the stable melee resolver.
+# Attack input ownership belongs to PlayerCombatArsenalRuntime; this service owns
+# contact timing, hit resolution, guard/parry and NPC counter behaviour.
 
 const PERFECT_GUARD_WINDOW_MS := 180
 const COUNTER_TELEGRAPH_MS := 260
@@ -10,9 +11,55 @@ const COUNTER_STRIKE_RECOVER_MS := 150
 const COUNTER_RANGE_M := 2.05
 const COUNTER_CONTACT_GRACE_M := 0.16
 const MELEE_FLINCH_THROTTLE_MS := 105
+const CONTACT_ACTIVE_FRACTION := 0.42
+const MIN_POST_CONTACT_ACTIVE_MS := 35
+
+var _pending_player_attack: Dictionary = {}
+
+func _ready() -> void:
+    super._ready()
+    set_process(true)
+    set_process_input(true)
+
+func _process(delta: float) -> void:
+    super._process(delta)
+    var now := Time.get_ticks_msec()
+    _tick_pending_player_attack(now)
+    var player := _current_player()
+    if player != null and is_instance_valid(player):
+        player.set_meta("combat_attack_input_owner", "arsenal")
+
+# Intentionally replaces the base input handler. Guard/loot stay here; F and
+# left-click attacks are owned only by PlayerCombatArsenalRuntime in production.
+func _input(event: InputEvent) -> void:
+    var player := _current_player()
+    if player == null:
+        return
+    player.set_meta("combat_attack_input_owner", "arsenal")
+
+    if event is InputEventMouseButton:
+        var mouse_event := event as InputEventMouseButton
+        if mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+            set_guarding(player, mouse_event.pressed)
+            get_viewport().set_input_as_handled()
+            return
+
+    if event is InputEventKey:
+        var key_event := event as InputEventKey
+        if key_event.echo:
+            return
+        if key_event.keycode == KEY_G:
+            set_guarding(player, key_event.pressed)
+            get_viewport().set_input_as_handled()
+            return
+        if key_event.keycode == KEY_E and key_event.pressed:
+            request_loot(player)
+            get_viewport().set_input_as_handled()
 
 func set_guarding(player: CharacterBody3D, enabled: bool) -> void:
     if player == null or not is_instance_valid(player):
+        return
+    if enabled and bool(player.get_meta("combat_attack_pending", false)):
         return
     var was_guarding := is_guarding(player)
     super.set_guarding(player, enabled)
@@ -25,20 +72,131 @@ func set_guarding(player: CharacterBody3D, enabled: bool) -> void:
         _animate_guard_limbs(player, false)
 
 func request_attack(player: CharacterBody3D) -> Dictionary:
-    var result := super.request_attack(player)
-    if player == null or not is_instance_valid(player) or not result.has("recovery_ms"):
-        return result
-    var move_id := StringName(player.get_meta("combat_move_id", &""))
-    var landed := bool(result.get("hit", false))
-    var recovery_ms := melee_recovery_ms(move_id, landed)
-    var attack_started_ms := int(player.get_meta("combat_attack_started_ms", Time.get_ticks_msec()))
-    var recovery_until := attack_started_ms + recovery_ms
-    _next_attack_allowed_ms = recovery_until
-    player.set_meta("combat_attack_recovery_until_ms", recovery_until)
-    player.set_meta("combat_move_recovery_ms", recovery_ms)
-    player.set_meta("combat_move_recovery_landed", landed)
-    result["recovery_ms"] = recovery_ms
-    return result
+    var move := {
+        "id": StringName(player.get_meta("combat_move_id", &"")) if player != null and is_instance_valid(player) else &"",
+        "windup_s": float(ATTACK_WINDUP_MS) / 1000.0,
+        "active_s": float(ATTACK_ACTIVE_MS) / 1000.0,
+        "recover_s": float(maxi(ATTACK_COOLDOWN_MS - ATTACK_WINDUP_MS - ATTACK_ACTIVE_MS, 1)) / 1000.0,
+    }
+    return request_attack_with_move(player, move)
+
+func request_attack_with_move(player: CharacterBody3D, move: Dictionary) -> Dictionary:
+    if player == null or not is_instance_valid(player) or not player.is_inside_tree():
+        return {"hit": false, "pending": false, "reason": "player_unavailable"}
+    if is_guarding(player):
+        return {"hit": false, "pending": false, "reason": "guarding"}
+    var now := Time.get_ticks_msec()
+    if now < int(player.get_meta("combat_dodge_until_ms", 0)):
+        return {"hit": false, "pending": false, "reason": "dodging"}
+    var recovery_until := int(player.get_meta("combat_attack_recovery_until_ms", 0))
+    if now < recovery_until:
+        return {
+            "hit": false,
+            "pending": false,
+            "reason": "recovery",
+            "remaining_ms": recovery_until - now,
+            "recovery_ms": recovery_until - int(player.get_meta("combat_attack_started_ms", now)),
+        }
+    if not _pending_player_attack.is_empty():
+        var active_ref: WeakRef = _pending_player_attack.get("player")
+        var active_player := active_ref.get_ref() as CharacterBody3D if active_ref != null else null
+        if active_player != null and is_instance_valid(active_player):
+            return {"hit": false, "pending": false, "reason": "attack_pending"}
+        _pending_player_attack.clear()
+
+    var move_id := StringName(move.get("id", &""))
+    var windup_ms := maxi(1, int(round(float(move.get("windup_s", float(ATTACK_WINDUP_MS) / 1000.0)) * 1000.0)))
+    var active_ms := maxi(1, int(round(float(move.get("active_s", float(ATTACK_ACTIVE_MS) / 1000.0)) * 1000.0)))
+    var declared_recover_ms := maxi(1, int(round(float(move.get("recover_s", 0.20)) * 1000.0)))
+    var contact_offset_ms := windup_ms + maxi(1, int(round(float(active_ms) * CONTACT_ACTIVE_FRACTION)))
+    var impact_at_ms := now + contact_offset_ms
+    var active_until_ms := now + windup_ms + active_ms
+    var whiff_recovery_ms := maxi(melee_recovery_ms(move_id, false), windup_ms + active_ms + declared_recover_ms)
+    var attack_recovery_until_ms := now + whiff_recovery_ms
+
+    _next_attack_allowed_ms = attack_recovery_until_ms
+    player.set_meta("combat_attack_input_owner", "arsenal")
+    player.set_meta("combat_attack_started_ms", now)
+    player.set_meta("combat_attack_impact_at_ms", impact_at_ms)
+    player.set_meta("combat_attack_active_until_ms", active_until_ms)
+    player.set_meta("combat_attack_recovery_until_ms", attack_recovery_until_ms)
+    player.set_meta("combat_attack_phase", "windup")
+    player.set_meta("combat_attack_pending", true)
+    player.set_meta("combat_move_id", move_id)
+    player.set_meta("combat_move_recovery_ms", whiff_recovery_ms)
+    player.set_meta("combat_move_recovery_landed", false)
+    player.set_meta("combat_attack_count", int(player.get_meta("combat_attack_count", 0)) + 1)
+
+    _pending_player_attack = {
+        "player": weakref(player),
+        "move_id": move_id,
+        "started_ms": now,
+        "impact_ms": impact_at_ms,
+        "active_until_ms": active_until_ms,
+        "recovery_until_ms": attack_recovery_until_ms,
+        "resolved": false,
+    }
+    return {
+        "hit": false,
+        "pending": true,
+        "reason": "windup",
+        "move_id": move_id,
+        "impact_at_ms": impact_at_ms,
+        "recovery_ms": whiff_recovery_ms,
+    }
+
+func _tick_pending_player_attack(now: int) -> void:
+    if _pending_player_attack.is_empty():
+        return
+    var player_ref: WeakRef = _pending_player_attack.get("player")
+    var player := player_ref.get_ref() as CharacterBody3D if player_ref != null else null
+    if player == null or not is_instance_valid(player) or not player.is_inside_tree():
+        _pending_player_attack.clear()
+        return
+
+    var resolved := bool(_pending_player_attack.get("resolved", false))
+    var impact_ms := int(_pending_player_attack.get("impact_ms", 0))
+    var active_until_ms := int(_pending_player_attack.get("active_until_ms", impact_ms + MIN_POST_CONTACT_ACTIVE_MS))
+    var recovery_until_ms := int(_pending_player_attack.get("recovery_until_ms", active_until_ms + 1))
+
+    if not resolved and now >= impact_ms:
+        var result := perform_attack(player)
+        var landed := bool(result.get("hit", false))
+        var move_id := StringName(_pending_player_attack.get("move_id", &""))
+        var recovery_ms := melee_recovery_ms(move_id, landed)
+        var started_ms := int(_pending_player_attack.get("started_ms", now))
+        recovery_until_ms = maxi(started_ms + recovery_ms, active_until_ms + MIN_POST_CONTACT_ACTIVE_MS)
+        _next_attack_allowed_ms = recovery_until_ms
+        _pending_player_attack["resolved"] = true
+        _pending_player_attack["recovery_until_ms"] = recovery_until_ms
+        player.set_meta("combat_attack_pending", false)
+        player.set_meta("combat_attack_phase", "active" if now < active_until_ms else "recovery")
+        player.set_meta("combat_attack_recovery_until_ms", recovery_until_ms)
+        player.set_meta("combat_move_recovery_ms", recovery_until_ms - started_ms)
+        player.set_meta("combat_move_recovery_landed", landed)
+        player.set_meta("combat_last_melee_result", result.duplicate(true))
+        player.set_meta("combat_last_melee_impact_ms", now)
+        player.set_meta("combat_last_melee_hit", landed)
+        if landed:
+            var reaction := String(result.get("reaction", "hit")).to_upper()
+            _show_feedback("TOUCHÉ  -%d\n%s" % [int(round(ATTACK_DAMAGE)), reaction], 420)
+        else:
+            _show_feedback("COUP", 220)
+        resolved = true
+
+    if not resolved:
+        player.set_meta("combat_attack_phase", "windup")
+        return
+    if now < active_until_ms:
+        player.set_meta("combat_attack_phase", "active")
+        return
+    if now < recovery_until_ms:
+        player.set_meta("combat_attack_phase", "recovery")
+        return
+
+    player.set_meta("combat_attack_phase", "ready")
+    player.set_meta("combat_attack_pending", false)
+    _pending_player_attack.clear()
 
 func resolve_counter_hit(player: CharacterBody3D) -> int:
     if player == null or not is_instance_valid(player):
@@ -391,8 +549,20 @@ static func melee_recovery_ms(move_id: StringName, landed: bool) -> int:
             return 370 if landed else 415
         &"hook_left":
             return 435 if landed else 485
+        &"hook_right":
+            return 440 if landed else 495
+        &"uppercut_right":
+            return 455 if landed else 515
+        &"body_hook_left":
+            return 420 if landed else 475
         &"front_kick_right":
             return 485 if landed else 545
+        &"low_kick_left":
+            return 450 if landed else 515
+        &"push_kick_right":
+            return 480 if landed else 550
+        &"elbow_right":
+            return 400 if landed else 455
         _:
             return ATTACK_COOLDOWN_MS
 
@@ -404,7 +574,19 @@ static func melee_reaction_profile(move_id: StringName) -> Dictionary:
             return {"side": "left", "roll_deg": -7.0, "yaw_deg": 4.0, "stagger_ms": 420}
         &"hook_left":
             return {"side": "right", "roll_deg": 11.0, "yaw_deg": -8.0, "stagger_ms": 500}
+        &"hook_right":
+            return {"side": "left", "roll_deg": -11.0, "yaw_deg": 8.0, "stagger_ms": 500}
+        &"uppercut_right":
+            return {"side": "center", "roll_deg": -6.0, "yaw_deg": 4.0, "stagger_ms": 560}
+        &"body_hook_left":
+            return {"side": "right", "roll_deg": 8.0, "yaw_deg": -6.0, "stagger_ms": 470}
         &"front_kick_right":
             return {"side": "center", "roll_deg": -4.0, "yaw_deg": 3.0, "stagger_ms": 620}
+        &"low_kick_left":
+            return {"side": "left", "roll_deg": 6.0, "yaw_deg": -5.0, "stagger_ms": 520}
+        &"push_kick_right":
+            return {"side": "center", "roll_deg": -8.0, "yaw_deg": 2.0, "stagger_ms": 650}
+        &"elbow_right":
+            return {"side": "left", "roll_deg": -9.0, "yaw_deg": 7.0, "stagger_ms": 480}
         _:
             return {"side": "center", "roll_deg": 4.0, "yaw_deg": 0.0, "stagger_ms": 360}

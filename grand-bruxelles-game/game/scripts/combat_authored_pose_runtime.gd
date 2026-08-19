@@ -1,189 +1,113 @@
 extends Node
 
-# Additive combat posing for the authored player skeleton.
-# Runs after locomotion animation evaluation and before the weapon hand-lock layer.
+# Rig-safe combat animation layer for the authored player.
+# It only plays imported AnimationPlayer clips and never writes Skeleton3D bone overrides.
 
-const SIGNATURE := "combat_authored_pose_v1"
+const SIGNATURE := "combat_authored_animation_v3_safe"
 const ACTION_META := "combat_action_lock_until_ms"
-const MOVE_META := "combat_move_id"
-const WEAPON_META := "combat_weapon_id"
-const SHOT_META := "combat_weapon_last_shot_ms"
+const TRANSIENT_BLEND_S := 0.055
+const SHOT_LOCK_MS := 180
+const SHOT_RESTART_GUARD_MS := 95
 
-var _melee_start_ms := -1
-var _melee_until_ms := -1
-var _melee_move: Dictionary = {}
-var _shot_seen_ms := -1
-var _shot_kick_until_ms := -1
 var _bound_player_id := 0
-var _skeleton: Skeleton3D = null
-var _bones: Dictionary = {}
+var _animation_player: AnimationPlayer = null
+var _animation_names: PackedStringArray = PackedStringArray()
+var _last_shot_animation_ms := -100000
 
 func _ready() -> void:
     process_priority = 50
     set_process(true)
-
-func request_melee_pose(player: CharacterBody3D, move: Dictionary) -> void:
-    if player == null or not is_instance_valid(player):
-        return
-    var now := Time.get_ticks_msec()
-    var total_ms := int(round((float(move.get("windup_s", 0.07)) + float(move.get("active_s", 0.09)) + float(move.get("recover_s", 0.20))) * 1000.0))
-    _melee_start_ms = now
-    _melee_until_ms = now + maxi(total_ms, 180)
-    _melee_move = move.duplicate(true)
-    player.set_meta("combat_pose_signature", SIGNATURE)
-    player.set_meta("combat_pose_move_id", move.get("id", &""))
-    player.set_meta("combat_pose_until_ms", _melee_until_ms)
-
-func request_shot_pose(player: CharacterBody3D, weapon_id: StringName) -> void:
-    if player == null or not is_instance_valid(player):
-        return
-    var now := Time.get_ticks_msec()
-    _shot_kick_until_ms = now + shot_kick_duration_ms(weapon_id)
-    player.set_meta("combat_pose_last_shot_weapon", weapon_id)
 
 func _process(_delta: float) -> void:
     var player := _current_player()
     if player == null:
         _clear_binding()
         return
-    if not _ensure_skeleton(player):
+    _ensure_bound(player)
+
+func request_melee_pose(player: CharacterBody3D, move: Dictionary) -> void:
+    if player == null or not is_instance_valid(player) or not _ensure_bound(player):
+        return
+    var move_id := StringName(move.get("id", &""))
+    var animation := resolve_melee_animation(_animation_names, move_id)
+    player.set_meta("combat_pose_signature", SIGNATURE)
+    player.set_meta("combat_pose_move_id", move_id)
+    player.set_meta("combat_pose_mode", "authored_animation")
+    player.set_meta("combat_pose_selected_animation", animation)
+    player.set_meta("combat_pose_variant_hint", melee_variant_hint(move_id))
+    if animation == &"":
+        player.set_meta("combat_pose_safe_fallback", true)
+        return
+
+    var total_ms := int(round((
+        float(move.get("windup_s", 0.07))
+        + float(move.get("active_s", 0.09))
+        + float(move.get("recover_s", 0.20))
+    ) * 1000.0))
+    _extend_action_lock(player, maxi(total_ms + 60, 220))
+    _play_transient(animation, melee_playback_speed(move_id))
+    player.set_meta("combat_pose_safe_fallback", false)
+
+func request_shot_pose(player: CharacterBody3D, weapon_id: StringName) -> void:
+    if player == null or not is_instance_valid(player) or not _ensure_bound(player):
+        return
+    var animation := resolve_weapon_shot_animation(_animation_names, weapon_id)
+    player.set_meta("combat_pose_signature", SIGNATURE)
+    player.set_meta("combat_pose_last_shot_weapon", weapon_id)
+    player.set_meta("combat_pose_shot_animation", animation)
+    player.set_meta("combat_pose_mode", "authored_animation")
+    if animation == &"":
+        player.set_meta("combat_pose_shot_safe_fallback", true)
         return
 
     var now := Time.get_ticks_msec()
-    var last_shot := int(player.get_meta(SHOT_META, -1))
-    if last_shot >= 0 and last_shot != _shot_seen_ms:
-        _shot_seen_ms = last_shot
-        request_shot_pose(player, StringName(player.get_meta(WEAPON_META, &"")))
-
-    if now <= _melee_until_ms and not _melee_move.is_empty():
-        _apply_melee_pose(player, now)
+    if now - _last_shot_animation_ms < SHOT_RESTART_GUARD_MS:
         return
+    _last_shot_animation_ms = now
+    _extend_action_lock(player, SHOT_LOCK_MS)
+    _play_transient(animation, 1.22 if weapon_id == &"sct8" else 1.34)
+    player.set_meta("combat_pose_shot_safe_fallback", false)
 
-    var weapon_id := StringName(player.get_meta(WEAPON_META, &""))
-    if weapon_id != &"":
-        _apply_weapon_pose(player, weapon_id, now)
-
-func _ensure_skeleton(player: CharacterBody3D) -> bool:
-    if _bound_player_id == player.get_instance_id() and is_instance_valid(_skeleton):
+func _ensure_bound(player: CharacterBody3D) -> bool:
+    if _bound_player_id == player.get_instance_id() and is_instance_valid(_animation_player):
         return true
-    _bound_player_id = player.get_instance_id()
-    _skeleton = null
-    _bones.clear()
+    _clear_binding()
     var visual := player.get_node_or_null("VisualUpgrade")
     if visual == null:
         return false
-    _skeleton = _find_skeleton(visual)
-    if _skeleton == null:
+    var authored := visual.get_node_or_null("AuthoredCharacter")
+    if authored == null:
         return false
-    _resolve_bones()
-    player.set_meta("combat_pose_skeleton", _skeleton.name)
-    player.set_meta("combat_pose_resolved_bones", _bones.size())
+    _animation_player = _find_animation_player(authored)
+    if _animation_player == null:
+        return false
+    _bound_player_id = player.get_instance_id()
+    _animation_names = _animation_player.get_animation_list()
+    player.set_meta("combat_pose_signature", SIGNATURE)
+    player.set_meta("combat_pose_animation_count", _animation_names.size())
     return true
 
-func _find_skeleton(node: Node) -> Skeleton3D:
-    if node is Skeleton3D:
-        return node as Skeleton3D
+func _find_animation_player(node: Node) -> AnimationPlayer:
+    if node is AnimationPlayer:
+        return node as AnimationPlayer
     for child: Node in node.get_children():
-        var found := _find_skeleton(child)
+        var found := _find_animation_player(child)
         if found != null:
             return found
     return null
 
-func _resolve_bones() -> void:
-    if _skeleton == null:
+func _play_transient(animation_name: StringName, speed: float) -> void:
+    if _animation_player == null or animation_name == &"" or not _animation_player.has_animation(animation_name):
         return
-    for bone_index: int in range(_skeleton.get_bone_count()):
-        var raw := String(_skeleton.get_bone_name(bone_index))
-        var compact := _compact(raw)
-        var role := _role_for_bone(compact)
-        if role != &"" and not _bones.has(role):
-            _bones[role] = bone_index
+    var animation := _animation_player.get_animation(animation_name)
+    if animation != null:
+        animation.loop_mode = Animation.LOOP_NONE
+    _animation_player.play(animation_name, TRANSIENT_BLEND_S, speed)
 
-func _role_for_bone(compact: String) -> StringName:
-    if _matches_side_part(compact, "hand", true):
-        return &"right_hand"
-    if _matches_side_part(compact, "hand", false):
-        return &"left_hand"
-    if _matches_any(compact, ["forearmr", "lowerarmr", "rightforearm", "rightlowerarm"]):
-        return &"right_forearm"
-    if _matches_any(compact, ["forearml", "lowerarml", "leftforearm", "leftlowerarm"]):
-        return &"left_forearm"
-    if _matches_any(compact, ["upperarmr", "rightupperarm", "armupperr"]):
-        return &"right_upper_arm"
-    if _matches_any(compact, ["upperarml", "leftupperarm", "armupperl"]):
-        return &"left_upper_arm"
-    if _matches_any(compact, ["thighr", "uplegr", "upperlegr", "rightthigh", "rightupleg"]):
-        return &"right_thigh"
-    if _matches_any(compact, ["thighl", "uplegl", "upperlegl", "leftthigh", "leftupleg"]):
-        return &"left_thigh"
-    if _matches_any(compact, ["spine2", "spine3", "chest", "upperchest"]):
-        return &"chest"
-    return &""
-
-func _matches_side_part(compact: String, part: String, right: bool) -> bool:
-    if not compact.contains(part):
-        return false
-    if right:
-        return compact.ends_with("r") or compact.contains("right%s" % part) or compact.contains("%sright" % part)
-    return compact.ends_with("l") or compact.contains("left%s" % part) or compact.contains("%sleft" % part)
-
-func _matches_any(compact: String, values: Array[String]) -> bool:
-    for value: String in values:
-        if compact == value or compact.ends_with(value):
-            return true
-    return false
-
-func _compact(value: String) -> String:
-    var compact := value.to_lower()
-    for token: String in [":", "_", "-", ".", " "]:
-        compact = compact.replace(token, "")
-    return compact
-
-func _apply_melee_pose(player: CharacterBody3D, now: int) -> void:
-    var duration := maxi(1, _melee_until_ms - _melee_start_ms)
-    var t := clampf(float(now - _melee_start_ms) / float(duration), 0.0, 1.0)
-    var weight := _strike_envelope(t)
-    var move_id := StringName(_melee_move.get("id", player.get_meta(MOVE_META, &"")))
-    var profile := melee_pose_profile(move_id)
-    _apply_profile(profile, weight)
-    player.set_meta("combat_pose_phase", t)
-    player.set_meta("combat_pose_weight", weight)
-
-func _apply_weapon_pose(player: CharacterBody3D, weapon_id: StringName, now: int) -> void:
-    var aiming := bool(player.get_meta("combat_weapon_aiming", false))
-    var profile := weapon_pose_profile(weapon_id, aiming)
-    _apply_profile(profile, 1.0)
-    if now <= _shot_kick_until_ms:
-        var kick_profile := shot_pose_profile(weapon_id)
-        var kick_weight := clampf(float(_shot_kick_until_ms - now) / float(maxi(1, shot_kick_duration_ms(weapon_id))), 0.0, 1.0)
-        _apply_profile(kick_profile, kick_weight)
-    player.set_meta("combat_pose_weapon_id", weapon_id)
-    player.set_meta("combat_pose_aiming", aiming)
-
-func _apply_profile(profile: Dictionary, weight: float) -> void:
-    if _skeleton == null or weight <= 0.001:
-        return
-    for raw_role: Variant in profile.keys():
-        var role := StringName(raw_role)
-        if not _bones.has(role):
-            continue
-        var degrees: Vector3 = profile[role]
-        _apply_bone_offset(int(_bones[role]), degrees, weight)
-
-func _apply_bone_offset(bone_index: int, degrees: Vector3, weight: float) -> void:
-    if _skeleton == null or bone_index < 0:
-        return
-    var pose := _skeleton.get_bone_global_pose(bone_index)
-    var offset := Basis.from_euler(Vector3(deg_to_rad(degrees.x), deg_to_rad(degrees.y), deg_to_rad(degrees.z)))
-    var target := Transform3D(pose.basis * offset, pose.origin)
-    _skeleton.set_bone_global_pose_override(bone_index, target, clampf(weight, 0.0, 1.0), false)
-
-func _strike_envelope(t: float) -> float:
-    if t < 0.24:
-        return lerpf(0.0, 0.36, t / 0.24)
-    if t < 0.56:
-        return lerpf(0.36, 1.0, (t - 0.24) / 0.32)
-    return lerpf(1.0, 0.0, (t - 0.56) / 0.44)
+func _extend_action_lock(player: CharacterBody3D, duration_ms: int) -> void:
+    var now := Time.get_ticks_msec()
+    var current_until := int(player.get_meta(ACTION_META, 0))
+    player.set_meta(ACTION_META, maxi(current_until, now + maxi(duration_ms, 1)))
 
 func _current_player() -> CharacterBody3D:
     var scene := get_tree().current_scene
@@ -193,71 +117,93 @@ func _current_player() -> CharacterBody3D:
 
 func _clear_binding() -> void:
     _bound_player_id = 0
-    _skeleton = null
-    _bones.clear()
+    _animation_player = null
+    _animation_names = PackedStringArray()
+    _last_shot_animation_ms = -100000
 
-static func shot_kick_duration_ms(weapon_id: StringName) -> int:
-    match weapon_id:
-        &"sct8":
-            return 145
-        &"bx9":
-            return 90
+static func melee_variant_hint(move_id: StringName) -> String:
+    match move_id:
+        &"jab_left", &"hook_left", &"body_hook_left":
+            return "punch_a"
+        &"front_kick_right", &"low_kick_left", &"push_kick_right":
+            return "kick"
         _:
-            return 105
+            return "punch_b"
 
-static func weapon_pose_profile(weapon_id: StringName, aiming: bool) -> Dictionary:
-    var aim_bonus := -10.0 if aiming else 0.0
-    match weapon_id:
-        &"bx9":
-            return {
-                &"right_upper_arm": Vector3(-42.0 + aim_bonus, -8.0, -8.0),
-                &"right_forearm": Vector3(-28.0, 2.0, -4.0),
-                &"left_upper_arm": Vector3(-34.0 + aim_bonus, 10.0, 8.0),
-                &"left_forearm": Vector3(-38.0, -3.0, 7.0),
-                &"chest": Vector3(-4.0, -5.0, 0.0),
-            }
-        &"cbr4", &"sct8":
-            return {
-                &"right_upper_arm": Vector3(-52.0 + aim_bonus, -10.0, -9.0),
-                &"right_forearm": Vector3(-34.0, 1.0, -4.0),
-                &"left_upper_arm": Vector3(-56.0 + aim_bonus, 18.0, 12.0),
-                &"left_forearm": Vector3(-45.0, -8.0, 12.0),
-                &"chest": Vector3(-5.0, -6.0, 0.0),
-            }
-        _:
-            return {}
-
-static func shot_pose_profile(weapon_id: StringName) -> Dictionary:
-    var kick := 5.0
-    if weapon_id == &"sct8":
-        kick = 12.0
-    elif weapon_id == &"bx9":
-        kick = 7.0
-    return {
-        &"right_upper_arm": Vector3(kick, 0.0, 0.0),
-        &"left_upper_arm": Vector3(kick * 0.72, 0.0, 0.0),
-        &"chest": Vector3(kick * 0.22, 0.0, 0.0),
-    }
-
-static func melee_pose_profile(move_id: StringName) -> Dictionary:
+static func melee_playback_speed(move_id: StringName) -> float:
     match move_id:
         &"jab_left":
-            return {&"left_upper_arm": Vector3(-72.0, -8.0, -7.0), &"left_forearm": Vector3(-34.0, 0.0, 0.0), &"right_upper_arm": Vector3(-24.0, 8.0, 10.0), &"chest": Vector3(-4.0, -7.0, 0.0)}
+            return 1.28
         &"cross_right":
-            return {&"right_upper_arm": Vector3(-82.0, 8.0, 8.0), &"right_forearm": Vector3(-30.0, 0.0, 0.0), &"left_upper_arm": Vector3(-28.0, -8.0, -10.0), &"chest": Vector3(-5.0, 12.0, -3.0)}
-        &"hook_left":
-            return {&"left_upper_arm": Vector3(-54.0, -32.0, -35.0), &"left_forearm": Vector3(-64.0, 0.0, -14.0), &"chest": Vector3(-3.0, -22.0, 7.0)}
-        &"hook_right":
-            return {&"right_upper_arm": Vector3(-56.0, 34.0, 34.0), &"right_forearm": Vector3(-62.0, 0.0, 14.0), &"chest": Vector3(-3.0, 24.0, -7.0)}
+            return 1.18
+        &"hook_left", &"hook_right", &"body_hook_left":
+            return 1.06
         &"uppercut_right":
-            return {&"right_upper_arm": Vector3(-38.0, 18.0, 18.0), &"right_forearm": Vector3(-92.0, 0.0, 0.0), &"chest": Vector3(9.0, 10.0, -5.0)}
-        &"body_hook_left":
-            return {&"left_upper_arm": Vector3(-42.0, -28.0, -26.0), &"left_forearm": Vector3(-74.0, 0.0, -12.0), &"chest": Vector3(10.0, -18.0, 5.0)}
+            return 0.98
         &"front_kick_right", &"push_kick_right":
-            return {&"right_thigh": Vector3(-66.0, 0.0, 0.0), &"left_thigh": Vector3(8.0, 0.0, -3.0), &"left_upper_arm": Vector3(-25.0, -8.0, -8.0), &"right_upper_arm": Vector3(-24.0, 8.0, 8.0), &"chest": Vector3(10.0, 0.0, 0.0)}
+            return 0.96
         &"low_kick_left":
-            return {&"left_thigh": Vector3(-52.0, -8.0, -18.0), &"right_thigh": Vector3(8.0, 0.0, 3.0), &"chest": Vector3(7.0, -12.0, 4.0)}
+            return 1.02
         &"elbow_right":
-            return {&"right_upper_arm": Vector3(-48.0, 32.0, 28.0), &"right_forearm": Vector3(-108.0, 0.0, 18.0), &"chest": Vector3(-3.0, 28.0, -8.0)}
+            return 1.22
         _:
-            return {&"right_upper_arm": Vector3(-42.0, 0.0, 0.0), &"left_upper_arm": Vector3(-28.0, 0.0, 0.0)}
+            return 1.10
+
+static func resolve_melee_animation(names: PackedStringArray, move_id: StringName) -> StringName:
+    var hint := melee_variant_hint(move_id)
+    if hint == "kick":
+        var kick := _best_animation(names, ["kick"], ["unarmed", "melee", "attack"], _combat_reject_tokens())
+        if kick != &"":
+            return kick
+    else:
+        var preferred_variant: Array[String] = [hint, "unarmed", "melee", "attack"]
+        var punch := _best_animation(names, ["punch", "unarmed"], preferred_variant, _combat_reject_tokens())
+        if punch != &"":
+            return punch
+    return _best_animation(names, ["melee", "attack"], ["1h", "attack"], _combat_reject_tokens())
+
+static func resolve_weapon_shot_animation(names: PackedStringArray, weapon_id: StringName) -> StringName:
+    var preferred: Array[String] = []
+    preferred.append("1h" if weapon_id == &"bx9" else "2h")
+    preferred.append("ranged")
+    var resolved := _best_animation(names, ["shoot", "fire"], preferred, _weapon_reject_tokens())
+    if resolved != &"":
+        return resolved
+    return _best_animation(names, ["ranged"], preferred, _weapon_reject_tokens())
+
+static func _best_animation(names: PackedStringArray, required_any: Array[String], preferred: Array[String], rejected: Array[String]) -> StringName:
+    var best: StringName = &""
+    var best_score := -100000
+    for raw_name: String in names:
+        if raw_name == "RESET":
+            continue
+        var lowered := raw_name.to_lower()
+        var blocked := false
+        for token: String in rejected:
+            if lowered.contains(token):
+                blocked = true
+                break
+        if blocked:
+            continue
+        var required_hits := 0
+        for token: String in required_any:
+            if lowered.contains(token):
+                required_hits += 1
+        if required_hits == 0:
+            continue
+        var score := required_hits * 20
+        for token: String in preferred:
+            if lowered.contains(token):
+                score += 8
+        if lowered.contains("attack"):
+            score += 3
+        if score > best_score:
+            best_score = score
+            best = StringName(raw_name)
+    return best
+
+static func _combat_reject_tokens() -> Array[String]:
+    return ["idle", "walk", "run", "death", "die", "hurt", "hit", "block", "defend", "ranged", "shoot", "bow", "crossbow", "staff", "spell"]
+
+static func _weapon_reject_tokens() -> Array[String]:
+    return ["idle", "walk", "run", "death", "die", "hurt", "hit", "melee", "kick", "punch", "sword", "staff", "spell"]

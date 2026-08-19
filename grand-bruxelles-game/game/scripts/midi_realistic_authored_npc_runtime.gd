@@ -54,7 +54,7 @@ func _update_all(delta: float) -> void:
         live_ids[instance_id] = true
 
         if not _bindings.has(instance_id):
-            if _binding_rejections.has(instance_id):
+            if _rejection_still_blocks(person, instance_id):
                 continue
             bind_person(person)
         if not _binding_valid(instance_id):
@@ -90,10 +90,7 @@ func bind_person(person: Node3D) -> bool:
     if _binding_valid(instance_id):
         return true
 
-    _bindings.erase(instance_id)
-    _states.erase(instance_id)
-    _current_animations.erase(instance_id)
-    _playback_scales.erase(instance_id)
+    _clear_binding_state(instance_id, false)
 
     var authored := person.get_node_or_null(AUTHORED_CHARACTER_PATH) as Node3D
     if authored == null:
@@ -144,10 +141,11 @@ func update_person_from_observed_speed(person: Node3D, observed_speed_mps: float
     var animation_player := binding.get("animation_player") as AnimationPlayer
     var clips := binding.get("clips", {}) as Dictionary
     if authored == null or animation_player == null:
-        _bindings.erase(instance_id)
+        _clear_binding_state(instance_id, false)
         return false
     if not bool(authored.get_meta("production_authorized", false)):
-        _bindings.erase(instance_id)
+        animation_player.stop()
+        _clear_binding_state(instance_id, false)
         _record_rejection(instance_id, "authorization_revoked", true)
         return false
 
@@ -210,12 +208,34 @@ func _binding_valid(instance_id: int) -> bool:
     var animation_player := binding.get("animation_player") as AnimationPlayer
     return is_instance_valid(person) and is_instance_valid(authored) and is_instance_valid(animation_player)
 
+func _rejection_still_blocks(person: Node3D, instance_id: int) -> bool:
+    if not _binding_rejections.has(instance_id):
+        return false
+    var reason := str(_binding_rejections.get(instance_id, ""))
+    var authored := person.get_node_or_null(AUTHORED_CHARACTER_PATH) as Node3D
+    if reason == "missing_authored_character" and authored != null:
+        _binding_rejections.erase(instance_id)
+        return false
+    if (reason == "production_unauthorized" or reason == "authorization_revoked") and authored != null and bool(authored.get_meta("production_authorized", false)):
+        _binding_rejections.erase(instance_id)
+        return false
+    return true
+
 func _record_rejection(instance_id: int, reason: String, unauthorized: bool) -> void:
-    if _binding_rejections.has(instance_id):
+    var previous := str(_binding_rejections.get(instance_id, ""))
+    if previous == reason:
         return
     _binding_rejections[instance_id] = reason
     if unauthorized:
         _unauthorized_rejections += 1
+
+func _clear_binding_state(instance_id: int, clear_rejection: bool) -> void:
+    _bindings.erase(instance_id)
+    _states.erase(instance_id)
+    _current_animations.erase(instance_id)
+    _playback_scales.erase(instance_id)
+    if clear_rejection:
+        _binding_rejections.erase(instance_id)
 
 func _find_animation_player(node: Node) -> AnimationPlayer:
     if node is AnimationPlayer:
@@ -235,15 +255,12 @@ func _resolve_locomotion(animation_player: AnimationPlayer) -> Dictionary:
     }
 
 func _choose_animation(names: PackedStringArray, required_token: String) -> String:
-    var fallback := ""
     for animation_name: String in names:
         if animation_name == "RESET":
             continue
         var lowered := animation_name.to_lower()
         if not lowered.contains(required_token):
             continue
-        if fallback.is_empty():
-            fallback = animation_name
         var rejected := false
         for token: String in REJECT_ACTION_TOKENS:
             if lowered.contains(token):
@@ -251,7 +268,7 @@ func _choose_animation(names: PackedStringArray, required_token: String) -> Stri
                 break
         if not rejected:
             return animation_name
-    return fallback
+    return ""
 
 func _configure_loops(animation_player: AnimationPlayer, clips: Dictionary) -> void:
     for state: String in ["idle", "walk", "run"]:
@@ -291,15 +308,15 @@ func _playback_scale_for_state(state: String, speed: float) -> float:
             return 1.0
 
 func _prune_stale(live_ids: Dictionary) -> void:
+    for key: Variant in _bindings.keys():
+        if not live_ids.has(key):
+            _clear_binding_state(int(key), true)
+    for key: Variant in _binding_rejections.keys():
+        if not live_ids.has(key):
+            _binding_rejections.erase(key)
     for key: Variant in _last_positions.keys():
-        if live_ids.has(key):
-            continue
-        _last_positions.erase(key)
-        _bindings.erase(key)
-        _binding_rejections.erase(key)
-        _states.erase(key)
-        _current_animations.erase(key)
-        _playback_scales.erase(key)
+        if not live_ids.has(key):
+            _last_positions.erase(key)
 
 func locomotion_stats() -> Dictionary:
     return {
@@ -317,6 +334,10 @@ func locomotion_stats() -> Dictionary:
         "requires_idle_walk_run": true,
         "speed_sync": true,
         "state_hysteresis": true,
+        "action_clip_fallback_allowed": false,
+        "authorization_revocation_stops_animation": true,
+        "retry_when_authored_character_or_authorization_appears": true,
+        "stale_cache_pruning": true,
         "authored_character_path": str(AUTHORED_CHARACTER_PATH),
         "teleport_guard_m": TELEPORT_GUARD_M,
         "max_observed_speed_mps_limit": MAX_OBSERVED_SPEED_MPS,

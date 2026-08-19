@@ -1,0 +1,96 @@
+name: Grand Bruxelles Rogue Crossbow ARM64 Visual Probe
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-rogue-crossbow-arm64-visual-probe.yml"
+      - "grand-bruxelles-game/game/scripts/player_combat_arsenal_rogue_runtime.gd"
+      - "grand-bruxelles-game/game/tests/rogue_native_crossbow_player_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/rogue_native_crossbow_visual_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/rogue_crossbow_orientation_calibration_test.gd"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rogue-crossbow-arm64-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-probe:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify renderer dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          command -v Xvfb
+          command -v xvfb-run
+          ldconfig -p | grep -E 'libGLX|libGL\.so' | head
+      - name: Install Godot 4.7.1 ARM64
+        shell: bash
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip "https://godot-releases.nbg1.your-objectstorage.com/4.7.1-stable/Godot_v4.7.1-stable_linux.arm64.zip"
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.arm64
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/rogue-crossbow-arm64-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/rogue-crossbow-arm64-import.log; then exit 1; fi
+      - name: Run native loadout contract
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --script res://game/tests/rogue_native_crossbow_player_witness_test.gd 2>&1 | tee /tmp/rogue-crossbow-arm64-contract.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_NATIVE_CROSSBOW_WITNESS_FAIL" /tmp/rogue-crossbow-arm64-contract.log; then exit 1; fi
+          grep -F "ROGUE_NATIVE_CROSSBOW_WITNESS_OK" /tmp/rogue-crossbow-arm64-contract.log
+      - name: Capture player-view loadout proof
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.arm64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/rogue_native_crossbow_visual_witness_test.gd \
+            2>&1 | tee /tmp/rogue-crossbow-arm64-visual.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_NATIVE_CROSSBOW_VISUAL_FAIL" /tmp/rogue-crossbow-arm64-visual.log; then exit 1; fi
+          grep -F "ROGUE_NATIVE_CROSSBOW_VISUAL_OK" /tmp/rogue-crossbow-arm64-visual.log
+          test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/unarmed.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/crossbow.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/bx9.png
+      - name: Capture safe orientation calibration
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.arm64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/rogue_crossbow_orientation_calibration_test.gd \
+            2>&1 | tee /tmp/rogue-crossbow-orientation.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_CROSSBOW_ORIENTATION_CALIBRATION_FAIL" /tmp/rogue-crossbow-orientation.log; then exit 1; fi
+          grep -F "ROGUE_CROSSBOW_ORIENTATION_CALIBRATION_OK" /tmp/rogue-crossbow-orientation.log
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/baseline.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/player_zero.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/carry_left.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/carry_right.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/quarter_left.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/quarter_right.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration/roll_90.png
+      - name: Upload ARM64 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rogue-native-crossbow-arm64-player-view
+          path: |
+            grand-bruxelles-game/artifacts/qa/rogue_native_crossbow
+            grand-bruxelles-game/artifacts/qa/rogue_crossbow_orientation_calibration
+          if-no-files-found: error

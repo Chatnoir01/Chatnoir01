@@ -1,0 +1,36 @@
+name: Grand Bruxelles Grand-Place Phase0 Coverage
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-phase0-coverage.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_phase0_coverage_contract.json"
+      - "grand-bruxelles-game/data/qa/grand_place_clean_player_witness.json"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/**"
+      - "grand-bruxelles-game/tools/qa/grand_place_phase0_coverage.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  grand-place-phase0-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deterministic source coverage projection
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/qa/grand_place_phase0_coverage.py | tee /tmp/grand-place-phase0-coverage.log
+          grep -F "GRAND_PLACE_PHASE0_COVERAGE_OK" /tmp/grand-place-phase0-coverage.log
+      - name: Upload Phase0 coverage evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-phase0-coverage
+          path: |
+            grand-bruxelles-game/artifacts/qa/grand_place_phase0_coverage_report.json
+            /tmp/grand-place-phase0-coverage.log
+          if-no-files-found: warn

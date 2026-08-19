@@ -15,6 +15,7 @@ const VISUAL_FACING_MIN_SPEED_MPS := 0.20
 const VISUAL_FACING_TURN_SPEED_RAD_PER_S := deg_to_rad(540.0)
 const VISUAL_FACING_RUN_TURN_SPEED_RAD_PER_S := deg_to_rad(1080.0)
 const REJECT_ACTION_TOKENS: Array[String] = ["attack", "combat", "melee", "sword", "staff", "bow", "gun", "shoot", "hit", "hurt", "death", "jump"]
+const ACTION_LOCK_META := "combat_action_lock_until_ms"
 
 var _player: CharacterBody3D
 var _visual: Node
@@ -78,6 +79,7 @@ func bind_target(player: CharacterBody3D, visual: Node) -> bool:
     set_meta("authored_locomotion_velocity_facing", true)
     set_meta("authored_locomotion_idle_facing_hold", true)
     set_meta("authored_locomotion_speed_scaled_facing", true)
+    set_meta("authored_locomotion_action_lock", true)
     update_from_speed()
     return true
 
@@ -100,6 +102,7 @@ func _clear_binding() -> void:
     remove_meta("authored_locomotion_velocity_facing")
     remove_meta("authored_locomotion_idle_facing_hold")
     remove_meta("authored_locomotion_speed_scaled_facing")
+    remove_meta("authored_locomotion_action_lock")
 
 func _find_animation_player(node: Node) -> AnimationPlayer:
     if node is AnimationPlayer:
@@ -198,24 +201,32 @@ func _update_visual_facing(delta: float) -> void:
     _current_visual_facing_offset = rotate_toward(_current_visual_facing_offset, target_offset, max_step)
     _authored_character.rotation.y = _authored_base_yaw + _current_visual_facing_offset
 
+func _action_locked() -> bool:
+    if not is_instance_valid(_player):
+        return false
+    return Time.get_ticks_msec() < int(_player.get_meta(ACTION_LOCK_META, 0))
+
 func update_from_speed(delta: float = 1.0 / 60.0) -> void:
     if not is_instance_valid(_player) or not is_instance_valid(_animation_player):
         return
+    _update_visual_facing(delta)
+    if _action_locked():
+        set_meta("authored_locomotion_action_locked_now", true)
+        return
+    set_meta("authored_locomotion_action_locked_now", false)
+
     var speed := Vector2(_player.velocity.x, _player.velocity.z).length()
     var target_state := _resolve_state(speed)
     var target := String(_locomotion.get(target_state, ""))
     if target.is_empty():
         return
-
     var target_scale := _playback_scale_for_state(target_state, speed)
     _animation_player.speed_scale = target_scale
     _current_playback_speed_scale = target_scale
-
     if _current_animation != target or _animation_player.current_animation != target or not _animation_player.is_playing():
         _animation_player.play(target, LOCOMOTION_BLEND_SECONDS)
         _current_animation = target
     _current_state = target_state
-    _update_visual_facing(delta)
 
 func resolved_locomotion_animations() -> Dictionary:
     return _locomotion.duplicate(true)

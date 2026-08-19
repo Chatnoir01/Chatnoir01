@@ -1,0 +1,52 @@
+{
+  "schema": "grand-bruxelles-town-hall-realistic-wall-rerank-v1",
+  "status": "evidence_only",
+  "base_main": "c1ff559c5ab6faf8f56780f9e65fa432ee1856a4",
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "expected_wall_face_count": 62,
+    "expected_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+  },
+  "excluded_faces": {
+    "production_right_gallery": ["10792525", "10798452"],
+    "rejected_left_gallery_offscreen": ["10792523"],
+    "unregistered_semantic_face": ["10792937"],
+    "rejected_tete_or_large_panel": ["10796610"],
+    "rejected_tete_or_gable": ["10796609"]
+  },
+  "source_basis": {
+    "geometry": "Paradigm / Brussels-Capital Region UrbIS 3D Constructions, CC0-1.0",
+    "heritage_identity": "Urban Brussels 31125 — Hotel de ville, Grand-Place 8",
+    "scope": "This rerank measures a conservative shaded white-stone presentation envelope on exact official WALLSURFACE triangles. It authorizes no openings, portal depth, statuary, bay count, dimensions or runtime implementation."
+  },
+  "probe": {
+    "description": "shaded low-contrast white-stone surface probe on exact source triangles",
+    "albedo": [0.63, 0.60, 0.54, 1.0],
+    "roughness": 0.92,
+    "normal_offset_m": 0.018
+  },
+  "gate": {
+    "minimum_gt3_percent": 0.45,
+    "minimum_gt8_percent": 0.20,
+    "minimum_bbox_width": 110,
+    "minimum_bbox_height": 180,
+    "minimum_horizontal_edge_margin_px": 32,
+    "maximum_bbox_center_offset_x_px": 400
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "implementation_authorized": false,
+    "author_openings": false,
+    "author_portal_depth": false,
+    "author_statuary": false,
+    "author_dimensions": false,
+    "camera_rescue": false,
+    "threshold_rescue": false,
+    "bright_unshaded_probe_forbidden": true
+  },
+  "decision_rule": "Rank exact official Town Hall WALLSURFACEs by deterministic same-scene shaded white-stone A/B. Exclude shipped/rejected/unregistered faces. A nominee must pass both impact thresholds, bbox size, horizontal edge margin and center-offset limits. The winner is evidence-only and requires separate source registration plus human full-frame review before any implementation."
+}

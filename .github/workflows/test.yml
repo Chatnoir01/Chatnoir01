@@ -47,7 +47,7 @@ jobs:
           test -s /tmp/kenney_car-kit.zip
           sha256sum /tmp/kenney_car-kit.zip | tee /tmp/kenney_car-kit.sha256
 
-      - name: Verify source license and extract GLB models
+      - name: Verify source license and extract complete GLB dependencies
         shell: bash
         run: |
           set -euo pipefail
@@ -67,10 +67,16 @@ jobs:
             find /tmp/kenney-car-kit -maxdepth 5 -type f | sort >&2
             exit 1
           fi
+          COLORMAP_FILE=$(find /tmp/kenney-car-kit -type f -iname 'colormap.png' | head -n 1 || true)
+          if [ -z "$COLORMAP_FILE" ]; then
+            echo 'KENNEY_CAR_INTAKE_FAIL: GLB colormap dependency missing from official archive' >&2
+            exit 1
+          fi
           TARGET='grand-bruxelles-game/assets/vehicles/kenney_car_kit'
-          mkdir -p "$TARGET/models"
+          mkdir -p "$TARGET/models/Textures"
           rm -f "$TARGET/models"/*.glb
           for src in "${GLBS[@]}"; do cp "$src" "$TARGET/models/$(basename "$src")"; done
+          cp "$COLORMAP_FILE" "$TARGET/models/Textures/colormap.png"
           cp "$LICENSE_FILE" "$TARGET/LICENSE.txt"
           ARCHIVE_SHA=$(cut -d' ' -f1 /tmp/kenney_car-kit.sha256)
           COUNT=${#GLBS[@]}
@@ -84,11 +90,12 @@ jobs:
             echo '- Exact archive URL: https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip'
             echo "- Archive SHA-256: $ARCHIVE_SHA"
             echo '- Intake date: 2026-08-19'
-            echo '- Imported format: GLB only'
+            echo '- Imported format: GLB plus required shared colormap texture'
             echo "- Imported GLB count: $COUNT"
+            echo '- Imported dependency: models/Textures/colormap.png'
             echo '- Runtime authorization: false pending in-game owner visual/performance review'
           } > "$TARGET/PROVENANCE.md"
-          echo "KENNEY_CAR_INTAKE_OK count=$COUNT sha256=$ARCHIVE_SHA"
+          echo "KENNEY_CAR_INTAKE_OK count=$COUNT colormap=$COLORMAP_FILE sha256=$ARCHIVE_SHA"
 
       - name: Commit isolated asset intake and consume trigger
         shell: bash
@@ -102,5 +109,5 @@ jobs:
             echo 'No asset changes to commit.'
             exit 0
           fi
-          git commit -m 'assets(vehicle): intake Kenney Car Kit CC0 GLBs'
+          git commit -m 'assets(vehicle): intake complete Kenney Car Kit CC0 dependencies'
           git push origin HEAD:${{ github.head_ref }}

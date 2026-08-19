@@ -1,8 +1,10 @@
 {
-  "schema": "grand-bruxelles-urbis-lod2-source-batch-v1",
+  "schema": "grand-bruxelles-urbis-lod2-source-batch-registry-v1",
   "batch_id": "anderlecht-E145500_N169000-B01",
   "production_base_sha": "6e88df612bc2668f073ffae461b1aa1a54a85684",
   "contract": "grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json",
+  "materializer": "grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py",
+  "storage_policy": "regenerate_from_locked_official_source",
   "cell": {
     "municipality": "Anderlecht",
     "crs": "EPSG:31370",
@@ -38,14 +40,13 @@
       "WALLSURFACE": 2848
     }
   },
-  "payload": {
-    "file": "anderlecht_E145500_N169000_B01.source.ndjson.gz",
-    "format": "gzip-compressed NDJSON; one official BuildingFace per line",
+  "generated_payload": {
+    "format": "NDJSON; one official BuildingFace per line",
     "coordinate_space": "original EPSG:31370 XYZ source coordinates",
-    "uncompressed_bytes": 1716659,
-    "uncompressed_sha256": "516a174a97b9c6009aeb3f14759d53e34c0883a5e0fc9452fe9172d627c5c3ec",
-    "compressed_bytes": 243743,
-    "compressed_sha256": "2f5505ee336a381c127a7eb279ffd71041402398704641cdd181eee52d2b7513"
+    "bytes": 1716659,
+    "sha256": "516a174a97b9c6009aeb3f14759d53e34c0883a5e0fc9452fe9172d627c5c3ec",
+    "artifact_only": true,
+    "reason": "Regional scale uses deterministic regeneration from a locked official package instead of committing duplicated face payloads for every batch."
   },
   "evidence": {
     "source_verification_pr": 902,
@@ -64,5 +65,5 @@
   "collision_authorized": false,
   "geometry_modified": false,
   "semantic_names_authorized": false,
-  "note": "Persisted source geometry only. Runtime transform, mounting, collisions and visual promotion require separate gates."
+  "note": "Canonical source recipe + hashes only. The full source geometry is deterministically regenerated and verified in CI; runtime transform, mounting, collisions and visual promotion require separate gates."
 }

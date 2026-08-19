@@ -36,19 +36,20 @@ def _run(app):
         human.setHeight(0.58)
         human.applyAllTargets()
 
-        # V2 art direction: keep the proven rig/export path, but remove the obvious
-        # MakeHuman demo outfit and use a less washed-out system skin. The top and
-        # trousers are sourced from official MakeHuman CC0 shirts01/pants01 packs.
-        skin = _pick_exact(api.assets.getAvailableSystemSkins(), "young_caucasian_female2.mhmat")
+        # V3 art direction: retain the proven binary rig path and cargo trousers,
+        # replace the cropped V2 top with a full-length CC0 sweater, frame the face
+        # with a bob hairstyle, and use a natural-female CC0 skin pack instead of
+        # the more synthetic system skin.
+        skin = _pick_exact(api.assets.getAvailableSystemSkins(), "onlytheghosts_young_eurasian_female.mhmat")
         human.material = material.fromFile(skin)
-        top = _pick_exact(api.assets.getAvailableSystemClothes(), "toigo_basic_tucked_t-shirt.mhclo")
+        top = _pick_exact(api.assets.getAvailableSystemClothes(), "toigo_fisherman_sweater.mhclo")
         trousers = _pick_exact(api.assets.getAvailableSystemClothes(), "cortu_cargo_pants.mhclo")
         shoes = _pick_exact(api.assets.getAvailableSystemClothes(), "shoes04.mhclo")
         api.assets.unequipAllClothes()
         api.assets.equipClothes(top)
         api.assets.equipClothes(trousers)
         api.assets.equipClothes(shoes)
-        hair = _pick_exact(api.assets.getAvailableSystemHair(), "ponytail01.mhclo")
+        hair = _pick_exact(api.assets.getAvailableSystemHair(), "bob01.mhclo")
         api.assets.equipHair(hair)
         eyebrows = _pick_exact(api.assets.getAvailableSystemEyebrows(), "eyebrow004.mhclo")
         api.assets.equipEyebrows(eyebrows)
@@ -72,7 +73,7 @@ def _run(app):
             raise RuntimeError("MakeHuman FBX exporter Binary FBX control is unavailable")
 
         # Run #35 proved this binary path is healthy once the pinned writer's
-        # NormalsIndex defect is patched by CI: full rig, 7 textured surfaces and
+        # NormalsIndex defect is patched by CI. Runs #35/#38 both imported with
         # zero Godot/ufbx `Clamped index` warnings.
         exporter.binary.setChecked(True)
         if not bool(exporter.binary.selected):

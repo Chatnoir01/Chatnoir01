@@ -42,7 +42,6 @@ func _run() -> void:
     if float(HARDENED.melee_weight_profile(&"cross_right").get("pitch_deg", 0.0)) >= 0.0:
         _fail("cross should drive body forward"); return
 
-    # Combo variation must stay deterministic and recover cleanly after a miss.
     if HARDENED.next_combo_index(0, false, 1) != 0 or HARDENED.next_combo_index(2, false, 9) != 0:
         _fail("missed strike must reset combo to jab"); return
     if HARDENED.next_combo_index(0, true, 1) != 1:
@@ -79,16 +78,18 @@ func _run() -> void:
         _fail("rapid weapon swaps must retire the old holder before creating the canonical holder"); return
     if source.find("combat_weapon_holder_weapon_id") < 0:
         _fail("canonical weapon holder must publish its active weapon id"); return
+    if source.find("MELEE_BUFFER_MS") < 0 or source.find("_tick_melee_buffer") < 0:
+        _fail("modern melee must keep the bounded one-slot input buffer"); return
 
     var move_publish_pos := source.find("player.set_meta(\"combat_move_id\"")
-    var melee_call_pos := source.find("melee_runtime.call(\"request_attack\", player)")
+    var melee_call_pos := source.find("melee_runtime.call(\"request_attack_with_move\", player, move)")
     if move_publish_pos < 0 or melee_call_pos < 0 or move_publish_pos >= melee_call_pos:
-        _fail("combo move metadata must be published before melee hit resolution"); return
+        _fail("combo move metadata must be published before deferred melee contact scheduling"); return
 
     var project_text := FileAccess.get_file_as_string("res://project.godot")
     var expected := "PlayerCombatArsenalRuntime=\"*res://game/scripts/player_combat_arsenal_hardened_runtime.gd\""
     if project_text.find(expected) < 0:
         _fail("project must autoload the hardened arsenal runtime"); return
 
-    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green combo_variation=green flinch_isolation=green weight_transfer=4 grip_recoil_lock=green canonical_holder_swap=green")
+    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green combo_variation=green flinch_isolation=green weight_transfer=4 grip_recoil_lock=green canonical_holder_swap=green deferred_melee_contract=green buffer=green")
     quit(0)

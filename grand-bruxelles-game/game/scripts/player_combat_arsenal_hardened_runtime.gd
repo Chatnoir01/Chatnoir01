@@ -48,8 +48,8 @@ func request_melee_combo(player: CharacterBody3D) -> Dictionary:
 
     # The melee runtime resolves its hit synchronously. Publish the move before
     # request_attack so directional hurt reactions see the correct hand/leg.
-    var previous_move_id := player.get_meta("combat_move_id", &"")
-    var previous_move_label := player.get_meta("combat_move_label", "")
+    var previous_move_id: StringName = StringName(player.get_meta("combat_move_id", &""))
+    var previous_move_label: String = String(player.get_meta("combat_move_label", ""))
     player.set_meta("combat_move_id", move.get("id", &""))
     player.set_meta("combat_move_label", move.get("label", ""))
 

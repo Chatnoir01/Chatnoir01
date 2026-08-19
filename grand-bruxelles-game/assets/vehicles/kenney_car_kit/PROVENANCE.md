@@ -6,6 +6,7 @@
 - Exact archive URL: https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip
 - Archive SHA-256: fac7dacac5c7874348cf19729af3ef205f3d366493edaf0a827d93f4fdf3d0c4
 - Intake date: 2026-08-19
-- Imported format: GLB only
+- Imported format: GLB plus required shared colormap texture
 - Imported GLB count: 50
+- Imported dependency: models/Textures/colormap.png
 - Runtime authorization: false pending in-game owner visual/performance review

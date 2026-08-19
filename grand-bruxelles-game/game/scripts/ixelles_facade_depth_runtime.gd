@@ -199,11 +199,13 @@ static func _build_feature_transforms(
             var along := EDGE_MARGIN_M + (float(bay_index) + 0.5) * bay_span
             var point := a + tangent * along
             var origin := Vector3(point.x, building_base_y + panel_center_y, point.y)
-            panels.append(Transform3D(rotation.scaled(Vector3(panel_width, PANEL_HEIGHT_M, PANEL_DEPTH_M)), origin + outward3 * PANEL_WALL_OFFSET_M))
-            headers.append(Transform3D(rotation.scaled(Vector3(panel_width + 0.22, HEADER_HEIGHT_M, FRAME_DEPTH_M)), origin + Vector3.UP * (PANEL_HEIGHT_M * 0.5 + HEADER_HEIGHT_M * 0.45) + outward3 * FRAME_WALL_OFFSET_M))
+            # The basis already encodes wall orientation. Dimensions must therefore be
+            # applied in that local tangent/up/outward frame, never on global axes.
+            panels.append(Transform3D(rotation.scaled_local(Vector3(panel_width, PANEL_HEIGHT_M, PANEL_DEPTH_M)), origin + outward3 * PANEL_WALL_OFFSET_M))
+            headers.append(Transform3D(rotation.scaled_local(Vector3(panel_width + 0.22, HEADER_HEIGHT_M, FRAME_DEPTH_M)), origin + Vector3.UP * (PANEL_HEIGHT_M * 0.5 + HEADER_HEIGHT_M * 0.45) + outward3 * FRAME_WALL_OFFSET_M))
             var jamb_scale := Vector3(JAMB_WIDTH_M, PANEL_HEIGHT_M + 0.10, FRAME_DEPTH_M)
-            jambs.append(Transform3D(rotation.scaled(jamb_scale), origin + tangent3 * side_offset + outward3 * FRAME_WALL_OFFSET_M))
-            jambs.append(Transform3D(rotation.scaled(jamb_scale), origin - tangent3 * side_offset + outward3 * FRAME_WALL_OFFSET_M))
+            jambs.append(Transform3D(rotation.scaled_local(jamb_scale), origin + tangent3 * side_offset + outward3 * FRAME_WALL_OFFSET_M))
+            jambs.append(Transform3D(rotation.scaled_local(jamb_scale), origin - tangent3 * side_offset + outward3 * FRAME_WALL_OFFSET_M))
 
 
 static func build_from_contract(

@@ -7,31 +7,32 @@ class_name BrusselsStreetLampAsset
 ## measurements, manufacturer identification or photometric claims.
 
 const ASSET_FAMILY := "brussels_street_lamp_v1"
+const PRESENTATION_REVISION := 2
 const POLE_HEIGHT := 6.3
-const POLE_RADIUS := 0.095
-const ARM_HEIGHT := 0.14
-const ARM_LENGTH := 0.90
-const LUMINAIRE_LENGTH := 0.68
-const LUMINAIRE_WIDTH := 0.32
-const LUMINAIRE_HEIGHT := 0.20
+const POLE_RADIUS := 0.13
+const ARM_HEIGHT := 0.18
+const ARM_LENGTH := 1.10
+const LUMINAIRE_LENGTH := 0.90
+const LUMINAIRE_WIDTH := 0.42
+const LUMINAIRE_HEIGHT := 0.26
 const COLLISION_HEIGHT := 6.3
 const COLLISION_RADIUS := 0.11
 
 static func create_materials() -> Dictionary:
     var metal := StandardMaterial3D.new()
-    metal.albedo_color = Color(0.115, 0.125, 0.13, 1.0)
-    metal.roughness = 0.68
-    metal.metallic = 0.32
+    metal.albedo_color = Color(0.075, 0.085, 0.09, 1.0)
+    metal.roughness = 0.62
+    metal.metallic = 0.38
 
     var luminaire := StandardMaterial3D.new()
-    luminaire.albedo_color = Color(0.44, 0.45, 0.43, 1.0)
-    luminaire.roughness = 0.58
-    luminaire.metallic = 0.18
+    luminaire.albedo_color = Color(0.66, 0.67, 0.62, 1.0)
+    luminaire.roughness = 0.48
+    luminaire.metallic = 0.12
     return {"metal": metal, "luminaire": luminaire}
 
 static func create_pole_mesh(material: Material) -> CylinderMesh:
     var mesh := CylinderMesh.new()
-    mesh.top_radius = POLE_RADIUS * 0.82
+    mesh.top_radius = POLE_RADIUS * 0.72
     mesh.bottom_radius = POLE_RADIUS
     mesh.height = POLE_HEIGHT
     mesh.radial_segments = 10

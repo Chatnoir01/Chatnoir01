@@ -1,0 +1,60 @@
+{
+  "schema": "grand-bruxelles-grand-place-owner-registration-v1",
+  "status": "evidence_only",
+  "base_main": "0807581e4a711d21b535a7def66f089da037a2f4",
+  "phase0_source_report": {
+    "pr": 876,
+    "persisted_lod2_buildings": ["1655673", "1639974", "1786758"],
+    "measured_frame_share_percent": {
+      "1655673": 20.855794270833332,
+      "1786758": 6.854058159722222,
+      "1639974": 4.443793402777778
+    }
+  },
+  "registered_owners": {
+    "1655673": {
+      "semantic_name": "Hotel de Ville",
+      "status": "registered"
+    },
+    "1639974": {
+      "semantic_name": "Grand-Place 10 / Maison des Brasseurs",
+      "status": "registered_evidence_only",
+      "existing_contract": "res://data/qa/grand_place_brasseurs_photo_plan.json"
+    }
+  },
+  "candidate_owner_1786758": {
+    "geometry_path": "res://data/urbis/grand_place_lod2/1786758.game.json",
+    "semantic_name": null,
+    "semantic_status": "UNRESOLVED",
+    "screen_share_percent": 6.854058159722222,
+    "bbox": [376, 157, 594, 507],
+    "source_face_count": 82,
+    "wall_surface_count": 19,
+    "roof_surface_count": 62,
+    "ground_surface_count": 1,
+    "heritage_candidate_context": {
+      "source": "Urban Brussels architectural inventory",
+      "record": "31143",
+      "name": "Maison du Roi",
+      "address": "Grand-Place 29",
+      "semantic_crosswalk_to_1786758_proven": false
+    },
+    "runtime_authorized": false
+  },
+  "missing_coverage": [
+    "maison_du_roi_exact_urbis_crosswalk",
+    "remaining_guild_house_fronts",
+    "square_ground_and_street_joins",
+    "visible_street_exit_masses"
+  ],
+  "hard_rules": {
+    "proximity_inference_allowed": false,
+    "heritage_name_without_urbis_crosswalk_allowed": false,
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "implementation_authorized": false,
+    "camera_rescue": false,
+    "threshold_rescue": false
+  },
+  "next_action": "Resolve the official UrbIS identity crosswalk for building 1786758 and persist/register the remaining major Grand-Place owners before any visual implementation."
+}

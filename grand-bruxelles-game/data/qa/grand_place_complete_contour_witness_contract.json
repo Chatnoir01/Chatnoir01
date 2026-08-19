@@ -1,0 +1,58 @@
+{
+  "schema": "grand-bruxelles-grand-place-complete-contour-witness-v2",
+  "status": "player_review_candidate",
+  "base_main": "d3c0a64fa34749b6257f4f70254bcd931c8fec8c",
+  "supersedes_pr": 916,
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0"
+  },
+  "runtime_owner_ids": ["1601883","1601884","1608847","1608851","1611166","1613517","1635455","1635485","1637695","1637729","1639974","1639985","1643344","1645578","1645580","1646728","1647834","1647943","1649069","1653185","1654360","1661439","1781508"],
+  "dedicated_runtime_owner_ids": ["1655673","1786758"],
+  "expected_source_face_count": 551,
+  "expected_source_triangle_count": 1712,
+  "camera": {
+    "source_witness": "#711/#753",
+    "resolution": [1280,720],
+    "position": [319.01,1.72,-535.20],
+    "target": [321.91,11.8,-485.66],
+    "fov_degrees": 62.0
+  },
+  "capture_rules": {
+    "ui_hidden": true,
+    "player_hidden": true,
+    "vehicles_hidden": true,
+    "npc_and_ambient_frozen": true,
+    "same_camera_before_after": true,
+    "shared_root_world3d_required": true,
+    "camera_rescue_allowed": false,
+    "threshold_rescue_allowed": false
+  },
+  "frozen_ab_thresholds": {
+    "min_percent_pixels_rgb_delta_gt_3": 1.0,
+    "min_percent_pixels_rgb_delta_gt_8": 0.5,
+    "min_bbox_width_px": 500,
+    "min_bbox_height_px": 180
+  },
+  "triangle_accounting": {
+    "cross_length_squared_epsilon": 1e-12,
+    "non_degenerate_wall_roof_triangles_must_render": true,
+    "degenerate_wall_roof_triangles_may_be_skipped": true,
+    "degenerate_geometry_repair_allowed": false,
+    "render_plus_degenerate_must_equal_wall_roof_source_entries": true
+  },
+  "hard_rules": {
+    "source_geometry_modified": false,
+    "groundsurface_rendered": false,
+    "semantic_guessing_allowed": false,
+    "neutral_presentation_only": true,
+    "official_wall_collision_required": true,
+    "numeric_pass_authorizes_merge": false,
+    "owner_full_frame_review_required": true
+  },
+  "owner_verdict": "PENDING"
+}

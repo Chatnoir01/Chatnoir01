@@ -1,0 +1,99 @@
+name: Grand Bruxelles Midi Authored NPC Candidate Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/intake_rocketbox_midi_npcs.py"
+      - "grand-bruxelles-game/data/provenance/characters/rocketbox_midi_v1.json"
+      - "grand-bruxelles-game/game/tests/midi_realistic_authored_npc_candidate_capture_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-authored-npc-candidate-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-authored-npc-candidate-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install intake and software-render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+          python3 -m pip install --disable-pip-version-check --no-cache-dir Pillow
+
+      - name: Reproduce pinned Rocketbox pilot intake
+        working-directory: grand-bruxelles-game
+        run: |
+          rm -rf assets/characters/_review/rocketbox_midi_v1
+          python3 tools/intake_rocketbox_midi_npcs.py \
+            --output-root assets/characters/_review/rocketbox_midi_v1 \
+            --profiles Female_Adult_01,Male_Adult_01,Police_Female_01 \
+            --texture-max 512 2>&1 | tee /tmp/rocketbox-intake.log
+          grep -q "ROCKETBOX_MIDI_INTAKE_OK profiles=3 civilians=2 police=1 production_authorized=false" /tmp/rocketbox-intake.log
+          grep -q '"source_commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9"' assets/characters/_review/rocketbox_midi_v1/asset_manifest.json
+          grep -q '"license": "MIT"' assets/characters/_review/rocketbox_midi_v1/licenses.json
+          grep -q '"production_authorized": false' assets/characters/_review/rocketbox_midi_v1/asset_manifest.json
+          test -s assets/characters/_review/rocketbox_midi_v1/LICENSE.md
+          test -s assets/characters/_review/rocketbox_midi_v1/Female_Adult_01/Export/Female_Adult_01.fbx
+          test -s assets/characters/_review/rocketbox_midi_v1/Male_Adult_01/Export/Male_Adult_01.fbx
+          test -s assets/characters/_review/rocketbox_midi_v1/Police_Female_01/Export/Police_Female_01.fbx
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import review-only authored characters
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            2>&1 | tee /tmp/rocketbox-godot-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Couldn't load project data|ERROR: Can't open file|Cannot open file|couldn't be loaded" /tmp/rocketbox-godot-import.log; then exit 1; fi
+
+      - name: Capture player-height authored candidate witness
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 \
+            --script res://game/tests/midi_realistic_authored_npc_candidate_capture_test.gd -- \
+            /tmp/midi-realistic-authored-npcs-candidate.png \
+            2>&1 | tee /tmp/rocketbox-candidate-capture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_REALISTIC_AUTHORED_NPC_CANDIDATE_FAIL|ERROR: Can't open file|Cannot open file|couldn't be loaded" /tmp/rocketbox-candidate-capture.log; then exit 1; fi
+          grep -q "MIDI_REALISTIC_AUTHORED_NPC_CANDIDATE_OK" /tmp/rocketbox-candidate-capture.log
+          test -s /tmp/midi-realistic-authored-npcs-candidate.png
+          test -s /tmp/midi-realistic-authored-npcs-candidate.metrics.json
+
+      - name: Stage candidate evidence
+        if: always()
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/midi_realistic_authored_npcs_candidate
+          cp /tmp/midi-realistic-authored-npcs-candidate.png grand-bruxelles-game/artifacts/qa/midi_realistic_authored_npcs_candidate/candidate_group.png 2>/dev/null || true
+          cp /tmp/midi-realistic-authored-npcs-candidate.metrics.json grand-bruxelles-game/artifacts/qa/midi_realistic_authored_npcs_candidate/metrics.json 2>/dev/null || true
+          cp /tmp/rocketbox-intake.log grand-bruxelles-game/artifacts/qa/midi_realistic_authored_npcs_candidate/intake.log 2>/dev/null || true
+          cp /tmp/rocketbox-godot-import.log grand-bruxelles-game/artifacts/qa/midi_realistic_authored_npcs_candidate/import.log 2>/dev/null || true
+          cp /tmp/rocketbox-candidate-capture.log grand-bruxelles-game/artifacts/qa/midi_realistic_authored_npcs_candidate/runtime.log 2>/dev/null || true
+          cp grand-bruxelles-game/assets/characters/_review/rocketbox_midi_v1/asset_manifest.json grand-bruxelles-game/artifacts/qa/midi_realistic_authored_npcs_candidate/asset_manifest.json 2>/dev/null || true
+          cp grand-bruxelles-game/assets/characters/_review/rocketbox_midi_v1/licenses.json grand-bruxelles-game/artifacts/qa/midi_realistic_authored_npcs_candidate/licenses.json 2>/dev/null || true
+
+      - name: Upload candidate owner-review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-candidate-pilot
+          path: grand-bruxelles-game/artifacts/qa/midi_realistic_authored_npcs_candidate
+          if-no-files-found: warn

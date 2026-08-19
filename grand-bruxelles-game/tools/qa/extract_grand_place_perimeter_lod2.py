@@ -148,7 +148,7 @@ def main() -> None:
 
     faces = shapefile.Reader(str(faces_path))
     face_fields = [f[0] for f in faces.fields[1:]]
-    required = {"INSPIRE_ID", "BS_ID", "TYPE"}
+    required = {"INSPIRE_ID", "BUSOLID_ID", "TYPE"}
     if not required.issubset(set(face_fields)):
         fail(f"unexpected BuildingFaces fields: {face_fields}")
     detail_field = "DETAILSLEV" if "DETAILSLEV" in face_fields else None
@@ -159,7 +159,7 @@ def main() -> None:
     z_by_building = {bid: [] for bid in requested}
     for sr in faces.iterShapeRecords():
         attrs = {face_fields[i]: clean(v) for i, v in enumerate(sr.record)}
-        sid = compact_id(attrs.get("BS_ID"), "buildingsolid")
+        sid = compact_id(attrs.get("BUSOLID_ID"), "buildingsolid")
         bid = solid_to_building.get(sid)
         if bid is None:
             continue

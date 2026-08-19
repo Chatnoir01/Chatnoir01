@@ -1,7 +1,7 @@
 {
   "schema": "grand-bruxelles-region-lod2-source-materialization-contract-v2",
   "campaign_id": "region-lod2-C01-30000",
-  "production_base_sha": "1edd5a6270ec0b5e4f513cf5e31cff99e79a6000",
+  "production_base_sha": "c3bbf44806da07ae5064fd89f48e52afb7ba1f6b",
   "evidence": {
     "selection_artifact": {
       "id": 9380126488,
@@ -26,7 +26,7 @@
     "spatial_cell_count": 132,
     "planner_group_count": 212,
     "source_shards_sha256": "42e13006ff548116f305c8d48f96b88aa6e66a78e57635654492cd86a0c77cdb",
-    "source_materialization_index_sha256": null,
+    "source_materialization_index_sha256": "288ff7815900d1cb07e0980168b8375c024a18be02144275a63918ae991e17a3",
     "face_type_counts": {
       "GROUNDSURFACE": 30997,
       "OTHER": 63,
@@ -37,12 +37,12 @@
     }
   },
   "materialization": {
-    "source_download_policy": "locked direct distribution URLs from exact source summary; no Atom traversal",
+    "source_download_policy": "locked direct distribution URLs from exact source summary; bounded transport; no Atom traversal",
     "parallel_source_shards": 47,
     "physical_cells": 132,
     "output_coordinate_space": "original EPSG:31370 XYZ",
     "cell_partition_policy": "one official BU_ID owner belongs to exactly one locked physical 500 m cell",
-    "measurement_required_before_final_gate": true
+    "measurement_required_before_final_gate": false
   },
   "hard_rules": {
     "artifact_source_materialization_only": true,

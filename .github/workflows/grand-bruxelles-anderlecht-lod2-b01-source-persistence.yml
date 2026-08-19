@@ -27,11 +27,11 @@ jobs:
       - name: Install source reader dependencies
         run: python -m pip install --disable-pip-version-check pyshp shapely
 
-      - name: Regenerate B01 directly from official UrbIS source
+      - name: Regenerate immutable B01 directly from official UrbIS source
         run: |
           python grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py \
             --repo-root "$GITHUB_WORKSPACE" \
-            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json \
+            --registry grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.manifest.json \
             --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source.ndjson" \
             --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.materialization.json"
 
@@ -53,6 +53,7 @@ jobs:
           report = json.loads(report_path.read_text())
           sha = lambda payload: hashlib.sha256(payload).hexdigest()
 
+          assert manifest["schema"] == "grand-bruxelles-urbis-lod2-source-batch-registry-v2"
           assert manifest["storage_policy"] == "regenerate_from_locked_official_source"
           assert manifest["runtime_authorized"] is False
           assert manifest["runtime_mount_authorized"] is False
@@ -72,6 +73,15 @@ jobs:
           assert actual_source["building_faces_dbf_sha256"] == expected_source["building_faces_dbf_sha256"]
 
           expected_selection = manifest["selection"]
+          owner_ids = expected_selection["owner_ids"]
+          assert len(owner_ids) == expected_selection["owner_count"] == 250
+          assert len(owner_ids) == len(set(owner_ids))
+          assert owner_ids == sorted(owner_ids, key=int)
+          assert owner_ids[0] == expected_selection["first_building_id"]
+          assert owner_ids[-1] == expected_selection["last_building_id"]
+          owner_digest = sha(("\n".join(owner_ids) + "\n").encode())
+          assert owner_digest == expected_selection["selected_owner_ids_sha256"]
+
           actual_selection = report["selection"]
           for key in [
               "owner_count", "solid_count", "face_count", "point_count", "part_count",
@@ -113,9 +123,9 @@ jobs:
           s = manifest["selection"]
           p = manifest["generated_payload"]
           lines = [
-              "## Anderlecht B01 deterministic official LoD2 source registry",
+              "## Anderlecht B01 immutable official LoD2 source registry",
               "",
-              f"- Owners: **{s['owner_count']:,}**",
+              f"- Locked owners: **{len(s['owner_ids']):,}**",
               f"- Solids: **{s['solid_count']:,}**",
               f"- Faces: **{s['face_count']:,}**",
               f"- Points: **{s['point_count']:,}**",

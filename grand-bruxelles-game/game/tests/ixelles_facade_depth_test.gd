@@ -7,6 +7,8 @@ const MIN_DIRECT_RECESS_PANELS := 320
 const MIN_STREAMED_CONTEXT_CELLS := 2
 const MIN_TOTAL_RECESS_PANELS := 600
 const STASSART_124_BUILDING_ID := "https://databrussels.be/id/building/1737877"
+const MAX_PANEL_LOCAL_DEPTH_M := 0.040
+const MAX_FRAME_LOCAL_DEPTH_M := 0.150
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -20,6 +22,15 @@ func _expect(condition: bool, message: String) -> bool:
         _fail(message)
         return false
     return true
+
+func _max_local_z_scale(instance: MultiMeshInstance3D) -> float:
+    var multimesh := instance.multimesh
+    if multimesh == null or multimesh.instance_count <= 0:
+        return INF
+    var maximum := 0.0
+    for index: int in range(multimesh.instance_count):
+        maximum = maxf(maximum, multimesh.get_instance_transform(index).basis.z.length())
+    return maximum
 
 func _run() -> void:
     var main := MAIN_SCENE.instantiate()
@@ -83,11 +94,25 @@ func _run() -> void:
         return
     if not _expect(bool(depth_root.get_meta("stassart_124_identity_preserved", false)), "Stassart 124 was not protected from generic facade depth"):
         return
-    if not _expect(depth_root.get_node_or_null("RecessPanels") is MultiMeshInstance3D, "batched recess panels missing"):
+    var panels := depth_root.get_node_or_null("RecessPanels") as MultiMeshInstance3D
+    var headers := depth_root.get_node_or_null("Headers") as MultiMeshInstance3D
+    var jambs := depth_root.get_node_or_null("Jambs") as MultiMeshInstance3D
+    if not _expect(panels != null, "batched recess panels missing"):
         return
-    if not _expect(depth_root.get_node_or_null("Headers") is MultiMeshInstance3D, "batched headers missing"):
+    if not _expect(headers != null, "batched headers missing"):
         return
-    if not _expect(depth_root.get_node_or_null("Jambs") is MultiMeshInstance3D, "batched jambs missing"):
+    if not _expect(jambs != null, "batched jambs missing"):
+        return
+
+    var panel_max_depth := _max_local_z_scale(panels)
+    var header_max_depth := _max_local_z_scale(headers)
+    var jamb_max_depth := _max_local_z_scale(jambs)
+    print("IXELLES_FACADE_DEPTH_LOCAL_SCALE: panels=%.4f headers=%.4f jambs=%.4f" % [panel_max_depth, header_max_depth, jamb_max_depth])
+    if not _expect(panel_max_depth <= MAX_PANEL_LOCAL_DEPTH_M, "recess panel local depth exploded beyond authored 4 cm bound"):
+        return
+    if not _expect(header_max_depth <= MAX_FRAME_LOCAL_DEPTH_M, "header local depth exploded beyond authored 15 cm bound"):
+        return
+    if not _expect(jamb_max_depth <= MAX_FRAME_LOCAL_DEPTH_M, "jamb local depth exploded beyond authored 15 cm bound"):
         return
 
     var stassart := slice.get_node_or_null("Stassart124BlueStoneGroundFloor")
@@ -96,5 +121,5 @@ func _run() -> void:
     if not _expect(str(stassart.get_meta("source_building_id", "")) == STASSART_124_BUILDING_ID, "Stassart 124 source identity drifted"):
         return
 
-    print("IXELLES_FACADE_DEPTH_OK: zone=ixelles status=LABO buildings=%d direct_panels>=%d total_panels>=%d context_cells>=%d family=%s presentation_only=true renderer_only=true source_geometry_changed=false collision_changed=false surveyed_openings_claimed=false exact_depth_claimed=false polygon_side_test=true stassart124_preserved=true" % [EXPECTED_BUILDINGS, MIN_DIRECT_RECESS_PANELS, MIN_TOTAL_RECESS_PANELS, MIN_STREAMED_CONTEXT_CELLS, EXPECTED_FAMILY])
+    print("IXELLES_FACADE_DEPTH_OK: zone=ixelles status=LABO buildings=%d direct_panels>=%d total_panels>=%d context_cells>=%d family=%s presentation_only=true renderer_only=true source_geometry_changed=false collision_changed=false surveyed_openings_claimed=false exact_depth_claimed=false polygon_side_test=true stassart124_preserved=true local_depth_bounded=true" % [EXPECTED_BUILDINGS, MIN_DIRECT_RECESS_PANELS, MIN_TOTAL_RECESS_PANELS, MIN_STREAMED_CONTEXT_CELLS, EXPECTED_FAMILY])
     quit(0)

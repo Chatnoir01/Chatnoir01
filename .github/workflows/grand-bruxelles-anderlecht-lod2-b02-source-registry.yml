@@ -1,0 +1,45 @@
+name: Grand Bruxelles Anderlecht LoD2 B02 Source Registry
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B02.contract.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B02.manifest.json"
+      - ".github/workflows/grand-bruxelles-anderlecht-lod2-b02-source-registry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure-source-registry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source reader dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely
+
+      - name: Regenerate immutable B02 from official UrbIS source
+        run: |
+          python grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --registry grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B02.manifest.json \
+            --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B02.source.ndjson" \
+            --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B02.materialization.json"
+
+      - name: Upload B02 measurement proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: anderlecht-e145500-n169000-b02-source-measurement
+          path: |
+            ${{ runner.temp }}/anderlecht_E145500_N169000_B02.source.ndjson
+            ${{ runner.temp }}/anderlecht_E145500_N169000_B02.materialization.json
+          if-no-files-found: error

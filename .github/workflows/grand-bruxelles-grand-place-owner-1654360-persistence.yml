@@ -1,0 +1,41 @@
+name: Grand Bruxelles Grand-Place Owner 1654360 Persistence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/1654360.game.json"
+      - "grand-bruxelles-game/data/qa/grand_place_owner_1654360_persistence_contract.json"
+      - ".github/workflows/grand-bruxelles-grand-place-owner-1654360-persistence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-owner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate persisted owner and contract
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('grand-bruxelles-game')
+          data = json.loads((root/'data/urbis/grand_place_lod2/1654360.game.json').read_text())
+          contract = json.loads((root/'data/qa/grand_place_owner_1654360_persistence_contract.json').read_text())
+          assert contract['building_id'] == '1654360'
+          assert contract['hard_rules']['runtime_authorized'] is False
+          assert contract['hard_rules']['geometry_modified'] is False
+          assert data['source']['building_2d_id'].endswith('/1654360')
+          assert data['source']['building_solid_ids'] == ['https://databrussels.be/id/buildingsolid/582549']
+          assert data['evidence']['face_count'] == 71
+          assert data['evidence']['face_type_counts']['WALLSURFACE'] == 48
+          assert data['evidence']['face_type_counts']['ROOFSURFACE'] == 22
+          assert data['evidence']['face_type_counts']['GROUNDSURFACE'] == 1
+          assert data['evidence']['triangle_count'] == 230
+          assert abs(float(data['evidence']['height_m']) - 30.387) < 1e-6
+          assert data['source']['package_sha256'] == contract['source']['package_sha256']
+          assert data['runtime_approved'] is False
+          print('GRAND_PLACE_OWNER_1654360_PERSISTENCE_OK')
+          PY

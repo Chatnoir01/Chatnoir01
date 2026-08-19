@@ -1,0 +1,38 @@
+{
+  "schema": "grand-bruxelles-grand-place-owner-persistence-v1",
+  "status": "evidence_only",
+  "base_main": "284d0869d57c09a4b5ded93f4caa477773748b49",
+  "building_id": "1654360",
+  "identity": "Maison du Roi / Broodhuis",
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "package_revision": "2026-08-08",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0"
+  },
+  "inventory_evidence": {
+    "owner_inventory_pr": 885,
+    "owner_inventory_head": "ac442c91b500cac801e88507179891e96d7cc51c",
+    "building_present_in_official_window": true
+  },
+  "geometry_evidence": {
+    "solid_ids": ["582549"],
+    "face_count": 71,
+    "wall_surface_count": 48,
+    "roof_surface_count": 22,
+    "ground_surface_count": 1,
+    "triangle_count": 230,
+    "height_m": 30.387,
+    "source_bbox_xy": [148859.231, 170714.459, 148898.185, 170750.955]
+  },
+  "hard_rules": {
+    "runtime_authorized": false,
+    "geometry_modified": false,
+    "collision_modified": false,
+    "visual_articulation_authorized": false,
+    "semantic_guessing_allowed": false
+  },
+  "purpose": "Persist the exact official UrbIS LoD2 owner 1654360 as source truth for the Grand-Place completion campaign before any new full-scene visual implementation."
+}

@@ -20,14 +20,23 @@ concurrency:
 
 jobs:
   native-loadout:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
-      - name: Verify renderer dependencies
+      - name: Install renderer dependencies
+        shell: bash
         run: |
+          set -euxo pipefail
+          SUDO=""
+          if command -v sudo >/dev/null 2>&1; then SUDO="sudo"; fi
+          $SUDO apt-get update
+          $SUDO apt-get install -y --no-install-recommends \
+            curl unzip xvfb xauth \
+            libgl1 libgl1-mesa-dri libglx-mesa0 \
+            libx11-6 libxext6 libxcursor1 libxi6 libxrandr2 libxinerama1 libxrender1 libxfixes3 \
+            libasound2t64 libfontconfig1
           command -v Xvfb
-          ldconfig -p | grep -E 'libGLX|libGL\.so' | head
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip

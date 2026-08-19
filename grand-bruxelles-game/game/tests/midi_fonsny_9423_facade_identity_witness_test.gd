@@ -52,11 +52,12 @@ func _run() -> void:
     if legacy_frame == null or legacy_glass == null:
         _fail("legacy single vertical bay missing")
         return
-    _mask_dynamic(world)
+    _mask_dynamic(get_root())
     var leaked_canvas := _visible_canvas_count(get_root())
     if leaked_canvas > 0:
         _fail("visible Canvas UI leaked into locked witness: %d" % leaked_canvas)
         return
+    print("MIDI_FONSNY_9423_FACADE_UI_CLEAN: visible_canvas=%d" % leaked_canvas)
     var camera := Camera3D.new()
     camera.name = "MidiFonsny9423FacadeWitnessCamera"
     camera.position = CAMERA_POSITION

@@ -1,20 +1,21 @@
-name: Grand Bruxelles Rogue Crossbow 2H Linux ARM64 Witness
+name: Grand Bruxelles Rogue Crossbow Transform Probe ARM64
 
 on:
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-rogue-crossbow-2h-arm64-witness.yml"
+      - "grand-bruxelles-game/game/tests/rogue_native_crossbow_transform_probe_test.gd"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: rogue-crossbow-2h-arm64-${{ github.event.pull_request.number || github.ref }}
+  group: rogue-crossbow-transform-arm64-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  visual-witness:
+  transform-probe:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     steps:
@@ -41,16 +42,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/crossbow-arm64-import.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/crossbow-arm64-import.log; then exit 1; fi
-      - name: Run native loadout contract
-        shell: bash
-        run: |
-          set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --script res://game/tests/rogue_native_crossbow_player_witness_test.gd 2>&1 | tee /tmp/crossbow-arm64-contract.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_NATIVE_CROSSBOW_WITNESS_FAIL" /tmp/crossbow-arm64-contract.log; then exit 1; fi
-          grep -F "ROGUE_NATIVE_CROSSBOW_WITNESS_OK" /tmp/crossbow-arm64-contract.log
-      - name: Capture player-view 2H loadout proof
+          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/crossbow-transform-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/crossbow-transform-import.log; then exit 1; fi
+      - name: Capture handslot transform candidates
         shell: bash
         run: |
           set -o pipefail
@@ -59,19 +53,18 @@ jobs:
             --display-driver x11 \
             --rendering-method gl_compatibility \
             --resolution 1280x720 \
-            --script res://game/tests/rogue_native_crossbow_visual_witness_test.gd \
-            2>&1 | tee /tmp/crossbow-arm64-visual.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_NATIVE_CROSSBOW_VISUAL_FAIL" /tmp/crossbow-arm64-visual.log; then exit 1; fi
-          grep -F "ROGUE_NATIVE_CROSSBOW_VISUAL_OK" /tmp/crossbow-arm64-visual.log
-          test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/unarmed.png
-          test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/crossbow.png
-          test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/bx9.png
-          cp /tmp/crossbow-arm64-import.log grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/import-arm64.log
-          cp /tmp/crossbow-arm64-contract.log grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/contract-arm64.log
-          cp /tmp/crossbow-arm64-visual.log grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/visual-arm64.log
-      - name: Upload ARM64 evidence
+            --script res://game/tests/rogue_native_crossbow_transform_probe_test.gd \
+            2>&1 | tee /tmp/crossbow-transform.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_CROSSBOW_TRANSFORM_PROBE_FAIL" /tmp/crossbow-transform.log; then exit 1; fi
+          grep -F "ROGUE_CROSSBOW_TRANSFORM_PROBE_OK" /tmp/crossbow-transform.log
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/base.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/rx_p90.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/rz_m90.png
+          cp /tmp/crossbow-transform-import.log grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/import.log
+          cp /tmp/crossbow-transform.log grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/probe.log
+      - name: Upload transform grid
         uses: actions/upload-artifact@v4
         with:
-          name: rogue-native-crossbow-2h-arm64-witness
-          path: grand-bruxelles-game/artifacts/qa/rogue_native_crossbow
+          name: rogue-crossbow-transform-grid
+          path: grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe
           if-no-files-found: error

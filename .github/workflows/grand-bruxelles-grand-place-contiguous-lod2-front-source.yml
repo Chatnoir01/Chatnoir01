@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   extract-source:
@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -27,6 +29,26 @@ jobs:
           set -o pipefail
           python grand-bruxelles-game/tools/qa/extract_grand_place_contiguous_lod2_front.py 2>&1 | tee /tmp/grand-place-contiguous-lod2-front-source.log
           grep -F "GRAND_PLACE_CONTIGUOUS_LOD2_EXTRACT_OK" /tmp/grand-place-contiguous-lod2-front-source.log
+      - name: Persist exact target source files on PR branch
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="grand-bruxelles-game/artifacts/qa/grand_place_contiguous_lod2_front"
+          dst="grand-bruxelles-game/data/urbis/grand_place_contiguous_lod2_front"
+          mkdir -p "$dst"
+          for id in 1601883 1601884 1635485 1637729 1639985 1643344 1645580 1646728 1647834 1649069 1661439 1781508; do
+            cp "$out/$id.game.json" "$dst/$id.game.json"
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$dst"
+          if git diff --cached --quiet; then
+            echo "Exact source files already persisted"
+            exit 0
+          fi
+          git commit -m "data(grand-place): persist contiguous official LoD2 frontage"
+          git push origin "HEAD:${{ github.head_ref }}"
       - name: Upload exact source outputs
         uses: actions/upload-artifact@v4
         with:

@@ -1,8 +1,13 @@
 extends SceneTree
 
 const RESOURCE_PATH := "res://assets/characters/_review/makehuman_midi_v4/FemalePilot/FemalePilot.fbx"
+const REVIEW_TEXTURE_ROOT := "res://assets/characters/_review/makehuman_midi_v4/FemalePilot/textures/"
 const TARGET_HEIGHT_M := 1.72
 const WITNESS_SIZE := Vector2i(1280, 720)
+const REQUIRED_NORMAL_MAPS := {
+    "cargo_pants": "cargo_pants_norm.png",
+    "shoes04": "shoes04_normal.png",
+}
 
 func _init() -> void:
     call_deferred("_run")
@@ -64,9 +69,22 @@ func _run() -> void:
     for bone_index in range(skeleton.get_bone_count()):
         bone_names.append(skeleton.get_bone_name(bone_index))
     var relaxed_pose_bones := _apply_relaxed_review_pose(skeleton)
+
+    # The MakeHuman export already ships authored normal textures for cargo trousers
+    # and shoes, but the FBX import observed in V3 left them disconnected. Bind only
+    # those source-provided maps in this review witness; no synthetic normal maps and
+    # no production material mutation are allowed here.
+    var sourced_normal_maps := _apply_sourced_normal_maps(person)
+    if int(sourced_normal_maps.get("mapped_surfaces", 0)) != REQUIRED_NORMAL_MAPS.size():
+        _fail("required sourced normal maps were not bound: %s" % str(sourced_normal_maps))
+        return
+
     var material_stats := _material_stats(person)
     if int(material_stats.get("textured_surfaces", 0)) < 4:
         _fail("candidate must import at least four textured surfaces: %s" % str(material_stats))
+        return
+    if int(material_stats.get("normal_mapped_surfaces", 0)) < REQUIRED_NORMAL_MAPS.size():
+        _fail("candidate lost source-provided normal maps after binding: %s" % str(material_stats))
         return
 
     _build_floor(world)
@@ -102,9 +120,9 @@ func _run() -> void:
         return
 
     var metrics := {
-        "schema": "grand-bruxelles-makehuman-candidate-witness-v10",
+        "schema": "grand-bruxelles-makehuman-candidate-witness-v11",
         "production_authorized": false,
-        "diagnostic_mode": "art_v4_natural_skin_face_clear_casual_binary_fbx",
+        "diagnostic_mode": "art_v4_natural_skin_face_clear_casual_binary_fbx_sourced_normals",
         "pose_mode": "upperarm_relaxed_62deg_no_shoulder_override",
         "lighting_mode": "neutral_low_energy_review",
         "resource": RESOURCE_PATH,
@@ -117,6 +135,7 @@ func _run() -> void:
         "bone_names": bone_names,
         "relaxed_review_pose_bones": relaxed_pose_bones,
         "materials": material_stats,
+        "sourced_normal_maps": sourced_normal_maps,
         "full_camera_distance_m": Vector3(0.0, 1.48, 3.20).distance_to(Vector3(0.0, 0.93, 0.0)),
         "close_camera_distance_m": Vector3(0.0, 1.46, 1.48).distance_to(Vector3(0.0, 1.40, 0.0)),
         "three_quarter_camera_distance_m": camera.position.distance_to(Vector3(0.0, 1.03, 0.0)),
@@ -133,7 +152,7 @@ func _run() -> void:
     metrics_file.store_string(JSON.stringify(metrics, "  ") + "\n")
     metrics_file.close()
 
-    print("MIDI_MAKEHUMAN_V4_CANDIDATE_OK: %s close=%s three_quarter=%s meshes=%d skeleton_bones=%d textured_surfaces=%d" % [output, close_output, side_output, mesh_count, skeleton.get_bone_count(), int(material_stats.get("textured_surfaces", 0))])
+    print("MIDI_MAKEHUMAN_V4_CANDIDATE_OK: %s close=%s three_quarter=%s meshes=%d skeleton_bones=%d textured_surfaces=%d normal_mapped_surfaces=%d" % [output, close_output, side_output, mesh_count, skeleton.get_bone_count(), int(material_stats.get("textured_surfaces", 0)), int(material_stats.get("normal_mapped_surfaces", 0))])
     quit(0)
 
 func _save_after_frames(viewport: SubViewport, path: String, frame_count: int) -> bool:
@@ -160,6 +179,53 @@ func _apply_relaxed_review_pose(skeleton: Skeleton3D) -> Array[String]:
         skeleton.set_bone_pose_rotation(right, Quaternion(z_axis, deg_to_rad(62.0)))
         applied.append("upperarm01.R")
     return applied
+
+func _apply_sourced_normal_maps(root: Node) -> Dictionary:
+    var textures: Dictionary = {}
+    var missing_paths: Array[String] = []
+    for material_name: String in REQUIRED_NORMAL_MAPS.keys():
+        var path := REVIEW_TEXTURE_ROOT + str(REQUIRED_NORMAL_MAPS[material_name])
+        if not ResourceLoader.exists(path):
+            missing_paths.append(path)
+            continue
+        var texture := ResourceLoader.load(path) as Texture2D
+        if texture == null:
+            missing_paths.append(path)
+            continue
+        textures[material_name] = texture
+
+    var mapped_surfaces := 0
+    var mapped_materials: Array[String] = []
+    var meshes: Array[MeshInstance3D] = []
+    _collect_meshes(root, meshes)
+    for mesh_node in meshes:
+        if mesh_node.mesh == null:
+            continue
+        for surface_index in range(mesh_node.mesh.get_surface_count()):
+            var mat := mesh_node.get_active_material(surface_index)
+            if not (mat is BaseMaterial3D):
+                continue
+            var base := mat as BaseMaterial3D
+            var material_name := str(base.resource_name)
+            if not textures.has(material_name):
+                continue
+            var review_material := base.duplicate() as BaseMaterial3D
+            if review_material == null:
+                continue
+            review_material.normal_enabled = true
+            review_material.normal_texture = textures[material_name] as Texture2D
+            review_material.normal_scale = 1.0
+            mesh_node.set_surface_override_material(surface_index, review_material)
+            mapped_surfaces += 1
+            mapped_materials.append(material_name)
+
+    return {
+        "source_only": true,
+        "mapped_surfaces": mapped_surfaces,
+        "mapped_materials": mapped_materials,
+        "missing_paths": missing_paths,
+        "expected_materials": REQUIRED_NORMAL_MAPS.keys(),
+    }
 
 func _material_stats(root: Node) -> Dictionary:
     var surfaces := 0

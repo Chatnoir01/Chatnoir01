@@ -1,0 +1,120 @@
+name: Grand Bruxelles Region LoD2 C01 DTM XYZ Recovery
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/qa/aggregate_region_lod2_c01_dtm_xyz.py"
+      - ".github/workflows/grand-bruxelles-region-lod2-c01-dtm-xyz-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  recover-exhaustive-aggregate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Recover eight green DTM shard artifacts from exact parent head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/shards"
+          cat > "$RUNNER_TEMP/artifacts.txt" <<'EOF'
+          9387281147 6362a5fa5ffd6aa30f87393f171a827f28f23f69cc2ca827df547542401bdeb0 group0
+          9387295891 871811e45072512e454ae76d66507c32e6e9158821ac4c5865b67698b87b9f6c group1
+          9387281417 14e587fb8865fb9a29440c469ad0a6a98d3c19cb0a12d30642c8ac87307dca61 group2
+          9387306033 09430645df77e5796930a457edbb0ee3840c67c31f8b844b5c8517bb2619acff group3
+          9387287360 f07c8e70a8fee57f03d55fcede79683b3f2fe264db2cb8cd0d856fc255d16235 group4
+          9387290001 e064b52fca6eea6399c775520bc22fac61cceac87c9dd3ba8b250481a5090159 group5
+          9387281900 c8e607c7a19ba3f9b13c34f132a5bcae4908529be1c4759f09e69e0960f94ebd group6
+          9387292277 3dab164d9b0d6d915e2c3b38320f5aa5d080333899d7855346630a319b74c849 group7
+          EOF
+          while read -r ID SHA NAME; do
+            ZIP="$RUNNER_TEMP/${NAME}.zip"
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ID}/zip" \
+              > "$ZIP"
+            echo "$SHA  $ZIP" | sha256sum -c -
+            unzip -q "$ZIP" -d "$RUNNER_TEMP/shards"
+          done < "$RUNNER_TEMP/artifacts.txt"
+          test "$(find "$RUNNER_TEMP/shards" -name 'residuals_*.csv' | wc -l)" -eq 48
+          test "$(find "$RUNNER_TEMP/shards" -name 'dtm_evidence_*.json' | wc -l)" -eq 48
+          echo "C01_DTM_XYZ_SHARDS_LOCKED_OK: source_head=ca96a62061a4e86048b89b5580a58986772cab88 groups=8 tiles=48"
+
+      - name: GREEN - aggregate all official XYZ ground samples
+        run: |
+          python grand-bruxelles-game/tools/qa/aggregate_region_lod2_c01_dtm_xyz.py \
+            --input-dir "$RUNNER_TEMP/shards" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json \
+            --output-dir "$RUNNER_TEMP/result"
+
+      - name: Require exhaustive locked measurement and closed runtime rails
+        run: |
+          python - <<'PY'
+          import csv, json, math, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "result"
+          report = json.loads((root / "dtm_rigid_anchor_measurement.json").read_text())
+          owners = json.loads((root / "rigid_anchor_selected_by_owner.json").read_text())
+          locks = json.loads((root / "dtm_tile_locks.json").read_text())
+          with (root / "rigid_anchor_selected_per_owner.csv").open(newline="") as handle:
+              rows = list(csv.DictReader(handle))
+
+          assert report["schema"] == "grand-bruxelles-region-lod2-c01-dtm-rigid-anchor-measurement-v2"
+          assert report["sample_identity"] == "official_BU_ID+easting+northing+source_ground_z"
+          assert report["same_xy_distinct_source_z_sample_count"] == 2461
+          assert report["input"]["owners"] == 30000
+          assert report["input"]["unique_ground_samples"] == 270619
+          assert report["input"]["dtm_tile_count"] == 48
+          assert len(owners) == len(rows) == 30000
+          assert len(locks) == 48
+          assert len(report["candidates"]) == 6
+          selected = report["selected_numerical_candidate"]
+          assert selected["quantile"] == 0.5
+          assert math.isclose(report["input"]["baseline_vertex_abs_p95_m"], 3.1264205471, abs_tol=1e-9)
+          assert math.isclose(selected["post_residual_m"]["abs_p95"], 1.1311711567, abs_tol=1e-9)
+          assert selected["post_residual_m"]["abs_p95"] < report["input"]["baseline_vertex_abs_p95_m"]
+          for key in [
+              "runtime_authorized", "runtime_mount_authorized", "collision_authorized",
+              "final_world_y_authorized", "terrain_runtime_authorized",
+              "source_geometry_modified", "jouable_promotion_authorized",
+          ]:
+              assert report[key] is False, key
+          assert report["artifact_only"] is True
+          print(
+              "C01_DTM_XYZ_RECOVERY_GREEN_OK: "
+              f"owners={len(owners)} samples={report['input']['unique_ground_samples']} "
+              f"q={selected['quantile']:.2f} "
+              f"baseline_p95={report['input']['baseline_vertex_abs_p95_m']:.9f} "
+              f"post_p95={selected['post_residual_m']['abs_p95']:.9f}"
+          )
+          PY
+
+      - name: Publish deterministic result hashes
+        run: |
+          cd "$RUNNER_TEMP/result"
+          sha256sum \
+            dtm_rigid_anchor_measurement.json \
+            rigid_anchor_selected_by_owner.json \
+            rigid_anchor_selected_per_owner.csv \
+            dtm_tile_locks.json \
+            | tee result.sha256
+          cat result.sha256 >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-dtm-rigid-anchor-xyz-recovery
+          path: ${{ runner.temp }}/result/*
+          if-no-files-found: error
+          compression-level: 9

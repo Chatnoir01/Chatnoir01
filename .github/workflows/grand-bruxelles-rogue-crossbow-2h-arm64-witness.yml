@@ -57,9 +57,9 @@ jobs:
             2>&1 | tee /tmp/crossbow-transform.log
           if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_CROSSBOW_TRANSFORM_PROBE_FAIL" /tmp/crossbow-transform.log; then exit 1; fi
           grep -F "ROGUE_CROSSBOW_TRANSFORM_PROBE_OK" /tmp/crossbow-transform.log
-          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/base.png
-          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/rx_p90.png
-          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/rz_m90.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/x90.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/x90_x_p10.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/x90_z_m20.png
           cp /tmp/crossbow-transform-import.log grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/import.log
           cp /tmp/crossbow-transform.log grand-bruxelles-game/artifacts/qa/rogue_crossbow_transform_probe/probe.log
       - name: Upload transform grid

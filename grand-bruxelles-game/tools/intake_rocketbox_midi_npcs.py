@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import shutil
 import sys
@@ -42,15 +41,6 @@ PROFILE_ROOTS = {
     "Police_Female_01": "Assets/Avatars/Professions/Police_Female_01",
     "Police_Male_01": "Assets/Avatars/Professions/Police_Male_01",
 }
-TEXTURE_SUFFIXES = (
-    "_body_color.tga",
-    "_body_normal.tga",
-    "_body_specular.tga",
-    "_head_color.tga",
-    "_head_normal.tga",
-    "_head_specular.tga",
-    "_opacity_color.tga",
-)
 
 
 def _request_json(url: str):
@@ -89,14 +79,23 @@ def _pick_export(profile: str, profile_root: str) -> dict:
 
 
 def _pick_textures(profile_root: str) -> list[dict]:
+    """Keep every source TGA for the profile, not just body/head maps.
+
+    Rocketbox profession FBXs reference extra material families (helmet, equipment,
+    weapon/accessory meshes, opacity normals/specular, etc.). A partial texture allowlist
+    produces valid-looking civilian imports while silently breaking police materials.
+    Pulling every TGA in the immutable profile texture directory is deterministic and
+    still Web-safe because every map is downsampled before review.
+    """
     entries = _contents(f"{profile_root}/Textures")
     picked = [
         entry for entry in entries
-        if entry.get("type") == "file" and str(entry.get("name", "")).lower().endswith(TEXTURE_SUFFIXES)
+        if entry.get("type") == "file" and str(entry.get("name", "")).lower().endswith(".tga")
     ]
-    if not any(str(x.get("name", "")).lower().endswith("_body_color.tga") for x in picked):
+    names = [str(x.get("name", "")).lower() for x in picked]
+    if not any(name.endswith("_body_color.tga") for name in names):
         raise RuntimeError(f"body color texture missing: {profile_root}")
-    if not any(str(x.get("name", "")).lower().endswith("_head_color.tga") for x in picked):
+    if not any(name.endswith("_head_color.tga") for name in names):
         raise RuntimeError(f"head color texture missing: {profile_root}")
     return picked
 

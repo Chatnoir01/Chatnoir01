@@ -1,0 +1,31 @@
+{
+  "schema": "grand-bruxelles-urbis-lod2-source-campaign-registry-v1",
+  "campaign_id": "region-lod2-C01-30000",
+  "production_base_sha": "d3c0a64fa34749b6257f4f70254bcd931c8fec8c",
+  "contract": "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.contract.json",
+  "selection_policy": "deterministic_from_locked_planner_artifact",
+  "selection": {
+    "owner_count": 30000,
+    "owner_sequence_sha256": "19acf5707d4daba092a41c20ca780e337d06ee4648813fb2f259cc7f77c004f6",
+    "municipality_counts": {
+      "Anderlecht": 22143,
+      "Bruxelles": 7857
+    },
+    "distribution_count": 47,
+    "cell_count": 134,
+    "planner_group_count": 212,
+    "first_sequence_owner": "1656882",
+    "last_sequence_owner": "1636347"
+  },
+  "source_shards": {},
+  "campaign_metrics_status": "pending_measurement",
+  "campaign_metrics": null,
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "geometry_modified": false,
+  "semantic_names_authorized": false,
+  "game_world_transform_authorized": false,
+  "jouable_promotion_authorized": false,
+  "note": "30k immutable source campaign; exact owner list is deterministically regenerated from planner artifact 9371456570 whose SHA-256 is locked by the contract."
+}

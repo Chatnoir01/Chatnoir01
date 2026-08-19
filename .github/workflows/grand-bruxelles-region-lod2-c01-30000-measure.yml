@@ -1,0 +1,351 @@
+name: Grand Bruxelles Region LoD2 C01 30k Materialization Measure
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json"
+      - "grand-bruxelles-game/tools/qa/prepare_region_lod2_source_materialization.py"
+      - "grand-bruxelles-game/tools/qa/aggregate_region_lod2_source_materialization.py"
+      - "grand-bruxelles-game/tools/qa/download_locked_urbis_package.py"
+      - "grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard.py"
+      - "grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard_cached.py"
+      - ".github/workflows/grand-bruxelles-region-lod2-c01-30000-measure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Require exact measurement contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          contract = json.loads(Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json").read_text())
+          assert contract["campaign_id"] == "region-lod2-C01-30000"
+          assert contract["production_base_sha"] == "c3bbf44806da07ae5064fd89f48e52afb7ba1f6b"
+          assert contract["expected"]["source_materialization_index_sha256"] is None
+          assert contract["materialization"]["measurement_required_before_final_gate"] is True
+          assert contract["hard_rules"]["artifact_source_materialization_only"] is True
+          for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "game_world_transform_authorized", "jouable_promotion_authorized", "source_geometry_modified"]:
+              assert contract["hard_rules"][key] is False, key
+          print("C01_30K_MEASUREMENT_CONTRACT_OK")
+          PY
+
+      - name: RED - prove trickle transport is bounded
+        run: |
+          set -euo pipefail
+          python - <<'PY' >"$RUNNER_TEMP/slow-server.log" 2>&1 &
+          import time
+          from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+          class SlowHandler(BaseHTTPRequestHandler):
+              def log_message(self, *_args):
+                  pass
+
+              def do_GET(self):
+                  self.send_response(200)
+                  self.send_header("Content-Type", "application/octet-stream")
+                  self.send_header("Content-Length", str(1024 * 1024))
+                  self.end_headers()
+                  try:
+                      for _ in range(200):
+                          self.wfile.write(b"x" * 512)
+                          self.wfile.flush()
+                          time.sleep(0.2)
+                  except (BrokenPipeError, ConnectionResetError):
+                      pass
+
+          ThreadingHTTPServer(("127.0.0.1", 18765), SlowHandler).serve_forever()
+          PY
+          SLOW_PID=$!
+          trap 'kill "$SLOW_PID" 2>/dev/null || true' EXIT
+          sleep 0.5
+          START="$(date +%s)"
+          if python grand-bruxelles-game/tools/qa/download_locked_urbis_package.py \
+            --url http://127.0.0.1:18765/slow \
+            --allowed-host 127.0.0.1 \
+            --allow-http \
+            --output "$RUNNER_TEMP/slow.bin" \
+            --connect-timeout-seconds 1 \
+            --attempt-max-seconds 2 \
+            --slow-speed-bytes-per-second 1048576 \
+            --slow-speed-window-seconds 1 \
+            --retries 1; then
+            echo "RED gate unexpectedly accepted trickle connection" >&2
+            exit 1
+          fi
+          ELAPSED=$(( $(date +%s) - START ))
+          test "$ELAPSED" -lt 10
+          test ! -f "$RUNNER_TEMP/slow.bin"
+          kill "$SLOW_PID" 2>/dev/null || true
+          trap - EXIT
+          echo "C01_30K_BOUNDED_DOWNLOAD_RED_OK: elapsed=${ELAPSED}s"
+
+      - name: Download immutable C01 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380126488/zip" > "$RUNNER_TEMP/selection.zip"
+          echo "973f9f9a42b9deb17fd8bb8f9ff68beaa187b46caafb7561e3fdd99ca262b4dd  $RUNNER_TEMP/selection.zip" | sha256sum -c -
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380337311/zip" > "$RUNNER_TEMP/source-summary.zip"
+          echo "7fdbe4b6e9abb86fc773410ebb913e2dbe7c96634ef1b9497cdfef1e9ca11567  $RUNNER_TEMP/source-summary.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/selection.zip" -d "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/source-summary.zip" -d "$RUNNER_TEMP/evidence"
+          SELECTION="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.selection.json' -print -quit)"
+          SUMMARY="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.summary.json' -print -quit)"
+          test -f "$SELECTION" && test -f "$SUMMARY"
+          echo "SELECTION=$SELECTION" >> "$GITHUB_ENV"
+          echo "SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+
+      - name: RED - reject runtime-style materialization authorization
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          src = Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json")
+          payload = json.loads(src.read_text())
+          payload["hard_rules"]["artifact_source_materialization_only"] = False
+          bad = Path(os.environ["RUNNER_TEMP"]) / "bad-materialization-contract.json"
+          bad.write_text(json.dumps(payload))
+          PY
+          if python grand-bruxelles-game/tools/qa/prepare_region_lod2_source_materialization.py \
+            --selection "$SELECTION" \
+            --summary "$SUMMARY" \
+            --contract "$RUNNER_TEMP/bad-materialization-contract.json" \
+            --matrix-out "$RUNNER_TEMP/red-matrix.json" \
+            --cells-out "$RUNNER_TEMP/red-cells.csv"; then
+            echo "RED gate unexpectedly accepted non-artifact materialization" >&2
+            exit 1
+          fi
+          echo "C01_30K_RUNTIME_AUTH_RED_OK"
+
+      - name: GREEN - rebuild exact 47-shard / 132-cell plan
+        id: matrix
+        run: |
+          python grand-bruxelles-game/tools/qa/prepare_region_lod2_source_materialization.py \
+            --selection "$SELECTION" \
+            --summary "$SUMMARY" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json \
+            --matrix-out "$RUNNER_TEMP/materialization-matrix.json" \
+            --cells-out "$RUNNER_TEMP/materialization-cells.csv"
+          echo "matrix=$(cat "$RUNNER_TEMP/materialization-matrix.json")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-materialization-plan-measure
+          path: |
+            ${{ runner.temp }}/materialization-matrix.json
+            ${{ runner.temp }}/materialization-cells.csv
+          if-no-files-found: error
+
+  materialize-shards:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source reader dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely
+
+      - name: Download immutable C01 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380126488/zip" > "$RUNNER_TEMP/selection.zip"
+          echo "973f9f9a42b9deb17fd8bb8f9ff68beaa187b46caafb7561e3fdd99ca262b4dd  $RUNNER_TEMP/selection.zip" | sha256sum -c -
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380337311/zip" > "$RUNNER_TEMP/source-summary.zip"
+          echo "7fdbe4b6e9abb86fc773410ebb913e2dbe7c96634ef1b9497cdfef1e9ca11567  $RUNNER_TEMP/source-summary.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/selection.zip" -d "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/source-summary.zip" -d "$RUNNER_TEMP/evidence"
+          SELECTION="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.selection.json' -print -quit)"
+          SUMMARY="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.summary.json' -print -quit)"
+          test -f "$SELECTION" && test -f "$SUMMARY"
+          echo "SELECTION=$SELECTION" >> "$GITHUB_ENV"
+          echo "SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+
+      - name: Resolve exact locked source URL and SHA
+        env:
+          DISTRIBUTION_KEY: ${{ matrix.distribution_key }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          key = os.environ["DISTRIBUTION_KEY"]
+          summary = json.loads(Path(os.environ["SUMMARY"]).read_text())
+          shard = summary["source_shards"][key]
+          source = shard["source"]
+          url = source["distribution_url"]
+          digest = source["package_sha256"]
+          assert url.startswith("https://urbisdownload.datastore.brussels/")
+          assert isinstance(digest, str) and len(digest) == 64
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"LOCKED_URL={url}\n")
+              env.write(f"LOCKED_PACKAGE_SHA={digest}\n")
+          print(f"C01_30K_LOCKED_SOURCE_OK: key={key} sha256={digest}")
+          PY
+
+      - name: Download exact locked source package with bounded transport
+        run: |
+          python grand-bruxelles-game/tools/qa/download_locked_urbis_package.py \
+            --url "$LOCKED_URL" \
+            --expected-sha256 "$LOCKED_PACKAGE_SHA" \
+            --output "$RUNNER_TEMP/source-package.zip" \
+            --connect-timeout-seconds 20 \
+            --attempt-max-seconds 240 \
+            --slow-speed-bytes-per-second 1024 \
+            --slow-speed-window-seconds 30 \
+            --retries 4
+
+      - name: Materialize exact locked shard from verified local package
+        run: |
+          python grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard_cached.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --selection "$SELECTION" \
+            --summary "$SUMMARY" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json \
+            --distribution-key "${{ matrix.distribution_key }}" \
+            --package "$RUNNER_TEMP/source-package.zip" \
+            --output-root "$RUNNER_TEMP/materialized"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-measure-shard-${{ matrix.tile }}
+          path: ${{ runner.temp }}/materialized
+          if-no-files-found: error
+          compression-level: 6
+
+  aggregate:
+    needs: materialize-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download immutable C01 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380126488/zip" > "$RUNNER_TEMP/selection.zip"
+          echo "973f9f9a42b9deb17fd8bb8f9ff68beaa187b46caafb7561e3fdd99ca262b4dd  $RUNNER_TEMP/selection.zip" | sha256sum -c -
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380337311/zip" > "$RUNNER_TEMP/source-summary.zip"
+          echo "7fdbe4b6e9abb86fc773410ebb913e2dbe7c96634ef1b9497cdfef1e9ca11567  $RUNNER_TEMP/source-summary.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/selection.zip" -d "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/source-summary.zip" -d "$RUNNER_TEMP/evidence"
+          SELECTION="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.selection.json' -print -quit)"
+          SUMMARY="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.summary.json' -print -quit)"
+          test -f "$SELECTION" && test -f "$SUMMARY"
+          echo "SELECTION=$SELECTION" >> "$GITHUB_ENV"
+          echo "SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: region-lod2-c01-30000-measure-shard-*
+          path: ${{ runner.temp }}/shards
+          merge-multiple: true
+
+      - name: Merge 47 verified shards into 132 physical cells
+        run: |
+          python grand-bruxelles-game/tools/qa/aggregate_region_lod2_source_materialization.py \
+            --shards-root "$RUNNER_TEMP/shards" \
+            --selection "$SELECTION" \
+            --summary "$SUMMARY" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json \
+            --output-root "$RUNNER_TEMP/c01-source-materialized"
+
+      - name: Measure deterministic 30k cell index digest
+        id: digest
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          contract = json.loads(Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json").read_text())
+          path = Path(os.environ["RUNNER_TEMP"]) / "c01-source-materialized/source_materialization_index.json"
+          data = json.loads(path.read_text())
+          assert data["selection"]["owner_count"] == 30000
+          assert data["selection"]["spatial_cell_count"] == 132
+          assert data["selection"]["source_shard_count"] == 47
+          assert data["source_metrics"]["solid_count"] == 30944
+          assert data["source_metrics"]["face_count"] == 532211
+          assert data["source_metrics"]["point_count"] == 3273027
+          assert data["source_metrics"]["part_count"] == 534100
+          assert data["source_metrics"]["canonical_payload_bytes"] == 222598504
+          assert len(data["cells"]) == 132
+          assert contract["expected"]["source_materialization_index_sha256"] is None
+          assert contract["materialization"]["measurement_required_before_final_gate"] is True
+          for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "game_world_transform_authorized", "jouable_promotion_authorized", "source_geometry_modified"]:
+              assert data[key] is False, key
+          assert data["artifact_only"] is True
+          digest = hashlib.sha256(path.read_bytes()).hexdigest()
+          (path.parent / "source_materialization_index.sha256").write_text(digest + "\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"sha256={digest}\n")
+          print(f"REGION_LOD2_C01_30000_MEASURED: owners=30000 cells=132 faces=532211 index_sha256={digest}")
+          PY
+
+      - name: Publish measurement summary
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "c01-source-materialized"
+          data = json.loads((root / "source_materialization_index.json").read_text())
+          digest = (root / "source_materialization_index.sha256").read_text().strip()
+          largest = max(data["cells"].items(), key=lambda item: item[1]["owner_count"])
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("## C01 30k source materialization measurement\n\n")
+              handle.write(f"- Owners: **{data['selection']['owner_count']}**\n")
+              handle.write(f"- Physical cells: **{data['selection']['spatial_cell_count']}**\n")
+              handle.write(f"- Source shards: **{data['selection']['source_shard_count']}**\n")
+              handle.write(f"- BuildingFaces: **{data['source_metrics']['face_count']}**\n")
+              handle.write(f"- Source points: **{data['source_metrics']['point_count']}**\n")
+              handle.write(f"- Raw source bytes: **{data['source_metrics']['canonical_payload_bytes']}**\n")
+              handle.write(f"- Largest cell: **{largest[0]}**, {largest[1]['owner_count']} owners\n")
+              handle.write(f"- Measured index SHA-256: `{digest}`\n")
+              handle.write("- Runtime mount/collision/game-world transform: **not authorized**\n")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-source-materialization-measurement
+          path: ${{ runner.temp }}/c01-source-materialized
+          if-no-files-found: error
+          compression-level: 6

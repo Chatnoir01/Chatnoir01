@@ -94,9 +94,9 @@ func _run() -> void:
         return
 
     var metrics := {
-        "schema": "grand-bruxelles-makehuman-candidate-witness-v8",
+        "schema": "grand-bruxelles-makehuman-candidate-witness-v9",
         "production_authorized": false,
-        "diagnostic_mode": "art_v2_binary_fbx_patched_normal_indices",
+        "diagnostic_mode": "art_v3_binary_fbx_patched_normal_indices",
         "pose_mode": "distributed_shoulder_upperarm_review_pose",
         "lighting_mode": "neutral_low_energy_review",
         "resource": RESOURCE_PATH,

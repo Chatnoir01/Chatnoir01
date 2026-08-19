@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  measure-source-registry:
+  verify-source-registry:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -35,10 +35,54 @@ jobs:
             --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B03.source.ndjson" \
             --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B03.materialization.json"
 
-      - name: Upload B03 measurement proof
+      - name: Require exact locked B03 reproduction
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          registry = json.loads(Path(
+              "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B03.manifest.json"
+          ).read_text())
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "anderlecht_E145500_N169000_B03.materialization.json").read_text())
+
+          assert registry["runtime_authorized"] is False
+          assert registry["runtime_mount_authorized"] is False
+          assert registry["collision_authorized"] is False
+          assert registry["geometry_modified"] is False
+          assert report["runtime_authorized"] is False
+          assert report["runtime_mount_authorized"] is False
+          assert report["geometry_modified"] is False
+
+          for key in [
+              "revision", "package_sha256", "building_solids_shp_sha256",
+              "building_solids_dbf_sha256", "building_faces_shp_sha256",
+              "building_faces_dbf_sha256",
+          ]:
+              assert report["source"][key] == registry["source"][key], key
+
+          for key in [
+              "owner_count", "solid_count", "face_count", "point_count", "part_count",
+              "first_building_id", "last_building_id", "selected_owner_ids_sha256",
+              "face_type_counts",
+          ]:
+              assert report["selection"][key] == registry["selection"][key], key
+
+          assert report["output"]["bytes"] == registry["generated_payload"]["bytes"]
+          assert report["output"]["sha256"] == registry["generated_payload"]["sha256"]
+          print(
+              "ANDERLECHT_LOD2_B03_SOURCE_REGISTRY_OK: "
+              f"owners={report['selection']['owner_count']} solids={report['selection']['solid_count']} "
+              f"faces={report['selection']['face_count']} bytes={report['output']['bytes']} "
+              f"sha256={report['output']['sha256']}"
+          )
+          PY
+
+      - name: Upload B03 deterministic proof
         uses: actions/upload-artifact@v4
         with:
-          name: anderlecht-e145500-n169000-b03-source-measurement
+          name: anderlecht-e145500-n169000-b03-source-registry-proof
           path: |
             ${{ runner.temp }}/anderlecht_E145500_N169000_B03.source.ndjson
             ${{ runner.temp }}/anderlecht_E145500_N169000_B03.materialization.json

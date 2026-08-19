@@ -56,14 +56,20 @@ jobs:
           fi
           echo 'PYQT_XCB_RUNTIME_OK'
 
-      - name: Fetch pinned MakeHuman code and official CC0 system-assets ZIP
+      - name: Fetch pinned MakeHuman code and verified CC0 art packs
         shell: bash
         run: |
           set -euo pipefail
           MAKEHUMAN_COMMIT=a8bc2d54ff0ac92e78ff71431b1023eda42bf482
-          ASSET_PAGE=https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
-          ASSET_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
-          ASSET_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          SYSTEM_PAGE=https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
+          SYSTEM_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          SYSTEM_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          SHIRTS_PAGE=https://static.makehumancommunity.org/assets/assetpacks/shirts01.html
+          SHIRTS_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip
+          SHIRTS_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip
+          PANTS_PAGE=https://static.makehumancommunity.org/assets/assetpacks/pants01.html
+          PANTS_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/pants01/pants01_cc0.zip
+          PANTS_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/pants01/pants01_cc0.zip
 
           git clone --filter=blob:none https://github.com/makehumancommunity/makehuman.git /tmp/makehuman-src
           git -C /tmp/makehuman-src checkout "$MAKEHUMAN_COMMIT"
@@ -89,46 +95,88 @@ jobs:
           print('MAKEHUMAN_BINARY_NORMAL_INDEX_PATCH_OK')
           PY
 
-          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-system-assets.html "$ASSET_PAGE"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-system-assets.html "$SYSTEM_PAGE"
           grep -qi "makehuman_system_assets" /tmp/makehuman-system-assets.html
-          grep -qi "female_casualsuit01" /tmp/makehuman-system-assets.html
-          grep -qi "young_caucasian_female" /tmp/makehuman-system-assets.html
+          grep -qi "young_caucasian_female2" /tmp/makehuman-system-assets.html
           grep -qi "ponytail01" /tmp/makehuman-system-assets.html
-          grep -qi "shoes01" /tmp/makehuman-system-assets.html
+          grep -qi "shoes04" /tmp/makehuman-system-assets.html
           grep -qi "CC0" /tmp/makehuman-system-assets.html
 
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-shirts01.html "$SHIRTS_PAGE"
+          grep -qi "toigo_basic_tucked_t-shirt" /tmp/makehuman-shirts01.html
+          grep -qi "CC0" /tmp/makehuman-shirts01.html
+
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-pants01.html "$PANTS_PAGE"
+          grep -qi "cortu_cargo_pants" /tmp/makehuman-pants01.html
+          grep -qi "CC0" /tmp/makehuman-pants01.html
+
           if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
-              -o /tmp/makehuman_system_assets_cc0.zip "$ASSET_URL_PRIMARY"; then
+              -o /tmp/makehuman_system_assets_cc0.zip "$SYSTEM_URL_PRIMARY"; then
             curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
-              -o /tmp/makehuman_system_assets_cc0.zip "$ASSET_URL_FALLBACK"
+              -o /tmp/makehuman_system_assets_cc0.zip "$SYSTEM_URL_FALLBACK"
+          fi
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+              -o /tmp/shirts01_cc0.zip "$SHIRTS_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+              -o /tmp/shirts01_cc0.zip "$SHIRTS_URL_FALLBACK"
+          fi
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+              -o /tmp/pants01_cc0.zip "$PANTS_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+              -o /tmp/pants01_cc0.zip "$PANTS_URL_FALLBACK"
           fi
           test -s /tmp/makehuman_system_assets_cc0.zip
+          test -s /tmp/shirts01_cc0.zip
+          test -s /tmp/pants01_cc0.zip
           sha256sum /tmp/makehuman_system_assets_cc0.zip | tee /tmp/makehuman-assets-archive-sha256.txt
-          printf '%s\n%s\n%s\n' "$ASSET_PAGE" "$ASSET_URL_PRIMARY" "$ASSET_URL_FALLBACK" > /tmp/makehuman-assets-source-urls.txt
+          sha256sum /tmp/shirts01_cc0.zip | tee /tmp/makehuman-shirts01-archive-sha256.txt
+          sha256sum /tmp/pants01_cc0.zip | tee /tmp/makehuman-pants01-archive-sha256.txt
+          printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
+            "$SYSTEM_PAGE" "$SYSTEM_URL_PRIMARY" "$SYSTEM_URL_FALLBACK" \
+            "$SHIRTS_PAGE" "$SHIRTS_URL_PRIMARY" "$SHIRTS_URL_FALLBACK" \
+            "$PANTS_PAGE" "$PANTS_URL_PRIMARY" "$PANTS_URL_FALLBACK" \
+            > /tmp/makehuman-assets-source-urls.txt
 
-          rm -rf /tmp/makehuman-assets-unpacked
-          mkdir -p /tmp/makehuman-assets-unpacked
+          rm -rf /tmp/makehuman-assets-unpacked /tmp/makehuman-shirts-unpacked /tmp/makehuman-pants-unpacked
+          mkdir -p /tmp/makehuman-assets-unpacked /tmp/makehuman-shirts-unpacked /tmp/makehuman-pants-unpacked
           unzip -q /tmp/makehuman_system_assets_cc0.zip -d /tmp/makehuman-assets-unpacked
+          unzip -q /tmp/shirts01_cc0.zip -d /tmp/makehuman-shirts-unpacked
+          unzip -q /tmp/pants01_cc0.zip -d /tmp/makehuman-pants-unpacked
 
-          CLOTHING_PATH="$(find /tmp/makehuman-assets-unpacked -type f -name female_casualsuit01.mhclo -print -quit)"
-          test -n "$CLOTHING_PATH"
-          ASSET_BASE="$(python3 - "$CLOTHING_PATH" <<'PY'
+          SYSTEM_CLOTHING_PATH="$(find /tmp/makehuman-assets-unpacked -type f -name shoes04.mhclo -print -quit)"
+          test -n "$SYSTEM_CLOTHING_PATH"
+          SYSTEM_ASSET_BASE="$(python3 - "$SYSTEM_CLOTHING_PATH" <<'PY'
           import pathlib, sys
           p = pathlib.Path(sys.argv[1]).resolve()
           if p.parent.parent.name != 'clothes':
-              raise SystemExit(f'unexpected MakeHuman pack layout: {p}')
+              raise SystemExit(f'unexpected MakeHuman system pack layout: {p}')
           print(p.parent.parent.parent)
           PY
           )"
-          test -d "$ASSET_BASE/clothes"
-          rsync -a "$ASSET_BASE/" /tmp/makehuman-src/makehuman/data/
+          test -d "$SYSTEM_ASSET_BASE/clothes"
+          rsync -a "$SYSTEM_ASSET_BASE/" /tmp/makehuman-src/makehuman/data/
 
-          test -s /tmp/makehuman-src/makehuman/data/clothes/female_casualsuit01/female_casualsuit01.mhclo
-          test -s /tmp/makehuman-src/makehuman/data/clothes/shoes01/shoes01.mhclo
+          TOP_PATH="$(find /tmp/makehuman-shirts-unpacked -type f -name 'toigo_basic_tucked_t-shirt.mhclo' -print -quit)"
+          TROUSERS_PATH="$(find /tmp/makehuman-pants-unpacked -type f -name 'cortu_cargo_pants.mhclo' -print -quit)"
+          test -n "$TOP_PATH"
+          test -n "$TROUSERS_PATH"
+          cp -a "$(dirname "$TOP_PATH")" /tmp/makehuman-src/makehuman/data/clothes/
+          cp -a "$(dirname "$TROUSERS_PATH")" /tmp/makehuman-src/makehuman/data/clothes/
+
+          test -s "$(find /tmp/makehuman-src/makehuman/data/clothes -type f -name 'toigo_basic_tucked_t-shirt.mhclo' -print -quit)"
+          test -s "$(find /tmp/makehuman-src/makehuman/data/clothes -type f -name 'cortu_cargo_pants.mhclo' -print -quit)"
+          test -s /tmp/makehuman-src/makehuman/data/clothes/shoes04/shoes04.mhclo
           test -s /tmp/makehuman-src/makehuman/data/hair/ponytail01/ponytail01.mhclo
-          test -s /tmp/makehuman-src/makehuman/data/skins/young_caucasian_female/young_caucasian_female.mhmat
+          test -s /tmp/makehuman-src/makehuman/data/skins/young_caucasian_female2/young_caucasian_female2.mhmat
           test -s /tmp/makehuman-src/makehuman/data/rigs/default.mhskel
-          find /tmp/makehuman-src/makehuman/data/clothes/female_casualsuit01 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort | tee /tmp/makehuman-pilot-clothes-files.txt
+
+          {
+            echo "top=$TOP_PATH"
+            echo "trousers=$TROUSERS_PATH"
+            echo "shoes=/tmp/makehuman-src/makehuman/data/clothes/shoes04/shoes04.mhclo"
+            find "$(dirname "$TOP_PATH")" -maxdepth 1 -type f -printf 'top_file=%f %s bytes\n' | sort
+            find "$(dirname "$TROUSERS_PATH")" -maxdepth 1 -type f -printf 'trousers_file=%f %s bytes\n' | sort
+          } | tee /tmp/makehuman-pilot-clothes-files.txt
 
       - name: Generate one rigged authored civilian candidate
         shell: bash
@@ -145,9 +193,10 @@ jobs:
           cd /tmp/makehuman-src/makehuman
           timeout 300s xvfb-run -a python3 makehuman.py 2>&1 | tee /tmp/makehuman-candidate-generate.log
           grep -q "GB_MAKEHUMAN_CANDIDATE_OK" /tmp/makehuman-candidate-generate.log
-          grep -q "skin=young_caucasian_female.mhmat" /tmp/makehuman-candidate-generate.log
-          grep -q "clothes=female_casualsuit01.mhclo" /tmp/makehuman-candidate-generate.log
-          grep -q "shoes=shoes01.mhclo" /tmp/makehuman-candidate-generate.log
+          grep -q "skin=young_caucasian_female2.mhmat" /tmp/makehuman-candidate-generate.log
+          grep -q "top=toigo_basic_tucked_t-shirt.mhclo" /tmp/makehuman-candidate-generate.log
+          grep -q "trousers=cortu_cargo_pants.mhclo" /tmp/makehuman-candidate-generate.log
+          grep -q "shoes=shoes04.mhclo" /tmp/makehuman-candidate-generate.log
           grep -q "fbx_binary=true" /tmp/makehuman-candidate-generate.log
           if grep -q "GB_MAKEHUMAN_CANDIDATE_FAIL" /tmp/makehuman-candidate-generate.log; then exit 1; fi
           test -s /tmp/makehuman-output/FemalePilot.fbx
@@ -203,8 +252,9 @@ jobs:
           test -s /tmp/midi-makehuman-candidate_close.png
           test -s /tmp/midi-makehuman-candidate.metrics.json
           grep -q '"isolated_subviewport": true' /tmp/midi-makehuman-candidate.metrics.json
-          grep -q '"diagnostic_mode": "lit_binary_fbx_patched_normal_indices"' /tmp/midi-makehuman-candidate.metrics.json
-          grep -q '"pose_mode": "imported_rest_pose_no_bone_override"' /tmp/midi-makehuman-candidate.metrics.json
+          grep -q '"diagnostic_mode": "art_v2_binary_fbx_patched_normal_indices"' /tmp/midi-makehuman-candidate.metrics.json
+          grep -q '"pose_mode": "relaxed_shoulders_binary_rig"' /tmp/midi-makehuman-candidate.metrics.json
+          grep -q '"lighting_mode": "neutral_low_energy_review"' /tmp/midi-makehuman-candidate.metrics.json
 
       - name: Stage owner-review evidence
         if: always()
@@ -221,12 +271,16 @@ jobs:
           cp /tmp/makehuman-binary-normal-index-patch.txt "$OUT/binary_normal_index_patch.txt" 2>/dev/null || true
           cp /tmp/makehuman-code-commit.txt "$OUT/makehuman_code_commit.txt" 2>/dev/null || true
           cp /tmp/makehuman-assets-archive-sha256.txt "$OUT/makehuman_assets_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-shirts01-archive-sha256.txt "$OUT/shirts01_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-pants01-archive-sha256.txt "$OUT/pants01_archive_sha256.txt" 2>/dev/null || true
           cp /tmp/makehuman-assets-source-urls.txt "$OUT/makehuman_assets_source_urls.txt" 2>/dev/null || true
           cp /tmp/makehuman-system-assets.html "$OUT/makehuman_system_assets_listing.html" 2>/dev/null || true
+          cp /tmp/makehuman-shirts01.html "$OUT/shirts01_listing.html" 2>/dev/null || true
+          cp /tmp/makehuman-pants01.html "$OUT/pants01_listing.html" 2>/dev/null || true
           cp /tmp/makehuman-pilot-clothes-files.txt "$OUT/pilot_clothes_files.txt" 2>/dev/null || true
           cp /tmp/pyqt-qxcb-ldd.txt "$OUT/pyqt_qxcb_ldd.txt" 2>/dev/null || true
           cp /tmp/makehuman-src/LICENSE.md "$OUT/MAKEHUMAN_LICENSE_OVERVIEW.md" 2>/dev/null || true
-          printf '{"asset_pack":"makehuman_system_assets_cc0.zip","license":"CC0","production_authorized":false,"status":"candidate_review_only","fbx_mode":"binary","binary_normal_index_patch":true}\n' > "$OUT/authorization.json"
+          printf '{"asset_packs":["makehuman_system_assets_cc0.zip","shirts01_cc0.zip","pants01_cc0.zip"],"license":"CC0","production_authorized":false,"status":"candidate_review_only","fbx_mode":"binary","binary_normal_index_patch":true,"art_variant":"civilian_v2_neutral"}\n' > "$OUT/authorization.json"
 
       - name: Upload MakeHuman fidelity pilot
         if: always()

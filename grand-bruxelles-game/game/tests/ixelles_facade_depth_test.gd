@@ -1,6 +1,7 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
+const FACADE_DEPTH_RUNTIME := preload("res://game/scripts/ixelles_facade_depth_runtime.gd")
 const EXPECTED_FAMILY := "ixelles_authored_facade_depth_v1"
 const EXPECTED_BUILDINGS := 260
 const MIN_DIRECT_RECESS_PANELS := 320
@@ -23,16 +24,64 @@ func _expect(condition: bool, message: String) -> bool:
         return false
     return true
 
-func _max_local_z_scale(instance: MultiMeshInstance3D) -> float:
-    var multimesh := instance.multimesh
-    if multimesh == null or multimesh.instance_count <= 0:
+func _max_transform_local_z_scale(transforms: Array[Transform3D]) -> float:
+    if transforms.is_empty():
         return INF
     var maximum := 0.0
-    for index: int in range(multimesh.instance_count):
-        maximum = maxf(maximum, multimesh.get_instance_transform(index).basis.z.length())
+    for transform: Transform3D in transforms:
+        maximum = maxf(maximum, transform.basis.z.length())
     return maximum
 
+func _authored_transform_depth_probe() -> Dictionary:
+    # Axis-aligned source footprint intentionally covers both world X- and Z-facing
+    # walls. This catches accidental parent/global scaling while measuring the exact
+    # Transform3D objects emitted by the production builder before MultiMesh upload.
+    var ring := PackedVector2Array([
+        Vector2(0.0, 0.0),
+        Vector2(10.0, 0.0),
+        Vector2(10.0, 10.0),
+        Vector2(0.0, 10.0),
+    ])
+    var panel_transforms: Array[Transform3D] = []
+    var header_transforms: Array[Transform3D] = []
+    var jamb_transforms: Array[Transform3D] = []
+    FACADE_DEPTH_RUNTIME._build_feature_transforms(
+        ring,
+        8.0,
+        Callable(),
+        0.04,
+        panel_transforms,
+        header_transforms,
+        jamb_transforms
+    )
+    return {
+        "panel_count": panel_transforms.size(),
+        "header_count": header_transforms.size(),
+        "jamb_count": jamb_transforms.size(),
+        "panel_max_depth": _max_transform_local_z_scale(panel_transforms),
+        "header_max_depth": _max_transform_local_z_scale(header_transforms),
+        "jamb_max_depth": _max_transform_local_z_scale(jamb_transforms),
+    }
+
 func _run() -> void:
+    var depth_probe := _authored_transform_depth_probe()
+    if not _expect(int(depth_probe.get("panel_count", 0)) > 0, "authored transform depth probe emitted no panels"):
+        return
+    if not _expect(int(depth_probe.get("header_count", 0)) > 0, "authored transform depth probe emitted no headers"):
+        return
+    if not _expect(int(depth_probe.get("jamb_count", 0)) > 0, "authored transform depth probe emitted no jambs"):
+        return
+    var panel_max_depth := float(depth_probe.get("panel_max_depth", INF))
+    var header_max_depth := float(depth_probe.get("header_max_depth", INF))
+    var jamb_max_depth := float(depth_probe.get("jamb_max_depth", INF))
+    print("IXELLES_FACADE_DEPTH_AUTHORED_LOCAL_SCALE: panels=%.4f headers=%.4f jambs=%.4f" % [panel_max_depth, header_max_depth, jamb_max_depth])
+    if not _expect(panel_max_depth <= MAX_PANEL_LOCAL_DEPTH_M, "recess panel authored local depth exploded beyond 4 cm bound"):
+        return
+    if not _expect(header_max_depth <= MAX_FRAME_LOCAL_DEPTH_M, "header authored local depth exploded beyond 15 cm bound"):
+        return
+    if not _expect(jamb_max_depth <= MAX_FRAME_LOCAL_DEPTH_M, "jamb authored local depth exploded beyond 15 cm bound"):
+        return
+
     var main := MAIN_SCENE.instantiate()
     root.add_child(main)
     await process_frame
@@ -97,22 +146,11 @@ func _run() -> void:
     var panels := depth_root.get_node_or_null("RecessPanels") as MultiMeshInstance3D
     var headers := depth_root.get_node_or_null("Headers") as MultiMeshInstance3D
     var jambs := depth_root.get_node_or_null("Jambs") as MultiMeshInstance3D
-    if not _expect(panels != null, "batched recess panels missing"):
+    if not _expect(panels != null and panels.multimesh != null and panels.multimesh.instance_count > 0, "batched recess panels missing"):
         return
-    if not _expect(headers != null, "batched headers missing"):
+    if not _expect(headers != null and headers.multimesh != null and headers.multimesh.instance_count > 0, "batched headers missing"):
         return
-    if not _expect(jambs != null, "batched jambs missing"):
-        return
-
-    var panel_max_depth := _max_local_z_scale(panels)
-    var header_max_depth := _max_local_z_scale(headers)
-    var jamb_max_depth := _max_local_z_scale(jambs)
-    print("IXELLES_FACADE_DEPTH_LOCAL_SCALE: panels=%.4f headers=%.4f jambs=%.4f" % [panel_max_depth, header_max_depth, jamb_max_depth])
-    if not _expect(panel_max_depth <= MAX_PANEL_LOCAL_DEPTH_M, "recess panel local depth exploded beyond authored 4 cm bound"):
-        return
-    if not _expect(header_max_depth <= MAX_FRAME_LOCAL_DEPTH_M, "header local depth exploded beyond authored 15 cm bound"):
-        return
-    if not _expect(jamb_max_depth <= MAX_FRAME_LOCAL_DEPTH_M, "jamb local depth exploded beyond authored 15 cm bound"):
+    if not _expect(jambs != null and jambs.multimesh != null and jambs.multimesh.instance_count > 0, "batched jambs missing"):
         return
 
     var stassart := slice.get_node_or_null("Stassart124BlueStoneGroundFloor")
@@ -121,5 +159,5 @@ func _run() -> void:
     if not _expect(str(stassart.get_meta("source_building_id", "")) == STASSART_124_BUILDING_ID, "Stassart 124 source identity drifted"):
         return
 
-    print("IXELLES_FACADE_DEPTH_OK: zone=ixelles status=LABO buildings=%d direct_panels>=%d total_panels>=%d context_cells>=%d family=%s presentation_only=true renderer_only=true source_geometry_changed=false collision_changed=false surveyed_openings_claimed=false exact_depth_claimed=false polygon_side_test=true stassart124_preserved=true local_depth_bounded=true" % [EXPECTED_BUILDINGS, MIN_DIRECT_RECESS_PANELS, MIN_TOTAL_RECESS_PANELS, MIN_STREAMED_CONTEXT_CELLS, EXPECTED_FAMILY])
+    print("IXELLES_FACADE_DEPTH_OK: zone=ixelles status=LABO buildings=%d direct_panels>=%d total_panels>=%d context_cells>=%d family=%s presentation_only=true renderer_only=true source_geometry_changed=false collision_changed=false surveyed_openings_claimed=false exact_depth_claimed=false polygon_side_test=true stassart124_preserved=true authored_local_depth_bounded=true" % [EXPECTED_BUILDINGS, MIN_DIRECT_RECESS_PANELS, MIN_TOTAL_RECESS_PANELS, MIN_STREAMED_CONTEXT_CELLS, EXPECTED_FAMILY])
     quit(0)

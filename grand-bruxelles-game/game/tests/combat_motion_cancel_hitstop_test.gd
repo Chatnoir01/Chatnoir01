@@ -39,6 +39,9 @@ func _run() -> void:
     if dodge_source.find("move_and_collide(direction * DODGE_DISTANCE_M)") >= 0:
         _fail("dodge still teleports its full distance in a single physics call")
         return
+    if dodge_source.find("_apply_attack_mobility_damping") >= 0:
+        _fail("combat motion must scale controller speed before physics, not damp velocity after normal movement already happened")
+        return
 
     var world := Node3D.new()
     world.name = "CombatMotionV4World"
@@ -95,10 +98,12 @@ func _run() -> void:
         "_tick_attack_footwork",
         "combat_attack_lunge_m",
         "combat_attack_footwork_travelled_m",
-        "combat_attack_input_scale",
+        "_set_controller_speed_scale",
+        "combat_controller_base_walk_speed",
+        "combat_controller_base_sprint_speed",
     ]:
         if dodge_source.find(token) < 0:
-            _fail("physical combat motion runtime is missing token %s" % token)
+            _fail("physical dodge/footwork runtime is missing token %s" % token)
             return
 
     var windup_scale := MELEE_V4.combat_attack_input_scale(&"windup")
@@ -107,6 +112,10 @@ func _run() -> void:
     if active_scale <= 0.0 or active_scale >= windup_scale or windup_scale >= recovery_scale or recovery_scale >= 1.0:
         _fail("attack mobility scaling must commit hardest during active contact and recover progressively")
         return
+    for token: String in ["_apply_controller_speed_scale", "combat_controller_base_walk_speed", "combat_controller_base_sprint_speed", "combat_controller_speed_scale"]:
+        if melee_source.find(token) < 0:
+            _fail("V4 melee must apply phase mobility to the real player controller before physics: %s" % token)
+            return
 
     var dodge_hit_cancel := MELEE_V4.cancel_recovery_fraction(&"dodge", true)
     var dodge_whiff_cancel := MELEE_V4.cancel_recovery_fraction(&"dodge", false)
@@ -156,5 +165,5 @@ func _run() -> void:
         _fail("project is not running the V4 melee feel runtime")
         return
 
-    print("COMBAT_MOTION_CANCEL_HITSTOP_OK: azerty_conflict=green dodge_key=X dodge_ms=%d dodge_speed=%.2f incremental_step=%.3f physical_footwork=green late_cancel=green hitstop=[%s] local_only=green" % [DODGE.DODGE_DURATION_MS, dodge_speed, first_step, hitstop_values])
+    print("COMBAT_MOTION_CANCEL_HITSTOP_OK: azerty_conflict=green dodge_key=X dodge_ms=%d dodge_speed=%.2f incremental_step=%.3f controller_speed_contract=green physical_footwork=green late_cancel=green hitstop=[%s] local_only=green" % [DODGE.DODGE_DURATION_MS, dodge_speed, first_step, hitstop_values])
     quit(0)

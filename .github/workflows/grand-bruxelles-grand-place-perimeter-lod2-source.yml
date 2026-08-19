@@ -1,0 +1,62 @@
+name: Grand Bruxelles Grand-Place Perimeter LoD2 Source
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/qa/extract_grand_place_perimeter_lod2.py"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/*.game.json"
+      - "grand-bruxelles-game/data/qa/grand_place_perimeter_lod2_report.json"
+      - ".github/workflows/grand-bruxelles-grand-place-perimeter-lod2-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract-and-persist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pyshp
+        run: python -m pip install --disable-pip-version-check pyshp==2.3.1
+      - name: Extract exact official perimeter owners
+        shell: bash
+        run: |
+          set -o pipefail
+          python grand-bruxelles-game/tools/qa/extract_grand_place_perimeter_lod2.py 2>&1 | tee /tmp/grand-place-perimeter-lod2.log
+          grep -F "GRAND_PLACE_PERIMETER_LOD2_EXTRACT_OK" /tmp/grand-place-perimeter-lod2.log
+      - name: Persist exact source outputs on PR branch
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="grand-bruxelles-game/artifacts/qa/grand_place_perimeter_lod2"
+          dst="grand-bruxelles-game/data/urbis/grand_place_lod2"
+          mkdir -p "$dst" "grand-bruxelles-game/data/qa"
+          for id in 1608847 1608851 1611166 1613517 1635455 1637695 1645578 1647943 1653185; do
+            cp "$out/$id.game.json" "$dst/$id.game.json"
+          done
+          cp "$out/report.json" "grand-bruxelles-game/data/qa/grand_place_perimeter_lod2_report.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$dst" "grand-bruxelles-game/data/qa/grand_place_perimeter_lod2_report.json"
+          if git diff --cached --quiet; then
+            echo "Exact source files already persisted"
+            exit 0
+          fi
+          git commit -m "data(grand-place): persist official perimeter LoD2 owners"
+          git push origin "HEAD:${{ github.head_ref }}"
+      - name: Upload source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-perimeter-lod2-source
+          path: |
+            grand-bruxelles-game/artifacts/qa/grand_place_perimeter_lod2/*.json
+            /tmp/grand-place-perimeter-lod2.log
+          if-no-files-found: error

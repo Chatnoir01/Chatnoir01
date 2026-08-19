@@ -5,6 +5,7 @@ const ASSET_PATH := "res://game/scripts/brussels_street_lamp_asset.gd"
 const RUNTIME_PATH := "res://game/scripts/brussels_street_lamp_runtime.gd"
 const EXPECTED_COUNT := 8
 const EXPECTED_FAMILY := "brussels_street_lamp_v1"
+const EXPECTED_PRESENTATION_REVISION := 2
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -82,6 +83,14 @@ func _run() -> void:
         _fail("red-first witness: source-backed street lamp runtime missing")
         return
 
+    var asset_script := load(ASSET_PATH)
+    if asset_script == null or not "PRESENTATION_REVISION" in asset_script:
+        _fail("street lamp presentation revision 2 missing")
+        return
+    if int(asset_script.PRESENTATION_REVISION) != EXPECTED_PRESENTATION_REVISION:
+        _fail("street lamp presentation revision mismatch")
+        return
+
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
         _fail("production main scene missing")
@@ -111,5 +120,5 @@ func _run() -> void:
         _fail("runtime moved source positions")
         return
 
-    print("BRUSSELS_STREET_LAMP_OK: points=%d batches=%d family=%s source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("visual_batch_count")), EXPECTED_FAMILY])
+    print("BRUSSELS_STREET_LAMP_OK: points=%d batches=%d family=%s revision=%d source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("visual_batch_count")), EXPECTED_FAMILY, EXPECTED_PRESENTATION_REVISION])
     quit(0)

@@ -1,0 +1,225 @@
+name: Grand Bruxelles Region LoD2 C01 DTM Rigid Anchor Measurement
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json"
+      - "grand-bruxelles-game/tools/qa/audit_region_lod2_c01_dtm_rigid_anchor.py"
+      - ".github/workflows/grand-bruxelles-region-lod2-c01-dtm-rigid-anchor.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download exact locked C01 30k source materialization
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9386657484/zip" \
+            > "$RUNNER_TEMP/c01-source.zip"
+          echo "6d5358ed20ac100e091a9ebca38cd5da4f43c89f1741f7cbc236ad0b55b28601  $RUNNER_TEMP/c01-source.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/c01-source"
+          unzip -q "$RUNNER_TEMP/c01-source.zip" -d "$RUNNER_TEMP/c01-source"
+          INDEX="$(find "$RUNNER_TEMP/c01-source" -type f -name source_materialization_index.json -print -quit)"
+          test -n "$INDEX" && test -f "$INDEX"
+          echo "288ff7815900d1cb07e0980168b8375c024a18be02144275a63918ae991e17a3  $INDEX" | sha256sum -c -
+
+      - name: RED - reject any source vertex warping
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          src = Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json")
+          payload = json.loads(src.read_text())
+          payload["policy"]["source_vertex_warping_allowed"] = True
+          bad = Path(os.environ["RUNNER_TEMP"]) / "bad-warp.json"
+          bad.write_text(json.dumps(payload))
+          PY
+          if python grand-bruxelles-game/tools/qa/audit_region_lod2_c01_dtm_rigid_anchor.py prepare \
+            --source-root "$RUNNER_TEMP/c01-source" \
+            --contract "$RUNNER_TEMP/bad-warp.json" \
+            --output-dir "$RUNNER_TEMP/red-warp" \
+            --work-dir "$RUNNER_TEMP/red-warp-work"; then
+            echo "RED unexpectedly accepted source vertex warping" >&2
+            exit 1
+          fi
+          echo "C01_DTM_RED_WARP_OK"
+
+      - name: RED - reject premature final world Y authorization
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          src = Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json")
+          payload = json.loads(src.read_text())
+          payload["hard_rules"]["final_world_y_authorized"] = True
+          bad = Path(os.environ["RUNNER_TEMP"]) / "bad-world-y.json"
+          bad.write_text(json.dumps(payload))
+          PY
+          if python grand-bruxelles-game/tools/qa/audit_region_lod2_c01_dtm_rigid_anchor.py prepare \
+            --source-root "$RUNNER_TEMP/c01-source" \
+            --contract "$RUNNER_TEMP/bad-world-y.json" \
+            --output-dir "$RUNNER_TEMP/red-world-y" \
+            --work-dir "$RUNNER_TEMP/red-world-y-work"; then
+            echo "RED unexpectedly accepted final world Y authorization" >&2
+            exit 1
+          fi
+          echo "C01_DTM_RED_WORLD_Y_OK"
+
+      - name: GREEN - derive all ground samples and resolve official DTM sources
+        run: |
+          python grand-bruxelles-game/tools/qa/audit_region_lod2_c01_dtm_rigid_anchor.py prepare \
+            --source-root "$RUNNER_TEMP/c01-source" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json \
+            --output-dir "$RUNNER_TEMP/c01-dtm-prepare" \
+            --work-dir "$RUNNER_TEMP/c01-dtm-feed" \
+            --resolve-feed
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = json.loads((Path(os.environ["RUNNER_TEMP"]) / "c01-dtm-prepare/dtm_sample_plan.json").read_text())
+          assert p["owners"] == 30000
+          assert p["owners_with_ground"] == 30000
+          assert p["unique_ground_samples"] == 270619
+          assert p["dtm_tile_count"] == 48
+          assert p["runtime_authorized"] is False
+          assert p["final_world_y_authorized"] is False
+          print("C01_DTM_PREPARE_GREEN_OK: owners=30000 samples=270619 tiles=48")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-dtm-prepared-ground-samples
+          path: ${{ runner.temp }}/c01-dtm-prepare/*
+          if-no-files-found: error
+          compression-level: 9
+
+  sample-dtm:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        group: [0, 1, 2, 3, 4, 5, 6, 7]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install raster reader
+        run: python -m pip install --disable-pip-version-check rasterio
+      - uses: actions/download-artifact@v4
+        with:
+          name: region-lod2-c01-dtm-prepared-ground-samples
+          path: ${{ runner.temp }}/prepared
+      - name: Sample six official DTM tiles for this group
+        env:
+          GROUP: ${{ matrix.group }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/group-output" "$RUNNER_TEMP/group-work"
+          TILES="$(python - <<'PY'
+          import json, os
+          from pathlib import Path
+          plan = json.loads((Path(os.environ["RUNNER_TEMP"]) / "prepared/dtm_sample_plan.json").read_text())
+          group = int(os.environ["GROUP"])
+          tiles = [row["tile"] for i, row in enumerate(plan["dtm_tiles"]) if i % 8 == group]
+          assert len(tiles) == 6, tiles
+          print(" ".join(tiles))
+          PY
+          )"
+          echo "group=$GROUP tiles=$TILES"
+          for TILE in $TILES; do
+            python grand-bruxelles-game/tools/qa/audit_region_lod2_c01_dtm_rigid_anchor.py sample-tile \
+              --tile "$TILE" \
+              --samples "$RUNNER_TEMP/prepared/ground_samples.csv" \
+              --sources "$RUNNER_TEMP/prepared/dtm_sources.json" \
+              --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json \
+              --output-dir "$RUNNER_TEMP/group-output" \
+              --work-dir "$RUNNER_TEMP/group-work/$TILE"
+          done
+          test "$(find "$RUNNER_TEMP/group-output" -name 'residuals_*.csv' | wc -l)" -eq 6
+          test "$(find "$RUNNER_TEMP/group-output" -name 'dtm_evidence_*.json' | wc -l)" -eq 6
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-dtm-group-${{ matrix.group }}
+          path: ${{ runner.temp }}/group-output/*
+          if-no-files-found: error
+          compression-level: 9
+
+  aggregate:
+    needs: sample-dtm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: region-lod2-c01-dtm-group-*
+          path: ${{ runner.temp }}/dtm-shards
+          merge-multiple: true
+      - name: Aggregate 48 DTM tiles and evaluate rigid owner translations
+        run: |
+          python grand-bruxelles-game/tools/qa/audit_region_lod2_c01_dtm_rigid_anchor.py aggregate \
+            --input-dir "$RUNNER_TEMP/dtm-shards" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.dtm_rigid_anchor_measurement.json \
+            --output-dir "$RUNNER_TEMP/c01-dtm-result"
+      - name: Require exhaustive fail-closed result
+        run: |
+          python - <<'PY'
+          import csv, json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "c01-dtm-result"
+          report = json.loads((root / "dtm_rigid_anchor_measurement.json").read_text())
+          owners = json.loads((root / "rigid_anchor_selected_by_owner.json").read_text())
+          locks = json.loads((root / "dtm_tile_locks.json").read_text())
+          with (root / "rigid_anchor_selected_per_owner.csv").open(newline="") as f:
+              rows = list(csv.DictReader(f))
+          assert report["input"]["owners"] == 30000
+          assert report["input"]["unique_ground_samples"] == 270619
+          assert report["input"]["dtm_tile_count"] == 48
+          assert len(owners) == len(rows) == 30000
+          assert len(locks) == 48
+          assert len(report["candidates"]) == 6
+          assert report["selected_numerical_candidate"]["owner_count"] == 30000
+          assert report["selected_numerical_candidate"]["post_residual_m"]["abs_p95"] < report["input"]["baseline_vertex_abs_p95_m"]
+          for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "final_world_y_authorized", "terrain_runtime_authorized", "source_geometry_modified", "jouable_promotion_authorized"]:
+              assert report[key] is False, key
+          assert report["artifact_only"] is True
+          print(
+              "C01_DTM_AGGREGATE_GREEN_OK: "
+              f"q={report['selected_numerical_candidate']['quantile']:.2f} "
+              f"owners={len(owners)} samples={report['input']['unique_ground_samples']} "
+              f"baseline_p95={report['input']['baseline_vertex_abs_p95_m']:.6f} "
+              f"post_p95={report['selected_numerical_candidate']['post_residual_m']['abs_p95']:.6f}"
+          )
+          PY
+      - name: Publish measurement hashes
+        run: |
+          cd "$RUNNER_TEMP/c01-dtm-result"
+          sha256sum dtm_rigid_anchor_measurement.json rigid_anchor_selected_by_owner.json rigid_anchor_selected_per_owner.csv dtm_tile_locks.json | tee result.sha256
+          cat result.sha256 >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-dtm-rigid-anchor-measurement
+          path: ${{ runner.temp }}/c01-dtm-result/*
+          if-no-files-found: error
+          compression-level: 9

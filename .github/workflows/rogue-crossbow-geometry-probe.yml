@@ -1,0 +1,51 @@
+name: Rogue Crossbow Geometry Probe
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/rogue-crossbow-geometry-probe.yml"
+      - "grand-bruxelles-game/assets/characters/player_character.glb"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: macos-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare native crossbow mesh bounds
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, math, pathlib, struct
+          path = pathlib.Path('grand-bruxelles-game/assets/characters/player_character.glb')
+          data = path.read_bytes()
+          magic, version, total_len = struct.unpack_from('<III', data, 0)
+          assert magic == 0x46546C67 and version == 2
+          chunk_len, chunk_type = struct.unpack_from('<II', data, 12)
+          assert chunk_type == 0x4E4F534A
+          doc = json.loads(data[20:20+chunk_len].decode('utf-8').rstrip('\x00 \t\r\n'))
+          nodes = doc['nodes']; meshes = doc['meshes']; accessors = doc['accessors']
+          wanted = {'1H_Crossbow','2H_Crossbow'}
+          result = {}
+          for node in nodes:
+              name = node.get('name','')
+              if name not in wanted:
+                  continue
+              mesh = meshes[node['mesh']]
+              prim = mesh['primitives'][0]
+              acc = accessors[prim['attributes']['POSITION']]
+              lo = list(map(float, acc.get('min', [0,0,0])))
+              hi = list(map(float, acc.get('max', [0,0,0])))
+              ext = [hi[i]-lo[i] for i in range(3)]
+              diag = math.sqrt(sum(v*v for v in ext))
+              result[name] = {'min': lo, 'max': hi, 'extent': ext, 'diag': diag, 'vertices': int(acc.get('count',0))}
+              print(f'CROSSBOW_GEOMETRY {name}: extent={ext} diag={diag:.4f} vertices={acc.get("count",0)}')
+          assert set(result) == wanted, result
+          a=result['1H_Crossbow']; b=result['2H_Crossbow']
+          ratio = b['diag']/max(a['diag'],1e-9)
+          print(f'CROSSBOW_GEOMETRY_OK: 2H_to_1H_diag_ratio={ratio:.3f} one={a} two={b}')
+          PY

@@ -1,0 +1,52 @@
+name: Grand Bruxelles Rogue Crossbow 2H Windows Probe
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-rogue-crossbow-2h-windows-probe.yml"
+      - "grand-bruxelles-game/game/tests/rogue_native_crossbow_2h_visual_probe_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rogue-crossbow-2h-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-probe:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_win64.exe.zip" -OutFile "$env:RUNNER_TEMP\godot.zip"
+          Expand-Archive "$env:RUNNER_TEMP\godot.zip" -DestinationPath "$env:RUNNER_TEMP\godot" -Force
+          $godot = (Resolve-Path "$env:RUNNER_TEMP\godot\Godot_v4.7.1-stable_win64_console.exe").Path
+          "GODOT_BIN=$godot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Import and parse project
+        shell: pwsh
+        run: |
+          & "$env:GODOT_BIN" --headless --path grand-bruxelles-game --editor --quit 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\crossbow-win-import.log"
+          $text = Get-Content "$env:RUNNER_TEMP\crossbow-win-import.log" -Raw
+          if ($text -match 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script') { exit 1 }
+      - name: Capture 1H vs 2H A/B
+        shell: pwsh
+        run: |
+          & "$env:GODOT_BIN" --path grand-bruxelles-game --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/rogue_native_crossbow_2h_visual_probe_test.gd 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\crossbow-win-visual.log"
+          $text = Get-Content "$env:RUNNER_TEMP\crossbow-win-visual.log" -Raw
+          if ($text -match 'SCRIPT ERROR|Parse Error:|ROGUE_CROSSBOW_2H_PROBE_FAIL') { exit 1 }
+          if ($text -notmatch 'ROGUE_CROSSBOW_2H_PROBE_OK') { exit 1 }
+          if (-not (Test-Path 'grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe/crossbow_1h.png')) { exit 1 }
+          if (-not (Test-Path 'grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe/crossbow_2h.png')) { exit 1 }
+          Copy-Item "$env:RUNNER_TEMP\crossbow-win-import.log" 'grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe/import-windows.log'
+          Copy-Item "$env:RUNNER_TEMP\crossbow-win-visual.log" 'grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe/visual-windows.log'
+      - name: Upload Windows A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rogue-crossbow-1h-vs-2h-windows
+          path: grand-bruxelles-game/artifacts/qa/rogue_crossbow_2h_probe
+          if-no-files-found: error

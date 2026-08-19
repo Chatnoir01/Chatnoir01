@@ -214,8 +214,7 @@ func _material(color: Color, roughness: float) -> StandardMaterial3D:
     return mat
 
 func _world(u: float, y: float, depth: float = RELIEF_DEPTH) -> Vector3:
-    var plane_origin := front_plane_point - front_tangent * front_plane_point.dot(front_tangent)
-    return plane_origin + front_tangent * u + Vector3.UP * y + front_normal * depth
+    return front_plane_point + front_tangent * (u - front_plane_point.dot(front_tangent)) + Vector3.UP * (y - front_plane_point.y) + front_normal * depth
 
 func _add_box(name_value: String, u: float, y: float, width: float, height: float, depth: float, mat: Material) -> void:
     var mesh := BoxMesh.new()
@@ -224,8 +223,8 @@ func _add_box(name_value: String, u: float, y: float, width: float, height: floa
     node.name = name_value
     node.mesh = mesh
     node.material_override = mat
-    node.global_position = _world(u, y, RELIEF_DEPTH + depth * 0.5)
-    node.global_basis = Basis(front_tangent, Vector3.UP, front_normal)
+    node.position = _world(u, y, RELIEF_DEPTH + depth * 0.5)
+    node.basis = Basis(front_tangent, Vector3.UP, front_normal)
     _feature_root.add_child(node)
     feature_count += 1
 

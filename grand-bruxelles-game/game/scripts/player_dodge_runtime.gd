@@ -27,8 +27,8 @@ func _physics_process(delta: float) -> void:
     var player := _current_player()
     if player == null or not is_instance_valid(player):
         return
-    var dodge_active := int(player.get_meta("combat_dodge_motion_until_ms", 0)) > Time.get_ticks_msec()
-    if dodge_active:
+    var dodge_motion_active := bool(player.get_meta("combat_dodge_motion_active", false))
+    if dodge_motion_active:
         _tick_dodge_motion(player, delta)
         return
     _tick_attack_footwork(player, delta)
@@ -141,6 +141,7 @@ func _tick_dodge_motion(player: CharacterBody3D, delta: float) -> void:
     var now := Time.get_ticks_msec()
     var until_ms := int(player.get_meta("combat_dodge_motion_until_ms", 0))
     if until_ms <= 0:
+        _finish_dodge_motion(player, false)
         return
     if now >= until_ms:
         _finish_dodge_motion(player, false)

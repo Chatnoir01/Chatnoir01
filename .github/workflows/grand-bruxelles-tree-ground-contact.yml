@@ -1,0 +1,52 @@
+name: Grand Bruxelles Shared Tree Ground Contact
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-tree-ground-contact.yml"
+      - "grand-bruxelles-game/game/scripts/brussels_street_tree_asset.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_corridor_tree_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_tree_ground_contact_visual_test.gd"
+      - "grand-bruxelles-game/tests/test_brussels_tree_ground_contact.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tree-ground-contact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Require source-safe shared tree ground contact
+        run: python grand-bruxelles-game/tests/test_brussels_tree_ground_contact.py
+      - name: Install display dependencies
+        if: success()
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        if: success()
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        if: success()
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Prove normal-player tree ground-contact impact
+        if: success()
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_tree_ground_contact_visual_test.gd
+      - name: Upload player A/B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-tree-ground-contact-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/brussels_tree_ground_contact_before.png
+            grand-bruxelles-game/artifacts/visual/brussels_tree_ground_contact_after.png
+          if-no-files-found: warn

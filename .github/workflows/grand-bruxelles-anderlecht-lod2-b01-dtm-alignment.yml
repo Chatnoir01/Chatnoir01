@@ -1,0 +1,103 @@
+name: Grand Bruxelles Anderlecht LoD2 B01 DTM Alignment
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.dtm_alignment.json"
+      - "grand-bruxelles-game/tools/qa/audit_urbis_lod2_dtm_alignment.py"
+      - ".github/workflows/grand-bruxelles-anderlecht-lod2-b01-dtm-alignment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure-dtm-alignment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source and raster dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely rasterio
+
+      - name: Regenerate immutable B01 official LoD2 source
+        run: |
+          python grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --registry grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.manifest.json \
+            --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source.ndjson" \
+            --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source_report.json"
+
+      - name: Measure official ground-face vs DTM residuals
+        run: |
+          python grand-bruxelles-game/tools/qa/audit_urbis_lod2_dtm_alignment.py \
+            --source "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source.ndjson" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.dtm_alignment.json \
+            --output-dir "$RUNNER_TEMP/anderlecht_b01_dtm_alignment" \
+            --work-dir "$RUNNER_TEMP/anderlecht_b01_dtm_work"
+
+      - name: Require measurement-only fail-closed state
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "anderlecht_b01_dtm_alignment/dtm_alignment_report.json").read_text())
+          assert report["source_counts"]["owners"] == 250
+          assert report["source_counts"]["solids"] == 251
+          assert report["source_counts"]["faces"] == 4195
+          assert report["source_counts"]["ground_faces"] == 251
+          assert report["source_counts"]["unique_ground_vertices"] > 0
+          assert report["dtm"]["tiles"] == ["145168", "145169", "146168", "146169"]
+          assert report["dtm"]["resolution_m"] == 0.5
+          assert report["interpretation"]["authorization_threshold"] is None
+          assert report["interpretation"]["vertical_datum_compatible"] is None
+          assert report["runtime_authorized"] is False
+          assert report["runtime_mount_authorized"] is False
+          assert report["collision_authorized"] is False
+          assert report["final_world_y_authorized"] is False
+          assert report["terrain_runtime_authorized"] is False
+          assert report["artifact_only"] is True
+          print("ANDERLECHT_LOD2_B01_DTM_MEASUREMENT_FAIL_CLOSED_OK")
+          PY
+
+      - name: Publish DTM alignment summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "anderlecht_b01_dtm_alignment/dtm_alignment_report.json").read_text())
+          v = report["vertex_residual_source_minus_dtm_m"]
+          o = report["owner_median_residual_m"]
+          lines = [
+              "## Anderlecht B01 official LoD2 ↔ DTM measurement",
+              "",
+              f"- Ground-face samples: **{v['count']:,}**",
+              f"- Signed residual median: **{v['median']:.4f} m**",
+              f"- Vertex |residual| p50/p90/p95/p99: **{v['abs_p50']:.4f} / {v['abs_p90']:.4f} / {v['abs_p95']:.4f} / {v['abs_p99']:.4f} m**",
+              f"- Vertex max |residual|: **{v['abs_max']:.4f} m**",
+              f"- Owner-median |residual| p50/p90/p95: **{o['abs_p50']:.4f} / {o['abs_p90']:.4f} / {o['abs_p95']:.4f} m**",
+              f"- Owners measured: **{o['count']:,} / 250**",
+              "",
+              "Measurement only. No threshold was chosen and final world Y remains unauthorized.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+
+      - name: Upload complete vertical evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anderlecht-e145500-n169000-b01-dtm-alignment
+          path: |
+            ${{ runner.temp }}/anderlecht_E145500_N169000_B01.source_report.json
+            ${{ runner.temp }}/anderlecht_b01_dtm_alignment/*
+          if-no-files-found: error

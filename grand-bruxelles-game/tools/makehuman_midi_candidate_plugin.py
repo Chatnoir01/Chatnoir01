@@ -30,19 +30,21 @@ def _repair_ascii_texture_connection_channels(filepath):
     """Repair the pinned MakeHuman ASCII FBX writer's Python-3 byte-channel output.
 
     Run #23 proved ASCII FBX fixed the earlier normal-index corruption: Godot/ufbx
-    imported the candidate with zero `Clamped index` warnings. The same run also
-    exposed the next independent defect: seven material surfaces imported, but zero
-    textures were attached.
+    imported the candidate with zero `Clamped index` warnings. The same run exposed
+    the next independent defect: seven material surfaces imported, but zero textures
+    were attached.
 
     Upstream `fbx_material.writeLinks()` passes channel names such as
     ``b"DiffuseColor"`` into `fbx_utils.opLink()`. The ASCII `opLink()` formats that
     value with ``%s``. Under Python 3 the FBX therefore receives the literal property
     name ``b'DiffuseColor'`` instead of ``DiffuseColor``. ufbx/Godot can still create
-    the material objects but cannot attach those textures to the intended properties.
+    material objects but cannot attach those textures to the intended properties.
 
     Repair only OP connection property names in the generated review FBX. Geometry,
     vertex/normal indices, UVs, rig, material identities and texture paths are left
-    byte-for-byte untouched outside those connection lines.
+    byte-for-byte untouched outside those connection lines. The candidate remains
+    review-only and fail-closed until Godot reports >=4 textured surfaces and the
+    resulting player-distance PNG receives a human visual verdict.
     """
     with open(filepath, "r", encoding="utf-8") as handle:
         text = handle.read()
@@ -68,13 +70,10 @@ def _repair_ascii_texture_connection_channels(filepath):
         if 'C: "OP"' in line and '"DiffuseColor"' in line
     )
     if diffuse_links < 4:
-        raise RuntimeError(
-            "MakeHuman ASCII FBX repaired too few diffuse texture links: %d" % diffuse_links
-        )
+        raise RuntimeError("MakeHuman ASCII FBX repaired too few diffuse texture links: %d" % diffuse_links)
 
     with open(filepath, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(repaired_text)
-
     return repaired_count, diffuse_links
 
 
@@ -82,7 +81,6 @@ def _run(app):
     try:
         api = app.mhapi
         human = gui3d.app.selectedHuman
-
         human.setGender(0.0)
         human.setAgeYears(34)
         human.setWeight(0.48)
@@ -92,13 +90,11 @@ def _run(app):
 
         skin = _pick_exact(api.assets.getAvailableSystemSkins(), "young_caucasian_female.mhmat")
         human.material = material.fromFile(skin)
-
         casual = _pick_exact(api.assets.getAvailableSystemClothes(), "female_casualsuit01.mhclo")
         shoes = _pick_exact(api.assets.getAvailableSystemClothes(), "shoes01.mhclo")
         api.assets.unequipAllClothes()
         api.assets.equipClothes(casual)
         api.assets.equipClothes(shoes)
-
         hair = _pick_exact(api.assets.getAvailableSystemHair(), "ponytail01.mhclo")
         api.assets.equipHair(hair)
         eyebrows = _pick_exact(api.assets.getAvailableSystemEyebrows(), "eyebrow004.mhclo")
@@ -119,7 +115,6 @@ def _run(app):
         exporter = api.exports.getFBXExporter()
         if exporter is None:
             raise RuntimeError("MakeHuman FBX exporter is unavailable")
-
         if not hasattr(exporter, "binary"):
             raise RuntimeError("MakeHuman FBX exporter Binary FBX control is unavailable")
         exporter.binary.setChecked(False)
@@ -132,10 +127,7 @@ def _run(app):
             raise RuntimeError("MakeHuman FBX export missing or implausibly small: %s" % OUTPUT_FBX)
 
         repaired_channels, diffuse_links = _repair_ascii_texture_connection_channels(OUTPUT_FBX)
-        print(
-            "GB_MAKEHUMAN_ASCII_TEXTURE_LINKS_OK repaired=%d diffuse_links=%d"
-            % (repaired_channels, diffuse_links)
-        )
+        print("GB_MAKEHUMAN_ASCII_TEXTURE_LINKS_OK repaired=%d diffuse_links=%d" % (repaired_channels, diffuse_links))
         print(
             "GB_MAKEHUMAN_CANDIDATE_OK output=%s bytes=%d height_cm=%.2f skin=%s hair=%s clothes=%s shoes=%s fbx_binary=false"
             % (

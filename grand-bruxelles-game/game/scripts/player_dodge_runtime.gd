@@ -6,11 +6,13 @@ const DODGE_DURATION_MS := 220
 const DODGE_COOLDOWN_MS := 780
 const DODGE_EVADE_WINDOW_MS := 260
 const DODGE_MIN_EFFECTIVE_M := 0.22
+const COMBAT_PHYSICS_PRIORITY := 100
 
 var _feedback_label: Label = null
 var _feedback_hide_ms := 0
 
 func _ready() -> void:
+    process_physics_priority = COMBAT_PHYSICS_PRIORITY
     set_process(true)
     set_physics_process(true)
     set_process_input(true)

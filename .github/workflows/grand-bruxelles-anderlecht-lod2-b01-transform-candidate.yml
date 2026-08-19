@@ -1,0 +1,109 @@
+name: Grand Bruxelles Anderlecht LoD2 B01 Transform Candidate
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.transform_candidate.json"
+      - "grand-bruxelles-game/tools/qa/build_urbis_lod2_transform_candidate.py"
+      - ".github/workflows/grand-bruxelles-anderlecht-lod2-b01-transform-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  transform-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source reader dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely
+
+      - name: Regenerate immutable B01 official source
+        run: |
+          python grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --registry grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.manifest.json \
+            --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source.ndjson" \
+            --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source_report.json"
+
+      - name: Build artifact-only transform candidate
+        run: |
+          python grand-bruxelles-game/tools/qa/build_urbis_lod2_transform_candidate.py \
+            --source "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source.ndjson" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.transform_candidate.json \
+            --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.transform_candidate.ndjson" \
+            --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.transform_report.json"
+
+      - name: Require horizontal exactness and unresolved final Y
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"])
+          report = json.loads((root / "anderlecht_E145500_N169000_B01.transform_report.json").read_text())
+          assert report["runtime_authorized"] is False
+          assert report["runtime_mount_authorized"] is False
+          assert report["collision_authorized"] is False
+          assert report["final_world_y_authorized"] is False
+          assert report["artifact_only"] is True
+          assert report["source_sha256"] == "516a174a97b9c6009aeb3f14759d53e34c0883a5e0fc9452fe9172d627c5c3ec"
+          assert report["owner_vertical_evidence"]["owner_count"] == 250
+          candidate = report["candidate"]
+          assert candidate["candidate_extent"]["min_local_y"] == 0.0
+          assert candidate["max_plan_quantization_error_m"] <= 0.000500000001
+          assert candidate["max_local_y_quantization_error_m"] <= 0.000500000001
+          assert candidate["vertical_candidate"]["terrain_alignment_required"] is True
+          assert candidate["vertical_candidate"]["final_world_y_authorized"] is False
+          print(
+              "ANDERLECHT_LOD2_B01_TRANSFORM_CANDIDATE_OK: "
+              f"x={candidate['candidate_extent']['min_world_x']}..{candidate['candidate_extent']['max_world_x']} "
+              f"z={candidate['candidate_extent']['min_world_z']}..{candidate['candidate_extent']['max_world_z']} "
+              "final_world_y_authorized=false"
+          )
+          PY
+
+      - name: Publish transform summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "anderlecht_E145500_N169000_B01.transform_report.json").read_text())
+          c = report["candidate"]
+          v = report["owner_vertical_evidence"]
+          e = c["candidate_extent"]
+          lines = [
+              "## Anderlecht B01 LoD2 transform candidate",
+              "",
+              f"- World X extent: **{e['min_world_x']} → {e['max_world_x']} m**",
+              f"- World Z extent: **{e['min_world_z']} → {e['max_world_z']} m**",
+              f"- Source Z: **{report['source']['source_extent']['min_z']} → {report['source']['source_extent']['max_z']} m**",
+              f"- Owner heights: **{v['min_owner_height_m']:.3f} → {v['max_owner_height_m']:.3f} m** (median {v['median_owner_height_m']:.3f} m)",
+              f"- Max X/Z quantization error: **{c['max_plan_quantization_error_m']:.6f} m**",
+              f"- Max local-Y quantization error: **{c['max_local_y_quantization_error_m']:.6f} m**",
+              "",
+              "Final world Y remains UNAUTHORIZED pending official terrain/datum alignment. No runtime mount or collisions.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+
+      - name: Upload transform candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anderlecht-e145500-n169000-b01-transform-candidate
+          path: |
+            ${{ runner.temp }}/anderlecht_E145500_N169000_B01.source_report.json
+            ${{ runner.temp }}/anderlecht_E145500_N169000_B01.transform_candidate.ndjson
+            ${{ runner.temp }}/anderlecht_E145500_N169000_B01.transform_report.json
+          if-no-files-found: error

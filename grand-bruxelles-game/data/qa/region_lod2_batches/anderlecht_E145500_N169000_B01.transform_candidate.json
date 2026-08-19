@@ -1,0 +1,45 @@
+{
+  "schema": "grand-bruxelles-urbis-lod2-transform-candidate-v1",
+  "batch_id": "anderlecht-E145500_N169000-B01",
+  "production_base_sha": "183d8a5ae361105ff55e57d156b8443a9c3ffab3",
+  "source_registry": "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.manifest.json",
+  "source_crs": "EPSG:31370",
+  "horizontal_transform": {
+    "provenance": "same global Lambert72-to-current-game-world anchor used by zone-reste-bruxelles-clean/tools/make_urbis_cell_runtime.py",
+    "lambert_origin_e": 147868.29422791934,
+    "lambert_origin_n": 169538.62414926197,
+    "world_anchor_x": -668.5,
+    "world_anchor_z": 627.84,
+    "formula_world_x": "source_e - lambert_origin_e + world_anchor_x",
+    "formula_world_z": "-(source_n - lambert_origin_n) + world_anchor_z",
+    "runtime_quantization_decimals": 3,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres"
+  },
+  "vertical_candidate": {
+    "source_z_preserved": true,
+    "owner_base_source_z": "minimum official source Z among all selected owner face vertices",
+    "local_y_formula": "source_z - owner_base_source_z",
+    "runtime_quantization_decimals": 3,
+    "final_world_y_authorized": false,
+    "terrain_alignment_required": true,
+    "note": "local_y preserves each owner's LoD2 shape but is not a final terrain-mounted world Y. Absolute vertical placement requires a separate official terrain/datum gate."
+  },
+  "expected_source": {
+    "owners": 250,
+    "solids": 251,
+    "faces": 4195,
+    "points": 26027,
+    "parts": 4200,
+    "source_payload_sha256": "516a174a97b9c6009aeb3f14759d53e34c0883a5e0fc9452fe9172d627c5c3ec"
+  },
+  "hard_rules": {
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "final_world_y_authorized": false,
+    "source_geometry_modified": false,
+    "semantic_names_authorized": false,
+    "artifact_only": true
+  }
+}

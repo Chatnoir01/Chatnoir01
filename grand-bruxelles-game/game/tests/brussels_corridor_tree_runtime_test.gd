@@ -10,6 +10,9 @@ const EXPECTED_RUNTIME_TREE_COUNT := 266
 const POSITION_EPSILON_M := 0.0005
 
 func _init() -> void:
+    call_deferred("_run")
+
+func _run() -> void:
     var failures: Array[String] = []
     if not FileAccess.file_exists(ASSET_PATH): failures.append("reusable Brussels street-tree asset missing")
     if not FileAccess.file_exists(RUNTIME_PATH): failures.append("red-first witness: corridor tree runtime missing")
@@ -31,11 +34,17 @@ func _init() -> void:
     if failures.is_empty():
         var runtime_script: Script = load(RUNTIME_PATH) as Script
         var scene := Node3D.new(); scene.name = "TreeContractScene"; root.add_child(scene)
+        var roads := Node3D.new(); roads.name = "GeneratedRoads"; scene.add_child(roads)
         var runtime: Node = runtime_script.new() as Node if runtime_script != null else null
-        if runtime == null: failures.append("corridor tree runtime failed to instantiate")
+        if runtime == null:
+            failures.append("corridor tree runtime failed to instantiate")
         else:
-            root.add_child(runtime); runtime.call("bind_scene", scene)
-            if bool(runtime.call("failed")): failures.append("runtime reported failure")
+            root.add_child(runtime)
+            for _frame: int in range(12):
+                if bool(runtime.call("ready_complete")): break
+                await process_frame
+            if not bool(runtime.call("ready_complete")): failures.append("runtime did not auto-bind from SceneTree root")
+            elif bool(runtime.call("failed")): failures.append("runtime reported failure during automatic binding")
             if int(runtime.call("tree_count")) != EXPECTED_RUNTIME_TREE_COUNT: failures.append("runtime tree count mismatch")
             if int(runtime.call("total_source_tree_count")) != EXPECTED_SOURCE_TREE_COUNT: failures.append("runtime total-source count mismatch")
             if int(runtime.call("preowned_tree_count")) != EXPECTED_PREOWNED_TREE_COUNT: failures.append("runtime preowned count mismatch")
@@ -53,7 +62,7 @@ func _init() -> void:
             if bool(runtime.call("claims_species")) or bool(runtime.call("claims_measured_dimensions")): failures.append("runtime made unsupported species/dimension claim")
             runtime.queue_free()
         scene.queue_free()
-    if failures.is_empty(): print("BRUSSELS_CORRIDOR_TREES_OK: source=273 Anneessens_owned=7 shared_runtime=266 union=273 batches=3 source=OSM license=ODbL-1.0"); quit(0)
+    if failures.is_empty(): print("BRUSSELS_CORRIDOR_TREES_OK: source=273 Anneessens_owned=7 shared_runtime=266 union=273 batches=3 autobind=root_discovery source=OSM license=ODbL-1.0"); quit(0)
     for failure: String in failures: push_error("BRUSSELS_CORRIDOR_TREES_FAIL: %s" % failure)
     quit(1)
 

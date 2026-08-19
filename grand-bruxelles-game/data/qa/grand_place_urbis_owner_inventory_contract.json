@@ -1,0 +1,39 @@
+{
+  "schema": "grand-bruxelles-grand-place-urbis-owner-inventory-v1",
+  "status": "evidence_only",
+  "base_main": "0807581e4a711d21b535a7def66f089da037a2f4",
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "dataset": "UrbIS - 3D Constructions",
+    "dataset_id": "e9ec2aa4-cffd-11ee-bccc-00090ffe0001",
+    "package_url": "https://urbisdownload.datastore.brussels/UrbIS/Vector/M8/UrbIS-Buildings3D/SHP/UrbISBuildings3D_31370_SHP_148170_20260808.zip",
+    "package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0"
+  },
+  "inventory_window_lambert72": [148775.0, 170625.0, 148875.0, 170725.0],
+  "known_persisted_building_ids": ["1639974", "1655673", "1786758"],
+  "known_reference_bboxes": {
+    "1655673": [148788.85, 170647.52, 148842.869, 170715.443],
+    "1786758": [148837.034, 170640.5219, 148854.73, 170660.4861],
+    "1639974": [148846.85, 170636.89, 148862.679, 170653.951]
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "semantic_identity_inference_allowed": false,
+    "missing_owner_can_be_marked_done": false,
+    "persist_candidate_without_source_id": false,
+    "camera_rescue": false,
+    "threshold_rescue": false
+  },
+  "output_requirements": {
+    "list_every_intersecting_solid": true,
+    "emit_dbf_fields": true,
+    "emit_source_bbox": true,
+    "emit_building_and_solid_ids_when_present": true,
+    "separate_known_from_new_candidates": true,
+    "fail_if_known_ids_not_recovered": true
+  },
+  "purpose": "Inventory all official UrbIS LoD2 building owners intersecting the Grand-Place source window before persisting or semantically registering missing player-visible fronts. This evidence does not authorize runtime changes."
+}

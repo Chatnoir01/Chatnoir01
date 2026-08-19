@@ -29,11 +29,20 @@ jobs:
 
       - name: Regenerate immutable B03 from official UrbIS source
         run: |
-          python grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py \
-            --repo-root "$GITHUB_WORKSPACE" \
-            --registry grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B03.manifest.json \
-            --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B03.source.ndjson" \
-            --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B03.materialization.json"
+          ok=0
+          for attempt in 1 2 3; do
+            echo "B03 source regeneration attempt ${attempt}/3"
+            if timeout 120s python grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py \
+              --repo-root "$GITHUB_WORKSPACE" \
+              --registry grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B03.manifest.json \
+              --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B03.source.ndjson" \
+              --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B03.materialization.json"; then
+              ok=1
+              break
+            fi
+            sleep $((attempt * 2))
+          done
+          test "$ok" -eq 1
 
       - name: Require exact locked B03 reproduction
         run: |

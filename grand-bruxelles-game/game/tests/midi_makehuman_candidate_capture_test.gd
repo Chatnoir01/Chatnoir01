@@ -97,6 +97,7 @@ func _run() -> void:
         "schema": "grand-bruxelles-makehuman-candidate-witness-v5",
         "production_authorized": false,
         "diagnostic_mode": "lit_ascii_fbx_valid_normal_indices",
+        "pose_mode": "imported_rest_pose_no_bone_override",
         "resource": RESOURCE_PATH,
         "target_height_m": TARGET_HEIGHT_M,
         "raw_height": bounds.size.y,
@@ -133,18 +134,13 @@ func _save_after_frames(viewport: SubViewport, path: String, frame_count: int) -
         return false
     return image.save_png(path) == OK
 
-func _apply_relaxed_review_pose(skeleton: Skeleton3D) -> Array[String]:
-    var applied: Array[String] = []
-    var left := skeleton.find_bone("upperarm01.L")
-    var right := skeleton.find_bone("upperarm01.R")
-    var z_axis := Vector3(0.0, 0.0, 1.0)
-    if left >= 0:
-        skeleton.set_bone_pose_rotation(left, Quaternion(z_axis, deg_to_rad(-68.0)))
-        applied.append("upperarm01.L")
-    if right >= 0:
-        skeleton.set_bone_pose_rotation(right, Quaternion(z_axis, deg_to_rad(68.0)))
-        applied.append("upperarm01.R")
-    return applied
+func _apply_relaxed_review_pose(_skeleton: Skeleton3D) -> Array[String]:
+    # Causal diagnostic: run #31 proved the ASCII FBX imports with clean normal indices
+    # and seven textured surfaces, but the witness collapsed after shoulder bone pose
+    # overrides. Preserve the imported rest pose unchanged for this witness. If this
+    # renders a healthy full body, the fault is isolated to runtime bone-pose semantics
+    # on this ASCII FBX rather than geometry, textures, camera, or normalization.
+    return []
 
 func _material_stats(root: Node) -> Dictionary:
     var surfaces := 0

@@ -1,0 +1,177 @@
+name: Grand Bruxelles C01 141167 Bounded Download Recovery
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/qa/download_locked_urbis_package.py"
+      - "grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard_cached.py"
+      - "grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard.py"
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json"
+      - ".github/workflows/grand-bruxelles-c01-141167-download-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  recover-141167:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source reader dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely
+
+      - name: RED - prove trickle connection is wall-clock bounded
+        run: |
+          set -euo pipefail
+          python - <<'PY' >"$RUNNER_TEMP/slow-server.log" 2>&1 &
+          import time
+          from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+          class SlowHandler(BaseHTTPRequestHandler):
+              def log_message(self, *_args):
+                  pass
+
+              def do_GET(self):
+                  self.send_response(200)
+                  self.send_header("Content-Type", "application/octet-stream")
+                  self.send_header("Content-Length", str(1024 * 1024))
+                  self.end_headers()
+                  try:
+                      for _ in range(200):
+                          self.wfile.write(b"x" * 512)
+                          self.wfile.flush()
+                          time.sleep(0.2)
+                  except (BrokenPipeError, ConnectionResetError):
+                      pass
+
+          ThreadingHTTPServer(("127.0.0.1", 18765), SlowHandler).serve_forever()
+          PY
+          SLOW_PID=$!
+          trap 'kill "$SLOW_PID" 2>/dev/null || true' EXIT
+          sleep 0.5
+          START="$(date +%s)"
+          if python grand-bruxelles-game/tools/qa/download_locked_urbis_package.py \
+            --url http://127.0.0.1:18765/slow \
+            --allowed-host 127.0.0.1 \
+            --allow-http \
+            --output "$RUNNER_TEMP/slow.bin" \
+            --connect-timeout-seconds 1 \
+            --attempt-max-seconds 2 \
+            --slow-speed-bytes-per-second 1048576 \
+            --slow-speed-window-seconds 1 \
+            --retries 1; then
+            echo "RED gate unexpectedly accepted trickle connection" >&2
+            exit 1
+          fi
+          ELAPSED=$(( $(date +%s) - START ))
+          test "$ELAPSED" -lt 10
+          test ! -f "$RUNNER_TEMP/slow.bin"
+          kill "$SLOW_PID" 2>/dev/null || true
+          trap - EXIT
+          echo "C01_141167_BOUNDED_DOWNLOAD_RED_OK: trickle rejected elapsed=${ELAPSED}s"
+
+      - name: Download immutable C01 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380126488/zip" > "$RUNNER_TEMP/selection.zip"
+          echo "973f9f9a42b9deb17fd8bb8f9ff68beaa187b46caafb7561e3fdd99ca262b4dd  $RUNNER_TEMP/selection.zip" | sha256sum -c -
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9380337311/zip" > "$RUNNER_TEMP/source-summary.zip"
+          echo "7fdbe4b6e9abb86fc773410ebb913e2dbe7c96634ef1b9497cdfef1e9ca11567  $RUNNER_TEMP/source-summary.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/selection.zip" -d "$RUNNER_TEMP/evidence"
+          unzip -q "$RUNNER_TEMP/source-summary.zip" -d "$RUNNER_TEMP/evidence"
+          SELECTION="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.selection.json' -print -quit)"
+          SUMMARY="$(find "$RUNNER_TEMP/evidence" -type f -name 'region_lod2_C01_30000.summary.json' -print -quit)"
+          test -f "$SELECTION" && test -f "$SUMMARY"
+          echo "SELECTION=$SELECTION" >> "$GITHUB_ENV"
+          echo "SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+
+      - name: Resolve exact locked 141167 source
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          key = "urbisbuildings3d_31370_shp_141167_{date}.zip"
+          summary = json.loads(Path(os.environ["SUMMARY"]).read_text())
+          shard = summary["source_shards"][key]
+          source = shard["source"]
+          selection = shard["selection"]
+          assert source["package_sha256"] == "d02b3ec8f00416bf867421f13deff2e8133ee70e31042476212f02f4eec73cd9"
+          assert selection["owner_count"] == 24
+          assert selection["solid_count"] == 24
+          assert selection["face_count"] == 357
+          assert selection["point_count"] == 2091
+          assert selection["part_count"] == 359
+          assert shard["canonical_payload"]["bytes"] == 144666
+          assert shard["canonical_payload"]["sha256"] == "563b2dd144a6877092dc4c56ec742024682676c9fc96289b6ddfeb557003c0aa"
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"LOCKED_URL={source['distribution_url']}\n")
+              env.write(f"LOCKED_PACKAGE_SHA={source['package_sha256']}\n")
+          print("C01_141167_LOCKED_SOURCE_OK: owners=24 faces=357 bytes=144666")
+          PY
+
+      - name: GREEN - bounded official 141167 package download
+        run: |
+          python grand-bruxelles-game/tools/qa/download_locked_urbis_package.py \
+            --url "$LOCKED_URL" \
+            --expected-sha256 "$LOCKED_PACKAGE_SHA" \
+            --output "$RUNNER_TEMP/141167.zip" \
+            --connect-timeout-seconds 20 \
+            --attempt-max-seconds 240 \
+            --slow-speed-bytes-per-second 1024 \
+            --slow-speed-window-seconds 30 \
+            --retries 4
+
+      - name: Materialize 141167 from verified local package
+        run: |
+          python grand-bruxelles-game/tools/qa/materialize_region_lod2_source_shard_cached.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --selection "$SELECTION" \
+            --summary "$SUMMARY" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.source_materialization.json \
+            --distribution-key 'urbisbuildings3d_31370_shp_141167_{date}.zip' \
+            --package "$RUNNER_TEMP/141167.zip" \
+            --output-root "$RUNNER_TEMP/materialized"
+
+      - name: Require exact recovered source proof
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "materialized/141167/report.json").read_text())
+          selected = report["selection"]
+          canonical = report["canonical_payload"]
+          assert report["tile"] == "141167"
+          assert selected["owner_count"] == 24
+          assert selected["solid_count"] == 24
+          assert selected["face_count"] == 357
+          assert selected["point_count"] == 2091
+          assert selected["part_count"] == 359
+          assert selected["owner_ids_sha256"] == "94edb1dd23cbf9e8e13c8537811672351a7fe241d3b1f7e6a3913b8f3f629d07"
+          assert canonical["bytes"] == 144666
+          assert canonical["sha256"] == "563b2dd144a6877092dc4c56ec742024682676c9fc96289b6ddfeb557003c0aa"
+          assert sorted(selected["cells"]) == ["E141000_N167500", "E141500_N167000", "E141500_N167500"]
+          for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "game_world_transform_authorized", "jouable_promotion_authorized", "source_geometry_modified"]:
+              assert report[key] is False, key
+          assert report["artifact_only"] is True
+          print("C01_141167_RECOVERY_GREEN: owners=24 solids=24 faces=357 points=2091 parts=359 bytes=144666")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-source-shard-141167-recovery
+          path: ${{ runner.temp }}/materialized
+          if-no-files-found: error
+          compression-level: 6

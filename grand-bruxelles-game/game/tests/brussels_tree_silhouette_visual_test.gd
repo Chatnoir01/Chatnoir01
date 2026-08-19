@@ -184,7 +184,9 @@ func _run() -> void:
         var dynamic := scene.get_node_or_null(dynamic_path) as Node3D
         if dynamic != null:
             dynamic.visible = false
-    _hide_canvas(scene)
+    # Persistent UI is owned partly by root-level autoloads, not only main.tscn.
+    # Hide CanvasItems from the entire SceneTree so both frames are truly clean.
+    _hide_canvas(root)
 
     var target := _best_target(positions)
     var camera := Camera3D.new()

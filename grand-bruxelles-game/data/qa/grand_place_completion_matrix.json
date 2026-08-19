@@ -1,0 +1,177 @@
+{
+  "schema": "grand-bruxelles-grand-place-completion-matrix-v1",
+  "status": "phase0_active",
+  "runtime_approved": false,
+  "launch_main_sha": "c1ff559c5ab6faf8f56780f9e65fa432ee1856a4",
+  "canonical_witness": {
+    "contract": "data/qa/grand_place_clean_player_witness.json",
+    "resolution": [1280, 720],
+    "camera_position": [319.01, 1.72, -535.20],
+    "camera_target": [321.91, 11.8, -485.66],
+    "camera_fov_deg": 62.0,
+    "ui_mask_required": true,
+    "dynamics_mask_required": true
+  },
+  "completion_policy": {
+    "statuses": ["DONE", "PARTIAL", "MISSING", "REJECTED", "BLOCKED", "UNMEASURED"],
+    "major_owner_must_be_measured": true,
+    "realistic_probe_required": true,
+    "bright_debug_mask_authorizes_runtime": false,
+    "human_full_frame_required": true,
+    "camera_rescue_allowed": false,
+    "threshold_rescue_allowed": false,
+    "source_geometry_movement_allowed": false
+  },
+  "known_owners": [
+    {
+      "id": "town_hall_right_gallery",
+      "landmark": "Hotel de Ville",
+      "urbis_building_id": "1655673",
+      "face_ids": ["10792525", "10798452"],
+      "status": "DONE",
+      "production_evidence": ["PR#783"],
+      "next_action": "preserve"
+    },
+    {
+      "id": "town_hall_east_cross_windows",
+      "landmark": "Hotel de Ville",
+      "urbis_building_id": "1655673",
+      "face_ids": [],
+      "status": "DONE",
+      "production_evidence": ["PR#848"],
+      "next_action": "preserve"
+    },
+    {
+      "id": "town_hall_portal_tower_base_group",
+      "landmark": "Hotel de Ville",
+      "urbis_building_id": "1655673",
+      "face_ids": [],
+      "status": "UNMEASURED",
+      "screen_metrics": null,
+      "source_registration": "pending_exact_face_group",
+      "priority": "highest_candidate",
+      "next_action": "phase0_grouped_realistic_probe"
+    },
+    {
+      "id": "town_hall_principal_central_facade",
+      "landmark": "Hotel de Ville",
+      "urbis_building_id": "1655673",
+      "face_ids": [],
+      "status": "UNMEASURED",
+      "screen_metrics": null,
+      "source_registration": "pending_exact_face_group",
+      "priority": "high",
+      "next_action": "phase0_grouped_realistic_probe"
+    },
+    {
+      "id": "town_hall_roof_tower_mass",
+      "landmark": "Hotel de Ville",
+      "urbis_building_id": "1655673",
+      "face_ids": [],
+      "status": "PARTIAL",
+      "screen_metrics": null,
+      "source_registration": "architectural_identity_known_but_exact_runtime_motif_not_authorized",
+      "priority": "high",
+      "next_action": "phase0_realistic_probe_then_source_register_winner"
+    },
+    {
+      "id": "town_hall_left_gallery_10792523",
+      "landmark": "Hotel de Ville",
+      "urbis_building_id": "1655673",
+      "face_ids": ["10792523"],
+      "status": "REJECTED",
+      "reason": "outside_natural_canonical_player_frame",
+      "next_action": "do_not_retry"
+    },
+    {
+      "id": "town_hall_face_10792937",
+      "landmark": "Hotel de Ville",
+      "urbis_building_id": "1655673",
+      "face_ids": ["10792937"],
+      "status": "BLOCKED",
+      "reason": "fine_architectural_identity_not_defensibly_registered",
+      "next_action": "do_not_force_fit_B1499_B1501"
+    },
+    {
+      "id": "town_hall_tete_or_10796610",
+      "landmark": "Hotel de Ville",
+      "urbis_building_id": "1655673",
+      "face_ids": ["10796610"],
+      "status": "REJECTED",
+      "reason": "PR863_human_visual_fail",
+      "next_action": "do_not_retry_same_presentation"
+    },
+    {
+      "id": "town_hall_tete_or_10796609",
+      "landmark": "Hotel de Ville",
+      "urbis_building_id": "1655673",
+      "face_ids": ["10796609"],
+      "status": "REJECTED",
+      "reason": "PR865_full_frame_impact_fail_and_human_fail",
+      "next_action": "do_not_retry"
+    },
+    {
+      "id": "maison_du_roi_full_visible_mass",
+      "landmark": "Maison du Roi",
+      "urbis_building_id": null,
+      "face_ids": [],
+      "status": "UNMEASURED",
+      "screen_metrics": null,
+      "source_registration": "pending_inventory",
+      "priority": "highest_candidate",
+      "next_action": "phase0_identify_urbis_owner_and_realistic_probe"
+    },
+    {
+      "id": "guild_house_brasseurs_1639974",
+      "landmark": "Grand-Place guild-house front",
+      "urbis_building_id": "1639974",
+      "face_ids": ["10945501"],
+      "status": "PARTIAL",
+      "screen_metrics": null,
+      "source_registration": "evidence_only_photo_plan_exists",
+      "source_contract": "data/qa/grand_place_brasseurs_photo_plan.json",
+      "priority": "high",
+      "next_action": "include_in_phase0_front_ranking"
+    },
+    {
+      "id": "guild_house_remaining_fronts",
+      "landmark": "Grand-Place guild-house fronts",
+      "urbis_building_id": null,
+      "face_ids": [],
+      "status": "UNMEASURED",
+      "screen_metrics": null,
+      "source_registration": "pending_inventory",
+      "priority": "high",
+      "next_action": "phase0_inventory_contiguous_fronts"
+    },
+    {
+      "id": "square_ground_and_street_joins",
+      "landmark": "Grand-Place ground",
+      "urbis_building_id": null,
+      "face_ids": [],
+      "status": "UNMEASURED",
+      "screen_metrics": null,
+      "source_registration": "pending_surface_inventory",
+      "priority": "high",
+      "next_action": "phase0_inventory_ground_surfaces_and_collision_state"
+    },
+    {
+      "id": "visible_street_exit_masses",
+      "landmark": "Grand-Place street exits",
+      "urbis_building_id": null,
+      "face_ids": [],
+      "status": "UNMEASURED",
+      "screen_metrics": null,
+      "source_registration": "pending_inventory",
+      "priority": "medium",
+      "next_action": "phase0_inventory_visible_corners"
+    }
+  ],
+  "phase0_exit_criteria": {
+    "all_major_visible_owners_identified": false,
+    "all_major_visible_owners_realistically_measured": false,
+    "secondary_traversal_views_registered": false,
+    "next_visual_owner_ranked": false,
+    "human_full_frame_review_complete": false
+  }
+}

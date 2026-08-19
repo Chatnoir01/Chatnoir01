@@ -10,6 +10,8 @@ const GUARD_CANCEL_LANDED_FRACTION := 0.48
 const GUARD_CANCEL_WHIFF_FRACTION := 0.68
 const MIN_LUNGE_M := 0.04
 const MAX_LUNGE_M := 0.22
+const BASE_WALK_META := "combat_controller_base_walk_speed"
+const BASE_SPRINT_META := "combat_controller_base_sprint_speed"
 
 var _last_feel_impact_ms := -1
 
@@ -53,6 +55,7 @@ func request_attack_with_move(player: CharacterBody3D, move: Dictionary) -> Dict
     player.set_meta("combat_attack_dodge_cancel_ready_ms", 0)
     player.set_meta("combat_attack_guard_cancel_ready_ms", 0)
     player.set_meta("combat_attack_cancel_ready_ms", 0)
+    _apply_controller_speed_scale(player, combat_attack_input_scale(&"windup"))
     return result
 
 func set_guarding(player: CharacterBody3D, enabled: bool) -> void:
@@ -93,11 +96,34 @@ func request_action_cancel(player: CharacterBody3D, action: StringName) -> Dicti
     player.set_meta("combat_last_cancel_ms", now)
     if not _pending_player_attack.is_empty() and bool(_pending_player_attack.get("resolved", false)):
         _pending_player_attack.clear()
+    if not bool(player.get_meta("combat_dodge_motion_active", false)):
+        _apply_controller_speed_scale(player, 1.0)
     return {"allowed": true, "reason": "late_recovery", "action": action}
 
 func _update_attack_input_scale(player: CharacterBody3D) -> void:
     var phase := StringName(player.get_meta("combat_attack_phase", &"ready"))
-    player.set_meta("combat_attack_input_scale", combat_attack_input_scale(phase))
+    var scale := combat_attack_input_scale(phase)
+    player.set_meta("combat_attack_input_scale", scale)
+    if not bool(player.get_meta("combat_dodge_motion_active", false)):
+        _apply_controller_speed_scale(player, scale)
+
+func _apply_controller_speed_scale(player: CharacterBody3D, scale: float) -> void:
+    if not _has_property(player, &"walk_speed") or not _has_property(player, &"sprint_speed"):
+        return
+    if not player.has_meta(BASE_WALK_META):
+        player.set_meta(BASE_WALK_META, maxf(float(player.get("walk_speed")), 0.0))
+    if not player.has_meta(BASE_SPRINT_META):
+        player.set_meta(BASE_SPRINT_META, maxf(float(player.get("sprint_speed")), 0.0))
+    var clamped_scale := clampf(scale, 0.0, 1.0)
+    player.set("walk_speed", float(player.get_meta(BASE_WALK_META, 0.0)) * clamped_scale)
+    player.set("sprint_speed", float(player.get_meta(BASE_SPRINT_META, 0.0)) * clamped_scale)
+    player.set_meta("combat_controller_speed_scale", clamped_scale)
+
+func _has_property(object: Object, property_name: StringName) -> bool:
+    for property: Dictionary in object.get_property_list():
+        if StringName(property.get("name", &"")) == property_name:
+            return true
+    return false
 
 func _consume_new_melee_impact(player: CharacterBody3D) -> void:
     var impact_ms := int(player.get_meta("combat_last_melee_impact_ms", -1))

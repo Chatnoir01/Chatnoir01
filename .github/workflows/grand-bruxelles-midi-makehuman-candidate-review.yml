@@ -26,10 +26,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # ubuntu-latest already provides Xvfb and core Mesa. MakeHuman additionally
-          # imports GLU/libOpenGL, so install only those two small system runtimes.
           command -v xvfb-run
-          sudo apt-get install -y --no-install-recommends libglu1-mesa libopengl0
+          sudo apt-get install -y --no-install-recommends \
+            libglu1-mesa libopengl0 \
+            libx11-xcb1 libxcb1 libxcb-util1 libxcb-image0 libxcb-keysyms1 \
+            libxcb-icccm4 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 \
+            libxcb-xkb1 libxkbcommon-x11-0 libxcb-cursor0
           ldconfig -p | grep -q 'libGL.so.1'
           ldconfig -p | grep -q 'libGLU.so.1'
           ldconfig -p | grep -q 'libOpenGL.so.0'
@@ -41,6 +43,18 @@ jobs:
           from PyQt5 import QtCore, QtGui, QtOpenGL, QtSvg, QtWidgets
           print('MAKEHUMAN_PYTHON_DEPS_OK', numpy.__version__, OpenGL.__version__, QtCore.PYQT_VERSION_STR)
           PY
+          QXCB="$(python3 - <<'PY'
+          import pathlib, PyQt5
+          print(pathlib.Path(PyQt5.__file__).resolve().parent / 'Qt5/plugins/platforms/libqxcb.so')
+          PY
+          )"
+          test -s "$QXCB"
+          ldd "$QXCB" | tee /tmp/pyqt-qxcb-ldd.txt
+          if grep -q 'not found' /tmp/pyqt-qxcb-ldd.txt; then
+            echo 'PYQT_XCB_RUNTIME_FAIL'
+            exit 1
+          fi
+          echo 'PYQT_XCB_RUNTIME_OK'
 
       - name: Fetch pinned MakeHuman code and official CC0 system-assets ZIP
         shell: bash
@@ -102,6 +116,7 @@ jobs:
         env:
           GB_MAKEHUMAN_OUTPUT: /tmp/makehuman-output/FemalePilot.fbx
           QT_X11_NO_MITSHM: "1"
+          QT_DEBUG_PLUGINS: "1"
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           set -o pipefail
@@ -181,6 +196,7 @@ jobs:
           cp /tmp/makehuman-assets-source-urls.txt "$OUT/makehuman_assets_source_urls.txt" 2>/dev/null || true
           cp /tmp/makehuman-system-assets.html "$OUT/makehuman_system_assets_listing.html" 2>/dev/null || true
           cp /tmp/makehuman-pilot-clothes-files.txt "$OUT/pilot_clothes_files.txt" 2>/dev/null || true
+          cp /tmp/pyqt-qxcb-ldd.txt "$OUT/pyqt_qxcb_ldd.txt" 2>/dev/null || true
           cp /tmp/makehuman-src/LICENSE.md "$OUT/MAKEHUMAN_LICENSE_OVERVIEW.md" 2>/dev/null || true
           printf '{"asset_pack":"makehuman_system_assets_cc0.zip","license":"CC0","production_authorized":false,"status":"candidate_review_only"}\n' > "$OUT/authorization.json"
 

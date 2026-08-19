@@ -102,10 +102,10 @@ func _freeze_dynamic_state(scene: Node) -> void:
 
 func _hide_ui_recursive(node: Node) -> void:
     for child: Node in node.get_children():
-        if child is Control or child is Label3D:
-            (child as CanvasItem).visible = false if child is CanvasItem else true
-            if child is Label3D:
-                (child as Label3D).visible = false
+        if child is Control:
+            (child as Control).visible = false
+        elif child is Label3D:
+            (child as Label3D).visible = false
         elif child is CanvasLayer:
             (child as CanvasLayer).visible = false
         _hide_ui_recursive(child)

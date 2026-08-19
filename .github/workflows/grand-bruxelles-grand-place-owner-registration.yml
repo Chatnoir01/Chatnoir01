@@ -1,0 +1,22 @@
+name: Grand Bruxelles Grand-Place Owner Registration
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-owner-registration.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_owner_registration_contract.json"
+      - "grand-bruxelles-game/data/urbis/grand_place_lod2/*.game.json"
+      - "grand-bruxelles-game/tools/qa/grand_place_owner_registration.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  owner-registration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Grand-Place owner registration contract
+        run: python3 grand-bruxelles-game/tools/qa/grand_place_owner_registration.py

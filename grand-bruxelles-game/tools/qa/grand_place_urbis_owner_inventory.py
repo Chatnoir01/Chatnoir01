@@ -65,6 +65,21 @@ def choose_field(fields, patterns):
     return None
 
 
+def shape_bbox_xy(shape):
+    """Return a 2D bbox for any pyshp shape, including MULTIPATCH.
+
+    pyshp does not expose ``shape.bbox`` on all MULTIPATCH Shape objects, so
+    derive the authoritative XY extent directly from the source vertices.
+    No geometry is altered or approximated.
+    """
+    points = getattr(shape, "points", None) or []
+    if not points:
+        fail("encountered official solid with no source points")
+    xs = [float(point[0]) for point in points]
+    ys = [float(point[1]) for point in points]
+    return [min(xs), min(ys), max(xs), max(ys)]
+
+
 def main() -> None:
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     source = contract["source"]
@@ -106,7 +121,7 @@ def main() -> None:
     records = []
     recovered_known = set()
     for shape_record in reader.iterShapeRecords():
-        bbox = [float(v) for v in shape_record.shape.bbox]
+        bbox = shape_bbox_xy(shape_record.shape)
         if not intersects(bbox, window):
             continue
         attrs = {field_names[i]: clean(value) for i, value in enumerate(shape_record.record)}
@@ -142,6 +157,7 @@ def main() -> None:
         "detected_building_field": building_field,
         "detected_solid_field": solid_field,
         "inventory_window_lambert72": window,
+        "bbox_method": "source_vertex_xy_extent",
         "intersecting_solid_count": len(records),
         "known_persisted_building_ids": sorted(known, key=int),
         "recovered_known_building_ids": sorted(recovered_known, key=int),

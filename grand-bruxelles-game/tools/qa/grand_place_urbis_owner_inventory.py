@@ -112,6 +112,12 @@ def main() -> None:
     field_names = [f[0] for f in reader.fields[1:]]
     building_field = choose_field(field_names, ["building_2d", "building2d", "buildingid", "building_id", "building"])
     solid_field = choose_field(field_names, ["solidid", "solid_id", "solid"])
+    print(json.dumps({
+        "source_shapefile": solid_path.name,
+        "dbf_fields": field_names,
+        "detected_building_field": building_field,
+        "detected_solid_field": solid_field,
+    }, ensure_ascii=False))
 
     records = []
     recovered_known = set()
@@ -129,7 +135,7 @@ def main() -> None:
         if bbox is None:
             empty_geometry_record_count += 1
             if len(empty_geometry_examples) < 10:
-                empty_geometry_examples.append({"building_id": building_id, "solid_id": solid_id})
+                empty_geometry_examples.append({"building_id": building_id, "solid_id": solid_id, "attributes": attrs})
             continue
 
         if not intersects(bbox, window):
@@ -146,6 +152,29 @@ def main() -> None:
 
     missing_known = sorted(known - recovered_known)
     if missing_known:
+        diagnostic = {
+            "schema": "grand-bruxelles-grand-place-urbis-owner-inventory-diagnostic-v1",
+            "source_package_sha256": actual_hash,
+            "source_shapefile": solid_path.name,
+            "dbf_fields": field_names,
+            "detected_building_field": building_field,
+            "detected_solid_field": solid_field,
+            "inventory_window_lambert72": window,
+            "intersecting_solid_count": len(records),
+            "known_persisted_building_ids": sorted(known, key=int),
+            "recovered_known_building_ids": sorted(recovered_known, key=int),
+            "missing_known_building_ids": missing_known,
+            "sample_intersecting_records": records[:10],
+            "empty_geometry_record_count": empty_geometry_record_count,
+            "empty_geometry_examples": empty_geometry_examples,
+            "runtime_authorized": False,
+            "semantic_registration_authorized": False,
+        }
+        OUT_PATH.write_text(json.dumps(diagnostic, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(json.dumps({
+            "diagnostic_intersecting_count": len(records),
+            "sample_intersecting_records": records[:3],
+        }, ensure_ascii=False))
         fail(f"known persisted building ids not recovered from official package/window: {missing_known}")
 
     def sort_key(item):

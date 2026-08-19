@@ -1,21 +1,17 @@
 name: Grand Bruxelles Kenney Car Intake Pilot
 
 on:
-  push:
-    branches:
-      - codex/kenney-car-kit-intake-pilot
-    paths:
-      - .github/workflows/grand-bruxelles-kenney-car-intake-pilot.yml
   pull_request:
     paths:
-      - .github/workflows/grand-bruxelles-kenney-car-intake-pilot.yml
+      - ".github/workflows/grand-bruxelles-kenney-car-intake-pilot.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   intake:
-    if: github.repository == 'Chatnoir01/Chatnoir01'
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.number == 900
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,7 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://www.kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip'
+          URL='https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/car-kit.zip'
           curl -fL --retry 3 --retry-delay 2 "$URL" -o /tmp/kenney_car-kit.zip
           test -s /tmp/kenney_car-kit.zip
           sha256sum /tmp/kenney_car-kit.zip | tee /tmp/kenney_car-kit.sha256
@@ -59,7 +55,7 @@ jobs:
             cat > "$TARGET/LICENSE.txt" <<'EOF'
 Kenney Car Kit
 License: Creative Commons CC0 1.0 Universal
-Official asset page: https://www.kenney.nl/assets/car-kit
+Official asset page: https://kenney.nl/assets/car-kit
 CC0 legal text: https://creativecommons.org/publicdomain/zero/1.0/
 EOF
           fi
@@ -69,16 +65,16 @@ EOF
 # Kenney Car Kit provenance
 
 - Creator: Kenney
-- Official page: https://www.kenney.nl/assets/car-kit
+- Official page: https://kenney.nl/assets/car-kit
 - License: Creative Commons CC0 1.0 Universal
-- Exact archive URL used for this intake: https://www.kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip
+- Exact archive URL used for this intake: https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/car-kit.zip
 - Archive SHA-256: \`$ARCHIVE_SHA\`
 - Intake date: 2026-08-19
 - Imported format: GLB only
 - Imported GLB count: $COUNT
 - Runtime authorization: false until in-game visual/performance review
 
-This branch is an intake pilot. No Kenney asset may be described as final Brussels vehicle art until it has been reviewed in the actual player camera. The official page states the pack contains 45 files and is CC0.
+This branch is an intake pilot. No Kenney asset may be described as final Brussels vehicle art until it has been reviewed in the actual player camera.
 EOF
           printf '%s\n' "${GLBS[@]##*/}" > "$TARGET/MODEL_INDEX.txt"
           echo "KENNEY_CAR_INTAKE_OK count=$COUNT sha256=$ARCHIVE_SHA"

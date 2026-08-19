@@ -129,6 +129,7 @@ jobs:
           grep -q "skin=young_caucasian_female.mhmat" /tmp/makehuman-candidate-generate.log
           grep -q "clothes=female_casualsuit01.mhclo" /tmp/makehuman-candidate-generate.log
           grep -q "shoes=shoes01.mhclo" /tmp/makehuman-candidate-generate.log
+          grep -q "fbx_binary=false" /tmp/makehuman-candidate-generate.log
           if grep -q "GB_MAKEHUMAN_CANDIDATE_FAIL" /tmp/makehuman-candidate-generate.log; then exit 1; fi
           test -s /tmp/makehuman-output/FemalePilot.fbx
           find /tmp/makehuman-output -maxdepth 3 -type f -printf '%p %s bytes\n' | sort | tee /tmp/makehuman-output-files.txt
@@ -157,6 +158,11 @@ jobs:
             --headless --path grand-bruxelles-game --editor --quit \
             2>&1 | tee /tmp/makehuman-godot-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Can't open file|Cannot open file|couldn't be loaded" /tmp/makehuman-godot-import.log; then exit 1; fi
+          if grep -F "Clamped index" /tmp/makehuman-godot-import.log; then
+            echo "MAKEHUMAN_ASCII_FBX_NORMAL_INDEX_FAIL"
+            exit 1
+          fi
+          echo "MAKEHUMAN_ASCII_FBX_NORMAL_INDEX_OK"
 
       - name: Render isolated player-distance and close MakeHuman witnesses
         shell: bash
@@ -178,6 +184,7 @@ jobs:
           test -s /tmp/midi-makehuman-candidate_close.png
           test -s /tmp/midi-makehuman-candidate.metrics.json
           grep -q '"isolated_subviewport": true' /tmp/midi-makehuman-candidate.metrics.json
+          grep -q '"diagnostic_mode": "lit_ascii_fbx_valid_normal_indices"' /tmp/midi-makehuman-candidate.metrics.json
 
       - name: Stage owner-review evidence
         if: always()
@@ -198,7 +205,7 @@ jobs:
           cp /tmp/makehuman-pilot-clothes-files.txt "$OUT/pilot_clothes_files.txt" 2>/dev/null || true
           cp /tmp/pyqt-qxcb-ldd.txt "$OUT/pyqt_qxcb_ldd.txt" 2>/dev/null || true
           cp /tmp/makehuman-src/LICENSE.md "$OUT/MAKEHUMAN_LICENSE_OVERVIEW.md" 2>/dev/null || true
-          printf '{"asset_pack":"makehuman_system_assets_cc0.zip","license":"CC0","production_authorized":false,"status":"candidate_review_only"}\n' > "$OUT/authorization.json"
+          printf '{"asset_pack":"makehuman_system_assets_cc0.zip","license":"CC0","production_authorized":false,"status":"candidate_review_only","fbx_mode":"ascii"}\n' > "$OUT/authorization.json"
 
       - name: Upload MakeHuman fidelity pilot
         if: always()

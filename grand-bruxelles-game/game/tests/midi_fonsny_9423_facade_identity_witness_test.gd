@@ -138,7 +138,9 @@ func _run() -> void:
     quit(0)
 
 func _mask_dynamic(node: Node) -> void:
-    if node is CanvasItem:
+    if node is CanvasLayer:
+        (node as CanvasLayer).visible = false
+    elif node is CanvasItem:
         (node as CanvasItem).visible = false
     if node is Node3D:
         var lower := str(node.name).to_lower()

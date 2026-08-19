@@ -45,6 +45,12 @@
       "visual": "JETER",
       "production_authorized": false
     },
+    "makehuman": {
+      "technical": "fidelity_iteration",
+      "visual": "AMELIORER_V3_V4_PENDING",
+      "production_authorized": false,
+      "active_variant": "makehuman_v4"
+    },
     "makehuman_v2": {
       "head": "0c0060da8ebc2c787fc3d44780fcf38d277d060a",
       "workflow_run_id": 32310838043,
@@ -103,7 +109,7 @@
     "requires_complete_clips": ["idle", "walk", "run"],
     "speed_synced_playback": true,
     "state_hysteresis": true,
-    "production_attachment": "blocked_until_single_pilot_visual_garder_and_retarged_clip_proof"
+    "production_attachment": "blocked_until_single_pilot_visual_garder_and_retargeted_clip_proof"
   },
   "required_animation_roles": ["idle", "walk", "run"],
   "banned_civilian_assets": ["res://assets/characters/player_character.glb"],

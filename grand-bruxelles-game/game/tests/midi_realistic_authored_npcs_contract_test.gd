@@ -1,6 +1,7 @@
 extends SceneTree
 
 const RUNTIME_SCRIPT := preload("res://game/scripts/midi_ambient_npc_visual_runtime.gd")
+const AUTHORED_RUNTIME_SCRIPT := preload("res://game/scripts/midi_realistic_authored_npc_runtime.gd")
 const LEGACY_NAMES := ["Torso", "LeftLeg", "RightLeg", "LeftArm", "RightArm", "Head", "Bag"]
 const CONTRACT_PATH := "res://data/qa/midi_realistic_authored_npcs_contract.json"
 const ROCKETBOX_VERDICT_PATH := "res://data/qa/midi_realistic_authored_npcs_candidate_verdict.json"
@@ -9,6 +10,7 @@ const BANNED_CIVILIAN_ASSET := "res://assets/characters/player_character.glb"
 func _init() -> void:
     var failures: Array[String] = []
     _check_runtime_contract(failures)
+    _check_authored_locomotion_runtime(failures)
     _check_lot_contract(failures)
     _check_rejected_candidate(failures)
 
@@ -61,6 +63,96 @@ func _check_runtime_contract(failures: Array[String]) -> void:
     scene.free()
     runtime.free()
 
+func _check_authored_locomotion_runtime(failures: Array[String]) -> void:
+    var scene := Node3D.new()
+    root.add_child(scene)
+    var runtime := AUTHORED_RUNTIME_SCRIPT.new()
+    scene.add_child(runtime)
+
+    var unauthorized := _make_mock_authored_person("UnauthorizedCivil", false)
+    scene.add_child(unauthorized)
+    if bool(runtime.call("bind_person", unauthorized)):
+        failures.append("authored runtime accepted production_authorized=false character")
+
+    var person := _make_mock_authored_person("AuthorizedCivil", true)
+    scene.add_child(person)
+    if not bool(runtime.call("bind_person", person)):
+        failures.append("authored runtime could not bind a complete authorized idle/walk/run character")
+        scene.free()
+        return
+
+    var resolved: Dictionary = runtime.call("resolved_locomotion_for", person)
+    if str(resolved.get("idle", "")) != "Civil_Idle":
+        failures.append("authored runtime did not resolve idle clip")
+    if str(resolved.get("walk", "")) != "Civil_Walk":
+        failures.append("authored runtime did not resolve walk clip")
+    if str(resolved.get("run", "")) != "Civil_Run":
+        failures.append("authored runtime did not resolve run clip")
+
+    runtime.call("update_person_from_observed_speed", person, 0.0, 1.0 / 60.0)
+    if str(runtime.call("current_locomotion_state_for", person)) != "idle":
+        failures.append("authored runtime did not enter idle at zero speed")
+    if str(runtime.call("current_animation_for", person)) != "Civil_Idle":
+        failures.append("authored runtime did not play resolved idle")
+
+    runtime.call("update_person_from_observed_speed", person, 0.95, 1.0 / 60.0)
+    if str(runtime.call("current_locomotion_state_for", person)) != "walk":
+        failures.append("authored runtime did not enter walk at civilian walking speed")
+    if str(runtime.call("current_animation_for", person)) != "Civil_Walk":
+        failures.append("authored runtime did not play resolved walk")
+    var walk_scale := float(runtime.call("current_playback_speed_scale_for", person))
+    if walk_scale < 0.65 or walk_scale > 1.50:
+        failures.append("authored walk playback speed escaped safe synchronization range")
+
+    runtime.call("update_person_from_observed_speed", person, 1.90, 1.0 / 60.0)
+    if str(runtime.call("current_locomotion_state_for", person)) != "run":
+        failures.append("authored runtime did not enter run at civilian running speed")
+    if str(runtime.call("current_animation_for", person)) != "Civil_Run":
+        failures.append("authored runtime did not play resolved run")
+
+    var stats: Dictionary = runtime.call("locomotion_stats")
+    if bool(stats.get("changes_movement_owner", true)):
+        failures.append("authored locomotion must not own pedestrian movement")
+    if bool(stats.get("changes_navigation", true)):
+        failures.append("authored locomotion must not change navigation")
+    if not bool(stats.get("production_authorization_required", false)):
+        failures.append("authored locomotion must require explicit production authorization")
+    if not bool(stats.get("requires_idle_walk_run", false)):
+        failures.append("authored locomotion must require idle/walk/run")
+    if not bool(stats.get("speed_sync", false)):
+        failures.append("authored locomotion must synchronize playback to observed speed")
+    if int(stats.get("authorized_bindings", 0)) < 1:
+        failures.append("authored locomotion did not account for authorized binding")
+    if int(stats.get("unauthorized_rejections", 0)) < 1:
+        failures.append("authored locomotion did not account for unauthorized rejection")
+
+    scene.free()
+
+func _make_mock_authored_person(person_name: String, production_authorized: bool) -> Node3D:
+    var person := Node3D.new()
+    person.name = person_name
+    person.add_to_group("ambient_pedestrian")
+
+    var proxy := Node3D.new()
+    proxy.name = "ProfiledNpcProxy"
+    person.add_child(proxy)
+
+    var authored := Node3D.new()
+    authored.name = "AuthoredCharacter"
+    authored.set_meta("production_authorized", production_authorized)
+    proxy.add_child(authored)
+
+    var animation_player := AnimationPlayer.new()
+    animation_player.name = "AnimationPlayer"
+    var library := AnimationLibrary.new()
+    for clip_name: String in ["Civil_Idle", "Civil_Walk", "Civil_Run"]:
+        var animation := Animation.new()
+        animation.length = 1.0
+        library.add_animation(clip_name, animation)
+    animation_player.add_animation_library("", library)
+    authored.add_child(animation_player)
+    return person
+
 func _check_lot_contract(failures: Array[String]) -> void:
     var contract := _read_json(CONTRACT_PATH)
     if contract.is_empty():
@@ -86,6 +178,11 @@ func _check_lot_contract(failures: Array[String]) -> void:
         failures.append("LOT contract cannot authorize cuboid fallback")
     if str(lod.get("far_policy", "")) != "authored_humanoid_lod_or_cull":
         failures.append("far policy must be authored humanoid LOD or cull")
+
+    var required_animation_roles := contract.get("required_animation_roles", []) as Array
+    for role: String in ["idle", "walk", "run"]:
+        if role not in required_animation_roles:
+            failures.append("LOT contract must require authored %s animation" % role)
 
     var banned := contract.get("banned_civilian_assets", []) as Array
     if BANNED_CIVILIAN_ASSET not in banned:

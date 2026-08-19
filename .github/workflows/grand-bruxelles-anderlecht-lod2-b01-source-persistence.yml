@@ -1,0 +1,144 @@
+name: Grand Bruxelles Anderlecht LoD2 B01 Source Persistence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.manifest.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.source.ndjson.gz"
+      - ".github/workflows/grand-bruxelles-anderlecht-lod2-b01-source-persistence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-persisted-source-batch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source reader dependencies
+        run: python -m pip install --disable-pip-version-check pyshp shapely
+
+      - name: Regenerate B01 directly from official UrbIS source
+        run: |
+          python grand-bruxelles-game/tools/materialize_urbis_lod2_source_batch.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json \
+            --output "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.source.ndjson" \
+            --report "$RUNNER_TEMP/anderlecht_E145500_N169000_B01.materialization.json"
+
+      - name: Prove committed compressed payload is byte-identical source persistence
+        run: |
+          python - <<'PY'
+          import gzip
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("grand-bruxelles-game")
+          manifest_path = root / "data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.manifest.json"
+          compressed_path = root / "data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.source.ndjson.gz"
+          generated_path = Path(os.environ["RUNNER_TEMP"]) / "anderlecht_E145500_N169000_B01.source.ndjson"
+          report_path = Path(os.environ["RUNNER_TEMP"]) / "anderlecht_E145500_N169000_B01.materialization.json"
+
+          manifest = json.loads(manifest_path.read_text())
+          report = json.loads(report_path.read_text())
+          generated = generated_path.read_bytes()
+          compressed = compressed_path.read_bytes()
+          persisted = gzip.decompress(compressed)
+          sha = lambda payload: hashlib.sha256(payload).hexdigest()
+
+          assert manifest["runtime_authorized"] is False
+          assert manifest["runtime_mount_authorized"] is False
+          assert manifest["collision_authorized"] is False
+          assert manifest["geometry_modified"] is False
+          assert report["runtime_authorized"] is False
+          assert report["runtime_mount_authorized"] is False
+          assert report["geometry_modified"] is False
+
+          expected_source = manifest["source"]
+          actual_source = report["source"]
+          assert actual_source["revision"] == expected_source["revision"]
+          assert actual_source["package_sha256"] == expected_source["package_sha256"]
+          assert actual_source["building_solids_shp_sha256"] == expected_source["building_solids_shp_sha256"]
+          assert actual_source["building_solids_dbf_sha256"] == expected_source["building_solids_dbf_sha256"]
+          assert actual_source["building_faces_shp_sha256"] == expected_source["building_faces_shp_sha256"]
+          assert actual_source["building_faces_dbf_sha256"] == expected_source["building_faces_dbf_sha256"]
+
+          expected_selection = manifest["selection"]
+          actual_selection = report["selection"]
+          for key in [
+              "owner_count", "solid_count", "face_count", "point_count", "part_count",
+              "first_building_id", "last_building_id", "selected_owner_ids_sha256",
+              "face_type_counts",
+          ]:
+              assert actual_selection[key] == expected_selection[key], (key, actual_selection[key], expected_selection[key])
+
+          payload = manifest["payload"]
+          assert len(generated) == payload["uncompressed_bytes"]
+          assert sha(generated) == payload["uncompressed_sha256"]
+          assert report["output"]["bytes"] == payload["uncompressed_bytes"]
+          assert report["output"]["sha256"] == payload["uncompressed_sha256"]
+          assert len(compressed) == payload["compressed_bytes"]
+          assert sha(compressed) == payload["compressed_sha256"]
+          assert persisted == generated
+
+          assert expected_selection["face_type_counts"] == {
+              "GROUNDSURFACE": 251,
+              "OUTERCEILING": 1,
+              "ROOFSURFACE": 1095,
+              "WALLSURFACE": 2848,
+          }
+          print(
+              "ANDERLECHT_LOD2_B01_SOURCE_PERSISTENCE_OK: "
+              f"owners={expected_selection['owner_count']} solids={expected_selection['solid_count']} "
+              f"faces={expected_selection['face_count']} bytes={len(generated)} gzip={len(compressed)}"
+          )
+          PY
+
+      - name: Publish source persistence summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          manifest = json.loads(Path(
+              "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.manifest.json"
+          ).read_text())
+          s = manifest["selection"]
+          p = manifest["payload"]
+          lines = [
+              "## Anderlecht B01 persisted official LoD2 source",
+              "",
+              f"- Owners: **{s['owner_count']:,}**",
+              f"- Solids: **{s['solid_count']:,}**",
+              f"- Faces: **{s['face_count']:,}**",
+              f"- Points: **{s['point_count']:,}**",
+              f"- Source payload: **{p['uncompressed_bytes']:,} bytes**",
+              f"- Persisted gzip: **{p['compressed_bytes']:,} bytes**",
+              f"- Source SHA-256: `{p['uncompressed_sha256']}`",
+              "",
+              "Source persistence only — runtime/collision/mount authorization remains false.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+
+      - name: Upload regenerated proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: anderlecht-e145500-n169000-b01-source-persistence-proof
+          path: |
+            ${{ runner.temp }}/anderlecht_E145500_N169000_B01.source.ndjson
+            ${{ runner.temp }}/anderlecht_E145500_N169000_B01.materialization.json
+          if-no-files-found: error

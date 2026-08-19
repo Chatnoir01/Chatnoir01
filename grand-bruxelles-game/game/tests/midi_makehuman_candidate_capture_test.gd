@@ -69,11 +69,13 @@ func _run() -> void:
         _fail("candidate must import at least four textured surfaces for a useful fidelity review: %s" % str(imported_material_stats))
         return
 
-    # Diagnostic adaptation: imported MakeHuman FBX currently shows triangle/noise artifacts.
-    # Preserve every diffuse texture and all geometry, but remove tangent-space normal maps
-    # from duplicate review materials. If the witness cleans up, the source mesh is viable and
-    # the runtime adaptation can own this material correction; if not, the FBX normals are bad.
-    var normal_maps_disabled := _disable_normal_maps_for_review(person)
+    # Causal shading diagnostic: preserve geometry and every albedo texture exactly,
+    # but make duplicated review materials unshaded. If triangle/noise artifacts vanish,
+    # they come from FBX shading normals rather than the diffuse textures.
+    var unshaded_surfaces := _set_unshaded_for_review(person)
+    if unshaded_surfaces < 4:
+        _fail("expected at least four BaseMaterial3D surfaces for unshaded diagnostic, got %d" % unshaded_surfaces)
+        return
     var review_material_stats := _material_stats(person)
 
     _build_floor(world)
@@ -101,8 +103,9 @@ func _run() -> void:
         return
 
     var metrics := {
-        "schema": "grand-bruxelles-makehuman-candidate-witness-v3",
+        "schema": "grand-bruxelles-makehuman-candidate-witness-v4",
         "production_authorized": false,
+        "diagnostic_mode": "unshaded_albedo_only",
         "resource": RESOURCE_PATH,
         "target_height_m": TARGET_HEIGHT_M,
         "raw_height": bounds.size.y,
@@ -114,7 +117,7 @@ func _run() -> void:
         "relaxed_review_pose_bones": relaxed_pose_bones,
         "imported_materials": imported_material_stats,
         "review_materials": review_material_stats,
-        "normal_maps_disabled_for_review": normal_maps_disabled,
+        "unshaded_surfaces_for_review": unshaded_surfaces,
         "full_camera_distance_m": Vector3(0.0, 1.48, 3.20).distance_to(Vector3(0.0, 0.93, 0.0)),
         "close_camera_distance_m": camera.position.distance_to(Vector3(0.0, 1.40, 0.0)),
         "resolution": [WITNESS_SIZE.x, WITNESS_SIZE.y],
@@ -129,7 +132,7 @@ func _run() -> void:
     metrics_file.store_string(JSON.stringify(metrics, "  ") + "\n")
     metrics_file.close()
 
-    print("MIDI_MAKEHUMAN_CANDIDATE_OK: %s close=%s meshes=%d skeleton_bones=%d textured_surfaces=%d normal_maps_disabled=%d" % [output, close_output, mesh_count, skeleton.get_bone_count(), int(review_material_stats.get("textured_surfaces", 0)), normal_maps_disabled])
+    print("MIDI_MAKEHUMAN_CANDIDATE_OK: %s close=%s meshes=%d skeleton_bones=%d textured_surfaces=%d unshaded_surfaces=%d" % [output, close_output, mesh_count, skeleton.get_bone_count(), int(review_material_stats.get("textured_surfaces", 0)), unshaded_surfaces])
     quit(0)
 
 func _save_after_frames(viewport: SubViewport, path: String, frame_count: int) -> bool:
@@ -154,8 +157,8 @@ func _apply_relaxed_review_pose(skeleton: Skeleton3D) -> Array[String]:
         applied.append("upperarm01.R")
     return applied
 
-func _disable_normal_maps_for_review(root: Node) -> int:
-    var disabled := 0
+func _set_unshaded_for_review(root: Node) -> int:
+    var changed := 0
     var meshes: Array[MeshInstance3D] = []
     _collect_meshes(root, meshes)
     for mesh_node in meshes:
@@ -169,17 +172,16 @@ func _disable_normal_maps_for_review(root: Node) -> int:
             var clean := imported.duplicate() as BaseMaterial3D
             if clean == null:
                 continue
-            if clean.normal_enabled and clean.normal_texture != null:
-                clean.normal_enabled = false
-                disabled += 1
+            clean.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
             mesh_node.set_surface_override_material(surface_index, clean)
-    return disabled
+            changed += 1
+    return changed
 
 func _material_stats(root: Node) -> Dictionary:
     var surfaces := 0
     var material_surfaces := 0
     var textured_surfaces := 0
-    var normal_mapped_surfaces := 0
+    var unshaded_surfaces := 0
     var material_names: Array[String] = []
     var meshes: Array[MeshInstance3D] = []
     _collect_meshes(root, meshes)
@@ -197,13 +199,13 @@ func _material_stats(root: Node) -> Dictionary:
                 var base := mat as BaseMaterial3D
                 if base.albedo_texture != null:
                     textured_surfaces += 1
-                if base.normal_enabled and base.normal_texture != null:
-                    normal_mapped_surfaces += 1
+                if base.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED:
+                    unshaded_surfaces += 1
     return {
         "surfaces": surfaces,
         "material_surfaces": material_surfaces,
         "textured_surfaces": textured_surfaces,
-        "normal_mapped_surfaces": normal_mapped_surfaces,
+        "unshaded_surfaces": unshaded_surfaces,
         "material_names": material_names
     }
 

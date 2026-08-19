@@ -1,0 +1,91 @@
+name: Grand Bruxelles Kenney Car Kit Intake
+
+on:
+  push:
+    branches:
+      - asset-intake/kenney-car-kit
+    paths:
+      - ".asset-intake/kenney-car-kit.request"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-kenney-car-kit-intake
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout intake branch
+        uses: actions/checkout@v4
+        with:
+          ref: asset-intake/kenney-car-kit
+          fetch-depth: 0
+
+      - name: Download exact official Kenney Car Kit archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip'
+          curl -fL --retry 3 --retry-delay 2 "$URL" -o /tmp/kenney_car-kit.zip
+          test -s /tmp/kenney_car-kit.zip
+          sha256sum /tmp/kenney_car-kit.zip | tee /tmp/kenney_car-kit.sha256
+
+      - name: Verify license and extract GLB models
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/kenney-car-kit
+          mkdir -p /tmp/kenney-car-kit
+          unzip -q /tmp/kenney_car-kit.zip -d /tmp/kenney-car-kit
+          LICENSE_FILE=$(find /tmp/kenney-car-kit -type f -iname 'license*' | head -n 1 || true)
+          test -n "$LICENSE_FILE"
+          if ! grep -Eqi 'CC0|Creative Commons Zero|public domain' "$LICENSE_FILE"; then
+            echo 'KENNEY_CAR_INTAKE_FAIL: source license is not recognizably CC0' >&2
+            cat "$LICENSE_FILE" >&2
+            exit 1
+          fi
+          mapfile -t GLBS < <(find /tmp/kenney-car-kit -type f -iname '*.glb' | sort)
+          if [ "${#GLBS[@]}" -lt 8 ]; then
+            echo "KENNEY_CAR_INTAKE_FAIL: expected >=8 GLBs, found ${#GLBS[@]}" >&2
+            find /tmp/kenney-car-kit -maxdepth 5 -type f | sort >&2
+            exit 1
+          fi
+          TARGET='grand-bruxelles-game/assets/vehicles/kenney_car_kit'
+          mkdir -p "$TARGET/models"
+          rm -f "$TARGET/models"/*.glb
+          for src in "${GLBS[@]}"; do cp "$src" "$TARGET/models/$(basename "$src")"; done
+          cp "$LICENSE_FILE" "$TARGET/LICENSE.txt"
+          ARCHIVE_SHA=$(cut -d' ' -f1 /tmp/kenney_car-kit.sha256)
+          COUNT=${#GLBS[@]}
+          printf '%s\n' "${GLBS[@]##*/}" > "$TARGET/MODEL_INDEX.txt"
+          cat > "$TARGET/PROVENANCE.md" <<EOF
+# Kenney Car Kit provenance
+
+- Creator: Kenney
+- Official page: https://kenney.nl/assets/car-kit
+- License: Creative Commons CC0 1.0 Universal
+- Exact archive URL: https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip
+- Archive SHA-256: \`$ARCHIVE_SHA\`
+- Intake date: 2026-08-19
+- Imported format: GLB only
+- Imported GLB count: $COUNT
+- Runtime authorization: false pending in-game owner visual/performance review
+
+The files in this folder are an isolated asset intake. They are not production-authorized merely because they exist in the repository.
+EOF
+          echo "KENNEY_CAR_INTAKE_OK count=$COUNT sha256=$ARCHIVE_SHA"
+
+      - name: Commit isolated asset intake
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'grand-bruxelles-intake-bot'
+          git config user.email 'grand-bruxelles-intake-bot@users.noreply.github.com'
+          git add grand-bruxelles-game/assets/vehicles/kenney_car_kit
+          if git diff --cached --quiet; then echo 'No asset changes to commit.'; exit 0; fi
+          git commit -m 'assets(vehicle): intake Kenney Car Kit CC0 GLBs'
+          git push origin HEAD:asset-intake/kenney-car-kit

@@ -8,6 +8,7 @@ extends Node3D
 
 const LANDCOVER_CONTEXT_SCRIPT := preload("res://game/zones/laeken_jette/atomium_landcover_context.gd")
 const SPHERE_SKIN_SEMANTICS_SCRIPT := preload("res://game/zones/laeken_jette/atomium_sphere_skin_semantics.gd")
+const BASE_SPHERE_WINDOW_BAND_SCRIPT := preload("res://game/zones/laeken_jette/atomium_base_sphere_window_band.gd")
 const SPHERE_RADIAL_SEGMENTS := 48
 const SPHERE_RINGS := 24
 const TUBE_RADIAL_SEGMENTS := 32
@@ -22,6 +23,8 @@ var unresolved_support_pillars := 0
 var anchor_position := Vector3.ZERO
 var landcover_context: Node3D
 var sphere_skin_semantics_applied := false
+var base_sphere_window_band: Node3D
+var base_sphere_window_band_semantics_applied := false
 
 var _sphere_material: StandardMaterial3D
 var _tube_material: StandardMaterial3D
@@ -67,6 +70,9 @@ func build_on_terrain(terrain: Node) -> bool:
         centres.append(Vector3(float(raw[0]), float(raw[1]), float(raw[2])))
     for i: int in range(centres.size()):
         _add_sphere("Sphere_%02d" % i, centres[i])
+    if centres.is_empty() or not _mount_base_sphere_window_band(centres[0]):
+        push_error("AtomiumHeroCore: base-sphere window-band semantics unavailable")
+        return false
     for raw_edge: Variant in tubes_raw:
         if not raw_edge is Array or raw_edge.size() != 2:
             push_error("AtomiumHeroCore: invalid tube edge")
@@ -77,11 +83,33 @@ func build_on_terrain(terrain: Node) -> bool:
             push_error("AtomiumHeroCore: tube edge outside sphere topology")
             return false
         _add_tube(centres[a], centres[b])
-    hero_built = sphere_count == 9 and tube_count == 20
+    hero_built = sphere_count == 9 and tube_count == 20 and base_sphere_window_band_semantics_applied
     if hero_built:
         _mount_landcover_context(terrain)
-        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d sphere_skin_semantics=%s exact_seams=false" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars, str(sphere_skin_semantics_applied)])
+        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d sphere_skin_semantics=%s base_window_band=%s exact_seams=false exact_window_layout=false" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars, str(sphere_skin_semantics_applied), str(base_sphere_window_band_semantics_applied)])
     return hero_built
+
+func _mount_base_sphere_window_band(base_center: Vector3) -> bool:
+    base_sphere_window_band = BASE_SPHERE_WINDOW_BAND_SCRIPT.new()
+    if base_sphere_window_band == null:
+        return false
+    base_sphere_window_band.name = "AtomiumBaseSphereWindowBand"
+    add_child(base_sphere_window_band)
+    if not bool(base_sphere_window_band.call("build_on_sphere", base_center, source_sphere_diameter_m)):
+        base_sphere_window_band.queue_free()
+        base_sphere_window_band = null
+        return false
+    base_sphere_window_band_semantics_applied = true
+    return true
+
+func set_base_sphere_window_band_enabled(enabled: bool) -> void:
+    if is_instance_valid(base_sphere_window_band):
+        base_sphere_window_band.call("set_enabled", enabled)
+
+func base_sphere_window_band_enabled() -> bool:
+    if not is_instance_valid(base_sphere_window_band):
+        return false
+    return bool(base_sphere_window_band.call("enabled"))
 
 func _mount_landcover_context(terrain: Node) -> void:
     var world_parent := get_parent()

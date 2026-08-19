@@ -1,0 +1,41 @@
+{
+  "schema": "grand-bruxelles-urbis-lod2-dtm-alignment-contract-v1",
+  "batch_id": "anderlecht-E145500_N169000-B01",
+  "production_base_sha": "903d4ded36de4aa3e588c4379bddaefab2d1bc92",
+  "source_registry": "grand-bruxelles-game/data/urbis/remaining_brussels/lod2_source_batches/anderlecht_E145500_N169000_B01.manifest.json",
+  "source_payload_sha256": "516a174a97b9c6009aeb3f14759d53e34c0883a5e0fc9452fe9172d627c5c3ec",
+  "source_crs": "EPSG:31370",
+  "dtm": {
+    "name": "Paradigm UrbIS Digital Terrain Model 2021",
+    "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
+    "atom_feed": "https://urbisdownload.datastore.brussels/atomfeed/1d7bd49d-fe83-4388-af85-6f5dc8ec7909-en.xml",
+    "expected_1km_tile_codes": ["145168", "145169", "146168", "146169"],
+    "expected_resolution_m": 0.5,
+    "license": "CC0 per official Paradigm/Geobru metadata recorded by the project"
+  },
+  "measurement": {
+    "source_face_type": "GROUNDSURFACE",
+    "sample_method": "nearest official DTM pixel at each unique official ground-face XYZ vertex",
+    "residual_formula": "source_ground_z - dtm_z",
+    "deduplicate_vertices_per_owner": true,
+    "report_vertex_residuals": true,
+    "report_per_owner_median_residual": true,
+    "authorization_threshold": null,
+    "note": "This gate measures the vertical relationship only. It deliberately does not invent a pass threshold or a final game-world Y."
+  },
+  "expected_source": {
+    "owners": 250,
+    "solids": 251,
+    "ground_faces": 251,
+    "all_faces": 4195
+  },
+  "hard_rules": {
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "final_world_y_authorized": false,
+    "terrain_runtime_authorized": false,
+    "source_geometry_modified": false,
+    "artifact_only": true
+  }
+}

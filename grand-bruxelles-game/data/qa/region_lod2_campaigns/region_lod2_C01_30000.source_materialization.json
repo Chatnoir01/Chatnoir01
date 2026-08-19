@@ -1,0 +1,54 @@
+{
+  "schema": "grand-bruxelles-region-lod2-source-materialization-contract-v1",
+  "campaign_id": "region-lod2-C01-30000",
+  "production_base_sha": "7180095826e2e7b6ae274d419fbfdaa0c2c429d9",
+  "evidence": {
+    "selection_artifact": {
+      "id": 9380126488,
+      "zip_sha256": "973f9f9a42b9deb17fd8bb8f9ff68beaa187b46caafb7561e3fdd99ca262b4dd"
+    },
+    "source_summary_artifact": {
+      "id": 9380337311,
+      "zip_sha256": "7fdbe4b6e9abb86fc773410ebb913e2dbe7c96634ef1b9497cdfef1e9ca11567"
+    },
+    "source_run_id": 32292843515,
+    "source_revision": "20260808"
+  },
+  "expected": {
+    "owner_count": 30000,
+    "owner_sequence_sha256": "19acf5707d4daba092a41c20ca780e337d06ee4648813fb2f259cc7f77c004f6",
+    "solid_count": 30944,
+    "face_count": 532211,
+    "point_count": 3273027,
+    "part_count": 534100,
+    "canonical_payload_bytes": 222598504,
+    "source_shard_count": 47,
+    "spatial_cell_count": 132,
+    "planner_group_count": 212,
+    "source_shards_sha256": "42e13006ff548116f305c8d48f96b88aa6e66a78e57635654492cd86a0c77cdb",
+    "face_type_counts": {
+      "GROUNDSURFACE": 30997,
+      "OTHER": 63,
+      "OUTERCEILING": 607,
+      "OUTERFLOOR": 112,
+      "ROOFSURFACE": 132646,
+      "WALLSURFACE": 367786
+    }
+  },
+  "materialization": {
+    "source_download_policy": "locked direct distribution URLs from exact source summary; no Atom traversal",
+    "parallel_source_shards": 47,
+    "physical_cells": 132,
+    "output_coordinate_space": "original EPSG:31370 XYZ",
+    "cell_partition_policy": "one official BU_ID owner belongs to exactly one locked physical 500 m cell"
+  },
+  "hard_rules": {
+    "artifact_source_materialization_only": true,
+    "source_geometry_modified": false,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "game_world_transform_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

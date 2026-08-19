@@ -1,0 +1,55 @@
+name: Grand Bruxelles Combat Visible Fun
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-combat-visible-fun.yml"
+      - "grand-bruxelles-game/game/scripts/player_combat_arsenal_hardened_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/authored_player_locomotion_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_authored_pose_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_shot_fx_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_weapon_visual_upgrade_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_weapon_hand_orientation_runtime.gd"
+      - "grand-bruxelles-game/game/tests/combat_visible_fun_test.gd"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visible-fun:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/combat-visible-fun-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/combat-visible-fun-import.log; then exit 1; fi
+      - name: Run visible combat contract
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/combat_visible_fun_test.gd 2>&1 | tee /tmp/combat-visible-fun-test.log
+          if grep -E "SCRIPT ERROR|Parse Error:|COMBAT_VISIBLE_FUN_FAIL" /tmp/combat-visible-fun-test.log; then exit 1; fi
+          grep -F "COMBAT_VISIBLE_FUN_OK" /tmp/combat-visible-fun-test.log
+      - name: Run existing combat contracts
+        shell: bash
+        run: |
+          set -o pipefail
+          for test in \
+            res://game/tests/player_combat_arsenal_test.gd \
+            res://game/tests/player_combat_arsenal_hardening_test.gd \
+            res://game/tests/combat_weapon_visual_upgrade_test.gd \
+            res://game/tests/player_melee_combat_hardened_test.gd; do
+            /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script "$test" 2>&1 | tee -a /tmp/combat-existing-contracts.log
+          done
+          if grep -E "SCRIPT ERROR|Parse Error:|_FAIL:" /tmp/combat-existing-contracts.log; then exit 1; fi

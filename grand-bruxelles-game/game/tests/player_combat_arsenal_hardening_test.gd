@@ -67,6 +67,18 @@ func _run() -> void:
         _fail("weapon hits must be isolated from melee directional flinch"); return
     if source.find("_animate_melee_weight_transfer") < 0:
         _fail("melee combo must animate full-body weight transfer"); return
+    if source.find("func _apply_recoil(profile: Dictionary)") < 0:
+        _fail("hardened arsenal must own recoil so the hand mount cannot drift"); return
+    if source.find("combat_weapon_recoil_mount_locked") < 0:
+        _fail("recoil hand-lock marker missing"); return
+    if source.find("_weapon_visual.position.z") >= 0 or source.find("position:z\"") >= 0:
+        _fail("hardened recoil must not translate the weapon holder away from the hand"); return
+    if source.find("func _rebuild_weapon_visual(player: CharacterBody3D)") < 0:
+        _fail("hardened arsenal must normalize holder identity during weapon swaps"); return
+    if source.find("CombatWeaponVisualRetired_") < 0 or source.find("combat_weapon_canonical_holder") < 0:
+        _fail("rapid weapon swaps must retire the old holder before creating the canonical holder"); return
+    if source.find("combat_weapon_holder_weapon_id") < 0:
+        _fail("canonical weapon holder must publish its active weapon id"); return
 
     var move_publish_pos := source.find("player.set_meta(\"combat_move_id\"")
     var melee_call_pos := source.find("melee_runtime.call(\"request_attack\", player)")
@@ -78,5 +90,5 @@ func _run() -> void:
     if project_text.find(expected) < 0:
         _fail("project must autoload the hardened arsenal runtime"); return
 
-    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green combo_variation=green flinch_isolation=green weight_transfer=4")
+    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green combo_variation=green flinch_isolation=green weight_transfer=4 grip_recoil_lock=green canonical_holder_swap=green")
     quit(0)

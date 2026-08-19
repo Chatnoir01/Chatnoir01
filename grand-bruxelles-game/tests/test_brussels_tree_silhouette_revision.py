@@ -9,12 +9,10 @@ def main() -> None:
     assert "SILHOUETTE_REVISION := 2" in text
     assert "FOLIAGE_LOBE_COUNT := 8" in text
     assert "authored_presentation_not_source_measurement" in text
-    assert "source_dimensions_measured" in text
-    assert "species_claimed" in text
+    assert 'set_meta("source_dimensions_measured", false)' in text
+    assert 'set_meta("species_claimed", false)' in text
     assert "tree_variation_scale" in text
     assert "foliage_tone_variation" in text
-    # Do not allow the revision to invent source-derived botanical truth.
-    assert "species_claimed", "false"
     print("BRUSSELS_TREE_SILHOUETTE_REVISION_OK")
 
 

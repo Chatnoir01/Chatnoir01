@@ -1,0 +1,43 @@
+{
+  "schema": "grand-bruxelles-midi-realistic-authored-npcs-v1",
+  "status": "red_first",
+  "base_main": "b9e18e6bf1672a6bbe92c510497784656481e011",
+  "zone": "midi",
+  "scope": "visual_only",
+  "runtime_authorized": false,
+  "merge_authorized": false,
+  "minimum_civilian_identities": 6,
+  "preferred_police_identities": 2,
+  "near_quality_range_m": [2.0, 8.0],
+  "lod": {
+    "near_end_m": 20.0,
+    "mid_end_m": 60.0,
+    "legacy_cuboid_fallback_allowed": false,
+    "far_policy": "authored_humanoid_lod_or_cull"
+  },
+  "required_animation_roles": ["idle", "walk", "run"],
+  "banned_civilian_assets": ["res://assets/characters/player_character.glb"],
+  "required_asset_fields": [
+    "id", "source", "author", "source_identifier", "license", "sha256",
+    "original_format", "runtime_format", "triangle_count", "textures",
+    "skeleton_bones", "clips", "approx_memory_bytes", "role",
+    "production_authorized", "adaptation_notes"
+  ],
+  "witness": {
+    "resolution": [1280, 720],
+    "camera": "normal_player_camera",
+    "artifacts": [
+      "before.png", "after.png", "civil_close_01.png", "civil_close_02.png",
+      "civil_group.png", "police_close.png", "metrics.json", "runtime.log",
+      "asset_manifest.json", "licenses.json"
+    ]
+  },
+  "required_gates": [
+    "authored_npc_test", "midi_ambient_npc_visual", "npc_systems", "npc_realism",
+    "game_ci", "web_export", "pc_desktop_export", "performance_baseline",
+    "photo_match_qa", "runtime_bootstrap", "branch_hygiene", "general_test"
+  ],
+  "human_visual_verdict_required": true,
+  "human_visual_verdict": null,
+  "done": false
+}

@@ -64,12 +64,12 @@ void vertex() {
 void fragment() {
     float broad = value_noise(world_pos.xz * 0.18 + vec2(world_pos.y * 0.11));
     float upward = clamp(world_normal.y * 0.5 + 0.5, 0.0, 1.0);
-    float underside_lift = mix(0.19, 0.0, upward);
-    float authored = clamp(0.24 + broad * 0.34 + upward * 0.30 + underside_lift, 0.0, 1.0);
+    float underside_lift = mix(0.10, 0.0, upward);
+    float authored = clamp(0.31 + broad * 0.24 + upward * 0.22 + underside_lift, 0.0, 1.0);
     ALBEDO = mix(base_color.rgb, lift_color.rgb, authored);
-    ROUGHNESS = clamp(roughness_value + (0.5 - broad) * 0.025, 0.90, 0.99);
+    ROUGHNESS = clamp(roughness_value + (0.5 - broad) * 0.018, 0.92, 0.99);
     METALLIC = 0.0;
-    SPECULAR = 0.12;
+    SPECULAR = 0.10;
 }
 """
     return shader
@@ -84,11 +84,11 @@ uniform vec4 light_color : source_color;
 varying vec3 world_pos;
 void vertex() { world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
-    float authored = 0.5 + 0.18 * sin(world_pos.y * 2.7 + world_pos.x * 0.13 + world_pos.z * 0.17);
+    float authored = 0.5 + 0.12 * sin(world_pos.y * 2.7 + world_pos.x * 0.13 + world_pos.z * 0.17);
     ALBEDO = mix(dark_color.rgb, light_color.rgb, clamp(authored, 0.0, 1.0));
-    ROUGHNESS = 0.985;
+    ROUGHNESS = 0.988;
     METALLIC = 0.0;
-    SPECULAR = 0.08;
+    SPECULAR = 0.06;
 }
 """
     return shader
@@ -98,22 +98,22 @@ static func _foliage(shader: Shader, base: Color, lift: Color, role: String) -> 
     material.shader = shader
     material.set_shader_parameter("base_color", base)
     material.set_shader_parameter("lift_color", lift)
-    material.set_shader_parameter("roughness_value", 0.965 if role == "foliage_dark" else 0.955)
+    material.set_shader_parameter("roughness_value", 0.968 if role == "foliage_dark" else 0.958)
     _meta(material, role, true)
     return material
 
 static func _trunk() -> ShaderMaterial:
     var material := ShaderMaterial.new()
     material.shader = _trunk_shader()
-    material.set_shader_parameter("dark_color", Color(0.115, 0.078, 0.052, 1.0))
-    material.set_shader_parameter("light_color", Color(0.245, 0.175, 0.112, 1.0))
+    material.set_shader_parameter("dark_color", Color(0.145, 0.105, 0.070, 1.0))
+    material.set_shader_parameter("light_color", Color(0.215, 0.155, 0.100, 1.0))
     _meta(material, "trunk", true)
     return material
 
 static func create_materials() -> Dictionary:
     var foliage_shader := _foliage_shader()
     return {
-        "foliage_dark": _foliage(foliage_shader, Color(0.095, 0.175, 0.075, 1.0), Color(0.255, 0.390, 0.175, 1.0), "foliage_dark"),
-        "foliage_light": _foliage(foliage_shader, Color(0.145, 0.235, 0.095, 1.0), Color(0.345, 0.475, 0.215, 1.0), "foliage_light"),
+        "foliage_dark": _foliage(foliage_shader, Color(0.125, 0.215, 0.095, 1.0), Color(0.225, 0.335, 0.155, 1.0), "foliage_dark"),
+        "foliage_light": _foliage(foliage_shader, Color(0.205, 0.305, 0.145, 1.0), Color(0.285, 0.405, 0.185, 1.0), "foliage_light"),
         "trunk": _trunk(),
     }

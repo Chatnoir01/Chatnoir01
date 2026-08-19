@@ -209,6 +209,7 @@ def inspect_distribution(row: dict[str, str]) -> tuple[dict[str, dict[str, Any]]
         "lod2_records": 0,
         "unique_building_owners": 0,
         "empty_owner_records": 0,
+        "geometryless_lod2_records": 0,
     }
 
     with zipfile.ZipFile(io.BytesIO(payload)) as archive, tempfile.TemporaryDirectory() as tmp:
@@ -252,25 +253,26 @@ def inspect_distribution(row: dict[str, str]) -> tuple[dict[str, dict[str, Any]]
                 summary["empty_owner_records"] += 1
                 continue
 
-            bbox = getattr(shape_record.shape, "bbox", None)
-            if not bbox or len(bbox) < 4:
-                raise RuntimeError(f"{building_id}: BuildingSolids geometry has no XY bbox")
-            x = (float(bbox[0]) + float(bbox[2])) / 2.0
-            y = (float(bbox[1]) + float(bbox[3])) / 2.0
-
             owner = owners.setdefault(building_id, {
                 "sum_x": 0.0,
                 "sum_y": 0.0,
                 "sample_count": 0,
                 "solid_ids": set(),
             })
-            owner["sum_x"] += x
-            owner["sum_y"] += y
-            owner["sample_count"] += 1
             if solid_field:
                 solid_id = str(values.get(solid_field) or "").strip()
                 if solid_id:
                     owner["solid_ids"].add(solid_id)
+
+            bbox = getattr(shape_record.shape, "bbox", None)
+            if not bbox or len(bbox) < 4:
+                summary["geometryless_lod2_records"] += 1
+                continue
+            x = (float(bbox[0]) + float(bbox[2])) / 2.0
+            y = (float(bbox[1]) + float(bbox[3])) / 2.0
+            owner["sum_x"] += x
+            owner["sum_y"] += y
+            owner["sample_count"] += 1
 
     summary["unique_building_owners"] = len(owners)
     return owners, summary
@@ -480,13 +482,24 @@ def run(feed_url: str, repo_root: Path, output_dir: Path, workers: int, cell_siz
     for building_id in missing:
         owner = regional[building_id]
         if int(owner["sample_count"]) <= 0:
-            raise RuntimeError(f"{building_id}: no representative source samples")
-        x = float(owner["sum_x"]) / int(owner["sample_count"])
-        y = float(owner["sum_y"]) / int(owner["sample_count"])
-        municipality_slug, municipality_name, assignment_status = municipality_for_point(
-            Point(x, y), municipalities
-        )
-        cell_id, cell_east, cell_north = cell_for_xy(x, y, cell_size)
+            municipality_slug = "hold-unassigned"
+            municipality_name = ""
+            assignment_status = "no_source_xy"
+            cell_id = "HOLD_NO_XY"
+            cell_east: int | str = ""
+            cell_north: int | str = ""
+            representative_x = ""
+            representative_y = ""
+        else:
+            x = float(owner["sum_x"]) / int(owner["sample_count"])
+            y = float(owner["sum_y"]) / int(owner["sample_count"])
+            municipality_slug, municipality_name, assignment_status = municipality_for_point(
+                Point(x, y), municipalities
+            )
+            cell_id, cell_east, cell_north = cell_for_xy(x, y, cell_size)
+            representative_x = f"{x:.3f}"
+            representative_y = f"{y:.3f}"
+
         group_ids[(municipality_slug, cell_id)].append(building_id)
 
         stats = municipality_stats.get(municipality_slug) or hold_stats[municipality_slug]
@@ -501,8 +514,8 @@ def run(feed_url: str, repo_root: Path, output_dir: Path, workers: int, cell_siz
             "cell_id": cell_id,
             "cell_east": cell_east,
             "cell_north": cell_north,
-            "representative_x": f"{x:.3f}",
-            "representative_y": f"{y:.3f}",
+            "representative_x": representative_x,
+            "representative_y": representative_y,
             "distribution_keys": ";".join(sorted(owner["distribution_keys"])),
             "revision_dates": ";".join(sorted(owner["revision_dates"])),
             "solid_count": len(owner["solid_ids"]),
@@ -577,7 +590,8 @@ def run(feed_url: str, repo_root: Path, output_dir: Path, workers: int, cell_siz
         output_dir / "distribution_summary.csv",
         [
             "distribution_key", "revision_date", "status", "source_records",
-            "lod2_records", "unique_building_owners", "empty_owner_records", "url",
+            "lod2_records", "unique_building_owners", "empty_owner_records",
+            "geometryless_lod2_records", "url",
         ],
         summaries,
     )
@@ -600,6 +614,7 @@ def run(feed_url: str, repo_root: Path, output_dir: Path, workers: int, cell_siz
             row["revision_date"] for row in selected if row["revision_date"] != "00000000"
         }),
         "lod2_records": sum(int(row["lod2_records"]) for row in summaries),
+        "geometryless_lod2_records": sum(int(row["geometryless_lod2_records"]) for row in summaries),
         "official_unique_building_ids": len(regional_ids),
         "already_persisted_official_ids": len(present),
         "missing_official_building_ids": len(missing),
@@ -613,7 +628,8 @@ def run(feed_url: str, repo_root: Path, output_dir: Path, workers: int, cell_siz
         "materialization_authorized": False,
         "note": (
             "Planning/evidence only. Municipality assignment uses the mean of official "
-            "BuildingSolids XY bbox centres per owner. Boundary/unassigned cases remain HOLD. "
+            "BuildingSolids XY bbox centres per owner when available. Geometryless source "
+            "records are preserved; owners with no usable XY remain HOLD_NO_XY. Boundary/unassigned cases remain HOLD. "
             "Source batches do not authorize runtime loading or semantic visual work."
         ),
     }

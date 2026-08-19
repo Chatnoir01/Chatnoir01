@@ -70,7 +70,7 @@ func _run() -> void:
         _fail("crossbow slot 1 equip failed")
         return
     await _wait_frames(6)
-    if not _assert_native_visibility(player, "1H_Crossbow"):
+    if not _assert_native_visibility(player, "2H_Crossbow"):
         return
     if StringName(arsenal.call("equipped_weapon")) != &"crossbow":
         _fail("crossbow not canonical equipped weapon")
@@ -123,5 +123,5 @@ func _run() -> void:
         _fail("native inventory was not marked sanitized")
         return
 
-    print("ROGUE_NATIVE_CROSSBOW_WITNESS_OK: native_nodes=5 slot1=1H_Crossbow knives=hidden variant_2H=hidden fire=green bolt=green slots_2_3_4=native_hidden unarmed=native_hidden")
+    print("ROGUE_NATIVE_CROSSBOW_WITNESS_OK: native_nodes=5 slot1=2H_Crossbow knives=hidden variant_1H=hidden fire=green bolt=green slots_2_3_4=native_hidden unarmed=native_hidden")
     quit(0)

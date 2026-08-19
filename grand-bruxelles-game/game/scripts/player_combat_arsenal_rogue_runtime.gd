@@ -6,7 +6,7 @@ extends "res://game/scripts/player_combat_arsenal_hardened_runtime.gd"
 # procedural weapons on top of baked knives/crossbows.
 
 const CROSSBOW_ID := &"crossbow"
-const NATIVE_CROSSBOW_NODE := "1H_Crossbow"
+const NATIVE_CROSSBOW_NODE := "2H_Crossbow"
 const NATIVE_WEAPON_NODES: Array[String] = [
     "Knife_Offhand",
     "1H_Crossbow",

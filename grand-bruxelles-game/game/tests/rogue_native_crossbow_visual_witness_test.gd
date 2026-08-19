@@ -114,7 +114,7 @@ func _run() -> void:
         return
     for _frame: int in range(18):
         await process_frame
-    if not _assert_visibility(player, "1H_Crossbow"):
+    if not _assert_visibility(player, "2H_Crossbow"):
         return
     if player.get_node_or_null("CombatWeaponVisual") != null:
         _fail("procedural holder exists during native crossbow")
@@ -139,5 +139,5 @@ func _run() -> void:
         _fail("BX-9 capture failed")
         return
 
-    print("ROGUE_NATIVE_CROSSBOW_VISUAL_OK: 1280x720 unarmed=native_hidden crossbow=1H_only bx9=native_hidden unsafe_pose=false")
+    print("ROGUE_NATIVE_CROSSBOW_VISUAL_OK: 1280x720 unarmed=native_hidden crossbow=2H_only bx9=native_hidden unsafe_pose=false")
     quit(0)

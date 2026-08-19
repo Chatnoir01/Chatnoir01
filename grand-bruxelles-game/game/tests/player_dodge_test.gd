@@ -75,6 +75,21 @@ func _run() -> void:
     if not _expect(not bool(guarded.get("dodged", false)) and String(guarded.get("reason", "")) == "guarding", "dodge ignored active guard state"):
         return
 
-    print("PLAYER_DODGE_OK: distance=%.2f first_step=%.3f temporal=true counter_reach_cleared=true cooldown=true guard_exclusive=true" % [travelled, first_step])
+    # A dodge that is blocked before reaching the minimum effective travel must
+    # not grant a free evade window while the player remains against the wall.
+    player.set_meta("combat_guarding", false)
+    player.set_meta("combat_next_dodge_ms", 0)
+    var blocked: Dictionary = dodge.call("request_dodge", player, Vector3.RIGHT)
+    if not _expect(bool(blocked.get("dodged", false)), "blocked-dodge fixture could not arm a dodge"):
+        return
+    dodge.call("_finish_dodge_motion", player, true)
+    if not _expect(bool(player.get_meta("combat_dodge_failed_effective", false)), "ineffective blocked dodge was not marked failed"):
+        return
+    if not _expect(not bool(player.get_meta("combat_dodge_motion_active", true)), "blocked dodge motion remained active"):
+        return
+    if not _expect(int(player.get_meta("combat_dodge_until_ms", 0)) <= Time.get_ticks_msec(), "blocked dodge retained a free evade window"):
+        return
+
+    print("PLAYER_DODGE_OK: distance=%.2f first_step=%.3f temporal=true blocked_iframe_cancel=true counter_reach_cleared=true cooldown=true guard_exclusive=true" % [travelled, first_step])
     world.queue_free()
     quit(0)

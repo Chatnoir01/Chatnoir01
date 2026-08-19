@@ -57,9 +57,15 @@ func _process(delta: float) -> void:
 			_bindings.erase(actor_id)
 			continue
 		var binding: Dictionary = binding_value
-		var actor := binding.get("actor") as CharacterBody3D
-		var animation_player := binding.get("animation_player") as AnimationPlayer
-		if not is_instance_valid(actor) or not is_instance_valid(animation_player):
+		# Stored Object references can become freed-object proxies between frames.
+		# Validate the raw Variants before any typed cast: casting a freed proxy is
+		# itself the lifecycle crash this runtime must prevent.
+		var actor_value: Variant = binding.get("actor")
+		var animation_player_value: Variant = binding.get("animation_player")
+		if not is_instance_valid(actor_value) or not is_instance_valid(animation_player_value):
+			_bindings.erase(actor_id)
+			continue
+		if not (actor_value is CharacterBody3D) or not (animation_player_value is AnimationPlayer):
 			_bindings.erase(actor_id)
 			continue
 		_update_binding(binding, delta)
@@ -300,14 +306,16 @@ func _playback_scale(state: String, speed: float) -> float:
 
 
 func _speed_for_binding(binding: Dictionary, delta: float) -> float:
-	var actor := binding.get("actor") as CharacterBody3D
-	if actor == null:
+	var actor_value: Variant = binding.get("actor")
+	if not is_instance_valid(actor_value) or not (actor_value is CharacterBody3D):
 		return 0.0
+	var actor := actor_value as CharacterBody3D
 	if not bool(binding.get("observe_transform_delta", false)):
 		return Vector2(actor.velocity.x, actor.velocity.z).length()
-	var source := binding.get("motion_source") as Node3D
-	if not is_instance_valid(source):
+	var source_value: Variant = binding.get("motion_source")
+	if not is_instance_valid(source_value) or not (source_value is Node3D):
 		return 0.0
+	var source := source_value as Node3D
 	var current := source.global_position
 	var previous_value: Variant = binding.get("last_motion_position")
 	binding["last_motion_position"] = current
@@ -321,10 +329,14 @@ func _speed_for_binding(binding: Dictionary, delta: float) -> float:
 
 
 func _update_binding(binding: Dictionary, delta: float = 0.0) -> void:
-	var actor := binding.get("actor") as CharacterBody3D
-	var animation_player := binding.get("animation_player") as AnimationPlayer
-	if actor == null or animation_player == null:
+	var actor_value: Variant = binding.get("actor")
+	var animation_player_value: Variant = binding.get("animation_player")
+	if not is_instance_valid(actor_value) or not is_instance_valid(animation_player_value):
 		return
+	if not (actor_value is CharacterBody3D) or not (animation_player_value is AnimationPlayer):
+		return
+	var actor := actor_value as CharacterBody3D
+	var animation_player := animation_player_value as AnimationPlayer
 	var locomotion_value: Variant = binding.get("locomotion")
 	if not (locomotion_value is Dictionary):
 		return
@@ -344,7 +356,7 @@ func _update_binding(binding: Dictionary, delta: float = 0.0) -> void:
 
 
 func update_actor_now(actor: NpcAgent, delta: float = 0.0) -> void:
-	if actor == null:
+	if actor == null or not is_instance_valid(actor):
 		return
 	var value: Variant = _bindings.get(actor.get_instance_id())
 	if value is Dictionary:
@@ -353,7 +365,7 @@ func update_actor_now(actor: NpcAgent, delta: float = 0.0) -> void:
 
 
 func is_actor_authored(actor: NpcAgent) -> bool:
-	if actor == null:
+	if actor == null or not is_instance_valid(actor):
 		return false
 	return actor.get_meta(APPLIED_META, false) == true and _bindings.has(actor.get_instance_id())
 

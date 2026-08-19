@@ -1,0 +1,60 @@
+name: Grand Bruxelles Rogue Crossbow 2H macOS Witness
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-rogue-crossbow-2h-macos-witness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rogue-crossbow-2h-macos-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-witness:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_macos.universal.zip
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT_BIN="/tmp/godot/Godot.app/Contents/MacOS/Godot"
+          test -x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          "$GODOT_BIN" --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/crossbow-macos-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/crossbow-macos-import.log; then exit 1; fi
+      - name: Capture player-view 2H loadout proof
+        shell: bash
+        run: |
+          set -o pipefail
+          "$GODOT_BIN" \
+            --path grand-bruxelles-game \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/rogue_native_crossbow_visual_witness_test.gd \
+            2>&1 | tee /tmp/crossbow-macos-visual.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ROGUE_NATIVE_CROSSBOW_VISUAL_FAIL" /tmp/crossbow-macos-visual.log; then exit 1; fi
+          grep -F "ROGUE_NATIVE_CROSSBOW_VISUAL_OK" /tmp/crossbow-macos-visual.log
+          test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/unarmed.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/crossbow.png
+          test -s grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/bx9.png
+          cp /tmp/crossbow-macos-import.log grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/import-macos.log
+          cp /tmp/crossbow-macos-visual.log grand-bruxelles-game/artifacts/qa/rogue_native_crossbow/visual-macos.log
+      - name: Upload macOS evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rogue-native-crossbow-2h-macos-witness
+          path: grand-bruxelles-game/artifacts/qa/rogue_native_crossbow
+          if-no-files-found: error

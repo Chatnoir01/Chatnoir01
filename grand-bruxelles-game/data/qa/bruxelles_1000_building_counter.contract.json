@@ -1,0 +1,51 @@
+{
+  "schema": "grand-bruxelles-postcode-building-counter-contract-v2",
+  "scope": "1000 Bruxelles / Brussel postal canton",
+  "production_base_sha": "56dd6440d4018826c9f3a7edcc59efb31fc4c910",
+  "postal_boundary": {
+    "provider": "National Geographic Institute (NGI/IGN)",
+    "dataset": "Territorial Divisions - Postal cantons",
+    "metadata_identifier": "1cd00540-b0ca-11ec-a863-186571a04de2",
+    "metadata_revision": "2026-07-16",
+    "postal_code": "1000",
+    "download_crs": "EPSG:4326",
+    "target_crs": "EPSG:31370",
+    "license": "CC-BY-4.0"
+  },
+  "building_source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "service": "UrbIS vector WFS",
+    "layer": "urbisvector:Buildings",
+    "crs": "EPSG:31370"
+  },
+  "lod2_planning_evidence": {
+    "planner_pr": 898,
+    "planner_run_id": 32269055058,
+    "planner_artifact_id": 9371456570,
+    "planner_artifact_sha256": "5c45f328f06bf951631c1f71fe4360b7f503c04a2da3bcbd2093d7a7fd5c4535",
+    "revision": "20260808"
+  },
+  "campaigns": {
+    "production_source_campaign": "region-lod2-C01-30000",
+    "active_source_draft_pr": 939,
+    "active_source_draft_campaign": "region-lod2-C02-30000"
+  },
+  "status_rules": {
+    "finished_perfect": "Only an owner explicitly listed status=finished_perfect in a completion ledger merged on main can be removed from remaining_to_perfect. Source persistence, runtime presence, a visual PASS for a partial feature, or an open PR is insufficient.",
+    "started_open_pr": "Owner is explicitly referenced by a non-source-only open implementation PR and is inside postal canton 1000.",
+    "started_main_runtime": "Owner is explicitly referenced by production game/runtime files on main but has no finished_perfect ledger entry.",
+    "source_registered_main": "Owner is source-persisted on current production or belongs to the merged C01 immutable source campaign, but has no started implementation or finished_perfect ledger entry.",
+    "source_draft": "Owner belongs to the active C02 source-only draft and is not yet production source truth.",
+    "unstarted": "Owner is in the official 1000 building inventory and in the locked LoD2 missing planner, but has no production source registration, active implementation reference, or finish marker found by this audit.",
+    "unresolved": "Official 1000 building owner cannot be reconciled with the locked LoD2 planner or exact repository evidence and remains fail-closed rather than guessed; this can include owners without usable LoD2 evidence."
+  },
+  "hard_rules": {
+    "source_only_is_not_finished": true,
+    "draft_is_not_finished": true,
+    "runtime_presence_is_not_finished": true,
+    "no_semantic_guessing": true,
+    "no_runtime_authorization": true,
+    "no_geometry_change": true,
+    "counter_is_qa_only": true
+  }
+}

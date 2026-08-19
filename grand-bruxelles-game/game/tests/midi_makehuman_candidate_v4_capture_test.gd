@@ -2,6 +2,7 @@ extends SceneTree
 
 const RESOURCE_PATH := "res://assets/characters/_review/makehuman_midi_v4/FemalePilot/FemalePilot.fbx"
 const REVIEW_TEXTURE_ROOT := "res://assets/characters/_review/makehuman_midi_v4/FemalePilot/textures/"
+const BONE_MAP_PATH := "res://data/qa/midi_makehuman_humanoid_bone_map.json"
 const TARGET_HEIGHT_M := 1.72
 const WITNESS_SIZE := Vector2i(1280, 720)
 const REQUIRED_NORMAL_MAPS := {
@@ -68,6 +69,12 @@ func _run() -> void:
     var bone_names: Array[String] = []
     for bone_index in range(skeleton.get_bone_count()):
         bone_names.append(skeleton.get_bone_name(bone_index))
+
+    var retarget_readiness := _build_retarget_readiness(skeleton)
+    if not bool(retarget_readiness.get("ready", false)):
+        _fail("candidate core humanoid BoneMap is not retarget-ready: %s" % str(retarget_readiness))
+        return
+
     var relaxed_pose_bones := _apply_relaxed_review_pose(skeleton)
 
     # The MakeHuman export already ships authored normal textures for cargo trousers
@@ -120,10 +127,11 @@ func _run() -> void:
         return
 
     var metrics := {
-        "schema": "grand-bruxelles-makehuman-candidate-witness-v11",
+        "schema": "grand-bruxelles-makehuman-candidate-witness-v12",
         "production_authorized": false,
         "diagnostic_mode": "art_v4_natural_skin_face_clear_casual_binary_fbx",
         "material_mode": "source_provided_normal_maps_review_override",
+        "retarget_mode": "skeleton_profile_humanoid_core_bonemap_readiness",
         "pose_mode": "upperarm_relaxed_62deg_no_shoulder_override",
         "lighting_mode": "neutral_low_energy_review",
         "resource": RESOURCE_PATH,
@@ -134,6 +142,7 @@ func _run() -> void:
         "skeleton_count": 1,
         "skeleton_bones": skeleton.get_bone_count(),
         "bone_names": bone_names,
+        "retarget_readiness": retarget_readiness,
         "relaxed_review_pose_bones": relaxed_pose_bones,
         "materials": material_stats,
         "sourced_normal_maps": sourced_normal_maps,
@@ -153,8 +162,85 @@ func _run() -> void:
     metrics_file.store_string(JSON.stringify(metrics, "  ") + "\n")
     metrics_file.close()
 
-    print("MIDI_MAKEHUMAN_V4_CANDIDATE_OK: %s close=%s three_quarter=%s meshes=%d skeleton_bones=%d textured_surfaces=%d normal_mapped_surfaces=%d" % [output, close_output, side_output, mesh_count, skeleton.get_bone_count(), int(material_stats.get("textured_surfaces", 0)), int(material_stats.get("normal_mapped_surfaces", 0))])
+    print("MIDI_MAKEHUMAN_V4_CANDIDATE_OK: %s close=%s three_quarter=%s meshes=%d skeleton_bones=%d textured_surfaces=%d normal_mapped_surfaces=%d retarget_core=%d" % [output, close_output, side_output, mesh_count, skeleton.get_bone_count(), int(material_stats.get("textured_surfaces", 0)), int(material_stats.get("normal_mapped_surfaces", 0)), int(retarget_readiness.get("mapped_core_count", 0))])
     quit(0)
+
+func _build_retarget_readiness(skeleton: Skeleton3D) -> Dictionary:
+    var config := _read_json(BONE_MAP_PATH)
+    if config.is_empty():
+        return {"ready": false, "reason": "bone_map_config_missing"}
+    var mapping_variant: Variant = config.get("required_core_mapping", {})
+    var expectations_variant: Variant = config.get("required_profile_parent_expectations", {})
+    if not mapping_variant is Dictionary or not expectations_variant is Dictionary:
+        return {"ready": false, "reason": "bone_map_config_invalid"}
+    var mapping := mapping_variant as Dictionary
+    var expectations := expectations_variant as Dictionary
+
+    var profile := SkeletonProfileHumanoid.new()
+    var bone_map := BoneMap.new()
+    bone_map.profile = profile
+
+    var missing_profile_bones: Array[String] = []
+    var missing_source_bones: Array[String] = []
+    var roundtrip_failures: Array[String] = []
+    var source_to_profile: Dictionary = {}
+    var mapped_core_count := 0
+
+    for profile_name_variant: Variant in mapping.keys():
+        var profile_name := str(profile_name_variant)
+        var source_name := str(mapping[profile_name_variant])
+        if profile.find_bone(StringName(profile_name)) < 0:
+            missing_profile_bones.append(profile_name)
+            continue
+        if skeleton.find_bone(source_name) < 0:
+            missing_source_bones.append(source_name)
+            continue
+        bone_map.set_skeleton_bone_name(StringName(profile_name), StringName(source_name))
+        if str(bone_map.get_skeleton_bone_name(StringName(profile_name))) != source_name:
+            roundtrip_failures.append("%s->%s" % [profile_name, source_name])
+            continue
+        source_to_profile[source_name] = profile_name
+        mapped_core_count += 1
+
+    var parent_failures: Array[String] = []
+    for child_profile_variant: Variant in expectations.keys():
+        var child_profile := str(child_profile_variant)
+        var expected_parent_profile := str(expectations[child_profile_variant])
+        if not mapping.has(child_profile) or not mapping.has(expected_parent_profile):
+            parent_failures.append("%s missing configured parent role %s" % [child_profile, expected_parent_profile])
+            continue
+        var child_source := str(mapping[child_profile])
+        var child_index := skeleton.find_bone(child_source)
+        if child_index < 0:
+            continue
+        var parent_index := skeleton.get_bone_parent(child_index)
+        var nearest_mapped_parent_profile := ""
+        while parent_index >= 0:
+            var parent_source := skeleton.get_bone_name(parent_index)
+            if source_to_profile.has(parent_source):
+                nearest_mapped_parent_profile = str(source_to_profile[parent_source])
+                break
+            parent_index = skeleton.get_bone_parent(parent_index)
+        if nearest_mapped_parent_profile != expected_parent_profile:
+            parent_failures.append("%s nearest mapped parent=%s expected=%s" % [child_profile, nearest_mapped_parent_profile, expected_parent_profile])
+
+    var ready := missing_profile_bones.is_empty() and missing_source_bones.is_empty() and roundtrip_failures.is_empty() and parent_failures.is_empty() and mapped_core_count == mapping.size()
+    return {
+        "ready": ready,
+        "profile": "SkeletonProfileHumanoid",
+        "profile_root_bone": str(profile.root_bone),
+        "profile_scale_base_bone": str(profile.scale_base_bone),
+        "mapped_core_count": mapped_core_count,
+        "required_core_count": mapping.size(),
+        "root_profile_intentionally_unmapped": true,
+        "hips_source_bone": str(mapping.get("Hips", "")),
+        "missing_profile_bones": missing_profile_bones,
+        "missing_source_bones": missing_source_bones,
+        "roundtrip_failures": roundtrip_failures,
+        "parent_failures": parent_failures,
+        "mapping": mapping.duplicate(true),
+        "root_motion_policy": str(config.get("root_motion_policy", ""))
+    }
 
 func _save_after_frames(viewport: SubViewport, path: String, frame_count: int) -> bool:
     for _frame in range(frame_count):
@@ -339,6 +425,12 @@ func _count_type(node: Node, type_name: String) -> int:
     for child in node.get_children():
         count += _count_type(child, type_name)
     return count
+
+func _read_json(path: String) -> Dictionary:
+    if not FileAccess.file_exists(path):
+        return {}
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+    return parsed as Dictionary if parsed is Dictionary else {}
 
 func _fail(message: String) -> void:
     push_error("MIDI_MAKEHUMAN_V4_CANDIDATE_FAIL: %s" % message)

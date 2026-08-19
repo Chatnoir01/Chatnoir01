@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/qa/audit_urbis_lod2_batch_complexity.py"
+      - "grand-bruxelles-game/tools/qa/inspect_urbis_lod2_unknown_face_types.py"
       - ".github/workflows/grand-bruxelles-anderlecht-lod2-b01-complexity.yml"
   workflow_dispatch:
 
@@ -33,15 +34,22 @@ jobs:
             --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json \
             --output-dir "$RUNNER_TEMP/anderlecht_b01_complexity"
 
+      - name: Inspect selected unknown face types
+        run: |
+          python grand-bruxelles-game/tools/qa/inspect_urbis_lod2_unknown_face_types.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --contract grand-bruxelles-game/data/qa/region_lod2_batches/anderlecht_E145500_N169000_B01.contract.json \
+            --output "$RUNNER_TEMP/anderlecht_b01_complexity/unknown_face_types.json"
+
       - name: Publish complexity summary
         run: |
           python - <<'PY'
           import json
           import os
           from pathlib import Path
-          report = json.loads(
-              (Path(os.environ["RUNNER_TEMP"]) / "anderlecht_b01_complexity" / "complexity.json").read_text()
-          )
+          root = Path(os.environ["RUNNER_TEMP"]) / "anderlecht_b01_complexity"
+          report = json.loads((root / "complexity.json").read_text())
+          unknown = json.loads((root / "unknown_face_types.json").read_text())
           c = report["complexity"]
           lines = [
               "## Anderlecht LoD2 B01 source complexity",
@@ -53,7 +61,7 @@ jobs:
               f"- MultiPatch parts: **{c['part_count']:,}**",
               f"- Full source geometry NDJSON: **{c['source_geometry_ndjson_bytes']:,} bytes**",
               f"- Max faces on one owner: **{c['max_owner_faces']:,}**",
-              f"- Owners with unknown face type: **{c['owners_with_unknown_face_type']:,}**",
+              f"- Raw unknown face records: **{len(unknown):,}**",
               "",
               "Evidence only — runtime_authorized=false; materialization_authorized=false.",
           ]

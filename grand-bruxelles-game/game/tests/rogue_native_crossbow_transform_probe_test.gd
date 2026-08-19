@@ -56,12 +56,6 @@ func _capture(path: String, player: CharacterBody3D) -> bool:
         return false
     return image.save_png(ProjectSettings.globalize_path(path)) == OK
 
-func _rotation_candidate(authored: Transform3D, axis: Vector3, degrees: float) -> Transform3D:
-    return Transform3D(authored.basis * Basis(axis.normalized(), deg_to_rad(degrees)), authored.origin)
-
-func _shift_candidate(authored: Transform3D, delta: Vector3) -> Transform3D:
-    return Transform3D(authored.basis, authored.origin + delta)
-
 func _run() -> void:
     if root.get_node_or_null("CombatAuthoredPoseRuntime") != null:
         _fail("unsafe authored pose runtime is active")
@@ -111,20 +105,24 @@ func _run() -> void:
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 
     var authored := crossbow.transform
+    var x90 := Transform3D(
+        authored.basis * Basis(Vector3.RIGHT, deg_to_rad(90.0)),
+        authored.origin
+    )
     var candidates: Dictionary = {
-        "base": authored,
-        "rx_p90": _rotation_candidate(authored, Vector3.RIGHT, 90.0),
-        "rx_m90": _rotation_candidate(authored, Vector3.RIGHT, -90.0),
-        "ry_p90": _rotation_candidate(authored, Vector3.UP, 90.0),
-        "ry_m90": _rotation_candidate(authored, Vector3.UP, -90.0),
-        "rz_p90": _rotation_candidate(authored, Vector3.FORWARD, 90.0),
-        "rz_m90": _rotation_candidate(authored, Vector3.FORWARD, -90.0),
-        "sx_p25": _shift_candidate(authored, Vector3(0.25, 0.0, 0.0)),
-        "sx_m25": _shift_candidate(authored, Vector3(-0.25, 0.0, 0.0)),
-        "sy_p25": _shift_candidate(authored, Vector3(0.0, 0.25, 0.0)),
-        "sy_m25": _shift_candidate(authored, Vector3(0.0, -0.25, 0.0)),
-        "sz_p25": _shift_candidate(authored, Vector3(0.0, 0.0, 0.25)),
-        "sz_m25": _shift_candidate(authored, Vector3(0.0, 0.0, -0.25)),
+        "x90": x90,
+        "x90_x_p10": Transform3D(x90.basis, x90.origin + Vector3(0.10, 0.0, 0.0)),
+        "x90_x_m10": Transform3D(x90.basis, x90.origin + Vector3(-0.10, 0.0, 0.0)),
+        "x90_x_p20": Transform3D(x90.basis, x90.origin + Vector3(0.20, 0.0, 0.0)),
+        "x90_x_m20": Transform3D(x90.basis, x90.origin + Vector3(-0.20, 0.0, 0.0)),
+        "x90_y_p10": Transform3D(x90.basis, x90.origin + Vector3(0.0, 0.10, 0.0)),
+        "x90_y_m10": Transform3D(x90.basis, x90.origin + Vector3(0.0, -0.10, 0.0)),
+        "x90_y_p20": Transform3D(x90.basis, x90.origin + Vector3(0.0, 0.20, 0.0)),
+        "x90_y_m20": Transform3D(x90.basis, x90.origin + Vector3(0.0, -0.20, 0.0)),
+        "x90_z_p10": Transform3D(x90.basis, x90.origin + Vector3(0.0, 0.0, 0.10)),
+        "x90_z_m10": Transform3D(x90.basis, x90.origin + Vector3(0.0, 0.0, -0.10)),
+        "x90_z_p20": Transform3D(x90.basis, x90.origin + Vector3(0.0, 0.0, 0.20)),
+        "x90_z_m20": Transform3D(x90.basis, x90.origin + Vector3(0.0, 0.0, -0.20)),
     }
 
     for candidate_name: String in candidates.keys():
@@ -134,5 +132,5 @@ func _run() -> void:
             return
 
     crossbow.transform = authored
-    print("ROGUE_CROSSBOW_TRANSFORM_PROBE_OK: candidates=%d bone_override=false handslot_only=true" % candidates.size())
+    print("ROGUE_CROSSBOW_TRANSFORM_PROBE_OK: candidates=%d base=x90 bone_override=false handslot_only=true" % candidates.size())
     quit(0)

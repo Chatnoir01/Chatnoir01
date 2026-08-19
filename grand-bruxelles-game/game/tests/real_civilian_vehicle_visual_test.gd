@@ -1,5 +1,6 @@
 extends SceneTree
 
+# Intake pilot trigger: runtime assertions below are intentionally unchanged.
 const VISUAL_SCRIPT := preload("res://game/scripts/civilian_vehicle_visual.gd")
 const TRAFFIC_MANAGER_SCRIPT := preload("res://game/scripts/traffic_manager_npc_crossing_extension.gd")
 

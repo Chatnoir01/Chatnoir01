@@ -27,11 +27,11 @@ func _run() -> void:
             _fail("missing required visible move %s" % required)
             return
         if POSE.melee_pose_profile(required).is_empty():
-            _fail("missing authored skeleton pose for %s" % required)
+            _fail("missing authored skeleton pose profile for %s" % required)
             return
 
     if POSE.weapon_pose_profile(&"bx9", true).is_empty() or POSE.weapon_pose_profile(&"cbr4", true).is_empty() or POSE.weapon_pose_profile(&"sct8", true).is_empty():
-        _fail("all fictional weapons need authored upper-body poses")
+        _fail("all fictional weapons need authored upper-body pose profiles")
         return
     if FX.muzzle_local(&"bx9").z >= 0.0 or FX.muzzle_local(&"cbr4").z >= 0.0 or FX.muzzle_local(&"sct8").z >= 0.0:
         _fail("muzzle sockets must be forward of the hand grip")
@@ -55,7 +55,7 @@ func _run() -> void:
             return
     for token: String in ["Skeleton3D", "set_bone_global_pose_override", "right_upper_arm", "left_forearm", "right_thigh", "request_melee_pose"]:
         if pose_source.find(token) < 0:
-            _fail("authored combat pose layer missing token %s" % token)
+            _fail("authored combat pose profile source missing token %s" % token)
             return
     for token: String in ["CombatMuzzleFlash", "CombatTracer_", "CombatImpactFx_", "CombatCasing_", "OmniLight3D"]:
         if fx_source.find(token) < 0:
@@ -65,12 +65,16 @@ func _run() -> void:
         if arsenal_source.find(token) < 0:
             _fail("arsenal hardening missing visible combat hook %s" % token)
             return
-    for token: String in ["CombatAuthoredPoseRuntime=", "CombatWeaponHandOrientationRuntime=", "CombatShotFxRuntime="]:
+
+    if project_source.find("CombatAuthoredPoseRuntime=") >= 0:
+        _fail("unsafe authored pose autoload must stay disabled until rig-safe calibration is visually proven")
+        return
+    for token: String in ["CombatWeaponVisualUpgradeRuntime=", "CombatWeaponHandOrientationRuntime=", "CombatShotFxRuntime="]:
         if project_source.find(token) < 0:
             _fail("project autoload missing %s" % token)
             return
 
-    print("COMBAT_VISIBLE_FUN_OK: hand_grip=green authored_bones=green moves=10 action_lock=green muzzle=green tracer=green impacts=green casings=green recoil_pose=green")
+    print("COMBAT_VISIBLE_FUN_OK: hand_grip=green authored_pose_autoload=disabled_safety moves=10 action_lock=green muzzle=green tracer=green impacts=green casings=green")
     quit(0)
 
 func _read(path: String) -> String:

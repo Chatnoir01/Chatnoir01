@@ -57,6 +57,9 @@ def _repair_ascii_texture_connection_channels(filepath):
     if bad_links:
         raise RuntimeError("MakeHuman ASCII FBX still contains byte-valued texture channels: %s" % bad_links[:4])
 
+    # Diffuse attachments are the hard visual invariant. The candidate currently has
+    # body, eyes/brows, hair, clothes and shoes, so fewer than four resolved diffuse
+    # links means the repair is not useful enough to hand to Godot for visual review.
     diffuse_links = sum(
         1
         for line in repaired_text.splitlines()
@@ -78,8 +81,6 @@ def _run(app):
         api = app.mhapi
         human = gui3d.app.selectedHuman
 
-        # Deterministic adult civilian proportions. This is a visual candidate, not a
-        # demographic template; later roster profiles will deliberately vary these.
         human.setGender(0.0)
         human.setAgeYears(34)
         human.setWeight(0.48)
@@ -87,12 +88,9 @@ def _run(app):
         human.setHeight(0.58)
         human.applyAllTargets()
 
-        # Force a real CC0 system skin so the FBX exporter emits the civilian diffuse
-        # material rather than the nearly-white viewport/default material.
         skin = _pick_exact(api.assets.getAvailableSystemSkins(), "young_caucasian_female.mhmat")
         human.material = material.fromFile(skin)
 
-        # Review-only wardrobe until the human visual gate passes.
         casual = _pick_exact(api.assets.getAvailableSystemClothes(), "female_casualsuit01.mhclo")
         shoes = _pick_exact(api.assets.getAvailableSystemClothes(), "shoes01.mhclo")
         api.assets.unequipAllClothes()

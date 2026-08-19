@@ -1,0 +1,48 @@
+{
+  "schema": "grand-bruxelles-town-hall-low-relief-rerank-v1",
+  "status": "evidence_only",
+  "base_main": "c1ff559c5ab6faf8f56780f9e65fa432ee1856a4",
+  "camera_contract_path": "res://data/qa/grand_place_clean_player_witness.json",
+  "target": {
+    "urbis_building_id": "https://databrussels.be/id/building/1655673",
+    "geometry_path": "res://data/urbis/grand_place_lod2/1655673.game.json",
+    "expected_wall_face_count": 62,
+    "expected_package_sha256": "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
+  },
+  "known_faces": {
+    "production_right_gallery": ["10792525", "10798452"],
+    "rejected_left_gallery_offscreen": ["10792523"],
+    "rejected_tete_or_path": ["10796609", "10796610"]
+  },
+  "probe": {
+    "material_family": "brussels_source_verified_white_stone",
+    "cool_color": [0.68, 0.66, 0.60, 1.0],
+    "warm_color": [0.86, 0.82, 0.74, 1.0],
+    "base_roughness": 0.82,
+    "offset_m": 0.028,
+    "claims_exact_material_identity": false,
+    "claims_surveyed_relief": false,
+    "purpose": "QA-only shaded low-relief visibility proxy; not an architectural treatment or source-material claim"
+  },
+  "nomination_gate": {
+    "minimum_gt3_pixels": 2500,
+    "minimum_gt8_pixels": 1200,
+    "minimum_bbox_width": 100,
+    "minimum_bbox_height": 180,
+    "minimum_horizontal_edge_margin": 64
+  },
+  "hard_rules": {
+    "runtime_changed": false,
+    "geometry_changed": false,
+    "source_vertices_changed": false,
+    "implementation_authorized": false,
+    "source_registration_authorized_only_after_human_review": true,
+    "author_openings": false,
+    "author_portal_depth": false,
+    "author_statuary": false,
+    "claim_probe_as_exact_material": false,
+    "camera_rescue": false,
+    "threshold_rescue": false
+  },
+  "decision_rule": "Rank exact official WALLSURFACE faces in canonical #711 player view using the shipped shaded Brussels white-stone material as a QA visibility proxy at 0.028 m offset. Exclude shipped/rejected paths, require a non-edge-clipped impact gate, and human-review up to three full-frame candidates. A nominee authorizes only a separate source-registration lot."
+}

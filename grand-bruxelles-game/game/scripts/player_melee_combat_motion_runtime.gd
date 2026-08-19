@@ -67,6 +67,8 @@ func set_guarding(player: CharacterBody3D, enabled: bool) -> void:
 func request_action_cancel(player: CharacterBody3D, action: StringName) -> Dictionary:
     if player == null or not is_instance_valid(player):
         return {"allowed": false, "reason": "player_unavailable"}
+    if action != &"dodge" and action != &"guard":
+        return {"allowed": false, "reason": "unsupported_action"}
     var phase := StringName(player.get_meta("combat_attack_phase", &"ready"))
     if phase == &"ready":
         return {"allowed": true, "reason": "already_ready"}

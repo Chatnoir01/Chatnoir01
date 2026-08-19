@@ -39,7 +39,7 @@ func _run() -> void:
 
     var signatures := {}
     var detailed_lod_meshes := 0
-    var legacy_lod_visuals := 0
+    var retired_legacy_visuals := 0
     for raw: Node in ambient:
         var person := raw as Node3D
         if person == null:
@@ -68,17 +68,17 @@ func _run() -> void:
             if mesh_instance == null:
                 continue
             if not _approx(mesh_instance.visibility_range_end, EXPECTED_LOD_SWITCH_DISTANCE):
-                _fail("%s detailed mesh %s has wrong LOD end %.3f" % [person.name, mesh_instance.name, mesh_instance.visibility_range_end])
+                _fail("%s detailed mesh %s has wrong Web cull end %.3f" % [person.name, mesh_instance.name, mesh_instance.visibility_range_end])
                 return
             if not _approx(mesh_instance.visibility_range_end_margin, EXPECTED_LOD_MARGIN):
-                _fail("%s detailed mesh %s has wrong LOD margin %.3f" % [person.name, mesh_instance.name, mesh_instance.visibility_range_end_margin])
+                _fail("%s detailed mesh %s has wrong Web cull margin %.3f" % [person.name, mesh_instance.name, mesh_instance.visibility_range_end_margin])
                 return
             if mesh_instance.visibility_range_fade_mode != GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF:
-                _fail("%s detailed mesh %s does not self-fade at LOD boundary" % [person.name, mesh_instance.name])
+                _fail("%s detailed mesh %s does not self-fade at Web cull boundary" % [person.name, mesh_instance.name])
                 return
             person_detailed += 1
         if person_detailed == 0:
-            _fail("%s has no detailed meshes participating in distance LOD" % person.name)
+            _fail("%s has no detailed meshes participating in distance culling" % person.name)
             return
         detailed_lod_meshes += person_detailed
 
@@ -88,23 +88,26 @@ func _run() -> void:
             if not (legacy is GeometryInstance3D):
                 continue
             var legacy_visual := legacy as GeometryInstance3D
-            if not legacy_visual.visible:
-                _fail("%s legacy LOD primitive %s must stay enabled for distance fallback" % [person.name, legacy_name])
+            if legacy_visual.visible:
+                _fail("%s retired legacy primitive %s must never render" % [person.name, legacy_name])
                 return
-            if not _approx(legacy_visual.visibility_range_begin, EXPECTED_LOD_SWITCH_DISTANCE):
-                _fail("%s legacy primitive %s has wrong LOD begin %.3f" % [person.name, legacy_name, legacy_visual.visibility_range_begin])
+            if not _approx(legacy_visual.visibility_range_begin, 0.0):
+                _fail("%s retired legacy primitive %s must have zero LOD begin" % [person.name, legacy_name])
                 return
-            if not _approx(legacy_visual.visibility_range_begin_margin, EXPECTED_LOD_MARGIN):
-                _fail("%s legacy primitive %s has wrong LOD margin %.3f" % [person.name, legacy_name, legacy_visual.visibility_range_begin_margin])
+            if not _approx(legacy_visual.visibility_range_end, 0.0):
+                _fail("%s retired legacy primitive %s must have zero LOD end" % [person.name, legacy_name])
                 return
-            if legacy_visual.visibility_range_fade_mode != GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF:
-                _fail("%s legacy primitive %s does not self-fade at LOD boundary" % [person.name, legacy_name])
+            if not _approx(legacy_visual.visibility_range_begin_margin, 0.0) or not _approx(legacy_visual.visibility_range_end_margin, 0.0):
+                _fail("%s retired legacy primitive %s must have zero LOD margins" % [person.name, legacy_name])
+                return
+            if legacy_visual.visibility_range_fade_mode != GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED:
+                _fail("%s retired legacy primitive %s must not participate in LOD fading" % [person.name, legacy_name])
                 return
             person_legacy += 1
         if person_legacy == 0:
-            _fail("%s has no legacy visuals participating in distance LOD" % person.name)
+            _fail("%s has no legacy visuals available to prove retirement" % person.name)
             return
-        legacy_lod_visuals += person_legacy
+        retired_legacy_visuals += person_legacy
 
     if signatures.size() < MIN_UNIQUE_SIGNATURES:
         _fail("ambient crowd variation is too repetitive: %d unique signatures" % signatures.size())
@@ -131,13 +134,19 @@ func _run() -> void:
     if int(lod_stats.get("detailed_meshes", -1)) != detailed_lod_meshes:
         _fail("distance-LOD detailed mesh count disagrees with runtime stats")
         return
-    if int(lod_stats.get("legacy_visuals", -1)) != legacy_lod_visuals:
-        _fail("distance-LOD legacy visual count disagrees with runtime stats")
+    if int(lod_stats.get("legacy_visuals", -1)) != retired_legacy_visuals:
+        _fail("retired legacy visual count disagrees with runtime stats")
+        return
+    if int(lod_stats.get("legacy_visible", -1)) != 0:
+        _fail("runtime stats report visible legacy cuboid primitives")
+        return
+    if str(lod_stats.get("legacy_body_fallback", "")) != "retired":
+        _fail("runtime stats must retire legacy body fallback")
         return
     if not _approx(float(lod_stats.get("switch_distance_m", 0.0)), EXPECTED_LOD_SWITCH_DISTANCE):
-        _fail("distance-LOD switch distance stats mismatch")
+        _fail("distance cull switch distance stats mismatch")
         return
 
-    print("MIDI_AMBIENT_NPC_VISUAL_OK: pedestrians=%d unique_signatures=%d material_cache_entries=%d material_surfaces_reused=%d lod_detailed_meshes=%d lod_legacy_visuals=%d lod_switch_m=%.1f" % [ambient.size(), signatures.size(), cache_entries, surfaces_reused, detailed_lod_meshes, legacy_lod_visuals, EXPECTED_LOD_SWITCH_DISTANCE])
+    print("MIDI_AMBIENT_NPC_VISUAL_OK: pedestrians=%d unique_signatures=%d material_cache_entries=%d material_surfaces_reused=%d lod_detailed_meshes=%d retired_legacy_visuals=%d legacy_visible=0 web_cull_m=%.1f" % [ambient.size(), signatures.size(), cache_entries, surfaces_reused, detailed_lod_meshes, retired_legacy_visuals, EXPECTED_LOD_SWITCH_DISTANCE])
     scene.queue_free()
     quit(0)

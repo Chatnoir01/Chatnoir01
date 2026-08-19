@@ -1,0 +1,181 @@
+name: Grand Bruxelles Midi MakeHuman Candidate Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/makehuman_midi_candidate_plugin.py"
+      - "grand-bruxelles-game/game/tests/midi_makehuman_candidate_capture_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-makehuman-candidate-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-makehuman-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  makehuman-fidelity-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MakeHuman and software-render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xvfb python3-numpy python3-opengl python3-pyqt5 \
+            python3-pyqt5.qtopengl python3-pyqt5.qtsvg \
+            libgl1-mesa-dri libglx-mesa0 mesa-utils
+
+      - name: Fetch pinned MakeHuman code and official CC0 system-assets ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAKEHUMAN_COMMIT=a8bc2d54ff0ac92e78ff71431b1023eda42bf482
+          ASSET_PAGE=https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
+          ASSET_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          ASSET_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+
+          git clone --filter=blob:none https://github.com/makehumancommunity/makehuman.git /tmp/makehuman-src
+          git -C /tmp/makehuman-src checkout "$MAKEHUMAN_COMMIT"
+          test "$(git -C /tmp/makehuman-src rev-parse HEAD)" = "$MAKEHUMAN_COMMIT"
+          printf '%s\n' "$MAKEHUMAN_COMMIT" > /tmp/makehuman-code-commit.txt
+
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-system-assets.html "$ASSET_PAGE"
+          grep -qi "makehuman_system_assets" /tmp/makehuman-system-assets.html
+          grep -qi "female_casualsuit01" /tmp/makehuman-system-assets.html
+          grep -qi "young_caucasian_female" /tmp/makehuman-system-assets.html
+          grep -qi "ponytail01" /tmp/makehuman-system-assets.html
+          grep -qi "shoes01" /tmp/makehuman-system-assets.html
+          grep -qi "CC0" /tmp/makehuman-system-assets.html
+
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+              -o /tmp/makehuman_system_assets_cc0.zip "$ASSET_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 \
+              -o /tmp/makehuman_system_assets_cc0.zip "$ASSET_URL_FALLBACK"
+          fi
+          test -s /tmp/makehuman_system_assets_cc0.zip
+          sha256sum /tmp/makehuman_system_assets_cc0.zip | tee /tmp/makehuman-assets-archive-sha256.txt
+          printf '%s\n%s\n%s\n' "$ASSET_PAGE" "$ASSET_URL_PRIMARY" "$ASSET_URL_FALLBACK" > /tmp/makehuman-assets-source-urls.txt
+
+          rm -rf /tmp/makehuman-assets-unpacked
+          mkdir -p /tmp/makehuman-assets-unpacked
+          unzip -q /tmp/makehuman_system_assets_cc0.zip -d /tmp/makehuman-assets-unpacked
+
+          CLOTHING_PATH="$(find /tmp/makehuman-assets-unpacked -type f -name female_casualsuit01.mhclo -print -quit)"
+          test -n "$CLOTHING_PATH"
+          ASSET_BASE="$(python3 - "$CLOTHING_PATH" <<'PY'
+          import pathlib, sys
+          p = pathlib.Path(sys.argv[1]).resolve()
+          if p.parent.parent.name != 'clothes':
+              raise SystemExit(f'unexpected MakeHuman pack layout: {p}')
+          print(p.parent.parent.parent)
+          PY
+          )"
+          test -d "$ASSET_BASE/clothes"
+          rsync -a "$ASSET_BASE/" /tmp/makehuman-src/makehuman/data/
+
+          test -s /tmp/makehuman-src/makehuman/data/clothes/female_casualsuit01/female_casualsuit01.mhclo
+          test -s /tmp/makehuman-src/makehuman/data/clothes/shoes01/shoes01.mhclo
+          test -s /tmp/makehuman-src/makehuman/data/hair/ponytail01/ponytail01.mhclo
+          test -s /tmp/makehuman-src/makehuman/data/skins/young_caucasian_female/young_caucasian_female.mhmat
+          test -s /tmp/makehuman-src/makehuman/data/rigs/default.mhskel
+          find /tmp/makehuman-src/makehuman/data/clothes/female_casualsuit01 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort | tee /tmp/makehuman-pilot-clothes-files.txt
+
+      - name: Generate one rigged authored civilian candidate
+        shell: bash
+        env:
+          GB_MAKEHUMAN_OUTPUT: /tmp/makehuman-output/FemalePilot.fbx
+          QT_X11_NO_MITSHM: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/makehuman-output
+          cp grand-bruxelles-game/tools/makehuman_midi_candidate_plugin.py \
+            /tmp/makehuman-src/makehuman/plugins/z_grand_bruxelles_candidate.py
+          cd /tmp/makehuman-src/makehuman
+          timeout 300s xvfb-run -a python3 makehuman.py 2>&1 | tee /tmp/makehuman-candidate-generate.log
+          grep -q "GB_MAKEHUMAN_CANDIDATE_OK" /tmp/makehuman-candidate-generate.log
+          grep -q "skin=young_caucasian_female.mhmat" /tmp/makehuman-candidate-generate.log
+          grep -q "clothes=female_casualsuit01.mhclo" /tmp/makehuman-candidate-generate.log
+          grep -q "shoes=shoes01.mhclo" /tmp/makehuman-candidate-generate.log
+          if grep -q "GB_MAKEHUMAN_CANDIDATE_FAIL" /tmp/makehuman-candidate-generate.log; then exit 1; fi
+          test -s /tmp/makehuman-output/FemalePilot.fbx
+          find /tmp/makehuman-output -maxdepth 3 -type f -printf '%p %s bytes\n' | sort | tee /tmp/makehuman-output-files.txt
+          test "$(find /tmp/makehuman-output/textures -type f | wc -l)" -ge 7
+
+      - name: Stage review-only MakeHuman output into Godot workspace
+        run: |
+          REVIEW=grand-bruxelles-game/assets/characters/_review/makehuman_midi_v1/FemalePilot
+          rm -rf "$REVIEW"
+          mkdir -p "$REVIEW"
+          cp -a /tmp/makehuman-output/. "$REVIEW/"
+          test -s "$REVIEW/FemalePilot.fbx"
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import candidate in Godot
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            2>&1 | tee /tmp/makehuman-godot-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Can't open file|Cannot open file|couldn't be loaded" /tmp/makehuman-godot-import.log; then exit 1; fi
+
+      - name: Render isolated player-distance and close MakeHuman witnesses
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/midi_makehuman_candidate_capture_test.gd -- \
+            /tmp/midi-makehuman-candidate.png \
+            2>&1 | tee /tmp/makehuman-candidate-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_MAKEHUMAN_CANDIDATE_FAIL" /tmp/makehuman-candidate-runtime.log; then exit 1; fi
+          grep -q "MIDI_MAKEHUMAN_CANDIDATE_OK" /tmp/makehuman-candidate-runtime.log
+          test -s /tmp/midi-makehuman-candidate.png
+          test -s /tmp/midi-makehuman-candidate_close.png
+          test -s /tmp/midi-makehuman-candidate.metrics.json
+          grep -q '"isolated_subviewport": true' /tmp/midi-makehuman-candidate.metrics.json
+
+      - name: Stage owner-review evidence
+        if: always()
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_makehuman_candidate
+          mkdir -p "$OUT"
+          cp /tmp/midi-makehuman-candidate.png "$OUT/candidate.png" 2>/dev/null || true
+          cp /tmp/midi-makehuman-candidate_close.png "$OUT/candidate_close.png" 2>/dev/null || true
+          cp /tmp/midi-makehuman-candidate.metrics.json "$OUT/metrics.json" 2>/dev/null || true
+          cp /tmp/makehuman-candidate-generate.log "$OUT/generate.log" 2>/dev/null || true
+          cp /tmp/makehuman-godot-import.log "$OUT/import.log" 2>/dev/null || true
+          cp /tmp/makehuman-candidate-runtime.log "$OUT/runtime.log" 2>/dev/null || true
+          cp /tmp/makehuman-output-files.txt "$OUT/output_files.txt" 2>/dev/null || true
+          cp /tmp/makehuman-code-commit.txt "$OUT/makehuman_code_commit.txt" 2>/dev/null || true
+          cp /tmp/makehuman-assets-archive-sha256.txt "$OUT/makehuman_assets_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-assets-source-urls.txt "$OUT/makehuman_assets_source_urls.txt" 2>/dev/null || true
+          cp /tmp/makehuman-system-assets.html "$OUT/makehuman_system_assets_listing.html" 2>/dev/null || true
+          cp /tmp/makehuman-pilot-clothes-files.txt "$OUT/pilot_clothes_files.txt" 2>/dev/null || true
+          cp /tmp/makehuman-src/LICENSE.md "$OUT/MAKEHUMAN_LICENSE_OVERVIEW.md" 2>/dev/null || true
+          printf '{"asset_pack":"makehuman_system_assets_cc0.zip","license":"CC0","production_authorized":false,"status":"candidate_review_only"}\n' > "$OUT/authorization.json"
+
+      - name: Upload MakeHuman fidelity pilot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-makehuman-pilot
+          path: grand-bruxelles-game/artifacts/qa/midi_makehuman_candidate
+          if-no-files-found: warn

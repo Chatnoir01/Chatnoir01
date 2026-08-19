@@ -1,0 +1,91 @@
+{
+  "schema": "grand-bruxelles-midi-realistic-npc-asset-intake-v1",
+  "status": "candidate_probe_only",
+  "production_authorized": false,
+  "runtime_authorized": false,
+  "visual_review_required": true,
+  "source": {
+    "provider": "Microsoft",
+    "repository": "microsoft/Microsoft-Rocketbox",
+    "commit": "0943055db6ec570bcef9f2c8b41c9e5467c808f9",
+    "license": "MIT",
+    "license_path": "LICENSE.md"
+  },
+  "rules": {
+    "use_player_character_as_civilian": false,
+    "minimum_civilian_identities": 6,
+    "preferred_police_identities": 2,
+    "copy_full_profile_directories": true,
+    "probe_only_no_repo_binary_commit": true,
+    "near_visual_quality_must_be_human_approved": true
+  },
+  "profiles": [
+    {
+      "id": "rocketbox_female_adult_01",
+      "role": "civilian",
+      "source_dir": "Assets/Avatars/Adults/Female_Adult_01",
+      "source_fbx": "Assets/Avatars/Adults/Female_Adult_01/Export/Female_Adult_01.fbx",
+      "source_tree_sha": "36faa6a888d984c9438829a0bc42aef5bddad4b4"
+    },
+    {
+      "id": "rocketbox_female_adult_07",
+      "role": "civilian",
+      "source_dir": "Assets/Avatars/Adults/Female_Adult_07",
+      "source_fbx": "Assets/Avatars/Adults/Female_Adult_07/Export/Female_Adult_07.fbx",
+      "source_tree_sha": "b4804a0b234779b72972d45390640c09399f091a"
+    },
+    {
+      "id": "rocketbox_female_adult_15",
+      "role": "civilian",
+      "source_dir": "Assets/Avatars/Adults/Female_Adult_15",
+      "source_fbx": "Assets/Avatars/Adults/Female_Adult_15/Export/Female_Adult_15.fbx",
+      "source_tree_sha": "d6cfcae6c628dc849e1148bc39f09008eedb0253"
+    },
+    {
+      "id": "rocketbox_male_adult_01",
+      "role": "civilian",
+      "source_dir": "Assets/Avatars/Adults/Male_Adult_01",
+      "source_fbx": "Assets/Avatars/Adults/Male_Adult_01/Export/Male_Adult_01.fbx",
+      "source_tree_sha": "a50e0ce49078e5bf3d5527a7e79757d32e7eafbb"
+    },
+    {
+      "id": "rocketbox_male_adult_08",
+      "role": "civilian",
+      "source_dir": "Assets/Avatars/Adults/Male_Adult_08",
+      "source_fbx": "Assets/Avatars/Adults/Male_Adult_08/Export/Male_Adult_08.fbx",
+      "source_tree_sha": "eef098a43c509d1ce69d74ccf228adf47a77e330"
+    },
+    {
+      "id": "rocketbox_male_adult_15",
+      "role": "civilian",
+      "source_dir": "Assets/Avatars/Adults/Male_Adult_15",
+      "source_fbx": "Assets/Avatars/Adults/Male_Adult_15/Export/Male_Adult_15.fbx",
+      "source_tree_sha": "87a1466ff394b2b60f82fc69d0d29419a1cb66b8"
+    },
+    {
+      "id": "rocketbox_police_female_01",
+      "role": "police",
+      "source_dir": "Assets/Avatars/Professions/Police_Female_01",
+      "source_fbx": "Assets/Avatars/Professions/Police_Female_01/Export/Police_Female_01.fbx",
+      "source_tree_sha": "ce81fab2efefab90d9e70ac07f189a7a845d5423"
+    },
+    {
+      "id": "rocketbox_police_male_01",
+      "role": "police",
+      "source_dir": "Assets/Avatars/Professions/Police_Male_01",
+      "source_fbx": "Assets/Avatars/Professions/Police_Male_01/Export/Police_Male_01.fbx",
+      "source_tree_sha": "8d90a1d56828c75f360640589d804ea937fcf4df"
+    }
+  ],
+  "required_probe": {
+    "profile_count": 8,
+    "civilian_count": 6,
+    "police_count": 2,
+    "require_skeleton": true,
+    "require_skinned_mesh": true,
+    "require_nonempty_materials": true,
+    "require_texture_files": true,
+    "require_animation_compatibility_path": true,
+    "require_no_missing_external_dependencies": true
+  }
+}

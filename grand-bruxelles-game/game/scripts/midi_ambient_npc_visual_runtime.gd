@@ -5,7 +5,10 @@ const EXPECTED_AMBIENT := 24
 const TARGET_AMBIENT_DENSITY := 24
 const MAX_DISCOVERY_FRAMES := 120
 const PROXY_Y_OFFSET := 0.67
-const LOD_SWITCH_DISTANCE_M := 90.0
+# The valid humanoid proxy remains visible through this Web budget. Beyond it we cull;
+# we never fall back to the old BoxMesh/SphereMesh body.
+const WEB_LOD_SWITCH_DISTANCE_M := 90.0
+const LOD_SWITCH_DISTANCE_M := WEB_LOD_SWITCH_DISTANCE_M
 const LOD_TRANSITION_MARGIN_M := 10.0
 const LEGACY_VISUAL_NAMES := ["Torso", "LeftLeg", "RightLeg", "LeftArm", "RightArm", "Head", "Bag"]
 
@@ -48,11 +51,11 @@ func _find_scene_with_ambient_crowd() -> Node:
 
 func bridge_scene(scene: Node) -> Dictionary:
     if scene == null:
-        return {"bridged": 0, "already": 0, "legacy_hidden": 0, "materials_reused": 0, "material_cache_entries": _shared_materials.size()}
+        return {"bridged": 0, "already": 0, "legacy_hidden": 0, "materials_reused": 0, "material_cache_entries": _shared_materials.size(), "lod_legacy_visible": 0}
     var scene_id := scene.get_instance_id()
     var urban_life := scene.get_node_or_null("MidiUrbanLife")
     if urban_life == null:
-        return {"bridged": 0, "already": 0, "legacy_hidden": 0, "materials_reused": 0, "material_cache_entries": _shared_materials.size()}
+        return {"bridged": 0, "already": 0, "legacy_hidden": 0, "materials_reused": 0, "material_cache_entries": _shared_materials.size(), "lod_legacy_visible": 0}
 
     var bridged := 0
     var already := 0
@@ -66,6 +69,7 @@ func bridge_scene(scene: Node) -> Dictionary:
             continue
         if person.get_node_or_null("ProfiledNpcProxy") != null:
             already += 1
+            legacy_hidden += _set_legacy_visuals(person, false)
             _configure_distance_lod(person, true)
             continue
         legacy_hidden += _set_legacy_visuals(person, false)
@@ -76,7 +80,7 @@ func bridge_scene(scene: Node) -> Dictionary:
     if bridged + already > 0:
         _bridged_scene_ids[scene_id] = true
     var lod := _lod_counts_for_scene(scene)
-    print("Midi ambient NPC visual bridge: bridged=%d already=%d legacy_hidden=%d materials_reused=%d cache_entries=%d lod_detailed=%d lod_legacy=%d lod_switch_m=%.1f" % [bridged, already, legacy_hidden, materials_reused, _shared_materials.size(), int(lod.get("detailed_meshes", 0)), int(lod.get("legacy_visuals", 0)), LOD_SWITCH_DISTANCE_M])
+    print("Midi ambient NPC visual bridge: bridged=%d already=%d legacy_hidden=%d materials_reused=%d cache_entries=%d lod_detailed=%d lod_legacy_nodes=%d lod_legacy_visible=%d web_cull_m=%.1f" % [bridged, already, legacy_hidden, materials_reused, _shared_materials.size(), int(lod.get("detailed_meshes", 0)), int(lod.get("legacy_visuals", 0)), int(lod.get("legacy_visible", 0)), WEB_LOD_SWITCH_DISTANCE_M])
     return {
         "bridged": bridged,
         "already": already,
@@ -85,6 +89,7 @@ func bridge_scene(scene: Node) -> Dictionary:
         "material_cache_entries": _shared_materials.size(),
         "lod_detailed_meshes": int(lod.get("detailed_meshes", 0)),
         "lod_legacy_visuals": int(lod.get("legacy_visuals", 0)),
+        "lod_legacy_visible": int(lod.get("legacy_visible", 0)),
     }
 
 func set_profiled_visuals_enabled(scene: Node, enabled: bool) -> int:
@@ -104,6 +109,8 @@ func set_profiled_visuals_enabled(scene: Node, enabled: bool) -> int:
         if proxy != null:
             proxy.visible = enabled
             changed += 1
+        # Even when the new/profiled visual is disabled, legacy blocks stay retired.
+        _set_legacy_visuals(person, false)
         _configure_distance_lod(person, enabled)
     return changed
 
@@ -138,32 +145,28 @@ func _configure_distance_lod(person: Node3D, profiled_enabled: bool) -> void:
                 if profiled_enabled:
                     mesh_instance.visibility_range_begin = 0.0
                     mesh_instance.visibility_range_begin_margin = 0.0
-                    mesh_instance.visibility_range_end = LOD_SWITCH_DISTANCE_M
+                    mesh_instance.visibility_range_end = WEB_LOD_SWITCH_DISTANCE_M
                     mesh_instance.visibility_range_end_margin = LOD_TRANSITION_MARGIN_M
                     mesh_instance.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
                 else:
+                    mesh_instance.visibility_range_begin = 0.0
+                    mesh_instance.visibility_range_begin_margin = 0.0
                     mesh_instance.visibility_range_end = 0.0
                     mesh_instance.visibility_range_end_margin = 0.0
                     mesh_instance.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 
+    # Retired means retired: the legacy geometry is never a distance LOD anymore.
     for legacy_name: String in LEGACY_VISUAL_NAMES:
         var legacy := person.get_node_or_null(legacy_name)
         if not (legacy is GeometryInstance3D):
             continue
         var visual_instance := legacy as GeometryInstance3D
-        visual_instance.visible = true
-        if profiled_enabled:
-            visual_instance.visibility_range_begin = LOD_SWITCH_DISTANCE_M
-            visual_instance.visibility_range_begin_margin = LOD_TRANSITION_MARGIN_M
-            visual_instance.visibility_range_end = 0.0
-            visual_instance.visibility_range_end_margin = 0.0
-            visual_instance.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-        else:
-            visual_instance.visibility_range_begin = 0.0
-            visual_instance.visibility_range_begin_margin = 0.0
-            visual_instance.visibility_range_end = 0.0
-            visual_instance.visibility_range_end_margin = 0.0
-            visual_instance.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+        visual_instance.visible = false
+        visual_instance.visibility_range_begin = 0.0
+        visual_instance.visibility_range_begin_margin = 0.0
+        visual_instance.visibility_range_end = 0.0
+        visual_instance.visibility_range_end_margin = 0.0
+        visual_instance.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 
 func _deduplicate_proxy_materials(root: Node) -> int:
     var replaced := 0
@@ -198,15 +201,24 @@ func _material_key(material: StandardMaterial3D) -> String:
         material.emission_energy_multiplier,
     ]
 
-func _set_legacy_visuals(person: Node3D, visible_value: bool) -> int:
+func _set_legacy_visuals(person: Node3D, _visible_value: bool) -> int:
+    # Compatibility entry point kept because older callers/tests use it, but callers can
+    # no longer re-enable the retired primitive body by passing true.
     var changed := 0
     for legacy_name: String in LEGACY_VISUAL_NAMES:
         var legacy := person.get_node_or_null(legacy_name)
         if legacy is VisualInstance3D:
             var visual := legacy as VisualInstance3D
-            if visual.visible != visible_value:
-                visual.visible = visible_value
+            if visual.visible:
+                visual.visible = false
                 changed += 1
+            if visual is GeometryInstance3D:
+                var geometry := visual as GeometryInstance3D
+                geometry.visibility_range_begin = 0.0
+                geometry.visibility_range_begin_margin = 0.0
+                geometry.visibility_range_end = 0.0
+                geometry.visibility_range_end_margin = 0.0
+                geometry.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
     return changed
 
 func _seed_for_person(person: Node3D) -> int:
@@ -220,11 +232,12 @@ func _seed_for_person(person: Node3D) -> int:
 func _lod_counts_for_scene(scene: Node) -> Dictionary:
     var detailed_meshes := 0
     var legacy_visuals := 0
+    var legacy_visible := 0
     if scene == null:
-        return {"detailed_meshes": 0, "legacy_visuals": 0}
+        return {"detailed_meshes": 0, "legacy_visuals": 0, "legacy_visible": 0}
     var urban_life := scene.get_node_or_null("MidiUrbanLife")
     if urban_life == null:
-        return {"detailed_meshes": 0, "legacy_visuals": 0}
+        return {"detailed_meshes": 0, "legacy_visuals": 0, "legacy_visible": 0}
     for child: Node in urban_life.get_children():
         if not child.is_in_group("ambient_pedestrian"):
             continue
@@ -237,9 +250,12 @@ func _lod_counts_for_scene(scene: Node) -> Dictionary:
             if visual != null:
                 detailed_meshes += visual.find_children("*", "MeshInstance3D", true, false).size()
         for legacy_name: String in LEGACY_VISUAL_NAMES:
-            if person.get_node_or_null(legacy_name) is GeometryInstance3D:
+            var legacy := person.get_node_or_null(legacy_name)
+            if legacy is GeometryInstance3D:
                 legacy_visuals += 1
-    return {"detailed_meshes": detailed_meshes, "legacy_visuals": legacy_visuals}
+                if (legacy as GeometryInstance3D).visible:
+                    legacy_visible += 1
+    return {"detailed_meshes": detailed_meshes, "legacy_visuals": legacy_visuals, "legacy_visible": legacy_visible}
 
 func material_cache_stats() -> Dictionary:
     return {
@@ -249,9 +265,10 @@ func material_cache_stats() -> Dictionary:
 
 func lod_stats() -> Dictionary:
     var counts := _lod_counts_for_scene(_find_scene_with_ambient_crowd())
-    counts["switch_distance_m"] = LOD_SWITCH_DISTANCE_M
+    counts["switch_distance_m"] = WEB_LOD_SWITCH_DISTANCE_M
     counts["transition_margin_m"] = LOD_TRANSITION_MARGIN_M
-    counts["detailed_near_legacy_far"] = true
+    counts["detailed_near_legacy_far"] = false
+    counts["legacy_body_fallback"] = "retired"
     return counts
 
 func truth_contract() -> Dictionary:
@@ -259,9 +276,11 @@ func truth_contract() -> Dictionary:
         "movement_owner": "midi_urban_life.gd legacy ambient path remains authoritative",
         "navigation_added": false,
         "simulation_proxy_disabled": true,
-        "visual_pipeline": "NpcAgent + humanoid_visual.gd profiled NPC path",
+        "visual_pipeline": "NpcAgent + humanoid_visual.gd profiled NPC path; authored replacement remains visual-only",
         "material_sharing": "exact-equivalent StandardMaterial3D reuse",
-        "distance_lod": "profiled meshes near / existing legacy primitives beyond 90m with 10m self-fade margin",
+        "distance_lod": "profiled humanoid through Web distance budget then culling; legacy cuboid primitives never rendered",
+        "legacy_body_fallback": "retired",
+        "legacy_primitives_far": false,
         "ambient_density_target": TARGET_AMBIENT_DENSITY,
         "external_assets": 0,
     }

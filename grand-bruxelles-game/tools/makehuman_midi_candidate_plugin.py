@@ -21,7 +21,7 @@ def _pick_exact(paths, basename):
     target = basename.lower()
     matches = [p for p in paths if os.path.basename(p).lower() == target]
     if not matches:
-        raise RuntimeError("required MakeHuman system asset missing: %s" % basename)
+        raise RuntimeError("required MakeHuman asset missing: %s" % basename)
     return sorted(matches)[0]
 
 
@@ -36,12 +36,17 @@ def _run(app):
         human.setHeight(0.58)
         human.applyAllTargets()
 
-        skin = _pick_exact(api.assets.getAvailableSystemSkins(), "young_caucasian_female.mhmat")
+        # V2 art direction: keep the proven rig/export path, but remove the obvious
+        # MakeHuman demo outfit and use a less washed-out system skin. The top and
+        # trousers are sourced from official MakeHuman CC0 shirts01/pants01 packs.
+        skin = _pick_exact(api.assets.getAvailableSystemSkins(), "young_caucasian_female2.mhmat")
         human.material = material.fromFile(skin)
-        casual = _pick_exact(api.assets.getAvailableSystemClothes(), "female_casualsuit01.mhclo")
-        shoes = _pick_exact(api.assets.getAvailableSystemClothes(), "shoes01.mhclo")
+        top = _pick_exact(api.assets.getAvailableSystemClothes(), "toigo_basic_tucked_t-shirt.mhclo")
+        trousers = _pick_exact(api.assets.getAvailableSystemClothes(), "cortu_cargo_pants.mhclo")
+        shoes = _pick_exact(api.assets.getAvailableSystemClothes(), "shoes04.mhclo")
         api.assets.unequipAllClothes()
-        api.assets.equipClothes(casual)
+        api.assets.equipClothes(top)
+        api.assets.equipClothes(trousers)
         api.assets.equipClothes(shoes)
         hair = _pick_exact(api.assets.getAvailableSystemHair(), "ponytail01.mhclo")
         api.assets.equipHair(hair)
@@ -66,11 +71,9 @@ def _run(app):
         if not hasattr(exporter, "binary"):
             raise RuntimeError("MakeHuman FBX exporter Binary FBX control is unavailable")
 
-        # Runs #31/#32 proved the ASCII path preserves clean normals and textures but
-        # collapses the skinned character in Godot even with no runtime bone override.
-        # Binary FBX rendered the rig correctly in run #16. The workflow now patches the
-        # pinned binary writer's independent NormalsIndex defect before MakeHuman starts,
-        # so use binary again and keep this candidate in imported rest pose for isolation.
+        # Run #35 proved this binary path is healthy once the pinned writer's
+        # NormalsIndex defect is patched by CI: full rig, 7 textured surfaces and
+        # zero Godot/ufbx `Clamped index` warnings.
         exporter.binary.setChecked(True)
         if not bool(exporter.binary.selected):
             raise RuntimeError("MakeHuman FBX exporter refused binary mode")
@@ -81,14 +84,15 @@ def _run(app):
             raise RuntimeError("MakeHuman FBX export missing or implausibly small: %s" % OUTPUT_FBX)
 
         print(
-            "GB_MAKEHUMAN_CANDIDATE_OK output=%s bytes=%d height_cm=%.2f skin=%s hair=%s clothes=%s shoes=%s fbx_binary=true"
+            "GB_MAKEHUMAN_CANDIDATE_OK output=%s bytes=%d height_cm=%.2f skin=%s hair=%s top=%s trousers=%s shoes=%s fbx_binary=true"
             % (
                 OUTPUT_FBX,
                 os.path.getsize(OUTPUT_FBX),
                 human.getHeightCm(),
                 os.path.basename(skin),
                 os.path.basename(hair),
-                os.path.basename(casual),
+                os.path.basename(top),
+                os.path.basename(trousers),
                 os.path.basename(shoes),
             )
         )

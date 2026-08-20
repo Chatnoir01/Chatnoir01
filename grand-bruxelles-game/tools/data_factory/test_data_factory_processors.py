@@ -151,7 +151,8 @@ def test_queue_contract() -> None:
     assert families["mobiris_traffic_counts"]["processor"] == "grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py"
     assert families["stib_surface_network"]["state"] == "PROCESSOR_READY_ARTIFACT_BLOCKED"
     assert families["stib_surface_network"]["processor"] == "grand-bruxelles-game/tools/data_factory/normalize_stib_open_data.py"
-    assert families["stib_static_schedule"]["state"] == "PROCESSOR_CONTRACT_MISMATCH"
+    assert families["stib_static_schedule"]["state"] == "PROCESSOR_READY_ARTIFACT_BLOCKED"
+    assert families["stib_static_schedule"]["processor"] == "grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py"
     assert (ROOT / "tools" / "build_brussels_mobility_traffic_snapshot.py").is_file()
 
 

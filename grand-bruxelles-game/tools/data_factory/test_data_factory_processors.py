@@ -84,6 +84,48 @@ def test_urbis_addresses(tmp: Path) -> None:
     assert parsed["runtime_authorized"] is False
 
 
+def test_stib_open_data(tmp: Path) -> None:
+    stops = tmp / "gtfs-stops-production.csv"
+    stops.write_text(
+        "stop_id,stop_name,stop_lat,stop_lon\nS1,Gare du Midi,50.836,4.336\n",
+        encoding="utf-8",
+    )
+    network = tmp / "shapefiles-production.geojson"
+    network.write_text(json.dumps({
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": "line-3",
+                "geometry": {"type": "LineString", "coordinates": [[4.336, 50.836], [4.337, 50.837]]},
+                "properties": {"source_label": "published-commercial-route"}
+            },
+            {
+                "type": "Feature",
+                "id": "stop-point",
+                "geometry": {"type": "Point", "coordinates": [4.336, 50.836]},
+                "properties": {"source_label": "published-stop-position"}
+            }
+        ]
+    }), encoding="utf-8")
+    output = tmp / "stib-open-data-normalized.json"
+    run(
+        str(TOOLS / "normalize_stib_open_data.py"),
+        "--stops", str(stops),
+        "--network-shapes", str(network),
+        "--output", str(output),
+        "--license", "STIB-test",
+    )
+    parsed = json.loads(output.read_text(encoding="utf-8"))
+    assert parsed["stats"]["normalized_stop_count"] == 1
+    assert parsed["stats"]["normalized_network_feature_count"] == 2
+    assert parsed["stops"][0]["stop_id"] == "S1"
+    assert parsed["stops"][0]["wgs84"] == [4.336, 50.836]
+    assert parsed["commercial_network"][0]["source_properties"]
+    assert "routes" not in parsed and "trips" not in parsed
+    assert parsed["runtime_authorized"] is False
+
+
 def test_stib_gtfs(tmp: Path) -> None:
     gtfs = tmp / "stib.zip"
     with zipfile.ZipFile(gtfs, "w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -107,6 +149,9 @@ def test_queue_contract() -> None:
     assert queue["runtime_authorized"] is False
     families = {item["family"]: item for item in queue["queue"]}
     assert families["mobiris_traffic_counts"]["processor"] == "grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py"
+    assert families["stib_surface_network"]["state"] == "PROCESSOR_READY_ARTIFACT_BLOCKED"
+    assert families["stib_surface_network"]["processor"] == "grand-bruxelles-game/tools/data_factory/normalize_stib_open_data.py"
+    assert families["stib_static_schedule"]["state"] == "PROCESSOR_CONTRACT_MISMATCH"
     assert (ROOT / "tools" / "build_brussels_mobility_traffic_snapshot.py").is_file()
 
 
@@ -115,6 +160,7 @@ def main() -> int:
         tmp = Path(td)
         test_artifact_gate(tmp)
         test_urbis_addresses(tmp)
+        test_stib_open_data(tmp)
         test_stib_gtfs(tmp)
     test_queue_contract()
     print("DATA_FACTORY_PROCESSOR_TESTS_OK")

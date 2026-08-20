@@ -18,6 +18,8 @@ import shutil
 import zipfile
 from pathlib import Path
 
+LOCKED_DATUM_M = 21.712554931640625
+
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -46,6 +48,8 @@ def validate_contract(c: dict) -> None:
         raise RuntimeError("unexpected schema")
     if c.get("campaign_id") != "region-lod2-C01-30000":
         raise RuntimeError("unexpected campaign")
+    if c.get("production_base_sha") != "1c5bb78108e25b220dd850260eac6c536f59f59d":
+        raise RuntimeError("production base drifted from merged #975 main")
     if int(c.get("expected", {}).get("owners", -1)) != 30000:
         raise RuntimeError("world-Y lock must cover exactly 30,000 owners")
     if int(c.get("expected", {}).get("dtm_tile", -1)) != 147169:
@@ -66,6 +70,8 @@ def validate_contract(c: dict) -> None:
         raise RuntimeError("world-Y formula drifted")
     if formula.get("owner_translation") != "owner_rigid_shift_m - anchor_dtm_elevation_m":
         raise RuntimeError("owner translation formula drifted")
+    if formula.get("shape_preservation") != "one translation per owner; no vertex warping":
+        raise RuntimeError("shape preservation policy drifted")
 
     dtm = c.get("dtm_tile_lock", {})
     if dtm.get("archive_sha256") != "b2bb34689ff35f080cb060fb8091e5d347342615575a24eedad89fe70467f803":
@@ -89,24 +95,33 @@ def validate_contract(c: dict) -> None:
     if rigid.get("files_sha256") != locked:
         raise RuntimeError("rigid-anchor locked output hashes drifted")
 
+    measurement = c.get("measurement_run", {})
+    if int(measurement.get("workflow_run_id", 0)) != 32316586534:
+        raise RuntimeError("datum measurement run drifted")
+    if int(measurement.get("artifact_id", 0)) != 9388277662:
+        raise RuntimeError("datum measurement artifact drifted")
+    if measurement.get("archive_sha256") != "70edaa07ae8afc91880ccf5991a76cc5061d75486a220ce0d26ac606f0d90dfd":
+        raise RuntimeError("datum measurement archive hash drifted")
+
+    expected_datum = float(c.get("expected", {}).get("anchor_dtm_elevation_m", float("nan")))
+    if not math.isfinite(expected_datum) or abs(expected_datum - LOCKED_DATUM_M) > 5e-12:
+        raise RuntimeError("locked anchor DTM elevation drifted")
+
+    expected_hashes = c.get("expected_output_sha256", {})
+    if set(expected_hashes) != {"world_y_datum_locked.json", "owner_world_y_offset_by_owner.json", "owner_world_y_offset_per_owner.csv"}:
+        raise RuntimeError("expected output hash set is incomplete")
+    for name, value in expected_hashes.items():
+        if not isinstance(value, str) or len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value):
+            raise RuntimeError(f"invalid expected output SHA-256 for {name}")
+
     rules = c.get("hard_rules", {})
     for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "terrain_runtime_authorized", "source_geometry_modified", "jouable_promotion_authorized"]:
         if rules.get(key) is not False:
             raise RuntimeError(f"{key} must remain false")
     if rules.get("owner_rigid_translation_only") is not True or rules.get("artifact_only") is not True:
         raise RuntimeError("rigid-only artifact rules must remain true")
-
-    expected_datum = c.get("expected", {}).get("anchor_dtm_elevation_m")
-    final_y = rules.get("final_world_y_authorized")
-    if expected_datum is None:
-        if final_y is not False:
-            raise RuntimeError("unmeasured datum cannot authorize final world Y")
-    else:
-        value = float(expected_datum)
-        if not math.isfinite(value) or not (0.0 < value < 200.0):
-            raise RuntimeError("invalid expected anchor DTM elevation")
-        if final_y is not True:
-            raise RuntimeError("locked expected datum must authorize artifact final world Y")
+    if rules.get("final_world_y_authorized") is not True:
+        raise RuntimeError("locked datum must authorize artifact final world Y")
 
 
 def extract_single_tiff(archive: Path, out_dir: Path) -> Path:
@@ -142,7 +157,7 @@ def main() -> int:
         contract = json.loads(args.contract.read_text(encoding="utf-8"))
         validate_contract(contract)
         if args.validate_only:
-            print("C01_WORLD_Y_DATUM_CONTRACT_OK")
+            print(f"C01_WORLD_Y_DATUM_CONTRACT_OK: datum={LOCKED_DATUM_M:.15f}m")
             return 0
         if not args.rigid_anchor_dir or not args.dtm_archive or not args.output_dir:
             raise RuntimeError("rigid-anchor-dir, dtm-archive and output-dir are required")
@@ -178,9 +193,9 @@ def main() -> int:
                 raise RuntimeError("non-finite DTM datum sample")
             raster_meta = {"filename": tif.name, "bounds": [float(b.left), float(b.bottom), float(b.right), float(b.top)], "resolution": [float(src.res[0]), float(src.res[1])], "width": int(src.width), "height": int(src.height), "nodata": float(src.nodata) if src.nodata is not None else None}
 
-        expected_datum = contract["expected"].get("anchor_dtm_elevation_m")
-        if expected_datum is not None and abs(datum - float(expected_datum)) > 5e-10:
-            raise RuntimeError(f"anchor DTM elevation drifted: measured={datum:.9f} expected={float(expected_datum):.9f}")
+        expected_datum = float(contract["expected"]["anchor_dtm_elevation_m"])
+        if abs(datum - expected_datum) > 5e-10:
+            raise RuntimeError(f"anchor DTM elevation drifted: measured={datum:.15f} expected={expected_datum:.15f}")
 
         offsets: dict[str, dict[str, float | int]] = {}
         values: list[float] = []
@@ -193,7 +208,7 @@ def main() -> int:
         stats = {"min": min(values), "p05": quantile(values, 0.05), "median": quantile(values, 0.50), "p95": quantile(values, 0.95), "max": max(values)}
         rules = dict(contract["hard_rules"])
         report = {
-            "schema": "grand-bruxelles-region-lod2-c01-world-y-datum-locked-v1" if expected_datum is not None else "grand-bruxelles-region-lod2-c01-world-y-datum-candidate-v1",
+            "schema": "grand-bruxelles-region-lod2-c01-world-y-datum-locked-v1",
             "campaign_id": contract["campaign_id"], "production_base_sha": contract["production_base_sha"], "source_lock_merge_sha": contract["source_lock_merge_sha"], "owners": len(owners),
             "world_anchor": contract["world_anchor"],
             "dtm": {"dataset": contract["dtm"]["dataset"], "dataset_id": contract["dtm"]["dataset_id"], "tile": contract["expected"]["dtm_tile"], "archive_sha256": contract["dtm_tile_lock"]["archive_sha256"], "raster_sha256": contract["dtm_tile_lock"]["raster_sha256"], "anchor_absolute_elevation_m": datum, "raster": raster_meta},
@@ -207,13 +222,17 @@ def main() -> int:
         report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         owner_json.write_text(json.dumps(offsets, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         with owner_csv.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f); writer.writerow(["building_id", "sample_count", "rigid_shift_m", "world_y_offset_m"])
+            writer = csv.writer(f)
+            writer.writerow(["building_id", "sample_count", "rigid_shift_m", "world_y_offset_m"])
             for owner_id in sorted(offsets, key=lambda x: int(x)):
                 row = offsets[owner_id]
                 writer.writerow([owner_id, row["sample_count"], f"{float(row['rigid_shift_m']):.12f}", f"{float(row['world_y_offset_m']):.12f}"])
+
         hashes = {p.name: sha256_file(p) for p in [report_path, owner_json, owner_csv]}
+        if hashes != contract["expected_output_sha256"]:
+            raise RuntimeError(f"locked output hashes drifted: {hashes}")
         (args.output_dir / "result.sha256.json").write_text(json.dumps(hashes, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        print(f"C01_WORLD_Y_DATUM_OK: owners={len(owners)} datum={datum:.9f}m offset_median={stats['median']:.9f} final_world_y={rules['final_world_y_authorized']}")
+        print(f"C01_WORLD_Y_DATUM_LOCKED: owners={len(owners)} datum={datum:.15f}m offset_median={stats['median']:.9f} final_world_y={rules['final_world_y_authorized']}")
         return 0
     except Exception as exc:
         print(f"C01_WORLD_Y_DATUM_ERROR: {exc}", flush=True)

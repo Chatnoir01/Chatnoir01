@@ -5,6 +5,7 @@ const BODY := REVIEW_ROOT + "/vitruvian_body.glb"
 const HEAD := REVIEW_ROOT + "/vitruvian_head.glb"
 const HAIR := REVIEW_ROOT + "/hairtool_cards.glb"
 const BROWS := REVIEW_ROOT + "/vitruvian_hair.glb"
+const SHOES := REVIEW_ROOT + "/shoes04_cc0.obj"
 const HAIR_SHADER := REVIEW_ROOT + "/hairtool_card.gdshader"
 const BROW_SHADER := REVIEW_ROOT + "/hair_card.gdshader"
 const MAIN_SCENE := "res://game/main.tscn"
@@ -12,7 +13,7 @@ const CAPTURE_SIZE := Vector2i(1280, 720)
 const DISTANCES := [2.0, 5.0, 8.0]
 const MIN_HEIGHT_M := 1.40
 const MAX_HEIGHT_M := 2.20
-const MAX_TRIANGLES := 650000
+const MAX_TRIANGLES := 700000
 
 func _init() -> void:
     call_deferred("_run")
@@ -23,7 +24,7 @@ func _run() -> void:
     if not args.is_empty():
         base_output = str(args[0]).get_basename()
 
-    for path: String in [BODY, HEAD, HAIR, BROWS, HAIR_SHADER, BROW_SHADER, MAIN_SCENE]:
+    for path: String in [BODY, HEAD, HAIR, BROWS, SHOES, HAIR_SHADER, BROW_SHADER, MAIN_SCENE]:
         if not ResourceLoader.exists(path):
             _fail("required review resource missing: %s" % path)
             return
@@ -52,6 +53,7 @@ func _run() -> void:
     candidate.set_meta("production_authorized", false)
     candidate.set_meta("movement_owner", "none_review_only")
     candidate.set_meta("source", "ibrews/VitruvianGodot@bdecdcd537b4031fdd0fb299b7e4f93f084fffa0")
+    candidate.set_meta("footwear_source", "furqonat/makehuman-assets@8cf9645b975a98eea056b140df11a1d278da0d10:base/clothes/shoes04/shoes04.obj")
     main.add_child(candidate)
 
     var body := _instantiate(BODY, "Body")
@@ -69,11 +71,22 @@ func _run() -> void:
     var head_material_audit := _apply_head_review_materials(head)
     _apply_hair_review_material(hair)
     _keep_brows_only(brows)
-    if int(body_material_audit.get("shirt", 0)) <= 0 or int(body_material_audit.get("pants", 0)) <= 0 or int(body_material_audit.get("shoes", 0)) <= 0:
+    if int(body_material_audit.get("shirt", 0)) <= 0 or int(body_material_audit.get("pants", 0)) <= 0 or int(body_material_audit.get("painted_shoe_hidden", 0)) <= 0:
         _fail("body authored material names not found: %s" % JSON.stringify(body_material_audit))
         return
     if int(head_material_audit.get("skin", 0)) <= 0:
         _fail("head VitSkin surface not found: %s" % JSON.stringify(head_material_audit))
+        return
+
+    # Do not guess about rig ownership. If a Skeleton3D survived the legal preparation,
+    # apply only a small upper-arm relaxation and report exactly what happened. If the
+    # body is static/baked, leave it untouched and keep the human visual gate RED.
+    var pose_audit := _relax_pose_if_rigged(body)
+
+    var pre_footwear_bounds := _bounds_in_root_space(candidate)
+    var footwear_audit := _add_cc0_footwear(candidate, pre_footwear_bounds)
+    if not bool(footwear_audit.get("added", false)):
+        _fail("CC0 footwear could not be staged: %s" % JSON.stringify(footwear_audit))
         return
 
     var animation_clips := _count_animation_clips(candidate)
@@ -90,11 +103,8 @@ func _run() -> void:
         _fail("triangle budget outside review gate: %d" % triangles)
         return
 
-    # Put the witness beside the authoritative player start in the real Midi scene.
     candidate.global_position = player.global_position + Vector3(3.2, 0.0, -1.6)
     candidate.global_position.y = player.global_position.y - bounds.position.y
-    # RED run 5 proved 180° faced the authored civilian away from the camera.
-    # Vitruvian's authored forward is +Z in this import; keep zero yaw for front proof.
     candidate.rotation_degrees = Vector3.ZERO
 
     var camera := Camera3D.new()
@@ -125,11 +135,10 @@ func _run() -> void:
         return
     outputs["2m_three_quarter"] = close_three_quarter
 
-    # Dedicated grounding proof: feet and street surface must be visible together.
     var feet_path := "%s_feet_ground.png" % base_output
-    var feet_target := candidate.global_position + Vector3(0.0, 0.10, 0.0)
+    var feet_target := candidate.global_position + Vector3(0.0, 0.12, 0.0)
     camera.fov = 38.0
-    camera.global_position = feet_target + Vector3(0.16, 0.18, 1.28)
+    camera.global_position = feet_target + Vector3(0.18, 0.20, 1.18)
     camera.look_at(feet_target, Vector3.UP)
     if not await _save_after_frames(feet_path, 12):
         _fail("feet/ground capture failed")
@@ -137,12 +146,14 @@ func _run() -> void:
     outputs["feet_ground"] = feet_path
 
     var metrics := {
-        "schema": "grand-bruxelles-civ1-vitruvian-witness-v2",
+        "schema": "grand-bruxelles-civ1-vitruvian-witness-v3",
         "production_authorized": false,
         "actual_scene": MAIN_SCENE,
         "base_main_sha": "75345935173ba11ead85c317786f9e31e4517afd",
         "upstream_commit": "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0",
         "character_license": "CC0-1.0",
+        "footwear_license": "CC0-1.0",
+        "footwear_source_commit": "8cf9645b975a98eea056b140df11a1d278da0d10",
         "mixamo_payload_allowed": false,
         "animation_clip_count": animation_clips,
         "height_m": bounds.size.y,
@@ -155,11 +166,14 @@ func _run() -> void:
         "front_proof": true,
         "feet_ground_proof": true,
         "compatibility_pbr_materials": true,
+        "real_footwear_geometry": true,
         "body_material_audit": body_material_audit,
         "head_material_audit": head_material_audit,
+        "footwear_audit": footwear_audit,
+        "pose_audit": pose_audit,
         "fallback_changed": false,
         "movement_navigation_density_changed": false,
-        "human_verdict_required": "GARDER",
+        "human_verdict_required": "GARDER"
     }
     var metrics_path := "%s.metrics.json" % base_output
     var file := FileAccess.open(metrics_path, FileAccess.WRITE)
@@ -169,7 +183,7 @@ func _run() -> void:
     file.store_string(JSON.stringify(metrics, "  ") + "\n")
     file.close()
 
-    print("GB_CIV1_VITRUVIAN_WITNESS_OK height=%.3f triangles=%d animations=%d captures=front_2m,front_5m,front_8m,three_quarter,feet production_authorized=false" % [bounds.size.y, triangles, animation_clips])
+    print("GB_CIV1_VITRUVIAN_WITNESS_OK height=%.3f triangles=%d animations=%d footwear=cc0 pose_applied=%s production_authorized=false" % [bounds.size.y, triangles, animation_clips, str(pose_audit.get("applied", false))])
     quit(0)
 
 func _instantiate(path: String, label: String) -> Node3D:
@@ -214,16 +228,20 @@ func _cloth(color: Color, roughness_value: float, normal_scale_value: float, uv_
     mat.cull_mode = BaseMaterial3D.CULL_DISABLED
     return mat
 
+func _hidden_material() -> StandardMaterial3D:
+    var mat := StandardMaterial3D.new()
+    mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    mat.albedo_color = Color(0.0, 0.0, 0.0, 0.0)
+    mat.roughness = 1.0
+    mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+    return mat
+
 func _apply_body_review_materials(root: Node) -> Dictionary:
-    # Matches the upstream authored look-dev intent, but with StandardMaterial3D
-    # so the proof remains valid in Grand Bruxelles' GL Compatibility renderer.
     var skin := _pbr_skin("vit_body_bc.png", "vit_body_n.png", "vit_body_rough.png")
     var shirt := _cloth(Color(0.18, 0.22, 0.30), 0.88, 0.55, 26.0)
     var pants := _cloth(Color(0.12, 0.12, 0.14), 0.82, 0.40, 40.0)
-    var shoes := StandardMaterial3D.new()
-    shoes.albedo_color = Color(0.07, 0.06, 0.06)
-    shoes.roughness = 0.50
-    var audit := {"skin": 0, "shirt": 0, "pants": 0, "shoes": 0, "unknown_names": []}
+    var hidden_shoe := _hidden_material()
+    var audit := {"skin": 0, "shirt": 0, "pants": 0, "painted_shoe_hidden": 0, "unknown_names": []}
     var meshes: Array[MeshInstance3D] = []
     _collect_meshes(root, meshes)
     for mesh_node in meshes:
@@ -240,8 +258,8 @@ func _apply_body_review_materials(root: Node) -> Dictionary:
                     mesh_node.set_surface_override_material(surface, pants)
                     audit["pants"] = int(audit["pants"]) + 1
                 "VitShoes":
-                    mesh_node.set_surface_override_material(surface, shoes)
-                    audit["shoes"] = int(audit["shoes"]) + 1
+                    mesh_node.set_surface_override_material(surface, hidden_shoe)
+                    audit["painted_shoe_hidden"] = int(audit["painted_shoe_hidden"]) + 1
                 _:
                     mesh_node.set_surface_override_material(surface, skin)
                     audit["skin"] = int(audit["skin"]) + 1
@@ -254,44 +272,31 @@ func _apply_head_review_materials(root: Node) -> Dictionary:
     var face_skin := _pbr_skin("vit_face_bc.png", "vit_face_n.png", "vit_face_rough.png")
     face_skin.roughness = 0.80
     face_skin.metallic_specular = 0.34
-
     var mouth := StandardMaterial3D.new()
     mouth.albedo_texture = _tex("vit_mouth.png")
     mouth.roughness = 0.52
-
     var sclera := StandardMaterial3D.new()
     sclera.albedo_texture = _tex("vit_sclera.png")
     sclera.albedo_color = Color(0.96, 0.94, 0.93, 1.0)
     sclera.roughness = 0.18
     sclera.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-
     var iris := StandardMaterial3D.new()
     iris.albedo_texture = _tex("vit_iris.png")
     iris.roughness = 0.55
-
     var eyeball := StandardMaterial3D.new()
     eyeball.albedo_color = Color(0.88, 0.85, 0.82)
     eyeball.roughness = 0.18
-
-    var transparent := StandardMaterial3D.new()
-    transparent.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-    transparent.albedo_color = Color(1.0, 1.0, 1.0, 0.0)
-    transparent.roughness = 0.05
-    transparent.cull_mode = BaseMaterial3D.CULL_DISABLED
-
+    var transparent := _hidden_material()
     var tearline := StandardMaterial3D.new()
     tearline.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     tearline.albedo_color = Color(0.30, 0.36, 0.42, 0.12)
     tearline.roughness = 0.04
-
     var caruncle := StandardMaterial3D.new()
     caruncle.albedo_color = Color(0.70, 0.34, 0.30)
     caruncle.roughness = 0.38
-
     var eye_back := StandardMaterial3D.new()
     eye_back.albedo_color = Color(0.008, 0.007, 0.008)
     eye_back.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-
     var audit := {"skin": 0, "mouth": 0, "sclera": 0, "iris": 0, "eyeball": 0, "transparent": 0, "other": 0}
     var meshes: Array[MeshInstance3D] = []
     _collect_meshes(root, meshes)
@@ -302,44 +307,113 @@ func _apply_head_review_materials(root: Node) -> Dictionary:
             var source_material := mesh_node.mesh.surface_get_material(surface)
             var source_name := (source_material.resource_name if source_material != null else "").split(".")[0]
             match source_name:
-                "VitSkin":
-                    mesh_node.set_surface_override_material(surface, face_skin)
-                    audit["skin"] = int(audit["skin"]) + 1
-                "VitMouth":
-                    mesh_node.set_surface_override_material(surface, mouth)
-                    audit["mouth"] = int(audit["mouth"]) + 1
-                "VitSclera":
-                    mesh_node.set_surface_override_material(surface, sclera)
-                    audit["sclera"] = int(audit["sclera"]) + 1
-                "VitIris":
-                    mesh_node.set_surface_override_material(surface, iris)
-                    audit["iris"] = int(audit["iris"]) + 1
-                "VitEyeball":
-                    mesh_node.set_surface_override_material(surface, eyeball)
-                    audit["eyeball"] = int(audit["eyeball"]) + 1
-                "VitTearline":
-                    mesh_node.set_surface_override_material(surface, tearline)
-                    audit["other"] = int(audit["other"]) + 1
-                "VitCaruncle":
-                    mesh_node.set_surface_override_material(surface, caruncle)
-                    audit["other"] = int(audit["other"]) + 1
-                "VitEyeBack":
-                    mesh_node.set_surface_override_material(surface, eye_back)
-                    audit["other"] = int(audit["other"]) + 1
-                "VitScalp", "VitEyeshadow", "VitCornea", "VitCornea2":
-                    mesh_node.set_surface_override_material(surface, transparent)
-                    audit["transparent"] = int(audit["transparent"]) + 1
-                _:
-                    audit["other"] = int(audit["other"]) + 1
+                "VitSkin": mesh_node.set_surface_override_material(surface, face_skin); audit["skin"] = int(audit["skin"]) + 1
+                "VitMouth": mesh_node.set_surface_override_material(surface, mouth); audit["mouth"] = int(audit["mouth"]) + 1
+                "VitSclera": mesh_node.set_surface_override_material(surface, sclera); audit["sclera"] = int(audit["sclera"]) + 1
+                "VitIris": mesh_node.set_surface_override_material(surface, iris); audit["iris"] = int(audit["iris"]) + 1
+                "VitEyeball": mesh_node.set_surface_override_material(surface, eyeball); audit["eyeball"] = int(audit["eyeball"]) + 1
+                "VitTearline": mesh_node.set_surface_override_material(surface, tearline); audit["other"] = int(audit["other"]) + 1
+                "VitCaruncle": mesh_node.set_surface_override_material(surface, caruncle); audit["other"] = int(audit["other"]) + 1
+                "VitEyeBack": mesh_node.set_surface_override_material(surface, eye_back); audit["other"] = int(audit["other"]) + 1
+                "VitScalp", "VitEyeshadow", "VitCornea", "VitCornea2": mesh_node.set_surface_override_material(surface, transparent); audit["transparent"] = int(audit["transparent"]) + 1
+                _: audit["other"] = int(audit["other"]) + 1
     print("GB_CIV1_HEAD_MATERIALS ", JSON.stringify(audit))
     return audit
 
+func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
+    var shoe_mesh := ResourceLoader.load(SHOES) as Mesh
+    if shoe_mesh == null:
+        return {"added": false, "reason": "OBJ did not import as Mesh"}
+    var source := shoe_mesh.get_aabb()
+    if source.size.x <= 0.001 or source.size.y <= 0.001 or source.size.z <= 0.001:
+        return {"added": false, "reason": "invalid shoe AABB", "source_aabb": str(source)}
+
+    var node := MeshInstance3D.new()
+    node.name = "Shoes04_CC0_Review"
+    node.mesh = shoe_mesh
+    node.set_meta("source", "furqonat/makehuman-assets@8cf9645b975a98eea056b140df11a1d278da0d10")
+    node.set_meta("license", "CC0-1.0")
+    candidate.add_child(node)
+
+    # MakeHuman source is authored as a pair: X=lateral, Y=vertical, Z=toe/heel.
+    # Fit to realistic adult pair dimensions without altering the source mesh itself.
+    var target_pair_width := 0.38
+    var target_height := 0.115
+    var target_length := 0.29
+    node.scale = Vector3(
+        target_pair_width / source.size.x,
+        target_height / source.size.y,
+        target_length / source.size.z
+    )
+    var source_center := source.position + source.size * 0.5
+    node.position.x = -source_center.x * node.scale.x
+    node.position.z = -source_center.z * node.scale.z + 0.015
+    node.position.y = body_bounds.position.y - source.position.y * node.scale.y - 0.004
+
+    var shoe_mat := StandardMaterial3D.new()
+    shoe_mat.albedo_color = Color(0.055, 0.052, 0.050)
+    shoe_mat.roughness = 0.56
+    shoe_mat.metallic = 0.0
+    shoe_mat.metallic_specular = 0.22
+    for surface in range(shoe_mesh.get_surface_count()):
+        node.set_surface_override_material(surface, shoe_mat)
+
+    var scaled_size := Vector3(
+        source.size.x * node.scale.x,
+        source.size.y * node.scale.y,
+        source.size.z * node.scale.z
+    )
+    var audit := {
+        "added": true,
+        "source_aabb": str(source),
+        "target_pair_size_m": [scaled_size.x, scaled_size.y, scaled_size.z],
+        "scale": [node.scale.x, node.scale.y, node.scale.z],
+        "position": [node.position.x, node.position.y, node.position.z],
+        "source_commit": "8cf9645b975a98eea056b140df11a1d278da0d10",
+        "license": "CC0-1.0"
+    }
+    print("GB_CIV1_FOOTWEAR ", JSON.stringify(audit))
+    return audit
+
+func _relax_pose_if_rigged(root: Node) -> Dictionary:
+    var skeleton := _find_skeleton(root)
+    if skeleton == null:
+        var no_rig := {"applied": false, "reason": "body export is static/baked; no Skeleton3D"}
+        print("GB_CIV1_POSE ", JSON.stringify(no_rig))
+        return no_rig
+
+    var left := skeleton.find_bone("LeftArm")
+    var right := skeleton.find_bone("RightArm")
+    if left < 0 or right < 0:
+        var names: Array[String] = []
+        for i in range(skeleton.get_bone_count()):
+            names.append(skeleton.get_bone_name(i))
+        var missing := {"applied": false, "reason": "expected arm bones missing", "bone_names": names}
+        print("GB_CIV1_POSE ", JSON.stringify(missing))
+        return missing
+
+    # Additional ~24° toward a relaxed standing pose from the authored A-pose.
+    skeleton.set_bone_pose_rotation(left, Quaternion(Vector3(0.0, 0.0, 1.0), deg_to_rad(-24.0)))
+    skeleton.set_bone_pose_rotation(right, Quaternion(Vector3(0.0, 0.0, 1.0), deg_to_rad(24.0)))
+    var applied := {"applied": true, "left_bone": skeleton.get_bone_name(left), "right_bone": skeleton.get_bone_name(right), "extra_upper_arm_degrees": 24.0}
+    print("GB_CIV1_POSE ", JSON.stringify(applied))
+    return applied
+
+func _find_skeleton(node: Node) -> Skeleton3D:
+    if node is Skeleton3D:
+        return node as Skeleton3D
+    for child in node.get_children():
+        var found := _find_skeleton(child)
+        if found != null:
+            return found
+    return null
+
 func _apply_hair_review_material(root: Node) -> void:
     var shader := ResourceLoader.load(HAIR_SHADER) as Shader
-    var diffuse := ResourceLoader.load(REVIEW_ROOT + "/vit_hair_diffuse.png") as Texture2D
-    var normal := ResourceLoader.load(REVIEW_ROOT + "/vit_hair_normal.png") as Texture2D
-    var ao := ResourceLoader.load(REVIEW_ROOT + "/vit_hair_ao.png") as Texture2D
-    var opacity := ResourceLoader.load(REVIEW_ROOT + "/vit_hair_opacity.png") as Texture2D
+    var diffuse := _tex("vit_hair_diffuse.png")
+    var normal := _tex("vit_hair_normal.png")
+    var ao := _tex("vit_hair_ao.png")
+    var opacity := _tex("vit_hair_opacity.png")
     if shader == null or diffuse == null or normal == null or ao == null or opacity == null:
         _fail("hair shader/PBR inputs missing")
         return
@@ -379,7 +453,7 @@ func _apply_hair_review_material(root: Node) -> void:
 
 func _keep_brows_only(root: Node) -> void:
     var shader := ResourceLoader.load(BROW_SHADER) as Shader
-    var atlas := ResourceLoader.load(REVIEW_ROOT + "/vit_hair_atlas.png") as Texture2D
+    var atlas := _tex("vit_hair_atlas.png")
     if shader == null or atlas == null:
         _fail("brow shader/atlas missing")
         return

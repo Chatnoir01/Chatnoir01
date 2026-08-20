@@ -1,6 +1,7 @@
 extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_osm_sidewalk_surface_material.gd")
+const OFFICIAL_MATERIAL_FACTORY := preload("res://game/scripts/brussels_ground_network_official_material.gd")
 const EXPECTED_WIDTHS := [1.85, 2.55]
 const WIDTH_TOLERANCE := 0.02
 const HEIGHT := 0.12
@@ -11,11 +12,16 @@ var _legacy_materials: Dictionary = {}
 var _original_transforms: Dictionary = {}
 var _original_sizes: Dictionary = {}
 var _material: ShaderMaterial
+var _official_sidewalks: Dictionary = {}
+var _official_legacy_materials: Dictionary = {}
+var _official_material: StandardMaterial3D
 var _enhanced_enabled := true
 var _ready_complete := false
 var _failed := false
 
 func _ready() -> void:
+    if not get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.connect(_on_node_added)
     call_deferred("_apply_when_ready")
 
 func _is_generated_sidewalk(box: CSGBox3D) -> bool:
@@ -66,9 +72,38 @@ func _apply_when_ready() -> void:
         _ready_complete = true
         return
 
+    _scan_existing_official_sidewalks()
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
     print("BRUSSELS_OSM_SIDEWALK_SURFACE_READY: sidewalks=%d materials=1 family=%s source=OSM-adjacent authored-placement license=ODbL-1.0 geometry_changed=false" % [_sidewalks.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
+
+func _on_node_added(node: Node) -> void:
+    _register_official_sidewalk(node)
+
+func _scan_existing_official_sidewalks() -> void:
+    var ixelles := get_tree().root.find_child("StreetSurfaces_SW", true, false)
+    if ixelles != null:
+        _register_official_sidewalk(ixelles)
+
+func _register_official_sidewalk(node: Node) -> void:
+    if not node is MeshInstance3D:
+        return
+    if str(node.name) != "StreetSurfaces_SW" or node.get_parent() == null or str(node.get_parent().name) != "OfficialIxellesStreetSurfaces":
+        return
+    var instance := node as MeshInstance3D
+    var instance_id := instance.get_instance_id()
+    if _official_sidewalks.has(instance_id):
+        return
+    if _official_material == null:
+        _official_material = OFFICIAL_MATERIAL_FACTORY.create_material("sidewalk")
+    _official_sidewalks[instance_id] = instance
+    _official_legacy_materials[instance_id] = instance.material_override
+    instance.set_meta("ground_network_provider", OFFICIAL_MATERIAL_FACTORY.PROVIDER_URBIS)
+    instance.set_meta("ground_network_presentation_family", OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY)
+    instance.set_meta("geometry_changed_by_ground_network_runtime", false)
+    if _enhanced_enabled:
+        instance.material_override = _official_material
+    print("BRUSSELS_OFFICIAL_SIDEWALK_SURFACE_READY: node=%s provider=UrbIS geometry_changed=false license_claimed=false" % instance.name)
 
 func _set_material_state(enabled: bool) -> void:
     for sidewalk: CSGBox3D in _sidewalks:
@@ -79,6 +114,15 @@ func _set_material_state(enabled: bool) -> void:
             sidewalk.material = _material
         else:
             sidewalk.material = _legacy_materials.get(instance_id) as Material
+    for raw_id: Variant in _official_sidewalks.keys():
+        var instance_id := int(raw_id)
+        var instance := _official_sidewalks.get(instance_id) as MeshInstance3D
+        if instance == null or not is_instance_valid(instance):
+            continue
+        if enabled:
+            instance.material_override = _official_material
+        else:
+            instance.material_override = _official_legacy_materials.get(instance_id) as Material
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled
@@ -99,6 +143,9 @@ func applied_sidewalk_count() -> int:
 
 func shared_material_count() -> int:
     return 1 if _material != null else 0
+
+func official_applied_sidewalk_count() -> int:
+    return _official_sidewalks.size()
 
 func geometry_unchanged() -> bool:
     for sidewalk: CSGBox3D in _sidewalks:

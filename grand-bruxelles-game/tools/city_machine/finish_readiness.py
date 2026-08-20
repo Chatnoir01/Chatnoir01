@@ -130,7 +130,10 @@ def _outside_distance(x: float, z: float, bounds: tuple[float, float, float, flo
 def gate_g10(profile: dict[str, Any], manifest: dict[str, Any]) -> dict[str, str]:
     root = cm.p(profile["source_root"])
     bounds = cm.game_bounds(manifest)
-    max_distance = 250.0
+    # WFS bbox queries can return long crossing features whose vertices extend
+    # beyond the bbox. This gate catches CRS/origin-scale disasters, not valid
+    # boundary overhang, so the limit is intentionally city-scale.
+    max_distance = 5000.0
     points = 0
     worst = 0.0
     nonfinite = 0

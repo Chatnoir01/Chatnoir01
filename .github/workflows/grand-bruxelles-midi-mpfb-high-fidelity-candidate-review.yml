@@ -1,0 +1,340 @@
+name: Grand Bruxelles Midi MPFB High Fidelity Candidate Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/makehuman_midi_mpfb_source_plugin.py"
+      - "grand-bruxelles-game/tools/mpfb_midi_high_fidelity_candidate.py"
+      - "grand-bruxelles-game/game/tests/midi_mpfb_high_fidelity_candidate_capture_test.gd"
+      - "grand-bruxelles-game/data/qa/midi_makehuman_humanoid_bone_map.json"
+      - ".github/workflows/grand-bruxelles-midi-mpfb-high-fidelity-candidate-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-mpfb-high-fidelity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mpfb-high-fidelity-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MakeHuman and rendering dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libglu1-mesa libopengl0 libgl1-mesa-dri libglx-mesa0 mesa-utils \
+            libx11-xcb1 libxcb1 libxcb-util1 libxcb-image0 libxcb-keysyms1 \
+            libxcb-icccm4 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 \
+            libxcb-xkb1 libxcb-shape0 libxkbcommon-x11-0 libxcb-cursor0 xz-utils rsync
+          python3 -m pip install --disable-pip-version-check --no-cache-dir \
+            'numpy==1.26.4' 'PyOpenGL==3.1.7' 'PyQt5==5.15.10'
+          python3 - <<'PY'
+          import numpy, OpenGL
+          from PyQt5 import QtCore, QtWidgets
+          print('MPFB_PILOT_PYTHON_DEPS_OK', numpy.__version__, OpenGL.__version__, QtCore.PYQT_VERSION_STR)
+          PY
+
+      - name: Fetch pinned MakeHuman code and exact CC0 art packs
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAKEHUMAN_COMMIT=a8bc2d54ff0ac92e78ff71431b1023eda42bf482
+          SYSTEM_PAGE=https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
+          SYSTEM_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          SYSTEM_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+          SHIRTS_PAGE=https://static.makehumancommunity.org/assets/assetpacks/shirts01.html
+          SHIRTS_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip
+          SHIRTS_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip
+          PANTS_PAGE=https://static.makehumancommunity.org/assets/assetpacks/pants01.html
+          PANTS_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/pants01/pants01_cc0.zip
+          PANTS_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/pants01/pants01_cc0.zip
+          SKINS_PAGE=https://static.makehumancommunity.org/assets/assetpacks/skins01.html
+          SKINS_URL_PRIMARY=https://files2.makehumancommunity.org/asset_packs/skins01/skins01_cc0.zip
+          SKINS_URL_FALLBACK=https://files.makehumancommunity.org/asset_packs/skins01/skins01_cc0.zip
+
+          git clone --filter=blob:none https://github.com/makehumancommunity/makehuman.git /tmp/makehuman-src
+          git -C /tmp/makehuman-src checkout "$MAKEHUMAN_COMMIT"
+          test "$(git -C /tmp/makehuman-src rev-parse HEAD)" = "$MAKEHUMAN_COMMIT"
+          printf '%s\n' "$MAKEHUMAN_COMMIT" > /tmp/makehuman-code-commit.txt
+
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-system-assets.html "$SYSTEM_PAGE"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-shirts01.html "$SHIRTS_PAGE"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-pants01.html "$PANTS_PAGE"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/makehuman-skins01.html "$SKINS_PAGE"
+          grep -qi "ponytail01" /tmp/makehuman-system-assets.html
+          grep -qi "shoes04" /tmp/makehuman-system-assets.html
+          grep -qi "toigo_basic_tucked_t-shirt" /tmp/makehuman-shirts01.html
+          grep -qi "cortu_cargo_pants" /tmp/makehuman-pants01.html
+          grep -qi "onlytheghosts_young_eurasian_female" /tmp/makehuman-skins01.html
+          grep -qi "CC0" /tmp/makehuman-system-assets.html
+          grep -qi "CC0" /tmp/makehuman-shirts01.html
+          grep -qi "CC0" /tmp/makehuman-pants01.html
+          grep -qi "CC0" /tmp/makehuman-skins01.html
+
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/makehuman_system_assets_cc0.zip "$SYSTEM_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/makehuman_system_assets_cc0.zip "$SYSTEM_URL_FALLBACK"
+          fi
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/shirts01_cc0.zip "$SHIRTS_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/shirts01_cc0.zip "$SHIRTS_URL_FALLBACK"
+          fi
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/pants01_cc0.zip "$PANTS_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/pants01_cc0.zip "$PANTS_URL_FALLBACK"
+          fi
+          if ! curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/skins01_cc0.zip "$SKINS_URL_PRIMARY"; then
+            curl -fL --retry 4 --retry-all-errors --retry-delay 5 -o /tmp/skins01_cc0.zip "$SKINS_URL_FALLBACK"
+          fi
+          test -s /tmp/makehuman_system_assets_cc0.zip
+          test -s /tmp/shirts01_cc0.zip
+          test -s /tmp/pants01_cc0.zip
+          test -s /tmp/skins01_cc0.zip
+          sha256sum /tmp/makehuman_system_assets_cc0.zip | tee /tmp/makehuman-assets-archive-sha256.txt
+          sha256sum /tmp/shirts01_cc0.zip | tee /tmp/makehuman-shirts01-archive-sha256.txt
+          sha256sum /tmp/pants01_cc0.zip | tee /tmp/makehuman-pants01-archive-sha256.txt
+          sha256sum /tmp/skins01_cc0.zip | tee /tmp/makehuman-skins01-archive-sha256.txt
+
+          rm -rf /tmp/mh-system /tmp/mh-shirts /tmp/mh-pants /tmp/mh-skins /tmp/mpfb-asset-root
+          mkdir -p /tmp/mh-system /tmp/mh-shirts /tmp/mh-pants /tmp/mh-skins /tmp/mpfb-asset-root
+          unzip -q /tmp/makehuman_system_assets_cc0.zip -d /tmp/mh-system
+          unzip -q /tmp/shirts01_cc0.zip -d /tmp/mh-shirts
+          unzip -q /tmp/pants01_cc0.zip -d /tmp/mh-pants
+          unzip -q /tmp/skins01_cc0.zip -d /tmp/mh-skins
+
+          SYSTEM_CLOTHING_PATH="$(find /tmp/mh-system -type f -name shoes04.mhclo -print -quit)"
+          test -n "$SYSTEM_CLOTHING_PATH"
+          SYSTEM_ASSET_BASE="$(python3 - "$SYSTEM_CLOTHING_PATH" <<'PY'
+          import pathlib, sys
+          p = pathlib.Path(sys.argv[1]).resolve()
+          if p.parent.parent.name != 'clothes':
+              raise SystemExit(f'unexpected system pack layout: {p}')
+          print(p.parent.parent.parent)
+          PY
+          )"
+          TOP_PATH="$(find /tmp/mh-shirts -type f -name 'toigo_basic_tucked_t-shirt.mhclo' -print -quit)"
+          TROUSERS_PATH="$(find /tmp/mh-pants -type f -name 'cortu_cargo_pants.mhclo' -print -quit)"
+          SKIN_PATH="$(find /tmp/mh-skins -type f -name 'onlytheghosts_young_eurasian_female.mhmat' -print -quit)"
+          test -n "$TOP_PATH"
+          test -n "$TROUSERS_PATH"
+          test -n "$SKIN_PATH"
+
+          rsync -a "$SYSTEM_ASSET_BASE/" /tmp/makehuman-src/makehuman/data/
+          cp -a "$(dirname "$TOP_PATH")" /tmp/makehuman-src/makehuman/data/clothes/
+          cp -a "$(dirname "$TROUSERS_PATH")" /tmp/makehuman-src/makehuman/data/clothes/
+          cp -a "$(dirname "$SKIN_PATH")" /tmp/makehuman-src/makehuman/data/skins/
+
+          rsync -a "$SYSTEM_ASSET_BASE/" /tmp/mpfb-asset-root/
+          mkdir -p /tmp/mpfb-asset-root/clothes /tmp/mpfb-asset-root/skins
+          cp -a "$(dirname "$TOP_PATH")" /tmp/mpfb-asset-root/clothes/
+          cp -a "$(dirname "$TROUSERS_PATH")" /tmp/mpfb-asset-root/clothes/
+          cp -a "$(dirname "$SKIN_PATH")" /tmp/mpfb-asset-root/skins/
+
+          test -s /tmp/mpfb-asset-root/hair/ponytail01/ponytail01.mhclo
+          test -s /tmp/mpfb-asset-root/clothes/shoes04/shoes04.mhclo
+          test -s "$(find /tmp/mpfb-asset-root/clothes -name 'toigo_basic_tucked_t-shirt.mhclo' -print -quit)"
+          test -s "$(find /tmp/mpfb-asset-root/clothes -name 'cortu_cargo_pants.mhclo' -print -quit)"
+          test -s "$(find /tmp/mpfb-asset-root/skins -name 'onlytheghosts_young_eurasian_female.mhmat' -print -quit)"
+
+          printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
+            "$SYSTEM_PAGE" "$SYSTEM_URL_PRIMARY" "$SYSTEM_URL_FALLBACK" \
+            "$SHIRTS_PAGE" "$SHIRTS_URL_PRIMARY" "$SHIRTS_URL_FALLBACK" \
+            "$PANTS_PAGE" "$PANTS_URL_PRIMARY" "$PANTS_URL_FALLBACK" \
+            "$SKINS_PAGE" "$SKINS_URL_PRIMARY" "$SKINS_URL_FALLBACK" \
+            > /tmp/makehuman-assets-source-urls.txt
+
+      - name: Generate exact V4-control MHM source
+        shell: bash
+        env:
+          GB_MAKEHUMAN_MHM_OUTPUT: /tmp/gb_mpfb_source/FemalePilot.mhm
+          QT_X11_NO_MITSHM: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/gb_mpfb_source
+          cp grand-bruxelles-game/tools/makehuman_midi_mpfb_source_plugin.py \
+            /tmp/makehuman-src/makehuman/plugins/z_grand_bruxelles_mpfb_source.py
+          cd /tmp/makehuman-src/makehuman
+          timeout 300s xvfb-run -a python3 makehuman.py 2>&1 | tee /tmp/mpfb-mhm-source.log
+          grep -q "GB_MPFB_MHM_SOURCE_OK" /tmp/mpfb-mhm-source.log
+          grep -q "source_identity=v4_control" /tmp/mpfb-mhm-source.log
+          grep -q "production_authorized=false" /tmp/mpfb-mhm-source.log
+          if grep -q "GB_MPFB_MHM_SOURCE_FAIL" /tmp/mpfb-mhm-source.log; then exit 1; fi
+          test -s /tmp/gb_mpfb_source/FemalePilot.mhm
+          grep -qi "ponytail01" /tmp/gb_mpfb_source/FemalePilot.mhm
+          grep -qi "cargo" /tmp/gb_mpfb_source/FemalePilot.mhm
+          sha256sum /tmp/gb_mpfb_source/FemalePilot.mhm | tee /tmp/mpfb-mhm-source-sha256.txt
+
+      - name: Install pinned Blender 4.5.12 LTS
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BASE=https://download.blender.org/release/Blender4.5
+          BLENDER_ARCHIVE=blender-4.5.12-linux-x64.tar.xz
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/$BLENDER_ARCHIVE "$BLENDER_BASE/$BLENDER_ARCHIVE"
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/blender-4.5.12.sha256 "$BLENDER_BASE/blender-4.5.12.sha256"
+          grep " $BLENDER_ARCHIVE$" /tmp/blender-4.5.12.sha256 > /tmp/blender-linux.sha256
+          test -s /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum -c blender-linux.sha256)
+          tar -C /tmp -xf /tmp/$BLENDER_ARCHIVE
+          test -x /tmp/blender-4.5.12-linux-x64/blender
+          /tmp/blender-4.5.12-linux-x64/blender --version | tee /tmp/blender-version.txt
+          grep -q "Blender 4.5.12" /tmp/blender-version.txt
+
+      - name: Build and install exact MPFB 2.0.17 extension
+        shell: bash
+        env:
+          BLENDER_USER_RESOURCES: /tmp/blender-user
+        run: |
+          set -euo pipefail
+          MPFB_COMMIT=437dd513888a92399d1d3200d2e80859fae55abc
+          BLENDER=/tmp/blender-4.5.12-linux-x64/blender
+          git clone --filter=blob:none https://github.com/makehumancommunity/mpfb2.git /tmp/mpfb2
+          git -C /tmp/mpfb2 checkout "$MPFB_COMMIT"
+          test "$(git -C /tmp/mpfb2 rev-parse HEAD)" = "$MPFB_COMMIT"
+          printf '%s\n' "$MPFB_COMMIT" > /tmp/mpfb-code-commit.txt
+          grep -q 'version = "2.0.17"' /tmp/mpfb2/src/mpfb/blender_manifest.toml
+          grep -q 'blender_version_min = "4.2.0"' /tmp/mpfb2/src/mpfb/blender_manifest.toml
+          grep -q 'SPDX:GPL-3.0-or-later' /tmp/mpfb2/src/mpfb/blender_manifest.toml
+
+          "$BLENDER" --command extension validate --valid-tags="" /tmp/mpfb2/src/mpfb
+          "$BLENDER" --command extension build \
+            --source-dir /tmp/mpfb2/src/mpfb \
+            --output-filepath /tmp/mpfb-2.0.17.zip \
+            --valid-tags="" --verbose
+          test -s /tmp/mpfb-2.0.17.zip
+          sha256sum /tmp/mpfb-2.0.17.zip | tee /tmp/mpfb-extension-sha256.txt
+
+          mkdir -p /tmp/blender-extension-repo
+          "$BLENDER" --command extension repo-add --clear-all \
+            --name "Grand Bruxelles CI" --directory /tmp/blender-extension-repo ci
+          "$BLENDER" --command extension install-file -r ci -e /tmp/mpfb-2.0.17.zip
+          "$BLENDER" --command extension list | tee /tmp/blender-extension-list.txt
+          grep -qi "mpfb" /tmp/blender-extension-list.txt
+
+      - name: Build Enhanced reference and GameEngine GLB via MPFB
+        shell: bash
+        env:
+          BLENDER_USER_RESOURCES: /tmp/blender-user
+          GB_MPFB_MHM_INPUT: /tmp/gb_mpfb_source/FemalePilot.mhm
+          GB_MPFB_ASSET_SOURCE_ROOT: /tmp/mpfb-asset-root
+          GB_MPFB_GLB_OUTPUT: /tmp/gb_mpfb_output/FemalePilot.glb
+          GB_MPFB_REFERENCE_DIR: /tmp/gb_mpfb_output/reference
+          GB_MPFB_METRICS_OUTPUT: /tmp/gb_mpfb_output/mpfb_metrics.json
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/gb_mpfb_output
+          timeout 900s /tmp/blender-4.5.12-linux-x64/blender \
+            --background --python grand-bruxelles-game/tools/mpfb_midi_high_fidelity_candidate.py \
+            2>&1 | tee /tmp/mpfb-build.log
+          grep -q "GB_MPFB_HIGH_FIDELITY_OK" /tmp/mpfb-build.log
+          grep -q "production_authorized=false" /tmp/mpfb-build.log
+          if grep -E "Traceback|GB_MPFB_.*FAIL" /tmp/mpfb-build.log; then exit 1; fi
+          test -s /tmp/gb_mpfb_output/FemalePilot.glb
+          test -s /tmp/gb_mpfb_output/mpfb_metrics.json
+          test -s /tmp/gb_mpfb_output/reference/source_full.png
+          test -s /tmp/gb_mpfb_output/reference/source_close.png
+          test -s /tmp/gb_mpfb_output/reference/source_three_quarter.png
+          grep -q '"production_authorized": false' /tmp/gb_mpfb_output/mpfb_metrics.json
+          grep -q '"skin": "ENHANCED_SSS"' /tmp/gb_mpfb_output/mpfb_metrics.json
+          grep -q '"eyes": "PROCEDURAL_EYES"' /tmp/gb_mpfb_output/mpfb_metrics.json
+          grep -q '"export": "GLB"' /tmp/gb_mpfb_output/mpfb_metrics.json
+          sha256sum /tmp/gb_mpfb_output/FemalePilot.glb | tee /tmp/mpfb-glb-sha256.txt
+
+      - name: Stage MPFB GLB into Godot review workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          REVIEW=grand-bruxelles-game/assets/characters/_review/mpfb_midi_v1/FemalePilot
+          rm -rf "$REVIEW"
+          mkdir -p "$REVIEW"
+          cp /tmp/gb_mpfb_output/FemalePilot.glb "$REVIEW/FemalePilot.glb"
+          test -s "$REVIEW/FemalePilot.glb"
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import MPFB GLB in Godot
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            2>&1 | tee /tmp/mpfb-godot-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Can't open file|Cannot open file|couldn't be loaded" /tmp/mpfb-godot-import.log; then exit 1; fi
+
+      - name: Render same-camera Godot MPFB witnesses
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/midi_mpfb_high_fidelity_candidate_capture_test.gd -- \
+            /tmp/midi-mpfb-high-fidelity-candidate.png \
+            2>&1 | tee /tmp/mpfb-godot-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MIDI_MPFB_HIGH_FIDELITY_FAIL" /tmp/mpfb-godot-runtime.log; then exit 1; fi
+          grep -q "MIDI_MPFB_HIGH_FIDELITY_OK" /tmp/mpfb-godot-runtime.log
+          test -s /tmp/midi-mpfb-high-fidelity-candidate.png
+          test -s /tmp/midi-mpfb-high-fidelity-candidate_close.png
+          test -s /tmp/midi-mpfb-high-fidelity-candidate_three_quarter.png
+          test -s /tmp/midi-mpfb-high-fidelity-candidate.metrics.json
+          grep -q '"production_authorized": false' /tmp/midi-mpfb-high-fidelity-candidate.metrics.json
+          grep -q '"ready": true' /tmp/midi-mpfb-high-fidelity-candidate.metrics.json
+
+      - name: Stage MPFB owner-review evidence
+        if: always()
+        shell: bash
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_mpfb_high_fidelity_candidate
+          mkdir -p "$OUT"
+          cp /tmp/midi-mpfb-high-fidelity-candidate.png "$OUT/godot_candidate.png" 2>/dev/null || true
+          cp /tmp/midi-mpfb-high-fidelity-candidate_close.png "$OUT/godot_candidate_close.png" 2>/dev/null || true
+          cp /tmp/midi-mpfb-high-fidelity-candidate_three_quarter.png "$OUT/godot_candidate_three_quarter.png" 2>/dev/null || true
+          cp /tmp/midi-mpfb-high-fidelity-candidate.metrics.json "$OUT/godot_metrics.json" 2>/dev/null || true
+          cp /tmp/gb_mpfb_output/reference/source_full.png "$OUT/blender_source_full.png" 2>/dev/null || true
+          cp /tmp/gb_mpfb_output/reference/source_close.png "$OUT/blender_source_close.png" 2>/dev/null || true
+          cp /tmp/gb_mpfb_output/reference/source_three_quarter.png "$OUT/blender_source_three_quarter.png" 2>/dev/null || true
+          cp /tmp/gb_mpfb_output/mpfb_metrics.json "$OUT/mpfb_metrics.json" 2>/dev/null || true
+          cp /tmp/mpfb-build.log "$OUT/mpfb_build.log" 2>/dev/null || true
+          cp /tmp/mpfb-godot-import.log "$OUT/godot_import.log" 2>/dev/null || true
+          cp /tmp/mpfb-godot-runtime.log "$OUT/godot_runtime.log" 2>/dev/null || true
+          cp /tmp/mpfb-mhm-source.log "$OUT/mhm_source.log" 2>/dev/null || true
+          cp /tmp/mpfb-mhm-source-sha256.txt "$OUT/mhm_source_sha256.txt" 2>/dev/null || true
+          cp /tmp/mpfb-glb-sha256.txt "$OUT/glb_sha256.txt" 2>/dev/null || true
+          cp /tmp/mpfb-code-commit.txt "$OUT/mpfb_code_commit.txt" 2>/dev/null || true
+          cp /tmp/mpfb-extension-sha256.txt "$OUT/mpfb_extension_sha256.txt" 2>/dev/null || true
+          cp /tmp/blender-version.txt "$OUT/blender_version.txt" 2>/dev/null || true
+          cp /tmp/blender-linux.sha256 "$OUT/blender_linux_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-code-commit.txt "$OUT/makehuman_code_commit.txt" 2>/dev/null || true
+          cp /tmp/makehuman-assets-archive-sha256.txt "$OUT/makehuman_assets_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-shirts01-archive-sha256.txt "$OUT/shirts01_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-pants01-archive-sha256.txt "$OUT/pants01_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-skins01-archive-sha256.txt "$OUT/skins01_archive_sha256.txt" 2>/dev/null || true
+          cp /tmp/makehuman-assets-source-urls.txt "$OUT/makehuman_assets_source_urls.txt" 2>/dev/null || true
+          printf '%s\n' \
+            '{"status":"candidate_review_only","production_authorized":false,"source_identity":"makehuman_v4_control_mhm","mpfb_version":"2.0.17","mpfb_commit":"437dd513888a92399d1d3200d2e80859fae55abc","blender":"4.5.12 LTS","engine_export":"GLB","human_verdict_required":true,"control_artifact_id":9387968904}' \
+            > "$OUT/authorization.json"
+
+      - name: Upload MPFB high-fidelity pilot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-mpfb-high-fidelity-pilot
+          path: grand-bruxelles-game/artifacts/qa/midi_mpfb_high_fidelity_candidate
+          if-no-files-found: warn

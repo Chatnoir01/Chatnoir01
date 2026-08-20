@@ -22,11 +22,15 @@ jobs:
           curl --fail --location --retry 3 'https://ibsa.brussels/themes/amenagement-du-territoire/parc-de-batiments' -o "$OUT/source-page.html"
           python3 - <<'PY'
           import hashlib,json,os
-          out='/tmp/ibsa-building-age'; fn=out+'/11b.2_amenagement_territoire_parc_batiments_20260220.xlsx'
-          raw=open(fn,'rb').read(); page=open(out+'/source-page.html','rb').read()
-          manifest={'schema':'grand-bruxelles-ibsa-building-age-intake-v1','publisher':'IBSA / BISA','source':'Statbel & AGDP','table_family':'11B.2','target_table':'11B.2.1.5 - époque de construction des bâtiments','publication':'2026/02','comparison_year':2025,'file_url':'https://ibsa.brussels/sites/default/files/documents/11b.2_amenagement_territoire_parc_batiments_20260220.xlsx','bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'source_page_sha256':hashlib.sha256(page).hexdigest(),'granularity':'statistical/municipality-level, not individual-building survey','runtime_authorized':False,'production_authorized':False,'use':'district typology prior only; never overwrite exact building-specific evidence'}
+          out='/tmp/ibsa-building-age'; xlsx='11b.2_amenagement_territoire_parc_batiments_20260220.xlsx'; page_name='source-page.html'
+          raw=open(out+'/'+xlsx,'rb').read(); page=open(out+'/'+page_name,'rb').read()
+          results=[
+            {'file':xlsx,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()},
+            {'file':page_name,'bytes':len(page),'sha256':hashlib.sha256(page).hexdigest()}
+          ]
+          manifest={'schema':'grand-bruxelles-ibsa-building-age-intake-v2','publisher':'IBSA / BISA','source':'Statbel & AGDP','table_family':'11B.2','target_table':'11B.2.1.5 - époque de construction des bâtiments','publication':'2026/02','comparison_year':2025,'file_url':'https://ibsa.brussels/sites/default/files/documents/11b.2_amenagement_territoire_parc_batiments_20260220.xlsx','license':'REUSE_TERMS_UNRESOLVED_FOR_COMBINED_IBSA_STATBEL_AGDP_TABLE','results':results,'granularity':'statistical/municipality-level, not individual-building survey','runtime_authorized':False,'production_authorized':False,'use':'district typology prior only; never overwrite exact building-specific evidence'}
           open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
-          print('IBSA_BUILDING_AGE_INTAKE_OK',manifest['sha256'])
+          print('IBSA_BUILDING_AGE_INTAKE_OK',results[0]['sha256'])
           PY
       - uses: actions/upload-artifact@v4
         with:

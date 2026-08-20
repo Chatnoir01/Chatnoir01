@@ -25,7 +25,7 @@ jobs:
       - name: Install raster reader
         run: python -m pip install --disable-pip-version-check rasterio
 
-      - name: Validate lock contract and RED rails
+      - name: Validate exact lock contract and RED rails
         run: |
           python grand-bruxelles-game/tools/qa/lock_region_lod2_c01_world_y_datum.py \
             --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.world_y_datum.lock.json \
@@ -37,12 +37,24 @@ jobs:
           import lock_region_lod2_c01_world_y_datum as lock
           p = Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.world_y_datum.lock.json")
           c = json.loads(p.read_text())
+          assert c["expected"]["anchor_dtm_elevation_m"] == 21.712554931640625
+          assert c["expected_output_sha256"] == {
+              "world_y_datum_locked.json": "28ccea014fcfba136e5322db78a0a37394b27bc088e7c449c2e1f706001bbd0e",
+              "owner_world_y_offset_by_owner.json": "4cee5e94bb18b615af7c2aca4d64e6ef01ee133a95edacb2cddda39e851fe0a9",
+              "owner_world_y_offset_per_owner.csv": "cc0dd2b9e382a2617348f05dadc4ea090b96bc97dd046e4903ef54d69e0d4e9a",
+          }
 
           bad = copy.deepcopy(c)
           bad["world_anchor"]["lambert72_origin"][0] += 0.5
           try: lock.validate_contract(bad)
           except RuntimeError: pass
           else: raise SystemExit("RED failed: horizontal anchor drift was accepted")
+
+          bad = copy.deepcopy(c)
+          bad["expected"]["anchor_dtm_elevation_m"] += 0.5
+          try: lock.validate_contract(bad)
+          except RuntimeError: pass
+          else: raise SystemExit("RED failed: datum drift was accepted")
 
           bad = copy.deepcopy(c)
           bad["dtm_tile_lock"]["archive_sha256"] = "0" * 64
@@ -57,10 +69,10 @@ jobs:
           else: raise SystemExit("RED failed: runtime mount was accepted")
 
           bad = copy.deepcopy(c)
-          bad["hard_rules"]["final_world_y_authorized"] = True
+          bad["hard_rules"]["final_world_y_authorized"] = False
           try: lock.validate_contract(bad)
           except RuntimeError: pass
-          else: raise SystemExit("RED failed: unmeasured final world Y was accepted")
+          else: raise SystemExit("RED failed: locked datum without final artifact world-Y authorization was accepted")
           print("C01_WORLD_Y_DATUM_RED_OK")
           PY
 
@@ -84,7 +96,7 @@ jobs:
             -o "$RUNNER_TEMP/dtm-147169.zip"
           echo "b2bb34689ff35f080cb060fb8091e5d347342615575a24eedad89fe70467f803  $RUNNER_TEMP/dtm-147169.zip" | sha256sum -c -
 
-      - name: Build deterministic C01 world-Y datum and 30k owner offsets
+      - name: Reproduce exact locked C01 world-Y datum and 30k owner offsets
         run: |
           python grand-bruxelles-game/tools/qa/lock_region_lod2_c01_world_y_datum.py \
             --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.world_y_datum.lock.json \
@@ -92,7 +104,7 @@ jobs:
             --dtm-archive "$RUNNER_TEMP/dtm-147169.zip" \
             --output-dir "$RUNNER_TEMP/world-y"
 
-      - name: Require exact accounting and closed runtime rails
+      - name: Require exact accounting, hashes and closed runtime rails
         run: |
           python - <<'PY'
           import csv, json, os
@@ -100,17 +112,26 @@ jobs:
           root = Path(os.environ["RUNNER_TEMP"]) / "world-y"
           report = json.loads((root / "world_y_datum_locked.json").read_text())
           owners = json.loads((root / "owner_world_y_offset_by_owner.json").read_text())
+          hashes = json.loads((root / "result.sha256.json").read_text())
           with (root / "owner_world_y_offset_per_owner.csv").open(newline="") as f:
               rows = list(csv.DictReader(f))
+          assert report["schema"] == "grand-bruxelles-region-lod2-c01-world-y-datum-locked-v1"
           assert report["owners"] == len(owners) == len(rows) == 30000
           assert report["dtm"]["tile"] == 147169
+          assert report["dtm"]["anchor_absolute_elevation_m"] == 21.712554931640625
           assert report["dtm"]["archive_sha256"] == "b2bb34689ff35f080cb060fb8091e5d347342615575a24eedad89fe70467f803"
           assert report["dtm"]["raster_sha256"] == "f7312e66081eb8f99f35793a55cf346364f76c7b0b6c915b6d25b057caf189a6"
+          assert hashes == {
+              "world_y_datum_locked.json": "28ccea014fcfba136e5322db78a0a37394b27bc088e7c449c2e1f706001bbd0e",
+              "owner_world_y_offset_by_owner.json": "4cee5e94bb18b615af7c2aca4d64e6ef01ee133a95edacb2cddda39e851fe0a9",
+              "owner_world_y_offset_per_owner.csv": "cc0dd2b9e382a2617348f05dadc4ea090b96bc97dd046e4903ef54d69e0d4e9a",
+          }
+          assert report["final_world_y_authorized"] is True
           for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "terrain_runtime_authorized", "source_geometry_modified", "jouable_promotion_authorized"]:
               assert report[key] is False, key
           assert report["owner_rigid_translation_only"] is True
           assert report["artifact_only"] is True
-          print(f"C01_WORLD_Y_DATUM_GREEN: datum={report['dtm']['anchor_absolute_elevation_m']:.9f} owners=30000 final_world_y={report['final_world_y_authorized']}")
+          print(f"C01_WORLD_Y_DATUM_LOCK_GREEN: datum={report['dtm']['anchor_absolute_elevation_m']:.15f} owners=30000 final_world_y=true runtime=false")
           PY
 
       - name: Publish result hashes
@@ -118,7 +139,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: region-lod2-c01-30000-world-y-datum
+          name: region-lod2-c01-30000-world-y-datum-locked
           path: |
             ${{ runner.temp }}/world-y/world_y_datum_locked.json
             ${{ runner.temp }}/world-y/owner_world_y_offset_by_owner.json

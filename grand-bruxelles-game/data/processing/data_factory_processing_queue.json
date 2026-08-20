@@ -1,5 +1,5 @@
 {
-  "schema": "grand-bruxelles-data-factory-processing-queue-v3",
+  "schema": "grand-bruxelles-data-factory-processing-queue-v4",
   "production_base_sha": "96e26ee71f8428ff1ab4887a471c9e35d3174b20",
   "generated_at": "2026-08-20",
   "main_is_source_of_truth": true,
@@ -10,6 +10,7 @@
     "source_contract_compatibility_required": true,
     "sha256_required": true,
     "license_required": true,
+    "resolved_reuse_terms_required_before_production": true,
     "non_empty_payload_required": true,
     "crs_required_for_geospatial_outputs": true,
     "source_semantics_must_not_be_invented": true,
@@ -61,14 +62,10 @@
     {
       "priority": 1,
       "family": "terrain_dsm_dtm_citygen",
-      "processor_chain": [
-        "grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py",
-        "grand-bruxelles-game/tools/citygen/validate_cell_elevation_rasters.py"
-      ],
+      "processor_chain": ["grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py", "grand-bruxelles-game/tools/citygen/validate_cell_elevation_rasters.py"],
       "state": "EXISTING_PROCESSORS_READY_SOURCE_RESOLUTION_REQUIRED",
       "required_inputs": ["CityGen elevation source-resolution manifests", "official DSM/DTM ZIP archives from urbisdownload.datastore.brussels", "EPSG:31370"],
-      "output": "hashed structurally validated archives followed by raster CRS/bounds/resolution/geotransform and DSM-DTM alignment evidence",
-      "notes": "These processors already exist on main and explicitly keep terrain/heights gates false until later derivation/quality checks. Reuse them; do not fork."
+      "output": "hashed structurally validated archives followed by raster CRS/bounds/resolution/geotransform and DSM-DTM alignment evidence"
     },
     {
       "priority": 1,
@@ -77,15 +74,67 @@
       "processor": null,
       "state": "SOURCE_SUPPLEMENT_ARTIFACT_BLOCKED",
       "required_inputs": ["airborne LiDAR 2021 LAS", "UrbIS Landscape distributions", "hashes/license/CRS"],
-      "notes": "Cross-check/evidence only. Regional terrain/building owners remain authoritative; this family cannot directly rematerialize runtime terrain."
+      "notes": "Cross-check only; cannot directly rematerialize runtime terrain."
     },
     {
       "priority": 1,
-      "family": "visual_context_general",
-      "upstream_branches": ["intake/brussels-impervious-surfaces-current", "intake/brussels-planning-permits-current", "intake/brussels-flood-hazard-current", "intake/ibsa-building-age-current", "intake/statbel-building-period-current", "intake/brussels-heat-islands-current"],
+      "family": "planning_permit_change_signals",
+      "primary_upstream_branch": "intake/brussels-planning-permits-current",
+      "processor": "grand-bruxelles-game/tools/data_factory/normalize_planning_permit_signals.py",
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "a71210540de066be8ff56f4a8ee9f0124bd0ef06",
+      "required_inputs": ["City of Brussels planning-permit JSON/CSV exports", "CC0 manifest with hashes"],
+      "output": "review-only change-risk signals; no automatic building identity or geometry"
+    },
+    {
+      "priority": 1,
+      "family": "statbel_building_period_context",
+      "primary_upstream_branch": "intake/statbel-building-period-current",
+      "processor": "grand-bruxelles-game/tools/data_factory/extract_statistical_xlsx.py",
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "072b392c0a939a5a9401aea29f249426f24d8a99",
+      "required_inputs": ["Statbel Census construction-period XLSX", "CC BY 4.0 manifest"],
+      "output": "sheet/cell statistical evidence; never individual-building age"
+    },
+    {
+      "priority": 1,
+      "family": "ibsa_building_age_context",
+      "primary_upstream_branch": "intake/ibsa-building-age-current",
+      "processor": "grand-bruxelles-game/tools/data_factory/extract_statistical_xlsx.py",
+      "state": "PROCESSOR_READY_ARTIFACT_AND_TERMS_BLOCKED",
+      "artifact_traceability_fix_commit": "eb22513dd13db5cdc2e25d339636dfdc58d0d012",
+      "required_inputs": ["IBSA 11B.2 XLSX", "manifest with hashes"],
+      "output": "municipality-level statistical prior only",
+      "blocker": "Combined IBSA/Statbel/AGDP table reuse terms remain unresolved; processing may produce internal evidence but production reuse is forbidden."
+    },
+    {
+      "priority": 1,
+      "family": "impervious_surface_context",
+      "primary_upstream_branch": "intake/brussels-impervious-surfaces-current",
+      "processor": "grand-bruxelles-game/tools/data_factory/inspect_context_geospatial_archive.py",
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "required_inputs": ["two Brussels Environment impervious-surface ZIP archives", "CC BY 4.0 manifest"],
+      "output": "safe geospatial archive inventory pending value/CRS interpretation; no geometry override"
+    },
+    {
+      "priority": 1,
+      "family": "heat_island_context",
+      "primary_upstream_branch": "intake/brussels-heat-islands-current",
+      "processor": "grand-bruxelles-game/tools/data_factory/inspect_context_geospatial_archive.py",
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "f7aca56d0dc99b9407350993a056621507a31280",
+      "required_inputs": ["WBGT heat-island ZIP", "CC BY 4.0 manifest"],
+      "output": "safe geospatial archive inventory; reference-day heat context only, never current temperature"
+    },
+    {
+      "priority": 1,
+      "family": "flood_hazard_context",
+      "primary_upstream_branch": "intake/brussels-flood-hazard-current",
       "processor": null,
-      "state": "ARTIFACT_BLOCKED",
-      "notes": "These sources enrich ground/material/typology/change-risk/environment evidence; none may directly mutate geometry."
+      "state": "ARTIFACT_AND_TERMS_BLOCKED",
+      "artifact_traceability_fix_commit": "3f92283e5a3021629c88443f1ea8381fabf3de41",
+      "required_inputs": ["official 2025 hazard resources/layers", "per-layer reuse terms", "hashes/CRS when geospatial"],
+      "notes": "Indicative simulated hazard only; not regulatory truth and not permission to generate flooding everywhere."
     }
   ]
 }

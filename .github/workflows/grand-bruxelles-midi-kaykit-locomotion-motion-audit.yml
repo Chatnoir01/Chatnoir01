@@ -1,0 +1,217 @@
+name: Grand Bruxelles Midi KayKit Locomotion Motion Audit
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-kaykit-locomotion-motion-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-kaykit-motion-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kaykit-motion-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install Git LFS
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git-lfs
+          git lfs install
+
+      - name: Fetch exact pinned CC0 Rogue source
+        shell: bash
+        run: |
+          set -euo pipefail
+          PIN=672074b73ba276876a19e8816ecdc5241817ab47
+          SRC=/tmp/kaykit-motion-source
+          ROGUE=addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb
+          rm -rf "$SRC"
+          git clone --filter=blob:none --no-checkout https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0.git "$SRC"
+          git -C "$SRC" sparse-checkout init --no-cone
+          cat > "$SRC/.git/info/sparse-checkout" <<SPARSE
+          /LICENSE.txt
+          /README.md
+          /$ROGUE
+          SPARSE
+          GIT_LFS_SKIP_SMUDGE=1 git -C "$SRC" checkout "$PIN"
+          test "$(git -C "$SRC" rev-parse HEAD)" = "$PIN"
+          git -C "$SRC" lfs pull --include="$ROGUE" --exclude=""
+          test -s "$SRC/$ROGUE"
+          grep -qi 'CC0' "$SRC/LICENSE.txt"
+          printf '%s\n' "$PIN" > /tmp/kaykit-motion-pin.txt
+          (cd "$SRC" && sha256sum LICENSE.txt README.md "$ROGUE") | tee /tmp/kaykit-motion-sha256.txt
+          grep -q '^e825437cd4d2ee9c1960b517a74a69101e33eb409ae7fa8cedc7134a998fbb7d  addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb$' /tmp/kaykit-motion-sha256.txt
+
+      - name: Measure candidate durations root motion and hand-chain rest offsets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, pathlib, struct
+
+          GLB=pathlib.Path('/tmp/kaykit-motion-source/addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb')
+          raw=GLB.read_bytes()
+          if raw[:4] != b'glTF': raise SystemExit('invalid GLB')
+          version,total=struct.unpack_from('<II',raw,4)
+          if version != 2 or total != len(raw): raise SystemExit('invalid GLB header')
+          off=12; doc=None; binary=None
+          while off+8 <= len(raw):
+              size,kind=struct.unpack_from('<II',raw,off); off+=8; payload=raw[off:off+size]; off+=size
+              if kind==0x4E4F534A: doc=json.loads(payload.rstrip(b'\x00 \t\r\n').decode())
+              elif kind==0x004E4942: binary=payload
+          if doc is None or binary is None: raise SystemExit('GLB JSON/BIN chunk missing')
+
+          dims={'SCALAR':1,'VEC2':2,'VEC3':3,'VEC4':4,'MAT4':16}
+          component={5120:('b',1),5121:('B',1),5122:('h',2),5123:('H',2),5125:('I',4),5126:('f',4)}
+          def accessor(index):
+              acc=doc['accessors'][index]
+              if acc.get('sparse'): raise SystemExit(f'sparse accessor unsupported: {index}')
+              ctype=int(acc['componentType']); fmt,width=component[ctype]; ncomp=dims[acc['type']]
+              view=doc['bufferViews'][acc['bufferView']]
+              stride=int(view.get('byteStride',width*ncomp))
+              start=int(view.get('byteOffset',0))+int(acc.get('byteOffset',0))
+              values=[]
+              pattern='<'+fmt*ncomp
+              for i in range(int(acc['count'])):
+                  row=struct.unpack_from(pattern,binary,start+i*stride)
+                  values.append(row[0] if ncomp==1 else tuple(float(x) for x in row))
+              return values
+
+          nodes=doc.get('nodes') or []
+          name_to_index={str(node.get('name','')):i for i,node in enumerate(nodes) if node.get('name')}
+          animations={str(anim.get('name','')):anim for anim in (doc.get('animations') or [])}
+          candidates=['Idle','Walking_A','Walking_B','Walking_C','Running_A','Running_B']
+          if any(name not in animations for name in candidates):
+              raise SystemExit('expected neutral locomotion candidate missing')
+
+          def translation_summary(anim,target_name):
+              target_index=name_to_index.get(target_name)
+              matches=[]
+              duration=0.0
+              for channel in anim.get('channels') or []:
+                  target=channel.get('target') or {}
+                  sampler=anim['samplers'][int(channel['sampler'])]
+                  times=[float(x) for x in accessor(int(sampler['input']))]
+                  if times: duration=max(duration,max(times))
+                  if target.get('node') != target_index or target.get('path') != 'translation':
+                      continue
+                  values=accessor(int(sampler['output']))
+                  interpolation=str(sampler.get('interpolation','LINEAR'))
+                  if interpolation=='CUBICSPLINE':
+                      if len(values) != len(times)*3: raise SystemExit(f'cubic value count mismatch {target_name}')
+                      values=values[1::3]
+                  if len(values) != len(times): raise SystemExit(f'translation sample count mismatch {target_name}')
+                  xs=[v[0] for v in values]; ys=[v[1] for v in values]; zs=[v[2] for v in values]
+                  first=values[0]; last=values[-1]
+                  matches.append({
+                      'interpolation':interpolation,
+                      'sample_count':len(values),
+                      'start':list(first),
+                      'end':list(last),
+                      'net':[last[i]-first[i] for i in range(3)],
+                      'horizontal_net':math.hypot(last[0]-first[0],last[2]-first[2]),
+                      'horizontal_span':math.hypot(max(xs)-min(xs),max(zs)-min(zs)),
+                      'vertical_span':max(ys)-min(ys),
+                      'min':[min(xs),min(ys),min(zs)],
+                      'max':[max(xs),max(ys),max(zs)],
+                  })
+              return duration,matches
+
+          motion={}
+          for name in candidates:
+              anim=animations[name]
+              root_duration,root_tracks=translation_summary(anim,'root')
+              hips_duration,hips_tracks=translation_summary(anim,'hips')
+              duration=max(root_duration,hips_duration)
+              if duration <= 0.0: raise SystemExit(f'non-positive duration for {name}')
+              if len(root_tracks)!=1 or len(hips_tracks)!=1:
+                  raise SystemExit(f'expected one root and hips translation track for {name}; root={len(root_tracks)} hips={len(hips_tracks)}')
+              motion[name]={
+                  'duration_s':duration,
+                  'root_translation':root_tracks[0],
+                  'hips_translation':hips_tracks[0],
+                  'in_place_score_m':root_tracks[0]['horizontal_net']+hips_tracks[0]['horizontal_net'],
+              }
+
+          rest={}
+          for name in ['root','hips','spine','chest','head','upperarm.l','lowerarm.l','wrist.l','hand.l','upperarm.r','lowerarm.r','wrist.r','hand.r','upperleg.l','lowerleg.l','foot.l','toes.l','upperleg.r','lowerleg.r','foot.r','toes.r']:
+              idx=name_to_index.get(name)
+              if idx is None: raise SystemExit(f'required source node missing: {name}')
+              node=nodes[idx]
+              translation=[float(x) for x in node.get('translation',[0,0,0])]
+              rest[name]={
+                  'node':idx,
+                  'translation':translation,
+                  'local_offset_length':math.sqrt(sum(x*x for x in translation)),
+              }
+
+          hand_chain={
+              'left':{
+                  'lowerarm_to_wrist_m':rest['wrist.l']['local_offset_length'],
+                  'wrist_to_hand_m':rest['hand.l']['local_offset_length'],
+              },
+              'right':{
+                  'lowerarm_to_wrist_m':rest['wrist.r']['local_offset_length'],
+                  'wrist_to_hand_m':rest['hand.r']['local_offset_length'],
+              },
+          }
+
+          walk_names=['Walking_A','Walking_B','Walking_C']
+          run_names=['Running_A','Running_B']
+          best_walk=min(walk_names,key=lambda n:(motion[n]['in_place_score_m'],motion[n]['root_translation']['horizontal_span'],n))
+          best_run=min(run_names,key=lambda n:(motion[n]['in_place_score_m'],motion[n]['root_translation']['horizontal_span'],n))
+          selection={'idle':'Idle','walk':best_walk,'run':best_run}
+
+          report={
+              'schema':'grand-bruxelles-kaykit-locomotion-motion-audit-v1',
+              'production_authorized':False,
+              'source_license':'CC0-1.0',
+              'source_mesh_runtime_reuse':False,
+              'source_ref':'672074b73ba276876a19e8816ecdc5241817ab47',
+              'technical_clip_excluded':'T-Pose',
+              'candidate_motion':motion,
+              'source_rest':rest,
+              'hand_chain_offsets':hand_chain,
+              'selected_initial_clips':selection,
+              'selection_rule':'minimum root+hips horizontal net displacement among neutral forward variants; tie-break root horizontal span then name',
+              'next_gate':'build KayKit deformation-only BoneMap to SkeletonProfileHumanoid, then retarget only selected idle/walk/run onto Vitruvian game-rig'
+          }
+          pathlib.Path('/tmp/kaykit-locomotion-motion-audit.json').write_text(json.dumps(report,indent=2)+'\n')
+          print('GB_KAYKIT_MOTION_AUDIT_OK selection=%s hand_chain=%s' % (json.dumps(selection,sort_keys=True),json.dumps(hand_chain,sort_keys=True)))
+          for name in candidates:
+              m=motion[name]
+              print('GB_KAYKIT_MOTION %s duration=%.4f root_net=%.6f hips_net=%.6f root_span=%.6f hips_span=%.6f' % (name,m['duration_s'],m['root_translation']['horizontal_net'],m['hips_translation']['horizontal_net'],m['root_translation']['horizontal_span'],m['hips_translation']['horizontal_span']))
+          PY
+
+      - name: Stage motion audit evidence
+        if: always()
+        shell: bash
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_kaykit_locomotion_motion_audit
+          mkdir -p "$OUT"
+          cp /tmp/kaykit-locomotion-motion-audit.json "$OUT/motion_audit.json" 2>/dev/null || true
+          cp /tmp/kaykit-motion-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
+          cp /tmp/kaykit-motion-pin.txt "$OUT/pinned_ref.txt" 2>/dev/null || true
+          cp /tmp/kaykit-motion-source/LICENSE.txt "$OUT/upstream_LICENSE.txt" 2>/dev/null || true
+          printf '%s\n' '{"status":"motion_source_audit_only","production_authorized":false,"source_license":"CC0-1.0","source_mesh_runtime_reuse":false,"retarget_performed":false,"human_visual_verdict_required":true}' > "$OUT/authorization.json"
+
+      - name: Upload KayKit locomotion motion audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-kaykit-locomotion-motion-audit
+          path: grand-bruxelles-game/artifacts/qa/midi_kaykit_locomotion_motion_audit
+          if-no-files-found: warn

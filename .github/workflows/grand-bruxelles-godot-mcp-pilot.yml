@@ -1,0 +1,69 @@
+# Development-only engineering proof. The MCP addon must never ship in Web/PC exports.
+name: Grand Bruxelles Godot MCP Pilot
+
+on:
+  push:
+    branches:
+      - "tooling/godot-mcp-pilot-*"
+    paths:
+      - ".github/workflows/grand-bruxelles-godot-mcp-pilot.yml"
+      - "grand-bruxelles-game/data/qa/godot_mcp_pilot_contract.json"
+      - "grand-bruxelles-game/tools/qa/godot_mcp_export_guard.py"
+      - "grand-bruxelles-game/tools/qa/run_godot_mcp_pilot.sh"
+      - "grand-bruxelles-game/export_presets.cfg"
+      - "grand-bruxelles-game/project.godot"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-godot-mcp-pilot.yml"
+      - "grand-bruxelles-game/data/qa/godot_mcp_pilot_contract.json"
+      - "grand-bruxelles-game/tools/qa/godot_mcp_export_guard.py"
+      - "grand-bruxelles-game/tools/qa/run_godot_mcp_pilot.sh"
+      - "grand-bruxelles-game/export_presets.cfg"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godot-mcp-pilot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  export-guard:
+    name: MCP export contamination guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Fail closed on production MCP contamination
+        run: python3 grand-bruxelles-game/tools/qa/godot_mcp_export_guard.py
+
+  live-editor-smoke:
+    name: Godot 4.7.1 live editor MCP smoke
+    needs: export-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.26
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: false
+
+      - name: Run hardened live-editor pilot
+        shell: bash
+        run: bash grand-bruxelles-game/tools/qa/run_godot_mcp_pilot.sh
+
+      - name: Upload pilot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-mcp-pilot-evidence
+          path: ${{ runner.temp }}/grand-bruxelles-godot-mcp-pilot/evidence
+          if-no-files-found: warn
+          retention-days: 7

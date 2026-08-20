@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "base_main_sha": "75345935173ba11ead85c317786f9e31e4517afd",
+  "purpose": "Prove that an engineering agent can inspect the real Grand Bruxelles Godot project through Godot MCP without shipping the command server in production exports.",
+  "upstream": {
+    "repository": "https://github.com/regiellis/godot-mcp-go",
+    "tag": "v0.9.0",
+    "commit": "9ff512bbd15d9079e29625375a659b2f95f3a6cc",
+    "license": "MIT",
+    "addon_source_path": "project/addons/godot_mcp"
+  },
+  "engine": {
+    "version": "4.7.1-stable",
+    "main_scene": "res://game/main.tscn",
+    "renderer": "gl_compatibility"
+  },
+  "policy": {
+    "runtime_authorized": false,
+    "export_authorized": false,
+    "canonical_addon_install_authorized": false,
+    "ci_temp_copy_only": true,
+    "loopback_only": true,
+    "production_project_must_not_enable_plugin": true
+  },
+  "required_export_excludes": [
+    "addons/godot_mcp/*",
+    "mcp_commands/*"
+  ],
+  "forbidden_production_project_tokens": [
+    "addons/godot_mcp",
+    "MCPGameInspector",
+    "MCPGameInput"
+  ],
+  "pilot_proof": {
+    "install_mode": "temporary project copy only",
+    "commands": [
+      "godot-mcp doctor",
+      "godot-mcp project info",
+      "godot-mcp scene open --path res://game/main.tscn",
+      "godot-mcp scene tree"
+    ],
+    "success_requires_main_scene_observed": true,
+    "canonical_tree_must_remain_clean": true
+  }
+}

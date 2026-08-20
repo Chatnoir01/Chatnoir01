@@ -23,6 +23,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
           text = Path('grand-bruxelles-game/export_presets.cfg').read_text(encoding='utf-8')
           sections = text.split('[preset.')
           web = next(s for s in sections if 'name="Web"' in s)
@@ -41,9 +42,15 @@ jobs:
           for path in required:
               if path not in web:
                   raise SystemExit(f'LAEKEN_PRUNE_CONTRACT_FAIL missing exclusion {path}')
-          if 'exclude_filter=""' not in pc:
-              raise SystemExit('LAEKEN_PRUNE_CONTRACT_FAIL PC preset changed')
-          print('LAEKEN_PRUNE_CONTRACT_OK web_only=true')
+          pc_match = re.search(r'^exclude_filter="([^"]*)"$', pc, re.MULTILINE)
+          if pc_match is None:
+              raise SystemExit('LAEKEN_PRUNE_CONTRACT_FAIL PC exclude_filter missing')
+          pc_exclusions = {item for item in pc_match.group(1).split(',') if item}
+          allowed_pc_dev_exclusions = {'addons/godot_mcp/*', 'mcp_commands/*'}
+          unexpected_pc = sorted(pc_exclusions - allowed_pc_dev_exclusions)
+          if unexpected_pc:
+              raise SystemExit(f'LAEKEN_PRUNE_CONTRACT_FAIL PC contains non-dev exclusions: {unexpected_pc}')
+          print(f'LAEKEN_PRUNE_CONTRACT_OK web_only=true pc_dev_exclusions={sorted(pc_exclusions)}')
           PY
 
       - name: Install Godot 4.7.1

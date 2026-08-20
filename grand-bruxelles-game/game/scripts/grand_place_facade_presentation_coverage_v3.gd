@@ -44,24 +44,27 @@ func _build_when_ready() -> void:
         _fail("documented crown/balcony presentation nodes missing")
         return
 
-    # The original balcony cue occupies 86% of the source-derived facade frame.
-    # 1.36x yields ~117% of that frame: a bounded presentation overhang, not a
-    # source-geometry claim. The same rule is much smaller on the crown rails.
-    renard_balcony.scale.x = 1.36
+    # V3.1 responds to the frozen 1280x720 run that measured only 192 px of
+    # horizontal >8 impact against the pre-committed 220 px minimum. The
+    # source-derived Renard balcony cue occupies about 86% of its facade frame;
+    # 1.58x yields ~136% of that frame. This is a bounded authored overhang
+    # for a documented continuous balcony/cornice family, never a source or
+    # surveyed dimension claim. Camera, FOV and thresholds remain untouched.
+    renard_balcony.scale.x = 1.58
     renard_balcony.scale.z = 3.2
     renard_balcony.set_meta("continuous_balcony_documented", true)
     renard_balcony.set_meta("overhang_dimension_surveyed", false)
-    renard_cornice.scale.x = 1.18
+    renard_cornice.scale.x = 1.36
     renard_cornice.set_meta("profiled_cornice_documented", true)
     renard_cornice.set_meta("overhang_dimension_surveyed", false)
-    cornet_rail.scale.x = 1.18
+    cornet_rail.scale.x = 1.36
     cornet_rail.set_meta("roof_balustrade_documented", true)
     cornet_rail.set_meta("overhang_dimension_surveyed", false)
 
     var left_axis := renard_left.basis.x.normalized()
     var right_axis := renard_right.basis.x.normalized()
-    renard_left.position -= left_axis * 0.32
-    renard_right.position += right_axis * 0.32
+    renard_left.position -= left_axis * 0.48
+    renard_right.position += right_axis * 0.48
     renard_left.set_meta("volute_wing_offset_surveyed", false)
     renard_right.set_meta("volute_wing_offset_surveyed", false)
 
@@ -86,6 +89,9 @@ func _build_when_ready() -> void:
 
     built = true
     set_meta("coverage_revision", 3)
+    set_meta("coverage_patch", "3.1_measured_width_correction")
+    set_meta("coverage_v31_measured_failure_width_px", 192)
+    set_meta("coverage_v31_required_width_px", 220)
     set_meta("source_geometry_changed", false)
     set_meta("source_collision_changed", false)
     set_meta("camera_changed", false)
@@ -97,7 +103,7 @@ func _build_when_ready() -> void:
     set_meta("finished_perfect", false)
     _sync_visibility(true)
     set_process(true)
-    print("GRAND_PLACE_FACADE_COVERAGE_V3_READY: source_geometry_changed=false collision_changed=false camera_changed=false thresholds_changed=false")
+    print("GRAND_PLACE_FACADE_COVERAGE_V3_READY: patch=3.1 measured_width=192 required_width=220 source_geometry_changed=false collision_changed=false camera_changed=false thresholds_changed=false")
 
 func _material(color: Color, roughness: float, source_label: String) -> StandardMaterial3D:
     var mat := StandardMaterial3D.new()

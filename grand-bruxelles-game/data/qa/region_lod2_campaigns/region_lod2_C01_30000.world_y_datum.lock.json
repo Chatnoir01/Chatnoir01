@@ -1,0 +1,60 @@
+{
+  "schema": "grand-bruxelles-region-lod2-c01-world-y-datum-lock-v1",
+  "campaign_id": "region-lod2-C01-30000",
+  "production_base_sha": "1c5bb78108e25b220dd850260eac6c536f59f59d",
+  "source_lock_merge_sha": "1c5bb78108e25b220dd850260eac6c536f59f59d",
+  "world_anchor": {
+    "crs": "EPSG:31370",
+    "lambert72_origin": [147868.29422791934, 169538.62414926197],
+    "world_origin": [-668.5, 0.0, 627.84],
+    "datum_rule": "official_dtm_ground_at_exact_lambert72_origin_maps_to_world_y_0",
+    "evidence": "same exact horizontal origin/world origin already locked by the production LoD2 transform contract"
+  },
+  "dtm": {
+    "dataset": "Paradigm UrbIS Digital Terrain Model 2021",
+    "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
+    "source_crs": "EPSG:31370",
+    "license": "CC0 per official Paradigm/Geobru metadata recorded by the project"
+  },
+  "dtm_tile_lock": {
+    "tile": "147169",
+    "url": "https://urbisdownload.datastore.brussels/UrbIS/Grid/DTM/DTM2021/TIFF/DTM_31370_TIFF_147169_20211009_50.zip",
+    "archive_sha256": "b2bb34689ff35f080cb060fb8091e5d347342615575a24eedad89fe70467f803",
+    "raster_sha256": "f7312e66081eb8f99f35793a55cf346364f76c7b0b6c915b6d25b057caf189a6",
+    "resolution_m": 0.5,
+    "raster_bounds": [147000.1341350079, 169000.0715624727, 148000.1341350079, 170000.0715624727]
+  },
+  "rigid_anchor_lock": {
+    "source_pr": 975,
+    "source_head_sha": "91c9032c3e657455e08a73a363e546fd1db995c4",
+    "artifact_id": 9387662517,
+    "archive_sha256": "05e4dcb02385a3e50ee492b87a83191e65ae65fe60694157903eea944cd1adc1",
+    "files_sha256": {
+      "dtm_rigid_anchor_locked.json": "89bb084a67f737bc508c4e4050e79f8b747c4e720698eee11b622948d1e5e725",
+      "dtm_tile_locks.json": "1d4eb721f5c5f1d5d296da540e93d1ed760581596137f4ecfbd15b835a6af785",
+      "rigid_anchor_selected_by_owner.json": "29b347fde2022282c19db4c2a8b7959218544baf9ce37cc7f4be7d289421bfb4",
+      "rigid_anchor_selected_per_owner.csv": "0670e072eea4739e73531c0d5c0f7e3493d7a80df07c38f5af56560f8609bc7e"
+    }
+  },
+  "formula": {
+    "world_y": "source_z + owner_rigid_shift_m - anchor_dtm_elevation_m",
+    "owner_translation": "owner_rigid_shift_m - anchor_dtm_elevation_m",
+    "shape_preservation": "one translation per owner; no vertex warping"
+  },
+  "expected": {
+    "owners": 30000,
+    "dtm_tile": 147169,
+    "anchor_dtm_elevation_m": null
+  },
+  "hard_rules": {
+    "final_world_y_authorized": false,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "terrain_runtime_authorized": false,
+    "source_geometry_modified": false,
+    "owner_rigid_translation_only": true,
+    "jouable_promotion_authorized": false,
+    "artifact_only": true
+  }
+}

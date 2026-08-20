@@ -1,0 +1,45 @@
+name: Grand Bruxelles Midi Visual Truth
+on:
+  push:
+    branches: ["visual-truth/factory-current"]
+    paths:
+      - "grand-bruxelles-game/data/visual_truth/midi/**"
+      - "grand-bruxelles-game/tools/qa/validate_midi_visual_truth.py"
+      - ".github/workflows/grand-bruxelles-midi-visual-truth.yml"
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  validate-midi-visual-truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate fail-closed Midi visual evidence
+        run: python grand-bruxelles-game/tools/qa/validate_midi_visual_truth.py
+      - name: Prove no runtime files are owned by this lot
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only 245432e538bb52d454dd205c0b7e337fe4db093d...HEAD)"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -E '^grand-bruxelles-game/game/' ; then
+            echo 'ERROR: Midi Visual Truth evidence lot must not modify runtime/game files.' >&2
+            exit 1
+          fi
+      - name: Preserve HOLD until current four-view evidence exists
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/visual_truth/midi/midi_station_parvis_gap_matrix.json')
+          d=json.loads(p.read_text())
+          assert d['status']=='HOLD'
+          assert d['realism_complete'] is False
+          assert d['runtime_authorized'] is False
+          assert d['jouable_promotion_authorized'] is False
+          print('MIDI_VISUAL_TRUTH_HOLD_OK')
+          PY

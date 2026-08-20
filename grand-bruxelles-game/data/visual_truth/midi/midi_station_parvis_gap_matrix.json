@@ -1,0 +1,26 @@
+{
+  "schema": "grand-bruxelles-midi-visual-gap-matrix-v1",
+  "zone_id": "midi_station_parvis",
+  "status": "HOLD",
+  "realism_complete": false,
+  "runtime_authorized": false,
+  "jouable_promotion_authorized": false,
+  "gaps": [
+    {"id":"VT-MIDI-001","area":"station_mass","requirement":"official footprint/height/roof mass remains source-backed","state":"UNPROVEN_IN_VISUAL_TRUTH","severity":"BLOCKER","owner_action":"cross-check current runtime against UrbIS/official ortho; no visual rescue by moving source geometry"},
+    {"id":"VT-MIDI-002","area":"fonsny_facade","requirement":"recognizable Fonsny face proportions and entrance hierarchy","state":"REFERENCE_PARTIAL_OUTDATED","severity":"BLOCKER","owner_action":"obtain 2025-2026 licensed/player-owned player-height reference and freeze match camera"},
+    {"id":"VT-MIDI-003","area":"west_facade","requirement":"Rue de France international-terminal side recognizable","state":"REFERENCE_PARTIAL_OUTDATED","severity":"BLOCKER","owner_action":"obtain current geolocated reference and map exact entrance rhythm"},
+    {"id":"VT-MIDI-004","area":"north_arrival","requirement":"Rue Couverte arrival reads as Brussels-Midi in three seconds","state":"NO_CURRENT_REFERENCE","severity":"BLOCKER","owner_action":"capture/register current geolocated reference"},
+    {"id":"VT-MIDI-005","area":"south_arrival","requirement":"Rue des Veterinaires arrival reads as Brussels-Midi in three seconds","state":"NO_CURRENT_REFERENCE","severity":"BLOCKER","owner_action":"capture/register current geolocated reference"},
+    {"id":"VT-MIDI-006","area":"ground_floor","requirement":"doors, glazing rhythm and station-facing active ground floor match current reality","state":"CURRENT_TRUTH_MISSING","severity":"BLOCKER","owner_action":"do not infer current shop/sign identity from 2014-2023 photos"},
+    {"id":"VT-MIDI-007","area":"materials","requirement":"glass, metal, beige/yellow masonry or cladding families match verified current surfaces","state":"PARTIAL_REFERENCE_ONLY","severity":"HIGH","owner_action":"build material palette from current licensed references; label authored roughness/normal conventions"},
+    {"id":"VT-MIDI-008","area":"forecourt","requirement":"paving, curbs, bollards, barriers, flag/bust context and entrance apron are spatially credible","state":"CURRENT_TRUTH_MISSING","severity":"BLOCKER","owner_action":"cross-check official ortho + current player-height photos; coordinate with street-furniture owner"},
+    {"id":"VT-MIDI-009","area":"street_join","requirement":"Avenue Fonsny/Rue de France/Rue Couverte/Rue des Veterinaires joins read continuously","state":"UNPROVEN","severity":"HIGH","owner_action":"freeze four arrival cameras and verify ground continuity/collisions"},
+    {"id":"VT-MIDI-010","area":"signage","requirement":"Bruxelles-Midi / Brussel-Zuid identity is visible and proportionally credible","state":"CURRENT_TRUTH_MISSING","severity":"BLOCKER","owner_action":"use current reference for placement/proportion; do not ship third-party pixels without permission"},
+    {"id":"VT-MIDI-011","area":"life_context","requirement":"traffic, parked vehicles, PNJ and bicycles support rather than obscure station identity","state":"SEPARATE_ACTIVE_OWNERS","severity":"HIGH","owner_action":"consume #932/#926 evidence only after architecture camera is frozen; do not take their ownership"},
+    {"id":"VT-MIDI-012","area":"lighting","requirement":"neutral daylight and night readability do not flatten facade/glazing","state":"UNPROVEN","severity":"MEDIUM","owner_action":"daylight truth first; night pass only after geometry/material pass"},
+    {"id":"VT-MIDI-013","area":"photo_match","requirement":"four player-height same-camera real/game comparisons exist","state":"MISSING","severity":"BLOCKER","owner_action":"no VISUAL_GREEN until all four comparison records exist and human verdicts PASS"},
+    {"id":"VT-MIDI-014","area":"three_second_gate","requirement":"viewer familiar with Brussels recognizes Midi in <=3 seconds","state":"UNREVIEWED","severity":"BLOCKER","owner_action":"human full-frame verdict is final veto"}
+  ],
+  "next_allowed_runtime_change": "NONE_FROM_THIS_EVIDENCE_BRANCH",
+  "next_evidence_action": "Acquire/register current 2025-2026 geolocated player-height references for four major arrival faces, then bind exact project cameras before any facade correction."
+}

@@ -1,0 +1,62 @@
+name: Grand Bruxelles Intake Infrabel Official
+on:
+  push:
+    branches: ["intake/infrabel-official-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-infrabel-official.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download official Infrabel rail geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/infrabel
+          python3 - <<'PY'
+          import hashlib, json, os, urllib.request
+          base='https://opendata.infrabel.be'
+          dataset='geografische-positie-van-alle-spoorsegmenten'
+          ua={'User-Agent':'GrandBruxellesGame-InfrabelIntake/1.0'}
+          def get(url):
+              req=urllib.request.Request(url,headers=ua)
+              with urllib.request.urlopen(req,timeout=120) as r: return r.read()
+          meta_url=f'{base}/api/explore/v2.1/catalog/datasets/{dataset}'
+          export_url=f'{base}/api/explore/v2.1/catalog/datasets/{dataset}/exports/geojson?lang=en&timezone=Europe%2FBrussels'
+          meta=get(meta_url); open('/tmp/infrabel/dataset-metadata.json','wb').write(meta)
+          geo=get(export_url); open('/tmp/infrabel/tracks-wgs84.geojson','wb').write(geo)
+          obj=json.loads(meta)
+          attachments=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  if any(k in x for k in ('url','href')):
+                      u=x.get('url') or x.get('href'); name=str(x.get('name') or x.get('title') or '')
+                      if isinstance(u,str) and ('geojson' in u.lower() or 'geojson' in name.lower()): attachments.append((name,u))
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+          walk(obj)
+          downloaded=[]
+          for i,(name,u) in enumerate(dict.fromkeys(attachments)):
+              if u.startswith('/'): u=base+u
+              try:
+                  b=get(u); fn=f'/tmp/infrabel/attachment-{i}.geojson'; open(fn,'wb').write(b); downloaded.append({'name':name,'url':u,'file':os.path.basename(fn)})
+              except Exception as e: downloaded.append({'name':name,'url':u,'error':str(e)})
+          manifest={'publisher':'Infrabel','dataset':dataset,'license':'CC0','source_crs':'EPSG:31370 (publisher master)','export_crs':'WGS84 for tracks-wgs84.geojson','files':[],'attachment_attempts':downloaded}
+          for fn in sorted(os.listdir('/tmp/infrabel')):
+              p='/tmp/infrabel/'+fn
+              if os.path.isfile(p):
+                  b=open(p,'rb').read(); manifest['files'].append({'file':fn,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+          open('/tmp/infrabel/manifest.json','w').write(json.dumps(manifest,indent=2))
+          assert len(geo)>1000
+          print('INFRABEL_INTAKE_OK',len(geo),len(attachments))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-infrabel-official
+          path: /tmp/infrabel
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

@@ -6,7 +6,10 @@
   "counts": {
     "intake_branches_observed": 57,
     "legacy_asset_intakes_observed": 1,
-    "current_wave_sources_directly_reverified": 12
+    "new_intake_branches_in_current_wave": 12,
+    "current_wave_sources_directly_reverified": 13,
+    "older_intake_branches_total": 45,
+    "older_intake_branches_not_directly_reverified_in_this_pass": 44
   },
   "state_definitions": {
     "SOURCE_VERIFIED": "The official/current source and intended dataset family were independently reverified.",
@@ -120,8 +123,10 @@
     }
   ],
   "older_intakes": {
-    "count": 45,
+    "branches_total_before_current_wave": 45,
+    "branches_not_directly_reverified_in_this_pass": 44,
     "status": "ARTIFACT_UNVERIFIED",
+    "note": "terrain-elevation-current is an older branch but received a directly reverified LiDAR 2021 supplement in this pass",
     "next_gate": "artifact/run inspection plus hash/licence/non-empty/CRS validation before processing"
   },
   "promotion_rule": "No source, dataset, conversion or generated output may become runtime/JOUABLE because it appears in this ledger."

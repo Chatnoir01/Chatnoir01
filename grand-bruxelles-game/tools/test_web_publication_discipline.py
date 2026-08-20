@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WEB = REPO_ROOT / ".github/workflows/grand-bruxelles-web.yml"
 PAGES = REPO_ROOT / ".github/workflows/grand-bruxelles-pages.yml"
 HYGIENE = REPO_ROOT / ".github/workflows/grand-bruxelles-branch-hygiene.yml"
+C01_LOCK = (
+    REPO_ROOT
+    / "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json"
+)
+C01_LOCK_TOOL = "grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py"
+C01_PUBLIC_ROOT = "region-lod2/C01"
 ARTIFACT = "grand-bruxelles-playable-web"
 
 
@@ -18,6 +25,7 @@ class WebPublicationDisciplineTests(unittest.TestCase):
         cls.web = WEB.read_text(encoding="utf-8")
         cls.pages = PAGES.read_text(encoding="utf-8")
         cls.hygiene = HYGIENE.read_text(encoding="utf-8")
+        cls.c01_lock = json.loads(C01_LOCK.read_text(encoding="utf-8"))
 
     def test_web_build_is_read_only_to_repository(self) -> None:
         self.assertIn("permissions:\n  contents: read", self.web)
@@ -51,6 +59,36 @@ class WebPublicationDisciplineTests(unittest.TestCase):
         self.assertIn("uses: actions/upload-pages-artifact@v4", self.pages)
         self.assertIn("uses: actions/deploy-pages@v4", self.pages)
         self.assertIn("PLAYABLE_PAGES_OK", self.pages)
+
+    def test_pages_stages_locked_c01_cells_outside_web_pck(self) -> None:
+        lock_rel = str(C01_LOCK.relative_to(REPO_ROOT))
+        self.assertIn(f'"{lock_rel}"', self.pages)
+        self.assertIn(f'"{C01_LOCK_TOOL}"', self.pages)
+        self.assertIn("name: Stage locked C01 external LoD2 cells outside Web PCK", self.pages)
+        self.assertIn(f"python3 {C01_LOCK_TOOL}", self.pages)
+        self.assertIn('--artifact-dir "$RUNNER_TEMP/c01-final-world"', self.pages)
+        self.assertIn(f'target="grand-bruxelles-game/web-preview/{C01_PUBLIC_ROOT}"', self.pages)
+        self.assertIn('cp -a "$RUNNER_TEMP/c01-final-world/cells" "$target/cells"', self.pages)
+        self.assertIn("C01_PAGES_EXTERNAL_DELIVERY_STAGED", self.pages)
+        self.assertIn(f'$base/{C01_PUBLIC_ROOT}/external_cell_delivery_manifest.json', self.pages)
+        self.assertIn("C01_PUBLIC_EXTERNAL_DELIVERY_OK", self.pages)
+        self.assertNotIn("runtime_mount_authorized=true", self.pages)
+        self.assertNotIn("collision_authorized=true", self.pages)
+
+    def test_c01_pages_delivery_keeps_runtime_rails_closed(self) -> None:
+        self.assertEqual(self.c01_lock["campaign_id"], "region-lod2-C01-30000")
+        self.assertEqual(self.c01_lock["expected"]["spatial_cells"], 132)
+        self.assertFalse(self.c01_lock["delivery"]["public_base_url_locked"])
+        hard = self.c01_lock["hard_rules"]
+        for key in (
+            "runtime_authorized",
+            "runtime_mount_authorized",
+            "collision_authorized",
+            "terrain_runtime_authorized",
+            "jouable_promotion_authorized",
+            "web_pck_embedded",
+        ):
+            self.assertFalse(hard[key], key)
 
     def test_branch_hygiene_observes_live_main_not_only_pr_base(self) -> None:
         self.assertIn("git fetch --no-tags origin main:refs/remotes/origin/main", self.hygiene)

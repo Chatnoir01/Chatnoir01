@@ -11,6 +11,8 @@ on:
       - "grand-bruxelles-game/README.md"
       - "grand-bruxelles-game/tools/test_playable_link_contract.py"
       - "grand-bruxelles-game/tools/test_web_publication_discipline.py"
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json"
+      - "grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py"
   workflow_run:
     workflows: ["Grand Bruxelles Playable Web Build"]
     types: [completed]
@@ -59,6 +61,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/test_playable_link_contract.py
+          python3 grand-bruxelles-game/tools/test_web_publication_discipline.py
+          python3 grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json \
+            --validate-only
           test -f grand-bruxelles-game/web-preview/index.html
           test -f grand-bruxelles-game/web-preview/index.js
           test -f grand-bruxelles-game/web-preview/index.wasm
@@ -154,6 +160,101 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ github.event.workflow_run.id }}
 
+      - name: Stage locked C01 external LoD2 cells outside Web PCK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          lock="grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json"
+          tool="grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py"
+          python3 "$tool" --contract "$lock" --validate-only
+
+          read -r artifact_id artifact_name artifact_digest workflow_run_id source_head_sha archive_sha index_sha expected_cells expected_world_bytes < <(
+            python3 - "$lock" <<'PY'
+          import json, sys
+          lock = json.load(open(sys.argv[1], encoding="utf-8"))
+          upstream = lock["upstream_final_world_geometry"]
+          expected = lock["expected"]
+          print(
+              upstream["artifact_id"],
+              upstream["artifact_name"],
+              upstream["artifact_digest"],
+              upstream["workflow_run_id"],
+              upstream["source_head_sha"],
+              upstream["artifact_archive_sha256"],
+              upstream["world_geometry_index_sha256"],
+              expected["spatial_cells"],
+              expected["world_payload_bytes"],
+          )
+          PY
+          )
+
+          meta="$RUNNER_TEMP/c01-artifact.json"
+          archive="$RUNNER_TEMP/c01-final-world.zip"
+          source_root="$RUNNER_TEMP/c01-final-world"
+          delivery_root="$RUNNER_TEMP/c01-external-delivery"
+          target="grand-bruxelles-game/web-preview/region-lod2/C01"
+
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}" > "$meta"
+          python3 - "$meta" "$artifact_id" "$artifact_name" "$artifact_digest" "$workflow_run_id" "$source_head_sha" <<'PY'
+          import json, sys
+          meta = json.load(open(sys.argv[1], encoding="utf-8"))
+          artifact_id = int(sys.argv[2])
+          artifact_name = sys.argv[3]
+          artifact_digest = sys.argv[4]
+          workflow_run_id = int(sys.argv[5])
+          source_head_sha = sys.argv[6]
+          assert meta["id"] == artifact_id
+          assert meta["name"] == artifact_name
+          assert meta["digest"] == artifact_digest
+          assert meta["expired"] is False
+          assert meta["workflow_run"]["id"] == workflow_run_id
+          assert meta["workflow_run"]["head_sha"] == source_head_sha
+          print("C01_PAGES_UPSTREAM_ARTIFACT_IDENTITY_OK")
+          PY
+
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$archive"
+          echo "$archive_sha  $archive" | sha256sum -c -
+          rm -rf "$source_root" "$delivery_root" "$target"
+          mkdir -p "$source_root" "$target"
+          unzip -q "$archive" -d "$source_root"
+          echo "$index_sha  $source_root/world_geometry_index.json" | sha256sum -c -
+
+          python3 "$tool" \
+            --contract "$lock" \
+            --artifact-dir "$RUNNER_TEMP/c01-final-world" \
+            --output-dir "$delivery_root"
+
+          cp "$source_root/world_geometry_index.json" "$target/world_geometry_index.json"
+          cp "$delivery_root/external_cell_delivery_manifest.json" "$target/external_cell_delivery_manifest.json"
+          cp "$delivery_root/external_cell_delivery_cells.csv" "$target/external_cell_delivery_cells.csv"
+          cp "$delivery_root/result.sha256.json" "$target/result.sha256.json"
+          cp -a "$RUNNER_TEMP/c01-final-world/cells" "$target/cells"
+
+          test "$(find "$target/cells" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq "$expected_cells"
+          python3 - "$target" "$expected_world_bytes" <<'PY'
+          import sys
+          from pathlib import Path
+          target = Path(sys.argv[1])
+          expected = int(sys.argv[2])
+          payloads = list(target.glob("cells/*/world.ndjson"))
+          total = sum(path.stat().st_size for path in payloads)
+          if len(payloads) != 132:
+              raise SystemExit(f"C01 Pages cell count drift: {len(payloads)}")
+          if total != expected:
+              raise SystemExit(f"C01 Pages payload byte drift: {total} != {expected}")
+          pck = target.parents[1] / "index.pck"
+          if not pck.is_file():
+              raise SystemExit("playable index.pck missing after C01 external staging")
+          print(f"C01_PAGES_EXTERNAL_DELIVERY_STAGED cells={len(payloads)} world_payload_bytes={total} web_pck_embedded=false")
+          PY
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
 
@@ -178,7 +279,9 @@ jobs:
           set -euo pipefail
           base="${PLAYABLE_PUBLIC_BASE%/}"
           public_index="$(mktemp)"
-          trap 'rm -f "$public_index"' EXIT
+          c01_manifest="$(mktemp)"
+          c01_index="$(mktemp)"
+          trap 'rm -f "$public_index" "$c01_manifest" "$c01_index"' EXIT
           curl --fail --silent --show-error --location \
             --retry 6 --retry-all-errors --retry-delay 5 \
             --connect-timeout 15 --max-time 120 \
@@ -193,6 +296,41 @@ jobs:
               "$base/$asset" --output /dev/null
           done
           echo "PLAYABLE_PAGES_OK url=$base/"
+
+          curl --fail --silent --show-error --location \
+            --retry 6 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 15 --max-time 120 \
+            "$base/region-lod2/C01/external_cell_delivery_manifest.json" --output "$c01_manifest"
+          curl --fail --silent --show-error --location \
+            --retry 6 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 15 --max-time 120 \
+            "$base/region-lod2/C01/world_geometry_index.json" --output "$c01_index"
+          echo "5bbbc104019046aa3418439ddf41f93d81ab1468beebc19edbb0e1f73ac1f181  $c01_manifest" | sha256sum -c -
+          echo "af8c37bd501ed076a45d1c12eafc3b2208e071e3961c3fd07eabede36befc35c  $c01_index" | sha256sum -c -
+
+          mapfile -t sample_paths < <(python3 - "$c01_manifest" <<'PY'
+          import json, sys
+          manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert manifest["campaign_id"] == "region-lod2-C01-30000"
+          assert manifest["accounting"]["owners"] == 30000
+          assert manifest["accounting"]["spatial_cells"] == 132
+          assert len(manifest["cells"]) == 132
+          assert manifest["delivery"]["web_pck_embedded"] is False
+          assert manifest["delivery"]["public_base_url_locked"] is False
+          for key in ("runtime_authorized", "runtime_mount_authorized", "collision_authorized", "terrain_runtime_authorized", "jouable_promotion_authorized"):
+              assert manifest["hard_rules"][key] is False, key
+          print(manifest["cells"][0]["relative_path"])
+          print(manifest["cells"][-1]["relative_path"])
+          PY
+          )
+          for rel in "${sample_paths[@]}"; do
+            curl --fail --silent --show-error --location \
+              --retry 6 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 15 --max-time 120 \
+              --range 0-0 \
+              "$base/region-lod2/C01/$rel" --output /dev/null
+          done
+          echo "C01_PUBLIC_EXTERNAL_DELIVERY_OK base=$base/region-lod2/C01/ cells=132 runtime_mount_authorized=false"
 
   access_status:
     if: always() && github.event_name != 'pull_request'

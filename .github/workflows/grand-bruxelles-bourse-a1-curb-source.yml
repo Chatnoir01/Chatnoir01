@@ -1,0 +1,31 @@
+name: Grand Bruxelles Bourse A1 Curb Source
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/discover_bourse_curb_alignment_sources.py"
+      - "grand-bruxelles-game/data/urbis/bourse_curb_source_policy.game.json"
+      - ".github/workflows/grand-bruxelles-bourse-a1-curb-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-official-layers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Discover official UrbIS Topo line layers
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/bourse-a1-curb-source
+          python3 grand-bruxelles-game/tools/discover_bourse_curb_alignment_sources.py \
+            --output grand-bruxelles-game/artifacts/bourse-a1-curb-source/capabilities_candidates.json
+      - name: Upload source-discovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-a1-curb-source-discovery
+          path: grand-bruxelles-game/artifacts/bourse-a1-curb-source/capabilities_candidates.json
+          if-no-files-found: error

@@ -1,0 +1,53 @@
+{
+  "schema": "grand-bruxelles-grand-place-heritage-address-registry-v1",
+  "status": "evidence_only",
+  "runtime_authorized": false,
+  "building_id_crosswalk_authorized": false,
+  "source": {
+    "publisher": "Urban Brussels / Inventaire du patrimoine architectural",
+    "street_inventory": "https://monument.heritage.brussels/fr/Bruxelles_Pentagone/Grand-Place/10002053",
+    "property_listing": "https://monument.heritage.brussels/index.php?lg=fr&section=buildings&street=10002053",
+    "maison_du_roi_record": "https://monument.heritage.brussels/fr/buildings/31143",
+    "ducs_de_brabant_record": "https://monument.heritage.brussels/fr/buildings/31130",
+    "hotel_de_ville_record": "https://monument.heritage.brussels/fr/buildings/31125",
+    "la_brouette_record": "https://monument.heritage.brussels/fr/buildings/31120"
+  },
+  "address_groups": [
+    {"numbers":["1"],"official_name":"Le Roi d'Espagne","style_family":"italianizing_superposed_orders"},
+    {"numbers":["2","3"],"official_name":"La Brouette","style_family":"italianizing_decorated_gable"},
+    {"numbers":["4"],"official_name":"Le Sac","style_family":"italianizing_decorated_gable"},
+    {"numbers":["5"],"official_name":"La Louve","style_family":"italianizing_superposed_orders"},
+    {"numbers":["6"],"official_name":"Le Cornet","style_family":"rococo_precursor_exception"},
+    {"numbers":["7"],"official_name":"Le Renard","style_family":"italianizing_superposed_orders"},
+    {"numbers":["8"],"official_name":"Hôtel de ville","style_family":"classical_sober_street_inventory_group"},
+    {"numbers":["9"],"official_name":"Le Cygne","style_family":"louis_xiv_exception"},
+    {"numbers":["10"],"official_name":"La Maison des Brasseurs","style_family":"classical_colossal_order_fronton_attic_balustrade"},
+    {"numbers":["11"],"official_name":"La Rose","style_family":"italianizing_superposed_orders"},
+    {"numbers":["12"],"official_name":"Le Mont Thabor","style_family":"classical_sober"},
+    {"numbers":["12a"],"official_name":"La Roi de Bavière","style_family":"unclassified_in_street_summary"},
+    {"numbers":["13","14","15","16","17","18","19"],"official_name":"Les Ducs de Brabant","style_family":"classical_colossal_order_fronton_attic_balustrade","official_subnames":{"13":"La Renommée","14":"L'Ermitage","15":"La Fortune","16":"Le Moulin à vent","17":"Le Pot d'Étain","18":"La Colline","19":"La Bourse"}},
+    {"numbers":["20"],"official_name":"Le Cerf","style_family":"traditional_sober_narrow_piers_bands"},
+    {"numbers":["21","22"],"official_name":"Joseph / Anne","style_family":"traditional_sober_narrow_piers_bands"},
+    {"numbers":["23"],"official_name":"L'Ange","style_family":"classical_sober"},
+    {"numbers":["24","25"],"official_name":"La Maison des Tailleurs","style_family":"classical_colossal_order_fronton_attic_balustrade"},
+    {"numbers":["26","27"],"official_name":"Le Pigeon","style_family":"italian_renaissance_inspired"},
+    {"numbers":["28"],"official_name":"Aux Armes de Brabant","style_family":"italianizing_superposed_orders"},
+    {"numbers":["29"],"official_name":"Maison du Roi","style_family":"neo_gothic","record_id":"31143"},
+    {"numbers":["34"],"official_name":"Le Heaume","style_family":"italianizing_superposed_orders"},
+    {"numbers":["35","36","37","38"],"official_name":"Le Paon, Le Petit Renard, Le Chêne et Sainte-Barbe","style_family":"traditional_sober_narrow_piers_bands"},
+    {"numbers":["39"],"official_name":"L'Ane","style_family":"italianizing_superposed_orders"}
+  ],
+  "corner_property_without_grand_place_number_in_listing": {
+    "official_name": "L'Etoile - Monument à Charles Buls - 't Serclaes",
+    "status": "hold_until_exact_address_or_building_relation"
+  },
+  "hard_rules": {
+    "map_address_to_urbis_owner_by_list_order": false,
+    "map_address_to_urbis_owner_by_nearest_centroid": false,
+    "heritage_style_authorizes_exact_dimensions": false,
+    "heritage_style_authorizes_source_geometry_change": false,
+    "require_exact_address_crosswalk_before_owner_identity": true,
+    "ambiguous_crosswalk_status": "HOLD"
+  },
+  "notes": "Style families are coarse constraints explicitly summarized by the official Grand-Place street inventory. They do not authorize exact bay counts, opening dimensions, materials or ornament geometry without the corresponding property record/evidence."
+}

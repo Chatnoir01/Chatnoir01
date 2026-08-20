@@ -41,7 +41,6 @@ jobs:
                   metas=r.get('metas') or {}
                   did=metas.get('dataset_id') or metas.get('id')
               if did: ids.append(str(did))
-          # Include known core datasets even if catalogue schema changes.
           ids=sorted(set(ids+['gtfs-stops-production','shapefiles-production']))
           focus=re.compile(r'(gtfs|shape|line|route|stop|vehicle|position|waiting|traveller|network)',re.I)
           selected=[x for x in ids if focus.search(x)]
@@ -55,19 +54,22 @@ jobs:
                       raw=get(url,240)
                       if not raw: continue
                       ext={'geojson':'geojson','json':'json','csv':'csv'}[fmt]
-                      fn=f'{out}/data/{did}.{ext}'
+                      rel=f'data/{did}.{ext}'
+                      fn=f'{out}/{rel}'
                       open(fn,'wb').write(raw)
-                      results.append({'dataset_id':did,'format':fmt,'url':url,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+                      results.append({'dataset_id':did,'format':fmt,'file':rel,'url':url,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
                       saved=True; break
-                  except Exception as e:
-                      err=str(e)
+                  except Exception:
+                      pass
               if not saved: results.append({'dataset_id':did,'error':'no export format succeeded'})
           terms='https://data.stib-mivb.be/terms/terms-and-conditions.pdf'
           try:
               raw=get(terms); open(out+'/terms-and-conditions.pdf','wb').write(raw)
               terms_sha=hashlib.sha256(raw).hexdigest()
-          except Exception as e: terms_sha='UNAVAILABLE:'+str(e)
-          manifest={'schema':'grand-bruxelles-stib-complete-intake-v1','publisher':'STIB-MIVB','catalog_url':used,'catalog_dataset_count':len(ids),'selected_dataset_count':len(selected),'successful_exports':sum('sha256' in x for x in results),'results':results,'terms_url':terms,'terms_sha256':terms_sha,'license':'STIB-MIVB Open Data Licence / per published terms','runtime_authorized':False,'production_authorized':False,'note':'Data-only owner. Existing STIB visual/runtime branches retain ownership.'}
+              results.append({'dataset_id':'terms','format':'pdf','file':'terms-and-conditions.pdf','url':terms,'bytes':len(raw),'sha256':terms_sha})
+          except Exception as e:
+              terms_sha='UNAVAILABLE:'+str(e)
+          manifest={'schema':'grand-bruxelles-stib-complete-intake-v1','publisher':'STIB-MIVB','catalog_url':used,'catalog_dataset_count':len(ids),'selected_dataset_count':len(selected),'successful_exports':sum('sha256' in x for x in results if x.get('dataset_id')!='terms'),'results':results,'terms_url':terms,'terms_sha256':terms_sha,'license':'STIB-MIVB Open Data Licence / published terms','runtime_authorized':False,'production_authorized':False,'note':'Data-only owner. Existing STIB visual/runtime branches retain ownership.'}
           open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
           if manifest['successful_exports']<2: raise SystemExit('core STIB exports not materialized')
           print('STIB_COMPLETE_INTAKE_OK',manifest['successful_exports'])

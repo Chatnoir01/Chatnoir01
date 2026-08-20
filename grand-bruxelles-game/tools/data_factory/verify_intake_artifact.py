@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Fail-closed verifier for Grand Bruxelles intake artifacts.
 
-This tool validates local/downloaded artifact payloads before any normalizer is allowed to run.
-It does not grant runtime or production authorization.
+This tool validates local/downloaded payload integrity before any normalizer is allowed to run.
+Artifact integrity is distinct from reuse permission: unresolved licence terms stay visible and
+never imply runtime or production authorization.
 """
 from __future__ import annotations
 
@@ -64,6 +65,11 @@ def is_authorized_true(manifest: Any, key: str) -> bool:
     return False
 
 
+def reuse_terms_resolved(licenses: list[str]) -> bool:
+    unresolved_markers = ("UNRESOLVED", "UNKNOWN", "UNVERIFIED", "TO_BE_VERIFIED")
+    return not any(any(marker in value.upper() for marker in unresolved_markers) for value in licenses)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, required=True)
@@ -117,20 +123,23 @@ def main() -> int:
         if not CRS_RE.search(text):
             raise SystemExit("artifact gate failed: geospatial artifact has no explicit EPSG CRS metadata")
 
+    terms_resolved = reuse_terms_resolved(licenses)
     summary = {
-        "schema": "grand-bruxelles-intake-artifact-verification-v1",
+        "schema": "grand-bruxelles-intake-artifact-verification-v2",
         "manifest": args.manifest.name,
         "verified_file_count": len(verified),
         "licenses": sorted(set(licenses)),
+        "reuse_terms_resolved": terms_resolved,
         "files": verified,
         "runtime_authorized": False,
         "production_authorized": False,
         "result": "ARTIFACT_VERIFIED",
+        "production_gate": "TERMS_OK" if terms_resolved else "TERMS_BLOCKED",
     }
     if args.summary:
         args.summary.parent.mkdir(parents=True, exist_ok=True)
         args.summary.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"INTAKE_ARTIFACT_VERIFIED: {len(verified)} files")
+    print(f"INTAKE_ARTIFACT_VERIFIED: {len(verified)} files terms={'resolved' if terms_resolved else 'blocked'}")
     return 0
 
 

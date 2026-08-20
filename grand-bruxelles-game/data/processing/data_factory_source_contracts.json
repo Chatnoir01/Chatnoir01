@@ -1,0 +1,43 @@
+{
+  "schema": "grand-bruxelles-data-factory-source-contracts-v3",
+  "production_base_sha": "96e26ee71f8428ff1ab4887a471c9e35d3174b20",
+  "generated_at": "2026-08-20",
+  "runtime_authorized": false,
+  "production_authorized": false,
+  "contracts": [
+    {
+      "family": "urbis_addresses",
+      "upstream_branch": "intake/urbis-addresses-current",
+      "provided_artifacts": ["urbis_address_numbers_geojson", "urbis_addresses_geojson", "intake_manifest"],
+      "processor_required_artifacts": ["urbis_address_numbers_geojson", "urbis_addresses_geojson", "intake_manifest"],
+      "missing_artifacts": [],
+      "compatible": true
+    },
+    {
+      "family": "stib_surface_network",
+      "upstream_branch": "intake/stib-complete-current",
+      "provided_artifacts": ["stib_gtfs_stops_export", "stib_commercial_network_shapes_export", "intake_manifest"],
+      "processor_required_artifacts": ["stib_gtfs_stops_export", "stib_commercial_network_shapes_export", "intake_manifest"],
+      "missing_artifacts": [],
+      "compatible": true
+    },
+    {
+      "family": "stib_static_schedule",
+      "upstream_branch": "intake/stib-complete-current",
+      "upstream_fix_commit": "e9182f50fbdd0d52c26eaffa06aed342830243ea",
+      "provided_artifacts": ["gtfs_full_static_feed", "intake_manifest"],
+      "processor_required_artifacts": ["gtfs_full_static_feed", "intake_manifest"],
+      "missing_artifacts": [],
+      "compatible": true,
+      "evidence": ["gtfs-files-production provides the official gtfs.zip content", "intake verifies core GTFS ZIP members before passing"]
+    },
+    {
+      "family": "mobiris_traffic_counts",
+      "upstream_branch": "intake/brussels-traffic-counts-current",
+      "provided_artifacts": ["mobiris_devices_json", "mobiris_live_json", "mobiris_live_geom_geojson", "intake_manifest"],
+      "processor_required_artifacts": ["mobiris_devices_json", "mobiris_live_json", "mobiris_live_geom_geojson", "intake_manifest"],
+      "missing_artifacts": [],
+      "compatible": true
+    }
+  ]
+}

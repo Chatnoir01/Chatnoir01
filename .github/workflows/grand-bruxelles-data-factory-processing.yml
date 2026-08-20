@@ -30,5 +30,8 @@ jobs:
           python3 grand-bruxelles-game/tools/data_factory/validate_processing_contracts.py \
             --contracts grand-bruxelles-game/data/processing/data_factory_source_contracts.json \
             --queue grand-bruxelles-game/data/processing/data_factory_processing_queue.json
-      - name: Confirm existing Mobiris processor is reused
-        run: test -f grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py
+      - name: Confirm existing production processors are reused
+        run: |
+          test -f grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py
+          test -f grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py
+          test -f grand-bruxelles-game/tools/citygen/validate_cell_elevation_rasters.py

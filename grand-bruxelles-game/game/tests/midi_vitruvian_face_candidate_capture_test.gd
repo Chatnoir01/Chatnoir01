@@ -140,13 +140,15 @@ func _run() -> void:
         return
 
     var metrics := {
-        "schema": "grand-bruxelles-vitruvian-face-witness-v2",
+        "schema": "grand-bruxelles-vitruvian-face-witness-v3",
         "production_authorized": false,
         "review_scope": "face_hair_brows_only_pre_full_body",
         "upstream_repo": "ibrews/VitruvianGodot",
         "upstream_commit": "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0",
         "renderer": "gl_compatibility",
         "eye_pipeline": "current_upstream_real_sclera_iris_eyeback_cornea2",
+        "hair_profile": "upstream_hairtool_alpha_scissor_exact_v1",
+        "brow_profile": "upstream_browcards_exact_v1",
         "mixamo_payload_allowed": false,
         "animation_clip_count": animation_clips,
         "blend_shape_count": blend_shapes,
@@ -278,20 +280,24 @@ func _apply_hair_material(root: Node, textures: Dictionary) -> int:
     mat.set_shader_parameter("tex_normal", textures["hair_normal"])
     mat.set_shader_parameter("tex_ao", textures["hair_ao"])
     mat.set_shader_parameter("tex_opacity", textures["hair_opacity"])
-    mat.set_shader_parameter("root_color", Color(0.30, 0.205, 0.13, 1.0))
-    mat.set_shader_parameter("tip_color", Color(0.39, 0.29, 0.19, 1.0))
-    mat.set_shader_parameter("brightness", 2.65)
-    mat.set_shader_parameter("diffuse_mix", 0.85)
-    mat.set_shader_parameter("normal_strength", 0.85)
+    # Exact promoted Hair Tool profile from the pinned upstream lookdev/shader.
+    mat.set_shader_parameter("root_color", Color(0.50, 0.40, 0.28, 1.0))
+    mat.set_shader_parameter("tip_color", Color(0.62, 0.50, 0.36, 1.0))
+    mat.set_shader_parameter("brightness", 3.4)
+    mat.set_shader_parameter("diffuse_mix", 1.0)
+    mat.set_shader_parameter("normal_strength", 1.0)
+    mat.set_shader_parameter("flip_green", false)
     mat.set_shader_parameter("ao_strength", 0.60)
-    mat.set_shader_parameter("roughness_val", 0.78)
-    mat.set_shader_parameter("specular_val", 0.20)
-    mat.set_shader_parameter("anisotropy_val", 0.25)
-    mat.set_shader_parameter("tonal_variation", 0.22)
-    mat.set_shader_parameter("tip_lighten", 0.10)
-    mat.set_shader_parameter("emit", 0.05)
+    mat.set_shader_parameter("roughness_val", 0.76)
+    mat.set_shader_parameter("specular_val", 0.25)
+    mat.set_shader_parameter("anisotropy_val", 0.40)
+    mat.set_shader_parameter("tonal_variation", 0.70)
+    mat.set_shader_parameter("clump_count", 28.0)
+    mat.set_shader_parameter("tip_lighten", 0.18)
+    mat.set_shader_parameter("emit", 0.15)
+    mat.set_shader_parameter("backlight_strength", 0.0)
     mat.set_shader_parameter("density", 1.0)
-    mat.set_shader_parameter("scissor", 0.10)
+    mat.set_shader_parameter("scissor", 0.35)
     var meshes: Array[MeshInstance3D] = []
     _collect_meshes(root, meshes)
     var count := 0
@@ -310,13 +316,17 @@ func _keep_brows_only(root: Node, textures: Dictionary) -> int:
     var shader := ResourceLoader.load(BROW_SHADER_PATH) as Shader
     var mat := ShaderMaterial.new()
     mat.shader = shader
-    mat.set_shader_parameter("hair_color", Color(0.095, 0.060, 0.038, 1.0))
+    # Exact _make_browcards() profile from the pinned upstream lookdev.
+    mat.set_shader_parameter("hair_color", Color(0.11, 0.078, 0.05, 1.0))
     mat.set_shader_parameter("coverage_atlas", textures["hair_atlas"])
+    mat.set_shader_parameter("use_red_mask", true)
+    mat.set_shader_parameter("invert_mask", false)
     mat.set_shader_parameter("alpha_threshold", 0.28)
     mat.set_shader_parameter("root_darkening", 0.45)
-    mat.set_shader_parameter("roughness_val", 0.92)
-    mat.set_shader_parameter("specular_val", 0.02)
-    mat.set_shader_parameter("anisotropy", 0.05)
+    mat.set_shader_parameter("roughness_val", 0.72)
+    mat.set_shader_parameter("specular_val", 0.14)
+    mat.set_shader_parameter("anisotropy", 0.50)
+    mat.set_shader_parameter("tonal_variation", 0.30)
     var meshes: Array[MeshInstance3D] = []
     _collect_meshes(root, meshes)
     var kept := 0

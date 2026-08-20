@@ -1,0 +1,275 @@
+name: Grand Bruxelles Midi Vitruvian Face Candidate Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/midi_vitruvian_face_candidate_capture_test.gd"
+      - "grand-bruxelles-game/data/provenance/characters/vitruvian_midi_face_v1.json"
+      - ".github/workflows/grand-bruxelles-midi-vitruvian-face-candidate-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-vitruvian-face-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vitruvian-face-fidelity-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install review runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libglu1-mesa libopengl0 libgl1-mesa-dri libglx-mesa0 mesa-utils \
+            libx11-xcb1 libxcb1 libxcb-util1 libxcb-image0 libxcb-keysyms1 \
+            libxcb-icccm4 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 \
+            libxcb-xkb1 libxcb-shape0 libxkbcommon-x11-0 libxcb-cursor0 curl unzip
+
+      - name: Fetch exact CC0 Vitruvian face hair and brow source
+        shell: bash
+        run: |
+          set -euo pipefail
+          UPSTREAM_COMMIT=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0
+          UPSTREAM_REPO=https://github.com/ibrews/VitruvianGodot.git
+          RAW=https://raw.githubusercontent.com/ibrews/VitruvianGodot/$UPSTREAM_COMMIT
+          SRC=/tmp/vitruvian-face-source
+          rm -rf "$SRC" /tmp/vitruvian-upstream-check
+          mkdir -p "$SRC/shaders"
+
+          git init -q /tmp/vitruvian-upstream-check
+          git -C /tmp/vitruvian-upstream-check remote add origin "$UPSTREAM_REPO"
+          git -C /tmp/vitruvian-upstream-check fetch -q --depth 1 --filter=blob:none origin "$UPSTREAM_COMMIT"
+          test "$(git -C /tmp/vitruvian-upstream-check rev-parse FETCH_HEAD)" = "$UPSTREAM_COMMIT"
+          printf '%s\n' "$UPSTREAM_COMMIT" > /tmp/vitruvian-upstream-commit.txt
+
+          fetch_asset() {
+            local rel="$1"
+            local out="$2"
+            curl -fL --retry 4 --retry-all-errors --retry-delay 3 -o "$out" "$RAW/$rel"
+            test -s "$out"
+          }
+
+          fetch_asset LICENSE "$SRC/LICENSE"
+          fetch_asset NOTICE.md "$SRC/NOTICE.md"
+          fetch_asset README.md "$SRC/README.md"
+          grep -qi "MIT License" "$SRC/LICENSE"
+          grep -qi "CC0" "$SRC/NOTICE.md"
+          grep -qi "Vitruvian" "$SRC/NOTICE.md"
+
+          fetch_asset godot_project/vitruvian_head.glb "$SRC/vitruvian_head.glb"
+          fetch_asset godot_project/hairtool_cards.glb "$SRC/hairtool_cards.glb"
+          fetch_asset godot_project/vitruvian_hair.glb "$SRC/vitruvian_hair.glb"
+
+          for texture in \
+            vit_face_bc.png \
+            vit_face_n.png \
+            vit_face_rough.png \
+            vit_mouth.png \
+            vit_lash_atlas.png \
+            vit_hair_diffuse.png \
+            vit_hair_normal.png \
+            vit_hair_ao.png \
+            vit_hair_opacity.png \
+            vit_hair_atlas.png
+          do
+            fetch_asset "godot_project/$texture" "$SRC/$texture"
+          done
+
+          fetch_asset godot_project/addons/eyeball_shader/shaders/eyeball_shader.gdshader "$SRC/shaders/eyeball_shader.gdshader"
+          fetch_asset godot_project/addons/eyeball_shader/shaders/cornea.gdshader "$SRC/shaders/cornea.gdshader"
+          fetch_asset godot_project/addons/eyeball_shader/shaders/voronoi.gdshaderinc "$SRC/shaders/voronoi.gdshaderinc"
+          fetch_asset godot_project/addons/eyeball_shader/shaders/random.gdshaderinc "$SRC/shaders/random.gdshaderinc"
+          fetch_asset godot_project/addons/eyeball_shader/shaders/blend_modes.gdshaderinc "$SRC/shaders/blend_modes.gdshaderinc"
+          fetch_asset godot_project/scenes/hairtool_card.gdshader "$SRC/hairtool_card.gdshader"
+          fetch_asset godot_project/scenes/hair_card.gdshader "$SRC/hair_card.gdshader"
+
+          (cd "$SRC" && sha256sum \
+            LICENSE NOTICE.md README.md \
+            vitruvian_head.glb hairtool_cards.glb vitruvian_hair.glb \
+            vit_face_bc.png vit_face_n.png vit_face_rough.png vit_mouth.png vit_lash_atlas.png \
+            vit_hair_diffuse.png vit_hair_normal.png vit_hair_ao.png vit_hair_opacity.png vit_hair_atlas.png \
+            shaders/eyeball_shader.gdshader shaders/cornea.gdshader \
+            shaders/voronoi.gdshaderinc shaders/random.gdshaderinc shaders/blend_modes.gdshaderinc \
+            hairtool_card.gdshader hair_card.gdshader) \
+            | tee /tmp/vitruvian-face-source-sha256.txt
+
+      - name: Prove no Mixamo or animation payload enters face pilot
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import struct
+
+          root = pathlib.Path("/tmp/vitruvian-face-source")
+          expected = {
+              "vitruvian_head.glb": {"VitSkin", "VitMouth", "VitEyeball", "VitCornea"},
+              "hairtool_cards.glb": set(),
+              "vitruvian_hair.glb": set(),
+          }
+
+          def read_glb_json(path):
+              raw = path.read_bytes()
+              if len(raw) < 20 or raw[:4] != b"glTF":
+                  raise SystemExit(f"invalid GLB header: {path}")
+              version, total = struct.unpack_from("<II", raw, 4)
+              if version != 2 or total != len(raw):
+                  raise SystemExit(f"unexpected GLB version/length: {path} version={version} total={total} actual={len(raw)}")
+              offset = 12
+              while offset + 8 <= len(raw):
+                  length, chunk_type = struct.unpack_from("<II", raw, offset)
+                  offset += 8
+                  payload = raw[offset:offset + length]
+                  offset += length
+                  if chunk_type == 0x4E4F534A:
+                      return json.loads(payload.rstrip(b"\x00 \t\r\n").decode("utf-8"))
+              raise SystemExit(f"GLB JSON chunk missing: {path}")
+
+          report = {}
+          for name, required_materials in expected.items():
+              path = root / name
+              doc = read_glb_json(path)
+              animations = doc.get("animations") or []
+              if animations:
+                  raise SystemExit(f"{name} unexpectedly contains {len(animations)} animation clips")
+              serialized = json.dumps(doc).lower()
+              if "mixamo" in serialized or "mixamorig" in serialized:
+                  raise SystemExit(f"{name} contains forbidden Mixamo payload/reference")
+              materials = {str(m.get("name", "")) for m in (doc.get("materials") or [])}
+              missing = required_materials - materials
+              if missing:
+                  raise SystemExit(f"{name} missing expected material roles: {sorted(missing)}; got={sorted(materials)}")
+              report[name] = {
+                  "animations": len(animations),
+                  "meshes": len(doc.get("meshes") or []),
+                  "materials": sorted(materials),
+                  "nodes": len(doc.get("nodes") or []),
+              }
+
+          provenance = json.loads(pathlib.Path(
+              "grand-bruxelles-game/data/provenance/characters/vitruvian_midi_face_v1.json"
+          ).read_text())
+          pin = provenance["upstream"]["commit"]
+          if pin != "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0":
+              raise SystemExit(f"provenance pin drifted: {pin}")
+          if provenance["policy"]["mixamo_allowed"]:
+              raise SystemExit("provenance policy must forbid Mixamo")
+          if provenance["policy"]["production_authorized"]:
+              raise SystemExit("face pilot cannot be production-authorized")
+          pathlib.Path("/tmp/vitruvian-face-glb-audit.json").write_text(
+              json.dumps(report, indent=2) + "\n"
+          )
+          print("VITRUVIAN_FACE_SOURCE_AUDIT_OK", json.dumps(report, sort_keys=True))
+          PY
+
+      - name: Stage review-only Vitruvian assets into Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=/tmp/vitruvian-face-source
+          REVIEW=grand-bruxelles-game/assets/characters/_review/vitruvian_face_v1
+          EYES=grand-bruxelles-game/addons/eyeball_shader/shaders
+          rm -rf "$REVIEW"
+          mkdir -p "$REVIEW" "$EYES"
+
+          cp "$SRC/vitruvian_head.glb" "$REVIEW/vitruvian_head.glb"
+          cp "$SRC/hairtool_cards.glb" "$REVIEW/hairtool_cards.glb"
+          cp "$SRC/vitruvian_hair.glb" "$REVIEW/vitruvian_hair.glb"
+          cp "$SRC"/vit_*.png "$REVIEW/"
+          cp "$SRC/hairtool_card.gdshader" "$REVIEW/hairtool_card.gdshader"
+          cp "$SRC/hair_card.gdshader" "$REVIEW/hair_card.gdshader"
+          cp "$SRC/shaders/"* "$EYES/"
+
+          test -s "$REVIEW/vitruvian_head.glb"
+          test -s "$REVIEW/hairtool_cards.glb"
+          test -s "$REVIEW/vitruvian_hair.glb"
+          test -s "$EYES/eyeball_shader.gdshader"
+          test -s "$EYES/cornea.gdshader"
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import Vitruvian face pilot in Godot Compatibility
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            --rendering-method gl_compatibility \
+            2>&1 | tee /tmp/vitruvian-face-godot-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|Shader compilation failed|ERROR: Failed to load script|ERROR: Can't open file|Cannot open file|couldn't be loaded" /tmp/vitruvian-face-godot-import.log; then
+            exit 1
+          fi
+
+      - name: Render player-distance Vitruvian face witnesses
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/midi_vitruvian_face_candidate_capture_test.gd -- \
+            /tmp/midi-vitruvian-face-candidate.png \
+            2>&1 | tee /tmp/vitruvian-face-godot-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|Shader compilation failed|MIDI_VITRUVIAN_FACE_FAIL" /tmp/vitruvian-face-godot-runtime.log; then
+            exit 1
+          fi
+          grep -q "MIDI_VITRUVIAN_FACE_OK" /tmp/vitruvian-face-godot-runtime.log
+          test -s /tmp/midi-vitruvian-face-candidate.png
+          test -s /tmp/midi-vitruvian-face-candidate_close.png
+          test -s /tmp/midi-vitruvian-face-candidate_three_quarter.png
+          test -s /tmp/midi-vitruvian-face-candidate.metrics.json
+          grep -q '"production_authorized": false' /tmp/midi-vitruvian-face-candidate.metrics.json
+          grep -q '"animation_clip_count": 0' /tmp/midi-vitruvian-face-candidate.metrics.json
+          grep -q '"full_body_required_before_promotion": true' /tmp/midi-vitruvian-face-candidate.metrics.json
+
+      - name: Stage Vitruvian owner-review evidence
+        if: always()
+        shell: bash
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_vitruvian_face_candidate
+          mkdir -p "$OUT"
+          cp /tmp/midi-vitruvian-face-candidate.png "$OUT/candidate_player_distance.png" 2>/dev/null || true
+          cp /tmp/midi-vitruvian-face-candidate_close.png "$OUT/candidate_close.png" 2>/dev/null || true
+          cp /tmp/midi-vitruvian-face-candidate_three_quarter.png "$OUT/candidate_three_quarter.png" 2>/dev/null || true
+          cp /tmp/midi-vitruvian-face-candidate.metrics.json "$OUT/metrics.json" 2>/dev/null || true
+          cp /tmp/vitruvian-face-godot-import.log "$OUT/godot_import.log" 2>/dev/null || true
+          cp /tmp/vitruvian-face-godot-runtime.log "$OUT/godot_runtime.log" 2>/dev/null || true
+          cp /tmp/vitruvian-face-source-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
+          cp /tmp/vitruvian-face-glb-audit.json "$OUT/glb_audit.json" 2>/dev/null || true
+          cp /tmp/vitruvian-upstream-commit.txt "$OUT/upstream_commit.txt" 2>/dev/null || true
+          cp /tmp/vitruvian-face-source/LICENSE "$OUT/upstream_LICENSE" 2>/dev/null || true
+          cp /tmp/vitruvian-face-source/NOTICE.md "$OUT/upstream_NOTICE.md" 2>/dev/null || true
+          cp grand-bruxelles-game/data/provenance/characters/vitruvian_midi_face_v1.json "$OUT/provenance.json" 2>/dev/null || true
+          printf '%s\n' \
+            '{"status":"candidate_review_only","production_authorized":false,"source":"ibrews/VitruvianGodot","source_commit":"bdecdcd537b4031fdd0fb299b7e4f93f084fffa0","character_license":"CC0","review_shader_code_license":"MIT","mixamo_payload_allowed":false,"full_body_required_before_promotion":true,"human_verdict_required":true}' \
+            > "$OUT/authorization.json"
+
+      - name: Upload Vitruvian face fidelity pilot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-vitruvian-face-pilot
+          path: grand-bruxelles-game/artifacts/qa/midi_vitruvian_face_candidate
+          if-no-files-found: warn

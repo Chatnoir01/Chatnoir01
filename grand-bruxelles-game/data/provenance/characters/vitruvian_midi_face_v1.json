@@ -1,0 +1,55 @@
+{
+  "schema": "grand-bruxelles-character-provenance-v1",
+  "candidate_id": "vitruvian_midi_face_v1",
+  "scope": "review-only face/hair/brows fidelity gate before any full-body intake",
+  "upstream": {
+    "repository": "ibrews/VitruvianGodot",
+    "commit": "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0",
+    "source_files": [
+      "godot_project/vitruvian_head.glb",
+      "godot_project/hairtool_cards.glb",
+      "godot_project/vitruvian_hair.glb",
+      "godot_project/vit_face_bc.png",
+      "godot_project/vit_face_n.png",
+      "godot_project/vit_face_rough.png",
+      "godot_project/vit_mouth.png",
+      "godot_project/vit_lash_atlas.png",
+      "godot_project/vit_hair_diffuse.png",
+      "godot_project/vit_hair_normal.png",
+      "godot_project/vit_hair_ao.png",
+      "godot_project/vit_hair_opacity.png",
+      "godot_project/vit_hair_atlas.png"
+    ],
+    "review_shader_files": [
+      "godot_project/addons/eyeball_shader/shaders/eyeball_shader.gdshader",
+      "godot_project/addons/eyeball_shader/shaders/cornea.gdshader",
+      "godot_project/addons/eyeball_shader/shaders/voronoi.gdshaderinc",
+      "godot_project/addons/eyeball_shader/shaders/random.gdshaderinc",
+      "godot_project/addons/eyeball_shader/shaders/blend_modes.gdshaderinc",
+      "godot_project/scenes/hairtool_card.gdshader",
+      "godot_project/scenes/hair_card.gdshader"
+    ]
+  },
+  "licenses": {
+    "vitruvian_character_morphs_textures": "CC0-1.0",
+    "vitruvian_godot_code_and_shaders": "MIT",
+    "eyeball_shader": "MIT",
+    "proof_files": ["LICENSE", "NOTICE.md", "README.md"]
+  },
+  "excluded_upstream_content": [
+    "godot_project/vitruvian_body.glb",
+    "blender_prep/mixamo/"
+  ],
+  "policy": {
+    "mixamo_allowed": false,
+    "animation_payload_allowed_in_face_pilot": false,
+    "production_authorized": false,
+    "full_body_required_before_promotion": true,
+    "human_garder_required": true,
+    "renderer_gate": "Godot 4.7.1 gl_compatibility"
+  },
+  "notes": [
+    "This gate tests whether the CC0 Vitruvian face/hair source materially exceeds the rejected MakeHuman/MPFB visual ceiling.",
+    "A face-only GARDER authorizes only a full-body pilot; it does not authorize production or roster multiplication."
+  ]
+}

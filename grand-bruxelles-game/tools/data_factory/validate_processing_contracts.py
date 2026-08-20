@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed compatibility gate between intake outputs and data-factory processors."""
+"""Fail-closed compatibility and reuse-terms gate for Data Factory processors."""
 from __future__ import annotations
 
 import argparse
@@ -28,6 +28,11 @@ def main() -> int:
         "stib_surface_network",
         "stib_static_schedule",
         "mobiris_traffic_counts",
+        "planning_permit_change_signals",
+        "statbel_building_period_context",
+        "ibsa_building_age_context",
+        "impervious_surface_context",
+        "heat_island_context",
     }
     missing_families = sorted(required_families - contracts.keys())
     if missing_families:
@@ -64,7 +69,13 @@ def main() -> int:
             if "READY" in state:
                 raise SystemExit(f"processing contract gate failed: incompatible {family} may not be marked READY")
 
-    print("DATA_FACTORY_PROCESSING_CONTRACTS_OK: P0 compatibility truth is fail-closed")
+        reuse_resolved = contract.get("reuse_terms_resolved")
+        if reuse_resolved is False and "TERMS_BLOCKED" not in state:
+            raise SystemExit(f"processing contract gate failed: unresolved reuse terms for {family} must remain TERMS_BLOCKED")
+        if reuse_resolved is True and "TERMS_BLOCKED" in state:
+            raise SystemExit(f"processing contract gate failed: resolved reuse terms for {family} are incorrectly TERMS_BLOCKED")
+
+    print("DATA_FACTORY_PROCESSING_CONTRACTS_OK: P0/P1 compatibility and reuse terms are fail-closed")
     return 0
 
 

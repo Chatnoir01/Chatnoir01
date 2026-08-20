@@ -8,6 +8,8 @@ extends Node3D
 
 const LANDCOVER_CONTEXT_SCRIPT := preload("res://game/zones/laeken_jette/atomium_landcover_context.gd")
 const SPHERE_SKIN_SEMANTICS_SCRIPT := preload("res://game/zones/laeken_jette/atomium_sphere_skin_semantics.gd")
+const BASE_SPHERE_WINDOW_BAND_SCRIPT := preload("res://game/zones/laeken_jette/atomium_base_sphere_window_band.gd")
+const BASE_SPHERE_TOPOLOGY_ID := 0
 const SPHERE_RADIAL_SEGMENTS := 48
 const SPHERE_RINGS := 24
 const TUBE_RADIAL_SEGMENTS := 32
@@ -21,6 +23,7 @@ var source_tube_diameter_m := 0.0
 var unresolved_support_pillars := 0
 var anchor_position := Vector3.ZERO
 var landcover_context: Node3D
+var base_sphere_window_band: Node3D
 var sphere_skin_semantics_applied := false
 
 var _sphere_material: StandardMaterial3D
@@ -66,7 +69,9 @@ func build_on_terrain(terrain: Node) -> bool:
             return false
         centres.append(Vector3(float(raw[0]), float(raw[1]), float(raw[2])))
     for i: int in range(centres.size()):
-        _add_sphere("Sphere_%02d" % i, centres[i])
+        _add_sphere(i, centres[i])
+    if not _mount_base_sphere_window_band(centres):
+        return false
     for raw_edge: Variant in tubes_raw:
         if not raw_edge is Array or raw_edge.size() != 2:
             push_error("AtomiumHeroCore: invalid tube edge")
@@ -77,11 +82,34 @@ func build_on_terrain(terrain: Node) -> bool:
             push_error("AtomiumHeroCore: tube edge outside sphere topology")
             return false
         _add_tube(centres[a], centres[b])
-    hero_built = sphere_count == 9 and tube_count == 20
+    hero_built = sphere_count == 9 and tube_count == 20 and is_instance_valid(base_sphere_window_band)
     if hero_built:
         _mount_landcover_context(terrain)
-        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d sphere_skin_semantics=%s exact_seams=false" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars, str(sphere_skin_semantics_applied)])
+        print("ATOMIUM_HERO_CORE_READY: spheres=%d tubes=%d anchor_y=%.3f unresolved_pillars=%d sphere_skin_semantics=%s base_window_sphere_id=%d exact_seams=false" % [sphere_count, tube_count, anchor_position.y, unresolved_support_pillars, str(sphere_skin_semantics_applied), BASE_SPHERE_TOPOLOGY_ID])
     return hero_built
+
+func _mount_base_sphere_window_band(centres: Array[Vector3]) -> bool:
+    if BASE_SPHERE_TOPOLOGY_ID < 0 or BASE_SPHERE_TOPOLOGY_ID >= centres.size():
+        push_error("AtomiumHeroCore: target sphere id unavailable")
+        return false
+    base_sphere_window_band = BASE_SPHERE_WINDOW_BAND_SCRIPT.new()
+    base_sphere_window_band.name = "AtomiumBaseSphereWindowBand"
+    add_child(base_sphere_window_band)
+    if not bool(base_sphere_window_band.call("build_on_sphere", BASE_SPHERE_TOPOLOGY_ID, centres[BASE_SPHERE_TOPOLOGY_ID], source_sphere_diameter_m)):
+        base_sphere_window_band.queue_free()
+        base_sphere_window_band = null
+        push_error("AtomiumHeroCore: sphere-id window cue failed to build")
+        return false
+    return int(base_sphere_window_band.call("target_sphere_id")) == BASE_SPHERE_TOPOLOGY_ID
+
+func set_base_sphere_window_band_enabled(enabled: bool) -> void:
+    if is_instance_valid(base_sphere_window_band):
+        base_sphere_window_band.call("set_enabled", enabled)
+
+func base_sphere_window_band_enabled() -> bool:
+    if not is_instance_valid(base_sphere_window_band):
+        return false
+    return bool(base_sphere_window_band.call("enabled"))
 
 func _mount_landcover_context(terrain: Node) -> void:
     var world_parent := get_parent()
@@ -134,7 +162,7 @@ func _make_materials() -> void:
     _tube_material.metallic = 0.78
     _tube_material.roughness = 0.28
 
-func _add_sphere(node_name: String, centre: Vector3) -> void:
+func _add_sphere(sphere_id: int, centre: Vector3) -> void:
     var sphere := SphereMesh.new()
     sphere.radius = source_sphere_diameter_m * 0.5
     sphere.height = source_sphere_diameter_m
@@ -142,9 +170,10 @@ func _add_sphere(node_name: String, centre: Vector3) -> void:
     sphere.rings = SPHERE_RINGS
     sphere.material = _sphere_material
     var instance := MeshInstance3D.new()
-    instance.name = node_name
+    instance.name = "Sphere_%02d" % sphere_id
     instance.mesh = sphere
     instance.position = centre
+    instance.set_meta("atomium_sphere_id", sphere_id)
     add_child(instance)
     sphere_count += 1
 
@@ -174,7 +203,7 @@ func measured_vertical_extent() -> Vector2:
     var min_y := INF
     var max_y := -INF
     for child: Node in get_children():
-        if child is MeshInstance3D and child.name.begins_with("Sphere_"):
+        if child is MeshInstance3D and child.has_meta("atomium_sphere_id"):
             var y := (child as MeshInstance3D).position.y
             min_y = minf(min_y, y - half_diameter)
             max_y = maxf(max_y, y + half_diameter)

@@ -1,0 +1,128 @@
+{
+  "schema": "grand-bruxelles-data-factory-validation-v1",
+  "production_base_sha": "245432e538bb52d454dd205c0b7e337fe4db093d",
+  "generated_at": "2026-08-20",
+  "main_untouched": true,
+  "counts": {
+    "intake_branches_observed": 57,
+    "legacy_asset_intakes_observed": 1,
+    "current_wave_sources_directly_reverified": 12
+  },
+  "state_definitions": {
+    "SOURCE_VERIFIED": "The official/current source and intended dataset family were independently reverified.",
+    "ARTIFACT_UNVERIFIED": "The intake workflow exists but its push-triggered Actions artifact is not observable through the current connector.",
+    "BLOCKED": "Source or artifact is known to be unavailable, invalid or contradictory.",
+    "READY_FOR_PROCESSING": "Requires verified artifact, hash, licence, non-empty payload and format/CRS checks. None are granted automatically."
+  },
+  "actions_observability": {
+    "push_runs_visible": false,
+    "reason": "Current GitHub connector exposes PR-associated workflow runs but returned no push-triggered runs for intake commits.",
+    "rule": "Never label an intake GREEN or downloaded-successfully without a verified run/artifact."
+  },
+  "current_wave": [
+    {
+      "branch": "intake/stib-complete-current",
+      "family": "STIB static network/GTFS/spatial data",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["GTFS Stops dataset identifier gtfs-stops-production exists", "Shapefiles dataset identifier shapefiles-production exists"],
+      "runtime_authorized": false
+    },
+    {
+      "branch": "intake/brussels-traffic-counts-current",
+      "family": "Mobiris traffic counts",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["Brussels Mobility documents API data-mobility.brussels/traffic/api/counts/", "CC0", "real-time and historical data documented"],
+      "runtime_authorized": false
+    },
+    {
+      "branch": "intake/brussels-municipal-catalog-current",
+      "family": "City of Brussels municipal open-data catalogue",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["Official catalogue API export exists", "Catalogue is intended to enumerate all published City datasets"],
+      "runtime_authorized": false
+    },
+    {
+      "branch": "intake/brussels-municipal-19-current",
+      "family": "19-municipality public dataset discovery",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["National/regional DCAT discovery sources available"],
+      "runtime_authorized": false
+    },
+    {
+      "branch": "intake/brussels-impervious-surfaces-current",
+      "family": "Impervious surfaces 2022",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["Brussels Environment dataset f8ea1c8f-44a2-4b48-9b24-083acf9c35e3", "CC BY 4.0", "impervious surface, block sealing rate and street sealing rate"],
+      "runtime_authorized": false
+    },
+    {
+      "branch": "intake/brussels-planning-permits-current",
+      "family": "City planning/environment permits",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["City of Brussels permits datasets active in 2026", "CC0"],
+      "runtime_authorized": false,
+      "semantic_rule": "change-signal only; permits do not authorize geometry"
+    },
+    {
+      "branch": "intake/brussels-flood-hazard-current",
+      "family": "Flood hazard 2025",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["Brussels Environment dataset 5b0aca75-af4c-4e2f-86ad-8f5bc56ee0e4", "updated 2026-05-06", "16 geometric classes documented"],
+      "runtime_authorized": false,
+      "semantic_rule": "hazard simulation is not permission to render flooding everywhere"
+    },
+    {
+      "branch": "intake/ibsa-building-age-current",
+      "family": "IBSA building construction periods",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["IBSA 2026/02 tables", "2025 municipality comparison by construction period"],
+      "runtime_authorized": false,
+      "semantic_rule": "district statistical evidence only"
+    },
+    {
+      "branch": "intake/statbel-building-period-current",
+      "family": "Statbel Census 2021 construction period",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["Statbel open-data downloads available by statistical sector and construction period"],
+      "runtime_authorized": false,
+      "semantic_rule": "statistical evidence only; never exact facade survey"
+    },
+    {
+      "branch": "intake/brussels-heat-islands-current",
+      "family": "Urban heat islands WBGT",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["Brussels Environment dataset 73b4f29a-cff0-4d6a-a239-cb99d3140531", "CC BY 4.0"],
+      "runtime_authorized": false
+    },
+    {
+      "branch": "intake/best-address-current",
+      "family": "BeSt Address Brussels",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["Paradigm dataset a8c9ccde-5c2b-11ed-913a-900f0cda5d5c", "weekly", "JSON/XML/GPKG Lambert72 downloads"],
+      "runtime_authorized": false,
+      "semantic_rule": "cross-check UrbIS address truth before any reconciliation"
+    },
+    {
+      "branch": "intake/urbis-landscape-current",
+      "family": "UrbIS Landscape",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["Paradigm dataset 713171e6-65e3-11ef-b378-010101010000", "monthly", "3D Constructions + DTM", "zipped downloads"],
+      "runtime_authorized": false,
+      "semantic_rule": "cross-check source; dedicated 3D/terrain owners remain authoritative until reconciled"
+    },
+    {
+      "branch": "intake/terrain-elevation-current",
+      "family": "Paradigm airborne LiDAR 2021 supplement",
+      "status": ["SOURCE_VERIFIED", "ARTIFACT_UNVERIFIED"],
+      "evidence": ["dataset ff1124e1-424e-11ee-b156-00090ffe0001", "CC BY 4.0", "direct LAS downloads", "Brussels Region coverage"],
+      "runtime_authorized": false,
+      "semantic_rule": "raw point cloud only; derived terrain/building geometry requires separate QA"
+    }
+  ],
+  "older_intakes": {
+    "count": 45,
+    "status": "ARTIFACT_UNVERIFIED",
+    "next_gate": "artifact/run inspection plus hash/licence/non-empty/CRS validation before processing"
+  },
+  "promotion_rule": "No source, dataset, conversion or generated output may become runtime/JOUABLE because it appears in this ledger."
+}

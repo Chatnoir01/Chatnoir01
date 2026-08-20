@@ -171,9 +171,21 @@ jobs:
             2>&1 | tee /tmp/civ1-godot-runtime.log
           if grep -E 'SCRIPT ERROR|Parse Error:|Shader compilation failed|GB_CIV1_VITRUVIAN_WITNESS_FAIL' /tmp/civ1-godot-runtime.log; then exit 1; fi
           grep -q 'GB_CIV1_VITRUVIAN_WITNESS_OK' /tmp/civ1-godot-runtime.log
-          for f in /tmp/midi-civ1-vitruvian_2m.png /tmp/midi-civ1-vitruvian_5m.png /tmp/midi-civ1-vitruvian_8m.png /tmp/midi-civ1-vitruvian_2m_three_quarter.png /tmp/midi-civ1-vitruvian.metrics.json; do test -s "$f"; done
+          for f in \
+            /tmp/midi-civ1-vitruvian_2m.png \
+            /tmp/midi-civ1-vitruvian_5m.png \
+            /tmp/midi-civ1-vitruvian_8m.png \
+            /tmp/midi-civ1-vitruvian_2m_three_quarter.png \
+            /tmp/midi-civ1-vitruvian_feet_ground.png \
+            /tmp/midi-civ1-vitruvian.metrics.json
+          do
+            test -s "$f"
+          done
           grep -q '"production_authorized": false' /tmp/midi-civ1-vitruvian.metrics.json
           grep -q '"animation_clip_count": 0' /tmp/midi-civ1-vitruvian.metrics.json
+          grep -q '"front_proof": true' /tmp/midi-civ1-vitruvian.metrics.json
+          grep -q '"feet_ground_proof": true' /tmp/midi-civ1-vitruvian.metrics.json
+          grep -q '"compatibility_pbr_materials": true' /tmp/midi-civ1-vitruvian.metrics.json
           grep -q '"fallback_changed": false' /tmp/midi-civ1-vitruvian.metrics.json
 
       - name: Stage owner-review evidence
@@ -186,6 +198,7 @@ jobs:
           cp /tmp/midi-civ1-vitruvian_5m.png "$OUT/witness_5m.png" 2>/dev/null || true
           cp /tmp/midi-civ1-vitruvian_8m.png "$OUT/witness_8m.png" 2>/dev/null || true
           cp /tmp/midi-civ1-vitruvian_2m_three_quarter.png "$OUT/witness_2m_three_quarter.png" 2>/dev/null || true
+          cp /tmp/midi-civ1-vitruvian_feet_ground.png "$OUT/witness_feet_ground.png" 2>/dev/null || true
           cp /tmp/midi-civ1-vitruvian.metrics.json "$OUT/metrics.json" 2>/dev/null || true
           cp /tmp/vitruvian-civ1-prep-report.json "$OUT/prep_report.json" 2>/dev/null || true
           cp /tmp/vitruvian-source-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
@@ -196,7 +209,7 @@ jobs:
           cp /tmp/civ1-godot-import.log "$OUT/godot_import.log" 2>/dev/null || true
           cp /tmp/civ1-godot-runtime.log "$OUT/godot_runtime.log" 2>/dev/null || true
           cp grand-bruxelles-game/data/provenance/characters/vitruvian_civ1_review_v1.json "$OUT/provenance.json"
-          printf '%s\n' '{"status":"owner_review_required","production_authorized":false,"gate":"2m_5m_8m_full_body_actual_midi","required_verdict":"GARDER","runtime_activation":false}' > "$OUT/authorization.json"
+          printf '%s\n' '{"status":"owner_review_required","production_authorized":false,"gate":"front_2m_5m_8m_plus_feet_actual_midi","required_verdict":"GARDER","runtime_activation":false}' > "$OUT/authorization.json"
 
       - name: Upload CIV-1 owner-review artifact
         if: always()

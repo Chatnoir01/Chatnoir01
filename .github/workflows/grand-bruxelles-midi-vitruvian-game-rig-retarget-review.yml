@@ -1,0 +1,202 @@
+name: Grand Bruxelles Midi Vitruvian Game Rig Retarget Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/midi_vitruvian_game_rig_humanoid_bone_map.json"
+      - "grand-bruxelles-game/tools/build_vitruvian_game_rig_body.py"
+      - "grand-bruxelles-game/game/tests/midi_vitruvian_game_rig_retarget_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-vitruvian-game-rig-retarget-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-vitruvian-game-rig-retarget-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  game-rig-retarget-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install source dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git-lfs rsync curl xz-utils unzip libglu1-mesa libopengl0 libgl1-mesa-dri libglx-mesa0
+          git lfs install
+
+      - name: Fetch pinned CharMorph and sparse CC0 game-rig source
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHARMORPH_COMMIT=e2e87480657c87eb17bbfbd83833bee628494a90
+          VITRUVIAN_COMMIT=db7736668dfbcb090019068c8aeab28105af36a0
+          ADDON=/tmp/blender-user/scripts/addons/CharMorph
+          DATA=/tmp/vitruvian-game-rig-source
+          rm -rf /tmp/blender-user "$DATA"
+          mkdir -p /tmp/blender-user/scripts/addons
+
+          git clone --filter=blob:none https://github.com/Upliner/CharMorph.git "$ADDON"
+          git -C "$ADDON" checkout "$CHARMORPH_COMMIT"
+          test "$(git -C "$ADDON" rev-parse HEAD)" = "$CHARMORPH_COMMIT"
+          test -s "$ADDON/common.py"
+          grep -q "GNU General Public License" "$ADDON/common.py"
+
+          git clone --filter=blob:none --no-checkout https://github.com/seenbuklee/CharMorph-Vitruvian.git "$DATA"
+          git -C "$DATA" sparse-checkout init --no-cone
+          cat > "$DATA/.git/info/sparse-checkout" <<'SPARSE'
+          /.gitattributes
+          /README.md
+          /config.yaml
+          /char.blend
+          /rigs.blend
+          /bones_rigify.yaml
+          /faces.npy
+          /morphs/L1/Default.npy
+          /weights/gamerig.npz
+          /joints/gamerig.npz
+          SPARSE
+          GIT_LFS_SKIP_SMUDGE=1 git -C "$DATA" checkout "$VITRUVIAN_COMMIT"
+          test "$(git -C "$DATA" rev-parse HEAD)" = "$VITRUVIAN_COMMIT"
+          git -C "$DATA" lfs pull --include="char.blend,rigs.blend" --exclude=""
+          for f in char.blend rigs.blend config.yaml bones_rigify.yaml faces.npy morphs/L1/Default.npy weights/gamerig.npz joints/gamerig.npz; do test -s "$DATA/$f"; done
+          grep -q '^license: CC0' "$DATA/config.yaml"
+          grep -q '^   game-rig:' "$DATA/config.yaml"
+          grep -q 'obj_name: game_rig_vitruvian' "$DATA/config.yaml"
+          if find "$DATA" -type f \( -iname '*mixamo*' -o -iname '*adobe*' \) -print -quit | grep -q .; then
+            echo 'Forbidden Mixamo/Adobe file entered sparse checkout' >&2
+            exit 1
+          fi
+
+          rm -rf "$ADDON/data"
+          mkdir -p "$ADDON/data/characters/Vitruvian/morphs/L2" "$ADDON/data/characters/Vitruvian/morphs/L3"
+          rsync -a --exclude='.git' "$DATA/" "$ADDON/data/characters/Vitruvian/"
+          printf '%s\n' "$CHARMORPH_COMMIT" > /tmp/charmorph-commit.txt
+          printf '%s\n' "$VITRUVIAN_COMMIT" > /tmp/vitruvian-commit.txt
+          (cd "$DATA" && sha256sum config.yaml char.blend rigs.blend bones_rigify.yaml faces.npy morphs/L1/Default.npy weights/gamerig.npz joints/gamerig.npz) | tee /tmp/source-sha256.txt
+          echo "GB_VITRUVIAN_RETARGET_SOURCE_OK rig=game-rig mixamo_files=0"
+
+      - name: Install pinned Blender 4.5.12 LTS
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=https://download.blender.org/release/Blender4.5
+          ARCHIVE=blender-4.5.12-linux-x64.tar.xz
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/$ARCHIVE "$BASE/$ARCHIVE"
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/blender.sha256 "$BASE/blender-4.5.12.sha256"
+          grep " $ARCHIVE$" /tmp/blender.sha256 > /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum -c blender-linux.sha256)
+          tar -C /tmp -xf /tmp/$ARCHIVE
+          /tmp/blender-4.5.12-linux-x64/blender --version | tee /tmp/blender-version.txt
+          grep -q 'Blender 4.5.12' /tmp/blender-version.txt
+
+      - name: Build exact clean game-rig review GLB
+        shell: bash
+        env:
+          BLENDER_USER_SCRIPTS: /tmp/blender-user/scripts
+        run: |
+          set -euo pipefail
+          /tmp/blender-4.5.12-linux-x64/blender \
+            --background /tmp/vitruvian-game-rig-source/char.blend \
+            --python grand-bruxelles-game/tools/build_vitruvian_game_rig_body.py -- \
+            --output /tmp/vitruvian-game-rig-retarget.glb \
+            --report /tmp/vitruvian-game-rig-build.json \
+            2>&1 | tee /tmp/vitruvian-game-rig-build.log
+          grep -q 'GB_VITRUVIAN_GAME_RIG_BUILD_OK' /tmp/vitruvian-game-rig-build.log
+          if grep -q 'GB_VITRUVIAN_GAME_RIG_BUILD_FAIL' /tmp/vitruvian-game-rig-build.log; then exit 1; fi
+          test -s /tmp/vitruvian-game-rig-retarget.glb
+          test -s /tmp/vitruvian-game-rig-build.json
+          grep -q '"rig_type": "game-rig"' /tmp/vitruvian-game-rig-build.json
+          grep -q '"production_authorized": false' /tmp/vitruvian-game-rig-build.json
+
+      - name: Prove static skinned GLB remains Mixamo-free
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, struct
+          path=pathlib.Path('/tmp/vitruvian-game-rig-retarget.glb'); raw=path.read_bytes(); off=12; doc=None
+          if raw[:4] != b'glTF': raise SystemExit('invalid GLB')
+          while off+8 <= len(raw):
+              n,t=struct.unpack_from('<II',raw,off); off+=8; payload=raw[off:off+n]; off+=n
+              if t==0x4E4F534A: doc=json.loads(payload.rstrip(b'\x00 \t\r\n').decode())
+          if doc is None: raise SystemExit('GLB JSON missing')
+          if doc.get('animations'): raise SystemExit('animations entered clean body GLB')
+          serialized=json.dumps(doc).lower()
+          if any(token in serialized for token in ('mixamo','mixamorig','adobe')): raise SystemExit('forbidden animation-source token in GLB')
+          skins=doc.get('skins') or []; joints=max((len(s.get('joints') or []) for s in skins),default=0)
+          if len(skins)!=1 or joints!=71: raise SystemExit(f'unexpected skin topology skins={len(skins)} joints={joints}')
+          report={'animations':0,'skins':len(skins),'joint_count':joints,'nodes':len(doc.get('nodes') or []),'meshes':len(doc.get('meshes') or []),'mixamo_tokens':0,'production_authorized':False}
+          pathlib.Path('/tmp/vitruvian-game-rig-glb-audit.json').write_text(json.dumps(report,indent=2)+'\n')
+          print('GB_VITRUVIAN_GAME_RIG_STATIC_GLB_OK',json.dumps(report,sort_keys=True))
+          PY
+
+      - name: Install Godot 4.7.1 and import in Compatibility
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          REVIEW=grand-bruxelles-game/assets/characters/_review/vitruvian_game_rig_retarget
+          rm -rf "$REVIEW"; mkdir -p "$REVIEW"
+          cp /tmp/vitruvian-game-rig-retarget.glb "$REVIEW/body.glb"
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit --rendering-method gl_compatibility 2>&1 | tee /tmp/vitruvian-game-rig-godot-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load|couldn.t be loaded|Clamped index' /tmp/vitruvian-game-rig-godot-import.log; then exit 1; fi
+
+      - name: Prove SkeletonProfileHumanoid BoneMap and rest-pose readiness
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --rendering-method gl_compatibility \
+            --script res://game/tests/midi_vitruvian_game_rig_retarget_test.gd -- \
+            /tmp/vitruvian-game-rig-retarget.metrics.json \
+            2>&1 | tee /tmp/vitruvian-game-rig-retarget.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|GB_VITRUVIAN_GAME_RIG_RETARGET_FAIL' /tmp/vitruvian-game-rig-retarget.log; then exit 1; fi
+          grep -q 'GB_VITRUVIAN_GAME_RIG_RETARGET_READY' /tmp/vitruvian-game-rig-retarget.log
+          test -s /tmp/vitruvian-game-rig-retarget.metrics.json
+          grep -q '"mapped_core_count": 22' /tmp/vitruvian-game-rig-retarget.metrics.json
+          grep -q '"production_authorized": false' /tmp/vitruvian-game-rig-retarget.metrics.json
+          grep -q '"hips_source_bone": "Pelvis"' /tmp/vitruvian-game-rig-retarget.metrics.json
+
+      - name: Stage retarget-readiness evidence
+        if: always()
+        shell: bash
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_vitruvian_game_rig_retarget
+          mkdir -p "$OUT"
+          cp /tmp/vitruvian-game-rig-retarget.metrics.json "$OUT/retarget_metrics.json" 2>/dev/null || true
+          cp /tmp/vitruvian-game-rig-build.json "$OUT/body_build.json" 2>/dev/null || true
+          cp /tmp/vitruvian-game-rig-glb-audit.json "$OUT/glb_audit.json" 2>/dev/null || true
+          cp /tmp/vitruvian-game-rig-build.log "$OUT/blender_build.log" 2>/dev/null || true
+          cp /tmp/vitruvian-game-rig-godot-import.log "$OUT/godot_import.log" 2>/dev/null || true
+          cp /tmp/vitruvian-game-rig-retarget.log "$OUT/retarget.log" 2>/dev/null || true
+          cp /tmp/source-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
+          cp /tmp/charmorph-commit.txt "$OUT/charmorph_commit.txt" 2>/dev/null || true
+          cp /tmp/vitruvian-commit.txt "$OUT/vitruvian_commit.txt" 2>/dev/null || true
+          cp /tmp/blender-version.txt "$OUT/blender_version.txt" 2>/dev/null || true
+          cp grand-bruxelles-game/data/qa/midi_vitruvian_game_rig_humanoid_bone_map.json "$OUT/bone_map.json" 2>/dev/null || true
+          cp /tmp/vitruvian-game-rig-retarget.glb "$OUT/body_review_only.glb" 2>/dev/null || true
+          printf '%s\n' '{"status":"retarget_readiness_review_only","production_authorized":false,"rig":"game-rig","target_profile":"SkeletonProfileHumanoid","mapped_core_count":22,"animations_injected":false,"mixamo_payload_allowed":false,"next_gate":"CC0 authored idle/walk/run retarget plus foot-slide measurement"}' > "$OUT/authorization.json"
+
+      - name: Upload game-rig retarget-readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-vitruvian-game-rig-retarget
+          path: grand-bruxelles-game/artifacts/qa/midi_vitruvian_game_rig_retarget
+          if-no-files-found: warn

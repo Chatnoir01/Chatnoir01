@@ -1,0 +1,45 @@
+name: Grand Bruxelles Intake OSM Accessibility Entrances
+on:
+  push:
+    branches: ["intake/osm-accessibility-entrances-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-osm-accessibility-entrances.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download accessibility and entrance semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/osm-accessibility
+          cat > /tmp/osm-accessibility/query.overpass <<'EOF'
+          [out:json][timeout:240];
+          (
+            nwr["entrance"](50.76,4.24,50.92,4.48);
+            nwr["wheelchair"](50.76,4.24,50.92,4.48);
+            nwr["highway"~"^(steps|elevator|crossing)$"](50.76,4.24,50.92,4.48);
+            nwr["ramp"](50.76,4.24,50.92,4.48);
+            nwr["barrier"](50.76,4.24,50.92,4.48);
+          );
+          out center tags;
+          EOF
+          python3 - <<'PY'
+          import hashlib,json,urllib.parse,urllib.request
+          endpoint='https://overpass-api.de/api/interpreter'; query=open('/tmp/osm-accessibility/query.overpass').read()
+          req=urllib.request.Request(endpoint,data=urllib.parse.urlencode({'data':query}).encode(),headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'})
+          with urllib.request.urlopen(req,timeout=300) as r: raw=r.read()
+          obj=json.loads(raw); count=len(obj.get('elements',[])); assert count>0
+          open('/tmp/osm-accessibility/osm-accessibility.json','wb').write(raw)
+          open('/tmp/osm-accessibility/manifest.json','w').write(json.dumps({'publisher':'OpenStreetMap contributors','license':'ODbL-1.0','endpoint':endpoint,'bbox':[50.76,4.24,50.92,4.48],'element_count':count,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'query_sha256':hashlib.sha256(query.encode()).hexdigest(),'runtime_authorized':False,'must_clip_to_official_brussels_boundary_before_runtime':True},indent=2))
+          print('OSM_ACCESSIBILITY_INTAKE_OK',count)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-osm-accessibility
+          path: /tmp/osm-accessibility
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

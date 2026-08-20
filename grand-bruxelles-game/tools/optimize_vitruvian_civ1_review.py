@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Deterministically bound the prepared CIV-1 review textures.
+"""Bound CIV-1 review textures and stage the pinned CC0 footwear witness.
 
-This runs only after the legal/animation-free preparation step. It never touches
-GLB geometry, skins, skeletons, shaders or provenance inputs. The goal is to
-make the owner-review artifact materially lighter while keeping enough texture
-resolution for the fixed 2 m / 5 m / 8 m witness.
+This runs only after the legal/animation-free preparation step. It never edits
+Vitruvian GLB geometry, skins, skeletons or shaders. The MakeHuman footwear is
+staged as a separate review-only mesh with its own pinned source/license so the
+painted-bare-foot surface can be rejected without hiding provenance.
 """
 from __future__ import annotations
 
@@ -12,12 +12,27 @@ import argparse
 import hashlib
 import json
 import pathlib
+import urllib.request
 from typing import Any
 
 from PIL import Image
 
 MAX_REVIEW_TEXTURE_EDGE = 1024
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
+
+FOOTWEAR_REPOSITORY = "furqonat/makehuman-assets"
+FOOTWEAR_COMMIT = "8cf9645b975a98eea056b140df11a1d278da0d10"
+FOOTWEAR_OBJ_PATH = "base/clothes/shoes04/shoes04.obj"
+FOOTWEAR_LICENSE_PATH = "LICENSE.txt"
+FOOTWEAR_OBJ_GIT_BLOB = "5137b1da52be37e8b5c98f1d3d47c31165ed4023"
+FOOTWEAR_LICENSE_GIT_BLOB = "0e259d42c996742e9e3cba14c677129b2c1b6311"
+RAW_ROOT = (
+    "https://raw.githubusercontent.com/"
+    + FOOTWEAR_REPOSITORY
+    + "/"
+    + FOOTWEAR_COMMIT
+    + "/"
+)
 
 
 def sha256(path: pathlib.Path) -> str:
@@ -26,6 +41,59 @@ def sha256(path: pathlib.Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def git_blob_sha1(data: bytes) -> str:
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+
+def fetch_bytes(relative_path: str) -> bytes:
+    request = urllib.request.Request(
+        RAW_ROOT + relative_path,
+        headers={"User-Agent": "grand-bruxelles-civ1-review/1"},
+    )
+    with urllib.request.urlopen(request, timeout=45) as response:
+        data = response.read()
+    if not data:
+        raise RuntimeError(f"empty pinned source: {relative_path}")
+    return data
+
+
+def stage_cc0_footwear(root: pathlib.Path) -> dict[str, Any]:
+    obj = fetch_bytes(FOOTWEAR_OBJ_PATH)
+    license_text = fetch_bytes(FOOTWEAR_LICENSE_PATH)
+
+    if git_blob_sha1(obj) != FOOTWEAR_OBJ_GIT_BLOB:
+        raise RuntimeError("pinned shoes04 OBJ blob hash mismatch")
+    if git_blob_sha1(license_text) != FOOTWEAR_LICENSE_GIT_BLOB:
+        raise RuntimeError("pinned MakeHuman CC0 license blob hash mismatch")
+
+    header = obj[:4096].decode("utf-8", errors="replace")
+    if "explicitly released as CC0" not in header:
+        raise RuntimeError("shoes04 OBJ lacks explicit CC0 header evidence")
+    decoded_license = license_text.decode("utf-8", errors="replace")
+    if "CC0 1.0 Universal" not in decoded_license:
+        raise RuntimeError("MakeHuman asset license is not CC0 1.0 Universal")
+
+    obj_out = root / "shoes04_cc0.obj"
+    license_out = root / "MAKEHUMAN_SHOES04_CC0_LICENSE.txt"
+    obj_out.write_bytes(obj)
+    license_out.write_bytes(license_text)
+
+    return {
+        "repository": FOOTWEAR_REPOSITORY,
+        "commit": FOOTWEAR_COMMIT,
+        "path": FOOTWEAR_OBJ_PATH,
+        "license": "CC0-1.0",
+        "obj_git_blob_sha1": git_blob_sha1(obj),
+        "license_git_blob_sha1": git_blob_sha1(license_text),
+        "obj_sha256": hashlib.sha256(obj).hexdigest(),
+        "obj_bytes": len(obj),
+        "staged_name": obj_out.name,
+        "character_geometry_modified": False,
+        "review_only": True,
+    }
 
 
 def package_bytes(root: pathlib.Path) -> int:
@@ -76,6 +144,7 @@ def main() -> None:
     if not args.package.is_dir():
         raise RuntimeError(f"prepared package missing: {args.package}")
 
+    footwear = stage_cc0_footwear(args.package)
     before_total = package_bytes(args.package)
     images = sorted(
         p for p in args.package.rglob("*")
@@ -95,11 +164,13 @@ def main() -> None:
         )
 
     report = {
-        "schema": "grand-bruxelles-civ1-review-optimization-v1",
+        "schema": "grand-bruxelles-civ1-review-optimization-v2",
         "production_authorized": False,
         "geometry_modified": False,
         "skin_skeleton_modified": False,
         "shader_modified": False,
+        "external_footwear_staged": True,
+        "footwear": footwear,
         "max_review_texture_edge_px": MAX_REVIEW_TEXTURE_EDGE,
         "image_count": len(records),
         "package_bytes_before": before_total,
@@ -122,6 +193,8 @@ def main() -> None:
                 "package_before": before_total,
                 "package_after": after_total,
                 "bytes_saved": before_total - after_total,
+                "footwear": footwear["staged_name"],
+                "footwear_license": footwear["license"],
                 "production_authorized": False,
             },
             sort_keys=True,

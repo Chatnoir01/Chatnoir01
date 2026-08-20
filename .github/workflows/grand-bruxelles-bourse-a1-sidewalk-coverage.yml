@@ -1,0 +1,23 @@
+name: Grand Bruxelles Bourse A1 Sidewalk Coverage
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/audit_bourse_a1_sidewalk_coverage.py"
+      - "grand-bruxelles-game/tools/extract_bourse_official_sidewalks.py"
+      - "grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json"
+      - "grand-bruxelles-game/data/urbis/bourse_street_surfaces*.game.json"
+      - ".github/workflows/grand-bruxelles-bourse-a1-sidewalk-coverage.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  red-first-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit exact bounded sidewalk coverage
+        run: python3 grand-bruxelles-game/tools/audit_bourse_a1_sidewalk_coverage.py

@@ -1,0 +1,92 @@
+{
+  "schema": "grand-bruxelles-visual-source-registry-v1",
+  "sources": [
+    {
+      "source_id": "brussels_mobility_ortho",
+      "authority": "Brussels Mobility / Paradigm",
+      "source_type": "official_orthophoto",
+      "catalog_url": "https://data.mobility.brussels/info/Ortho",
+      "known_layers": [
+        "urbisgrid:Ortho2021Ns",
+        "urbisgrid:Ortho2020",
+        "urbisgrid:Ortho2019",
+        "urbisgrid:Ortho2018",
+        "urbisgrid:Ortho2017"
+      ],
+      "license": "CC0",
+      "reuse_mode": "geometry_and_visual_reference",
+      "pixel_shipping": "allowed_subject_to_dataset_metadata",
+      "primary_use": [
+        "roofline_context",
+        "ground_surface",
+        "tree_canopy_context",
+        "street_alignment",
+        "object_position_crosscheck"
+      ],
+      "limitations": ["aerial view is not a substitute for player-height facade evidence"]
+    },
+    {
+      "source_id": "urban_heritage_inventory",
+      "authority": "urban.brussels",
+      "source_type": "official_architectural_inventory",
+      "catalog_url": "https://monument.heritage.brussels/",
+      "license": "per-record / site terms; verify before pixel reuse",
+      "reuse_mode": "reference_only_unless_explicitly_licensed",
+      "pixel_shipping": "forbidden_without_explicit_reuse_license",
+      "primary_use": [
+        "building_identity",
+        "architect",
+        "date",
+        "style",
+        "typology",
+        "documented_facade_features"
+      ],
+      "limitations": ["do not infer surveyed dimensions from editorial photography"]
+    },
+    {
+      "source_id": "wikimedia_commons",
+      "authority": "Wikimedia Commons contributors",
+      "source_type": "licensed_photo_bank",
+      "catalog_url": "https://commons.wikimedia.org/",
+      "license": "per-file",
+      "reuse_mode": "per_file_license",
+      "pixel_shipping": "allowed_only_when_file_license_and_attribution_are_recorded",
+      "primary_use": [
+        "player_height_facade_reference",
+        "landmark_reference",
+        "material_and_detail_reference"
+      ],
+      "limitations": ["perspective and capture date must be recorded; no nearest-neighbour building identity"]
+    },
+    {
+      "source_id": "project_owned_photos",
+      "authority": "project/user supplied",
+      "source_type": "owned_photo",
+      "catalog_url": "project-local",
+      "license": "project-owned or explicitly granted",
+      "reuse_mode": "as_granted",
+      "pixel_shipping": "allowed_as_granted",
+      "primary_use": [
+        "current_player_height_reference",
+        "ground_floor_reference",
+        "signage_and_street_furniture_reference"
+      ],
+      "limitations": ["capture location/date should be recorded"]
+    },
+    {
+      "source_id": "existing_repo_photo_plans",
+      "authority": "Grand Bruxelles evidence bank",
+      "source_type": "derived_reference_contract",
+      "catalog_url": "grand-bruxelles-game/data/qa",
+      "license": "inherits upstream source",
+      "reuse_mode": "evidence_only_unless_upstream_allows_more",
+      "pixel_shipping": "inherits_upstream",
+      "primary_use": [
+        "measured_image_space_constraints",
+        "frozen_camera_witnesses",
+        "existing_photo_match_evidence"
+      ],
+      "limitations": ["do not relabel derived image-space constraints as surveyed geometry"]
+    }
+  ]
+}

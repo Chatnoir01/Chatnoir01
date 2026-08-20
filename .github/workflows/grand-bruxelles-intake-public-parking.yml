@@ -1,0 +1,38 @@
+name: Grand Bruxelles Intake Public Parking
+on:
+  push:
+    branches: ["intake/brussels-public-parking-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-public-parking.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download official public and off-street parking
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/public-parking
+          python3 - <<'PY'
+          import hashlib,json,urllib.parse,urllib.request
+          base='https://data.mobility.brussels/geoserver/ows'
+          layers=['bm_parking:parkingpublic','bm_parking:parkingoffroad_blocks']
+          headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}; results=[]
+          for layer in layers:
+              url=base+'?'+urllib.parse.urlencode({'service':'WFS','version':'1.1.0','request':'GetFeature','typeName':layer,'outputFormat':'json','srsName':'EPSG:31370'})
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=180) as r: raw=r.read()
+              obj=json.loads(raw); count=len(obj.get('features',[])); assert count>0,layer
+              fn='/tmp/public-parking/'+layer.split(':')[1]+'.geojson'; open(fn,'wb').write(raw)
+              results.append({'layer':layer,'feature_count':count,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'url':url})
+          open('/tmp/public-parking/manifest.json','w').write(json.dumps({'publisher':'Bruxelles Mobilite / Parking.brussels','license':'CC0','crs':'EPSG:31370','results':results,'runtime_authorized':False},indent=2))
+          print('PUBLIC_PARKING_INTAKE_OK',[(x['layer'],x['feature_count']) for x in results])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-public-parking
+          path: /tmp/public-parking
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

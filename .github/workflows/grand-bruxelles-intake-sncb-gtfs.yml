@@ -1,0 +1,39 @@
+name: Grand Bruxelles Intake SNCB GTFS
+on:
+  push:
+    branches: ["intake/sncb-gtfs-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-sncb-gtfs.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download official SNCB static GTFS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sncb
+          python3 - <<'PY'
+          import hashlib, json, os, urllib.request, zipfile
+          url='https://opendata-discovery-gtfs-static.api.production.belgianmobility.io/api/gtfs/feed/nmbssncb/static'
+          req=urllib.request.Request(url,headers={'User-Agent':'GrandBruxellesGame-SNCBIntake/1.0','Accept':'application/zip'})
+          with urllib.request.urlopen(req,timeout=180) as r:
+              body=r.read(); headers=dict(r.headers)
+          path='/tmp/sncb/sncb-static-gtfs.zip'; open(path,'wb').write(body)
+          assert body[:2]==b'PK', (body[:64],headers)
+          with zipfile.ZipFile(path) as z:
+              names=z.namelist(); required={'agency.txt','stops.txt','routes.txt','trips.txt','stop_times.txt'}
+              missing=sorted(required-set(names)); assert not missing, missing
+          manifest={'publisher':'NMBS/SNCB via Belgian Mobility Open Data Portal','source_url':url,'format':'GTFS ZIP','license_gate':'CC-BY-4.0 attribution required; verify portal terms before production promotion','bytes':len(body),'sha256':hashlib.sha256(body).hexdigest(),'entries':len(names),'required_files':sorted(required)}
+          open('/tmp/sncb/manifest.json','w').write(json.dumps(manifest,indent=2))
+          print('SNCB_GTFS_INTAKE_OK',len(body),len(names))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-sncb-gtfs
+          path: /tmp/sncb
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

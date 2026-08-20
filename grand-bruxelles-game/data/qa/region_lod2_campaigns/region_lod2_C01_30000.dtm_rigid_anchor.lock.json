@@ -1,0 +1,94 @@
+{
+  "schema": "grand-bruxelles-region-lod2-c01-dtm-rigid-anchor-lock-contract-v1",
+  "campaign_id": "region-lod2-C01-30000",
+  "production_base_sha": "d947e75ed4ed8175b38d39f6b854c1163acce965",
+  "source_materialization": {
+    "workflow_run_id": 32310817567,
+    "artifact_id": 9386657484,
+    "artifact_name": "region-lod2-c01-30000-source-materialized-cells",
+    "archive_sha256": "6d5358ed20ac100e091a9ebca38cd5da4f43c89f1741f7cbc236ad0b55b28601",
+    "source_materialization_index_sha256": "288ff7815900d1cb07e0980168b8375c024a18be02144275a63918ae991e17a3"
+  },
+  "source_shards": {
+    "measurement_pr": 973,
+    "workflow_run_id": 32313490805,
+    "head_sha": "ca96a62061a4e86048b89b5580a58986772cab88",
+    "sampling_method": "official Paradigm UrbIS DTM 2021 0.5 m GeoTIFF; assignment by actual validated GeoTIFF metric bounds",
+    "artifact_locks": [
+      {"group": 0, "artifact_id": 9387281147, "archive_sha256": "6362a5fa5ffd6aa30f87393f171a827f28f23f69cc2ca827df547542401bdeb0"},
+      {"group": 1, "artifact_id": 9387295891, "archive_sha256": "871811e45072512e454ae76d66507c32e6e9158821ac4c5865b67698b87b9f6c"},
+      {"group": 2, "artifact_id": 9387281417, "archive_sha256": "14e587fb8865fb9a29440c469ad0a6a98d3c19cb0a12d30642c8ac87307dca61"},
+      {"group": 3, "artifact_id": 9387306033, "archive_sha256": "09430645df77e5796930a457edbb0ee3840c67c31f8b844b5c8517bb2619acff"},
+      {"group": 4, "artifact_id": 9387287360, "archive_sha256": "f07c8e70a8fee57f03d55fcede79683b3f2fe264db2cb8cd0d856fc255d16235"},
+      {"group": 5, "artifact_id": 9387290001, "archive_sha256": "e064b52fca6eea6399c775520bc22fac61cceac87c9dd3ba8b250481a5090159"},
+      {"group": 6, "artifact_id": 9387281900, "archive_sha256": "c8e607c7a19ba3f9b13c34f132a5bcae4908529be1c4759f09e69e0960f94ebd"},
+      {"group": 7, "artifact_id": 9387292277, "archive_sha256": "3dab164d9b0d6d915e2c3b38320f5aa5d080333899d7855346630a319b74c849"}
+    ]
+  },
+  "dtm": {
+    "name": "Paradigm UrbIS Digital Terrain Model 2021",
+    "dataset_id": "1d7bd49d-fe83-4388-af85-6f5dc8ec7909",
+    "source_crs": "EPSG:31370",
+    "expected_resolution_m": 0.5,
+    "license": "CC0 per official Paradigm/Geobru metadata recorded by the project"
+  },
+  "expected_measurement": {
+    "owners": 30000,
+    "unique_ground_samples": 270619,
+    "same_xy_distinct_source_z_sample_count": 2461,
+    "dtm_tile_count": 48,
+    "dtm_tiles": [
+      "141167", "141168", "141169", "142166", "142167", "142168", "142169", "143166",
+      "143167", "143168", "143169", "144166", "144167", "144168", "144169", "144170",
+      "145166", "145167", "145168", "145169", "145170", "145171", "146167", "146168",
+      "146169", "146170", "146171", "146175", "146176", "147168", "147169", "147170",
+      "147171", "147173", "147175", "147176", "148169", "148170", "148171", "148172",
+      "148173", "148176", "149168", "149169", "149170", "149171", "149172", "149173"
+    ],
+    "baseline_vertex_abs_p95_m": 3.1264205471,
+    "selected_quantile": 0.5,
+    "selected_post_abs_p95_m": 1.1311711567,
+    "selected_shift_median_m": 1.30258017325,
+    "selected_owner_max_abs_p95_m": 1.861675643875
+  },
+  "expected_output_sha256": {
+    "dtm_rigid_anchor_locked.json": "89bb084a67f737bc508c4e4050e79f8b747c4e720698eee11b622948d1e5e725",
+    "dtm_tile_locks.json": "1d4eb721f5c5f1d5d296da540e93d1ed760581596137f4ecfbd15b835a6af785",
+    "rigid_anchor_selected_by_owner.json": "29b347fde2022282c19db4c2a8b7959218544baf9ce37cc7f4be7d289421bfb4",
+    "rigid_anchor_selected_per_owner.csv": "0670e072eea4739e73531c0d5c0f7e3493d7a80df07c38f5af56560f8609bc7e"
+  },
+  "horizontal_transform": {
+    "lambert_origin_e": 147868.29422791934,
+    "lambert_origin_n": 169538.62414926197,
+    "world_anchor_x": -668.5,
+    "world_anchor_z": 627.84,
+    "formula_world_x": "source_e - lambert_origin_e + world_anchor_x",
+    "formula_world_z": "-(source_n - lambert_origin_n) + world_anchor_z",
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres",
+    "runtime_quantization_decimals": 3
+  },
+  "policy": {
+    "translation_scope": "one vertical translation per official BU_ID owner",
+    "translation_formula": "shift_m = quantile_q(dtm_z - source_ground_z) over unique official ground-face XYZ vertices for the owner",
+    "candidate_quantiles": [0.0, 0.1, 0.25, 0.5, 0.75, 1.0],
+    "post_residual_formula": "source_ground_z + shift_m - dtm_z",
+    "float_burial_deadband_m": 0.05,
+    "selection_metric": "lowest vertex absolute residual p95 among tested quantiles",
+    "tie_breaker": "lower owner max-absolute-residual p95, then lower absolute quantile distance from 0.5",
+    "source_vertex_warping_allowed": false,
+    "authorization_threshold": null,
+    "note": "Locked measurement/reproduction only. This does not authorize final world Y, runtime mounting, collisions, terrain runtime, or JOUABLE promotion."
+  },
+  "hard_rules": {
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "final_world_y_authorized": false,
+    "terrain_runtime_authorized": false,
+    "source_geometry_modified": false,
+    "jouable_promotion_authorized": false,
+    "owner_rigid_translation_only": true,
+    "artifact_only": true
+  }
+}

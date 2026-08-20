@@ -1,0 +1,248 @@
+name: Grand Bruxelles Midi Vitruvian Compact Hair Review
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-vitruvian-compact-hair-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-vitruvian-compact-hair-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compact-hair-face-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install review runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libglu1-mesa libopengl0 libgl1-mesa-dri libglx-mesa0 mesa-utils \
+            libx11-xcb1 libxcb1 libxcb-util1 libxcb-image0 libxcb-keysyms1 \
+            libxcb-icccm4 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 \
+            libxcb-xkb1 libxcb-shape0 libxkbcommon-x11-0 libxcb-cursor0 curl unzip
+
+      - name: Fetch exact CC0 Vitruvian face and hair source
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMIT=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0
+          RAW=https://raw.githubusercontent.com/ibrews/VitruvianGodot/$COMMIT
+          SRC=/tmp/vitruvian-compact-source
+          rm -rf "$SRC" /tmp/vitruvian-upstream-check
+          mkdir -p "$SRC/shaders"
+          git init -q /tmp/vitruvian-upstream-check
+          git -C /tmp/vitruvian-upstream-check remote add origin https://github.com/ibrews/VitruvianGodot.git
+          git -C /tmp/vitruvian-upstream-check fetch -q --depth 1 --filter=blob:none origin "$COMMIT"
+          test "$(git -C /tmp/vitruvian-upstream-check rev-parse FETCH_HEAD)" = "$COMMIT"
+          printf '%s\n' "$COMMIT" > /tmp/vitruvian-upstream-commit.txt
+          get(){ curl -fL --retry 4 --retry-all-errors --retry-delay 3 -o "$2" "$RAW/$1"; test -s "$2"; }
+          get LICENSE "$SRC/LICENSE"
+          get NOTICE.md "$SRC/NOTICE.md"
+          get README.md "$SRC/README.md"
+          grep -qi "MIT License" "$SRC/LICENSE"
+          grep -qi "CC0" "$SRC/NOTICE.md"
+          get godot_project/vitruvian_head.glb "$SRC/vitruvian_head.glb"
+          get godot_project/hairtool_cards.glb "$SRC/hairtool_cards.glb"
+          get godot_project/vitruvian_hair.glb "$SRC/vitruvian_hair.glb"
+          for f in vit_face_bc.png vit_face_n.png vit_face_rough.png vit_mouth.png vit_sclera.png vit_iris.png vit_lash_atlas.png vit_hair_diffuse.png vit_hair_normal.png vit_hair_ao.png vit_hair_opacity.png vit_hair_atlas.png; do get "godot_project/$f" "$SRC/$f"; done
+          get godot_project/addons/eyeball_shader/shaders/cornea.gdshader "$SRC/shaders/cornea.gdshader"
+          get godot_project/scenes/hairtool_card.gdshader "$SRC/hairtool_card.gdshader"
+          get godot_project/scenes/hair_card.gdshader "$SRC/hair_card.gdshader"
+          (cd "$SRC" && sha256sum LICENSE NOTICE.md README.md vitruvian_head.glb hairtool_cards.glb vitruvian_hair.glb vit_*.png shaders/cornea.gdshader hairtool_card.gdshader hair_card.gdshader) | tee /tmp/vitruvian-compact-source-sha256.txt
+
+      - name: Prove no animation or Mixamo payload enters pilot
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, struct
+          root=pathlib.Path('/tmp/vitruvian-compact-source')
+          required={'vitruvian_head.glb':{'VitSkin','VitMouth','VitSclera','VitIris','VitCornea2'},'hairtool_cards.glb':set(),'vitruvian_hair.glb':set()}
+          def read(p):
+              b=p.read_bytes(); off=12
+              if b[:4]!=b'glTF': raise SystemExit(f'bad GLB {p}')
+              while off+8<=len(b):
+                  n,t=struct.unpack_from('<II',b,off); off+=8; x=b[off:off+n]; off+=n
+                  if t==0x4E4F534A:return json.loads(x.rstrip(b'\x00 \t\r\n').decode())
+              raise SystemExit(f'no JSON {p}')
+          report={}
+          for name,need in required.items():
+              d=read(root/name); anim=d.get('animations') or []
+              if anim: raise SystemExit(f'{name}: animation payload={len(anim)}')
+              s=json.dumps(d).lower()
+              if 'mixamo' in s or 'mixamorig' in s: raise SystemExit(f'{name}: Mixamo reference')
+              mats={str(m.get('name','')) for m in d.get('materials') or []}
+              if need-mats: raise SystemExit(f'{name}: missing roles {sorted(need-mats)}')
+              report[name]={'animations':0,'meshes':len(d.get('meshes') or []),'materials':sorted(mats)}
+          pathlib.Path('/tmp/vitruvian-compact-source-audit.json').write_text(json.dumps(report,indent=2)+'\n')
+          print('VITRUVIAN_COMPACT_SOURCE_AUDIT_OK',json.dumps(report,sort_keys=True))
+          PY
+
+      - name: Thin disconnected Hair Tool cards deterministically
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/compact_glb.py <<'PY'
+          import argparse,hashlib,json,pathlib,struct
+          from collections import defaultdict
+          J=0x4E4F534A; B=0x004E4942; C={5121:('B',1),5123:('H',2),5125:('I',4)}
+          def read(p):
+              raw=p.read_bytes(); off=12; doc=bin=None
+              if raw[:4]!=b'glTF':raise SystemExit('invalid GLB')
+              while off+8<=len(raw):
+                  n,t=struct.unpack_from('<II',raw,off);off+=8;x=raw[off:off+n];off+=n
+                  if t==J:doc=json.loads(x.rstrip(b'\x00 \t\r\n').decode())
+                  elif t==B:bin=bytearray(x)
+              return doc,bin
+          def idx(doc,bin,ai):
+              a=doc['accessors'][ai]; ct=int(a['componentType']); f,w=C[ct]; v=doc['bufferViews'][a['bufferView']]
+              if int(v.get('byteStride',w))!=w:raise SystemExit('strided index accessor')
+              o=int(v.get('byteOffset',0))+int(a.get('byteOffset',0)); n=int(a['count'])
+              return [struct.unpack_from('<'+f,bin,o+i*w)[0] for i in range(n)],ct,f,w
+          def keep(k,r):
+              x=k&0xffffffff;x^=x>>16;x=(x*0x7feb352d)&0xffffffff;x^=x>>15;x=(x*0x846ca68b)&0xffffffff;x^=x>>16
+              return x<int(r*0x100000000)
+          class D:
+              def __init__(s,n):s.p=list(range(n));s.r=bytearray(n)
+              def f(s,x):
+                  while s.p[x]!=x:s.p[x]=s.p[s.p[x]];x=s.p[x]
+                  return x
+              def u(s,a,b):
+                  a=s.f(a);b=s.f(b)
+                  if a==b:return
+                  if s.r[a]<s.r[b]:a,b=b,a
+                  s.p[b]=a
+                  if s.r[a]==s.r[b]:s.r[a]+=1
+          def thin(ii,r):
+              if len(ii)%3:raise SystemExit('non-triangle indices')
+              d=D(max(ii)+1)
+              for i in range(0,len(ii),3):a,b,c=ii[i:i+3];d.u(a,b);d.u(b,c)
+              g=defaultdict(list)
+              for i in range(0,len(ii),3):q=ii[i:i+3];g[d.f(q[0])].extend(q)
+              out=[];mode='components'
+              if len(g)>=32:
+                  for k in sorted(g):
+                      if keep(k,r):out.extend(g[k])
+              else:
+                  mode='triangle_pairs'
+                  for q,i in enumerate(range(0,len(ii),6)):
+                      if keep(q,r):out.extend(ii[i:i+6])
+              if len(out)<3000:raise SystemExit('compaction too sparse')
+              return out,mode,len(g)
+          def append(doc,bin,vals,ct,f,w):
+              while len(bin)%4:bin.append(0)
+              off=len(bin)
+              for x in vals:bin.extend(struct.pack('<'+f,x))
+              vi=len(doc['bufferViews']);doc['bufferViews'].append({'buffer':0,'byteOffset':off,'byteLength':len(vals)*w,'target':34963})
+              ai=len(doc['accessors']);doc['accessors'].append({'bufferView':vi,'byteOffset':0,'componentType':ct,'count':len(vals),'type':'SCALAR','min':[min(vals)],'max':[max(vals)]})
+              return ai
+          def write(p,doc,bin):
+              doc['buffers'][0]['byteLength']=len(bin); js=json.dumps(doc,separators=(',',':')).encode()
+              while len(js)%4:js+=b' '
+              while len(bin)%4:bin.append(0)
+              total=12+8+len(js)+8+len(bin);o=bytearray(b'glTF')+struct.pack('<II',2,total)+struct.pack('<II',len(js),J)+js+struct.pack('<II',len(bin),B)+bin;p.write_bytes(o)
+          ap=argparse.ArgumentParser();ap.add_argument('src',type=pathlib.Path);ap.add_argument('dst',type=pathlib.Path);ap.add_argument('report',type=pathlib.Path);ap.add_argument('--ratio',type=float,default=.38);a=ap.parse_args()
+          doc,bin=read(a.src);before=after=0;prs=[]
+          for mi,m in enumerate(doc.get('meshes') or []):
+              for pi,p in enumerate(m.get('primitives') or []):
+                  if int(p.get('mode',4))!=4:continue
+                  ii,ct,f,w=idx(doc,bin,int(p['indices']));oo,mode,comps=thin(ii,a.ratio);bt=len(ii)//3;at=len(oo)//3;before+=bt;after+=at;p['indices']=append(doc,bin,oo,ct,f,w);prs.append({'mesh':mi,'primitive':pi,'before_triangles':bt,'after_triangles':at,'mode':mode,'components':comps})
+          ratio=after/before
+          if before<100000 or after<20000 or ratio>.50:raise SystemExit(f'bad compaction before={before} after={after} ratio={ratio}')
+          write(a.dst,doc,bin);rep={'schema':'grand-bruxelles-vitruvian-hair-compaction-v1','source_sha256':hashlib.sha256(a.src.read_bytes()).hexdigest(),'output_sha256':hashlib.sha256(a.dst.read_bytes()).hexdigest(),'requested_keep_ratio':a.ratio,'before_triangles':before,'after_triangles':after,'actual_keep_ratio':round(ratio,6),'primitives':prs,'production_authorized':False};a.report.write_text(json.dumps(rep,indent=2)+'\n');print('VITRUVIAN_HAIR_COMPACT_OK',json.dumps(rep,sort_keys=True))
+          PY
+          SRC=/tmp/vitruvian-compact-source
+          python3 /tmp/compact_glb.py "$SRC/hairtool_cards.glb" "$SRC/hairtool_cards_compact.glb" /tmp/vitruvian-hair-compaction.json --ratio 0.38 | tee /tmp/vitruvian-hair-compaction.log
+
+      - name: Stage compact review-only assets into Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=/tmp/vitruvian-compact-source
+          REVIEW=grand-bruxelles-game/assets/characters/_review/vitruvian_face_v1
+          EYES=grand-bruxelles-game/addons/eyeball_shader/shaders
+          rm -rf "$REVIEW"; mkdir -p "$REVIEW" "$EYES"
+          cp "$SRC/vitruvian_head.glb" "$REVIEW/vitruvian_head.glb"
+          cp "$SRC/hairtool_cards_compact.glb" "$REVIEW/hairtool_cards.glb"
+          cp "$SRC/vitruvian_hair.glb" "$REVIEW/vitruvian_hair.glb"
+          cp "$SRC"/vit_*.png "$REVIEW/"
+          cp "$SRC/hairtool_card.gdshader" "$REVIEW/hairtool_card.gdshader"
+          cp "$SRC/hair_card.gdshader" "$REVIEW/hair_card.gdshader"
+          cp "$SRC/shaders/cornea.gdshader" "$EYES/cornea.gdshader"
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import compact pilot in Godot Compatibility
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit --rendering-method gl_compatibility 2>&1 | tee /tmp/vitruvian-compact-godot-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|Shader compilation failed|ERROR: Failed to load script|ERROR: Can't open file|Cannot open file|couldn't be loaded" /tmp/vitruvian-compact-godot-import.log; then exit 1; fi
+
+      - name: Render compact-hair witnesses
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --script res://game/tests/midi_vitruvian_face_candidate_capture_test.gd -- /tmp/midi-vitruvian-compact-hair.png 2>&1 | tee /tmp/vitruvian-compact-godot-runtime.log
+          if grep -E "SCRIPT ERROR|Parse Error:|Shader compilation failed|MIDI_VITRUVIAN_FACE_FAIL" /tmp/vitruvian-compact-godot-runtime.log; then exit 1; fi
+          grep -q "MIDI_VITRUVIAN_FACE_OK" /tmp/vitruvian-compact-godot-runtime.log
+          test -s /tmp/midi-vitruvian-compact-hair.png
+          test -s /tmp/midi-vitruvian-compact-hair_close.png
+          test -s /tmp/midi-vitruvian-compact-hair_three_quarter.png
+          test -s /tmp/midi-vitruvian-compact-hair.metrics.json
+          python3 - <<'PY'
+          import json,pathlib
+          m=json.loads(pathlib.Path('/tmp/midi-vitruvian-compact-hair.metrics.json').read_text());t=int(m['triangle_count'])
+          if m.get('production_authorized') is not False or int(m.get('animation_clip_count',-1))!=0:raise SystemExit('authorization/animation gate failed')
+          if not 60000<=t<190000:raise SystemExit(f'compact triangle budget missed: {t}')
+          print('VITRUVIAN_COMPACT_WITNESS_OK triangles=',t)
+          PY
+
+      - name: Stage compact owner-review evidence
+        if: always()
+        shell: bash
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_vitruvian_compact_hair_candidate; mkdir -p "$OUT"
+          cp /tmp/midi-vitruvian-compact-hair.png "$OUT/candidate_player_distance.png" 2>/dev/null || true
+          cp /tmp/midi-vitruvian-compact-hair_close.png "$OUT/candidate_close.png" 2>/dev/null || true
+          cp /tmp/midi-vitruvian-compact-hair_three_quarter.png "$OUT/candidate_three_quarter.png" 2>/dev/null || true
+          cp /tmp/midi-vitruvian-compact-hair.metrics.json "$OUT/metrics.json" 2>/dev/null || true
+          cp /tmp/vitruvian-hair-compaction.json "$OUT/hair_compaction.json" 2>/dev/null || true
+          cp /tmp/vitruvian-hair-compaction.log "$OUT/hair_compaction.log" 2>/dev/null || true
+          cp /tmp/vitruvian-compact-source-audit.json "$OUT/source_audit.json" 2>/dev/null || true
+          cp /tmp/vitruvian-compact-source-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
+          cp /tmp/vitruvian-compact-godot-import.log "$OUT/godot_import.log" 2>/dev/null || true
+          cp /tmp/vitruvian-compact-godot-runtime.log "$OUT/godot_runtime.log" 2>/dev/null || true
+          cp /tmp/vitruvian-upstream-commit.txt "$OUT/upstream_commit.txt" 2>/dev/null || true
+          cp /tmp/vitruvian-compact-source/LICENSE "$OUT/upstream_LICENSE" 2>/dev/null || true
+          cp /tmp/vitruvian-compact-source/NOTICE.md "$OUT/upstream_NOTICE.md" 2>/dev/null || true
+          cp grand-bruxelles-game/data/provenance/characters/vitruvian_midi_face_v1.json "$OUT/provenance.json" 2>/dev/null || true
+          printf '%s\n' '{"status":"candidate_review_only","production_authorized":false,"hair_geometry_transform":"deterministic_card_compaction","requested_keep_ratio":0.38,"mixamo_payload_allowed":false,"full_body_required_before_promotion":true,"human_verdict_required":true}' > "$OUT/authorization.json"
+
+      - name: Upload compact Vitruvian hair pilot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-vitruvian-compact-hair-pilot
+          path: grand-bruxelles-game/artifacts/qa/midi_vitruvian_compact_hair_candidate
+          if-no-files-found: warn

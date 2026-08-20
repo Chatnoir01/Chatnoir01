@@ -1,0 +1,92 @@
+name: Grand Bruxelles City Machine V3
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/city_machine/**"
+      - "grand-bruxelles-game/data/runtime/city_machine/**"
+      - "grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/**"
+      - "grand-bruxelles-game/data/osm/zones/jette/**"
+      - "grand-bruxelles-game/tests/test_city_machine_v3_contract.py"
+      - ".github/workflows/grand-bruxelles-city-machine-v3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  jette-rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install projection dependency
+        run: python -m pip install "pyproj>=3.7,<4"
+
+      - name: Static v3 contract
+        working-directory: grand-bruxelles-game
+        run: python tests/test_city_machine_v3_contract.py
+
+      - name: First deterministic rebuild
+        working-directory: grand-bruxelles-game
+        run: python tools/city_machine/finish_pipeline.py build --zone jette
+
+      - name: Capture first output hashes
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            data/urbis/laeken_jette/jette_phase2/buildings.game.json \
+            data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json \
+            data/urbis/laeken_jette/jette_phase2/street_axes.game.json \
+            data/urbis/laeken_jette/jette_phase2/tram_network.game.json \
+            data/urbis/laeken_jette/jette_phase2/train_network.game.json \
+            data/osm/zones/jette/environment.game.json \
+            data/runtime/city_machine/jette/finish_materials.game.json \
+            > /tmp/city-machine-v3-first.sha256
+          cat /tmp/city-machine-v3-first.sha256
+
+      - name: Second deterministic rebuild
+        working-directory: grand-bruxelles-game
+        run: python tools/city_machine/finish_pipeline.py build --zone jette
+
+      - name: Prove byte-identical second rebuild
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            data/urbis/laeken_jette/jette_phase2/buildings.game.json \
+            data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json \
+            data/urbis/laeken_jette/jette_phase2/street_axes.game.json \
+            data/urbis/laeken_jette/jette_phase2/tram_network.game.json \
+            data/urbis/laeken_jette/jette_phase2/train_network.game.json \
+            data/osm/zones/jette/environment.game.json \
+            data/runtime/city_machine/jette/finish_materials.game.json \
+            > /tmp/city-machine-v3-second.sha256
+          diff -u /tmp/city-machine-v3-first.sha256 /tmp/city-machine-v3-second.sha256
+
+      - name: G6 direct proof
+        working-directory: grand-bruxelles-game
+        run: python tools/city_machine/finish_materials.py --zone jette --gate
+
+      - name: Prove nominal rebuild leaves tracked outputs clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- \
+            grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/buildings.game.json \
+            grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json \
+            grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/street_axes.game.json \
+            grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/tram_network.game.json \
+            grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/train_network.game.json \
+            grand-bruxelles-game/data/osm/zones/jette/environment.game.json \
+            grand-bruxelles-game/data/runtime/city_machine/jette/finish_materials.game.json

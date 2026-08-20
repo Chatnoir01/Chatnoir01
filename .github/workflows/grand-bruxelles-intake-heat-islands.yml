@@ -21,8 +21,8 @@ jobs:
           unzip -t "$OUT/urban_heat_islands_WBGT_MEAN.zip" >/dev/null
           python3 - <<'PY'
           import hashlib,json
-          out='/tmp/brussels-heat-islands'; raw=open(out+'/urban_heat_islands_WBGT_MEAN.zip','rb').read()
-          manifest={'schema':'grand-bruxelles-heat-islands-intake-v1','publisher':'Brussels Environment','dataset_id':'73b4f29a-cff0-4d6a-a239-cb99d3140531','dataset_reference_day':'2016-08-24 typical hot summer day','indicator':'WBGT standardized 0-100','updated_verified':'2025-12-09','license':'CC BY 4.0','file_url':'https://app.bruxellesenvironnement.be/carto/urban_heat_islands_WBGT_MEAN.zip','bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'runtime_authorized':False,'production_authorized':False,'use':'environment/heat-stress reference; not current-temperature truth'}
+          out='/tmp/brussels-heat-islands'; fn='urban_heat_islands_WBGT_MEAN.zip'; raw=open(out+'/'+fn,'rb').read()
+          manifest={'schema':'grand-bruxelles-heat-islands-intake-v2','publisher':'Brussels Environment','dataset_id':'73b4f29a-cff0-4d6a-a239-cb99d3140531','dataset_reference_day':'2016-08-24 typical hot summer day','indicator':'WBGT standardized 0-100','updated_verified':'2025-12-09','license':'CC BY 4.0','results':[{'file':fn,'url':'https://app.bruxellesenvironnement.be/carto/urban_heat_islands_WBGT_MEAN.zip','bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}],'runtime_authorized':False,'production_authorized':False,'use':'environment/heat-stress reference; not current-temperature truth'}
           open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
           print('HEAT_ISLANDS_INTAKE_OK')
           PY

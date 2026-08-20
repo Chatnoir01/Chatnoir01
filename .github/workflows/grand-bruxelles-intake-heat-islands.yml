@@ -1,0 +1,35 @@
+name: Grand Bruxelles Heat Islands Intake
+on:
+  push:
+    branches: ["intake/brussels-heat-islands-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-heat-islands.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download Brussels Environment WBGT heat-island raster
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/brussels-heat-islands
+          mkdir -p "$OUT"
+          URL='https://app.bruxellesenvironnement.be/carto/urban_heat_islands_WBGT_MEAN.zip'
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 20 --max-time 600 "$URL" -o "$OUT/urban_heat_islands_WBGT_MEAN.zip"
+          unzip -t "$OUT/urban_heat_islands_WBGT_MEAN.zip" >/dev/null
+          python3 - <<'PY'
+          import hashlib,json
+          out='/tmp/brussels-heat-islands'; raw=open(out+'/urban_heat_islands_WBGT_MEAN.zip','rb').read()
+          manifest={'schema':'grand-bruxelles-heat-islands-intake-v1','publisher':'Brussels Environment','dataset_id':'73b4f29a-cff0-4d6a-a239-cb99d3140531','dataset_reference_day':'2016-08-24 typical hot summer day','indicator':'WBGT standardized 0-100','updated_verified':'2025-12-09','license':'CC BY 4.0','file_url':'https://app.bruxellesenvironnement.be/carto/urban_heat_islands_WBGT_MEAN.zip','bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'runtime_authorized':False,'production_authorized':False,'use':'environment/heat-stress reference; not current-temperature truth'}
+          open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          print('HEAT_ISLANDS_INTAKE_OK')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-heat-islands
+          path: /tmp/brussels-heat-islands
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

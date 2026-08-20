@@ -13,6 +13,7 @@ def main() -> int:
         "G3_buildings_streets",
         "G4_runtime_finish",
         "G5_osm_environment",
+        "G6_finish_materials",
     ]
     assert proof.run("jette") == 0
 
@@ -28,7 +29,7 @@ def main() -> int:
         proof.cm.gate_g1 = original
         sys.argv = original_argv
 
-    print("CITY_MACHINE_PROOF_TESTS_OK gates=5 forced_gate_exit=3 promotion=false")
+    print("CITY_MACHINE_PROOF_TESTS_OK gates=6 forced_gate_exit=3 promotion=false")
     return 0
 
 

@@ -1,5 +1,5 @@
 {
-  "schema": "grand-bruxelles-data-factory-processing-queue-v1",
+  "schema": "grand-bruxelles-data-factory-processing-queue-v2",
   "production_base_sha": "a8737b5b4cbe0ee205bdede14217938118ee3c1b",
   "generated_at": "2026-08-20",
   "main_is_source_of_truth": true,
@@ -26,8 +26,7 @@
       "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
       "artifact_traceability_fix_commit": "7dc4ce7cca9c435ceae4e9d23962450dcd42ed0c",
       "required_inputs": ["AddressNumbers GeoJSON EPSG:31370", "Addresses GeoJSON EPSG:31370", "intake manifest with hashes/license"],
-      "output": "normalized address registry; source IDs preserved; no building identity inferred",
-      "notes": "BeSt Address remains a cross-check source; conflicts stay HOLD until reconciled."
+      "output": "normalized address registry; source IDs preserved; no building identity inferred"
     },
     {
       "priority": 0,
@@ -37,7 +36,7 @@
       "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
       "artifact_traceability_fix_commit": "e9182f50fbdd0d52c26eaffa06aed342830243ea",
       "required_inputs": ["gtfs-stops-production export", "shapefiles-production commercial network export", "intake manifest with hashes/license"],
-      "output": "normalized STIB stop registry plus source-preserving commercial network geometry; no schedule semantics"
+      "output": "normalized STIB stop registry plus source-preserving commercial network geometry"
     },
     {
       "priority": 0,
@@ -47,8 +46,7 @@
       "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
       "artifact_traceability_fix_commit": "e9182f50fbdd0d52c26eaffa06aed342830243ea",
       "required_inputs": ["gtfs-files-production official GTFS ZIP", "intake manifest with hashes/license"],
-      "output": "normalized stops/routes/trips/shapes registry preserving STIB producer IDs and route colours",
-      "notes": "The upstream workflow now verifies core GTFS ZIP members before it can pass. Artifact verification is still mandatory before normalization."
+      "output": "normalized stops/routes/trips/shapes registry preserving STIB producer IDs and route colours"
     },
     {
       "priority": 0,
@@ -62,13 +60,24 @@
     },
     {
       "priority": 1,
-      "family": "terrain_lidar_landscape",
-      "primary_upstream_branch": "intake/terrain-elevation-current",
-      "crosscheck_upstream_branch": "intake/urbis-landscape-current",
+      "family": "terrain_dsm_dtm_citygen",
+      "processor_chain": [
+        "grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py",
+        "grand-bruxelles-game/tools/citygen/validate_cell_elevation_rasters.py"
+      ],
+      "state": "EXISTING_PROCESSORS_READY_SOURCE_RESOLUTION_REQUIRED",
+      "required_inputs": ["CityGen elevation source-resolution manifests", "official DSM/DTM ZIP archives from urbisdownload.datastore.brussels", "EPSG:31370"],
+      "output": "hashed structurally validated archives followed by raster CRS/bounds/resolution/geotransform and DSM-DTM alignment evidence",
+      "notes": "These processors already exist on main and explicitly keep terrain/heights gates false until later derivation/quality checks. Reuse them; do not fork."
+    },
+    {
+      "priority": 1,
+      "family": "terrain_lidar_landscape_crosscheck",
+      "upstream_branches": ["intake/terrain-elevation-current", "intake/urbis-landscape-current"],
       "processor": null,
-      "state": "ARTIFACT_BLOCKED",
-      "required_inputs": ["LiDAR 2021 LAS/LAZ", "DTM/DSM or Landscape distributions", "hashes/license/CRS"],
-      "notes": "Regional terrain/building owners #11/#982 remain authoritative for their scopes; no duplicate runtime materialization."
+      "state": "SOURCE_SUPPLEMENT_ARTIFACT_BLOCKED",
+      "required_inputs": ["airborne LiDAR 2021 LAS", "UrbIS Landscape distributions", "hashes/license/CRS"],
+      "notes": "Cross-check/evidence only. Regional terrain/building owners remain authoritative; this family cannot directly rematerialize runtime terrain."
     },
     {
       "priority": 1,

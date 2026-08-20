@@ -10,6 +10,9 @@ on:
       - "grand-bruxelles-game/assets/characters/player/**"
       - "grand-bruxelles-game/data/osm/**"
       - ".github/workflows/grand-bruxelles-web.yml"
+      - ".github/workflows/grand-bruxelles-pages.yml"
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json"
+      - "grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py"
   workflow_dispatch:
 
 permissions:

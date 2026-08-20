@@ -1,0 +1,52 @@
+name: Grand Bruxelles Intake Bike Parking
+on:
+  push:
+    branches: ["intake/brussels-bike-parking-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-bike-parking.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Discover and download official bike parking layers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/bike-parking/layers
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.parse,urllib.request,xml.etree.ElementTree as ET
+          headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          base='https://data.mobility.brussels/geoserver/ows'
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=180) as r:return r.read()
+          cu=base+'?'+urllib.parse.urlencode({'service':'WFS','request':'GetCapabilities'})
+          cap=get(cu); open('/tmp/bike-parking/wfs-capabilities.xml','wb').write(cap)
+          root=ET.fromstring(cap); cand=[]
+          rx=re.compile(r'parking.*v[eé]lo|v[eé]lo.*parking|bike.*parking|fiets.*parking|fietsenstall',re.I)
+          for ft in root.findall('.//{*}FeatureType'):
+              n=ft.find('{*}Name'); t=ft.find('{*}Title')
+              name=(n.text or '').strip() if n is not None else ''; title=(t.text or '').strip() if t is not None else ''
+              if rx.search(name+' '+title): cand.append((name,title))
+          cand=sorted(set(cand)); assert cand,'no bike parking layers found'
+          results=[]
+          for i,(name,title) in enumerate(cand):
+              u=base+'?'+urllib.parse.urlencode({'service':'WFS','version':'1.1.0','request':'GetFeature','typeName':name,'outputFormat':'json','srsName':'EPSG:31370'})
+              try:
+                  b=get(u); j=json.loads(b); fn=f'/tmp/bike-parking/layers/{i:02d}-{re.sub(r"[^A-Za-z0-9_.-]+","_",name)}.json'; open(fn,'wb').write(b)
+                  results.append({'name':name,'title':title,'url':u,'file':os.path.basename(fn),'feature_count':len(j.get('features',[])),'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+              except Exception as e: results.append({'name':name,'title':title,'url':u,'error':str(e)})
+          manifest={'publisher':'Bruxelles Mobilite / parking.brussels','dataset_family':'Parking velos','license':'Open Data; verify exact layer metadata before production','crs':'EPSG:31370','results':results,'runtime_authorized':False}
+          open('/tmp/bike-parking/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          assert any('file' in x for x in results),results
+          print('BIKE_PARKING_INTAKE_OK',sum('file' in x for x in results),'layers')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-bike-parking
+          path: /tmp/bike-parking
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

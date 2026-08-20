@@ -25,13 +25,9 @@
       "processor": "grand-bruxelles-game/tools/data_factory/normalize_urbis_addresses.py",
       "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
       "artifact_traceability_fix_commit": "7dc4ce7cca9c435ceae4e9d23962450dcd42ed0c",
-      "required_inputs": [
-        "AddressNumbers GeoJSON EPSG:31370",
-        "Addresses GeoJSON EPSG:31370",
-        "intake manifest with hashes/license"
-      ],
+      "required_inputs": ["AddressNumbers GeoJSON EPSG:31370", "Addresses GeoJSON EPSG:31370", "intake manifest with hashes/license"],
       "output": "normalized address registry; source IDs preserved; no building identity inferred",
-      "notes": "BeSt Address is a weekly cross-check source. Conflicts stay HOLD until reconciled; BeSt never silently overwrites UrbIS. Exact production reuse terms remain a separate gate."
+      "notes": "BeSt Address remains a cross-check source; conflicts stay HOLD until reconciled."
     },
     {
       "priority": 0,
@@ -39,27 +35,20 @@
       "primary_upstream_branch": "intake/stib-complete-current",
       "processor": "grand-bruxelles-game/tools/data_factory/normalize_stib_open_data.py",
       "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
-      "artifact_traceability_fix_commit": "eadd12c5ca3b4b7bf9a8fd91a4bba8aaae9afc68",
-      "required_inputs": [
-        "gtfs-stops-production export",
-        "shapefiles-production commercial network export",
-        "intake manifest with hashes/license"
-      ],
-      "output": "normalized STIB stop registry plus source-preserving commercial network geometry; no schedule semantics",
-      "notes": "Uses only the two STIB products currently proven by official pages. Existing STIB visual/runtime owners retain ownership. No reprojection is performed here."
+      "artifact_traceability_fix_commit": "e9182f50fbdd0d52c26eaffa06aed342830243ea",
+      "required_inputs": ["gtfs-stops-production export", "shapefiles-production commercial network export", "intake manifest with hashes/license"],
+      "output": "normalized STIB stop registry plus source-preserving commercial network geometry; no schedule semantics"
     },
     {
       "priority": 0,
       "family": "stib_static_schedule",
       "primary_upstream_branch": "intake/stib-complete-current",
       "processor": "grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py",
-      "state": "PROCESSOR_CONTRACT_MISMATCH",
-      "required_inputs": [
-        "complete static GTFS feed containing at least stops.txt + routes.txt",
-        "intake manifest with hashes/license"
-      ],
-      "blocker": "Current proven STIB outputs do not establish a complete static GTFS feed. routes.txt/trips.txt/shapes.txt must not be manufactured or inferred from shapefiles.",
-      "output": "future normalized schedule/routes/trips/shapes registry after a complete feed is proven"
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "e9182f50fbdd0d52c26eaffa06aed342830243ea",
+      "required_inputs": ["gtfs-files-production official GTFS ZIP", "intake manifest with hashes/license"],
+      "output": "normalized stops/routes/trips/shapes registry preserving STIB producer IDs and route colours",
+      "notes": "The upstream workflow now verifies core GTFS ZIP members before it can pass. Artifact verification is still mandatory before normalization."
     },
     {
       "priority": 0,
@@ -68,13 +57,8 @@
       "processor": "grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py",
       "state": "EXISTING_PROCESSOR_READY_ARTIFACT_BLOCKED",
       "artifact_traceability_fix_commit": "96612bf0b61f1b73f84a3494a3d87277ac245e29",
-      "required_inputs": [
-        "devices JSON",
-        "live JSON",
-        "traffic_live_geom GeoJSON EPSG:31370"
-      ],
-      "output": "offline traffic calibration snapshot in project metre coordinates",
-      "notes": "Existing main processor excludes detector speed from absolute speed-limit semantics and applies live freshness gates. Reuse it; do not fork it."
+      "required_inputs": ["devices JSON", "live JSON", "traffic_live_geom GeoJSON EPSG:31370"],
+      "output": "offline traffic calibration snapshot in project metre coordinates"
     },
     {
       "priority": 1,
@@ -83,24 +67,13 @@
       "crosscheck_upstream_branch": "intake/urbis-landscape-current",
       "processor": null,
       "state": "ARTIFACT_BLOCKED",
-      "required_inputs": [
-        "LiDAR 2021 LAS/LAZ",
-        "DTM/DSM or Landscape distributions",
-        "hashes/license/CRS"
-      ],
+      "required_inputs": ["LiDAR 2021 LAS/LAZ", "DTM/DSM or Landscape distributions", "hashes/license/CRS"],
       "notes": "Regional terrain/building owners #11/#982 remain authoritative for their scopes; no duplicate runtime materialization."
     },
     {
       "priority": 1,
       "family": "visual_context_general",
-      "upstream_branches": [
-        "intake/brussels-impervious-surfaces-current",
-        "intake/brussels-planning-permits-current",
-        "intake/brussels-flood-hazard-current",
-        "intake/ibsa-building-age-current",
-        "intake/statbel-building-period-current",
-        "intake/brussels-heat-islands-current"
-      ],
+      "upstream_branches": ["intake/brussels-impervious-surfaces-current", "intake/brussels-planning-permits-current", "intake/brussels-flood-hazard-current", "intake/ibsa-building-age-current", "intake/statbel-building-period-current", "intake/brussels-heat-islands-current"],
       "processor": null,
       "state": "ARTIFACT_BLOCKED",
       "notes": "These sources enrich ground/material/typology/change-risk/environment evidence; none may directly mutate geometry."

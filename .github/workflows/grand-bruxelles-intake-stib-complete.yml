@@ -17,7 +17,7 @@ jobs:
           OUT=/tmp/stib-complete
           mkdir -p "$OUT/data"
           python3 - <<'PY'
-          import hashlib,json,os,re,urllib.parse,urllib.request
+          import hashlib,json,os,re,urllib.parse,urllib.request,zipfile,io
           out='/tmp/stib-complete'; headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
           def get(url,timeout=180):
               req=urllib.request.Request(url,headers=headers)
@@ -41,7 +41,7 @@ jobs:
                   metas=r.get('metas') or {}
                   did=metas.get('dataset_id') or metas.get('id')
               if did: ids.append(str(did))
-          ids=sorted(set(ids+['gtfs-stops-production','shapefiles-production']))
+          ids=sorted(set(ids+['gtfs-files-production','gtfs-stops-production','shapefiles-production']))
           focus=re.compile(r'(gtfs|shape|line|route|stop|vehicle|position|waiting|traveller|network)',re.I)
           selected=[x for x in ids if focus.search(x)]
           results=[]
@@ -62,6 +62,44 @@ jobs:
                   except Exception:
                       pass
               if not saved: results.append({'dataset_id':did,'error':'no export format succeeded'})
+
+          # Complete official static GTFS feed. The STIB dataset gtfs-files-production exposes an
+          # alternative gtfszip export. This is the canonical artifact for schedule normalization.
+          gtfs_urls=[
+            'https://stibmivb.opendatasoft.com/api/datasets/1.0/gtfs-files-production/alternative_exports/gtfszip/',
+            'https://data.stib-mivb.brussels/api/datasets/1.0/gtfs-files-production/alternative_exports/gtfszip/',
+            'https://data.stib-mivb.be/api/datasets/1.0/gtfs-files-production/alternative_exports/gtfszip/'
+          ]
+          gtfs_raw=None; gtfs_used=None; gtfs_error=[]
+          for u in gtfs_urls:
+              try:
+                  raw=get(u,600)
+                  with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+                      members=sorted(n.rsplit('/',1)[-1] for n in zf.namelist() if not n.endswith('/'))
+                      required={'agency.txt','stops.txt','routes.txt','trips.txt','stop_times.txt'}
+                      missing=sorted(required-set(members))
+                      if missing: raise RuntimeError('missing required GTFS members: '+','.join(missing))
+                  gtfs_raw=raw; gtfs_used=u; break
+              except Exception as e:
+                  gtfs_error.append({'url':u,'error':str(e)})
+          if gtfs_raw is None:
+              results.append({'dataset_id':'gtfs-files-production-gtfszip','error':'all official GTFS ZIP candidates failed','attempts':gtfs_error})
+          else:
+              rel='data/gtfs-files-production.zip'
+              open(out+'/'+rel,'wb').write(gtfs_raw)
+              with zipfile.ZipFile(io.BytesIO(gtfs_raw)) as zf:
+                  members=sorted(n.rsplit('/',1)[-1] for n in zf.namelist() if not n.endswith('/'))
+              results.append({
+                  'dataset_id':'gtfs-files-production-gtfszip',
+                  'format':'zip',
+                  'file':rel,
+                  'url':gtfs_used,
+                  'bytes':len(gtfs_raw),
+                  'sha256':hashlib.sha256(gtfs_raw).hexdigest(),
+                  'members':members,
+                  'required_members_verified':['agency.txt','stops.txt','routes.txt','trips.txt','stop_times.txt']
+              })
+
           terms='https://data.stib-mivb.be/terms/terms-and-conditions.pdf'
           try:
               raw=get(terms); open(out+'/terms-and-conditions.pdf','wb').write(raw)
@@ -69,10 +107,29 @@ jobs:
               results.append({'dataset_id':'terms','format':'pdf','file':'terms-and-conditions.pdf','url':terms,'bytes':len(raw),'sha256':terms_sha})
           except Exception as e:
               terms_sha='UNAVAILABLE:'+str(e)
-          manifest={'schema':'grand-bruxelles-stib-complete-intake-v1','publisher':'STIB-MIVB','catalog_url':used,'catalog_dataset_count':len(ids),'selected_dataset_count':len(selected),'successful_exports':sum('sha256' in x for x in results if x.get('dataset_id')!='terms'),'results':results,'terms_url':terms,'terms_sha256':terms_sha,'license':'STIB-MIVB Open Data Licence / published terms','runtime_authorized':False,'production_authorized':False,'note':'Data-only owner. Existing STIB visual/runtime branches retain ownership.'}
+          gtfs_ok=any(x.get('dataset_id')=='gtfs-files-production-gtfszip' and 'sha256' in x for x in results)
+          manifest={
+              'schema':'grand-bruxelles-stib-complete-intake-v2',
+              'publisher':'STIB-MIVB',
+              'catalog_url':used,
+              'catalog_dataset_count':len(ids),
+              'selected_dataset_count':len(selected),
+              'successful_exports':sum('sha256' in x for x in results if x.get('dataset_id')!='terms'),
+              'full_static_gtfs_verified':gtfs_ok,
+              'results':results,
+              'terms_url':terms,
+              'terms_sha256':terms_sha,
+              'license':'STIB-MIVB Open Data Licence / published terms',
+              'attribution_rule':'Product/service/application must identify STIB-MIVB as source and state the data last-update date; modified information must disclose modification according to published terms.',
+              'line_colour_rule':'Respect producer GTFS line colours as closely as technically possible.',
+              'runtime_authorized':False,
+              'production_authorized':False,
+              'note':'Data-only owner. Existing STIB visual/runtime branches retain ownership.'
+          }
           open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
-          if manifest['successful_exports']<2: raise SystemExit('core STIB exports not materialized')
-          print('STIB_COMPLETE_INTAKE_OK',manifest['successful_exports'])
+          if manifest['successful_exports']<3: raise SystemExit('core STIB exports not materialized')
+          if not manifest['full_static_gtfs_verified']: raise SystemExit('complete STIB GTFS ZIP not materialized')
+          print('STIB_COMPLETE_INTAKE_OK',manifest['successful_exports'],'full_gtfs',manifest['full_static_gtfs_verified'])
           PY
       - uses: actions/upload-artifact@v4
         if: always()

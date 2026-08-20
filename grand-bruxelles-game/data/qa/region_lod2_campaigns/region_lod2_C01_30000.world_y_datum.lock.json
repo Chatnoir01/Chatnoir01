@@ -41,13 +41,24 @@
     "owner_translation": "owner_rigid_shift_m - anchor_dtm_elevation_m",
     "shape_preservation": "one translation per owner; no vertex warping"
   },
+  "measurement_run": {
+    "workflow_run_id": 32316586534,
+    "source_head_sha": "0c4ccc1a5711bd509f374bb2981e251a3ac472ed",
+    "artifact_id": 9388277662,
+    "archive_sha256": "70edaa07ae8afc91880ccf5991a76cc5061d75486a220ce0d26ac606f0d90dfd"
+  },
   "expected": {
     "owners": 30000,
     "dtm_tile": 147169,
-    "anchor_dtm_elevation_m": null
+    "anchor_dtm_elevation_m": 21.712554931640625
+  },
+  "expected_output_sha256": {
+    "world_y_datum_locked.json": "28ccea014fcfba136e5322db78a0a37394b27bc088e7c449c2e1f706001bbd0e",
+    "owner_world_y_offset_by_owner.json": "4cee5e94bb18b615af7c2aca4d64e6ef01ee133a95edacb2cddda39e851fe0a9",
+    "owner_world_y_offset_per_owner.csv": "cc0dd2b9e382a2617348f05dadc4ea090b96bc97dd046e4903ef54d69e0d4e9a"
   },
   "hard_rules": {
-    "final_world_y_authorized": false,
+    "final_world_y_authorized": true,
     "runtime_authorized": false,
     "runtime_mount_authorized": false,
     "collision_authorized": false,

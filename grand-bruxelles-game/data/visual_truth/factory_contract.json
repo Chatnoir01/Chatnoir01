@@ -1,0 +1,100 @@
+{
+  "schema": "grand-bruxelles-visual-truth-factory-v1",
+  "production_base_sha": "245432e538bb52d454dd205c0b7e337fe4db093d",
+  "mission": "Make every promoted zone visually recognizable as Brussels at player height using traceable real-world evidence.",
+  "hard_rules": {
+    "main_is_source_of_truth": true,
+    "factory_is_evaluator_not_runtime_owner": true,
+    "no_wholesale_merge_of_stale_visual_branches": true,
+    "no_source_geometry_mutation_for_visual_rescue": true,
+    "no_camera_fov_threshold_rescue": true,
+    "numeric_pass_never_overrides_human_fail": true,
+    "human_full_frame_veto": true,
+    "three_second_recognition_required": true,
+    "building_specific_identity_requires_exact_crosswalk": true,
+    "nearest_neighbour_identity_fallback_forbidden": true,
+    "raw_reference_pixels_shipping_requires_explicit_reuse_license": true,
+    "reference_only_sources_must_not_ship_as_textures": true,
+    "authored_convention_must_be_labeled_authored": true,
+    "unknown_visual_fact_must_remain_hold": true,
+    "runtime_authorized": false,
+    "jouable_promotion_authorized": false
+  },
+  "profiles": {
+    "hero_landmark": {
+      "min_reference_views": 4,
+      "authored_individual_required": true,
+      "requires": [
+        "silhouette",
+        "facade_rhythm",
+        "ground_floor",
+        "roofline",
+        "materials",
+        "street_join",
+        "street_furniture_context",
+        "player_height_photo_match",
+        "human_full_frame_pass",
+        "three_second_recognition_pass"
+      ]
+    },
+    "recognizable_corridor": {
+      "min_reference_views": 3,
+      "authored_individual_required": false,
+      "requires": [
+        "street_width_and_alignment",
+        "building_typology",
+        "ground_floor",
+        "materials",
+        "street_surface",
+        "street_furniture_context",
+        "player_height_photo_match",
+        "human_full_frame_pass",
+        "three_second_recognition_pass"
+      ]
+    },
+    "background_fabric": {
+      "min_reference_views": 2,
+      "authored_individual_required": false,
+      "requires": [
+        "source_backed_mass",
+        "district_typology",
+        "materials",
+        "ground_contact",
+        "human_full_frame_pass"
+      ]
+    }
+  },
+  "evidence_requirements": {
+    "reference_record_fields": [
+      "source_id",
+      "source_type",
+      "source_locator",
+      "captured_or_published",
+      "license",
+      "reuse_mode",
+      "sha256_or_remote_revision",
+      "notes"
+    ],
+    "comparison_record_fields": [
+      "zone_id",
+      "camera_id",
+      "camera_height_m",
+      "fov_deg",
+      "reference_id",
+      "before_capture",
+      "after_capture",
+      "human_verdict",
+      "three_second_recognition",
+      "notes"
+    ],
+    "camera_height_m_range": [1.55, 1.8],
+    "frozen_view_required_for_ab": true,
+    "same_camera_for_before_after": true
+  },
+  "existing_ownership_do_not_override": [
+    {"scope": "Grand-Place exact-address facades", "pr": 970},
+    {"scope": "Laeken + Jette authored zone work", "pr": 2},
+    {"scope": "Shared street lamps", "pr": 983},
+    {"scope": "City Machine/Jette materials", "pr": 982}
+  ]
+}

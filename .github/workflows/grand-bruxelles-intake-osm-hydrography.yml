@@ -1,0 +1,47 @@
+name: Grand Bruxelles Intake OSM Hydrography
+on:
+  push:
+    branches: ["intake/osm-hydrography-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-osm-hydrography.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download Brussels hydrography from OSM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/osm-hydrography
+          cat > /tmp/osm-hydrography/query.overpass <<'EOF'
+          [out:json][timeout:180];
+          (
+            nwr["natural"="water"](50.76,4.24,50.92,4.48);
+            nwr["waterway"](50.76,4.24,50.92,4.48);
+            nwr["landuse"="basin"](50.76,4.24,50.92,4.48);
+            nwr["amenity"="fountain"](50.76,4.24,50.92,4.48);
+            nwr["amenity"="drinking_water"](50.76,4.24,50.92,4.48);
+          );
+          out center tags;
+          EOF
+          python3 - <<'PY'
+          import hashlib,json,urllib.parse,urllib.request
+          endpoint='https://overpass-api.de/api/interpreter'
+          query=open('/tmp/osm-hydrography/query.overpass').read()
+          req=urllib.request.Request(endpoint,data=urllib.parse.urlencode({'data':query}).encode(),headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'})
+          with urllib.request.urlopen(req,timeout=240) as r: raw=r.read()
+          obj=json.loads(raw); count=len(obj.get('elements',[])); assert count>0
+          open('/tmp/osm-hydrography/osm-hydrography.json','wb').write(raw)
+          manifest={'publisher':'OpenStreetMap contributors','license':'ODbL-1.0','endpoint':endpoint,'bbox':[50.76,4.24,50.92,4.48],'element_count':count,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'query_sha256':hashlib.sha256(query.encode()).hexdigest(),'runtime_authorized':False,'must_clip_to_official_brussels_boundary_before_runtime':True}
+          open('/tmp/osm-hydrography/manifest.json','w').write(json.dumps(manifest,indent=2))
+          print('OSM_HYDROGRAPHY_INTAKE_OK',count)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-osm-hydrography
+          path: /tmp/osm-hydrography
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

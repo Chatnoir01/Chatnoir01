@@ -1,0 +1,60 @@
+name: Grand Bruxelles Municipal Catalog Intake
+on:
+  push:
+    branches: ["intake/brussels-municipal-catalog-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-municipal-catalog.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Sweep City of Brussels game-relevant datasets
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/brussels-municipal-catalog
+          mkdir -p "$OUT/data"
+          python3 - <<'PY'
+          import hashlib,json,re,urllib.parse,urllib.request,os
+          out='/tmp/brussels-municipal-catalog'; h={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          catalog='https://opendata.brussels.be/api/explore/v2.1/catalog/exports/json?limit=-1&offset=0&timezone=UTC'
+          def get(url,timeout=180):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=h),timeout=timeout) as r:return r.read()
+          raw=get(catalog); open(out+'/catalog.json','wb').write(raw); rows=json.loads(raw)
+          if not isinstance(rows,list): rows=rows.get('results') or rows.get('datasets') or []
+          rx=re.compile(r'toilet|market|school|cr.che|playground|sport|park|garden|tree|monument|heritage|art|museum|theatre|library|hospital|health|police|fire|cemeter|relig|waste|recycl|fountain|bench|bicycle|parking|permit|urban|planning|public space|mobility|street|road|construction|event',re.I)
+          selected=[]
+          for r in rows:
+              if not isinstance(r,dict): continue
+              did=r.get('dataset_id') or r.get('datasetid') or r.get('id')
+              text=json.dumps(r,ensure_ascii=False)
+              if did and rx.search(text): selected.append(str(did))
+          selected=sorted(set(selected))[:120]
+          results=[]
+          for did in selected:
+              base='https://opendata.brussels.be/api/explore/v2.1/catalog/datasets/'+urllib.parse.quote(did,safe='')+'/exports/'
+              ok=False
+              for fmt in ('geojson','json','csv'):
+                  try:
+                      url=base+fmt+'?lang=fr&timezone=Europe%2FBrussels'; data=get(url,180)
+                      if not data: continue
+                      ext='geojson' if fmt=='geojson' else fmt
+                      fn=f'{out}/data/{did}.{ext}'; open(fn,'wb').write(data)
+                      results.append({'dataset_id':did,'format':fmt,'url':url,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()}); ok=True; break
+                  except Exception: pass
+              if not ok: results.append({'dataset_id':did,'error':'no export succeeded'})
+          manifest={'schema':'grand-bruxelles-municipal-catalog-intake-v1','publisher':'City of Brussels','catalog_url':catalog,'catalog_records':len(rows),'selected_game_relevant':len(selected),'successful_exports':sum('sha256' in x for x in results),'results':results,'license':'per-dataset; preserve source metadata','runtime_authorized':False,'production_authorized':False,'note':'Municipal supplement only; regional/official dedicated intakes remain authoritative when overlap exists.'}
+          open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          if manifest['successful_exports']==0: raise SystemExit('municipal sweep found no downloadable data')
+          print('MUNICIPAL_CATALOG_INTAKE_OK',manifest['successful_exports'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-municipal-catalog
+          path: /tmp/brussels-municipal-catalog
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

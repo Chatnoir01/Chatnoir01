@@ -1,0 +1,46 @@
+name: Grand Bruxelles Intake UrbIS Street Names
+on:
+  push:
+    branches: ["intake/urbis-street-names-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-urbis-street-names.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Discover and download official UrbIS street-name layers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/urbis-street-names/layers
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.parse,urllib.request,xml.etree.ElementTree as ET
+          base='https://geoservices-vector.irisnet.be/geoserver/urbisvector/wfs'; headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=240) as r:return r.read()
+          cap_url=base+'?'+urllib.parse.urlencode({'service':'WFS','request':'GetCapabilities'}); cap=get(cap_url); open('/tmp/urbis-street-names/wfs-capabilities.xml','wb').write(cap)
+          root=ET.fromstring(cap); rx=re.compile(r'street.*name|streetname|nom.*rue|straat.*naam|address.*street',re.I); cand=[]
+          for ft in root.findall('.//{*}FeatureType'):
+              n=ft.find('{*}Name'); t=ft.find('{*}Title'); name=(n.text or '').strip() if n is not None else ''; title=(t.text or '').strip() if t is not None else ''
+              if rx.search(name+' '+title): cand.append((name,title))
+          cand=sorted(set(cand)); assert cand,'no UrbIS street-name layers found'
+          results=[]
+          for i,(name,title) in enumerate(cand):
+              url=base+'?'+urllib.parse.urlencode({'service':'WFS','version':'2.0.0','request':'GetFeature','typeNames':name,'outputFormat':'application/json','srsName':'EPSG:31370'})
+              try:
+                  raw=get(url); obj=json.loads(raw); fn=f'/tmp/urbis-street-names/layers/{i:02d}-{re.sub(r"[^A-Za-z0-9_.-]+","_",name)}.geojson'; open(fn,'wb').write(raw)
+                  results.append({'name':name,'title':title,'url':url,'file':os.path.basename(fn),'feature_count':len(obj.get('features',[])),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+              except Exception as e: results.append({'name':name,'title':title,'url':url,'error':str(e)})
+          open('/tmp/urbis-street-names/manifest.json','w').write(json.dumps({'publisher':'Paradigm / UrbIS','dataset_family':'Official street names','crs':'EPSG:31370','results':results,'runtime_authorized':False,'production_use_requires_license_metadata_check':True},indent=2,ensure_ascii=False))
+          assert any('file' in x for x in results),results
+          print('URBIS_STREET_NAMES_INTAKE_OK',sum('file' in x for x in results),'layers')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-urbis-street-names
+          path: /tmp/urbis-street-names
+          if-no-files-found: error
+          retention-days: 14

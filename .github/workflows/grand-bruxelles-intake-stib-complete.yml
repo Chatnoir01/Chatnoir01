@@ -1,0 +1,82 @@
+name: Grand Bruxelles STIB Complete Intake
+on:
+  push:
+    branches: ["intake/stib-complete-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-stib-complete.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Download STIB open-data catalogue and transport datasets
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/stib-complete
+          mkdir -p "$OUT/data"
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.parse,urllib.request
+          out='/tmp/stib-complete'; headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          def get(url,timeout=180):
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req,timeout=timeout) as r:return r.read()
+          cat_urls=[
+            'https://data.stib-mivb.be/api/explore/v2.1/catalog/exports/json?limit=-1&offset=0&timezone=UTC',
+            'https://data.stib-mivb.be/api/v2/catalog/datasets?limit=100'
+          ]
+          cat=None; used=None
+          for u in cat_urls:
+              try:
+                  raw=get(u); open(out+'/catalog.json','wb').write(raw); cat=json.loads(raw); used=u; break
+              except Exception: pass
+          if cat is None: raise SystemExit('STIB catalogue unavailable')
+          rows=cat if isinstance(cat,list) else cat.get('datasets') or cat.get('results') or []
+          ids=[]
+          for r in rows:
+              if not isinstance(r,dict): continue
+              did=r.get('dataset_id') or r.get('datasetid') or r.get('id')
+              if not did:
+                  metas=r.get('metas') or {}
+                  did=metas.get('dataset_id') or metas.get('id')
+              if did: ids.append(str(did))
+          # Include known core datasets even if catalogue schema changes.
+          ids=sorted(set(ids+['gtfs-stops-production','shapefiles-production']))
+          focus=re.compile(r'(gtfs|shape|line|route|stop|vehicle|position|waiting|traveller|network)',re.I)
+          selected=[x for x in ids if focus.search(x)]
+          results=[]
+          for did in selected:
+              base='https://data.stib-mivb.be/api/explore/v2.1/catalog/datasets/'+urllib.parse.quote(did,safe='')+'/exports/'
+              saved=False
+              for fmt in ('geojson','json','csv'):
+                  url=base+fmt+'?lang=en&timezone=Europe%2FBrussels'
+                  try:
+                      raw=get(url,240)
+                      if not raw: continue
+                      ext={'geojson':'geojson','json':'json','csv':'csv'}[fmt]
+                      fn=f'{out}/data/{did}.{ext}'
+                      open(fn,'wb').write(raw)
+                      results.append({'dataset_id':did,'format':fmt,'url':url,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+                      saved=True; break
+                  except Exception as e:
+                      err=str(e)
+              if not saved: results.append({'dataset_id':did,'error':'no export format succeeded'})
+          terms='https://data.stib-mivb.be/terms/terms-and-conditions.pdf'
+          try:
+              raw=get(terms); open(out+'/terms-and-conditions.pdf','wb').write(raw)
+              terms_sha=hashlib.sha256(raw).hexdigest()
+          except Exception as e: terms_sha='UNAVAILABLE:'+str(e)
+          manifest={'schema':'grand-bruxelles-stib-complete-intake-v1','publisher':'STIB-MIVB','catalog_url':used,'catalog_dataset_count':len(ids),'selected_dataset_count':len(selected),'successful_exports':sum('sha256' in x for x in results),'results':results,'terms_url':terms,'terms_sha256':terms_sha,'license':'STIB-MIVB Open Data Licence / per published terms','runtime_authorized':False,'production_authorized':False,'note':'Data-only owner. Existing STIB visual/runtime branches retain ownership.'}
+          open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          if manifest['successful_exports']<2: raise SystemExit('core STIB exports not materialized')
+          print('STIB_COMPLETE_INTAKE_OK',manifest['successful_exports'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-stib-complete
+          path: /tmp/stib-complete
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

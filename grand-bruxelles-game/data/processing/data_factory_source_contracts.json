@@ -1,0 +1,76 @@
+{
+  "schema": "grand-bruxelles-data-factory-source-contracts-v1",
+  "production_base_sha": "a8737b5b4cbe0ee205bdede14217938118ee3c1b",
+  "generated_at": "2026-08-20",
+  "runtime_authorized": false,
+  "production_authorized": false,
+  "contracts": [
+    {
+      "family": "urbis_addresses",
+      "upstream_branch": "intake/urbis-addresses-current",
+      "provided_artifacts": [
+        "urbis_address_numbers_geojson",
+        "urbis_addresses_geojson",
+        "intake_manifest"
+      ],
+      "processor_required_artifacts": [
+        "urbis_address_numbers_geojson",
+        "urbis_addresses_geojson",
+        "intake_manifest"
+      ],
+      "missing_artifacts": [],
+      "compatible": true,
+      "evidence": [
+        "UrbIS WFS exposes urbisvector:AddressNumbers and urbisvector:Addresses.",
+        "Official UrbIS product specification documents inspire_Id, streetId, strNameFre, strNameDut and policeNum for addresses."
+      ]
+    },
+    {
+      "family": "stib_static_network",
+      "upstream_branch": "intake/stib-complete-current",
+      "provided_artifacts": [
+        "stib_gtfs_stops_export",
+        "stib_commercial_network_shapes_export",
+        "stib_catalog",
+        "stib_terms"
+      ],
+      "processor_required_artifacts": [
+        "gtfs_full_static_feed",
+        "intake_manifest"
+      ],
+      "missing_artifacts": [
+        "gtfs_full_static_feed",
+        "intake_manifest"
+      ],
+      "compatible": false,
+      "evidence": [
+        "Official gtfs-stops-production page describes only STIB-MIVB stops based on GTFS files.",
+        "Official shapefiles-production page describes commercial line routes and stop positions.",
+        "Neither page by itself proves a complete static GTFS feed containing routes.txt/trips.txt/shapes.txt."
+      ],
+      "rule": "Do not manufacture routes.txt or treat shapefile exports as GTFS tables."
+    },
+    {
+      "family": "mobiris_traffic_counts",
+      "upstream_branch": "intake/brussels-traffic-counts-current",
+      "provided_artifacts": [
+        "mobiris_devices_json",
+        "mobiris_live_json",
+        "mobiris_live_geom_geojson",
+        "intake_manifest"
+      ],
+      "processor_required_artifacts": [
+        "mobiris_devices_json",
+        "mobiris_live_json",
+        "mobiris_live_geom_geojson",
+        "intake_manifest"
+      ],
+      "missing_artifacts": [],
+      "compatible": true,
+      "evidence": [
+        "Existing main processor consumes official devices, live counts and traffic_live_geom geometry.",
+        "Geometry is explicitly requested in EPSG:31370."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+name: Grand Bruxelles Visual Truth Factory
+on:
+  push:
+    branches: ["visual-truth/factory-current"]
+    paths:
+      - "grand-bruxelles-game/data/visual_truth/**"
+      - "grand-bruxelles-game/tools/qa/validate_visual_truth_factory.py"
+      - ".github/workflows/grand-bruxelles-visual-truth-factory.yml"
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/visual_truth/**"
+      - "grand-bruxelles-game/tools/qa/validate_visual_truth_factory.py"
+      - ".github/workflows/grand-bruxelles-visual-truth-factory.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-truth-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate Visual Truth Factory
+        run: python grand-bruxelles-game/tools/qa/validate_visual_truth_factory.py
+      - name: Prove false visual completion is rejected
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp grand-bruxelles-game/data/visual_truth/*.json "$tmp/"
+          python - "$tmp/zone_matrix.json" <<'PY'
+          import json,sys
+          p=sys.argv[1]; data=json.load(open(p)); z=next(x for x in data['priority_zones'] if x['zone_id']=='grand_place'); z['status']='VISUAL_GREEN'; z['realism_complete']=True
+          json.dump(data,open(p,'w'),indent=2)
+          PY
+          if python grand-bruxelles-game/tools/qa/validate_visual_truth_factory.py --root "$tmp"; then
+            echo "RED FAIL: empty Grand-Place evidence was accepted as VISUAL_GREEN" >&2
+            exit 1
+          fi
+          cp grand-bruxelles-game/data/visual_truth/*.json "$tmp/"
+          python - "$tmp/source_registry.json" <<'PY'
+          import json,sys
+          p=sys.argv[1]; data=json.load(open(p)); src=next(x for x in data['sources'] if x['source_id']=='urban_heritage_inventory'); src['pixel_shipping']='allowed'
+          json.dump(data,open(p,'w'),indent=2)
+          PY
+          if python grand-bruxelles-game/tools/qa/validate_visual_truth_factory.py --root "$tmp"; then
+            echo "RED FAIL: reference-only Urban pixels were accepted for shipping" >&2
+            exit 1
+          fi
+          echo "VISUAL_TRUTH_RED_GATES_OK"

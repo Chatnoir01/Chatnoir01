@@ -32,12 +32,18 @@ def _catalog() -> dict[str, Any]:
 
 
 def _binding_path(binding: str) -> Path:
-    raw = binding.split("::", 1)[0].strip()
+    parts = binding.split("::", 1)
+    raw = parts[0].strip()
+    symbol = parts[1].strip() if len(parts) == 2 else ""
     if not raw:
         raise FinishMaterialsError(f"empty runtime binding: {binding!r}")
     path = cm.p(raw)
     if not path.is_file():
         raise FinishMaterialsError(f"runtime binding missing: {raw}")
+    if symbol:
+        text = path.read_text(encoding="utf-8")
+        if symbol not in text:
+            raise FinishMaterialsError(f"runtime binding symbol missing: {raw}::{symbol}")
     return path
 
 

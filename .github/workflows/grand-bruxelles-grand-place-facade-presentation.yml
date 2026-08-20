@@ -9,11 +9,13 @@ on:
       - "grand-bruxelles-game/game/scripts/grand_place_facade_presentation_coverage_v3.gd"
       - "grand-bruxelles-game/game/scripts/grand_place_facade_presentation_refinement_v4.gd"
       - "grand-bruxelles-game/game/scripts/grand_place_facade_presentation_integrated_v5.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_facade_frontage_mass_v6.gd"
       - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_v1.json"
       - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_correction_v2.json"
       - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_coverage_v3.json"
       - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_refinement_v4.json"
       - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_presentation_integrated_v5.json"
+      - "grand-bruxelles-game/data/runtime/modules/grand_place_facade_frontage_mass_v6.json"
       - "grand-bruxelles-game/data/qa/grand_place_facade_owner_identity.lock.json"
       - "grand-bruxelles-game/data/qa/grand_place_facade_presentation.contract.json"
       - "grand-bruxelles-game/data/qa/grand_place_facade_correction_v2.contract.json"
@@ -25,6 +27,7 @@ on:
       - "grand-bruxelles-game/game/tests/grand_place_facade_coverage_v3_test.gd"
       - "grand-bruxelles-game/game/tests/grand_place_facade_refinement_v4_test.gd"
       - "grand-bruxelles-game/game/tests/grand_place_facade_integrated_v5_test.gd"
+      - "grand-bruxelles-game/game/tests/grand_place_facade_frontage_mass_v6_test.gd"
       - "grand-bruxelles-game/game/tests/grand_place_facade_multiview_capture_test.gd"
       - "grand-bruxelles-game/tools/qa/compare_grand_place_facade_multiview.py"
       - "grand-bruxelles-game/game/scripts/brussels_white_stone_material.gd"
@@ -87,6 +90,9 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_facade_integrated_v5_test.gd 2>&1 | tee /tmp/grand-place-facade-integrated-v5.log
           if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_INTEGRATED_V5_FAIL" /tmp/grand-place-facade-integrated-v5.log; then exit 1; fi
           grep -q "GRAND_PLACE_FACADE_INTEGRATED_V5_OK" /tmp/grand-place-facade-integrated-v5.log
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/grand_place_facade_frontage_mass_v6_test.gd 2>&1 | tee /tmp/grand-place-facade-frontage-mass-v6.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GRAND_PLACE_FACADE_FRONTAGE_MASS_V6_FAIL" /tmp/grand-place-facade-frontage-mass-v6.log; then exit 1; fi
+          grep -q "GRAND_PLACE_FACADE_FRONTAGE_MASS_V6_OK" /tmp/grand-place-facade-frontage-mass-v6.log
 
   player-frame-ab:
     runs-on: ubuntu-24.04

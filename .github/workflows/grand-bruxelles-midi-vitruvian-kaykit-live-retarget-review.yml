@@ -1,0 +1,209 @@
+name: Grand Bruxelles Midi Vitruvian KayKit Live Retarget Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/midi_kaykit_humanoid_source_bone_map.json"
+      - "grand-bruxelles-game/game/tests/midi_vitruvian_kaykit_live_retarget_test.gd"
+      - "grand-bruxelles-game/tools/build_vitruvian_game_rig_body.py"
+      - ".github/workflows/grand-bruxelles-midi-vitruvian-kaykit-live-retarget-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-vitruvian-kaykit-live-retarget-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-humanoid-retarget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install source dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git-lfs rsync curl xz-utils unzip libglu1-mesa libopengl0 libgl1-mesa-dri libglx-mesa0
+          git lfs install
+
+      - name: Fetch exact CC0 KayKit animation source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          PIN=672074b73ba276876a19e8816ecdc5241817ab47
+          SRC=/tmp/kaykit-retarget-source
+          ROGUE=addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb
+          rm -rf "$SRC"
+          git clone --filter=blob:none --no-checkout https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0.git "$SRC"
+          git -C "$SRC" sparse-checkout init --no-cone
+          cat > "$SRC/.git/info/sparse-checkout" <<SPARSE
+          /LICENSE.txt
+          /README.md
+          /$ROGUE
+          SPARSE
+          GIT_LFS_SKIP_SMUDGE=1 git -C "$SRC" checkout "$PIN"
+          test "$(git -C "$SRC" rev-parse HEAD)" = "$PIN"
+          git -C "$SRC" lfs pull --include="$ROGUE" --exclude=""
+          grep -qi 'CC0' "$SRC/LICENSE.txt"
+          test -s "$SRC/$ROGUE"
+          (cd "$SRC" && sha256sum LICENSE.txt README.md "$ROGUE") | tee /tmp/kaykit-retarget-source-sha256.txt
+          grep -q '^e825437cd4d2ee9c1960b517a74a69101e33eb409ae7fa8cedc7134a998fbb7d  addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb$' /tmp/kaykit-retarget-source-sha256.txt
+          printf '%s\n' "$PIN" > /tmp/kaykit-retarget-pin.txt
+
+      - name: Fetch exact CharMorph and sparse CC0 Vitruvian game-rig source
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHARMORPH_COMMIT=e2e87480657c87eb17bbfbd83833bee628494a90
+          VITRUVIAN_COMMIT=db7736668dfbcb090019068c8aeab28105af36a0
+          ADDON=/tmp/blender-user/scripts/addons/CharMorph
+          DATA=/tmp/vitruvian-game-rig-source
+          rm -rf /tmp/blender-user "$DATA"
+          mkdir -p /tmp/blender-user/scripts/addons
+          git clone --filter=blob:none https://github.com/Upliner/CharMorph.git "$ADDON"
+          git -C "$ADDON" checkout "$CHARMORPH_COMMIT"
+          test "$(git -C "$ADDON" rev-parse HEAD)" = "$CHARMORPH_COMMIT"
+          test -s "$ADDON/common.py"
+          grep -q 'GNU General Public License' "$ADDON/common.py"
+
+          git clone --filter=blob:none --no-checkout https://github.com/seenbuklee/CharMorph-Vitruvian.git "$DATA"
+          git -C "$DATA" sparse-checkout init --no-cone
+          cat > "$DATA/.git/info/sparse-checkout" <<'SPARSE'
+          /.gitattributes
+          /README.md
+          /config.yaml
+          /char.blend
+          /rigs.blend
+          /bones_rigify.yaml
+          /faces.npy
+          /morphs/L1/Default.npy
+          /weights/gamerig.npz
+          /joints/gamerig.npz
+          SPARSE
+          GIT_LFS_SKIP_SMUDGE=1 git -C "$DATA" checkout "$VITRUVIAN_COMMIT"
+          test "$(git -C "$DATA" rev-parse HEAD)" = "$VITRUVIAN_COMMIT"
+          git -C "$DATA" lfs pull --include="char.blend,rigs.blend" --exclude=""
+          for f in char.blend rigs.blend config.yaml bones_rigify.yaml faces.npy morphs/L1/Default.npy weights/gamerig.npz joints/gamerig.npz; do test -s "$DATA/$f"; done
+          grep -q '^license: CC0' "$DATA/config.yaml"
+          grep -q '^   game-rig:' "$DATA/config.yaml"
+          if find "$DATA" -type f \( -iname '*mixamo*' -o -iname '*adobe*' \) -print -quit | grep -q .; then
+            echo 'Forbidden Mixamo/Adobe file entered target sparse checkout' >&2
+            exit 1
+          fi
+          rm -rf "$ADDON/data"
+          mkdir -p "$ADDON/data/characters/Vitruvian/morphs/L2" "$ADDON/data/characters/Vitruvian/morphs/L3"
+          rsync -a --exclude='.git' "$DATA/" "$ADDON/data/characters/Vitruvian/"
+          printf '%s\n' "$CHARMORPH_COMMIT" > /tmp/charmorph-commit.txt
+          printf '%s\n' "$VITRUVIAN_COMMIT" > /tmp/vitruvian-commit.txt
+          (cd "$DATA" && sha256sum config.yaml char.blend rigs.blend bones_rigify.yaml faces.npy morphs/L1/Default.npy weights/gamerig.npz joints/gamerig.npz) | tee /tmp/vitruvian-retarget-source-sha256.txt
+
+      - name: Install pinned Blender 4.5.12 LTS
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=https://download.blender.org/release/Blender4.5
+          ARCHIVE=blender-4.5.12-linux-x64.tar.xz
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/$ARCHIVE "$BASE/$ARCHIVE"
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/blender.sha256 "$BASE/blender-4.5.12.sha256"
+          grep " $ARCHIVE$" /tmp/blender.sha256 > /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum -c blender-linux.sha256)
+          tar -C /tmp -xf /tmp/$ARCHIVE
+          /tmp/blender-4.5.12-linux-x64/blender --version | tee /tmp/blender-version.txt
+          grep -q 'Blender 4.5.12' /tmp/blender-version.txt
+
+      - name: Build exact clean Vitruvian target body
+        shell: bash
+        env:
+          BLENDER_USER_SCRIPTS: /tmp/blender-user/scripts
+        run: |
+          set -euo pipefail
+          /tmp/blender-4.5.12-linux-x64/blender \
+            --background /tmp/vitruvian-game-rig-source/char.blend \
+            --python grand-bruxelles-game/tools/build_vitruvian_game_rig_body.py -- \
+            --output /tmp/vitruvian-game-rig-live-target.glb \
+            --report /tmp/vitruvian-game-rig-live-target.json \
+            2>&1 | tee /tmp/vitruvian-game-rig-live-build.log
+          grep -q 'GB_VITRUVIAN_GAME_RIG_BUILD_OK' /tmp/vitruvian-game-rig-live-build.log
+          ! grep -q 'GB_VITRUVIAN_GAME_RIG_BUILD_FAIL' /tmp/vitruvian-game-rig-live-build.log
+          test -s /tmp/vitruvian-game-rig-live-target.glb
+          grep -q '"bone_count": 71' /tmp/vitruvian-game-rig-live-target.json
+          grep -q '"production_authorized": false' /tmp/vitruvian-game-rig-live-target.json
+
+      - name: Install Godot 4.7.1 and stage ephemeral review sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          S=grand-bruxelles-game/assets/characters/_review/kaykit_retarget_source
+          T=grand-bruxelles-game/assets/characters/_review/vitruvian_game_rig_live_retarget
+          rm -rf "$S" "$T"; mkdir -p "$S" "$T"
+          cp /tmp/kaykit-retarget-source/addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb "$S/Rogue.glb"
+          cp /tmp/vitruvian-game-rig-live-target.glb "$T/body.glb"
+
+      - name: Import both review GLBs in Godot Compatibility
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit --rendering-method gl_compatibility 2>&1 | tee /tmp/vitruvian-kaykit-live-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load|couldn.t be loaded|Clamped index' /tmp/vitruvian-kaykit-live-import.log; then exit 1; fi
+
+      - name: Run native live retarget and foot-slide measurement
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --rendering-method gl_compatibility \
+            --script res://game/tests/midi_vitruvian_kaykit_live_retarget_test.gd -- \
+            /tmp/vitruvian-kaykit-live-retarget.metrics.json \
+            2>&1 | tee /tmp/vitruvian-kaykit-live-retarget.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|GB_VITRUVIAN_KAYKIT_LIVE_RETARGET_FAIL' /tmp/vitruvian-kaykit-live-retarget.log; then exit 1; fi
+          grep -q 'GB_VITRUVIAN_KAYKIT_LIVE_RETARGET_OK' /tmp/vitruvian-kaykit-live-retarget.log
+          test -s /tmp/vitruvian-kaykit-live-retarget.metrics.json
+          grep -q '"source_mapping_count": 18' /tmp/vitruvian-kaykit-live-retarget.metrics.json
+          grep -q '"target_mapping_count": 22' /tmp/vitruvian-kaykit-live-retarget.metrics.json
+          grep -q '"source_mesh_runtime_reuse": false' /tmp/vitruvian-kaykit-live-retarget.metrics.json
+          grep -q '"production_authorized": false' /tmp/vitruvian-kaykit-live-retarget.metrics.json
+
+      - name: Stage retarget measurement evidence without source mesh
+        if: always()
+        shell: bash
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_vitruvian_kaykit_live_retarget
+          mkdir -p "$OUT"
+          cp /tmp/vitruvian-kaykit-live-retarget.metrics.json "$OUT/live_retarget_metrics.json" 2>/dev/null || true
+          cp /tmp/vitruvian-kaykit-live-retarget.log "$OUT/live_retarget.log" 2>/dev/null || true
+          cp /tmp/vitruvian-kaykit-live-import.log "$OUT/godot_import.log" 2>/dev/null || true
+          cp /tmp/vitruvian-game-rig-live-target.json "$OUT/target_body_build.json" 2>/dev/null || true
+          cp /tmp/vitruvian-game-rig-live-build.log "$OUT/target_body_build.log" 2>/dev/null || true
+          cp /tmp/kaykit-retarget-source-sha256.txt "$OUT/kaykit_source_sha256.txt" 2>/dev/null || true
+          cp /tmp/vitruvian-retarget-source-sha256.txt "$OUT/vitruvian_source_sha256.txt" 2>/dev/null || true
+          cp /tmp/kaykit-retarget-pin.txt "$OUT/kaykit_pin.txt" 2>/dev/null || true
+          cp /tmp/charmorph-commit.txt "$OUT/charmorph_commit.txt" 2>/dev/null || true
+          cp /tmp/vitruvian-commit.txt "$OUT/vitruvian_commit.txt" 2>/dev/null || true
+          cp /tmp/blender-version.txt "$OUT/blender_version.txt" 2>/dev/null || true
+          cp grand-bruxelles-game/data/qa/midi_kaykit_humanoid_source_bone_map.json "$OUT/source_bone_map.json" 2>/dev/null || true
+          cp grand-bruxelles-game/data/qa/midi_vitruvian_game_rig_humanoid_bone_map.json "$OUT/target_bone_map.json" 2>/dev/null || true
+          cp /tmp/kaykit-retarget-source/LICENSE.txt "$OUT/kaykit_LICENSE_CC0.txt" 2>/dev/null || true
+          printf '%s\n' '{"status":"live_retarget_measurement_only","production_authorized":false,"source_mesh_runtime_reuse":false,"source_mesh_in_artifact":false,"clips_baked":false,"selected_clips":["Idle","Walking_A","Running_A"],"retarget_engine":"Godot RetargetModifier3D","human_visual_verdict_required":true}' > "$OUT/authorization.json"
+
+      - name: Upload live retarget measurement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-vitruvian-kaykit-live-retarget
+          path: grand-bruxelles-game/artifacts/qa/midi_vitruvian_kaykit_live_retarget
+          if-no-files-found: warn

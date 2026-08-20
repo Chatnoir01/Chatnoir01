@@ -14,14 +14,20 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Compile data-factory processors
+      - name: Compile data-factory processors and gates
         run: |
           python3 -m py_compile \
             grand-bruxelles-game/tools/data_factory/verify_intake_artifact.py \
             grand-bruxelles-game/tools/data_factory/normalize_urbis_addresses.py \
             grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py \
-            grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py
-      - name: Prove fail-closed processing contract
+            grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py \
+            grand-bruxelles-game/tools/data_factory/validate_processing_contracts.py
+      - name: Prove fail-closed processor behavior
         run: python3 grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py
+      - name: Prove source-to-processor compatibility truth
+        run: |
+          python3 grand-bruxelles-game/tools/data_factory/validate_processing_contracts.py \
+            --contracts grand-bruxelles-game/data/processing/data_factory_source_contracts.json \
+            --queue grand-bruxelles-game/data/processing/data_factory_processing_queue.json
       - name: Confirm existing Mobiris processor is reused
         run: test -f grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py

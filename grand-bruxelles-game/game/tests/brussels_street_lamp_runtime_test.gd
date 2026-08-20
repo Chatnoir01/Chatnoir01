@@ -95,17 +95,24 @@ func _run() -> void:
     if packed == null:
         _fail("production main scene missing")
         return
+    if current_scene != null:
+        _fail("test harness unexpectedly has current_scene before production-style root instantiation")
+        return
     var scene := packed.instantiate() as Node3D
     root.add_child(scene)
+    if current_scene != null:
+        _fail("root-instantiated production scene unexpectedly became current_scene")
+        return
     var runtime := root.get_node_or_null("BrusselsStreetLampRuntime")
     if runtime == null:
         _fail("BrusselsStreetLampRuntime autoload missing")
         return
-    runtime.call("bind_scene", scene)
-    for _frame: int in range(12):
+    for _frame: int in range(180):
+        if bool(runtime.call("ready_complete")):
+            break
         await process_frame
     if not bool(runtime.call("ready_complete")) or bool(runtime.call("failed")):
-        _fail("runtime did not bind cleanly")
+        _fail("runtime did not auto-discover root-instantiated production scene")
         return
     if int(runtime.call("point_count")) != EXPECTED_COUNT:
         _fail("runtime point count mismatch")
@@ -120,5 +127,5 @@ func _run() -> void:
         _fail("runtime moved source positions")
         return
 
-    print("BRUSSELS_STREET_LAMP_OK: points=%d batches=%d family=%s revision=%d source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("visual_batch_count")), EXPECTED_FAMILY, EXPECTED_PRESENTATION_REVISION])
+    print("BRUSSELS_STREET_LAMP_OK: points=%d batches=%d family=%s revision=%d auto_discovered=true source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("visual_batch_count")), EXPECTED_FAMILY, EXPECTED_PRESENTATION_REVISION])
     quit(0)

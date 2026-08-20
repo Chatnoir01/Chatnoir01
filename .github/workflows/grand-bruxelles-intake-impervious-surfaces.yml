@@ -1,0 +1,45 @@
+name: Grand Bruxelles Impervious Surfaces Intake
+on:
+  push:
+    branches: ["intake/brussels-impervious-surfaces-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-impervious-surfaces.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Download Brussels Environment impervious surfaces 2022
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/brussels-impervious-surfaces
+          mkdir -p "$OUT"
+          python3 - <<'PY'
+          import hashlib,json,urllib.request
+          out='/tmp/brussels-impervious-surfaces'; h={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          urls={
+            'impervious_surface_map_2022.zip':'https://app.bruxellesenvironnement.be/model/impervious_surface_map_2022.zip',
+            'impervious_surface_map_2022_model2.zip':'https://app.bruxellesenvironnement.be/model/impervious_surface_map_2022_model2.zip'
+          }
+          results=[]
+          for fn,u in urls.items():
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(u,headers=h),timeout=300) as r: raw=r.read()
+                  open(out+'/'+fn,'wb').write(raw)
+                  results.append({'file':fn,'url':u,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+              except Exception as e: results.append({'file':fn,'url':u,'error':str(e)})
+          manifest={'schema':'grand-bruxelles-impervious-surfaces-intake-v1','publisher':'Brussels Environment','dataset_id':'f8ea1c8f-44a2-4b48-9b24-083acf9c35e3','dataset_year':2022,'updated':'2025-12-09','license':'CC BY 4.0','coverage':'Brussels-Capital Region','classes':['impervious surfaces','sealing rate per built-up block','sealing rate per street surface'],'successful_files':sum('sha256' in x for x in results),'results':results,'runtime_authorized':False,'production_authorized':False}
+          open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          if manifest['successful_files']<2: raise SystemExit('impervious surface files incomplete')
+          print('IMPERVIOUS_SURFACES_INTAKE_OK')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-impervious-surfaces
+          path: /tmp/brussels-impervious-surfaces
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

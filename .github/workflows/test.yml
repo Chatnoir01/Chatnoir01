@@ -25,6 +25,33 @@ jobs:
           node-version: 24
       - run: npm test
 
+  godot-mcp-pilot:
+    if: github.event_name == 'pull_request' && github.head_ref == 'tooling/godot-mcp-pilot-7534593'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated MCP pilot branch
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.26
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: false
+
+      - name: Run hardened Godot MCP live-editor pilot
+        shell: bash
+        run: bash grand-bruxelles-game/tools/qa/run_godot_mcp_pilot.sh
+
+      - name: Upload pilot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-mcp-pr-pilot-evidence
+          path: ${{ runner.temp }}/grand-bruxelles-godot-mcp-pilot/evidence
+          if-no-files-found: warn
+          retention-days: 7
+
   kenney-car-intake:
     if: github.event_name == 'pull_request' && github.head_ref == 'asset-intake/kenney-car-kit' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest

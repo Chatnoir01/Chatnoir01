@@ -22,30 +22,33 @@
       "primary_upstream_branch": "intake/urbis-addresses-current",
       "crosscheck_upstream_branch": "intake/best-address-current",
       "processor": "grand-bruxelles-game/tools/data_factory/normalize_urbis_addresses.py",
-      "state": "PROCESSOR_BUILDING_ARTIFACT_BLOCKED",
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "7dc4ce7cca9c435ceae4e9d23962450dcd42ed0c",
       "required_inputs": ["AddressNumbers GeoJSON EPSG:31370", "Addresses GeoJSON EPSG:31370", "intake manifest with hashes/license"],
       "output": "normalized address registry; source IDs preserved; no building identity inferred",
-      "notes": "BeSt Address is a weekly cross-check source. Conflicts stay HOLD until reconciled; BeSt never silently overwrites UrbIS."
+      "notes": "BeSt Address is a weekly cross-check source. Conflicts stay HOLD until reconciled; BeSt never silently overwrites UrbIS. Exact production reuse terms remain a separate gate."
     },
     {
       "priority": 0,
       "family": "stib_static_network",
       "primary_upstream_branch": "intake/stib-complete-current",
       "processor": "grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py",
-      "state": "PROCESSOR_BUILDING_ARTIFACT_BLOCKED",
-      "required_inputs": ["GTFS ZIP or extracted GTFS tables", "intake manifest with hashes/license"],
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "eadd12c5ca3b4b7bf9a8fd91a4bba8aaae9afc68",
+      "required_inputs": ["STIB static open-data exports and/or GTFS tables", "intake manifest with hashes/license"],
       "output": "normalized stops/routes/trips/shapes registry preserving STIB IDs and route colours",
-      "notes": "Data-only processing. Existing STIB visual/runtime owners retain ownership."
+      "notes": "Data-only processing. Existing STIB visual/runtime owners retain ownership. WGS84 is not silently treated as project metres."
     },
     {
       "priority": 0,
       "family": "mobiris_traffic_counts",
       "primary_upstream_branch": "intake/brussels-traffic-counts-current",
       "processor": "grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py",
-      "state": "EXISTING_PROCESSOR_ARTIFACT_BLOCKED",
+      "state": "EXISTING_PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "96612bf0b61f1b73f84a3494a3d87277ac245e29",
       "required_inputs": ["devices JSON", "live JSON", "traffic_live_geom GeoJSON EPSG:31370"],
       "output": "offline traffic calibration snapshot in project metre coordinates",
-      "notes": "Existing main processor already excludes detector speed from absolute speed-limit semantics and applies live freshness gates. Reuse it; do not fork it."
+      "notes": "Existing main processor excludes detector speed from absolute speed-limit semantics and applies live freshness gates. Reuse it; do not fork it."
     },
     {
       "priority": 1,

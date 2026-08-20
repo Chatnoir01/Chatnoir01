@@ -335,8 +335,6 @@ func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
     node.set_meta("license", "CC0-1.0")
     candidate.add_child(node)
 
-    # MakeHuman source is authored as a pair: X=lateral, Y=vertical, Z=toe/heel.
-    # Fit to realistic adult pair dimensions without altering the source mesh itself.
     var target_pair_width := 0.38
     var target_height := 0.115
     var target_length := 0.29
@@ -392,10 +390,11 @@ func _relax_pose_if_rigged(root: Node) -> Dictionary:
         print("GB_CIV1_POSE ", JSON.stringify(missing))
         return missing
 
-    # Additional ~24° toward a relaxed standing pose from the authored A-pose.
-    skeleton.set_bone_pose_rotation(left, Quaternion(Vector3(0.0, 0.0, 1.0), deg_to_rad(-24.0)))
-    skeleton.set_bone_pose_rotation(right, Quaternion(Vector3(0.0, 0.0, 1.0), deg_to_rad(24.0)))
-    var applied := {"applied": true, "left_bone": skeleton.get_bone_name(left), "right_bone": skeleton.get_bone_name(right), "extra_upper_arm_degrees": 24.0}
+    # Run #12 proved the opposite signs raise the authored A-pose toward a T-pose.
+    # Reverse only the measured sign so both upper arms move down toward the torso.
+    skeleton.set_bone_pose_rotation(left, Quaternion(Vector3(0.0, 0.0, 1.0), deg_to_rad(24.0)))
+    skeleton.set_bone_pose_rotation(right, Quaternion(Vector3(0.0, 0.0, 1.0), deg_to_rad(-24.0)))
+    var applied := {"applied": true, "left_bone": skeleton.get_bone_name(left), "right_bone": skeleton.get_bone_name(right), "extra_upper_arm_degrees": 24.0, "direction_verified_from_red_run": 12}
     print("GB_CIV1_POSE ", JSON.stringify(applied))
     return applied
 

@@ -14,6 +14,8 @@ const DISTANCES := [2.0, 5.0, 8.0]
 const MIN_HEIGHT_M := 1.40
 const MAX_HEIGHT_M := 2.20
 const MAX_TRIANGLES := 700000
+const PRIMARY_HEIGHT_M := 1.72
+const CLUSTER_HEIGHTS_M := [1.72, 1.66, 1.75, 1.69, 1.79, 1.73]
 
 func _init() -> void:
     call_deferred("_run")
@@ -49,9 +51,10 @@ func _run() -> void:
         return
 
     var candidate := Node3D.new()
-    candidate.name = "CIV1_Vitruvian_Review_Only"
+    candidate.name = "CIV1_Vitruvian_Review_01"
     candidate.set_meta("production_authorized", false)
     candidate.set_meta("movement_owner", "none_review_only")
+    candidate.set_meta("identity_slot", 1)
     candidate.set_meta("source", "ibrews/VitruvianGodot@bdecdcd537b4031fdd0fb299b7e4f93f084fffa0")
     candidate.set_meta("footwear_source", "furqonat/makehuman-assets@8cf9645b975a98eea056b140df11a1d278da0d10:base/clothes/shoes04/shoes04.obj")
     main.add_child(candidate)
@@ -78,9 +81,6 @@ func _run() -> void:
         _fail("head VitSkin surface not found: %s" % JSON.stringify(head_material_audit))
         return
 
-    # Do not guess about rig ownership. If a Skeleton3D survived the legal preparation,
-    # apply only a small upper-arm relaxation and report exactly what happened. If the
-    # body is static/baked, leave it untouched and keep the human visual gate RED.
     var pose_audit := _relax_pose_if_rigged(body)
 
     var pre_footwear_bounds := _bounds_in_root_space(candidate)
@@ -103,9 +103,45 @@ func _run() -> void:
         _fail("triangle budget outside review gate: %d" % triangles)
         return
 
-    candidate.global_position = player.global_position + Vector3(3.2, 0.0, -1.6)
-    candidate.global_position.y = player.global_position.y - bounds.position.y
-    candidate.rotation_degrees = Vector3.ZERO
+    # User review: the 1.786 m source read too tall in the street. Keep the source
+    # untouched and scale only the preview presentation to a 1.72 m primary civilian.
+    var source_height := bounds.size.y
+    var primary_scale := PRIMARY_HEIGHT_M / source_height
+    candidate.scale = Vector3.ONE * primary_scale
+
+    var cluster_offsets: Array[Vector3] = [
+        Vector3(3.2, 0.0, -1.6),
+        Vector3(1.4, 0.0, -3.0),
+        Vector3(4.9, 0.0, -3.1),
+        Vector3(0.5, 0.0, -4.8),
+        Vector3(3.0, 0.0, -5.1),
+        Vector3(5.7, 0.0, -4.7)
+    ]
+    var cluster_yaws := [0.0, -12.0, 10.0, 8.0, -7.0, 14.0]
+    var cluster: Array[Node3D] = [candidate]
+
+    candidate.global_position = player.global_position + cluster_offsets[0]
+    candidate.global_position.y = player.global_position.y - bounds.position.y * primary_scale
+    candidate.rotation_degrees = Vector3(0.0, float(cluster_yaws[0]), 0.0)
+
+    # Six review slots let us judge scale/density before creating six distinct identities.
+    # They deliberately share the same authored resources in this preview only.
+    for i in range(1, CLUSTER_HEIGHTS_M.size()):
+        var clone := candidate.duplicate() as Node3D
+        if clone == null:
+            _fail("could not duplicate review civilian slot %d" % (i + 1))
+            return
+        clone.name = "CIV1_Vitruvian_Review_%02d" % (i + 1)
+        clone.set_meta("identity_slot", i + 1)
+        clone.set_meta("production_authorized", false)
+        clone.set_meta("preview_clone", true)
+        var slot_scale := float(CLUSTER_HEIGHTS_M[i]) / source_height
+        clone.scale = Vector3.ONE * slot_scale
+        main.add_child(clone)
+        clone.global_position = player.global_position + cluster_offsets[i]
+        clone.global_position.y = player.global_position.y - bounds.position.y * slot_scale
+        clone.rotation_degrees = Vector3(0.0, float(cluster_yaws[i]), 0.0)
+        cluster.append(clone)
 
     var camera := Camera3D.new()
     camera.name = "CIV1ReviewCamera"
@@ -114,20 +150,29 @@ func _run() -> void:
     main.add_child(camera)
     camera.current = true
 
-    var target := candidate.global_position + Vector3(0.0, bounds.size.y * 0.54, 0.0)
+    var target := candidate.global_position + Vector3(0.0, PRIMARY_HEIGHT_M * 0.54, 0.0)
     var outputs: Dictionary = {}
     for distance_value in DISTANCES:
         var distance := float(distance_value)
-        camera.global_position = target + Vector3(0.12, 0.04, distance)
-        camera.look_at(target, Vector3.UP)
         var label := "%dm" % int(distance)
         var path := "%s_%s.png" % [base_output, label]
+        if distance < 7.5:
+            camera.fov = 48.0
+            camera.global_position = target + Vector3(0.12, 0.04, distance)
+            camera.look_at(target, Vector3.UP)
+        else:
+            # The 8 m proof is also the six-civil density/scale review shot.
+            var cluster_target := player.global_position + Vector3(3.0, 0.90, -3.55)
+            camera.fov = 56.0
+            camera.global_position = cluster_target + Vector3(0.20, 0.35, 8.0)
+            camera.look_at(cluster_target, Vector3.UP)
         if not await _save_after_frames(path, 12):
             _fail("capture failed at %s" % label)
             return
         outputs[label] = path
 
     var close_three_quarter := "%s_2m_three_quarter.png" % base_output
+    camera.fov = 48.0
     camera.global_position = target + Vector3(1.22, 0.08, 1.58)
     camera.look_at(target, Vector3.UP)
     if not await _save_after_frames(close_three_quarter, 12):
@@ -146,7 +191,7 @@ func _run() -> void:
     outputs["feet_ground"] = feet_path
 
     var metrics := {
-        "schema": "grand-bruxelles-civ1-vitruvian-witness-v3",
+        "schema": "grand-bruxelles-civ1-vitruvian-witness-v4",
         "production_authorized": false,
         "actual_scene": MAIN_SCENE,
         "base_main_sha": "75345935173ba11ead85c317786f9e31e4517afd",
@@ -156,10 +201,15 @@ func _run() -> void:
         "footwear_source_commit": "8cf9645b975a98eea056b140df11a1d278da0d10",
         "mixamo_payload_allowed": false,
         "animation_clip_count": animation_clips,
-        "height_m": bounds.size.y,
-        "width_m": bounds.size.x,
-        "depth_m": bounds.size.z,
-        "triangle_count": triangles,
+        "source_height_m": source_height,
+        "height_m": PRIMARY_HEIGHT_M,
+        "width_m": bounds.size.x * primary_scale,
+        "depth_m": bounds.size.z * primary_scale,
+        "triangle_count_per_civilian": triangles,
+        "cluster_count": cluster.size(),
+        "cluster_heights_m": CLUSTER_HEIGHTS_M,
+        "cluster_effective_triangles": triangles * cluster.size(),
+        "cluster_preview_only": true,
         "capture_resolution": [CAPTURE_SIZE.x, CAPTURE_SIZE.y],
         "fixed_distances_m": DISTANCES,
         "captures": outputs,
@@ -173,6 +223,7 @@ func _run() -> void:
         "pose_audit": pose_audit,
         "fallback_changed": false,
         "movement_navigation_density_changed": false,
+        "runtime_activation": false,
         "human_verdict_required": "GARDER"
     }
     var metrics_path := "%s.metrics.json" % base_output
@@ -183,7 +234,7 @@ func _run() -> void:
     file.store_string(JSON.stringify(metrics, "  ") + "\n")
     file.close()
 
-    print("GB_CIV1_VITRUVIAN_WITNESS_OK height=%.3f triangles=%d animations=%d footwear=cc0 pose_applied=%s production_authorized=false" % [bounds.size.y, triangles, animation_clips, str(pose_audit.get("applied", false))])
+    print("GB_CIV1_VITRUVIAN_WITNESS_OK height=%.3f source_height=%.3f cluster=%d triangles_each=%d animations=%d footwear=cc0 pose_applied=%s production_authorized=false" % [PRIMARY_HEIGHT_M, source_height, cluster.size(), triangles, animation_clips, str(pose_audit.get("applied", false))])
     quit(0)
 
 func _instantiate(path: String, label: String) -> Node3D:

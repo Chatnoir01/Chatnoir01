@@ -26,7 +26,30 @@
       ]
     },
     {
-      "family": "stib_static_network",
+      "family": "stib_surface_network",
+      "upstream_branch": "intake/stib-complete-current",
+      "provided_artifacts": [
+        "stib_gtfs_stops_export",
+        "stib_commercial_network_shapes_export",
+        "stib_catalog",
+        "stib_terms",
+        "intake_manifest"
+      ],
+      "processor_required_artifacts": [
+        "stib_gtfs_stops_export",
+        "stib_commercial_network_shapes_export",
+        "intake_manifest"
+      ],
+      "missing_artifacts": [],
+      "compatible": true,
+      "evidence": [
+        "Official gtfs-stops-production page describes STIB-MIVB stops based on GTFS files.",
+        "Official shapefiles-production page describes commercial line routes and stop positions.",
+        "The surface processor preserves source properties and geometry and invents no schedule semantics."
+      ]
+    },
+    {
+      "family": "stib_static_schedule",
       "upstream_branch": "intake/stib-complete-current",
       "provided_artifacts": [
         "stib_gtfs_stops_export",
@@ -44,12 +67,10 @@
       ],
       "compatible": false,
       "evidence": [
-        "Official gtfs-stops-production page describes only STIB-MIVB stops based on GTFS files.",
-        "Official shapefiles-production page describes commercial line routes and stop positions.",
-        "The intake itself produces manifest.json with hashes and terms evidence.",
-        "Neither published dataset page by itself proves a complete static GTFS feed containing routes.txt/trips.txt/shapes.txt."
+        "Current proven STIB products cover stops and commercial network geometry.",
+        "They do not by themselves prove a complete static GTFS feed containing routes.txt/trips.txt/shapes.txt."
       ],
-      "rule": "Do not manufacture routes.txt or treat shapefile exports as GTFS tables."
+      "rule": "Do not manufacture routes.txt or treat shapefile exports as GTFS schedule tables."
     },
     {
       "family": "mobiris_traffic_counts",

@@ -38,6 +38,12 @@ jobs:
         working-directory: grand-bruxelles-game
         run: python tools/city_machine/test_finish_readiness.py
 
+      - name: Finish pipeline proof tests
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/city_machine/test_finish_pipeline.py
+          python tools/city_machine/test_finish_proof_stage.py
+
       - name: Prove readiness promotion guard is fail-closed
         working-directory: grand-bruxelles-game
         shell: bash

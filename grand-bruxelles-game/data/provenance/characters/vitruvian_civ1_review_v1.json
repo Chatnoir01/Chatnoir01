@@ -1,5 +1,5 @@
 {
-  "schema": "grand-bruxelles-civ1-vitruvian-review-v1",
+  "schema": "grand-bruxelles-civ1-vitruvian-review-v2",
   "production_authorized": false,
   "scope": "one close-camera civilian witness at Midi; no roster promotion",
   "upstream": {
@@ -13,6 +13,17 @@
     "license": "CC0-1.0",
     "redistribution_required_for_review": true
   },
+  "footwear_review": {
+    "repository": "https://github.com/furqonat/makehuman-assets",
+    "commit": "8cf9645b975a98eea056b140df11a1d278da0d10",
+    "asset": "base/clothes/shoes04/shoes04.obj",
+    "license_file": "LICENSE.txt",
+    "license": "CC0-1.0",
+    "obj_git_blob_sha1": "5137b1da52be37e8b5c98f1d3d47c31165ed4023",
+    "license_git_blob_sha1": "0e259d42c996742e9e3cba14c677129b2c1b6311",
+    "source_header_evidence": "This asset was explicitly released as CC0 in september 2020.",
+    "review_only": true
+  },
   "review_components": [
     "godot_project/vitruvian_body.glb",
     "godot_project/vitruvian_head.glb",
@@ -21,21 +32,24 @@
     "all external image URIs referenced by those GLBs",
     "godot_project/scenes/hairtool_card.gdshader",
     "godot_project/scenes/hair_card.gdshader",
-    "godot_project/addons/eyeball_shader/shaders/cornea.gdshader"
+    "godot_project/addons/eyeball_shader/shaders/cornea.gdshader",
+    "MakeHuman base/clothes/shoes04/shoes04.obj staged separately for footwear review"
   ],
   "license_separation": {
-    "character_geometry_textures": "CC0 per pinned upstream README/NOTICE character statement",
-    "review_shader_code": "MIT per pinned upstream LICENSE/NOTICE",
+    "character_geometry_textures": "CC0 per pinned Vitruvian README/NOTICE character statement",
+    "review_shader_code": "MIT per pinned Vitruvian LICENSE/NOTICE",
+    "footwear_geometry": "CC0 per pinned MakeHuman shoes04 OBJ header plus repository CC0 LICENSE.txt",
     "animations": "separate upstream Mixamo-derived payload is not accepted into this public review lot"
   },
   "hard_gates": {
     "strip_all_glb_animations_before_godot_import": true,
     "reject_mixamo_or_adobe_tokens_after_strip": true,
-    "max_texture_edge_px": 2048,
+    "max_texture_edge_px": 1024,
     "renderer": "gl_compatibility",
     "fixed_capture_distances_m": [2.0, 5.0, 8.0],
     "actual_scene": "res://game/main.tscn",
     "human_verdict_required": "GARDER",
+    "painted_bare_foot_is_not_acceptable_as_shoe": true,
     "fallback_must_remain_available": true
   },
   "ownership": {

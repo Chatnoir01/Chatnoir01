@@ -8,6 +8,7 @@ on:
       - ".github/workflows/grand-bruxelles-godot-mcp-pilot.yml"
       - "grand-bruxelles-game/data/qa/godot_mcp_pilot_contract.json"
       - "grand-bruxelles-game/tools/qa/godot_mcp_export_guard.py"
+      - "grand-bruxelles-game/tools/qa/run_godot_mcp_pilot.sh"
       - "grand-bruxelles-game/export_presets.cfg"
       - "grand-bruxelles-game/project.godot"
   pull_request:
@@ -15,6 +16,7 @@ on:
       - ".github/workflows/grand-bruxelles-godot-mcp-pilot.yml"
       - "grand-bruxelles-game/data/qa/godot_mcp_pilot_contract.json"
       - "grand-bruxelles-game/tools/qa/godot_mcp_export_guard.py"
+      - "grand-bruxelles-game/tools/qa/run_godot_mcp_pilot.sh"
       - "grand-bruxelles-game/export_presets.cfg"
       - "grand-bruxelles-game/project.godot"
   workflow_dispatch:
@@ -42,119 +44,25 @@ jobs:
     needs: export-guard
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      MCP_REPO: https://github.com/regiellis/godot-mcp-go.git
-      MCP_TAG: v0.9.0
-      MCP_COMMIT: 9ff512bbd15d9079e29625375a659b2f95f3a6cc
-      GODOT_TAG: 4.7.1-stable
-      GODOT_ZIP: Godot_v4.7.1-stable_linux.x86_64.zip
-      PILOT_PROJECT: ${{ runner.temp }}/grand-bruxelles-mcp-pilot
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
 
-      - name: Set up Go 1.26 for pinned MCP CLI
+      - name: Set up Go 1.26
         uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
           cache: false
 
-      - name: Pin and build Godot MCP v0.9.0
+      - name: Run hardened live-editor pilot
         shell: bash
-        run: |
-          set -euo pipefail
-          git clone --depth 1 --branch "$MCP_TAG" "$MCP_REPO" "${RUNNER_TEMP}/godot-mcp-go"
-          cd "${RUNNER_TEMP}/godot-mcp-go"
-          actual_commit="$(git rev-parse HEAD)"
-          test "$actual_commit" = "$MCP_COMMIT"
-          grep -q "MIT License" LICENSE
-          go build -o "${RUNNER_TEMP}/godot-mcp" ./cmd/godot-mcp
-          "${RUNNER_TEMP}/godot-mcp" --help >/dev/null
-          echo "GODOT_MCP_SOURCE_OK tag=$MCP_TAG commit=$actual_commit license=MIT"
+        run: bash grand-bruxelles-game/tools/qa/run_godot_mcp_pilot.sh
 
-      - name: Install exact official Godot 4.7.1 editor
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/godot"
-          cd "${RUNNER_TEMP}/godot"
-          gh release download "$GODOT_TAG" \
-            --repo godotengine/godot \
-            --pattern "$GODOT_ZIP" \
-            --clobber
-          unzip -q "$GODOT_ZIP"
-          chmod +x Godot_v4.7.1-stable_linux.x86_64
-          ./Godot_v4.7.1-stable_linux.x86_64 --version | tee "${RUNNER_TEMP}/godot-version.txt"
-          grep -q '^4\.7\.1\.stable' "${RUNNER_TEMP}/godot-version.txt"
-          echo "GODOT_4_7_1_EXACT_OK"
-
-      - name: Create isolated project copy and enable MCP there only
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf "$PILOT_PROJECT"
-          cp -a grand-bruxelles-game "$PILOT_PROJECT"
-          "${RUNNER_TEMP}/godot-mcp" install \
-            --project "$PILOT_PROJECT" \
-            --from "${RUNNER_TEMP}/godot-mcp-go/project/addons/godot_mcp" \
-            --skill=false \
-            --enable
-          test -f "$PILOT_PROJECT/addons/godot_mcp/plugin.cfg"
-          grep -q 'MCPGameInspector' "$PILOT_PROJECT/project.godot"
-          grep -q 'MCPGameInput' "$PILOT_PROJECT/project.godot"
-          test ! -d grand-bruxelles-game/addons/godot_mcp
-          ! grep -q 'MCPGameInspector\|MCPGameInput\|addons/godot_mcp' grand-bruxelles-game/project.godot
-          echo "GODOT_MCP_TEMP_INSTALL_OK"
-
-      - name: Start live headless editor and interrogate real Grand Bruxelles scene
-        shell: bash
-        run: |
-          set -euo pipefail
-          GODOT_BIN="${RUNNER_TEMP}/godot/Godot_v4.7.1-stable_linux.x86_64"
-          EDITOR_LOG="${RUNNER_TEMP}/godot-mcp-editor.log"
-          MCP_LOG="${RUNNER_TEMP}/godot-mcp-smoke.log"
-
-          cleanup() {
-            if [[ -n "${EDITOR_PID:-}" ]]; then
-              kill "$EDITOR_PID" 2>/dev/null || true
-              wait "$EDITOR_PID" 2>/dev/null || true
-            fi
-          }
-          trap cleanup EXIT
-
-          "$GODOT_BIN" --headless --editor --path "$PILOT_PROJECT" --audio-driver Dummy >"$EDITOR_LOG" 2>&1 &
-          EDITOR_PID=$!
-
-          for _ in $(seq 1 90); do
-            if [[ -f "$PILOT_PROJECT/.godot/godot-mcp.json" ]]; then
-              break
-            fi
-            if ! kill -0 "$EDITOR_PID" 2>/dev/null; then
-              cat "$EDITOR_LOG"
-              echo "Godot editor exited before MCP discovery was ready" >&2
-              exit 1
-            fi
-            sleep 1
-          done
-          test -f "$PILOT_PROJECT/.godot/godot-mcp.json"
-
-          cd "$PILOT_PROJECT"
-          timeout 30 "${RUNNER_TEMP}/godot-mcp" doctor | tee "$MCP_LOG"
-          timeout 30 "${RUNNER_TEMP}/godot-mcp" project info | tee -a "$MCP_LOG"
-          timeout 30 "${RUNNER_TEMP}/godot-mcp" scene open --path res://game/main.tscn | tee -a "$MCP_LOG"
-          timeout 30 "${RUNNER_TEMP}/godot-mcp" scene tree | tee -a "$MCP_LOG"
-
-          grep -q 'res://game/main.tscn' "$MCP_LOG"
-          grep -q '\[MCP\] Server listening on ws://127\.0\.0\.1:' "$EDITOR_LOG"
-          echo "GODOT_MCP_REAL_SCENE_INSPECTION_GREEN scene=res://game/main.tscn"
-
-      - name: Re-run production contamination guard
+      - name: Upload pilot evidence
         if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 grand-bruxelles-game/tools/qa/godot_mcp_export_guard.py
-          test -z "$(git status --porcelain -- grand-bruxelles-game .github/workflows/grand-bruxelles-godot-mcp-pilot.yml)"
-          echo "GODOT_MCP_CANONICAL_TREE_CLEAN"
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-mcp-pilot-evidence
+          path: ${{ runner.temp }}/grand-bruxelles-godot-mcp-pilot/evidence
+          if-no-files-found: warn
+          retention-days: 7

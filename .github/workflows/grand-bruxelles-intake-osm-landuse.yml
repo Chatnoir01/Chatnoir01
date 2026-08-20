@@ -1,0 +1,46 @@
+name: Grand Bruxelles Intake OSM Landuse
+on:
+  push:
+    branches: ["intake/osm-landuse-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-osm-landuse.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Download landuse and surface context
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/osm-landuse
+          cat > /tmp/osm-landuse/query.overpass <<'EOF'
+          [out:json][timeout:300];
+          (
+            way["landuse"](50.76,4.24,50.92,4.48);
+            relation["landuse"](50.76,4.24,50.92,4.48);
+            way["leisure"](50.76,4.24,50.92,4.48);
+            relation["leisure"](50.76,4.24,50.92,4.48);
+            way["natural"](50.76,4.24,50.92,4.48);
+            relation["natural"](50.76,4.24,50.92,4.48);
+          );
+          out geom tags;
+          EOF
+          python3 - <<'PY'
+          import hashlib,json,urllib.parse,urllib.request
+          endpoint='https://overpass-api.de/api/interpreter'; query=open('/tmp/osm-landuse/query.overpass').read()
+          req=urllib.request.Request(endpoint,data=urllib.parse.urlencode({'data':query}).encode(),headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'})
+          with urllib.request.urlopen(req,timeout=360) as r: raw=r.read()
+          obj=json.loads(raw); count=len(obj.get('elements',[])); assert count>0
+          open('/tmp/osm-landuse/osm-landuse.json','wb').write(raw)
+          open('/tmp/osm-landuse/manifest.json','w').write(json.dumps({'publisher':'OpenStreetMap contributors','license':'ODbL-1.0','endpoint':endpoint,'bbox':[50.76,4.24,50.92,4.48],'element_count':count,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'query_sha256':hashlib.sha256(query.encode()).hexdigest(),'runtime_authorized':False,'must_clip_to_official_brussels_boundary_before_runtime':True},indent=2))
+          print('OSM_LANDUSE_INTAKE_OK',count)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-osm-landuse
+          path: /tmp/osm-landuse
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

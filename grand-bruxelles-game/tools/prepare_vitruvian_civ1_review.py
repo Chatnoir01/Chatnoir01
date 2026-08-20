@@ -99,6 +99,21 @@ def write_glb(path: pathlib.Path, doc: dict[str, Any], chunks: list[tuple[int, b
             handle.write(payload)
 
 
+def provider_string_matches(value: Any, path: str = "$") -> list[dict[str, str]]:
+    matches: list[dict[str, str]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            matches.extend(provider_string_matches(child, "%s.%s" % (path, key)))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            matches.extend(provider_string_matches(child, "%s[%d]" % (path, index)))
+    elif isinstance(value, str):
+        lowered = value.lower()
+        if "mixamo" in lowered or "mixamorig" in lowered or "adobe" in lowered:
+            matches.append({"path": path, "value": value[:200]})
+    return matches
+
+
 def safe_external_uris(doc: dict[str, Any]) -> list[str]:
     uris: list[str] = []
     for image in doc.get("images") or []:
@@ -154,9 +169,12 @@ def main() -> None:
         doc, chunks = read_glb(src)
         source_animation_count = len(doc.get("animations") or [])
         doc.pop("animations", None)
-        serialized = json.dumps(doc, separators=(",", ":")).lower()
-        if "mixamo" in serialized or "mixamorig" in serialized or "adobe" in serialized:
-            raise RuntimeError(f"forbidden animation-source token remains after strip: {name}")
+        residual_provider_strings = provider_string_matches(doc)
+        if residual_provider_strings:
+            raise RuntimeError(
+                "residual provider strings after animation-table strip: %s: %s"
+                % (name, json.dumps(residual_provider_strings[:20], sort_keys=True))
+            )
         output_glb = args.output / name
         write_glb(output_glb, doc, chunks)
         clean_doc, _ = read_glb(output_glb)
@@ -192,7 +210,7 @@ def main() -> None:
         shutil.copy2(src, args.output / extra)
 
     report = {
-        "schema": "grand-bruxelles-civ1-vitruvian-prepared-v1",
+        "schema": "grand-bruxelles-civ1-vitruvian-prepared-v2-diagnostic",
         "production_authorized": False,
         "animations_allowed": False,
         "mixamo_payload_allowed": False,

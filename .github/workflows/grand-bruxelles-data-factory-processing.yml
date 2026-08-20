@@ -24,6 +24,7 @@ jobs:
             grand-bruxelles-game/tools/data_factory/normalize_planning_permit_signals.py \
             grand-bruxelles-game/tools/data_factory/extract_statistical_xlsx.py \
             grand-bruxelles-game/tools/data_factory/inspect_context_geospatial_archive.py \
+            grand-bruxelles-game/tools/data_factory/normalize_flood_hazard_context.py \
             grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py \
             grand-bruxelles-game/tools/data_factory/validate_processing_contracts.py
       - name: Prove fail-closed processor behavior

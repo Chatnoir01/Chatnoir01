@@ -1,0 +1,76 @@
+name: Grand Bruxelles Intake Statbel Population
+on:
+  push:
+    branches: ["intake/statbel-population-sectors-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-statbel-population.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download matching Statbel geography and population
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/statbel/downloads
+          python3 - <<'PY'
+          import hashlib,html.parser,json,os,re,urllib.parse,urllib.request
+          headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          pages={
+            'sectors_2025':'https://statbel.fgov.be/en/open-data/statistical-sectors-2025',
+            'population_2025':'https://statbel.fgov.be/en/open-data/population-statistical-sector-12',
+            'sectors_2026':'https://statbel.fgov.be/en/open-data/statistical-sectors-2026'
+          }
+          class P(html.parser.HTMLParser):
+              def __init__(self): super().__init__(); self.links=[]; self.cur=None; self.text=[]
+              def handle_starttag(self,tag,attrs):
+                  if tag=='a': self.cur=dict(attrs).get('href'); self.text=[]
+              def handle_data(self,d):
+                  if self.cur is not None: self.text.append(d)
+              def handle_endtag(self,tag):
+                  if tag=='a' and self.cur is not None:
+                      self.links.append((self.cur,' '.join(self.text))); self.cur=None; self.text=[]
+          def get(u):
+              with urllib.request.urlopen(urllib.request.Request(u,headers=headers),timeout=180) as r:return r.read()
+          selected=[]; page_files=[]
+          for label,url in pages.items():
+              b=get(url); open(f'/tmp/statbel/{label}.html','wb').write(b); page_files.append((label,url,b))
+              p=P(); p.feed(b.decode('utf-8','ignore'))
+              for href,text in p.links:
+                  full=urllib.parse.urljoin(url,href)
+                  low=(href+' '+text).lower()
+                  if not ('.zip' in low or '.xlsx' in low or '.txt' in low): continue
+                  if label.startswith('sectors_'):
+                      if 'lambert' in low and ('1972' in low or '31370' in low): selected.append((label,text.strip(),full))
+                  else:
+                      if '2025' in low or 'zip' in low or 'xlsx' in low: selected.append((label,text.strip(),full))
+          # fallback: keep any archive/file links if anchor wording changed
+          if not selected:
+              for label,url,b in page_files:
+                  p=P(); p.feed(b.decode('utf-8','ignore'))
+                  for href,text in p.links:
+                      full=urllib.parse.urljoin(url,href)
+                      if re.search(r'\.(zip|xlsx|txt)(\?|$)',full,re.I): selected.append((label,text.strip(),full))
+          selected=list(dict.fromkeys(selected))
+          assert selected, 'no Statbel download links discovered'
+          results=[]
+          for i,(label,text,url) in enumerate(selected):
+              try:
+                  raw=get(url); ext=os.path.splitext(urllib.parse.urlparse(url).path)[1] or '.bin'; fn=f'/tmp/statbel/downloads/{i:02d}-{label}{ext}'; open(fn,'wb').write(raw)
+                  results.append({'page':label,'label':text,'url':url,'file':os.path.basename(fn),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+              except Exception as e: results.append({'page':label,'label':text,'url':url,'error':str(e)})
+          manifest={'publisher':'Statbel','license':'Statbel Open Data: free reuse for commercial and non-commercial purposes; preserve source metadata','target_crs':'EPSG:31370 where available','selection':'2025 population + 2025/2026 statistical-sector geography','results':results,'runtime_authorized':False}
+          open('/tmp/statbel/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          assert any('file' in x for x in results), results
+          print('STATBEL_INTAKE_OK',sum('file' in x for x in results),'of',len(results))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-statbel-population
+          path: /tmp/statbel
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

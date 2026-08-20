@@ -13,6 +13,8 @@
       "godot_project/vit_face_n.png",
       "godot_project/vit_face_rough.png",
       "godot_project/vit_mouth.png",
+      "godot_project/vit_sclera.png",
+      "godot_project/vit_iris.png",
       "godot_project/vit_lash_atlas.png",
       "godot_project/vit_hair_diffuse.png",
       "godot_project/vit_hair_normal.png",
@@ -21,11 +23,7 @@
       "godot_project/vit_hair_atlas.png"
     ],
     "review_shader_files": [
-      "godot_project/addons/eyeball_shader/shaders/eyeball_shader.gdshader",
       "godot_project/addons/eyeball_shader/shaders/cornea.gdshader",
-      "godot_project/addons/eyeball_shader/shaders/voronoi.gdshaderinc",
-      "godot_project/addons/eyeball_shader/shaders/random.gdshaderinc",
-      "godot_project/addons/eyeball_shader/shaders/blend_modes.gdshaderinc",
       "godot_project/scenes/hairtool_card.gdshader",
       "godot_project/scenes/hair_card.gdshader"
     ]
@@ -49,6 +47,7 @@
     "renderer_gate": "Godot 4.7.1 gl_compatibility"
   },
   "notes": [
+    "The current upstream head splits real eye surfaces as VitSclera, VitIris, VitEyeBack and VitCornea2; the review gate follows those exact material roles.",
     "This gate tests whether the CC0 Vitruvian face/hair source materially exceeds the rejected MakeHuman/MPFB visual ceiling.",
     "A face-only GARDER authorizes only a full-body pilot; it does not authorize production or roster multiplication."
   ]

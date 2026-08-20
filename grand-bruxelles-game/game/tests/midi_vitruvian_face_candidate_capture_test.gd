@@ -6,7 +6,6 @@ const HAIR_RESOURCE := REVIEW_ROOT + "/hairtool_cards.glb"
 const BROW_RESOURCE := REVIEW_ROOT + "/vitruvian_hair.glb"
 const HAIR_SHADER_PATH := REVIEW_ROOT + "/hairtool_card.gdshader"
 const BROW_SHADER_PATH := REVIEW_ROOT + "/hair_card.gdshader"
-const EYE_SHADER_PATH := "res://addons/eyeball_shader/shaders/eyeball_shader.gdshader"
 const CORNEA_SHADER_PATH := "res://addons/eyeball_shader/shaders/cornea.gdshader"
 const WITNESS_SIZE := Vector2i(1280, 720)
 const MIN_BLEND_SHAPES := 12
@@ -17,6 +16,8 @@ const REQUIRED_TEXTURES := {
     "face_n": REVIEW_ROOT + "/vit_face_n.png",
     "face_rough": REVIEW_ROOT + "/vit_face_rough.png",
     "mouth": REVIEW_ROOT + "/vit_mouth.png",
+    "sclera": REVIEW_ROOT + "/vit_sclera.png",
+    "iris": REVIEW_ROOT + "/vit_iris.png",
     "lash": REVIEW_ROOT + "/vit_lash_atlas.png",
     "hair_diffuse": REVIEW_ROOT + "/vit_hair_diffuse.png",
     "hair_normal": REVIEW_ROOT + "/vit_hair_normal.png",
@@ -34,7 +35,7 @@ func _run() -> void:
     if not args.is_empty():
         output = str(args[0])
 
-    for path in [HEAD_RESOURCE, HAIR_RESOURCE, BROW_RESOURCE, HAIR_SHADER_PATH, BROW_SHADER_PATH, EYE_SHADER_PATH, CORNEA_SHADER_PATH]:
+    for path in [HEAD_RESOURCE, HAIR_RESOURCE, BROW_RESOURCE, HAIR_SHADER_PATH, BROW_SHADER_PATH, CORNEA_SHADER_PATH]:
         if not ResourceLoader.exists(path):
             _fail("required review resource missing: %s" % path)
             return
@@ -79,8 +80,8 @@ func _run() -> void:
     if int(roles.get("skin", 0)) < 1 or int(roles.get("mouth", 0)) < 1:
         _fail("required skin/mouth material roles missing: %s" % str(roles))
         return
-    if int(roles.get("eyeball", 0)) < 2 or int(roles.get("cornea", 0)) < 2:
-        _fail("expected two eyeball and cornea surfaces: %s" % str(roles))
+    if int(roles.get("sclera", 0)) < 2 or int(roles.get("iris", 0)) < 2 or int(roles.get("cornea", 0)) < 2:
+        _fail("expected paired real-eye surfaces: %s" % str(roles))
         return
 
     var hair_meshes := _apply_hair_material(hair, textures)
@@ -139,12 +140,13 @@ func _run() -> void:
         return
 
     var metrics := {
-        "schema": "grand-bruxelles-vitruvian-face-witness-v1",
+        "schema": "grand-bruxelles-vitruvian-face-witness-v2",
         "production_authorized": false,
         "review_scope": "face_hair_brows_only_pre_full_body",
         "upstream_repo": "ibrews/VitruvianGodot",
         "upstream_commit": "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0",
         "renderer": "gl_compatibility",
+        "eye_pipeline": "current_upstream_real_sclera_iris_eyeback_cornea2",
         "mixamo_payload_allowed": false,
         "animation_clip_count": animation_clips,
         "blend_shape_count": blend_shapes,
@@ -192,9 +194,9 @@ func _load_textures() -> Dictionary:
     return out
 
 func _apply_head_materials(root: Node, textures: Dictionary) -> Dictionary:
-    var roles := {"skin": 0, "mouth": 0, "scalp": 0, "eyeball": 0, "cornea": 0, "lash": 0, "eyeshadow": 0, "unknown": 0}
+    var roles := {"skin": 0, "mouth": 0, "sclera": 0, "iris": 0, "eye_back": 0, "cornea": 0, "tearline": 0, "caruncle": 0, "eyeshadow": 0, "unknown": 0}
+
     var skin := StandardMaterial3D.new()
-    skin.resource_name = "GBVitruvianSkinCompatibility"
     skin.albedo_texture = textures["face_bc"] as Texture2D
     skin.normal_enabled = true
     skin.normal_texture = textures["face_n"] as Texture2D
@@ -206,54 +208,46 @@ func _apply_head_materials(root: Node, textures: Dictionary) -> Dictionary:
     var mouth := StandardMaterial3D.new()
     mouth.albedo_texture = textures["mouth"] as Texture2D
     mouth.roughness = 0.46
-    var scalp := StandardMaterial3D.new()
-    scalp.albedo_color = Color(0.075, 0.045, 0.030)
-    scalp.roughness = 0.88
 
-    var lash := StandardMaterial3D.new()
-    lash.albedo_texture = textures["lash"] as Texture2D
-    lash.albedo_color = Color(0.055, 0.035, 0.025, 1.0)
-    lash.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-    lash.alpha_scissor_threshold = 0.25
-    lash.cull_mode = BaseMaterial3D.CULL_DISABLED
-    lash.roughness = 0.88
+    var sclera := StandardMaterial3D.new()
+    sclera.albedo_texture = textures["sclera"] as Texture2D
+    sclera.albedo_color = Color(0.96, 0.94, 0.93, 1.0)
+    sclera.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    sclera.cull_mode = BaseMaterial3D.CULL_BACK
+    sclera.roughness = 0.34
+    sclera.metallic_specular = 0.45
 
-    var eyeshadow := StandardMaterial3D.new()
-    eyeshadow.albedo_color = Color(0.12, 0.07, 0.055, 0.16)
-    eyeshadow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-    eyeshadow.cull_mode = BaseMaterial3D.CULL_DISABLED
-    eyeshadow.roughness = 0.70
+    var iris := StandardMaterial3D.new()
+    iris.albedo_texture = textures["iris"] as Texture2D
+    iris.roughness = 0.55
+    iris.metallic_specular = 0.28
 
-    var eye_shader := ResourceLoader.load(EYE_SHADER_PATH) as Shader
-    var eye := ShaderMaterial.new()
-    eye.shader = eye_shader
-    var gradient := Gradient.new()
-    gradient.offsets = PackedFloat32Array([0.0, 0.52, 1.0])
-    gradient.colors = PackedColorArray([Color(0.035, 0.018, 0.010), Color(0.22, 0.105, 0.040), Color(0.56, 0.34, 0.13)])
-    var iris := GradientTexture1D.new()
-    iris.width = 256
-    iris.gradient = gradient
-    eye.set_shader_parameter("texture_iris_color", iris)
-    eye.set_shader_parameter("iris_radius", 0.32)
-    eye.set_shader_parameter("iris_margin", 0.018)
-    eye.set_shader_parameter("pupil_radius", 0.115)
-    eye.set_shader_parameter("eye_white", Vector3(0.93, 0.90, 0.86))
-    eye.set_shader_parameter("pupil_color", Vector3(0.006, 0.004, 0.003))
-    eye.set_shader_parameter("eye_cell_scale", 17.0)
-    eye.set_shader_parameter("eye_cell_jitter", 0.55)
-    eye.set_shader_parameter("iris_pinch", 0.60)
-    eye.set_shader_parameter("iris_cells_num_octaves", 2)
-    eye.set_shader_parameter("eyeball_roughness", 0.24)
-    eye.set_shader_parameter("eyeball_specular", 0.62)
-    eye.set_shader_parameter("sclera_shade", 0.38)
-    eye.set_shader_parameter("rand_seed", 17)
+    var eye_back := StandardMaterial3D.new()
+    eye_back.albedo_color = Color(0.008, 0.007, 0.008)
+    eye_back.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
     var cornea_shader := ResourceLoader.load(CORNEA_SHADER_PATH) as Shader
     var cornea := ShaderMaterial.new()
     cornea.shader = cornea_shader
     cornea.set_shader_parameter("shininess", 230.0)
-    cornea.set_shader_parameter("spec_intensity", 0.33)
-    cornea.set_shader_parameter("alpha_max", 0.72)
+    cornea.set_shader_parameter("spec_intensity", 0.30)
+    cornea.set_shader_parameter("alpha_max", 0.70)
+
+    var tearline := StandardMaterial3D.new()
+    tearline.albedo_color = Color(0.93, 0.95, 0.98, 0.16)
+    tearline.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    tearline.roughness = 0.18
+    tearline.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+    var caruncle := StandardMaterial3D.new()
+    caruncle.albedo_color = Color(0.36, 0.10, 0.095)
+    caruncle.roughness = 0.52
+
+    var eyeshadow := StandardMaterial3D.new()
+    eyeshadow.albedo_color = Color(0.12, 0.07, 0.055, 0.12)
+    eyeshadow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    eyeshadow.cull_mode = BaseMaterial3D.CULL_DISABLED
+    eyeshadow.roughness = 0.72
 
     var meshes: Array[MeshInstance3D] = []
     _collect_meshes(root, meshes)
@@ -264,14 +258,16 @@ func _apply_head_materials(root: Node, textures: Dictionary) -> Dictionary:
             var src := mesh_node.mesh.surface_get_material(s)
             var role := str(src.resource_name).split(".")[0] if src != null else ""
             match role:
-                "VitSkin": mesh_node.set_surface_override_material(s, skin); roles["skin"] += 1
-                "VitMouth": mesh_node.set_surface_override_material(s, mouth); roles["mouth"] += 1
-                "VitScalp": mesh_node.set_surface_override_material(s, scalp); roles["scalp"] += 1
-                "VitEyeball": mesh_node.set_surface_override_material(s, eye); roles["eyeball"] += 1
-                "VitCornea": mesh_node.set_surface_override_material(s, cornea); roles["cornea"] += 1
-                "VitLash": mesh_node.set_surface_override_material(s, lash); roles["lash"] += 1
-                "VitEyeshadow": mesh_node.set_surface_override_material(s, eyeshadow); roles["eyeshadow"] += 1
-                _: roles["unknown"] += 1
+                "VitSkin": mesh_node.set_surface_override_material(s, skin); roles["skin"] = int(roles["skin"]) + 1
+                "VitMouth": mesh_node.set_surface_override_material(s, mouth); roles["mouth"] = int(roles["mouth"]) + 1
+                "VitSclera": mesh_node.set_surface_override_material(s, sclera); roles["sclera"] = int(roles["sclera"]) + 1
+                "VitIris": mesh_node.set_surface_override_material(s, iris); roles["iris"] = int(roles["iris"]) + 1
+                "VitEyeBack": mesh_node.set_surface_override_material(s, eye_back); roles["eye_back"] = int(roles["eye_back"]) + 1
+                "VitCornea2": mesh_node.set_surface_override_material(s, cornea); roles["cornea"] = int(roles["cornea"]) + 1
+                "VitTearline": mesh_node.set_surface_override_material(s, tearline); roles["tearline"] = int(roles["tearline"]) + 1
+                "VitCaruncle": mesh_node.set_surface_override_material(s, caruncle); roles["caruncle"] = int(roles["caruncle"]) + 1
+                "VitEyeshadow": mesh_node.set_surface_override_material(s, eyeshadow); roles["eyeshadow"] = int(roles["eyeshadow"]) + 1
+                _: roles["unknown"] = int(roles["unknown"]) + 1
     return roles
 
 func _apply_hair_material(root: Node, textures: Dictionary) -> int:

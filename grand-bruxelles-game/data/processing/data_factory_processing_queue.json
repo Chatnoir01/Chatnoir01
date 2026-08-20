@@ -35,23 +35,31 @@
     },
     {
       "priority": 0,
-      "family": "stib_static_network",
+      "family": "stib_surface_network",
+      "primary_upstream_branch": "intake/stib-complete-current",
+      "processor": "grand-bruxelles-game/tools/data_factory/normalize_stib_open_data.py",
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "eadd12c5ca3b4b7bf9a8fd91a4bba8aaae9afc68",
+      "required_inputs": [
+        "gtfs-stops-production export",
+        "shapefiles-production commercial network export",
+        "intake manifest with hashes/license"
+      ],
+      "output": "normalized STIB stop registry plus source-preserving commercial network geometry; no schedule semantics",
+      "notes": "Uses only the two STIB products currently proven by official pages. Existing STIB visual/runtime owners retain ownership. No reprojection is performed here."
+    },
+    {
+      "priority": 0,
+      "family": "stib_static_schedule",
       "primary_upstream_branch": "intake/stib-complete-current",
       "processor": "grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py",
       "state": "PROCESSOR_CONTRACT_MISMATCH",
-      "artifact_traceability_fix_commit": "eadd12c5ca3b4b7bf9a8fd91a4bba8aaae9afc68",
       "required_inputs": [
         "complete static GTFS feed containing at least stops.txt + routes.txt",
         "intake manifest with hashes/license"
       ],
-      "proven_upstream_outputs": [
-        "gtfs-stops-production export",
-        "shapefiles-production commercial network export",
-        "catalog/terms evidence"
-      ],
-      "blocker": "Current proven STIB intake outputs do not establish a complete GTFS feed. The processor must not manufacture routes.txt/trips.txt or reinterpret shapefiles as GTFS tables.",
-      "output": "normalized stops/routes/trips/shapes registry preserving STIB IDs and route colours",
-      "notes": "Data-only processing. Existing STIB visual/runtime owners retain ownership. WGS84 is not silently treated as project metres."
+      "blocker": "Current proven STIB outputs do not establish a complete static GTFS feed. routes.txt/trips.txt/shapes.txt must not be manufactured or inferred from shapefiles.",
+      "output": "future normalized schedule/routes/trips/shapes registry after a complete feed is proven"
     },
     {
       "priority": 0,

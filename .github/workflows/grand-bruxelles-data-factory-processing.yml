@@ -21,11 +21,14 @@ jobs:
             grand-bruxelles-game/tools/data_factory/normalize_urbis_addresses.py \
             grand-bruxelles-game/tools/data_factory/normalize_stib_open_data.py \
             grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py \
+            grand-bruxelles-game/tools/data_factory/normalize_planning_permit_signals.py \
+            grand-bruxelles-game/tools/data_factory/extract_statistical_xlsx.py \
+            grand-bruxelles-game/tools/data_factory/inspect_context_geospatial_archive.py \
             grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py \
             grand-bruxelles-game/tools/data_factory/validate_processing_contracts.py
       - name: Prove fail-closed processor behavior
         run: python3 grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py
-      - name: Prove source-to-processor compatibility truth
+      - name: Prove source-to-processor compatibility and terms truth
         run: |
           python3 grand-bruxelles-game/tools/data_factory/validate_processing_contracts.py \
             --contracts grand-bruxelles-game/data/processing/data_factory_source_contracts.json \

@@ -27,7 +27,7 @@ jobs:
                   try:
                       with urllib.request.urlopen(urllib.request.Request(url,headers=h),timeout=180) as r: raw=r.read()
                       fn=f'{did}.{fmt}'; open(out+'/'+fn,'wb').write(raw)
-                      results.append({'dataset_id':did,'format':fmt,'url':url,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+                      results.append({'dataset_id':did,'format':fmt,'file':fn,'url':url,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
                   except Exception as e: results.append({'dataset_id':did,'format':fmt,'url':url,'error':str(e)})
           manifest={'schema':'grand-bruxelles-planning-permits-intake-v1','publisher':'City of Brussels / Urban Development','dataset_ids':ids,'license':'CC0 1.0','modified_verified':'2026-07-28','purpose':'recent-change cross-check; not direct geometry truth','successful_resources':sum('sha256' in x for x in results),'results':results,'runtime_authorized':False,'production_authorized':False}
           open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))

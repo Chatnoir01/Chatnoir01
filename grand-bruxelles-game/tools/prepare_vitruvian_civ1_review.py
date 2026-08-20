@@ -2,10 +2,10 @@
 """Prepare a review-only Vitruvian CIV-1 package.
 
 The input directory is populated by CI from a pinned upstream commit. This tool
-never downloads anything. It removes GLB animation tables, rejects residual
-Mixamo/Adobe references, copies required PBR/hair textures, downsizes them to a
-bounded review resolution, and writes a deterministic audit report. The output
-is not production-authorized.
+never downloads anything. It removes GLB animation tables *and* neutralizes the
+binary bufferViews owned exclusively by those animations, while refusing any
+ambiguous shared bufferView. Required PBR/hair textures are copied and bounded
+to review resolution. The output is never production-authorized.
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from PIL import Image
 
 GLB_MAGIC = b"glTF"
 JSON_CHUNK = 0x4E4F534A
+BIN_CHUNK = 0x004E4942
 MAX_TEXTURE_EDGE = 2048
 REQUIRED_GLBS = (
     "vitruvian_body.glb",
@@ -74,6 +75,8 @@ def read_glb(path: pathlib.Path) -> tuple[dict[str, Any], list[tuple[int, bytes]
         chunks.append((chunk_type, payload))
         if chunk_type == JSON_CHUNK:
             doc = json.loads(payload.rstrip(b"\x00 \t\r\n").decode("utf-8"))
+    if offset != len(raw):
+        raise RuntimeError(f"invalid GLB chunk accounting: {path}")
     if doc is None:
         raise RuntimeError(f"GLB JSON chunk missing: {path}")
     return doc, chunks
@@ -90,6 +93,8 @@ def write_glb(path: pathlib.Path, doc: dict[str, Any], chunks: list[tuple[int, b
             replaced = True
         else:
             out_chunks.append((chunk_type, payload))
+    if not replaced:
+        raise RuntimeError("cannot write GLB without JSON chunk")
     total = 12 + sum(8 + len(payload) for _, payload in out_chunks)
     with path.open("wb") as handle:
         handle.write(GLB_MAGIC)
@@ -100,6 +105,7 @@ def write_glb(path: pathlib.Path, doc: dict[str, Any], chunks: list[tuple[int, b
 
 
 def provider_string_matches(value: Any, path: str = "$") -> list[dict[str, str]]:
+    """Audit residual Mixamo/Adobe strings without equating metadata with payload."""
     matches: list[dict[str, str]] = []
     if isinstance(value, dict):
         for key, child in value.items():
@@ -125,6 +131,136 @@ def safe_external_uris(doc: dict[str, Any]) -> list[str]:
             raise RuntimeError(f"unsupported/unsafe image URI: {uri}")
         uris.append(str(uri))
     return sorted(set(uris))
+
+
+def _animation_accessor_indices(doc: dict[str, Any]) -> set[int]:
+    indices: set[int] = set()
+    for animation in doc.get("animations") or []:
+        for sampler in animation.get("samplers") or []:
+            for key in ("input", "output"):
+                value = sampler.get(key)
+                if not isinstance(value, int) or value < 0:
+                    raise RuntimeError(f"invalid animation sampler accessor: {value!r}")
+                indices.add(value)
+    return indices
+
+
+def _remaining_accessor_indices(value: Any, parent_key: str = "") -> set[int]:
+    """Collect accessor references that remain after animations are removed."""
+    found: set[int] = set()
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if parent_key in {"attributes", "targets"} and isinstance(child, int):
+                found.add(child)
+                continue
+            if key == "inverseBindMatrices" and isinstance(child, int):
+                found.add(child)
+                continue
+            if key == "indices" and isinstance(child, int) and parent_key != "sparse":
+                found.add(child)
+                continue
+            found.update(_remaining_accessor_indices(child, key))
+    elif isinstance(value, list):
+        for child in value:
+            found.update(_remaining_accessor_indices(child, parent_key))
+    return found
+
+
+def _accessor_buffer_views(doc: dict[str, Any], accessor_indices: set[int]) -> set[int]:
+    accessors = doc.get("accessors") or []
+    views: set[int] = set()
+    for accessor_index in accessor_indices:
+        if accessor_index >= len(accessors):
+            raise RuntimeError(f"accessor index out of range: {accessor_index}")
+        accessor = accessors[accessor_index]
+        view = accessor.get("bufferView")
+        if isinstance(view, int):
+            views.add(view)
+        sparse = accessor.get("sparse") or {}
+        for part in (sparse.get("indices") or {}, sparse.get("values") or {}):
+            sparse_view = part.get("bufferView")
+            if isinstance(sparse_view, int):
+                views.add(sparse_view)
+    return views
+
+
+def _image_buffer_views(doc: dict[str, Any]) -> set[int]:
+    views: set[int] = set()
+    for image in doc.get("images") or []:
+        view = image.get("bufferView")
+        if isinstance(view, int):
+            views.add(view)
+    return views
+
+
+def strip_animation_payload(
+    doc: dict[str, Any], chunks: list[tuple[int, bytes]]
+) -> tuple[dict[str, Any], list[tuple[int, bytes]], dict[str, Any]]:
+    """Remove animation tables and zero animation-only binary bufferViews.
+
+    Fail closed if animation data shares an accessor/bufferView with retained
+    mesh, skin or image data. This avoids both corrupting geometry and falsely
+    claiming that animation payload has been removed.
+    """
+    animation_count = len(doc.get("animations") or [])
+    animation_accessors = _animation_accessor_indices(doc)
+    source_animation_provider_strings = provider_string_matches(doc.get("animations") or [], "$.animations")
+
+    clean_doc = json.loads(json.dumps(doc))
+    clean_doc.pop("animations", None)
+    remaining_accessors = _remaining_accessor_indices(clean_doc)
+    shared_accessors = animation_accessors & remaining_accessors
+    if shared_accessors:
+        raise RuntimeError(
+            "animation accessor is also referenced by retained content: "
+            + ",".join(str(i) for i in sorted(shared_accessors))
+        )
+    animation_only_accessors = animation_accessors - remaining_accessors
+    animation_views = _accessor_buffer_views(clean_doc, animation_only_accessors)
+    protected_views = _accessor_buffer_views(clean_doc, remaining_accessors) | _image_buffer_views(clean_doc)
+    shared_views = animation_views & protected_views
+    if shared_views:
+        raise RuntimeError(
+            "animation bufferView is shared with retained geometry/skin/image data: "
+            + ",".join(str(i) for i in sorted(shared_views))
+        )
+
+    buffer_views = clean_doc.get("bufferViews") or []
+    bin_indices = [i for i, (chunk_type, _) in enumerate(chunks) if chunk_type == BIN_CHUNK]
+    if animation_views and len(bin_indices) != 1:
+        raise RuntimeError(f"expected exactly one BIN chunk for animation strip, found {len(bin_indices)}")
+
+    out_chunks = list(chunks)
+    zeroed_bytes = 0
+    if animation_views:
+        bin_index = bin_indices[0]
+        bin_payload = bytearray(out_chunks[bin_index][1])
+        for view_index in sorted(animation_views):
+            if view_index >= len(buffer_views):
+                raise RuntimeError(f"animation bufferView index out of range: {view_index}")
+            view = buffer_views[view_index]
+            buffer_index = view.get("buffer", 0)
+            if buffer_index != 0:
+                raise RuntimeError(f"unsupported animation buffer index {buffer_index} in view {view_index}")
+            start = int(view.get("byteOffset", 0))
+            length = int(view.get("byteLength", 0))
+            end = start + length
+            if start < 0 or length < 0 or end > len(bin_payload):
+                raise RuntimeError(f"invalid animation bufferView range {view_index}: {start}:{end}")
+            bin_payload[start:end] = b"\x00" * length
+            zeroed_bytes += length
+        out_chunks[bin_index] = (BIN_CHUNK, bytes(bin_payload))
+
+    audit = {
+        "source_animations": animation_count,
+        "source_animation_accessors": len(animation_accessors),
+        "animation_only_accessors": sorted(animation_only_accessors),
+        "animation_buffer_views_zeroed": sorted(animation_views),
+        "animation_binary_bytes_zeroed": zeroed_bytes,
+        "source_animation_provider_strings": source_animation_provider_strings,
+        "residual_provider_strings": provider_string_matches(clean_doc),
+    }
+    return clean_doc, out_chunks, audit
 
 
 def resize_image(source: pathlib.Path, destination: pathlib.Path) -> dict[str, Any]:
@@ -161,36 +297,41 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     glb_report: dict[str, Any] = {}
     referenced_images: set[str] = set(REVIEW_TEXTURES)
+    total_source_animations = 0
+    total_animation_binary_bytes_zeroed = 0
 
     for name in REQUIRED_GLBS:
         src = args.source / name
         if not src.is_file():
             raise RuntimeError(f"required source GLB missing: {src}")
         doc, chunks = read_glb(src)
-        source_animation_count = len(doc.get("animations") or [])
-        doc.pop("animations", None)
-        residual_provider_strings = provider_string_matches(doc)
-        if residual_provider_strings:
-            raise RuntimeError(
-                "residual provider strings after animation-table strip: %s: %s"
-                % (name, json.dumps(residual_provider_strings[:20], sort_keys=True))
-            )
+        clean_doc, clean_chunks, animation_audit = strip_animation_payload(doc, chunks)
         output_glb = args.output / name
-        write_glb(output_glb, doc, chunks)
-        clean_doc, _ = read_glb(output_glb)
-        if clean_doc.get("animations"):
+        write_glb(output_glb, clean_doc, clean_chunks)
+        verified_doc, verified_chunks = read_glb(output_glb)
+        if verified_doc.get("animations"):
             raise RuntimeError(f"animation table survived strip: {name}")
-        image_uris = safe_external_uris(clean_doc)
+        if len(verified_chunks) != len(clean_chunks):
+            raise RuntimeError(f"GLB chunk count changed unexpectedly: {name}")
+        image_uris = safe_external_uris(verified_doc)
         referenced_images.update(image_uris)
+        total_source_animations += int(animation_audit["source_animations"])
+        total_animation_binary_bytes_zeroed += int(animation_audit["animation_binary_bytes_zeroed"])
         glb_report[name] = {
             "source_sha256": sha256(src),
             "output_sha256": sha256(output_glb),
-            "source_animations": source_animation_count,
+            "source_animations": int(animation_audit["source_animations"]),
             "output_animations": 0,
-            "nodes": len(clean_doc.get("nodes") or []),
-            "meshes": len(clean_doc.get("meshes") or []),
-            "skins": len(clean_doc.get("skins") or []),
-            "materials": len(clean_doc.get("materials") or []),
+            "source_animation_accessors": int(animation_audit["source_animation_accessors"]),
+            "animation_only_accessors": animation_audit["animation_only_accessors"],
+            "animation_buffer_views_zeroed": animation_audit["animation_buffer_views_zeroed"],
+            "animation_binary_bytes_zeroed": int(animation_audit["animation_binary_bytes_zeroed"]),
+            "source_animation_provider_strings": animation_audit["source_animation_provider_strings"],
+            "residual_provider_strings": animation_audit["residual_provider_strings"],
+            "nodes": len(verified_doc.get("nodes") or []),
+            "meshes": len(verified_doc.get("meshes") or []),
+            "skins": len(verified_doc.get("skins") or []),
+            "materials": len(verified_doc.get("materials") or []),
             "external_images": image_uris,
             "bytes": output_glb.stat().st_size,
         }
@@ -210,10 +351,14 @@ def main() -> None:
         shutil.copy2(src, args.output / extra)
 
     report = {
-        "schema": "grand-bruxelles-civ1-vitruvian-prepared-v2-diagnostic",
+        "schema": "grand-bruxelles-civ1-vitruvian-prepared-v3",
         "production_authorized": False,
         "animations_allowed": False,
         "mixamo_payload_allowed": False,
+        "animation_payload_policy": "animation tables removed; exclusive animation bufferViews zeroed; shared views rejected",
+        "source_animations": total_source_animations,
+        "output_animations": 0,
+        "animation_binary_bytes_zeroed": total_animation_binary_bytes_zeroed,
         "max_texture_edge_px": MAX_TEXTURE_EDGE,
         "glbs": glb_report,
         "textures": texture_report,
@@ -226,6 +371,8 @@ def main() -> None:
         "glbs": len(glb_report),
         "textures": len(texture_report),
         "bytes": report["output_total_bytes"],
+        "source_animations": total_source_animations,
+        "animation_binary_bytes_zeroed": total_animation_binary_bytes_zeroed,
         "production_authorized": False,
     }, sort_keys=True))
 

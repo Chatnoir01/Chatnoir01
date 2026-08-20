@@ -1,0 +1,99 @@
+{
+  "assignments": [
+    {
+      "family": "ground",
+      "feature_count": 1,
+      "geometry_mutated": false,
+      "layer": "ground",
+      "runtime_binding": "game/zones/laeken_jette/jette_phase2_zone.gd::_ground_material",
+      "source_claim": "presentation_only",
+      "source_runtime": null,
+      "source_slug": null
+    },
+    {
+      "family": "facade_generic",
+      "feature_count": 12648,
+      "geometry_mutated": false,
+      "layer": "buildings",
+      "runtime_binding": "game/zones/laeken_jette/jette_phase2_zone.gd::_building_material",
+      "source_claim": "generic_base_only",
+      "source_runtime": "data/urbis/laeken_jette/jette_phase2/buildings.game.json",
+      "source_slug": "buildings"
+    },
+    {
+      "family": "street_surface_neutral",
+      "feature_count": 4458,
+      "geometry_mutated": false,
+      "layer": "street_surfaces",
+      "runtime_binding": "game/scripts/brussels_osm_road_surface_runtime.gd::_register_official_surface",
+      "source_claim": "UrbIS geometry; neutral presentation; no sidewalk/asphalt semantic claim",
+      "source_runtime": "data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json",
+      "source_slug": "street_surfaces"
+    },
+    {
+      "family": "tram_rail",
+      "feature_count": 204,
+      "geometry_mutated": false,
+      "layer": "tram_network",
+      "runtime_binding": "game/scripts/brussels_osm_rail_surface_runtime.gd::_register_official_rail",
+      "source_claim": "UrbIS alignment only; no fabricated dual-rail gauge",
+      "source_runtime": "data/urbis/laeken_jette/jette_phase2/tram_network.game.json",
+      "source_slug": "tram_network"
+    },
+    {
+      "family": "train_rail",
+      "feature_count": 204,
+      "geometry_mutated": false,
+      "layer": "train_network",
+      "runtime_binding": "game/zones/laeken_jette/jette_phase2_zone.gd::_rail_material",
+      "source_claim": "presentation_only",
+      "source_runtime": "data/urbis/laeken_jette/jette_phase2/train_network.game.json",
+      "source_slug": "train_network"
+    }
+  ],
+  "authored_overrides": [
+    {
+      "owner": "game/zones/laeken_jette/jette_phase2_zone.gd::_station_brick",
+      "selector": "JetteStationOfficialFootprintHero+JetteStationStoneBand"
+    }
+  ],
+  "authored_overrides_preserved": true,
+  "format": "grand-bruxelles-city-machine-finish-materials-v1",
+  "geometry_mutated": false,
+  "policy": "AUTHORED_OVERRIDE_GT_GENERATED_BASE",
+  "skips": [
+    {
+      "family": "brick_stone",
+      "reason": "generic classification unavailable; Jette station brick/stone remains authored runtime ownership",
+      "status": "missing_source"
+    },
+    {
+      "family": "concrete",
+      "reason": "no reliable per-building concrete classification in Jette phase2 cache",
+      "status": "missing_source"
+    },
+    {
+      "family": "glass",
+      "reason": "no reliable per-building glazing classification in Jette phase2 cache",
+      "status": "missing_source"
+    },
+    {
+      "family": "roof",
+      "reason": "Jette phase2 cache is 2D footprint geometry and has no roof-shape source",
+      "status": "missing_source"
+    },
+    {
+      "family": "sidewalk",
+      "reason": "Jette StreetSurfaces are not typed safely enough to isolate sidewalk-only geometry",
+      "status": "missing_source"
+    },
+    {
+      "family": "vegetation_surface",
+      "reason": "no source-backed landcover surface layer in the Jette phase2 cache",
+      "status": "missing_source"
+    }
+  ],
+  "source_crs": "EPSG:31370",
+  "source_license": "CC0 for UrbIS vector classes used here; cadastral parcels excluded",
+  "zone": "jette"
+}

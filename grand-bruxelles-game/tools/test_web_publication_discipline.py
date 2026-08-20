@@ -47,6 +47,14 @@ class WebPublicationDisciplineTests(unittest.TestCase):
         self.assertIn("github.event.workflow_run.head_branch == 'main'", self.pages)
         self.assertNotIn("push:\n    branches: [\"main\"]", self.pages)
 
+    def test_web_build_observes_all_pages_delivery_inputs(self) -> None:
+        for path in (
+            '.github/workflows/grand-bruxelles-pages.yml',
+            'grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json',
+            'grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py',
+        ):
+            self.assertIn(f'- "{path}"', self.web, path)
+
     def test_pages_downloads_exact_triggering_artifact_for_verify_and_deploy(self) -> None:
         self.assertGreaterEqual(self.pages.count("uses: actions/download-artifact@v4"), 2)
         self.assertGreaterEqual(self.pages.count(f"name: {ARTIFACT}"), 2)

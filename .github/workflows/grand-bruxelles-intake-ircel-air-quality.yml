@@ -1,0 +1,79 @@
+name: Grand Bruxelles Intake IRCEL Air Quality
+on:
+  push:
+    branches: ["intake/ircel-air-quality-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-ircel-air-quality.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download IRCEL-CELINE air-quality services
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/air/services /tmp/air/layers
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.parse,urllib.request,xml.etree.ElementTree as ET
+          headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          records={
+            'monitoring_network':'4a4f5e3c-91ce-4f1c-8bbf-cd8b2e87fb5d',
+            'wfs_service':'6c467faa-a594-4142-abf2-d16aab3f255c'
+          }
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=180) as r: return r.read()
+          urls=[]
+          for label,uid in records.items():
+              u=f'https://geo.irceline.be/csw/srv/api/records/{uid}/formatters/xml'
+              b=get(u); open(f'/tmp/air/{label}-metadata.xml','wb').write(b)
+              txt=b.decode('utf-8','ignore')
+              urls += re.findall(r'https?://[^<\"\'\s]+',txt)
+          wfs=[]
+          for u in urls:
+              u=u.replace('&amp;','&')
+              if 'wfs' in u.lower() or 'service=wfs' in u.lower(): wfs.append(u)
+          wfs=list(dict.fromkeys(wfs))
+          caps=[]
+          for i,u in enumerate(wfs):
+              try:
+                  if '?' in u:
+                      base=u.split('?',1)[0]
+                  else: base=u
+                  cu=base+'?'+urllib.parse.urlencode({'service':'WFS','request':'GetCapabilities'})
+                  b=get(cu); fn=f'/tmp/air/services/wfs-{i}.xml'; open(fn,'wb').write(b); caps.append((cu,b))
+              except Exception: pass
+          assert caps, 'no IRCEL WFS capabilities could be downloaded'
+          results=[]
+          seen=set()
+          for ci,(cu,b) in enumerate(caps):
+              try: root=ET.fromstring(b)
+              except Exception: continue
+              base=cu.split('?',1)[0]
+              for ft in root.findall('.//{*}FeatureType'):
+                  n=ft.find('{*}Name'); t=ft.find('{*}Title')
+                  name=(n.text or '').strip() if n is not None else ''
+                  title=(t.text or '').strip() if t is not None else ''
+                  key=(base,name)
+                  if not name or key in seen: continue
+                  seen.add(key)
+                  if not re.search(r'air|quality|monitor|station|observation|pollut|atmos',name+' '+title,re.I): continue
+                  q={'service':'WFS','version':'1.1.0','request':'GetFeature','typeName':name}
+                  url=base+'?'+urllib.parse.urlencode(q)
+                  try:
+                      raw=get(url); fn=f'/tmp/air/layers/{len(results):02d}-{re.sub(r"[^A-Za-z0-9_.-]+","_",name)}.gml'; open(fn,'wb').write(raw)
+                      results.append({'name':name,'title':title,'url':url,'file':os.path.basename(fn),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+                  except Exception as e: results.append({'name':name,'title':title,'url':url,'error':str(e)})
+          manifest={'publisher':'IRCEL-CELINE','license':'CC BY 4.0 for monitoring-network dataset metadata; verify per service/layer before production','records':records,'wfs_candidates':wfs,'results':results,'runtime_authorized':False}
+          open('/tmp/air/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          print('IRCEL_AIR_INTAKE_OK','services',len(caps),'layers',sum('file' in x for x in results))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-ircel-air-quality
+          path: /tmp/air
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

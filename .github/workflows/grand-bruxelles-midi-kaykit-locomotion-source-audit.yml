@@ -1,0 +1,169 @@
+name: Grand Bruxelles Midi KayKit Locomotion Source Audit
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-kaykit-locomotion-source-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-kaykit-locomotion-source-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kaykit-locomotion-source-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install Git LFS
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git-lfs
+          git lfs install
+
+      - name: Fetch exact pinned KayKit Rogue animation source
+        shell: bash
+        run: |
+          set -euo pipefail
+          PIN=672074b73ba276876a19e8816ecdc5241817ab47
+          REPO=https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0.git
+          SRC=/tmp/kaykit-locomotion-source
+          ROGUE=addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb
+          rm -rf "$SRC"
+          git clone --filter=blob:none --no-checkout "$REPO" "$SRC"
+          git -C "$SRC" sparse-checkout init --no-cone
+          cat > "$SRC/.git/info/sparse-checkout" <<SPARSE
+          /LICENSE.txt
+          /README.md
+          /$ROGUE
+          SPARSE
+          GIT_LFS_SKIP_SMUDGE=1 git -C "$SRC" checkout "$PIN"
+          test "$(git -C "$SRC" rev-parse HEAD)" = "$PIN"
+          git -C "$SRC" lfs pull --include="$ROGUE" --exclude=""
+          test -s "$SRC/LICENSE.txt"
+          test -s "$SRC/README.md"
+          test -s "$SRC/$ROGUE"
+          grep -qi 'Creative Commons Zero' "$SRC/LICENSE.txt"
+          grep -qi 'CC0' "$SRC/LICENSE.txt"
+          printf '%s\n' "$PIN" > /tmp/kaykit-pin.txt
+          (cd "$SRC" && sha256sum LICENSE.txt README.md "$ROGUE") | tee /tmp/kaykit-source-sha256.txt
+
+      - name: Audit GLB animations skeleton and locomotion candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, struct
+          root=pathlib.Path('/tmp/kaykit-locomotion-source')
+          glb=root/'addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb'
+          raw=glb.read_bytes()
+          if raw[:4] != b'glTF': raise SystemExit('invalid Rogue GLB')
+          version,total=struct.unpack_from('<II',raw,4)
+          if version != 2 or total != len(raw): raise SystemExit(f'bad GLB header version={version} total={total} actual={len(raw)}')
+          off=12; doc=None
+          while off+8 <= len(raw):
+              n,t=struct.unpack_from('<II',raw,off); off+=8; payload=raw[off:off+n]; off+=n
+              if t==0x4E4F534A: doc=json.loads(payload.rstrip(b'\x00 \t\r\n').decode())
+          if doc is None: raise SystemExit('Rogue GLB JSON chunk missing')
+
+          animations=doc.get('animations') or []
+          names=[str(a.get('name','')).strip() for a in animations]
+          if len(animations) != 75:
+              raise SystemExit(f'expected pinned KayKit 75 animations, got {len(animations)}')
+          if len(set(names)) != len(names): raise SystemExit('animation names are not unique')
+          if any(not n for n in names): raise SystemExit('unnamed animation in source')
+
+          nodes=doc.get('nodes') or []
+          parent={}
+          for pi,node in enumerate(nodes):
+              for child in node.get('children') or []: parent[int(child)]=pi
+          skins=doc.get('skins') or []
+          if not skins: raise SystemExit('Rogue GLB has no skin')
+          joint_indices=sorted({int(j) for skin in skins for j in (skin.get('joints') or [])})
+          joints=[]
+          for idx in joint_indices:
+              name=str(nodes[idx].get('name',''))
+              pidx=parent.get(idx)
+              pname=str(nodes[pidx].get('name','')) if pidx is not None else ''
+              joints.append({'node':idx,'name':name,'parent':pname})
+          if len(joints) < 20: raise SystemExit(f'Rogue source skeleton unexpectedly small: {len(joints)} joints')
+
+          def candidates(token):
+              blocked=('attack','combat','hit','hurt','death','roll','sword','bow','spell','throw')
+              out=[]
+              for name in names:
+                  low=name.lower().replace('-','_').replace(' ','_')
+                  if token in low and not any(b in low for b in blocked): out.append(name)
+              return sorted(out)
+
+          idle=candidates('idle')
+          walk=candidates('walk')
+          run=candidates('run')
+          if not idle or not walk or not run:
+              raise SystemExit(f'locomotion candidate family missing idle={idle} walk={walk} run={run}')
+
+          animated_nodes=set()
+          channel_counts={}
+          for anim in animations:
+              aname=str(anim.get('name',''))
+              channels=anim.get('channels') or []
+              channel_counts[aname]=len(channels)
+              for channel in channels:
+                  target=channel.get('target') or {}
+                  if 'node' in target: animated_nodes.add(int(target['node']))
+          animated_joint_names=sorted(str(nodes[i].get('name','')) for i in animated_nodes if i in joint_indices)
+
+          report={
+              'schema':'grand-bruxelles-kaykit-locomotion-source-audit-v1',
+              'production_authorized':False,
+              'upstream':'KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0',
+              'pinned_ref':'672074b73ba276876a19e8816ecdc5241817ab47',
+              'source_path':'addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb',
+              'license':'CC0-1.0',
+              'runtime_mesh_reuse_allowed':False,
+              'animation_count':len(animations),
+              'animation_names':names,
+              'channel_counts':channel_counts,
+              'skin_count':len(skins),
+              'joint_count':len(joints),
+              'joints':joints,
+              'animated_joint_names':animated_joint_names,
+              'idle_candidates':idle,
+              'walk_candidates':walk,
+              'run_candidates':run,
+              'next_gate':'map KayKit source skeleton to SkeletonProfileHumanoid, import only selected in-place idle/walk/run as AnimationLibrary, then retarget to Vitruvian game-rig and measure foot slide'
+          }
+          pathlib.Path('/tmp/kaykit-locomotion-source-audit.json').write_text(json.dumps(report,indent=2)+'\n')
+          print('GB_KAYKIT_LOCOMOTION_SOURCE_OK animations=75 joints=%d idle=%s walk=%s run=%s mesh_reuse=false production_authorized=false' % (len(joints),idle,walk,run))
+          PY
+
+      - name: Stage source-only audit evidence
+        if: always()
+        shell: bash
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_kaykit_locomotion_source_audit
+          mkdir -p "$OUT"
+          cp /tmp/kaykit-locomotion-source-audit.json "$OUT/audit.json" 2>/dev/null || true
+          cp /tmp/kaykit-source-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
+          cp /tmp/kaykit-pin.txt "$OUT/pinned_ref.txt" 2>/dev/null || true
+          cp /tmp/kaykit-locomotion-source/LICENSE.txt "$OUT/upstream_LICENSE.txt" 2>/dev/null || true
+          cp /tmp/kaykit-locomotion-source/README.md "$OUT/upstream_README.md" 2>/dev/null || true
+          printf '%s\n' '{"status":"animation_source_audit_only","production_authorized":false,"source_license":"CC0-1.0","source_mesh_runtime_reuse":false,"selected_clips_committed":false,"human_visual_verdict_required":true}' > "$OUT/authorization.json"
+
+      - name: Upload KayKit locomotion source audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-realistic-authored-npcs-kaykit-locomotion-source-audit
+          path: grand-bruxelles-game/artifacts/qa/midi_kaykit_locomotion_source_audit
+          if-no-files-found: warn

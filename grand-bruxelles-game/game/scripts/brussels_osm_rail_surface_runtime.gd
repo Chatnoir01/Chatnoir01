@@ -1,17 +1,23 @@
 extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_osm_rail_surface_material.gd")
+const OFFICIAL_MATERIAL_FACTORY := preload("res://game/scripts/brussels_ground_network_official_material.gd")
 const SOURCE := "OpenStreetMap contributors via Overpass API"
 const LICENSE := "ODbL-1.0"
 
 var _rails: Array[CSGBox3D] = []
 var _legacy_materials: Dictionary = {}
 var _enhanced_material: Material
+var _official_rails: Dictionary = {}
+var _official_legacy_materials: Dictionary = {}
+var _official_material: StandardMaterial3D
 var _enhanced_enabled := true
 var _ready_complete := false
 var _failed := false
 
 func _ready() -> void:
+    if not get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.connect(_on_node_added)
     call_deferred("_apply_when_ready")
 
 func _apply_when_ready() -> void:
@@ -46,9 +52,37 @@ func _apply_when_ready() -> void:
         _ready_complete = true
         return
 
+    _scan_existing_official_rails()
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
     print("BRUSSELS_OSM_RAIL_SURFACE_READY: rails=%d materials=1 family=%s source=OSM license=ODbL-1.0 geometry_changed=false" % [_rails.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
+
+func _on_node_added(node: Node) -> void:
+    _register_official_rail(node)
+
+func _scan_existing_official_rails() -> void:
+    var jette := get_tree().root.find_child("JetteOfficialTramNetwork", true, false)
+    if jette != null:
+        _register_official_rail(jette)
+
+func _register_official_rail(node: Node) -> void:
+    if not node is MeshInstance3D or str(node.name) != "JetteOfficialTramNetwork":
+        return
+    var instance := node as MeshInstance3D
+    var instance_id := instance.get_instance_id()
+    if _official_rails.has(instance_id):
+        return
+    if _official_material == null:
+        _official_material = OFFICIAL_MATERIAL_FACTORY.create_material("tram_rail")
+    _official_rails[instance_id] = instance
+    _official_legacy_materials[instance_id] = instance.material_override
+    instance.set_meta("ground_network_provider", OFFICIAL_MATERIAL_FACTORY.PROVIDER_URBIS)
+    instance.set_meta("ground_network_presentation_family", OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY)
+    instance.set_meta("ground_network_geometry_claim", "source_alignment_only_no_fabricated_dual_rail_gauge")
+    instance.set_meta("geometry_changed_by_ground_network_runtime", false)
+    if _enhanced_enabled:
+        instance.material_override = _official_material
+    print("BRUSSELS_OFFICIAL_TRAM_RAIL_READY: node=%s provider=UrbIS source_alignment_only=true fabricated_gauge=false geometry_changed=false license_claimed=false" % instance.name)
 
 func _set_material_state(enabled: bool) -> void:
     for rail: CSGBox3D in _rails:
@@ -58,6 +92,15 @@ func _set_material_state(enabled: bool) -> void:
             rail.material = _enhanced_material
         else:
             rail.material = _legacy_materials.get(rail.get_instance_id()) as Material
+    for raw_id: Variant in _official_rails.keys():
+        var instance_id := int(raw_id)
+        var instance := _official_rails.get(instance_id) as MeshInstance3D
+        if instance == null or not is_instance_valid(instance):
+            continue
+        if enabled:
+            instance.material_override = _official_material
+        else:
+            instance.material_override = _official_legacy_materials.get(instance_id) as Material
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled
@@ -75,3 +118,6 @@ func failed() -> bool:
 
 func applied_rail_count() -> int:
     return _rails.size() if _ready_complete and not _failed else 0
+
+func official_applied_rail_count() -> int:
+    return _official_rails.size()

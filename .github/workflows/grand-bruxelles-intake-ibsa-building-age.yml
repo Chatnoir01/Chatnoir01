@@ -1,0 +1,37 @@
+name: Grand Bruxelles IBSA Building Age Intake
+on:
+  push:
+    branches: ["intake/ibsa-building-age-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-ibsa-building-age.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download IBSA building stock construction-period table
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/ibsa-building-age
+          mkdir -p "$OUT"
+          URL='https://ibsa.brussels/sites/default/files/documents/11b.2_amenagement_territoire_parc_batiments_20260220.xlsx'
+          curl --fail --location --retry 3 --connect-timeout 20 --max-time 300 "$URL" -o "$OUT/11b.2_amenagement_territoire_parc_batiments_20260220.xlsx"
+          unzip -t "$OUT/11b.2_amenagement_territoire_parc_batiments_20260220.xlsx" >/dev/null
+          curl --fail --location --retry 3 'https://ibsa.brussels/themes/amenagement-du-territoire/parc-de-batiments' -o "$OUT/source-page.html"
+          python3 - <<'PY'
+          import hashlib,json,os
+          out='/tmp/ibsa-building-age'; fn=out+'/11b.2_amenagement_territoire_parc_batiments_20260220.xlsx'
+          raw=open(fn,'rb').read(); page=open(out+'/source-page.html','rb').read()
+          manifest={'schema':'grand-bruxelles-ibsa-building-age-intake-v1','publisher':'IBSA / BISA','source':'Statbel & AGDP','table_family':'11B.2','target_table':'11B.2.1.5 - époque de construction des bâtiments','publication':'2026/02','comparison_year':2025,'file_url':'https://ibsa.brussels/sites/default/files/documents/11b.2_amenagement_territoire_parc_batiments_20260220.xlsx','bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'source_page_sha256':hashlib.sha256(page).hexdigest(),'granularity':'statistical/municipality-level, not individual-building survey','runtime_authorized':False,'production_authorized':False,'use':'district typology prior only; never overwrite exact building-specific evidence'}
+          open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          print('IBSA_BUILDING_AGE_INTAKE_OK',manifest['sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-ibsa-building-age
+          path: /tmp/ibsa-building-age
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

@@ -118,7 +118,9 @@ def build() -> dict[str, Any]:
     if len(live_by_id) != len(contained):
         raise AssertionError("duplicate live sidewalk source IDs in locked Bourse envelope")
 
-    legacy_ids = sorted(str(v) for v in current.get("selection", {}).get("source_ids", []))
+    current_selection = current.get("selection", {})
+    legacy_values = current_selection.get("a1_legacy_source_ids", current_selection.get("source_ids", []))
+    legacy_ids = sorted(str(v) for v in legacy_values)
     if not legacy_ids:
         raise AssertionError("current Bourse runtime has no legacy source IDs")
     missing_legacy = sorted(set(legacy_ids) - set(live_by_id))

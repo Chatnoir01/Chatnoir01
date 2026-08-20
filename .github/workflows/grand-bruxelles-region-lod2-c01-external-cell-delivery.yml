@@ -1,0 +1,135 @@
+name: Grand Bruxelles Region LoD2 C01 External Cell Delivery
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json"
+      - "grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py"
+      - ".github/workflows/grand-bruxelles-region-lod2-c01-external-cell-delivery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  lock-external-cell-delivery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate exact contract and RED authorization rails
+        run: |
+          python grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json \
+            --validate-only
+          python - <<'PY'
+          import copy, json, subprocess, tempfile
+          from pathlib import Path
+          source = Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json")
+          contract = json.loads(source.read_text())
+          tool = "grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py"
+          def must_reject(mutator, label):
+              bad = copy.deepcopy(contract)
+              mutator(bad)
+              with tempfile.TemporaryDirectory() as td:
+                  p = Path(td) / "bad.json"
+                  p.write_text(json.dumps(bad))
+                  r = subprocess.run(
+                      ["python", tool, "--contract", str(p), "--validate-only"],
+                      capture_output=True, text=True,
+                  )
+                  if r.returncode == 0:
+                      raise SystemExit(f"RED failed: {label} was accepted")
+          must_reject(lambda c: c.__setitem__("production_base_sha", "0" * 40), "production base drift")
+          must_reject(lambda c: c["upstream_final_world_geometry"].__setitem__("artifact_id", 0), "upstream artifact drift")
+          must_reject(lambda c: c["upstream_final_world_geometry"].__setitem__("world_geometry_index_sha256", "0" * 64), "upstream index hash drift")
+          must_reject(lambda c: c["delivery"].__setitem__("cell_size_m", 1000), "cell-grid drift")
+          must_reject(lambda c: c["hard_rules"].__setitem__("runtime_mount_authorized", True), "runtime mount")
+          must_reject(lambda c: c["hard_rules"].__setitem__("web_pck_embedded", True), "Web PCK embedding")
+          must_reject(lambda c: c["hard_rules"].__setitem__("source_geometry_modified", True), "source mutation")
+          print("C01_EXTERNAL_CELL_DELIVERY_RED_OK")
+          PY
+
+      - name: Recover exact production final-world artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9389058771" \
+            > "$RUNNER_TEMP/final-world-artifact.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          meta = json.loads((Path(os.environ["RUNNER_TEMP"]) / "final-world-artifact.json").read_text())
+          assert meta["id"] == 9389058771
+          assert meta["name"] == "region-lod2-c01-30000-final-world-geometry"
+          assert meta["digest"] == "sha256:007077a3d5d6d4da0c78fbe2918d0fa5b0ecf4b8c72fa16e711a0dfefa4b1b1d"
+          assert meta["expired"] is False
+          assert meta["workflow_run"]["id"] == 32318835420
+          assert meta["workflow_run"]["head_sha"] == "1eb4f3f79157000f95c2a230332ff43d3e58bb7f"
+          print("C01_UPSTREAM_ARTIFACT_IDENTITY_OK")
+          PY
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9389058771/zip" \
+            > "$RUNNER_TEMP/final-world.zip"
+          echo "007077a3d5d6d4da0c78fbe2918d0fa5b0ecf4b8c72fa16e711a0dfefa4b1b1d  $RUNNER_TEMP/final-world.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/final-world"
+          unzip -q "$RUNNER_TEMP/final-world.zip" -d "$RUNNER_TEMP/final-world"
+          echo "af8c37bd501ed076a45d1c12eafc3b2208e071e3961c3fd07eabede36befc35c  $RUNNER_TEMP/final-world/world_geometry_index.json" | sha256sum -c -
+          test "$(find "$RUNNER_TEMP/final-world/cells" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 132
+
+      - name: Lock immutable external delivery manifest
+        run: |
+          python grand-bruxelles-game/tools/qa/lock_region_lod2_c01_external_cell_delivery.py \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json \
+            --artifact-dir "$RUNNER_TEMP/final-world" \
+            --output-dir "$RUNNER_TEMP/external-delivery"
+
+      - name: Require exact accounting, output hashes and closed runtime rails
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "external-delivery"
+          manifest = json.loads((root / "external_cell_delivery_manifest.json").read_text())
+          result = json.loads((root / "result.sha256.json").read_text())
+          assert manifest["accounting"] == {
+              "owners": 30000, "spatial_cells": 132, "solids": 30944,
+              "faces": 532211, "points": 3273027, "parts": 534100,
+              "source_payload_bytes": 222598504, "world_payload_bytes": 200842561,
+          }
+          assert len(manifest["cells"]) == 132
+          assert result["external_cell_delivery_manifest.json"] == "5bbbc104019046aa3418439ddf41f93d81ab1468beebc19edbb0e1f73ac1f181"
+          assert result["external_cell_delivery_cells.csv"] == "f96b25fef4755d720ce3216d77025b1cf21555917d58eb5fdf813edfb7b6a531"
+          assert result["upstream_world_geometry_index_sha256"] == "af8c37bd501ed076a45d1c12eafc3b2208e071e3961c3fd07eabede36befc35c"
+          assert result["upstream_cell_payload_chain_sha256"] == "184c0c7fdf41a99eca523a637eb7cacfaf02b15886a7903f8c86ff80e326f6ab"
+          assert manifest["hard_rules"]["external_delivery_manifest_authorized"] is True
+          for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "terrain_runtime_authorized", "source_geometry_modified", "jouable_promotion_authorized", "web_pck_embedded"]:
+              assert manifest["hard_rules"][key] is False, key
+          assert manifest["delivery"]["public_base_url"] is None
+          assert manifest["delivery"]["public_base_url_locked"] is False
+          print("C01_EXTERNAL_CELL_DELIVERY_LOCKED_GREEN: cells=132 owners=30000 payload_bytes=200842561")
+          PY
+
+      - name: Publish locked manifest hashes
+        run: cat "$RUNNER_TEMP/external-delivery/result.sha256.json" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-external-cell-delivery-manifest
+          path: |
+            ${{ runner.temp }}/external-delivery/external_cell_delivery_manifest.json
+            ${{ runner.temp }}/external-delivery/external_cell_delivery_cells.csv
+            ${{ runner.temp }}/external-delivery/result.sha256.json
+          if-no-files-found: error
+          compression-level: 9

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/audit_bourse_a1_sidewalk_coverage.py"
+      - "grand-bruxelles-game/tools/build_bourse_a1_sidewalk_runtime.py"
       - "grand-bruxelles-game/tools/extract_bourse_official_sidewalks.py"
       - "grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json"
       - "grand-bruxelles-game/data/urbis/bourse_street_surfaces*.game.json"
@@ -14,10 +15,22 @@ permissions:
   contents: read
 
 jobs:
-  red-first-coverage:
+  source-complete-coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Audit exact bounded sidewalk coverage
+      - name: Build exact bounded source-complete candidate
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/bourse-a1
+          python3 grand-bruxelles-game/tools/build_bourse_a1_sidewalk_runtime.py \
+            --output grand-bruxelles-game/artifacts/bourse-a1/bourse_official_sidewalks_candidate.game.json
+      - name: Upload exact candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-a1-sidewalk-runtime-candidate
+          path: grand-bruxelles-game/artifacts/bourse-a1/bourse_official_sidewalks_candidate.game.json
+          if-no-files-found: error
+      - name: Audit committed bounded sidewalk coverage
         run: python3 grand-bruxelles-game/tools/audit_bourse_a1_sidewalk_coverage.py

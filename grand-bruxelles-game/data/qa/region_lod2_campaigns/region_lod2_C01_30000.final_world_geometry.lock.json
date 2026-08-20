@@ -1,0 +1,57 @@
+{
+  "schema": "grand-bruxelles-region-lod2-c01-final-world-geometry-lock-v1",
+  "campaign_id": "region-lod2-C01-30000",
+  "production_base_sha": "1c5bb78108e25b220dd850260eac6c536f59f59d",
+  "source_materialization": {
+    "artifact_id": 9386657484,
+    "archive_sha256": "6d5358ed20ac100e091a9ebca38cd5da4f43c89f1741f7cbc236ad0b55b28601",
+    "index_sha256": "288ff7815900d1cb07e0980168b8375c024a18be02144275a63918ae991e17a3"
+  },
+  "world_y_lock": {
+    "source_pr": 976,
+    "source_head_sha": "3e2ad94a47458d42ab7d8d1db1f38bb0426050bb",
+    "artifact_id": 9388359465,
+    "archive_sha256": "1c5d5371efe6c284011b93e6844d822cdeebfc3d8ff91fa5d95c8ae53f83dbac",
+    "files_sha256": {
+      "world_y_datum_locked.json": "28ccea014fcfba136e5322db78a0a37394b27bc088e7c449c2e1f706001bbd0e",
+      "owner_world_y_offset_by_owner.json": "4cee5e94bb18b615af7c2aca4d64e6ef01ee133a95edacb2cddda39e851fe0a9",
+      "owner_world_y_offset_per_owner.csv": "cc0dd2b9e382a2617348f05dadc4ea090b96bc97dd046e4903ef54d69e0d4e9a"
+    }
+  },
+  "transform": {
+    "source_crs": "EPSG:31370",
+    "lambert72_origin": [147868.29422791934, 169538.62414926197],
+    "world_origin": [-668.5, 0.0, 627.84],
+    "anchor_dtm_elevation_m": 21.712554931640625,
+    "world_x_formula": "source_e - lambert_origin_e + world_origin_x",
+    "world_y_formula": "source_z + owner_rigid_shift_m - anchor_dtm_elevation_m",
+    "world_z_formula": "-(source_n - lambert_origin_n) + world_origin_z",
+    "quantization_decimals": 3,
+    "max_quantization_error_m": 0.0005
+  },
+  "expected": {
+    "owners": 30000,
+    "spatial_cells": 132,
+    "solids": 30944,
+    "faces": 532211,
+    "points": 3273027,
+    "parts": 534100,
+    "source_payload_bytes": 222598504
+  },
+  "expected_output_sha256": {
+    "world_geometry_index.json": "af8c37bd501ed076a45d1c12eafc3b2208e071e3961c3fd07eabede36befc35c",
+    "cell_payload_chain_sha256": "184c0c7fdf41a99eca523a637eb7cacfaf02b15886a7903f8c86ff80e326f6ab"
+  },
+  "hard_rules": {
+    "final_world_y_authorized": true,
+    "world_geometry_artifact_authorized": true,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "terrain_runtime_authorized": false,
+    "source_geometry_modified": false,
+    "owner_rigid_translation_only": true,
+    "jouable_promotion_authorized": false,
+    "artifact_only": true
+  }
+}

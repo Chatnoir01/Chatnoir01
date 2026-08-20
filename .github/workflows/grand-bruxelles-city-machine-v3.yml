@@ -34,6 +34,24 @@ jobs:
         working-directory: grand-bruxelles-game
         run: python tests/test_city_machine_v3_contract.py
 
+      - name: G7-G12 readiness contract
+        working-directory: grand-bruxelles-game
+        run: python tools/city_machine/test_finish_readiness.py
+
+      - name: Prove readiness promotion guard is fail-closed
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set +e
+          python tools/city_machine/finish_readiness.py --zone jette --require-ready > /tmp/readiness.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/readiness.log
+          test "$rc" -eq 4
+          grep -q "BLOCKED G9_collision_solidity" /tmp/readiness.log
+          grep -q "BLOCKED G11_streaming_mount" /tmp/readiness.log
+          grep -q "BLOCKED G12_performance_evidence" /tmp/readiness.log
+
       - name: First deterministic rebuild
         working-directory: grand-bruxelles-game
         run: python tools/city_machine/finish_pipeline.py build --zone jette

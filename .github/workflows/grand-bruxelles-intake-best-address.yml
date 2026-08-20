@@ -1,0 +1,46 @@
+name: Grand Bruxelles BeSt Address Intake
+on:
+  push:
+    branches: ["intake/best-address-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-best-address.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Download weekly BeSt Address Brussels registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/best-address
+          mkdir -p "$OUT"
+          python3 - <<'PY'
+          import hashlib,json,urllib.request
+          out='/tmp/best-address'; h={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          urls={
+            'BeStBrussels_31370_JSON_04000_lastversion.zip':'https://urbisdownload.datastore.brussels/LastVersion/BeStBrussels_31370_JSON_04000_lastversion.zip',
+            'BeStBrussels_31370_GPKG_04000_lastversion.zip':'https://urbisdownload.datastore.brussels/LastVersion/BeStBrussels_31370_GPKG_04000_lastversion.zip',
+            'metadata-en.xml':'https://urbisdownload.datastore.brussels/atomfeed/a8c9ccde-5c2b-11ed-913a-900f0cda5d5c-en.xml'
+          }
+          results=[]
+          for fn,u in urls.items():
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(u,headers=h),timeout=600) as r: raw=r.read()
+                  open(out+'/'+fn,'wb').write(raw)
+                  results.append({'file':fn,'url':u,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+              except Exception as e: results.append({'file':fn,'url':u,'error':str(e)})
+          manifest={'schema':'grand-bruxelles-best-address-intake-v1','publisher':'Paradigm','dataset_id':'a8c9ccde-5c2b-11ed-913a-900f0cda5d5c','updated_verified':'2026-07-06','frequency':'weekly','crs':'EPSG:31370','license':'dataset metadata / BeSt regional register; verify attribution before production','successful_files':sum('sha256' in x for x in results),'results':results,'role':'cross-check UrbIS Addresses/AddressNumbers; do not silently replace canonical owner','runtime_authorized':False,'production_authorized':False}
+          open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          if manifest['successful_files']<2: raise SystemExit('BeSt Address intake incomplete')
+          print('BEST_ADDRESS_INTAKE_OK',manifest['successful_files'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-best-address
+          path: /tmp/best-address
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

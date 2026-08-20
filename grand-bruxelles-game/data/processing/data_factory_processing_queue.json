@@ -1,0 +1,91 @@
+{
+  "schema": "grand-bruxelles-data-factory-processing-queue-v3",
+  "production_base_sha": "96e26ee71f8428ff1ab4887a471c9e35d3174b20",
+  "generated_at": "2026-08-20",
+  "main_is_source_of_truth": true,
+  "runtime_authorized": false,
+  "jouable_promotion_authorized": false,
+  "rules": {
+    "verified_artifact_required_before_processing": true,
+    "source_contract_compatibility_required": true,
+    "sha256_required": true,
+    "license_required": true,
+    "non_empty_payload_required": true,
+    "crs_required_for_geospatial_outputs": true,
+    "source_semantics_must_not_be_invented": true,
+    "normalization_never_authorizes_runtime": true,
+    "existing_owner_must_be_reused_when_present": true
+  },
+  "queue": [
+    {
+      "priority": 0,
+      "family": "urbis_addresses",
+      "primary_upstream_branch": "intake/urbis-addresses-current",
+      "crosscheck_upstream_branch": "intake/best-address-current",
+      "processor": "grand-bruxelles-game/tools/data_factory/normalize_urbis_addresses.py",
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "7dc4ce7cca9c435ceae4e9d23962450dcd42ed0c",
+      "required_inputs": ["AddressNumbers GeoJSON EPSG:31370", "Addresses GeoJSON EPSG:31370", "intake manifest with hashes/license"],
+      "output": "normalized address registry; source IDs preserved; no building identity inferred"
+    },
+    {
+      "priority": 0,
+      "family": "stib_surface_network",
+      "primary_upstream_branch": "intake/stib-complete-current",
+      "processor": "grand-bruxelles-game/tools/data_factory/normalize_stib_open_data.py",
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "e9182f50fbdd0d52c26eaffa06aed342830243ea",
+      "required_inputs": ["gtfs-stops-production export", "shapefiles-production commercial network export", "intake manifest with hashes/license"],
+      "output": "normalized STIB stop registry plus source-preserving commercial network geometry"
+    },
+    {
+      "priority": 0,
+      "family": "stib_static_schedule",
+      "primary_upstream_branch": "intake/stib-complete-current",
+      "processor": "grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py",
+      "state": "PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "e9182f50fbdd0d52c26eaffa06aed342830243ea",
+      "required_inputs": ["gtfs-files-production official GTFS ZIP", "intake manifest with hashes/license"],
+      "output": "normalized stops/routes/trips/shapes registry preserving STIB producer IDs and route colours"
+    },
+    {
+      "priority": 0,
+      "family": "mobiris_traffic_counts",
+      "primary_upstream_branch": "intake/brussels-traffic-counts-current",
+      "processor": "grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py",
+      "state": "EXISTING_PROCESSOR_READY_ARTIFACT_BLOCKED",
+      "artifact_traceability_fix_commit": "96612bf0b61f1b73f84a3494a3d87277ac245e29",
+      "required_inputs": ["devices JSON", "live JSON", "traffic_live_geom GeoJSON EPSG:31370"],
+      "output": "offline traffic calibration snapshot in project metre coordinates"
+    },
+    {
+      "priority": 1,
+      "family": "terrain_dsm_dtm_citygen",
+      "processor_chain": [
+        "grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py",
+        "grand-bruxelles-game/tools/citygen/validate_cell_elevation_rasters.py"
+      ],
+      "state": "EXISTING_PROCESSORS_READY_SOURCE_RESOLUTION_REQUIRED",
+      "required_inputs": ["CityGen elevation source-resolution manifests", "official DSM/DTM ZIP archives from urbisdownload.datastore.brussels", "EPSG:31370"],
+      "output": "hashed structurally validated archives followed by raster CRS/bounds/resolution/geotransform and DSM-DTM alignment evidence",
+      "notes": "These processors already exist on main and explicitly keep terrain/heights gates false until later derivation/quality checks. Reuse them; do not fork."
+    },
+    {
+      "priority": 1,
+      "family": "terrain_lidar_landscape_crosscheck",
+      "upstream_branches": ["intake/terrain-elevation-current", "intake/urbis-landscape-current"],
+      "processor": null,
+      "state": "SOURCE_SUPPLEMENT_ARTIFACT_BLOCKED",
+      "required_inputs": ["airborne LiDAR 2021 LAS", "UrbIS Landscape distributions", "hashes/license/CRS"],
+      "notes": "Cross-check/evidence only. Regional terrain/building owners remain authoritative; this family cannot directly rematerialize runtime terrain."
+    },
+    {
+      "priority": 1,
+      "family": "visual_context_general",
+      "upstream_branches": ["intake/brussels-impervious-surfaces-current", "intake/brussels-planning-permits-current", "intake/brussels-flood-hazard-current", "intake/ibsa-building-age-current", "intake/statbel-building-period-current", "intake/brussels-heat-islands-current"],
+      "processor": null,
+      "state": "ARTIFACT_BLOCKED",
+      "notes": "These sources enrich ground/material/typology/change-risk/environment evidence; none may directly mutate geometry."
+    }
+  ]
+}

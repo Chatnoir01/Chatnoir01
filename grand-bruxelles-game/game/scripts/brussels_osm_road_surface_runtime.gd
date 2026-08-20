@@ -1,6 +1,7 @@
 extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_osm_road_surface_material.gd")
+const OFFICIAL_MATERIAL_FACTORY := preload("res://game/scripts/brussels_ground_network_official_material.gd")
 const DATA_PATH := "res://data/osm/vertical_slice_01.game.json"
 const MAJOR_ROADS := ["primary", "secondary", "tertiary"]
 const SOURCE := "OpenStreetMap contributors via Overpass API"
@@ -10,11 +11,17 @@ var _roads: Array[CSGBox3D] = []
 var _legacy_materials: Dictionary = {}
 var _roles: Dictionary = {}
 var _materials: Dictionary = {}
+var _official_nodes: Dictionary = {}
+var _official_legacy_materials: Dictionary = {}
+var _official_roles: Dictionary = {}
+var _official_materials: Dictionary = {}
 var _enhanced_enabled := true
 var _ready_complete := false
 var _failed := false
 
 func _ready() -> void:
+    if not get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.connect(_on_node_added)
     call_deferred("_apply_when_ready")
 
 func _load_road_classes() -> Dictionary:
@@ -90,9 +97,55 @@ func _apply_when_ready() -> void:
         _ready_complete = true
         return
 
+    _scan_existing_official_surfaces()
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
     print("BRUSSELS_OSM_ROAD_SURFACE_READY: roads=%d materials=2 family=%s source=OSM license=ODbL-1.0 geometry_changed=false" % [_roads.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
+
+func _ensure_official_materials() -> void:
+    if not _official_materials.is_empty():
+        return
+    _official_materials = {
+        "road": OFFICIAL_MATERIAL_FACTORY.create_material("road"),
+        "street_surface": OFFICIAL_MATERIAL_FACTORY.create_material("street_surface"),
+    }
+
+func _on_node_added(node: Node) -> void:
+    _register_official_surface(node)
+
+func _scan_existing_official_surfaces() -> void:
+    var ixelles := get_tree().root.find_child("StreetSurfaces_S", true, false)
+    if ixelles != null:
+        _register_official_surface(ixelles)
+    var jette := get_tree().root.find_child("JetteOfficialStreetSurfaces", true, false)
+    if jette != null:
+        _register_official_surface(jette)
+
+func _register_official_surface(node: Node) -> void:
+    if not node is MeshInstance3D:
+        return
+    var role := ""
+    if str(node.name) == "StreetSurfaces_S" and node.get_parent() != null and str(node.get_parent().name) == "OfficialIxellesStreetSurfaces":
+        role = "road"
+    elif str(node.name) == "JetteOfficialStreetSurfaces":
+        role = "street_surface"
+    if role.is_empty():
+        return
+
+    var instance := node as MeshInstance3D
+    var instance_id := instance.get_instance_id()
+    if _official_nodes.has(instance_id):
+        return
+    _ensure_official_materials()
+    _official_nodes[instance_id] = instance
+    _official_legacy_materials[instance_id] = instance.material_override
+    _official_roles[instance_id] = role
+    instance.set_meta("ground_network_provider", OFFICIAL_MATERIAL_FACTORY.PROVIDER_URBIS)
+    instance.set_meta("ground_network_presentation_family", OFFICIAL_MATERIAL_FACTORY.MATERIAL_FAMILY)
+    instance.set_meta("geometry_changed_by_ground_network_runtime", false)
+    if _enhanced_enabled:
+        instance.material_override = _official_materials[role] as Material
+    print("BRUSSELS_OFFICIAL_ROAD_SURFACE_READY: node=%s role=%s provider=UrbIS geometry_changed=false license_claimed=false" % [instance.name, role])
 
 func _set_material_state(enabled: bool) -> void:
     for road: CSGBox3D in _roads:
@@ -103,6 +156,15 @@ func _set_material_state(enabled: bool) -> void:
             road.material = _materials[str(_roles.get(instance_id, "regular"))] as Material
         else:
             road.material = _legacy_materials.get(instance_id) as Material
+    for raw_id: Variant in _official_nodes.keys():
+        var instance_id := int(raw_id)
+        var instance := _official_nodes.get(instance_id) as MeshInstance3D
+        if instance == null or not is_instance_valid(instance):
+            continue
+        if enabled:
+            instance.material_override = _official_materials[str(_official_roles.get(instance_id, "street_surface"))] as Material
+        else:
+            instance.material_override = _official_legacy_materials.get(instance_id) as Material
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled
@@ -123,3 +185,6 @@ func applied_road_count() -> int:
 
 func shared_material_count() -> int:
     return _materials.size()
+
+func official_applied_road_count() -> int:
+    return _official_nodes.size()

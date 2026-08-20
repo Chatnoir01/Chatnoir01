@@ -59,16 +59,20 @@ jobs:
               assert data['selection_policy']['curb_elevation_resolved'] is False
               assert data['runtime_approved'] is False
               assert data['realism_complete'] is False
+
           sidewalk = json.load(open('grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json', encoding='utf-8'))
           assert sidewalk['source']['license'] == 'CC0-1.0'
-          assert sidewalk['source']['evidence_artifact_digest'] == 'sha256:1952c9ba82195ce78c75d08f4d8472fc60ea6ee136756a03f4aae1b7d5b5a36a'
-          assert sidewalk['selection']['feature_count'] == 5
-          assert len(sidewalk['sidewalks']) == 5
+          assert sidewalk['source']['pre_a1_evidence_artifact_digest'] == 'sha256:1952c9ba82195ce78c75d08f4d8472fc60ea6ee136756a03f4aae1b7d5b5a36a'
+          assert sidewalk['selection']['feature_count'] == 16
+          assert len(sidewalk['sidewalks']) == 16
+          assert len(sidewalk['selection']['a1_legacy_source_ids']) == 5
+          assert len(sidewalk['selection']['a1_added_source_ids']) == 11
+          assert sidewalk['selection']['geography_expanded'] is False
           assert sidewalk['curb_elevation_resolved'] is False
           assert sidewalk['presentation_height_is_renderer_bias_only'] is True
           assert sidewalk['runtime_approved'] is False
           assert sidewalk['realism_complete'] is False
-          print('BOURSE_SURFACE_AND_SIDEWALK_DATA_OK')
+          print('BOURSE_SURFACE_AND_SIDEWALK_DATA_OK: 7 street surfaces + 16 bounded sidewalks; A1 added 11')
           PY
 
       - name: Install Godot 4.7.1

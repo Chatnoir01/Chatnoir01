@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   source-complete-coverage:
@@ -20,66 +20,28 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
-      - name: Build exact bounded source-complete candidate
+      - name: Rebuild exact bounded source-complete candidate
         run: |
           mkdir -p grand-bruxelles-game/artifacts/bourse-a1
           python3 grand-bruxelles-game/tools/build_bourse_a1_sidewalk_runtime.py \
             --output grand-bruxelles-game/artifacts/bourse-a1/bourse_official_sidewalks_candidate.game.json
-      - name: Upload exact candidate evidence
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/artifacts/bourse-a1/bourse_official_sidewalks_candidate.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['selection']['feature_count'] == 16
+          assert len(d['selection']['a1_legacy_source_ids']) == 5
+          assert len(d['selection']['a1_added_source_ids']) == 11
+          assert d['selection']['geography_expanded'] is False
+          assert d['curb_elevation_resolved'] is False
+          print('BOURSE_A1_CANDIDATE_REBUILD_OK: 5 + 11 = 16; geography_expanded=false')
+          PY
+      - name: Audit committed bounded sidewalk coverage
+        run: python3 grand-bruxelles-game/tools/audit_bourse_a1_sidewalk_coverage.py
+      - name: Upload source candidate evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bourse-a1-sidewalk-runtime-candidate
           path: grand-bruxelles-game/artifacts/bourse-a1/bourse_official_sidewalks_candidate.game.json
           if-no-files-found: error
-      - name: Materialize verified candidate exactly once
-        id: materialize
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import json, os, shutil
-          from pathlib import Path
-
-          target=Path('grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json')
-          candidate=Path('grand-bruxelles-game/artifacts/bourse-a1/bourse_official_sidewalks_candidate.game.json')
-          current=json.loads(target.read_text(encoding='utf-8'))
-          count=int(current.get('selection',{}).get('feature_count',-1))
-          needs_commit=False
-          if count == 5:
-              shutil.copyfile(candidate,target)
-              needs_commit=True
-          elif count != 16:
-              raise SystemExit(f'Unexpected Bourse sidewalk runtime count before A1 materialization: {count}')
-
-          # Preserve the original five-owner baseline on every future candidate rebuild.
-          builder=Path('grand-bruxelles-game/tools/build_bourse_a1_sidewalk_runtime.py')
-          text=builder.read_text(encoding='utf-8')
-          old='    legacy_ids = sorted(str(v) for v in current.get("selection", {}).get("source_ids", []))\n'
-          new=(
-              '    current_selection = current.get("selection", {})\n'
-              '    legacy_values = current_selection.get("a1_legacy_source_ids", current_selection.get("source_ids", []))\n'
-              '    legacy_ids = sorted(str(v) for v in legacy_values)\n'
-          )
-          if old in text:
-              builder.write_text(text.replace(old,new,1),encoding='utf-8')
-              needs_commit=True
-          elif 'legacy_values = current_selection.get("a1_legacy_source_ids"' not in text:
-              raise SystemExit('A1 builder legacy-baseline patch anchor missing')
-
-          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as out:
-              out.write(f'needs_commit={str(needs_commit).lower()}\n')
-          PY
-      - name: Commit source-identical A1 runtime candidate
-        if: steps.materialize.outputs.needs_commit == 'true' && github.event_name == 'pull_request'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json \
-                  grand-bruxelles-game/tools/build_bourse_a1_sidewalk_runtime.py
-          git commit -m "fix(bourse): complete bounded official sidewalk coverage"
-          git push origin HEAD:${{ github.head_ref }}
-      - name: Audit committed bounded sidewalk coverage
-        run: python3 grand-bruxelles-game/tools/audit_bourse_a1_sidewalk_coverage.py

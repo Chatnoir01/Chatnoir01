@@ -1,0 +1,139 @@
+name: Grand Bruxelles Bourse A1 Photo Match
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json"
+      - ".github/workflows/grand-bruxelles-bourse-a1-photo-match.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixed-view-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      A1_BASE_SHA: a8737b5b4cbe0ee205bdede14217938118ee3c1b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact A1 base exists
+        run: git cat-file -e "$A1_BASE_SHA^{commit}"
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project once
+        run: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit
+      - name: Capture exact-base BEFORE (5 official sidewalks)
+        shell: bash
+        run: |
+          cp grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json /tmp/a1-after.json
+          git show "$A1_BASE_SHA:grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json" \
+            > grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['selection']['feature_count'] == 5
+          PY
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility \
+            --resolution 1280x960 --script res://game/tests/bourse_geotagged_camera_capture_test.gd \
+            2>&1 | tee /tmp/bourse-a1-before.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GEOTAGGED_CAPTURE_FAIL" /tmp/bourse-a1-before.log; then exit 1; fi
+          grep -F "BOURSE_GEOTAGGED_CAPTURE_OK" /tmp/bourse-a1-before.log
+          mkdir -p grand-bruxelles-game/artifacts/bourse-a1
+          cp grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png \
+             grand-bruxelles-game/artifacts/bourse-a1/before_5.png
+      - name: Capture candidate AFTER (16 official sidewalks)
+        shell: bash
+        run: |
+          cp /tmp/a1-after.json grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json
+          python3 - <<'PY'
+          import json
+          p='grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['selection']['feature_count'] == 16
+          assert len(d['selection']['a1_added_source_ids']) == 11
+          assert d['selection']['geography_expanded'] is False
+          PY
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --display-driver x11 --rendering-method gl_compatibility \
+            --resolution 1280x960 --script res://game/tests/bourse_geotagged_camera_capture_test.gd \
+            2>&1 | tee /tmp/bourse-a1-after.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BOURSE_GEOTAGGED_CAPTURE_FAIL" /tmp/bourse-a1-after.log; then exit 1; fi
+          grep -F "BOURSE_GEOTAGGED_CAPTURE_OK" /tmp/bourse-a1-after.log
+          cp grand-bruxelles-game/artifacts/photo-match/bourse_2019_geotagged_camera.png \
+             grand-bruxelles-game/artifacts/bourse-a1/after_16.png
+      - name: Enforce frozen visible-impact gate
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          import json
+          root=Path('grand-bruxelles-game/artifacts/bourse-a1')
+          before=Image.open(root/'before_5.png').convert('RGB')
+          after=Image.open(root/'after_16.png').convert('RGB')
+          assert before.size == (1280,960) == after.size
+          gt3=gt8=0
+          min_x=min_y=10**9
+          max_x=max_y=-1
+          max_delta=0
+          for y in range(960):
+              for x in range(1280):
+                  a=before.getpixel((x,y)); b=after.getpixel((x,y))
+                  delta=max(abs(a[i]-b[i]) for i in range(3))
+                  max_delta=max(max_delta,delta)
+                  if delta > 3:
+                      gt3 += 1
+                      min_x=min(min_x,x); max_x=max(max_x,x)
+                      min_y=min(min_y,y); max_y=max(max_y,y)
+                  if delta > 8:
+                      gt8 += 1
+          total=1280*960
+          ratio3=gt3/total; ratio8=gt8/total
+          bbox_w=0 if max_x < min_x else max_x-min_x+1
+          bbox_h=0 if max_y < min_y else max_y-min_y+1
+          # Frozen before the first A1 full-frame run. Never lower to rescue a weak change.
+          assert ratio3 >= 0.0020, f'>3 ratio {ratio3:.6f} < 0.0020'
+          assert ratio8 >= 0.0010, f'>8 ratio {ratio8:.6f} < 0.0010'
+          assert bbox_w >= 220 and bbox_h >= 80, f'bbox {bbox_w}x{bbox_h} < 220x80'
+          metrics={
+              'resolution':[1280,960], 'camera':'bourse_2019_geotagged_camera_evidence',
+              'base_sha':'a8737b5b4cbe0ee205bdede14217938118ee3c1b',
+              'before_official_sidewalks':5, 'after_official_sidewalks':16,
+              'added_official_sidewalks':11, 'geography_expanded':False,
+              'changed_gt3_pixels':gt3, 'changed_gt3_ratio':ratio3,
+              'changed_gt8_pixels':gt8, 'changed_gt8_ratio':ratio8,
+              'changed_bbox_xyxy':[min_x,min_y,max_x,max_y],
+              'changed_bbox_wh':[bbox_w,bbox_h], 'max_channel_delta':max_delta,
+              'frozen_thresholds':{'gt3_ratio_min':0.0020,'gt8_ratio_min':0.0010,'bbox_min':[220,80]},
+              'human_full_frame_gate':'pending'
+          }
+          (root/'metrics.json').write_text(json.dumps(metrics,indent=2)+'\n',encoding='utf-8')
+          print('BOURSE_A1_PHOTO_MATCH_NUMERIC_OK', metrics)
+          PY
+      - name: Upload A1 full-frame evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-a1-fixed-view-ab
+          path: |
+            grand-bruxelles-game/artifacts/bourse-a1/before_5.png
+            grand-bruxelles-game/artifacts/bourse-a1/after_16.png
+            grand-bruxelles-game/artifacts/bourse-a1/metrics.json
+            /tmp/bourse-a1-before.log
+            /tmp/bourse-a1-after.log
+          if-no-files-found: error

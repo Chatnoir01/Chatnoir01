@@ -58,12 +58,13 @@ jobs:
           printf '%s\n' "$PIN" > /tmp/kaykit-pin.txt
           (cd "$SRC" && sha256sum LICENSE.txt README.md "$ROGUE") | tee /tmp/kaykit-source-sha256.txt
 
-      - name: Audit GLB animations skeleton and locomotion candidates
+      - name: Audit all GLB animations skeleton and locomotion candidates
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, pathlib, struct
+          import json, pathlib, re, struct
+
           root=pathlib.Path('/tmp/kaykit-locomotion-source')
           glb=root/'addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb'
           raw=glb.read_bytes()
@@ -78,17 +79,14 @@ jobs:
 
           animations=doc.get('animations') or []
           names=[str(a.get('name','')).strip() for a in animations]
-          if len(animations) != 75:
-              raise SystemExit(f'expected pinned KayKit 75 animations, got {len(animations)}')
-          if len(set(names)) != len(names): raise SystemExit('animation names are not unique')
-          if any(not n for n in names): raise SystemExit('unnamed animation in source')
+          unique_names=len(set(names)) == len(names)
+          unnamed=[index for index,name in enumerate(names) if not name]
 
           nodes=doc.get('nodes') or []
           parent={}
           for pi,node in enumerate(nodes):
               for child in node.get('children') or []: parent[int(child)]=pi
           skins=doc.get('skins') or []
-          if not skins: raise SystemExit('Rogue GLB has no skin')
           joint_indices=sorted({int(j) for skin in skins for j in (skin.get('joints') or [])})
           joints=[]
           for idx in joint_indices:
@@ -96,43 +94,84 @@ jobs:
               pidx=parent.get(idx)
               pname=str(nodes[pidx].get('name','')) if pidx is not None else ''
               joints.append({'node':idx,'name':name,'parent':pname})
-          if len(joints) < 20: raise SystemExit(f'Rogue source skeleton unexpectedly small: {len(joints)} joints')
+
+          def normalized(name):
+              return re.sub(r'[^a-z0-9]+','_',name.lower()).strip('_')
+
+          neutral_exact={
+              'reset','rest','rest_pose','bind','bind_pose','reference','reference_pose',
+              'tpose','t_pose','t_pose_','default','default_pose','armaturepose','armature_pose'
+          }
+          neutral=[]
+          authored=[]
+          for name in names:
+              key=normalized(name)
+              is_neutral=(
+                  key in neutral_exact or
+                  key.startswith('reset_') or key.endswith('_reset') or
+                  key.startswith('bind_') or key.endswith('_bind_pose') or
+                  key.startswith('reference_') or key.endswith('_reference_pose')
+              )
+              (neutral if is_neutral else authored).append(name)
 
           def candidates(token):
               blocked=('attack','combat','hit','hurt','death','roll','sword','bow','spell','throw')
               out=[]
-              for name in names:
-                  low=name.lower().replace('-','_').replace(' ','_')
-                  if token in low and not any(b in low for b in blocked): out.append(name)
+              for name in authored:
+                  low=normalized(name)
+                  if token in low and not any(block in low for block in blocked): out.append(name)
               return sorted(out)
 
           idle=candidates('idle')
           walk=candidates('walk')
           run=candidates('run')
-          if not idle or not walk or not run:
-              raise SystemExit(f'locomotion candidate family missing idle={idle} walk={walk} run={run}')
 
           animated_nodes=set()
           channel_counts={}
-          for anim in animations:
-              aname=str(anim.get('name',''))
+          animation_details=[]
+          for index,anim in enumerate(animations):
+              aname=str(anim.get('name','')).strip()
               channels=anim.get('channels') or []
+              samplers=anim.get('samplers') or []
               channel_counts[aname]=len(channels)
+              targeted=[]
+              paths=[]
               for channel in channels:
                   target=channel.get('target') or {}
-                  if 'node' in target: animated_nodes.add(int(target['node']))
+                  if 'node' in target:
+                      node_index=int(target['node']); animated_nodes.add(node_index)
+                      targeted.append(str(nodes[node_index].get('name','')))
+                  if target.get('path'): paths.append(str(target['path']))
+              animation_details.append({
+                  'index':index,
+                  'name':aname,
+                  'normalized_name':normalized(aname),
+                  'technical_neutral':aname in neutral,
+                  'channel_count':len(channels),
+                  'sampler_count':len(samplers),
+                  'targeted_nodes':sorted(set(targeted)),
+                  'target_paths':sorted(set(paths)),
+              })
           animated_joint_names=sorted(str(nodes[i].get('name','')) for i in animated_nodes if i in joint_indices)
 
           report={
-              'schema':'grand-bruxelles-kaykit-locomotion-source-audit-v1',
+              'schema':'grand-bruxelles-kaykit-locomotion-source-audit-v2',
               'production_authorized':False,
               'upstream':'KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0',
               'pinned_ref':'672074b73ba276876a19e8816ecdc5241817ab47',
               'source_path':'addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb',
               'license':'CC0-1.0',
               'runtime_mesh_reuse_allowed':False,
-              'animation_count':len(animations),
-              'animation_names':names,
+              'readme_claimed_authored_animation_count':75,
+              'container_animation_count':len(animations),
+              'authored_animation_count':len(authored),
+              'technical_neutral_count':len(neutral),
+              'technical_neutral_names':neutral,
+              'authored_animation_names':authored,
+              'all_animation_names':names,
+              'animation_names_unique':unique_names,
+              'unnamed_animation_indices':unnamed,
+              'animation_details':animation_details,
               'channel_counts':channel_counts,
               'skin_count':len(skins),
               'joint_count':len(joints),
@@ -143,8 +182,26 @@ jobs:
               'run_candidates':run,
               'next_gate':'map KayKit source skeleton to SkeletonProfileHumanoid, import only selected in-place idle/walk/run as AnimationLibrary, then retarget to Vitruvian game-rig and measure foot slide'
           }
-          pathlib.Path('/tmp/kaykit-locomotion-source-audit.json').write_text(json.dumps(report,indent=2)+'\n')
-          print('GB_KAYKIT_LOCOMOTION_SOURCE_OK animations=75 joints=%d idle=%s walk=%s run=%s mesh_reuse=false production_authorized=false' % (len(joints),idle,walk,run))
+          out=pathlib.Path('/tmp/kaykit-locomotion-source-audit.json')
+          out.write_text(json.dumps(report,indent=2)+'\n')
+          print('GB_KAYKIT_ANIMATION_INVENTORY', json.dumps({
+              'container':len(animations),'authored':len(authored),'technical_neutral':neutral,
+              'idle':idle,'walk':walk,'run':run,'joints':len(joints)
+          }, sort_keys=True))
+
+          failures=[]
+          if len(animations) != 76: failures.append(f'expected pinned container count 76 after RED discovery, got {len(animations)}')
+          if not unique_names: failures.append('animation names are not unique')
+          if unnamed: failures.append(f'unnamed animation indices={unnamed}')
+          if not skins: failures.append('Rogue GLB has no skin')
+          if len(joints) < 20: failures.append(f'Rogue source skeleton unexpectedly small: {len(joints)} joints')
+          if len(neutral) != 1: failures.append(f'expected exactly one technical neutral clip, got {neutral}')
+          if len(authored) != 75: failures.append(f'expected 75 authored gameplay animations after neutral exclusion, got {len(authored)}')
+          if not idle or not walk or not run: failures.append(f'locomotion candidate family missing idle={idle} walk={walk} run={run}')
+          if failures:
+              raise SystemExit(' | '.join(failures))
+
+          print('GB_KAYKIT_LOCOMOTION_SOURCE_OK container=76 authored=75 neutral=%s joints=%d idle=%s walk=%s run=%s mesh_reuse=false production_authorized=false' % (neutral,len(joints),idle,walk,run))
           PY
 
       - name: Stage source-only audit evidence

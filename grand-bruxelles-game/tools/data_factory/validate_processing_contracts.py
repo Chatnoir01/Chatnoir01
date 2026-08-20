@@ -33,6 +33,7 @@ def main() -> int:
         "ibsa_building_age_context",
         "impervious_surface_context",
         "heat_island_context",
+        "flood_hazard_context",
     }
     missing_families = sorted(required_families - contracts.keys())
     if missing_families:

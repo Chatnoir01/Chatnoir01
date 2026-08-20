@@ -1,0 +1,133 @@
+name: Grand Bruxelles Region LoD2 C01 Final World Geometry
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.final_world_geometry.lock.json"
+      - "grand-bruxelles-game/tools/qa/build_region_lod2_c01_final_world_geometry.py"
+      - ".github/workflows/grand-bruxelles-region-lod2-c01-final-world-geometry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  reproduce-final-world-geometry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate exact contract and RED authorization rails
+        run: |
+          python grand-bruxelles-game/tools/qa/build_region_lod2_c01_final_world_geometry.py \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.final_world_geometry.lock.json \
+            --validate-only
+          python - <<'PY'
+          import copy, json, subprocess, tempfile
+          from pathlib import Path
+          source = Path("grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.final_world_geometry.lock.json")
+          contract = json.loads(source.read_text())
+          tool = "grand-bruxelles-game/tools/qa/build_region_lod2_c01_final_world_geometry.py"
+          def must_reject(mutator, label):
+              bad = copy.deepcopy(contract); mutator(bad)
+              with tempfile.TemporaryDirectory() as td:
+                  p = Path(td) / "bad.json"; p.write_text(json.dumps(bad))
+                  r = subprocess.run(["python", tool, "--contract", str(p), "--validate-only"], capture_output=True, text=True)
+                  if r.returncode == 0:
+                      raise SystemExit(f"RED failed: {label} was accepted")
+          must_reject(lambda c: c["hard_rules"].__setitem__("runtime_mount_authorized", True), "runtime mount")
+          must_reject(lambda c: c["hard_rules"].__setitem__("source_geometry_modified", True), "source mutation")
+          must_reject(lambda c: c["hard_rules"].__setitem__("final_world_y_authorized", False), "closed final world-Y")
+          must_reject(lambda c: c["transform"].__setitem__("anchor_dtm_elevation_m", 21.8), "datum drift")
+          must_reject(lambda c: c["transform"].__setitem__("quantization_decimals", 2), "quantization drift")
+          print("C01_FINAL_WORLD_GEOMETRY_RED_OK")
+          PY
+
+      - name: Recover exact source-materialized 30k cells
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9386657484/zip" \
+            > "$RUNNER_TEMP/source-cells.zip"
+          echo "6d5358ed20ac100e091a9ebca38cd5da4f43c89f1741f7cbc236ad0b55b28601  $RUNNER_TEMP/source-cells.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/source-cells"
+          unzip -q "$RUNNER_TEMP/source-cells.zip" -d "$RUNNER_TEMP/source-cells"
+          echo "288ff7815900d1cb07e0980168b8375c024a18be02144275a63918ae991e17a3  $RUNNER_TEMP/source-cells/source_materialization_index.json" | sha256sum -c -
+          test "$(find "$RUNNER_TEMP/source-cells/cells" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 132
+
+      - name: Recover exact locked 30k world-Y offsets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9388359465/zip" \
+            > "$RUNNER_TEMP/world-y.zip"
+          echo "1c5d5371efe6c284011b93e6844d822cdeebfc3d8ff91fa5d95c8ae53f83dbac  $RUNNER_TEMP/world-y.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/world-y"
+          unzip -q "$RUNNER_TEMP/world-y.zip" -d "$RUNNER_TEMP/world-y"
+          echo "28ccea014fcfba136e5322db78a0a37394b27bc088e7c449c2e1f706001bbd0e  $RUNNER_TEMP/world-y/world_y_datum_locked.json" | sha256sum -c -
+          echo "4cee5e94bb18b615af7c2aca4d64e6ef01ee133a95edacb2cddda39e851fe0a9  $RUNNER_TEMP/world-y/owner_world_y_offset_by_owner.json" | sha256sum -c -
+          echo "cc0dd2b9e382a2617348f05dadc4ea090b96bc97dd046e4903ef54d69e0d4e9a  $RUNNER_TEMP/world-y/owner_world_y_offset_per_owner.csv" | sha256sum -c -
+
+      - name: Reproduce exact 132-cell final X/Y/Z geometry
+        run: |
+          python grand-bruxelles-game/tools/qa/build_region_lod2_c01_final_world_geometry.py \
+            --contract grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.final_world_geometry.lock.json \
+            --source-dir "$RUNNER_TEMP/source-cells" \
+            --world-y-dir "$RUNNER_TEMP/world-y" \
+            --output-dir "$RUNNER_TEMP/final-world"
+
+      - name: Require exact 30k accounting, hashes and closed runtime rails
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "final-world"
+          idx = json.loads((root / "world_geometry_index.json").read_text())
+          hashes = json.loads((root / "result.sha256.json").read_text())
+          assert idx["accounting"] == {
+              "owners": 30000, "spatial_cells": 132, "solids": 30944,
+              "faces": 532211, "points": 3273027, "parts": 534100,
+              "source_payload_bytes": 222598504,
+          }
+          assert idx["face_type_counts"] == {
+              "GROUNDSURFACE": 30997, "OTHER": 63, "OUTERCEILING": 607,
+              "OUTERFLOOR": 112, "ROOFSURFACE": 132646, "WALLSURFACE": 367786,
+          }
+          assert hashes["world_geometry_index.json"] == "af8c37bd501ed076a45d1c12eafc3b2208e071e3961c3fd07eabede36befc35c"
+          assert hashes["cell_payload_chain_sha256"] == "184c0c7fdf41a99eca523a637eb7cacfaf02b15886a7903f8c86ff80e326f6ab"
+          assert len(idx["cells"]) == 132
+          assert idx["final_world_y_authorized"] is True
+          assert idx["world_geometry_artifact_authorized"] is True
+          for key in ["runtime_authorized", "runtime_mount_authorized", "collision_authorized", "terrain_runtime_authorized", "source_geometry_modified", "jouable_promotion_authorized"]:
+              assert idx[key] is False, key
+          assert idx["owner_rigid_translation_only"] is True
+          assert idx["artifact_only"] is True
+          assert max(idx["max_quantization_error_m"].values()) <= 0.0005 + 1e-12
+          print("C01_FINAL_WORLD_GEOMETRY_LOCKED_GREEN: owners=30000 cells=132 faces=532211 points=3273027")
+          PY
+
+      - name: Publish locked result hashes
+        run: cat "$RUNNER_TEMP/final-world/result.sha256.json" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: region-lod2-c01-30000-final-world-geometry
+          path: |
+            ${{ runner.temp }}/final-world/world_geometry_index.json
+            ${{ runner.temp }}/final-world/result.sha256.json
+            ${{ runner.temp }}/final-world/cells
+          if-no-files-found: error
+          compression-level: 6

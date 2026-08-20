@@ -1,0 +1,109 @@
+name: Grand Bruxelles Intake Poly Haven PBR
+on:
+  push:
+    branches: ["intake/polyhaven-pbr-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-polyhaven-pbr.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Discover complete Poly Haven texture catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/polyhaven-discovery
+          python3 - <<'PY'
+          import json, urllib.request
+          req=urllib.request.Request('https://api.polyhaven.com/assets',headers={'User-Agent':'GrandBruxellesGame-PBRIntake/1.0'})
+          data=json.load(urllib.request.urlopen(req,timeout=120))
+          textures={k:v for k,v in data.items() if v.get('type')==1}
+          assert textures
+          json.dump(textures,open('/tmp/polyhaven-discovery/catalog.json','w'),indent=2)
+          print('POLYHAVEN_TEXTURE_DISCOVERY_OK',len(textures))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: polyhaven-pbr-discovery
+          path: /tmp/polyhaven-discovery/catalog.json
+          if-no-files-found: error
+          retention-days: 7
+  shard:
+    needs: discover
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: polyhaven-pbr-discovery
+          path: /tmp/polyhaven-discovery
+      - name: Download 1K production PBR maps for shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "/tmp/polyhaven/${{ matrix.shard }}/files"
+          python3 - <<'PY'
+          import hashlib, json, os, re, time, urllib.request
+          shard=int('${{ matrix.shard }}'); count=8
+          catalog=json.load(open('/tmp/polyhaven-discovery/catalog.json'))
+          ids=sorted(catalog)[shard::count]
+          headers={'User-Agent':'GrandBruxellesGame-PBRIntake/1.0'}
+          wanted=('diffuse','nor_gl','normal','rough','ao','arm','displacement')
+          def fetch_json(url):
+              req=urllib.request.Request(url,headers=headers)
+              return json.load(urllib.request.urlopen(req,timeout=120))
+          def leaves(obj,path=()):
+              if isinstance(obj,dict):
+                  if isinstance(obj.get('url'),str): yield path,obj
+                  for k,v in obj.items():
+                      if k!='url': yield from leaves(v,path+(str(k),))
+              elif isinstance(obj,list):
+                  for i,v in enumerate(obj): yield from leaves(v,path+(str(i),))
+          manifest={'source':'Poly Haven API','asset_license':'CC0','api_credit_required':'Poly Haven','shard':shard,'shard_count':count,'assets':[]}
+          downloaded=0
+          for idx,asset_id in enumerate(ids):
+              row={'asset_id':asset_id,'name':catalog[asset_id].get('name'),'files':[],'errors':[]}
+              try:
+                  tree=fetch_json('https://api.polyhaven.com/files/'+asset_id)
+                  chosen={}
+                  for path,leaf in leaves(tree):
+                      p='/'.join(path).lower()
+                      if '1k' not in p: continue
+                      channel=next((w for w in wanted if w in p),None)
+                      if not channel: continue
+                      ext=os.path.splitext(leaf['url'].split('?',1)[0])[1].lower()
+                      if ext not in ('.jpg','.jpeg','.png','.exr','.tif','.tiff'): continue
+                      chosen.setdefault(channel,(path,leaf))
+                  for channel,(path,leaf) in chosen.items():
+                      url=leaf['url']; ext=os.path.splitext(url.split('?',1)[0])[1].lower() or '.bin'
+                      fn=f'{asset_id}__{channel}{ext}'; out=f'/tmp/polyhaven/{shard}/files/{fn}'
+                      try:
+                          req=urllib.request.Request(url,headers=headers)
+                          with urllib.request.urlopen(req,timeout=180) as r: body=r.read()
+                          open(out,'wb').write(body); downloaded+=1
+                          row['files'].append({'channel':channel,'path':'/'.join(path),'url':url,'file':fn,'bytes':len(body),'sha256':hashlib.sha256(body).hexdigest(),'upstream_md5':leaf.get('md5')})
+                      except Exception as e: row['errors'].append({'channel':channel,'url':url,'error':str(e)})
+              except Exception as e: row['errors'].append({'asset_metadata_error':str(e)})
+              manifest['assets'].append(row)
+              if idx and idx%25==0: print('progress',shard,idx,len(ids),downloaded)
+          manifest['downloaded_files']=downloaded
+          manifest['downloaded_bytes']=sum(f['bytes'] for a in manifest['assets'] for f in a['files'])
+          json.dump(manifest,open(f'/tmp/polyhaven/{shard}/manifest.json','w'),indent=2)
+          assert downloaded>0
+          print('POLYHAVEN_PBR_SHARD_OK',shard,len(ids),downloaded,manifest['downloaded_bytes'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-polyhaven-pbr-${{ matrix.shard }}
+          path: /tmp/polyhaven/${{ matrix.shard }}
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0

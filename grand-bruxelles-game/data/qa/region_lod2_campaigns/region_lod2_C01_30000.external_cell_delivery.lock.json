@@ -1,0 +1,48 @@
+{
+  "campaign_id": "region-lod2-C01-30000",
+  "delivery": {
+    "artifact_relative_root": "cells",
+    "cell_size_m": 500,
+    "immutable_by_sha256": true,
+    "mode": "external_per_cell",
+    "public_base_url_locked": false
+  },
+  "expected": {
+    "faces": 532211,
+    "owners": 30000,
+    "parts": 534100,
+    "points": 3273027,
+    "solids": 30944,
+    "source_payload_bytes": 222598504,
+    "spatial_cells": 132,
+    "world_payload_bytes": 200842561
+  },
+  "expected_output_sha256": {
+    "external_cell_delivery_cells.csv": "f96b25fef4755d720ce3216d77025b1cf21555917d58eb5fdf813edfb7b6a531",
+    "external_cell_delivery_manifest.json": "5bbbc104019046aa3418439ddf41f93d81ab1468beebc19edbb0e1f73ac1f181"
+  },
+  "hard_rules": {
+    "artifact_only": true,
+    "collision_authorized": false,
+    "external_delivery_manifest_authorized": true,
+    "jouable_promotion_authorized": false,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "source_geometry_modified": false,
+    "terrain_runtime_authorized": false,
+    "web_pck_embedded": false
+  },
+  "production_base_sha": "245432e538bb52d454dd205c0b7e337fe4db093d",
+  "schema": "grand-bruxelles-region-lod2-c01-external-cell-delivery-lock-v1",
+  "upstream_final_world_geometry": {
+    "artifact_archive_sha256": "007077a3d5d6d4da0c78fbe2918d0fa5b0ecf4b8c72fa16e711a0dfefa4b1b1d",
+    "artifact_digest": "sha256:007077a3d5d6d4da0c78fbe2918d0fa5b0ecf4b8c72fa16e711a0dfefa4b1b1d",
+    "artifact_id": 9389058771,
+    "artifact_name": "region-lod2-c01-30000-final-world-geometry",
+    "cell_payload_chain_sha256": "184c0c7fdf41a99eca523a637eb7cacfaf02b15886a7903f8c86ff80e326f6ab",
+    "source_head_sha": "1eb4f3f79157000f95c2a230332ff43d3e58bb7f",
+    "source_pr": 981,
+    "workflow_run_id": 32318835420,
+    "world_geometry_index_sha256": "af8c37bd501ed076a45d1c12eafc3b2208e071e3961c3fd07eabede36befc35c"
+  }
+}

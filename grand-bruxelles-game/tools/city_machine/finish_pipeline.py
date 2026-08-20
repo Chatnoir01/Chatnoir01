@@ -113,10 +113,8 @@ def run(zone_id: str, dry_run: bool) -> int:
 
     log_disabled_base_layers(zone_id)
 
-    if dry_run:
-        print(f"CITY_MACHINE_FINISH_END zone={zone_id} result=DRY_RUN promotion=false", flush=True)
-        return 0
-
+    # Keep the historical dry-run contract: no source outputs are rewritten,
+    # but proof still validates the committed/runtime artifacts and all hard gates.
     rc = run_stage(PROOF_STAGE, zone_id, False)
     if rc:
         return rc

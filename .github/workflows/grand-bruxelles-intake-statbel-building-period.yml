@@ -31,10 +31,12 @@ jobs:
               try:
                   with urllib.request.urlopen(urllib.request.Request(u,headers=h),timeout=300) as r: data=r.read()
                   name=urllib.parse.unquote(urllib.parse.urlparse(u).path.rsplit('/',1)[-1]); name=re.sub(r'[^A-Za-z0-9_.-]+','_',name)
-                  open(out+'/data/'+name,'wb').write(data)
-                  results.append({'url':u,'file':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+                  rel='data/'+name
+                  open(out+'/'+rel,'wb').write(data)
+                  results.append({'url':u,'file':rel,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
               except Exception as e: results.append({'url':u,'error':str(e)})
-          manifest={'schema':'grand-bruxelles-statbel-building-period-intake-v1','publisher':'Statbel','dataset_id':'b38424fb1bfeb7766a1a4d6aee49e5681e2cff58','census_year':2021,'subject':'dwellings/buildings by period of construction','source_page':page,'discovered_xlsx':len(urls),'successful_files':sum('sha256' in x for x in results),'results':results,'runtime_authorized':False,'production_authorized':False,'use':'statistical construction-period evidence; never treated as exact facade survey'}
+          page_sha=hashlib.sha256(raw).hexdigest()
+          manifest={'schema':'grand-bruxelles-statbel-building-period-intake-v2','publisher':'Statbel','dataset_id':'b38424fb1bfeb7766a1a4d6aee49e5681e2cff58','census_year':2021,'subject':'dwellings/buildings by period of construction','source_page':page,'source_page_sha256':page_sha,'license':'CC BY 4.0 - Statbel general reuse terms; third-party rights remain separate if identified','attribution':'Source: Statbel','discovered_xlsx':len(urls),'successful_files':sum('sha256' in x for x in results),'results':results,'runtime_authorized':False,'production_authorized':False,'use':'statistical construction-period evidence; never treated as exact facade survey'}
           open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
           if manifest['successful_files']==0: raise SystemExit('Statbel construction-period tables not downloaded')
           print('STATBEL_BUILDING_PERIOD_INTAKE_OK',manifest['successful_files'])

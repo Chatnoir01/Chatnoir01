@@ -1,0 +1,66 @@
+name: Grand Bruxelles Intake Bike Counts
+on:
+  push:
+    branches: ["intake/brussels-bike-counts-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-bike-counts.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download Brussels Mobility bike counters
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/bike/history
+          python3 - <<'PY'
+          import csv, hashlib, io, json, os, re, urllib.parse, urllib.request
+          from datetime import date
+          base='https://data.mobility.brussels/bike/api/counts/'
+          headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          def get(params):
+              u=base+'?'+urllib.parse.urlencode(params)
+              req=urllib.request.Request(u,headers=headers)
+              with urllib.request.urlopen(req,timeout=120) as r: return u,r.read()
+          u,b=get({'request':'devices','outputFormat':'json'}); open('/tmp/bike/devices.json','wb').write(b)
+          devices=json.loads(b)
+          rows=devices if isinstance(devices,list) else devices.get('features') or devices.get('devices') or devices.get('data') or []
+          ids=[]
+          for x in rows:
+              d=x.get('properties',x) if isinstance(x,dict) else {}
+              for k in ('name','featureID','featureId','id','device','code'):
+                  v=d.get(k)
+                  if v not in (None,''):
+                      ids.append(str(v)); break
+          ids=sorted(set(ids))
+          assert ids, 'no bike counter ids discovered'
+          _,live=get({'request':'live','outputFormat':'json'}); open('/tmp/bike/live.json','wb').write(live)
+          end=date.today().strftime('%Y%m%d')
+          failures=[]
+          for fid in ids:
+              safe=re.sub(r'[^A-Za-z0-9_.-]+','_',fid)
+              try:
+                  hu,hb=get({'request':'history','featureID':fid,'startDate':'20181205','endDate':end,'outputFormat':'csv'})
+                  open(f'/tmp/bike/history/{safe}.csv','wb').write(hb)
+              except Exception as e: failures.append({'featureID':fid,'error':str(e)})
+          files=[]
+          for root,_,names in os.walk('/tmp/bike'):
+              for n in sorted(names):
+                  p=os.path.join(root,n)
+                  if n=='manifest.json': continue
+                  raw=open(p,'rb').read(); files.append({'file':os.path.relpath(p,'/tmp/bike'),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+          manifest={'publisher':'Bruxelles Mobilite','dataset':'Comptage velos','license':'CC0','api':base,'device_count':len(ids),'history_start':'2018-12-05','history_end':date.today().isoformat(),'failures':failures,'files':files}
+          open('/tmp/bike/manifest.json','w').write(json.dumps(manifest,indent=2))
+          assert len(files)>=2
+          print('BIKE_COUNTS_INTAKE_OK',len(ids),'failures',len(failures))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-bike-counts
+          path: /tmp/bike
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

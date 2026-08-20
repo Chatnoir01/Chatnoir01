@@ -1,0 +1,44 @@
+name: Grand Bruxelles Intake OSM Building Semantics
+on:
+  push:
+    branches: ["intake/osm-building-semantics-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-osm-building-semantics.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download semantically tagged Brussels buildings from OSM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/osm-building-semantics
+          cat > /tmp/osm-building-semantics/query.overpass <<'EOF'
+          [out:json][timeout:180];
+          (
+            nwr["building:use"](50.76,4.24,50.92,4.48);
+            nwr["building"~"^(apartments|residential|house|detached|terrace|commercial|retail|office|industrial|warehouse|school|hospital|church|civic|public|hotel|garage|garages|train_station)$"](50.76,4.24,50.92,4.48);
+          );
+          out center tags;
+          EOF
+          python3 - <<'PY'
+          import hashlib,json,urllib.parse,urllib.request
+          endpoint='https://overpass-api.de/api/interpreter'
+          query=open('/tmp/osm-building-semantics/query.overpass').read()
+          req=urllib.request.Request(endpoint,data=urllib.parse.urlencode({'data':query}).encode(),headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'})
+          with urllib.request.urlopen(req,timeout=240) as r: raw=r.read()
+          obj=json.loads(raw); count=len(obj.get('elements',[])); assert count>0
+          open('/tmp/osm-building-semantics/osm-building-semantics.json','wb').write(raw)
+          manifest={'publisher':'OpenStreetMap contributors','license':'ODbL-1.0','purpose':'semantic overlay only; never replaces official UrbIS building geometry','endpoint':endpoint,'bbox':[50.76,4.24,50.92,4.48],'element_count':count,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'query_sha256':hashlib.sha256(query.encode()).hexdigest(),'runtime_authorized':False,'semantic_join_requires_spatial_and_confidence_gate':True}
+          open('/tmp/osm-building-semantics/manifest.json','w').write(json.dumps(manifest,indent=2))
+          print('OSM_BUILDING_SEMANTICS_INTAKE_OK',count)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-osm-building-semantics
+          path: /tmp/osm-building-semantics
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

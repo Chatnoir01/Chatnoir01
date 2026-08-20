@@ -1,0 +1,104 @@
+name: Grand Bruxelles 19 Municipalities Intake
+on:
+  push:
+    branches: ["intake/brussels-municipal-19-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-municipal-19.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Inventory Belgian DCAT for Brussels municipal datasets
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/brussels-municipal-19
+          mkdir -p "$OUT/data"
+          curl --fail --location --retry 3 --connect-timeout 20 --max-time 600 \
+            'https://raw.githubusercontent.com/Fedict/dcat/master/all/datagovbe_edp.xml.gz' \
+            -o "$OUT/datagovbe_edp.xml.gz"
+          python3 - <<'PY'
+          import gzip,hashlib,json,os,re,urllib.parse,urllib.request,xml.etree.ElementTree as ET
+          out='/tmp/brussels-municipal-19'; src=out+'/datagovbe_edp.xml.gz'; h={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          municipalities={
+            'bruxelles-ville':['bruxelles','brussel'], 'anderlecht':['anderlecht'], 'auderghem':['auderghem','oudergem'],
+            'berchem-sainte-agathe':['berchem-sainte-agathe','sint-agatha-berchem'], 'etterbeek':['etterbeek'], 'evere':['evere'],
+            'forest':['forest','vorst'], 'ganshoren':['ganshoren'], 'ixelles':['ixelles','elsene'], 'jette':['jette'],
+            'koekelberg':['koekelberg'], 'molenbeek-saint-jean':['molenbeek-saint-jean','sint-jans-molenbeek'],
+            'saint-gilles':['saint-gilles','sint-gillis'], 'saint-josse-ten-noode':['saint-josse-ten-noode','sint-joost-ten-node'],
+            'schaerbeek':['schaerbeek','schaarbeek'], 'uccle':['uccle','ukkel'],
+            'watermael-boitsfort':['watermael-boitsfort','watermaal-bosvoorde'],
+            'woluwe-saint-lambert':['woluwe-saint-lambert','sint-lambrechts-woluwe'],
+            'woluwe-saint-pierre':['woluwe-saint-pierre','sint-pieters-woluwe']
+          }
+          ns={'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#','dcat':'http://www.w3.org/ns/dcat#','dct':'http://purl.org/dc/terms/'}
+          with gzip.open(src,'rb') as f: root=ET.parse(f).getroot()
+          rdf_about='{'+ns['rdf']+'}about'; rdf_resource='{'+ns['rdf']+'}resource'
+          dist_by_id={}
+          for d in root.findall('.//dcat:Distribution',ns):
+              rid=d.get(rdf_about)
+              if rid: dist_by_id[rid]=d
+          candidates=[]
+          local_hint=re.compile(r'commune|gemeente|ville de|stad |municipal|local authority|administration communale|gemeentebestuur',re.I)
+          for ds in root.findall('.//dcat:Dataset',ns):
+              xml=ET.tostring(ds,encoding='unicode'); low=xml.lower()
+              hits=[]
+              for key,names in municipalities.items():
+                  if any(n in low for n in names): hits.append(key)
+              if not hits or not local_hint.search(low): continue
+              title=' | '.join((x.text or '').strip() for x in ds.findall('dct:title',ns) if (x.text or '').strip())
+              ident=ds.get(rdf_about) or ''
+              drefs=[]
+              for x in ds.findall('dcat:distribution',ns):
+                  r=x.get(rdf_resource)
+                  if r: drefs.append(r)
+                  for inline in x.findall('dcat:Distribution',ns):
+                      rid=inline.get(rdf_about) or f'inline:{len(drefs)}'; dist_by_id[rid]=inline; drefs.append(rid)
+              candidates.append({'dataset':ident,'title':title,'municipalities':sorted(set(hits)),'distribution_refs':drefs})
+          # Deduplicate dataset IDs.
+          uniq={x['dataset'] or x['title']:x for x in candidates}; candidates=list(uniq.values())
+          downloads=[]
+          allowed_ext=re.compile(r'\.(?:csv|json|geojson|xlsx|xls|zip|gpkg|shp|txt|xml|parquet)(?:\?|$)',re.I)
+          def urls_for(d):
+              urls=[]
+              for tag in ('downloadURL','accessURL'):
+                  for x in d.findall('dcat:'+tag,ns):
+                      u=x.get(rdf_resource) or (x.text or '').strip()
+                      if u: urls.append(u)
+              return urls
+          seen=set()
+          for c in candidates:
+              for ref in c['distribution_refs']:
+                  d=dist_by_id.get(ref)
+                  if d is None: continue
+                  for u in urls_for(d):
+                      if u in seen or not u.startswith('https://') or not allowed_ext.search(u): continue
+                      host=urllib.parse.urlparse(u).netloc.lower()
+                      if not (host.endswith('.be') or host.endswith('.brussels') or host.endswith('belgium.be')): continue
+                      seen.add(u)
+                      try:
+                          req=urllib.request.Request(u,headers=h)
+                          with urllib.request.urlopen(req,timeout=300) as r: raw=r.read()
+                          name=urllib.parse.unquote(urllib.parse.urlparse(u).path.rsplit('/',1)[-1]) or hashlib.sha1(u.encode()).hexdigest()+'.bin'
+                          name=re.sub(r'[^A-Za-z0-9_.-]+','_',name)
+                          # Avoid accidental filename collisions.
+                          path=out+'/data/'+name
+                          if os.path.exists(path): name=hashlib.sha1(u.encode()).hexdigest()[:10]+'-'+name; path=out+'/data/'+name
+                          open(path,'wb').write(raw)
+                          downloads.append({'url':u,'file':name,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+                      except Exception as e: downloads.append({'url':u,'error':str(e)})
+          rawgz=open(src,'rb').read()
+          manifest={'schema':'grand-bruxelles-19-municipalities-intake-v1','source':'data.gov.be full DCAT-AP export','source_repository':'Fedict/dcat','municipalities':list(municipalities),'candidate_datasets':len(candidates),'successful_downloads':sum('sha256' in x for x in downloads),'candidates':candidates,'downloads':downloads,'dcat_sha256':hashlib.sha256(rawgz).hexdigest(),'license':'per-dataset; DCAT export itself CC0','runtime_authorized':False,'production_authorized':False,'note':'Candidate detection requires municipal/local-authority context; regional/federal datasets mentioning a commune are not intentionally promoted.'}
+          open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          print('MUNICIPAL_19_INTAKE_OK','candidates',len(candidates),'downloads',manifest['successful_downloads'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-municipal-19
+          path: /tmp/brussels-municipal-19
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

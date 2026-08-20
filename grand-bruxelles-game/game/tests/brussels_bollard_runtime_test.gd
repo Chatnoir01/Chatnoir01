@@ -88,15 +88,19 @@ func _run() -> void:
         return
     var scene := packed.instantiate() as Node3D
     root.add_child(scene)
+    if current_scene != null:
+        _fail("root-instantiated production witness unexpectedly assigned current_scene")
+        return
     var runtime := root.get_node_or_null("BrusselsBollardRuntime")
     if runtime == null:
         _fail("BrusselsBollardRuntime autoload missing")
         return
-    runtime.call("bind_scene", scene)
-    for _frame: int in range(12):
+    for _frame: int in range(190):
+        if bool(runtime.call("ready_complete")):
+            break
         await process_frame
     if not bool(runtime.call("ready_complete")) or bool(runtime.call("failed")):
-        _fail("runtime did not bind cleanly")
+        _fail("runtime did not auto-discover root-instantiated production scene")
         return
     if int(runtime.call("point_count")) != EXPECTED_COUNT:
         _fail("runtime point count mismatch")

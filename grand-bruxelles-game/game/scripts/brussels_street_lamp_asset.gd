@@ -69,7 +69,7 @@ static func arm_transform(base_position: Vector3) -> Transform3D:
 static func luminaire_transform(base_position: Vector3) -> Transform3D:
     var basis := Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(-90.0))
     basis = basis.scaled(Vector3(1.0, 1.0, LUMINAIRE_DEPTH_SCALE))
-    return Transform3D(basis, base_position + Vector3(ARM_LENGTH + LUMINAIRE_LENGTH * 0.30, POLE_HEIGHT - 0.20, 0.0))
+    return Transform3D(basis, base_position + Vector3(ARM_LENGTH + LUMINAIRE_LENGTH * 0.28, POLE_HEIGHT - 0.20, 0.0))
 
 static func collision_shape() -> CylinderShape3D:
     var shape := CylinderShape3D.new()

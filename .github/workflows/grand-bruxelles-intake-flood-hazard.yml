@@ -24,17 +24,19 @@ jobs:
           results=[]
           landing='https://datastore.brussels/web/data/dataset/5b0aca75-af4c-4e2f-86ad-8f5bc56ee0e4'
           official='https://environnement.brussels/citoyen/documentation-et-outils/cartes/cartes-relatives-aux-inondations-pour-la-region-bruxelloise'
-          for key,url in [('datastore',landing),('official_page',official)]:
+          legal='https://environnement.brussels/media/20886/download?inline='
+          for key,url in [('datastore',landing),('official_page',official),('legal_terms',legal)]:
               try:
-                  raw=get(url); rel=f'{key}.html'; open(f'{out}/{rel}','wb').write(raw)
+                  raw=get(url); ext='pdf' if key=='legal_terms' else 'html'; rel=f'{key}.{ext}'; open(f'{out}/{rel}','wb').write(raw)
                   results.append({'id':key,'file':rel,'url':url,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
-                  text=raw.decode('utf-8','ignore')
-                  for u in sorted(set(re.findall(r'https?://[^\"\'<> ]+\.(?:zip|tif|tiff|gpkg|geojson|shp)(?:\?[^\"\'<> ]*)?',text,re.I))):
-                      try:
-                          data=get(u,600); fn=re.sub(r'[^A-Za-z0-9_.-]+','_',u.rsplit('/',1)[-1].split('?')[0]); rel='data/'+fn
-                          open(f'{out}/{rel}','wb').write(data)
-                          results.append({'id':'direct_resource','url':u,'file':rel,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
-                      except Exception as e: results.append({'id':'direct_resource','url':u,'error':str(e)})
+                  if ext=='html':
+                      text=raw.decode('utf-8','ignore')
+                      for u in sorted(set(re.findall(r'https?://[^\"\'<> ]+\.(?:zip|tif|tiff|gpkg|geojson|shp)(?:\?[^\"\'<> ]*)?',text,re.I))):
+                          try:
+                              data=get(u,600); fn=re.sub(r'[^A-Za-z0-9_.-]+','_',u.rsplit('/',1)[-1].split('?')[0]); rel='data/'+fn
+                              open(f'{out}/{rel}','wb').write(data)
+                              results.append({'id':'direct_resource','url':u,'file':rel,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+                          except Exception as e: results.append({'id':'direct_resource','url':u,'error':str(e)})
               except Exception as e: results.append({'id':key,'url':url,'error':str(e)})
           wfs='https://ows.environnement.brussels/belb?service=WFS&request=GetCapabilities'
           layers=[]
@@ -53,7 +55,7 @@ jobs:
                   raw=get(url,600); obj=json.loads(raw); fn=re.sub(r'[^A-Za-z0-9_.-]+','_',name)+'.geojson'; rel='data/'+fn; open(f'{out}/{rel}','wb').write(raw)
                   results.append({'id':'wfs_layer','name':name,'title':title,'url':url,'file':rel,'feature_count':len(obj.get('features',[])),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
               except Exception as e: results.append({'id':'wfs_layer','name':name,'title':title,'url':url,'error':str(e)})
-          manifest={'schema':'grand-bruxelles-flood-hazard-intake-v2','publisher':'Brussels Environment','dataset_id':'5b0aca75-af4c-4e2f-86ad-8f5bc56ee0e4','dataset_version':'Flood hazard 2025','updated_verified':'2026-05-06','official_article_date':'2026-05-26','license':'REUSE_TERMS_UNRESOLVED_PER_DOWNLOADED_LAYER','wfs_candidate_layers':[x[0] for x in layers],'downloaded_data_resources':sum('file' in x and (x.get('id') in ('direct_resource','wfs_layer')) for x in results),'results':results,'runtime_authorized':False,'production_authorized':False,'note':'Indicative simulated hazard; not regulatory truth and not permission to generate flooding everywhere.'}
+          manifest={'schema':'grand-bruxelles-flood-hazard-intake-v3','publisher':'Brussels Environment','dataset_id':'5b0aca75-af4c-4e2f-86ad-8f5bc56ee0e4','dataset_version':'Flood hazard 2025','updated_verified':'2026-05-06','official_article_date':'2026-05-26','license':'CC BY (Brussels Environment OpenData policy) + flood-map specific legal conditions March 2026','attribution':'Source: Bruxelles Environnement / Leefmilieu Brussel','legal_terms_url':legal,'crs_wfs':'EPSG:31370','wfs_candidate_layers':[x[0] for x in layers],'downloaded_data_resources':sum('file' in x and (x.get('id') in ('direct_resource','wfs_layer')) for x in results),'results':results,'runtime_authorized':False,'production_authorized':False,'note':'Indicative simulated hazard; no regulatory value; not permission to generate flooding everywhere or relabel modeled risk as an observed event.'}
           open(out+'/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
           if not any('sha256' in x for x in results): raise SystemExit('no flood evidence downloaded')
           print('FLOOD_HAZARD_INTAKE_OK','data',manifest['downloaded_data_resources'],'layers',len(layers))

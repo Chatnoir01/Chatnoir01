@@ -3,9 +3,9 @@
 
 The input directory is populated by CI from a pinned upstream commit. This tool
 never downloads anything. It removes GLB animation tables, rejects residual
-Mixamo/Adobe references, copies referenced textures, downsizes them to a bounded
-review resolution, and writes a deterministic audit report. The output is not
-production-authorized.
+Mixamo/Adobe references, copies required PBR/hair textures, downsizes them to a
+bounded review resolution, and writes a deterministic audit report. The output
+is not production-authorized.
 """
 from __future__ import annotations
 
@@ -27,6 +27,24 @@ REQUIRED_GLBS = (
     "vitruvian_head.glb",
     "hairtool_cards.glb",
     "vitruvian_hair.glb",
+)
+REVIEW_TEXTURES = (
+    "vit_body_bc.png",
+    "vit_body_n.png",
+    "vit_body_rough.png",
+    "vit_fabric_n.png",
+    "vit_face_bc.png",
+    "vit_face_n.png",
+    "vit_face_rough.png",
+    "vit_mouth.png",
+    "vit_sclera.png",
+    "vit_iris.png",
+    "vit_lash_atlas.png",
+    "vit_hair_diffuse.png",
+    "vit_hair_normal.png",
+    "vit_hair_ao.png",
+    "vit_hair_opacity.png",
+    "vit_hair_atlas.png",
 )
 
 
@@ -127,7 +145,7 @@ def main() -> None:
 
     args.output.mkdir(parents=True, exist_ok=True)
     glb_report: dict[str, Any] = {}
-    referenced_images: set[str] = set()
+    referenced_images: set[str] = set(REVIEW_TEXTURES)
 
     for name in REQUIRED_GLBS:
         src = args.source / name
@@ -163,7 +181,7 @@ def main() -> None:
     for uri in sorted(referenced_images):
         src = args.source / uri
         if not src.is_file():
-            raise RuntimeError(f"referenced source image missing: {uri}")
+            raise RuntimeError(f"required/referenced source image missing: {uri}")
         out = args.output / uri
         texture_report[uri] = resize_image(src, out)
 

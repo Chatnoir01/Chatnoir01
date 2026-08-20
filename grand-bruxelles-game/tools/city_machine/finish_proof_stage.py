@@ -5,6 +5,7 @@ import argparse
 import sys
 
 import city_machine as cm
+import finish_materials as fm
 
 PROOF_GATES = [
     "G1_sources_crs",
@@ -12,6 +13,7 @@ PROOF_GATES = [
     "G3_buildings_streets",
     "G4_runtime_finish",
     "G5_osm_environment",
+    "G6_finish_materials",
 ]
 
 
@@ -25,7 +27,8 @@ def run(zone_id: str) -> int:
     manifest = cm.source_contract(profile)
 
     by_gate = {row.get("gate"): row for row in registry["layers"] if row.get("gate")}
-    missing = [gate for gate in PROOF_GATES if gate not in by_gate]
+    required_registry_gates = PROOF_GATES[:5]
+    missing = [gate for gate in required_registry_gates if gate not in by_gate]
     if missing:
         raise cm.MachineError(f"proof gates missing: {missing}")
 
@@ -35,6 +38,7 @@ def run(zone_id: str) -> int:
     cm.gate_content(profile)
     cm.gate_finish(by_gate["G4_runtime_finish"])
     cm.gate_osm_environment(zone_id, profile, manifest)
+    fm.gate(zone_id)
     print(f"CITY_MACHINE_FAMILY END proof zone={zone_id} gates={','.join(PROOF_GATES)} promotion=false")
     return 0
 

@@ -8,11 +8,13 @@ on:
       - ".github/workflows/grand-bruxelles-cell-streaming-probe.yml"
       - "grand-bruxelles-game/game/scripts/brussels_cell_streaming_manager.gd"
       - "grand-bruxelles-game/game/scripts/brussels_cell_node_backend.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_c01_external_cell_backend.gd"
       - "grand-bruxelles-game/game/scripts/brussels_asset_cache.gd"
       - "grand-bruxelles-game/game/scripts/brussels_world_streaming_runtime.gd"
       - "grand-bruxelles-game/game/scripts/brussels_source_plan_streamed_cell.gd"
       - "grand-bruxelles-game/game/scripts/mobile_playability_collision_runtime.gd"
       - "grand-bruxelles-game/game/tests/brussels_cell_streaming_probe_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_c01_external_cell_backend_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_real_cell_lifecycle_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_production_streaming_runtime_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_source_plan_cluster_test.gd"
@@ -51,6 +53,13 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_cell_streaming_probe_test.gd 2>&1 | tee /tmp/streaming-probe.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_CELL_STREAMING_PROBE_FAIL" /tmp/streaming-probe.log; then exit 1; fi
           grep -F "BRUSSELS_CELL_STREAMING_PROBE_OK" /tmp/streaming-probe.log
+      - name: Run C01 external HTTP backend candidate probe
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_c01_external_cell_backend_test.gd 2>&1 | tee /tmp/c01-external-backend.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_C01_EXTERNAL_BACKEND_FAIL" /tmp/c01-external-backend.log; then exit 1; fi
+          grep -F "BRUSSELS_C01_EXTERNAL_BACKEND_OK" /tmp/c01-external-backend.log
       - name: Run real Ixelles cell lifecycle probe
         shell: bash
         run: |

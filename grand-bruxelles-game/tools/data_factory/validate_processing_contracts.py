@@ -23,7 +23,12 @@ def main() -> int:
 
     contracts = {c["family"]: c for c in contracts_doc.get("contracts", [])}
     queue = {q["family"]: q for q in queue_doc.get("queue", [])}
-    required_families = {"urbis_addresses", "stib_static_network", "mobiris_traffic_counts"}
+    required_families = {
+        "urbis_addresses",
+        "stib_surface_network",
+        "stib_static_schedule",
+        "mobiris_traffic_counts",
+    }
     missing_families = sorted(required_families - contracts.keys())
     if missing_families:
         raise SystemExit("processing contract gate failed: missing contracts: " + ", ".join(missing_families))

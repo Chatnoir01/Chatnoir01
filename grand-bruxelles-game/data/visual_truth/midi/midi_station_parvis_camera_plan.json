@@ -1,0 +1,69 @@
+{
+  "schema": "grand-bruxelles-midi-player-height-camera-plan-v1",
+  "zone_id": "midi_station_parvis",
+  "status": "HOLD",
+  "global_gate": {
+    "resolution": [1280, 720],
+    "camera_height_m": 1.65,
+    "default_fov_deg": 67.0,
+    "before_after_same_camera": true,
+    "camera_rescue_forbidden": true,
+    "fov_rescue_forbidden": true,
+    "human_full_frame_veto": true,
+    "three_second_recognition_required": true
+  },
+  "views": [
+    {
+      "camera_id": "midi_fonsny_main_face",
+      "side": "Avenue Fonsny / Fonsnylaan",
+      "purpose": ["station_identity", "main_entrance", "facade_rhythm", "ground_floor", "forecourt_surface", "street_furniture_context"],
+      "source_anchor_reference": "midi_fonsny_2016_jacquesverlaeken",
+      "source_camera_wgs84": {"lat": 50.835989, "lon": 4.340519},
+      "project_camera_xz": null,
+      "project_target_xz": null,
+      "status": "NEEDS_CRS_CONVERSION_AND_2025_2026_CURRENT_CAPTURE",
+      "promotion_blocking": true
+    },
+    {
+      "camera_id": "midi_west_station_face",
+      "side": "Rue de France / Frankrijkstraat",
+      "purpose": ["international_terminal_mass", "entrance_identity", "street_join", "tram_road_context", "roofline"],
+      "source_anchor_reference": "midi_station_building_2021_japplemedia",
+      "source_camera_wgs84": {"lat": 50.837331, "lon": 4.335247},
+      "source_heading_deg": 206.85933682373,
+      "project_camera_xz": null,
+      "project_target_xz": null,
+      "status": "NEEDS_CRS_CONVERSION_AND_2025_2026_CURRENT_CAPTURE",
+      "promotion_blocking": true
+    },
+    {
+      "camera_id": "midi_north_couverte_arrival",
+      "side": "Rue Couverte / Bedektestraat",
+      "purpose": ["north_arrival_readability", "station_underpass_context", "pedestrian_flow_space", "street_surface", "lighting_context"],
+      "source_anchor_reference": null,
+      "source_camera_wgs84": null,
+      "project_camera_xz": null,
+      "project_target_xz": null,
+      "status": "NEEDS_CURRENT_GEOLOCATED_REFERENCE",
+      "promotion_blocking": true
+    },
+    {
+      "camera_id": "midi_south_veterinaires_arrival",
+      "side": "Rue des Veterinaires / Veeartsenstraat",
+      "purpose": ["south_arrival_readability", "station_mass", "road_rail_relationship", "ground_contact", "urban_context"],
+      "source_anchor_reference": null,
+      "source_camera_wgs84": null,
+      "project_camera_xz": null,
+      "project_target_xz": null,
+      "status": "NEEDS_CURRENT_GEOLOCATED_REFERENCE",
+      "promotion_blocking": true
+    }
+  ],
+  "capture_rules": {
+    "player_and_ui_may_not_hide_architecture": true,
+    "weather_must_be_neutral_for_geometry_review": true,
+    "ambient_npc_and_vehicle_density_must_be_frozen_between_ab": true,
+    "each_after_frame_requires_human_verdict": true,
+    "no_view_is_green_without_reference_id": true
+  }
+}

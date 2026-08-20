@@ -14,6 +14,7 @@ FINISH_REGISTRY = HERE / "finish_registry.json"
 BASE_REGISTRY = HERE / "registry.json"
 GEOMETRY_STAGE = HERE / "finish_geometry_stage.py"
 ENVIRONMENT_STAGE = HERE / "finish_environment_stage.py"
+MATERIALS_STAGE = HERE / "finish_materials_stage.py"
 PROOF_STAGE = HERE / "finish_proof_stage.py"
 EXPECTED_FAMILIES = ["geometry", "osm_environment", "finish_materials", "life", "proof"]
 VALID_STATUS = {"wired", "disabled", "missing", "blocked"}
@@ -59,7 +60,11 @@ def run_stage(script: Path, zone_id: str, dry_run: bool = False) -> int:
         cmd.append("--dry-run")
     result = subprocess.run(cmd, cwd=PROJECT)
     if result.returncode != 0:
-        print(f"CITY_MACHINE_FINISH_FAIL zone={zone_id} stage={script.name} rc={result.returncode}", file=sys.stderr, flush=True)
+        print(
+            f"CITY_MACHINE_FINISH_FAIL zone={zone_id} stage={script.name} rc={result.returncode}",
+            file=sys.stderr,
+            flush=True,
+        )
     return result.returncode
 
 
@@ -85,14 +90,32 @@ def run(zone_id: str, dry_run: bool) -> int:
     if rc:
         return rc
 
-    for family in ("finish_materials", "life"):
-        row = rows[family]
-        status = str(row["status"])
-        if status == "wired":
-            raise FinishPipelineError(f"{family} is marked wired but has no production stage")
-        print(f"CITY_MACHINE_FAMILY SKIP {family} status={status} reason={row['reason']}", flush=True)
+    materials = rows["finish_materials"]
+    if str(materials["status"]) == "wired":
+        rc = run_stage(MATERIALS_STAGE, zone_id, dry_run)
+        if rc:
+            return rc
+    else:
+        print(
+            "CITY_MACHINE_FAMILY SKIP finish_materials "
+            f"status={materials['status']} reason={materials['reason']}",
+            flush=True,
+        )
+
+    life = rows["life"]
+    life_status = str(life["status"])
+    if life_status == "wired":
+        raise FinishPipelineError("life is marked wired but has no production stage")
+    print(
+        f"CITY_MACHINE_FAMILY SKIP life status={life_status} reason={life['reason']}",
+        flush=True,
+    )
 
     log_disabled_base_layers(zone_id)
+
+    if dry_run:
+        print(f"CITY_MACHINE_FINISH_END zone={zone_id} result=DRY_RUN promotion=false", flush=True)
+        return 0
 
     rc = run_stage(PROOF_STAGE, zone_id, False)
     if rc:

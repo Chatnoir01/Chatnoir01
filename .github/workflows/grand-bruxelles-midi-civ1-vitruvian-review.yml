@@ -1,0 +1,207 @@
+name: Grand Bruxelles Midi CIV-1 Vitruvian Review
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-civ1-vitruvian-review.yml"
+      - "grand-bruxelles-game/data/provenance/characters/vitruvian_civ1_review_v1.json"
+      - "grand-bruxelles-game/tools/prepare_vitruvian_civ1_review.py"
+      - "grand-bruxelles-game/game/tests/midi_civ1_vitruvian_capture_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-midi-civ1-vitruvian-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  civ1-full-body-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact review head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install review dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            curl unzip python3-pil xvfb \
+            libglu1-mesa libopengl0 libgl1-mesa-dri libglx-mesa0 \
+            libx11-xcb1 libxcb1 libxcb-util1 libxcb-image0 libxcb-keysyms1 \
+            libxcb-icccm4 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 \
+            libxcb-xkb1 libxcb-shape0 libxkbcommon-x11-0 libxcb-cursor0
+
+      - name: Fetch pinned upstream CC0 character review source
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMIT=bdecdcd537b4031fdd0fb299b7e4f93f084fffa0
+          RAW=https://raw.githubusercontent.com/ibrews/VitruvianGodot/$COMMIT
+          SRC=/tmp/vitruvian-civ1-source
+          rm -rf "$SRC" /tmp/vitruvian-upstream-check
+          mkdir -p "$SRC"
+
+          git init -q /tmp/vitruvian-upstream-check
+          git -C /tmp/vitruvian-upstream-check remote add origin https://github.com/ibrews/VitruvianGodot.git
+          git -C /tmp/vitruvian-upstream-check fetch -q --depth 1 --filter=blob:none origin "$COMMIT"
+          test "$(git -C /tmp/vitruvian-upstream-check rev-parse FETCH_HEAD)" = "$COMMIT"
+
+          fetch_asset() {
+            local rel="$1"; local out="$2"
+            mkdir -p "$(dirname "$out")"
+            curl -fL --retry 4 --retry-all-errors --retry-delay 2 -o "$out" "$RAW/$rel"
+            test -s "$out"
+          }
+
+          fetch_asset LICENSE "$SRC/LICENSE"
+          fetch_asset NOTICE.md "$SRC/NOTICE.md"
+          fetch_asset README.md "$SRC/README.md"
+          grep -qi 'CC0' "$SRC/NOTICE.md"
+          grep -qi 'Character assets' "$SRC/NOTICE.md"
+          grep -qi 'fully CC0 / EULA-free real-time digital human' "$SRC/README.md"
+          grep -qi 'Everything here can be redistributed' "$SRC/README.md"
+
+          for file in vitruvian_body.glb vitruvian_head.glb hairtool_cards.glb vitruvian_hair.glb; do
+            fetch_asset "godot_project/$file" "$SRC/$file"
+          done
+          fetch_asset godot_project/scenes/hairtool_card.gdshader "$SRC/hairtool_card.gdshader"
+          fetch_asset godot_project/scenes/hair_card.gdshader "$SRC/hair_card.gdshader"
+          fetch_asset godot_project/addons/eyeball_shader/shaders/cornea.gdshader "$SRC/cornea.gdshader"
+
+          for texture in \
+            vit_body_bc.png vit_body_n.png vit_body_rough.png vit_fabric_n.png \
+            vit_face_bc.png vit_face_n.png vit_face_rough.png vit_mouth.png \
+            vit_sclera.png vit_iris.png vit_lash_atlas.png \
+            vit_hair_diffuse.png vit_hair_normal.png vit_hair_ao.png \
+            vit_hair_opacity.png vit_hair_atlas.png
+          do
+            fetch_asset "godot_project/$texture" "$SRC/$texture"
+          done
+
+          python3 - <<'PY' > /tmp/extra-image-uris.txt
+          import json, pathlib, struct
+          root=pathlib.Path('/tmp/vitruvian-civ1-source')
+          uris=set()
+          for path in root.glob('*.glb'):
+              raw=path.read_bytes(); off=12; doc=None
+              while off+8<=len(raw):
+                  n,t=struct.unpack_from('<II',raw,off); off+=8; payload=raw[off:off+n]; off+=n
+                  if t==0x4E4F534A: doc=json.loads(payload.rstrip(b'\x00 \t\r\n').decode())
+              if doc is None: raise SystemExit(f'GLB JSON missing: {path}')
+              for image in doc.get('images') or []:
+                  uri=image.get('uri')
+                  if not uri: continue
+                  p=pathlib.PurePosixPath(str(uri))
+                  if p.is_absolute() or '..' in p.parts or str(uri).startswith('data:'):
+                      raise SystemExit(f'unsafe URI: {uri}')
+                  uris.add(str(uri))
+          print('\n'.join(sorted(uris)))
+          PY
+          while IFS= read -r uri; do
+            [ -z "$uri" ] && continue
+            [ -s "$SRC/$uri" ] || fetch_asset "godot_project/$uri" "$SRC/$uri"
+          done < /tmp/extra-image-uris.txt
+
+          printf '%s\n' "$COMMIT" > /tmp/vitruvian-upstream-commit.txt
+          (cd "$SRC" && find . -maxdepth 2 -type f -print0 | sort -z | xargs -0 sha256sum) | tee /tmp/vitruvian-source-sha256.txt
+          echo "GB_CIV1_SOURCE_OK commit=$COMMIT"
+
+      - name: Prepare animation-free bounded review package
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/vitruvian-civ1-prepared
+          python3 grand-bruxelles-game/tools/prepare_vitruvian_civ1_review.py \
+            --source /tmp/vitruvian-civ1-source \
+            --output "$OUT" \
+            --report /tmp/vitruvian-civ1-prep-report.json \
+            | tee /tmp/vitruvian-civ1-prep.log
+          grep -q 'GB_CIV1_VITRUVIAN_PREPARED' /tmp/vitruvian-civ1-prep.log
+          grep -q '"production_authorized": false' /tmp/vitruvian-civ1-prep-report.json
+          grep -q '"output_animations": 0' /tmp/vitruvian-civ1-prep-report.json
+
+      - name: Stage review package into Godot only for this run
+        shell: bash
+        run: |
+          set -euo pipefail
+          REVIEW=grand-bruxelles-game/assets/characters/_review/vitruvian_civ1_v1
+          rm -rf "$REVIEW"
+          mkdir -p "$REVIEW"
+          cp -a /tmp/vitruvian-civ1-prepared/. "$REVIEW/"
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import review assets in GL Compatibility
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            --rendering-method gl_compatibility \
+            2>&1 | tee /tmp/civ1-godot-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|Shader compilation failed|ERROR: Failed to load|couldn.t be loaded|Clamped index' /tmp/civ1-godot-import.log; then exit 1; fi
+
+      - name: Capture full CIV-1 witness in actual Midi scene
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --display-driver x11 \
+            --rendering-method gl_compatibility --resolution 1280x720 \
+            --script res://game/tests/midi_civ1_vitruvian_capture_test.gd -- \
+            /tmp/midi-civ1-vitruvian.png \
+            2>&1 | tee /tmp/civ1-godot-runtime.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|Shader compilation failed|GB_CIV1_VITRUVIAN_WITNESS_FAIL' /tmp/civ1-godot-runtime.log; then exit 1; fi
+          grep -q 'GB_CIV1_VITRUVIAN_WITNESS_OK' /tmp/civ1-godot-runtime.log
+          for f in /tmp/midi-civ1-vitruvian_2m.png /tmp/midi-civ1-vitruvian_5m.png /tmp/midi-civ1-vitruvian_8m.png /tmp/midi-civ1-vitruvian_2m_three_quarter.png /tmp/midi-civ1-vitruvian.metrics.json; do test -s "$f"; done
+          grep -q '"production_authorized": false' /tmp/midi-civ1-vitruvian.metrics.json
+          grep -q '"animation_clip_count": 0' /tmp/midi-civ1-vitruvian.metrics.json
+          grep -q '"fallback_changed": false' /tmp/midi-civ1-vitruvian.metrics.json
+
+      - name: Stage owner-review evidence
+        if: always()
+        shell: bash
+        run: |
+          OUT=grand-bruxelles-game/artifacts/qa/midi_civ1_vitruvian
+          mkdir -p "$OUT"
+          cp /tmp/midi-civ1-vitruvian_2m.png "$OUT/witness_2m.png" 2>/dev/null || true
+          cp /tmp/midi-civ1-vitruvian_5m.png "$OUT/witness_5m.png" 2>/dev/null || true
+          cp /tmp/midi-civ1-vitruvian_8m.png "$OUT/witness_8m.png" 2>/dev/null || true
+          cp /tmp/midi-civ1-vitruvian_2m_three_quarter.png "$OUT/witness_2m_three_quarter.png" 2>/dev/null || true
+          cp /tmp/midi-civ1-vitruvian.metrics.json "$OUT/metrics.json" 2>/dev/null || true
+          cp /tmp/vitruvian-civ1-prep-report.json "$OUT/prep_report.json" 2>/dev/null || true
+          cp /tmp/vitruvian-source-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
+          cp /tmp/vitruvian-upstream-commit.txt "$OUT/upstream_commit.txt" 2>/dev/null || true
+          cp /tmp/vitruvian-civ1-source/LICENSE "$OUT/upstream_LICENSE" 2>/dev/null || true
+          cp /tmp/vitruvian-civ1-source/NOTICE.md "$OUT/upstream_NOTICE.md" 2>/dev/null || true
+          cp /tmp/vitruvian-civ1-source/README.md "$OUT/upstream_README.md" 2>/dev/null || true
+          cp /tmp/civ1-godot-import.log "$OUT/godot_import.log" 2>/dev/null || true
+          cp /tmp/civ1-godot-runtime.log "$OUT/godot_runtime.log" 2>/dev/null || true
+          cp grand-bruxelles-game/data/provenance/characters/vitruvian_civ1_review_v1.json "$OUT/provenance.json"
+          printf '%s\n' '{"status":"owner_review_required","production_authorized":false,"gate":"2m_5m_8m_full_body_actual_midi","required_verdict":"GARDER","runtime_activation":false}' > "$OUT/authorization.json"
+
+      - name: Upload CIV-1 owner-review artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-civ1-vitruvian-full-body-witness
+          path: grand-bruxelles-game/artifacts/qa/midi_civ1_vitruvian
+          if-no-files-found: warn

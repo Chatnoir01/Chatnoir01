@@ -27,9 +27,20 @@ jobs:
               req=urllib.request.Request(url,headers=headers)
               with urllib.request.urlopen(req,timeout=240) as r: raw=r.read()
               obj=json.loads(raw); count=len(obj.get('features',[])); assert count>0, layer
-              fn='/tmp/urbis-addresses/'+layer.split(':')[1]+'.geojson'; open(fn,'wb').write(raw)
-              out.append({'layer':layer,'url':url,'feature_count':count,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
-          manifest={'publisher':'Paradigm / UrbIS','dataset':'UrbIS addresses','source_crs':'EPSG:31370','wfs':base,'results':out,'runtime_authorized':False,'production_use_requires_license_metadata_check':True}
+              rel=layer.split(':')[1]+'.geojson'; open('/tmp/urbis-addresses/'+rel,'wb').write(raw)
+              out.append({'layer':layer,'file':rel,'url':url,'feature_count':count,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+          manifest={
+            'schema':'grand-bruxelles-urbis-addresses-intake-v2',
+            'publisher':'Paradigm / UrbIS',
+            'dataset':'UrbIS - Parcels and buildings / current address classes',
+            'source_crs':'EPSG:31370',
+            'wfs':base,
+            'license':'Paradigm UrbIS dataset terms; dataset is publicly/freely downloadable, exact production reuse terms remain a separate gate',
+            'license_status':'REQUIRES_EXACT_PRODUCTION_CONFIRMATION',
+            'results':out,
+            'runtime_authorized':False,
+            'production_authorized':False
+          }
           open('/tmp/urbis-addresses/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
           print('URBIS_ADDRESSES_INTAKE_OK',[(x['layer'],x['feature_count']) for x in out])
           PY

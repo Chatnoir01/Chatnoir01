@@ -5,6 +5,7 @@ on:
     paths:
       - "grand-bruxelles-game/tools/discover_bourse_curb_alignment_sources.py"
       - "grand-bruxelles-game/tools/probe_bourse_curb_alignment.py"
+      - "grand-bruxelles-game/tools/analyze_bourse_curb_boundary_overlap.py"
       - "grand-bruxelles-game/data/urbis/bourse_curb_source_policy.game.json"
       - "grand-bruxelles-game/data/urbis/bourse_official_sidewalks.game.json"
       - ".github/workflows/grand-bruxelles-bourse-a1-curb-source.yml"
@@ -24,10 +25,17 @@ jobs:
           mkdir -p grand-bruxelles-game/artifacts/bourse-a1-curb-source
           python3 grand-bruxelles-game/tools/probe_bourse_curb_alignment.py \
             --output grand-bruxelles-game/artifacts/bourse-a1-curb-source/spatial_evidence.json
+      - name: Measure overlap with shipped sidewalk boundaries
+        run: |
+          python3 grand-bruxelles-game/tools/analyze_bourse_curb_boundary_overlap.py \
+            --probe grand-bruxelles-game/artifacts/bourse-a1-curb-source/spatial_evidence.json \
+            --output grand-bruxelles-game/artifacts/bourse-a1-curb-source/boundary_overlap.json
       - name: Upload source spatial evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bourse-a1-curb-source-spatial
-          path: grand-bruxelles-game/artifacts/bourse-a1-curb-source/spatial_evidence.json
+          path: |
+            grand-bruxelles-game/artifacts/bourse-a1-curb-source/spatial_evidence.json
+            grand-bruxelles-game/artifacts/bourse-a1-curb-source/boundary_overlap.json
           if-no-files-found: error

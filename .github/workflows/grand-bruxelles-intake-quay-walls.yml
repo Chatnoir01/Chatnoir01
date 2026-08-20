@@ -1,0 +1,46 @@
+name: Grand Bruxelles Intake Quay Walls
+on:
+  push:
+    branches: ["intake/brussels-quay-walls-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-quay-walls.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Discover and download official quay-wall layers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/quay-walls/layers
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.parse,urllib.request,xml.etree.ElementTree as ET
+          base='https://data.mobility.brussels/geoserver/ows'; headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=180) as r:return r.read()
+          cap_url=base+'?'+urllib.parse.urlencode({'service':'WFS','request':'GetCapabilities'}); cap=get(cap_url); open('/tmp/quay-walls/wfs-capabilities.xml','wb').write(cap)
+          root=ET.fromstring(cap); rx=re.compile(r'mur.*quai|quay.*wall|kaai.*muur|BR07L',re.I); cand=[]
+          for ft in root.findall('.//{*}FeatureType'):
+              n=ft.find('{*}Name'); t=ft.find('{*}Title'); name=(n.text or '').strip() if n is not None else ''; title=(t.text or '').strip() if t is not None else ''
+              if rx.search(name+' '+title): cand.append((name,title))
+          cand=sorted(set(cand)); assert cand,'no quay-wall layers found'
+          results=[]
+          for i,(name,title) in enumerate(cand):
+              url=base+'?'+urllib.parse.urlencode({'service':'WFS','version':'1.1.0','request':'GetFeature','typeName':name,'outputFormat':'json','srsName':'EPSG:31370'})
+              try:
+                  raw=get(url); obj=json.loads(raw); fn=f'/tmp/quay-walls/layers/{i:02d}-{re.sub(r"[^A-Za-z0-9_.-]+","_",name)}.geojson'; open(fn,'wb').write(raw); results.append({'name':name,'title':title,'url':url,'file':os.path.basename(fn),'feature_count':len(obj.get('features',[])),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+              except Exception as e: results.append({'name':name,'title':title,'url':url,'error':str(e)})
+          open('/tmp/quay-walls/manifest.json','w').write(json.dumps({'publisher':'Bruxelles Mobilite / UrbIS','dataset_family':'Mur de quai BR07L','license':'Open Data; verify exact layer metadata before production','crs':'EPSG:31370','results':results,'runtime_authorized':False},indent=2,ensure_ascii=False))
+          assert any('file' in x for x in results),results
+          print('QUAY_WALLS_INTAKE_OK',sum('file' in x for x in results),'layers')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-quay-walls
+          path: /tmp/quay-walls
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

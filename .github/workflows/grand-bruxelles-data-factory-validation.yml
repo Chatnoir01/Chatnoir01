@@ -1,0 +1,23 @@
+name: Grand Bruxelles Data Factory Validation
+on:
+  push:
+    branches: ["validation/data-factory-current"]
+    paths:
+      - "grand-bruxelles-game/data/validation/data_factory_validation_ledger.json"
+      - "grand-bruxelles-game/tools/qa/validate_data_factory_ledger.py"
+      - ".github/workflows/grand-bruxelles-data-factory-validation.yml"
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  validate-ledger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-closed validation ledger check
+        working-directory: grand-bruxelles-game
+        run: python3 tools/qa/validate_data_factory_ledger.py
+      - name: State production truth
+        run: |
+          echo "SOURCE_VERIFIED is not ARTIFACT_VERIFIED"
+          echo "ARTIFACT_UNVERIFIED is not READY_FOR_PROCESSING"
+          echo "No runtime/JOUABLE promotion is authorized by this workflow"

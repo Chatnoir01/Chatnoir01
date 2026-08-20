@@ -1,0 +1,66 @@
+{
+  "schema": "grand-bruxelles-bourse-curb-alignment-source-lock-v1",
+  "source": {
+    "publisher": "Brussels Mobility / Paradigm",
+    "workspace": "bm_urbis_topo",
+    "wfs": "https://data.mobility.brussels/geoserver/bm_urbis_topo/wfs",
+    "layer": "bm_urbis_topo:road_line",
+    "crs": "EPSG:31370",
+    "license": "CC0-1.0",
+    "resolved_topo_type": "BR0101L"
+  },
+  "diagnostic_probe": {
+    "production_base_sha": "a8737b5b4cbe0ee205bdede14217938118ee3c1b",
+    "diagnostic_head_sha": "064b4d9bc3f79096d71615cf4fc328f606bb906a",
+    "diagnostic_pr": 987,
+    "artifact_sha256": "b0639c130745f36899207e8d692362546e035e4a0652cfcca94f3615a77270e6",
+    "capabilities_sha256": "97044729906f19b7c0ce569c577389e45fb2dd754744ec5711ada3b74d603685",
+    "existing_bourse_envelope_bbox_epsg31370": [148597.48341165, 170828.11300036, 148696.99877946, 170900.59305335],
+    "envelope_pad_m": 8.0,
+    "advertised_feature_type_count": 50,
+    "queried_line_like_feature_type_count": 28,
+    "target_feature_count_in_envelope": 52,
+    "sidewalk_intersecting_target_feature_count": 8,
+    "cr63l_intersection_count_with_committed_sidewalks": 0
+  },
+  "sidewalk_intersecting_features": [
+    {"feature_id":"road_line.27161","urbis_id":10688187,"inspire_id":"BE.BRUSSELS.BRIC.TOPO.LINE.1358229","topo_type":"BR0101L","sidewalk_source_ids":["urbadm_ssw.66458","urbadm_ssw.66990"]},
+    {"feature_id":"road_line.121016","urbis_id":1753941,"inspire_id":"BE.BRUSSELS.BRIC.TOPO.LINE.1611623","topo_type":"BR0101L","sidewalk_source_ids":["urbadm_ssw.67995"]},
+    {"feature_id":"road_line.142994","urbis_id":1766879,"inspire_id":"BE.BRUSSELS.BRIC.TOPO.LINE.1616420","topo_type":"BR0101L","sidewalk_source_ids":["urbadm_ssw.66457","urbadm_ssw.66991","urbadm_ssw.67995"]},
+    {"feature_id":"road_line.155249","urbis_id":1656190,"inspire_id":"BE.BRUSSELS.BRIC.TOPO.LINE.1607014","topo_type":"BR0101L","sidewalk_source_ids":["urbadm_ssw.67995"]},
+    {"feature_id":"road_line.181083","urbis_id":1736883,"inspire_id":"BE.BRUSSELS.BRIC.TOPO.LINE.1619047","topo_type":"BR0101L","sidewalk_source_ids":["urbadm_ssw.66990"]},
+    {"feature_id":"road_line.181088","urbis_id":1734658,"inspire_id":"BE.BRUSSELS.BRIC.TOPO.LINE.1619401","topo_type":"BR0101L","sidewalk_source_ids":["urbadm_ssw.66990"]},
+    {"feature_id":"road_line.181247","urbis_id":1710949,"inspire_id":"BE.BRUSSELS.BRIC.TOPO.LINE.1621754","topo_type":"BR0101L","sidewalk_source_ids":["urbadm_ssw.67995"]},
+    {"feature_id":"road_line.182195","urbis_id":1734989,"inspire_id":"BE.BRUSSELS.BRIC.TOPO.LINE.1619407","topo_type":"BR0101L","sidewalk_source_ids":["urbadm_ssw.67995"]}
+  ],
+  "boundary_overlap_measurement": {
+    "sample_spacing_m": 0.1,
+    "sample_count": 1147,
+    "sample_ratio_within_0_02m": 0.11769834350479512,
+    "sample_ratio_within_0_05m": 0.3722755013077594,
+    "sample_ratio_within_0_10m": 0.3748910200523104,
+    "estimated_boundary_overlap_length_within_0_10m_m": 43.0,
+    "interpretation": "A substantial portion of the official BR0101L separator alignment is already represented by committed official sidewalk polygon boundaries; this source gate does not itself justify new horizontal runtime geometry."
+  },
+  "negative_visual_evidence": {
+    "closed_unmerged_pr": 986,
+    "candidate_change": "expand committed Bourse sidewalk overlay from 5 to all 16 fully-contained official polygons without geography expansion",
+    "changed_pixels_over_3_rgb_ratio": 0.001098,
+    "changed_pixels_over_8_rgb_ratio": 0.001077,
+    "difference_bbox_px": [1075, 25],
+    "frozen_gate_min_over_3_rgb_ratio": 0.002,
+    "frozen_gate_min_bbox_px": [220, 80],
+    "verdict": "rejected_for_insufficient_player_facing_impact"
+  },
+  "decision": {
+    "horizontal_alignment_source_resolved": true,
+    "horizontal_runtime_correction_justified_by_this_evidence": false,
+    "physical_curb_height_supported": false,
+    "dtm_1m_is_not_curb_height_proof": true,
+    "vertical_extrusion_allowed": false,
+    "curb_elevation_resolved": false,
+    "runtime_approved": false,
+    "realism_complete": false
+  },
+  "next_gate": "Require an independent vertical survey/source before any physical curb-height extrusion, or identify a different source-backed player-visible Bourse defect whose correction does not invent dimensions."
+}

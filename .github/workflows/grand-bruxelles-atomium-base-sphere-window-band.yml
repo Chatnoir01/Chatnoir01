@@ -1,0 +1,123 @@
+name: Grand Bruxelles Atomium Base Sphere Window Band
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-atomium-base-sphere-window-band.yml"
+      - "grand-bruxelles-game/data/sources/laeken_jette/atomium_base_sphere_window_band_evidence.json"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_base_sphere_window_band.gd"
+      - "grand-bruxelles-game/game/zones/laeken_jette/atomium_hero_core.gd"
+      - "grand-bruxelles-game/game/tests/atomium_base_sphere_window_band_witness_test.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/main.tscn"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  player-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1 and Pillow
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          python3 -m pip install --disable-pip-version-check pillow
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/atomium-window-band-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/atomium-window-band-import.log; then exit 1; fi
+      - name: Capture production Atomium arrival BEFORE and AFTER
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/atomium_base_sphere_window_band_witness_test.gd \
+            2>&1 | tee /tmp/atomium-window-band-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ATOMIUM_BASE_SPHERE_WINDOW_BAND_WITNESS_FAIL" /tmp/atomium-window-band-witness.log; then exit 1; fi
+          grep -F "ATOMIUM_BASE_SPHERE_WINDOW_BAND_WITNESS_OK" /tmp/atomium-window-band-witness.log
+          test -s grand-bruxelles-game/artifacts/qa/atomium_base_sphere_window_band/before.png
+          test -s grand-bruxelles-game/artifacts/qa/atomium_base_sphere_window_band/after.png
+      - name: Measure frozen player-visible gate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image, ImageChops
+
+          repo = Path('grand-bruxelles-game')
+          evidence = json.loads((repo / 'data/sources/laeken_jette/atomium_base_sphere_window_band_evidence.json').read_text(encoding='utf-8'))
+          gate = evidence['acceptance']
+          root = repo / 'artifacts/qa/atomium_base_sphere_window_band'
+          before = Image.open(root / 'before.png').convert('RGB')
+          after = Image.open(root / 'after.png').convert('RGB')
+          expected_size = tuple(int(v) for v in gate['resolution'])
+          if before.size != after.size or before.size != expected_size:
+              raise SystemExit(f'ATOMIUM_BASE_SPHERE_WINDOW_BAND_AB_FAIL: capture size mismatch {before.size} {after.size} expected={expected_size}')
+
+          a, b = before.load(), after.load()
+          gt3_x, gt3_y, gt8 = [], [], 0
+          for y in range(before.height):
+              for x in range(before.width):
+                  d = max(abs(a[x, y][i] - b[x, y][i]) for i in range(3))
+                  if d > 3:
+                      gt3_x.append(x); gt3_y.append(y)
+                  if d > 8:
+                      gt8 += 1
+
+          total = before.width * before.height
+          ratio3 = 100.0 * len(gt3_x) / total
+          ratio8 = 100.0 * gt8 / total
+          if gt3_x:
+              bbox = (min(gt3_x), min(gt3_y), max(gt3_x) + 1, max(gt3_y) + 1)
+              bw, bh = bbox[2] - bbox[0], bbox[3] - bbox[1]
+              bbox_area = 100.0 * bw * bh / total
+          else:
+              bbox = (0, 0, 0, 0); bw = bh = 0; bbox_area = 0.0
+
+          ImageChops.difference(before, after).save(root / 'diff.png')
+          min_bbox = [int(v) for v in gate['minimum_bbox_px']]
+          passed = (
+              ratio3 >= float(gate['minimum_changed_gt3_percent']) and
+              ratio8 >= float(gate['minimum_changed_gt8_percent']) and
+              bw >= min_bbox[0] and bh >= min_bbox[1] and
+              ratio3 <= float(gate['maximum_changed_percent']) and
+              bbox_area <= float(gate['maximum_bbox_area_percent'])
+          )
+          line = (
+              f'ATOMIUM_BASE_SPHERE_WINDOW_BAND_AB_METRICS: changed_gt3={ratio3:.6f}% '
+              f'changed_gt8={ratio8:.6f}% bbox={bbox} bbox_size={bw}x{bh} '
+              f'bbox_area={bbox_area:.4f}% floor3={gate["minimum_changed_gt3_percent"]}% '
+              f'floor8={gate["minimum_changed_gt8_percent"]}% bbox_floor={min_bbox[0]}x{min_bbox[1]} '
+              f'changed_ceiling={gate["maximum_changed_percent"]}% bbox_ceiling={gate["maximum_bbox_area_percent"]}% '
+              f'numerical_gate={"PASS" if passed else "FAIL"}\n'
+          )
+          (root / 'metrics.log').write_text(line, encoding='utf-8')
+          print(line, end='')
+          PY
+          cp /tmp/atomium-window-band-witness.log grand-bruxelles-game/artifacts/qa/atomium_base_sphere_window_band/witness.log
+          cp /tmp/atomium-window-band-import.log grand-bruxelles-game/artifacts/qa/atomium_base_sphere_window_band/import.log
+      - name: Upload full-frame A-B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atomium-base-sphere-window-band-player-ab
+          path: grand-bruxelles-game/artifacts/qa/atomium_base_sphere_window_band
+          if-no-files-found: warn
+      - name: Enforce frozen numerical gate
+        run: grep -F "numerical_gate=PASS" grand-bruxelles-game/artifacts/qa/atomium_base_sphere_window_band/metrics.log

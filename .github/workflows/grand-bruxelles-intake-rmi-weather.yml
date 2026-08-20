@@ -1,0 +1,54 @@
+name: Grand Bruxelles Intake RMI Weather
+on:
+  push:
+    branches: ["intake/rmi-weather-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-rmi-weather.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download current-month SYNOP observations and latest ALARO cycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/rmi/observations /tmp/rmi/forecast
+          YEAR="$(date -u +%Y)"; MONTH="$(date -u +%m)"
+          OBS="https://opendata.meteo.be/ftp/observations/synop/${YEAR}/${MONTH}/"
+          wget -q -r -np -nH --cut-dirs=4 -P /tmp/rmi/observations "$OBS"
+          python3 - <<'PY'
+          import hashlib, json, os, re, urllib.request
+          root='https://opendata.meteo.be/ftp/forecasts/alaro_40l/'
+          req=urllib.request.Request(root,headers={'User-Agent':'GrandBruxellesGame-RMIIntake/1.0'})
+          html=urllib.request.urlopen(req,timeout=60).read().decode('utf-8','ignore')
+          cycles=sorted(set(re.findall(r'href="(\d{10}/)"',html)))
+          assert cycles, 'no ALARO cycles found'
+          latest=cycles[-1]
+          open('/tmp/rmi/latest-cycle.txt','w').write(latest+'\n')
+          print('LATEST_ALARO',latest)
+          PY
+          CYCLE="$(cat /tmp/rmi/latest-cycle.txt)"
+          wget -q -r -np -nH --cut-dirs=3 -P /tmp/rmi/forecast "https://opendata.meteo.be/ftp/forecasts/alaro_40l/${CYCLE}"
+          python3 - <<'PY'
+          import hashlib, json, os
+          root='/tmp/rmi'; files=[]
+          for base,_,names in os.walk(root):
+              for n in names:
+                  p=os.path.join(base,n)
+                  if n.startswith('index.html'): continue
+                  with open(p,'rb') as f: h=hashlib.sha256(f.read()).hexdigest()
+                  files.append({'file':os.path.relpath(p,root),'bytes':os.path.getsize(p),'sha256':h})
+          manifest={'publisher':'Royal Meteorological Institute of Belgium (RMI/IRM/KMI)','sources':['https://opendata.meteo.be/ftp/observations/synop/','https://opendata.meteo.be/ftp/forecasts/alaro_40l/'],'scope':'current UTC month SYNOP + latest ALARO cycle','files':files,'total_bytes':sum(x['bytes'] for x in files)}
+          open(root+'/manifest.json','w').write(json.dumps(manifest,indent=2))
+          assert files
+          print('RMI_WEATHER_INTAKE_OK',len(files),manifest['total_bytes'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-rmi-weather
+          path: /tmp/rmi
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6

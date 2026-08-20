@@ -50,11 +50,13 @@ jobs:
         shell: bash
         run: |
           git fetch --no-tags origin main
-          expected="a8737b5b4cbe0ee205bdede14217938118ee3c1b"
+          expected="75345935173ba11ead85c317786f9e31e4517afd"
           current="$(git rev-parse origin/main)"
           base="$(git merge-base HEAD origin/main)"
+          contract_base="$(python3 -c 'import json; print(json.load(open("grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"))["production_base_sha"])')"
           test "$current" = "$expected" || { echo "GRAND_PLACE_FACADE_STALE_MAIN current=$current expected=$expected"; exit 1; }
           test "$base" = "$expected" || { echo "GRAND_PLACE_FACADE_STALE_BASE base=$base expected=$expected"; exit 1; }
+          test "$contract_base" = "$expected" || { echo "GRAND_PLACE_FACADE_STALE_CONTRACT contract=$contract_base expected=$expected"; exit 1; }
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip

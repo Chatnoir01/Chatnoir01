@@ -1,0 +1,34 @@
+name: Grand Bruxelles Intake Charging Stations
+on:
+  push:
+    branches: ["intake/brussels-charging-stations-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-charging-stations.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download current Brussels charging stations in Lambert72
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/charging
+          python3 - <<'PY'
+          import hashlib,json,urllib.request
+          url='https://data.mobility.brussels/geoserver/bm_equipment/wfs?outputFormat=json&request=GetFeature&service=wfs&srsName=EPSG%3A31370&typeName=bm_equipment%3Aevse&version=1.1.0'
+          req=urllib.request.Request(url,headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'})
+          with urllib.request.urlopen(req,timeout=180) as r: b=r.read()
+          open('/tmp/charging/evse-epsg31370.json','wb').write(b)
+          j=json.loads(b); count=len(j.get('features',[])); assert count>0
+          manifest={'publisher':'Paradigm / Eco-Movement via Bruxelles Mobilite','dataset':'Bornes de recharge','license':'CC BY','source_url':url,'crs':'EPSG:31370','feature_count':count,'source_accuracy_note':'publisher states locations may be accurate only to about 30 m','bytes':len(b),'sha256':hashlib.sha256(b).hexdigest(),'runtime_authorized':False}
+          open('/tmp/charging/manifest.json','w').write(json.dumps(manifest,indent=2))
+          print('CHARGING_STATIONS_INTAKE_OK',count)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-charging-stations
+          path: /tmp/charging
+          if-no-files-found: error
+          retention-days: 14

@@ -4,8 +4,10 @@
 The input directory is populated by CI from a pinned upstream commit. This tool
 never downloads anything. It removes GLB animation tables *and* neutralizes the
 binary bufferViews owned exclusively by those animations, while refusing any
-ambiguous shared bufferView. Required PBR/hair textures are copied and bounded
-to review resolution. The output is never production-authorized.
+ambiguous shared bufferView. It also normalizes only the confirmed `mixamorig:`
+prefix on glTF node labels and rejects every other residual provider reference.
+Required PBR/hair textures are copied and bounded to review resolution. The
+output is never production-authorized.
 """
 from __future__ import annotations
 
@@ -23,6 +25,7 @@ GLB_MAGIC = b"glTF"
 JSON_CHUNK = 0x4E4F534A
 BIN_CHUNK = 0x004E4942
 MAX_TEXTURE_EDGE = 2048
+MIXAMO_RIG_PREFIX = "mixamorig:"
 REQUIRED_GLBS = (
     "vitruvian_body.glb",
     "vitruvian_head.glb",
@@ -120,6 +123,28 @@ def provider_string_matches(value: Any, path: str = "$") -> list[dict[str, str]]
     return matches
 
 
+def normalize_confirmed_rig_node_labels(doc: dict[str, Any]) -> list[dict[str, str]]:
+    """Strip only the confirmed `mixamorig:` prefix from `nodes[].name`.
+
+    The run-2 RED proof showed the residual provider strings were node names such
+    as `mixamorig:Head`. glTF skins and graph edges reference node indices, so
+    this changes labels only: no accessor, joint list, transform, URI or buffer.
+    """
+    changes: list[dict[str, str]] = []
+    for index, node in enumerate(doc.get("nodes") or []):
+        if not isinstance(node, dict):
+            continue
+        name = node.get("name")
+        if not isinstance(name, str) or not name.lower().startswith(MIXAMO_RIG_PREFIX):
+            continue
+        clean = name[len(MIXAMO_RIG_PREFIX):]
+        if not clean:
+            raise RuntimeError("empty node name after confirmed rig-prefix normalization")
+        node["name"] = clean
+        changes.append({"path": "$.nodes[%d].name" % index, "before": name, "after": clean})
+    return changes
+
+
 def safe_external_uris(doc: dict[str, Any]) -> list[str]:
     uris: list[str] = []
     for image in doc.get("images") or []:
@@ -208,6 +233,14 @@ def strip_animation_payload(
 
     clean_doc = json.loads(json.dumps(doc))
     clean_doc.pop("animations", None)
+    normalized_rig_node_labels = normalize_confirmed_rig_node_labels(clean_doc)
+    residual_provider_strings = provider_string_matches(clean_doc)
+    if residual_provider_strings:
+        raise RuntimeError(
+            "provider reference remains outside confirmed rig-node labels: "
+            + json.dumps(residual_provider_strings[:20], sort_keys=True)
+        )
+
     remaining_accessors = _remaining_accessor_indices(clean_doc)
     shared_accessors = animation_accessors & remaining_accessors
     if shared_accessors:
@@ -258,6 +291,7 @@ def strip_animation_payload(
         "animation_buffer_views_zeroed": sorted(animation_views),
         "animation_binary_bytes_zeroed": zeroed_bytes,
         "source_animation_provider_strings": source_animation_provider_strings,
+        "normalized_rig_node_labels": normalized_rig_node_labels,
         "residual_provider_strings": provider_string_matches(clean_doc),
     }
     return clean_doc, out_chunks, audit
@@ -313,6 +347,12 @@ def main() -> None:
             raise RuntimeError(f"animation table survived strip: {name}")
         if len(verified_chunks) != len(clean_chunks):
             raise RuntimeError(f"GLB chunk count changed unexpectedly: {name}")
+        verified_provider_strings = provider_string_matches(verified_doc)
+        if verified_provider_strings:
+            raise RuntimeError(
+                "provider reference survived serialized output: %s: %s"
+                % (name, json.dumps(verified_provider_strings[:20], sort_keys=True))
+            )
         image_uris = safe_external_uris(verified_doc)
         referenced_images.update(image_uris)
         total_source_animations += int(animation_audit["source_animations"])
@@ -327,6 +367,7 @@ def main() -> None:
             "animation_buffer_views_zeroed": animation_audit["animation_buffer_views_zeroed"],
             "animation_binary_bytes_zeroed": int(animation_audit["animation_binary_bytes_zeroed"]),
             "source_animation_provider_strings": animation_audit["source_animation_provider_strings"],
+            "normalized_rig_node_labels": animation_audit["normalized_rig_node_labels"],
             "residual_provider_strings": animation_audit["residual_provider_strings"],
             "nodes": len(verified_doc.get("nodes") or []),
             "meshes": len(verified_doc.get("meshes") or []),
@@ -351,11 +392,12 @@ def main() -> None:
         shutil.copy2(src, args.output / extra)
 
     report = {
-        "schema": "grand-bruxelles-civ1-vitruvian-prepared-v3",
+        "schema": "grand-bruxelles-civ1-vitruvian-prepared-v4",
         "production_authorized": False,
         "animations_allowed": False,
         "mixamo_payload_allowed": False,
         "animation_payload_policy": "animation tables removed; exclusive animation bufferViews zeroed; shared views rejected",
+        "provider_label_policy": "only confirmed nodes[].name mixamorig prefix is normalized; any other residual provider reference fails closed",
         "source_animations": total_source_animations,
         "output_animations": 0,
         "animation_binary_bytes_zeroed": total_animation_binary_bytes_zeroed,

@@ -95,15 +95,27 @@ def main() -> int:
 
     pipeline_text = (MACHINE / "finish_pipeline.py").read_text(encoding="utf-8")
     proof_text = (MACHINE / "finish_proof_stage.py").read_text(encoding="utf-8")
+    readiness_text = (MACHINE / "finish_readiness.py").read_text(encoding="utf-8")
     require("MATERIALS_STAGE" in pipeline_text and "finish_materials_stage.py" in pipeline_text, "pipeline does not execute material stage")
     require("fm.gate(zone_id)" in proof_text, "proof does not execute real G6")
+    require("READINESS_STAGE" in pipeline_text and "finish_readiness.py" in pipeline_text, "pipeline does not execute G7-G12 readiness")
+    for gate in (
+        "G7_generated_ownership",
+        "G8_landmark_non_regression",
+        "G9_collision_solidity",
+        "G10_geometry_outliers",
+        "G11_streaming_mount",
+        "G12_performance_evidence",
+    ):
+        require(gate in readiness_text, f"readiness gate missing: {gate}")
+    require("--require-ready" in pipeline_text, "strict production-readiness promotion guard missing")
 
     print(
         "CITY_MACHINE_V3_CONTRACT_OK "
         f"generators={len(rows)} statuses={dict(sorted(statuses.items()))} "
         f"buildings={manifest['layers']['buildings']['features']} "
         f"streets={manifest['layers']['street_surfaces']['features']} "
-        f"tram={manifest['layers']['tram_network']['features']}"
+        f"tram={manifest['layers']['tram_network']['features']} g7_g12=true"
     )
     return 0
 

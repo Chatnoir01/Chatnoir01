@@ -1,0 +1,27 @@
+name: Grand Bruxelles Data Factory Processing
+on:
+  push:
+    branches: ["processing/data-factory-current"]
+    paths:
+      - "grand-bruxelles-game/tools/data_factory/**"
+      - "grand-bruxelles-game/data/processing/**"
+      - ".github/workflows/grand-bruxelles-data-factory-processing.yml"
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  processor-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile data-factory processors
+        run: |
+          python3 -m py_compile \
+            grand-bruxelles-game/tools/data_factory/verify_intake_artifact.py \
+            grand-bruxelles-game/tools/data_factory/normalize_urbis_addresses.py \
+            grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py \
+            grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py
+      - name: Prove fail-closed processing contract
+        run: python3 grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py
+      - name: Confirm existing Mobiris processor is reused
+        run: test -f grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py

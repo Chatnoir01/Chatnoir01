@@ -1,0 +1,55 @@
+name: Grand Bruxelles Intake Environment Noise
+on:
+  push:
+    branches: ["intake/brussels-environment-noise-current"]
+    paths: [".github/workflows/grand-bruxelles-intake-environment-noise.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Download Brussels Environment noise layers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/noise/layers
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.parse,urllib.request,xml.etree.ElementTree as ET
+          base='https://ows.environnement.brussels/belb'
+          headers={'User-Agent':'GrandBruxellesGame-DataFactory/1.0'}
+          def fetch(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=180) as r: return r.read()
+          cap_url=base+'?'+urllib.parse.urlencode({'service':'WFS','version':'1.1.0','request':'GetCapabilities'})
+          cap=fetch(cap_url); open('/tmp/noise/wfs-capabilities.xml','wb').write(cap)
+          root=ET.fromstring(cap)
+          cand=[]
+          for ft in root.findall('.//{*}FeatureType'):
+              n=ft.find('{*}Name'); t=ft.find('{*}Title')
+              name=(n.text or '').strip() if n is not None else ''
+              title=(t.text or '').strip() if t is not None else ''
+              if re.search(r'noise|bruit|geluid|lden|lnight|sonore|acoustic',name+' '+title,re.I): cand.append((name,title))
+          cand=sorted(set(cand))
+          assert cand, 'no noise layers discovered in official WFS'
+          results=[]
+          for i,(name,title) in enumerate(cand):
+              q={'service':'WFS','version':'1.1.0','request':'GetFeature','typeName':name,'srsName':'EPSG:31370'}
+              url=base+'?'+urllib.parse.urlencode(q)
+              try:
+                  b=fetch(url); fn=f'/tmp/noise/layers/{i:02d}-{re.sub(r"[^A-Za-z0-9_.-]+","_",name)}.gml'; open(fn,'wb').write(b)
+                  results.append({'name':name,'title':title,'url':url,'file':os.path.basename(fn),'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+              except Exception as e: results.append({'name':name,'title':title,'url':url,'error':str(e)})
+          manifest={'publisher':'Bruxelles Environnement / Leefmilieu Brussel','service':cap_url,'license':'CC BY 4.0 unless layer metadata states otherwise','candidate_layers':len(cand),'results':results,'source_usage':'reference/environment simulation; no runtime authorization implied'}
+          open('/tmp/noise/manifest.json','w').write(json.dumps(manifest,indent=2,ensure_ascii=False))
+          assert any('file' in x for x in results), results
+          print('NOISE_INTAKE_OK',len(cand),sum('file' in x for x in results))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-environment-noise
+          path: /tmp/noise
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6

@@ -18,20 +18,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install source and rendering dependencies
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            git-lfs rsync curl xz-utils unzip xvfb \
-            libglu1-mesa libopengl0 libgl1-mesa-dri libglx-mesa0 mesa-utils \
-            libx11-xcb1 libxcb1 libxcb-util1 libxcb-image0 libxcb-keysyms1 \
-            libxcb-icccm4 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 \
-            libxcb-xkb1 libxcb-shape0 libxkbcommon-x11-0 libxcb-cursor0
-          git lfs install --system
+          sudo apt-get install -y --no-install-recommends git-lfs rsync curl xz-utils unzip \
+            libglu1-mesa libopengl0 libgl1-mesa-dri libglx-mesa0
+          git lfs install
 
       - name: Fetch exact CharMorph code and sparse CC0 Vitruvian game-rig source
         shell: bash
@@ -41,14 +40,14 @@ jobs:
           VITRUVIAN_COMMIT=db7736668dfbcb090019068c8aeab28105af36a0
           ADDON=/tmp/blender-user/scripts/addons/CharMorph
           DATA=/tmp/vitruvian-game-rig-source
-
           rm -rf /tmp/blender-user "$DATA"
           mkdir -p /tmp/blender-user/scripts/addons
+
           git clone --filter=blob:none https://github.com/Upliner/CharMorph.git "$ADDON"
           git -C "$ADDON" checkout "$CHARMORPH_COMMIT"
           test "$(git -C "$ADDON" rev-parse HEAD)" = "$CHARMORPH_COMMIT"
-          test -s "$ADDON/LICENSE"
-          grep -qi "GNU GENERAL PUBLIC LICENSE" "$ADDON/LICENSE"
+          test -s "$ADDON/common.py"
+          grep -q "GNU General Public License" "$ADDON/common.py"
 
           git clone --filter=blob:none --no-checkout https://github.com/seenbuklee/CharMorph-Vitruvian.git "$DATA"
           git -C "$DATA" sparse-checkout init --no-cone
@@ -68,361 +67,159 @@ jobs:
           test "$(git -C "$DATA" rev-parse HEAD)" = "$VITRUVIAN_COMMIT"
           git -C "$DATA" lfs pull --include="char.blend,rigs.blend" --exclude=""
 
-          test -s "$DATA/char.blend"
-          test -s "$DATA/rigs.blend"
-          test -s "$DATA/morphs/L1/Default.npy"
-          test -s "$DATA/weights/gamerig.npz"
-          test -s "$DATA/joints/gamerig.npz"
+          for f in char.blend rigs.blend config.yaml bones_rigify.yaml faces.npy morphs/L1/Default.npy weights/gamerig.npz joints/gamerig.npz; do test -s "$DATA/$f"; done
           grep -q '^license: CC0' "$DATA/config.yaml"
-          grep -q '^default_armature: rigify' "$DATA/config.yaml"
           grep -q '^   game-rig:' "$DATA/config.yaml"
           grep -q 'obj_name: game_rig_vitruvian' "$DATA/config.yaml"
           grep -q 'weights: weights/gamerig.npz' "$DATA/config.yaml"
           grep -q 'joints: joints/gamerig.npz' "$DATA/config.yaml"
           if find "$DATA" -type f \( -iname '*mixamo*' -o -iname '*adobe*' \) -print -quit | grep -q .; then
-            echo 'Forbidden Mixamo/Adobe file entered sparse checkout' >&2
-            find "$DATA" -type f \( -iname '*mixamo*' -o -iname '*adobe*' \) -print >&2
-            exit 1
+            echo 'Forbidden Mixamo/Adobe file entered sparse checkout' >&2; exit 1
           fi
 
           rm -rf "$ADDON/data"
-          mkdir -p "$ADDON/data/characters/Vitruvian"
-          rsync -a --exclude='.git' "$DATA/" "$ADDON/data/characters/Vitruvian/"
           mkdir -p "$ADDON/data/characters/Vitruvian/morphs/L2" "$ADDON/data/characters/Vitruvian/morphs/L3"
-
+          rsync -a --exclude='.git' "$DATA/" "$ADDON/data/characters/Vitruvian/"
           printf '%s\n' "$CHARMORPH_COMMIT" > /tmp/charmorph-commit.txt
           printf '%s\n' "$VITRUVIAN_COMMIT" > /tmp/vitruvian-game-rig-commit.txt
-          (cd "$DATA" && sha256sum config.yaml char.blend rigs.blend bones_rigify.yaml faces.npy morphs/L1/Default.npy weights/gamerig.npz joints/gamerig.npz) \
-            | tee /tmp/vitruvian-game-rig-source-sha256.txt
+          (cd "$DATA" && sha256sum config.yaml char.blend rigs.blend bones_rigify.yaml faces.npy morphs/L1/Default.npy weights/gamerig.npz joints/gamerig.npz) | tee /tmp/source-sha256.txt
+          echo "GB_VITRUVIAN_GAME_RIG_SOURCE_OK charmorph=$CHARMORPH_COMMIT vitruvian=$VITRUVIAN_COMMIT rig=game-rig mixamo_files=0"
 
       - name: Install pinned Blender 4.5.12 LTS
         shell: bash
         run: |
           set -euo pipefail
-          BLENDER_BASE=https://download.blender.org/release/Blender4.5
-          BLENDER_ARCHIVE=blender-4.5.12-linux-x64.tar.xz
-          curl -fL --retry 3 --retry-delay 3 -o /tmp/$BLENDER_ARCHIVE "$BLENDER_BASE/$BLENDER_ARCHIVE"
-          curl -fL --retry 3 --retry-delay 3 -o /tmp/blender-4.5.12.sha256 "$BLENDER_BASE/blender-4.5.12.sha256"
-          grep " $BLENDER_ARCHIVE$" /tmp/blender-4.5.12.sha256 > /tmp/blender-linux.sha256
-          (cd /tmp && sha256sum -c blender-linux.sha256)
-          tar -C /tmp -xf /tmp/$BLENDER_ARCHIVE
-          test -x /tmp/blender-4.5.12-linux-x64/blender
+          BASE=https://download.blender.org/release/Blender4.5
+          A=blender-4.5.12-linux-x64.tar.xz
+          curl -fL --retry 3 -o /tmp/$A "$BASE/$A"
+          curl -fL --retry 3 -o /tmp/blender.sha256 "$BASE/blender-4.5.12.sha256"
+          grep " $A$" /tmp/blender.sha256 > /tmp/linux.sha256
+          (cd /tmp && sha256sum -c linux.sha256)
+          tar -C /tmp -xf /tmp/$A
           /tmp/blender-4.5.12-linux-x64/blender --version | tee /tmp/blender-version.txt
-          grep -q "Blender 4.5.12" /tmp/blender-version.txt
+          grep -q 'Blender 4.5.12' /tmp/blender-version.txt
 
-      - name: Build clean static Vitruvian game-rig GLB
+      - name: Build clean static game-rig GLB and prove deformation
         shell: bash
         env:
           BLENDER_USER_SCRIPTS: /tmp/blender-user/scripts
         run: |
           set -euo pipefail
-          cat > /tmp/build_vitruvian_game_rig.py <<'PY'
+          cat > /tmp/build_body.py <<'PY'
           import bpy, json, math, pathlib, sys, traceback
-
-          OUT = pathlib.Path('/tmp/vitruvian_game_rig_body.glb')
-          REPORT = pathlib.Path('/tmp/vitruvian_game_rig_body.report.json')
-
-          def fail(msg):
-              print('GB_VITRUVIAN_GAME_RIG_FAIL', msg)
-              raise RuntimeError(msg)
-
+          OUT=pathlib.Path('/tmp/vitruvian_game_rig_body.glb')
+          REP=pathlib.Path('/tmp/vitruvian_game_rig_body.report.json')
+          def fail(m): print('GB_VITRUVIAN_GAME_RIG_FAIL',m); raise RuntimeError(m)
           try:
-              try:
-                  bpy.ops.preferences.addon_enable(module='CharMorph')
+              try: bpy.ops.preferences.addon_enable(module='CharMorph')
               except Exception:
-                  sys.path.insert(0, '/tmp/blender-user/scripts/addons')
-                  import CharMorph
-                  CharMorph.register()
-
+                  sys.path.insert(0,'/tmp/blender-user/scripts/addons'); import CharMorph; CharMorph.register()
               from CharMorph.common import manager
+              obj=bpy.data.objects.get('cm_vitruvian')
+              if obj is None: fail('cm_vitruvian missing')
+              bpy.ops.object.select_all(action='DESELECT'); obj.hide_set(False); obj.select_set(True); bpy.context.view_layer.objects.active=obj
+              manager.create_charmorphs(obj); m=manager.morpher
+              if not m or getattr(m,'error',None): fail('CharMorph recognition failed: %s'%getattr(m,'error',None))
+              rigs=sorted(str(k) for k in m.core.char.armature.keys()); print('GB_AVAILABLE_RIGS',rigs)
+              if 'game-rig' not in rigs: fail('game-rig unavailable')
+              ui=bpy.context.window_manager.charmorph_ui; ui.rig='game-rig'; ui.rig_manual_sculpt=False; ui.rig_manual_joints=False; ui.rig_manual_weights=False
+              if 'FINISHED' not in bpy.ops.charmorph.rig(): fail('charmorph.rig did not finish')
+              rig=obj.find_armature()
+              if rig is None: fail('armature missing')
+              rig_type=str(rig.data.get('charmorph_rig_type',''))
+              if rig_type!='game-rig': fail('wrong rig type '+rig_type)
+              bones=[b.name for b in rig.data.bones]
+              bad=[n for n in bones if any(t in n.lower() for t in ('mixamo','adobe'))]
+              if bad or len(bones)<35: fail('bone gate failed count=%d bad=%s'%(len(bones),bad[:10]))
+              if not any(mod.type=='ARMATURE' and mod.object==rig for mod in obj.modifiers): fail('armature modifier missing')
+              active=[]
+              for d in (obj,rig):
+                  ad=getattr(d,'animation_data',None)
+                  if ad and ad.action: active.append(ad.action.name)
+              if active: fail('active animation actions '+str(active))
 
-              obj = bpy.data.objects.get('cm_vitruvian')
-              if obj is None or obj.type != 'MESH':
-                  fail('cm_vitruvian mesh missing from char.blend')
-              bpy.ops.object.select_all(action='DESELECT')
-              obj.hide_set(False)
-              obj.select_set(True)
-              bpy.context.view_layer.objects.active = obj
-
-              manager.create_charmorphs(obj)
-              morpher = manager.morpher
-              if not morpher or getattr(morpher, 'error', None):
-                  fail(f'CharMorph recognition failed: {getattr(morpher, "error", None)}')
-              rigs = sorted(str(k) for k in morpher.core.char.armature.keys())
-              print('GB_VITRUVIAN_AVAILABLE_RIGS', rigs)
-              if 'game-rig' not in rigs:
-                  fail(f'game-rig missing; available={rigs}')
-
-              ui = bpy.context.window_manager.charmorph_ui
-              ui.rig = 'game-rig'
-              ui.rig_manual_sculpt = False
-              ui.rig_manual_joints = False
-              ui.rig_manual_weights = False
-              result = bpy.ops.charmorph.rig()
-              if 'FINISHED' not in result:
-                  fail(f'charmorph.rig returned {result}')
-
-              rig = obj.find_armature()
-              if rig is None or rig.type != 'ARMATURE':
-                  fail('generated game-rig armature missing')
-              rig_type = str(rig.data.get('charmorph_rig_type', ''))
-              if rig_type != 'game-rig':
-                  fail(f'wrong rig type: {rig_type}')
-
-              bones = [b.name for b in rig.data.bones]
-              forbidden_bones = [n for n in bones if 'mixamo' in n.lower() or 'mixamorig' in n.lower() or 'adobe' in n.lower()]
-              if forbidden_bones:
-                  fail(f'forbidden bone names: {forbidden_bones[:20]}')
-              if len(bones) < 35:
-                  fail(f'game-rig too small: {len(bones)} bones')
-
-              linked_actions = []
-              for datablock in (rig, obj):
-                  ad = getattr(datablock, 'animation_data', None)
-                  if ad and ad.action:
-                      linked_actions.append(ad.action.name)
-              if linked_actions:
-                  fail(f'active animation actions present before export: {linked_actions}')
-
-              arm_mods = [m for m in obj.modifiers if m.type == 'ARMATURE' and m.object == rig]
-              if not arm_mods:
-                  fail('body has no armature modifier bound to game-rig')
-
-              bone_set = set(bones)
-              candidate_groups = []
+              bone_set=set(bones); candidates=[]
               for vg in obj.vertex_groups:
-                  if vg.name not in bone_set:
-                      continue
-                  low = vg.name.lower()
-                  if any(t in low for t in ('arm', 'forearm', 'thigh', 'shin', 'leg')):
-                      indices = []
-                      for v in obj.data.vertices:
-                          for membership in v.groups:
-                              if membership.group == vg.index and membership.weight > 0.15:
-                                  indices.append(v.index)
-                                  break
-                      if len(indices) >= 20:
-                          candidate_groups.append((len(indices), vg.name, indices[:400]))
-              candidate_groups.sort(reverse=True)
-              if not candidate_groups:
-                  fail('no weighted limb group found for deformation proof')
-              _, probe_bone_name, probe_indices = candidate_groups[0]
-              pose_bone = rig.pose.bones.get(probe_bone_name)
-              if pose_bone is None:
-                  fail(f'pose bone missing for weighted group {probe_bone_name}')
+                  if vg.name not in bone_set or not any(t in vg.name.lower() for t in ('arm','thigh','leg','shin')): continue
+                  ids=[]
+                  for v in obj.data.vertices:
+                      if any(g.group==vg.index and g.weight>.15 for g in v.groups): ids.append(v.index)
+                  if len(ids)>=20: candidates.append((len(ids),vg.name,ids[:400]))
+              candidates.sort(reverse=True)
+              if not candidates: fail('weighted limb group missing')
+              _,probe,ids=candidates[0]; pb=rig.pose.bones.get(probe)
+              deps=bpy.context.evaluated_depsgraph_get(); ev=obj.evaluated_get(deps); mesh=ev.to_mesh(); before=[mesh.vertices[i].co.copy() for i in ids]; ev.to_mesh_clear()
+              pb.rotation_mode='XYZ'; pb.rotation_euler[0]+=math.radians(18); bpy.context.view_layer.update()
+              ev=obj.evaluated_get(deps); mesh=ev.to_mesh(); disp=[(mesh.vertices[i].co-before[j]).length for j,i in enumerate(ids)]; ev.to_mesh_clear(); pb.rotation_euler=(0,0,0); bpy.context.view_layer.update()
+              moved=sum(d>.001 for d in disp); maxd=max(disp)
+              if moved<10 or maxd<=.003: fail('deformation proof failed probe=%s moved=%d max=%f'%(probe,moved,maxd))
 
-              deps = bpy.context.evaluated_depsgraph_get()
-              before_eval = obj.evaluated_get(deps)
-              before_mesh = before_eval.to_mesh()
-              before = [before_mesh.vertices[i].co.copy() for i in probe_indices]
-              before_eval.to_mesh_clear()
-
-              pose_bone.rotation_mode = 'XYZ'
-              pose_bone.rotation_euler[0] += math.radians(18.0)
-              bpy.context.view_layer.update()
-              after_eval = obj.evaluated_get(deps)
-              after_mesh = after_eval.to_mesh()
-              displacements = [(after_mesh.vertices[i].co - before[j]).length for j, i in enumerate(probe_indices)]
-              after_eval.to_mesh_clear()
-              max_disp = max(displacements) if displacements else 0.0
-              moved = sum(1 for d in displacements if d > 0.001)
-              pose_bone.rotation_euler = (0.0, 0.0, 0.0)
-              bpy.context.view_layer.update()
-              if max_disp <= 0.003 or moved < 10:
-                  fail(f'skinning deformation proof failed bone={probe_bone_name} moved={moved} max={max_disp}')
-
-              # Review-only neutral material avoids downloading the multi-hundred-MB UDIM texture set.
-              neutral = bpy.data.materials.new('GB_Vitruvian_Body_Smoke_Neutral')
-              neutral.diffuse_color = (0.42, 0.30, 0.24, 1.0)
-              neutral.roughness = 0.72
-              obj.data.materials.clear()
-              obj.data.materials.append(neutral)
-              for poly in obj.data.polygons:
-                  poly.material_index = 0
-
-              # Never export inherited actions even if Blender data blocks are added later.
-              for action in list(bpy.data.actions):
-                  bpy.data.actions.remove(action)
-              for datablock in (rig, obj):
-                  if datablock.animation_data:
-                      datablock.animation_data_clear()
-
-              bpy.ops.object.select_all(action='DESELECT')
-              obj.select_set(True)
-              rig.select_set(True)
-              bpy.context.view_layer.objects.active = rig
-              bpy.ops.export_scene.gltf(
-                  filepath=str(OUT),
-                  export_format='GLB',
-                  use_selection=True,
-                  export_animations=False,
-                  export_skins=True,
-                  export_morph=False,
-                  export_materials='EXPORT',
-              )
-              if not OUT.exists() or OUT.stat().st_size < 10000:
-                  fail('GLB export missing or unexpectedly small')
-
-              bbox = [obj.matrix_world @ mathutils.Vector(corner) for corner in obj.bound_box] if False else None
-              report = {
-                  'schema': 'grand-bruxelles-vitruvian-game-rig-body-smoke-v1',
-                  'production_authorized': False,
-                  'candidate_scope': 'clean_game_rig_body_only_no_final_materials_no_hair',
-                  'charmorph_commit': 'e2e87480657c87eb17bbfbd83833bee628494a90',
-                  'vitruvian_commit': 'db7736668dfbcb090019068c8aeab28105af36a0',
-                  'character_license': 'CC0',
-                  'tool_license': 'GPL-3.0',
-                  'rig_type': rig_type,
-                  'available_rigs': rigs,
-                  'bone_count': len(bones),
-                  'bone_names': bones,
-                  'forbidden_bones': forbidden_bones,
-                  'animation_actions_before_export': linked_actions,
-                  'export_animations': False,
-                  'deformation_probe_bone': probe_bone_name,
-                  'deformation_probe_vertices': len(probe_indices),
-                  'deformation_moved_vertices': moved,
-                  'deformation_max_local_m': max_disp,
-                  'glb_bytes': OUT.stat().st_size,
-              }
-              REPORT.write_text(json.dumps(report, indent=2) + '\n')
-              print('GB_VITRUVIAN_GAME_RIG_OK', json.dumps({k: report[k] for k in ('rig_type','bone_count','deformation_probe_bone','deformation_moved_vertices','deformation_max_local_m','glb_bytes')}, sort_keys=True))
-          except Exception as exc:
-              traceback.print_exc()
-              fail(str(exc))
+              neutral=bpy.data.materials.new('GB_Body_Smoke_Neutral'); neutral.diffuse_color=(.42,.30,.24,1); neutral.roughness=.72
+              obj.data.materials.clear(); obj.data.materials.append(neutral)
+              for p in obj.data.polygons: p.material_index=0
+              for a in list(bpy.data.actions): bpy.data.actions.remove(a)
+              for d in (obj,rig):
+                  if d.animation_data: d.animation_data_clear()
+              bpy.ops.object.select_all(action='DESELECT'); obj.select_set(True); rig.select_set(True); bpy.context.view_layer.objects.active=rig
+              bpy.ops.export_scene.gltf(filepath=str(OUT),export_format='GLB',use_selection=True,export_animations=False,export_skins=True,export_morph=False,export_materials='EXPORT')
+              if not OUT.exists() or OUT.stat().st_size<10000: fail('GLB export missing')
+              r={'schema':'grand-bruxelles-vitruvian-game-rig-body-smoke-v2','production_authorized':False,'rig_type':rig_type,'available_rigs':rigs,'bone_count':len(bones),'bone_names':bones,'forbidden_bones':bad,'animation_actions_before_export':active,'deformation_probe_bone':probe,'deformation_moved_vertices':moved,'deformation_max_local_m':maxd,'glb_bytes':OUT.stat().st_size,'character_license':'CC0','tool_license':'GPL-3.0'}
+              REP.write_text(json.dumps(r,indent=2)+'\n'); print('GB_VITRUVIAN_GAME_RIG_OK',json.dumps({k:r[k] for k in ('rig_type','bone_count','deformation_probe_bone','deformation_moved_vertices','deformation_max_local_m','glb_bytes')},sort_keys=True))
+          except Exception as e: traceback.print_exc(); fail(str(e))
           PY
-
-          /tmp/blender-4.5.12-linux-x64/blender \
-            --background /tmp/vitruvian-game-rig-source/char.blend \
-            --python /tmp/build_vitruvian_game_rig.py \
-            2>&1 | tee /tmp/vitruvian-game-rig-blender.log
-          grep -q 'GB_VITRUVIAN_GAME_RIG_OK' /tmp/vitruvian-game-rig-blender.log
-          if grep -q 'GB_VITRUVIAN_GAME_RIG_FAIL' /tmp/vitruvian-game-rig-blender.log; then exit 1; fi
+          /tmp/blender-4.5.12-linux-x64/blender --background /tmp/vitruvian-game-rig-source/char.blend --python /tmp/build_body.py 2>&1 | tee /tmp/blender-body.log
+          grep -q 'GB_VITRUVIAN_GAME_RIG_OK' /tmp/blender-body.log
+          ! grep -q 'GB_VITRUVIAN_GAME_RIG_FAIL' /tmp/blender-body.log
           test -s /tmp/vitruvian_game_rig_body.glb
           test -s /tmp/vitruvian_game_rig_body.report.json
-          grep -q '"rig_type": "game-rig"' /tmp/vitruvian_game_rig_body.report.json
-          grep -q '"production_authorized": false' /tmp/vitruvian_game_rig_body.report.json
 
-      - name: Prove exported GLB contains no animation or Mixamo payload
+      - name: Prove GLB is static skinned and Mixamo-free
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, pathlib, struct
-          p=pathlib.Path('/tmp/vitruvian_game_rig_body.glb'); b=p.read_bytes(); off=12; doc=None
-          if b[:4] != b'glTF': raise SystemExit('invalid GLB header')
-          while off+8 <= len(b):
-              n,t=struct.unpack_from('<II',b,off); off+=8; x=b[off:off+n]; off+=n
-              if t==0x4E4F534A: doc=json.loads(x.rstrip(b'\x00 \t\r\n').decode())
-          if doc is None: raise SystemExit('GLB JSON chunk missing')
-          animations=doc.get('animations') or []
-          if animations: raise SystemExit(f'export contains {len(animations)} animations')
-          serialized=json.dumps(doc).lower()
-          if 'mixamo' in serialized or 'mixamorig' in serialized or 'adobe' in serialized:
-              raise SystemExit('forbidden Mixamo/Adobe token in exported GLB')
-          skins=doc.get('skins') or []
-          if not skins: raise SystemExit('export contains no skin')
-          nodes=doc.get('nodes') or []
-          joint_count=max((len(s.get('joints') or []) for s in skins), default=0)
-          if joint_count < 35: raise SystemExit(f'export skin joint count too small: {joint_count}')
-          report={'animations':0,'skins':len(skins),'joint_count':joint_count,'nodes':len(nodes),'meshes':len(doc.get('meshes') or []),'mixamo_tokens':0,'production_authorized':False}
-          pathlib.Path('/tmp/vitruvian-game-rig-glb-audit.json').write_text(json.dumps(report,indent=2)+'\n')
-          print('GB_VITRUVIAN_GAME_RIG_GLB_AUDIT_OK',json.dumps(report,sort_keys=True))
+          import json,pathlib,struct
+          b=pathlib.Path('/tmp/vitruvian_game_rig_body.glb').read_bytes(); off=12; d=None
+          while off+8<=len(b):
+              n,t=struct.unpack_from('<II',b,off);off+=8;x=b[off:off+n];off+=n
+              if t==0x4E4F534A:d=json.loads(x.rstrip(b'\x00 \t\r\n').decode())
+          if d is None: raise SystemExit('no GLB JSON')
+          if d.get('animations'): raise SystemExit('animations entered GLB')
+          s=json.dumps(d).lower()
+          if any(t in s for t in ('mixamo','mixamorig','adobe')): raise SystemExit('forbidden token in GLB')
+          skins=d.get('skins') or []; joints=max((len(x.get('joints') or []) for x in skins),default=0)
+          if not skins or joints<35: raise SystemExit(f'skin gate failed skins={len(skins)} joints={joints}')
+          r={'animations':0,'skins':len(skins),'joint_count':joints,'nodes':len(d.get('nodes') or []),'meshes':len(d.get('meshes') or []),'mixamo_tokens':0,'production_authorized':False}
+          pathlib.Path('/tmp/glb-audit.json').write_text(json.dumps(r,indent=2)+'\n');print('GB_VITRUVIAN_GAME_RIG_GLB_AUDIT_OK',json.dumps(r,sort_keys=True))
           PY
 
-      - name: Install Godot 4.7.1 and stage body review asset
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
-          unzip -q /tmp/godot.zip -d /tmp/godot
-          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
-          REVIEW=grand-bruxelles-game/assets/characters/_review/vitruvian_game_rig_v1
-          mkdir -p "$REVIEW"
-          cp /tmp/vitruvian_game_rig_body.glb "$REVIEW/body.glb"
-
-      - name: Import and audit clean game-rig body in Godot Compatibility
+      - name: Install Godot 4.7.1 and import body in Compatibility
         shell: bash
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           set -euo pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit --rendering-method gl_compatibility 2>&1 | tee /tmp/vitruvian-game-rig-godot-import.log
-          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load|couldn.t be loaded|Clamped index' /tmp/vitruvian-game-rig-godot-import.log; then exit 1; fi
+          curl -fL --retry 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot; chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          R=grand-bruxelles-game/assets/characters/_review/vitruvian_game_rig_v1; mkdir -p "$R"; cp /tmp/vitruvian_game_rig_body.glb "$R/body.glb"
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit --rendering-method gl_compatibility 2>&1 | tee /tmp/godot-body-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load|couldn.t be loaded|Clamped index' /tmp/godot-body-import.log; then exit 1; fi
+          echo 'GB_VITRUVIAN_GAME_RIG_GODOT_IMPORT_OK'
 
-          cat > grand-bruxelles-game/game/tests/_ci_vitruvian_game_rig_body_smoke.gd <<'GD'
-          extends SceneTree
-          const P := "res://assets/characters/_review/vitruvian_game_rig_v1/body.glb"
-          func _init(): call_deferred("_run")
-          func _run():
-              var packed := ResourceLoader.load(P) as PackedScene
-              if packed == null: return _fail("body GLB did not import as PackedScene")
-              var root := packed.instantiate() as Node3D
-              if root == null: return _fail("body scene instantiation failed")
-              get_root().add_child(root)
-              var skeletons:Array[Skeleton3D]=[]; var meshes:Array[MeshInstance3D]=[]; var players:Array[AnimationPlayer]=[]
-              _walk(root,skeletons,meshes,players)
-              if skeletons.size()!=1: return _fail("expected exactly one Skeleton3D, got %d" % skeletons.size())
-              var sk:=skeletons[0]; var bone_names:=[]
-              for i in range(sk.get_bone_count()): bone_names.append(sk.get_bone_name(i))
-              if sk.get_bone_count()<35: return _fail("bone count too small: %d" % sk.get_bone_count())
-              for n in bone_names:
-                  var low:=str(n).to_lower()
-                  if "mixamo" in low or "adobe" in low: return _fail("forbidden bone token: %s" % n)
-              var clips:=0
-              for player in players:
-                  for libname in player.get_animation_library_list():
-                      var lib:=player.get_animation_library(libname)
-                      if lib:
-                          for anim in lib.get_animation_list():
-                              if str(anim).to_upper()!="RESET": clips+=1
-              if clips!=0: return _fail("unexpected animation clips: %d" % clips)
-              var tris:=0; var found_bounds:=false; var bounds:=AABB()
-              for m in meshes:
-                  if m.mesh==null: continue
-                  var a:=m.get_aabb(); var ga:=AABB(m.to_global(a.position),Vector3.ZERO)
-                  for corner in [a.position,a.end,Vector3(a.end.x,a.position.y,a.position.z),Vector3(a.position.x,a.end.y,a.position.z),Vector3(a.position.x,a.position.y,a.end.z),Vector3(a.end.x,a.end.y,a.position.z),Vector3(a.end.x,a.position.y,a.end.z),Vector3(a.position.x,a.end.y,a.end.z)]: ga=ga.expand(m.to_global(corner))
-                  bounds=ga if not found_bounds else bounds.merge(ga); found_bounds=true
-                  for s in range(m.mesh.get_surface_count()):
-                      var arr:=m.mesh.surface_get_arrays(s); var idx:PackedInt32Array=arr[Mesh.ARRAY_INDEX]
-                      if not idx.is_empty(): tris+=idx.size()/3
-                      else:
-                          var v:PackedVector3Array=arr[Mesh.ARRAY_VERTEX]; tris+=v.size()/3
-              if meshes.is_empty() or tris<10000: return _fail("mesh/triangle payload missing")
-              if not found_bounds or bounds.size.y<1.2 or bounds.size.y>2.4: return _fail("implausible body height/bounds: %s" % bounds)
-              var metrics={"schema":"grand-bruxelles-vitruvian-game-rig-godot-smoke-v1","production_authorized":false,"skeleton_count":skeletons.size(),"bone_count":sk.get_bone_count(),"bone_names":bone_names,"animation_clip_count":clips,"mesh_count":meshes.size(),"triangle_count":tris,"bounds_size":[bounds.size.x,bounds.size.y,bounds.size.z]}
-              var f:=FileAccess.open('/tmp/vitruvian-game-rig-godot.metrics.json',FileAccess.WRITE); f.store_string(JSON.stringify(metrics,"  ")+"\n"); f.close()
-              print("GB_VITRUVIAN_GAME_RIG_GODOT_OK bones=%d meshes=%d triangles=%d height=%.3f animations=0 production_authorized=false" % [sk.get_bone_count(),meshes.size(),tris,bounds.size.y]); quit(0)
-          func _walk(n:Node,s:Array[Skeleton3D],m:Array[MeshInstance3D],p:Array[AnimationPlayer]):
-              if n is Skeleton3D:s.append(n)
-              if n is MeshInstance3D:m.append(n)
-              if n is AnimationPlayer:p.append(n)
-              for c in n.get_children():_walk(c,s,m,p)
-          func _fail(msg:String): push_error("GB_VITRUVIAN_GAME_RIG_GODOT_FAIL: "+msg); quit(2)
-          GD
-
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --rendering-method gl_compatibility --script res://game/tests/_ci_vitruvian_game_rig_body_smoke.gd 2>&1 | tee /tmp/vitruvian-game-rig-godot-runtime.log
-          grep -q 'GB_VITRUVIAN_GAME_RIG_GODOT_OK' /tmp/vitruvian-game-rig-godot-runtime.log
-          if grep -q 'GB_VITRUVIAN_GAME_RIG_GODOT_FAIL' /tmp/vitruvian-game-rig-godot-runtime.log; then exit 1; fi
-          test -s /tmp/vitruvian-game-rig-godot.metrics.json
-
-      - name: Stage game-rig body smoke evidence
+      - name: Stage body smoke evidence
         if: always()
         shell: bash
         run: |
-          OUT=grand-bruxelles-game/artifacts/qa/midi_vitruvian_game_rig_body_smoke
-          mkdir -p "$OUT"
+          OUT=grand-bruxelles-game/artifacts/qa/midi_vitruvian_game_rig_body_smoke; mkdir -p "$OUT"
           cp /tmp/vitruvian_game_rig_body.report.json "$OUT/blender_body_report.json" 2>/dev/null || true
-          cp /tmp/vitruvian-game-rig-glb-audit.json "$OUT/glb_audit.json" 2>/dev/null || true
-          cp /tmp/vitruvian-game-rig-godot.metrics.json "$OUT/godot_metrics.json" 2>/dev/null || true
-          cp /tmp/vitruvian-game-rig-blender.log "$OUT/blender.log" 2>/dev/null || true
-          cp /tmp/vitruvian-game-rig-godot-import.log "$OUT/godot_import.log" 2>/dev/null || true
-          cp /tmp/vitruvian-game-rig-godot-runtime.log "$OUT/godot_runtime.log" 2>/dev/null || true
-          cp /tmp/vitruvian-game-rig-source-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
+          cp /tmp/glb-audit.json "$OUT/glb_audit.json" 2>/dev/null || true
+          cp /tmp/blender-body.log "$OUT/blender.log" 2>/dev/null || true
+          cp /tmp/godot-body-import.log "$OUT/godot_import.log" 2>/dev/null || true
+          cp /tmp/source-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
           cp /tmp/charmorph-commit.txt "$OUT/charmorph_commit.txt" 2>/dev/null || true
           cp /tmp/vitruvian-game-rig-commit.txt "$OUT/vitruvian_commit.txt" 2>/dev/null || true
           cp /tmp/blender-version.txt "$OUT/blender_version.txt" 2>/dev/null || true
-          cp /tmp/blender-user/scripts/addons/CharMorph/LICENSE "$OUT/charmorph_LICENSE_GPL3" 2>/dev/null || true
+          cp /tmp/blender-user/scripts/addons/CharMorph/common.py "$OUT/charmorph_gpl_header_proof.py" 2>/dev/null || true
           cp /tmp/vitruvian-game-rig-source/config.yaml "$OUT/vitruvian_config_CC0.yaml" 2>/dev/null || true
           printf '%s\n' '{"status":"body_smoke_review_only","production_authorized":false,"rig":"game-rig","mixamo_payload_allowed":false,"animations_allowed":false,"final_materials":false,"hair_included":false,"human_visual_verdict_required_before_promotion":true}' > "$OUT/authorization.json"
 

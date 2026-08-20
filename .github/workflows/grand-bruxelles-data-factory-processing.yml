@@ -1,0 +1,37 @@
+name: Grand Bruxelles Data Factory Processing
+on:
+  push:
+    branches: ["processing/data-factory-96e26e-current"]
+    paths:
+      - "grand-bruxelles-game/tools/data_factory/**"
+      - "grand-bruxelles-game/data/processing/**"
+      - ".github/workflows/grand-bruxelles-data-factory-processing.yml"
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  processor-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile data-factory processors and gates
+        run: |
+          python3 -m py_compile \
+            grand-bruxelles-game/tools/data_factory/verify_intake_artifact.py \
+            grand-bruxelles-game/tools/data_factory/normalize_urbis_addresses.py \
+            grand-bruxelles-game/tools/data_factory/normalize_stib_open_data.py \
+            grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py \
+            grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py \
+            grand-bruxelles-game/tools/data_factory/validate_processing_contracts.py
+      - name: Prove fail-closed processor behavior
+        run: python3 grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py
+      - name: Prove source-to-processor compatibility truth
+        run: |
+          python3 grand-bruxelles-game/tools/data_factory/validate_processing_contracts.py \
+            --contracts grand-bruxelles-game/data/processing/data_factory_source_contracts.json \
+            --queue grand-bruxelles-game/data/processing/data_factory_processing_queue.json
+      - name: Confirm existing production processors are reused
+        run: |
+          test -f grand-bruxelles-game/tools/build_brussels_mobility_traffic_snapshot.py
+          test -f grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py
+          test -f grand-bruxelles-game/tools/citygen/validate_cell_elevation_rasters.py

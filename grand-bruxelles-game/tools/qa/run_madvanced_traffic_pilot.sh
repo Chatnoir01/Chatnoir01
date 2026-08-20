@@ -12,7 +12,7 @@ EVIDENCE="$WORK_ROOT/evidence"
 PROBE_DIR="$PILOT_PROJECT/addons/madvanced_traffic_probe"
 
 rm -rf "$WORK_ROOT"
-mkdir -p "$BIN_DIR" "$EVIDENCE" "$PROBE_DIR"
+mkdir -p "$BIN_DIR" "$EVIDENCE"
 
 read_contract() {
   python3 - "$CONTRACT" "$1" <<'PY'

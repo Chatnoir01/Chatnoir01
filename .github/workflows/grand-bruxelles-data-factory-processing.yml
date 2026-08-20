@@ -19,6 +19,7 @@ jobs:
           python3 -m py_compile \
             grand-bruxelles-game/tools/data_factory/verify_intake_artifact.py \
             grand-bruxelles-game/tools/data_factory/normalize_urbis_addresses.py \
+            grand-bruxelles-game/tools/data_factory/normalize_stib_open_data.py \
             grand-bruxelles-game/tools/data_factory/normalize_stib_gtfs.py \
             grand-bruxelles-game/tools/data_factory/test_data_factory_processors.py \
             grand-bruxelles-game/tools/data_factory/validate_processing_contracts.py

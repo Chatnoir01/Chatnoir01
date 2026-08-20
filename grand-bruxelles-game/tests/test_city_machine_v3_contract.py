@@ -87,6 +87,8 @@ def main() -> int:
     paths = [row["path"] for row in rows]
     require(len(ids) == len(set(ids)), "generator IDs must be unique")
     require(len(paths) == len(set(paths)), "generator paths must be unique")
+    for path in paths:
+        require((ROOT / path).is_file(), f"inventoried generator does not exist: {path}")
     statuses = Counter(row["status"] for row in rows)
     require(sum(statuses.values()) == 41, "status accounting must cover every unique generator exactly once")
     require(set(statuses) <= {"wired", "partial", "candidate_only", "disabled", "obsolete", "duplicate"}, "unknown inventory status")

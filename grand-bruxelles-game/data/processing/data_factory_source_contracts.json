@@ -32,21 +32,22 @@
         "stib_gtfs_stops_export",
         "stib_commercial_network_shapes_export",
         "stib_catalog",
-        "stib_terms"
+        "stib_terms",
+        "intake_manifest"
       ],
       "processor_required_artifacts": [
         "gtfs_full_static_feed",
         "intake_manifest"
       ],
       "missing_artifacts": [
-        "gtfs_full_static_feed",
-        "intake_manifest"
+        "gtfs_full_static_feed"
       ],
       "compatible": false,
       "evidence": [
         "Official gtfs-stops-production page describes only STIB-MIVB stops based on GTFS files.",
         "Official shapefiles-production page describes commercial line routes and stop positions.",
-        "Neither page by itself proves a complete static GTFS feed containing routes.txt/trips.txt/shapes.txt."
+        "The intake itself produces manifest.json with hashes and terms evidence.",
+        "Neither published dataset page by itself proves a complete static GTFS feed containing routes.txt/trips.txt/shapes.txt."
       ],
       "rule": "Do not manufacture routes.txt or treat shapefile exports as GTFS tables."
     },

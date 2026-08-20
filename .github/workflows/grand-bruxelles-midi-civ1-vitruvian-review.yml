@@ -6,6 +6,7 @@ on:
       - ".github/workflows/grand-bruxelles-midi-civ1-vitruvian-review.yml"
       - "grand-bruxelles-game/data/provenance/characters/vitruvian_civ1_review_v1.json"
       - "grand-bruxelles-game/tools/prepare_vitruvian_civ1_review.py"
+      - "grand-bruxelles-game/tools/optimize_vitruvian_civ1_review.py"
       - "grand-bruxelles-game/game/tests/midi_civ1_vitruvian_capture_test.gd"
   workflow_dispatch:
 
@@ -127,6 +128,36 @@ jobs:
           grep -q '"production_authorized": false' /tmp/vitruvian-civ1-prep-report.json
           grep -q '"output_animations": 0' /tmp/vitruvian-civ1-prep-report.json
 
+      - name: Optimize owner-review texture payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/vitruvian-civ1-prepared
+          python3 grand-bruxelles-game/tools/optimize_vitruvian_civ1_review.py \
+            --package "$OUT" \
+            --report /tmp/vitruvian-civ1-optimize-report.json \
+            | tee /tmp/vitruvian-civ1-optimize.log
+          grep -q 'GB_CIV1_REVIEW_OPTIMIZED' /tmp/vitruvian-civ1-optimize.log
+          grep -q '"production_authorized": false' /tmp/vitruvian-civ1-optimize-report.json
+          grep -q '"geometry_modified": false' /tmp/vitruvian-civ1-optimize-report.json
+          grep -q '"skin_skeleton_modified": false' /tmp/vitruvian-civ1-optimize-report.json
+          grep -q '"max_review_texture_edge_px": 1024' /tmp/vitruvian-civ1-optimize-report.json
+          python3 - <<'PY'
+          import json
+          p='/tmp/vitruvian-civ1-optimize-report.json'
+          r=json.load(open(p, encoding='utf-8'))
+          if r['package_bytes_after'] > r['package_bytes_before']:
+              raise SystemExit('optimized review package grew')
+          if r['texture_bytes_after'] > r['texture_bytes_before']:
+              raise SystemExit('optimized review textures grew')
+          if not r['textures']:
+              raise SystemExit('no review textures audited')
+          for item in r['textures']:
+              if max(item['after_size']) > 1024:
+                  raise SystemExit(f"review texture exceeds 1024px: {item['path']} {item['after_size']}")
+          print('GB_CIV1_REVIEW_SIZE_GATE_OK', r['package_bytes_before'], r['package_bytes_after'], r['package_bytes_saved'])
+          PY
+
       - name: Stage review package into Godot only for this run
         shell: bash
         run: |
@@ -201,6 +232,7 @@ jobs:
           cp /tmp/midi-civ1-vitruvian_feet_ground.png "$OUT/witness_feet_ground.png" 2>/dev/null || true
           cp /tmp/midi-civ1-vitruvian.metrics.json "$OUT/metrics.json" 2>/dev/null || true
           cp /tmp/vitruvian-civ1-prep-report.json "$OUT/prep_report.json" 2>/dev/null || true
+          cp /tmp/vitruvian-civ1-optimize-report.json "$OUT/optimization_report.json" 2>/dev/null || true
           cp /tmp/vitruvian-source-sha256.txt "$OUT/source_sha256.txt" 2>/dev/null || true
           cp /tmp/vitruvian-upstream-commit.txt "$OUT/upstream_commit.txt" 2>/dev/null || true
           cp /tmp/vitruvian-civ1-source/LICENSE "$OUT/upstream_LICENSE" 2>/dev/null || true

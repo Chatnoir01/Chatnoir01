@@ -61,7 +61,10 @@ func _hide_dynamic(scene: Node) -> void:
         var item := scene.get_node_or_null(path) as CanvasItem
         if item != null:
             item.visible = false
-    for path: String in ["Player", "PrototypeCar", "PhysicalCarB", "MidiHeroZone", "MidiUrbanLife"]:
+    # Keep the static Midi environment visible: a normal-player material witness
+    # must not turn into an empty grey frame just to isolate the road shader.
+    # Only player/vehicle actors are hidden identically in BEFORE/CONTROL/AFTER.
+    for path: String in ["Player", "PrototypeCar", "PhysicalCarB"]:
         var spatial := scene.get_node_or_null(path) as Node3D
         if spatial != null:
             spatial.visible = false
@@ -228,7 +231,7 @@ func _run() -> void:
         return
     # The control render is the upper bound of pixels this material family can
     # affect with the locked camera. Requiring 80 px of vertical bbox was
-    # impossible when the material itself occupies only 46 px vertically.
+    # impossible when the material itself occupied only 46 px vertically.
     # Keep the camera and pixel-delta thresholds frozen; require the actual
     # microtexture to cover at least 75% of the control-material footprint.
     if control_bbox_w <= 0 or control_bbox_h <= 0:

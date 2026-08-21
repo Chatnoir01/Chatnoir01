@@ -54,6 +54,27 @@ func _run() -> void:
             if bound_wave.loop_mode != Animation.LOOP_NONE or untouched_wave_after.loop_mode != Animation.LOOP_NONE:
                 failures.append("non-locomotion animation loop mode was modified")
 
+        # Simulate an importer/hot-reload replacing the bound player's localized library
+        # with a shared library that preserves the same clip names. A name-only binding
+        # validity check must not allow this shared-resource regression to persist.
+        bound_player.remove_animation_library("")
+        if bound_player.add_animation_library("", shared_library) != OK:
+            failures.append("failed to install same-name shared-library mutation probe")
+        elif not runtime.update_person_from_observed_speed(bound_person, 1.0):
+            failures.append("runtime failed to recover from same-name library replacement")
+        else:
+            for clip_name: String in ["Shared_Idle", "Shared_Walk", "Shared_Run"]:
+                var rebound_animation := bound_player.get_animation(clip_name)
+                var untouched_animation := untouched_player.get_animation(clip_name)
+                if rebound_animation == null or untouched_animation == null:
+                    failures.append("same-name mutation recovery lost locomotion animation %s" % clip_name)
+                elif rebound_animation.get_instance_id() == untouched_animation.get_instance_id():
+                    failures.append("same-name library replacement kept locomotion resource shared: %s" % clip_name)
+                elif rebound_animation.loop_mode != Animation.LOOP_LINEAR:
+                    failures.append("same-name library replacement did not restore loop mode: %s" % clip_name)
+                if untouched_animation != null and untouched_animation.loop_mode != Animation.LOOP_NONE:
+                    failures.append("same-name library replacement mutated untouched NPC: %s" % clip_name)
+
         var stats := runtime.locomotion_stats()
         if not bool(stats.get("localized_locomotion_only", false)):
             failures.append("selective locomotion localization contract missing")

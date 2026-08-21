@@ -1,5 +1,5 @@
 extends Node
-class_name AutomaticStreetAxisDirectSpawn
+class_name StreetAxisDestinationResolver
 
 ## Generic direct-entry resolver for official UrbIS StreetAxis identities.
 ## It never accepts arbitrary coordinates and never promotes a visual-only cell.

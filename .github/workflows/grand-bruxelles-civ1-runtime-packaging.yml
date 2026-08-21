@@ -1,0 +1,45 @@
+name: Grand Bruxelles CIV-1 Runtime Packaging
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/characters/civilians/civ1/**"
+      - "grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv"
+      - "grand-bruxelles-game/tools/validate_civ1_runtime_packaging.py"
+      - "grand-bruxelles-game/tests/test_validate_civ1_runtime_packaging.py"
+      - ".github/workflows/grand-bruxelles-civ1-runtime-packaging.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/assets/characters/civilians/civ1/**"
+      - "grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv"
+      - "grand-bruxelles-game/tools/validate_civ1_runtime_packaging.py"
+      - "grand-bruxelles-game/tests/test_validate_civ1_runtime_packaging.py"
+      - ".github/workflows/grand-bruxelles-civ1-runtime-packaging.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  civ1-runtime-packaging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Packaging regression tests
+        run: python3 grand-bruxelles-game/tests/test_validate_civ1_runtime_packaging.py
+      - name: Validate truthful fail-closed packaging state
+        run: python3 grand-bruxelles-game/tools/validate_civ1_runtime_packaging.py
+      - name: Prove activation gate remains closed until package exists
+        shell: bash
+        run: |
+          set +e
+          python3 grand-bruxelles-game/tools/validate_civ1_runtime_packaging.py --require-ready > /tmp/civ1-ready.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/civ1-ready.log
+          test "$code" -eq 1
+          grep -Fq "CIV-1 runtime packaging is not activation-ready" /tmp/civ1-ready.log
+      - name: Preserve repository-wide asset provenance coverage
+        run: python3 grand-bruxelles-game/tools/validate_asset_provenance.py

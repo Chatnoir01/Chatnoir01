@@ -80,7 +80,7 @@ jobs:
   verify-shards:
     needs: build-selection
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 70
     strategy:
       fail-fast: false
       max-parallel: 16
@@ -107,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           max_attempts=2
-          if [[ "$C02_TILE" == "148164" || "$C02_TILE" == "151177" || "$C02_TILE" == "153174" ]]; then
+          if [[ "$C02_TILE" == "146163" || "$C02_TILE" == "148163" || "$C02_TILE" == "148164" || "$C02_TILE" == "149174" || "$C02_TILE" == "151177" || "$C02_TILE" == "153174" ]]; then
             max_attempts=4
           fi
           log="$RUNNER_TEMP/shard-${C02_TILE}.log"

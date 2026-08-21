@@ -6,6 +6,12 @@ class_name BrusselsOsmEnvironmentRuntime
 ## presentation dimensions; none of those dimensions are source measurements.
 
 const SOURCE_FORMAT := "grand-bruxelles-osm-zone-environment-v1"
+const EXPECTED_SOURCE := "OpenStreetMap contributors via Overpass API"
+const EXPECTED_SOURCE_CRS := "EPSG:4326"
+const EXPECTED_PROJECTION_CRS := "EPSG:31370"
+const EXPECTED_LICENSE := "ODbL-1.0"
+const EXPECTED_AXES := "X=east, Y=up, Z=south"
+const EXPECTED_UNITS := "metres"
 const SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]
 const TREE_FAR_FOLIAGE_LOBE_INDICES := [0, 3, 6]
 
@@ -21,9 +27,11 @@ var last_render_counts := {"tree": 0, "street_lamp": 0, "bollard": 0}
 var last_tree_lod_counts := {"near": 0, "far": 0, "foliage_instances": 0}
 var _points := {"tree": [], "street_lamp": [], "bollard": []}
 var _last_anchor := Vector3(INF, INF, INF)
+var _loaded_ok := false
 
 func _ready() -> void:
-    if not _load_points():
+    _loaded_ok = _load_points()
+    if not _loaded_ok:
         set_process(false)
         return
     call_deferred("_refresh", true)
@@ -31,7 +39,63 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
     _refresh(false)
 
+func loaded_ok() -> bool:
+    return _loaded_ok
+
+func _validate_document_contract(document: Dictionary) -> bool:
+    if str(document.get("format", "")) != SOURCE_FORMAT:
+        push_error("OSM environment artifact format mismatch")
+        return false
+    if str(document.get("source", "")) != EXPECTED_SOURCE:
+        push_error("OSM environment artifact source mismatch")
+        return false
+    if str(document.get("license", "")) != EXPECTED_LICENSE:
+        push_error("OSM environment artifact license mismatch")
+        return false
+    if str(document.get("source_crs", "")) != EXPECTED_SOURCE_CRS:
+        push_error("OSM environment artifact source CRS mismatch")
+        return false
+    if str(document.get("projection_crs", "")) != EXPECTED_PROJECTION_CRS:
+        push_error("OSM environment artifact projection CRS mismatch")
+        return false
+    var origin: Variant = document.get("game_origin", {})
+    if not origin is Dictionary:
+        push_error("OSM environment artifact game origin missing")
+        return false
+    var game_origin := origin as Dictionary
+    if str(game_origin.get("axes", "")) != EXPECTED_AXES:
+        push_error("OSM environment artifact axes mismatch")
+        return false
+    if str(game_origin.get("units", "")) != EXPECTED_UNITS:
+        push_error("OSM environment artifact units mismatch")
+        return false
+    var rows: Variant = document.get("environment_points", [])
+    if not rows is Array:
+        push_error("OSM environment artifact points must be an array")
+        return false
+    var stats: Variant = document.get("stats", {})
+    if not stats is Dictionary:
+        push_error("OSM environment artifact stats missing")
+        return false
+    var expected_total := 0
+    for kind: String in SUPPORTED_KINDS:
+        if not (stats as Dictionary).has(kind):
+            push_error("OSM environment artifact stats missing kind: %s" % kind)
+            return false
+        var count := int((stats as Dictionary).get(kind, -1))
+        if count < 0:
+            push_error("OSM environment artifact stats invalid kind: %s" % kind)
+            return false
+        expected_total += count
+    if expected_total != (rows as Array).size():
+        push_error("OSM environment artifact stats/point total mismatch")
+        return false
+    return true
+
 func _load_points() -> bool:
+    for kind: String in SUPPORTED_KINDS:
+        (_points[kind] as Array).clear()
+    _last_anchor = Vector3(INF, INF, INF)
     if data_path.is_empty() or not FileAccess.file_exists(data_path):
         push_error("OSM environment artifact missing: %s" % data_path)
         return false
@@ -44,27 +108,42 @@ func _load_points() -> bool:
         push_error("OSM environment artifact invalid JSON object")
         return false
     var document := parsed as Dictionary
-    if str(document.get("format", "")) != SOURCE_FORMAT:
-        push_error("OSM environment artifact format mismatch")
+    if not _validate_document_contract(document):
         return false
+    var actual_counts := {"tree": 0, "street_lamp": 0, "bollard": 0}
     for row_variant in document.get("environment_points", []):
         if not row_variant is Dictionary:
-            continue
+            push_error("OSM environment point must be an object")
+            return false
         var row := row_variant as Dictionary
         var kind := str(row.get("kind", ""))
         if kind not in SUPPORTED_KINDS:
             push_error("Unsupported OSM environment kind: %s" % kind)
+            return false
+        var osm_id := int(row.get("osm_id", 0))
+        if osm_id <= 0:
+            push_error("OSM environment point missing OSM id")
             return false
         var position = row.get("position", [])
         if not position is Array or position.size() < 2:
             push_error("OSM environment point missing X/Z position")
             return false
         (_points[kind] as Array).append({
-            "osm_id": int(row.get("osm_id", 0)),
+            "osm_id": osm_id,
             "position": Vector3(float(position[0]), 0.0, float(position[1])),
         })
+        actual_counts[kind] = int(actual_counts[kind]) + 1
+    var stats := document.get("stats", {}) as Dictionary
+    for kind: String in SUPPORTED_KINDS:
+        if int(actual_counts[kind]) != int(stats.get(kind, -1)):
+            push_error("OSM environment artifact stats mismatch for kind: %s" % kind)
+            for clear_kind: String in SUPPORTED_KINDS:
+                (_points[clear_kind] as Array).clear()
+            return false
     set_meta("source", str(document.get("source", "")))
     set_meta("license", str(document.get("license", "")))
+    set_meta("source_crs", str(document.get("source_crs", "")))
+    set_meta("projection_crs", str(document.get("projection_crs", "")))
     set_meta("source_dimensions_measured", false)
     return true
 

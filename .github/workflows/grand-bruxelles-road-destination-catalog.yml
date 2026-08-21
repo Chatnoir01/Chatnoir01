@@ -41,14 +41,20 @@ jobs:
           from pathlib import Path
           p = json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text(encoding='utf-8'))
           assert p['format'] == 'grand-bruxelles-road-destination-catalog-v1'
-          assert p['entry_count'] >= 140
+          assert p['eligible_record_count'] >= 140
+          assert p['entry_count'] >= 139
+          assert p['duplicate_record_count'] == p['eligible_record_count'] - p['entry_count']
           auth = p['authorization']
           assert auth['source_lookup_only'] is True
           for key in ('render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
               assert auth[key] is False, key
           for road_id in ('359177328','487501805','1382734012'):
               assert road_id in p['entries'], road_id
-          print(f"ROAD_DESTINATION_CATALOG_GATE_GREEN: entries={p['entry_count']} sha256={p['catalog_sha256']}")
+          print(
+              'ROAD_DESTINATION_CATALOG_GATE_GREEN: '
+              f"entries={p['entry_count']} eligible_records={p['eligible_record_count']} "
+              f"duplicate_records={p['duplicate_record_count']} sha256={p['catalog_sha256']}"
+          )
           PY
 
       - name: Upload catalog evidence

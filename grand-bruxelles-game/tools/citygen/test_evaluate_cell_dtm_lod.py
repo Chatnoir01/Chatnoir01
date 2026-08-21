@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import importlib.util
 import math
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -54,6 +55,7 @@ assert mod._validated_dtm_crs_is_acceptable(None, 3812, "authoritative_source_ma
 # though the scheduled CityGen pass does. Install into an explicit temporary
 # target and prepend it to sys.path: hosted runners may disable the user-site
 # directory even when pip reports a successful --user installation.
+deps_dir = None
 try:
     import numpy as np
     from affine import Affine
@@ -108,6 +110,14 @@ result = {
 result["evidence_digest"] = mod._digest(result)
 assert result["evidence_digest"] == mod._digest({k:v for k,v in result.items() if k != "evidence_digest"})
 
-subprocess.run([sys.executable, str(HERE / "test_build_cell_terrain_runtime_candidate.py")], check=True)
+child_env = os.environ.copy()
+if deps_dir is not None:
+    existing_pythonpath = child_env.get("PYTHONPATH", "")
+    child_env["PYTHONPATH"] = str(deps_dir) if not existing_pythonpath else str(deps_dir) + os.pathsep + existing_pythonpath
+subprocess.run(
+    [sys.executable, str(HERE / "test_build_cell_terrain_runtime_candidate.py")],
+    check=True,
+    env=child_env,
+)
 
 print("CELL_DTM_LOD_GUARDRAILS_OK p95_selection=true canonical_edges=true deterministic=true terrain_candidate_regression=true runtime_approval=false")

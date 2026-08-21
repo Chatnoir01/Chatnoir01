@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/project.godot"
       - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
       - "grand-bruxelles-game/game/tests/automatic_road_direct_spawn_test.gd"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
       - "grand-bruxelles-game/data/osm/**"
       - ".github/workflows/grand-bruxelles-web.yml"
       - ".github/workflows/grand-bruxelles-automatic-road-spawn.yml"
@@ -54,6 +55,7 @@ jobs:
             2>&1 | tee /tmp/automatic-road-spawn.log
           if grep -E "SCRIPT ERROR|Parse Error:|AUTOMATIC_ROAD_DIRECT_SPAWN_FAIL" /tmp/automatic-road-spawn.log; then exit 1; fi
           grep -F "AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN" /tmp/automatic-road-spawn.log
+          grep -F "lookup=deterministic_runtime_index" /tmp/automatic-road-spawn.log
 
       - name: Verify safe Web request grammar
         run: |

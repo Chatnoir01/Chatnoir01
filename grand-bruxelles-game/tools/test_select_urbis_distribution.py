@@ -66,7 +66,11 @@ def main() -> int:
     workflow = MODULE_PATH.parents[2] / ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
     workflow_text = workflow.read_text(encoding="utf-8")
     assert "--candidate-token GPKG --candidate-token 21001 --prefer-latest" in workflow_text
-    assert "assert all(x in folded for x in ('31370','gpkg','21001'))" in workflow_text
+    semantic_token_guard = (
+        "assert all(x in folded for x in ('31370','gpkg','21001'))" in workflow_text
+        or "assert all(token in folded for token in ('31370','gpkg','21001'))" in workflow_text
+    )
+    assert semantic_token_guard
     assert "--candidate-token 21009" not in workflow_text
     assert "--candidate-token Anderlecht" not in workflow_text
 

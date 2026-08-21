@@ -83,6 +83,9 @@ func _run() -> void:
     if body == null:
         _fail("committed CC0 character body missing")
         return
+    if absf(body.position.y) > 0.001:
+        _fail("public body is not grounded on ground-origin NpcAgent: y=%.3f" % body.position.y)
+        return
     if str(visual.get_meta("body_source", "")) != EXPECTED_PUBLIC_BODY:
         _fail("public body source drifted")
         return
@@ -157,7 +160,7 @@ func _run() -> void:
     agent.velocity = Vector3.ZERO
     runtime.sync_agent_for_test(agent)
 
-    print("BELGIAN_POLICE_PED_RUNTIME_OK existing_npc=true standalone=false public_cc0=true legacy_hidden=true animation_sync=true")
+    print("BELGIAN_POLICE_PED_RUNTIME_OK existing_npc=true standalone=false public_cc0=true grounded=true legacy_hidden=true animation_sync=true")
     runtime.queue_free()
     host.queue_free()
     quit(0)

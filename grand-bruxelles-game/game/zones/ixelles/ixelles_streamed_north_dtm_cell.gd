@@ -364,4 +364,5 @@ func set_streamed_collision_enabled(enabled: bool) -> void:
 
 
 func is_streamed_collision_enabled() -> bool:
-    return _stream_collision_enabled and get_node_or_null("OfficialIxellesDTMCollision") != null
+    var collision := get_node_or_null("OfficialIxellesDTMCollision/OfficialIxellesDTMHeightMapCollision") as CollisionShape3D
+    return _stream_collision_enabled and collision != null and not collision.disabled

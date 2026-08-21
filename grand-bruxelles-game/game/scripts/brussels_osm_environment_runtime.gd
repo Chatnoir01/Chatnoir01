@@ -7,15 +7,18 @@ class_name BrusselsOsmEnvironmentRuntime
 
 const SOURCE_FORMAT := "grand-bruxelles-osm-zone-environment-v1"
 const SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]
+const TREE_FAR_FOLIAGE_LOBE_INDICES := [0, 3, 6]
 
 @export_file("*.json") var data_path := ""
 @export var render_radius_m := 350.0
 @export var refresh_distance_m := 80.0
+@export var tree_full_detail_radius_m := 140.0
 @export var max_trees := 450
 @export var max_street_lamps := 220
 @export var max_bollards := 160
 
 var last_render_counts := {"tree": 0, "street_lamp": 0, "bollard": 0}
+var last_tree_lod_counts := {"near": 0, "far": 0, "foliage_instances": 0}
 var _points := {"tree": [], "street_lamp": [], "bollard": []}
 var _last_anchor := Vector3(INF, INF, INF)
 
@@ -104,6 +107,7 @@ func _nearby(kind: String, anchor: Vector3, limit: int) -> Array:
 
 func _rebuild(anchor: Vector3) -> void:
     for child in get_children():
+        remove_child(child)
         child.queue_free()
     var trees := _nearby("tree", anchor, max_trees)
     var lamps := _nearby("street_lamp", anchor, max_street_lamps)
@@ -113,7 +117,8 @@ func _rebuild(anchor: Vector3) -> void:
     _build_lamp_batches(lamps)
     _build_bollard_batches(bollards)
     set_meta("render_counts", last_render_counts.duplicate(true))
-    print("BRUSSELS_OSM_ENVIRONMENT_READY: %s radius=%.0fm" % [JSON.stringify(last_render_counts), render_radius_m])
+    set_meta("tree_lod_counts", last_tree_lod_counts.duplicate(true))
+    print("BRUSSELS_OSM_ENVIRONMENT_READY: %s radius=%.0fm tree_lod=%s" % [JSON.stringify(last_render_counts), render_radius_m, JSON.stringify(last_tree_lod_counts)])
 
 func _batch(name_value: String, mesh: Mesh, transforms: Array) -> void:
     if transforms.is_empty():
@@ -132,19 +137,33 @@ func _batch(name_value: String, mesh: Mesh, transforms: Array) -> void:
 
 func _build_tree_batches(rows: Array) -> void:
     if rows.is_empty():
+        last_tree_lod_counts = {"near": 0, "far": 0, "foliage_instances": 0}
         return
     var materials := BrusselsStreetTreeAsset.create_materials()
     var trunk: Array = []
     var dark: Array = []
     var light: Array = []
+    var near_count := 0
+    var far_count := 0
+    var full_detail_radius_sq := tree_full_detail_radius_m * tree_full_detail_radius_m
     for row_variant in rows:
         var row := row_variant as Dictionary
         var base: Vector3 = row["position"]
         var osm_id := int(row["osm_id"])
         trunk.append(BrusselsStreetTreeAsset.trunk_transform(base))
-        for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):
+        var lobe_indices: Array = []
+        if float(row.get("distance_sq", 0.0)) <= full_detail_radius_sq:
+            near_count += 1
+            for index in range(BrusselsStreetTreeAsset.FOLIAGE_LOBE_COUNT):
+                lobe_indices.append(index)
+        else:
+            far_count += 1
+            lobe_indices.assign(TREE_FAR_FOLIAGE_LOBE_INDICES)
+        for index_variant in lobe_indices:
+            var index := int(index_variant)
             var transform := BrusselsStreetTreeAsset.foliage_lobe_transform(base, osm_id, index)
             (light if BrusselsStreetTreeAsset.foliage_is_light(index) else dark).append(transform)
+    last_tree_lod_counts = {"near": near_count, "far": far_count, "foliage_instances": dark.size() + light.size()}
     _batch("TreeTrunks", BrusselsStreetTreeAsset.create_trunk_mesh(materials["trunk"]), trunk)
     _batch("TreeFoliageDark", BrusselsStreetTreeAsset.create_foliage_mesh(materials["foliage_dark"]), dark)
     _batch("TreeFoliageLight", BrusselsStreetTreeAsset.create_foliage_mesh(materials["foliage_light"]), light)

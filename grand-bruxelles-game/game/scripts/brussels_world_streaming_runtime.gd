@@ -3,7 +3,7 @@ class_name BrusselsWorldStreamingRuntime
 
 ## Production bridge for the clean-room Brussels cell streamer.
 ## Tracks the real player/driven vehicle and discovers source-backed, pregenerated
-## runtime cell bundles instead of using a hand-authored regional allowlist.
+## runtime cell bundles from a deterministic index instead of a runtime directory scan.
 ## Discovery is fail-closed: incomplete, malformed or identity-mismatched bundles
 ## are ignored and can never be promoted implicitly.
 ## SHIPPED_CELLS is retained only for existing destination-preload/rendering
@@ -57,15 +57,15 @@ const SHIPPED_CELLS: Array[Dictionary] = [
 ]
 
 const CELL_SOURCE_ROOT := "res://data/urbis/remaining_brussels/cells"
+const RUNTIME_CELL_INDEX_PATH := "res://data/runtime/runtime_cell_index.json"
+const RUNTIME_CELL_INDEX_FORMAT := "grand-bruxelles-runtime-cell-index-v1"
 const BUILT_CELL_FORMAT := "grand-bruxelles-urbis-built-cell-v1"
 const RUNTIME_CELL_FORMAT := "grand-bruxelles-urbis-cell-runtime-v1"
 const RUNTIME_NETWORK_FORMAT := "grand-bruxelles-urbis-network-cell-runtime-v2"
 const EXPECTED_CRS := "EPSG:31370"
 const RUNTIME_CELL_RELATIVE_PATH := "runtime/cell.game.json"
 const RUNTIME_NETWORK_RELATIVE_PATH := "runtime/network.game.json"
-const STRONG_HEIGHT_ROOTS := [
-    "res://data/terrain/ixelles",
-]
+const STRONG_HEIGHT_ROOTS := ["res://data/terrain/ixelles"]
 
 @export var visual_load_radius_m := 650.0
 @export var visual_unload_radius_m := 850.0
@@ -86,7 +86,6 @@ var _destination_preload_active := false
 var _destination_preload_cell_id := ""
 var _destination_preload_position := Vector3.ZERO
 
-
 func _ready() -> void:
     disabled_for_direct_ixelles = _has_direct_ixelles_spawn(OS.get_cmdline_user_args())
     if disabled_for_direct_ixelles:
@@ -96,7 +95,6 @@ func _ready() -> void:
     if _player == null:
         push_error("BrusselsWorldStreamingRuntime: Player node unavailable")
         return
-
     manager = STREAMER_SCRIPT.new() as BrusselsCellStreamingManager
     manager.name = "CellStreamingManager"
     manager.visual_load_radius_m = visual_load_radius_m
@@ -106,16 +104,14 @@ func _ready() -> void:
     manager.max_operations_per_tick = max_operations_per_tick
     manager.max_active_cells = max_active_cells
     add_child(manager)
-
     backend = BACKEND_SCRIPT.new() as BrusselsCellNodeBackend
     backend.name = "CellStreamingBackend"
     add_child(backend)
     backend.bind_manager(manager)
-
     var descriptors := discover_runtime_cell_descriptors()
     discovered_cell_count = descriptors.size()
     if discovered_cell_count == 0:
-        push_error("BrusselsWorldStreamingRuntime: no valid pregenerated runtime cells discovered")
+        push_error("BrusselsWorldStreamingRuntime: no valid indexed runtime cells discovered")
         return
     var registered_count := _register_runtime_cells(descriptors)
     if registered_count != discovered_cell_count:
@@ -123,8 +119,7 @@ func _ready() -> void:
         return
     runtime_ready = true
     _feed_observer()
-    print("BRUSSELS_WORLD_STREAMING_READY: cells=%d visual=%.0fm collision=%.0fm" % [int(manager.get_metrics().get("registered_cells", 0)), visual_load_radius_m, collision_radius_m])
-
+    print("BRUSSELS_WORLD_STREAMING_READY: cells=%d visual=%.0fm collision=%.0fm lookup=deterministic_runtime_cell_index" % [int(manager.get_metrics().get("registered_cells", 0)), visual_load_radius_m, collision_radius_m])
 
 func _physics_process(_delta: float) -> void:
     if not runtime_ready:
@@ -134,13 +129,11 @@ func _physics_process(_delta: float) -> void:
         return
     _feed_observer()
 
-
 func _has_direct_ixelles_spawn(args: PackedStringArray) -> bool:
     for arg: String in args:
         if arg.strip_edges().to_lower() == "spawn=ixelles":
             return true
     return false
-
 
 func _read_json(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):
@@ -149,7 +142,6 @@ func _read_json(path: String) -> Dictionary:
     if typeof(parsed) != TYPE_DICTIONARY:
         return {}
     return parsed as Dictionary
-
 
 func _is_canonical_cell_id(cell_id: String) -> bool:
     var parts := cell_id.split("-", false)
@@ -161,14 +153,12 @@ func _is_canonical_cell_id(cell_id: String) -> bool:
     var raw_northing := parts[2].trim_prefix("n")
     return not raw_easting.is_empty() and raw_easting.is_valid_int() and not raw_northing.is_empty() and raw_northing.is_valid_int()
 
-
 func _strong_heights_path(cell_id: String) -> String:
     for root: String in STRONG_HEIGHT_ROOTS:
         var candidate := root.path_join("%s_strong_heights.game.json" % cell_id)
         if FileAccess.file_exists(candidate):
             return candidate
     return ""
-
 
 func _manifest_allows_production_discovery(manifest: Dictionary) -> bool:
     var authorization: Variant = manifest.get("authorization", {})
@@ -178,14 +168,12 @@ func _manifest_allows_production_discovery(manifest: Dictionary) -> bool:
             return false
         if auth.has("runtime_mount_authorized") and not bool(auth.get("runtime_mount_authorized", false)):
             return false
-
     var promotion: Variant = manifest.get("promotion", {})
     if promotion is Dictionary and not (promotion as Dictionary).is_empty():
         var promotion_dict := promotion as Dictionary
         if promotion_dict.has("production_discovery_eligible") and not bool(promotion_dict.get("production_discovery_eligible", false)):
             return false
     return true
-
 
 func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Dictionary:
     if not _is_canonical_cell_id(cell_id):
@@ -196,7 +184,6 @@ func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Diction
     var runtime_network_path := base_path.path_join(RUNTIME_NETWORK_RELATIVE_PATH)
     if not FileAccess.file_exists(manifest_path) or not FileAccess.file_exists(runtime_cell_path) or not FileAccess.file_exists(runtime_network_path):
         return {}
-
     var manifest := _read_json(manifest_path)
     var runtime_cell := _read_json(runtime_cell_path)
     var runtime_network := _read_json(runtime_network_path)
@@ -210,7 +197,6 @@ func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Diction
         return {}
     if str(runtime_cell.get("format", "")) != RUNTIME_CELL_FORMAT or str(runtime_network.get("format", "")) != RUNTIME_NETWORK_FORMAT:
         return {}
-
     var runtime_contract: Variant = manifest.get("runtime", {})
     if not runtime_contract is Dictionary:
         return {}
@@ -221,7 +207,6 @@ func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Diction
         return {}
     if not _world_center_from_contract(manifest, runtime_cell).is_finite():
         return {}
-
     var shipped := get_shipped_cell_contract(cell_id)
     var script_path := SOURCE_PLAN_STREAMED_SCRIPT_PATH
     var metadata: Dictionary = {"build_collision": false}
@@ -236,39 +221,39 @@ func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Diction
         metadata["runtime_network_path"] = runtime_network_path
         metadata["strong_heights_path"] = _strong_heights_path(cell_id)
         metadata["build_collision"] = false
+    return {"cell_id": cell_id, "manifest_path": manifest_path, "runtime_cell_path": runtime_cell_path, "runtime_network_path": runtime_network_path, "script_path": script_path, "metadata": metadata}
 
-    return {
-        "cell_id": cell_id,
-        "manifest_path": manifest_path,
-        "runtime_cell_path": runtime_cell_path,
-        "runtime_network_path": runtime_network_path,
-        "script_path": script_path,
-        "metadata": metadata,
-    }
+func _indexed_cell_ids(root_path: String, index_path: String) -> PackedStringArray:
+    var result := PackedStringArray()
+    var index := _read_json(index_path)
+    if index.is_empty() or str(index.get("format", "")) != RUNTIME_CELL_INDEX_FORMAT:
+        return result
+    if str(index.get("source_root", "")) != root_path:
+        return result
+    if bool(index.get("runtime_mount_authorized_by_index", true)) or bool(index.get("jouable_authorized_by_index", true)):
+        return result
+    var cells: Variant = index.get("cells", [])
+    if not cells is Array:
+        return result
+    var seen := {}
+    for raw_entry: Variant in cells:
+        if not raw_entry is Dictionary:
+            return PackedStringArray()
+        var cell_id := str((raw_entry as Dictionary).get("cell_id", ""))
+        if not _is_canonical_cell_id(cell_id) or seen.has(cell_id):
+            return PackedStringArray()
+        seen[cell_id] = true
+        result.append(cell_id)
+    result.sort()
+    return result
 
-
-func discover_runtime_cell_descriptors(root_path: String = CELL_SOURCE_ROOT) -> Array[Dictionary]:
+func discover_runtime_cell_descriptors(root_path: String = CELL_SOURCE_ROOT, index_path: String = RUNTIME_CELL_INDEX_PATH) -> Array[Dictionary]:
     var descriptors: Array[Dictionary] = []
-    var directory := DirAccess.open(root_path)
-    if directory == null:
-        return descriptors
-
-    var cell_ids := PackedStringArray()
-    directory.list_dir_begin()
-    var entry := directory.get_next()
-    while not entry.is_empty():
-        if directory.current_is_dir() and entry != "." and entry != ".." and _is_canonical_cell_id(entry):
-            cell_ids.append(entry)
-        entry = directory.get_next()
-    directory.list_dir_end()
-    cell_ids.sort()
-
-    for cell_id: String in cell_ids:
+    for cell_id: String in _indexed_cell_ids(root_path, index_path):
         var descriptor := _descriptor_for_runtime_cell(root_path, cell_id)
         if not descriptor.is_empty():
             descriptors.append(descriptor)
     return descriptors
-
 
 func _world_center_from_contract(manifest: Dictionary, runtime_cell: Dictionary) -> Vector3:
     var bbox: Variant = manifest.get("bbox", [])
@@ -285,7 +270,6 @@ func _world_center_from_contract(manifest: Dictionary, runtime_cell: Dictionary)
     var anchor_z := float((coords as Dictionary).get("world_anchor_z", 0.0))
     return Vector3(anchor_x + (center_e - origin_e), 0.0, anchor_z - (center_n - origin_n))
 
-
 func _register_runtime_cells(descriptors: Array[Dictionary]) -> int:
     var registered_count := 0
     for descriptor: Dictionary in descriptors:
@@ -299,7 +283,6 @@ func _register_runtime_cells(descriptors: Array[Dictionary]) -> int:
         if manifest.is_empty() or runtime_cell.is_empty() or not center.is_finite():
             push_error("BrusselsWorldStreamingRuntime: invalid discovered contract %s" % cell_id)
             continue
-
         var metadata: Dictionary = (descriptor.get("metadata", {}) as Dictionary).duplicate(true)
         if not backend.register_script_cell(cell_id, script_path, metadata):
             push_error("BrusselsWorldStreamingRuntime: backend registration failed %s" % cell_id)
@@ -309,7 +292,6 @@ func _register_runtime_cells(descriptors: Array[Dictionary]) -> int:
             continue
         registered_count += 1
     return registered_count
-
 
 func _register_shipped_cells() -> int:
     var registered_count := 0
@@ -328,7 +310,6 @@ func _register_shipped_cells() -> int:
         if not center.is_finite():
             push_error("BrusselsWorldStreamingRuntime: invalid world center %s" % cell_id)
             continue
-
         var metadata: Dictionary = (descriptor.get("metadata", {}) as Dictionary).duplicate(true)
         if script_path == SOURCE_PLAN_STREAMED_SCRIPT_PATH:
             metadata["manifest_path"] = manifest_path
@@ -345,18 +326,15 @@ func _register_shipped_cells() -> int:
         registered_count += 1
     return registered_count
 
-
 func get_shipped_cell_contract(cell_id: String) -> Dictionary:
     for descriptor: Dictionary in SHIPPED_CELLS:
         if str(descriptor.get("cell_id", "")) == cell_id:
             return descriptor.duplicate(true)
     return {}
 
-
 func is_destination_collision_authorized(cell_id: String) -> bool:
     var descriptor := get_shipped_cell_contract(cell_id)
     return not descriptor.is_empty() and bool(descriptor.get("destination_collision_authorized", false))
-
 
 func begin_destination_preload(cell_id: String, target_position: Vector3) -> bool:
     if not runtime_ready or cell_id.is_empty() or not target_position.is_finite():
@@ -377,19 +355,8 @@ func begin_destination_preload(cell_id: String, target_position: Vector3) -> boo
     manager.update_observer(target_position, Vector3.ZERO)
     return true
 
-
 func get_destination_readiness(cell_id: String) -> Dictionary:
-    var result := {
-        "cell_id": cell_id,
-        "collision_authorized": is_destination_collision_authorized(cell_id),
-        "preload_active": _destination_preload_active and _destination_preload_cell_id == cell_id,
-        "active": false,
-        "instance_loaded": false,
-        "collision_scheduled": false,
-        "collision_enabled": false,
-        "authoritative_collision_body": false,
-        "ready": false,
-    }
+    var result := {"cell_id": cell_id, "collision_authorized": is_destination_collision_authorized(cell_id), "preload_active": _destination_preload_active and _destination_preload_cell_id == cell_id, "active": false, "instance_loaded": false, "collision_scheduled": false, "collision_enabled": false, "authoritative_collision_body": false, "ready": false}
     if not runtime_ready or not bool(result["collision_authorized"]):
         return result
     result["active"] = cell_id in manager.get_active_cell_ids()
@@ -407,12 +374,10 @@ func get_destination_readiness(cell_id: String) -> Dictionary:
     result["ready"] = bool(result["active"]) and bool(result["instance_loaded"]) and bool(result["collision_scheduled"]) and bool(result["collision_enabled"]) and bool(result["authoritative_collision_body"])
     return result
 
-
 func get_destination_instance(cell_id: String) -> Node:
     if not runtime_ready or not backend.has_active_instance(cell_id):
         return null
     return backend.get_instance(cell_id)
-
 
 func finish_destination_preload(cell_id: String) -> void:
     if not runtime_ready:
@@ -425,13 +390,11 @@ func finish_destination_preload(cell_id: String) -> void:
         _destination_preload_position = Vector3.ZERO
     _feed_observer()
 
-
 func _select_observer() -> Node3D:
     for vehicle: Node in get_tree().get_nodes_in_group("vehicle"):
         if vehicle is Node3D and vehicle.has_method("has_driver") and bool(vehicle.call("has_driver")):
             return vehicle as Node3D
     return _player
-
 
 func _observer_velocity(observer: Node3D) -> Vector3:
     if observer is CharacterBody3D:
@@ -442,7 +405,6 @@ func _observer_velocity(observer: Node3D) -> Vector3:
         return observer.global_position - _last_observer_position
     return Vector3.ZERO
 
-
 func _feed_observer() -> void:
     var observer := _select_observer()
     if observer == null or not is_instance_valid(observer):
@@ -452,21 +414,7 @@ func _feed_observer() -> void:
     _last_observer_position = observer.global_position
     _has_last_observer = true
 
-
 func get_streaming_metrics() -> Dictionary:
     if not runtime_ready:
-        return {
-            "runtime_ready": false,
-            "disabled_for_direct_ixelles": disabled_for_direct_ixelles,
-            "destination_preload_active": _destination_preload_active,
-            "discovered_cell_count": discovered_cell_count,
-        }
-    return {
-        "runtime_ready": true,
-        "disabled_for_direct_ixelles": false,
-        "destination_preload_active": _destination_preload_active,
-        "destination_preload_cell_id": _destination_preload_cell_id,
-        "discovered_cell_count": discovered_cell_count,
-        "scheduler": manager.get_metrics(),
-        "backend": backend.get_metrics(),
-    }
+        return {"runtime_ready": false, "disabled_for_direct_ixelles": disabled_for_direct_ixelles, "destination_preload_active": _destination_preload_active, "discovered_cell_count": discovered_cell_count, "lookup": "deterministic_runtime_cell_index"}
+    return {"runtime_ready": true, "disabled_for_direct_ixelles": false, "destination_preload_active": _destination_preload_active, "destination_preload_cell_id": _destination_preload_cell_id, "discovered_cell_count": discovered_cell_count, "lookup": "deterministic_runtime_cell_index", "scheduler": manager.get_metrics(), "backend": backend.get_metrics()}

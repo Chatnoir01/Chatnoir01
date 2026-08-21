@@ -59,7 +59,7 @@ func _load_dtm_contract() -> bool:
     if not datum is Dictionary:
         push_error("IxellesStreamedNorthDtmCell: shared vertical datum missing")
         return false
-    if str(datum.get("schema", EXPECTED_SHARED_DATUM_SCHEMA)) != EXPECTED_SHARED_DATUM_SCHEMA:
+    if str(datum.get("schema", "")) != EXPECTED_SHARED_DATUM_SCHEMA:
         push_error("IxellesStreamedNorthDtmCell: shared datum schema drifted")
         return false
     vertical_reference_absolute_m = float(datum.get("reference_absolute_m", INF))
@@ -337,7 +337,6 @@ func _build_streamed() -> void:
     var prepared := _prepare_visual_buildings(buildings as Array)
     await _build_visual_buildings_over_frames(prepared)
     blocked_unapproved_building_count = source_building_count - rendered_building_count
-
     var expected_buildings := _expected_geometry_count("buildings")
     if expected_buildings < 0 or source_building_count != expected_buildings:
         push_error("IxellesStreamedNorthDtmCell: building runtime count drifted")

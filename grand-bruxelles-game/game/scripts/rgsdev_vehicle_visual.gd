@@ -2,22 +2,23 @@ extends Node3D
 class_name RgsdevVehicleVisual
 
 const PACK_CONTRACT := "rgsdev_cc0_vehicles_v1"
+const MAX_DECOMPRESSED_MODEL_BYTES := 2 * 1024 * 1024
 const MODEL_PATHS := {
-    "hatchback": "res://game/assets/vehicles/rgsdev/hatchback.gltf",
-    "limousine": "res://game/assets/vehicles/rgsdev/limousine.gltf",
-    "muscle": "res://game/assets/vehicles/rgsdev/muscle.gltf",
-    "muscle_2": "res://game/assets/vehicles/rgsdev/muscle_2.gltf",
-    "pickup": "res://game/assets/vehicles/rgsdev/pickup.gltf",
-    "police_muscle": "res://game/assets/vehicles/rgsdev/police_muscle.gltf",
-    "police_sedan": "res://game/assets/vehicles/rgsdev/police_sedan.gltf",
-    "police_sports": "res://game/assets/vehicles/rgsdev/police_sports.gltf",
-    "police_suv": "res://game/assets/vehicles/rgsdev/police_suv.gltf",
-    "roadster": "res://game/assets/vehicles/rgsdev/roadster.gltf",
-    "sedan": "res://game/assets/vehicles/rgsdev/sedan.gltf",
-    "sports": "res://game/assets/vehicles/rgsdev/sports.gltf",
-    "suv": "res://game/assets/vehicles/rgsdev/suv.gltf",
-    "taxi": "res://game/assets/vehicles/rgsdev/taxi.gltf",
-    "van": "res://game/assets/vehicles/rgsdev/van.gltf",
+    "hatchback": "res://game/assets/vehicles/rgsdev/hatchback.gltfz",
+    "limousine": "res://game/assets/vehicles/rgsdev/limousine.gltfz",
+    "muscle": "res://game/assets/vehicles/rgsdev/muscle.gltfz",
+    "muscle_2": "res://game/assets/vehicles/rgsdev/muscle_2.gltfz",
+    "pickup": "res://game/assets/vehicles/rgsdev/pickup.gltfz",
+    "police_muscle": "res://game/assets/vehicles/rgsdev/police_muscle.gltfz",
+    "police_sedan": "res://game/assets/vehicles/rgsdev/police_sedan.gltfz",
+    "police_sports": "res://game/assets/vehicles/rgsdev/police_sports.gltfz",
+    "police_suv": "res://game/assets/vehicles/rgsdev/police_suv.gltfz",
+    "roadster": "res://game/assets/vehicles/rgsdev/roadster.gltfz",
+    "sedan": "res://game/assets/vehicles/rgsdev/sedan.gltfz",
+    "sports": "res://game/assets/vehicles/rgsdev/sports.gltfz",
+    "suv": "res://game/assets/vehicles/rgsdev/suv.gltfz",
+    "taxi": "res://game/assets/vehicles/rgsdev/taxi.gltfz",
+    "van": "res://game/assets/vehicles/rgsdev/van.gltfz",
 }
 const CIVILIAN_MODELS := [
     "sedan", "hatchback", "suv", "van", "pickup", "muscle", "muscle_2", "roadster", "sports", "taxi", "limousine"
@@ -43,6 +44,8 @@ const MODEL_SCALES := {
     "police_muscle": Vector3(0.675, 0.718, 0.784),
     "police_sports": Vector3(0.702, 0.728, 0.751),
 }
+
+static var _scene_cache: Dictionary = {}
 
 @export var model_id: String = "sedan"
 @export var model_scale: Vector3 = Vector3.ONE
@@ -83,24 +86,17 @@ func get_visual_contract() -> Dictionary:
         "special_models_pending_heavy_physics": SPECIAL_MODELS_REQUIRING_HEAVY_PHYSICS.duplicate(),
     }
 
+func instantiate_model_for_test(test_model_id: String) -> Node3D:
+    return _instantiate_model(test_model_id)
+
 func _load_model() -> void:
     if _instance != null and is_instance_valid(_instance):
         _instance.queue_free()
     _wheel_nodes.clear()
     _front_wheels.clear()
     _wheel_base_rotation.clear()
-
-    var path := str(MODEL_PATHS.get(model_id, MODEL_PATHS["sedan"]))
-    if not ResourceLoader.exists(path):
-        push_error("RGSDEV vehicle model missing: %s" % path)
-        return
-    var packed := load(path) as PackedScene
-    if packed == null:
-        push_error("RGSDEV vehicle model is not an importable PackedScene: %s" % path)
-        return
-    _instance = packed.instantiate() as Node3D
+    _instance = _instantiate_model(model_id)
     if _instance == null:
-        push_error("RGSDEV vehicle model root is not Node3D: %s" % path)
         return
     _instance.name = "ImportedModel"
     var authored_scale: Vector3 = MODEL_SCALES.get(model_id, Vector3.ONE)
@@ -110,8 +106,46 @@ func _load_model() -> void:
     add_child(_instance)
     _collect_wheels(_instance)
     set_meta("rgsdev_model_id", model_id)
-    set_meta("rgsdev_source_path", path)
+    set_meta("rgsdev_source_path", str(MODEL_PATHS.get(model_id, "")))
     set_meta("rgsdev_license", "CC0")
+
+func _instantiate_model(requested_model_id: String) -> Node3D:
+    var safe_model_id := requested_model_id if MODEL_PATHS.has(requested_model_id) else "sedan"
+    if _scene_cache.has(safe_model_id):
+        var cached := _scene_cache[safe_model_id] as PackedScene
+        return cached.instantiate() as Node3D
+    var path := str(MODEL_PATHS[safe_model_id])
+    if not FileAccess.file_exists(path):
+        push_error("RGSDEV compressed model missing: %s" % path)
+        return null
+    var encoded := FileAccess.get_file_as_string(path).strip_edges()
+    var compressed := Marshalls.base64_to_raw(encoded)
+    if compressed.is_empty():
+        push_error("RGSDEV compressed model payload is invalid base64: %s" % path)
+        return null
+    var gltf_bytes := compressed.decompress_dynamic(MAX_DECOMPRESSED_MODEL_BYTES, FileAccess.COMPRESSION_GZIP)
+    if gltf_bytes.is_empty():
+        push_error("RGSDEV compressed model payload cannot be decompressed: %s" % path)
+        return null
+    var document := GLTFDocument.new()
+    var state := GLTFState.new()
+    var error := document.append_from_buffer(gltf_bytes, "", state)
+    if error != OK:
+        push_error("RGSDEV glTF parse failed for %s: %s" % [path, error_string(error)])
+        return null
+    var generated := document.generate_scene(state)
+    if generated == null or not generated is Node3D:
+        push_error("RGSDEV glTF scene generation failed: %s" % path)
+        return null
+    var packed := PackedScene.new()
+    var pack_error := packed.pack(generated)
+    if pack_error != OK:
+        push_error("RGSDEV scene cache packing failed for %s: %s" % [path, error_string(pack_error)])
+        generated.queue_free()
+        return null
+    _scene_cache[safe_model_id] = packed
+    generated.free()
+    return packed.instantiate() as Node3D
 
 func _collect_wheels(node: Node) -> void:
     for child: Node in node.get_children():

@@ -1,0 +1,24 @@
+{
+  "schema": "grand-bruxelles-city-machine-onboarding-candidates-v1",
+  "candidates": {
+    "midi": {
+      "source_manifest": "data/reconstruction/midi_source_manifest.json",
+      "expected_crs": "EPSG:31370",
+      "catalog_mode": "fast_travel",
+      "catalog_destination": "midi",
+      "runtime_script": "game/scripts/player_controller.gd",
+      "arrival": {
+        "position_symbol": "MIDI_FAST_TRAVEL_POSITION",
+        "position": [-652.0, 1.05, 621.0],
+        "yaw_symbol": "MIDI_FAST_TRAVEL_YAW_DEGREES",
+        "yaw_deg": -38.0
+      },
+      "regional_osm": {
+        "required_cache": "data/osm/zones/midi/environment.raw.json",
+        "required_runtime": "data/osm/zones/midi/environment.game.json",
+        "forbidden_partial_substitute": "data/osm/vertical_slice_01.game.json",
+        "require_full_bbox": true
+      }
+    }
+  }
+}

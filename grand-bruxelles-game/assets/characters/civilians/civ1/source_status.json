@@ -1,0 +1,68 @@
+{
+  "format": "grand-bruxelles-civ1-runtime-packaging-v1",
+  "candidate_id": "CIV-1",
+  "owner_verdict": "GARDER",
+  "approved_review_pr": 1006,
+  "production_authorized": false,
+  "activation_ready": false,
+  "source_package_present": false,
+  "runtime_package_present": false,
+  "character_source": {
+    "repository": "https://github.com/ibrews/VitruvianGodot",
+    "commit": "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0",
+    "license": "CC0-1.0"
+  },
+  "footwear_source": {
+    "repository": "https://github.com/furqonat/makehuman-assets",
+    "commit": "8cf9645b975a98eea056b140df11a1d278da0d10",
+    "asset": "base/clothes/shoes03/shoes03.obj",
+    "license": "CC0-1.0",
+    "obj_git_blob_sha1": "2cd09f0af9c5bd13604d57d8af19e9205933ee85"
+  },
+  "source_paths": [
+    "assets/characters/civilians/civ1/source/vitruvian_body.glb",
+    "assets/characters/civilians/civ1/source/vitruvian_head.glb",
+    "assets/characters/civilians/civ1/source/hairtool_cards.glb",
+    "assets/characters/civilians/civ1/source/vitruvian_hair.glb",
+    "assets/characters/civilians/civ1/source/shoes03.obj"
+  ],
+  "source_manifest": {
+    "assets/characters/civilians/civ1/source/vitruvian_body.glb": {
+      "upstream_path": "godot_project/vitruvian_body.glb",
+      "git_blob_sha1": "09bcade1092e5a89b474e91e6013209d4c68c127",
+      "size_bytes": 6879364
+    },
+    "assets/characters/civilians/civ1/source/vitruvian_head.glb": {
+      "upstream_path": "godot_project/vitruvian_head.glb",
+      "git_blob_sha1": "0c810e209f09fc079086746f0813de9531d0f7fb",
+      "size_bytes": 10189832
+    },
+    "assets/characters/civilians/civ1/source/hairtool_cards.glb": {
+      "upstream_path": "godot_project/hairtool_cards.glb",
+      "git_blob_sha1": "04799adc868ba72e0fa1c1ab60c0442e12d5987e",
+      "size_bytes": 14839096
+    },
+    "assets/characters/civilians/civ1/source/vitruvian_hair.glb": {
+      "upstream_path": "godot_project/vitruvian_hair.glb",
+      "git_blob_sha1": "b6f63553ce9d5f2f83920b445f21831caf9017f1",
+      "size_bytes": 21189248
+    },
+    "assets/characters/civilians/civ1/source/shoes03.obj": {
+      "upstream_path": "base/clothes/shoes03/shoes03.obj",
+      "git_blob_sha1": "2cd09f0af9c5bd13604d57d8af19e9205933ee85",
+      "size_bytes": null
+    }
+  },
+  "runtime_scene": "assets/characters/civilians/civ1/civ1.tscn",
+  "runtime_files": [
+    "assets/characters/civilians/civ1/civ1.tscn"
+  ],
+  "runtime_sha256": {},
+  "forbidden_runtime_paths": [
+    "assets/characters/player_character.glb",
+    "assets/characters/player/"
+  ],
+  "mixamo_payload_allowed": false,
+  "blocker": "canonical_source_and_runtime_package_not_committed",
+  "next_gate": "populate source_paths from the exact pinned upstream blobs, build a canonical Godot runtime package, record sha256 for every runtime file, then set source_package_present/runtime_package_present/production_authorized/activation_ready only after the packaging validator passes --require-ready"
+}

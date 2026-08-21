@@ -1,0 +1,72 @@
+name: Grand Bruxelles Terrain Photo Match Gate
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/terrain_photo_match_gate.py"
+      - "grand-bruxelles-game/tools/citygen/test_terrain_photo_match_gate.py"
+      - "grand-bruxelles-game/data/qa/photo_match/**"
+      - ".github/workflows/grand-bruxelles-terrain-photo-match-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic Python test dependency
+        run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3"
+
+      - name: Prove exact photo-match binding guardrails
+        run: python3 grand-bruxelles-game/tools/citygen/test_terrain_photo_match_gate.py
+
+      - name: Validate existing global photo-match registry
+        run: python3 grand-bruxelles-game/tools/validate_photo_match.py
+
+      - name: Prepare exact sealed candidate identity fixture
+        run: |
+          set -euo pipefail
+          rm -rf grand-bruxelles-game/.qa_photo_match_fixture /tmp/terrain-photo-streaming-probes /tmp/terrain-photo-match
+          mkdir -p /tmp/terrain-photo-match
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_streaming_gate.py \
+            --emit-fixture-root grand-bruxelles-game/.qa_photo_match_fixture \
+            --emit-probe-root /tmp/terrain-photo-streaming-probes \
+            --fixture-resource-root res://.qa_photo_match_fixture
+          STREAMING_PROBE=$(find /tmp/terrain-photo-streaming-probes -maxdepth 1 -name '*.json' -print -quit)
+          test -n "$STREAMING_PROBE"
+          cp "$STREAMING_PROBE" /tmp/terrain-photo-match/streaming-probe.json
+
+      - name: Prove current registry cannot falsely authorize fixture cell
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/terrain_photo_match_gate.py \
+            --streaming-probe /tmp/terrain-photo-match/streaming-probe.json \
+            --manifest grand-bruxelles-game/data/qa/photo_match/manifest.json \
+            --output /tmp/terrain-photo-match/measurement.json | tee /tmp/terrain-photo-match.log
+          grep -q "passed=false status=blocked_no_exact_cell_photo_reference" /tmp/terrain-photo-match.log
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/terrain-photo-match/measurement.json'))
+          row=p['gates']['photo_match']
+          assert row['passed'] is False
+          assert row['status']=='blocked_no_exact_cell_photo_reference'
+          assert p['policy']['exact_cell_digest_binding_required'] is True
+          assert p['policy']['runtime_promotion_allowed'] is False
+          print('TERRAIN_PHOTO_MATCH_CURRENT_REGISTRY_VERIFIED exact_cell_reference=false passed=false runtime_promotion=false')
+          PY
+
+      - name: Upload fail-closed photo-match evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-photo-match-exact-binding-evidence
+          path: |
+            /tmp/terrain-photo-match/streaming-probe.json
+            /tmp/terrain-photo-match/measurement.json
+            /tmp/terrain-photo-match.log
+          if-no-files-found: warn

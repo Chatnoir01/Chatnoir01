@@ -96,8 +96,9 @@ func _assert_ready_destination(resolver: StreetAxisDestinationResolver, player: 
     if instance == null or not instance.has_method("is_streamed_collision_enabled") or not bool(instance.call("is_streamed_collision_enabled")):
         _fail("streamed destination instance collision not enabled: %s" % expected_cell)
         return {}
-    if instance.get_node_or_null("OfficialIxellesDTMCollision") == null:
-        _fail("official DTM collision body missing: %s" % expected_cell)
+    var collision := instance.get_node_or_null("OfficialIxellesDTMCollision/OfficialIxellesDTMHeightMapCollision") as CollisionShape3D
+    if collision == null or collision.disabled:
+        _fail("authoritative DTM collision shape not physically enabled: %s" % expected_cell)
         return {}
     return {"source": source, "ground_y": ground_y}
 

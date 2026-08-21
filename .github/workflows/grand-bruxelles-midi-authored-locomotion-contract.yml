@@ -1,0 +1,80 @@
+name: Grand Bruxelles Midi Authored Locomotion Contract
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/midi_realistic_authored_npc_runtime.gd"
+      - "grand-bruxelles-game/game/tests/midi_realistic_authored_npc_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_realistic_authored_npc_rebind_history_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_realistic_authored_npc_clip_library_mutation_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_realistic_authored_npc_multi_player_test.gd"
+      - "grand-bruxelles-game/game/tests/midi_realistic_authored_npc_shared_animation_resource_test.gd"
+      - ".github/workflows/grand-bruxelles-midi-authored-locomotion-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authored-locomotion-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Parse project and scripts
+        shell: bash
+        env: { LIBGL_ALWAYS_SOFTWARE: "1" }
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit --rendering-method gl_compatibility 2>&1 | tee /tmp/authored-locomotion-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|couldn.t be loaded' /tmp/authored-locomotion-import.log; then exit 1; fi
+      - name: Run authored locomotion contract
+        shell: bash
+        env: { LIBGL_ALWAYS_SOFTWARE: "1" }
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_realistic_authored_npc_runtime_test.gd 2>&1 | tee /tmp/authored-locomotion-test.log
+          grep -q 'MIDI_REALISTIC_AUTHORED_NPC_RUNTIME_OK' /tmp/authored-locomotion-test.log
+      - name: Run rebind motion-history regression
+        shell: bash
+        env: { LIBGL_ALWAYS_SOFTWARE: "1" }
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_realistic_authored_npc_rebind_history_test.gd 2>&1 | tee /tmp/authored-locomotion-rebind-history-test.log
+          grep -q 'MIDI_REALISTIC_AUTHORED_NPC_REBIND_HISTORY_OK' /tmp/authored-locomotion-rebind-history-test.log
+      - name: Run clip-library mutation regression
+        shell: bash
+        env: { LIBGL_ALWAYS_SOFTWARE: "1" }
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_realistic_authored_npc_clip_library_mutation_test.gd 2>&1 | tee /tmp/authored-locomotion-clip-library-mutation-test.log
+          grep -q 'MIDI_REALISTIC_AUTHORED_NPC_CLIP_LIBRARY_MUTATION_OK' /tmp/authored-locomotion-clip-library-mutation-test.log
+      - name: Run multi-player selection regression
+        shell: bash
+        env: { LIBGL_ALWAYS_SOFTWARE: "1" }
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_realistic_authored_npc_multi_player_test.gd 2>&1 | tee /tmp/authored-locomotion-multi-player-test.log
+          grep -q 'MIDI_REALISTIC_AUTHORED_NPC_MULTI_PLAYER_OK' /tmp/authored-locomotion-multi-player-test.log
+      - name: Run shared animation-resource isolation regression
+        shell: bash
+        env: { LIBGL_ALWAYS_SOFTWARE: "1" }
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/midi_realistic_authored_npc_shared_animation_resource_test.gd 2>&1 | tee /tmp/authored-locomotion-shared-animation-resource-test.log
+          grep -q 'MIDI_REALISTIC_AUTHORED_NPC_SHARED_ANIMATION_RESOURCE_OK' /tmp/authored-locomotion-shared-animation-resource-test.log
+      - name: Preserve contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-authored-locomotion-contract
+          path: /tmp/authored-locomotion-*.log

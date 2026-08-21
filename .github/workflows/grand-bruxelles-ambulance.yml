@@ -1,0 +1,74 @@
+name: Grand Bruxelles Ambulance
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/ambulance_vehicle.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_manager_npc_crossing_extension.gd"
+      - "grand-bruxelles-game/game/tests/ambulance_vehicle_probe.gd"
+      - ".github/workflows/grand-bruxelles-ambulance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version
+
+      - name: Isolate unrelated autoloads and import project
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('grand-bruxelles-game/project.godot')
+          lines=path.read_text(encoding='utf-8').splitlines(keepends=True)
+          out=[]; in_autoload=False
+          for line in lines:
+              s=line.strip()
+              if s == '[autoload]':
+                  out.append(line); in_autoload=True; continue
+              if in_autoload and s.startswith('[') and s.endswith(']'):
+                  out.append('\n'); out.append(line); in_autoload=False; continue
+              if in_autoload:
+                  continue
+              out.append(line)
+          if in_autoload:
+              out.append('\n')
+          path.write_text(''.join(out), encoding='utf-8')
+          PY
+          rm -rf grand-bruxelles-game/.godot
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path grand-bruxelles-game --quit 2>&1 | tee /tmp/ambulance-import.log
+          if grep -E "Parse Error:|SCRIPT ERROR|ERROR: Failed to load script|Failed to import" /tmp/ambulance-import.log; then exit 1; fi
+
+      - name: Prove ambulance-only special gameplay
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/ambulance_vehicle_probe.gd 2>&1 | tee /tmp/ambulance-probe.log
+          if grep -E "SCRIPT ERROR|Parse Error:|AMBULANCE_PROBE_FAIL" /tmp/ambulance-probe.log; then exit 1; fi
+          grep -q "AMBULANCE_PROBE_OK ambulances=2" /tmp/ambulance-probe.log
+          grep -q "other_special=false engine=4.7.1" /tmp/ambulance-probe.log
+
+      - name: Upload ambulance proof logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-ambulance-proof
+          path: |
+            /tmp/ambulance-import.log
+            /tmp/ambulance-probe.log
+          if-no-files-found: warn

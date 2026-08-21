@@ -18,6 +18,14 @@ ogr.UseExceptions(); osr.UseExceptions()
 
 ANDERLECHT_CELL = "bxl-e141500-n167500-s500"
 ANDERLECHT_BBOX = (141500.0, 167500.0, 142000.0, 168000.0)
+TEMPORAL_FIELDS = (
+    "INSPIRE_ID",
+    "SOURCEURI",
+    "SOURCETYPE",
+    "SOURCEID",
+    "BEGINGENERATION",
+    "ENDGENERATION",
+)
 
 
 def polygon(x0: float, y0: float, x1: float, y1: float, z: float) -> ogr.Geometry:
@@ -33,22 +41,68 @@ def create_gpkg(path: Path) -> None:
     ds = ogr.GetDriverByName("GPKG").CreateDataSource(str(path))
     srs = osr.SpatialReference(); srs.ImportFromEPSG(31370)
     layer = ds.CreateLayer("BuildingFaces", srs, ogr.wkbPolygon25D)
-    for name in ("BUSOLID_ID", "TYPE"):
+    for name in ("BUSOLID_ID", "TYPE", *TEMPORAL_FIELDS):
         layer.CreateField(ogr.FieldDefn(name, ogr.OFTString))
     cases = [
-        ("anderlecht-solid", module.GROUND, polygon(141510, 167510, 141520, 167520, 24.0)),
-        ("anderlecht-solid", module.ROOF, polygon(141510, 167510, 141520, 167520, 36.5)),
+        (
+            "anderlecht-solid",
+            module.GROUND,
+            polygon(141510, 167510, 141520, 167520, 24.0),
+            {
+                "INSPIRE_ID": "https://databrussels.be/id/buildingface/FACE-A-GROUND",
+                "SOURCEURI": "https://databrussels.be/source/urbis3d/A",
+                "SOURCETYPE": "UrbIS3D",
+                "SOURCEID": "source-A",
+                "BEGINGENERATION": "2024-01-15T00:00:00Z",
+            },
+        ),
+        (
+            "anderlecht-solid",
+            module.ROOF,
+            polygon(141510, 167510, 141520, 167520, 36.5),
+            {
+                "INSPIRE_ID": "https://databrussels.be/id/buildingface/FACE-A-ROOF",
+                "SOURCEURI": "https://databrussels.be/source/urbis3d/A",
+                "SOURCETYPE": "UrbIS3D",
+                "SOURCEID": "source-A",
+                "BEGINGENERATION": "2024-01-15T00:00:00Z",
+            },
+        ),
+        # Provenance is a BUSOLID-level diagnostic. A non-height face may carry
+        # metadata, but it must not alter ground/roof counts or height samples.
+        (
+            "anderlecht-solid",
+            "WALLSURFACE",
+            polygon(141510, 167510, 141520, 167520, 30.0),
+            {
+                "INSPIRE_ID": "https://databrussels.be/id/buildingface/FACE-A-WALL",
+                "SOURCEURI": "https://databrussels.be/source/urbis3d/A-wall",
+                "SOURCETYPE": "UrbIS3D",
+                "SOURCEID": "source-A-wall",
+                "BEGINGENERATION": "2025-02-20T00:00:00Z",
+                "ENDGENERATION": "2025-02-21T00:00:00Z",
+            },
+        ),
         # A 3D sub-solid fully contained by a larger 2D footprint stays ambiguous
         # under the existing symmetric min(ground_coverage, building_coverage) score.
-        ("sub-solid", module.GROUND, polygon(141530, 167530, 141536, 167536, 25.0)),
-        ("sub-solid", module.ROOF, polygon(141530, 167530, 141536, 167536, 33.0)),
+        ("sub-solid", module.GROUND, polygon(141530, 167530, 141536, 167536, 25.0), {}),
+        ("sub-solid", module.ROOF, polygon(141530, 167530, 141536, 167536, 33.0), {}),
+        # A wall-only solid must not become a semantic-height candidate.
+        (
+            "wall-only-solid",
+            "WALLSURFACE",
+            polygon(141540, 167540, 141545, 167545, 31.0),
+            {"BEGINGENERATION": "2026-01-01T00:00:00Z"},
+        ),
         # This valid Ixelles-looking solid must stay outside the explicit Anderlecht bbox.
-        ("ixelles-solid", module.GROUND, polygon(149010, 169010, 149020, 169020, 60.0)),
-        ("ixelles-solid", module.ROOF, polygon(149010, 169010, 149020, 169020, 72.0)),
+        ("ixelles-solid", module.GROUND, polygon(149010, 169010, 149020, 169020, 60.0), {}),
+        ("ixelles-solid", module.ROOF, polygon(149010, 169010, 149020, 169020, 72.0), {}),
     ]
-    for solid, kind, geom in cases:
+    for solid, kind, geom, metadata in cases:
         f = ogr.Feature(layer.GetLayerDefn())
         f.SetField("BUSOLID_ID", solid); f.SetField("TYPE", kind); f.SetGeometry(geom)
+        for key, value in metadata.items():
+            f.SetField(key, value)
         layer.CreateFeature(f)
     ds = None
 
@@ -102,7 +156,24 @@ def main() -> int:
         assert match["status"] == "matched_semantic_evidence"
         assert match["matched_inspire_id"].endswith("/ANDERLECHT-A")
         assert abs(match["semantic_height_m"] - 12.5) < 1e-9
+        assert match["ground_faces"] == 1
+        assert match["roof_faces"] == 1
         assert match["runtime_approved"] is False
+        assert match["buildingfaces_metadata"] == {
+            "INSPIRE_ID": [
+                "https://databrussels.be/id/buildingface/FACE-A-GROUND",
+                "https://databrussels.be/id/buildingface/FACE-A-ROOF",
+                "https://databrussels.be/id/buildingface/FACE-A-WALL",
+            ],
+            "SOURCEURI": [
+                "https://databrussels.be/source/urbis3d/A",
+                "https://databrussels.be/source/urbis3d/A-wall",
+            ],
+            "SOURCETYPE": ["UrbIS3D"],
+            "SOURCEID": ["source-A", "source-A-wall"],
+            "BEGINGENERATION": ["2024-01-15T00:00:00Z", "2025-02-20T00:00:00Z"],
+            "ENDGENERATION": ["2025-02-21T00:00:00Z"],
+        }
 
         ambiguous = by_solid["sub-solid"]
         assert ambiguous["status"] == "ambiguous"
@@ -114,6 +185,7 @@ def main() -> int:
         assert abs(ambiguous["best_intersection_area_m2"] - 36.0) < 1e-9
         assert ambiguous["runner_up_candidate_inspire_id"] is None
         assert ambiguous["runtime_approved"] is False
+        assert ambiguous["buildingfaces_metadata"] == {key: [] for key in TEMPORAL_FIELDS}
         ds = None
 
     # Fail closed: production evidence must identify the geographic contract.

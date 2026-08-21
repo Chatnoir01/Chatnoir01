@@ -36,6 +36,17 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _canonical_edge_compatible(bbox: tuple[float,float,float,float], resolution_m: float) -> bool:
+    if resolution_m <= 0 or not math.isfinite(resolution_m):
+        return False
+    west, south, east, north = bbox
+    for span in (east - west, north - south):
+        steps = span / resolution_m
+        if not math.isclose(steps, round(steps), rel_tol=0.0, abs_tol=1e-9):
+            return False
+    return True
+
+
 def bilinear_sample(array: Any, transform: Any, xs: Any, ys: Any) -> Any:
     import numpy as np
     if transform.b != 0 or transform.d != 0 or transform.a <= 0 or transform.e >= 0:
@@ -101,20 +112,30 @@ def evaluate_array(array: Any, transform: Any, bbox: tuple[float,float,float,flo
         if resolution<source_pixel_size: raise ValueError("LOD resolution cannot be finer than the official source pixel size")
         coarse,coarse_transform=_make_coarse_grid(array,transform,bbox,resolution); reconstructed=bilinear_sample(coarse,coarse_transform,xs,ys)
         metrics=_error_metrics(source,reconstructed); vertices=int(coarse.shape[0]*coarse.shape[1])
-        levels.append({"resolution_m":resolution,"grid_shape":[int(coarse.shape[0]),int(coarse.shape[1])],"vertex_count":vertices,"source_sample_count":source_sample_count,"sample_reduction_ratio":round(float(source_sample_count/vertices),3),**metrics})
+        levels.append({"resolution_m":resolution,"grid_shape":[int(coarse.shape[0]),int(coarse.shape[1])],"vertex_count":vertices,"source_sample_count":source_sample_count,"sample_reduction_ratio":round(float(source_sample_count/vertices),3),"canonical_edge_compatible":_canonical_edge_compatible(bbox,resolution),**metrics})
     return {"source_pixel_size_m":source_pixel_size,"source_valid_samples":source_sample_count,"levels":levels}
 
 
 def select_resolution(levels: list[dict[str,Any]], p95_threshold_m: float=DEFAULT_P95_THRESHOLD_M) -> dict[str,Any]:
     if not levels: raise ValueError("terrain LOD selection requires at least one evaluated level")
-    eligible=[]
+    p95_eligible=[]; eligible=[]
     for row in levels:
         resolution=float(row.get("resolution_m",0.0)); p95=float(row.get("p95_abs_error_m",math.inf))
         if resolution<=0 or not math.isfinite(p95): raise ValueError("terrain LOD level contains invalid resolution or p95 error")
-        if p95<=p95_threshold_m: eligible.append(row)
+        if p95<=p95_threshold_m:
+            p95_eligible.append(row)
+            # Legacy fixture/evidence rows without this field remain compatible;
+            # all newly evaluated rows carry the explicit canonical-edge proof.
+            if row.get("canonical_edge_compatible", True) is True:
+                eligible.append(row)
     selected=max(eligible,key=lambda row:float(row["resolution_m"])) if eligible else None
-    blockers=[] if selected else ["no_candidate_meets_p95_threshold"]
-    return {"p95_threshold_m":float(p95_threshold_m),"selection_policy":"coarsest_candidate_with_p95_at_or_below_threshold","selected_resolution_m":float(selected["resolution_m"]) if selected else None,"selected_p95_abs_error_m":float(selected["p95_abs_error_m"]) if selected else None,"selected_vertex_count":int(selected["vertex_count"]) if selected and "vertex_count" in selected else None,"blockers":blockers,"runtime_approved":False,"remaining_runtime_gates":list(RUNTIME_GATES)}
+    blockers=[]
+    if selected is None:
+        if p95_eligible:
+            blockers.append("no_edge_aligned_candidate_meets_p95_threshold")
+        else:
+            blockers.append("no_candidate_meets_p95_threshold")
+    return {"p95_threshold_m":float(p95_threshold_m),"selection_policy":"coarsest_candidate_with_p95_at_or_below_threshold","canonical_edge_alignment_required":True,"selected_resolution_m":float(selected["resolution_m"]) if selected else None,"selected_p95_abs_error_m":float(selected["p95_abs_error_m"]) if selected else None,"selected_vertex_count":int(selected["vertex_count"]) if selected and "vertex_count" in selected else None,"blockers":blockers,"runtime_approved":False,"remaining_runtime_gates":list(RUNTIME_GATES)}
 
 
 def _validated_dtm_crs_is_acceptable(embedded_epsg: int | None, validated_epsg: Any, crs_basis: Any) -> bool:

@@ -21,6 +21,10 @@ const ANNEESSENS_ANCHOR_ID := "anneessens"
 const ANNEESSENS_EXPECTED_ANCHOR := Vector2(-272.04, -217.07)
 const ANNEESSENS_PLAYER_BODY_Y := 1.05
 const ANNEESSENS_LABEL := "PLACE ANNEESSENS · ANNEESSENSPLEIN"
+const ANNEESSENS_MAX_ANCHOR_DISTANCE_M := 45.0
+const ANNEESSENS_MAX_SPAWN_ROAD_DISTANCE_M := 1.20
+const ANNEESSENS_MIN_ROAD_ALIGNMENT := 0.90
+const ANNEESSENS_FRUSTUM_HALF_WIDTH_M := 1.50
 
 func _ready() -> void:
     call_deferred("_apply_startup_args")
@@ -162,6 +166,20 @@ func _segment_clear_of_source_buildings(document: Dictionary, start: Vector2, fi
                 return false
     return true
 
+func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
+    var segment := finish - start
+    var length_squared := segment.length_squared()
+    if length_squared <= 0.000001:
+        return point.distance_to(start)
+    var amount := clampf((point - start).dot(segment) / length_squared, 0.0, 1.0)
+    return point.distance_to(start + segment * amount)
+
+func _distance_to_road(point: Vector2, points: PackedVector2Array) -> float:
+    var result := INF
+    for index: int in range(points.size() - 1):
+        result = minf(result, _point_segment_distance(point, points[index], points[index + 1]))
+    return result
+
 func _display_road_width(road: Dictionary) -> float:
     var width := float(road.get("width", 4.5))
     var road_class := str(road.get("class", ""))
@@ -225,6 +243,81 @@ func _safe_road_viewpoint(document: Dictionary, road: Dictionary, preferred_targ
             if not _segment_clear_of_source_buildings(document, candidate, target):
                 continue
             return {"spawn": candidate, "target": target, "offset_m": offset, "side": side, "segment_index": segment_index, "segment_length_m": segment_length, "source_sightline_clear": true}
+    return {}
+
+func _anneessens_viewpoint(document: Dictionary, road: Dictionary, anchor_xz: Vector2) -> Dictionary:
+    var points := _road_points(road)
+    if points.size() < 2:
+        return {}
+    var segment_index := -1
+    var segment_length := -1.0
+    var target := Vector2(INF, INF)
+    var best_distance := INF
+    for index: int in range(points.size() - 1):
+        var start := points[index]
+        var finish := points[index + 1]
+        var segment := finish - start
+        var length_squared := segment.length_squared()
+        if length_squared <= 0.000001:
+            continue
+        var amount := clampf((anchor_xz - start).dot(segment) / length_squared, 0.0, 1.0)
+        var projected := start + segment * amount
+        var distance := projected.distance_to(anchor_xz)
+        if distance < best_distance:
+            best_distance = distance
+            segment_index = index
+            segment_length = segment.length()
+            target = projected
+    if segment_index < 0 or segment_length < 1.0:
+        return {}
+    if not is_finite(target.x) or not is_finite(target.y) or _point_inside_any_source_building(document, target):
+        return {}
+
+    var start := points[segment_index]
+    var finish := points[segment_index + 1]
+    var direction := (finish - start).normalized()
+    if direction == Vector2.ZERO:
+        return {}
+    var perpendicular := Vector2(-direction.y, direction.x)
+    var corridor_half_width := minf(ANNEESSENS_FRUSTUM_HALF_WIDTH_M, _display_road_width(road) * 0.30)
+    var view_distances: Array[float] = [18.0, 14.0, 10.0, 8.0]
+    var lateral_offsets: Array[float] = [0.0, 0.5, -0.5, 1.0, -1.0]
+
+    for view_distance: float in view_distances:
+        for travel_sign: float in [-1.0, 1.0]:
+            for lateral_offset: float in lateral_offsets:
+                var candidate := target + direction * view_distance * travel_sign + perpendicular * lateral_offset
+                if absf(candidate.x) > 890.0 or absf(candidate.y) > 890.0:
+                    continue
+                if candidate.distance_to(anchor_xz) > ANNEESSENS_MAX_ANCHOR_DISTANCE_M:
+                    continue
+                if _distance_to_road(candidate, points) > ANNEESSENS_MAX_SPAWN_ROAD_DISTANCE_M:
+                    continue
+                if _point_inside_any_source_building(document, candidate):
+                    continue
+                var view_direction := (target - candidate).normalized()
+                if absf(view_direction.dot(direction)) < ANNEESSENS_MIN_ROAD_ALIGNMENT:
+                    continue
+                var left_target := target + perpendicular * corridor_half_width
+                var right_target := target - perpendicular * corridor_half_width
+                if not _segment_clear_of_source_buildings(document, candidate, target):
+                    continue
+                if not _segment_clear_of_source_buildings(document, candidate, left_target):
+                    continue
+                if not _segment_clear_of_source_buildings(document, candidate, right_target):
+                    continue
+                return {
+                    "spawn": candidate,
+                    "target": target,
+                    "offset_m": lateral_offset,
+                    "side": travel_sign,
+                    "segment_index": segment_index,
+                    "segment_length_m": segment_length,
+                    "view_distance_m": view_distance,
+                    "road_alignment": absf(view_direction.dot(direction)),
+                    "source_sightline_clear": true,
+                    "source_frustum_clear": true
+                }
     return {}
 
 func _lemonnier_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
@@ -300,13 +393,13 @@ func _apply_anneessens_direct_spawn(player: Node) -> bool:
     if str(road.get("name", "")) != ANNEESSENS_EXPECTED_NAME or not bool(road.get("drivable", false)):
         push_error("Anneessens direct spawn: source identity/drivable contract drifted")
         return false
-    var viewpoint := _safe_road_viewpoint(document, road, anchor_xz)
+    var viewpoint := _anneessens_viewpoint(document, road, anchor_xz)
     if viewpoint.is_empty():
-        push_error("Anneessens direct spawn: no source-building-safe viewpoint resolved")
+        push_error("Anneessens direct spawn: no source-road-aligned visual corridor resolved")
         return false
     var spawn_xz: Vector2 = viewpoint["spawn"]
     var target_xz: Vector2 = viewpoint["target"]
-    if spawn_xz.distance_to(anchor_xz) > 45.0:
+    if spawn_xz.distance_to(anchor_xz) > ANNEESSENS_MAX_ANCHOR_DISTANCE_M:
         push_error("Anneessens direct spawn: resolved viewpoint too far from corridor anchor")
         return false
     body.global_position = Vector3(spawn_xz.x, ANNEESSENS_PLAYER_BODY_Y, spawn_xz.y)
@@ -318,6 +411,9 @@ func _apply_anneessens_direct_spawn(player: Node) -> bool:
     body.set_meta("anneessens_direct_target_xz", target_xz)
     body.set_meta("anneessens_direct_offset_m", float(viewpoint["offset_m"]))
     body.set_meta("anneessens_direct_segment_index", int(viewpoint["segment_index"]))
+    body.set_meta("anneessens_direct_view_distance_m", float(viewpoint["view_distance_m"]))
+    body.set_meta("anneessens_direct_road_alignment", float(viewpoint["road_alignment"]))
     body.set_meta("anneessens_direct_source_sightline_clear", bool(viewpoint.get("source_sightline_clear", false)))
-    print("ANNEESSENS_DIRECT_SPAWN_READY: osm_id=%d segment=%d offset=%.3f anchor_distance=%.3f spawn=(%.3f, %.3f) target=(%.3f, %.3f) sightline_clear=%s" % [ANNEESSENS_OSM_ID, int(viewpoint["segment_index"]), float(viewpoint["offset_m"]), spawn_xz.distance_to(anchor_xz), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, str(bool(viewpoint.get("source_sightline_clear", false)))])
+    body.set_meta("anneessens_direct_source_frustum_clear", bool(viewpoint.get("source_frustum_clear", false)))
+    print("ANNEESSENS_DIRECT_SPAWN_READY: osm_id=%d segment=%d lateral=%.3f view_distance=%.3f road_alignment=%.3f anchor_distance=%.3f spawn=(%.3f, %.3f) target=(%.3f, %.3f) frustum_clear=%s" % [ANNEESSENS_OSM_ID, int(viewpoint["segment_index"]), float(viewpoint["offset_m"]), float(viewpoint["view_distance_m"]), float(viewpoint["road_alignment"]), spawn_xz.distance_to(anchor_xz), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, str(bool(viewpoint.get("source_frustum_clear", false)))])
     return true

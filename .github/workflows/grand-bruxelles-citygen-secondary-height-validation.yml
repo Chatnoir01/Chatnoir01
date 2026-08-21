@@ -3,13 +3,14 @@ name: Grand Bruxelles CityGen Secondary Height Validation
 on:
   pull_request:
     paths:
-      - 'grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py'
-      - 'grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py'
-      - 'grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py'
-      - 'grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py'
-      - 'grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py'
-      - 'grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py'
-      - '.github/workflows/grand-bruxelles-citygen-secondary-height-validation.yml'
+      - "grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py"
+      - ".github/workflows/grand-bruxelles-citygen-secondary-height-validation.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,25 +18,24 @@ permissions:
 jobs:
   secondary-height-validation:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Compile secondary-height tooling
         run: |
-          python3 -m py_compile \
+          python -m py_compile \
             grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py \
             grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py \
             grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py \
             grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py \
             grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py \
             grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py
-
       - name: Compare autonomous DSM-DTM heights with UrbIS3D semantics
-        run: python3 grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py
-
-      - name: Validate secondary height evidence fail-closed
-        run: python3 grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
-
+        run: python grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py
+      - name: Validate fail-closed secondary height contract
+        run: python grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
       - name: Persist validated secondary evidence fail-closed
-        run: python3 grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py
+        run: python grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py

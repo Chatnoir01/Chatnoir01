@@ -1,0 +1,88 @@
+name: Grand Bruxelles PR926 Playable Web Review
+
+on:
+  push:
+    branches:
+      - codex/midi-authored-vehicles-review
+    paths:
+      - "grand-bruxelles-game/**"
+      - ".github/workflows/grand-bruxelles-pr926-web-review-host.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-pr926-web-review-host
+  cancel-in-progress: true
+
+jobs:
+  export-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact review branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/midi-authored-vehicles-review
+          fetch-depth: 0
+
+      - name: Setup Godot 4.7.1 with export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import review project
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path grand-bruxelles-game --editor --quit-after 3 2>&1 | tee /tmp/pr926-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Can't open file|Cannot open file|couldn't be loaded|Image index .* couldn't be loaded" /tmp/pr926-import.log; then
+            exit 1
+          fi
+
+      - name: Export playable Web review
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB_DIR="$RUNNER_TEMP/pr-926-web"
+          rm -rf "$WEB_DIR"
+          mkdir -p "$WEB_DIR"
+          godot --headless --path grand-bruxelles-game --export-release Web "$WEB_DIR/index.html" 2>&1 | tee /tmp/pr926-export.log
+          for file in index.html index.wasm index.pck index.js; do
+            test -s "$WEB_DIR/$file"
+          done
+          TOO_LARGE=$(find "$WEB_DIR" -type f -size +99M -print -quit)
+          if [ -n "$TOO_LARGE" ]; then
+            echo "PR926_WEB_REVIEW_FAIL: GitHub branch file exceeds 99 MiB: $TOO_LARGE" >&2
+            exit 1
+          fi
+          printf '%s\n' "$GITHUB_SHA" > "$WEB_DIR/REVIEW_SOURCE_SHA.txt"
+          printf '%s\n' 'PR #926 authored Kenney vehicle owner review - not production main' > "$WEB_DIR/REVIEW_NOTICE.txt"
+          touch "$WEB_DIR/.nojekyll"
+          du -h "$WEB_DIR"/* | sort -h
+
+      - name: Publish isolated static review branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEB_DIR="$RUNNER_TEMP/pr-926-web"
+          git config user.name 'grand-bruxelles-review-bot'
+          git config user.email 'grand-bruxelles-review-bot@users.noreply.github.com'
+          git checkout --orphan pr-926-web-review
+          git rm -rf . >/dev/null 2>&1 || true
+          git clean -fdx >/dev/null 2>&1 || true
+          cp -a "$WEB_DIR"/. .
+          git add -A
+          git commit -m "review(web): publish PR #926 ${GITHUB_SHA}"
+          git push --force origin HEAD:pr-926-web-review
+
+      - name: Upload playable build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-926-playable-web-review
+          path: ${{ runner.temp }}/pr-926-web
+          if-no-files-found: error
+          retention-days: 7

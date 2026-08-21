@@ -2,23 +2,9 @@ name: Grand Bruxelles Midi OSM Refresh
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/city-machine-midi-regional-osm
-    paths:
-      - .github/workflows/grand-bruxelles-midi-osm-refresh.yml
-      - grand-bruxelles-game/data/urbis/midi/manifest.json
-      - grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py
-  pull_request:
-    branches:
-      - main
-    paths:
-      - .github/workflows/grand-bruxelles-midi-osm-refresh.yml
-      - grand-bruxelles-game/data/urbis/midi/manifest.json
-      - grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   refresh-midi-osm:
@@ -39,7 +25,7 @@ jobs:
       - name: Install exact projection dependency
         run: python -m pip install "pyproj>=3.7,<4"
 
-      - name: Refresh committed-cache candidates from Overpass
+      - name: Refresh Midi regional environment from Overpass
         run: >-
           python tools/city_machine/build_osm_environment_zone.py
           --manifest data/urbis/midi/manifest.json
@@ -48,7 +34,7 @@ jobs:
           --output data/osm/zones/midi/environment.game.json
           --refresh
 
-      - name: Validate Midi onboarding evidence against generated cache
+      - name: Validate generated Midi onboarding evidence
         run: python tools/city_machine/check_onboarding_candidate.py --zone midi
 
       - name: Upload deterministic Midi OSM cache candidates
@@ -60,19 +46,3 @@ jobs:
             grand-bruxelles-game/data/osm/zones/midi/environment.game.json
           if-no-files-found: error
           retention-days: 7
-
-      - name: Commit generated cache to onboarding branch
-        if: github.event_name == 'push' && github.ref_name == 'feat/city-machine-midi-regional-osm'
-        working-directory: .
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add grand-bruxelles-game/data/osm/zones/midi/environment.raw.json \
-                  grand-bruxelles-game/data/osm/zones/midi/environment.game.json
-          if git diff --cached --quiet; then
-            echo "Midi OSM cache already matches generated evidence."
-            exit 0
-          fi
-          git commit -m "city-machine: commit real Midi OSM regional cache"
-          git push origin "HEAD:${GITHUB_REF_NAME}"

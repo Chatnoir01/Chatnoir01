@@ -13,7 +13,7 @@ def main() -> int:
     assert registry["schema"] == "grand-bruxelles-city-machine-registry-v1"
     assert registry["version"] == 4
     assert registry["pilot_zone"] == "jette"
-    assert "jette" in registry["zone_profiles"]
+    assert set(registry["zone_profiles"]) == {"jette", "midi"}
 
     for zone_id, profile in registry["zone_profiles"].items():
         assert (PROJECT / profile["source_root"]).is_dir(), zone_id
@@ -22,6 +22,19 @@ def main() -> int:
         assert profile["materialized_slugs"] == ["buildings", "street_surfaces", "street_axes", "train_network"]
         assert profile["content_minimums"]["buildings"] >= 1
         assert profile["content_minimums"]["street_surfaces"] >= 1
+        env = profile["osm_environment"]
+        assert env["minimum_trees"] >= 1 and 0.0 < float(env["bounds_tolerance_m"]) <= 2.0
+        for key in ("cache", "runtime"):
+            assert (PROJECT / env[key]).is_file(), (zone_id, env[key])
+
+    midi = registry["zone_profiles"]["midi"]
+    arrival = midi["arrival_contract"]
+    assert arrival == {
+        "mode": "fast_travel_constant",
+        "destination": "midi",
+        "runtime_script": "game/scripts/player_controller.gd",
+        "position_symbol": "MIDI_FAST_TRAVEL_POSITION",
+    }
 
     layers = registry["layers"]
     orders = [int(row["order"]) for row in layers]
@@ -50,12 +63,6 @@ def main() -> int:
     assert runtime_index["enabled_zones"] == ["*"]
     assert (PROJECT / runtime_index["outputs"][0]).is_file()
 
-    jette = registry["zone_profiles"]["jette"]
-    env = jette["osm_environment"]
-    assert env["minimum_trees"] >= 1 and 0.0 < float(env["bounds_tolerance_m"]) <= 2.0
-    for key in ("cache", "runtime"):
-        assert (PROJECT / env[key]).is_file(), env[key]
-
     live = next(row for row in layers if row["layer_id"] == "live_osm_environment_refresh")
     assert live["kind"] == "disabled" and not live["enabled_zones"] and live["disabled_reason"]
 
@@ -64,8 +71,9 @@ def main() -> int:
     for name in inventory["citygen"]: assert (PROJECT / "tools/citygen" / name).is_file(), name
     for name in inventory["city_generation"]: assert (PROJECT / "tools/city_generation" / name).is_file(), name
     assert "tools/city_machine/build_runtime_environment_index.py" in inventory["osm_environment"]
+    assert "tools/validate_midi_city_machine_data.py" in inventory["midi_support"]
 
-    print(f"CITY_MACHINE_REGISTRY_OK version=4 layers={len(layers)} profiles={len(registry['zone_profiles'])} regional_onboarding=generic wildcard_layers=true all_scripts_real=true")
+    print(f"CITY_MACHINE_REGISTRY_OK version=4 layers={len(layers)} profiles={len(registry['zone_profiles'])} zones=jette,midi wildcard_layers=true all_scripts_real=true")
     return 0
 
 

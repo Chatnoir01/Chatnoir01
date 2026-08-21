@@ -12,10 +12,20 @@ from bootstrap_cell_maturity import GATES as MATURITY_GATES, missing_declared_so
 FORMAT = "grand-bruxelles-autonomous-citygen-v1"
 TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 TERMINAL = {"RUNTIME_READY", "QUARANTINE"}
-MANUAL_FRONTIER_ACTION = "secondary_height_validation_and_terrain_runtime_checks"
+# Secondary UrbIS3D validation and the runtime-readiness aggregation are autonomous
+# evidence stages. Promotion itself remains an explicit fail-closed frontier.
+MANUAL_FRONTIER_ACTION = "terrain_runtime_validation_and_promotion_readiness"
 MANUAL_ELEVATION_QUALITY_ACTION = "resolve_elevation_quality_blockers"
-MANUAL_ACTIONS = {MANUAL_FRONTIER_ACTION, MANUAL_ELEVATION_QUALITY_ACTION}
+SECONDARY_BLOCKED_ACTION = "resolve_blocked_secondary_height_candidates_without_guessing"
+RUNTIME_GATE_EVIDENCE_ACTION = "collect_measured_runtime_gate_evidence"
+MANUAL_ACTIONS = {
+    MANUAL_FRONTIER_ACTION,
+    MANUAL_ELEVATION_QUALITY_ACTION,
+    SECONDARY_BLOCKED_ACTION,
+    RUNTIME_GATE_EVIDENCE_ACTION,
+}
 STALE_HEIGHT_FRONTIER_BLOCKER = "frontier_building_target_count_mismatch"
+TERRAIN_RUNTIME_CANDIDATE_FORMAT = "grand-bruxelles-cell-terrain-runtime-candidate-v1"
 EVIDENCE_STAGES = (
     ("elevation_requirements.json", "derive_elevation_requirements"),
     ("elevation_dsm_resolution.json", "resolve_dsm_source"),
@@ -27,6 +37,11 @@ EVIDENCE_STAGES = (
     ("elevation_candidate_frontier.json", "derive_elevation_candidate_frontier"),
     ("building_height_candidates.json", "derive_building_height_candidates"),
     ("terrain_lod_evidence.json", "evaluate_terrain_lod"),
+    ("terrain_runtime_candidate.json", "build_terrain_runtime_candidate"),
+    ("urbis3d_semantic_height_evidence.json", "derive_urbis3d_semantic_height_evidence"),
+    ("secondary_height_evidence.json", "compare_semantic_dsm_heights"),
+    ("secondary_height_validation.json", "validate_secondary_height_evidence"),
+    ("terrain_runtime_readiness.json", "derive_terrain_runtime_readiness"),
 )
 
 
@@ -120,6 +135,47 @@ def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
             blockers = height_evidence.get("blockers") or []
             if isinstance(blockers, list) and STALE_HEIGHT_FRONTIER_BLOCKER in blockers:
                 return frontier_stage_index, "derive_elevation_candidate_frontier"
+        elif filename == "terrain_runtime_candidate.json":
+            try:
+                terrain_candidate = _read_json(path)
+                terrain_lod = _read_json(cell_dir / "terrain_lod_evidence.json")
+            except (OSError, ValueError, json.JSONDecodeError):
+                return completed - 1, action
+            authorization = terrain_candidate.get("authorization")
+            source = terrain_candidate.get("source")
+            if terrain_candidate.get("format") != TERRAIN_RUNTIME_CANDIDATE_FORMAT or terrain_candidate.get("cell_id") != cell_id:
+                return completed - 1, action
+            if not isinstance(authorization, dict) or authorization.get("candidate_only") is not True:
+                return completed - 1, action
+            if any(authorization.get(flag) is not False for flag in ("terrain_runtime_authorized", "collision_authorized", "runtime_mount_authorized", "jouable_promotion_authorized")):
+                return completed - 1, action
+            if not isinstance(source, dict) or source.get("terrain_lod_evidence_digest") != terrain_lod.get("evidence_digest"):
+                return completed - 1, action
+            if not isinstance(terrain_candidate.get("candidate_digest"), str) or len(terrain_candidate["candidate_digest"]) != 64:
+                return completed - 1, action
+        elif filename == "secondary_height_validation.json":
+            try:
+                validation = _read_json(path)
+            except (OSError, ValueError, json.JSONDecodeError):
+                return completed - 1, action
+            if validation.get("runtime_promotion_allowed") is not False:
+                return completed - 1, action
+            if validation.get("secondary_validation_complete") is not True:
+                return completed, SECONDARY_BLOCKED_ACTION
+        elif filename == "terrain_runtime_readiness.json":
+            try:
+                readiness = _read_json(path)
+                terrain_candidate = _read_json(cell_dir / "terrain_runtime_candidate.json")
+            except (OSError, ValueError, json.JSONDecodeError):
+                return completed - 1, action
+            if readiness.get("runtime_promotion_allowed") is not False:
+                return completed - 1, action
+            bindings = readiness.get("bindings")
+            if not isinstance(bindings, dict) or bindings.get("terrain_runtime_candidate_digest") != terrain_candidate.get("candidate_digest"):
+                return completed - 1, action
+            if readiness.get("promotion_ready_for_explicit_review") is True:
+                return completed, MANUAL_FRONTIER_ACTION
+            return completed, RUNTIME_GATE_EVIDENCE_ACTION
     return completed, MANUAL_FRONTIER_ACTION
 
 
@@ -267,8 +323,11 @@ def run(
             "incomplete_source_priority": "repair_declared_source_payloads_before_evidence_or_regional_expansion",
             "missing_source_priority": "expand_only_after_existing_source_cells_reach_their_current_autonomous_frontier",
             "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_materializing_more_source_cells",
-            "manual_frontier": "exclude_measured_elevation_quality_and_secondary_height_terrain_runtime_frontiers_from_retries",
-            "refresh_only": "recompute durable classification_and_evidence_progress_without_new_attempts_or_batch_selection",
+            "terrain_artifact_frontier": "compact_canonical_edge_heightfield_candidate_before_runtime_gate_measurement",
+            "secondary_height_frontier": "autonomous_urbis3d_semantic_crosscheck_before_digest_bound_runtime_readiness",
+            "runtime_gate_frontier": "six_per_cell_measured_gates_bound_to_lod_actual_terrain_artifact_secondary_and_runtime_candidate_digests_before_explicit_promotion_review",
+            "manual_frontier": "exclude_measured_elevation_quality_secondary_conflicts_runtime_gate_collection_and_explicit_promotion_frontiers_from_blind_retries",
+            "refresh_only": "recompute durable_classification_and_evidence_progress_without_new_attempts_or_batch_selection",
         },
     }
     state = {

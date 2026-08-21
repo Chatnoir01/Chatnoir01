@@ -27,6 +27,13 @@ def _write(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _secondary_candidate_count(counts: dict[str, Any]) -> int:
+    if "height_candidate_source_count" in counts:
+        return int(counts["height_candidate_source_count"])
+    # Compatibility with already-persisted v1 manual-frontier evidence.
+    return int(counts.get("manual_frontier_candidates", -1))
+
+
 def persist(secondary_path: Path, validation_path: Path, output_dir: Path) -> dict[str, Any]:
     secondary = _read(secondary_path)
     validation = _read(validation_path)
@@ -56,14 +63,18 @@ def persist(secondary_path: Path, validation_path: Path, output_dir: Path) -> di
         raise ValueError("secondary evidence counts missing")
     if candidate_count < 0 or validated < 0 or blocked < 0 or validated + blocked != candidate_count:
         raise ValueError("secondary validation candidate accounting is inconsistent")
-    if int(counts.get("manual_frontier_candidates", -1)) != candidate_count:
-        raise ValueError("secondary/manual candidate counts disagree")
+    measured_secondary_count = _secondary_candidate_count(counts)
+    if measured_secondary_count != candidate_count:
+        raise ValueError(
+            f"secondary/source candidate counts disagree: secondary={measured_secondary_count} validation={candidate_count}"
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     _write(output_dir / SECONDARY_OUT, secondary)
     _write(output_dir / VALIDATION_OUT, validation)
     result = {
         "cell_id": cell,
+        "height_candidate_source_kind": validation.get("height_candidate_source_kind") or "legacy_manual_frontier_review",
         "candidate_count": candidate_count,
         "validated_candidate_count": validated,
         "blocked_candidate_count": blocked,

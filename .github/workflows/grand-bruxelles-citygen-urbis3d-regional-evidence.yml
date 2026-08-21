@@ -1,0 +1,35 @@
+name: Grand Bruxelles CityGen UrbIS3D Regional Evidence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/select_cell_urbis3d_packages.py"
+      - "grand-bruxelles-game/tools/citygen/test_select_cell_urbis3d_packages.py"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis3d_semantic_batch.py"
+      - "grand-bruxelles-game/tools/citygen/test_materialize_urbis3d_semantic_batch.py"
+      - ".github/workflows/grand-bruxelles-citygen-urbis3d-regional-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile regional UrbIS3D tooling
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            grand-bruxelles-game/tools/citygen/select_cell_urbis3d_packages.py \
+            grand-bruxelles-game/tools/citygen/materialize_urbis3d_semantic_batch.py
+      - name: Prove regional UrbIS3D package selection
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_select_cell_urbis3d_packages.py
+      - name: Prove fail-closed semantic batch materialization
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis3d_semantic_batch.py

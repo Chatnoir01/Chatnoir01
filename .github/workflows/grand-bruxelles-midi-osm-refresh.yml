@@ -9,6 +9,13 @@ on:
       - .github/workflows/grand-bruxelles-midi-osm-refresh.yml
       - grand-bruxelles-game/data/urbis/midi/manifest.json
       - grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/grand-bruxelles-midi-osm-refresh.yml
+      - grand-bruxelles-game/data/urbis/midi/manifest.json
+      - grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py
 
 permissions:
   contents: read

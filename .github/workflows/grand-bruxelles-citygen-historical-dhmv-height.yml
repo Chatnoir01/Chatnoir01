@@ -1,0 +1,211 @@
+name: Grand Bruxelles CityGen Historical DHMV Height
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/diagnose_historical_dhmv_heights.py"
+      - "grand-bruxelles-game/tools/citygen/test_diagnose_historical_dhmv_heights.py"
+      - ".github/workflows/grand-bruxelles-citygen-historical-dhmv-height.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  historical-dhmv-height:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install read-only raster tooling
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-rasterio python3-numpy jq
+          gdalinfo --version
+
+      - name: Regression-test historical third-source contract
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_diagnose_historical_dhmv_heights.py
+
+      - name: Fetch latest successful production secondary witness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID="$(gh run list \
+            --workflow grand-bruxelles-citygen-anderlecht-secondary-height.yml \
+            --branch main --status success --limit 1 \
+            --json databaseId --jq '.[0].databaseId')"
+          test -n "$RUN_ID"
+          rm -rf /tmp/secondary-witness
+          mkdir -p /tmp/secondary-witness
+          gh run download "$RUN_ID" \
+            -n grand-bruxelles-citygen-anderlecht-secondary-height \
+            -D /tmp/secondary-witness
+          test -s /tmp/secondary-witness/validation.json
+          test -s /tmp/secondary-witness/secondary-evidence.json
+          test -s /tmp/secondary-witness/secondary-target.json
+          echo "SECONDARY_WITNESS_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          echo "HISTORICAL_DHMV_SECONDARY_WITNESS_OK run=$RUN_ID"
+
+      - name: Rebuild fail-closed blocked triage
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/historical-dhmv
+          python3 grand-bruxelles-game/tools/citygen/triage_blocked_secondary_height_candidates.py \
+            --validation /tmp/secondary-witness/validation.json \
+            --secondary /tmp/secondary-witness/secondary-evidence.json \
+            --output /tmp/historical-dhmv/triage.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          triage=json.load(open('/tmp/historical-dhmv/triage.json',encoding='utf-8'))
+          target=json.load(open('/tmp/secondary-witness/secondary-target.json',encoding='utf-8'))
+          assert triage['cell_id']==target['cell_id']
+          assert triage['counts']['adjudication_frontier'] > 0
+          assert triage['runtime_promotion_allowed'] is False
+          bbox=target['bbox_epsg31370']
+          assert isinstance(bbox,list) and len(bbox)==4 and bbox[2] > bbox[0] and bbox[3] > bbox[1]
+          with Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8') as h:
+              h.write(f"CELL={target['cell_id']}\n")
+              h.write(f"MIN_E={bbox[0]}\nMIN_N={bbox[1]}\nMAX_E={bbox[2]}\nMAX_N={bbox[3]}\n")
+          print('HISTORICAL_DHMV_TRIAGE_OK',target['cell_id'],f"adjudication={triage['counts']['adjudication_frontier']}", 'runtime_promotion=false')
+          PY
+
+      - name: Fetch exact durable source cell
+        run: |
+          set -euo pipefail
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          SOURCES="grand-bruxelles-game/data/qa/autonomous_sources"
+          rm -rf /tmp/citygen-state
+          mkdir -p /tmp/citygen-state
+          git archive origin/citygen-autonomous-state "${SOURCES}/${CELL}" | tar -x -C /tmp/citygen-state
+          SRC="/tmp/citygen-state/${SOURCES}/${CELL}"
+          test -s "$SRC/raw/buildings.geojson"
+          test -s "$SRC/building_height_candidates.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          src=Path('/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_sources')/os.environ['CELL']
+          primary=json.load((src/'building_height_candidates.json').open(encoding='utf-8'))
+          assert primary['format']=='grand-bruxelles-cell-building-height-candidates-v1'
+          assert primary['cell_id']==os.environ['CELL']
+          assert primary['crs']=='EPSG:31370'
+          assert primary['runtime_promotion_allowed'] is False
+          assert primary['runtime_approved_count']==0
+          with Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8') as h:
+              h.write(f"SRC={src}\n")
+          print('HISTORICAL_DHMV_DURABLE_SOURCE_OK',primary['cell_id'],f"candidates={primary['candidate_count']}")
+          PY
+
+      - name: Download independent historical DHMV II DSM and DTM via public WCS
+        run: |
+          set -euo pipefail
+          BASE='https://geo.api.vlaanderen.be/DHMV/wcs'
+          for KIND in DSM DTM; do
+            COVERAGE="DHMVII_${KIND}_1m"
+            OUT="/tmp/historical-dhmv/${KIND,,}.tif"
+            curl --fail --location --retry 3 --retry-all-errors --max-time 600 \
+              --user-agent 'GrandBruxellesGame/historical-third-height-diagnostic (+github.com/Chatnoir01/Chatnoir01)' \
+              --get "$BASE" \
+              --data-urlencode 'service=WCS' \
+              --data-urlencode 'version=2.0.1' \
+              --data-urlencode 'request=GetCoverage' \
+              --data-urlencode "coverageId=${COVERAGE}" \
+              --data-urlencode "subset=x(${MIN_E},${MAX_E})" \
+              --data-urlencode "subset=y(${MIN_N},${MAX_N})" \
+              --data-urlencode 'format=image/tiff' \
+              -o "$OUT"
+            test -s "$OUT"
+            file "$OUT"
+            sha256sum "$OUT" | tee "/tmp/historical-dhmv/${KIND,,}.sha256"
+          done
+
+      - name: Validate historical WCS rasters fail-closed
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math, os
+          from pathlib import Path
+          import rasterio
+          rows={}
+          for kind in ('dsm','dtm'):
+              path=Path('/tmp/historical-dhmv')/f'{kind}.tif'
+              with rasterio.open(path) as src:
+                  epsg=src.crs.to_epsg() if src.crs else None
+                  assert epsg==31370, (kind,src.crs)
+                  assert src.count==1
+                  assert src.width > 0 and src.height > 0
+                  assert src.width <= 1000 and src.height <= 1000
+                  assert math.isclose(abs(src.res[0]),1.0,abs_tol=1e-6), (kind,src.res)
+                  assert math.isclose(abs(src.res[1]),1.0,abs_tol=1e-6), (kind,src.res)
+                  bounds=list(src.bounds)
+                  requested=[float(os.environ['MIN_E']),float(os.environ['MIN_N']),float(os.environ['MAX_E']),float(os.environ['MAX_N'])]
+                  assert bounds[0] <= requested[0] + 1.1 and bounds[1] <= requested[1] + 1.1
+                  assert bounds[2] >= requested[2] - 1.1 and bounds[3] >= requested[3] - 1.1
+                  rows[kind]={'width':src.width,'height':src.height,'transform':tuple(src.transform),'bounds':bounds,'res':list(src.res),'dtype':src.dtypes[0]}
+          assert rows['dsm']['width']==rows['dtm']['width']
+          assert rows['dsm']['height']==rows['dtm']['height']
+          assert rows['dsm']['transform']==rows['dtm']['transform']
+          source={
+              'provider':'Digitaal Vlaanderen',
+              'campaign':'DHMV II',
+              'acquisition_start':'2013-02-20',
+              'acquisition_end':'2015-04-20',
+              'dsm_coverage_id':'DHMVII_DSM_1m',
+              'dtm_coverage_id':'DHMVII_DTM_1m',
+              'resolution_m':1.0,
+              'crs':'EPSG:31370',
+              'wcs':'https://geo.api.vlaanderen.be/DHMV/wcs',
+              'independence_basis':'separate public authority/provider and historical LiDAR acquisition campaign; diagnostic only, not runtime authority',
+              'temporal_limitation':'2013-2015 acquisition cannot by itself validate a 2026 building state',
+              'rasters':rows,
+          }
+          Path('/tmp/historical-dhmv/source.json').write_text(json.dumps(source,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          print('HISTORICAL_DHMV_RASTERS_OK',json.dumps(rows,sort_keys=True))
+          PY
+
+      - name: Measure historical heights and compare 27 adjudication candidates
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/diagnose_historical_dhmv_heights.py \
+            --buildings "$SRC/raw/buildings.geojson" \
+            --triage /tmp/historical-dhmv/triage.json \
+            --primary "$SRC/building_height_candidates.json" \
+            --secondary /tmp/secondary-witness/secondary-evidence.json \
+            --dsm /tmp/historical-dhmv/dsm.tif \
+            --dtm /tmp/historical-dhmv/dtm.tif \
+            --source /tmp/historical-dhmv/source.json \
+            --output /tmp/historical-dhmv/report.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/historical-dhmv/report.json',encoding='utf-8'))
+          assert r['policy']['read_only'] is True
+          assert r['policy']['historical_evidence_is_runtime_authority'] is False
+          assert r['policy']['automatic_resolution'] is False
+          assert r['policy']['thresholds_changed'] is False
+          assert r['runtime_promotion_allowed'] is False
+          assert r['runtime_approved_count']==0
+          assert all(row['runtime_approved'] is False and row['automatic_resolution_allowed'] is False for row in r['records'])
+          print('HISTORICAL_DHMV_HEIGHT_RESULT',json.dumps(r['counts'],sort_keys=True))
+          PY
+
+      - name: Package compact read-only evidence
+        run: |
+          set -euo pipefail
+          rm -f /tmp/historical-dhmv/dsm.tif /tmp/historical-dhmv/dtm.tif
+          test -s /tmp/historical-dhmv/report.json
+          test -s /tmp/historical-dhmv/source.json
+          find /tmp/historical-dhmv -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-citygen-historical-dhmv-height
+          path: /tmp/historical-dhmv/
+          if-no-files-found: error

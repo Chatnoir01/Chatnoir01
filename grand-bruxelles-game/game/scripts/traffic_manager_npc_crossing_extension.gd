@@ -40,8 +40,6 @@ func _spawn_dedicated_ambulances() -> void:
         ambulance.add_to_group("vehicle")
         ambulance.add_to_group("ambulance")
         ambulance.add_to_group("emergency_vehicle")
-        ambulance.global_position = anchor + dedicated_ambulance_offset + Vector3(float(index) * dedicated_ambulance_spacing_m, 0.0, 0.0)
-        ambulance.rotation.y = deg_to_rad(-38.0)
 
         var collision := CollisionShape3D.new()
         collision.name = "CollisionShape3D"
@@ -56,10 +54,12 @@ func _spawn_dedicated_ambulances() -> void:
         ambulance.add_child(visual)
 
         ambulance.configure_archetype("car")
-        ambulance.call("configure_as_parked")
         ambulance.set_meta("dedicated_special_vehicle", true)
         ambulance.set_meta("special_vehicle_kind", "ambulance")
         _ambulance_root.add_child(ambulance)
+        ambulance.global_position = anchor + dedicated_ambulance_offset + Vector3(float(index) * dedicated_ambulance_spacing_m, 0.0, 0.0)
+        ambulance.rotation.y = deg_to_rad(-38.0)
+        ambulance.call("configure_as_parked")
 
 func get_ambulance_count() -> int:
     if _ambulance_root == null:

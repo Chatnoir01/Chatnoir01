@@ -26,6 +26,7 @@ var _deactivation_count := 0
 var _duplicate_activation_attempts := 0
 var _collision_changes := 0
 var _last_operations := 0
+var _collision_pins: Dictionary = {}
 
 func register_cell_descriptor(cell_id: String, world_center: Vector3, source_bbox_lambert72: Rect2 = Rect2(), estimated_bytes: int = 0, runtime_paths: Dictionary = {}) -> bool:
     if cell_id.is_empty() or _cells.has(cell_id):
@@ -79,6 +80,19 @@ func tick() -> void:
     _recompute_priorities()
     _process_operations()
     _refresh_collisions()
+
+func set_collision_pin(cell_id: String, enabled: bool) -> bool:
+    if not _cells.has(cell_id):
+        return false
+    if enabled:
+        _collision_pins[cell_id] = true
+    else:
+        _collision_pins.erase(cell_id)
+    _refresh_collisions()
+    return true
+
+func is_collision_pinned(cell_id: String) -> bool:
+    return bool(_collision_pins.get(cell_id, false))
 
 func _recompute_priorities() -> void:
     var predicted := _observer_position + _observer_velocity * lookahead_seconds
@@ -150,7 +164,9 @@ func _deactivate(cell_id: String) -> void:
 func _refresh_collisions() -> void:
     for cell_id: String in _cells.keys():
         var cell: Dictionary = _cells[cell_id]
-        var should_collide := int(cell["state"]) == CellState.ACTIVE and float(cell["current_distance"]) <= collision_radius_m
+        var within_radius := float(cell["current_distance"]) <= collision_radius_m
+        var pinned := bool(_collision_pins.get(cell_id, false))
+        var should_collide := int(cell["state"]) == CellState.ACTIVE and (within_radius or pinned)
         if bool(cell["collision_active"]) != should_collide:
             cell["collision_active"] = should_collide
             _collision_changes += 1
@@ -200,6 +216,7 @@ func get_metrics() -> Dictionary:
         "deactivation_count": _deactivation_count,
         "duplicate_activation_attempts": _duplicate_activation_attempts,
         "collision_changes": _collision_changes,
+        "collision_pins": _collision_pins.size(),
         "last_operations": _last_operations,
         "estimated_active_bytes": estimated_active_bytes,
     }

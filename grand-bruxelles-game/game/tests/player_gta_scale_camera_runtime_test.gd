@@ -51,8 +51,9 @@ func _run() -> void:
     var arm := player.get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
     var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
     var pivot := player.get_node_or_null("CameraPivot") as Node3D
-    if arm == null or camera == null or pivot == null:
-        _fail("player camera rig incomplete")
+    var visual_upgrade := player.get_node_or_null("VisualUpgrade") as Node3D
+    if arm == null or camera == null or pivot == null or visual_upgrade == null:
+        _fail("player camera or visual rig incomplete")
         return
     if absf(arm.spring_length - STANDARD_DISTANCE_M) > 0.01:
         _fail("standard camera distance is not GTA-scale tuned: actual=%.3f expected=%.3f" % [arm.spring_length, STANDARD_DISTANCE_M])
@@ -109,21 +110,36 @@ func _run() -> void:
         return
 
     # A dedicated source-backed presentation may intentionally own the camera.
-    # The GTA guard must not trample that mode, then must recover normal gameplay
-    # once the presentation ownership marker is removed.
+    # DirectSpawnPresentation marks Atomium and hides the avatar while its 48-degree
+    # witness is active. Preserve that view, but prove that gameplay retakes camera
+    # authority after fast travel even if the startup metadata remains stale.
     player.set_meta("atomium_direct_presentation_fov_degrees", ATOMIUM_PRESENTATION_FOV_DEG)
+    player.set_meta("atomium_direct_presentation_avatar_hidden", true)
+    visual_upgrade.visible = false
     camera.fov = ATOMIUM_PRESENTATION_FOV_DEG
     await _settle_camera_guard()
     if absf(camera.fov - ATOMIUM_PRESENTATION_FOV_DEG) > 0.01:
-        _fail("GTA camera guard trampled Atomium presentation FOV: actual=%.3f" % camera.fov)
-        return
-    player.remove_meta("atomium_direct_presentation_fov_degrees")
-    await _settle_camera_guard()
-    if absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
-        _fail("GTA camera guard did not recover after special presentation: actual=%.3f" % camera.fov)
+        _fail("GTA camera guard trampled active Atomium presentation FOV: actual=%.3f" % camera.fov)
         return
 
-    print("PLAYER_GTA_SCALE_CAMERA_OK: capsule=1.80m source_visual=%.3fm visual=%.3fm scale=%.5f standard=%.2fm fov=%.1f close=%.2fm shoulder=%.2fm projected_share=%.4f atomium_preserved=true" % [
+    if not bool(player.call("fast_travel_to", "midi")):
+        _fail("Midi fast travel from Atomium presentation failed")
+        return
+    await _settle_camera_guard()
+    if not player.has_meta("atomium_direct_presentation_fov_degrees"):
+        _fail("Atomium stale-metadata exit proof unexpectedly lost its marker")
+        return
+    if not visual_upgrade.visible:
+        _fail("fast travel did not restore the authored player visual")
+        return
+    if absf(arm.spring_length - STANDARD_DISTANCE_M) > 0.01 or absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
+        _fail("normal gameplay did not retake camera authority after Atomium exit: distance=%.3f fov=%.3f" % [arm.spring_length, camera.fov])
+        return
+
+    player.remove_meta("atomium_direct_presentation_fov_degrees")
+    player.remove_meta("atomium_direct_presentation_avatar_hidden")
+
+    print("PLAYER_GTA_SCALE_CAMERA_OK: capsule=1.80m source_visual=%.3fm visual=%.3fm scale=%.5f standard=%.2fm fov=%.1f close=%.2fm shoulder=%.2fm projected_share=%.4f atomium_preserved=true atomium_exit_recovered=true" % [
         source_height,
         visual_height,
         normalization_scale,

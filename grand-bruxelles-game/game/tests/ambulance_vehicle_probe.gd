@@ -100,6 +100,10 @@ func _run() -> void:
         _fail("traffic_speed_not_restored=%.3f" % traffic.speed_factor)
         return
 
+    # The yield witness must not become an artificial obstacle for the motion proof.
+    traffic.global_position = Vector3(22.0, 1.0, 22.0)
+    await physics_frame
+
     var driver := DummyDriver.new()
     world.add_child(driver)
     if not ambulance.assign_external_driver(driver):

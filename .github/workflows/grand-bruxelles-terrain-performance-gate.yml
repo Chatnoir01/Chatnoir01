@@ -1,0 +1,130 @@
+name: Grand Bruxelles Terrain Performance Gate
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/terrain_performance_gate.py"
+      - "grand-bruxelles-game/tools/citygen/test_terrain_performance_gate.py"
+      - "grand-bruxelles-game/game/tests/terrain_performance_candidate_probe.gd"
+      - ".github/workflows/grand-bruxelles-terrain-performance-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic Python test dependency
+        run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3"
+
+      - name: Prove performance evidence guardrails
+        run: python3 grand-bruxelles-game/tools/citygen/test_terrain_performance_gate.py
+
+      - name: Install software renderer and Godot 4.7.1
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Prepare exact sealed candidate fixture
+        run: |
+          set -euo pipefail
+          rm -rf grand-bruxelles-game/.qa_performance_fixture /tmp/terrain-streaming-probes /tmp/terrain-performance
+          mkdir -p /tmp/terrain-performance
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_streaming_gate.py \
+            --emit-fixture-root grand-bruxelles-game/.qa_performance_fixture \
+            --emit-probe-root /tmp/terrain-streaming-probes \
+            --fixture-resource-root res://.qa_performance_fixture
+          STREAMING_PROBE=$(find /tmp/terrain-streaming-probes -maxdepth 1 -name '*.json' -print -quit)
+          test -n "$STREAMING_PROBE"
+          python3 grand-bruxelles-game/tools/citygen/terrain_performance_gate.py prepare \
+            --streaming-probe "$STREAMING_PROBE" \
+            --output /tmp/terrain-performance/probe.json
+
+      - name: Isolate unrelated autoloads and build Godot class cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('grand-bruxelles-game/project.godot')
+          lines=path.read_text(encoding='utf-8').splitlines(keepends=True)
+          out=[]; in_autoload=False
+          for line in lines:
+              s=line.strip()
+              if s == '[autoload]':
+                  out.append(line); in_autoload=True; continue
+              if in_autoload and s.startswith('[') and s.endswith(']'):
+                  out.append('\n'); out.append(line); in_autoload=False; continue
+              if in_autoload:
+                  continue
+              out.append(line)
+          if in_autoload: out.append('\n')
+          path.write_text(''.join(out), encoding='utf-8')
+          PY
+          rm -rf grand-bruxelles-game/.godot
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path grand-bruxelles-game --quit 2>&1 | tee /tmp/perf-import.log
+          if grep -E "Parse Error:|SCRIPT ERROR|ERROR: Failed to load script" /tmp/perf-import.log; then exit 1; fi
+          test -s grand-bruxelles-game/.godot/global_script_class_cache.cfg
+
+      - name: Measure exact sealed candidate in Godot
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --path grand-bruxelles-game \
+            --script res://game/tests/terrain_performance_candidate_probe.gd \
+            -- --probe=/tmp/terrain-performance/probe.json --result=/tmp/terrain-performance/result.json 2>&1 | tee /tmp/terrain-performance.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TERRAIN_PERFORMANCE_GODOT_FAIL" /tmp/terrain-performance.log; then exit 1; fi
+          grep -q "TERRAIN_PERFORMANCE_GODOT_OK" /tmp/terrain-performance.log
+          test -s /tmp/terrain-performance/result.json
+
+      - name: Finalize fail-closed measurement without invented budget
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/terrain_performance_gate.py finalize \
+            --probe /tmp/terrain-performance/probe.json \
+            --godot-result /tmp/terrain-performance/result.json \
+            --output /tmp/terrain-performance/measurement.json | tee /tmp/terrain-performance-finalize.log
+          grep -q "passed=false status=blocked_no_versioned_per_cell_budget" /tmp/terrain-performance-finalize.log
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/terrain-performance/measurement.json'))
+          row=p['gates']['performance']
+          metrics=row['metrics']
+          assert row['passed'] is False
+          assert row['status']=='blocked_no_versioned_per_cell_budget'
+          assert p['policy']['runtime_promotion_allowed'] is False
+          assert isinstance(metrics['render_metrics_available'], bool)
+          assert metrics['wall_frame_ms_avg'] > 0
+          assert metrics['wall_frame_ms_p95'] > 0
+          assert metrics['stream_total_ms'] >= 0
+          print(
+              'TERRAIN_PERFORMANCE_EXACT_MEASUREMENT_VERIFIED '
+              f"budget=missing passed=false render_metrics={str(metrics['render_metrics_available']).lower()} "
+              'runtime_promotion=false'
+          )
+          PY
+
+      - name: Upload exact performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-performance-exact-cell-evidence
+          path: |
+            /tmp/terrain-performance/probe.json
+            /tmp/terrain-performance/result.json
+            /tmp/terrain-performance/measurement.json
+            /tmp/terrain-performance.log
+          if-no-files-found: warn

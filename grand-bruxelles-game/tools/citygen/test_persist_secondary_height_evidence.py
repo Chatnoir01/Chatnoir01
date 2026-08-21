@@ -45,7 +45,6 @@ def main() -> int:
         else:
             raise AssertionError("unsafe runtime promotion must fail closed")
 
-        # Legacy count remains accepted for durable evidence produced before the automatic path.
         legacy_secondary = root / "legacy-secondary.json"
         legacy_validation = root / "legacy-validation.json"
         write_json(legacy_secondary,{"schema":"grand-bruxelles-ixelles-semantic-dsm-comparison-v1","cell":"bxl-e141500-n167500-s500","source_crs":"EPSG:31370","runtime_approved":False,"counts":{"manual_frontier_candidates":1},"policy":{"runtime_approval":False},"records":[]})
@@ -56,9 +55,6 @@ def main() -> int:
     secondary_workflow=SECONDARY_WORKFLOW.read_text(encoding="utf-8")
     persistence_workflow=PERSISTENCE_WORKFLOW.read_text(encoding="utf-8")
 
-    # The historical Anderlecht compatibility witness is deliberately read-only.
-    # It proves the current autonomous candidate contract but must not mutate state
-    # or silently pass by skipping a missing/stale witness.
     assert "contents: read" in secondary_workflow
     assert "contents: write" not in secondary_workflow
     assert "Select current fully-evidenced durable Anderlecht witness" in secondary_workflow
@@ -70,14 +66,14 @@ def main() -> int:
     assert "git switch -C citygen-autonomous-state" not in secondary_workflow
     assert "--height-candidates" in secondary_workflow
 
-    # The companion persistence workflow owns orchestration only: on main it may
-    # dispatch the exact-current-main witness, while the compact persistence tool
-    # remains independently regression-tested above.
     assert "actions: write" in persistence_workflow
     assert "contents: read" in persistence_workflow
     assert "workflow_run:" not in persistence_workflow
     assert "Dispatch exact-current-main secondary-height gate" in persistence_workflow
-    assert "persist_secondary_height_evidence.py" not in persistence_workflow
+    # The script path may legitimately appear in pull_request/push path filters.
+    # What is forbidden here is executing the persistence mutation from this
+    # orchestration-only workflow.
+    assert "python3 grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py" not in persistence_workflow
 
     print("PERSIST_SECONDARY_HEIGHT_EVIDENCE_TEST_OK source=automatic legacy_compatible=true witness_read_only=true witness_fail_closed=true")
     return 0

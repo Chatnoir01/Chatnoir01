@@ -22,16 +22,21 @@ const AMBIENT_HEAD_YAW_DEG := 7.0
 const MIN_HEAD_YAW_DEG := 5.0
 const MAX_HEAD_YAW_DEG := 10.0
 
-# The previous 2.5 cm whole-shoe raise improved ankle coverage numerically but
-# necessarily raised the sole by the same amount. The exact feet/ground frame
-# therefore still had exposed ankle geometry while losing a hard ground-contact
-# guarantee. Increase only the shoe height and preserve the source sole plane.
-const FOOTWEAR_HEIGHT_SCALE := 1.22
-const MIN_FOOTWEAR_HEIGHT_SCALE := 1.15
-const MAX_FOOTWEAR_HEIGHT_SCALE := 1.30
+# Run 30 proved the sole-preserving approach is mechanically correct, but the
+# real feet/ground and 2 m frames still show a conspicuous bare-ankle band above
+# the CC0 shoe. Preserve the exact source sole plane and extend only the shoe's
+# vertical collar enough to cover the visible ankle, with a measured top-lift
+# gate so this cannot silently regress into either a low shoe or an exaggerated
+# boot. Width/depth, source geometry, character skin/skeleton and ground contact
+# remain untouched.
+const FOOTWEAR_HEIGHT_SCALE := 1.48
+const MIN_FOOTWEAR_HEIGHT_SCALE := 1.40
+const MAX_FOOTWEAR_HEIGHT_SCALE := 1.55
 const MAX_FOOTWEAR_SOLE_DRIFT_M := 0.001
-const MIN_FOOTWEAR_FINAL_HEIGHT_M := 0.135
-const MAX_FOOTWEAR_FINAL_HEIGHT_M := 0.150
+const MIN_FOOTWEAR_FINAL_HEIGHT_M := 0.165
+const MAX_FOOTWEAR_FINAL_HEIGHT_M := 0.185
+const MIN_FOOTWEAR_TOP_LIFT_M := 0.045
+const MAX_FOOTWEAR_TOP_LIFT_M := 0.065
 
 func _relax_pose_if_rigged(root: Node) -> Dictionary:
     var skeleton := _find_skeleton(root)
@@ -170,18 +175,23 @@ func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
 
     var source := shoes.mesh.get_aabb()
     var sole_y_before := shoes.position.y + source.position.y * shoes.scale.y
+    var top_y_before := shoes.position.y + (source.position.y + source.size.y) * shoes.scale.y
     var height_before := source.size.y * shoes.scale.y
     shoes.scale.y *= FOOTWEAR_HEIGHT_SCALE
     shoes.position.y = sole_y_before - source.position.y * shoes.scale.y
     var sole_y_after := shoes.position.y + source.position.y * shoes.scale.y
+    var top_y_after := shoes.position.y + (source.position.y + source.size.y) * shoes.scale.y
     var height_after := source.size.y * shoes.scale.y
     var sole_drift := absf(sole_y_after - sole_y_before)
+    var top_lift := top_y_after - top_y_before
 
     var fit_gate := (
         FOOTWEAR_HEIGHT_SCALE >= MIN_FOOTWEAR_HEIGHT_SCALE
         and FOOTWEAR_HEIGHT_SCALE <= MAX_FOOTWEAR_HEIGHT_SCALE
         and height_after >= MIN_FOOTWEAR_FINAL_HEIGHT_M
         and height_after <= MAX_FOOTWEAR_FINAL_HEIGHT_M
+        and top_lift >= MIN_FOOTWEAR_TOP_LIFT_M
+        and top_lift <= MAX_FOOTWEAR_TOP_LIFT_M
         and sole_drift <= MAX_FOOTWEAR_SOLE_DRIFT_M
     )
     audit["footwear_height_scale"] = FOOTWEAR_HEIGHT_SCALE
@@ -189,6 +199,10 @@ func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
     audit["shoe_height_before_m"] = height_before
     audit["shoe_height_after_m"] = height_after
     audit["shoe_height_gate_m"] = [MIN_FOOTWEAR_FINAL_HEIGHT_M, MAX_FOOTWEAR_FINAL_HEIGHT_M]
+    audit["shoe_top_y_before_fit"] = top_y_before
+    audit["shoe_top_y_after_fit"] = top_y_after
+    audit["shoe_top_lift_m"] = top_lift
+    audit["shoe_top_lift_gate_m"] = [MIN_FOOTWEAR_TOP_LIFT_M, MAX_FOOTWEAR_TOP_LIFT_M]
     audit["sole_y_before_fit"] = sole_y_before
     audit["sole_y_after_fit"] = sole_y_after
     audit["sole_drift_m"] = sole_drift
@@ -196,7 +210,7 @@ func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
     audit["fit_gate"] = fit_gate
     if not fit_gate:
         audit["added"] = false
-        audit["reason"] = "footwear height/sole-preservation fit outside bounded review gate"
+        audit["reason"] = "footwear collar/height/sole-preservation fit outside bounded review gate"
     print("GB_CIV1_FOOTWEAR_FIT ", JSON.stringify(audit))
     return audit
 

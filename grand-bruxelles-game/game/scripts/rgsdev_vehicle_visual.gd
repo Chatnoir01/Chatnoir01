@@ -69,7 +69,7 @@ static var _scene_cache: Dictionary = {}
 @export var animate_wheels: bool = true
 @export var auto_align_forward: bool = true
 @export var auto_ground_model: bool = true
-@export_range(0.0, 0.08, 0.001) var ground_clearance_m: float = 0.015
+@export_range(0.0, 0.08, 0.001) var ground_clearance_m: float = 0.008
 
 var _instance: Node3D = null
 var _wheel_nodes: Array[Node3D] = []
@@ -112,16 +112,31 @@ func get_visual_contract() -> Dictionary:
         "ground_offset_applied_m": _ground_offset_applied_m,
         "ground_contact_y": get_ground_contact_y(),
         "target_ground_y": _target_ground_y(),
+        "visual_forward_dot_body_forward": get_visual_forward_dot_body_forward(),
     }
 
 func instantiate_model_for_test(test_model_id: String) -> Node3D:
     return _instantiate_model(test_model_id)
 
 func get_ground_contact_y() -> float:
+    var wheel_bounds := _wheel_bounds_in_visual_space()
+    if bool(wheel_bounds.get("valid", false)):
+        return float(wheel_bounds.get("min_y", 0.0))
     var bounds := _mesh_bounds_in_visual_space()
     if bool(bounds.get("valid", false)):
         return float(bounds.get("min_y", 0.0))
     return INF
+
+func get_visual_forward_dot_body_forward() -> float:
+    if _front_wheels.is_empty() or _rear_wheels.is_empty():
+        return -1.0
+    var front_center := _wheel_center_in_visual_space(_front_wheels)
+    var rear_center := _wheel_center_in_visual_space(_rear_wheels)
+    var direction := front_center - rear_center
+    direction.y = 0.0
+    if direction.length_squared() <= 0.0001:
+        return -1.0
+    return direction.normalized().dot(Vector3.FORWARD)
 
 func _load_model() -> void:
     if _instance != null and is_instance_valid(_instance):
@@ -210,8 +225,9 @@ func _align_model_forward_from_wheels() -> void:
     if current_forward.length_squared() <= 0.0001:
         return
     current_forward = current_forward.normalized()
-    _forward_yaw_correction_rad = current_forward.signed_angle_to(Vector3.FORWARD, Vector3.UP)
-    _instance.rotate_y(_forward_yaw_correction_rad)
+    var correction := Quaternion(current_forward, Vector3.FORWARD)
+    _forward_yaw_correction_rad = correction.get_euler().y
+    _instance.quaternion = correction * _instance.quaternion
 
 func _target_ground_y() -> float:
     var parent := get_parent()
@@ -225,7 +241,9 @@ func _target_ground_y() -> float:
 func _snap_model_to_collision_bottom() -> void:
     if _instance == null:
         return
-    var bounds := _mesh_bounds_in_visual_space()
+    var bounds := _wheel_bounds_in_visual_space()
+    if not bool(bounds.get("valid", false)):
+        bounds = _mesh_bounds_in_visual_space()
     if not bool(bounds.get("valid", false)):
         return
     var min_y := float(bounds.get("min_y", 0.0))
@@ -233,14 +251,17 @@ func _snap_model_to_collision_bottom() -> void:
     _ground_offset_applied_m = target_y - min_y
     _instance.position.y += _ground_offset_applied_m
 
+func _wheel_bounds_in_visual_space() -> Dictionary:
+    var state := {"valid": false, "min_y": INF, "max_y": -INF}
+    for wheel: Node3D in _wheel_nodes:
+        if is_instance_valid(wheel):
+            _accumulate_mesh_bounds(wheel, state)
+    return state
+
 func _mesh_bounds_in_visual_space() -> Dictionary:
     if _instance == null or not is_instance_valid(_instance):
         return {"valid": false}
-    var state := {
-        "valid": false,
-        "min_y": INF,
-        "max_y": -INF,
-    }
+    var state := {"valid": false, "min_y": INF, "max_y": -INF}
     _accumulate_mesh_bounds(_instance, state)
     return state
 

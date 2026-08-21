@@ -20,7 +20,7 @@ render_mode diffuse_burley, specular_schlick_ggx;
 uniform vec4 dark_color : source_color = vec4(0.085, 0.090, 0.095, 1.0);
 uniform vec4 light_color : source_color = vec4(0.135, 0.140, 0.145, 1.0);
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.95;
-uniform float micro_grain_strength : hint_range(0.0, 1.0) = 0.35;
+uniform float micro_grain_strength : hint_range(0.0, 1.0) = 0.62;
 uniform float micro_grain_frequency : hint_range(0.5, 16.0) = 7.0;
 
 varying vec3 world_pos;
@@ -86,7 +86,7 @@ static func _material(shader: Shader, dark: Color, light: Color, roughness: floa
     material.set_shader_parameter("dark_color", dark)
     material.set_shader_parameter("light_color", light)
     material.set_shader_parameter("base_roughness", roughness)
-    material.set_shader_parameter("micro_grain_strength", 0.35)
+    material.set_shader_parameter("micro_grain_strength", 0.62)
     material.set_shader_parameter("micro_grain_frequency", 7.0)
     material.set_meta("material_family", MATERIAL_FAMILY)
     material.set_meta("presentation_revision", PRESENTATION_REVISION)

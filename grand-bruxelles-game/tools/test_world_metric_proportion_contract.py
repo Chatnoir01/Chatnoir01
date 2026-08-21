@@ -26,7 +26,7 @@ def close(actual: float, expected: float, label: str, tol: float = 1e-9) -> None
 
 
 def gd_const(text: str, name: str) -> float:
-    match = re.search(rf"^const\s+{re.escape(name)}\s*:=\s*(-?\d+(?:\.\d+)?)\s*$", text, re.MULTILINE)
+    match = re.search(rf"^const\s+{re.escape(name)}(?:\s*:\s*[A-Za-z0-9_]+)?\s*:=\s*(-?\d+(?:\.\d+)?)\s*$", text, re.MULTILINE)
     if not match:
         raise AssertionError(f"missing numeric GDScript constant: {name}")
     return float(match.group(1))
@@ -102,9 +102,9 @@ for key, rel in {
 sidewalk = read("game/scripts/anneessens_midi_sidewalk_runtime.gd")
 for const_name, field in {
     "SIDEWALK_HEIGHT_M": "height_m",
-    "NARROW_SIDEWALK_WIDTH_M": "narrow_width_m",
-    "WIDE_SIDEWALK_WIDTH_M": "wide_width_m",
-    "CURB_GAP_M": "curb_gap_m",
+    "SIDEWALK_NARROW_M": "narrow_width_m",
+    "SIDEWALK_WIDE_M": "wide_width_m",
+    "SIDEWALK_GAP_M": "gap_m",
 }.items():
     close(gd_const(sidewalk, const_name), float(anchors["anneessens_midi_sidewalk"][field]), f"sidewalk {field}")
 
@@ -146,4 +146,4 @@ converted = lambert.convert_document({"type": "Point", "coordinates": [oe + 3.0,
 assert converted["grand_bruxelles_coordinate_system"]["units"] == "metres"
 close(math.hypot(*converted["coordinates"]), 5.0, "Lambert 3-4-5 distance")
 
-print("WORLD_METRIC_PROPORTION_OK units=1m player=1.80m radius=0.42m visual=1.78m npc=0.92-1.08 vehicles=metric sidewalks=metric roads=source-first/fallback-labeled furniture=authored-metric geography=distance-preserving")
+print("WORLD_METRIC_PROPORTION_OK units=1m player=1.80m radius=0.42m visual=1.78m npc=0.92-1.08 vehicles=metric sidewalks=1.85/2.55m gap=0.10m roads=source-first/fallback-labeled furniture=authored-metric geography=distance-preserving")

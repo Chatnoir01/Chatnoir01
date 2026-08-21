@@ -45,14 +45,37 @@ jobs:
           target=json.load(open('/tmp/target.json',encoding='utf-8'))
           src=Path('/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_sources')/target['cell_id']
           bbox=target['bbox_epsg31370']
-          assert target['state']=='DATA_READY'
+          assert target['format']=='grand-bruxelles-citygen-secondary-height-target-v1'
+          assert target['municipality']=='anderlecht'
+          assert target['evidence_stage_count'] > 0
           assert target['evidence_progress']==target['evidence_stage_count']
+          assert target['next_action']=='secondary_height_validation_and_terrain_runtime_checks'
+          assert target['runtime_promotion_allowed'] is False
+          assert target['runtime_approved'] is False
+          assert len(bbox)==4 and bbox[2] > bbox[0] and bbox[3] > bbox[1]
           assert (src/'raw/buildings.geojson').is_file()
+          candidates=json.load((src/'building_height_candidates.json').open(encoding='utf-8'))
+          assert candidates['format']=='grand-bruxelles-cell-building-height-candidates-v1'
+          assert candidates['cell_id']==target['cell_id']
+          assert candidates['bbox']==bbox
+          assert candidates['crs']=='EPSG:31370'
+          assert candidates['candidate_count'] > 0
+          assert candidates['candidate_count']==sum(1 for row in candidates['buildings'] if row.get('candidate_height_m') is not None)
+          assert candidates['runtime_approved_count']==0
+          assert candidates['runtime_promotion_allowed'] is False
+          assert all(row.get('runtime_approved') is False for row in candidates['buildings'])
           with Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8') as h:
               h.write(f"CELL={target['cell_id']}\n")
               h.write(f"SRC={src}\n")
               h.write(f"MIN_E={bbox[0]}\nMIN_N={bbox[1]}\nMAX_E={bbox[2]}\nMAX_N={bbox[3]}\n")
-          print('FACE_IDENTITY_TARGET_OK',target['cell_id'],target['evidence_progress'],target['evidence_stage_count'])
+          print(
+              'FACE_IDENTITY_TARGET_OK',
+              target['cell_id'],
+              f"evidence={target['evidence_progress']}/{target['evidence_stage_count']}",
+              f"crs={candidates['crs']}",
+              f"candidates={candidates['candidate_count']}",
+              'runtime_promotion=false',
+          )
           PY
 
       - name: Discover current official Anderlecht UrbIS3D package

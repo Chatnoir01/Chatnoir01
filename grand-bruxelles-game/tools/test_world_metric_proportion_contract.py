@@ -32,6 +32,21 @@ def gd_const(text: str, name: str) -> float:
     return float(match.group(1))
 
 
+def tscn_subresource(text: str, resource_type: str, resource_id: str) -> str:
+    header = rf'^\[sub_resource type="{re.escape(resource_type)}" id="{re.escape(resource_id)}"\]\s*$'
+    match = re.search(header + r"\n(.*?)(?=\n\[|\Z)", text, re.MULTILINE | re.DOTALL)
+    if not match:
+        raise AssertionError(f"missing TSCN subresource {resource_type}/{resource_id}")
+    return match.group(1)
+
+
+def tscn_float(block: str, key: str) -> float:
+    match = re.search(rf"^{re.escape(key)}\s*=\s*(-?\d+(?:\.\d+)?)\s*$", block, re.MULTILINE)
+    if not match:
+        raise AssertionError(f"missing TSCN numeric property: {key}")
+    return float(match.group(1))
+
+
 contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
 assert contract["format"] == "grand-bruxelles-world-metric-proportion-contract-v1"
 assert contract["world_units"]["godot_units_per_meter"] == 1.0
@@ -41,8 +56,9 @@ for key, value in contract["policy"].items():
 anchors = contract["anchors"]
 
 main_scene = read("game/main.tscn")
-assert re.search(r'\[sub_resource type="CapsuleShape3D"[^\]]*\]\s*radius = 0\.4\s*height = 1\.8', main_scene), "player capsule is not 0.4m radius / 1.8m high"
-close(float(anchors["player_physics"]["height_m"]), 1.8, "contract player physics")
+player_capsule = tscn_subresource(main_scene, "CapsuleShape3D", "CapsuleShape_player")
+close(tscn_float(player_capsule, "height"), float(anchors["player_physics"]["height_m"]), "player physics height")
+close(tscn_float(player_capsule, "radius"), float(anchors["player_physics"]["radius_m"]), "player physics radius")
 
 camera = read("game/scripts/gta_scale_camera_runtime.gd")
 require(camera, "The world remains metre-authored", "camera world-scale rail")
@@ -110,13 +126,11 @@ for anchor_key, rel, checks in (
     for const_name, field in checks.items():
         close(gd_const(text, const_name), float(anchor[field]), f"{anchor_key} {field}")
 
-# Tree variation is deterministic and bounded around the authored metric silhouette.
 tree = read("game/scripts/brussels_street_tree_asset.gd")
 require(tree, "return 0.92 + float(bucket) * 0.016", "tree variation scale")
 close(float(anchors["street_tree"]["variation_scale_min"]), 0.92, "tree variation min")
 close(float(anchors["street_tree"]["variation_scale_max"]), 1.08, "tree variation max")
 
-# Lambert72 -> game is translation + axis flip only, so Euclidean distance stays 1:1 in metres.
 lambert_path = ROOT / "tools/lambert72_to_game_geojson.py"
 spec = importlib.util.spec_from_file_location("lambert72_to_game_geojson", lambert_path)
 assert spec and spec.loader
@@ -132,4 +146,4 @@ converted = lambert.convert_document({"type": "Point", "coordinates": [oe + 3.0,
 assert converted["grand_bruxelles_coordinate_system"]["units"] == "metres"
 close(math.hypot(*converted["coordinates"]), 5.0, "Lambert 3-4-5 distance")
 
-print("WORLD_METRIC_PROPORTION_OK units=1m player=1.80m visual=1.78m npc=0.92-1.08 vehicles=metric sidewalks=metric roads=source-first/fallback-labeled furniture=authored-metric geography=distance-preserving")
+print("WORLD_METRIC_PROPORTION_OK units=1m player=1.80m radius=0.42m visual=1.78m npc=0.92-1.08 vehicles=metric sidewalks=metric roads=source-first/fallback-labeled furniture=authored-metric geography=distance-preserving")

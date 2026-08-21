@@ -71,6 +71,18 @@ func _run() -> void:
     world.add_child(ambulance)
     ambulance.configure_archetype("car")
 
+    var siren := ambulance.get_node_or_null("Siren3D") as AudioStreamPlayer3D
+    if siren == null or not siren.stream is AudioStreamWAV:
+        _fail("siren_stream_missing")
+        return
+    var siren_stream := siren.stream as AudioStreamWAV
+    if siren_stream.data.size() < 1000 or siren_stream.loop_mode != AudioStreamWAV.LOOP_FORWARD:
+        _fail("siren_stream_invalid bytes=%d loop=%d" % [siren_stream.data.size(), siren_stream.loop_mode])
+        return
+    if ambulance.is_siren_playing():
+        _fail("siren_playing_while_emergency_off")
+        return
+
     var traffic := TRAFFIC_SCRIPT.new() as TrafficVehicleCore
     traffic.position = Vector3(0.0, 1.0, -7.0)
     traffic.speed_factor = 0.83
@@ -90,17 +102,22 @@ func _run() -> void:
     if not ambulance.is_emergency_mode():
         _fail("emergency_mode_not_enabled")
         return
+    if not ambulance.is_siren_playing():
+        _fail("siren_not_playing_in_emergency")
+        return
     if float(traffic.speed_factor) > ambulance.yielded_speed_factor + 0.001:
         _fail("traffic_did_not_yield speed_factor=%.3f" % traffic.speed_factor)
         return
 
     ambulance.set_emergency_mode(false)
     await process_frame
+    if ambulance.is_siren_playing():
+        _fail("siren_still_playing_after_emergency_off")
+        return
     if absf(float(traffic.speed_factor) - 0.83) > 0.001:
         _fail("traffic_speed_not_restored=%.3f" % traffic.speed_factor)
         return
 
-    # The yield witness must not become an artificial obstacle for the motion proof.
     traffic.global_position = Vector3(22.0, 1.0, 22.0)
     await physics_frame
 
@@ -123,9 +140,12 @@ func _run() -> void:
     if not bool(contract.get("drivable", false)) or not bool(contract.get("external_driver_supported", false)):
         _fail("contract_missing_driving_support")
         return
+    if not bool(contract.get("siren", false)) or not bool(contract.get("siren_spatial_3d", false)):
+        _fail("contract_missing_siren")
+        return
     if bool(contract.get("other_special_vehicles_auto_spawned", true)):
         _fail("other_special_vehicles_enabled")
         return
 
-    print("AMBULANCE_PROBE_OK ambulances=2 emergency=true yield_restore=true external_drive_m=%.3f other_special=false engine=%s" % [displacement, version])
+    print("AMBULANCE_PROBE_OK ambulances=2 emergency=true siren=true yield_restore=true external_drive_m=%.3f other_special=false engine=%s" % [displacement, version])
     quit(0)

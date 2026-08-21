@@ -2,6 +2,7 @@ extends SceneTree
 
 const JETTE_ZONE := "res://game/zones/laeken_jette/jette_phase2_zone.gd"
 const JETTE_DATA := "res://data/osm/zones/jette/environment.game.json"
+const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const TREE := preload("res://game/scripts/brussels_street_tree_asset.gd")
 const SPAWN := Vector3(-687.700268506218, 1.05, -4952.774160383269)
 const BEFORE := "res://artifacts/visual/tree_lod_full_detail_before.png"
@@ -67,6 +68,18 @@ func _diff_metrics(before: Image, after: Image) -> Dictionary:
         "bbox_width": 0 if max_x < min_x else max_x - min_x + 1,
         "bbox_height": 0 if max_y < min_y else max_y - min_y + 1,
     }
+
+func _jette_contract() -> Dictionary:
+    var parsed: Variant = JSON.parse_string(_read(CATALOG_PATH))
+    if typeof(parsed) != TYPE_DICTIONARY:
+        return {}
+    var rows: Variant = (parsed as Dictionary).get("zones", [])
+    if not rows is Array:
+        return {}
+    for row_variant in rows:
+        if row_variant is Dictionary and str((row_variant as Dictionary).get("id", "")) == "jette":
+            return (row_variant as Dictionary).duplicate(true)
+    return {}
 
 func _environment_rows() -> Array:
     var parsed: Variant = JSON.parse_string(_read(JETTE_DATA))
@@ -174,8 +187,12 @@ func _build_far_tree_signal(parent: Node3D, rows: Array, full_detail: bool) -> i
     return lobe_count
 
 func _run() -> void:
-    if not FileAccess.file_exists(JETTE_ZONE) or not FileAccess.file_exists(JETTE_DATA):
+    if not FileAccess.file_exists(JETTE_ZONE) or not FileAccess.file_exists(JETTE_DATA) or not FileAccess.file_exists(CATALOG_PATH):
         _fail("Jette source-backed environment witness inputs missing")
+        return
+    var jette := _jette_contract()
+    if jette.is_empty() or str(jette.get("environment_artifact", "")) != JETTE_DATA:
+        _fail("Jette catalog-owned environment contract missing")
         return
     var nearest_tree := _nearest_tree()
     if not is_finite(nearest_tree.x):
@@ -212,9 +229,19 @@ func _run() -> void:
     world_root.add_child(zone)
     for _frame in range(12):
         await process_frame
-    var runtime := zone.get_node_or_null("BrusselsOsmEnvironment") as Node3D
-    if runtime == null:
-        _fail("Jette generic environment runtime missing")
+    var selector := root.get_node_or_null("ZoneSelectorRuntime")
+    if selector == null or not selector.has_method("_mount_environment_if_required"):
+        _fail("ZoneSelectorRuntime generic environment mount missing")
+        return
+    var mounted := bool(await selector.call("_mount_environment_if_required", world_root, jette))
+    if not mounted:
+        _fail("ZoneSelectorRuntime refused Jette environment contract")
+        return
+    for _frame in range(3):
+        await process_frame
+    var runtime := world_root.get_node_or_null("ZoneEnvironment_jette") as Node3D
+    if runtime == null or not bool(runtime.call("loaded_ok")):
+        _fail("catalog-driven Jette generic environment runtime missing")
         return
     runtime.set_process(false)
 
@@ -279,12 +306,6 @@ func _run() -> void:
         _fail("tree LOD changes too much of the player frame: gt3=%.4f%% gt8=%.4f%%" % [full_gt3 * 100.0, full_gt8 * 100.0])
         return
 
-    # Supplemental render diagnostic only: use the same camera, materials and exact
-    # source-backed transforms, but isolate the far-tree foliage whose instance
-    # count changes. A minimum pixel-damage threshold is intentionally not an
-    # acceptance gate: for a distance LOD, imperceptible player-view delta is a
-    # successful outcome. The authoritative gates are the >=30% instance reduction
-    # plus the frozen full-frame maximum-change budgets above.
     var far_rows := _far_tree_rows()
     if far_rows.size() != far_count:
         _fail("diagnostic far-tree source selection drifted: expected %d got %d" % [far_count, far_rows.size()])
@@ -312,5 +333,5 @@ func _run() -> void:
     var signal_gt3 := float(signal_metrics["changed_gt3"])
 
     print("BRUSSELS_TREE_DISTANCE_LOD_VISUAL_METRICS: trees=%d near=%d far=%d foliage=%d->%d reduction=%.2f%% full_gt3=%.4f%% full_gt8=%.4f%% full_bbox=%dx%d signal_gt3=%.4f%% signal_bbox=%dx%d signal_lobes=%d->%d" % [EXPECTED_RENDERED_TREES, near_count, far_count, baseline_foliage, optimized_foliage, reduction * 100.0, full_gt3 * 100.0, full_gt8 * 100.0, int(full_metrics["bbox_width"]), int(full_metrics["bbox_height"]), signal_gt3 * 100.0, int(signal_metrics["bbox_width"]), int(signal_metrics["bbox_height"]), signal_full_lobes, signal_lod_lobes])
-    print("BRUSSELS_TREE_DISTANCE_LOD_VISUAL_OK: camera_eye=1.65m fov=70 source_positions_unchanged=true batches=3 diagnostic_camera_unchanged=true diagnostic_far_trees_only=true instance_reduction_gate=true full_frame_non_regression_gate=true")
+    print("BRUSSELS_TREE_DISTANCE_LOD_VISUAL_OK: camera_eye=1.65m fov=70 source_positions_unchanged=true batches=3 catalog_mount=true diagnostic_camera_unchanged=true diagnostic_far_trees_only=true instance_reduction_gate=true full_frame_non_regression_gate=true")
     quit(0)

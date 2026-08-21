@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+EXPECTED = {
+    "candidate_id": "CIV-1",
+    "owner_verdict": "GARDER",
+    "approved_review_pr": 1006,
+    "character_repo": "https://github.com/ibrews/VitruvianGodot",
+    "character_commit": "bdecdcd537b4031fdd0fb299b7e4f93f084fffa0",
+    "footwear_repo": "https://github.com/furqonat/makehuman-assets",
+    "footwear_commit": "8cf9645b975a98eea056b140df11a1d278da0d10",
+    "footwear_asset": "base/clothes/shoes03/shoes03.obj",
+    "footwear_blob": "2cd09f0af9c5bd13604d57d8af19e9205933ee85",
+}
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _load_status(root: Path) -> tuple[Path, dict]:
+    path = root / "assets/characters/civilians/civ1/source_status.json"
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    return path, json.loads(path.read_text(encoding="utf-8"))
+
+
+def validate(root: Path, require_ready: bool = False) -> list[str]:
+    errors: list[str] = []
+    try:
+        _, status = _load_status(root)
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        return [f"cannot load CIV-1 source status: {exc}"]
+
+    for key, expected in (
+        ("candidate_id", EXPECTED["candidate_id"]),
+        ("owner_verdict", EXPECTED["owner_verdict"]),
+        ("approved_review_pr", EXPECTED["approved_review_pr"]),
+    ):
+        if status.get(key) != expected:
+            errors.append(f"{key} must be {expected!r}")
+
+    character = status.get("character_source", {})
+    footwear = status.get("footwear_source", {})
+    if character.get("repository") != EXPECTED["character_repo"]:
+        errors.append("character source repository drift")
+    if character.get("commit") != EXPECTED["character_commit"]:
+        errors.append("character source commit drift")
+    if character.get("license") != "CC0-1.0":
+        errors.append("character source must remain CC0-1.0")
+    if footwear.get("repository") != EXPECTED["footwear_repo"]:
+        errors.append("footwear source repository drift")
+    if footwear.get("commit") != EXPECTED["footwear_commit"]:
+        errors.append("footwear source commit drift")
+    if footwear.get("asset") != EXPECTED["footwear_asset"]:
+        errors.append("footwear source asset drift")
+    if footwear.get("obj_git_blob_sha1") != EXPECTED["footwear_blob"]:
+        errors.append("footwear blob pin drift")
+    if footwear.get("license") != "CC0-1.0":
+        errors.append("footwear source must remain CC0-1.0")
+    if status.get("mixamo_payload_allowed") is not False:
+        errors.append("Mixamo-derived payload must remain excluded")
+
+    source_paths = status.get("source_paths")
+    runtime_files = status.get("runtime_files")
+    runtime_scene = status.get("runtime_scene")
+    runtime_hashes = status.get("runtime_sha256")
+    forbidden = status.get("forbidden_runtime_paths")
+    for label, value in (
+        ("source_paths", source_paths),
+        ("runtime_files", runtime_files),
+        ("forbidden_runtime_paths", forbidden),
+    ):
+        if not isinstance(value, list) or not value:
+            errors.append(f"{label} must be a non-empty list")
+    if not isinstance(runtime_hashes, dict):
+        errors.append("runtime_sha256 must be an object")
+        runtime_hashes = {}
+
+    canonical_prefix = "assets/characters/civilians/civ1/"
+    player_forbidden = ("assets/characters/player_character.glb", "assets/characters/player/")
+    if isinstance(forbidden, list):
+        for required in player_forbidden:
+            if required not in forbidden:
+                errors.append(f"missing forbidden player path: {required}")
+
+    if not isinstance(runtime_scene, str) or not runtime_scene.startswith(canonical_prefix):
+        errors.append("runtime_scene must live under the canonical CIV-1 directory")
+    if isinstance(runtime_files, list):
+        for rel in runtime_files:
+            if not isinstance(rel, str) or not rel.startswith(canonical_prefix):
+                errors.append(f"runtime file escapes canonical CIV-1 directory: {rel!r}")
+            if rel == player_forbidden[0] or rel.startswith(player_forbidden[1]):
+                errors.append(f"player character reuse is forbidden: {rel}")
+        if runtime_scene not in runtime_files:
+            errors.append("runtime_scene must be listed in runtime_files")
+
+    source_present = status.get("source_package_present") is True
+    runtime_present = status.get("runtime_package_present") is True
+    authorized = status.get("production_authorized") is True
+    ready = status.get("activation_ready") is True
+
+    if source_present and isinstance(source_paths, list):
+        for rel in source_paths:
+            if not (root / rel).is_file():
+                errors.append(f"declared source file missing: {rel}")
+    if runtime_present and isinstance(runtime_files, list):
+        for rel in runtime_files:
+            target = root / rel
+            if not target.is_file():
+                errors.append(f"declared runtime file missing: {rel}")
+                continue
+            expected_hash = runtime_hashes.get(rel)
+            if not isinstance(expected_hash, str) or len(expected_hash) != 64:
+                errors.append(f"missing sha256 for runtime file: {rel}")
+                continue
+            actual = _sha256(target)
+            if actual != expected_hash.lower():
+                errors.append(f"sha256 mismatch for runtime file: {rel}")
+
+    if authorized and status.get("owner_verdict") != "GARDER":
+        errors.append("production authorization requires owner verdict GARDER")
+    if authorized and not (source_present and runtime_present):
+        errors.append("production authorization requires complete source and runtime packages")
+    if ready and not authorized:
+        errors.append("activation_ready requires production_authorized=true")
+    if ready and not (source_present and runtime_present):
+        errors.append("activation_ready requires complete source and runtime packages")
+    if ready and isinstance(runtime_files, list):
+        for rel in runtime_files:
+            if rel not in runtime_hashes:
+                errors.append(f"activation_ready requires sha256 for {rel}")
+
+    if require_ready and not ready:
+        errors.append("CIV-1 runtime packaging is not activation-ready")
+
+    return errors
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate fail-closed CIV-1 runtime packaging status")
+    parser.add_argument("--require-ready", action="store_true", help="fail unless the canonical package is activation-ready")
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[1]
+    errors = validate(root, require_ready=args.require_ready)
+    if errors:
+        print("CIV1_RUNTIME_PACKAGING_FAIL")
+        for error in errors:
+            print(f"- {error}")
+        return 1
+    state = json.loads((root / "assets/characters/civilians/civ1/source_status.json").read_text(encoding="utf-8"))
+    print("CIV1_RUNTIME_PACKAGING_OK")
+    print(f"activation_ready={str(state.get('activation_ready') is True).lower()}")
+    print(f"blocker={state.get('blocker', '')}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

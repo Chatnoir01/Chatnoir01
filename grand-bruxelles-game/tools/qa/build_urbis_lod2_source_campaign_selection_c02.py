@@ -71,6 +71,7 @@ def main() -> int:
             return None
         return evidence
 
+    # Reconstruct C01 from its immutable policy, then require its locked digest.
     c01: list[str] = []
     for batch in batches:
         if batch["assignment_status"] != "assigned" or batch["municipality_slug"] != "anderlecht":

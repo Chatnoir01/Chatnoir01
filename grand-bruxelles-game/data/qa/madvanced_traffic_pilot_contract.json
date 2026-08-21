@@ -18,17 +18,8 @@
     "addons/M.A.V.S/Scripts/Path_Follow_Setup.gd",
     "addons/M.A.V.S/Scripts/traffic_spawner.gd"
   ],
-  "required_classes": [
-    "MPathManager",
-    "MTrafficTarget",
-    "MTrafficSpawner"
-  ],
-  "vehicle_contract_properties": [
-    "take_speed_from_target",
-    "boost_speed",
-    "target_ray",
-    "despawn_allowed"
-  ],
+  "required_classes": ["MPathManager", "MTrafficTarget", "MTrafficSpawner"],
+  "vehicle_contract_properties": ["take_speed_from_target", "boost_speed", "target_ray", "despawn_allowed"],
   "policy": {
     "canonical_addon_install_authorized": false,
     "runtime_authorized": false,
@@ -42,7 +33,7 @@
   "success_criteria": {
     "published_source_pin_exact": true,
     "godot_4_7_1_parses_logic_subset": true,
-    "real_project_copy_keeps_gl_compatibility": true,
+    "isolated_probe_uses_gl_compatibility": true,
     "path_manager_is_path3d": true,
     "traffic_target_is_pathfollow3d": true,
     "spawner_accepts_path3d": true,

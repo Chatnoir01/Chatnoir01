@@ -21,7 +21,7 @@ render_mode diffuse_burley, specular_schlick_ggx;
 uniform vec4 dark_color : source_color = vec4(0.325, 0.316, 0.297, 1.0);
 uniform vec4 light_color : source_color = vec4(0.438, 0.426, 0.400, 1.0);
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.93;
-uniform float micro_grain_strength : hint_range(0.0, 1.0) = 0.17;
+uniform float micro_grain_strength : hint_range(0.0, 1.0) = 0.18;
 uniform float micro_grain_frequency : hint_range(0.5, 12.0) = 5.0;
 
 varying vec3 world_pos;
@@ -71,10 +71,13 @@ void fragment() {
     float secondary = value_noise(rotate2(warped, -0.92) * 0.145 + vec2(41.0, 5.0));
     float authored_tone = clamp(broad * 0.72 + secondary * 0.28, 0.0, 1.0);
     float raw_grain = fine_grain(xz);
-    float grain = (raw_grain - 0.5) * micro_grain_strength;
-    // Keep the broad authored tone intact, but give close-player pixels enough
-    // local contrast to survive 8-bit output and compression. This is a
-    // presentation recipe only: it does not encode paving units or geometry.
+    float centered = raw_grain - 0.5;
+    float normalized = clamp(abs(centered) * 2.0, 0.0, 1.0);
+    // Non-linear shaping suppresses the broad band of barely-visible 3-8 LSB
+    // changes while preserving sparse high-contrast grain peaks. This keeps the
+    // microtexture readable without letting it dominate the whole player frame.
+    float shaped = pow(normalized, 1.25);
+    float grain = sign(centered) * shaped * 0.5 * micro_grain_strength;
     float micro_contrast = grain * 0.75;
     vec3 base = mix(dark_color.rgb, light_color.rgb, authored_tone);
     ALBEDO = base * (1.0 + micro_contrast);
@@ -91,7 +94,7 @@ static func create_material() -> ShaderMaterial:
     material.set_shader_parameter("dark_color", Color(0.325, 0.316, 0.297, 1.0))
     material.set_shader_parameter("light_color", Color(0.438, 0.426, 0.400, 1.0))
     material.set_shader_parameter("base_roughness", 0.93)
-    material.set_shader_parameter("micro_grain_strength", 0.17)
+    material.set_shader_parameter("micro_grain_strength", 0.18)
     material.set_shader_parameter("micro_grain_frequency", 5.0)
     material.set_meta("material_family", MATERIAL_FAMILY)
     material.set_meta("presentation_revision", PRESENTATION_REVISION)

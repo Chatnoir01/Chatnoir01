@@ -20,33 +20,33 @@ func _fail(message: String) -> void:
     quit(1)
 
 func _read(path: String) -> String:
-    var file := FileAccess.open(path, FileAccess.READ)
+    var file: FileAccess = FileAccess.open(path, FileAccess.READ)
     return file.get_as_text() if file != null else ""
 
 func _capture(viewport: SubViewport, path: String) -> Image:
     RenderingServer.force_draw()
     await process_frame
-    var image := viewport.get_texture().get_image()
+    var image: Image = viewport.get_texture().get_image()
     if image == null or image.is_empty():
         return null
-    var absolute := ProjectSettings.globalize_path(path)
+    var absolute: String = ProjectSettings.globalize_path(path)
     DirAccess.make_dir_recursive_absolute(absolute.get_base_dir())
     return image if image.save_png(absolute) == OK else null
 
 func _diff_metrics(before: Image, after: Image) -> Dictionary:
-    var changed_gt3 := 0
-    var changed_gt8 := 0
-    var total := 0
-    var min_x := before.get_width()
-    var min_y := before.get_height()
-    var max_x := -1
-    var max_y := -1
-    for y in range(0, before.get_height(), 2):
-        for x in range(0, before.get_width(), 2):
+    var changed_gt3: int = 0
+    var changed_gt8: int = 0
+    var total: int = 0
+    var min_x: int = before.get_width()
+    var min_y: int = before.get_height()
+    var max_x: int = -1
+    var max_y: int = -1
+    for y: int in range(0, before.get_height(), 2):
+        for x: int in range(0, before.get_width(), 2):
             total += 1
-            var a := before.get_pixel(x, y)
-            var b := after.get_pixel(x, y)
-            var delta := max(absf(a.r - b.r), max(absf(a.g - b.g), absf(a.b - b.b))) * 255.0
+            var a: Color = before.get_pixel(x, y)
+            var b: Color = after.get_pixel(x, y)
+            var delta: float = maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b))) * 255.0
             if delta > 3.0:
                 changed_gt3 += 1
                 min_x = mini(min_x, x)
@@ -55,8 +55,8 @@ func _diff_metrics(before: Image, after: Image) -> Dictionary:
                 max_y = maxi(max_y, y)
             if delta > 8.0:
                 changed_gt8 += 1
-    var bbox_width := 0 if max_x < min_x else max_x - min_x + 1
-    var bbox_height := 0 if max_y < min_y else max_y - min_y + 1
+    var bbox_width: int = 0 if max_x < min_x else max_x - min_x + 1
+    var bbox_height: int = 0 if max_y < min_y else max_y - min_y + 1
     return {
         "changed_gt3": float(changed_gt3) / float(maxi(total, 1)),
         "changed_gt8": float(changed_gt8) / float(maxi(total, 1)),
@@ -65,31 +65,32 @@ func _diff_metrics(before: Image, after: Image) -> Dictionary:
     }
 
 func _nearest_tree() -> Vector3:
-    var parsed := JSON.parse_string(_read(JETTE_DATA))
+    var parsed: Variant = JSON.parse_string(_read(JETTE_DATA))
     if typeof(parsed) != TYPE_DICTIONARY:
         return Vector3(INF, INF, INF)
-    var nearest := Vector3(INF, INF, INF)
-    var nearest_distance := INF
-    for row_variant in (parsed as Dictionary).get("environment_points", []):
+    var nearest: Vector3 = Vector3(INF, INF, INF)
+    var nearest_distance: float = INF
+    var points: Array = (parsed as Dictionary).get("environment_points", []) as Array
+    for row_variant: Variant in points:
         if not row_variant is Dictionary:
             continue
-        var row := row_variant as Dictionary
+        var row: Dictionary = row_variant as Dictionary
         if str(row.get("kind", "")) != "tree":
             continue
-        var position_value := row.get("position", []) as Array
+        var position_value: Array = row.get("position", []) as Array
         if position_value.size() < 2:
             continue
-        var world := Vector3(float(position_value[0]), 0.0, float(position_value[1]))
-        var distance := Vector2(world.x - SPAWN.x, world.z - SPAWN.z).length()
+        var world: Vector3 = Vector3(float(position_value[0]), 0.0, float(position_value[1]))
+        var distance: float = Vector2(world.x - SPAWN.x, world.z - SPAWN.z).length()
         if distance < nearest_distance:
             nearest_distance = distance
             nearest = world
     return nearest
 
 func _tree_batch_count(runtime: Node) -> int:
-    var count := 0
-    for name_value in ["TreeTrunks", "TreeFoliageDark", "TreeFoliageLight"]:
-        var batch := runtime.get_node_or_null(name_value) as MultiMeshInstance3D
+    var count: int = 0
+    for name_value: String in ["TreeTrunks", "TreeFoliageDark", "TreeFoliageLight"]:
+        var batch: MultiMeshInstance3D = runtime.get_node_or_null(name_value) as MultiMeshInstance3D
         if batch != null and batch.multimesh != null:
             count += 1
     return count
@@ -99,32 +100,32 @@ func _run() -> void:
         _fail("Jette source-backed environment witness inputs missing")
         return
 
-    var nearest_tree := _nearest_tree()
+    var nearest_tree: Vector3 = _nearest_tree()
     if not is_finite(nearest_tree.x):
         _fail("could not resolve a source-backed Jette tree")
         return
 
-    var viewport := SubViewport.new()
+    var viewport: SubViewport = SubViewport.new()
     viewport.size = Vector2i(1280, 720)
     viewport.own_world_3d = true
     viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
     root.add_child(viewport)
 
-    var world_root := Node3D.new()
+    var world_root: Node3D = Node3D.new()
     viewport.add_child(world_root)
 
-    var player := CharacterBody3D.new()
+    var player: CharacterBody3D = CharacterBody3D.new()
     player.name = "Player"
     player.add_to_group("player")
     player.position = SPAWN
     world_root.add_child(player)
 
-    var light := DirectionalLight3D.new()
+    var light: DirectionalLight3D = DirectionalLight3D.new()
     light.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
     light.light_energy = 1.25
     world_root.add_child(light)
 
-    var environment := WorldEnvironment.new()
+    var environment: WorldEnvironment = WorldEnvironment.new()
     environment.environment = Environment.new()
     environment.environment.background_mode = Environment.BG_COLOR
     environment.environment.background_color = Color(0.62, 0.72, 0.82)
@@ -133,22 +134,22 @@ func _run() -> void:
     environment.environment.ambient_light_energy = 0.7
     world_root.add_child(environment)
 
-    var zone_script := load(JETTE_ZONE) as Script
-    var zone := zone_script.new() as Node3D
+    var zone_script: Script = load(JETTE_ZONE) as Script
+    var zone: Node3D = zone_script.new() as Node3D
     world_root.add_child(zone)
-    for _frame in range(12):
+    for _frame: int in range(12):
         await process_frame
 
-    var runtime := zone.get_node_or_null("BrusselsOsmEnvironment") as Node3D
+    var runtime: Node3D = zone.get_node_or_null("BrusselsOsmEnvironment") as Node3D
     if runtime == null:
         _fail("Jette generic environment runtime missing")
         return
     runtime.set_process(false)
 
-    var camera_direction := Vector3(SPAWN.x - nearest_tree.x, 0.0, SPAWN.z - nearest_tree.z).normalized()
+    var camera_direction: Vector3 = Vector3(SPAWN.x - nearest_tree.x, 0.0, SPAWN.z - nearest_tree.z).normalized()
     if camera_direction.length_squared() < 0.5:
         camera_direction = Vector3.FORWARD
-    var camera := Camera3D.new()
+    var camera: Camera3D = Camera3D.new()
     camera.position = nearest_tree + camera_direction * 12.0 + Vector3(0.0, 1.65, 0.0)
     camera.look_at_from_position(camera.position, nearest_tree + Vector3(0.0, 2.8, 0.0), Vector3.UP)
     camera.fov = 70.0
@@ -157,59 +158,59 @@ func _run() -> void:
 
     runtime.set("tree_full_detail_radius_m", float(runtime.get("render_radius_m")))
     runtime.call("_rebuild", SPAWN)
-    for _frame in range(3):
+    for _frame: int in range(3):
         await process_frame
-    var baseline_counts := (runtime.get("last_tree_lod_counts") as Dictionary).duplicate(true)
-    var baseline_render_counts := (runtime.get("last_render_counts") as Dictionary).duplicate(true)
+    var baseline_counts: Dictionary = (runtime.get("last_tree_lod_counts") as Dictionary).duplicate(true)
+    var baseline_render_counts: Dictionary = (runtime.get("last_render_counts") as Dictionary).duplicate(true)
     if int(baseline_render_counts.get("tree", 0)) != EXPECTED_RENDERED_TREES:
         _fail("full-detail baseline tree count drifted")
         return
     if int(baseline_counts.get("far", -1)) != 0 or int(baseline_counts.get("near", 0)) != EXPECTED_RENDERED_TREES:
         _fail("full-detail baseline did not keep all rendered trees near-detail")
         return
-    var baseline_foliage := int(baseline_counts.get("foliage_instances", 0))
+    var baseline_foliage: int = int(baseline_counts.get("foliage_instances", 0))
     if baseline_foliage != EXPECTED_RENDERED_TREES * EXPECTED_LOBES_PER_NEAR_TREE:
         _fail("full-detail baseline foliage instance count drifted")
         return
     if _tree_batch_count(runtime) != 3:
         _fail("full-detail baseline lost deterministic three-batch tree renderer")
         return
-    var before := await _capture(viewport, BEFORE)
+    var before: Image = await _capture(viewport, BEFORE)
 
     runtime.set("tree_full_detail_radius_m", 140.0)
     runtime.call("_rebuild", SPAWN)
-    for _frame in range(3):
+    for _frame: int in range(3):
         await process_frame
-    var optimized_counts := (runtime.get("last_tree_lod_counts") as Dictionary).duplicate(true)
-    var optimized_render_counts := (runtime.get("last_render_counts") as Dictionary).duplicate(true)
+    var optimized_counts: Dictionary = (runtime.get("last_tree_lod_counts") as Dictionary).duplicate(true)
+    var optimized_render_counts: Dictionary = (runtime.get("last_render_counts") as Dictionary).duplicate(true)
     if int(optimized_render_counts.get("tree", 0)) != EXPECTED_RENDERED_TREES:
         _fail("distance LOD changed source-backed rendered tree count")
         return
-    var near_count := int(optimized_counts.get("near", 0))
-    var far_count := int(optimized_counts.get("far", 0))
-    var optimized_foliage := int(optimized_counts.get("foliage_instances", 0))
+    var near_count: int = int(optimized_counts.get("near", 0))
+    var far_count: int = int(optimized_counts.get("far", 0))
+    var optimized_foliage: int = int(optimized_counts.get("foliage_instances", 0))
     if near_count + far_count != EXPECTED_RENDERED_TREES or near_count <= 0 or far_count <= 0:
         _fail("real-scene LOD partition is invalid")
         return
-    var expected_optimized_foliage := near_count * EXPECTED_LOBES_PER_NEAR_TREE + far_count * EXPECTED_LOBES_PER_FAR_TREE
+    var expected_optimized_foliage: int = near_count * EXPECTED_LOBES_PER_NEAR_TREE + far_count * EXPECTED_LOBES_PER_FAR_TREE
     if optimized_foliage != expected_optimized_foliage:
         _fail("real-scene LOD foliage count does not match near/far contract")
         return
-    var reduction := 1.0 - float(optimized_foliage) / float(maxi(baseline_foliage, 1))
+    var reduction: float = 1.0 - float(optimized_foliage) / float(maxi(baseline_foliage, 1))
     if reduction < 0.30:
         _fail("real-scene foliage reduction is too small: %.2f%%" % [reduction * 100.0])
         return
     if _tree_batch_count(runtime) != 3:
         _fail("distance LOD changed deterministic three-batch tree renderer")
         return
-    var after := await _capture(viewport, AFTER)
+    var after: Image = await _capture(viewport, AFTER)
     if before == null or after == null:
         _fail("tree LOD A/B capture failed")
         return
 
-    var metrics := _diff_metrics(before, after)
-    var changed_gt3 := float(metrics["changed_gt3"])
-    var changed_gt8 := float(metrics["changed_gt8"])
+    var metrics: Dictionary = _diff_metrics(before, after)
+    var changed_gt3: float = float(metrics["changed_gt3"])
+    var changed_gt8: float = float(metrics["changed_gt8"])
     if changed_gt3 < MIN_CHANGED_GT3:
         _fail("tree LOD did not produce a measurable player-view delta")
         return

@@ -35,9 +35,13 @@ var backend: BrusselsCellNodeBackend
 var runtime_ready := false
 var disabled_for_direct_ixelles := false
 var discovered_cell_count := 0
+var runtime_cell_descriptors: Array[Dictionary] = []
 var _player: CharacterBody3D
 var _last_observer_position := Vector3.ZERO
 var _has_last_observer := false
+var _destination_preload_active := false
+var _destination_preload_cell_id := ""
+var _destination_preload_position := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -65,12 +69,12 @@ func _ready() -> void:
     add_child(backend)
     backend.bind_manager(manager)
 
-    var descriptors := discover_runtime_cell_descriptors()
-    discovered_cell_count = descriptors.size()
+    runtime_cell_descriptors = discover_runtime_cell_descriptors()
+    discovered_cell_count = runtime_cell_descriptors.size()
     if discovered_cell_count == 0:
         push_error("BrusselsWorldStreamingRuntime: no valid pregenerated runtime cells discovered")
         return
-    var registered_count := _register_runtime_cells(descriptors)
+    var registered_count := _register_runtime_cells(runtime_cell_descriptors)
     if registered_count != discovered_cell_count:
         push_error("BrusselsWorldStreamingRuntime: runtime cell registration incomplete %d/%d" % [registered_count, discovered_cell_count])
         return
@@ -81,6 +85,9 @@ func _ready() -> void:
 
 func _physics_process(_delta: float) -> void:
     if not runtime_ready:
+        return
+    if _destination_preload_active:
+        manager.update_observer(_destination_preload_position, Vector3.ZERO)
         return
     _feed_observer()
 
@@ -171,8 +178,10 @@ func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Diction
 
     var script_path := SOURCE_PLAN_STREAMED_SCRIPT_PATH
     var metadata: Dictionary = {"build_collision": false}
+    var destination_collision_authorized := false
     if cell_id == IXELLES_STREAMED_CELL_ID:
         script_path = IXELLES_STREAMED_SCRIPT_PATH
+        destination_collision_authorized = true
     else:
         metadata["manifest_path"] = manifest_path
         metadata["runtime_cell_path"] = runtime_cell_path
@@ -185,6 +194,7 @@ func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Diction
         "runtime_cell_path": runtime_cell_path,
         "runtime_network_path": runtime_network_path,
         "script_path": script_path,
+        "destination_collision_authorized": destination_collision_authorized,
         "metadata": metadata,
     }
 
@@ -237,6 +247,86 @@ func _register_runtime_cells(descriptors: Array[Dictionary]) -> int:
     return registered_count
 
 
+func get_shipped_cell_contract(cell_id: String) -> Dictionary:
+    for descriptor: Dictionary in runtime_cell_descriptors:
+        if str(descriptor.get("cell_id", "")) == cell_id:
+            return descriptor.duplicate(true)
+    return {}
+
+
+func is_destination_collision_authorized(cell_id: String) -> bool:
+    var descriptor := get_shipped_cell_contract(cell_id)
+    return not descriptor.is_empty() and bool(descriptor.get("destination_collision_authorized", false))
+
+
+func begin_destination_preload(cell_id: String, target_position: Vector3) -> bool:
+    if not runtime_ready or cell_id.is_empty() or not target_position.is_finite():
+        return false
+    if not is_destination_collision_authorized(cell_id):
+        return false
+    if manager.get_cell_descriptor(cell_id).is_empty():
+        return false
+    if _destination_preload_active and _destination_preload_cell_id != cell_id:
+        manager.set_collision_pin(_destination_preload_cell_id, false)
+    _destination_preload_active = true
+    _destination_preload_cell_id = cell_id
+    _destination_preload_position = target_position
+    if not manager.set_collision_pin(cell_id, true):
+        _destination_preload_active = false
+        _destination_preload_cell_id = ""
+        return false
+    manager.update_observer(target_position, Vector3.ZERO)
+    return true
+
+
+func get_destination_readiness(cell_id: String) -> Dictionary:
+    var result := {
+        "cell_id": cell_id,
+        "collision_authorized": is_destination_collision_authorized(cell_id),
+        "preload_active": _destination_preload_active and _destination_preload_cell_id == cell_id,
+        "active": false,
+        "instance_loaded": false,
+        "collision_scheduled": false,
+        "collision_enabled": false,
+        "authoritative_collision_body": false,
+        "ready": false,
+    }
+    if not runtime_ready or not bool(result["collision_authorized"]):
+        return result
+    result["active"] = cell_id in manager.get_active_cell_ids()
+    result["collision_scheduled"] = manager.is_collision_active(cell_id) and manager.is_collision_pinned(cell_id)
+    if not backend.has_active_instance(cell_id):
+        return result
+    var instance := backend.get_instance(cell_id)
+    if instance == null:
+        return result
+    result["instance_loaded"] = bool(instance.get("runtime_loaded"))
+    if not instance.has_method("is_streamed_collision_enabled"):
+        return result
+    result["collision_enabled"] = bool(instance.call("is_streamed_collision_enabled"))
+    result["authoritative_collision_body"] = instance.get_node_or_null("OfficialIxellesDTMCollision") != null
+    result["ready"] = bool(result["active"]) and bool(result["instance_loaded"]) and bool(result["collision_scheduled"]) and bool(result["collision_enabled"]) and bool(result["authoritative_collision_body"])
+    return result
+
+
+func get_destination_instance(cell_id: String) -> Node:
+    if not runtime_ready or not backend.has_active_instance(cell_id):
+        return null
+    return backend.get_instance(cell_id)
+
+
+func finish_destination_preload(cell_id: String) -> void:
+    if not runtime_ready:
+        return
+    if not cell_id.is_empty():
+        manager.set_collision_pin(cell_id, false)
+    if _destination_preload_cell_id == cell_id:
+        _destination_preload_active = false
+        _destination_preload_cell_id = ""
+        _destination_preload_position = Vector3.ZERO
+    _feed_observer()
+
+
 func _select_observer() -> Node3D:
     for vehicle: Node in get_tree().get_nodes_in_group("vehicle"):
         if vehicle is Node3D and vehicle.has_method("has_driver") and bool(vehicle.call("has_driver")):
@@ -270,11 +360,14 @@ func get_streaming_metrics() -> Dictionary:
             "runtime_ready": false,
             "disabled_for_direct_ixelles": disabled_for_direct_ixelles,
             "discovered_cells": discovered_cell_count,
+            "destination_preload_active": _destination_preload_active,
         }
     return {
         "runtime_ready": true,
         "disabled_for_direct_ixelles": false,
         "discovered_cells": discovered_cell_count,
+        "destination_preload_active": _destination_preload_active,
+        "destination_preload_cell_id": _destination_preload_cell_id,
         "scheduler": manager.get_metrics(),
         "backend": backend.get_metrics(),
     }

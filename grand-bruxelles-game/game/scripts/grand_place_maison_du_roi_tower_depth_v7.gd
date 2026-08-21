@@ -5,6 +5,7 @@ const DETAIL_ROOT_PATH := "GrandPlaceFacadeIntegratedRefinementV5Details"
 const TOWER_NAME := "MaisonDuRoiAxialTowerCue"
 const LANTERN_NAME := "MaisonDuRoiOctagonalLanternCue"
 const SPIRE_NAME := "MaisonDuRoiSpireCue"
+const CANONICAL_CAMERA := Vector3(319.01, 1.72, -535.20)
 
 # Urban Brussels 31143 documents an axial tower of square plan. Exact dimensions
 # are not published in the source used by this campaign, so this ratio remains an
@@ -20,7 +21,7 @@ const PLANE_EPSILON_M := 0.001
 const BAY_WIDTH_RATIO := 0.27
 const BAY_RECT_HEIGHT_RATIO := 0.27
 const BAY_HEAD_HEIGHT_RATIO := 0.12
-const BAY_SURFACE_OFFSET_M := 0.018
+const BAY_SURFACE_OFFSET_M := 0.050
 const BALUSTRADE_OVERHANG_M := 0.055
 const BALUSTRADE_RAIL_HEIGHT_M := 0.10
 const BALUSTRADE_POST_HEIGHT_M := 0.38
@@ -154,6 +155,26 @@ func _build_when_ready() -> void:
     var normal := tower.global_basis.z.normalized()
     if normal.length_squared() < 0.99 or tangent.length_squared() < 0.99:
         _fail("tower facade basis invalid"); return
+
+    # V5's BoxMesh is geometrically symmetric, so its local +Z sign is not a
+    # reliable semantic front. Resolve that sign the same way as the canonical
+    # Grand-Place facade witness: the outward depth axis must face the frozen
+    # player camera. Flipping X and Z together is a 180-degree frame rotation;
+    # it preserves the authored box geometry while making the front semantic
+    # deterministic for depth growth and roof-register placement.
+    var to_camera := Vector3(CANONICAL_CAMERA.x - tower.global_position.x, 0.0, CANONICAL_CAMERA.z - tower.global_position.z)
+    if to_camera.length_squared() < 0.01:
+        _fail("canonical camera direction collapsed at Maison du Roi tower"); return
+    to_camera = to_camera.normalized()
+    if normal.dot(to_camera) < 0.0:
+        var basis_before := tower.global_basis
+        tower.global_basis = Basis(-basis_before.x, basis_before.y, -basis_before.z)
+        tangent = tower.global_basis.x.normalized()
+        normal = tower.global_basis.z.normalized()
+    var front_facing_score := normal.dot(to_camera)
+    if front_facing_score < 0.55:
+        _fail("tower depth axis cannot resolve canonical facade front: score=%.4f" % front_facing_score); return
+
     var old_front_plane := tower.global_position.dot(normal) + depth_before * 0.5
     var target_depth := width * TOWER_DEPTH_TO_WIDTH
     var ratio := target_depth / width
@@ -218,6 +239,8 @@ func _build_when_ready() -> void:
     set_meta("threshold_changed", false)
     set_meta("front_plane_preserved", true)
     set_meta("depth_extended_behind_facade", true)
+    set_meta("canonical_front_resolved", true)
+    set_meta("canonical_front_facing_score", front_facing_score)
     set_meta("tower_depth_ratio", TOWER_DEPTH_TO_WIDTH)
     set_meta("tower_depth_dimension_surveyed", false)
     set_meta("roof_register_bays_documented", true)
@@ -229,4 +252,4 @@ func _build_when_ready() -> void:
     set_meta("finished_perfect", false)
 
     built = true
-    print("GRAND_PLACE_MAISON_DU_ROI_TOWER_DEPTH_V7_READY: width=%.3f old_depth=%.3f new_depth=%.3f ratio=%.3f front_plane_error=%.6f roof_bays=%d balustrade_elements=%d source=Urban_Brussels_31143 collisions=0" % [size_after.x,depth_before,size_after.z,size_after.z/size_after.x,front_plane_error,roof_register_bay_count,roof_balustrade_element_count])
+    print("GRAND_PLACE_MAISON_DU_ROI_TOWER_DEPTH_V7_READY: width=%.3f old_depth=%.3f new_depth=%.3f ratio=%.3f front_plane_error=%.6f front_facing_score=%.3f roof_bays=%d balustrade_elements=%d source=Urban_Brussels_31143 collisions=0" % [size_after.x,depth_before,size_after.z,size_after.z/size_after.x,front_plane_error,front_facing_score,roof_register_bay_count,roof_balustrade_element_count])

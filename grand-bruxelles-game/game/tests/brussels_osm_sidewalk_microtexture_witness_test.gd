@@ -12,6 +12,7 @@ const MAX_CHANGED_3 := 0.0500
 const MIN_BBOX_W := 180
 const MIN_BBOX_H := 55
 const MIN_CONTROL_CHANGED_8 := 0.0003
+const MIN_WITNESS_LENGTH_M := 4.0
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -68,6 +69,14 @@ func _hide_dynamic(scene: Node) -> void:
         if traffic is Node3D:
             (traffic as Node3D).visible = false
 
+func _sidewalk_length_m(sidewalk: CSGBox3D) -> float:
+    # osm_city_builder.gd authors sidewalks as Vector3(sidewalk_width, 0.12, length)
+    # and rotates them around Y. Local Z is therefore the source-backed road axis.
+    return sidewalk.size.z * sidewalk.global_basis.z.length()
+
+func _sidewalk_width_m(sidewalk: CSGBox3D) -> float:
+    return sidewalk.size.x * sidewalk.global_basis.x.length()
+
 func _find_witness_sidewalk(roads: Node) -> CSGBox3D:
     var best: CSGBox3D = null
     var best_distance_sq: float = INF
@@ -78,6 +87,8 @@ func _find_witness_sidewalk(roads: Node) -> CSGBox3D:
         if str(sidewalk.get_meta("material_family", "")) != "brussels_osm_sidewalk_surface_v1":
             continue
         if not sidewalk.visible or sidewalk.material == null:
+            continue
+        if _sidewalk_length_m(sidewalk) < MIN_WITNESS_LENGTH_M or _sidewalk_width_m(sidewalk) <= 0.0:
             continue
         var delta := sidewalk.global_position - CORRIDOR_ANCHOR
         delta.y = 0.0
@@ -124,7 +135,7 @@ func _run() -> void:
         return
     var sidewalk := _find_witness_sidewalk(roads)
     if sidewalk == null:
-        _fail("no rendered OSM sidewalk found near corridor anchor")
+        _fail("no suitable rendered OSM sidewalk found near corridor anchor")
         return
     var material := sidewalk.material as ShaderMaterial
     if material == null:
@@ -144,14 +155,11 @@ func _run() -> void:
         _fail("authored micro_grain_strength must be positive")
         return
 
-    var tangent := sidewalk.global_basis.x.normalized()
-    var normal := sidewalk.global_basis.z.normalized()
-    var length_m: float = sidewalk.size.x * sidewalk.global_basis.x.length()
-    var width_m: float = sidewalk.size.z * sidewalk.global_basis.z.length()
+    var tangent := sidewalk.global_basis.z.normalized()
+    var normal := sidewalk.global_basis.x.normalized()
+    var length_m: float = _sidewalk_length_m(sidewalk)
+    var width_m: float = _sidewalk_width_m(sidewalk)
     var height_m: float = sidewalk.size.y * sidewalk.global_basis.y.length()
-    if length_m < 4.0 or width_m <= 0.0:
-        _fail("witness sidewalk dimensions are unsuitable for player-frame proof")
-        return
     var surface_center := sidewalk.global_position + Vector3.UP * (height_m * 0.5)
     var lateral_offset: float = minf(width_m * 0.20, 0.35)
     var forward_m: float = clampf(length_m * 0.35, 4.0, 10.0)

@@ -3,6 +3,11 @@ extends Node
 ## Player presentation guard for the production Grand Bruxelles scene.
 ## The world remains metre-authored. This runtime only normalizes the visible player
 ## and remaps the existing camera presets so the player no longer dominates facades.
+##
+## Camera authority, from strongest to weakest:
+## 1. source-backed special presentations (Atomium / Ixelles),
+## 2. active combat aiming,
+## 3. normal GTA-scale gameplay composition.
 
 const TARGET_PLAYER_VISUAL_HEIGHT_M := 1.78
 const PLAYER_GROUND_LOCAL_Y := -0.90
@@ -16,6 +21,7 @@ const VIEW_MATCH_TOLERANCE_M := 0.035
 const DEFAULT_THIRD_PERSON_PITCH_DEG := -7.0
 const THIRD_PERSON_CAMERA_OFFSET := Vector3(0.34, 0.08, 0.0)
 const FIRST_PERSON_CAMERA_OFFSET := Vector3.ZERO
+const COMBAT_AIM_FOV_DEG := 61.0
 
 const MIN_SOURCE_VISUAL_HEIGHT_M := 0.10
 const MAX_SOURCE_VISUAL_HEIGHT_M := 20.0
@@ -31,9 +37,9 @@ var _normalized_character_id: int = 0
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
-    # Camera presentation runtimes and the Player can both touch the rig during a
-    # frame. Run this guard late so the normal gameplay profile is the final
-    # authority, while explicitly yielding to special direct-presentation modes.
+    # Combat and presentation runtimes can touch the rig during the same frame.
+    # This arbiter runs late so the final rendered camera has one deterministic
+    # owner instead of several systems fighting over FOV every frame.
     process_priority = 1000
     call_deferred("_bind_production_player")
 
@@ -102,28 +108,61 @@ func _atomium_presentation_is_active() -> bool:
         return false
     if not bool(_player.get_meta("atomium_direct_presentation_avatar_hidden", false)):
         return false
-    # DirectSpawnPresentation hides the normal avatar while its 48-degree witness
-    # owns the view. Player._apply_camera_view() restores VisualUpgrade on travel
-    # or when gameplay retakes control, so a stale Atomium metadata marker must not
-    # keep blocking the normal GTA camera after the player has left that witness.
+    # DirectSpawnPresentation hides the normal avatar while its source-backed
+    # witness owns the view. Fast travel restores VisualUpgrade, so stale startup
+    # metadata alone must never retain camera ownership after leaving Atomium.
     var visual_upgrade := _player.get_node_or_null("VisualUpgrade") as Node3D
     return visual_upgrade != null and not visual_upgrade.visible
 
 
-func _special_presentation_owns_camera() -> bool:
+func _atomium_presentation_fov() -> float:
+    if not _atomium_presentation_is_active():
+        return -1.0
+    var requested := float(_player.get_meta("atomium_direct_presentation_fov_degrees", -1.0))
+    if not is_finite(requested) or requested <= 1.0 or requested >= 179.0:
+        return -1.0
+    return requested
+
+
+func _ixelles_first_person_is_active() -> bool:
+    return is_instance_valid(_player) and bool(_player.get_meta("camera_view_locked_first_person", false))
+
+
+func _combat_aim_is_active() -> bool:
+    return is_instance_valid(_player) and bool(_player.get_meta("combat_weapon_aiming", false))
+
+
+func _set_camera_owner(owner: String, profile: String, distance_m: float, fov_deg: float) -> void:
     if not is_instance_valid(_player):
-        return false
-    # Ixelles uses a source-verified first-person witness and locks the camera.
-    if bool(_player.get_meta("camera_view_locked_first_person", false)):
-        return true
-    # Atomium has a dedicated 48-degree presentation witness while its avatar is
-    # intentionally hidden. The active visual state, not metadata alone, owns it.
-    return _atomium_presentation_is_active()
+        return
+    _player.set_meta("gta_scale_camera_owner", owner)
+    _player.set_meta("gta_scale_camera_profile", profile)
+    _player.set_meta("gta_scale_camera_distance_m", distance_m)
+    _player.set_meta("gta_scale_camera_fov_deg", fov_deg)
 
 
 func _apply_camera_contract() -> void:
-    if not _binding_is_valid() or _special_presentation_owns_camera():
+    if not _binding_is_valid():
         return
+
+    # Highest priority: exact source-backed Atomium witness. Combat Arsenal has a
+    # legacy per-frame FOV lerp, so merely yielding is not enough; the late arbiter
+    # must restore the exact presentation value before rendering.
+    var atomium_fov := _atomium_presentation_fov()
+    if atomium_fov > 0.0:
+        _camera.fov = atomium_fov
+        _set_camera_owner("special_presentation", "atomium", _spring_arm.spring_length, atomium_fov)
+        return
+
+    # Ixelles deliberately locks first person. Keep that lock deterministic even
+    # when another gameplay runtime attempts to write a default FOV in the frame.
+    if _ixelles_first_person_is_active():
+        _spring_arm.spring_length = TUNED_VIEW_DISTANCES[3]
+        _camera.fov = TUNED_VIEW_FOVS[3]
+        _camera.position = FIRST_PERSON_CAMERA_OFFSET
+        _set_camera_owner("special_presentation", "ixelles_first_person", TUNED_VIEW_DISTANCES[3], TUNED_VIEW_FOVS[3])
+        return
+
     var current_distance := _spring_arm.spring_length
     var index := _view_index_for_distance(current_distance)
     if index < 0:
@@ -131,15 +170,19 @@ func _apply_camera_contract() -> void:
 
     var restoring_standard := index == 0 and _is_legacy_distance(index, current_distance)
     _spring_arm.spring_length = TUNED_VIEW_DISTANCES[index]
-    _camera.fov = TUNED_VIEW_FOVS[index]
     _camera.position = FIRST_PERSON_CAMERA_OFFSET if index == 3 else THIRD_PERSON_CAMERA_OFFSET
+
+    # Combat owns only the aimed FOV. When aiming stops, normal gameplay immediately
+    # regains the tuned profile instead of drifting back to Combat Arsenal's old 69°.
+    if _combat_aim_is_active():
+        _camera.fov = COMBAT_AIM_FOV_DEG
+        _set_camera_owner("combat_aim", VIEW_NAMES[index], TUNED_VIEW_DISTANCES[index], COMBAT_AIM_FOV_DEG)
+    else:
+        _camera.fov = TUNED_VIEW_FOVS[index]
+        _set_camera_owner("gta_gameplay", VIEW_NAMES[index], TUNED_VIEW_DISTANCES[index], TUNED_VIEW_FOVS[index])
 
     if restoring_standard:
         _camera_pivot.rotation_degrees.x = DEFAULT_THIRD_PERSON_PITCH_DEG
-
-    _player.set_meta("gta_scale_camera_profile", VIEW_NAMES[index])
-    _player.set_meta("gta_scale_camera_distance_m", TUNED_VIEW_DISTANCES[index])
-    _player.set_meta("gta_scale_camera_fov_deg", TUNED_VIEW_FOVS[index])
 
 
 func _normalize_authored_player_if_needed() -> void:

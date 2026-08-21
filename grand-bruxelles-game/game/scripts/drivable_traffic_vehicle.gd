@@ -13,6 +13,9 @@ signal driver_exited(vehicle: Node, driver_node: Node)
 @export var manual_exit_distance_m: float = 2.7
 @export var manual_mouse_sensitivity: float = 0.0022
 @export var camera_spring_length_m: float = 6.1
+@export var ground_snap_up_m: float = 3.0
+@export var ground_snap_down_m: float = 8.0
+@export var ground_clearance_m: float = 0.01
 
 var driver: CharacterBody3D = null
 var external_driver: Node = null
@@ -31,6 +34,7 @@ func _ready() -> void:
     if traffic_archetype == "car":
         add_to_group("vehicle")
     _ensure_camera_rig()
+    call_deferred("_snap_to_ground_surface")
     if _parked_mode:
         set_physics_process(false)
 
@@ -46,6 +50,7 @@ func configure_as_parked() -> void:
     speed_mps = 0.0
     velocity = Vector3.ZERO
     if is_inside_tree():
+        call_deferred("_snap_to_ground_surface")
         set_physics_process(false)
 
 func _physics_process(delta: float) -> void:
@@ -95,6 +100,7 @@ func exit_driver() -> void:
     if _parked_mode:
         _manual_speed_mps = 0.0
         velocity = Vector3.ZERO
+        call_deferred("_snap_to_ground_surface")
         set_physics_process(false)
     else:
         _resync_route_after_manual_drive()
@@ -131,6 +137,7 @@ func release_external_driver(controller: Node = null) -> void:
     if _parked_mode:
         _manual_speed_mps = 0.0
         velocity = Vector3.ZERO
+        call_deferred("_snap_to_ground_surface")
         set_physics_process(false)
     else:
         _resync_route_after_manual_drive()
@@ -142,6 +149,31 @@ func set_external_drive_input(throttle: float, steering: float, brake: float = 0
 
 func get_visual_steering_angle() -> float:
     return _visual_steering_angle
+
+func _collision_bottom_offset() -> float:
+    var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collision == null:
+        return 0.0
+    if collision.shape is BoxShape3D:
+        var box := collision.shape as BoxShape3D
+        return collision.position.y - box.size.y * 0.5
+    return collision.position.y
+
+func _snap_to_ground_surface() -> bool:
+    if not is_inside_tree() or get_world_3d() == null:
+        return false
+    var space := get_world_3d().direct_space_state
+    var from := global_position + Vector3.UP * ground_snap_up_m
+    var to := global_position - Vector3.UP * ground_snap_down_m
+    var query := PhysicsRayQueryParameters3D.create(from, to, collision_mask, [get_rid()])
+    query.hit_from_inside = false
+    var hit := space.intersect_ray(query)
+    if hit.is_empty():
+        return false
+    var hit_position: Vector3 = hit.get("position", global_position)
+    global_position.y = hit_position.y - _collision_bottom_offset() + ground_clearance_m
+    velocity.y = 0.0
+    return true
 
 func _advance_manual_motion(delta: float) -> void:
     var throttle := 0.0
@@ -191,6 +223,9 @@ func _advance_manual_motion(delta: float) -> void:
         rotation.y -= steering * manual_steering_speed * speed_ratio * direction_sign * delta
     _visual_steering_angle = lerpf(_visual_steering_angle, steering * 0.48, clampf(delta * 9.0, 0.0, 1.0))
     var forward := -global_transform.basis.z
+    forward.y = 0.0
+    if forward.length_squared() > 0.001:
+        forward = forward.normalized()
     velocity.x = forward.x * _manual_speed_mps
     velocity.z = forward.z * _manual_speed_mps
     move_and_slide()

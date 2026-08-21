@@ -68,10 +68,32 @@ def create_gpkg(path: Path) -> None:
                 "BEGINGENERATION": "2024-01-15T00:00:00Z",
             },
         ),
+        # Provenance is a BUSOLID-level diagnostic. A non-height face may carry
+        # metadata, but it must not alter ground/roof counts or height samples.
+        (
+            "anderlecht-solid",
+            "WALLSURFACE",
+            polygon(141510, 167510, 141520, 167520, 30.0),
+            {
+                "INSPIRE_ID": "https://databrussels.be/id/buildingface/FACE-A-WALL",
+                "SOURCEURI": "https://databrussels.be/source/urbis3d/A-wall",
+                "SOURCETYPE": "UrbIS3D",
+                "SOURCEID": "source-A-wall",
+                "BEGINGENERATION": "2025-02-20T00:00:00Z",
+                "ENDGENERATION": "2025-02-21T00:00:00Z",
+            },
+        ),
         # A 3D sub-solid fully contained by a larger 2D footprint stays ambiguous
         # under the existing symmetric min(ground_coverage, building_coverage) score.
         ("sub-solid", module.GROUND, polygon(141530, 167530, 141536, 167536, 25.0), {}),
         ("sub-solid", module.ROOF, polygon(141530, 167530, 141536, 167536, 33.0), {}),
+        # A wall-only solid must not become a semantic-height candidate.
+        (
+            "wall-only-solid",
+            "WALLSURFACE",
+            polygon(141540, 167540, 141545, 167545, 31.0),
+            {"BEGINGENERATION": "2026-01-01T00:00:00Z"},
+        ),
         # This valid Ixelles-looking solid must stay outside the explicit Anderlecht bbox.
         ("ixelles-solid", module.GROUND, polygon(149010, 169010, 149020, 169020, 60.0), {}),
         ("ixelles-solid", module.ROOF, polygon(149010, 169010, 149020, 169020, 72.0), {}),
@@ -134,17 +156,23 @@ def main() -> int:
         assert match["status"] == "matched_semantic_evidence"
         assert match["matched_inspire_id"].endswith("/ANDERLECHT-A")
         assert abs(match["semantic_height_m"] - 12.5) < 1e-9
+        assert match["ground_faces"] == 1
+        assert match["roof_faces"] == 1
         assert match["runtime_approved"] is False
         assert match["buildingfaces_metadata"] == {
             "INSPIRE_ID": [
                 "https://databrussels.be/id/buildingface/FACE-A-GROUND",
                 "https://databrussels.be/id/buildingface/FACE-A-ROOF",
+                "https://databrussels.be/id/buildingface/FACE-A-WALL",
             ],
-            "SOURCEURI": ["https://databrussels.be/source/urbis3d/A"],
+            "SOURCEURI": [
+                "https://databrussels.be/source/urbis3d/A",
+                "https://databrussels.be/source/urbis3d/A-wall",
+            ],
             "SOURCETYPE": ["UrbIS3D"],
-            "SOURCEID": ["source-A"],
-            "BEGINGENERATION": ["2024-01-15T00:00:00Z"],
-            "ENDGENERATION": [],
+            "SOURCEID": ["source-A", "source-A-wall"],
+            "BEGINGENERATION": ["2024-01-15T00:00:00Z", "2025-02-20T00:00:00Z"],
+            "ENDGENERATION": ["2025-02-21T00:00:00Z"],
         }
 
         ambiguous = by_solid["sub-solid"]

@@ -110,7 +110,9 @@ func bind_person(person: Node3D) -> bool:
         _incomplete_clip_rejections += 1
         return false
     var clips := _resolve_locomotion(animation_player)
-    _localize_animation_libraries(animation_player)
+    if not _localize_locomotion_animations(animation_player, clips):
+        _record_rejection(instance_id, "animation_localization_failed", false)
+        return false
     clips = _resolve_locomotion(animation_player)
     _configure_loops(animation_player, clips)
     _bindings[instance_id] = {"person": person, "authored": authored, "animation_player": animation_player, "clips": clips}
@@ -226,6 +228,9 @@ func _rejection_still_blocks(person: Node3D, instance_id: int) -> bool:
     if reason == "missing_idle_walk_run" and _find_locomotion_animation_player(authored) != null:
         _binding_rejections.erase(instance_id)
         return false
+    if reason == "animation_localization_failed":
+        _binding_rejections.erase(instance_id)
+        return false
     return true
 
 func _record_rejection(instance_id: int, reason: String, unauthorized: bool) -> void:
@@ -304,19 +309,61 @@ func _choose_animation(names: PackedStringArray, required_token: String) -> Stri
         return animation_name
     return ""
 
-func _localize_animation_libraries(animation_player: AnimationPlayer) -> void:
-    var library_names := animation_player.get_animation_library_list()
-    for library_name: StringName in library_names:
+func _qualified_animation_name(library_name: StringName, animation_name: StringName) -> String:
+    return String(animation_name) if String(library_name).is_empty() else "%s/%s" % [String(library_name), String(animation_name)]
+
+func _localize_locomotion_animations(animation_player: AnimationPlayer, clips: Dictionary) -> bool:
+    var required: Dictionary = {}
+    for state: String in ["idle", "walk", "run"]:
+        var clip_name := String(clips.get(state, ""))
+        if clip_name.is_empty():
+            return false
+        required[clip_name] = true
+
+    var replacements: Array[Dictionary] = []
+    for library_name: StringName in animation_player.get_animation_library_list():
         var shared_library := animation_player.get_animation_library(library_name)
         if shared_library == null:
             continue
-        var local_library := shared_library.duplicate(true) as AnimationLibrary
-        if local_library == null:
+        var selected_names: Array[StringName] = []
+        for animation_name: StringName in shared_library.get_animation_list():
+            if required.has(_qualified_animation_name(library_name, animation_name)):
+                selected_names.append(animation_name)
+        if selected_names.is_empty():
             continue
+        var local_library := shared_library.duplicate(false) as AnimationLibrary
+        if local_library == null:
+            return false
+        for animation_name: StringName in selected_names:
+            var shared_animation := shared_library.get_animation(animation_name)
+            if shared_animation == null:
+                return false
+            var local_animation := shared_animation.duplicate(true) as Animation
+            if local_animation == null:
+                return false
+            local_library.remove_animation(animation_name)
+            if local_library.add_animation(animation_name, local_animation) != OK:
+                return false
+        replacements.append({"name": library_name, "shared": shared_library, "local": local_library})
+
+    if replacements.is_empty():
+        return false
+
+    var installed: Array[Dictionary] = []
+    for replacement: Dictionary in replacements:
+        var library_name := replacement.get("name") as StringName
+        var shared_library := replacement.get("shared") as AnimationLibrary
+        var local_library := replacement.get("local") as AnimationLibrary
         animation_player.remove_animation_library(library_name)
-        var error := animation_player.add_animation_library(library_name, local_library)
-        if error != OK:
+        if animation_player.add_animation_library(library_name, local_library) != OK:
             animation_player.add_animation_library(library_name, shared_library)
+            for previous: Dictionary in installed:
+                var previous_name := previous.get("name") as StringName
+                animation_player.remove_animation_library(previous_name)
+                animation_player.add_animation_library(previous_name, previous.get("shared") as AnimationLibrary)
+            return false
+        installed.append(replacement)
+    return true
 
 func _configure_loops(animation_player: AnimationPlayer, clips: Dictionary) -> void:
     for state: String in ["idle", "walk", "run"]:
@@ -390,6 +437,7 @@ func locomotion_stats() -> Dictionary:
         "rebind_resets_motion_history": true,
         "multi_animation_player_selection": true,
         "localized_animation_resources": true,
+        "localized_locomotion_only": true,
         "authored_character_path": str(AUTHORED_CHARACTER_PATH),
         "teleport_guard_m": TELEPORT_GUARD_M,
         "max_observed_speed_mps_limit": MAX_OBSERVED_SPEED_MPS,

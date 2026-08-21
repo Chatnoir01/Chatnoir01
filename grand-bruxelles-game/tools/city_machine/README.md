@@ -2,7 +2,7 @@
 
 `city_machine` is the fail-closed production orchestrator above the existing CityGen and zone data pipes. A successful build produces **LABO_DATA_READY** evidence only. It never edits `playable_zone_catalog.json` and never promotes `LABO` to `JOUABLE`.
 
-## Rebuild Jette
+## Rebuild a registered zone
 
 Exact OSM projection uses PROJ through pyproj:
 
@@ -13,52 +13,79 @@ python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jet
 
 Preflight: `python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --dry-run`.
 
-A success ends with `LABO_DATA_READY ... promotion=false` and writes a deterministic receipt under `grand-bruxelles-game/artifacts/city_machine/jette/`.
+A success ends with `LABO_DATA_READY ... promotion=false` and writes a deterministic receipt under `grand-bruxelles-game/artifacts/city_machine/<zone>/`.
 
-## Fixed Jette pipeline — registry v3
+## Profile-driven pipeline — registry v4
 
-1. resolve Jette from the playable-zone catalogue
-2. replay cached UrbIS buildings, street surfaces, street axes and train network to runtime JSON
-3. replay committed OSM environment cache to exact EPSG:31370-aligned runtime points
-4. **G1** source CRS/provenance/licence + existing Jette validator
-5. **G2** catalogue spawn inside source-derived ground footprint
-6. **G3** buildings + street surfaces non-empty
-7. **G4** existing Godot materials/ground/official-geometry finish hooks present
-8. **G5** OSM cache/runtime digest, ODbL source, EPSG:31370 projection, supported semantics, non-zero trees and ≤2 m bbox tolerance
-9. regenerate `data/runtime/runtime_environment_index.json` from the City Machine zone profiles and validated environment artifacts
+The execution graph is now regional and zone-agnostic. Core layers use `enabled_zones: ["*"]`; a municipality becomes executable only when it has an explicit `zone_profiles.<id>` contract. The profile supplies the zone-specific facts while the orchestrator stays generic:
 
-Any hard gate fails non-zero. There is no “continue anyway” path.
+- `source_root` — committed authoritative source bundle;
+- `validator_script` — existing source validator for that bundle;
+- `runtime_script` — existing Godot zone renderer/finish contract;
+- `materialized_slugs` — deterministic geometry products;
+- `ground_contract` and `content_minimums`;
+- `osm_environment.cache` and `osm_environment.runtime`.
 
-## OSM environment contract
+For every registered profile the same ordered machine runs:
+
+1. resolve the zone from the playable-zone catalogue;
+2. replay cached UrbIS buildings, street surfaces, street axes and train network to runtime JSON;
+3. replay the committed OSM environment cache to exact EPSG:31370-aligned runtime points;
+4. **G1** source CRS/provenance/licence + the profile validator;
+5. **G2** catalogue spawn inside source-derived ground footprint;
+6. **G3** buildings + street surfaces non-empty;
+7. **G4** the profile Godot runtime exposes materials/ground/official-geometry finish hooks;
+8. **G5** OSM cache/runtime digest, ODbL source, EPSG:31370 projection, supported semantics, non-zero trees and bounded reprojection tolerance;
+9. regenerate `data/runtime/runtime_environment_index.json` from all validated City Machine profiles.
+
+Any hard gate fails non-zero. A catalogue zone without a City Machine profile also fails closed. There is no `continue anyway` path.
+
+## Current registered profile: Jette
+
+Jette remains the first complete profile and therefore the regression witness for the regional architecture.
 
 Committed source: `data/osm/zones/jette/environment.raw.json`. Machine output: `data/osm/zones/jette/environment.game.json`. Current evidence contains **3,832 trees, 603 street lamps and 149 bollards (4,584 points)**.
 
-Only explicit OSM tags `natural=tree`, `highway=street_lamp` and `barrier=bollard` are carried forward. Jette points are projected **WGS84 → EPSG:31370 with PROJ → game axes** using the Jette manifest origin. Live evidence bounds are `[-2969.44,-5761.07,-168.12,-3460.32]`, within the hard 2 m reprojection tolerance of the UrbIS footprint.
+Only explicit OSM tags `natural=tree`, `highway=street_lamp` and `barrier=bollard` are carried forward. Jette points are projected **WGS84 → EPSG:31370 with PROJ → game axes** using the source manifest origin. Evidence bounds are `[-2969.44,-5761.07,-168.12,-3460.32]`, within the hard 2 m reprojection tolerance of the UrbIS footprint.
 
-**Nominal builds never call Overpass.** Live refresh is a separate disabled registry layer; production consumes the committed normalized ODbL cache.
+**Nominal builds never call Overpass.** Live refresh is a separate disabled registry layer; production consumes committed normalized ODbL caches.
 
 ## Automatic runtime environment bridge
 
 `build_runtime_environment_index.py` creates a small deterministic discovery index from every City Machine zone profile that owns a validated `osm_environment.runtime` artifact. The index is **visual-only** and explicitly cannot authorize promotion, collision, or gameplay truth.
 
-`brussels_city_machine_environment_runtime.gd` is loaded automatically through the existing runtime-module bootstrap. It reads only the deterministic index, revalidates each artifact, and mounts/unmounts the reusable `BrusselsOsmEnvironmentRuntime` according to the player position with hysteresis. It performs no runtime directory scan and contains no Jette-specific rendering logic.
+`brussels_city_machine_environment_runtime.gd` is loaded automatically through the existing runtime-module bootstrap. It reads only the deterministic index, revalidates each artifact, and mounts/unmounts the reusable `BrusselsOsmEnvironmentRuntime` according to the player position with hysteresis. It performs no runtime directory scan and contains no municipality-specific rendering logic.
 
-Adding the next municipality therefore requires a real City Machine zone profile + environment artifact; it does not require another renderer script.
+Adding the next municipality therefore means adding a real profile and its complete evidence bundle, not another orchestration or renderer implementation.
+
+## Ineligible partial environment views
+
+Existing `data/osm/zones/anneessens/environment.game.json` and `data/osm/zones/bourse/environment.game.json` are useful local presentation subsets, but they explicitly have `coverage_complete=false` and do not carry the full EPSG:31370/bounds/source-digest contract required by the City Machine regional profile. They are **not** silently converted into municipality profiles and cannot authorize regional runtime discovery.
+
+They can be onboarded only after a complete authoritative source root, stable spawn/ground contract, profile validator/runtime, committed full-zone OSM cache, exact projection and all G1–G5 evidence exist.
 
 ## Production proof
 
-`.github/workflows/grand-bruxelles-city-machine.yml` runs registry/unit/failure tests, validates the runtime-environment index and bridge, dry-runs, then performs two complete rebuilds. It requires identical receipt SHA on pass two and `git diff --exit-code` for the four UrbIS runtime outputs, `environment.game.json`, and `runtime_environment_index.json`.
+`.github/workflows/grand-bruxelles-city-machine.yml` runs registry/unit/failure tests, the regional-onboarding regression, runtime-environment index checks and Jette as the complete-profile witness. It dry-runs and performs two complete Jette rebuilds, requires identical receipt SHA on pass two, and requires `git diff --exit-code` for the four UrbIS runtime outputs, `environment.game.json`, and `runtime_environment_index.json`.
 
-The dedicated OSM-cache workflow independently regenerates `environment.game.json` from the committed cache and byte-compares it with production. Both workflows are read-only.
+The workflow path filters now cover regional UrbIS/OSM/zone changes so future profiles cannot bypass this machine accidentally.
 
 ## Product boundary
 
 Outside the machine on purpose: hero art, subjective visual approval, human `LABO`→`JOUABLE`, LLM/NPC content, live WFS/Overpass in the nominal path, and facade candidates without a runtime application contract. A machine PASS means **data-ready LABO**, not visible polish.
 
-## Add a layer
+## Add a profile
 
-Prefer wrappers over existing deterministic tools. Add one ordered registry row with real inputs/outputs/gate/zones; new `kind` values require an explicit fail-closed handler. Add positive + negative tests and include the output in idempotence proof. Keep paths relative, outputs deterministic, no secrets and no catalogue mutation.
+1. keep the zone in `playable_zone_catalog.json` with honest quality;
+2. add one `zone_profiles.<zone>` object with real paths only;
+3. prove all source files and scripts exist;
+4. provide committed full-zone OSM cache + exact EPSG:31370 runtime output;
+5. run the unchanged wildcard pipeline and all G1–G5 gates;
+6. include all generated outputs in deterministic/idempotence proof;
+7. keep LABO→JOUABLE human-controlled.
+
+Do not create a profile from a partial visual subset merely to increase coverage numbers.
 
 ## Next machine increment
 
-**Regional zone onboarding.** Generalize the current Jette-only City Machine profile set so additional Brussels zones can enter the exact same deterministic UrbIS + OSM + runtime-index pipeline without adding zone-specific orchestration code. Keep promotion human-controlled and fail-closed.
+**First additional full regional profile.** Select the next municipality only when its complete UrbIS source/root, stable catalogue spawn/ground contract and committed full-zone OSM evidence are present. Until then, continue producing/validating those source bundles rather than weakening the v4 contract.

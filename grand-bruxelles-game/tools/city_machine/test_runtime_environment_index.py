@@ -21,10 +21,15 @@ def main() -> int:
     assert generated["format"] == rei.INDEX_FORMAT
     assert generated["visual_only"] is True
     assert generated["promotion_authorized_by_index"] is False
-    assert len(generated["entries"]) == 1
+    assert generated["entries"]
 
-    entry = generated["entries"][0]
-    assert entry["zone"] == "jette"
+    zones = [entry["zone"] for entry in generated["entries"]]
+    paths = [entry["data_path"] for entry in generated["entries"]]
+    assert zones == sorted(zones)
+    assert len(zones) == len(set(zones))
+    assert len(paths) == len(set(paths))
+
+    entry = next(row for row in generated["entries"] if row["zone"] == "jette")
     assert entry["data_path"] == "res://data/osm/zones/jette/environment.game.json"
     assert entry["artifact_format"] == rei.ARTIFACT_FORMAT
     assert entry["bounds_m"] == [-2969.44, -5761.07, -168.12, -3460.32]
@@ -61,7 +66,7 @@ def main() -> int:
     assert 'SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]' in renderer
 
     assert rei.build_index() == generated
-    print("RUNTIME_ENVIRONMENT_INDEX_TEST_OK deterministic=true jette_points=4584 visual_only=true no_runtime_scan=true fail_closed=true")
+    print("RUNTIME_ENVIRONMENT_INDEX_TEST_OK deterministic=true indexed_zones=%d jette_points=4584 visual_only=true no_runtime_scan=true fail_closed=true" % len(zones))
     return 0
 
 

@@ -58,8 +58,8 @@ jobs:
             --script res://game/tests/automatic_streetaxis_direct_spawn_test.gd \
             2>&1 | tee /tmp/streetaxis-direct-spawn.log
           if grep -E "SCRIPT ERROR|Parse Error:|AUTOMATIC_STREETAXIS_DIRECT_SPAWN_FAIL" /tmp/streetaxis-direct-spawn.log; then exit 1; fi
-          grep -F "AUTOMATIC_STREETAXIS_DIRECT_SPAWN_GREEN" /tmp/streetaxis-direct-spawn.log
-          test -f grand-bruxelles-game/artifacts/streetaxis/streetaxis_70526_stream_spawn.png
+          grep -F "AUTOMATIC_STREETAXIS_SECOND_DTM_CELL_GREEN" /tmp/streetaxis-direct-spawn.log
+          test -f grand-bruxelles-game/artifacts/streetaxis/streetaxis_70488_second_dtm_cell.png
 
       - name: Verify safe Web request grammar
         run: |
@@ -73,7 +73,7 @@ jobs:
         with:
           name: automatic-streetaxis-spawn-evidence
           path: |
-            grand-bruxelles-game/artifacts/streetaxis/streetaxis_70526_stream_spawn.png
+            grand-bruxelles-game/artifacts/streetaxis/streetaxis_70488_second_dtm_cell.png
             /tmp/streetaxis-direct-spawn.log
             /tmp/streetaxis-import.log
           if-no-files-found: error

@@ -4,6 +4,7 @@ const WIDTH := 1280
 const HEIGHT := 720
 const BEFORE_PATH := "res://artifacts/visual/sidewalk_microtexture_before.png"
 const AFTER_PATH := "res://artifacts/visual/sidewalk_microtexture_after.png"
+const CONTROL_PATH := "res://artifacts/visual/sidewalk_microtexture_control.png"
 const CAMERA_POS := Vector3(-272.04, 1.65, -217.07)
 const LOOK_TARGET := Vector3(-260.0, 0.10, -208.0)
 const MIN_CHANGED_3 := 0.0008
@@ -11,6 +12,7 @@ const MIN_CHANGED_8 := 0.0003
 const MAX_CHANGED_3 := 0.0500
 const MIN_BBOX_W := 180
 const MIN_BBOX_H := 55
+const MIN_CONTROL_CHANGED_8 := 0.0003
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -113,10 +115,14 @@ func _run() -> void:
         return
 
     var authored_strength_variant: Variant = material.get_shader_parameter("micro_grain_strength")
-    if authored_strength_variant == null:
-        _fail("authored micro_grain_strength missing")
+    var dark_variant: Variant = material.get_shader_parameter("dark_color")
+    var light_variant: Variant = material.get_shader_parameter("light_color")
+    if authored_strength_variant == null or dark_variant == null or light_variant == null:
+        _fail("authored sidewalk shader parameters missing")
         return
     var authored_strength: float = float(authored_strength_variant)
+    var authored_dark: Color = dark_variant as Color
+    var authored_light: Color = light_variant as Color
     if authored_strength <= 0.0:
         _fail("authored micro_grain_strength must be positive")
         return
@@ -132,12 +138,38 @@ func _run() -> void:
     for _frame: int in range(8):
         await process_frame
     var before := await _capture(viewport, BEFORE_PATH)
+    if before == null:
+        _fail("1280x720 baseline capture failed")
+        return
+
+    # Control probe: force only this shared material to an unmistakable color.
+    # If the frame does not move, the selected material/camera is not a valid
+    # witness target and microtexture tuning must not be used to fake a pass.
+    material.set_shader_parameter("dark_color", Color(1.0, 0.0, 1.0, 1.0))
+    material.set_shader_parameter("light_color", Color(1.0, 0.0, 1.0, 1.0))
+    for _frame: int in range(8):
+        await process_frame
+    var control := await _capture(viewport, CONTROL_PATH)
+    if control == null:
+        _fail("1280x720 control capture failed")
+        return
+    var control_gt8 := _metrics(before, control, 8)
+    var control_changed_8 := float(control_gt8["fraction"])
+    var control_bbox_w := int(control_gt8["bbox_w"])
+    var control_bbox_h := int(control_gt8["bbox_h"])
+    print("BRUSSELS_SIDEWALK_MICROTEXTURE_CONTROL_METRICS: changed_gt8=%.6f bbox=%dx%d sidewalks=%d" % [control_changed_8, control_bbox_w, control_bbox_h, int(runtime.call("applied_sidewalk_count"))])
+    material.set_shader_parameter("dark_color", authored_dark)
+    material.set_shader_parameter("light_color", authored_light)
+    if control_changed_8 < MIN_CONTROL_CHANGED_8:
+        _fail("selected shared sidewalk material does not reach player-frame pixels")
+        return
+
     material.set_shader_parameter("micro_grain_strength", authored_strength)
     for _frame: int in range(8):
         await process_frame
     var after := await _capture(viewport, AFTER_PATH)
-    if before == null or after == null:
-        _fail("1280x720 A/B capture failed")
+    if after == null:
+        _fail("1280x720 microtexture capture failed")
         return
     if not bool(runtime.call("geometry_unchanged")):
         _fail("material A/B modified sidewalk geometry")

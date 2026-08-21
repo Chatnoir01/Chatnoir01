@@ -125,10 +125,11 @@ func _road_points(road: Dictionary) -> PackedVector2Array:
         result.append(Vector2(float(raw[0]), float(raw[1])))
     return result
 
-func _point_inside_any_source_building(document: Dictionary, point: Vector2) -> bool:
+func _source_building_polygons(document: Dictionary) -> Array[PackedVector2Array]:
+    var result: Array[PackedVector2Array] = []
     var buildings: Variant = document.get("buildings", [])
     if not buildings is Array:
-        return false
+        return result
     for raw: Variant in buildings:
         if not raw is Dictionary:
             continue
@@ -139,9 +140,27 @@ func _point_inside_any_source_building(document: Dictionary, point: Vector2) -> 
         for pair: Variant in footprint_raw:
             if pair is Array and pair.size() >= 2:
                 polygon.append(Vector2(float(pair[0]), float(pair[1])))
-        if polygon.size() >= 3 and Geometry2D.is_point_in_polygon(point, polygon):
+        if polygon.size() >= 3:
+            result.append(polygon)
+    return result
+
+func _point_inside_any_source_building(document: Dictionary, point: Vector2) -> bool:
+    for polygon: PackedVector2Array in _source_building_polygons(document):
+        if Geometry2D.is_point_in_polygon(point, polygon):
             return true
     return false
+
+func _segment_clear_of_source_buildings(document: Dictionary, start: Vector2, finish: Vector2) -> bool:
+    if _point_inside_any_source_building(document, start) or _point_inside_any_source_building(document, finish):
+        return false
+    for polygon: PackedVector2Array in _source_building_polygons(document):
+        for index: int in range(polygon.size()):
+            var edge_start := polygon[index]
+            var edge_finish := polygon[(index + 1) % polygon.size()]
+            var intersection: Variant = Geometry2D.segment_intersects_segment(start, finish, edge_start, edge_finish)
+            if intersection != null:
+                return false
+    return true
 
 func _display_road_width(road: Dictionary) -> float:
     var width := float(road.get("width", 4.5))
@@ -203,7 +222,9 @@ func _safe_road_viewpoint(document: Dictionary, road: Dictionary, preferred_targ
                 continue
             if _point_inside_any_source_building(document, candidate):
                 continue
-            return {"spawn": candidate, "target": target, "offset_m": offset, "side": side, "segment_index": segment_index, "segment_length_m": segment_length}
+            if not _segment_clear_of_source_buildings(document, candidate, target):
+                continue
+            return {"spawn": candidate, "target": target, "offset_m": offset, "side": side, "segment_index": segment_index, "segment_length_m": segment_length, "source_sightline_clear": true}
     return {}
 
 func _lemonnier_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
@@ -253,6 +274,7 @@ func _apply_lemonnier_direct_spawn(player: Node) -> bool:
     body.set_meta("lemonnier_direct_target_xz", target_xz)
     body.set_meta("lemonnier_direct_offset_m", float(viewpoint["offset_m"]))
     body.set_meta("lemonnier_direct_segment_index", int(viewpoint["segment_index"]))
+    body.set_meta("lemonnier_direct_source_sightline_clear", bool(viewpoint.get("source_sightline_clear", false)))
     print("LEMONNIER_DIRECT_SPAWN_READY: osm_id=%d segment=%d offset=%.3f spawn=(%.3f, %.3f) target=(%.3f, %.3f)" % [LEMONNIER_OSM_ID, int(viewpoint["segment_index"]), float(viewpoint["offset_m"]), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y])
     return true
 
@@ -296,5 +318,6 @@ func _apply_anneessens_direct_spawn(player: Node) -> bool:
     body.set_meta("anneessens_direct_target_xz", target_xz)
     body.set_meta("anneessens_direct_offset_m", float(viewpoint["offset_m"]))
     body.set_meta("anneessens_direct_segment_index", int(viewpoint["segment_index"]))
-    print("ANNEESSENS_DIRECT_SPAWN_READY: osm_id=%d segment=%d offset=%.3f anchor_distance=%.3f spawn=(%.3f, %.3f) target=(%.3f, %.3f)" % [ANNEESSENS_OSM_ID, int(viewpoint["segment_index"]), float(viewpoint["offset_m"]), spawn_xz.distance_to(anchor_xz), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y])
+    body.set_meta("anneessens_direct_source_sightline_clear", bool(viewpoint.get("source_sightline_clear", false)))
+    print("ANNEESSENS_DIRECT_SPAWN_READY: osm_id=%d segment=%d offset=%.3f anchor_distance=%.3f spawn=(%.3f, %.3f) target=(%.3f, %.3f) sightline_clear=%s" % [ANNEESSENS_OSM_ID, int(viewpoint["segment_index"]), float(viewpoint["offset_m"]), spawn_xz.distance_to(anchor_xz), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, str(bool(viewpoint.get("source_sightline_clear", false)))])
     return true

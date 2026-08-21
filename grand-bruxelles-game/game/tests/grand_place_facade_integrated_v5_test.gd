@@ -126,11 +126,10 @@ func _run() -> void:
     if center_error > 0.05:
         _fail("Maison du Roi tower no longer centered on axial bay: error=%.4f" % center_error); return
 
-    # RED witness for the exact full-frame defect: the documented axial tower is
-    # square in plan, while the prior V5 witness used a fixed 0.42 m facade slab.
-    # V7 must add depth only behind the existing front plane so valid facade
-    # relief is not pushed toward the player, and the lantern/spire must stay on
-    # the corrected tower axis.
+    # The documented axial tower is square in plan, while the prior V5 witness
+    # used a fixed 0.42 m facade slab. V7 must add depth only behind the existing
+    # front plane so valid facade relief is not pushed toward the player, and the
+    # lantern/spire must stay on the corrected tower axis.
     var tower_depth := tower_size.z
     var depth_ratio := tower_depth / tower_width
     if depth_ratio < 0.60 or depth_ratio > 0.85:
@@ -147,6 +146,32 @@ func _run() -> void:
     if lantern_axis_error > 0.01 or spire_axis_error > 0.01:
         _fail("Maison du Roi lantern/spire no longer centered on square tower depth axis: lantern=%.4f spire=%.4f" % [lantern_axis_error,spire_axis_error]); return
 
+    # RED->GREEN witness for the next 3-second defect: Urban Brussels 31143 says
+    # the roof-level tower register is pierced by pointed-arch bays on three
+    # faces and crowned by an openwork projecting balustrade. The exact-head A/B
+    # showed a blank white slab, so require source-bounded presentation cues on
+    # all three faces without claiming surveyed dimensions.
+    for required_name: String in [
+        "MaisonDuRoiTowerRoofBayFrontPanel",
+        "MaisonDuRoiTowerRoofBayFrontPointedHead",
+        "MaisonDuRoiTowerRoofBayLeftPanel",
+        "MaisonDuRoiTowerRoofBayLeftPointedHead",
+        "MaisonDuRoiTowerRoofBayRightPanel",
+        "MaisonDuRoiTowerRoofBayRightPointedHead",
+        "MaisonDuRoiTowerRoofBalustradeRail",
+    ]:
+        if details.get_node_or_null(required_name) == null:
+            _fail("Maison du Roi documented tower-register cue missing: %s" % required_name); return
+    if int(v7.get_meta("roof_register_bay_count", -1)) != 3 or not bool(v7.get_meta("roof_register_bays_documented", false)):
+        _fail("Maison du Roi three-face roof-register bay contract drifted"); return
+    if int(v7.get_meta("roof_balustrade_element_count", -1)) != 6 or not bool(v7.get_meta("roof_balustrade_documented", false)):
+        _fail("Maison du Roi projecting balustrade contract drifted"); return
+    if bool(v7.get_meta("roof_register_bay_dimensions_surveyed", true)) or bool(v7.get_meta("roof_balustrade_dimensions_surveyed", true)):
+        _fail("Maison du Roi authored tower-register dimensions mislabeled surveyed"); return
+    for index: int in range(5):
+        if details.get_node_or_null("MaisonDuRoiTowerRoofBaluster_%02d" % index) == null:
+            _fail("Maison du Roi openwork balustrade lost post %d" % index); return
+
     facade.call("set_presentation_visible",false)
     for _frame: int in range(4): await process_frame
     if details.visible:
@@ -157,5 +182,5 @@ func _run() -> void:
     for _frame: int in range(4): await process_frame
     if not details.visible:
         _fail("ON toggle did not restore V5 details"); return
-    print("GRAND_PLACE_FACADE_INTEGRATED_V5_OK: v4_rejected=true lateral_stretch=false renard_balusters=9 maison_glazing=35 maison_piers=20 maison_tower_cues=3 maison_tower_axial_ratio=%.3f maison_tower_depth_ratio=%.3f brasseurs=11 rose_orders=16 mont_thabor=5 collisions=23" % [tower_width/axial_span,depth_ratio])
+    print("GRAND_PLACE_FACADE_INTEGRATED_V5_OK: v4_rejected=true lateral_stretch=false renard_balusters=9 maison_glazing=35 maison_piers=20 maison_tower_cues=3 maison_tower_axial_ratio=%.3f maison_tower_depth_ratio=%.3f maison_roof_bays=3 maison_balustrade=6 brasseurs=11 rose_orders=16 mont_thabor=5 collisions=23" % [tower_width/axial_span,depth_ratio])
     quit(0)

@@ -31,11 +31,10 @@ func _run() -> void:
     var floor_shape := BoxShape3D.new()
     floor_shape.size = Vector3(120.0, 0.4, 120.0)
     floor_collision.shape = floor_shape
-    floor_collision.position = Vector3(0.0, -0.2, 0.0) # top exactly Y=0, like a normal road plane
+    floor_collision.position = Vector3(0.0, -0.2, 0.0)
     floor.add_child(floor_collision)
     world.add_child(floor)
 
-    # Validate every visual: the labelled front axle must face the body's Godot forward (-Z).
     for model_id: String in MODELS:
         var holder := CharacterBody3D.new()
         holder.position = Vector3(50.0, 0.6, 50.0)
@@ -59,7 +58,6 @@ func _run() -> void:
         holder.queue_free()
         await process_frame
 
-    # Reproduce the real bug: spawn too high over a normal road, then require a snap onto the road.
     var car := DRIVABLE.new() as DrivableTrafficVehicle
     car.position = Vector3(0.0, 1.35, 8.0)
     car.collision_layer = 1

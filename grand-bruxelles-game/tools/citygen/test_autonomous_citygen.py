@@ -81,6 +81,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert report1["counts"]=={"DATA_READY":2,"MISSING_SOURCE":1,"QUARANTINE":1,"RUNTIME_READY":1},report1["counts"]
     assert report1["policy"]["maturity_gate_count"] == len(all_gates)
     assert report1["policy"]["runtime_promotion"] == "forbidden_without_full_regional_maturity_contract"
+    assert report1["policy"]["secondary_height_frontier"].startswith("autonomous_urbis3d")
     # Existing authoritative source cells must mature before CityGen expands into
     # a new MISSING_SOURCE cell, otherwise a large target grid can starve evidence.
     assert report1["selected_batch"]==[cells[1],cells[3]],report1["selected_batch"]
@@ -108,30 +109,55 @@ with tempfile.TemporaryDirectory() as tmp:
     ]
     assert mod.select_batch(frontier,2)==["bxl-e101000-n100000-s500","bxl-e100500-n100000-s500"]
     mature_vs_expansion=[
-        {"cell_id":"bxl-e141500-n167500-s500","state":"DATA_READY","attempts":1,"evidence_progress":7},
+        {"cell_id":"bxl-e141500-n167500-s500","state":"DATA_READY","attempts":1,"evidence_progress":10,"next_action":"derive_urbis3d_semantic_height_evidence"},
         {"cell_id":"bxl-e142000-n168000-s500","state":"MISSING_SOURCE","attempts":0,"evidence_progress":0},
     ]
     assert mod.select_batch(mature_vs_expansion,1)==["bxl-e141500-n167500-s500"]
 
+    # Prove the old ten-stage manual frontier is now three autonomous stages.
     frontier_cell = cells[3]
-    for filename, _action in mod.EVIDENCE_STAGES[:-2]:
+    for filename, _action in mod.EVIDENCE_STAGES[:8]:
         write_json(source/frontier_cell/filename, {"cell_id": frontier_cell})
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == len(mod.EVIDENCE_STAGES)-2
+    assert progress == 8
     assert action == "derive_building_height_candidates"
-    write_json(source/frontier_cell/"building_height_candidates.json", {"cell_id": frontier_cell})
+    write_json(source/frontier_cell/"building_height_candidates.json", {"cell_id": frontier_cell, "blockers": []})
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == len(mod.EVIDENCE_STAGES)-1
+    assert progress == 9
     assert action == "evaluate_terrain_lod"
     write_json(source/frontier_cell/"terrain_lod_evidence.json", {"cell_id": frontier_cell})
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == len(mod.EVIDENCE_STAGES)
-    assert action == "secondary_height_validation_and_terrain_runtime_checks"
+    assert progress == 10
+    assert action == "derive_urbis3d_semantic_height_evidence"
+    write_json(source/frontier_cell/"urbis3d_semantic_height_evidence.json", {"cell": frontier_cell})
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == 11
+    assert action == "compare_semantic_dsm_heights"
+    write_json(source/frontier_cell/"secondary_height_evidence.json", {"cell": frontier_cell})
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == 12
+    assert action == "validate_secondary_height_evidence"
+    write_json(source/frontier_cell/"secondary_height_validation.json", {
+        "cell_id": frontier_cell,
+        "runtime_promotion_allowed": False,
+        "secondary_validation_complete": False,
+    })
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == 13
+    assert action == mod.SECONDARY_BLOCKED_ACTION
+    write_json(source/frontier_cell/"secondary_height_validation.json", {
+        "cell_id": frontier_cell,
+        "runtime_promotion_allowed": False,
+        "secondary_validation_complete": True,
+    })
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == len(mod.EVIDENCE_STAGES) == 13
+    assert action == mod.MANUAL_FRONTIER_ACTION
 
     # Regression: rematerializing authoritative Buildings can change ownership
     # counts after an older elevation frontier was created. The height sampler
     # deliberately records that as a blocker. The scheduler must requeue the
-    # frontier stage instead of falsely treating all ten evidence files as mature.
+    # frontier stage instead of falsely treating downstream evidence as mature.
     write_json(
         source/frontier_cell/"building_height_candidates.json",
         {"cell_id": frontier_cell, "blockers": ["frontier_building_target_count_mismatch"]},
@@ -151,14 +177,17 @@ with tempfile.TemporaryDirectory() as tmp:
     refreshed_out2 = root / "refreshed-out2"
     refresh_cell = "bxl-e141500-n167500-s500"
     refresh_target = root / "refresh-target.json"
-    write_json(refresh_target,{"format":"grand-bruxelles-regional-target-grid-v1","crs":"EPSG:31370","cell_size_m":500.0,"cells":[{"cell_id":refresh_cell,"bbox":[141500,167500,142000,168000],"municipalities":["test"]}]})
+    write_json(refresh_target,{"format":"grand-bruxelles-regional-target-grid-v1","crs":"EPSG:31370","cell_size_m":500.0,"cells":[{"cell_id":refresh_cell,"bbox":[141500,167500,142000,168000],"municipalities":["anderlecht"]}]})
     first=mod.run(refreshed_source,refreshed_maturity,None,refreshed_out1,1,refresh_target)
     assert first["selected_batch"] == [refresh_cell]
     assert first["run_number"] == 1
     write_json(refreshed_source/refresh_cell/"manifest.json",{"cell_id":refresh_cell,"crs":"EPSG:31370","layers":["buildings"]})
     write_json(refreshed_source/refresh_cell/"maturity.json",{"cell_id":refresh_cell,"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:False for name in all_gates}}})
     for filename, _action in mod.EVIDENCE_STAGES:
-        write_json(refreshed_source/refresh_cell/filename,{"cell_id":refresh_cell})
+        payload={"cell_id":refresh_cell}
+        if filename=="secondary_height_validation.json":
+            payload={"cell_id":refresh_cell,"runtime_promotion_allowed":False,"secondary_validation_complete":True}
+        write_json(refreshed_source/refresh_cell/filename,payload)
     refreshed=mod.run(
         refreshed_source,
         refreshed_maturity,
@@ -175,5 +204,6 @@ with tempfile.TemporaryDirectory() as tmp:
     assert refreshed_row["state"] == "DATA_READY"
     assert refreshed_row["evidence_progress"] == len(mod.EVIDENCE_STAGES)
     assert refreshed_row["next_action"] == mod.MANUAL_FRONTIER_ACTION
+    assert refreshed_row["autonomous_actionable"] is False
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true stale_height_frontier_requeue=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true automatic_secondary_height_stages=3 stale_height_frontier_requeue=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")

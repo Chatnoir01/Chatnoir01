@@ -19,9 +19,47 @@ EXPECTED = {
     "footwear_blob": "2cd09f0af9c5bd13604d57d8af19e9205933ee85",
 }
 
+EXPECTED_SOURCE_MANIFEST = {
+    "assets/characters/civilians/civ1/source/vitruvian_body.glb": {
+        "upstream_path": "godot_project/vitruvian_body.glb",
+        "git_blob_sha1": "09bcade1092e5a89b474e91e6013209d4c68c127",
+        "size_bytes": 6879364,
+    },
+    "assets/characters/civilians/civ1/source/vitruvian_head.glb": {
+        "upstream_path": "godot_project/vitruvian_head.glb",
+        "git_blob_sha1": "0c810e209f09fc079086746f0813de9531d0f7fb",
+        "size_bytes": 10189832,
+    },
+    "assets/characters/civilians/civ1/source/hairtool_cards.glb": {
+        "upstream_path": "godot_project/hairtool_cards.glb",
+        "git_blob_sha1": "04799adc868ba72e0fa1c1ab60c0442e12d5987e",
+        "size_bytes": 14839096,
+    },
+    "assets/characters/civilians/civ1/source/vitruvian_hair.glb": {
+        "upstream_path": "godot_project/vitruvian_hair.glb",
+        "git_blob_sha1": "b6f63553ce9d5f2f83920b445f21831caf9017f1",
+        "size_bytes": 21189248,
+    },
+    "assets/characters/civilians/civ1/source/shoes03.obj": {
+        "upstream_path": "base/clothes/shoes03/shoes03.obj",
+        "git_blob_sha1": "2cd09f0af9c5bd13604d57d8af19e9205933ee85",
+        "size_bytes": None,
+    },
+}
+
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _git_blob_sha1(path: Path) -> str:
+    size = path.stat().st_size
+    digest = hashlib.sha1()
+    digest.update(f"blob {size}\0".encode("ascii"))
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
@@ -72,6 +110,7 @@ def validate(root: Path, require_ready: bool = False) -> list[str]:
         errors.append("Mixamo-derived payload must remain excluded")
 
     source_paths = status.get("source_paths")
+    source_manifest = status.get("source_manifest")
     runtime_files = status.get("runtime_files")
     runtime_scene = status.get("runtime_scene")
     runtime_hashes = status.get("runtime_sha256")
@@ -83,9 +122,26 @@ def validate(root: Path, require_ready: bool = False) -> list[str]:
     ):
         if not isinstance(value, list) or not value:
             errors.append(f"{label} must be a non-empty list")
+    if not isinstance(source_manifest, dict):
+        errors.append("source_manifest must be an object")
+        source_manifest = {}
     if not isinstance(runtime_hashes, dict):
         errors.append("runtime_sha256 must be an object")
         runtime_hashes = {}
+
+    if isinstance(source_paths, list):
+        if set(source_paths) != set(EXPECTED_SOURCE_MANIFEST):
+            errors.append("source_paths must match the immutable CIV-1 source manifest")
+        if set(source_manifest) != set(EXPECTED_SOURCE_MANIFEST):
+            errors.append("source_manifest paths drift from immutable CIV-1 pins")
+        for rel, expected_pin in EXPECTED_SOURCE_MANIFEST.items():
+            pin = source_manifest.get(rel)
+            if not isinstance(pin, dict):
+                errors.append(f"source manifest entry missing: {rel}")
+                continue
+            for key in ("upstream_path", "git_blob_sha1", "size_bytes"):
+                if pin.get(key) != expected_pin.get(key):
+                    errors.append(f"source manifest pin drift: {rel} {key}")
 
     canonical_prefix = "assets/characters/civilians/civ1/"
     player_forbidden = ("assets/characters/player_character.glb", "assets/characters/player/")
@@ -112,8 +168,21 @@ def validate(root: Path, require_ready: bool = False) -> list[str]:
 
     if source_present and isinstance(source_paths, list):
         for rel in source_paths:
-            if not (root / rel).is_file():
+            target = root / rel
+            if not target.is_file():
                 errors.append(f"declared source file missing: {rel}")
+                continue
+            expected_pin = EXPECTED_SOURCE_MANIFEST.get(rel)
+            if expected_pin is None:
+                errors.append(f"unrecognized source file: {rel}")
+                continue
+            expected_size = expected_pin.get("size_bytes")
+            if isinstance(expected_size, int) and target.stat().st_size != expected_size:
+                errors.append(f"source size mismatch for {rel}: expected {expected_size}, got {target.stat().st_size}")
+            actual_blob = _git_blob_sha1(target)
+            if actual_blob != expected_pin["git_blob_sha1"]:
+                errors.append(f"source git blob mismatch for {rel}")
+
     if runtime_present and isinstance(runtime_files, list):
         for rel in runtime_files:
             target = root / rel

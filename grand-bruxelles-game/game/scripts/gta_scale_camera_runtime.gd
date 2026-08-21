@@ -19,8 +19,11 @@ const VIEW_NAMES: Array[String] = ["standard", "close", "wide", "first_person"]
 const VIEW_MATCH_TOLERANCE_M := 0.035
 
 const DEFAULT_THIRD_PERSON_PITCH_DEG := -7.0
-const THIRD_PERSON_CAMERA_OFFSET := Vector3(0.34, 0.08, 0.0)
-const FIRST_PERSON_CAMERA_OFFSET := Vector3.ZERO
+# SpringArm3D owns the transform of every direct child during physics. Keep the
+# Camera3D as a direct child for collision-shape behavior and shoulder the arm
+# origin instead of fighting the camera's local transform every physics frame.
+const THIRD_PERSON_SPRING_ARM_OFFSET := Vector3(0.34, 0.08, 0.0)
+const CENTERED_SPRING_ARM_OFFSET := Vector3.ZERO
 const COMBAT_AIM_FOV_DEG := 61.0
 
 const MIN_SOURCE_VISUAL_HEIGHT_M := 0.10
@@ -147,9 +150,11 @@ func _apply_camera_contract() -> void:
 
     # Highest priority: exact source-backed Atomium witness. Combat Arsenal has a
     # legacy per-frame FOV lerp, so merely yielding is not enough; the late arbiter
-    # must restore the exact presentation value before rendering.
+    # must restore the exact presentation value before rendering. Keep this source
+    # witness centred; normal third-person shoulder composition is restored on exit.
     var atomium_fov := _atomium_presentation_fov()
     if atomium_fov > 0.0:
+        _spring_arm.position = CENTERED_SPRING_ARM_OFFSET
         _camera.fov = atomium_fov
         _set_camera_owner("special_presentation", "atomium", _spring_arm.spring_length, atomium_fov)
         return
@@ -158,8 +163,8 @@ func _apply_camera_contract() -> void:
     # when another gameplay runtime attempts to write a default FOV in the frame.
     if _ixelles_first_person_is_active():
         _spring_arm.spring_length = TUNED_VIEW_DISTANCES[3]
+        _spring_arm.position = CENTERED_SPRING_ARM_OFFSET
         _camera.fov = TUNED_VIEW_FOVS[3]
-        _camera.position = FIRST_PERSON_CAMERA_OFFSET
         _set_camera_owner("special_presentation", "ixelles_first_person", TUNED_VIEW_DISTANCES[3], TUNED_VIEW_FOVS[3])
         return
 
@@ -170,7 +175,7 @@ func _apply_camera_contract() -> void:
 
     var restoring_standard := index == 0 and _is_legacy_distance(index, current_distance)
     _spring_arm.spring_length = TUNED_VIEW_DISTANCES[index]
-    _camera.position = FIRST_PERSON_CAMERA_OFFSET if index == 3 else THIRD_PERSON_CAMERA_OFFSET
+    _spring_arm.position = CENTERED_SPRING_ARM_OFFSET if index == 3 else THIRD_PERSON_SPRING_ARM_OFFSET
 
     # Combat owns only the aimed FOV. When aiming stops, normal gameplay immediately
     # regains the tuned profile instead of drifting back to Combat Arsenal's old 69°.

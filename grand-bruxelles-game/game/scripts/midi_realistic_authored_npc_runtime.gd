@@ -115,7 +115,11 @@ func bind_person(person: Node3D) -> bool:
         return false
     clips = _resolve_locomotion(animation_player)
     _configure_loops(animation_player, clips)
-    _bindings[instance_id] = {"person": person, "authored": authored, "animation_player": animation_player, "clips": clips}
+    var clip_resource_ids := _capture_clip_resource_ids(animation_player, clips)
+    if clip_resource_ids.size() != 3:
+        _record_rejection(instance_id, "animation_localization_failed", false)
+        return false
+    _bindings[instance_id] = {"person": person, "authored": authored, "animation_player": animation_player, "clips": clips, "clip_resource_ids": clip_resource_ids}
     _binding_rejections.erase(instance_id)
     _states[instance_id] = "idle"
     _current_animations[instance_id] = ""
@@ -200,9 +204,17 @@ func _binding_valid(instance_id: int) -> bool:
     if not authored.is_ancestor_of(animation_player):
         return false
     var clips := binding.get("clips", {}) as Dictionary
+    var clip_resource_ids := binding.get("clip_resource_ids", {}) as Dictionary
     for state: String in ["idle", "walk", "run"]:
         var clip_name := String(clips.get(state, ""))
         if clip_name.is_empty() or not animation_player.has_animation(clip_name):
+            return false
+        var animation := animation_player.get_animation(clip_name)
+        if animation == null:
+            return false
+        if int(clip_resource_ids.get(state, 0)) != animation.get_instance_id():
+            return false
+        if animation.loop_mode != Animation.LOOP_LINEAR:
             return false
     return true
 
@@ -365,6 +377,18 @@ func _localize_locomotion_animations(animation_player: AnimationPlayer, clips: D
         installed.append(replacement)
     return true
 
+func _capture_clip_resource_ids(animation_player: AnimationPlayer, clips: Dictionary) -> Dictionary:
+    var resource_ids: Dictionary = {}
+    for state: String in ["idle", "walk", "run"]:
+        var clip_name := String(clips.get(state, ""))
+        if clip_name.is_empty() or not animation_player.has_animation(clip_name):
+            return {}
+        var animation := animation_player.get_animation(clip_name)
+        if animation == null:
+            return {}
+        resource_ids[state] = animation.get_instance_id()
+    return resource_ids
+
 func _configure_loops(animation_player: AnimationPlayer, clips: Dictionary) -> void:
     for state: String in ["idle", "walk", "run"]:
         var animation_name := String(clips.get(state, ""))
@@ -434,6 +458,8 @@ func locomotion_stats() -> Dictionary:
         "authorization_revocation_stops_animation": true,
         "dynamic_rejection_recovery": true,
         "binding_identity_guard": true,
+        "binding_animation_resource_identity_guard": true,
+        "binding_loop_mode_guard": true,
         "rebind_resets_motion_history": true,
         "multi_animation_player_selection": true,
         "localized_animation_resources": true,

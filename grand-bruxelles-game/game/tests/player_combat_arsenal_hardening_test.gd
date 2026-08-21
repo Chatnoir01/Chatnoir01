@@ -87,9 +87,12 @@ func _run() -> void:
         _fail("combo move metadata must be published before deferred melee contact scheduling"); return
 
     var project_text := FileAccess.get_file_as_string("res://project.godot")
-    var expected := "PlayerCombatArsenalRuntime=\"*res://game/scripts/player_combat_arsenal_hardened_runtime.gd\""
+    var expected := "PlayerCombatArsenalRuntime=\"*res://game/scripts/player_combat_arsenal_polish_runtime.gd\""
     if project_text.find(expected) < 0:
-        _fail("project must autoload the hardened arsenal runtime"); return
+        _fail("project must autoload the polish arsenal runtime"); return
+    var polish_source := FileAccess.get_file_as_string("res://game/scripts/player_combat_arsenal_polish_runtime.gd")
+    if polish_source.find("extends \"res://game/scripts/player_combat_arsenal_hardened_runtime.gd\"") < 0:
+        _fail("polish runtime must extend hardened arsenal rather than bypass it"); return
 
-    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green combo_variation=green flinch_isolation=green weight_transfer=4 grip_recoil_lock=green canonical_holder_swap=green deferred_melee_contract=green buffer=green")
+    print("PLAYER_COMBAT_HARDENING_OK: camera_preflight=green cadence_reset=green public_aim_api=green hit_feedback=green flinch=green combo_direction_order=green combo_variation=green flinch_isolation=green weight_transfer=4 grip_recoil_lock=green canonical_holder_swap=green deferred_melee_contract=green buffer=green polish_inheritance=green")
     quit(0)

@@ -60,9 +60,10 @@ jobs:
         run: |
           grep -F "const DIRECT_SPAWN_STATIC = ['bourse', 'atomium', 'ixelles', 'lemonnier', 'anneessens'].includes(DIRECT_SPAWN);" .github/workflows/grand-bruxelles-web.yml
           grep -F "const DIRECT_SPAWN_ROAD = /^road-[1-9][0-9]{0,17}$/.test(DIRECT_SPAWN || '');" .github/workflows/grand-bruxelles-web.yml
-          grep -F "if (DIRECT_SPAWN_STATIC || DIRECT_SPAWN_ROAD)" .github/workflows/grand-bruxelles-web.yml
+          grep -F "const DIRECT_SPAWN_STREETAXIS = /^streetaxis-[1-9][0-9]{0,17}$/.test(DIRECT_SPAWN || '');" .github/workflows/grand-bruxelles-web.yml
+          grep -F "if (DIRECT_SPAWN_STATIC || DIRECT_SPAWN_ROAD || DIRECT_SPAWN_STREETAXIS)" .github/workflows/grand-bruxelles-web.yml
           grep -F "GODOT_CONFIG.args = ['--', \`spawn=\${DIRECT_SPAWN}\`];" .github/workflows/grand-bruxelles-web.yml
-          ! grep -E "spawn=.*(x=|y=|z=)" .github/workflows/grand-bruxelles-web.yml
+          ! grep -E "spawn=.*(x=|y=|z=|lat=|lon=)" .github/workflows/grand-bruxelles-web.yml
 
       - name: Upload exact player witness
         uses: actions/upload-artifact@v4

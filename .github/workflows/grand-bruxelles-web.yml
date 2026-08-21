@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/game/**"
       - "grand-bruxelles-game/assets/characters/player/**"
       - "grand-bruxelles-game/data/osm/**"
+      - "grand-bruxelles-game/data/urbis/**"
       - ".github/workflows/grand-bruxelles-web.yml"
       - ".github/workflows/grand-bruxelles-pages.yml"
       - "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C01_30000.external_cell_delivery.lock.json"
@@ -87,7 +88,8 @@ jobs:
           injection = """const DIRECT_SPAWN = new URLSearchParams(window.location.search).get('spawn');
           const DIRECT_SPAWN_STATIC = ['bourse', 'atomium', 'ixelles', 'lemonnier', 'anneessens'].includes(DIRECT_SPAWN);
           const DIRECT_SPAWN_ROAD = /^road-[1-9][0-9]{0,17}$/.test(DIRECT_SPAWN || '');
-          if (DIRECT_SPAWN_STATIC || DIRECT_SPAWN_ROAD) {
+          const DIRECT_SPAWN_STREETAXIS = /^streetaxis-[1-9][0-9]{0,17}$/.test(DIRECT_SPAWN || '');
+          if (DIRECT_SPAWN_STATIC || DIRECT_SPAWN_ROAD || DIRECT_SPAWN_STREETAXIS) {
           \tGODOT_CONFIG.args = ['--', `spawn=${DIRECT_SPAWN}`];
           }
           
@@ -99,7 +101,8 @@ jobs:
           PY
           grep -F "const DIRECT_SPAWN_STATIC = ['bourse', 'atomium', 'ixelles', 'lemonnier', 'anneessens'].includes(DIRECT_SPAWN);" grand-bruxelles-game/web-preview/index.html
           grep -F "const DIRECT_SPAWN_ROAD = /^road-[1-9][0-9]{0,17}$/.test(DIRECT_SPAWN || '');" grand-bruxelles-game/web-preview/index.html
-          grep -F "if (DIRECT_SPAWN_STATIC || DIRECT_SPAWN_ROAD)" grand-bruxelles-game/web-preview/index.html
+          grep -F "const DIRECT_SPAWN_STREETAXIS = /^streetaxis-[1-9][0-9]{0,17}$/.test(DIRECT_SPAWN || '');" grand-bruxelles-game/web-preview/index.html
+          grep -F "if (DIRECT_SPAWN_STATIC || DIRECT_SPAWN_ROAD || DIRECT_SPAWN_STREETAXIS)" grand-bruxelles-game/web-preview/index.html
           grep -F "GODOT_CONFIG.args = ['--', \`spawn=\${DIRECT_SPAWN}\`];" grand-bruxelles-game/web-preview/index.html
 
       - name: Verify Web files are servable

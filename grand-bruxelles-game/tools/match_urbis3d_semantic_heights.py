@@ -92,6 +92,22 @@ def resolve_field_name(layer: ogr.Layer, expected: str) -> str:
     raise RuntimeError(f"Layer {layer.GetName()} missing required field {expected}")
 
 
+def describe_dataset_schema(dataset: ogr.DataSource, path: Path) -> dict[str, Any]:
+    layers: list[dict[str, Any]] = []
+    for index in range(dataset.GetLayerCount()):
+        layer = dataset.GetLayerByIndex(index)
+        if layer is None:
+            continue
+        definition = layer.GetLayerDefn()
+        fields = [definition.GetFieldDefn(i).GetName() for i in range(definition.GetFieldCount())]
+        layers.append({
+            "name": layer.GetName(),
+            "geometry_type": ogr.GeometryTypeToName(definition.GetGeomType()),
+            "fields": fields,
+        })
+    return {"path": str(path), "layers": layers}
+
+
 def load_buildings(path: Path, bbox: tuple[float, float, float, float]) -> list[dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     minx, miny, maxx, maxy = bbox
@@ -134,15 +150,21 @@ def find_buildingfaces(root: Path) -> tuple[ogr.DataSource, ogr.Layer, Path]:
 
 def find_urbis3d_layers(root: Path) -> tuple[ogr.DataSource, ogr.Layer, ogr.Layer, Path]:
     """Find one official package carrying both face geometry and solid identity."""
+    observed: list[dict[str, Any]] = []
     for path in sorted(p for p in root.rglob("*.gpkg") if p.is_file()):
         dataset = ogr.Open(str(path), 0)
         if dataset is None:
+            observed.append({"path": str(path), "open": False})
             continue
+        observed.append(describe_dataset_schema(dataset, path))
         faces = dataset.GetLayerByName("BuildingFaces")
         solids = dataset.GetLayerByName("BuildingSolids")
         if faces is not None and solids is not None:
             return dataset, faces, solids, path
-    raise RuntimeError("No GeoPackage with both BuildingFaces and BuildingSolids found")
+    raise RuntimeError(
+        "No GeoPackage with both BuildingFaces and BuildingSolids found; observed_schema="
+        + json.dumps(observed, ensure_ascii=False, sort_keys=True)
+    )
 
 
 def collect_solid_building_links(layer: ogr.Layer) -> dict[str, str]:

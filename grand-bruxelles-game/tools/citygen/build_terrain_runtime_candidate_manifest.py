@@ -61,6 +61,15 @@ def _require_digest(value: Any, label: str) -> str:
     return value.casefold()
 
 
+def _verified_embedded_digest(payload: dict[str, Any], field: str, label: str) -> str:
+    expected = _require_digest(payload.get(field), label)
+    unsigned = {key: value for key, value in payload.items() if key != field}
+    actual = _digest(unsigned)
+    if actual != expected:
+        raise ValueError(f"{label} does not match payload content")
+    return expected
+
+
 def build(terrain_lod_path: Path, secondary_validation_path: Path) -> dict[str, Any]:
     terrain = _read(terrain_lod_path)
     secondary = _read(secondary_validation_path)
@@ -130,8 +139,8 @@ def build(terrain_lod_path: Path, secondary_validation_path: Path) -> dict[str, 
     if observed_validated != validated_count or observed_blocked != blocked_count:
         raise ValueError("secondary height status counts drifted")
 
-    terrain_digest = _require_digest(terrain.get("evidence_digest"), "terrain evidence digest")
-    secondary_digest = _require_digest(secondary.get("validation_digest"), "secondary validation digest")
+    terrain_digest = _verified_embedded_digest(terrain, "evidence_digest", "terrain evidence digest")
+    secondary_digest = _verified_embedded_digest(secondary, "validation_digest", "secondary validation digest")
     height_contract_complete = bool(secondary.get("secondary_validation_complete")) and blocked_count == 0 and candidate_count > 0
 
     blockers = [

@@ -1,11 +1,74 @@
 extends "res://game/scripts/traffic_manager_rgsdev_vehicle_extension.gd"
 class_name TrafficManagerNpcCrossingExtension
 
+const AMBULANCE_VEHICLE_SCRIPT := preload("res://game/scripts/ambulance_vehicle.gd")
+const AMBULANCE_VISUAL_SCRIPT := preload("res://game/scripts/rgsdev_vehicle_visual.gd")
+
 @export var pedestrian_gap_reaction_s: float = 0.8
 @export var pedestrian_gap_min_clearance_m: float = 3.2
 @export var pedestrian_gap_max_lookahead_m: float = 22.0
 @export var pedestrian_gap_extra_buffer_m: float = 1.5
 @export var pedestrian_gap_min_closing_speed_mps: float = 0.35
+@export var dedicated_ambulance_count: int = 2
+@export var dedicated_ambulance_spacing_m: float = 4.8
+@export var dedicated_ambulance_offset: Vector3 = Vector3(8.0, 1.10, 5.0)
+
+var _ambulance_root: Node3D = null
+
+func _ready() -> void:
+    super._ready()
+    call_deferred("_spawn_dedicated_ambulances")
+
+func _spawn_dedicated_ambulances() -> void:
+    if dedicated_ambulance_count <= 0:
+        return
+    if _ambulance_root == null or not is_instance_valid(_ambulance_root):
+        _ambulance_root = get_node_or_null("Ambulances") as Node3D
+        if _ambulance_root == null:
+            _ambulance_root = Node3D.new()
+            _ambulance_root.name = "Ambulances"
+            add_child(_ambulance_root)
+    if _ambulance_root.get_child_count() > 0:
+        return
+
+    var anchor := _anchor_position()
+    for index: int in range(dedicated_ambulance_count):
+        var ambulance := AMBULANCE_VEHICLE_SCRIPT.new() as AmbulanceVehicle
+        ambulance.name = "Ambulance_%02d" % [index + 1]
+        ambulance.collision_layer = 1
+        ambulance.collision_mask = 1
+        ambulance.add_to_group("vehicle")
+        ambulance.add_to_group("ambulance")
+        ambulance.add_to_group("emergency_vehicle")
+        ambulance.global_position = anchor + dedicated_ambulance_offset + Vector3(float(index) * dedicated_ambulance_spacing_m, 0.0, 0.0)
+        ambulance.rotation.y = deg_to_rad(-38.0)
+
+        var collision := CollisionShape3D.new()
+        collision.name = "CollisionShape3D"
+        var box := BoxShape3D.new()
+        box.size = Vector3(2.08, 2.12, 5.28)
+        collision.shape = box
+        ambulance.add_child(collision)
+
+        var visual := AMBULANCE_VISUAL_SCRIPT.new()
+        visual.name = "RgsdevVisual"
+        visual.call("configure_model", "ambulance")
+        ambulance.add_child(visual)
+
+        ambulance.configure_archetype("car")
+        ambulance.call("configure_as_parked")
+        ambulance.set_meta("dedicated_special_vehicle", true)
+        ambulance.set_meta("special_vehicle_kind", "ambulance")
+        _ambulance_root.add_child(ambulance)
+
+func get_ambulance_count() -> int:
+    if _ambulance_root == null:
+        return 0
+    var count := 0
+    for child: Node in _ambulance_root.get_children():
+        if not child.is_queued_for_deletion():
+            count += 1
+    return count
 
 func get_npc_crossing_system() -> RefCounted:
     return _crossing_system

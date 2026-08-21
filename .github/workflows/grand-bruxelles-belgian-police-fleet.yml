@@ -1,0 +1,93 @@
+name: Grand Bruxelles Belgian Police Fleet
+
+on:
+  push:
+    branches:
+      - visual/belgian-police-fleet-five-51907a1
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/police/belgian_fleet/**"
+      - "grand-bruxelles-game/game/scripts/belgian_police_fleet_runtime.gd"
+      - "grand-bruxelles-game/game/tests/belgian_police_fleet_runtime_test.gd"
+      - "grand-bruxelles-game/data/runtime/modules/belgian_police_fleet.json"
+      - ".github/workflows/grand-bruxelles-belgian-police-fleet.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-belgian-police-fleet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify five-source provenance and fail-closed gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROVENANCE=grand-bruxelles-game/assets/police/belgian_fleet/PROVENANCE.md
+          test -s "$PROVENANCE"
+          grep -q "POL-BE-01" "$PROVENANCE"
+          grep -q "POL-BE-02" "$PROVENANCE"
+          grep -q "POL-BE-03" "$PROVENANCE"
+          grep -q "POL-BE-04" "$PROVENANCE"
+          grep -q "POL-BE-05" "$PROVENANCE"
+          grep -q "No GTA" "$PROVENANCE"
+          grep -q "visual slots" "$PROVENANCE"
+
+      - name: Refuse accidental GTA mod bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find grand-bruxelles-game -type f \( -iname '*.yft' -o -iname '*.ytd' \) -print -quit | grep -q .; then
+            echo "Forbidden GTA mod geometry/texture byte detected"
+            exit 1
+          fi
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project and reject parser failures
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/police-fleet-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Couldn't load project data" /tmp/police-fleet-import.log; then
+            exit 1
+          fi
+
+      - name: Run five-profile renderer-only test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/belgian_police_fleet_runtime_test.gd 2>&1 | tee /tmp/police-fleet-test.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BELGIAN_POLICE_FLEET_FAIL" /tmp/police-fleet-test.log; then
+            exit 1
+          fi
+          grep -q "BELGIAN_POLICE_FLEET_OK" /tmp/police-fleet-test.log
+
+      - name: Verify exact five-profile declarations
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCRIPT=grand-bruxelles-game/game/scripts/belgian_police_fleet_runtime.gd
+          test "$(grep -c '^        \"id\":' "$SCRIPT")" -eq 5
+          grep -q '"changes_physics": false' "$SCRIPT"
+          grep -q '"changes_collision": false' "$SCRIPT"
+          grep -q '"changes_traffic_motion": false' "$SCRIPT"
+          grep -q '"changes_geography": false' "$SCRIPT"

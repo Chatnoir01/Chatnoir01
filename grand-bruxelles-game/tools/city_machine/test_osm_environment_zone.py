@@ -26,18 +26,11 @@ def manifest() -> dict:
     }
 
 
-def test_bbox_and_projection() -> None:
-    m = manifest()
-    bbox = zone_env.bbox_wgs84(m)
-    assert 50.86 < bbox[0] < 50.87
-    assert 4.29 < bbox[1] < 4.30
-    assert 50.88 < bbox[2] < 50.89
-    assert 4.33 < bbox[3] < 4.34
-
+def raw_payload(m: dict) -> dict:
     to_wgs84 = zone_env.Transformer.from_crs("EPSG:31370", "EPSG:4326", always_xy=True)
     e, n = float(m["game_origin"]["e"]) + 100.0, float(m["game_origin"]["n"]) + 200.0
     lon, lat = to_wgs84.transform(e, n)
-    raw = {
+    return {
         "osm3s": {"timestamp_osm_base": "2026-08-17T00:00:00Z"},
         "elements": [
             {"type": "node", "id": 3, "lat": lat, "lon": lon, "tags": {"natural": "tree"}},
@@ -46,7 +39,17 @@ def test_bbox_and_projection() -> None:
             {"type": "node", "id": 9, "lat": lat, "lon": lon, "tags": {"amenity": "bench"}},
         ],
     }
-    cache = zone_env.normalize_overpass(raw, bbox)
+
+
+def test_bbox_and_projection() -> None:
+    m = manifest()
+    bbox = zone_env.bbox_wgs84(m)
+    assert 50.86 < bbox[0] < 50.87
+    assert 4.29 < bbox[1] < 4.30
+    assert 50.88 < bbox[2] < 50.89
+    assert 4.33 < bbox[3] < 4.34
+
+    cache = zone_env.normalize_overpass(raw_payload(m), bbox)
     assert cache["counts"] == {"tree": 1, "street_lamp": 1, "bollard": 1}
     assert len(cache["elements"]) == 3
     result = zone_env.project_cache(cache, m, "jette")
@@ -58,6 +61,37 @@ def test_bbox_and_projection() -> None:
     assert result["source"] == zone_env.SOURCE
     assert result["license"] == zone_env.LICENSE
     assert len(result["source_digest"]) == 64
+
+
+def test_partial_corridor_bbox_fails_closed() -> None:
+    m = manifest()
+    full_bbox = zone_env.bbox_wgs84(m)
+    partial_bbox = [
+        full_bbox[0] + 0.001,
+        full_bbox[1] + 0.001,
+        full_bbox[2] - 0.001,
+        full_bbox[3] - 0.001,
+    ]
+    cache = zone_env.normalize_overpass(raw_payload(m), partial_bbox)
+    try:
+        zone_env.project_cache(cache, m, "midi")
+    except ValueError as exc:
+        assert "partial" in str(exc)
+        assert "expected_zone_bbox" in str(exc)
+    else:
+        raise AssertionError("partial corridor OSM cache must fail closed")
+
+
+def test_missing_cache_bbox_fails_closed() -> None:
+    m = manifest()
+    cache = zone_env.normalize_overpass(raw_payload(m), zone_env.bbox_wgs84(m))
+    del cache["bbox_wgs84"]
+    try:
+        zone_env.project_cache(cache, m, "midi")
+    except ValueError as exc:
+        assert "bbox_wgs84" in str(exc)
+    else:
+        raise AssertionError("OSM cache without coverage metadata must fail closed")
 
 
 def test_bad_crs_fails_closed() -> None:
@@ -73,5 +107,7 @@ def test_bad_crs_fails_closed() -> None:
 
 if __name__ == "__main__":
     test_bbox_and_projection()
+    test_partial_corridor_bbox_fails_closed()
+    test_missing_cache_bbox_fails_closed()
     test_bad_crs_fails_closed()
-    print("CITY_MACHINE_OSM_ZONE_TESTS_OK projection=EPSG31370 environment=tree,street_lamp,bollard bad_crs=blocked")
+    print("CITY_MACHINE_OSM_ZONE_TESTS_OK projection=EPSG31370 full_bbox=required partial_slice=blocked bad_crs=blocked")

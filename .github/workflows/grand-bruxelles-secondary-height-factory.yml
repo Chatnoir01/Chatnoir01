@@ -1,0 +1,271 @@
+name: Grand Bruxelles Secondary Height Factory
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/select_cell_urbis3d_packages.py"
+      - "grand-bruxelles-game/tools/citygen/test_select_cell_urbis3d_packages.py"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis3d_semantic_batch.py"
+      - "grand-bruxelles-game/tools/citygen/test_materialize_urbis3d_semantic_batch.py"
+      - "grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py"
+      - ".github/workflows/grand-bruxelles-secondary-height-factory.yml"
+  workflow_run:
+    workflows: ["Grand Bruxelles Autonomous CityGen"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Maximum terrain-LOD cells to enrich with independent UrbIS3D height evidence"
+        required: false
+        default: "4"
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove regional secondary-height contracts
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_select_cell_urbis3d_packages.py
+          python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis3d_semantic_batch.py
+          python3 grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py
+          python3 grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
+          python3 grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py
+          python3 grand-bruxelles-game/tools/test_select_urbis_distribution.py
+
+  factory:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install read-only GeoPackage tooling
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal unzip sqlite3
+          ogrinfo --version
+
+      - name: Recover durable CityGen sources and regional grid
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/secondary-state
+          mkdir -p /tmp/secondary-state
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          for PATH_IN_STATE in \
+            grand-bruxelles-game/data/qa/autonomous_sources \
+            grand-bruxelles-game/data/qa/brussels_regional_target_grid.json; do
+            git cat-file -e "origin/citygen-autonomous-state:${PATH_IN_STATE}" \
+              || { echo "SECONDARY_HEIGHT_STATE_PENDING missing=${PATH_IN_STATE}"; exit 1; }
+          done
+          git archive origin/citygen-autonomous-state \
+            grand-bruxelles-game/data/qa/autonomous_sources \
+            grand-bruxelles-game/data/qa/brussels_regional_target_grid.json | tar -x -C /tmp/secondary-state
+          rm -rf grand-bruxelles-game/data/qa/autonomous_sources
+          mkdir -p grand-bruxelles-game/data/qa
+          cp -a /tmp/secondary-state/grand-bruxelles-game/data/qa/autonomous_sources \
+            grand-bruxelles-game/data/qa/autonomous_sources
+
+      - name: Select stale or missing secondary-height cells
+        id: plan
+        env:
+          INPUT_BATCH_SIZE: ${{ inputs.batch_size }}
+        run: |
+          set -euo pipefail
+          BATCH="${INPUT_BATCH_SIZE:-4}"
+          python3 - "$BATCH" <<'PY'
+          import json, sys
+          from pathlib import Path
+          root=Path('grand-bruxelles-game/data/qa/autonomous_sources')
+          limit=int(sys.argv[1])
+          if limit < 1 or limit > 16:
+              raise SystemExit('batch_size must be between 1 and 16')
+          eligible=[]
+          for cell in sorted(p for p in root.iterdir() if p.is_dir()) if root.exists() else []:
+              required=[cell/'raw/buildings.geojson',cell/'building_height_candidates.json',cell/'terrain_lod_evidence.json']
+              if not all(p.is_file() for p in required):
+                  continue
+              try:
+                  heights=json.loads((cell/'building_height_candidates.json').read_text())
+              except Exception:
+                  continue
+              digest=heights.get('candidate_digest')
+              if not isinstance(digest,str) or not digest:
+                  continue
+              validation=cell/'secondary_height_validation.json'
+              fresh=False
+              if validation.is_file():
+                  try:
+                      v=json.loads(validation.read_text())
+                      fresh=(v.get('source_candidate_digest')==digest and v.get('runtime_promotion_allowed') is False)
+                  except Exception:
+                      fresh=False
+              if not fresh:
+                  eligible.append(cell.name)
+          selected=eligible[:limit]
+          Path('/tmp/secondary-worklist.txt').write_text(''.join(x+'\n' for x in selected))
+          Path('/tmp/secondary-plan.json').write_text(json.dumps({'eligible_cells':len(eligible),'selected_cells':selected},indent=2,sort_keys=True)+'\n')
+          print(f'SECONDARY_HEIGHT_FACTORY_PLAN eligible={len(eligible)} selected={len(selected)}')
+          with open('/tmp/secondary-has-work.txt','w') as f: f.write('true' if selected else 'false')
+          PY
+          echo "has_work=$(cat /tmp/secondary-has-work.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Discover official UrbIS3D feed
+        if: steps.plan.outputs.has_work == 'true'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util, json
+          from pathlib import Path
+          path=Path('grand-bruxelles-game/tools/discover_urbis_sources.py')
+          spec=importlib.util.spec_from_file_location('discover_urbis_sources',path)
+          assert spec and spec.loader
+          mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+          source_id='urbis_3d_constructions'
+          feed=mod.parse_feed(source_id,mod.DEFAULT_FEEDS[source_id])
+          if feed.get('entry_count',0) <= 0:
+              raise SystemExit('official UrbIS3D feed returned no entries')
+          Path('/tmp/urbis3d-feed.json').write_text(json.dumps({'schema':1,'feeds':[feed]},indent=2,sort_keys=True)+'\n')
+          print('SECONDARY_HEIGHT_URBIS3D_FEED_OK',feed.get('entry_count'))
+          PY
+
+      - name: Plan municipality packages
+        if: steps.plan.outputs.has_work == 'true'
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/select_cell_urbis3d_packages.py \
+            --feed /tmp/urbis3d-feed.json \
+            --target-grid /tmp/secondary-state/grand-bruxelles-game/data/qa/brussels_regional_target_grid.json \
+            --worklist /tmp/secondary-worklist.txt \
+            --output /tmp/urbis3d-package-plan.json
+
+      - name: Materialize independent UrbIS3D semantic evidence
+        if: steps.plan.outputs.has_work == 'true'
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/materialize_urbis3d_semantic_batch.py \
+            --plan /tmp/urbis3d-package-plan.json \
+            --source-root grand-bruxelles-game/data/qa/autonomous_sources \
+            --cache-root /tmp/urbis3d-package-cache \
+            --report /tmp/urbis3d-semantic-report.json
+
+      - name: Compare and validate selected height candidates
+        if: steps.plan.outputs.has_work == 'true'
+        run: |
+          set -u
+          mkdir -p /tmp/secondary-results /tmp/secondary-errors
+          : > /tmp/secondary-success.txt
+          : > /tmp/secondary-failed.txt
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
+            SEM="$D/urbis3d_semantic_height_evidence.json"
+            HEIGHTS="$D/building_height_candidates.json"
+            OUT="/tmp/secondary-results/${CELL}"
+            LOG="/tmp/secondary-errors/${CELL}.log"
+            mkdir -p "$OUT"
+            if [ -s "$SEM" ] \
+              && python3 grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py \
+                   --semantic "$SEM" --height-candidates "$HEIGHTS" --output "$OUT/secondary.json" >"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py \
+                   --height-candidates "$HEIGHTS" --secondary "$OUT/secondary.json" --output "$OUT/validation.json" >>"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py \
+                   --secondary "$OUT/secondary.json" --validation "$OUT/validation.json" --output-dir "$OUT/persisted" >>"$LOG" 2>&1; then
+              cp "$OUT/persisted/secondary_height_evidence.json" "$D/secondary_height_evidence.json"
+              cp "$OUT/persisted/secondary_height_validation.json" "$D/secondary_height_validation.json"
+              echo "$CELL" >> /tmp/secondary-success.txt
+              cat "$LOG"
+            else
+              rm -f "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
+              echo "$CELL" >> /tmp/secondary-failed.txt
+              echo "SECONDARY_HEIGHT_CELL_PENDING cell=${CELL}"
+              cat "$LOG" 2>/dev/null || true
+            fi
+          done < /tmp/secondary-worklist.txt
+
+      - name: Build factory report and enforce systemic failure guard
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          plan=json.loads(Path('/tmp/secondary-plan.json').read_text())
+          def lines(path):
+              p=Path(path)
+              return [x.strip() for x in p.read_text().splitlines() if x.strip()] if p.exists() else []
+          report={
+              **plan,
+              'success_cells':lines('/tmp/secondary-success.txt'),
+              'failed_cells':lines('/tmp/secondary-failed.txt'),
+              'policy':{
+                  'official_urbis3d_only':True,
+                  'runtime_promotion_allowed':False,
+                  'runtime_approved_count':0,
+                  'automatic_production_mutation':False,
+                  'durable_state_only':True,
+              },
+          }
+          Path('/tmp/secondary-height-factory-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('SECONDARY_HEIGHT_FACTORY_REPORT',json.dumps({k:(len(v) if isinstance(v,list) else v) for k,v in report.items() if k!='policy'},sort_keys=True))
+          if report['selected_cells'] and not report['success_cells']:
+              raise SystemExit('all selected secondary-height cells failed; probable systemic UrbIS3D/tooling failure')
+          PY
+
+      - name: Persist secondary-height evidence off main
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/secondary-save
+          mkdir -p /tmp/secondary-save
+          cp -a grand-bruxelles-game/data/qa/autonomous_sources /tmp/secondary-save/
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git reset --hard
+          git clean -fd
+          git switch -C citygen-autonomous-state origin/citygen-autonomous-state
+          rm -rf grand-bruxelles-game/data/qa/autonomous_sources
+          cp -a /tmp/secondary-save/autonomous_sources grand-bruxelles-game/data/qa/
+          cp /tmp/secondary-height-factory-report.json grand-bruxelles-game/data/qa/secondary_height_factory_latest_report.json
+          git add -- grand-bruxelles-game/data/qa/autonomous_sources grand-bruxelles-game/data/qa/secondary_height_factory_latest_report.json
+          if git diff --cached --quiet; then
+            echo "SECONDARY_HEIGHT_FACTORY_NO_CHANGE"
+            exit 0
+          fi
+          git commit -m "citygen: persist regional secondary height evidence"
+          git push --force-with-lease origin citygen-autonomous-state
+
+      - name: Upload secondary-height evidence report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secondary-height-factory-${{ github.run_number }}
+          path: |
+            /tmp/secondary-plan.json
+            /tmp/urbis3d-package-plan.json
+            /tmp/urbis3d-semantic-report.json
+            /tmp/secondary-height-factory-report.json
+            /tmp/secondary-errors/
+          retention-days: 30

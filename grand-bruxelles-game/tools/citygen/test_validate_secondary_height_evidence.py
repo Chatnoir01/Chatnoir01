@@ -11,41 +11,23 @@ SPEC = importlib.util.spec_from_file_location(
 mod = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mod)
 
-REVIEW = {
-    "format": "grand-bruxelles-citygen-manual-frontier-review-v1",
-    "cell_id": "bxl-e149000-n169000-s500",
+CELL = "bxl-e149000-n169000-s500"
+AUTO = {
+    "format": "grand-bruxelles-cell-building-height-candidates-v1",
+    "cell_id": CELL,
     "crs": "EPSG:31370",
-    "manual_frontier_ready": True,
-    "height_review": {
-        "candidate_count": 2,
-        "flagged_candidate_count": 0,
-        "flagged_building_ids": [],
-        "candidates": [
-            {"building_id": "building-a", "candidate_height_m": 18.2, "confidence": "high", "review_flags": []},
-            {"building_id": "building-b", "candidate_height_m": 11.4, "confidence": "medium", "review_flags": []},
-        ],
-        "independent_secondary_validation_required": True,
-        "source_candidate_digest": "height-digest",
-    },
-    "terrain_review": {
-        "selected_resolution_m": 2.0,
-        "selected_p95_abs_error_m": 0.12,
-        "remaining_runtime_gates": ["seams", "normals", "collisions", "streaming", "performance", "photo_match"],
-        "source_evidence_digest": "terrain-digest",
-    },
-    "blockers": ["secondary_independent_height_validation_missing", "terrain_runtime_validation_missing"],
+    "candidate_count": 2,
     "runtime_promotion_allowed": False,
-    "status": "manual_review_ready_runtime_forbidden",
-    "next_actions": {
-        "heights": "cross_check_candidates_against_independent_authoritative_height_source",
-        "terrain": "run_seams_normals_collisions_streaming_performance_photo_match_gates",
-    },
-    "review_digest": "review-digest",
+    "candidate_digest": "height-digest",
+    "blockers": ["secondary_independent_height_validation_missing", "terrain_runtime_validation_missing"],
+    "buildings": [
+        {"building_id": "building-a", "candidate_height_m": 18.2, "confidence": "high", "runtime_approved": False},
+        {"building_id": "building-b", "candidate_height_m": 11.4, "confidence": "medium", "runtime_approved": False},
+    ],
 }
-
 SECONDARY = {
     "schema": "grand-bruxelles-ixelles-semantic-dsm-comparison-v1",
-    "cell": REVIEW["cell_id"],
+    "cell": CELL,
     "source_crs": "EPSG:31370",
     "policy": {"runtime_approval": False},
     "records": [
@@ -79,13 +61,16 @@ SECONDARY = {
 
 with tempfile.TemporaryDirectory() as tmp:
     root = Path(tmp)
-    review_path = root / "review.json"
+    candidates_path = root / "height-candidates.json"
     secondary_path = root / "secondary.json"
-    review_path.write_text(json.dumps(REVIEW), encoding="utf-8")
+    candidates_path.write_text(json.dumps(AUTO), encoding="utf-8")
     secondary_path.write_text(json.dumps(SECONDARY), encoding="utf-8")
 
-    result = mod.validate(review_path, secondary_path)
-    assert result["cell_id"] == REVIEW["cell_id"]
+    result = mod.validate(candidates_path, secondary_path)
+    assert result["cell_id"] == CELL
+    assert result["height_candidate_source_kind"] == "autonomous_measured_height_candidates"
+    assert result["source_candidate_digest"] == "height-digest"
+    assert result["source_review_digest"] is None
     assert result["runtime_promotion_allowed"] is False
     assert result["validated_candidate_count"] == 1
     assert result["blocked_candidate_count"] == 1
@@ -101,20 +86,34 @@ with tempfile.TemporaryDirectory() as tmp:
     mismatch["cell"] = "bxl-e149500-n169000-s500"
     secondary_path.write_text(json.dumps(mismatch), encoding="utf-8")
     try:
-        mod.validate(review_path, secondary_path)
+        mod.validate(candidates_path, secondary_path)
     except ValueError as exc:
         assert "cell identity mismatch" in str(exc)
     else:
         raise AssertionError("cross-cell secondary evidence was accepted")
 
-    unsafe = dict(SECONDARY)
-    unsafe["runtime_approved"] = True
-    secondary_path.write_text(json.dumps(unsafe), encoding="utf-8")
+    unsafe = dict(AUTO)
+    unsafe["runtime_promotion_allowed"] = True
+    candidates_path.write_text(json.dumps(unsafe), encoding="utf-8")
+    secondary_path.write_text(json.dumps(SECONDARY), encoding="utf-8")
     try:
-        mod.validate(review_path, secondary_path)
+        mod.validate(candidates_path, secondary_path)
     except ValueError as exc:
-        assert "runtime-unapproved" in str(exc)
+        assert "forbid runtime promotion" in str(exc)
     else:
-        raise AssertionError("runtime-approved secondary evidence was accepted")
+        raise AssertionError("unsafe autonomous candidate source was accepted")
 
-print("CITYGEN_SECONDARY_HEIGHT_VALIDATION_OK validated=1 blocked=1 runtime_promotion=false")
+    complete_source = dict(AUTO)
+    complete_source["candidate_count"] = 1
+    complete_source["buildings"] = [AUTO["buildings"][0]]
+    candidates_path.write_text(json.dumps(complete_source), encoding="utf-8")
+    complete_secondary = dict(SECONDARY)
+    complete_secondary["records"] = [SECONDARY["records"][0]]
+    secondary_path.write_text(json.dumps(complete_secondary), encoding="utf-8")
+    complete = mod.validate(candidates_path, secondary_path)
+    assert complete["secondary_validation_complete"] is True
+    assert complete["blocked_candidate_count"] == 0
+    assert complete["next_action"] == "run_remaining_terrain_runtime_gates_then_promotion_readiness"
+    assert complete["runtime_promotion_allowed"] is False
+
+print("CITYGEN_SECONDARY_HEIGHT_VALIDATION_OK source=automatic validated=1 blocked=1 complete_path=true runtime_promotion=false")

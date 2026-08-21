@@ -1,0 +1,266 @@
+name: Grand Bruxelles Terrain Candidate Factory
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/**"
+      - ".github/workflows/grand-bruxelles-terrain-candidate-factory.yml"
+  workflow_run:
+    workflows:
+      - "Grand Bruxelles Autonomous CityGen"
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove terrain candidate and scheduler contracts
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py
+          python3 grand-bruxelles-game/tools/citygen/test_evaluate_cell_dtm_lod.py
+
+  build:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    needs: validate
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Recover durable CityGen state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/terrain-candidate-prev
+          mkdir -p /tmp/terrain-candidate-prev
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          if git cat-file -e "origin/citygen-autonomous-state:grand-bruxelles-game/data/qa" 2>/dev/null; then
+            git archive origin/citygen-autonomous-state grand-bruxelles-game/data/qa | tar -x -C /tmp/terrain-candidate-prev
+          fi
+          rm -rf grand-bruxelles-game/data/qa
+          mkdir -p grand-bruxelles-game/data/qa
+          cp -a /tmp/terrain-candidate-prev/grand-bruxelles-game/data/qa/. grand-bruxelles-game/data/qa/ 2>/dev/null || true
+
+      - name: Prepare raster stack
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check "rasterio>=1.3,<2" "numpy>=1.26,<3" "affine>=2.4,<3"
+
+      - name: Select cells needing terrain candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path('grand-bruxelles-game/data/qa/autonomous_sources')
+          rows=[]
+          if root.exists():
+              for cell in sorted(p for p in root.iterdir() if p.is_dir() and p.name.startswith('bxl-')):
+                  required=[
+                      cell/'elevation_dsm_resolution.json',
+                      cell/'elevation_dtm_resolution.json',
+                      cell/'elevation_raster_validation.json',
+                      cell/'terrain_lod_evidence.json',
+                  ]
+                  if not all(path.is_file() for path in required):
+                      continue
+                  try:
+                      lod=json.loads((cell/'terrain_lod_evidence.json').read_text())
+                      raster=json.loads((cell/'elevation_raster_validation.json').read_text())
+                  except Exception:
+                      continue
+                  selection=lod.get('selection') or {}
+                  if selection.get('selected_resolution_m') is None:
+                      continue
+                  if selection.get('canonical_edge_alignment_required') is not True:
+                      continue
+                  if lod.get('source_raster_validation_digest') != raster.get('validation_digest'):
+                      continue
+                  candidate=cell/'terrain_runtime_candidate.json'
+                  fresh=False
+                  if candidate.is_file():
+                      try:
+                          payload=json.loads(candidate.read_text())
+                          auth=payload.get('authorization') or {}
+                          source=payload.get('source') or {}
+                          fresh=(
+                              payload.get('format') == 'grand-bruxelles-cell-terrain-runtime-candidate-v1' and
+                              payload.get('cell_id') == cell.name and
+                              source.get('terrain_lod_evidence_digest') == lod.get('evidence_digest') and
+                              auth.get('candidate_only') is True and
+                              all(auth.get(flag) is False for flag in (
+                                  'terrain_runtime_authorized','collision_authorized',
+                                  'runtime_mount_authorized','jouable_promotion_authorized'))
+                          )
+                      except Exception:
+                          fresh=False
+                  if not fresh:
+                      rows.append(cell.name)
+          Path('/tmp/terrain-candidate-worklist.txt').write_text(''.join(row+'\n' for row in rows))
+          print(f'TERRAIN_CANDIDATE_WORKLIST selected={len(rows)}')
+          PY
+
+      - name: Revalidate official rasters and build deterministic candidates
+        shell: bash
+        run: |
+          set -u
+          SOURCES="grand-bruxelles-game/data/qa/autonomous_sources"
+          mkdir -p /tmp/terrain-candidate-archive-cache /tmp/terrain-candidate-extract /tmp/terrain-candidate-validation /tmp/terrain-candidate-logs
+          : > /tmp/terrain-candidate-success.txt
+          : > /tmp/terrain-candidate-pending.txt
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="$SOURCES/$CELL"
+            T="/tmp/terrain-candidate-validation/$CELL"
+            X="/tmp/terrain-candidate-extract/$CELL"
+            mkdir -p "$T" "$X"
+            LOG="/tmp/terrain-candidate-logs/${CELL}.log"
+            OUT="$D/terrain_runtime_candidate.json"
+            rm -f "$OUT"
+            if python3 grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py \
+                --resolution "$D/elevation_dsm_resolution.json" \
+                --work-dir /tmp/terrain-candidate-archive-cache \
+                --output "$T/dsm_archive_validation.json" >"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py \
+                --resolution "$D/elevation_dtm_resolution.json" \
+                --work-dir /tmp/terrain-candidate-archive-cache \
+                --output "$T/dtm_archive_validation.json" >>"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/validate_cell_elevation_rasters.py \
+                --dsm-validation "$T/dsm_archive_validation.json" \
+                --dtm-validation "$T/dtm_archive_validation.json" \
+                --archive-cache /tmp/terrain-candidate-archive-cache \
+                --extract-root "$X" \
+                --output "$T/raster_validation.json" >>"$LOG" 2>&1 \
+              && python3 - "$D/elevation_raster_validation.json" "$T/raster_validation.json" "$D/terrain_lod_evidence.json" <<'PY' >>"$LOG" 2>&1
+          import json,sys
+          persisted=json.load(open(sys.argv[1],encoding='utf-8'))
+          rebuilt=json.load(open(sys.argv[2],encoding='utf-8'))
+          lod=json.load(open(sys.argv[3],encoding='utf-8'))
+          p=persisted.get('validation_digest'); r=rebuilt.get('validation_digest')
+          if not isinstance(p,str) or len(p)!=64 or p!=r:
+              raise SystemExit(f'raster validation digest drift persisted={p} rebuilt={r}')
+          if lod.get('source_raster_validation_digest') != p:
+              raise SystemExit('terrain LOD is stale against persisted raster validation')
+          print('TERRAIN_CANDIDATE_RASTER_REVALIDATION_OK',p)
+          PY
+            then
+              if python3 grand-bruxelles-game/tools/citygen/build_cell_terrain_runtime_candidate.py \
+                --raster-validation "$T/raster_validation.json" \
+                --terrain-lod "$D/terrain_lod_evidence.json" \
+                --extract-root "$X" \
+                --output "$OUT" >>"$LOG" 2>&1; then
+                echo "$CELL" >> /tmp/terrain-candidate-success.txt
+                cat "$LOG"
+                continue
+              fi
+            fi
+            rm -f "$OUT"
+            echo "$CELL" >> /tmp/terrain-candidate-pending.txt
+            echo "TERRAIN_RUNTIME_CANDIDATE_PENDING cell=${CELL}"
+            cat "$LOG"
+          done < /tmp/terrain-candidate-worklist.txt
+
+      - name: Build terrain candidate report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          def lines(path):
+              p=Path(path)
+              return [x.strip() for x in p.read_text().splitlines() if x.strip()] if p.exists() else []
+
+          root=Path('grand-bruxelles-game/data/qa/autonomous_sources')
+          rows=[]
+          if root.exists():
+              for cell in sorted(p for p in root.iterdir() if p.is_dir()):
+                  path=cell/'terrain_runtime_candidate.json'
+                  if not path.is_file():
+                      continue
+                  try:
+                      payload=json.loads(path.read_text())
+                  except Exception:
+                      continue
+                  rows.append({
+                      'cell_id':cell.name,
+                      'candidate_digest':payload.get('candidate_digest'),
+                      'spacing_m':payload.get('spacing_m'),
+                      'sample_count':payload.get('sample_count'),
+                      'runtime_authorized':(payload.get('authorization') or {}).get('runtime_mount_authorized'),
+                  })
+          report={
+              'format':'grand-bruxelles-terrain-candidate-factory-report-v1',
+              'candidates':rows,
+              'built':lines('/tmp/terrain-candidate-success.txt'),
+              'pending':lines('/tmp/terrain-candidate-pending.txt'),
+              'policy':{
+                  'source':'official_revalidated_DTM',
+                  'raster_validation_digest_must_match_persisted_evidence':True,
+                  'canonical_cell_edges_required':True,
+                  'terrain_runtime_authorized':False,
+                  'collision_authorized':False,
+                  'runtime_mount_authorized':False,
+                  'automatic_production_mutation':False,
+              },
+          }
+          Path('/tmp/terrain-candidate-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('TERRAIN_CANDIDATE_FACTORY_REPORT',json.dumps({'candidates':len(rows),'built':len(report['built']),'pending':len(report['pending'])},sort_keys=True))
+          PY
+
+      - name: Persist terrain candidates off main
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/terrain-candidate-save
+          mkdir -p /tmp/terrain-candidate-save
+          cp -a grand-bruxelles-game/data/qa /tmp/terrain-candidate-save/qa
+          cp /tmp/terrain-candidate-report.json /tmp/terrain-candidate-save/qa/terrain_candidate_factory_latest_report.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git reset --hard
+          git clean -fd
+          git switch -C citygen-autonomous-state origin/main
+          rm -rf grand-bruxelles-game/data/qa
+          mkdir -p grand-bruxelles-game/data
+          cp -a /tmp/terrain-candidate-save/qa grand-bruxelles-game/data/qa
+
+          git add -- grand-bruxelles-game/data/qa
+          if git diff --cached --quiet; then
+            echo "TERRAIN_CANDIDATE_FACTORY_NO_CHANGE"
+            exit 0
+          fi
+          git commit -m "citygen: persist terrain runtime candidates"
+          git push --force-with-lease origin citygen-autonomous-state
+
+      - name: Upload terrain candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-candidate-factory-${{ github.run_number }}
+          path: |
+            /tmp/terrain-candidate-report.json
+            /tmp/terrain-candidate-worklist.txt
+            /tmp/terrain-candidate-logs/
+          retention-days: 30

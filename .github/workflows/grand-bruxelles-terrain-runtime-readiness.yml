@@ -1,0 +1,214 @@
+name: Grand Bruxelles Terrain Runtime Readiness
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/**"
+      - ".github/workflows/grand-bruxelles-terrain-runtime-readiness.yml"
+  workflow_run:
+    workflows:
+      - "Grand Bruxelles Terrain Candidate Factory"
+      - "Grand Bruxelles Secondary Height Factory"
+      - "Grand Bruxelles Runtime Candidate Factory"
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove per-cell readiness aggregation
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_build_terrain_runtime_readiness.py
+          python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen.py
+
+  aggregate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    needs: validate
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Recover durable CityGen state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/runtime-readiness-prev
+          mkdir -p /tmp/runtime-readiness-prev
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          if git cat-file -e "origin/citygen-autonomous-state:grand-bruxelles-game/data/qa" 2>/dev/null; then
+            git archive origin/citygen-autonomous-state grand-bruxelles-game/data/qa | tar -x -C /tmp/runtime-readiness-prev
+          fi
+          rm -rf grand-bruxelles-game/data/qa
+          mkdir -p grand-bruxelles-game/data/qa
+          cp -a /tmp/runtime-readiness-prev/grand-bruxelles-game/data/qa/. grand-bruxelles-game/data/qa/ 2>/dev/null || true
+
+      - name: Aggregate per-cell terrain runtime readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCES="grand-bruxelles-game/data/qa/autonomous_sources"
+          CANDIDATES="grand-bruxelles-game/data/qa/autonomous_candidates/runtime"
+          mkdir -p /tmp/runtime-readiness-logs
+          : > /tmp/runtime-readiness-success.txt
+          : > /tmp/runtime-readiness-pending.txt
+          python3 - <<'PY' > /tmp/runtime-readiness-worklist.txt
+          import json
+          from pathlib import Path
+
+          sources=Path('grand-bruxelles-game/data/qa/autonomous_sources')
+          candidates=Path('grand-bruxelles-game/data/qa/autonomous_candidates/runtime')
+          if not sources.exists():
+              raise SystemExit(0)
+          for cell in sorted(p for p in sources.iterdir() if p.is_dir()):
+              terrain_lod=cell/'terrain_lod_evidence.json'
+              terrain_candidate=cell/'terrain_runtime_candidate.json'
+              secondary=cell/'secondary_height_validation.json'
+              candidate=candidates/cell.name/'candidate.json'
+              if not terrain_lod.is_file() or not terrain_candidate.is_file() or not secondary.is_file() or not candidate.is_file():
+                  continue
+              try:
+                  validation=json.loads(secondary.read_text())
+              except Exception:
+                  continue
+              if validation.get('secondary_validation_complete') is not True:
+                  continue
+              if validation.get('runtime_promotion_allowed') is not False:
+                  continue
+              print(cell.name)
+          PY
+
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="$SOURCES/$CELL"
+            C="$CANDIDATES/$CELL/candidate.json"
+            G="$D/terrain_runtime_gate_evidence.json"
+            OUT="$D/terrain_runtime_readiness.json"
+            LOG="/tmp/runtime-readiness-logs/${CELL}.log"
+            GATE_ARGS=()
+            if [ -f "$G" ]; then GATE_ARGS=(--runtime-gate-evidence "$G"); fi
+            if python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_readiness.py \
+              --terrain-lod "$D/terrain_lod_evidence.json" \
+              --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+              --secondary-height-validation "$D/secondary_height_validation.json" \
+              --runtime-candidate "$C" \
+              "${GATE_ARGS[@]}" \
+              --output "$OUT" >"$LOG" 2>&1; then
+              echo "$CELL" >> /tmp/runtime-readiness-success.txt
+              cat "$LOG"
+            else
+              rm -f "$OUT"
+              echo "$CELL" >> /tmp/runtime-readiness-pending.txt
+              echo "TERRAIN_RUNTIME_READINESS_PENDING cell=${CELL}"
+              cat "$LOG"
+            fi
+          done < /tmp/runtime-readiness-worklist.txt
+
+      - name: Build readiness report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          def lines(path):
+              p=Path(path)
+              return [x.strip() for x in p.read_text().splitlines() if x.strip()] if p.exists() else []
+
+          root=Path('grand-bruxelles-game/data/qa/autonomous_sources')
+          rows=[]
+          if root.exists():
+              for cell in sorted(p for p in root.iterdir() if p.is_dir()):
+                  readiness=cell/'terrain_runtime_readiness.json'
+                  if not readiness.is_file():
+                      continue
+                  try:
+                      payload=json.loads(readiness.read_text())
+                  except Exception:
+                      continue
+                  rows.append({
+                      'cell_id':cell.name,
+                      'terrain_runtime_candidate_digest':(payload.get('bindings') or {}).get('terrain_runtime_candidate_digest'),
+                      'passed_runtime_gate_count':payload.get('passed_runtime_gate_count'),
+                      'runtime_gate_count':payload.get('runtime_gate_count'),
+                      'promotion_ready_for_explicit_review':payload.get('promotion_ready_for_explicit_review') is True,
+                      'runtime_promotion_allowed':payload.get('runtime_promotion_allowed'),
+                      'next_action':payload.get('next_action'),
+                      'readiness_digest':payload.get('readiness_digest'),
+                  })
+          report={
+              'format':'grand-bruxelles-terrain-runtime-readiness-report-v1',
+              'aggregated_cells':rows,
+              'aggregate_success':lines('/tmp/runtime-readiness-success.txt'),
+              'aggregate_pending':lines('/tmp/runtime-readiness-pending.txt'),
+              'policy':{
+                  'automatic_production_mutation':False,
+                  'runtime_promotion_allowed':False,
+                  'global_workflow_green_is_not_cell_proof':True,
+                  'per_cell_digest_binding_required':True,
+                  'measured_gates_bind_actual_terrain_artifact':True,
+                  'required_runtime_gates':['seams','normals','collisions','streaming','performance','photo_match'],
+              },
+          }
+          Path('/tmp/terrain-runtime-readiness-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('TERRAIN_RUNTIME_READINESS_REPORT',json.dumps({
+              'aggregated':len(rows),
+              'ready_for_explicit_review':sum(1 for row in rows if row['promotion_ready_for_explicit_review']),
+              'pending':len(report['aggregate_pending']),
+          },sort_keys=True))
+          PY
+
+      - name: Persist readiness evidence off main
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/runtime-readiness-save
+          mkdir -p /tmp/runtime-readiness-save
+          cp -a grand-bruxelles-game/data/qa /tmp/runtime-readiness-save/qa
+          cp /tmp/terrain-runtime-readiness-report.json /tmp/runtime-readiness-save/qa/terrain_runtime_readiness_latest_report.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git reset --hard
+          git clean -fd
+          git switch -C citygen-autonomous-state origin/main
+          rm -rf grand-bruxelles-game/data/qa
+          mkdir -p grand-bruxelles-game/data
+          cp -a /tmp/runtime-readiness-save/qa grand-bruxelles-game/data/qa
+
+          git add -- grand-bruxelles-game/data/qa
+          if git diff --cached --quiet; then
+            echo "TERRAIN_RUNTIME_READINESS_NO_CHANGE"
+            exit 0
+          fi
+          git commit -m "citygen: persist terrain runtime readiness"
+          git push --force-with-lease origin citygen-autonomous-state
+
+      - name: Upload readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-runtime-readiness-${{ github.run_number }}
+          path: |
+            /tmp/terrain-runtime-readiness-report.json
+            /tmp/runtime-readiness-logs/
+            /tmp/runtime-readiness-worklist.txt
+          retention-days: 30

@@ -16,6 +16,7 @@ MANUAL_FRONTIER_ACTION = "secondary_height_validation_and_terrain_runtime_checks
 MANUAL_ELEVATION_QUALITY_ACTION = "resolve_elevation_quality_blockers"
 MANUAL_ACTIONS = {MANUAL_FRONTIER_ACTION, MANUAL_ELEVATION_QUALITY_ACTION}
 STALE_HEIGHT_FRONTIER_BLOCKER = "frontier_building_target_count_mismatch"
+TERRAIN_RUNTIME_CANDIDATE_FORMAT = "grand-bruxelles-cell-terrain-runtime-candidate-v1"
 EVIDENCE_STAGES = (
     ("elevation_requirements.json", "derive_elevation_requirements"),
     ("elevation_dsm_resolution.json", "resolve_dsm_source"),
@@ -27,6 +28,7 @@ EVIDENCE_STAGES = (
     ("elevation_candidate_frontier.json", "derive_elevation_candidate_frontier"),
     ("building_height_candidates.json", "derive_building_height_candidates"),
     ("terrain_lod_evidence.json", "evaluate_terrain_lod"),
+    ("terrain_runtime_candidate.json", "build_terrain_runtime_candidate"),
 )
 
 
@@ -120,6 +122,24 @@ def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
             blockers = height_evidence.get("blockers") or []
             if isinstance(blockers, list) and STALE_HEIGHT_FRONTIER_BLOCKER in blockers:
                 return frontier_stage_index, "derive_elevation_candidate_frontier"
+        elif filename == "terrain_runtime_candidate.json":
+            try:
+                terrain_candidate = _read_json(path)
+                terrain_lod = _read_json(cell_dir / "terrain_lod_evidence.json")
+            except (OSError, ValueError, json.JSONDecodeError):
+                return completed - 1, action
+            authorization = terrain_candidate.get("authorization")
+            source = terrain_candidate.get("source")
+            if terrain_candidate.get("format") != TERRAIN_RUNTIME_CANDIDATE_FORMAT or terrain_candidate.get("cell_id") != cell_id:
+                return completed - 1, action
+            if not isinstance(authorization, dict) or authorization.get("candidate_only") is not True:
+                return completed - 1, action
+            if any(authorization.get(flag) is not False for flag in ("terrain_runtime_authorized", "collision_authorized", "runtime_mount_authorized", "jouable_promotion_authorized")):
+                return completed - 1, action
+            if not isinstance(source, dict) or source.get("terrain_lod_evidence_digest") != terrain_lod.get("evidence_digest"):
+                return completed - 1, action
+            if not isinstance(terrain_candidate.get("candidate_digest"), str) or len(terrain_candidate["candidate_digest"]) != 64:
+                return completed - 1, action
     return completed, MANUAL_FRONTIER_ACTION
 
 
@@ -171,9 +191,6 @@ def _autonomously_actionable(cell: dict[str, Any]) -> bool:
 
 
 def _selection_priority(cell: dict[str, Any]) -> int:
-    # A source directory with a surviving manifest but a missing declared payload
-    # is repair work, not regional expansion. Repair it before advancing ordinary
-    # evidence so stale source/elevation state cannot persist indefinitely.
     if cell.get("state") == "MISSING_SOURCE" and any(
         str(blocker).startswith("missing_authoritative_source_file:")
         for blocker in (cell.get("blockers") or [])
@@ -183,8 +200,6 @@ def _selection_priority(cell: dict[str, Any]) -> int:
 
 
 def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
-    # Finish already-materialized source cells before expanding regional coverage,
-    # but repair physically incomplete source cells first.
     candidates = [cell for cell in cells if _autonomously_actionable(cell)]
     candidates.sort(key=lambda cell: (
         _selection_priority(cell),

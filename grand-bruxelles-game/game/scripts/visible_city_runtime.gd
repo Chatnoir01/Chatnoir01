@@ -217,13 +217,11 @@ func _spawn_behavior_agent(role_value: int, seed_value: int, spawn_position: Vec
 
     var visual := HUMANOID_VISUAL_SCRIPT.new() as Node3D
     visual.name = "VisibleHumanoid"
+    # humanoid_visual is authored around the centered Player capsule. Every
+    # VisibleCity NpcAgent uses a ground/sidewalk origin, regardless of role.
+    visual.position.y = 0.90
     if role_value == NpcBehaviorModel.Role.POLICE:
         visual.set("force_police_uniform", true)
-    else:
-        # humanoid_visual's civilian authored origin is centered around the player
-        # capsule; this local lift makes it ground-based on NpcAgent without
-        # changing the shared visual implementation.
-        visual.position.y = 0.90
     agent.add_child(visual)
 
     _scene.add_child(agent)

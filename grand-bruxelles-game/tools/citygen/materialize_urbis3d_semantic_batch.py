@@ -89,7 +89,8 @@ def _download(url: str, destination: Path) -> dict[str, Any]:
 
 def _safe_extract(package: Path, destination: Path) -> list[Path]:
     destination.mkdir(parents=True, exist_ok=True)
-    prefix = package.read_bytes()[:16]
+    with package.open("rb") as handle:
+        prefix = handle.read(16)
     if prefix == b"SQLite format 3\x00":
         target = destination / "selected.gpkg"
         shutil.copy2(package, target)
@@ -109,7 +110,7 @@ def _safe_extract(package: Path, destination: Path) -> list[Path]:
             if target != base and base not in target.parents:
                 raise ValueError(f"unsafe UrbIS3D ZIP member path: {member.filename}")
         archive.extractall(destination)
-    packages = sorted(path for path in destination.rglob("*.gpkg") if path.is_file())
+    packages = sorted(path for path in destination.rglob("*") if path.is_file() and path.suffix.casefold() == ".gpkg")
     if not packages:
         raise ValueError("official UrbIS3D distribution contains no GeoPackage")
     return packages
@@ -284,6 +285,7 @@ def materialize(plan_path: Path, source_root: Path, cache_root: Path, report_pat
                 package_provenance=provenance,
                 matcher=matcher,
             )
+            merged["source_buildings_sha256"] = _sha256(buildings_path)
             _write(cell_dir / OUTPUT_NAME, merged)
             successes.append(cell_id)
             print(

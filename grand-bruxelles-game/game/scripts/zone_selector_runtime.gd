@@ -3,6 +3,7 @@ extends CanvasLayer
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const MAIN_SCENE := "res://game/main.tscn"
 const REPORT_RUNTIME := preload("res://game/scripts/player_issue_report_runtime.gd")
+const OSM_ENVIRONMENT_RUNTIME := preload("res://game/scripts/brussels_osm_environment_runtime.gd")
 const CATALOG_SCHEMA_V1 := "grand-bruxelles-playable-zone-catalog-v1"
 const CATALOG_SCHEMA_V2 := "grand-bruxelles-playable-zone-catalog-v2"
 const STORED_QUALITIES := ["JOUABLE", "LABO", "LABO_BRUT"]
@@ -85,6 +86,12 @@ func _catalog_row_shape_valid(zone: Dictionary) -> bool:
         return false
     for raw: Variant in requirements:
         if str(raw).strip_edges().is_empty():
+            return false
+    var environment_artifact := str(zone.get("environment_artifact", "")).strip_edges()
+    if not environment_artifact.is_empty():
+        if not environment_artifact.begins_with("res://data/osm/zones/") or not environment_artifact.ends_with("/environment.game.json"):
+            return false
+        if environment_artifact not in requirements:
             return false
     var mode := str(zone.get("mode", ""))
     if mode == "fast_travel":
@@ -300,6 +307,9 @@ func _apply_zone(main: Node, zone: Dictionary) -> void:
     if not ok:
         _travel_failed("zone runtime refused to load")
         return
+    if not await _mount_environment_if_required(main, zone):
+        _travel_failed("zone environment contract failed")
+        return
     if not await _mount_life_if_required(main, zone):
         _travel_failed("zone loaded but minimum LABO life contract failed")
         return
@@ -319,6 +329,29 @@ func _publish_active_zone(main: Node, zone: Dictionary) -> void:
         return
     main.set_meta(ACTIVE_ZONE_ID_META, zone_id)
     main.set_meta(ACTIVE_ZONE_LABEL_META, zone_label)
+
+func _mount_environment_if_required(main: Node, zone: Dictionary) -> bool:
+    var data_path := str(zone.get("environment_artifact", "")).strip_edges()
+    if data_path.is_empty():
+        return true
+    var requirements: Variant = zone.get("requires", [])
+    if not requirements is Array or data_path not in requirements:
+        return false
+    if not data_path.begins_with("res://data/osm/zones/") or not data_path.ends_with("/environment.game.json"):
+        return false
+    if not FileAccess.file_exists(data_path):
+        return false
+    var runtime := OSM_ENVIRONMENT_RUNTIME.new()
+    runtime.name = "ZoneEnvironment_%s" % str(zone.get("id", "zone"))
+    runtime.data_path = data_path
+    main.add_child(runtime)
+    await get_tree().process_frame
+    if not runtime.loaded_ok():
+        runtime.queue_free()
+        return false
+    runtime.set_meta("zone_id", str(zone.get("id", "")))
+    runtime.set_meta("catalog_owned", true)
+    return true
 
 func _mount_life_if_required(main: Node, zone: Dictionary) -> bool:
     var script_path := str(zone.get("life_script", ""))

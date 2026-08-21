@@ -3,12 +3,15 @@ extends SceneTree
 const MAIN_SCENE := preload("res://game/main.tscn")
 const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_streetaxis_direct_spawn.gd")
 const NORTH_DTM_SCRIPT := preload("res://game/zones/ixelles/ixelles_streamed_north_dtm_cell.gd")
+const EAST_DTM_SCRIPT := preload("res://game/zones/ixelles/ixelles_streamed_east_dtm_cell.gd")
 const SEED_READY_ID := 70526
 const SECOND_READY_ID := 70488
-const VISUAL_ONLY_ID := 100383
+const THIRD_READY_ID := 100383
+const VISUAL_ONLY_ID := 70926
 const SEED_READY_CELL := "bxl-e149000-n169000-s500"
 const SECOND_READY_CELL := "bxl-e149000-n169500-s500"
-const VISUAL_ONLY_CELL := "bxl-e149500-n169000-s500"
+const THIRD_READY_CELL := "bxl-e149500-n169000-s500"
+const VISUAL_ONLY_CELL := "bxl-e149500-n169500-s500"
 const EXPECTED_SHARED_DATUM_SCHEMA := "grand-bruxelles-ixelles-shared-vertical-datum-v1"
 const EXPECTED_SHARED_DATUM_REFERENCE_M := 62.393423
 
@@ -102,30 +105,33 @@ func _assert_ready_destination(resolver: StreetAxisDestinationResolver, player: 
         return {}
     return {"source": source, "ground_y": ground_y}
 
-func _assert_shared_datum_fail_closed() -> bool:
-    var probe := NORTH_DTM_SCRIPT.new()
+func _assert_shared_datum_probe(script: Variant, label: String) -> bool:
+    var probe: Node = script.new()
     if bool(probe.call("_shared_datum_valid", {})):
-        _fail("missing shared datum schema was accepted")
+        _fail("missing shared datum schema was accepted by %s" % label)
         probe.free()
         return false
     if bool(probe.call("_shared_datum_valid", {"schema": "wrong", "reference_absolute_m": EXPECTED_SHARED_DATUM_REFERENCE_M})):
-        _fail("wrong shared datum schema was accepted")
+        _fail("wrong shared datum schema was accepted by %s" % label)
         probe.free()
         return false
     if bool(probe.call("_shared_datum_valid", {"schema": EXPECTED_SHARED_DATUM_SCHEMA})):
-        _fail("missing shared datum reference was accepted")
+        _fail("missing shared datum reference was accepted by %s" % label)
         probe.free()
         return false
     if bool(probe.call("_shared_datum_valid", {"schema": EXPECTED_SHARED_DATUM_SCHEMA, "reference_absolute_m": EXPECTED_SHARED_DATUM_REFERENCE_M + 1.0})):
-        _fail("wrong shared datum reference was accepted")
+        _fail("wrong shared datum reference was accepted by %s" % label)
         probe.free()
         return false
     if not bool(probe.call("_shared_datum_valid", {"schema": EXPECTED_SHARED_DATUM_SCHEMA, "reference_absolute_m": EXPECTED_SHARED_DATUM_REFERENCE_M})):
-        _fail("valid shared datum was rejected")
+        _fail("valid shared datum was rejected by %s" % label)
         probe.free()
         return false
     probe.free()
     return true
+
+func _assert_shared_datum_fail_closed() -> bool:
+    return _assert_shared_datum_probe(NORTH_DTM_SCRIPT, "north DTM") and _assert_shared_datum_probe(EAST_DTM_SCRIPT, "east DTM")
 
 func _run() -> void:
     if not _assert_shared_datum_fail_closed():
@@ -144,10 +150,10 @@ func _run() -> void:
 
     var resolver := RESOLVER_SCRIPT.new() as StreetAxisDestinationResolver
     root.add_child(resolver)
-    if resolver.requested_streetaxis_id(PackedStringArray(["spawn=streetaxis-70488"])) != SECOND_READY_ID:
+    if resolver.requested_streetaxis_id(PackedStringArray(["spawn=streetaxis-100383"])) != THIRD_READY_ID:
         _fail("valid StreetAxis request did not parse")
         return
-    for malformed: String in ["spawn=streetaxis-", "spawn=streetaxis-zero", "spawn=streetaxis--1", "spawn=streetaxis-0", "spawn=x=827&z=903", "spawn=road-70488"]:
+    for malformed: String in ["spawn=streetaxis-", "spawn=streetaxis-zero", "spawn=streetaxis--1", "spawn=streetaxis-0", "spawn=x=827&z=903", "spawn=road-100383"]:
         if resolver.requested_streetaxis_id(PackedStringArray([malformed])) != 0:
             _fail("malformed or foreign request accepted: %s" % malformed)
             return
@@ -162,6 +168,9 @@ func _run() -> void:
     var second := await _assert_ready_destination(resolver, player, SECOND_READY_ID, SECOND_READY_CELL, "Rue du Pépin", "Kernstraat")
     if second.is_empty():
         return
+    var third := await _assert_ready_destination(resolver, player, THIRD_READY_ID, THIRD_READY_CELL, "Rue du Conseil", "Raadstraat")
+    if third.is_empty():
+        return
 
     for _frame: int in range(3):
         await process_frame
@@ -171,10 +180,10 @@ func _run() -> void:
         _fail("player witness is not 1280x720")
         return
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts/streetaxis"))
-    var screenshot_path := "res://artifacts/streetaxis/streetaxis_70488_second_dtm_cell.png"
+    var screenshot_path := "res://artifacts/streetaxis/streetaxis_100383_third_dtm_cell.png"
     if image.save_png(screenshot_path) != OK:
         _fail("could not save player witness")
         return
 
-    print("AUTOMATIC_STREETAXIS_SECOND_DTM_CELL_GREEN: first=%d second=%d second_cell=%s second_ground_y=%.3f visual_only_rejected=%d screenshot=%s" % [SEED_READY_ID, SECOND_READY_ID, SECOND_READY_CELL, float(second["ground_y"]), VISUAL_ONLY_ID, screenshot_path])
+    print("AUTOMATIC_STREETAXIS_THIRD_DTM_CELL_GREEN: first=%d second=%d third=%d third_cell=%s third_ground_y=%.3f visual_only_rejected=%d screenshot=%s" % [SEED_READY_ID, SECOND_READY_ID, THIRD_READY_ID, THIRD_READY_CELL, float(third["ground_y"]), VISUAL_ONLY_ID, screenshot_path])
     quit(0)

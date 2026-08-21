@@ -1,12 +1,14 @@
 extends SceneTree
 
 const PLAYABILITY_RUNTIME_SCRIPT := preload("res://game/scripts/mobile_playability_collision_runtime.gd")
-const EAST_CELL_ID := "bxl-e149500-n169000-s500"
-const EXPECTED_SOURCE_BUILDINGS := 919
-const EXPECTED_VISUAL_BUILDINGS := 584
+const SOURCE_PLAN_CELL_ID := "bxl-e149500-n169500-s500"
+const EXPECTED_SOURCE_BUILDINGS := 668
+const EXPECTED_VISUAL_BUILDINGS := 402
 const EXPECTED_BLOCKED_BUILDINGS := EXPECTED_SOURCE_BUILDINGS - EXPECTED_VISUAL_BUILDINGS
-const CAPTURE_OUTPUT := "res://artifacts/ixelles/ixelles_source_plan_east_1280x720.png"
-const CAPTURE_BEFORE_OUTPUT := "res://artifacts/ixelles/ixelles_source_plan_east_massing_flat_before_1280x720.png"
+const EXPECTED_STREET_SURFACES := 366
+const EXPECTED_STREET_SEGMENTS := 284
+const CAPTURE_OUTPUT := "res://artifacts/ixelles/ixelles_source_plan_fourth_1280x720.png"
+const CAPTURE_BEFORE_OUTPUT := "res://artifacts/ixelles/ixelles_source_plan_fourth_massing_flat_before_1280x720.png"
 const CAPTURE_WIDTH := 1280
 const CAPTURE_HEIGHT := 720
 const MIN_GT3_FRACTION := 0.020
@@ -49,12 +51,12 @@ func _render_image() -> Image:
 
 func _save_image(image: Image, output: String) -> bool:
     if image == null or image.is_empty() or image.get_width() != CAPTURE_WIDTH or image.get_height() != CAPTURE_HEIGHT:
-        _fail("east visual capture invalid: %dx%d" % [image.get_width() if image != null else 0, image.get_height() if image != null else 0])
+        _fail("source-plan visual capture invalid: %dx%d" % [image.get_width() if image != null else 0, image.get_height() if image != null else 0])
         return false
     var absolute_output := ProjectSettings.globalize_path(output)
     DirAccess.make_dir_recursive_absolute(absolute_output.get_base_dir())
     if image.save_png(absolute_output) != OK:
-        _fail("east visual capture save failed: %s" % output)
+        _fail("source-plan visual capture save failed: %s" % output)
         return false
     return true
 
@@ -78,7 +80,7 @@ func _compare_images(before: Image, after: Image) -> Dictionary:
         "gt8_fraction": float(gt8) / float(total),
     }
 
-func _capture_east_visual(world: Node3D, center: Vector3, source_cell: Node) -> bool:
+func _capture_source_plan_visual(world: Node3D, center: Vector3, source_cell: Node) -> bool:
     var environment := Environment.new()
     environment.background_mode = Environment.BG_COLOR
     environment.background_color = Color(0.66, 0.73, 0.82, 1.0)
@@ -159,9 +161,9 @@ func _run() -> void:
     if not _expect(int(scheduler_metrics.get("registered_cells", 0)) == 4, "four-cell cluster was not registered"):
         return
 
-    var descriptor := runtime.manager.get_cell_descriptor(EAST_CELL_ID)
+    var descriptor := runtime.manager.get_cell_descriptor(SOURCE_PLAN_CELL_ID)
     var center: Vector3 = descriptor.get("world_center", Vector3.ZERO)
-    if not _expect(center != Vector3.ZERO, "east source cell has no world center"):
+    if not _expect(center != Vector3.ZERO, "source-plan control cell has no world center"):
         return
 
     player.global_position = center + Vector3(600.0, 1.05, 0.0)
@@ -170,18 +172,20 @@ func _run() -> void:
     for _frame: int in range(140):
         await physics_frame
         await process_frame
-        if runtime.backend.has_active_instance(EAST_CELL_ID):
-            source_cell = runtime.backend.get_instance(EAST_CELL_ID)
+        if runtime.backend.has_active_instance(SOURCE_PLAN_CELL_ID):
+            source_cell = runtime.backend.get_instance(SOURCE_PLAN_CELL_ID)
             if is_instance_valid(source_cell) and bool(source_cell.get("runtime_loaded")):
                 break
 
-    if not _expect(is_instance_valid(source_cell) and bool(source_cell.get("runtime_loaded")), "east source-plan cell did not stream in"):
+    if not _expect(is_instance_valid(source_cell) and bool(source_cell.get("runtime_loaded")), "source-plan control cell did not stream in"):
         return
-    if not _expect(int(source_cell.get("street_surface_count")) == 252, "east source-plan street surface count drifted"):
+    if not _expect(int(source_cell.get("street_surface_count")) == EXPECTED_STREET_SURFACES, "source-plan street surface count drifted"):
         return
-    if not _expect(int(source_cell.get("source_building_count")) == EXPECTED_SOURCE_BUILDINGS, "east source building count drifted"):
+    if not _expect(int(source_cell.get("street_segment_count")) == EXPECTED_STREET_SEGMENTS, "source-plan street segment count drifted"):
         return
-    if not _expect(bool(source_cell.get("strong_height_contract_loaded")), "east strong-height visual contract was not consumed"):
+    if not _expect(int(source_cell.get("source_building_count")) == EXPECTED_SOURCE_BUILDINGS, "source building count drifted"):
+        return
+    if not _expect(bool(source_cell.get("strong_height_contract_loaded")), "strong-height visual contract was not consumed"):
         return
     if not _expect(int(source_cell.get("rendered_building_count")) == EXPECTED_VISUAL_BUILDINGS, "eligible visual building massing count drifted"):
         return
@@ -202,7 +206,7 @@ func _run() -> void:
         return
 
     if _capture_requested():
-        if not await _capture_east_visual(world, center, source_cell):
+        if not await _capture_source_plan_visual(world, center, source_cell):
             return
 
     player.global_position = center + Vector3(40.0, 1.05, 0.0)
@@ -210,7 +214,7 @@ func _run() -> void:
     for _frame: int in range(5):
         await physics_frame
         await process_frame
-    if not _expect(runtime.manager.is_collision_active(EAST_CELL_ID), "scheduler did not enter near-player tier for east cell"):
+    if not _expect(runtime.manager.is_collision_active(SOURCE_PLAN_CELL_ID), "scheduler did not enter near-player tier for source-plan control cell"):
         return
     if not _expect(not _contains_static_body(source_cell), "visual candidate massing invented gameplay collision"):
         return
@@ -219,9 +223,9 @@ func _run() -> void:
     for _frame: int in range(10):
         await physics_frame
         await process_frame
-    if not _expect(not runtime.backend.has_active_instance(EAST_CELL_ID), "east source-plan cell did not unload outside hysteresis radius"):
+    if not _expect(not runtime.backend.has_active_instance(SOURCE_PLAN_CELL_ID), "source-plan control cell did not unload outside hysteresis radius"):
         return
 
-    print("BRUSSELS_SOURCE_PLAN_CLUSTER_OK: east cell streamed 252 official street surfaces, rendered 584 cross-source visual building candidates in a combined mesh with %d non-classifying tone profiles, kept 335 buildings fail-closed, created no fake collision, and unloaded cleanly" % tone_profile_count)
+    print("BRUSSELS_SOURCE_PLAN_CLUSTER_OK: control=%s surfaces=%d streets=%d rendered=%d/%d blocked=%d tone_profiles=%d phase_guard_ms=50 no_fake_collision=true unloaded=true" % [SOURCE_PLAN_CELL_ID, EXPECTED_STREET_SURFACES, EXPECTED_STREET_SEGMENTS, EXPECTED_VISUAL_BUILDINGS, EXPECTED_SOURCE_BUILDINGS, EXPECTED_BLOCKED_BUILDINGS, tone_profile_count])
     world.queue_free()
     quit(0)

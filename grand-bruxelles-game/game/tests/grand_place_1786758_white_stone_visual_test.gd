@@ -108,12 +108,21 @@ func _run() -> void:
         return
 
     _hide_noise(main)
-    # The reusable mineral presentation is a downstream wall override. Disable
-    # it here so this legacy witness continues to test the original sourced
-    # white-stone identity toggle rather than comparing the same override twice.
+    # Downstream presentation layers must not dilute this legacy A/B. The test
+    # proves the dedicated 1786758 sourced wall toggle, not later mineral or
+    # complete-contour presentation that surrounds (but explicitly excludes)
+    # this dedicated owner.
     var surface_runtime := root.get_node_or_null("GrandPlaceWhiteStoneSurfaceRuntime")
     if surface_runtime != null and surface_runtime.has_method("set_enabled"):
         surface_runtime.call("set_enabled", false)
+
+    var contour_runtime := root.get_node_or_null("GrandPlaceCompleteContourRuntime")
+    if contour_runtime != null and contour_runtime.has_method("set_official_visible"):
+        contour_runtime.call("set_official_visible", false)
+        await process_frame
+        if contour_runtime.has_method("visible_surface_count") and int(contour_runtime.call("visible_surface_count")) != 0:
+            _fail("complete-contour context remained visible during dedicated 1786758 A/B")
+            return
 
     var player_camera := main.get_node_or_null("Player/CameraPivot/SpringArm3D/Camera3D") as Camera3D
     if player_camera != null:

@@ -22,11 +22,6 @@ on:
 permissions:
   contents: write
 
-# Share the scheduler lock so a state-branch rewrite cannot race Autonomous CityGen.
-concurrency:
-  group: grand-bruxelles-autonomous-citygen
-  cancel-in-progress: false
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -49,6 +44,11 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 75
+    # Only the state-branch writer needs the shared lock. PR validation must not
+    # be cancelled merely because Autonomous CityGen or readiness is persisting.
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -311,7 +311,7 @@ jobs:
           cp -a /tmp/runtime-factory-save/autonomous_candidates grand-bruxelles-game/data/qa/
           cp /tmp/runtime-candidate-factory-report.json grand-bruxelles-game/data/qa/runtime_candidate_factory_latest_report.json
 
-          git add grand-bruxelles-game/data/qa
+          git add -- grand-bruxelles-game/data/qa
           if git diff --cached --quiet; then
             echo "RUNTIME_CANDIDATE_FACTORY_NO_CHANGE"
             exit 0

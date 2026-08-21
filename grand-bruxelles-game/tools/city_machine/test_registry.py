@@ -11,7 +11,7 @@ PROJECT = HERE.parents[1]
 def main() -> int:
     registry = json.loads((HERE / "registry.json").read_text(encoding="utf-8"))
     assert registry["schema"] == "grand-bruxelles-city-machine-registry-v1"
-    assert registry["version"] == 2
+    assert registry["version"] == 3
     assert registry["pilot_zone"] == "jette"
     assert set(registry["zone_profiles"]) == {"jette"}
 
@@ -31,6 +31,11 @@ def main() -> int:
     assert [row["slug"] for row in layers if row["kind"] == "materialize_geojson"] == ["buildings", "street_surfaces", "street_axes", "train_network"]
     osm = next(row for row in layers if row["layer_id"] == "osm_environment_points")
     assert osm["kind"] == "materialize_osm_environment" and osm["enabled_zones"] == ["jette"]
+    runtime_index = next(row for row in layers if row["layer_id"] == "runtime_environment_index")
+    assert runtime_index["kind"] == "materialize_runtime_environment_index"
+    assert runtime_index["outputs"] == ["data/runtime/runtime_environment_index.json"]
+    assert runtime_index["enabled_zones"] == ["jette"]
+    assert (PROJECT / runtime_index["outputs"][0]).is_file()
     env = registry["zone_profiles"]["jette"]["osm_environment"]
     assert env["minimum_trees"] >= 1 and 0.0 < float(env["bounds_tolerance_m"]) <= 2.0
     for key in ("cache", "runtime"):
@@ -42,8 +47,9 @@ def main() -> int:
     assert len(inventory["citygen"]) == 19 and len(inventory["city_generation"]) == 5
     for name in inventory["citygen"]: assert (PROJECT / "tools/citygen" / name).is_file(), name
     for name in inventory["city_generation"]: assert (PROJECT / "tools/city_generation" / name).is_file(), name
+    assert "tools/city_machine/build_runtime_environment_index.py" in inventory["osm_environment"]
 
-    print(f"CITY_MACHINE_REGISTRY_OK version=2 layers={len(layers)} pilot=jette osm_environment=enabled all_scripts_real=true")
+    print(f"CITY_MACHINE_REGISTRY_OK version=3 layers={len(layers)} pilot=jette osm_environment=enabled runtime_environment_index=enabled all_scripts_real=true")
     return 0
 
 

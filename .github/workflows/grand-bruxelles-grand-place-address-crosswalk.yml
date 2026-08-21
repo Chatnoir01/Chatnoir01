@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           git fetch --no-tags origin main
-          expected="4162079e301aabd06245fa2673f22d7b244ce77a"
+          expected="02e5927f280372be0aed28a8971f7b4a61415af1"
           current="$(git rev-parse origin/main)"
           base="$(git merge-base HEAD origin/main)"
           test "$current" = "$expected" || { echo "GRAND_PLACE_FACADE_STALE_MAIN current=$current expected=$expected"; exit 1; }

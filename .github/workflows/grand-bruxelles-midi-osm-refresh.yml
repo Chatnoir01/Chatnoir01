@@ -18,7 +18,7 @@ on:
       - grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   refresh-midi-osm:
@@ -60,3 +60,19 @@ jobs:
             grand-bruxelles-game/data/osm/zones/midi/environment.game.json
           if-no-files-found: error
           retention-days: 7
+
+      - name: Commit generated cache to onboarding branch
+        if: github.event_name == 'push' && github.ref_name == 'feat/city-machine-midi-regional-osm'
+        working-directory: .
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add grand-bruxelles-game/data/osm/zones/midi/environment.raw.json \
+                  grand-bruxelles-game/data/osm/zones/midi/environment.game.json
+          if git diff --cached --quiet; then
+            echo "Midi OSM cache already matches generated evidence."
+            exit 0
+          fi
+          git commit -m "city-machine: commit real Midi OSM regional cache"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

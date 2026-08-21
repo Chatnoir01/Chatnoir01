@@ -132,5 +132,6 @@ with tempfile.TemporaryDirectory() as tmp:
     assert manifest["promotion"] == "source_only_no_runtime_mutation"
 
 subprocess.run([sys.executable, str(HERE / "test_materialize_urbis_source_cell_multipolygon.py")], check=True)
+subprocess.run([sys.executable, str(HERE / "test_build_runtime_candidate_bundle.py")], check=True)
 
-print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true multipolygon=true base_city_layers=5 maturity_sidecar=true source_requirements=true crs=true verification=true fail_closed=true")
+print("MATERIALIZE_URBIS_SOURCE_CELL_OK ownership=true multipolygon=true base_city_layers=5 runtime_candidate=true maturity_sidecar=true source_requirements=true crs=true verification=true fail_closed=true")

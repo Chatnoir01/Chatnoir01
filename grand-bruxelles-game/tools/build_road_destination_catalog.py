@@ -76,7 +76,10 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
     entries: dict[int, dict[str, Any]] = {}
     document_digests: dict[str, str] = {}
     compatible_documents = 0
+    road_record_count = 0
+    drivable_record_count = 0
     eligible_record_count = 0
+    rejected_drivable_record_count = 0
     duplicate_record_count = 0
 
     for path in documents:
@@ -96,8 +99,14 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
         for raw_road in roads:
             if not isinstance(raw_road, dict):
                 continue
+            road_record_count += 1
+            is_drivable = raw_road.get("drivable") is True
+            if is_drivable:
+                drivable_record_count += 1
             signature = road_signature(raw_road)
             if signature is None:
+                if is_drivable:
+                    rejected_drivable_record_count += 1
                 continue
             eligible_record_count += 1
             osm_id = int(signature["osm_id"])
@@ -136,8 +145,11 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
         "format": FORMAT,
         "source_format": SOURCE_FORMAT,
         "source_root": "data/osm",
-        "entry_count": len(ordered_entries),
+        "road_record_count": road_record_count,
+        "drivable_record_count": drivable_record_count,
         "eligible_record_count": eligible_record_count,
+        "rejected_drivable_record_count": rejected_drivable_record_count,
+        "entry_count": len(ordered_entries),
         "duplicate_record_count": duplicate_record_count,
         "compatible_document_count": compatible_documents,
         "source_document_sha256": dict(sorted(document_digests.items())),
@@ -161,8 +173,15 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     entries = catalog.get("entries")
     if not isinstance(entries, dict) or len(entries) < 1:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: no eligible source roads")
-    if int(catalog.get("eligible_record_count", -1)) != int(catalog.get("entry_count", -2)) + int(catalog.get("duplicate_record_count", -3)):
+    eligible = int(catalog.get("eligible_record_count", -1))
+    entry_count = int(catalog.get("entry_count", -2))
+    duplicates = int(catalog.get("duplicate_record_count", -3))
+    drivable = int(catalog.get("drivable_record_count", -4))
+    rejected = int(catalog.get("rejected_drivable_record_count", -5))
+    if eligible != entry_count + duplicates:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: unique/duplicate accounting drift")
+    if drivable != eligible + rejected:
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: drivable/rejected accounting drift")
     authorization = catalog.get("authorization", {})
     for forbidden in (
         "render_authorized",
@@ -190,6 +209,7 @@ def main() -> int:
     print(
         "ROAD_DESTINATION_CATALOG_OK: "
         f"entries={catalog['entry_count']} eligible_records={catalog['eligible_record_count']} "
+        f"drivable_records={catalog['drivable_record_count']} rejected_drivable={catalog['rejected_drivable_record_count']} "
         f"duplicate_records={catalog['duplicate_record_count']} documents={catalog['compatible_document_count']} "
         f"sha256={catalog['catalog_sha256']}"
     )

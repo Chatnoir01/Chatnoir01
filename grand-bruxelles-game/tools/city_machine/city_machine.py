@@ -44,13 +44,25 @@ def load_registry()->dict[str,Any]:
     if not orders or orders!=sorted(orders) or len(orders)!=len(set(orders)): raise MachineError("invalid layer order")
     return r
 
+def layer_enabled(layer:dict[str,Any],zone_id:str)->bool:
+    enabled=layer.get("enabled_zones",[])
+    return isinstance(enabled,list) and ("*" in enabled or zone_id in enabled)
+
 def resolve_zone(catalog:dict[str,Any],zone_id:str)->dict[str,Any]:
     for zone in catalog.get("zones",[]):
         if isinstance(zone,dict) and zone.get("id")==zone_id: return zone
     raise MachineError(f"unknown zone '{zone_id}'")
 
+def profile_script(profile:dict[str,Any],key:str)->Path:
+    raw=str(profile.get(key,"")).strip()
+    if not raw: raise MachineError(f"zone profile missing {key}")
+    path=p(raw)
+    if not path.is_file(): raise MachineError(f"zone profile {key} missing: {raw}")
+    return path
+
 def source_contract(profile:dict[str,Any])->dict[str,Any]:
     root=p(profile["source_root"]); m=read_json(root/"manifest.json")
+    profile_script(profile,"validator_script"); profile_script(profile,"runtime_script")
     origin=m.get("game_origin") or {}
     if m.get("source_crs")!="EPSG:31370": raise GateError("G1_sources_crs","source CRS is not EPSG:31370")
     if not str(m.get("source_license","")).strip(): raise GateError("G1_sources_crs","source license missing")
@@ -88,8 +100,9 @@ def materialize_runtime_environment_index(layer:dict[str,Any])->None:
     run([sys.executable,str(p(layer["script"])),"--registry",str(REGISTRY),"--output",str(p(str(outputs[0])))],
         "materialize:runtime_environment_index")
 
-def gate_g1(layer:dict[str,Any],profile:dict[str,Any])->dict[str,str]:
-    r=subprocess.run([sys.executable,str(p(layer["script"])),str(p(profile["source_root"]))],cwd=PROJECT,text=True,capture_output=True)
+def gate_g1(_layer:dict[str,Any],profile:dict[str,Any])->dict[str,str]:
+    validator=profile_script(profile,"validator_script")
+    r=subprocess.run([sys.executable,str(validator),str(p(profile["source_root"]))],cwd=PROJECT,text=True,capture_output=True)
     text="\n".join(x.strip() for x in (r.stdout,r.stderr) if x.strip())
     if r.returncode: raise GateError("G1_sources_crs",f"existing validator rc={r.returncode}: {text}")
     detail=text.splitlines()[-1] if text else "validator_ok"
@@ -126,11 +139,12 @@ def gate_content(profile:dict[str,Any],root:Path|None=None)->dict[str,str]:
     detail=f"buildings={b} street_surfaces={s}"; print(f"CITY_MACHINE_GATE PASS G3_buildings_streets detail={detail}")
     return {"gate":"G3_buildings_streets","status":"PASS","detail":detail}
 
-def gate_finish(layer:dict[str,Any])->dict[str,str]:
-    text=p(layer["script"]).read_text(encoding="utf-8")
+def gate_finish(_layer:dict[str,Any],profile:dict[str,Any])->dict[str,str]:
+    runtime=profile_script(profile,"runtime_script")
+    text=runtime.read_text(encoding="utf-8")
     missing=[x for x in ("func _make_materials","func _build_ground_reference","func _build_official_geometry") if x not in text]
     if missing: raise GateError("G4_runtime_finish",f"missing hooks {missing}")
-    detail=f"runtime={layer['script']} materials+ground+geometry hooks present"
+    detail=f"runtime={runtime.relative_to(PROJECT)} materials+ground+geometry hooks present"
     print(f"CITY_MACHINE_GATE PASS G4_runtime_finish detail={detail}")
     return {"gate":"G4_runtime_finish","status":"PASS","detail":detail}
 
@@ -142,7 +156,7 @@ def gate_osm_environment(zone_id:str,profile:dict[str,Any],m:dict[str,Any],cache
     if cache.get("source")!=OSM_SOURCE or runtime.get("source")!=OSM_SOURCE: raise GateError("G5_osm_environment","OSM source mismatch")
     if cache.get("license")!=OSM_LICENSE or runtime.get("license")!=OSM_LICENSE: raise GateError("G5_osm_environment","OSM ODbL license missing")
     if runtime.get("zone")!=zone_id or runtime.get("projection_crs")!="EPSG:31370": raise GateError("G5_osm_environment","zone/projection mismatch")
-    if [float(v) for v in runtime.get("bbox_31370",[])]!=[float(v) for v in m["bbox"]]: raise GateError("G5_osm_environment","runtime bbox differs from Jette source bbox")
+    if [float(v) for v in runtime.get("bbox_31370",[])]!=[float(v) for v in m["bbox"]]: raise GateError("G5_osm_environment","runtime bbox differs from source bbox")
     expected_digest=canonical_digest(cache)
     if runtime.get("source_digest")!=expected_digest: raise GateError("G5_osm_environment","cache/runtime source digest mismatch")
     points=runtime.get("environment_points")
@@ -154,7 +168,7 @@ def gate_osm_environment(zone_id:str,profile:dict[str,Any],m:dict[str,Any],cache
         if not isinstance(pos,list) or len(pos)<2: raise GateError("G5_osm_environment","environment point position missing")
         x,z=map(float,pos[:2])
         if not (xmin-tolerance<=x<=xmax+tolerance and zmin-tolerance<=z<=zmax+tolerance):
-            raise GateError("G5_osm_environment",f"point {point.get('osm_id')} outside Jette bounds+tolerance")
+            raise GateError("G5_osm_environment",f"point {point.get('osm_id')} outside source bounds+tolerance")
         counts[str(point["kind"])]+=1
     stats=runtime.get("stats") or {}
     if int(stats.get("total",-1))!=len(points): raise GateError("G5_osm_environment","runtime total/count mismatch")
@@ -179,7 +193,7 @@ def receipt(zone:dict[str,Any],registry:dict[str,Any],profile:dict[str,Any],m:di
     outputs=runtime_outputs(profile)
     seed={"zone":zone["id"],"registry_version":registry["version"],"manifest":sha(p(profile["source_root"])/"manifest.json"),"runtime_outputs":outputs,"gates":gates}
     build_id=hashlib.sha256(json.dumps(seed,sort_keys=True,separators=(",",":")).encode()).hexdigest()[:16]
-    payload={"format":"grand-bruxelles-city-machine-build-v1","build_id":build_id,"zone":zone["id"],"catalog_quality":zone.get("quality"),"result":"LABO_DATA_READY","promotion_performed":False,"registry_version":registry["version"],"source":{"format":m.get("format"),"crs":m.get("source_crs"),"license":m.get("source_license"),"bbox":m.get("bbox")},"executed_layers":layers,"gates":gates,"runtime_outputs":outputs,"disabled_layers":[{"layer_id":x["layer_id"],"reason":x.get("disabled_reason")} for x in registry["layers"] if zone["id"] not in x.get("enabled_zones",[])]}
+    payload={"format":"grand-bruxelles-city-machine-build-v1","build_id":build_id,"zone":zone["id"],"catalog_quality":zone.get("quality"),"result":"LABO_DATA_READY","promotion_performed":False,"registry_version":registry["version"],"source":{"format":m.get("format"),"crs":m.get("source_crs"),"license":m.get("source_license"),"bbox":m.get("bbox")},"executed_layers":layers,"gates":gates,"runtime_outputs":outputs,"disabled_layers":[{"layer_id":x["layer_id"],"reason":x.get("disabled_reason")} for x in registry["layers"] if not layer_enabled(x,zone["id"])]}
     out.mkdir(parents=True,exist_ok=True); path=out/f"build-{build_id}.json"
     path.write_text(json.dumps(payload,indent=2,sort_keys=True,ensure_ascii=False)+"\n",encoding="utf-8"); return path
 
@@ -189,7 +203,7 @@ def build(zone_id:str,dry:bool=False,out:Path|None=None)->Path|None:
     if not profile: raise MachineError(f"zone '{zone_id}' known but not enabled in machine v{registry['version']}")
     m=source_contract(profile); gates=[]; done=[]
     for layer in registry["layers"]:
-        if zone_id not in layer.get("enabled_zones",[]): continue
+        if not layer_enabled(layer,zone_id): continue
         lid=layer["layer_id"]; kind=layer["kind"]; print(f"CITY_MACHINE_LAYER START {lid}")
         if kind=="resolve_zone": pass
         elif kind=="materialize_geojson":
@@ -201,7 +215,7 @@ def build(zone_id:str,dry:bool=False,out:Path|None=None)->Path|None:
         elif kind=="validate_existing": gates.append(gate_g1(layer,profile))
         elif kind=="gate_spawn_ground": gates.append(gate_spawn(zone,profile,m))
         elif kind=="gate_runtime_content": gates.append(gate_content(profile))
-        elif kind=="gate_finish_contract": gates.append(gate_finish(layer))
+        elif kind=="gate_finish_contract": gates.append(gate_finish(layer,profile))
         elif kind=="gate_osm_environment": gates.append(gate_osm_environment(zone_id,profile,m))
         else: raise MachineError(f"unsupported layer kind '{kind}'")
         done.append(lid); print(f"CITY_MACHINE_LAYER END {lid}")

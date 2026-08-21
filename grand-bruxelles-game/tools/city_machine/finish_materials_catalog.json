@@ -1,0 +1,43 @@
+{
+  "schema": "grand-bruxelles-city-machine-finish-materials-catalog-v1",
+  "version": 1,
+  "policy": "AUTHORED_OVERRIDE_GT_GENERATED_BASE",
+  "geometry_mutation_allowed": false,
+  "families": {
+    "ground": {
+      "status": "wired_existing_runtime",
+      "runtime_binding": "game/zones/laeken_jette/jette_phase2_zone.gd::_ground_material",
+      "source_claim": "presentation_only"
+    },
+    "facade_generic": {
+      "status": "wired_existing_runtime",
+      "runtime_binding": "game/zones/laeken_jette/jette_phase2_zone.gd::_building_material",
+      "source_claim": "generic_base_only"
+    },
+    "street_surface_neutral": {
+      "status": "wired_existing_runtime",
+      "runtime_binding": "game/scripts/brussels_osm_road_surface_runtime.gd::_register_official_surface",
+      "material_factory": "game/scripts/brussels_ground_network_official_material.gd",
+      "source_claim": "UrbIS geometry; neutral presentation; no sidewalk/asphalt semantic claim"
+    },
+    "tram_rail": {
+      "status": "wired_existing_runtime",
+      "runtime_binding": "game/scripts/brussels_osm_rail_surface_runtime.gd::_register_official_rail",
+      "material_factory": "game/scripts/brussels_ground_network_official_material.gd",
+      "source_claim": "UrbIS alignment only; no fabricated dual-rail gauge"
+    },
+    "train_rail": {
+      "status": "wired_existing_runtime",
+      "runtime_binding": "game/zones/laeken_jette/jette_phase2_zone.gd::_rail_material",
+      "source_claim": "presentation_only"
+    }
+  },
+  "unsupported_without_source": {
+    "sidewalk": "Jette StreetSurfaces are not typed safely enough to isolate sidewalk-only geometry",
+    "roof": "Jette phase2 cache is 2D footprint geometry and has no roof-shape source",
+    "glass": "no reliable per-building glazing classification in Jette phase2 cache",
+    "concrete": "no reliable per-building concrete classification in Jette phase2 cache",
+    "brick_stone": "generic classification unavailable; Jette station brick/stone remains authored runtime ownership",
+    "vegetation_surface": "no source-backed landcover surface layer in the Jette phase2 cache"
+  }
+}

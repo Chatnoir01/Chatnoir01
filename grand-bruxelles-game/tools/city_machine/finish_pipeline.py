@@ -14,7 +14,9 @@ FINISH_REGISTRY = HERE / "finish_registry.json"
 BASE_REGISTRY = HERE / "registry.json"
 GEOMETRY_STAGE = HERE / "finish_geometry_stage.py"
 ENVIRONMENT_STAGE = HERE / "finish_environment_stage.py"
+MATERIALS_STAGE = HERE / "finish_materials_stage.py"
 PROOF_STAGE = HERE / "finish_proof_stage.py"
+READINESS_STAGE = HERE / "finish_readiness.py"
 EXPECTED_FAMILIES = ["geometry", "osm_environment", "finish_materials", "life", "proof"]
 VALID_STATUS = {"wired", "disabled", "missing", "blocked"}
 
@@ -59,7 +61,25 @@ def run_stage(script: Path, zone_id: str, dry_run: bool = False) -> int:
         cmd.append("--dry-run")
     result = subprocess.run(cmd, cwd=PROJECT)
     if result.returncode != 0:
-        print(f"CITY_MACHINE_FINISH_FAIL zone={zone_id} stage={script.name} rc={result.returncode}", file=sys.stderr, flush=True)
+        print(
+            f"CITY_MACHINE_FINISH_FAIL zone={zone_id} stage={script.name} rc={result.returncode}",
+            file=sys.stderr,
+            flush=True,
+        )
+    return result.returncode
+
+
+def run_readiness(zone_id: str, require_ready: bool) -> int:
+    cmd = [sys.executable, str(READINESS_STAGE), "--zone", zone_id]
+    if require_ready:
+        cmd.append("--require-ready")
+    result = subprocess.run(cmd, cwd=PROJECT)
+    if result.returncode != 0:
+        print(
+            f"CITY_MACHINE_FINISH_FAIL zone={zone_id} stage={READINESS_STAGE.name} rc={result.returncode}",
+            file=sys.stderr,
+            flush=True,
+        )
     return result.returncode
 
 
@@ -72,10 +92,13 @@ def log_disabled_base_layers(zone_id: str) -> None:
         print(f"CITY_MACHINE_LAYER SKIP {row.get('layer_id')} reason={reason}", flush=True)
 
 
-def run(zone_id: str, dry_run: bool) -> int:
+def run(zone_id: str, dry_run: bool, require_ready: bool = False) -> int:
     reg = validate_finish_registry(zone_id)
     rows = {str(row["family_id"]): row for row in reg["families"]}
-    print(f"CITY_MACHINE_FINISH_START zone={zone_id} auto_jouable=false", flush=True)
+    print(
+        f"CITY_MACHINE_FINISH_START zone={zone_id} auto_jouable=false require_ready={str(require_ready).lower()}",
+        flush=True,
+    )
 
     rc = run_stage(GEOMETRY_STAGE, zone_id, dry_run)
     if rc:
@@ -85,16 +108,39 @@ def run(zone_id: str, dry_run: bool) -> int:
     if rc:
         return rc
 
-    for family in ("finish_materials", "life"):
-        row = rows[family]
-        status = str(row["status"])
-        if status == "wired":
-            raise FinishPipelineError(f"{family} is marked wired but has no production stage")
-        print(f"CITY_MACHINE_FAMILY SKIP {family} status={status} reason={row['reason']}", flush=True)
+    materials = rows["finish_materials"]
+    if str(materials["status"]) == "wired":
+        rc = run_stage(MATERIALS_STAGE, zone_id, dry_run)
+        if rc:
+            return rc
+    else:
+        print(
+            "CITY_MACHINE_FAMILY SKIP finish_materials "
+            f"status={materials['status']} reason={materials['reason']}",
+            flush=True,
+        )
+
+    life = rows["life"]
+    life_status = str(life["status"])
+    if life_status == "wired":
+        raise FinishPipelineError("life is marked wired but has no production stage")
+    print(
+        f"CITY_MACHINE_FAMILY SKIP life status={life_status} reason={life['reason']}",
+        flush=True,
+    )
 
     log_disabled_base_layers(zone_id)
 
+    # Keep the historical dry-run contract: no source outputs are rewritten,
+    # but proof still validates the committed/runtime artifacts and all G1-G6 hard gates.
     rc = run_stage(PROOF_STAGE, zone_id, False)
+    if rc:
+        return rc
+
+    # G7-G12 are production-readiness gates. Missing ownership/collision/streaming/
+    # performance evidence is visible as BLOCKED, and --require-ready makes any
+    # blocker fail closed without falsely auto-promoting the zone.
+    rc = run_readiness(zone_id, require_ready)
     if rc:
         return rc
 
@@ -108,9 +154,10 @@ def main() -> int:
     build = sub.add_parser("build")
     build.add_argument("--zone", required=True)
     build.add_argument("--dry-run", action="store_true")
+    build.add_argument("--require-ready", action="store_true")
     args = parser.parse_args()
     try:
-        return run(args.zone, args.dry_run)
+        return run(args.zone, args.dry_run, args.require_ready)
     except (OSError, json.JSONDecodeError, FinishPipelineError) as exc:
         print(f"CITY_MACHINE_FINISH_FAIL {exc}", file=sys.stderr, flush=True)
         return 2

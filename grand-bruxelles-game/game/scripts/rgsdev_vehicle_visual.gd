@@ -51,6 +51,12 @@ const MODEL_SCALES := {
     "police_suv": Vector3(0.675, 0.795, 0.903),
     "police_muscle": Vector3(0.675, 0.718, 0.784),
     "police_sports": Vector3(0.702, 0.728, 0.751),
+    "ambulance": Vector3(0.729, 0.982, 0.982),
+    "bus": Vector3(0.669, 0.876, 0.727),
+    "firetruck": Vector3(0.732, 0.833, 0.884),
+    "monster_truck": Vector3(0.537, 0.875, 0.643),
+    "truck": Vector3(0.732, 1.077, 0.982),
+    "truck_with_trailer": Vector3(0.732, 0.969, 0.977),
 }
 
 static var _scene_cache: Dictionary = {}

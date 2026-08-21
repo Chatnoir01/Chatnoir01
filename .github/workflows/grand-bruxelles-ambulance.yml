@@ -5,7 +5,11 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/ambulance_vehicle.gd"
       - "grand-bruxelles-game/game/scripts/traffic_manager_npc_crossing_extension.gd"
+      - "grand-bruxelles-game/game/scripts/drivable_traffic_vehicle.gd"
+      - "grand-bruxelles-game/game/scripts/vehicle_controller.gd"
+      - "grand-bruxelles-game/game/scripts/rgsdev_vehicle_visual.gd"
       - "grand-bruxelles-game/game/tests/ambulance_vehicle_probe.gd"
+      - "grand-bruxelles-game/game/tests/vehicle_real_ground_forward_probe.gd"
       - ".github/workflows/grand-bruxelles-ambulance.yml"
   workflow_dispatch:
 
@@ -52,6 +56,17 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path grand-bruxelles-game --quit 2>&1 | tee /tmp/ambulance-import.log
           if grep -E "Parse Error:|SCRIPT ERROR|ERROR: Failed to load script|Failed to import" /tmp/ambulance-import.log; then exit 1; fi
 
+      - name: Prove real road ground contact and forward direction
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/vehicle_real_ground_forward_probe.gd 2>&1 | tee /tmp/vehicle-real-ground-forward.log
+          if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_REAL_GROUND_FORWARD_FAIL" /tmp/vehicle-real-ground-forward.log; then exit 1; fi
+          grep -q "VEHICLE_REAL_GROUND_FORWARD_OK models=21" /tmp/vehicle-real-ground-forward.log
+          grep -q "engine=4.7.1" /tmp/vehicle-real-ground-forward.log
+
       - name: Prove ambulance-only special gameplay
         run: |
           set -euo pipefail
@@ -63,12 +78,13 @@ jobs:
           grep -q "AMBULANCE_PROBE_OK ambulances=2" /tmp/ambulance-probe.log
           grep -q "other_special=false engine=4.7.1" /tmp/ambulance-probe.log
 
-      - name: Upload ambulance proof logs
+      - name: Upload vehicle proof logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: grand-bruxelles-ambulance-proof
+          name: grand-bruxelles-vehicle-proof
           path: |
             /tmp/ambulance-import.log
+            /tmp/vehicle-real-ground-forward.log
             /tmp/ambulance-probe.log
           if-no-files-found: warn

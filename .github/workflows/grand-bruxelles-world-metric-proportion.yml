@@ -1,0 +1,34 @@
+name: Grand Bruxelles World Metric Proportion
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/world_metric_proportion_contract.json"
+      - "grand-bruxelles-game/tools/test_world_metric_proportion_contract.py"
+      - "grand-bruxelles-game/tools/lambert72_to_game_geojson.py"
+      - "grand-bruxelles-game/game/main.tscn"
+      - "grand-bruxelles-game/game/vehicles/**"
+      - "grand-bruxelles-game/game/scripts/gta_scale_camera_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/npc_appearance_profile.gd"
+      - "grand-bruxelles-game/game/scripts/civilian_vehicle_visual.gd"
+      - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
+      - "grand-bruxelles-game/game/scripts/anneessens_midi_sidewalk_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_bollard_asset.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_street_lamp_asset.gd"
+      - "grand-bruxelles-game/game/scripts/brussels_street_tree_asset.gd"
+      - ".github/workflows/grand-bruxelles-world-metric-proportion.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  metric-proportion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile metric contract regression
+        run: python3 -m py_compile grand-bruxelles-game/tools/test_world_metric_proportion_contract.py
+      - name: Enforce 1 Godot unit = 1 metre proportion contract
+        run: python3 grand-bruxelles-game/tools/test_world_metric_proportion_contract.py

@@ -1,0 +1,95 @@
+{
+  "format": "grand-bruxelles-world-metric-proportion-contract-v1",
+  "world_units": {
+    "godot_units_per_meter": 1.0,
+    "horizontal_unit": "meter",
+    "vertical_unit": "meter",
+    "source_crs": "EPSG:31370"
+  },
+  "policy": {
+    "authoritative_geometry_must_not_be_rescaled_for_visibility": true,
+    "source_dimensions_override_authored_fallbacks": true,
+    "camera_may_change_perception_not_physical_scale": true,
+    "unknown_precise_dimensions_must_remain_unclaimed": true,
+    "heuristic_fallbacks_must_be_labeled_as_fallbacks": true,
+    "non_uniform_root_scaling_of_physical_assets_is_forbidden_without_source_evidence": true
+  },
+  "authority_levels": [
+    "source_measured",
+    "production_contract",
+    "authored_metric",
+    "authored_relative",
+    "authored_presentation",
+    "heuristic_fallback"
+  ],
+  "geography": {
+    "transform": "translation_plus_north_to_south_axis_flip",
+    "distance_scale": 1.0,
+    "units": "metres",
+    "authority": "production_contract"
+  },
+  "anchors": {
+    "player_physics": {
+      "height_m": 1.8,
+      "radius_m": 0.4,
+      "authority": "production_contract"
+    },
+    "player_visual": {
+      "height_m": 1.78,
+      "authority": "production_contract"
+    },
+    "npc_stature": {
+      "min_scale": 0.92,
+      "max_scale": 1.08,
+      "authority": "authored_relative"
+    },
+    "civilian_vehicle_profiles": {
+      "authority": "authored_metric",
+      "brand_specific": false,
+      "hatchback": {"length_m": 4.1, "width_m": 1.8, "height_m": 1.46, "wheelbase_m": 2.61},
+      "wagon": {"length_m": 4.38, "width_m": 1.84, "height_m": 1.48, "wheelbase_m": 2.68},
+      "sedan": {"length_m": 4.28, "width_m": 1.82, "height_m": 1.45, "wheelbase_m": 2.64}
+    },
+    "police_vehicles": {
+      "authority": "authored_metric",
+      "official_model_dimensions_claimed": false,
+      "patrol": {"width_m": 1.92, "collision_height_m": 1.05, "length_m": 4.45, "wheel_radius_m": 0.34},
+      "civil": {"width_m": 1.88, "collision_height_m": 1.0, "length_m": 4.35, "wheel_radius_m": 0.33},
+      "bab_van": {"width_m": 2.08, "collision_height_m": 2.15, "length_m": 5.45, "wheel_radius_m": 0.39}
+    },
+    "anneessens_midi_sidewalk": {
+      "authority": "authored_metric",
+      "height_m": 0.12,
+      "narrow_width_m": 1.85,
+      "wide_width_m": 2.55,
+      "curb_gap_m": 0.18
+    },
+    "road_widths": {
+      "authority": "heuristic_fallback",
+      "source_width_key": "width_m",
+      "source_width_takes_precedence": true,
+      "precise_real_width_claimed": false
+    },
+    "bollard": {
+      "authority": "authored_presentation",
+      "source_dimensions_measured": false,
+      "body_height_m": 0.8,
+      "cap_height_m": 0.14,
+      "collision_height_m": 0.94
+    },
+    "street_lamp": {
+      "authority": "authored_presentation",
+      "source_dimensions_measured": false,
+      "pole_height_m": 6.3,
+      "arm_length_m": 1.12
+    },
+    "street_tree": {
+      "authority": "authored_presentation",
+      "source_dimensions_measured": false,
+      "trunk_height_m": 2.6,
+      "foliage_radius_m": 1.05,
+      "variation_scale_min": 0.92,
+      "variation_scale_max": 1.08
+    }
+  }
+}

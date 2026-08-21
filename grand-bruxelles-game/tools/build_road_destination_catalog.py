@@ -76,6 +76,8 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
     entries: dict[int, dict[str, Any]] = {}
     document_digests: dict[str, str] = {}
     compatible_documents = 0
+    eligible_record_count = 0
+    duplicate_record_count = 0
 
     for path in documents:
         try:
@@ -97,6 +99,7 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
             signature = road_signature(raw_road)
             if signature is None:
                 continue
+            eligible_record_count += 1
             osm_id = int(signature["osm_id"])
             geometry_sha256 = sha256_text(canonical_json(signature["points"]))
             semantic = {
@@ -118,6 +121,7 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
                     "ROAD_DESTINATION_CATALOG_FAIL: conflicting duplicate OSM road "
                     f"{osm_id}: {existing_semantic!r} != {semantic!r}"
                 )
+            duplicate_record_count += 1
             if relative not in existing["source_paths"]:
                 existing["source_paths"].append(relative)
                 existing["source_paths"].sort()
@@ -133,6 +137,8 @@ def build_catalog(source_root: Path) -> dict[str, Any]:
         "source_format": SOURCE_FORMAT,
         "source_root": "data/osm",
         "entry_count": len(ordered_entries),
+        "eligible_record_count": eligible_record_count,
+        "duplicate_record_count": duplicate_record_count,
         "compatible_document_count": compatible_documents,
         "source_document_sha256": dict(sorted(document_digests.items())),
         "entries": ordered_entries,
@@ -155,6 +161,8 @@ def validate_contract(catalog: dict[str, Any]) -> None:
     entries = catalog.get("entries")
     if not isinstance(entries, dict) or len(entries) < 1:
         raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: no eligible source roads")
+    if int(catalog.get("eligible_record_count", -1)) != int(catalog.get("entry_count", -2)) + int(catalog.get("duplicate_record_count", -3)):
+        raise SystemExit("ROAD_DESTINATION_CATALOG_FAIL: unique/duplicate accounting drift")
     authorization = catalog.get("authorization", {})
     for forbidden in (
         "render_authorized",
@@ -181,7 +189,8 @@ def main() -> int:
     args.output.write_text(json.dumps(catalog, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
         "ROAD_DESTINATION_CATALOG_OK: "
-        f"entries={catalog['entry_count']} documents={catalog['compatible_document_count']} "
+        f"entries={catalog['entry_count']} eligible_records={catalog['eligible_record_count']} "
+        f"duplicate_records={catalog['duplicate_record_count']} documents={catalog['compatible_document_count']} "
         f"sha256={catalog['catalog_sha256']}"
     )
     return 0

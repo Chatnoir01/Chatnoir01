@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/citygen/**"
+      - "grand-bruxelles-game/game/tests/terrain_collision_shape_probe.gd"
       - ".github/workflows/grand-bruxelles-terrain-runtime-gate-evidence.yml"
       - ".github/workflows/grand-bruxelles-terrain-runtime-readiness.yml"
   workflow_run:
@@ -20,16 +21,51 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Prepare deterministic geometry stack
         run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3"
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
       - name: Prove measured per-cell terrain gate contracts
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/citygen/test_terrain_runtime_gate_evidence.py
           python3 grand-bruxelles-game/tools/citygen/test_build_terrain_runtime_readiness.py
+      - name: Prepare exact collision fixture
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/terrain-collision-fixture-probes /tmp/terrain-collision-fixture-results /tmp/terrain-collision-fixture-measurements
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_collision_gate.py \
+            --emit-probe-root /tmp/terrain-collision-fixture-probes
+      - name: Prove HeightMapShape3D collision in Godot 4.7.1
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/terrain_collision_shape_probe.gd \
+            -- \
+            --probe-root=/tmp/terrain-collision-fixture-probes \
+            --result-root=/tmp/terrain-collision-fixture-results 2>&1 | tee /tmp/terrain-collision-godot-fixture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TERRAIN_COLLISION_GODOT_FAIL" /tmp/terrain-collision-godot-fixture.log; then
+            exit 1
+          fi
+          grep -q "TERRAIN_COLLISION_GODOT_OK" /tmp/terrain-collision-godot-fixture.log
+      - name: Verify exact Godot collision measurement
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_collision_gate.py \
+            --verify-probe-root /tmp/terrain-collision-fixture-probes \
+            --godot-result-root /tmp/terrain-collision-fixture-results \
+            --measurement-root /tmp/terrain-collision-fixture-measurements
 
   measure:
     if: >-
@@ -42,7 +78,7 @@ jobs:
       group: grand-bruxelles-autonomous-citygen
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,6 +101,14 @@ jobs:
 
       - name: Prepare deterministic geometry stack
         run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3"
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
 
       - name: Select cells with exact prerequisite artifacts
         shell: bash
@@ -108,6 +152,92 @@ jobs:
           PY
           echo "TERRAIN_RUNTIME_GATE_WORKLIST selected=$(grep -cve '^$' /tmp/terrain-runtime-gate-worklist.txt || true)"
 
+      - name: Prepare exact per-cell collision probes
+        shell: bash
+        run: |
+          set -u
+          QA="grand-bruxelles-game/data/qa"
+          SOURCES="$QA/autonomous_sources"
+          CANDIDATES="$QA/autonomous_candidates/runtime"
+          rm -rf /tmp/terrain-collision-probes /tmp/terrain-collision-results /tmp/terrain-collision-measurements /tmp/terrain-collision-logs
+          mkdir -p /tmp/terrain-collision-probes /tmp/terrain-collision-results /tmp/terrain-collision-measurements /tmp/terrain-collision-logs
+          : > /tmp/terrain-collision-prepared.txt
+          : > /tmp/terrain-collision-pending.txt
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="$SOURCES/$CELL"
+            C="$CANDIDATES/$CELL/candidate.json"
+            P="/tmp/terrain-collision-probes/${CELL}.json"
+            LOG="/tmp/terrain-collision-logs/${CELL}.prepare.log"
+            if python3 grand-bruxelles-game/tools/citygen/terrain_collision_gate.py prepare \
+                --terrain-lod "$D/terrain_lod_evidence.json" \
+                --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+                --secondary-height-validation "$D/secondary_height_validation.json" \
+                --runtime-candidate "$C" \
+                --output "$P" >"$LOG" 2>&1; then
+              echo "$CELL" >> /tmp/terrain-collision-prepared.txt
+              cat "$LOG"
+            else
+              rm -f "$P"
+              echo "$CELL" >> /tmp/terrain-collision-pending.txt
+              echo "TERRAIN_COLLISION_PROBE_PENDING cell=${CELL}"
+              cat "$LOG"
+            fi
+          done < /tmp/terrain-runtime-gate-worklist.txt
+          echo "TERRAIN_COLLISION_PROBE_BATCH prepared=$(grep -cve '^$' /tmp/terrain-collision-prepared.txt || true) pending=$(grep -cve '^$' /tmp/terrain-collision-pending.txt || true)"
+
+      - name: Run exact collision probes once in Godot 4.7.1
+        shell: bash
+        run: |
+          set -u
+          PREPARED=$(find /tmp/terrain-collision-probes -maxdepth 1 -name '*.json' -type f | wc -l)
+          if [ "$PREPARED" -eq 0 ]; then
+            echo "TERRAIN_COLLISION_GODOT_NO_PROBES"
+            exit 0
+          fi
+          set +e
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/terrain_collision_shape_probe.gd \
+            -- \
+            --probe-root=/tmp/terrain-collision-probes \
+            --result-root=/tmp/terrain-collision-results 2>&1 | tee /tmp/terrain-collision-godot-batch.log
+          GODOT_RC=${PIPESTATUS[0]}
+          set -e
+          RESULTS=$(find /tmp/terrain-collision-results -maxdepth 1 -name '*.json' -type f | wc -l)
+          echo "TERRAIN_COLLISION_GODOT_BATCH prepared=${PREPARED} results=${RESULTS} godot_rc=${GODOT_RC}"
+          if [ "$RESULTS" -eq 0 ]; then
+            echo "::error::Godot collision probe produced no per-cell results for ${PREPARED} prepared probes"
+            exit 1
+          fi
+
+      - name: Finalize exact per-cell collision measurements
+        shell: bash
+        run: |
+          set -u
+          : > /tmp/terrain-collision-measured.txt
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            P="/tmp/terrain-collision-probes/${CELL}.json"
+            R="/tmp/terrain-collision-results/${CELL}.json"
+            M="/tmp/terrain-collision-measurements/${CELL}.json"
+            LOG="/tmp/terrain-collision-logs/${CELL}.finalize.log"
+            if [ -f "$P" ] && [ -f "$R" ] \
+              && python3 grand-bruxelles-game/tools/citygen/terrain_collision_gate.py finalize \
+                --probe "$P" \
+                --godot-result "$R" \
+                --output "$M" >"$LOG" 2>&1; then
+              echo "$CELL" >> /tmp/terrain-collision-measured.txt
+              cat "$LOG"
+            else
+              rm -f "$M"
+              echo "TERRAIN_COLLISION_MEASUREMENT_PENDING cell=${CELL}"
+              [ -f "$LOG" ] && cat "$LOG" || true
+            fi
+          done < /tmp/terrain-runtime-gate-worklist.txt
+          echo "TERRAIN_COLLISION_MEASUREMENT_BATCH measured=$(grep -cve '^$' /tmp/terrain-collision-measured.txt || true)"
+
       - name: Measure geometry gates aggregate evidence and refresh readiness
         shell: bash
         run: |
@@ -124,6 +254,7 @@ jobs:
             D="$SOURCES/$CELL"
             C="$CANDIDATES/$CELL/candidate.json"
             M="/tmp/terrain-runtime-gate-measurements/${CELL}.json"
+            CM="/tmp/terrain-collision-measurements/${CELL}.json"
             OUT="$D/terrain_runtime_gate_evidence.json"
             READINESS="$D/terrain_runtime_readiness.json"
             LOG="/tmp/terrain-runtime-gate-logs/${CELL}.log"
@@ -135,29 +266,34 @@ jobs:
                 --runtime-candidate "$C" \
                 --target-grid "$TARGET" \
                 --candidate-root "$SOURCES" \
-                --output "$M" >"$LOG" 2>&1 \
-              && python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_gate_evidence.py \
-                --terrain-lod "$D/terrain_lod_evidence.json" \
-                --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
-                --secondary-height-validation "$D/secondary_height_validation.json" \
-                --runtime-candidate "$C" \
-                --measurement "$M" \
-                --output "$OUT" >>"$LOG" 2>&1 \
-              && python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_readiness.py \
-                --terrain-lod "$D/terrain_lod_evidence.json" \
-                --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
-                --secondary-height-validation "$D/secondary_height_validation.json" \
-                --runtime-candidate "$C" \
-                --runtime-gate-evidence "$OUT" \
-                --output "$READINESS" >>"$LOG" 2>&1; then
-              echo "$CELL" >> /tmp/terrain-runtime-gate-success.txt
-              cat "$LOG"
-            else
-              rm -f "$OUT" "$READINESS"
-              echo "$CELL" >> /tmp/terrain-runtime-gate-pending.txt
-              echo "TERRAIN_RUNTIME_GATE_EVIDENCE_PENDING cell=${CELL}"
-              cat "$LOG"
+                --output "$M" >"$LOG" 2>&1; then
+              MEASURE_ARGS=(--measurement "$M")
+              if [ -f "$CM" ]; then
+                MEASURE_ARGS+=(--measurement "$CM")
+              fi
+              if python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_gate_evidence.py \
+                  --terrain-lod "$D/terrain_lod_evidence.json" \
+                  --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+                  --secondary-height-validation "$D/secondary_height_validation.json" \
+                  --runtime-candidate "$C" \
+                  "${MEASURE_ARGS[@]}" \
+                  --output "$OUT" >>"$LOG" 2>&1 \
+                && python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_readiness.py \
+                  --terrain-lod "$D/terrain_lod_evidence.json" \
+                  --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+                  --secondary-height-validation "$D/secondary_height_validation.json" \
+                  --runtime-candidate "$C" \
+                  --runtime-gate-evidence "$OUT" \
+                  --output "$READINESS" >>"$LOG" 2>&1; then
+                echo "$CELL" >> /tmp/terrain-runtime-gate-success.txt
+                cat "$LOG"
+                continue
+              fi
             fi
+            rm -f "$OUT" "$READINESS"
+            echo "$CELL" >> /tmp/terrain-runtime-gate-pending.txt
+            echo "TERRAIN_RUNTIME_GATE_EVIDENCE_PENDING cell=${CELL}"
+            cat "$LOG"
           done < /tmp/terrain-runtime-gate-worklist.txt
 
       - name: Build measured gate report
@@ -204,13 +340,19 @@ jobs:
               'cells':rows,
               'measured_success':lines('/tmp/terrain-runtime-gate-success.txt'),
               'measurement_pending':lines('/tmp/terrain-runtime-gate-pending.txt'),
+              'collision_prepared':lines('/tmp/terrain-collision-prepared.txt'),
+              'collision_measurement_pending':lines('/tmp/terrain-collision-pending.txt'),
+              'collision_measured':lines('/tmp/terrain-collision-measured.txt'),
               'policy':{
-                  'currently_measured_gates':['seams','normals'],
-                  'unmeasured_gates':['collisions','streaming','performance','photo_match'],
+                  'currently_measured_gates':['seams','normals','collisions'],
+                  'unmeasured_gates':['streaming','performance','photo_match'],
                   'global_workflow_green_is_not_cell_proof':True,
                   'regional_target_grid_defines_expected_neighbors':True,
                   'neighbor_candidate_bbox_must_match_target_grid':True,
                   'missing_neighbor_candidate_remains_pending':True,
+                  'collision_requires_exact_candidate_heightmapshape3d_raycast':True,
+                  'collision_engine_version':'4.7.1',
+                  'collision_probe_is_qa_only':True,
                   'readiness_refreshed_atomically_with_gate_evidence':True,
                   'runtime_promotion_allowed':False,
                   'automatic_production_mutation':False,
@@ -221,6 +363,8 @@ jobs:
               'cells':len(rows),
               'seams_passed':sum(1 for row in rows if 'seams' in row['passed_gates']),
               'normals_passed':sum(1 for row in rows if 'normals' in row['passed_gates']),
+              'collisions_measured':sum(1 for row in rows if 'collisions' in row['passed_gates'] or 'collisions' in row['blocked_gates']),
+              'collisions_passed':sum(1 for row in rows if 'collisions' in row['passed_gates']),
               'ready_for_explicit_review':sum(1 for row in rows if row['promotion_ready_for_explicit_review']),
               'pending':len(report['measurement_pending']),
           },sort_keys=True))
@@ -262,4 +406,9 @@ jobs:
             /tmp/terrain-runtime-gate-worklist.txt
             /tmp/terrain-runtime-gate-logs/
             /tmp/terrain-runtime-gate-measurements/
+            /tmp/terrain-collision-probes/
+            /tmp/terrain-collision-results/
+            /tmp/terrain-collision-measurements/
+            /tmp/terrain-collision-logs/
+            /tmp/terrain-collision-godot-batch.log
           retention-days: 30

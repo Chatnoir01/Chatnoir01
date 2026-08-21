@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from collections import Counter
 from pathlib import Path
@@ -32,6 +33,7 @@ from transform_osm_to_game import environment_point_kind
 SUPPORTED_KINDS = ("tree", "street_lamp", "bollard")
 SOURCE = "OpenStreetMap contributors via Overpass API"
 LICENSE = "ODbL-1.0"
+BBOX_TOLERANCE_DEG = 1e-7
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -74,6 +76,39 @@ def bbox_wgs84(manifest: dict[str, Any]) -> list[float]:
     return [min(lats), min(lons), max(lats), max(lons)]
 
 
+def validate_cache_coverage(cache: dict[str, Any], manifest: dict[str, Any]) -> list[float]:
+    """Require the committed OSM query bbox to match the complete zone bbox.
+
+    A corridor or hand-selected vertical slice must never satisfy a City Machine
+    zone build merely because it happens to contain a few valid OSM features.
+    """
+    actual = cache.get("bbox_wgs84")
+    if not isinstance(actual, list) or len(actual) != 4:
+        raise ValueError("OSM environment cache bbox_wgs84 must contain four coordinates")
+    try:
+        actual_values = [float(value) for value in actual]
+    except (TypeError, ValueError) as exc:
+        raise ValueError("OSM environment cache bbox_wgs84 must be numeric") from exc
+    if not all(math.isfinite(value) for value in actual_values):
+        raise ValueError("OSM environment cache bbox_wgs84 must be finite")
+    south, west, north, east = actual_values
+    if south >= north or west >= east:
+        raise ValueError("OSM environment cache bbox_wgs84 is invalid")
+
+    expected = bbox_wgs84(manifest)
+    mismatches = [
+        (index, got, want)
+        for index, (got, want) in enumerate(zip(actual_values, expected))
+        if abs(got - want) > BBOX_TOLERANCE_DEG
+    ]
+    if mismatches:
+        raise ValueError(
+            "OSM environment cache is partial or belongs to another zone: "
+            f"bbox_wgs84={actual_values} expected_zone_bbox={expected}"
+        )
+    return actual_values
+
+
 def normalize_overpass(raw: dict[str, Any], bbox: list[float]) -> dict[str, Any]:
     elements: list[dict[str, Any]] = []
     for element in raw.get("elements", []) or []:
@@ -111,6 +146,7 @@ def project_cache(cache: dict[str, Any], manifest: dict[str, Any], zone_id: str)
         raise ValueError("unsupported OSM environment cache format")
     if cache.get("source") != SOURCE or cache.get("license") != LICENSE:
         raise ValueError("OSM source/license contract mismatch")
+    validated_bbox = validate_cache_coverage(cache, manifest)
     origin = manifest.get("game_origin") or {}
     if origin.get("axes") != "X=east, Y=up, Z=south" or origin.get("units") != "metres":
         raise ValueError("unsupported game-origin contract")
@@ -141,7 +177,7 @@ def project_cache(cache: dict[str, Any], manifest: dict[str, Any], zone_id: str)
         "source_crs": "EPSG:4326",
         "projection_crs": "EPSG:31370",
         "bbox_31370": [float(value) for value in manifest["bbox"]],
-        "bbox_wgs84": cache["bbox_wgs84"],
+        "bbox_wgs84": validated_bbox,
         "game_origin": origin,
         "source_digest": digest(cache),
         "osm_base_timestamp": cache.get("osm_base_timestamp", ""),

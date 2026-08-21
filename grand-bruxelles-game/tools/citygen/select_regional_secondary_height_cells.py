@@ -37,30 +37,40 @@ def _hex_digest(value: Any) -> bool:
     return isinstance(value, str) and len(value) == 64 and all(ch in "0123456789abcdef" for ch in value.casefold())
 
 
+def _embedded_digest_valid(payload: dict[str, Any], field: str) -> bool:
+    expected = payload.get(field)
+    if not _hex_digest(expected):
+        return False
+    unsigned = {key: value for key, value in payload.items() if key != field}
+    return _digest(unsigned) == str(expected).casefold()
+
+
 def _valid_height_source(cell_id: str, payload: dict[str, Any]) -> tuple[bool, str | None, int]:
     if payload.get("format") != HEIGHT_FORMAT or payload.get("crs") != CRS or payload.get("cell_id") != cell_id:
         return False, None, 0
-    if payload.get("runtime_promotion_allowed") is not False:
+    if payload.get("runtime_promotion_allowed") is not False or payload.get("runtime_approved_count") != 0:
         return False, None, 0
-    digest = payload.get("candidate_digest")
-    if not _hex_digest(digest):
+    if not _embedded_digest_valid(payload, "candidate_digest"):
         return False, None, 0
+    digest = str(payload["candidate_digest"]).casefold()
     rows = payload.get("buildings")
     count = payload.get("candidate_count")
     if not isinstance(rows, list) or not isinstance(count, int) or isinstance(count, bool) or count < 1:
         return False, None, 0
-    measured = [row for row in rows if isinstance(row, dict) and row.get("candidate_height_m") is not None]
+    if any(not isinstance(row, dict) or row.get("runtime_approved") is not False for row in rows):
+        return False, None, 0
+    measured = [row for row in rows if row.get("candidate_height_m") is not None]
     if len(measured) != count:
         return False, None, 0
-    if any(row.get("runtime_approved") is not False for row in measured):
-        return False, None, 0
-    return True, str(digest), count
+    return True, digest, count
 
 
 def _valid_terrain(cell_id: str, payload: dict[str, Any]) -> bool:
     if payload.get("format") != TERRAIN_FORMAT or payload.get("crs") != CRS or payload.get("cell_id") != cell_id:
         return False
     if payload.get("runtime_approved") is not False:
+        return False
+    if not _embedded_digest_valid(payload, "evidence_digest"):
         return False
     selection = payload.get("selection") or {}
     return isinstance(selection, dict) and selection.get("runtime_approved") is False and selection.get("selected_resolution_m") is not None
@@ -93,6 +103,8 @@ def _fresh_pair(cell_id: str, cell: Path, source_digest: str, candidate_count: i
         return False
     if validation.get("secondary_evidence_digest") != _digest(secondary):
         return False
+    if not _embedded_digest_valid(validation, "validation_digest"):
+        return False
     if validation.get("runtime_promotion_allowed") is not False or validation.get("runtime_approved_count") != 0:
         return False
     declared = validation.get("candidate_count")
@@ -101,6 +113,11 @@ def _fresh_pair(cell_id: str, cell: Path, source_digest: str, candidate_count: i
     if declared != candidate_count or not isinstance(validated, int) or not isinstance(blocked, int):
         return False
     if validated < 0 or blocked < 0 or validated + blocked != candidate_count:
+        return False
+    rows = validation.get("candidates")
+    if not isinstance(rows, list) or len(rows) != candidate_count or any(
+        not isinstance(row, dict) or row.get("runtime_approved") is not False for row in rows
+    ):
         return False
     return True
 
@@ -138,18 +155,16 @@ def select(source_root: Path, limit: int, previous_report: Path | None = None) -
             continue
         valid_height, source_digest, candidate_count = _valid_height_source(cell.name, heights)
         if not valid_height or source_digest is None:
-            rejected.append({"cell_id": cell.name, "reason": "unsafe or unsupported autonomous height candidate contract"})
+            rejected.append({"cell_id": cell.name, "reason": "unsafe, tampered or unsupported autonomous height candidate contract"})
             continue
         if not _valid_terrain(cell.name, terrain):
-            rejected.append({"cell_id": cell.name, "reason": "unsafe or unsupported terrain LOD contract"})
+            rejected.append({"cell_id": cell.name, "reason": "unsafe, tampered or unsupported terrain LOD contract"})
             continue
         if _fresh_pair(cell.name, cell, source_digest, candidate_count):
             fresh.append(cell.name)
         else:
             eligible.append(cell.name)
 
-    # Deterministic anti-starvation ordering: retry last run's failures only after
-    # giving currently-unfailed eligible cells a turn.
     eligible.sort(key=lambda cell_id: (cell_id in previous_failed, cell_id))
     selected = eligible[:limit]
     return {
@@ -163,6 +178,7 @@ def select(source_root: Path, limit: int, previous_report: Path | None = None) -
         "policy": {
             "autonomous_height_candidates_only": True,
             "terrain_lod_required": True,
+            "embedded_source_digest_validation": True,
             "exact_source_digest_freshness": True,
             "exact_secondary_digest_freshness": True,
             "previous_failure_rotation": True,

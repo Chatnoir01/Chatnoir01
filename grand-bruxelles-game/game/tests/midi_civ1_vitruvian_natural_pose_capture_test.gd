@@ -27,12 +27,16 @@ const MAX_HEAD_YAW_DEG := 10.0
 # boot geometry instead. Scale X to a plausible pair width, Z to a plausible
 # foot length, and let Y follow the same longitudinal scale so the authored boot
 # shaft profile is preserved instead of being flattened or stretched by hand.
+# Run 37 proved that 0.29 m longitudinal sizing still leaves a visible ankle band
+# despite technical GREEN. Require a bounded authored shaft height above the sole
+# while preserving the source profile with identical Y/Z scale.
 const PRIMARY_FOOTWEAR := REVIEW_ROOT + "/shoes03_cc0.obj"
 const TARGET_BOOT_PAIR_WIDTH_M := 0.38
-const TARGET_BOOT_LENGTH_M := 0.29
-const MIN_BOOT_HEIGHT_M := 0.20
-const MAX_BOOT_HEIGHT_M := 0.38
+const TARGET_BOOT_LENGTH_M := 0.32
+const MIN_BOOT_HEIGHT_M := 0.275
+const MAX_BOOT_HEIGHT_M := 0.305
 const MAX_BOOT_SOLE_DRIFT_M := 0.001
+const MAX_BOOT_PROFILE_SCALE_DRIFT := 0.000001
 
 func _relax_pose_if_rigged(root: Node) -> Dictionary:
     var skeleton := _find_skeleton(root)
@@ -204,10 +208,14 @@ func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
         source.size.z * node.scale.z
     )
     var sole_drift := absf(sole_y_after - sole_y_before)
+    var boot_top_y := sole_y_after + scaled_size.y
+    var boot_top_above_sole := boot_top_y - sole_y_after
+    var profile_scale_drift := absf(node.scale.y - node.scale.z)
     var fit_gate := (
-        scaled_size.y >= MIN_BOOT_HEIGHT_M
-        and scaled_size.y <= MAX_BOOT_HEIGHT_M
+        boot_top_above_sole >= MIN_BOOT_HEIGHT_M
+        and boot_top_above_sole <= MAX_BOOT_HEIGHT_M
         and sole_drift <= MAX_BOOT_SOLE_DRIFT_M
+        and profile_scale_drift <= MAX_BOOT_PROFILE_SCALE_DRIFT
     )
     var audit := {
         "added": fit_gate,
@@ -217,7 +225,11 @@ func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
         "target_length_m": TARGET_BOOT_LENGTH_M,
         "scaled_pair_size_m": [scaled_size.x, scaled_size.y, scaled_size.z],
         "boot_height_gate_m": [MIN_BOOT_HEIGHT_M, MAX_BOOT_HEIGHT_M],
+        "boot_top_y": boot_top_y,
+        "boot_top_above_sole_m": boot_top_above_sole,
         "vertical_scale_policy": "match_longitudinal_scale_preserve_authored_boot_profile",
+        "profile_scale_drift": profile_scale_drift,
+        "max_profile_scale_drift": MAX_BOOT_PROFILE_SCALE_DRIFT,
         "scale": [node.scale.x, node.scale.y, node.scale.z],
         "position": [node.position.x, node.position.y, node.position.z],
         "sole_y_before": sole_y_before,
@@ -232,7 +244,7 @@ func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
         "production_authorized": false
     }
     if not fit_gate:
-        audit["reason"] = "native shoes03 boot profile outside bounded height/sole gate"
+        audit["reason"] = "shoes03 authored profile outside bounded shaft-height/sole/profile gate"
     print("GB_CIV1_FOOTWEAR_BOOT ", JSON.stringify(audit))
     return audit
 

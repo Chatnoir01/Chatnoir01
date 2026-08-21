@@ -94,6 +94,18 @@ func _inside_source_building(document: Dictionary, point: Vector2) -> bool:
     return false
 
 
+func _rendered_road_nodes(main: Node) -> Array[Node]:
+    var matches: Array[Node] = []
+    var roads_root := main.get_node_or_null("BrusselsOSM/GeneratedRoads")
+    if roads_root == null:
+        return matches
+    var needle := str(EXPECTED_OSM_ID)
+    for child: Node in roads_root.get_children():
+        if child.name.contains(needle):
+            matches.append(child)
+    return matches
+
+
 func _run() -> void:
     if _sha256_file(SOURCE_PATH) != EXPECTED_SOURCE_SHA256:
         _fail("locked OSM source hash drifted")
@@ -116,10 +128,14 @@ func _run() -> void:
     for _frame: int in range(8):
         await process_frame
 
-    var rendered_road := main.find_child("Road_359177328_0", true, false)
-    if rendered_road == null:
-        _fail("OSM way 359177328 is source-present but not rendered in the production scene")
+    var rendered_roads := _rendered_road_nodes(main)
+    if rendered_roads.is_empty():
+        _fail("OSM way 359177328 is source-present but no rendered road node contains its source id")
         return
+    var rendered_names: Array[String] = []
+    for node: Node in rendered_roads:
+        rendered_names.append(str(node.name))
+    print("LEMONNIER_RENDERED_ROAD_NODES: count=%d names=%s" % [rendered_roads.size(), rendered_names])
 
     var player := main.get_node_or_null("Player") as CharacterBody3D
     if player == null:
@@ -193,8 +209,9 @@ func _run() -> void:
         return
 
     print(
-        "LEMONNIER_DIRECT_SPAWN_OK: osm_id=%d distance_to_road=%.3f spawn=(%.3f, %.3f, %.3f) target_screen=(%.1f, %.1f) capture=%s" % [
+        "LEMONNIER_DIRECT_SPAWN_OK: osm_id=%d rendered_nodes=%d distance_to_road=%.3f spawn=(%.3f, %.3f, %.3f) target_screen=(%.1f, %.1f) capture=%s" % [
             EXPECTED_OSM_ID,
+            rendered_roads.size(),
             distance_to_road,
             player.global_position.x,
             player.global_position.y,

@@ -18,12 +18,19 @@ func _fail(message: String) -> void:
     quit(1)
 
 
+func _settle_camera_guard() -> void:
+    # SceneTree.process_frame is emitted immediately before Node._process callbacks.
+    # A direct method call from this probe therefore needs two frame boundaries:
+    # one to enter the next process cycle and one to observe the guard's result.
+    await process_frame
+    await process_frame
+
+
 func _run() -> void:
     var main := MAIN_SCENE.instantiate()
     root.add_child(main)
     current_scene = main
-    await process_frame
-    await process_frame
+    await _settle_camera_guard()
     await physics_frame
 
     var runtime := root.get_node_or_null("GtaScaleCameraRuntime")
@@ -85,7 +92,7 @@ func _run() -> void:
         return
 
     player.call("cycle_camera_view")
-    await process_frame
+    await _settle_camera_guard()
     if absf(arm.spring_length - CLOSE_DISTANCE_M) > 0.01:
         _fail("close camera profile was not remapped from the legacy oversized view: actual=%.3f" % arm.spring_length)
         return
@@ -93,7 +100,7 @@ func _run() -> void:
     if not bool(player.call("fast_travel_to", "midi")):
         _fail("Midi fast travel failed")
         return
-    await process_frame
+    await _settle_camera_guard()
     if absf(arm.spring_length - STANDARD_DISTANCE_M) > 0.01 or absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
         _fail("fast travel restored the legacy camera instead of the GTA-scale standard: distance=%.3f fov=%.3f" % [arm.spring_length, camera.fov])
         return
@@ -106,12 +113,12 @@ func _run() -> void:
     # once the presentation ownership marker is removed.
     player.set_meta("atomium_direct_presentation_fov_degrees", ATOMIUM_PRESENTATION_FOV_DEG)
     camera.fov = ATOMIUM_PRESENTATION_FOV_DEG
-    await process_frame
+    await _settle_camera_guard()
     if absf(camera.fov - ATOMIUM_PRESENTATION_FOV_DEG) > 0.01:
         _fail("GTA camera guard trampled Atomium presentation FOV: actual=%.3f" % camera.fov)
         return
     player.remove_meta("atomium_direct_presentation_fov_degrees")
-    await process_frame
+    await _settle_camera_guard()
     if absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
         _fail("GTA camera guard did not recover after special presentation: actual=%.3f" % camera.fov)
         return

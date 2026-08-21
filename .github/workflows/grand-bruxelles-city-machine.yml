@@ -9,7 +9,10 @@ on:
       - "grand-bruxelles-game/data/qa/playable_zone_catalog.json"
       - "grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/**"
       - "grand-bruxelles-game/data/osm/zones/jette/**"
+      - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/zone_selector_runtime.gd"
       - "grand-bruxelles-game/game/zones/laeken_jette/jette_phase2_zone.gd"
+      - "grand-bruxelles-game/tests/test_city_machine_environment_runtime_integration.py"
       - ".github/workflows/grand-bruxelles-city-machine.yml"
   workflow_dispatch:
 
@@ -29,6 +32,7 @@ jobs:
           python3 grand-bruxelles-game/tools/city_machine/test_registry.py
           python3 grand-bruxelles-game/tools/city_machine/test_osm_environment_zone.py
           python3 grand-bruxelles-game/tools/city_machine/test_city_machine.py
+          python3 grand-bruxelles-game/tests/test_city_machine_environment_runtime_integration.py
       - name: Dry-run production Jette plan
         run: python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --dry-run
       - name: Rebuild Jette twice and prove idempotence

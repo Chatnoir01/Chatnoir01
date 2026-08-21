@@ -3,32 +3,46 @@ class_name RgsdevVehicleVisual
 
 const PACK_CONTRACT := "rgsdev_cc0_vehicles_v1"
 const MODEL_PATHS := {
-    "ambulance": "res://game/assets/vehicles/rgsdev/ambulance.fbx",
-    "bus": "res://game/assets/vehicles/rgsdev/bus.fbx",
-    "firetruck": "res://game/assets/vehicles/rgsdev/firetruck.fbx",
-    "hatchback": "res://game/assets/vehicles/rgsdev/hatchback.fbx",
-    "limousine": "res://game/assets/vehicles/rgsdev/limousine.fbx",
-    "monster_truck": "res://game/assets/vehicles/rgsdev/monster_truck.fbx",
-    "muscle": "res://game/assets/vehicles/rgsdev/muscle.fbx",
-    "muscle_2": "res://game/assets/vehicles/rgsdev/muscle_2.fbx",
-    "pickup": "res://game/assets/vehicles/rgsdev/pickup.fbx",
-    "police_muscle": "res://game/assets/vehicles/rgsdev/police_muscle.fbx",
-    "police_sedan": "res://game/assets/vehicles/rgsdev/police_sedan.fbx",
-    "police_sports": "res://game/assets/vehicles/rgsdev/police_sports.fbx",
-    "police_suv": "res://game/assets/vehicles/rgsdev/police_suv.fbx",
-    "roadster": "res://game/assets/vehicles/rgsdev/roadster.fbx",
-    "sedan": "res://game/assets/vehicles/rgsdev/sedan.fbx",
-    "sports": "res://game/assets/vehicles/rgsdev/sports.fbx",
-    "suv": "res://game/assets/vehicles/rgsdev/suv.fbx",
-    "taxi": "res://game/assets/vehicles/rgsdev/taxi.fbx",
-    "truck": "res://game/assets/vehicles/rgsdev/truck.fbx",
-    "truck_with_trailer": "res://game/assets/vehicles/rgsdev/truck_with_trailer.fbx",
-    "van": "res://game/assets/vehicles/rgsdev/van.fbx",
+    "hatchback": "res://game/assets/vehicles/rgsdev/hatchback.gltf",
+    "limousine": "res://game/assets/vehicles/rgsdev/limousine.gltf",
+    "muscle": "res://game/assets/vehicles/rgsdev/muscle.gltf",
+    "muscle_2": "res://game/assets/vehicles/rgsdev/muscle_2.gltf",
+    "pickup": "res://game/assets/vehicles/rgsdev/pickup.gltf",
+    "police_muscle": "res://game/assets/vehicles/rgsdev/police_muscle.gltf",
+    "police_sedan": "res://game/assets/vehicles/rgsdev/police_sedan.gltf",
+    "police_sports": "res://game/assets/vehicles/rgsdev/police_sports.gltf",
+    "police_suv": "res://game/assets/vehicles/rgsdev/police_suv.gltf",
+    "roadster": "res://game/assets/vehicles/rgsdev/roadster.gltf",
+    "sedan": "res://game/assets/vehicles/rgsdev/sedan.gltf",
+    "sports": "res://game/assets/vehicles/rgsdev/sports.gltf",
+    "suv": "res://game/assets/vehicles/rgsdev/suv.gltf",
+    "taxi": "res://game/assets/vehicles/rgsdev/taxi.gltf",
+    "van": "res://game/assets/vehicles/rgsdev/van.gltf",
 }
 const CIVILIAN_MODELS := [
     "sedan", "hatchback", "suv", "van", "pickup", "muscle", "muscle_2", "roadster", "sports", "taxi", "limousine"
 ]
 const POLICE_MODELS := ["police_sedan", "police_suv", "police_muscle", "police_sports"]
+const SPECIAL_MODELS_REQUIRING_HEAVY_PHYSICS := [
+    "ambulance", "bus", "firetruck", "monster_truck", "truck", "truck_with_trailer"
+]
+const MODEL_SCALES := {
+    "sedan": Vector3(0.647, 0.721, 0.818),
+    "hatchback": Vector3(0.640, 0.726, 0.803),
+    "suv": Vector3(0.675, 0.749, 0.903),
+    "van": Vector3(0.718, 0.812, 0.872),
+    "pickup": Vector3(0.711, 0.859, 1.012),
+    "muscle": Vector3(0.675, 0.733, 0.784),
+    "muscle_2": Vector3(0.675, 0.733, 0.784),
+    "roadster": Vector3(0.702, 0.679, 0.751),
+    "sports": Vector3(0.702, 0.679, 0.751),
+    "taxi": Vector3(0.647, 0.638, 0.818),
+    "limousine": Vector3(0.682, 0.746, 0.615),
+    "police_sedan": Vector3(0.647, 0.708, 0.818),
+    "police_suv": Vector3(0.675, 0.795, 0.903),
+    "police_muscle": Vector3(0.675, 0.718, 0.784),
+    "police_sports": Vector3(0.702, 0.728, 0.751),
+}
 
 @export var model_id: String = "sedan"
 @export var model_scale: Vector3 = Vector3.ONE
@@ -66,6 +80,7 @@ func get_visual_contract() -> Dictionary:
         "license": "CC0",
         "wheel_animation": animate_wheels,
         "wheel_count": _wheel_nodes.size(),
+        "special_models_pending_heavy_physics": SPECIAL_MODELS_REQUIRING_HEAVY_PHYSICS.duplicate(),
     }
 
 func _load_model() -> void:
@@ -88,7 +103,8 @@ func _load_model() -> void:
         push_error("RGSDEV vehicle model root is not Node3D: %s" % path)
         return
     _instance.name = "ImportedModel"
-    _instance.scale = model_scale
+    var authored_scale: Vector3 = MODEL_SCALES.get(model_id, Vector3.ONE)
+    _instance.scale = authored_scale * model_scale
     _instance.rotation_degrees = model_rotation_degrees
     _instance.position = model_offset
     add_child(_instance)

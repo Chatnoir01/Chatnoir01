@@ -8,8 +8,7 @@ from pathlib import Path
 
 MODULE = Path(__file__).with_name("persist_secondary_height_evidence.py")
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SECONDARY_WORKFLOW = REPO_ROOT / ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
-PERSISTENCE_WORKFLOW = REPO_ROOT / ".github/workflows/grand-bruxelles-citygen-secondary-persistence.yml"
+FACTORY_WORKFLOW = REPO_ROOT / ".github/workflows/grand-bruxelles-secondary-height-factory.yml"
 spec = importlib.util.spec_from_file_location("persist_secondary_height_evidence", MODULE)
 assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
@@ -26,10 +25,11 @@ def main() -> int:
         secondary = root / "secondary.json"
         validation = root / "validation.json"
         out = root / "out"
-        write_json(secondary,{"schema":"grand-bruxelles-ixelles-semantic-dsm-comparison-v1","cell":"bxl-e141500-n167500-s500","source_crs":"EPSG:31370","runtime_approved":False,"counts":{"manual_frontier_candidates":7,"semantic_joined_records":5,"strong_validation_candidates":4,"missing_secondary_records":2,"conflicts":0},"policy":{"runtime_approval":False},"records":[]})
-        write_json(validation,{"format":"grand-bruxelles-citygen-secondary-height-validation-v1","cell_id":"bxl-e141500-n167500-s500","crs":"EPSG:31370","candidate_count":7,"validated_candidate_count":4,"blocked_candidate_count":3,"runtime_approved_count":0,"runtime_promotion_allowed":False,"secondary_validation_complete":False,"next_action":"resolve_blocked_secondary_height_candidates_without_guessing","candidates":[]})
+        write_json(secondary,{"schema":"grand-bruxelles-ixelles-semantic-dsm-comparison-v1","cell":"bxl-e141500-n167500-s500","source_crs":"EPSG:31370","runtime_approved":False,"counts":{"height_candidate_source_count":7,"automatic_height_candidates":7,"manual_frontier_candidates":0,"semantic_joined_records":5,"strong_validation_candidates":4,"missing_secondary_records":2,"conflicts":0},"policy":{"runtime_approval":False},"records":[]})
+        write_json(validation,{"format":"grand-bruxelles-citygen-secondary-height-validation-v1","cell_id":"bxl-e141500-n167500-s500","crs":"EPSG:31370","height_candidate_source_kind":"autonomous_measured_height_candidates","candidate_count":7,"validated_candidate_count":4,"blocked_candidate_count":3,"runtime_approved_count":0,"runtime_promotion_allowed":False,"secondary_validation_complete":False,"next_action":"resolve_blocked_secondary_height_candidates_without_guessing","candidates":[]})
         result=module.persist(secondary,validation,out)
         assert result["cell_id"]=="bxl-e141500-n167500-s500"
+        assert result["height_candidate_source_kind"]=="autonomous_measured_height_candidates"
         assert result["validated_candidate_count"]==4
         assert result["blocked_candidate_count"]==3
         assert result["runtime_promotion_allowed"] is False
@@ -44,15 +44,23 @@ def main() -> int:
         else:
             raise AssertionError("unsafe runtime promotion must fail closed")
 
-    secondary_workflow=SECONDARY_WORKFLOW.read_text(encoding="utf-8")
-    persistence_workflow=PERSISTENCE_WORKFLOW.read_text(encoding="utf-8")
-    assert "contents: write" in secondary_workflow
-    assert "Persist validated secondary evidence off main" in secondary_workflow
-    assert "persist_secondary_height_evidence.py" in secondary_workflow
-    assert "git switch -C citygen-autonomous-state" in secondary_workflow
-    assert "github.event_name != 'pull_request'" in secondary_workflow
-    assert "workflow_run:" not in persistence_workflow
-    print("PERSIST_SECONDARY_HEIGHT_EVIDENCE_TEST_OK")
+        legacy_secondary = root / "legacy-secondary.json"
+        legacy_validation = root / "legacy-validation.json"
+        write_json(legacy_secondary,{"schema":"grand-bruxelles-ixelles-semantic-dsm-comparison-v1","cell":"bxl-e141500-n167500-s500","source_crs":"EPSG:31370","runtime_approved":False,"counts":{"manual_frontier_candidates":1},"policy":{"runtime_approval":False},"records":[]})
+        write_json(legacy_validation,{"format":"grand-bruxelles-citygen-secondary-height-validation-v1","cell_id":"bxl-e141500-n167500-s500","crs":"EPSG:31370","candidate_count":1,"validated_candidate_count":0,"blocked_candidate_count":1,"runtime_approved_count":0,"runtime_promotion_allowed":False,"candidates":[]})
+        legacy_result=module.persist(legacy_secondary,legacy_validation,root/"legacy-out")
+        assert legacy_result["height_candidate_source_kind"]=="legacy_manual_frontier_review"
+
+    workflow=FACTORY_WORKFLOW.read_text(encoding="utf-8")
+    assert "workflow_run:" in workflow
+    assert "Grand Bruxelles Autonomous CityGen" in workflow
+    assert "contents: write" in workflow
+    assert "citygen-autonomous-state" in workflow
+    assert "--height-candidates" in workflow
+    assert "runtime_promotion_allowed':False" in workflow or "runtime_promotion_allowed\":False" in workflow
+    assert "automatic_production_mutation':False" in workflow or "automatic_production_mutation\":False" in workflow
+    assert "git push --force-with-lease origin citygen-autonomous-state" in workflow
+    print("PERSIST_SECONDARY_HEIGHT_EVIDENCE_TEST_OK source=automatic legacy_compatible=true workflow_run=true off_main=true")
     return 0
 
 if __name__ == "__main__":

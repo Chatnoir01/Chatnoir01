@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-"""Read-only diagnostic for UrbIS3D face/solid identity relations.
+"""Read-only diagnostic for UrbIS3D building identity relations.
 
-This tool never authorizes matching or runtime use. It measures, on one live
-EPSG:31370 cell, whether the official chain
-
-BuildingFaces.BUSOLID_ID -> BuildingSolids.inspire_Id -> BuildingSolids.bu2d_Id
--> UrbIS 2D building INSPIRE_ID
-
-holds by exact string equality. BuildingFaces.INSPIRE_ID and raw BUSOLID_ID are
-also compared directly with 2D IDs as negative/diagnostic controls.
+The diagnostic measures exact identity relations exposed by the package that is
+actually downloaded. It never invents a 3D->2D identity, never authorizes a
+match, and never authorizes runtime use.
 """
 from __future__ import annotations
 
@@ -35,20 +30,44 @@ def resolve_field_name(layer: ogr.Layer, expected: str) -> str:
     raise RuntimeError(f"Layer {layer.GetName()} missing required field {expected}")
 
 
-def find_urbis3d_layers(root: Path) -> tuple[ogr.DataSource, ogr.Layer, ogr.Layer, Path]:
-    observed: list[str] = []
+def describe_dataset(dataset: ogr.DataSource, path: Path) -> dict[str, Any]:
+    layers = []
+    for index in range(dataset.GetLayerCount()):
+        layer = dataset.GetLayerByIndex(index)
+        if layer is None:
+            continue
+        definition = layer.GetLayerDefn()
+        fields = [
+            definition.GetFieldDefn(i).GetName()
+            for i in range(definition.GetFieldCount())
+        ]
+        layers.append({
+            "name": layer.GetName(),
+            "geometry_type": ogr.GeometryTypeToName(definition.GetGeomType()),
+            "fields": fields,
+        })
+    return {"path": str(path), "layers": layers}
+
+
+def find_urbis3d_layers(
+    root: Path,
+) -> tuple[ogr.DataSource, ogr.Layer, ogr.Layer | None, Path, dict[str, Any]]:
+    observed = []
     for path in sorted(p for p in root.rglob("*.gpkg") if p.is_file()):
         dataset = ogr.Open(str(path), 0)
         if dataset is None:
+            observed.append({"path": str(path), "open": False})
             continue
-        observed.extend(dataset.GetLayerByIndex(i).GetName() for i in range(dataset.GetLayerCount()))
+        schema = describe_dataset(dataset, path)
+        observed.append(schema)
         faces = dataset.GetLayerByName("BuildingFaces")
+        if faces is None:
+            continue
         solids = dataset.GetLayerByName("BuildingSolids")
-        if faces is not None and solids is not None:
-            return dataset, faces, solids, path
+        return dataset, faces, solids, path, schema
     raise RuntimeError(
-        "No GeoPackage with both BuildingFaces and BuildingSolids found; "
-        f"observed_layers={sorted(set(observed))}"
+        "No GeoPackage with BuildingFaces found; observed_schema="
+        + json.dumps(observed, ensure_ascii=False, sort_keys=True)
     )
 
 
@@ -129,8 +148,19 @@ def collect_faces(
     }
 
 
-def collect_solid_links(layer: ogr.Layer) -> dict[str, Any]:
-    """Collect exact official solid identity links and expose conflicts fail-closed."""
+def collect_solid_links(layer: ogr.Layer | None) -> dict[str, Any]:
+    """Collect an optional official solid->2D link without making one up."""
+    if layer is None:
+        return {
+            "layer_present": False,
+            "row_count": 0,
+            "solid_ids": set(),
+            "building_values": set(),
+            "nonempty_link_rows": 0,
+            "links": {},
+            "conflicts": {},
+        }
+
     inspire_field = resolve_field_name(layer, "inspire_Id")
     building_field = resolve_field_name(layer, "bu2d_Id")
     links: dict[str, str] = {}
@@ -164,6 +194,7 @@ def collect_solid_links(layer: ogr.Layer) -> dict[str, Any]:
     for solid_id in conflicts:
         links.pop(solid_id, None)
     return {
+        "layer_present": True,
         "row_count": rows,
         "solid_ids": solid_ids,
         "building_values": building_values,
@@ -175,10 +206,12 @@ def collect_solid_links(layer: ogr.Layer) -> dict[str, Any]:
 
 def diagnose(
     face_layer: ogr.Layer,
-    solid_layer: ogr.Layer,
+    solid_layer: ogr.Layer | None,
     building_ids: set[str],
     bbox: tuple[float, float, float, float],
     probe_ids: list[str],
+    *,
+    source_schema: dict[str, Any],
 ) -> dict[str, Any]:
     faces = collect_faces(face_layer, building_ids, bbox)
     solids = collect_solid_links(solid_layer)
@@ -191,8 +224,10 @@ def diagnose(
     exact_face_ids = set(faces["exact_face_matches"])
     exact_solid_ids = set(faces["exact_solid_matches"])
     joined_busolids = busolid_values & solid_ids
-    missing_busolids = busolid_values - solid_ids
-    joined_with_unambiguous_link = {solid_id for solid_id in joined_busolids if solid_id in links}
+    missing_busolids = busolid_values - solid_ids if solids["layer_present"] else set()
+    joined_with_unambiguous_link = {
+        solid_id for solid_id in joined_busolids if solid_id in links
+    }
     joined_without_link = joined_busolids - joined_with_unambiguous_link
     exact_official_2d = {
         links[solid_id]
@@ -232,16 +267,24 @@ def diagnose(
     uniform_solids = sum(1 for values in inspire_per_solid.values() if len(values) == 1)
     multi_inspire_solids = sum(1 for values in inspire_per_solid.values() if len(values) > 1)
     conflicts: dict[str, set[str]] = solids["conflicts"]
+    layer_names = [str(item.get("name")) for item in source_schema.get("layers", [])]
 
     return {
-        "schema": "grand-bruxelles-urbis3d-building-identity-diagnostic-v2",
+        "schema": "grand-bruxelles-urbis3d-building-identity-diagnostic-v3",
         "bbox_epsg31370": list(bbox),
+        "source_schema": {
+            "layers": source_schema.get("layers", []),
+            "building_faces_layer_present": "BuildingFaces" in layer_names,
+            "building_solids_layer_present": bool(solids["layer_present"]),
+        },
         "policy": {
             "read_only": True,
             "identity_authorization": False,
             "runtime_approval": False,
             "comparison": "exact string equality only; tail equality reported as diagnostic, never authorization",
             "official_chain_under_test": "BuildingFaces.BUSOLID_ID -> BuildingSolids.inspire_Id -> BuildingSolids.bu2d_Id -> UrbIS2D.INSPIRE_ID",
+            "official_chain_available": bool(solids["layer_present"]),
+            "missing_official_chain_action": "keep_spatial_matcher_unchanged_and_seek_another_authoritative_source",
         },
         "counts": {
             "building_2d_ids": len(building_ids),
@@ -259,6 +302,7 @@ def diagnose(
             "building_solids_identity_conflicts_package": len(conflicts),
             "face_busolid_ids_joined_to_buildingsolids": len(joined_busolids),
             "face_busolid_ids_missing_buildingsolids": len(missing_busolids),
+            "face_busolid_ids_without_buildingsolids_layer": 0 if solids["layer_present"] else len(busolid_values),
             "joined_solids_with_unambiguous_bu2d": len(joined_with_unambiguous_link),
             "joined_solids_without_unambiguous_bu2d": len(joined_without_link),
             "joined_bu2d_exact_2d_ids": len(exact_official_2d),
@@ -292,26 +336,32 @@ def main() -> int:
     args = parse_args()
     bbox = tuple(args.bbox)
     building_ids = load_2d_building_ids(args.buildings)
-    dataset, face_layer, solid_layer, package = find_urbis3d_layers(args.root)
-    report = diagnose(face_layer, solid_layer, building_ids, bbox, list(args.probe_id))
+    dataset, face_layer, solid_layer, package, source_schema = find_urbis3d_layers(args.root)
+    report = diagnose(
+        face_layer,
+        solid_layer,
+        building_ids,
+        bbox,
+        list(args.probe_id),
+        source_schema=source_schema,
+    )
     report["source_package_path"] = str(package)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     counts = report["counts"]
+    schema = report["source_schema"]
     print(
         "URBIS3D_FACE_IDENTITY_DIAGNOSTIC",
         f"buildings2d={counts['building_2d_ids']}",
         f"faces={counts['building_faces_in_bbox']}",
         f"face_ids={counts['unique_buildingfaces_inspire_ids']}",
         f"face_solids={counts['unique_busolid_ids']}",
+        f"building_solids_layer={str(schema['building_solids_layer_present']).lower()}",
         f"exact_face_to_2d={counts['exact_face_inspire_to_2d_ids']}",
         f"exact_raw_solid_to_2d={counts['exact_busolid_to_2d_ids']}",
         f"face_to_solid={counts['face_busolid_ids_joined_to_buildingsolids']}",
-        f"face_to_solid_missing={counts['face_busolid_ids_missing_buildingsolids']}",
         f"solid_bu2d={counts['joined_solids_with_unambiguous_bu2d']}",
         f"bu2d_to_2d={counts['joined_bu2d_exact_2d_ids']}",
-        f"bu2d_missing_2d={counts['joined_solids_pointing_to_missing_2d_ids']}",
-        f"solid_conflicts={counts['building_solids_identity_conflicts_package']}",
         "identity_authorized=false runtime_approved=false",
     )
     for probe in report["probes"]:

@@ -5,6 +5,7 @@ on:
     paths:
       - "grand-bruxelles-game/tools/citygen/build_terrain_runtime_candidate_manifest.py"
       - "grand-bruxelles-game/tools/citygen/test_build_terrain_runtime_candidate_manifest.py"
+      - "grand-bruxelles-game/tools/citygen/test_terrain_candidate_factory_wiring.py"
       - ".github/workflows/grand-bruxelles-terrain-candidate-factory.yml"
   workflow_run:
     workflows: ["Grand Bruxelles Secondary Height Factory"]
@@ -25,10 +26,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Install proven raster validation stack
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check "rasterio>=1.3,<2" "numpy>=1.26,<3"
       - name: Prove terrain candidate guardrails
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/citygen/test_build_terrain_runtime_candidate_manifest.py
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_candidate_factory_wiring.py
           python3 grand-bruxelles-game/tools/citygen/test_evaluate_cell_dtm_lod.py
           python3 grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
 

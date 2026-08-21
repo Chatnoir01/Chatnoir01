@@ -32,6 +32,7 @@ jobs:
         run: |
           python3 grand-bruxelles-game/tools/city_machine/test_registry.py
           python3 grand-bruxelles-game/tools/city_machine/test_regional_onboarding.py
+          python3 grand-bruxelles-game/tools/city_machine/test_zone_readiness.py
           python3 grand-bruxelles-game/tools/city_machine/test_osm_environment_zone.py
           python3 grand-bruxelles-game/tools/city_machine/test_runtime_environment_index.py
           python3 grand-bruxelles-game/tools/city_machine/test_city_machine.py

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import importlib.util
 import math
+import subprocess
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -82,4 +84,6 @@ result = {
 result["evidence_digest"] = mod._digest(result)
 assert result["evidence_digest"] == mod._digest({k:v for k,v in result.items() if k != "evidence_digest"})
 
-print("CELL_DTM_LOD_GUARDRAILS_OK p95_selection=true canonical_edges=true deterministic=true runtime_approval=false")
+subprocess.run([sys.executable, str(HERE / "test_build_cell_terrain_runtime_candidate.py")], check=True)
+
+print("CELL_DTM_LOD_GUARDRAILS_OK p95_selection=true canonical_edges=true deterministic=true terrain_candidate_regression=true runtime_approval=false")

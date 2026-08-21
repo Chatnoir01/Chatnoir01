@@ -1,0 +1,265 @@
+name: Grand Bruxelles Terrain Runtime Gate Evidence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/**"
+      - ".github/workflows/grand-bruxelles-terrain-runtime-gate-evidence.yml"
+      - ".github/workflows/grand-bruxelles-terrain-runtime-readiness.yml"
+  workflow_run:
+    workflows:
+      - "Grand Bruxelles Terrain Candidate Factory"
+      - "Grand Bruxelles Secondary Height Factory"
+      - "Grand Bruxelles Runtime Candidate Factory"
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare deterministic geometry stack
+        run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3"
+      - name: Prove measured per-cell terrain gate contracts
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_runtime_gate_evidence.py
+          python3 grand-bruxelles-game/tools/citygen/test_build_terrain_runtime_readiness.py
+
+  measure:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    needs: validate
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Recover durable CityGen state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/terrain-gates-prev
+          mkdir -p /tmp/terrain-gates-prev
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          if git cat-file -e "origin/citygen-autonomous-state:grand-bruxelles-game/data/qa" 2>/dev/null; then
+            git archive origin/citygen-autonomous-state grand-bruxelles-game/data/qa | tar -x -C /tmp/terrain-gates-prev
+          fi
+          rm -rf grand-bruxelles-game/data/qa
+          mkdir -p grand-bruxelles-game/data/qa
+          cp -a /tmp/terrain-gates-prev/grand-bruxelles-game/data/qa/. grand-bruxelles-game/data/qa/ 2>/dev/null || true
+
+      - name: Prepare deterministic geometry stack
+        run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3"
+
+      - name: Select cells with exact prerequisite artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > /tmp/terrain-runtime-gate-worklist.txt
+          import json
+          from pathlib import Path
+
+          qa=Path('grand-bruxelles-game/data/qa')
+          sources=qa/'autonomous_sources'
+          candidates=qa/'autonomous_candidates'/'runtime'
+          target=qa/'brussels_regional_target_grid.json'
+          if not target.is_file() or not sources.exists():
+              raise SystemExit(0)
+          try:
+              grid=json.loads(target.read_text())
+          except Exception as exc:
+              raise SystemExit(f'invalid regional target grid: {exc}')
+          if grid.get('format') != 'grand-bruxelles-regional-target-grid-v1' or grid.get('crs') != 'EPSG:31370':
+              raise SystemExit('unsupported regional target grid contract')
+          target_ids={row.get('cell_id') for row in (grid.get('cells') or []) if isinstance(row,dict)}
+          for cell in sorted(p for p in sources.iterdir() if p.is_dir() and p.name in target_ids):
+              required=[
+                  cell/'terrain_lod_evidence.json',
+                  cell/'terrain_runtime_candidate.json',
+                  cell/'secondary_height_validation.json',
+                  candidates/cell.name/'candidate.json',
+              ]
+              if not all(path.is_file() for path in required):
+                  continue
+              try:
+                  secondary=json.loads((cell/'secondary_height_validation.json').read_text())
+              except Exception:
+                  continue
+              if secondary.get('secondary_validation_complete') is not True:
+                  continue
+              if secondary.get('runtime_promotion_allowed') is not False:
+                  continue
+              print(cell.name)
+          PY
+          echo "TERRAIN_RUNTIME_GATE_WORKLIST selected=$(grep -cve '^$' /tmp/terrain-runtime-gate-worklist.txt || true)"
+
+      - name: Measure geometry gates aggregate evidence and refresh readiness
+        shell: bash
+        run: |
+          set -u
+          QA="grand-bruxelles-game/data/qa"
+          SOURCES="$QA/autonomous_sources"
+          CANDIDATES="$QA/autonomous_candidates/runtime"
+          TARGET="$QA/brussels_regional_target_grid.json"
+          mkdir -p /tmp/terrain-runtime-gate-measurements /tmp/terrain-runtime-gate-logs
+          : > /tmp/terrain-runtime-gate-success.txt
+          : > /tmp/terrain-runtime-gate-pending.txt
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="$SOURCES/$CELL"
+            C="$CANDIDATES/$CELL/candidate.json"
+            M="/tmp/terrain-runtime-gate-measurements/${CELL}.json"
+            OUT="$D/terrain_runtime_gate_evidence.json"
+            READINESS="$D/terrain_runtime_readiness.json"
+            LOG="/tmp/terrain-runtime-gate-logs/${CELL}.log"
+            rm -f "$M" "$OUT" "$READINESS"
+            if python3 grand-bruxelles-game/tools/citygen/measure_terrain_geometry_gates.py \
+                --terrain-lod "$D/terrain_lod_evidence.json" \
+                --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+                --secondary-height-validation "$D/secondary_height_validation.json" \
+                --runtime-candidate "$C" \
+                --target-grid "$TARGET" \
+                --candidate-root "$SOURCES" \
+                --output "$M" >"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_gate_evidence.py \
+                --terrain-lod "$D/terrain_lod_evidence.json" \
+                --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+                --secondary-height-validation "$D/secondary_height_validation.json" \
+                --runtime-candidate "$C" \
+                --measurement "$M" \
+                --output "$OUT" >>"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_readiness.py \
+                --terrain-lod "$D/terrain_lod_evidence.json" \
+                --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+                --secondary-height-validation "$D/secondary_height_validation.json" \
+                --runtime-candidate "$C" \
+                --runtime-gate-evidence "$OUT" \
+                --output "$READINESS" >>"$LOG" 2>&1; then
+              echo "$CELL" >> /tmp/terrain-runtime-gate-success.txt
+              cat "$LOG"
+            else
+              rm -f "$OUT" "$READINESS"
+              echo "$CELL" >> /tmp/terrain-runtime-gate-pending.txt
+              echo "TERRAIN_RUNTIME_GATE_EVIDENCE_PENDING cell=${CELL}"
+              cat "$LOG"
+            fi
+          done < /tmp/terrain-runtime-gate-worklist.txt
+
+      - name: Build measured gate report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          def lines(path):
+              p=Path(path)
+              return [row.strip() for row in p.read_text().splitlines() if row.strip()] if p.exists() else []
+
+          root=Path('grand-bruxelles-game/data/qa/autonomous_sources')
+          rows=[]
+          if root.exists():
+              for cell in sorted(p for p in root.iterdir() if p.is_dir()):
+                  path=cell/'terrain_runtime_gate_evidence.json'
+                  readiness_path=cell/'terrain_runtime_readiness.json'
+                  if not path.is_file() or not readiness_path.is_file():
+                      continue
+                  try:
+                      payload=json.loads(path.read_text())
+                      readiness=json.loads(readiness_path.read_text())
+                  except Exception:
+                      continue
+                  gates=payload.get('gates') or {}
+                  rows.append({
+                      'cell_id':cell.name,
+                      'measured_gate_count':payload.get('measured_gate_count'),
+                      'passed_gates':sorted(name for name,row in gates.items() if isinstance(row,dict) and row.get('passed') is True),
+                      'blocked_gates':sorted(name for name,row in gates.items() if isinstance(row,dict) and row.get('passed') is not True),
+                      'missing_runtime_gates':payload.get('missing_runtime_gates'),
+                      'gate_evidence_digest':payload.get('gate_evidence_digest'),
+                      'passed_runtime_gate_count':readiness.get('passed_runtime_gate_count'),
+                      'runtime_gate_count':readiness.get('runtime_gate_count'),
+                      'promotion_ready_for_explicit_review':readiness.get('promotion_ready_for_explicit_review') is True,
+                      'runtime_promotion_allowed':readiness.get('runtime_promotion_allowed'),
+                      'readiness_digest':readiness.get('readiness_digest'),
+                  })
+          report={
+              'format':'grand-bruxelles-terrain-runtime-gate-evidence-report-v1',
+              'cells':rows,
+              'measured_success':lines('/tmp/terrain-runtime-gate-success.txt'),
+              'measurement_pending':lines('/tmp/terrain-runtime-gate-pending.txt'),
+              'policy':{
+                  'currently_measured_gates':['seams','normals'],
+                  'unmeasured_gates':['collisions','streaming','performance','photo_match'],
+                  'global_workflow_green_is_not_cell_proof':True,
+                  'regional_target_grid_defines_expected_neighbors':True,
+                  'neighbor_candidate_bbox_must_match_target_grid':True,
+                  'missing_neighbor_candidate_remains_pending':True,
+                  'readiness_refreshed_atomically_with_gate_evidence':True,
+                  'runtime_promotion_allowed':False,
+                  'automatic_production_mutation':False,
+              },
+          }
+          Path('/tmp/terrain-runtime-gate-evidence-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('TERRAIN_RUNTIME_GATE_EVIDENCE_REPORT',json.dumps({
+              'cells':len(rows),
+              'seams_passed':sum(1 for row in rows if 'seams' in row['passed_gates']),
+              'normals_passed':sum(1 for row in rows if 'normals' in row['passed_gates']),
+              'ready_for_explicit_review':sum(1 for row in rows if row['promotion_ready_for_explicit_review']),
+              'pending':len(report['measurement_pending']),
+          },sort_keys=True))
+          PY
+
+      - name: Persist measured gate evidence off main
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/terrain-runtime-gate-save
+          mkdir -p /tmp/terrain-runtime-gate-save
+          cp -a grand-bruxelles-game/data/qa /tmp/terrain-runtime-gate-save/qa
+          cp /tmp/terrain-runtime-gate-evidence-report.json /tmp/terrain-runtime-gate-save/qa/terrain_runtime_gate_evidence_latest_report.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git reset --hard
+          git clean -fd
+          git switch -C citygen-autonomous-state origin/main
+          rm -rf grand-bruxelles-game/data/qa
+          mkdir -p grand-bruxelles-game/data
+          cp -a /tmp/terrain-runtime-gate-save/qa grand-bruxelles-game/data/qa
+
+          git add -- grand-bruxelles-game/data/qa
+          if git diff --cached --quiet; then
+            echo "TERRAIN_RUNTIME_GATE_EVIDENCE_NO_CHANGE"
+            exit 0
+          fi
+          git commit -m "citygen: persist measured terrain runtime gates"
+          git push --force-with-lease origin citygen-autonomous-state
+
+      - name: Upload measured gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-runtime-gate-evidence-${{ github.run_number }}
+          path: |
+            /tmp/terrain-runtime-gate-evidence-report.json
+            /tmp/terrain-runtime-gate-worklist.txt
+            /tmp/terrain-runtime-gate-logs/
+            /tmp/terrain-runtime-gate-measurements/
+          retention-days: 30

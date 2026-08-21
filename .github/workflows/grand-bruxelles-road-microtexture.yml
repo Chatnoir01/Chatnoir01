@@ -1,0 +1,56 @@
+name: Grand Bruxelles Road Microtexture
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/brussels_osm_road_surface_material.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_road_microtexture_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_road_microtexture_witness_test.gd"
+      - ".github/workflows/grand-bruxelles-road-microtexture.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  road-microtexture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/road-microtexture-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/road-microtexture-import.log; then exit 1; fi
+      - name: Validate non-semantic road microtexture contract
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_road_microtexture_test.gd 2>&1 | tee /tmp/road-microtexture-contract.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_ROAD_MICROTEXTURE_FAIL" /tmp/road-microtexture-contract.log; then exit 1; fi
+          grep -q "BRUSSELS_ROAD_MICROTEXTURE_OK" /tmp/road-microtexture-contract.log
+      - name: 1280x720 normal-player road microtexture A/B
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_osm_road_microtexture_witness_test.gd 2>&1 | tee /tmp/road-microtexture-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_ROAD_MICROTEXTURE_VISUAL_FAIL" /tmp/road-microtexture-witness.log; then exit 1; fi
+          grep -q "BRUSSELS_ROAD_MICROTEXTURE_VISUAL_OK" /tmp/road-microtexture-witness.log
+      - name: Upload road microtexture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-road-microtexture-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/road_microtexture_before.png
+            grand-bruxelles-game/artifacts/visual/road_microtexture_after.png
+            grand-bruxelles-game/artifacts/visual/road_microtexture_control.png
+            /tmp/road-microtexture-witness.log
+          if-no-files-found: warn

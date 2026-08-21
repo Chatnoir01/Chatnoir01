@@ -5,13 +5,17 @@ extends Node
 ## No arbitrary coordinates are accepted. Unknown, non-drivable, unrendered or
 ## source-unsafe roads fail closed.
 
-const SOURCE_ROOT := "res://data/osm"
+const RUNTIME_INDEX_PATH := "res://data/runtime/road_destination_runtime_index.json"
+const RUNTIME_INDEX_FORMAT := "grand-bruxelles-road-runtime-index-v1"
 const REQUEST_PREFIX := "road-"
 const PLAYER_BODY_CLEARANCE_M := 1.05
 const MAX_WORLD_ABS_M := 890.0
 const CAMERA_PATH := "CameraPivot/SpringArm3D/Camera3D"
 
-var _source_paths_cache := PackedStringArray()
+var _runtime_index_attempted := false
+var _runtime_index_valid := false
+var _road_source_path_by_id: Dictionary = {}
+var _source_sha_by_path: Dictionary = {}
 
 
 func _ready() -> void:
@@ -46,32 +50,6 @@ func requested_road_id(args: PackedStringArray) -> int:
     return 0
 
 
-func _collect_source_paths(root_path: String) -> PackedStringArray:
-    var result := PackedStringArray()
-    var dir := DirAccess.open(root_path)
-    if dir == null:
-        return result
-    dir.list_dir_begin()
-    var entry := dir.get_next()
-    while not entry.is_empty():
-        if entry != "." and entry != "..":
-            var child_path := root_path.path_join(entry)
-            if dir.current_is_dir():
-                result.append_array(_collect_source_paths(child_path))
-            elif entry.ends_with(".game.json"):
-                result.append(child_path)
-        entry = dir.get_next()
-    dir.list_dir_end()
-    return result
-
-
-func _source_paths() -> PackedStringArray:
-    if _source_paths_cache.is_empty():
-        _source_paths_cache = _collect_source_paths(SOURCE_ROOT)
-        _source_paths_cache.sort()
-    return _source_paths_cache
-
-
 func _parse_document(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):
         return {}
@@ -79,21 +57,94 @@ func _parse_document(path: String) -> Dictionary:
     return parsed as Dictionary if parsed is Dictionary else {}
 
 
+func _load_runtime_index() -> bool:
+    if _runtime_index_attempted:
+        return _runtime_index_valid
+    _runtime_index_attempted = true
+    _runtime_index_valid = false
+    _road_source_path_by_id.clear()
+    _source_sha_by_path.clear()
+
+    var index := _parse_document(RUNTIME_INDEX_PATH)
+    if index.is_empty() or str(index.get("format", "")) != RUNTIME_INDEX_FORMAT:
+        return false
+    if not bool(index.get("source_lookup_only", false)):
+        return false
+    var authorization: Variant = index.get("authorization", {})
+    if not authorization is Dictionary:
+        return false
+    var auth := authorization as Dictionary
+    if not bool(auth.get("source_lookup_only", false)):
+        return false
+    for forbidden: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:
+        if bool(auth.get(forbidden, true)):
+            return false
+
+    var documents: Variant = index.get("documents", [])
+    if not documents is Array or documents.is_empty():
+        return false
+    for raw_document: Variant in documents:
+        if not raw_document is Dictionary:
+            return false
+        var descriptor := raw_document as Dictionary
+        var source_path := str(descriptor.get("path", "")).strip_edges()
+        var expected_sha := str(descriptor.get("sha256", "")).strip_edges().to_lower()
+        var road_ids: Variant = descriptor.get("road_ids", [])
+        if source_path.is_empty() or expected_sha.length() != 64 or not road_ids is Array or road_ids.is_empty():
+            return false
+        if not source_path.begins_with("res://"):
+            source_path = "res://" + source_path.trim_prefix("/")
+        if _source_sha_by_path.has(source_path) and str(_source_sha_by_path[source_path]) != expected_sha:
+            return false
+        _source_sha_by_path[source_path] = expected_sha
+        for raw_id: Variant in road_ids:
+            var osm_id := int(raw_id)
+            if osm_id <= 0 or _road_source_path_by_id.has(osm_id):
+                return false
+            _road_source_path_by_id[osm_id] = source_path
+
+    _runtime_index_valid = not _road_source_path_by_id.is_empty()
+    return _runtime_index_valid
+
+
+func runtime_index_road_count() -> int:
+    return _road_source_path_by_id.size() if _load_runtime_index() else 0
+
+
+func runtime_index_source_document_count() -> int:
+    return _source_sha_by_path.size() if _load_runtime_index() else 0
+
+
 func _source_bundle_by_id(osm_id: int) -> Dictionary:
-    for path: String in _source_paths():
-        var document := _parse_document(path)
-        if document.is_empty() or not document.has("roads") or not document.has("buildings"):
+    if osm_id <= 0 or not _load_runtime_index() or not _road_source_path_by_id.has(osm_id):
+        return {}
+    var path := str(_road_source_path_by_id[osm_id])
+    var expected_sha := str(_source_sha_by_path.get(path, ""))
+    var actual_sha := FileAccess.get_sha256(path).to_lower()
+    if expected_sha.is_empty() or actual_sha.is_empty() or actual_sha != expected_sha:
+        return {}
+    var document := _parse_document(path)
+    if document.is_empty() or not document.has("roads") or not document.has("buildings"):
+        return {}
+    var roads: Variant = document.get("roads", [])
+    if not roads is Array:
+        return {}
+    for raw: Variant in roads:
+        if not raw is Dictionary:
             continue
-        var roads: Variant = document.get("roads", [])
-        if not roads is Array:
+        var road := raw as Dictionary
+        if int(road.get("osm_id", 0)) != osm_id:
             continue
-        for raw: Variant in roads:
-            if raw is Dictionary and int((raw as Dictionary).get("osm_id", 0)) == osm_id:
-                return {
-                    "document": document,
-                    "road": raw as Dictionary,
-                    "source_path": path,
-                }
+        var source_name := str(road.get("name", "")).strip_edges()
+        if source_name.is_empty() or not bool(road.get("drivable", false)) or _road_points(road).size() < 2:
+            return {}
+        return {
+            "document": document,
+            "road": road,
+            "source_path": path,
+            "source_sha256": actual_sha,
+            "lookup_mode": "deterministic_runtime_index",
+        }
     return {}
 
 
@@ -284,11 +335,13 @@ func apply_to_player(player: Node, osm_id: int) -> bool:
     body.set_meta("automatic_road_direct_osm_id", osm_id)
     body.set_meta("automatic_road_direct_source_path", source_path)
     body.set_meta("automatic_road_direct_source_name", source_name)
+    body.set_meta("automatic_road_direct_source_sha256", str(bundle.get("source_sha256", "")))
+    body.set_meta("automatic_road_direct_lookup_mode", str(bundle.get("lookup_mode", "")))
     body.set_meta("automatic_road_direct_spawn_xz", spawn_xz)
     body.set_meta("automatic_road_direct_target_xz", target_xz)
     body.set_meta("automatic_road_direct_ground_y", ground_y)
     body.set_meta("automatic_road_direct_offset_m", float(viewpoint["offset_m"]))
     body.set_meta("automatic_road_direct_segment_index", int(viewpoint["segment_index"]))
     body.set_meta("automatic_road_direct_source_sightline_clear", bool(viewpoint.get("source_sightline_clear", false)))
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_READY: osm_id=%d source=%s name=%s spawn=(%.3f, %.3f, %.3f) target=(%.3f, %.3f)" % [osm_id, source_path, source_name, body.global_position.x, body.global_position.y, body.global_position.z, target_xz.x, target_xz.y])
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_READY: osm_id=%d lookup=deterministic_runtime_index source=%s name=%s spawn=(%.3f, %.3f, %.3f) target=(%.3f, %.3f)" % [osm_id, source_path, source_name, body.global_position.x, body.global_position.y, body.global_position.z, target_xz.x, target_xz.y])
     return true

@@ -2,7 +2,7 @@ name: Grand Bruxelles Cell Streaming Probe
 
 on:
   push:
-    branches: ["agent/openliberty-cell-streaming-probe", "agent/streamed-collision-and-asset-cache", "agent/production-cell-streaming-runtime", "agent/ixelles-2x2-source-cell-streaming"]
+    branches: ["agent/openliberty-cell-streaming-probe", "agent/streamed-collision-and-asset-cache", "agent/production-cell-streaming-runtime", "agent/ixelles-2x2-source-cell-streaming", "citygen/runtime-auto-discovery-clean"]
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-cell-streaming-probe.yml"
@@ -17,6 +17,7 @@ on:
       - "grand-bruxelles-game/game/tests/brussels_c01_external_cell_backend_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_real_cell_lifecycle_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_production_streaming_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_runtime_cell_auto_discovery_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_source_plan_cluster_test.gd"
       - "grand-bruxelles-game/game/zones/ixelles/ixelles_microslice.gd"
       - "grand-bruxelles-game/game/zones/ixelles/ixelles_streamed_microslice.gd"
@@ -46,6 +47,13 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/streaming-import.log
           if grep -E "SCRIPT ERROR|Parse Error:" /tmp/streaming-import.log; then exit 1; fi
+      - name: Prove automatic runtime cell discovery
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_runtime_cell_auto_discovery_test.gd 2>&1 | tee /tmp/runtime-cell-auto-discovery.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_RUNTIME_CELL_AUTO_DISCOVERY_FAIL" /tmp/runtime-cell-auto-discovery.log; then exit 1; fi
+          grep -F "BRUSSELS_RUNTIME_CELL_AUTO_DISCOVERY_OK" /tmp/runtime-cell-auto-discovery.log
       - name: Run predictive cell scheduling probe
         shell: bash
         run: |

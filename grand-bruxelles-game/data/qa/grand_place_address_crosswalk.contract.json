@@ -1,0 +1,19 @@
+{
+  "schema": "grand-bruxelles-grand-place-address-crosswalk-contract-v1",
+  "production_base_sha": "245432e538bb52d454dd205c0b7e337fe4db093d",
+  "owner_count": 25,
+  "facade_target_owner_count": 23,
+  "address_source": "Paradigm/UrbIS AddressNumbers WFS",
+  "building_source": "Paradigm/UrbIS 3D Constructions revision 2026-08-08",
+  "method": "official address point contained in exactly one official building GROUNDSURFACE",
+  "boundary_epsilon_m": 0.05,
+  "runtime_authorized": false,
+  "facade_identity_authorized_before_result": false,
+  "hard_rules": {
+    "nearest_neighbour_allowed": false,
+    "list_order_allowed": false,
+    "centroid_guess_allowed": false,
+    "ambiguous_match_authorizes_identity": false,
+    "unresolved_match_authorizes_identity": false
+  }
+}

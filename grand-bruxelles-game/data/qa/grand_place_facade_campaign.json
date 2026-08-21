@@ -1,0 +1,22 @@
+{
+  "schema": "grand-bruxelles-grand-place-facade-campaign-v1",
+  "status": "crosswalk_first",
+  "production_base_sha": "245432e538bb52d454dd205c0b7e337fe4db093d",
+  "target_owner_count": 23,
+  "target_owner_ids": [
+    "1601883", "1601884", "1608847", "1608851", "1611166", "1613517",
+    "1635455", "1635485", "1637695", "1637729", "1639974", "1639985",
+    "1643344", "1645578", "1645580", "1646728", "1647834", "1647943",
+    "1649069", "1653185", "1654360", "1661439", "1781508"
+  ],
+  "note": "This campaign ledger does not itself authorize facade identity. The target list follows the 23-owner contour production set plus the persisted Grand-Place source truth; semantic activation is per-owner only after exact official AddressNumbers containment and heritage-record reconciliation.",
+  "hard_rules": {
+    "source_geometry_changed": false,
+    "collision_changed": false,
+    "nearest_address_identity_allowed": false,
+    "list_order_identity_allowed": false,
+    "unresolved_owner_may_receive_named_style": false,
+    "authoring_dimensions_are_survey_claims": false,
+    "finished_perfect_before_multiview_human_pass": false
+  }
+}

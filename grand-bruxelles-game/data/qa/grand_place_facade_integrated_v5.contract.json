@@ -1,0 +1,9 @@
+{
+  "schema":"grand-bruxelles-grand-place-facade-integrated-v5",
+  "production_base_sha":"245432e538bb52d454dd205c0b7e337fe4db093d",
+  "supersedes_human_failed_v4":true,
+  "v4_evidence":{"run_id":32320214016,"artifact_id":9389525337,"artifact_digest":"sha256:480e397b8d0bcf4883144a2f6e55e24631e6a4651c97f067ecac68a017f90d37","numeric_pass":true,"human_pass":false,"reject_reasons":["Cornet/Renard detached horizontal bars","Maison du Roi remained schematic/grid-like"]},
+  "strategy":{"remove_lateral_scale_rescue":true,"renard_balcony_depth_m":1.25,"renard_balcony_depth_surveyed":false,"renard_baluster_count":9,"outer_pilaster_depth_only":true,"maison_glazing_panels":35,"maison_structural_piers":20,"maison_method":"existing source-constrained 9/9/17 pointed glazing retained; gallery piers/bands and axial bay gain shallow masonry depth rather than outline backing frames"},
+  "source_facts":{"cornet":"Urban Brussels 31123: 3 bays, 3 levels plus entresol, projecting cornices, pilaster rhythm, ship-stern crown","renard":"Urban Brussels 31124: 4 bays, 3 levels plus entresol, three registers, projecting middle bays, continuous balustraded balcony, pilaster orders","maison_du_roi":"Urban Brussels 31143: 9 lower bays, 17 upper bays, wider axial bay, pointed windows, two gallery levels, brick/blue stone/Gobertange components"},
+  "hard_rules":{"camera_changed":false,"fov_changed":false,"visual_thresholds_changed":false,"source_vertices_changed":false,"official_collision_changed":false,"new_collision_objects":false,"lateral_endpoint_extension":false,"statuary_authored":false,"finished_perfect":false,"human_full_frame_pass_required":true}
+}

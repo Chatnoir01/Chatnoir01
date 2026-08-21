@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -149,4 +151,6 @@ with tempfile.TemporaryDirectory() as tmp:
     else:
         raise AssertionError("unsafe runtime authorization must fail closed")
 
-print("SEAL_RUNTIME_CANDIDATE_OK candidate_root=true production_discovery=false unsafe_authorization_rejected=true double_seal_rejected=true")
+subprocess.run([sys.executable, str(HERE / "test_build_terrain_runtime_readiness.py")], check=True)
+
+print("SEAL_RUNTIME_CANDIDATE_OK candidate_root=true production_discovery=false unsafe_authorization_rejected=true double_seal_rejected=true terrain_readiness_regression=true")

@@ -38,14 +38,17 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_tree_distance_lod_test.gd 2>&1 | tee /tmp/tree-distance-lod.log
           if grep -E 'SCRIPT ERROR|Parse Error:|BRUSSELS_TREE_DISTANCE_LOD_FAIL' /tmp/tree-distance-lod.log; then exit 1; fi
           grep -q 'BRUSSELS_TREE_DISTANCE_LOD_OK' /tmp/tree-distance-lod.log
-      - name: 1280x720 full-frame plus same-camera tree-signal A/B
+      - name: 1280x720 full-frame tree LOD preservation A/B
         shell: bash
         run: |
           set -o pipefail
+          mkdir -p grand-bruxelles-game/artifacts/visual
           timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_tree_distance_lod_witness_test.gd 2>&1 | tee /tmp/tree-distance-lod-witness.log
+          cp /tmp/tree-distance-lod-witness.log grand-bruxelles-game/artifacts/visual/tree_lod_witness.log
           if grep -E 'SCRIPT ERROR|Parse Error:|BRUSSELS_TREE_DISTANCE_LOD_VISUAL_FAIL' /tmp/tree-distance-lod-witness.log; then exit 1; fi
           grep -q 'BRUSSELS_TREE_DISTANCE_LOD_VISUAL_OK' /tmp/tree-distance-lod-witness.log
       - name: Upload exact tree LOD evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: brussels-tree-distance-lod-ab
@@ -54,4 +57,5 @@ jobs:
             grand-bruxelles-game/artifacts/visual/tree_lod_distance_after.png
             grand-bruxelles-game/artifacts/visual/tree_lod_signal_before.png
             grand-bruxelles-game/artifacts/visual/tree_lod_signal_after.png
-          if-no-files-found: error
+            grand-bruxelles-game/artifacts/visual/tree_lod_witness.log
+          if-no-files-found: warn

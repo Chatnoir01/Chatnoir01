@@ -1,0 +1,294 @@
+extends Node
+
+## Generic source-backed direct-entry resolver for rendered Brussels roads.
+## URL/user arg format: spawn=road-<OSM way id>.
+## No arbitrary coordinates are accepted. Unknown, non-drivable, unrendered or
+## source-unsafe roads fail closed.
+
+const SOURCE_ROOT := "res://data/osm"
+const REQUEST_PREFIX := "road-"
+const PLAYER_BODY_CLEARANCE_M := 1.05
+const MAX_WORLD_ABS_M := 890.0
+const CAMERA_PATH := "CameraPivot/SpringArm3D/Camera3D"
+
+var _source_paths_cache := PackedStringArray()
+
+
+func _ready() -> void:
+    call_deferred("_apply_startup_args")
+
+
+func _apply_startup_args() -> void:
+    var road_id := requested_road_id(OS.get_cmdline_user_args())
+    if road_id <= 0:
+        return
+    for _frame: int in range(36):
+        var player := get_tree().root.find_child("Player", true, false)
+        if player != null and apply_to_player(player, road_id):
+            return
+        await get_tree().process_frame
+    push_warning("AutomaticRoadDirectSpawn: road-%d unavailable or not safely playable" % road_id)
+
+
+func requested_road_id(args: PackedStringArray) -> int:
+    for arg: String in args:
+        var normalized := arg.strip_edges().to_lower()
+        if not normalized.begins_with("spawn="):
+            continue
+        var value := normalized.trim_prefix("spawn=")
+        if not value.begins_with(REQUEST_PREFIX):
+            return 0
+        var raw_id := value.trim_prefix(REQUEST_PREFIX)
+        if raw_id.is_empty() or not raw_id.is_valid_int():
+            return 0
+        var road_id := int(raw_id)
+        return road_id if road_id > 0 else 0
+    return 0
+
+
+func _collect_source_paths(root_path: String) -> PackedStringArray:
+    var result := PackedStringArray()
+    var dir := DirAccess.open(root_path)
+    if dir == null:
+        return result
+    dir.list_dir_begin()
+    var entry := dir.get_next()
+    while not entry.is_empty():
+        if entry != "." and entry != "..":
+            var child_path := root_path.path_join(entry)
+            if dir.current_is_dir():
+                result.append_array(_collect_source_paths(child_path))
+            elif entry.ends_with(".game.json"):
+                result.append(child_path)
+        entry = dir.get_next()
+    dir.list_dir_end()
+    return result
+
+
+func _source_paths() -> PackedStringArray:
+    if _source_paths_cache.is_empty():
+        _source_paths_cache = _collect_source_paths(SOURCE_ROOT)
+        _source_paths_cache.sort()
+    return _source_paths_cache
+
+
+func _parse_document(path: String) -> Dictionary:
+    if not FileAccess.file_exists(path):
+        return {}
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+    return parsed as Dictionary if parsed is Dictionary else {}
+
+
+func _source_bundle_by_id(osm_id: int) -> Dictionary:
+    for path: String in _source_paths():
+        var document := _parse_document(path)
+        if document.is_empty() or not document.has("roads") or not document.has("buildings"):
+            continue
+        var roads: Variant = document.get("roads", [])
+        if not roads is Array:
+            continue
+        for raw: Variant in roads:
+            if raw is Dictionary and int((raw as Dictionary).get("osm_id", 0)) == osm_id:
+                return {
+                    "document": document,
+                    "road": raw as Dictionary,
+                    "source_path": path,
+                }
+    return {}
+
+
+func _road_points(road: Dictionary) -> PackedVector2Array:
+    var result := PackedVector2Array()
+    var raw_points: Variant = road.get("points", [])
+    if not raw_points is Array:
+        return result
+    for raw: Variant in raw_points:
+        if not raw is Array or raw.size() < 2:
+            return PackedVector2Array()
+        result.append(Vector2(float(raw[0]), float(raw[1])))
+    return result
+
+
+func _source_building_polygons(document: Dictionary) -> Array[PackedVector2Array]:
+    var result: Array[PackedVector2Array] = []
+    var buildings: Variant = document.get("buildings", [])
+    if not buildings is Array:
+        return result
+    for raw: Variant in buildings:
+        if not raw is Dictionary:
+            continue
+        var footprint_raw: Variant = (raw as Dictionary).get("footprint", [])
+        if not footprint_raw is Array or footprint_raw.size() < 3:
+            continue
+        var polygon := PackedVector2Array()
+        for pair: Variant in footprint_raw:
+            if pair is Array and pair.size() >= 2:
+                polygon.append(Vector2(float(pair[0]), float(pair[1])))
+        if polygon.size() >= 3:
+            result.append(polygon)
+    return result
+
+
+func _point_inside_any_source_building(document: Dictionary, point: Vector2) -> bool:
+    for polygon: PackedVector2Array in _source_building_polygons(document):
+        if Geometry2D.is_point_in_polygon(point, polygon):
+            return true
+    return false
+
+
+func _segment_clear_of_source_buildings(document: Dictionary, start: Vector2, finish: Vector2) -> bool:
+    if _point_inside_any_source_building(document, start) or _point_inside_any_source_building(document, finish):
+        return false
+    for polygon: PackedVector2Array in _source_building_polygons(document):
+        for index: int in range(polygon.size()):
+            var edge_start := polygon[index]
+            var edge_finish := polygon[(index + 1) % polygon.size()]
+            if Geometry2D.segment_intersects_segment(start, finish, edge_start, edge_finish) != null:
+                return false
+    return true
+
+
+func _display_road_width(road: Dictionary) -> float:
+    var width := maxf(float(road.get("width", 4.5)), 2.5)
+    match str(road.get("class", "")):
+        "primary":
+            return maxf(width, 10.5)
+        "secondary":
+            return maxf(width, 8.5)
+        "tertiary":
+            return maxf(width, 7.2)
+    return width
+
+
+func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
+    var points := _road_points(road)
+    if points.size() < 2:
+        return {}
+    var best_index := -1
+    var best_length := -1.0
+    for index: int in range(points.size() - 1):
+        var length := points[index].distance_to(points[index + 1])
+        if length > best_length:
+            best_length = length
+            best_index = index
+    if best_index < 0 or best_length < 1.0:
+        return {}
+    var start := points[best_index]
+    var finish := points[best_index + 1]
+    var target := start.lerp(finish, 0.5)
+    if _point_inside_any_source_building(document, target):
+        return {}
+    var direction := (finish - start).normalized()
+    if direction == Vector2.ZERO:
+        return {}
+    var perpendicular := Vector2(-direction.y, direction.x)
+    var half_road := _display_road_width(road) * 0.5
+    var offsets: Array[float] = [half_road + 1.10, half_road + 2.00, half_road + 3.50, half_road + 5.00, half_road + 7.50]
+    for offset: float in offsets:
+        for side: float in [1.0, -1.0]:
+            var candidate := target + perpendicular * offset * side
+            if absf(candidate.x) > MAX_WORLD_ABS_M or absf(candidate.y) > MAX_WORLD_ABS_M:
+                continue
+            if _point_inside_any_source_building(document, candidate):
+                continue
+            if not _segment_clear_of_source_buildings(document, candidate, target):
+                continue
+            return {
+                "spawn": candidate,
+                "target": target,
+                "offset_m": offset,
+                "side": side,
+                "segment_index": best_index,
+                "source_sightline_clear": true,
+            }
+    return {}
+
+
+func _road_is_rendered(world: Node, osm_id: int) -> bool:
+    var prefix := "Road_%d_" % osm_id
+    var stack: Array[Node] = [world]
+    while not stack.is_empty():
+        var node: Node = stack.pop_back()
+        if str(node.name).begins_with(prefix):
+            return true
+        for child: Node in node.get_children():
+            stack.append(child)
+    return false
+
+
+func _ground_y(body: CharacterBody3D, xz: Vector2) -> float:
+    var world_3d := body.get_world_3d()
+    if world_3d == null:
+        return INF
+    var query := PhysicsRayQueryParameters3D.create(
+        Vector3(xz.x, 200.0, xz.y),
+        Vector3(xz.x, -200.0, xz.y)
+    )
+    query.exclude = [body.get_rid()]
+    query.collide_with_areas = false
+    query.collide_with_bodies = true
+    var hit := world_3d.direct_space_state.intersect_ray(query)
+    if hit.is_empty():
+        return INF
+    var position: Variant = hit.get("position")
+    return float((position as Vector3).y) if position is Vector3 else INF
+
+
+func _label_for_road(road: Dictionary) -> String:
+    return str(road.get("name", "")).replace(" - ", " · ").to_upper()
+
+
+func _orient_and_label(body: CharacterBody3D, spawn_xz: Vector2, target_xz: Vector2, label_text: String) -> void:
+    body.velocity = Vector3.ZERO
+    var to_target := target_xz - spawn_xz
+    body.rotation_degrees.y = rad_to_deg(atan2(-to_target.x, -to_target.y))
+    var world := body.get_parent()
+    if world == null:
+        return
+    var location_label := world.get_node_or_null("LocationLabel")
+    if location_label != null and location_label.has_method("set_forced_label"):
+        location_label.call("set_forced_label", label_text)
+    elif location_label is Label:
+        (location_label as Label).text = label_text
+
+
+func apply_to_player(player: Node, osm_id: int) -> bool:
+    var body := player as CharacterBody3D
+    if body == null or osm_id <= 0:
+        return false
+    var bundle := _source_bundle_by_id(osm_id)
+    if bundle.is_empty():
+        return false
+    var document: Dictionary = bundle["document"]
+    var road: Dictionary = bundle["road"]
+    var source_path := str(bundle["source_path"])
+    var source_name := str(road.get("name", "")).strip_edges()
+    if source_name.is_empty() or not bool(road.get("drivable", false)):
+        return false
+    var points := _road_points(road)
+    if points.size() < 2:
+        return false
+    var world := body.get_parent()
+    if world == null or not _road_is_rendered(world, osm_id):
+        return false
+    var viewpoint := _safe_viewpoint(document, road)
+    if viewpoint.is_empty():
+        return false
+    var spawn_xz: Vector2 = viewpoint["spawn"]
+    var target_xz: Vector2 = viewpoint["target"]
+    var ground_y := _ground_y(body, spawn_xz)
+    if not is_finite(ground_y):
+        return false
+    body.global_position = Vector3(spawn_xz.x, ground_y + PLAYER_BODY_CLEARANCE_M, spawn_xz.y)
+    _orient_and_label(body, spawn_xz, target_xz, _label_for_road(road))
+    body.set_meta("automatic_road_direct_osm_id", osm_id)
+    body.set_meta("automatic_road_direct_source_path", source_path)
+    body.set_meta("automatic_road_direct_source_name", source_name)
+    body.set_meta("automatic_road_direct_spawn_xz", spawn_xz)
+    body.set_meta("automatic_road_direct_target_xz", target_xz)
+    body.set_meta("automatic_road_direct_ground_y", ground_y)
+    body.set_meta("automatic_road_direct_offset_m", float(viewpoint["offset_m"]))
+    body.set_meta("automatic_road_direct_segment_index", int(viewpoint["segment_index"]))
+    body.set_meta("automatic_road_direct_source_sightline_clear", bool(viewpoint.get("source_sightline_clear", false)))
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_READY: osm_id=%d source=%s name=%s spawn=(%.3f, %.3f, %.3f) target=(%.3f, %.3f)" % [osm_id, source_path, source_name, body.global_position.x, body.global_position.y, body.global_position.z, target_xz.x, target_xz.y])
+    return true

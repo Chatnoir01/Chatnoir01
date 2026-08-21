@@ -15,7 +15,7 @@ Preflight: `python3 grand-bruxelles-game/tools/city_machine/city_machine.py buil
 
 A success ends with `LABO_DATA_READY ... promotion=false` and writes a deterministic receipt under `grand-bruxelles-game/artifacts/city_machine/jette/`.
 
-## Fixed Jette pipeline — registry v2
+## Fixed Jette pipeline — registry v3
 
 1. resolve Jette from the playable-zone catalogue
 2. replay cached UrbIS buildings, street surfaces, street axes and train network to runtime JSON
@@ -25,6 +25,7 @@ A success ends with `LABO_DATA_READY ... promotion=false` and writes a determini
 6. **G3** buildings + street surfaces non-empty
 7. **G4** existing Godot materials/ground/official-geometry finish hooks present
 8. **G5** OSM cache/runtime digest, ODbL source, EPSG:31370 projection, supported semantics, non-zero trees and ≤2 m bbox tolerance
+9. regenerate `data/runtime/runtime_environment_index.json` from the City Machine zone profiles and validated environment artifacts
 
 Any hard gate fails non-zero. There is no “continue anyway” path.
 
@@ -36,15 +37,23 @@ Only explicit OSM tags `natural=tree`, `highway=street_lamp` and `barrier=bollar
 
 **Nominal builds never call Overpass.** Live refresh is a separate disabled registry layer; production consumes the committed normalized ODbL cache.
 
+## Automatic runtime environment bridge
+
+`build_runtime_environment_index.py` creates a small deterministic discovery index from every City Machine zone profile that owns a validated `osm_environment.runtime` artifact. The index is **visual-only** and explicitly cannot authorize promotion, collision, or gameplay truth.
+
+`brussels_city_machine_environment_runtime.gd` is loaded automatically through the existing runtime-module bootstrap. It reads only the deterministic index, revalidates each artifact, and mounts/unmounts the reusable `BrusselsOsmEnvironmentRuntime` according to the player position with hysteresis. It performs no runtime directory scan and contains no Jette-specific rendering logic.
+
+Adding the next municipality therefore requires a real City Machine zone profile + environment artifact; it does not require another renderer script.
+
 ## Production proof
 
-`.github/workflows/grand-bruxelles-city-machine.yml` runs registry/unit/failure tests, dry-run, then two complete rebuilds. It requires identical receipt SHA on pass two and `git diff --exit-code` for the four UrbIS runtime outputs plus `environment.game.json`.
+`.github/workflows/grand-bruxelles-city-machine.yml` runs registry/unit/failure tests, validates the runtime-environment index and bridge, dry-runs, then performs two complete rebuilds. It requires identical receipt SHA on pass two and `git diff --exit-code` for the four UrbIS runtime outputs, `environment.game.json`, and `runtime_environment_index.json`.
 
 The dedicated OSM-cache workflow independently regenerates `environment.game.json` from the committed cache and byte-compares it with production. Both workflows are read-only.
 
 ## Product boundary
 
-Outside the machine on purpose: hero art, subjective visual approval, human `LABO`→`JOUABLE`, LLM/NPC content, engine/streaming redesign, live WFS/Overpass in the nominal path, and facade candidates without a runtime application contract. A machine PASS means **data-ready LABO**, not visible polish.
+Outside the machine on purpose: hero art, subjective visual approval, human `LABO`→`JOUABLE`, LLM/NPC content, live WFS/Overpass in the nominal path, and facade candidates without a runtime application contract. A machine PASS means **data-ready LABO**, not visible polish.
 
 ## Add a layer
 
@@ -52,4 +61,4 @@ Prefer wrappers over existing deterministic tools. Add one ordered registry row 
 
 ## Next machine increment
 
-**Generic runtime environment renderer.** Consume the machine-produced `tree/street_lamp/bollard` artifact through one reusable Godot layer, not a Jette-specific art lot, then prove Jette loads it without changing `LABO` quality.
+**Regional zone onboarding.** Generalize the current Jette-only City Machine profile set so additional Brussels zones can enter the exact same deterministic UrbIS + OSM + runtime-index pipeline without adding zone-specific orchestration code. Keep promotion human-controlled and fail-closed.

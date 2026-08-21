@@ -10,6 +10,7 @@ HERE=Path(__file__).resolve().parent
 PROJECT=HERE.parents[1]
 REGISTRY=HERE/"registry.json"
 CATALOG=PROJECT/"data/qa/playable_zone_catalog.json"
+RUNTIME_ENVIRONMENT_INDEX=PROJECT/"data/runtime/runtime_environment_index.json"
 OSM_SOURCE="OpenStreetMap contributors via Overpass API"
 OSM_LICENSE="ODbL-1.0"
 OSM_KINDS={"tree","street_lamp","bollard"}
@@ -80,6 +81,12 @@ def materialize_osm(layer:dict[str,Any],profile:dict[str,Any],zone_id:str)->None
          "--raw-cache",str(p(env["cache"])),
          "--output",str(p(env["runtime"]))],
         "materialize:osm_environment")
+
+def materialize_runtime_environment_index(layer:dict[str,Any])->None:
+    outputs=layer.get("outputs",[])
+    if not isinstance(outputs,list) or len(outputs)!=1: raise MachineError("runtime environment index layer must declare exactly one output")
+    run([sys.executable,str(p(layer["script"])),"--registry",str(REGISTRY),"--output",str(p(str(outputs[0])))],
+        "materialize:runtime_environment_index")
 
 def gate_g1(layer:dict[str,Any],profile:dict[str,Any])->dict[str,str]:
     r=subprocess.run([sys.executable,str(p(layer["script"])),str(p(profile["source_root"]))],cwd=PROJECT,text=True,capture_output=True)
@@ -164,6 +171,8 @@ def runtime_outputs(profile:dict[str,Any])->list[dict[str,Any]]:
     outputs=[{"path":str((root/f"{s}.game.json").relative_to(PROJECT)),"sha256":sha(root/f"{s}.game.json"),"features":feature_count(root/f"{s}.game.json")} for s in profile["materialized_slugs"]]
     env_path=p(profile["osm_environment"]["runtime"]); env=read_json(env_path)
     outputs.append({"path":str(env_path.relative_to(PROJECT)),"sha256":sha(env_path),"environment_points":int((env.get("stats") or {}).get("total",0)),"trees":int((env.get("stats") or {}).get("tree",0))})
+    index=read_json(RUNTIME_ENVIRONMENT_INDEX)
+    outputs.append({"path":str(RUNTIME_ENVIRONMENT_INDEX.relative_to(PROJECT)),"sha256":sha(RUNTIME_ENVIRONMENT_INDEX),"environment_zones":len(index.get("entries",[]))})
     return outputs
 
 def receipt(zone:dict[str,Any],registry:dict[str,Any],profile:dict[str,Any],m:dict[str,Any],gates:list[dict[str,str]],layers:list[str],out:Path)->Path:
@@ -187,6 +196,8 @@ def build(zone_id:str,dry:bool=False,out:Path|None=None)->Path|None:
             if not dry: materialize(layer,profile,m)
         elif kind=="materialize_osm_environment":
             if not dry: materialize_osm(layer,profile,zone_id)
+        elif kind=="materialize_runtime_environment_index":
+            if not dry: materialize_runtime_environment_index(layer)
         elif kind=="validate_existing": gates.append(gate_g1(layer,profile))
         elif kind=="gate_spawn_ground": gates.append(gate_spawn(zone,profile,m))
         elif kind=="gate_runtime_content": gates.append(gate_content(profile))

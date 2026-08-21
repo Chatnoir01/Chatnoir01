@@ -9,6 +9,7 @@ from pathlib import Path
 MODULE = Path(__file__).with_name("persist_secondary_height_evidence.py")
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FACTORY_WORKFLOW = REPO_ROOT / ".github/workflows/grand-bruxelles-secondary-height-factory.yml"
+LEGACY_WITNESS_WORKFLOW = REPO_ROOT / ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
 spec = importlib.util.spec_from_file_location("persist_secondary_height_evidence", MODULE)
 assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
@@ -60,7 +61,21 @@ def main() -> int:
     assert "runtime_promotion_allowed':False" in workflow or "runtime_promotion_allowed\":False" in workflow
     assert "automatic_production_mutation':False" in workflow or "automatic_production_mutation\":False" in workflow
     assert "git push --force-with-lease origin citygen-autonomous-state" in workflow
-    print("PERSIST_SECONDARY_HEIGHT_EVIDENCE_TEST_OK source=automatic legacy_compatible=true workflow_run=true off_main=true")
+
+    legacy=LEGACY_WITNESS_WORKFLOW.read_text(encoding="utf-8")
+    assert "contents: read" in legacy
+    assert "Select current durable Anderlecht witness" in legacy
+    assert "ANDERLECHT_CITYGEN_WITNESS_SELECTED" in legacy
+    assert "ANDERLECHT_CITYGEN_WITNESS_SKIPPED" in legacy
+    assert "--height-candidates" in legacy
+    assert "ANDERLECHT_WITNESS_CANDIDATE_COUNT" in legacy
+    assert "bxl-e141500-n167500-s500" not in legacy
+    assert "candidate_count']==7" not in legacy
+    assert "manual_frontier_candidates']==7" not in legacy
+    assert "git push" not in legacy
+    assert "Persist validated secondary evidence off main" not in legacy
+
+    print("PERSIST_SECONDARY_HEIGHT_EVIDENCE_TEST_OK source=automatic legacy_compatible=true workflow_run=true off_main=true dynamic_anderlecht_witness=true")
     return 0
 
 if __name__ == "__main__":

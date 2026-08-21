@@ -20,10 +20,8 @@ func _run() -> void:
     if version != "4.7.1":
         _fail("engine=%s" % version)
         return
-
     var world := Node3D.new()
     root.add_child(world)
-
     var floor := StaticBody3D.new()
     floor.collision_layer = 1
     floor.collision_mask = 1
@@ -34,7 +32,6 @@ func _run() -> void:
     floor_collision.position = Vector3(0.0, -0.2, 0.0)
     floor.add_child(floor_collision)
     world.add_child(floor)
-
     for model_id: String in MODELS:
         var holder := CharacterBody3D.new()
         holder.position = Vector3(50.0, 0.6, 50.0)
@@ -57,7 +54,6 @@ func _run() -> void:
             return
         holder.queue_free()
         await process_frame
-
     var car := DRIVABLE.new() as DrivableTrafficVehicle
     car.position = Vector3(0.0, 1.35, 8.0)
     car.collision_layer = 1
@@ -74,7 +70,6 @@ func _run() -> void:
     world.add_child(car)
     car.configure_archetype("car")
     car.configure_as_parked()
-
     for _frame: int in range(8):
         await physics_frame
     var contract_after_snap: Dictionary = car_visual.get_visual_contract()
@@ -83,7 +78,6 @@ func _run() -> void:
     if not is_finite(world_contact) or absf(world_contact - 0.01) > 0.03:
         _fail("world_tire_contact=%.4f body_y=%.4f local=%.4f" % [world_contact, car.global_position.y, local_contact])
         return
-
     var driver := DummyDriver.new()
     world.add_child(driver)
     if not car.assign_external_driver(driver):
@@ -107,6 +101,5 @@ func _run() -> void:
     if visual_dot < 0.985:
         _fail("sedan_visual_dot=%.4f" % visual_dot)
         return
-
     print("VEHICLE_REAL_GROUND_FORWARD_OK models=%d tire_y=%.4f drive_m=%.3f drive_dot=%.4f visual_dot=%.4f engine=%s" % [MODELS.size(), world_contact, displacement.length(), drive_dot, visual_dot, version])
     quit(0)

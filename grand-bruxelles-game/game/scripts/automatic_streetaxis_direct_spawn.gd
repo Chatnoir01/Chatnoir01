@@ -10,6 +10,7 @@ const WORLD_STREAMING_SCRIPT := preload("res://game/scripts/brussels_world_strea
 const STREETAXIS_SOURCE_PREFIX := "https://databrussels.be/id/streetaxe/"
 const REQUEST_PATTERN := "^streetaxis-([1-9][0-9]{0,17})$"
 const DEFAULT_TIMEOUT_MS := 30000
+const SEGMENT_SAMPLE_T: Array[float] = [0.5, 0.35, 0.65, 0.2, 0.8]
 
 var last_result: Dictionary = {}
 
@@ -54,6 +55,31 @@ func _segment_points(raw: Variant) -> Array[Vector2]:
     return result
 
 
+func _polygon(raw: Variant) -> PackedVector2Array:
+    var polygon := PackedVector2Array()
+    if not raw is Array:
+        return polygon
+    for pair: Variant in raw:
+        if pair is Array and pair.size() >= 2:
+            polygon.append(Vector2(float(pair[0]), float(pair[1])))
+    if polygon.size() >= 2 and polygon[0].is_equal_approx(polygon[polygon.size() - 1]):
+        polygon.remove_at(polygon.size() - 1)
+    return polygon
+
+
+func _inside_official_street_surface(runtime_cell: Dictionary, point: Vector2) -> bool:
+    var surfaces: Variant = runtime_cell.get("street_surfaces", [])
+    if not surfaces is Array:
+        return false
+    for raw_surface: Variant in surfaces:
+        if not raw_surface is Dictionary:
+            continue
+        var polygon := _polygon(raw_surface.get("polygon", []))
+        if polygon.size() >= 3 and Geometry2D.is_point_in_polygon(point, polygon):
+            return true
+    return false
+
+
 func resolve_streetaxis(streetaxis_id: int) -> Dictionary:
     if streetaxis_id <= 0:
         return {}
@@ -61,16 +87,19 @@ func resolve_streetaxis(streetaxis_id: int) -> Dictionary:
     for descriptor: Dictionary in WORLD_STREAMING_SCRIPT.SHIPPED_CELLS:
         var cell_id := str(descriptor.get("cell_id", ""))
         var network_path := str(descriptor.get("runtime_network_path", ""))
+        var runtime_cell_path := str(descriptor.get("runtime_cell_path", ""))
         var network := _read_json(network_path)
-        if network.is_empty() or str(network.get("format", "")) != "grand-bruxelles-urbis-network-cell-runtime-v2" or str(network.get("cell_id", "")) != cell_id:
+        var runtime_cell := _read_json(runtime_cell_path)
+        if network.is_empty() or runtime_cell.is_empty():
+            continue
+        if str(network.get("format", "")) != "grand-bruxelles-urbis-network-cell-runtime-v2" or str(network.get("cell_id", "")) != cell_id:
+            continue
+        if str(runtime_cell.get("format", "")) != "grand-bruxelles-urbis-cell-runtime-v1" or str(runtime_cell.get("cell_id", "")) != cell_id:
             continue
         var axes: Variant = network.get("street_axes", [])
         if not axes is Array:
             continue
-        var longest_a := Vector2.ZERO
-        var longest_b := Vector2.ZERO
-        var longest_length := 0.0
-        var segment_count := 0
+        var segments: Array[Dictionary] = []
         var street_fr := ""
         var street_nl := ""
         for raw_axis: Variant in axes:
@@ -96,26 +125,40 @@ func resolve_streetaxis(streetaxis_id: int) -> Dictionary:
                 var a := points[index]
                 var b := points[index + 1]
                 var length := a.distance_to(b)
-                if length <= 0.001:
-                    continue
-                segment_count += 1
-                if length > longest_length:
-                    longest_length = length
-                    longest_a = a
-                    longest_b = b
-        if segment_count <= 0 or longest_length <= 0.001 or (street_fr.is_empty() and street_nl.is_empty()):
+                if length > 0.001:
+                    segments.append({"a": a, "b": b, "length": length})
+        if segments.is_empty() or (street_fr.is_empty() and street_nl.is_empty()):
             continue
-        var tangent := (longest_b - longest_a).normalized()
+        segments.sort_custom(func(left: Dictionary, right: Dictionary) -> bool: return float(left["length"]) > float(right["length"]))
+        var target := Vector2.ZERO
+        var tangent := Vector2.ZERO
+        var target_found := false
+        for segment: Dictionary in segments:
+            var a: Vector2 = segment["a"]
+            var b: Vector2 = segment["b"]
+            for sample_t: float in SEGMENT_SAMPLE_T:
+                var candidate := a.lerp(b, sample_t)
+                if _inside_official_street_surface(runtime_cell, candidate):
+                    target = candidate
+                    tangent = (b - a).normalized()
+                    target_found = true
+                    break
+            if target_found:
+                break
+        if not target_found or tangent.length_squared() < 0.5:
+            continue
         return {
             "streetaxis_id": streetaxis_id,
             "source_id": wanted_source_id,
             "cell_id": cell_id,
             "network_path": network_path,
+            "runtime_cell_path": runtime_cell_path,
             "street_fr": street_fr,
             "street_nl": street_nl,
-            "segment_count": segment_count,
-            "target": (longest_a + longest_b) * 0.5,
+            "segment_count": segments.size(),
+            "target": target,
             "tangent": tangent,
+            "street_surface_verified": true,
             "destination_collision_authorized": bool(descriptor.get("destination_collision_authorized", false)),
         }
     return {}
@@ -166,6 +209,8 @@ func apply_streetaxis_to_player(player: CharacterBody3D, streetaxis_id: int, tim
     var resolved := resolve_streetaxis(streetaxis_id)
     if resolved.is_empty():
         return _failure("streetaxis_unresolved")
+    if not bool(resolved.get("street_surface_verified", false)):
+        return _failure("official_street_surface_unverified", resolved)
     if not bool(resolved.get("destination_collision_authorized", false)):
         return _failure("cell_collision_not_authorized", resolved)
 
@@ -243,8 +288,10 @@ func apply_streetaxis_to_player(player: CharacterBody3D, streetaxis_id: int, tim
     player.set_meta("automatic_streetaxis_direct_source_id", str(resolved["source_id"]))
     player.set_meta("automatic_streetaxis_direct_cell_id", cell_id)
     player.set_meta("automatic_streetaxis_direct_network_path", str(resolved["network_path"]))
+    player.set_meta("automatic_streetaxis_direct_runtime_cell_path", str(resolved["runtime_cell_path"]))
     player.set_meta("automatic_streetaxis_direct_street_fr", str(resolved["street_fr"]))
     player.set_meta("automatic_streetaxis_direct_street_nl", str(resolved["street_nl"]))
+    player.set_meta("automatic_streetaxis_direct_street_surface_verified", true)
     player.set_meta("automatic_streetaxis_direct_ground_y", ground_position.y)
     player.set_meta("automatic_streetaxis_direct_collision_authorized", true)
     player.set_meta("automatic_streetaxis_direct_streaming_ready", true)
@@ -261,6 +308,7 @@ func apply_streetaxis_to_player(player: CharacterBody3D, streetaxis_id: int, tim
         "cell_id": cell_id,
         "street_fr": str(resolved["street_fr"]),
         "street_nl": str(resolved["street_nl"]),
+        "street_surface_verified": true,
         "ground_y": ground_position.y,
         "handoff_distance_m": handoff_distance,
         "streaming_ready": true,

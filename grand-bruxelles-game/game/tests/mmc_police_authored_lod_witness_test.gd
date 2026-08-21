@@ -89,6 +89,14 @@ func _run() -> void:
         _fail("coupe V4 witness setup failed")
         return
 
+    # police_vehicle_visuals.gd creates RuntimeDecals with add_child.call_deferred().
+    # Wait until the deferred child exists before applying the deterministic V4 tuner.
+    for _frame: int in range(4):
+        await process_frame
+    if sedan_holder.get_node_or_null(NodePath("RuntimeDecals")) == null or coupe_holder.get_node_or_null(NodePath("RuntimeDecals")) == null:
+        _fail("deferred runtime decals were not ready")
+        return
+
     var tuner := TUNER_SCRIPT.new()
     world.add_child(tuner)
     if not bool(tuner.call("tune_holder", sedan_holder, "brussels_capitale_sedan")):
@@ -129,4 +137,6 @@ func _run() -> void:
         _fail("cabin witness capture failed")
         return
     print("MMC_POLICE_V4_VISUAL_OK: exterior=%s cabin=%s project_cabins=2 officers=3 driveable_sedan=true refined_proportions=true" % [OUTPUT_EXTERIOR, OUTPUT_CABIN])
+    # Keep the legacy marker until the dedicated workflow itself is renamed to V4.
+    print("MMC_POLICE_V2_VISUAL_OK")
     quit(0)

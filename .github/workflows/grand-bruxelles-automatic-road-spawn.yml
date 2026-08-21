@@ -56,6 +56,8 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|AUTOMATIC_ROAD_DIRECT_SPAWN_FAIL" /tmp/automatic-road-spawn.log; then exit 1; fi
           grep -F "AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN" /tmp/automatic-road-spawn.log
           grep -F "lookup=deterministic_runtime_index" /tmp/automatic-road-spawn.log
+          grep -F "witness=res://artifacts/automatic_road/automatic_road_player_witness.png" /tmp/automatic-road-spawn.log
+          test -s grand-bruxelles-game/artifacts/automatic_road/automatic_road_player_witness.png
 
       - name: Verify safe Web request grammar
         run: |
@@ -71,5 +73,6 @@ jobs:
           path: |
             /tmp/automatic-road-import.log
             /tmp/automatic-road-spawn.log
+            grand-bruxelles-game/artifacts/automatic_road/automatic_road_player_witness.png
           if-no-files-found: error
           retention-days: 14

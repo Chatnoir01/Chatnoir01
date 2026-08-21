@@ -14,7 +14,7 @@ EXPECTED_ORIGIN = {
     "axes": "X=east, Y=up, Z=south",
     "units": "metres",
 }
-REQUIRED_SLUGS = ("buildings", "street_surfaces", "street_axes")
+REQUIRED_SLUGS = ("buildings", "street_surfaces", "street_axes", "train_network")
 
 
 def read_json(path: Path) -> dict[str, Any]:

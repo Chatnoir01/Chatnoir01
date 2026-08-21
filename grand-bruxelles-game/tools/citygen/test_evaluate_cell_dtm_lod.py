@@ -51,13 +51,15 @@ assert mod._validated_dtm_crs_is_acceptable(None, 3812, "authoritative_source_ma
 
 # The production terrain evaluator intentionally depends on NumPy/Affine. Some
 # lightweight PR validation runners do not preload that raster math stack even
-# though the scheduled CityGen pass does. Bootstrap only the two test-time
-# packages when they are absent so this regression remains measured instead of
-# being skipped or weakening its numeric assertions.
+# though the scheduled CityGen pass does. Install into an explicit temporary
+# target and prepend it to sys.path: hosted runners may disable the user-site
+# directory even when pip reports a successful --user installation.
 try:
     import numpy as np
     from affine import Affine
 except ImportError:
+    deps_dir = Path("/tmp/grand-bruxelles-citygen-test-deps")
+    deps_dir.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
             sys.executable,
@@ -65,14 +67,17 @@ except ImportError:
             "pip",
             "install",
             "--disable-pip-version-check",
+            "--target",
+            str(deps_dir),
             "numpy>=1.26,<3",
             "affine>=2.4,<3",
         ],
         check=True,
     )
+    sys.path.insert(0, str(deps_dir))
     import numpy as np
     from affine import Affine
-    print("CELL_DTM_LOD_TEST_DEPS_BOOTSTRAPPED numpy=true affine=true")
+    print("CELL_DTM_LOD_TEST_DEPS_BOOTSTRAPPED target=/tmp/grand-bruxelles-citygen-test-deps numpy=true affine=true")
 
 # Smooth but non-flat 0.5m source should reconstruct increasingly worse as spacing grows.
 size = 100

@@ -51,15 +51,35 @@ jobs:
           python3 grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py
 
       - name: Recover exact durable CityGen cell evidence
+        id: durable
         shell: bash
         run: |
           set -euo pipefail
           CELL=bxl-e141500-n167500-s500
+          STATE_PATH="grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
+          mkdir -p /tmp/citygen-state /tmp/anderlecht-secondary
           git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
-          mkdir -p /tmp/citygen-state
-          git archive origin/citygen-autonomous-state \
-            "grand-bruxelles-game/data/qa/autonomous_sources/${CELL}" | tar -x -C /tmp/citygen-state
-          SRC="/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
+          if ! git cat-file -e "origin/citygen-autonomous-state:${STATE_PATH}" 2>/dev/null; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p={
+              'schema':1,
+              'cell_id':'bxl-e141500-n167500-s500',
+              'status':'PENDING_DURABLE_CITYGEN_EVIDENCE',
+              'durable_evidence_available':False,
+              'runtime_promotion_allowed':False,
+              'automatic_production_mutation':False,
+              'next_action':'wait_for_exact_cell_to_reenter_citygen_autonomous_state',
+          }
+          Path('/tmp/anderlecht-secondary/status.json').write_text(json.dumps(p,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          print('ANDERLECHT_DURABLE_EVIDENCE_PENDING runtime_promotion=false')
+          PY
+            exit 0
+          fi
+          git archive origin/citygen-autonomous-state "$STATE_PATH" | tar -x -C /tmp/citygen-state
+          SRC="/tmp/citygen-state/${STATE_PATH}"
           test -s "$SRC/raw/buildings.geojson"
           test -s "$SRC/building_height_candidates.json"
           test -s "$SRC/terrain_lod_evidence.json"
@@ -69,15 +89,27 @@ jobs:
             --output /tmp/manual-frontier-review.json
           python3 - <<'PY'
           import json
+          from pathlib import Path
           p=json.load(open('/tmp/manual-frontier-review.json',encoding='utf-8'))
           assert p['cell_id']=='bxl-e141500-n167500-s500'
           assert p['crs']=='EPSG:31370'
           assert p['runtime_promotion_allowed'] is False
           assert p['height_review']['candidate_count']==7, p['height_review']['candidate_count']
+          status={
+              'schema':1,
+              'cell_id':p['cell_id'],
+              'status':'DURABLE_CITYGEN_EVIDENCE_READY',
+              'durable_evidence_available':True,
+              'runtime_promotion_allowed':False,
+              'automatic_production_mutation':False,
+          }
+          Path('/tmp/anderlecht-secondary/status.json').write_text(json.dumps(status,indent=2,sort_keys=True)+'\n',encoding='utf-8')
           print('ANDERLECHT_CITYGEN_REVIEW_OK candidates=7 runtime_promotion=false')
           PY
+          echo "available=true" >> "$GITHUB_OUTPUT"
 
       - name: Discover and select latest official Anderlecht UrbIS 3D package
+        if: steps.durable.outputs.available == 'true'
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -107,6 +139,7 @@ jobs:
           PY
 
       - name: Download and safely extract official Anderlecht package
+        if: steps.durable.outputs.available == 'true'
         run: |
           set -euo pipefail
           URL="$(python3 - <<'PY'
@@ -139,6 +172,7 @@ jobs:
           PY
 
       - name: Diagnose exact GeoPackage container and schema
+        if: steps.durable.outputs.available == 'true'
         run: |
           set -euo pipefail
           GPKG="$(find /tmp/urbis-3d-extracted -type f -name '*.gpkg' | head -1)"
@@ -165,6 +199,7 @@ jobs:
           ogrinfo -ro -q "$GPKG" || true
 
       - name: Build real Anderlecht semantic 3D evidence
+        if: steps.durable.outputs.available == 'true'
         run: |
           set -euo pipefail
           CELL=bxl-e141500-n167500-s500
@@ -179,6 +214,7 @@ jobs:
           PY
 
       - name: Compare seven candidates and run fail-closed secondary validator
+        if: steps.durable.outputs.available == 'true'
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py --semantic /tmp/anderlecht-secondary/semantic.json --review /tmp/manual-frontier-review.json --output /tmp/anderlecht-secondary/secondary-evidence.json
@@ -193,16 +229,18 @@ jobs:
           PY
 
       - name: Package compact provenance and evidence
+        if: steps.durable.outputs.available == 'true'
         run: |
           set -euo pipefail
           cp /tmp/urbis-discovered.json /tmp/anderlecht-secondary/discovered.json
           cp /tmp/urbis-3d-selected.json /tmp/anderlecht-secondary/selected.json
           cp /tmp/distribution.sha256 /tmp/anderlecht-secondary/distribution.sha256
           cp /tmp/manual-frontier-review.json /tmp/anderlecht-secondary/manual-frontier-review.json
+          test -s /tmp/anderlecht-secondary/status.json
           test -s /tmp/anderlecht-secondary/semantic.json; test -s /tmp/anderlecht-secondary/secondary-evidence.json; test -s /tmp/anderlecht-secondary/validation.json
           find /tmp/anderlecht-secondary -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
 
-      - name: Upload compact evidence only
+      - name: Upload compact evidence or pending status
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-citygen-anderlecht-secondary-height
@@ -210,7 +248,7 @@ jobs:
           if-no-files-found: error
 
       - name: Persist validated secondary evidence off main
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.durable.outputs.available == 'true'
         run: |
           set -euo pipefail
           CELL=bxl-e141500-n167500-s500

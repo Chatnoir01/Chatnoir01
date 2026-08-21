@@ -6,6 +6,7 @@ const STANDARD_DISTANCE_M := 5.8
 const CLOSE_DISTANCE_M := 3.4
 const STANDARD_FOV_DEG := 72.0
 const THIRD_PERSON_SHOULDER_X_M := 0.34
+const ATOMIUM_PRESENTATION_FOV_DEG := 48.0
 
 
 func _initialize() -> void:
@@ -47,32 +48,46 @@ func _run() -> void:
         _fail("player camera rig incomplete")
         return
     if absf(arm.spring_length - STANDARD_DISTANCE_M) > 0.01:
-        _fail("standard camera distance is not GTA-scale tuned")
+        _fail("standard camera distance is not GTA-scale tuned: actual=%.3f expected=%.3f" % [arm.spring_length, STANDARD_DISTANCE_M])
         return
     if absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
-        _fail("standard camera FOV is not GTA-scale tuned")
+        _fail("standard camera FOV is not GTA-scale tuned: actual=%.3f expected=%.3f meta=%.3f" % [
+            camera.fov,
+            STANDARD_FOV_DEG,
+            float(player.get_meta("gta_scale_camera_fov_deg", -1.0)),
+        ])
         return
     if absf(camera.position.x - THIRD_PERSON_SHOULDER_X_M) > 0.01:
-        _fail("third-person camera lacks shoulder composition offset")
+        _fail("third-person camera lacks shoulder composition offset: actual=%.3f" % camera.position.x)
         return
     if pivot.rotation_degrees.x > -4.0 or pivot.rotation_degrees.x < -10.0:
-        _fail("default camera pitch is not a bounded downward third-person angle")
+        _fail("default camera pitch is not a bounded downward third-person angle: actual=%.3f" % pivot.rotation_degrees.x)
         return
 
     var projected_share := 2.0 * atan((TARGET_PLAYER_HEIGHT_M * 0.5) / STANDARD_DISTANCE_M) / deg_to_rad(STANDARD_FOV_DEG)
     if projected_share > 0.255 or projected_share < 0.20:
-        _fail("standard camera keeps the player too large or too tiny in frame")
+        _fail("standard camera keeps the player too large or too tiny in frame: projected_share=%.4f" % projected_share)
         return
 
+    var normalized := bool(player.get_meta("gta_scale_player_visual_normalized", false))
     var visual_height := float(player.get_meta("gta_scale_player_visual_height_m", -1.0))
-    if visual_height > 0.0 and absf(visual_height - TARGET_PLAYER_HEIGHT_M) > 0.02:
-        _fail("authored player visual is not normalized to human scale")
+    var source_height := float(player.get_meta("gta_scale_player_visual_source_height_m", -1.0))
+    var normalization_scale := float(player.get_meta("gta_scale_player_visual_scale", -1.0))
+    if not normalized:
+        _fail("authored player was not normalized: reason=%s source_height=%.3f scale=%.5f" % [
+            str(player.get_meta("gta_scale_player_visual_reason", "missing")),
+            source_height,
+            normalization_scale,
+        ])
+        return
+    if absf(visual_height - TARGET_PLAYER_HEIGHT_M) > 0.02:
+        _fail("authored player visual is not normalized to human scale: actual=%.3f" % visual_height)
         return
 
     player.call("cycle_camera_view")
     await process_frame
     if absf(arm.spring_length - CLOSE_DISTANCE_M) > 0.01:
-        _fail("close camera profile was not remapped from the legacy oversized view")
+        _fail("close camera profile was not remapped from the legacy oversized view: actual=%.3f" % arm.spring_length)
         return
 
     if not bool(player.call("fast_travel_to", "midi")):
@@ -80,17 +95,35 @@ func _run() -> void:
         return
     await process_frame
     if absf(arm.spring_length - STANDARD_DISTANCE_M) > 0.01 or absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
-        _fail("fast travel restored the legacy camera instead of the GTA-scale standard")
+        _fail("fast travel restored the legacy camera instead of the GTA-scale standard: distance=%.3f fov=%.3f" % [arm.spring_length, camera.fov])
         return
     if pivot.rotation_degrees.x > -4.0 or pivot.rotation_degrees.x < -10.0:
-        _fail("fast travel did not restore the bounded GTA-scale pitch")
+        _fail("fast travel did not restore the bounded GTA-scale pitch: actual=%.3f" % pivot.rotation_degrees.x)
         return
 
-    print("PLAYER_GTA_SCALE_CAMERA_OK: capsule=1.80m visual=%.3fm standard=%.2fm fov=%.1f close=%.2fm shoulder=%.2fm" % [
+    # A dedicated source-backed presentation may intentionally own the camera.
+    # The GTA guard must not trample that mode, then must recover normal gameplay
+    # once the presentation ownership marker is removed.
+    player.set_meta("atomium_direct_presentation_fov_degrees", ATOMIUM_PRESENTATION_FOV_DEG)
+    camera.fov = ATOMIUM_PRESENTATION_FOV_DEG
+    await process_frame
+    if absf(camera.fov - ATOMIUM_PRESENTATION_FOV_DEG) > 0.01:
+        _fail("GTA camera guard trampled Atomium presentation FOV: actual=%.3f" % camera.fov)
+        return
+    player.remove_meta("atomium_direct_presentation_fov_degrees")
+    await process_frame
+    if absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
+        _fail("GTA camera guard did not recover after special presentation: actual=%.3f" % camera.fov)
+        return
+
+    print("PLAYER_GTA_SCALE_CAMERA_OK: capsule=1.80m source_visual=%.3fm visual=%.3fm scale=%.5f standard=%.2fm fov=%.1f close=%.2fm shoulder=%.2fm projected_share=%.4f atomium_preserved=true" % [
+        source_height,
         visual_height,
+        normalization_scale,
         arm.spring_length,
         camera.fov,
         CLOSE_DISTANCE_M,
         camera.position.x,
+        projected_share,
     ])
     quit(0)

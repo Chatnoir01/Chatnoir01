@@ -39,7 +39,7 @@ func _run() -> void:
         _fail("production Player missing")
         return
 
-    var resolver := RESOLVER_SCRIPT.new() as AutomaticStreetAxisDirectSpawn
+    var resolver := RESOLVER_SCRIPT.new() as StreetAxisDestinationResolver
     root.add_child(resolver)
     if resolver.requested_streetaxis_id(PackedStringArray(["spawn=streetaxis-70526"])) != COLLISION_READY_ID:
         _fail("valid StreetAxis request did not parse")

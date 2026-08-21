@@ -1,0 +1,64 @@
+{
+  "schema": "grand-bruxelles-belgian-police-ped-v4",
+  "runtime": "res://game/scripts/belgian_police_ped_runtime.gd",
+
+  "public_visual": {
+    "model_path": "res://assets/characters/player_character.glb",
+    "source": "KayKit Character Pack: Adventurers 1.0 / Rogue.glb",
+    "author": "Kay Lousberg",
+    "license": "CC0-1.0",
+    "repository_committed": true,
+    "redistribution_authorized": true,
+    "fully_rigged_animated": true,
+    "upstream_animation_count": 75,
+    "design_version": "belgian-patrol-authored-v4",
+    "police_equipment": [
+      "patrol_vest",
+      "front_identity_band",
+      "rear_identity_band",
+      "cap",
+      "duty_belt",
+      "pouches",
+      "holster",
+      "radio",
+      "antenna",
+      "body_camera",
+      "body_camera_lens",
+      "POLICE / POLITIE label"
+    ]
+  },
+  "local_optional_visual": {
+    "model_path": "res://assets/local_only/police_belge/popo_police_brussels_clean_v2.glb",
+    "expected_sha256": "22175980c6b2db3c1365f3092ef85a205b59d21e008344127d0113f35338f2f8",
+    "expected_bytes": 1512048,
+    "geometry": {
+      "joints": 98,
+      "meshes": 7,
+      "vertices": 9440,
+      "triangles": 10444,
+      "axis": "Y-up",
+      "height_m": 1.85107422
+    },
+    "animations": ["idle", "walk", "run", "chase", "arrest"],
+    "repository_binary_commit_allowed": false,
+    "production_redistribution_authorized": false,
+    "reason": "Source GTA mod README did not provide clear redistribution/reuse permission outside GTA V; keep this optional authored variant local-only until rights are proven."
+  },
+  "runtime_contract": {
+    "mode": "upgrade_existing_behavioral_police_visuals",
+    "source_group": "police_officer",
+    "preserves_agent_class": "NpcAgent",
+    "preserves_navigation": true,
+    "preserves_police_response": true,
+    "preserves_existing_spawn_and_routes": true,
+    "standalone_police_spawn": false,
+    "legacy_visual_hidden_when_upgrade_succeeds": true,
+    "animation_sync_from_existing_agent": true,
+    "adds_groups": ["police_npc", "belgian_police"],
+    "public_visual_priority_when_local_unavailable": true,
+    "emergency_procedural_only_if_public_model_missing": true,
+    "changes_traffic": false,
+    "changes_combat": false,
+    "changes_civilian_locomotion": false
+  }
+}

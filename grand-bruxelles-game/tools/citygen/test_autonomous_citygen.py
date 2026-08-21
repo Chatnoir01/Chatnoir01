@@ -15,6 +15,22 @@ def write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
+def terrain_candidate_fixture(cell_id: str, lod_digest: str, candidate_digest: str = "d" * 64) -> dict:
+    return {
+        "format": mod.TERRAIN_RUNTIME_CANDIDATE_FORMAT,
+        "cell_id": cell_id,
+        "authorization": {
+            "candidate_only": True,
+            "terrain_runtime_authorized": False,
+            "collision_authorized": False,
+            "runtime_mount_authorized": False,
+            "jouable_promotion_authorized": False,
+        },
+        "source": {"terrain_lod_evidence_digest": lod_digest},
+        "candidate_digest": candidate_digest,
+    }
+
+
 with tempfile.TemporaryDirectory() as tmp:
     root = Path(tmp); source = root / "source"; maturity = root / "maturity"; out1 = root / "out1"; out2 = root / "out2"; target_grid = root / "target_grid.json"
     cells = ["bxl-e149000-n169000-s500","bxl-e149000-n169500-s500","bxl-e149500-n169000-s500","bxl-e149500-n169500-s500","bxl-e150000-n169000-s500"]
@@ -81,6 +97,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert report1["counts"]=={"DATA_READY":2,"MISSING_SOURCE":1,"QUARANTINE":1,"RUNTIME_READY":1},report1["counts"]
     assert report1["policy"]["maturity_gate_count"] == len(all_gates)
     assert report1["policy"]["runtime_promotion"] == "forbidden_without_full_regional_maturity_contract"
+    assert report1["policy"]["terrain_artifact_frontier"].startswith("compact_canonical_edge")
     assert report1["policy"]["secondary_height_frontier"].startswith("autonomous_urbis3d")
     assert "six_per_cell_measured_gates" in report1["policy"]["runtime_gate_frontier"]
     # Existing authoritative source cells must mature before CityGen expands into
@@ -110,13 +127,14 @@ with tempfile.TemporaryDirectory() as tmp:
     ]
     assert mod.select_batch(frontier,2)==["bxl-e101000-n100000-s500","bxl-e100500-n100000-s500"]
     mature_vs_expansion=[
-        {"cell_id":"bxl-e141500-n167500-s500","state":"DATA_READY","attempts":1,"evidence_progress":10,"next_action":"derive_urbis3d_semantic_height_evidence"},
+        {"cell_id":"bxl-e141500-n167500-s500","state":"DATA_READY","attempts":1,"evidence_progress":11,"next_action":"derive_urbis3d_semantic_height_evidence"},
         {"cell_id":"bxl-e142000-n168000-s500","state":"MISSING_SOURCE","attempts":0,"evidence_progress":0},
     ]
     assert mod.select_batch(mature_vs_expansion,1)==["bxl-e141500-n167500-s500"]
 
-    # Prove the old ten-stage manual frontier is now four autonomous stages,
-    # ending in a digest-bound readiness contract instead of direct promotion.
+    # Prove the old ten-stage manual frontier is now five autonomous stages:
+    # canonical terrain artifact, UrbIS3D semantic comparison, secondary
+    # validation and digest-bound readiness before any explicit promotion.
     frontier_cell = cells[3]
     for filename, _action in mod.EVIDENCE_STAGES[:8]:
         write_json(source/frontier_cell/filename, {"cell_id": frontier_cell})
@@ -127,17 +145,23 @@ with tempfile.TemporaryDirectory() as tmp:
     progress, action = mod.evidence_plan(frontier_cell, source)
     assert progress == 9
     assert action == "evaluate_terrain_lod"
-    write_json(source/frontier_cell/"terrain_lod_evidence.json", {"cell_id": frontier_cell})
+    lod_digest = "a" * 64
+    terrain_candidate_digest = "d" * 64
+    write_json(source/frontier_cell/"terrain_lod_evidence.json", {"cell_id": frontier_cell, "evidence_digest": lod_digest})
     progress, action = mod.evidence_plan(frontier_cell, source)
     assert progress == 10
+    assert action == "build_terrain_runtime_candidate"
+    write_json(source/frontier_cell/"terrain_runtime_candidate.json", terrain_candidate_fixture(frontier_cell, lod_digest, terrain_candidate_digest))
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == 11
     assert action == "derive_urbis3d_semantic_height_evidence"
     write_json(source/frontier_cell/"urbis3d_semantic_height_evidence.json", {"cell": frontier_cell})
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == 11
+    assert progress == 12
     assert action == "compare_semantic_dsm_heights"
     write_json(source/frontier_cell/"secondary_height_evidence.json", {"cell": frontier_cell})
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == 12
+    assert progress == 13
     assert action == "validate_secondary_height_evidence"
     write_json(source/frontier_cell/"secondary_height_validation.json", {
         "cell_id": frontier_cell,
@@ -145,7 +169,7 @@ with tempfile.TemporaryDirectory() as tmp:
         "secondary_validation_complete": False,
     })
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == 13
+    assert progress == 14
     assert action == mod.SECONDARY_BLOCKED_ACTION
     write_json(source/frontier_cell/"secondary_height_validation.json", {
         "cell_id": frontier_cell,
@@ -153,24 +177,35 @@ with tempfile.TemporaryDirectory() as tmp:
         "secondary_validation_complete": True,
     })
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == 13
+    assert progress == 14
     assert action == "derive_terrain_runtime_readiness"
     write_json(source/frontier_cell/"terrain_runtime_readiness.json", {
         "cell_id": frontier_cell,
         "runtime_promotion_allowed": False,
         "promotion_ready_for_explicit_review": False,
+        "bindings": {"terrain_runtime_candidate_digest": terrain_candidate_digest},
     })
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == len(mod.EVIDENCE_STAGES) == 14
+    assert progress == len(mod.EVIDENCE_STAGES) == 15
     assert action == mod.RUNTIME_GATE_EVIDENCE_ACTION
     write_json(source/frontier_cell/"terrain_runtime_readiness.json", {
         "cell_id": frontier_cell,
         "runtime_promotion_allowed": False,
         "promotion_ready_for_explicit_review": True,
+        "bindings": {"terrain_runtime_candidate_digest": terrain_candidate_digest},
     })
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == len(mod.EVIDENCE_STAGES) == 14
+    assert progress == len(mod.EVIDENCE_STAGES) == 15
     assert action == mod.MANUAL_FRONTIER_ACTION
+
+    # Stale terrain-artifact proof must requeue the candidate itself instead of
+    # letting semantic/runtime evidence survive an old selected LOD.
+    stale_candidate = terrain_candidate_fixture(frontier_cell, "f" * 64, terrain_candidate_digest)
+    write_json(source/frontier_cell/"terrain_runtime_candidate.json", stale_candidate)
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == 10, (progress, action)
+    assert action == "build_terrain_runtime_candidate", (progress, action)
+    write_json(source/frontier_cell/"terrain_runtime_candidate.json", terrain_candidate_fixture(frontier_cell, lod_digest, terrain_candidate_digest))
 
     # Regression: rematerializing authoritative Buildings can change ownership
     # counts after an older elevation frontier was created. The height sampler
@@ -201,12 +236,23 @@ with tempfile.TemporaryDirectory() as tmp:
     assert first["run_number"] == 1
     write_json(refreshed_source/refresh_cell/"manifest.json",{"cell_id":refresh_cell,"crs":"EPSG:31370","layers":["buildings"]})
     write_json(refreshed_source/refresh_cell/"maturity.json",{"cell_id":refresh_cell,"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:False for name in all_gates}}})
+    refresh_lod_digest = "1" * 64
+    refresh_terrain_candidate_digest = "2" * 64
     for filename, _action in mod.EVIDENCE_STAGES:
         payload={"cell_id":refresh_cell}
-        if filename=="secondary_height_validation.json":
+        if filename=="terrain_lod_evidence.json":
+            payload={"cell_id":refresh_cell,"evidence_digest":refresh_lod_digest}
+        elif filename=="terrain_runtime_candidate.json":
+            payload=terrain_candidate_fixture(refresh_cell,refresh_lod_digest,refresh_terrain_candidate_digest)
+        elif filename=="secondary_height_validation.json":
             payload={"cell_id":refresh_cell,"runtime_promotion_allowed":False,"secondary_validation_complete":True}
         elif filename=="terrain_runtime_readiness.json":
-            payload={"cell_id":refresh_cell,"runtime_promotion_allowed":False,"promotion_ready_for_explicit_review":True}
+            payload={
+                "cell_id":refresh_cell,
+                "runtime_promotion_allowed":False,
+                "promotion_ready_for_explicit_review":True,
+                "bindings":{"terrain_runtime_candidate_digest":refresh_terrain_candidate_digest},
+            }
         write_json(refreshed_source/refresh_cell/filename,payload)
     refreshed=mod.run(
         refreshed_source,
@@ -222,8 +268,8 @@ with tempfile.TemporaryDirectory() as tmp:
     assert refreshed["selected_batch"] == []
     assert refreshed_row["attempts"] == 1
     assert refreshed_row["state"] == "DATA_READY"
-    assert refreshed_row["evidence_progress"] == len(mod.EVIDENCE_STAGES)
+    assert refreshed_row["evidence_progress"] == len(mod.EVIDENCE_STAGES) == 15
     assert refreshed_row["next_action"] == mod.MANUAL_FRONTIER_ACTION
     assert refreshed_row["autonomous_actionable"] is False
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true automatic_secondary_height_stages=3 terrain_runtime_readiness_stage=true digest_bound_runtime_frontier=true stale_height_frontier_requeue=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true terrain_runtime_candidate_stage=true canonical_edge_artifact=true building_height_stage=true automatic_secondary_height_stages=3 terrain_runtime_readiness_stage=true evidence_stages=15 digest_bound_runtime_frontier=true stale_terrain_candidate_requeue=true stale_height_frontier_requeue=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")

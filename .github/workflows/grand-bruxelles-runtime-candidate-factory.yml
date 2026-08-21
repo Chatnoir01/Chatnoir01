@@ -37,6 +37,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py
+          python3 grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py
+          python3 grand-bruxelles-game/tools/citygen/test_seal_runtime_candidate_bundle.py
 
   factory:
     if: >-
@@ -197,7 +199,10 @@ jobs:
                   try:
                       candidate=json.loads(candidate_path.read_text())
                       expected={key:sha(path) for key,path in input_paths.items()}
-                      fresh=candidate.get('input_sha256')==dict(sorted(expected.items()))
+                      fresh=(
+                          candidate.get('input_sha256')==dict(sorted(expected.items()))
+                          and candidate.get('sealed',{}).get('production_discovery_eligible') is False
+                      )
                   except Exception:
                       fresh=False
               if not fresh:
@@ -213,7 +218,7 @@ jobs:
           print(f"RUNTIME_FACTORY_COMPILE_PLAN complete={len(complete)} stale={len(stale)} selected={len(selected)}")
           PY
 
-      - name: Compile deterministic candidate bundles
+      - name: Compile and seal deterministic candidate bundles
         shell: bash
         run: |
           set -u
@@ -228,7 +233,9 @@ jobs:
             LOG="/tmp/runtime-factory-compile-logs/${CELL}.log"
             rm -rf "$TMP"
             if python3 grand-bruxelles-game/tools/citygen/build_runtime_candidate_bundle.py \
-              --cell-dir "$SRC" --output-dir "$TMP" >"$LOG" 2>&1; then
+              --cell-dir "$SRC" --output-dir "$TMP" >"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/seal_runtime_candidate_bundle.py \
+              --bundle-dir "$TMP" >>"$LOG" 2>&1; then
               rm -rf "$CANDIDATES/$CELL"
               mv "$TMP" "$CANDIDATES/$CELL"
               echo "$CELL" >> /tmp/runtime-factory-compile-success.txt
@@ -262,6 +269,8 @@ jobs:
               'compile_failed':lines('/tmp/runtime-factory-compile-failed.txt'),
               'policy':{
                   'production_mutation':False,
+                  'candidate_sealed':True,
+                  'production_discovery_eligible':False,
                   'runtime_mount_authorized':False,
                   'collision_authorized':False,
                   'building_height_invention':False,
@@ -275,7 +284,7 @@ jobs:
           if selected_up and not report['upgrade_success']:
               raise SystemExit('all selected source enrichments failed; probable systemic UrbIS/source failure')
           if selected_cp and not report['compile_success']:
-              raise SystemExit('all selected runtime candidate compilations failed; probable systemic compiler failure')
+              raise SystemExit('all selected runtime candidate compilations failed; probable systemic compiler/sealing failure')
           PY
 
       - name: Persist candidate factory state off main

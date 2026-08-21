@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           git fetch --no-tags origin main
-          expected="2570887f407bba560ebfba4a30041e0d1c1345b5"
+          expected="dc3772b0905b04052c8304a9188ae8961e1b1637"
           current="$(git rev-parse origin/main)"
           base="$(git merge-base HEAD origin/main)"
           contract_base="$(python3 -c 'import json; print(json.load(open("grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"))["production_base_sha"])')"

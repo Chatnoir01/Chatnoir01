@@ -1,0 +1,191 @@
+name: Grand Bruxelles CityGen UrbIS3D Temporal Provenance
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/diagnose_urbis3d_temporal_provenance.py"
+      - "grand-bruxelles-game/tools/citygen/test_diagnose_urbis3d_temporal_provenance.py"
+      - ".github/workflows/grand-bruxelles-citygen-urbis3d-temporal-provenance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  urbis3d-temporal-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install read-only GeoPackage tooling
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal unzip jq file
+          ogrinfo --version
+
+      - name: Regression-test temporal provenance contract
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_diagnose_urbis3d_temporal_provenance.py
+
+      - name: Fetch latest successful production secondary-height witness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID="$(gh run list \
+            --workflow grand-bruxelles-citygen-anderlecht-secondary-height.yml \
+            --branch main --status success --limit 1 \
+            --json databaseId --jq '.[0].databaseId')"
+          test -n "$RUN_ID"
+          rm -rf /tmp/secondary-witness /tmp/urbis3d-temporal
+          mkdir -p /tmp/secondary-witness /tmp/urbis3d-temporal
+          gh run download "$RUN_ID" \
+            -n grand-bruxelles-citygen-anderlecht-secondary-height \
+            -D /tmp/secondary-witness
+          test -s /tmp/secondary-witness/semantic.json
+          test -s /tmp/secondary-witness/validation.json
+          test -s /tmp/secondary-witness/selected.json
+          test -s /tmp/secondary-witness/secondary-target.json
+          cp /tmp/secondary-witness/semantic.json /tmp/urbis3d-temporal/semantic.json
+          cp /tmp/secondary-witness/validation.json /tmp/urbis3d-temporal/validation.json
+          cp /tmp/secondary-witness/selected.json /tmp/urbis3d-temporal/selected.json
+          cp /tmp/secondary-witness/secondary-target.json /tmp/urbis3d-temporal/secondary-target.json
+          echo "SECONDARY_WITNESS_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import json
+          validation=json.load(open('/tmp/secondary-witness/validation.json',encoding='utf-8'))
+          semantic=json.load(open('/tmp/secondary-witness/semantic.json',encoding='utf-8'))
+          conflicts=[r for r in validation['candidates'] if r.get('secondary_status')=='blocked_conflict']
+          assert len(conflicts)==3, len(conflicts)
+          assert all(r.get('runtime_approved') is False for r in conflicts)
+          assert semantic['policy']['runtime_approval'] is False
+          print('URBIS3D_TEMPORAL_WITNESS_OK',semantic['cell'],'conflicts=3 runtime=false')
+          PY
+
+      - name: Download exact official package selected by production witness
+        run: |
+          set -euo pipefail
+          URL="$(python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/secondary-witness/selected.json',encoding='utf-8'))
+          print(data['selected']['href'])
+          PY
+          )"
+          EMBEDDED_DATE="$(python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/secondary-witness/selected.json',encoding='utf-8'))
+          print(data.get('selected_embedded_date') or '')
+          PY
+          )"
+          test -n "$URL"
+          case "$URL" in
+            https://urbisdownload.datastore.brussels/*|https://datastore.brussels/*|https://geoservices-urbis.irisnet.be/*|https://gis.urban.brussels/*|https://urban.brussels/*) ;;
+            *) echo "unapproved official package host: $URL" >&2; exit 1 ;;
+          esac
+          curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
+            --user-agent 'GrandBruxellesGame/urbis3d-temporal-provenance (+github.com/Chatnoir01/Chatnoir01)' \
+            "$URL" -o /tmp/urbis3d-distribution
+          test -s /tmp/urbis3d-distribution
+          sha256sum /tmp/urbis3d-distribution | tee /tmp/urbis3d-temporal/distribution.sha256
+          echo "URBIS3D_SELECTED_EMBEDDED_DATE=$EMBEDDED_DATE" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import shutil, zipfile
+          from pathlib import Path
+          source=Path('/tmp/urbis3d-distribution')
+          root=Path('/tmp/urbis3d-extracted')
+          root.mkdir(parents=True,exist_ok=True)
+          if zipfile.is_zipfile(source):
+              base=root.resolve()
+              with zipfile.ZipFile(source) as z:
+                  for member in z.infolist():
+                      target=(root/member.filename).resolve()
+                      if base not in target.parents and target != base:
+                          raise SystemExit(f'unsafe ZIP path: {member.filename}')
+                  z.extractall(root)
+          elif source.read_bytes()[:16].startswith(b'SQLite format 3'):
+              shutil.copy2(source,root/'selected.gpkg')
+          else:
+              raise SystemExit('unsupported official distribution container')
+          gpkg=sorted(root.rglob('*.gpkg'))
+          if not gpkg:
+              raise SystemExit('official distribution contains no GeoPackage')
+          print('URBIS3D_TEMPORAL_EXTRACTION_OK gpkg_count=',len(gpkg))
+          PY
+
+      - name: Inspect observed BuildingFaces schema
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from osgeo import ogr
+          required={'INSPIRE_ID','BUSOLID_ID','TYPE','BEGINGENERATION','ENDGENERATION','SOURCEURI','SOURCETYPE','SOURCEID'}
+          found=[]
+          for path in sorted(Path('/tmp/urbis3d-extracted').rglob('*.gpkg')):
+              ds=ogr.Open(str(path),0)
+              if ds is None: continue
+              layer=ds.GetLayerByName('BuildingFaces')
+              if layer is None: continue
+              definition=layer.GetLayerDefn()
+              fields={definition.GetFieldDefn(i).GetName() for i in range(definition.GetFieldCount())}
+              found.append((str(path),sorted(fields)))
+              if required.issubset(fields):
+                  print('URBIS3D_TEMPORAL_SCHEMA_OK',path,sorted(required))
+                  break
+          else:
+              raise SystemExit(f'no BuildingFaces layer with required temporal/source fields; observed={found}')
+          PY
+
+      - name: Diagnose conflict temporal provenance without resolving heights
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/diagnose_urbis3d_temporal_provenance.py \
+            --root /tmp/urbis3d-extracted \
+            --semantic /tmp/secondary-witness/semantic.json \
+            --validation /tmp/secondary-witness/validation.json \
+            --reference-date 2021-10-09 \
+            --output /tmp/urbis3d-temporal/report.json
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open('/tmp/urbis3d-temporal/report.json',encoding='utf-8'))
+          assert r['counts']['blocked_conflicts']==3
+          assert r['counts']['records']==3
+          assert r['runtime_approved_count']==0
+          assert r['policy']['database_lifecycle_metadata_only'] is True
+          assert r['policy']['physical_change_inference_allowed'] is False
+          assert r['policy']['construction_date_inference_allowed'] is False
+          assert r['policy']['automatic_resolution_allowed'] is False
+          assert r['policy']['runtime_promotion_allowed'] is False
+          assert r['policy']['thresholds_changed'] is False
+          assert all(x['runtime_approved'] is False for x in r['records'])
+          print('URBIS3D_TEMPORAL_PROVENANCE_RESULT',json.dumps(r['counts'],sort_keys=True),'package_date=',os.environ.get('URBIS3D_SELECTED_EMBEDDED_DATE'))
+          for row in r['records']:
+              print('URBIS3D_TEMPORAL_PROVENANCE_RECORD',row['building_id'],json.dumps({
+                  'busolid_id':row['busolid_id'],
+                  'face_count':row['metadata']['face_count'],
+                  'begin_generation_values':row['metadata']['begin_generation_values'],
+                  'end_generation_values':row['metadata']['end_generation_values'],
+                  'source_type_values':row['metadata']['source_type_values'],
+                  'source_id_values':row['metadata']['source_id_values'],
+                  'begin_after_2021_10_09':row['metadata']['begin_generation_after_reference_count'],
+              },sort_keys=True))
+          PY
+
+      - name: Package compact read-only evidence
+        run: |
+          set -euo pipefail
+          test -s /tmp/urbis3d-temporal/report.json
+          printf '%s\n' "secondary_witness_run_id=${SECONDARY_WITNESS_RUN_ID}" "selected_embedded_date=${URBIS3D_SELECTED_EMBEDDED_DATE}" > /tmp/urbis3d-temporal/run-context.txt
+          sha256sum /tmp/urbis3d-temporal/report.json /tmp/urbis3d-temporal/semantic.json /tmp/urbis3d-temporal/validation.json /tmp/urbis3d-temporal/selected.json > /tmp/urbis3d-temporal/evidence.sha256
+          find /tmp/urbis3d-temporal -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-citygen-urbis3d-temporal-provenance
+          path: /tmp/urbis3d-temporal/
+          if-no-files-found: error

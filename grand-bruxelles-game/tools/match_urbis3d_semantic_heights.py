@@ -140,19 +140,25 @@ def collect_solids(layer: ogr.Layer, bbox: tuple[float, float, float, float]) ->
     solids: dict[str, dict[str, Any]] = defaultdict(lambda: {
         "ground_geometries": [], "roof_geometries": [], "ground_z": [], "roof_z": [],
         "ground_faces": 0, "roof_faces": 0,
-        "buildingfaces_metadata": {field: set() for field in FACE_METADATA_FIELDS},
     })
+    metadata_by_solid: dict[str, dict[str, set[str]]] = defaultdict(
+        lambda: {field: set() for field in FACE_METADATA_FIELDS}
+    )
     for feature in layer:
         solid_id = feature.GetField("BUSOLID_ID")
-        face_type = feature.GetField("TYPE")
         geometry = feature.GetGeometryRef()
-        if not solid_id or face_type not in (GROUND, ROOF) or geometry is None:
+        if not solid_id or geometry is None:
             continue
-        record = solids[str(solid_id)]
+        solid_key = str(solid_id)
         for field in FACE_METADATA_FIELDS:
             value = _feature_text(feature, field)
             if value is not None:
-                record["buildingfaces_metadata"][field].add(value)
+                metadata_by_solid[solid_key][field].add(value)
+
+        face_type = feature.GetField("TYPE")
+        if face_type not in (GROUND, ROOF):
+            continue
+        record = solids[solid_key]
         samples = [z for _x, _y, z in iter_points(geometry) if math.isfinite(z)]
         if face_type == GROUND:
             record["ground_faces"] += 1
@@ -167,7 +173,7 @@ def collect_solids(layer: ogr.Layer, bbox: tuple[float, float, float, float]) ->
     normalized: dict[str, dict[str, Any]] = {}
     for solid_id, record in solids.items():
         record["buildingfaces_metadata"] = {
-            field: sorted(record["buildingfaces_metadata"][field])
+            field: sorted(metadata_by_solid[solid_id][field])
             for field in FACE_METADATA_FIELDS
         }
         normalized[solid_id] = record

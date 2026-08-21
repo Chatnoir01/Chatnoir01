@@ -52,6 +52,31 @@ func _anchor(document: Dictionary) -> Dictionary:
                 return raw as Dictionary
     return {}
 
+func _road_points(road: Dictionary) -> PackedVector2Array:
+    var result := PackedVector2Array()
+    var points: Variant = road.get("points", [])
+    if not points is Array:
+        return result
+    for raw: Variant in points:
+        if not raw is Array or raw.size() < 2:
+            return PackedVector2Array()
+        result.append(Vector2(float(raw[0]), float(raw[1])))
+    return result
+
+func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
+    var segment := finish - start
+    var length_squared := segment.length_squared()
+    if length_squared <= 0.000001:
+        return point.distance_to(start)
+    var amount := clampf((point - start).dot(segment) / length_squared, 0.0, 1.0)
+    return point.distance_to(start + segment * amount)
+
+func _distance_to_road(point: Vector2, points: PackedVector2Array) -> float:
+    var result := INF
+    for index: int in range(points.size() - 1):
+        result = minf(result, _point_segment_distance(point, points[index], points[index + 1]))
+    return result
+
 func _inside_source_building(document: Dictionary, point: Vector2) -> bool:
     var buildings: Variant = document.get("buildings", [])
     if not buildings is Array:
@@ -78,6 +103,10 @@ func _run() -> void:
     var road := _road(document)
     if road.is_empty() or str(road.get("name", "")) != EXPECTED_NAME or not bool(road.get("drivable", false)):
         _fail("Anneessens OSM road identity/drivable contract drifted")
+        return
+    var points := _road_points(road)
+    if points.size() < 2:
+        _fail("Anneessens exact road points missing")
         return
     var anchor := _anchor(document)
     if anchor.is_empty():
@@ -119,6 +148,14 @@ func _run() -> void:
         _fail("target metadata missing")
         return
     var target_xz := target_meta as Vector2
+    var target_road_distance := _distance_to_road(target_xz, points)
+    if target_road_distance > 0.01:
+        _fail("camera target is not on exact OSM Place Anneessens road: %.3f m" % target_road_distance)
+        return
+    if _inside_source_building(document, target_xz):
+        _fail("camera target intersects a source building footprint")
+        return
+
     var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
     if camera == null:
         _fail("player camera missing")
@@ -145,5 +182,5 @@ func _run() -> void:
     if image.save_png(absolute_output) != OK:
         _fail("capture save failed")
         return
-    print("ANNEESSENS_DIRECT_SPAWN_OK: osm_id=%d anchor_distance=%.3f spawn=(%.3f, %.3f) target_screen=(%.1f, %.1f) capture=%s" % [EXPECTED_OSM_ID, spawn_xz.distance_to(EXPECTED_ANCHOR), spawn_xz.x, spawn_xz.y, screen.x, screen.y, OUTPUT_PATH])
+    print("ANNEESSENS_DIRECT_SPAWN_OK: osm_id=%d anchor_distance=%.3f target_road_distance=%.3f spawn=(%.3f, %.3f) target_screen=(%.1f, %.1f) capture=%s" % [EXPECTED_OSM_ID, spawn_xz.distance_to(EXPECTED_ANCHOR), target_road_distance, spawn_xz.x, spawn_xz.y, screen.x, screen.y, OUTPUT_PATH])
     quit(0)

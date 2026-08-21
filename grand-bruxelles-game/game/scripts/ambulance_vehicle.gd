@@ -10,6 +10,7 @@ signal emergency_mode_changed(enabled: bool)
 @export var normal_acceleration_mps2: float = 11.0
 @export var emergency_yield_radius_m: float = 24.0
 @export var emergency_flash_hz: float = 5.5
+@export_range(0.0, 1.0, 0.05) var yielded_speed_factor: float = 0.15
 
 var _left_beacon: OmniLight3D = null
 var _right_beacon: OmniLight3D = null
@@ -107,21 +108,32 @@ func _update_yielding_traffic() -> void:
         var distance := global_position.distance_to(body.global_position)
         if distance > emergency_yield_radius_m:
             continue
-        current[node.get_instance_id()] = node
+        var instance_id := node.get_instance_id()
+        current[instance_id] = node
+        if not _yielded_vehicles.has(instance_id):
+            var original_speed_factor: Variant = node.get("speed_factor")
+            _yielded_vehicles[instance_id] = {
+                "node": node,
+                "speed_factor": float(original_speed_factor) if original_speed_factor != null else 0.90,
+            }
         node.set_meta("yield_to_ambulance", true)
-        _yielded_vehicles[node.get_instance_id()] = node
+        node.set("speed_factor", minf(float(node.get("speed_factor")), yielded_speed_factor))
     for instance_id: Variant in _yielded_vehicles.keys():
         if current.has(instance_id):
             continue
-        var node: Variant = _yielded_vehicles.get(instance_id)
-        if node is Node and is_instance_valid(node):
-            (node as Node).set_meta("yield_to_ambulance", false)
-        _yielded_vehicles.erase(instance_id)
+        _restore_yielded_vehicle(instance_id)
+
+func _restore_yielded_vehicle(instance_id: Variant) -> void:
+    var state: Dictionary = _yielded_vehicles.get(instance_id, {})
+    var node: Variant = state.get("node")
+    if node is Node and is_instance_valid(node):
+        (node as Node).set_meta("yield_to_ambulance", false)
+        (node as Node).set("speed_factor", float(state.get("speed_factor", 0.90)))
+    _yielded_vehicles.erase(instance_id)
 
 func _release_all_yielding_traffic() -> void:
-    for node: Variant in _yielded_vehicles.values():
-        if node is Node and is_instance_valid(node):
-            (node as Node).set_meta("yield_to_ambulance", false)
+    for instance_id: Variant in _yielded_vehicles.keys():
+        _restore_yielded_vehicle(instance_id)
     _yielded_vehicles.clear()
 
 func get_ambulance_contract() -> Dictionary:
@@ -132,6 +144,7 @@ func get_ambulance_contract() -> Dictionary:
         "emergency_mode": emergency_mode,
         "blue_beacons": true,
         "traffic_priority_radius_m": emergency_yield_radius_m,
+        "yielded_speed_factor": yielded_speed_factor,
         "external_driver_supported": true,
         "other_special_vehicles_auto_spawned": false,
     }

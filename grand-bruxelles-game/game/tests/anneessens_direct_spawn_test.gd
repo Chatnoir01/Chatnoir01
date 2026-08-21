@@ -10,6 +10,9 @@ const EXPECTED_ANCHOR := Vector2(-272.04, -217.07)
 const OUTPUT_PATH := "res://artifacts/anneessens/anneessens_direct_spawn.png"
 const WIDTH := 1280
 const HEIGHT := 720
+const MIN_ROAD_ALIGNMENT := 0.90
+const MAX_SPAWN_ROAD_DISTANCE_M := 1.20
+const FRUSTUM_HALF_WIDTH_M := 1.50
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -96,6 +99,21 @@ func _distance_to_road(point: Vector2, points: PackedVector2Array) -> float:
         result = minf(result, _point_segment_distance(point, points[index], points[index + 1]))
     return result
 
+func _nearest_road_direction(point: Vector2, points: PackedVector2Array) -> Vector2:
+    var best_distance := INF
+    var best_direction := Vector2.ZERO
+    for index: int in range(points.size() - 1):
+        var start := points[index]
+        var finish := points[index + 1]
+        var segment := finish - start
+        if segment.length_squared() <= 0.000001:
+            continue
+        var distance := _point_segment_distance(point, start, finish)
+        if distance < best_distance:
+            best_distance = distance
+            best_direction = segment.normalized()
+    return best_direction
+
 func _inside_source_building(document: Dictionary, point: Vector2) -> bool:
     for polygon: PackedVector2Array in _source_building_polygons(document):
         if Geometry2D.is_point_in_polygon(point, polygon):
@@ -172,11 +190,37 @@ func _run() -> void:
     if _inside_source_building(document, target_xz):
         _fail("camera target intersects a source building footprint")
         return
+    var spawn_road_distance := _distance_to_road(spawn_xz, points)
+    if spawn_road_distance > MAX_SPAWN_ROAD_DISTANCE_M:
+        _fail("player viewpoint is not aligned with exact OSM road corridor: %.3f m" % spawn_road_distance)
+        return
+    var road_direction := _nearest_road_direction(target_xz, points)
+    var view_direction := (target_xz - spawn_xz).normalized()
+    if road_direction == Vector2.ZERO or view_direction == Vector2.ZERO:
+        _fail("road/view direction unavailable")
+        return
+    var road_alignment := absf(view_direction.dot(road_direction))
+    if road_alignment < MIN_ROAD_ALIGNMENT:
+        _fail("player view crosses Place Anneessens instead of looking along it: alignment=%.3f" % road_alignment)
+        return
     if not bool(player.get_meta("anneessens_direct_source_sightline_clear", false)):
         _fail("runtime did not prove a source-building-clear sightline")
         return
+    if not bool(player.get_meta("anneessens_direct_source_frustum_clear", false)):
+        _fail("runtime did not prove the source-building-clear visual corridor")
+        return
+    var perpendicular := Vector2(-road_direction.y, road_direction.x)
+    var corridor_half_width := minf(FRUSTUM_HALF_WIDTH_M, float(road.get("width", 5.0)) * 0.30)
+    var left_target := target_xz + perpendicular * corridor_half_width
+    var right_target := target_xz - perpendicular * corridor_half_width
     if not _source_sightline_clear(document, spawn_xz, target_xz):
-        _fail("spawn-to-Place-Anneessens target sightline crosses a source building footprint")
+        _fail("center sightline crosses a source building footprint")
+        return
+    if not _source_sightline_clear(document, spawn_xz, left_target):
+        _fail("left visual-corridor ray crosses a source building footprint")
+        return
+    if not _source_sightline_clear(document, spawn_xz, right_target):
+        _fail("right visual-corridor ray crosses a source building footprint")
         return
 
     var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
@@ -205,5 +249,5 @@ func _run() -> void:
     if image.save_png(absolute_output) != OK:
         _fail("capture save failed")
         return
-    print("ANNEESSENS_DIRECT_SPAWN_OK: osm_id=%d anchor_distance=%.3f target_road_distance=%.3f source_sightline_clear=true spawn=(%.3f, %.3f) target_screen=(%.1f, %.1f) capture=%s" % [EXPECTED_OSM_ID, spawn_xz.distance_to(EXPECTED_ANCHOR), target_road_distance, spawn_xz.x, spawn_xz.y, screen.x, screen.y, OUTPUT_PATH])
+    print("ANNEESSENS_DIRECT_SPAWN_OK: osm_id=%d anchor_distance=%.3f target_road_distance=%.3f spawn_road_distance=%.3f road_alignment=%.3f source_frustum_clear=true spawn=(%.3f, %.3f) target_screen=(%.1f, %.1f) capture=%s" % [EXPECTED_OSM_ID, spawn_xz.distance_to(EXPECTED_ANCHOR), target_road_distance, spawn_road_distance, road_alignment, spawn_xz.x, spawn_xz.y, screen.x, screen.y, OUTPUT_PATH])
     quit(0)

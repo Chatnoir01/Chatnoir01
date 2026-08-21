@@ -1,6 +1,7 @@
 extends SceneTree
 
 const VISUAL_SCRIPT := preload("res://game/scripts/civilian_vehicle_visual.gd")
+const RGSDEV_VISUAL_SCRIPT := preload("res://game/scripts/rgsdev_vehicle_visual.gd")
 const TRAFFIC_MANAGER_SCRIPT := preload("res://game/scripts/traffic_manager_npc_crossing_extension.gd")
 
 const REQUIRED_PARTS := [
@@ -153,6 +154,8 @@ func _assert_style(style: int, expected_name: String) -> bool:
 
 
 func _run() -> void:
+    # Keep the previous procedural visual quality contract alive as a regression
+    # reference, but require the moving runtime traffic to use the imported Rgsdev pack.
     if not await _assert_style(0, "sedan"):
         return
     if not await _assert_style(1, "hatchback"):
@@ -172,15 +175,49 @@ func _run() -> void:
     var traffic_vehicle: Node3D = manager.call("_create_vehicle_node") as Node3D
     root.add_child(traffic_vehicle)
     await process_frame
-    var upgrade := traffic_vehicle.get_node_or_null("VisualUpgrade")
-    if upgrade == null or upgrade.get_script() != VISUAL_SCRIPT:
-        _fail("moving traffic cars are not wired to the realistic visual builder")
+
+    var upgrade := traffic_vehicle.get_node_or_null("RgsdevVisual")
+    if upgrade == null or upgrade.get_script() != RGSDEV_VISUAL_SCRIPT:
+        _fail("moving traffic cars are not wired to the Rgsdev imported visual builder")
         return
-    var legacy_body := traffic_vehicle.get_node_or_null("Body") as VisualInstance3D
-    var legacy_cabin := traffic_vehicle.get_node_or_null("Cabin") as VisualInstance3D
-    if legacy_body == null or legacy_cabin == null or legacy_body.visible or legacy_cabin.visible:
-        _fail("legacy traffic box body/cabin must remain hidden after the realistic upgrade")
+    if not upgrade.has_method("get_visual_contract"):
+        _fail("Rgsdev moving traffic visual contract API is missing")
+        return
+    var rgsdev_contract: Dictionary = upgrade.call("get_visual_contract")
+    if str(rgsdev_contract.get("quality", "")) != "rgsdev_cc0_vehicles_v1":
+        _fail("moving traffic visual does not expose the Rgsdev CC0 quality contract")
+        return
+    if int(rgsdev_contract.get("model_count", 0)) != 21:
+        _fail("Rgsdev moving traffic catalog must expose exactly 21 vehicle models")
+        return
+    if str(rgsdev_contract.get("license", "")) != "CC0":
+        _fail("Rgsdev moving traffic visual must preserve the CC0 license contract")
+        return
+    var imported_model := upgrade.get_node_or_null("ImportedModel")
+    if imported_model == null:
+        _fail("Rgsdev moving traffic visual did not instantiate its imported FBX model")
+        return
+    if _mesh_count(imported_model) < 5:
+        _fail("Rgsdev moving traffic model must contain a body plus four separate wheel meshes")
+        return
+    if int(rgsdev_contract.get("wheel_count", 0)) < 4:
+        _fail("Rgsdev moving traffic model must expose at least four animatable wheels")
+        return
+    if not traffic_vehicle.has_method("enter_driver"):
+        _fail("moving traffic car is not enterable/drivable by the player")
+        return
+    if not traffic_vehicle.has_method("assign_external_driver") or not traffic_vehicle.has_method("set_external_drive_input"):
+        _fail("moving traffic car is not ready for future NPC driver control")
         return
 
-    print("REAL_CIVILIAN_VEHICLE_VISUAL_OK: v3 dense shells + open optimized alloy wheels; moving traffic wired")
+    var legacy_body := traffic_vehicle.get_node_or_null("Body") as VisualInstance3D
+    var legacy_cabin := traffic_vehicle.get_node_or_null("Cabin") as VisualInstance3D
+    if legacy_body != null and legacy_body.visible:
+        _fail("legacy traffic box body must not remain visible with the Rgsdev visual")
+        return
+    if legacy_cabin != null and legacy_cabin.visible:
+        _fail("legacy traffic box cabin must not remain visible with the Rgsdev visual")
+        return
+
+    print("REAL_CIVILIAN_VEHICLE_VISUAL_OK: legacy quality contract preserved; Rgsdev FBX traffic wired, drivable and NPC-ready")
     quit(0)

@@ -2,6 +2,7 @@ extends SceneTree
 
 const RUNTIME_SCRIPT := preload("res://game/scripts/brussels_world_streaming_runtime.gd")
 const TEST_ROOT := "user://brussels_runtime_cell_auto_discovery_test"
+const GENERIC_SOURCE_PLAN_SCRIPT := "res://game/scripts/brussels_source_plan_streamed_cell.gd"
 
 
 func _initialize() -> void:
@@ -101,6 +102,8 @@ func _run() -> void:
         return
 
     var runtime := RUNTIME_SCRIPT.new()
+    if not _expect(runtime.has_method("discover_runtime_cell_descriptors"), "production runtime still has no automatic pregenerated-cell discovery API"):
+        return
     var descriptors: Array[Dictionary] = runtime.discover_runtime_cell_descriptors(TEST_ROOT)
 
     if not _expect(descriptors.size() == 2, "automatic discovery should accept exactly the two complete source-safe fixtures, got %d" % descriptors.size()):
@@ -109,7 +112,7 @@ func _run() -> void:
         return
 
     for descriptor: Dictionary in descriptors:
-        if not _expect(str(descriptor.get("script_path", "")) == runtime.SOURCE_PLAN_STREAMED_SCRIPT_PATH, "newly discovered regional cells must use the generic source-plan renderer"):
+        if not _expect(str(descriptor.get("script_path", "")) == GENERIC_SOURCE_PLAN_SCRIPT, "newly discovered regional cells must use the generic source-plan renderer"):
             return
         if not _expect(FileAccess.file_exists(str(descriptor.get("manifest_path", ""))), "descriptor manifest path is not resolvable"):
             return

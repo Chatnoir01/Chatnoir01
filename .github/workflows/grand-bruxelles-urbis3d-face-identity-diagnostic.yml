@@ -1,0 +1,164 @@
+name: Grand Bruxelles UrbIS3D Face Identity Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/diagnose_urbis3d_face_identity.py"
+      - "grand-bruxelles-game/tools/test_diagnose_urbis3d_face_identity.py"
+      - ".github/workflows/grand-bruxelles-urbis3d-face-identity-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install read-only GeoPackage tooling
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal unzip
+
+      - name: Regress missing BuildingSolids fail-closed path
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/test_diagnose_urbis3d_face_identity.py
+
+      - name: Select current fully-evidenced Anderlecht cell
+        run: |
+          set -euo pipefail
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          SOURCES="grand-bruxelles-game/data/qa/autonomous_sources"
+          REPORT="grand-bruxelles-game/data/qa/autonomous_citygen_latest_report.json"
+          git show "origin/citygen-autonomous-state:${REPORT}" > /tmp/report.json
+          git ls-tree --name-only "origin/citygen-autonomous-state:${SOURCES}" > /tmp/available.txt
+          python3 grand-bruxelles-game/tools/citygen/select_secondary_height_validation_cell.py \
+            --report /tmp/report.json --available-cells /tmp/available.txt \
+            --municipality anderlecht --output /tmp/target.json
+          CELL="$(python3 -c "import json; print(json.load(open('/tmp/target.json'))['cell_id'])")"
+          mkdir -p /tmp/citygen-state
+          git archive origin/citygen-autonomous-state "${SOURCES}/${CELL}" | tar -x -C /tmp/citygen-state
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          target=json.load(open('/tmp/target.json',encoding='utf-8'))
+          src=Path('/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_sources')/target['cell_id']
+          bbox=target['bbox_epsg31370']
+          assert target['format']=='grand-bruxelles-citygen-secondary-height-target-v1'
+          assert target['municipality']=='anderlecht'
+          assert target['evidence_stage_count'] > 0
+          assert target['evidence_progress']==target['evidence_stage_count']
+          assert target['next_action']=='secondary_height_validation_and_terrain_runtime_checks'
+          assert target['runtime_promotion_allowed'] is False
+          assert target['runtime_approved'] is False
+          assert len(bbox)==4 and bbox[2] > bbox[0] and bbox[3] > bbox[1]
+          assert (src/'raw/buildings.geojson').is_file()
+          candidates=json.load((src/'building_height_candidates.json').open(encoding='utf-8'))
+          assert candidates['format']=='grand-bruxelles-cell-building-height-candidates-v1'
+          assert candidates['cell_id']==target['cell_id']
+          assert candidates['bbox']==bbox
+          assert candidates['crs']=='EPSG:31370'
+          assert candidates['candidate_count'] > 0
+          assert candidates['candidate_count']==sum(1 for row in candidates['buildings'] if row.get('candidate_height_m') is not None)
+          assert candidates['runtime_approved_count']==0
+          assert candidates['runtime_promotion_allowed'] is False
+          assert all(row.get('runtime_approved') is False for row in candidates['buildings'])
+          with Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8') as h:
+              h.write(f"CELL={target['cell_id']}\n")
+              h.write(f"SRC={src}\n")
+              h.write(f"MIN_E={bbox[0]}\nMIN_N={bbox[1]}\nMAX_E={bbox[2]}\nMAX_N={bbox[3]}\n")
+          print(
+              'FACE_IDENTITY_TARGET_OK',
+              target['cell_id'],
+              f"evidence={target['evidence_progress']}/{target['evidence_stage_count']}",
+              f"crs={candidates['crs']}",
+              f"candidates={candidates['candidate_count']}",
+              'runtime_promotion=false',
+          )
+          PY
+
+      - name: Discover current official Anderlecht UrbIS3D package
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util, json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/tools/discover_urbis_sources.py')
+          s=importlib.util.spec_from_file_location('discover',p); assert s and s.loader
+          m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+          feed=m.parse_feed('urbis_3d_constructions',m.DEFAULT_FEEDS['urbis_3d_constructions'])
+          Path('/tmp/discovered.json').write_text(json.dumps({'schema':1,'feeds':[feed]}),encoding='utf-8')
+          PY
+          python3 grand-bruxelles-game/tools/select_urbis_distribution.py \
+            /tmp/discovered.json /tmp/selected.json \
+            --source-id urbis_3d_constructions --token 31370 --token GPKG \
+            --candidate-token 31370 --candidate-token GPKG --candidate-token 21001 --prefer-latest
+          python3 - <<'PY'
+          import json
+          from urllib.parse import urlparse
+          d=json.load(open('/tmp/selected.json')); url=str(d['selected']['href']); host=(urlparse(url).hostname or '').lower()
+          assert url.startswith('https://') and all(x in url.casefold() for x in ('31370','gpkg','21001'))
+          assert host=='urbisdownload.datastore.brussels' or host.endswith('.datastore.brussels')
+          print('FACE_IDENTITY_PACKAGE_OK',d['selected_embedded_date'],url)
+          PY
+
+      - name: Download and safely extract package
+        run: |
+          set -euo pipefail
+          URL="$(python3 -c "import json; print(json.load(open('/tmp/selected.json'))['selected']['href'])")"
+          curl --fail --location --retry 3 --retry-all-errors --max-time 900 "$URL" -o /tmp/urbis.zip
+          sha256sum /tmp/urbis.zip
+          python3 - <<'PY'
+          import zipfile
+          from pathlib import Path
+          src=Path('/tmp/urbis.zip'); dest=Path('/tmp/urbis3d'); dest.mkdir()
+          assert zipfile.is_zipfile(src)
+          base=dest.resolve()
+          with zipfile.ZipFile(src) as z:
+              for member in z.infolist():
+                  target=(dest/member.filename).resolve()
+                  if target != base and base not in target.parents:
+                      raise SystemExit(f'unsafe ZIP path: {member.filename}')
+              z.extractall(dest)
+          packages=sorted(dest.rglob('*.gpkg')); assert packages
+          print('FACE_IDENTITY_EXTRACTION_OK',len(packages))
+          PY
+
+      - name: Diagnose package identity relations read-only
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/face-identity
+          python3 grand-bruxelles-game/tools/diagnose_urbis3d_face_identity.py \
+            --root /tmp/urbis3d \
+            --buildings "$SRC/raw/buildings.geojson" \
+            --bbox "$MIN_E" "$MIN_N" "$MAX_E" "$MAX_N" \
+            --probe-id 1828139 --probe-id 235182 --probe-id 243181 --probe-id 247396 \
+            --probe-id 88966 --probe-id 88988 --probe-id 89344 --probe-id 89349 \
+            --output /tmp/face-identity/report.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/face-identity/report.json'))
+          assert r['policy']['read_only'] is True
+          assert r['policy']['identity_authorization'] is False
+          assert r['policy']['runtime_approval'] is False
+          assert r['source_schema']['building_faces_layer_present'] is True
+          if not r['source_schema']['building_solids_layer_present']:
+              assert r['policy']['official_chain_available'] is False
+              assert r['counts']['face_busolid_ids_without_buildingsolids_layer'] == r['counts']['unique_busolid_ids']
+              assert r['counts']['joined_bu2d_exact_2d_ids'] == 0
+          print('FACE_IDENTITY_SCHEMA',json.dumps(r['source_schema'],sort_keys=True))
+          print('FACE_IDENTITY_RESULT',json.dumps(r['counts'],sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-urbis3d-face-identity-diagnostic
+          path: /tmp/face-identity/report.json
+          if-no-files-found: error

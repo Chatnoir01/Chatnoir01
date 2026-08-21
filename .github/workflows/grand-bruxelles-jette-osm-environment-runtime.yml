@@ -4,8 +4,10 @@ on:
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-jette-osm-environment-runtime.yml"
+      - "grand-bruxelles-game/data/qa/playable_zone_catalog.json"
       - "grand-bruxelles-game/data/osm/zones/jette/environment.game.json"
       - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/zone_selector_runtime.gd"
       - "grand-bruxelles-game/game/zones/laeken_jette/jette_phase2_zone.gd"
       - "grand-bruxelles-game/game/tests/jette_osm_environment_runtime_contract_test.gd"
   workflow_dispatch:
@@ -31,7 +33,7 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/jette-environment-import.log
           if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/jette-environment-import.log; then exit 1; fi
-      - name: Validate runtime and capture 1280x720 A/B
+      - name: Validate catalog-driven runtime and capture 1280x720 A/B
         run: |
           set -o pipefail
           timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/jette_osm_environment_runtime_contract_test.gd 2>&1 | tee /tmp/jette-environment-contract.log

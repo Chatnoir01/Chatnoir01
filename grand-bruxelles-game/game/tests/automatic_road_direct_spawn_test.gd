@@ -3,6 +3,7 @@ extends SceneTree
 const MAIN_SCENE := preload("res://game/main.tscn")
 const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn.gd")
 const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
+const SOURCE_SHA256 := "a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493"
 const LEMONNIER_ID := 359177328
 
 
@@ -46,6 +47,15 @@ func _run() -> void:
 
     var resolver := RESOLVER_SCRIPT.new()
     root.add_child(resolver)
+    if resolver.runtime_index_road_count() != 139:
+        _fail("deterministic runtime index road count drifted: %d" % resolver.runtime_index_road_count())
+        return
+    if resolver.runtime_index_source_document_count() != 1:
+        _fail("deterministic runtime index source document count drifted")
+        return
+    if FileAccess.get_sha256(SOURCE_PATH).to_lower() != SOURCE_SHA256:
+        _fail("source SHA no longer matches generated runtime index")
+        return
     if resolver.requested_road_id(PackedStringArray(["spawn=road-359177328"])) != LEMONNIER_ID:
         _fail("valid road request did not parse")
         return
@@ -66,13 +76,19 @@ func _run() -> void:
         _fail("known Lemonnier road is not rendered in production scene")
         return
     if not resolver.apply_to_player(player, LEMONNIER_ID):
-        _fail("generic resolver refused rendered Lemonnier")
+        _fail("indexed resolver refused rendered Lemonnier")
         return
     if int(player.get_meta("automatic_road_direct_osm_id", 0)) != LEMONNIER_ID:
         _fail("generic Lemonnier metadata missing")
         return
     if not str(player.get_meta("automatic_road_direct_source_name", "")).contains("Maurice Lemonnier"):
         _fail("generic Lemonnier source identity missing")
+        return
+    if str(player.get_meta("automatic_road_direct_lookup_mode", "")) != "deterministic_runtime_index":
+        _fail("road spawn did not use deterministic runtime index")
+        return
+    if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != SOURCE_SHA256:
+        _fail("road spawn source SHA proof missing")
         return
 
     var document := _document()
@@ -103,7 +119,7 @@ func _run() -> void:
             break
 
     if second_id <= 0:
-        _fail("no second rendered source-backed road passed the generic resolver")
+        _fail("no second rendered source-backed road passed the indexed resolver")
         return
     if int(player.get_meta("automatic_road_direct_osm_id", 0)) != second_id:
         _fail("second generic road metadata missing")
@@ -111,10 +127,16 @@ func _run() -> void:
     if str(player.get_meta("automatic_road_direct_source_name", "")) != second_name:
         _fail("second generic road source identity drifted")
         return
+    if str(player.get_meta("automatic_road_direct_lookup_mode", "")) != "deterministic_runtime_index":
+        _fail("second road bypassed deterministic runtime index")
+        return
+    if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != SOURCE_SHA256:
+        _fail("second road source SHA proof drifted")
+        return
 
     var source_path := str(player.get_meta("automatic_road_direct_source_path", ""))
-    if source_path.is_empty() or not source_path.ends_with(".game.json"):
-        _fail("source path provenance missing")
+    if source_path != SOURCE_PATH:
+        _fail("source path provenance drifted: %s" % source_path)
         return
     var ground_y := float(player.get_meta("automatic_road_direct_ground_y", INF))
     if not is_finite(ground_y):
@@ -124,5 +146,5 @@ func _run() -> void:
         _fail("source sightline gate missing")
         return
 
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: first=%d second=%d second_name=%s source=%s ground_y=%.3f" % [LEMONNIER_ID, second_id, second_name, source_path, ground_y])
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d second=%d second_name=%s source=%s source_sha=%s ground_y=%.3f" % [resolver.runtime_index_road_count(), resolver.runtime_index_source_document_count(), LEMONNIER_ID, second_id, second_name, source_path, SOURCE_SHA256, ground_y])
     quit(0)

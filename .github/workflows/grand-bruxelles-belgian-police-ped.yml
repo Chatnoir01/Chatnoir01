@@ -1,0 +1,268 @@
+name: Grand Bruxelles Belgian Police Ped
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/belgian_police_ped_runtime.gd"
+      - "grand-bruxelles-game/game/tests/belgian_police_ped_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/belgian_police_ped_visual_test.gd"
+      - "grand-bruxelles-game/data/qa/belgian_police_ped_local_asset.json"
+      - "grand-bruxelles-game/assets/characters/player_character.glb"
+      - "grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv"
+      - "grand-bruxelles-game/project.godot"
+      - ".gitignore"
+      - ".github/workflows/grand-bruxelles-belgian-police-ped.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  police-ped-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify public authored and local-only policies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s grand-bruxelles-game/assets/characters/player_character.glb
+          grep -q $'kaykit_rogue_player\t.*\tCC0-1.0\t' grand-bruxelles-game/assets/LICENSE_REGISTRY.tsv
+          grep -q '^grand-bruxelles-game/assets/local_only/$' .gitignore
+          test ! -e grand-bruxelles-game/assets/local_only/police_belge/popo_police_brussels_clean_v2.glb
+          python3 - <<'PY'
+          import json
+          p=json.load(open('grand-bruxelles-game/data/qa/belgian_police_ped_local_asset.json',encoding='utf-8'))
+          assert p['schema']=='grand-bruxelles-belgian-police-ped-v4'
+          public=p['public_visual']
+          assert public['model_path']=='res://assets/characters/player_character.glb'
+          assert public['license']=='CC0-1.0'
+          assert public['repository_committed'] is True
+          assert public['redistribution_authorized'] is True
+          assert public['fully_rigged_animated'] is True
+          assert public['design_version']=='belgian-patrol-authored-v4'
+          assert 'POLICE / POLITIE label' in public['police_equipment']
+          local=p['local_optional_visual']
+          assert local['expected_sha256']=='22175980c6b2db3c1365f3092ef85a205b59d21e008344127d0113f35338f2f8'
+          assert local['expected_bytes']==1512048
+          assert local['animations']==['idle','walk','run','chase','arrest']
+          assert local['repository_binary_commit_allowed'] is False
+          assert local['production_redistribution_authorized'] is False
+          runtime=p['runtime_contract']
+          assert runtime['mode']=='upgrade_existing_behavioral_police_visuals'
+          assert runtime['source_group']=='police_officer'
+          assert runtime['preserves_agent_class']=='NpcAgent'
+          assert runtime['preserves_navigation'] is True
+          assert runtime['preserves_police_response'] is True
+          assert runtime['standalone_police_spawn'] is False
+          assert runtime['animation_sync_from_existing_agent'] is True
+          print('BELGIAN_POLICE_PED_POLICY_OK public_cc0=true local_gta_fail_closed=true behavioral_owner=NpcAgent standalone=false')
+          PY
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Parse project and runtime
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            --rendering-method gl_compatibility 2>&1 | tee /tmp/police-ped-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|SHADER ERROR|Shader compilation failed|ERROR: Failed to load script|couldn.t be loaded' /tmp/police-ped-import.log; then exit 1; fi
+
+      - name: Run Belgian police ped contract
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/belgian_police_ped_runtime_test.gd \
+            2>&1 | tee /tmp/police-ped-test.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|SHADER ERROR|Shader compilation failed|BELGIAN_POLICE_PED_RUNTIME_FAIL' /tmp/police-ped-test.log; then exit 1; fi
+          grep -q 'BELGIAN_POLICE_PED_RUNTIME_OK' /tmp/police-ped-test.log
+
+      - name: Capture upgraded behavioral police in real Midi scene
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+          timeout 90s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --script res://game/tests/belgian_police_ped_visual_test.gd \
+            2>&1 | tee /tmp/police-ped-visual.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|SHADER ERROR|Shader compilation failed|BELGIAN_POLICE_PED_VISUAL_FAIL' /tmp/police-ped-visual.log; then exit 1; fi
+          grep -q 'BELGIAN_POLICE_PED_VISUAL_OK' /tmp/police-ped-visual.log
+          test -s grand-bruxelles-game/artifacts/qa/belgian_police/belgian_police_authored_v4.png
+
+      - name: Preserve police ped evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: belgian-police-ped-contract
+          path: |
+            /tmp/police-ped-import.log
+            /tmp/police-ped-test.log
+            /tmp/police-ped-visual.log
+            grand-bruxelles-game/artifacts/qa/belgian_police/belgian_police_authored_v4.png
+
+  normalized-body-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Stage exact CC0 adult male rig in runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          upstream_commit='e7807327a8ebcc637831995a231dae701b6d4f56'
+          curl -fL --retry 3 --retry-delay 2 \
+            "https://raw.githubusercontent.com/BoQsc/Godot-3D-Male-Base-Mesh/${upstream_commit}/Original/male_base_mesh.glb" \
+            -o grand-bruxelles-game/assets/characters/player_character.glb
+          test "$(git hash-object grand-bruxelles-game/assets/characters/player_character.glb)" = 'd479680210d4192d880580786d899a80cdd4ff56'
+          sha256sum grand-bruxelles-game/assets/characters/player_character.glb | tee /tmp/normalized-body-sha256.txt
+
+      - name: Patch scale normalization in runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/game/scripts/belgian_police_ped_runtime.gd')
+          s=p.read_text()
+          if '    body.position = PUBLIC_BASE_POSITION\n' not in s:
+              raise SystemExit('position hook missing')
+          s=s.replace('    body.position = PUBLIC_BASE_POSITION\n','    body.position = Vector3.ZERO\n',1)
+          hook='''    _hide_adventurer_props(body)\n    _apply_public_police_palette(body)\n'''
+          if hook not in s:
+              raise SystemExit('palette hook missing')
+          s=s.replace(hook,'''    _hide_adventurer_props(body)\n    _normalize_public_body(body)\n    _apply_public_police_palette(body)\n''',1)
+          marker='func _apply_public_police_palette(node: Node) -> void:\n'
+          helper=r'''func _normalize_public_body(body: Node3D) -> void:
+    var bounds := _public_visual_bounds(body)
+    if bounds.size.y <= 0.001:
+        push_warning("Belgian police public body has no measurable visible mesh bounds")
+        return
+    var scale_factor: float = clamp(1.78 / bounds.size.y, 0.05, 50.0)
+    body.scale = Vector3.ONE * scale_factor
+    body.position = Vector3(0.0, -bounds.position.y * scale_factor, 0.0)
+    body.set_meta("normalized_source_height_m", bounds.size.y)
+    body.set_meta("normalized_scale", scale_factor)
+    print("PUBLIC_POLICE_BODY_NORMALIZED source_height=%.4f scale=%.4f min_y=%.4f" % [bounds.size.y, scale_factor, bounds.position.y])
+
+
+func _public_visual_bounds(root: Node3D) -> AABB:
+    var points: Array[Vector3] = []
+    _collect_public_visual_points(root, root, Transform3D.IDENTITY, points)
+    if points.is_empty():
+        return AABB()
+    var min_v := points[0]
+    var max_v := points[0]
+    for point: Vector3 in points:
+        min_v.x = min(min_v.x, point.x)
+        min_v.y = min(min_v.y, point.y)
+        min_v.z = min(min_v.z, point.z)
+        max_v.x = max(max_v.x, point.x)
+        max_v.y = max(max_v.y, point.y)
+        max_v.z = max(max_v.z, point.z)
+    return AABB(min_v, max_v - min_v)
+
+
+func _collect_public_visual_points(root: Node3D, node: Node, parent_transform: Transform3D, points: Array[Vector3]) -> void:
+    var current := parent_transform
+    if node != root and node is Node3D:
+        current = parent_transform * (node as Node3D).transform
+    if node is MeshInstance3D:
+        var mesh_instance := node as MeshInstance3D
+        if mesh_instance.visible and mesh_instance.mesh != null:
+            var bounds := mesh_instance.get_aabb()
+            var origin := bounds.position
+            var size := bounds.size
+            var corners: Array[Vector3] = [
+                origin,
+                origin + Vector3(size.x, 0.0, 0.0),
+                origin + Vector3(0.0, size.y, 0.0),
+                origin + Vector3(0.0, 0.0, size.z),
+                origin + Vector3(size.x, size.y, 0.0),
+                origin + Vector3(size.x, 0.0, size.z),
+                origin + Vector3(0.0, size.y, size.z),
+                origin + size,
+            ]
+            for corner: Vector3 in corners:
+                points.append(current * corner)
+    for child: Node in node.get_children():
+        _collect_public_visual_points(root, child, current, points)
+
+
+'''
+          if marker not in s:
+              raise SystemExit('helper marker missing')
+          p.write_text(s.replace(marker,helper+marker,1))
+          PY
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import normalized candidate
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            --rendering-method gl_compatibility 2>&1 | tee /tmp/normalized-body-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|SHADER ERROR|Shader compilation failed|ERROR: Failed to load script|couldn.t be loaded' /tmp/normalized-body-import.log; then exit 1; fi
+
+      - name: Capture normalized candidate in real Midi scene
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+          timeout 90s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --script res://game/tests/belgian_police_ped_visual_test.gd \
+            2>&1 | tee /tmp/normalized-body-visual.log
+          grep -q 'PUBLIC_POLICE_BODY_NORMALIZED' /tmp/normalized-body-visual.log
+          grep -q 'BELGIAN_POLICE_PED_VISUAL_OK' /tmp/normalized-body-visual.log
+          test -s grand-bruxelles-game/artifacts/qa/belgian_police/belgian_police_authored_v4.png
+
+      - name: Preserve normalized-body evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: belgian-police-normalized-body-candidate
+          path: |
+            /tmp/normalized-body-sha256.txt
+            /tmp/normalized-body-import.log
+            /tmp/normalized-body-visual.log
+            grand-bruxelles-game/artifacts/qa/belgian_police/belgian_police_authored_v4.png

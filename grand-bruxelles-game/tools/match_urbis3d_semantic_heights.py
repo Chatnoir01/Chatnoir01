@@ -273,15 +273,9 @@ def build_evidence(
         "semantic_height_summary_m": {
             "count": len(heights),
             "min": min(heights) if heights else None,
-            "median": statistics.median(heights),
+            "median": statistics.median(heights) if heights else None,
             "p75": percentile(heights, 0.75),
-            "max": max(heights),
-        } if heights else {
-            "count": 0,
-            "min": None,
-            "median": None,
-            "p75": None,
-            "max": None,
+            "max": max(heights) if heights else None,
         },
         "matches": matches,
     }

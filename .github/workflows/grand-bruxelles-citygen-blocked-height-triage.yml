@@ -1,0 +1,81 @@
+name: Grand Bruxelles CityGen Blocked Height Triage
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/triage_blocked_secondary_height_candidates.py"
+      - "grand-bruxelles-game/tools/citygen/test_triage_blocked_secondary_height_candidates.py"
+      - ".github/workflows/grand-bruxelles-citygen-blocked-height-triage.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Regression-test fail-closed triage contract
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_triage_blocked_secondary_height_candidates.py
+
+      - name: Fetch latest successful production secondary-height witness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID="$(gh run list \
+            --workflow grand-bruxelles-citygen-anderlecht-secondary-height.yml \
+            --branch main --status success --limit 1 \
+            --json databaseId --jq '.[0].databaseId')"
+          test -n "$RUN_ID"
+          mkdir -p /tmp/secondary-witness
+          gh run download "$RUN_ID" \
+            -n grand-bruxelles-citygen-anderlecht-secondary-height \
+            -D /tmp/secondary-witness
+          test -s /tmp/secondary-witness/validation.json
+          test -s /tmp/secondary-witness/secondary-evidence.json
+          echo "SECONDARY_WITNESS_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          echo "BLOCKED_TRIAGE_WITNESS_OK run=$RUN_ID"
+
+      - name: Classify blocked candidates without changing validation policy
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/blocked-triage
+          python3 grand-bruxelles-game/tools/citygen/triage_blocked_secondary_height_candidates.py \
+            --validation /tmp/secondary-witness/validation.json \
+            --secondary /tmp/secondary-witness/secondary-evidence.json \
+            --output /tmp/blocked-triage/triage.json
+          python3 - <<'PY'
+          import json, os
+          triage=json.load(open('/tmp/blocked-triage/triage.json',encoding='utf-8'))
+          validation=json.load(open('/tmp/secondary-witness/validation.json',encoding='utf-8'))
+          assert triage['cell_id']==validation['cell_id']
+          assert triage['counts']['blocked_total']==validation['blocked_candidate_count']
+          assert triage['counts']['validated_ignored']==validation['validated_candidate_count']
+          assert triage['policy']['read_only'] is True
+          assert triage['policy']['thresholds_changed'] is False
+          assert triage['policy']['runtime_approval'] is False
+          assert triage['runtime_promotion_allowed'] is False
+          assert all(row['runtime_approved'] is False for row in triage['blocked_candidates'])
+          assert all(row['automatic_resolution_allowed'] is False for row in triage['blocked_candidates'])
+          print('BLOCKED_SECONDARY_HEIGHT_TRIAGE_LIVE',json.dumps({
+              'run':os.environ['SECONDARY_WITNESS_RUN_ID'],
+              'cell':triage['cell_id'],
+              'counts':triage['counts'],
+              'next_action':triage['next_action'],
+          },sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-citygen-blocked-height-triage
+          path: /tmp/blocked-triage/triage.json
+          if-no-files-found: error

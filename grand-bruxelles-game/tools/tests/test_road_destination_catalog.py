@@ -43,11 +43,27 @@ def test_synthetic_determinism_and_duplicate_coalescing() -> None:
         assert module.canonical_json(first) == module.canonical_json(second)
         assert list(first["entries"]) == ["10", "20"]
         assert first["entries"]["10"]["source_file_count"] == 2
+        assert first["drivable_record_count"] == 3
         assert first["eligible_record_count"] == 3
+        assert first["rejected_drivable_record_count"] == 0
         assert first["entry_count"] == 2
         assert first["duplicate_record_count"] == 1
         assert first["authorization"]["source_lookup_only"] is True
         assert first["authorization"]["jouable_authorized"] is False
+
+
+def test_drivable_without_lookup_identity_is_rejected_explicitly() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "data" / "osm"
+        unnamed = road(30, "")
+        write_document(root / "a.game.json", [road(20), unnamed])
+        catalog = module.build_catalog(root)
+        module.validate_contract(catalog)
+        assert catalog["drivable_record_count"] == 2
+        assert catalog["eligible_record_count"] == 1
+        assert catalog["rejected_drivable_record_count"] == 1
+        assert catalog["entry_count"] == 1
+        assert "30" not in catalog["entries"]
 
 
 def test_conflicting_duplicate_fails_closed() -> None:
@@ -68,13 +84,19 @@ def test_real_slice_contains_shipped_direct_entry_roads() -> None:
     module.validate_contract(catalog)
     print(
         "ROAD_DESTINATION_CATALOG_REAL_COUNT: "
-        f"entries={catalog['entry_count']} eligible_records={catalog['eligible_record_count']} "
+        f"entries={catalog['entry_count']} drivable_records={catalog['drivable_record_count']} "
+        f"eligible_records={catalog['eligible_record_count']} "
+        f"rejected_drivable={catalog['rejected_drivable_record_count']} "
         f"duplicate_records={catalog['duplicate_record_count']} documents={catalog['compatible_document_count']}"
     )
-    # Measured on live main@2570887: 140 eligible records resolve to 139
-    # unique OSM ids because one equivalent duplicate record is coalesced.
-    assert catalog["eligible_record_count"] >= 140
+    # Live main@2570887 selects 140 drivable source records. The shipped
+    # road-<id> resolver already requires positive id + non-empty name + >=2
+    # valid points, so the deterministic catalog intentionally exposes the one
+    # currently rejected drivable source record instead of silently indexing it.
+    assert catalog["drivable_record_count"] >= 140
+    assert catalog["eligible_record_count"] >= 139
     assert catalog["entry_count"] >= 139
+    assert catalog["rejected_drivable_record_count"] == catalog["drivable_record_count"] - catalog["eligible_record_count"]
     assert catalog["duplicate_record_count"] == catalog["eligible_record_count"] - catalog["entry_count"]
     for osm_id in (359177328, 487501805, 1382734012):
         entry = catalog["entries"].get(str(osm_id))
@@ -87,6 +109,7 @@ def test_real_slice_contains_shipped_direct_entry_roads() -> None:
 
 def main() -> int:
     test_synthetic_determinism_and_duplicate_coalescing()
+    test_drivable_without_lookup_identity_is_rejected_explicitly()
     test_conflicting_duplicate_fails_closed()
     test_real_slice_contains_shipped_direct_entry_roads()
     print("ROAD_DESTINATION_CATALOG_TEST_OK")

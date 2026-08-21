@@ -7,6 +7,8 @@ on:
     paths:
       - "grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py"
       - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
+      - "grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py"
       - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
       - "grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py"
       - "grand-bruxelles-game/tools/select_urbis_distribution.py"
@@ -17,6 +19,7 @@ on:
       - "grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py"
       - "grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py"
       - "grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py"
+      - "grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py"
       - "grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py"
       - "grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py"
       - "grand-bruxelles-game/tools/select_urbis_distribution.py"
@@ -24,8 +27,10 @@ on:
       - ".github/workflows/grand-bruxelles-citygen-anderlecht-secondary-height.yml"
   workflow_dispatch:
 
+# Historical compatibility witness only. Regional acquisition/persistence is owned by
+# Grand Bruxelles Secondary Height Factory; this workflow must never write state.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   anderlecht-secondary-height:
@@ -38,6 +43,7 @@ jobs:
 
       - name: Install read-only GeoPackage tooling
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y gdal-bin python3-gdal unzip sqlite3 file
           ogrinfo --version
@@ -50,34 +56,101 @@ jobs:
           python3 grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
           python3 grand-bruxelles-game/tools/test_match_urbis3d_semantic_heights.py
 
-      - name: Recover exact durable CityGen cell evidence
+      - name: Select current durable Anderlecht witness
+        id: witness
         shell: bash
         run: |
           set -euo pipefail
-          CELL=bxl-e141500-n167500-s500
           git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          rm -rf /tmp/citygen-state
           mkdir -p /tmp/citygen-state
-          git archive origin/citygen-autonomous-state \
-            "grand-bruxelles-game/data/qa/autonomous_sources/${CELL}" | tar -x -C /tmp/citygen-state
-          SRC="/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
-          test -s "$SRC/raw/buildings.geojson"
-          test -s "$SRC/building_height_candidates.json"
-          test -s "$SRC/terrain_lod_evidence.json"
+
+          SOURCES="grand-bruxelles-game/data/qa/autonomous_sources"
+          GRID="grand-bruxelles-game/data/qa/brussels_regional_target_grid.json"
+          if ! git cat-file -e "origin/citygen-autonomous-state:${SOURCES}" 2>/dev/null \
+            || ! git cat-file -e "origin/citygen-autonomous-state:${GRID}" 2>/dev/null; then
+            echo "ANDERLECHT_CITYGEN_WITNESS_SKIPPED reason=regional_state_not_available"
+            echo "has_witness=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git archive origin/citygen-autonomous-state "$SOURCES" "$GRID" | tar -x -C /tmp/citygen-state
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          state=Path('/tmp/citygen-state/grand-bruxelles-game/data/qa')
+          root=state/'autonomous_sources'
+          grid=json.loads((state/'brussels_regional_target_grid.json').read_text(encoding='utf-8'))
+          by_id={str(row.get('cell_id')): row for row in grid.get('cells',[]) if isinstance(row,dict)}
+          eligible=[]
+          for cell in sorted(p for p in root.iterdir() if p.is_dir()) if root.exists() else []:
+              row=by_id.get(cell.name) or {}
+              municipalities={str(value).casefold() for value in row.get('municipalities',[]) if value}
+              if 'anderlecht' not in municipalities:
+                  continue
+              required=[cell/'raw/buildings.geojson',cell/'building_height_candidates.json',cell/'terrain_lod_evidence.json']
+              if not all(path.is_file() and path.stat().st_size > 0 for path in required):
+                  continue
+              try:
+                  heights=json.loads((cell/'building_height_candidates.json').read_text(encoding='utf-8'))
+              except Exception:
+                  continue
+              count=heights.get('candidate_count')
+              bbox=row.get('bbox')
+              if not isinstance(count,int) or isinstance(count,bool) or count < 1:
+                  continue
+              if not isinstance(bbox,list) or len(bbox) != 4:
+                  continue
+              eligible.append((cell.name,[float(v) for v in bbox],count))
+
+          output=Path(os.environ['GITHUB_OUTPUT'])
+          env=Path(os.environ['GITHUB_ENV'])
+          if not eligible:
+              print('ANDERLECHT_CITYGEN_WITNESS_SKIPPED reason=no_eligible_durable_anderlecht_cell')
+              with output.open('a',encoding='utf-8') as handle:
+                  handle.write('has_witness=false\n')
+          else:
+              cell,bbox,count=eligible[0]
+              src=root/cell
+              print(f'ANDERLECHT_CITYGEN_WITNESS_SELECTED cell={cell} candidates={count} bbox={bbox}')
+              with output.open('a',encoding='utf-8') as handle:
+                  handle.write('has_witness=true\n')
+                  handle.write(f'cell={cell}\n')
+                  handle.write(f'candidate_count={count}\n')
+              with env.open('a',encoding='utf-8') as handle:
+                  handle.write(f'ANDERLECHT_WITNESS_CELL={cell}\n')
+                  handle.write(f'ANDERLECHT_WITNESS_SRC={src}\n')
+                  handle.write(f'ANDERLECHT_WITNESS_CANDIDATE_COUNT={count}\n')
+                  handle.write(f'ANDERLECHT_WITNESS_MIN_E={bbox[0]}\n')
+                  handle.write(f'ANDERLECHT_WITNESS_MIN_N={bbox[1]}\n')
+                  handle.write(f'ANDERLECHT_WITNESS_MAX_E={bbox[2]}\n')
+                  handle.write(f'ANDERLECHT_WITNESS_MAX_N={bbox[3]}\n')
+          PY
+
+      - name: Verify current candidate contract on witness
+        if: steps.witness.outputs.has_witness == 'true'
+        run: |
+          set -euo pipefail
           python3 grand-bruxelles-game/tools/citygen/build_manual_frontier_review.py \
-            --height-candidates "$SRC/building_height_candidates.json" \
-            --terrain-lod "$SRC/terrain_lod_evidence.json" \
+            --height-candidates "$ANDERLECHT_WITNESS_SRC/building_height_candidates.json" \
+            --terrain-lod "$ANDERLECHT_WITNESS_SRC/terrain_lod_evidence.json" \
             --output /tmp/manual-frontier-review.json
           python3 - <<'PY'
-          import json
-          p=json.load(open('/tmp/manual-frontier-review.json',encoding='utf-8'))
-          assert p['cell_id']=='bxl-e141500-n167500-s500'
-          assert p['crs']=='EPSG:31370'
-          assert p['runtime_promotion_allowed'] is False
-          assert p['height_review']['candidate_count']==7, p['height_review']['candidate_count']
-          print('ANDERLECHT_CITYGEN_REVIEW_OK candidates=7 runtime_promotion=false')
+          import json, os
+          review=json.load(open('/tmp/manual-frontier-review.json',encoding='utf-8'))
+          heights=json.load(open(os.environ['ANDERLECHT_WITNESS_SRC']+'/building_height_candidates.json',encoding='utf-8'))
+          expected=int(os.environ['ANDERLECHT_WITNESS_CANDIDATE_COUNT'])
+          assert review['cell_id']==os.environ['ANDERLECHT_WITNESS_CELL']
+          assert review['crs']=='EPSG:31370'
+          assert review['runtime_promotion_allowed'] is False
+          assert heights['candidate_count']==expected
+          assert review['height_review']['candidate_count']==expected
+          print(f'ANDERLECHT_CITYGEN_REVIEW_OK cell={review["cell_id"]} candidates={expected} runtime_promotion=false')
           PY
 
       - name: Discover and select latest official Anderlecht UrbIS 3D package
+        if: steps.witness.outputs.has_witness == 'true'
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -90,7 +163,7 @@ jobs:
           source_id='urbis_3d_constructions'
           feed=module.parse_feed(source_id,module.DEFAULT_FEEDS[source_id])
           assert feed.get('entry_count',0)>0
-          Path('/tmp/urbis-discovered.json').write_text(json.dumps({'schema':1,'purpose':'Anderlecht CityGen independent height evidence','feeds':[feed]},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          Path('/tmp/urbis-discovered.json').write_text(json.dumps({'schema':1,'purpose':'Anderlecht CityGen read-only compatibility witness','feeds':[feed]},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           print('URBIS_3D_DISCOVERY_OK',feed.get('feed_updated'),feed.get('entry_count'))
           PY
           python3 grand-bruxelles-game/tools/select_urbis_distribution.py /tmp/urbis-discovered.json /tmp/urbis-3d-selected.json \
@@ -99,14 +172,19 @@ jobs:
           python3 - <<'PY'
           import json
           from urllib.parse import urlparse
-          data=json.load(open('/tmp/urbis-3d-selected.json',encoding='utf-8')); selected=data['selected']; url=str(selected['href'])
-          folded=url.casefold(); assert url.startswith('https://'); assert all(x in folded for x in ('31370','gpkg','21001')); assert '/dwg/' not in folded
-          host=(urlparse(url).hostname or '').lower(); allowed=('datastore.brussels','urbisdownload.datastore.brussels','geoservices-urbis.irisnet.be','gis.urban.brussels','urban.brussels')
-          assert any(host==x or host.endswith('.'+x) for x in allowed)
+          data=json.load(open('/tmp/urbis-3d-selected.json',encoding='utf-8'))
+          selected=data['selected']; url=str(selected['href']); folded=url.casefold()
+          assert url.startswith('https://')
+          assert all(token in folded for token in ('31370','gpkg','21001'))
+          assert '/dwg/' not in folded
+          host=(urlparse(url).hostname or '').lower()
+          allowed=('datastore.brussels','urbisdownload.datastore.brussels','geoservices-urbis.irisnet.be','gis.urban.brussels','urban.brussels')
+          assert any(host==value or host.endswith('.'+value) for value in allowed)
           print('URBIS_3D_ANDERLECHT_SELECTION_OK',data['selected_embedded_date'],url)
           PY
 
       - name: Download and safely extract official Anderlecht package
+        if: steps.witness.outputs.has_witness == 'true'
         run: |
           set -euo pipefail
           URL="$(python3 - <<'PY'
@@ -114,131 +192,110 @@ jobs:
           print(json.load(open('/tmp/urbis-3d-selected.json'))['selected']['href'])
           PY
           )"
-          curl --fail --location --retry 3 --retry-all-errors --max-time 900 --user-agent 'GrandBruxellesGame/anderlecht-secondary-height (+github.com/Chatnoir01/Chatnoir01)' "$URL" -o /tmp/urbis-3d-distribution
+          curl --fail --location --retry 3 --retry-all-errors --max-time 900 \
+            --user-agent 'GrandBruxellesGame/anderlecht-secondary-height-witness (+github.com/Chatnoir01/Chatnoir01)' \
+            "$URL" -o /tmp/urbis-3d-distribution
           test -s /tmp/urbis-3d-distribution
           sha256sum /tmp/urbis-3d-distribution | tee /tmp/distribution.sha256
-          unzip -l /tmp/urbis-3d-distribution | head -40
           python3 - <<'PY'
           import shutil,zipfile
           from pathlib import Path
-          source=Path('/tmp/urbis-3d-distribution'); root=Path('/tmp/urbis-3d-extracted'); root.mkdir(parents=True,exist_ok=True)
+          source=Path('/tmp/urbis-3d-distribution')
+          root=Path('/tmp/urbis-3d-extracted')
+          root.mkdir(parents=True,exist_ok=True)
           def extract(archive,dest):
               dest.mkdir(parents=True,exist_ok=True); base=dest.resolve()
               with zipfile.ZipFile(archive) as z:
                   for member in z.infolist():
                       target=(dest/member.filename).resolve()
-                      if base not in target.parents and target != base: raise SystemExit(f'unsafe ZIP path: {member.filename}')
+                      if base not in target.parents and target != base:
+                          raise SystemExit(f'unsafe ZIP path: {member.filename}')
                   z.extractall(dest)
-          if zipfile.is_zipfile(source): extract(source,root/'level0')
-          elif source.read_bytes()[:16].startswith(b'SQLite format 3'): shutil.copy2(source,root/'selected.gpkg')
-          else: raise SystemExit('unsupported official distribution container')
+          if zipfile.is_zipfile(source):
+              extract(source,root/'level0')
+          elif source.read_bytes()[:16].startswith(b'SQLite format 3'):
+              shutil.copy2(source,root/'selected.gpkg')
+          else:
+              raise SystemExit('unsupported official distribution container')
           packages=sorted(root.rglob('*.gpkg'))
-          if not packages: raise SystemExit('official Anderlecht distribution contains no GeoPackage')
+          if not packages:
+              raise SystemExit('official Anderlecht distribution contains no GeoPackage')
           print('URBIS_3D_ANDERLECHT_EXTRACTION_OK gpkg_count=',len(packages))
-          for p in packages: print(p,p.stat().st_size)
           PY
 
-      - name: Diagnose exact GeoPackage container and schema
+      - name: Build live Anderlecht semantic witness
+        if: steps.witness.outputs.has_witness == 'true'
         run: |
           set -euo pipefail
-          GPKG="$(find /tmp/urbis-3d-extracted -type f -name '*.gpkg' | head -1)"
-          test -n "$GPKG"
-          file "$GPKG"
-          xxd -l 32 "$GPKG"
-          python3 - "$GPKG" <<'PY'
-          import sqlite3,sys
-          from pathlib import Path
-          p=Path(sys.argv[1]); head=p.read_bytes()[:16]
-          print('GPKG_HEADER',head)
-          assert head == b'SQLite format 3\x00', head
-          con=sqlite3.connect(f'file:{p}?mode=ro',uri=True)
-          quick=con.execute('PRAGMA quick_check').fetchone()[0]
-          print('SQLITE_QUICK_CHECK',quick); assert quick=='ok'
-          rows=con.execute("SELECT table_name,data_type,identifier FROM gpkg_contents ORDER BY table_name").fetchall()
-          print('GPKG_CONTENTS',rows)
-          for table,data_type,_identifier in rows:
-              if data_type=='features':
-                  cols=[r[1] for r in con.execute(f'PRAGMA table_info("{table}")')]
-                  print('FEATURE_SCHEMA',table,cols)
-          con.close()
-          PY
-          ogrinfo -ro -q "$GPKG" || true
-
-      - name: Build real Anderlecht semantic 3D evidence
-        run: |
-          set -euo pipefail
-          CELL=bxl-e141500-n167500-s500
-          SRC="/tmp/citygen-state/grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
           mkdir -p /tmp/anderlecht-secondary
-          python3 grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py --root /tmp/urbis-3d-extracted --buildings "$SRC/raw/buildings.geojson" --output /tmp/anderlecht-secondary/semantic.json --cell-id "$CELL" --municipality anderlecht --bbox 141500 167500 142000 168000
+          python3 grand-bruxelles-game/tools/match_urbis3d_semantic_heights.py \
+            --root /tmp/urbis-3d-extracted \
+            --buildings "$ANDERLECHT_WITNESS_SRC/raw/buildings.geojson" \
+            --output /tmp/anderlecht-secondary/semantic.json \
+            --cell-id "$ANDERLECHT_WITNESS_CELL" \
+            --municipality anderlecht \
+            --bbox "$ANDERLECHT_WITNESS_MIN_E" "$ANDERLECHT_WITNESS_MIN_N" "$ANDERLECHT_WITNESS_MAX_E" "$ANDERLECHT_WITNESS_MAX_N"
           python3 - <<'PY'
-          import json
-          p=json.load(open('/tmp/anderlecht-secondary/semantic.json',encoding='utf-8'))
-          assert p['cell']=='bxl-e141500-n167500-s500'; assert p['policy']['runtime_approval'] is False; assert p['counts']['building_solids_in_bbox']>0
-          print('ANDERLECHT_SEMANTIC_SOURCE_OK',json.dumps(p['counts'],sort_keys=True))
+          import json, os
+          payload=json.load(open('/tmp/anderlecht-secondary/semantic.json',encoding='utf-8'))
+          assert payload['cell']==os.environ['ANDERLECHT_WITNESS_CELL']
+          assert payload['policy']['runtime_approval'] is False
+          assert payload['counts']['building_solids_in_bbox']>0
+          print('ANDERLECHT_SEMANTIC_SOURCE_OK',json.dumps(payload['counts'],sort_keys=True))
           PY
 
-      - name: Compare seven candidates and run fail-closed secondary validator
+      - name: Compare current candidates and run fail-closed validator
+        if: steps.witness.outputs.has_witness == 'true'
         run: |
           set -euo pipefail
-          python3 grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py --semantic /tmp/anderlecht-secondary/semantic.json --review /tmp/manual-frontier-review.json --output /tmp/anderlecht-secondary/secondary-evidence.json
-          python3 grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py --review /tmp/manual-frontier-review.json --secondary /tmp/anderlecht-secondary/secondary-evidence.json --output /tmp/anderlecht-secondary/validation.json
+          python3 grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py \
+            --semantic /tmp/anderlecht-secondary/semantic.json \
+            --height-candidates "$ANDERLECHT_WITNESS_SRC/building_height_candidates.json" \
+            --output /tmp/anderlecht-secondary/secondary-evidence.json
+          python3 grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py \
+            --height-candidates "$ANDERLECHT_WITNESS_SRC/building_height_candidates.json" \
+            --secondary /tmp/anderlecht-secondary/secondary-evidence.json \
+            --output /tmp/anderlecht-secondary/validation.json
           python3 - <<'PY'
-          import json
-          evidence=json.load(open('/tmp/anderlecht-secondary/secondary-evidence.json',encoding='utf-8')); validation=json.load(open('/tmp/anderlecht-secondary/validation.json',encoding='utf-8'))
-          assert evidence['counts']['manual_frontier_candidates']==7; assert validation['candidate_count']==7
-          assert validation['validated_candidate_count']+validation['blocked_candidate_count']==7
-          assert validation['runtime_promotion_allowed'] is False; assert validation['runtime_approved_count']==0
-          print('ANDERLECHT_SECONDARY_VALIDATION_RESULT',json.dumps({'joined':evidence['counts']['semantic_joined_records'],'strong':evidence['counts']['strong_validation_candidates'],'conflicts':evidence['counts']['conflicts'],'missing':evidence['counts']['missing_secondary_records'],'validated':validation['validated_candidate_count'],'blocked':validation['blocked_candidate_count'],'complete':validation['secondary_validation_complete'],'next_action':validation['next_action']},sort_keys=True))
+          import json, os
+          evidence=json.load(open('/tmp/anderlecht-secondary/secondary-evidence.json',encoding='utf-8'))
+          validation=json.load(open('/tmp/anderlecht-secondary/validation.json',encoding='utf-8'))
+          expected=int(os.environ['ANDERLECHT_WITNESS_CANDIDATE_COUNT'])
+          assert evidence['counts']['height_candidate_source_count']==expected
+          assert validation['candidate_count']==expected
+          assert validation['validated_candidate_count']+validation['blocked_candidate_count']==expected
+          assert validation['runtime_promotion_allowed'] is False
+          assert validation['runtime_approved_count']==0
+          print('ANDERLECHT_SECONDARY_VALIDATION_RESULT',json.dumps({
+              'cell':os.environ['ANDERLECHT_WITNESS_CELL'],
+              'candidate_count':expected,
+              'joined':evidence['counts']['semantic_joined_records'],
+              'strong':evidence['counts']['strong_validation_candidates'],
+              'conflicts':evidence['counts']['conflicts'],
+              'missing':evidence['counts']['missing_secondary_records'],
+              'validated':validation['validated_candidate_count'],
+              'blocked':validation['blocked_candidate_count'],
+              'complete':validation['secondary_validation_complete'],
+              'next_action':validation['next_action'],
+          },sort_keys=True))
           PY
 
-      - name: Package compact provenance and evidence
+      - name: Package compact read-only witness
+        if: steps.witness.outputs.has_witness == 'true'
         run: |
           set -euo pipefail
           cp /tmp/urbis-discovered.json /tmp/anderlecht-secondary/discovered.json
           cp /tmp/urbis-3d-selected.json /tmp/anderlecht-secondary/selected.json
           cp /tmp/distribution.sha256 /tmp/anderlecht-secondary/distribution.sha256
-          cp /tmp/manual-frontier-review.json /tmp/anderlecht-secondary/manual-frontier-review.json
-          test -s /tmp/anderlecht-secondary/semantic.json; test -s /tmp/anderlecht-secondary/secondary-evidence.json; test -s /tmp/anderlecht-secondary/validation.json
+          test -s /tmp/anderlecht-secondary/semantic.json
+          test -s /tmp/anderlecht-secondary/secondary-evidence.json
+          test -s /tmp/anderlecht-secondary/validation.json
           find /tmp/anderlecht-secondary -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
 
-      - name: Upload compact evidence only
+      - name: Upload compact witness only
+        if: steps.witness.outputs.has_witness == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-citygen-anderlecht-secondary-height
           path: /tmp/anderlecht-secondary/
           if-no-files-found: error
-
-      - name: Persist validated secondary evidence off main
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: |
-          set -euo pipefail
-          CELL=bxl-e141500-n167500-s500
-          python3 grand-bruxelles-game/tools/citygen/persist_secondary_height_evidence.py \
-            --secondary /tmp/anderlecht-secondary/secondary-evidence.json \
-            --validation /tmp/anderlecht-secondary/validation.json \
-            --output-dir /tmp/secondary-height-cache
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for ATTEMPT in 1 2 3; do
-            git reset --hard HEAD
-            git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
-            git switch -C citygen-autonomous-state origin/citygen-autonomous-state
-            TARGET="grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
-            mkdir -p "$TARGET"
-            cp /tmp/secondary-height-cache/secondary_height_evidence.json "$TARGET/secondary_height_evidence.json"
-            cp /tmp/secondary-height-cache/secondary_height_validation.json "$TARGET/secondary_height_validation.json"
-            git add "$TARGET/secondary_height_evidence.json" "$TARGET/secondary_height_validation.json"
-            if git diff --cached --quiet; then
-              echo "SECONDARY_HEIGHT_CACHE_ALREADY_CURRENT"
-              exit 0
-            fi
-            git commit -m "citygen: persist secondary height evidence"
-            if git push --force-with-lease origin citygen-autonomous-state; then
-              echo "SECONDARY_HEIGHT_CACHE_PERSISTED attempt=${ATTEMPT}"
-              exit 0
-            fi
-            echo "SECONDARY_HEIGHT_CACHE_RETRY attempt=${ATTEMPT}"
-          done
-          echo "secondary height cache persistence lost repeated durable-state races" >&2
-          exit 1

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import json
 import tempfile
 from pathlib import Path
@@ -61,6 +62,15 @@ def main() -> int:
     bad_zone = dict(zone); bad_zone["spawn"] = [999999.0, 1.05, 999999.0]
     expect_gate("G2_spawn_ground", lambda: cm.gate_spawn(bad_zone, profile, manifest))
 
+    midi_profile = registry["zone_profiles"]["midi"]
+    midi_zone = cm.resolve_zone(catalog, "midi")
+    midi_manifest = cm.source_contract(midi_profile)
+    midi_g2 = cm.gate_spawn(midi_zone, midi_profile, midi_manifest)
+    assert midi_g2["status"] == "PASS" and "fast_travel=midi" in midi_g2["detail"]
+    bad_midi = copy.deepcopy(midi_profile)
+    bad_midi["arrival_contract"]["position_symbol"] = "MISSING_MIDI_FAST_TRAVEL_POSITION"
+    expect_gate("G2_spawn_ground", lambda: cm.gate_spawn(midi_zone, bad_midi, midi_manifest))
+
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
         write_fc(root / "buildings.game.json", 2); write_fc(root / "street_surfaces.game.json", 1)
@@ -79,6 +89,8 @@ def main() -> int:
         write_json(root / "cache.json", cache); write_json(root / "runtime.json", runtime)
         expect_gate("G5_osm_environment", lambda: cm.gate_osm_environment("jette", profile, manifest, root / "cache.json", root / "runtime.json"))
 
+    assert cm.build("midi", dry=True) is None
+
     try:
         cm.build("anneessens", dry=True)
     except cm.MachineError as exc:
@@ -90,7 +102,7 @@ def main() -> int:
     assert {row["gate"] for row in registry["layers"] if row.get("gate")} >= {
         "G1_sources_crs", "G2_spawn_ground", "G3_buildings_streets", "G4_runtime_finish", "G5_osm_environment"
     }
-    print("CITY_MACHINE_TESTS_OK g2_pass_fail=true g3_pass_fail=true g5_digest_tree_fail_closed=true unsupported_zone_fail_closed=true")
+    print("CITY_MACHINE_TESTS_OK jette_g2=true midi_fast_travel_g2=true midi_missing_constant_fail_closed=true midi_dry_build=true g3_pass_fail=true g5_digest_tree_fail_closed=true unsupported_zone_fail_closed=true")
     return 0
 
 

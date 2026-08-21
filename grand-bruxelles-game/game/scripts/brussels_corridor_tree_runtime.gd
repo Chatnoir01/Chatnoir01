@@ -7,6 +7,10 @@ const EXPECTED_SOURCE_TREE_COUNT := 273
 const EXPECTED_PREOWNED_TREE_COUNT := 7
 const EXPECTED_RUNTIME_TREE_COUNT := 266
 const POSITION_EPSILON_M := 0.0005
+const FAR_LOBE_INDICES := [0, 3, 6]
+
+@export var tree_full_detail_radius_m := 140.0
+@export var tree_lod_rebuild_distance_m := 45.0
 
 var _root: Node3D = null
 var _scene: Node3D = null
@@ -23,10 +27,28 @@ var _failed := false
 var _visual_enabled := true
 var _material_enhanced_enabled := true
 var _manual_binding := false
+var _lod_active := false
+var _last_lod_anchor := Vector3(INF, INF, INF)
+var _near_tree_count := 0
+var _far_tree_count := 0
+var _foliage_instance_count := 0
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     call_deferred("_bind_when_ready")
+
+func _process(_delta: float) -> void:
+    if not _ready_complete or _failed or _scene == null or _source_positions.is_empty():
+        return
+    var anchor := _player_anchor()
+    if not is_finite(anchor.x):
+        return
+    var relevant := lod_anchor_is_corridor_relevant(anchor, _source_positions)
+    if relevant != _lod_active:
+        _rebuild_visual_batches(anchor, relevant)
+        return
+    if relevant and (not is_finite(_last_lod_anchor.x) or _xz_distance(anchor, _last_lod_anchor) >= tree_lod_rebuild_distance_m):
+        _rebuild_visual_batches(anchor, true)
 
 func _discover_production_scene() -> Node3D:
     var current := get_tree().current_scene
@@ -69,6 +91,11 @@ func bind_scene(scene: Node3D) -> void:
     _legacy_materials.clear()
     _ready_complete = false
     _failed = false
+    _lod_active = false
+    _last_lod_anchor = Vector3(INF, INF, INF)
+    _near_tree_count = 0
+    _far_tree_count = 0
+    _foliage_instance_count = 0
     _build()
 
 func _fail(message: String) -> void:
@@ -104,6 +131,85 @@ func _build_batch(name: String, mesh: Mesh, transforms: Array[Transform3D]) -> M
     batch.multimesh = multimesh
     return batch
 
+func _xz_distance(a: Vector3, b: Vector3) -> float:
+    return Vector2(a.x - b.x, a.z - b.z).length()
+
+func _player_anchor() -> Vector3:
+    if _scene == null:
+        return Vector3(INF, INF, INF)
+    var player := _scene.get_node_or_null("Player") as Node3D
+    if player == null:
+        return Vector3(INF, INF, INF)
+    return player.global_position
+
+func foliage_lobe_indices_for_distance(distance_m: float) -> Array:
+    if distance_m <= tree_full_detail_radius_m:
+        return range(ASSET.FOLIAGE_LOBE_COUNT)
+    return FAR_LOBE_INDICES.duplicate()
+
+func lod_anchor_is_corridor_relevant(anchor: Vector3, positions: Array[Vector3]) -> bool:
+    if not is_finite(anchor.x) or positions.is_empty():
+        return false
+    for position: Vector3 in positions:
+        if _xz_distance(anchor, position) <= tree_full_detail_radius_m:
+            return true
+    return false
+
+func _detach_visual_batch(batch: MultiMeshInstance3D) -> void:
+    if not is_instance_valid(batch):
+        return
+    if batch.get_parent() != null:
+        batch.get_parent().remove_child(batch)
+    batch.queue_free()
+
+func _rebuild_visual_batches(anchor: Vector3, use_lod: bool) -> void:
+    if not is_instance_valid(_root) or _enhanced_materials.is_empty():
+        return
+    _detach_visual_batch(_trunk_batch)
+    _detach_visual_batch(_dark_batch)
+    _detach_visual_batch(_light_batch)
+    _trunk_batch = null
+    _dark_batch = null
+    _light_batch = null
+
+    var trunk_transforms: Array[Transform3D] = []
+    var dark_transforms: Array[Transform3D] = []
+    var light_transforms: Array[Transform3D] = []
+    var near_count := 0
+    var far_count := 0
+    for index: int in range(_source_positions.size()):
+        var base := _source_positions[index]
+        var osm_id := _source_ids[index]
+        trunk_transforms.append(ASSET.trunk_transform(base))
+        var distance_m := _xz_distance(anchor, base) if use_lod else 0.0
+        var lobe_indices := foliage_lobe_indices_for_distance(distance_m)
+        if use_lod and distance_m > tree_full_detail_radius_m:
+            far_count += 1
+        else:
+            near_count += 1
+        for lobe_variant: Variant in lobe_indices:
+            var lobe_index := int(lobe_variant)
+            var transform: Transform3D = ASSET.foliage_lobe_transform(base, osm_id, lobe_index)
+            if ASSET.foliage_is_light(lobe_index): light_transforms.append(transform)
+            else: dark_transforms.append(transform)
+
+    _trunk_batch = _build_batch("TreeTrunks", ASSET.create_trunk_mesh(_enhanced_materials["trunk"] as Material), trunk_transforms)
+    _dark_batch = _build_batch("TreeFoliageDark", ASSET.create_foliage_mesh(_enhanced_materials["foliage_dark"] as Material), dark_transforms)
+    _light_batch = _build_batch("TreeFoliageLight", ASSET.create_foliage_mesh(_enhanced_materials["foliage_light"] as Material), light_transforms)
+    _root.add_child(_trunk_batch)
+    _root.add_child(_dark_batch)
+    _root.add_child(_light_batch)
+    _near_tree_count = near_count
+    _far_tree_count = far_count
+    _foliage_instance_count = dark_transforms.size() + light_transforms.size()
+    _lod_active = use_lod
+    _last_lod_anchor = anchor if use_lod else Vector3(INF, INF, INF)
+    set_material_enhanced_enabled(_material_enhanced_enabled)
+    set_visual_enabled(_visual_enabled)
+
+func rebuild_visual_batches_for_anchor(anchor: Vector3) -> void:
+    _rebuild_visual_batches(anchor, lod_anchor_is_corridor_relevant(anchor, _source_positions))
+
 func _build() -> void:
     if _scene == null:
         _fail("scene missing during build")
@@ -121,9 +227,6 @@ func _build() -> void:
         return
 
     var all_source_tree_count := 0
-    var trunk_transforms: Array[Transform3D] = []
-    var dark_transforms: Array[Transform3D] = []
-    var light_transforms: Array[Transform3D] = []
     for raw: Variant in data.get("environment_points", []):
         if not raw is Dictionary: continue
         var point := raw as Dictionary
@@ -138,11 +241,6 @@ func _build() -> void:
         var base := Vector3(float(position_value[0]), 0.0, float(position_value[1]))
         _source_ids.append(osm_id)
         _source_positions.append(base)
-        trunk_transforms.append(ASSET.trunk_transform(base))
-        for lobe_index: int in range(ASSET.FOLIAGE_LOBE_COUNT):
-            var transform: Transform3D = ASSET.foliage_lobe_transform(base, osm_id, lobe_index)
-            if ASSET.foliage_is_light(lobe_index): light_transforms.append(transform)
-            else: dark_transforms.append(transform)
     if all_source_tree_count != EXPECTED_SOURCE_TREE_COUNT:
         _fail("source tree count changed: %d" % all_source_tree_count)
         return
@@ -166,12 +264,9 @@ func _build() -> void:
     _root.set_meta("geometry_changed_by_tree_material", false)
     _scene.add_child(_root)
 
-    _trunk_batch = _build_batch("TreeTrunks", ASSET.create_trunk_mesh(_enhanced_materials["trunk"] as Material), trunk_transforms)
-    _dark_batch = _build_batch("TreeFoliageDark", ASSET.create_foliage_mesh(_enhanced_materials["foliage_dark"] as Material), dark_transforms)
-    _light_batch = _build_batch("TreeFoliageLight", ASSET.create_foliage_mesh(_enhanced_materials["foliage_light"] as Material), light_transforms)
-    _root.add_child(_trunk_batch)
-    _root.add_child(_dark_batch)
-    _root.add_child(_light_batch)
+    var anchor := _player_anchor()
+    var activate_lod := lod_anchor_is_corridor_relevant(anchor, _source_positions)
+    _rebuild_visual_batches(anchor if is_finite(anchor.x) else Vector3.ZERO, activate_lod)
 
     _collision_body = StaticBody3D.new()
     _collision_body.name = "TreeCollisions"
@@ -185,10 +280,8 @@ func _build() -> void:
         collision.position = base + Vector3(0.0, ASSET.TRUNK_HEIGHT * 0.5, 0.0)
         _collision_body.add_child(collision)
 
-    set_material_enhanced_enabled(_material_enhanced_enabled)
-    set_visual_enabled(_visual_enabled)
     _ready_complete = true
-    print("BRUSSELS_CORRIDOR_TREES_READY: source_trees=%d preowned=%d runtime_trees=%d batches=%d material_revision=%d source=OSM license=ODbL-1.0" % [all_source_tree_count, preowned.size(), _source_positions.size(), batch_count(), ASSET.MATERIAL_REVISION])
+    print("BRUSSELS_CORRIDOR_TREES_READY: source_trees=%d preowned=%d runtime_trees=%d batches=%d material_revision=%d lod_active=%s near=%d far=%d foliage_instances=%d source=OSM license=ODbL-1.0" % [all_source_tree_count, preowned.size(), _source_positions.size(), batch_count(), ASSET.MATERIAL_REVISION, str(_lod_active), _near_tree_count, _far_tree_count, _foliage_instance_count])
 
 func _set_batch_material(batch: MultiMeshInstance3D, material: Material) -> void:
     if not is_instance_valid(batch) or batch.multimesh == null or batch.multimesh.mesh == null:
@@ -247,3 +340,7 @@ func source_ids() -> Array[int]: return _source_ids.duplicate()
 func claims_species() -> bool: return false
 func claims_measured_dimensions() -> bool: return false
 func visual_enabled() -> bool: return _visual_enabled
+func lod_active() -> bool: return _lod_active
+func near_tree_count() -> int: return _near_tree_count
+func far_tree_count() -> int: return _far_tree_count
+func foliage_instance_count() -> int: return _foliage_instance_count

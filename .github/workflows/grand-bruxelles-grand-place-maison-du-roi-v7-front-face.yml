@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -39,14 +41,23 @@ jobs:
           grep -q "GRAND_PLACE_MAISON_DU_ROI_V7_FRONT_FACE_OK" /tmp/maison-v7-front-face.log
       - name: Record live-main staleness without masking structural proof
         shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          set -o pipefail
           git fetch --no-tags origin main
           current="$(git rev-parse origin/main)"
-          base="$(git merge-base HEAD origin/main)"
+          tested_merge="$(git rev-parse HEAD)"
+          head="$PR_HEAD_SHA"
+          test -n "$head"
+          git cat-file -e "$head^{commit}"
+          base="$(git merge-base "$head" origin/main)"
           echo "live_main=$current"
-          echo "merge_base=$base"
+          echo "pr_head=$head"
+          echo "tested_merge=$tested_merge"
+          echo "branch_merge_base=$base"
           if [ "$base" != "$current" ]; then
-            echo "GRAND_PLACE_REBUILD_REQUIRED live_main=$current merge_base=$base"
+            echo "GRAND_PLACE_REBUILD_REQUIRED live_main=$current pr_head=$head merge_base=$base"
           else
             echo "GRAND_PLACE_EXACT_MAIN=true"
           fi

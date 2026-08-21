@@ -2,12 +2,15 @@ extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
 const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_streetaxis_direct_spawn.gd")
+const NORTH_DTM_SCRIPT := preload("res://game/zones/ixelles/ixelles_streamed_north_dtm_cell.gd")
 const SEED_READY_ID := 70526
 const SECOND_READY_ID := 70488
 const VISUAL_ONLY_ID := 100383
 const SEED_READY_CELL := "bxl-e149000-n169000-s500"
 const SECOND_READY_CELL := "bxl-e149000-n169500-s500"
 const VISUAL_ONLY_CELL := "bxl-e149500-n169000-s500"
+const EXPECTED_SHARED_DATUM_SCHEMA := "grand-bruxelles-ixelles-shared-vertical-datum-v1"
+const EXPECTED_SHARED_DATUM_REFERENCE_M := 62.393423
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -98,7 +101,35 @@ func _assert_ready_destination(resolver: StreetAxisDestinationResolver, player: 
         return {}
     return {"source": source, "ground_y": ground_y}
 
+func _assert_shared_datum_fail_closed() -> bool:
+    var probe := NORTH_DTM_SCRIPT.new()
+    if bool(probe.call("_shared_datum_valid", {})):
+        _fail("missing shared datum schema was accepted")
+        probe.free()
+        return false
+    if bool(probe.call("_shared_datum_valid", {"schema": "wrong", "reference_absolute_m": EXPECTED_SHARED_DATUM_REFERENCE_M})):
+        _fail("wrong shared datum schema was accepted")
+        probe.free()
+        return false
+    if bool(probe.call("_shared_datum_valid", {"schema": EXPECTED_SHARED_DATUM_SCHEMA})):
+        _fail("missing shared datum reference was accepted")
+        probe.free()
+        return false
+    if bool(probe.call("_shared_datum_valid", {"schema": EXPECTED_SHARED_DATUM_SCHEMA, "reference_absolute_m": EXPECTED_SHARED_DATUM_REFERENCE_M + 1.0})):
+        _fail("wrong shared datum reference was accepted")
+        probe.free()
+        return false
+    if not bool(probe.call("_shared_datum_valid", {"schema": EXPECTED_SHARED_DATUM_SCHEMA, "reference_absolute_m": EXPECTED_SHARED_DATUM_REFERENCE_M})):
+        _fail("valid shared datum was rejected")
+        probe.free()
+        return false
+    probe.free()
+    return true
+
 func _run() -> void:
+    if not _assert_shared_datum_fail_closed():
+        return
+
     var main := MAIN_SCENE.instantiate()
     root.add_child(main)
     for _frame: int in range(12):

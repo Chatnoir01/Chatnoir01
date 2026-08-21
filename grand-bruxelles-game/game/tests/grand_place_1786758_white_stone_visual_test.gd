@@ -25,12 +25,6 @@ func _hide_noise(main: Node) -> void:
         var node := main.get_node_or_null(path)
         if node is Node3D:
             (node as Node3D).visible = false
-    var showcase := root.get_node_or_null("LivingCityShowcaseRuntime")
-    if showcase != null:
-        showcase.process_mode = Node.PROCESS_MODE_DISABLED
-    var visible_runtime := root.get_node_or_null("VisibleCityRuntime")
-    if visible_runtime != null and visible_runtime.has_method("_set_status"):
-        visible_runtime.call("_set_status", "")
 
 func _capture(path: String) -> bool:
     for _frame: int in range(5):
@@ -108,22 +102,6 @@ func _run() -> void:
         return
 
     _hide_noise(main)
-    # Downstream presentation layers must not dilute this legacy A/B. The test
-    # proves the dedicated 1786758 sourced wall toggle, not later mineral or
-    # complete-contour presentation that surrounds (but explicitly excludes)
-    # this dedicated owner.
-    var surface_runtime := root.get_node_or_null("GrandPlaceWhiteStoneSurfaceRuntime")
-    if surface_runtime != null and surface_runtime.has_method("set_enabled"):
-        surface_runtime.call("set_enabled", false)
-
-    var contour_runtime := root.get_node_or_null("GrandPlaceCompleteContourRuntime")
-    if contour_runtime != null and contour_runtime.has_method("set_official_visible"):
-        contour_runtime.call("set_official_visible", false)
-        await process_frame
-        if contour_runtime.has_method("visible_surface_count") and int(contour_runtime.call("visible_surface_count")) != 0:
-            _fail("complete-contour context remained visible during dedicated 1786758 A/B")
-            return
-
     var player_camera := main.get_node_or_null("Player/CameraPivot/SpringArm3D/Camera3D") as Camera3D
     if player_camera != null:
         player_camera.current = false

@@ -22,21 +22,17 @@ const AMBIENT_HEAD_YAW_DEG := 7.0
 const MIN_HEAD_YAW_DEG := 5.0
 const MAX_HEAD_YAW_DEG := 10.0
 
-# Run 30 proved the sole-preserving approach is mechanically correct, but the
-# real feet/ground and 2 m frames still show a conspicuous bare-ankle band above
-# the CC0 shoe. Preserve the exact source sole plane and extend only the shoe's
-# vertical collar enough to cover the visible ankle, with a measured top-lift
-# gate so this cannot silently regress into either a low shoe or an exaggerated
-# boot. Width/depth, source geometry, character skin/skeleton and ground contact
-# remain untouched.
-const FOOTWEAR_HEIGHT_SCALE := 1.48
-const MIN_FOOTWEAR_HEIGHT_SCALE := 1.40
-const MAX_FOOTWEAR_HEIGHT_SCALE := 1.55
-const MAX_FOOTWEAR_SOLE_DRIFT_M := 0.001
-const MIN_FOOTWEAR_FINAL_HEIGHT_M := 0.165
-const MAX_FOOTWEAR_FINAL_HEIGHT_M := 0.185
-const MIN_FOOTWEAR_TOP_LIFT_M := 0.045
-const MAX_FOOTWEAR_TOP_LIFT_M := 0.065
+# Run 33 proved that synthetic ankle cylinders are visually unacceptable even
+# when they pass mechanical placement gates. Use the pinned MakeHuman shoes03
+# boot geometry instead. Scale X to a plausible pair width, Z to a plausible
+# foot length, and let Y follow the same longitudinal scale so the authored boot
+# shaft profile is preserved instead of being flattened or stretched by hand.
+const PRIMARY_FOOTWEAR := REVIEW_ROOT + "/shoes03_cc0.obj"
+const TARGET_BOOT_PAIR_WIDTH_M := 0.38
+const TARGET_BOOT_LENGTH_M := 0.29
+const MIN_BOOT_HEIGHT_M := 0.20
+const MAX_BOOT_HEIGHT_M := 0.38
+const MAX_BOOT_SOLE_DRIFT_M := 0.001
 
 func _relax_pose_if_rigged(root: Node) -> Dictionary:
     var skeleton := _find_skeleton(root)
@@ -166,52 +162,78 @@ func _relax_pose_if_rigged(root: Node) -> Dictionary:
     return applied
 
 func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
-    var audit := super._add_cc0_footwear(candidate, body_bounds)
-    if not bool(audit.get("added", false)):
-        return audit
-    var shoes := candidate.get_node_or_null("Shoes04_CC0_Review") as MeshInstance3D
-    if shoes == null or shoes.mesh == null:
-        return {"added": false, "reason": "review footwear node/mesh missing after parent staging"}
+    candidate.set_meta("footwear_source", "furqonat/makehuman-assets@8cf9645b975a98eea056b140df11a1d278da0d10:base/clothes/shoes03/shoes03.obj")
+    var shoe_mesh := ResourceLoader.load(PRIMARY_FOOTWEAR) as Mesh
+    if shoe_mesh == null:
+        return {"added": false, "reason": "primary shoes03 boot OBJ did not import as Mesh"}
+    var source := shoe_mesh.get_aabb()
+    if source.size.x <= 0.001 or source.size.y <= 0.001 or source.size.z <= 0.001:
+        return {"added": false, "reason": "invalid shoes03 boot AABB", "source_aabb": str(source)}
 
-    var source := shoes.mesh.get_aabb()
-    var sole_y_before := shoes.position.y + source.position.y * shoes.scale.y
-    var top_y_before := shoes.position.y + (source.position.y + source.size.y) * shoes.scale.y
-    var height_before := source.size.y * shoes.scale.y
-    shoes.scale.y *= FOOTWEAR_HEIGHT_SCALE
-    shoes.position.y = sole_y_before - source.position.y * shoes.scale.y
-    var sole_y_after := shoes.position.y + source.position.y * shoes.scale.y
-    var top_y_after := shoes.position.y + (source.position.y + source.size.y) * shoes.scale.y
-    var height_after := source.size.y * shoes.scale.y
-    var sole_drift := absf(sole_y_after - sole_y_before)
-    var top_lift := top_y_after - top_y_before
+    var node := MeshInstance3D.new()
+    node.name = "Shoes03_CC0_Review"
+    node.mesh = shoe_mesh
+    node.set_meta("source", "furqonat/makehuman-assets@8cf9645b975a98eea056b140df11a1d278da0d10:base/clothes/shoes03/shoes03.obj")
+    node.set_meta("license", "CC0-1.0")
+    node.set_meta("production_authorized", false)
+    candidate.add_child(node)
 
-    var fit_gate := (
-        FOOTWEAR_HEIGHT_SCALE >= MIN_FOOTWEAR_HEIGHT_SCALE
-        and FOOTWEAR_HEIGHT_SCALE <= MAX_FOOTWEAR_HEIGHT_SCALE
-        and height_after >= MIN_FOOTWEAR_FINAL_HEIGHT_M
-        and height_after <= MAX_FOOTWEAR_FINAL_HEIGHT_M
-        and top_lift >= MIN_FOOTWEAR_TOP_LIFT_M
-        and top_lift <= MAX_FOOTWEAR_TOP_LIFT_M
-        and sole_drift <= MAX_FOOTWEAR_SOLE_DRIFT_M
+    var scale_x := TARGET_BOOT_PAIR_WIDTH_M / source.size.x
+    var scale_z := TARGET_BOOT_LENGTH_M / source.size.z
+    var scale_y := scale_z
+    node.scale = Vector3(scale_x, scale_y, scale_z)
+
+    var source_center := source.position + source.size * 0.5
+    node.position.x = -source_center.x * node.scale.x
+    node.position.z = -source_center.z * node.scale.z + 0.015
+    var sole_y_before := body_bounds.position.y - 0.004
+    node.position.y = sole_y_before - source.position.y * node.scale.y
+    var sole_y_after := node.position.y + source.position.y * node.scale.y
+
+    var shoe_mat := StandardMaterial3D.new()
+    shoe_mat.albedo_color = Color(0.055, 0.052, 0.050)
+    shoe_mat.roughness = 0.58
+    shoe_mat.metallic = 0.0
+    shoe_mat.metallic_specular = 0.20
+    for surface in range(shoe_mesh.get_surface_count()):
+        node.set_surface_override_material(surface, shoe_mat)
+
+    var scaled_size := Vector3(
+        source.size.x * node.scale.x,
+        source.size.y * node.scale.y,
+        source.size.z * node.scale.z
     )
-    audit["footwear_height_scale"] = FOOTWEAR_HEIGHT_SCALE
-    audit["footwear_height_scale_range"] = [MIN_FOOTWEAR_HEIGHT_SCALE, MAX_FOOTWEAR_HEIGHT_SCALE]
-    audit["shoe_height_before_m"] = height_before
-    audit["shoe_height_after_m"] = height_after
-    audit["shoe_height_gate_m"] = [MIN_FOOTWEAR_FINAL_HEIGHT_M, MAX_FOOTWEAR_FINAL_HEIGHT_M]
-    audit["shoe_top_y_before_fit"] = top_y_before
-    audit["shoe_top_y_after_fit"] = top_y_after
-    audit["shoe_top_lift_m"] = top_lift
-    audit["shoe_top_lift_gate_m"] = [MIN_FOOTWEAR_TOP_LIFT_M, MAX_FOOTWEAR_TOP_LIFT_M]
-    audit["sole_y_before_fit"] = sole_y_before
-    audit["sole_y_after_fit"] = sole_y_after
-    audit["sole_drift_m"] = sole_drift
-    audit["max_sole_drift_m"] = MAX_FOOTWEAR_SOLE_DRIFT_M
-    audit["fit_gate"] = fit_gate
+    var sole_drift := absf(sole_y_after - sole_y_before)
+    var fit_gate := (
+        scaled_size.y >= MIN_BOOT_HEIGHT_M
+        and scaled_size.y <= MAX_BOOT_HEIGHT_M
+        and sole_drift <= MAX_BOOT_SOLE_DRIFT_M
+    )
+    var audit := {
+        "added": fit_gate,
+        "source_asset": "base/clothes/shoes03/shoes03.obj",
+        "source_aabb": str(source),
+        "target_pair_width_m": TARGET_BOOT_PAIR_WIDTH_M,
+        "target_length_m": TARGET_BOOT_LENGTH_M,
+        "scaled_pair_size_m": [scaled_size.x, scaled_size.y, scaled_size.z],
+        "boot_height_gate_m": [MIN_BOOT_HEIGHT_M, MAX_BOOT_HEIGHT_M],
+        "vertical_scale_policy": "match_longitudinal_scale_preserve_authored_boot_profile",
+        "scale": [node.scale.x, node.scale.y, node.scale.z],
+        "position": [node.position.x, node.position.y, node.position.z],
+        "sole_y_before": sole_y_before,
+        "sole_y_after": sole_y_after,
+        "sole_drift_m": sole_drift,
+        "max_sole_drift_m": MAX_BOOT_SOLE_DRIFT_M,
+        "fit_gate": fit_gate,
+        "synthetic_ankle_bridge": false,
+        "manual_vertical_stretch": false,
+        "source_commit": "8cf9645b975a98eea056b140df11a1d278da0d10",
+        "license": "CC0-1.0",
+        "production_authorized": false
+    }
     if not fit_gate:
-        audit["added"] = false
-        audit["reason"] = "footwear collar/height/sole-preservation fit outside bounded review gate"
-    print("GB_CIV1_FOOTWEAR_FIT ", JSON.stringify(audit))
+        audit["reason"] = "native shoes03 boot profile outside bounded height/sole gate"
+    print("GB_CIV1_FOOTWEAR_BOOT ", JSON.stringify(audit))
     return audit
 
 func _natural_world_arm_target(current: Vector3, horizontal_component: float) -> Vector3:

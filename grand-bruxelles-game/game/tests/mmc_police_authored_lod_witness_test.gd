@@ -2,6 +2,7 @@ extends SceneTree
 
 const FLEET_SCRIPT := preload("res://game/scripts/belgian_police_fleet_runtime.gd")
 const OVERLAY_SCRIPT := preload("res://game/scripts/mmc_police_authored_lod_runtime.gd")
+const TUNER_SCRIPT := preload("res://game/scripts/mmc_police_v3_presentation_tuner.gd")
 const OUTPUT_EXTERIOR := "res://artifacts/visual/mmc_police_v2_exterior_witness.png"
 const OUTPUT_CABIN := "res://artifacts/visual/mmc_police_v2_cabin_witness.png"
 
@@ -29,7 +30,7 @@ func _capture(path: String) -> bool:
 func _run() -> void:
     DisplayServer.window_set_size(Vector2i(1280, 720))
     var world := Node3D.new()
-    world.name = "MMCPoliceV2Witness"
+    world.name = "MMCPoliceV4Witness"
     root.add_child(world)
     var environment := WorldEnvironment.new()
     var env := Environment.new()
@@ -71,7 +72,7 @@ func _run() -> void:
     sedan.freeze = true
     var sedan_holder := sedan.get_node_or_null(NodePath("BelgianPoliceFleetVisual")) as Node3D
     if sedan_holder == null or not bool(overlay.call("install_on_holder", sedan_holder, overlay.call("config_at", 0))) or not bool(overlay.call("install_officers", sedan_holder, true)):
-        _fail("sedan V2 witness setup failed")
+        _fail("sedan V4 witness setup failed")
         return
 
     var coupe := StaticBody3D.new()
@@ -85,8 +86,27 @@ func _run() -> void:
         return
     var coupe_holder := coupe.get_node_or_null(NodePath("BelgianPoliceFleetVisual")) as Node3D
     if coupe_holder == null or not bool(overlay.call("install_on_holder", coupe_holder, overlay.call("config_at", 1))) or not bool(overlay.call("install_officers", coupe_holder, false)):
-        _fail("coupe V2 witness setup failed")
+        _fail("coupe V4 witness setup failed")
         return
+
+    var tuner := TUNER_SCRIPT.new()
+    world.add_child(tuner)
+    if not bool(tuner.call("tune_holder", sedan_holder, "brussels_capitale_sedan")):
+        _fail("sedan V4 presentation tuning failed")
+        return
+    if not bool(tuner.call("tune_holder", coupe_holder, "brussels_rapid_response_coupe")):
+        _fail("coupe V4 presentation tuning failed")
+        return
+    for holder: Node3D in [sedan_holder, coupe_holder]:
+        if not bool(holder.get_meta("v4_presentation_tuned", false)):
+            _fail("V4 presentation metadata missing")
+            return
+        if not bool(holder.get_meta("v4_lightbar_lowered", false)) or not bool(holder.get_meta("v4_livery_compacted", false)):
+            _fail("V4 lightbar/livery tuning missing")
+            return
+        if not bool(holder.get_meta("v4_closure_inset_under_source_lod", false)):
+            _fail("V4 closure inset tuning missing")
+            return
 
     var camera := Camera3D.new()
     camera.position = Vector3(8.4, 3.4, 9.6)
@@ -102,11 +122,11 @@ func _run() -> void:
         _fail("exterior witness capture failed")
         return
 
-    camera.position = sedan.global_position + sedan.global_transform.basis * Vector3(2.05, 1.45, -2.25)
-    camera.look_at_from_position(camera.position, sedan.global_position + Vector3(0.05, 1.02, -0.15), Vector3.UP)
+    camera.position = sedan.global_position + sedan.global_transform.basis * Vector3(2.05, 1.36, -2.25)
+    camera.look_at_from_position(camera.position, sedan.global_position + Vector3(0.05, 0.96, -0.15), Vector3.UP)
     camera.fov = 46.0
     if not await _capture(OUTPUT_CABIN):
         _fail("cabin witness capture failed")
         return
-    print("MMC_POLICE_V2_VISUAL_OK: exterior=%s cabin=%s project_cabins=2 officers=3 driveable_sedan=true" % [OUTPUT_EXTERIOR, OUTPUT_CABIN])
+    print("MMC_POLICE_V4_VISUAL_OK: exterior=%s cabin=%s project_cabins=2 officers=3 driveable_sedan=true refined_proportions=true" % [OUTPUT_EXTERIOR, OUTPUT_CABIN])
     quit(0)

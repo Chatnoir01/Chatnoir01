@@ -17,10 +17,10 @@ const DEFAULT_THIRD_PERSON_PITCH_DEG := -7.0
 const THIRD_PERSON_CAMERA_OFFSET := Vector3(0.34, 0.08, 0.0)
 const FIRST_PERSON_CAMERA_OFFSET := Vector3.ZERO
 
-const MIN_SOURCE_VISUAL_HEIGHT_M := 0.25
-const MAX_SOURCE_VISUAL_HEIGHT_M := 4.0
-const MIN_NORMALIZATION_SCALE := 0.40
-const MAX_NORMALIZATION_SCALE := 4.0
+const MIN_SOURCE_VISUAL_HEIGHT_M := 0.10
+const MAX_SOURCE_VISUAL_HEIGHT_M := 20.0
+const MIN_NORMALIZATION_SCALE := 0.05
+const MAX_NORMALIZATION_SCALE := 8.0
 
 var _player: CharacterBody3D
 var _camera_pivot: Node3D
@@ -31,6 +31,10 @@ var _normalized_character_id: int = 0
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
+    # Camera presentation runtimes and the Player can both touch the rig during a
+    # frame. Run this guard late so the normal gameplay profile is the final
+    # authority, while explicitly yielding to special direct-presentation modes.
+    process_priority = 1000
     call_deferred("_bind_production_player")
 
 
@@ -91,8 +95,20 @@ func _is_legacy_distance(index: int, distance_m: float) -> bool:
     return absf(distance_m - LEGACY_VIEW_DISTANCES[index]) <= VIEW_MATCH_TOLERANCE_M
 
 
+func _special_presentation_owns_camera() -> bool:
+    if not is_instance_valid(_player):
+        return false
+    # Ixelles uses a source-verified first-person witness and locks the camera.
+    if bool(_player.get_meta("camera_view_locked_first_person", false)):
+        return true
+    # Atomium has a dedicated 48-degree presentation witness. Do not trample it.
+    if _player.has_meta("atomium_direct_presentation_fov_degrees"):
+        return true
+    return false
+
+
 func _apply_camera_contract() -> void:
-    if not _binding_is_valid():
+    if not _binding_is_valid() or _special_presentation_owns_camera():
         return
     var current_distance := _spring_arm.spring_length
     var index := _view_index_for_distance(current_distance)

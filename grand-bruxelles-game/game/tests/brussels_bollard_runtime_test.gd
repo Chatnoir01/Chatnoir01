@@ -5,6 +5,7 @@ const ASSET_PATH := "res://game/scripts/brussels_bollard_asset.gd"
 const RUNTIME_PATH := "res://game/scripts/brussels_bollard_runtime.gd"
 const EXPECTED_COUNT := 27
 const EXPECTED_FAMILY := "brussels_bollard_v1"
+const EXPECTED_PRESENTATION_REVISION := 2
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -81,6 +82,13 @@ func _run() -> void:
     if not FileAccess.file_exists(RUNTIME_PATH):
         _fail("red-first witness: source-backed bollard runtime missing")
         return
+    var asset_script := load(ASSET_PATH)
+    if asset_script == null or not "PRESENTATION_REVISION" in asset_script:
+        _fail("bollard presentation revision 2 missing")
+        return
+    if int(asset_script.PRESENTATION_REVISION) != EXPECTED_PRESENTATION_REVISION:
+        _fail("bollard presentation revision mismatch")
+        return
 
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
@@ -118,5 +126,5 @@ func _run() -> void:
         _fail("runtime moved source positions")
         return
 
-    print("BRUSSELS_BOLLARD_OK: points=%d collisions=%d batches=%d family=%s source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("collision_count")), int(runtime.call("visual_batch_count")), EXPECTED_FAMILY])
+    print("BRUSSELS_BOLLARD_OK: points=%d collisions=%d batches=%d family=%s revision=%d source=OSM license=ODbL-1.0" % [EXPECTED_COUNT, int(runtime.call("collision_count")), int(runtime.call("visual_batch_count")), EXPECTED_FAMILY, EXPECTED_PRESENTATION_REVISION])
     quit(0)

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/tools/diagnose_urbis3d_face_identity.py"
+      - "grand-bruxelles-game/tools/test_diagnose_urbis3d_face_identity.py"
       - ".github/workflows/grand-bruxelles-urbis3d-face-identity-diagnostic.yml"
   workflow_dispatch:
 
@@ -24,6 +25,11 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y gdal-bin python3-gdal unzip
+
+      - name: Regress missing BuildingSolids fail-closed path
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/test_diagnose_urbis3d_face_identity.py
 
       - name: Select current fully-evidenced Anderlecht cell
         run: |
@@ -125,7 +131,7 @@ jobs:
           print('FACE_IDENTITY_EXTRACTION_OK',len(packages))
           PY
 
-      - name: Compare BuildingFaces IDs to current 2D buildings
+      - name: Diagnose package identity relations read-only
         run: |
           set -euo pipefail
           mkdir -p /tmp/face-identity
@@ -142,6 +148,12 @@ jobs:
           assert r['policy']['read_only'] is True
           assert r['policy']['identity_authorization'] is False
           assert r['policy']['runtime_approval'] is False
+          assert r['source_schema']['building_faces_layer_present'] is True
+          if not r['source_schema']['building_solids_layer_present']:
+              assert r['policy']['official_chain_available'] is False
+              assert r['counts']['face_busolid_ids_without_buildingsolids_layer'] == r['counts']['unique_busolid_ids']
+              assert r['counts']['joined_bu2d_exact_2d_ids'] == 0
+          print('FACE_IDENTITY_SCHEMA',json.dumps(r['source_schema'],sort_keys=True))
           print('FACE_IDENTITY_RESULT',json.dumps(r['counts'],sort_keys=True))
           PY
 

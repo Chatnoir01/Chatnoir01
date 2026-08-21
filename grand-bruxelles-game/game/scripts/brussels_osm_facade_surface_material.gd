@@ -5,12 +5,15 @@ class_name BrusselsOsmFacadeSurfaceMaterial
 ## OSM supports the footprint/placement/kind data consumed by the production
 ## builder, but the committed vertical-slice snapshot does not retain a
 ## building:material claim. The existing six base colours and all procedural
-## tonal variation below are therefore authored presentation values only.
+## tonal/readability variation below are therefore authored presentation values only.
 ## This family does not claim brick, stone, concrete, render, paint, measured
-## colour, facade-unit scale, weathering, or photometric roughness.
+## colour, facade-unit scale, weathering, architectural detail, surface composition,
+## or photometric roughness.
 
 const MATERIAL_FAMILY := "brussels_osm_facade_surface_v1"
+const PRESENTATION_REVISION := 2
 const SOURCE_LABEL := "OpenStreetMap contributors via Overpass API; generic building footprint/placement/kind only; ODbL-1.0"
+const SURFACE_READABILITY_STRENGTH := 0.12
 
 static func _shader() -> Shader:
     var shader := Shader.new()
@@ -20,6 +23,7 @@ render_mode diffuse_burley, specular_schlick_ggx;
 
 uniform vec4 base_color : source_color = vec4(0.45, 0.40, 0.34, 1.0);
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.91;
+uniform float surface_readability_strength : hint_range(0.0, 0.30) = 0.12;
 
 varying vec3 world_pos;
 
@@ -48,6 +52,12 @@ float value_noise3(vec3 p) {
     return mix(mix(nx00, nx10, f.y), mix(nx01, nx11, f.y), f.z);
 }
 
+float fine_grain(vec3 p) {
+    float a = value_noise3(p * vec3(0.61, 0.73, 0.67) + vec3(13.0, 47.0, 29.0));
+    float b = value_noise3(p * vec3(1.19, 1.07, 1.31) + vec3(61.0, 11.0, 43.0));
+    return (a * 0.62 + b * 0.38) - 0.5;
+}
+
 void vertex() {
     world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
@@ -56,9 +66,10 @@ void fragment() {
     vec3 p = world_pos;
     float broad = value_noise3(p * vec3(0.055, 0.075, 0.055) + vec3(7.0, 19.0, 31.0));
     float medium = value_noise3(p * vec3(0.17, 0.13, 0.17) + vec3(41.0, 5.0, 23.0));
-    float tone = clamp((broad - 0.5) * 0.22 + (medium - 0.5) * 0.07, -0.12, 0.12);
+    float readability = fine_grain(p) * surface_readability_strength;
+    float tone = clamp((broad - 0.5) * 0.22 + (medium - 0.5) * 0.07 + readability, -0.16, 0.16);
     ALBEDO = clamp(base_color.rgb * (1.0 + tone), vec3(0.0), vec3(1.0));
-    ROUGHNESS = clamp(base_roughness + (0.5 - broad) * 0.035, 0.86, 0.97);
+    ROUGHNESS = clamp(base_roughness + (0.5 - broad) * 0.035 - readability * 0.055, 0.84, 0.97);
     METALLIC = 0.0;
     SPECULAR = 0.14;
 }
@@ -70,7 +81,9 @@ static func create_material(base_color: Color, roughness: float = 0.91) -> Shade
     material.shader = _shader()
     material.set_shader_parameter("base_color", base_color)
     material.set_shader_parameter("base_roughness", roughness)
+    material.set_shader_parameter("surface_readability_strength", SURFACE_READABILITY_STRENGTH)
     material.set_meta("material_family", MATERIAL_FAMILY)
+    material.set_meta("presentation_revision", PRESENTATION_REVISION)
     material.set_meta("source_label", SOURCE_LABEL)
     material.set_meta("license", "ODbL-1.0")
     material.set_meta("procedural_only", true)
@@ -81,6 +94,9 @@ static func create_material(base_color: Color, roughness: float = 0.91) -> Shade
     material.set_meta("exact_rgb_is_photometric_measurement", false)
     material.set_meta("weathering_claimed", false)
     material.set_meta("facade_unit_scale_claimed", false)
+    material.set_meta("architectural_detail_claimed", false)
+    material.set_meta("surface_composition_claimed", false)
+    material.set_meta("microtexture_scale_source_measured", false)
     material.set_meta("geometry_changed", false)
     material.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
     return material

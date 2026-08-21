@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
       - "grand-bruxelles-game/game/tests/midi_exact_building_collision_test.gd"
+      - "grand-bruxelles-game/tools/city_machine/diagnose_midi_station_spatial_contract.py"
       - "grand-bruxelles-game/data/urbis/midi/**"
       - ".github/workflows/grand-bruxelles-midi-solid-world.yml"
   workflow_dispatch:
@@ -19,6 +21,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Prove official Midi station spatial contract
+        working-directory: grand-bruxelles-game
+        run: python tools/city_machine/diagnose_midi_station_spatial_contract.py
       - name: Setup Godot 4.7.1
         uses: chickensoft-games/setup-godot@v2
         with:

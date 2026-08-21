@@ -8,6 +8,8 @@ const V4_NAME := "GrandPlaceFacadePresentationRefinementV4"
 const V5_NAME := "GrandPlaceFacadePresentationIntegratedV5"
 const V7_NAME := "GrandPlaceMaisonDuRoiTowerDepthV7"
 const CONTOUR_NAME := "GrandPlaceCompleteContourRuntime"
+const CANONICAL_CAMERA := Vector3(319.01, 1.72, -535.20)
+const MIN_TOWER_CUE_SURFACE_CLEARANCE_M := 0.03
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -172,6 +174,24 @@ func _run() -> void:
         if details.get_node_or_null("MaisonDuRoiTowerRoofBaluster_%02d" % index) == null:
             _fail("Maison du Roi openwork balustrade lost post %d" % index); return
 
+    # Player-view visibility regression: counting a bay is insufficient if its
+    # mesh sits almost coplanar with the tower and disappears into the depth
+    # buffer. Require the player-facing dark panel to face the frozen canonical
+    # camera and keep its entire back face at least 3 cm in front of the tower.
+    # This is presentation-only clearance; it does not move UrbIS geometry.
+    var front_panel := details.get_node_or_null("MaisonDuRoiTowerRoofBayFrontPanel") as MeshInstance3D
+    if front_panel == null:
+        _fail("Maison du Roi front roof-register panel missing"); return
+    var camera_direction := Vector3(CANONICAL_CAMERA.x - front_panel.global_position.x, 0.0, CANONICAL_CAMERA.z - front_panel.global_position.z)
+    if camera_direction.length_squared() < 0.01 or tower_normal.dot(camera_direction.normalized()) < 0.55:
+        _fail("Maison du Roi front roof-register cue is not on the canonical player-facing tower face"); return
+    var panel_size := _box_world_size(front_panel)
+    var tower_front_plane := tower.global_position.dot(tower_normal) + tower_size.z * 0.5
+    var panel_back_plane := front_panel.global_position.dot(tower_normal) - panel_size.z * 0.5
+    var panel_surface_clearance := panel_back_plane - tower_front_plane
+    if panel_surface_clearance < MIN_TOWER_CUE_SURFACE_CLEARANCE_M - 0.0001:
+        _fail("Maison du Roi front bay is depth-buffer unsafe: clearance=%.4f required=%.4f" % [panel_surface_clearance,MIN_TOWER_CUE_SURFACE_CLEARANCE_M]); return
+
     facade.call("set_presentation_visible",false)
     for _frame: int in range(4): await process_frame
     if details.visible:
@@ -182,5 +202,5 @@ func _run() -> void:
     for _frame: int in range(4): await process_frame
     if not details.visible:
         _fail("ON toggle did not restore V5 details"); return
-    print("GRAND_PLACE_FACADE_INTEGRATED_V5_OK: v4_rejected=true lateral_stretch=false renard_balusters=9 maison_glazing=35 maison_piers=20 maison_tower_cues=3 maison_tower_axial_ratio=%.3f maison_tower_depth_ratio=%.3f maison_roof_bays=3 maison_balustrade=6 brasseurs=11 rose_orders=16 mont_thabor=5 collisions=23" % [tower_width/axial_span,depth_ratio])
+    print("GRAND_PLACE_FACADE_INTEGRATED_V5_OK: v4_rejected=true lateral_stretch=false renard_balusters=9 maison_glazing=35 maison_piers=20 maison_tower_cues=3 maison_tower_axial_ratio=%.3f maison_tower_depth_ratio=%.3f maison_roof_bays=3 maison_balustrade=6 maison_front_bay_clearance=%.3f brasseurs=11 rose_orders=16 mont_thabor=5 collisions=23" % [tower_width/axial_span,depth_ratio,panel_surface_clearance])
     quit(0)

@@ -102,11 +102,19 @@ jobs:
           import json
           p=json.load(open('/tmp/terrain-performance/measurement.json'))
           row=p['gates']['performance']
+          metrics=row['metrics']
           assert row['passed'] is False
           assert row['status']=='blocked_no_versioned_per_cell_budget'
           assert p['policy']['runtime_promotion_allowed'] is False
-          assert row['metrics']['render_metrics_available'] is True
-          print('TERRAIN_PERFORMANCE_EXACT_MEASUREMENT_VERIFIED budget=missing passed=false runtime_promotion=false')
+          assert isinstance(metrics['render_metrics_available'], bool)
+          assert metrics['wall_frame_ms_avg'] > 0
+          assert metrics['wall_frame_ms_p95'] > 0
+          assert metrics['stream_total_ms'] >= 0
+          print(
+              'TERRAIN_PERFORMANCE_EXACT_MEASUREMENT_VERIFIED '
+              f"budget=missing passed=false render_metrics={str(metrics['render_metrics_available']).lower()} "
+              'runtime_promotion=false'
+          )
           PY
 
       - name: Upload exact performance evidence

@@ -3,7 +3,11 @@ name: Grand Bruxelles Tree Distance LOD
 on:
   pull_request:
     paths:
+      - 'grand-bruxelles-game/data/qa/playable_zone_catalog.json'
+      - 'grand-bruxelles-game/data/osm/zones/jette/environment.game.json'
       - 'grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/zone_selector_runtime.gd'
+      - 'grand-bruxelles-game/game/zones/laeken_jette/jette_phase2_zone.gd'
       - 'grand-bruxelles-game/game/tests/brussels_tree_distance_lod_test.gd'
       - 'grand-bruxelles-game/game/tests/brussels_tree_distance_lod_witness_test.gd'
       - '.github/workflows/grand-bruxelles-tree-distance-lod.yml'

@@ -2,6 +2,7 @@ extends SceneTree
 
 const JETTE_ZONE := "res://game/zones/laeken_jette/jette_phase2_zone.gd"
 const JETTE_DATA := "res://data/osm/zones/jette/environment.game.json"
+const TREE := preload("res://game/scripts/brussels_street_tree_asset.gd")
 const SPAWN := Vector3(-687.700268506218, 1.05, -4952.774160383269)
 const BEFORE := "res://artifacts/visual/tree_lod_full_detail_before.png"
 const AFTER := "res://artifacts/visual/tree_lod_distance_after.png"
@@ -10,6 +11,9 @@ const DIAG_AFTER := "res://artifacts/visual/tree_lod_signal_after.png"
 const EXPECTED_RENDERED_TREES := 170
 const EXPECTED_LOBES_PER_NEAR_TREE := 8
 const EXPECTED_LOBES_PER_FAR_TREE := 3
+const FAR_LOBE_INDICES := [0, 3, 6]
+const TREE_FULL_DETAIL_RADIUS_M := 140.0
+const TREE_RENDER_RADIUS_M := 350.0
 const MAX_CHANGED_GT3 := 0.015
 const MAX_CHANGED_GT8 := 0.012
 const MIN_SIGNAL_CHANGED_GT3 := 0.00005
@@ -64,13 +68,16 @@ func _diff_metrics(before: Image, after: Image) -> Dictionary:
         "bbox_height": 0 if max_y < min_y else max_y - min_y + 1,
     }
 
-func _nearest_tree() -> Vector3:
+func _environment_rows() -> Array:
     var parsed: Variant = JSON.parse_string(_read(JETTE_DATA))
     if typeof(parsed) != TYPE_DICTIONARY:
-        return Vector3(INF, INF, INF)
+        return []
+    return (parsed as Dictionary).get("environment_points", []) as Array
+
+func _nearest_tree() -> Vector3:
     var nearest := Vector3(INF, INF, INF)
     var nearest_distance := INF
-    for row_variant in (parsed as Dictionary).get("environment_points", []):
+    for row_variant in _environment_rows():
         if not row_variant is Dictionary:
             continue
         var row := row_variant as Dictionary
@@ -86,6 +93,28 @@ func _nearest_tree() -> Vector3:
             nearest = world
     return nearest
 
+func _far_tree_rows() -> Array:
+    var rows: Array = []
+    for row_variant in _environment_rows():
+        if not row_variant is Dictionary:
+            continue
+        var row := row_variant as Dictionary
+        if str(row.get("kind", "")) != "tree":
+            continue
+        var position := row.get("position", []) as Array
+        if position.size() < 2:
+            continue
+        var world := Vector3(float(position[0]), 0.0, float(position[1]))
+        var distance := Vector2(world.x - SPAWN.x, world.z - SPAWN.z).length()
+        if distance > TREE_FULL_DETAIL_RADIUS_M and distance <= TREE_RENDER_RADIUS_M:
+            rows.append({"osm_id": int(row.get("osm_id", 0)), "position": world, "distance": distance})
+    rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+        if float(a["distance"]) == float(b["distance"]):
+            return int(a["osm_id"]) < int(b["osm_id"])
+        return float(a["distance"]) < float(b["distance"])
+    )
+    return rows
+
 func _tree_batch_count(runtime: Node) -> int:
     var count := 0
     for name_value: String in ["TreeTrunks", "TreeFoliageDark", "TreeFoliageLight"]:
@@ -94,13 +123,55 @@ func _tree_batch_count(runtime: Node) -> int:
             count += 1
     return count
 
-func _hide_non_tree_geometry(zone: Node, runtime: Node) -> void:
-    var keep := {"TreeTrunks": true, "TreeFoliageDark": true, "TreeFoliageLight": true}
+func _hide_zone_geometry(zone: Node) -> void:
     for node_variant in zone.find_children("*", "GeometryInstance3D", true, false):
         var geometry := node_variant as GeometryInstance3D
-        if geometry == null:
-            continue
-        geometry.visible = geometry.get_parent() == runtime and keep.has(String(geometry.name))
+        if geometry != null:
+            geometry.visible = false
+
+func _diagnostic_batch(parent: Node3D, name_value: String, mesh: Mesh, transforms: Array[Transform3D]) -> void:
+    if transforms.is_empty():
+        return
+    var multimesh := MultiMesh.new()
+    multimesh.transform_format = MultiMesh.TRANSFORM_3D
+    multimesh.mesh = mesh
+    multimesh.instance_count = transforms.size()
+    for index: int in range(transforms.size()):
+        multimesh.set_instance_transform(index, transforms[index])
+    var batch := MultiMeshInstance3D.new()
+    batch.name = name_value
+    batch.multimesh = multimesh
+    parent.add_child(batch)
+
+func _build_far_tree_signal(parent: Node3D, rows: Array, full_detail: bool) -> int:
+    for child in parent.get_children():
+        parent.remove_child(child)
+        child.queue_free()
+    var materials := TREE.create_materials()
+    var dark: Array[Transform3D] = []
+    var light: Array[Transform3D] = []
+    var lobe_count := 0
+    for row_variant in rows:
+        var row := row_variant as Dictionary
+        var base := row["position"] as Vector3
+        var osm_id := int(row["osm_id"])
+        var lobe_indices: Array = []
+        if full_detail:
+            for index: int in range(TREE.FOLIAGE_LOBE_COUNT):
+                lobe_indices.append(index)
+        else:
+            lobe_indices.assign(FAR_LOBE_INDICES)
+        for index_variant in lobe_indices:
+            var index := int(index_variant)
+            var transform := TREE.foliage_lobe_transform(base, osm_id, index)
+            if TREE.foliage_is_light(index):
+                light.append(transform)
+            else:
+                dark.append(transform)
+            lobe_count += 1
+    _diagnostic_batch(parent, "FarTreeSignalFoliageDark", TREE.create_foliage_mesh(materials["foliage_dark"] as Material), dark)
+    _diagnostic_batch(parent, "FarTreeSignalFoliageLight", TREE.create_foliage_mesh(materials["foliage_light"] as Material), light)
+    return lobe_count
 
 func _run() -> void:
     if not FileAccess.file_exists(JETTE_ZONE) or not FileAccess.file_exists(JETTE_DATA):
@@ -156,6 +227,8 @@ func _run() -> void:
     camera.fov = 70.0
     camera.current = true
     world_root.add_child(camera)
+    var frozen_camera_transform := camera.global_transform
+    var frozen_camera_fov := camera.fov
 
     runtime.set("tree_full_detail_radius_m", float(runtime.get("render_radius_m")))
     runtime.call("_rebuild", SPAWN)
@@ -174,7 +247,7 @@ func _run() -> void:
         return
     var before := await _capture(viewport, BEFORE)
 
-    runtime.set("tree_full_detail_radius_m", 140.0)
+    runtime.set("tree_full_detail_radius_m", TREE_FULL_DETAIL_RADIUS_M)
     runtime.call("_rebuild", SPAWN)
     for _frame in range(3): await process_frame
     var optimized_counts := (runtime.get("last_tree_lod_counts") as Dictionary).duplicate(true)
@@ -206,25 +279,35 @@ func _run() -> void:
         _fail("tree LOD changes too much of the player frame: gt3=%.4f%% gt8=%.4f%%" % [full_gt3 * 100.0, full_gt8 * 100.0])
         return
 
-    runtime.set("tree_full_detail_radius_m", float(runtime.get("render_radius_m")))
-    runtime.call("_rebuild", SPAWN)
+    var far_rows := _far_tree_rows()
+    if far_rows.size() != far_count:
+        _fail("diagnostic far-tree source selection drifted: expected %d got %d" % [far_count, far_rows.size()])
+        return
+    _hide_zone_geometry(zone)
+    var signal_root := Node3D.new()
+    signal_root.name = "TreeLodFarSignalDiagnostic"
+    world_root.add_child(signal_root)
+    var signal_full_lobes := _build_far_tree_signal(signal_root, far_rows, true)
     for _frame in range(3): await process_frame
-    _hide_non_tree_geometry(zone, runtime)
     var signal_before := await _capture(viewport, DIAG_BEFORE)
-    runtime.set("tree_full_detail_radius_m", 140.0)
-    runtime.call("_rebuild", SPAWN)
+    var signal_lod_lobes := _build_far_tree_signal(signal_root, far_rows, false)
     for _frame in range(3): await process_frame
-    _hide_non_tree_geometry(zone, runtime)
     var signal_after := await _capture(viewport, DIAG_AFTER)
     if signal_before == null or signal_after == null:
-        _fail("tree-only diagnostic A/B capture failed")
+        _fail("far-tree diagnostic A/B capture failed")
+        return
+    if signal_full_lobes != far_count * EXPECTED_LOBES_PER_NEAR_TREE or signal_lod_lobes != far_count * EXPECTED_LOBES_PER_FAR_TREE:
+        _fail("far-tree diagnostic lobe contract drifted")
+        return
+    if not camera.global_transform.is_equal_approx(frozen_camera_transform) or absf(camera.fov - frozen_camera_fov) > 0.001:
+        _fail("diagnostic camera changed from normal-player A/B")
         return
     var signal_metrics := _diff_metrics(signal_before, signal_after)
     var signal_gt3 := float(signal_metrics["changed_gt3"])
     if signal_gt3 < MIN_SIGNAL_CHANGED_GT3:
-        _fail("tree-only diagnostic did not prove a measurable rendered LOD delta")
+        _fail("far-tree diagnostic did not prove a measurable rendered LOD delta")
         return
 
-    print("BRUSSELS_TREE_DISTANCE_LOD_VISUAL_METRICS: trees=%d near=%d far=%d foliage=%d->%d reduction=%.2f%% full_gt3=%.4f%% full_gt8=%.4f%% full_bbox=%dx%d signal_gt3=%.4f%% signal_bbox=%dx%d" % [EXPECTED_RENDERED_TREES, near_count, far_count, baseline_foliage, optimized_foliage, reduction * 100.0, full_gt3 * 100.0, full_gt8 * 100.0, int(full_metrics["bbox_width"]), int(full_metrics["bbox_height"]), signal_gt3 * 100.0, int(signal_metrics["bbox_width"]), int(signal_metrics["bbox_height"])])
-    print("BRUSSELS_TREE_DISTANCE_LOD_VISUAL_OK: camera_eye=1.65m fov=70 source_positions_unchanged=true batches=3 diagnostic_camera_unchanged=true")
+    print("BRUSSELS_TREE_DISTANCE_LOD_VISUAL_METRICS: trees=%d near=%d far=%d foliage=%d->%d reduction=%.2f%% full_gt3=%.4f%% full_gt8=%.4f%% full_bbox=%dx%d signal_gt3=%.4f%% signal_bbox=%dx%d signal_lobes=%d->%d" % [EXPECTED_RENDERED_TREES, near_count, far_count, baseline_foliage, optimized_foliage, reduction * 100.0, full_gt3 * 100.0, full_gt8 * 100.0, int(full_metrics["bbox_width"]), int(full_metrics["bbox_height"]), signal_gt3 * 100.0, int(signal_metrics["bbox_width"]), int(signal_metrics["bbox_height"]), signal_full_lobes, signal_lod_lobes])
+    print("BRUSSELS_TREE_DISTANCE_LOD_VISUAL_OK: camera_eye=1.65m fov=70 source_positions_unchanged=true batches=3 diagnostic_camera_unchanged=true diagnostic_far_trees_only=true")
     quit(0)

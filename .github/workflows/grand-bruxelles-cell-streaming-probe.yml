@@ -2,7 +2,7 @@ name: Grand Bruxelles Cell Streaming Probe
 
 on:
   push:
-    branches: ["agent/openliberty-cell-streaming-probe", "agent/streamed-collision-and-asset-cache", "agent/production-cell-streaming-runtime", "agent/ixelles-2x2-source-cell-streaming", "citygen/runtime-auto-discovery-clean"]
+    branches: ["agent/openliberty-cell-streaming-probe", "agent/streamed-collision-and-asset-cache", "agent/production-cell-streaming-runtime", "agent/ixelles-2x2-source-cell-streaming", "citygen/runtime-auto-discovery-clean", "citygen/deterministic-runtime-cell-index-908d36a"]
   pull_request:
     paths:
       - ".github/workflows/grand-bruxelles-cell-streaming-probe.yml"
@@ -18,9 +18,11 @@ on:
       - "grand-bruxelles-game/game/tests/brussels_real_cell_lifecycle_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_production_streaming_runtime_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_runtime_cell_auto_discovery_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_runtime_cell_index_test.gd"
       - "grand-bruxelles-game/game/tests/brussels_source_plan_cluster_test.gd"
       - "grand-bruxelles-game/game/zones/ixelles/ixelles_microslice.gd"
       - "grand-bruxelles-game/game/zones/ixelles/ixelles_streamed_microslice.gd"
+      - "grand-bruxelles-game/data/runtime/runtime_cell_index.json"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/**/manifest.json"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/**/runtime/**"
       - "grand-bruxelles-game/data/terrain/ixelles/**"
@@ -54,6 +56,13 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_runtime_cell_auto_discovery_test.gd 2>&1 | tee /tmp/runtime-cell-auto-discovery.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_RUNTIME_CELL_AUTO_DISCOVERY_FAIL" /tmp/runtime-cell-auto-discovery.log; then exit 1; fi
           grep -F "BRUSSELS_RUNTIME_CELL_AUTO_DISCOVERY_OK" /tmp/runtime-cell-auto-discovery.log
+      - name: Prove deterministic runtime cell index
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_runtime_cell_index_test.gd 2>&1 | tee /tmp/runtime-cell-index.log
+          if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_RUNTIME_CELL_INDEX_FAIL" /tmp/runtime-cell-index.log; then exit 1; fi
+          grep -F "BRUSSELS_RUNTIME_CELL_INDEX_OK" /tmp/runtime-cell-index.log
       - name: Run predictive cell scheduling probe
         shell: bash
         run: |
@@ -74,10 +83,7 @@ jobs:
           set -o pipefail
           timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_real_cell_lifecycle_test.gd 2>&1 | tee /tmp/real-cell-lifecycle.log
           status=${PIPESTATUS[0]}
-          if [ "$status" -eq 124 ]; then
-            echo "BRUSSELS_REAL_CELL_LIFECYCLE_FAIL: timed out after 45s"
-            exit 1
-          fi
+          if [ "$status" -eq 124 ]; then echo "BRUSSELS_REAL_CELL_LIFECYCLE_FAIL: timed out after 45s"; exit 1; fi
           if [ "$status" -ne 0 ]; then exit "$status"; fi
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_REAL_CELL_LIFECYCLE_FAIL" /tmp/real-cell-lifecycle.log; then exit 1; fi
           grep -F "BRUSSELS_REAL_CELL_LIFECYCLE_OK" /tmp/real-cell-lifecycle.log
@@ -87,10 +93,7 @@ jobs:
           set -o pipefail
           timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_production_streaming_runtime_test.gd 2>&1 | tee /tmp/production-streaming.log
           status=${PIPESTATUS[0]}
-          if [ "$status" -eq 124 ]; then
-            echo "BRUSSELS_PRODUCTION_STREAMING_FAIL: timed out after 45s"
-            exit 1
-          fi
+          if [ "$status" -eq 124 ]; then echo "BRUSSELS_PRODUCTION_STREAMING_FAIL: timed out after 45s"; exit 1; fi
           if [ "$status" -ne 0 ]; then exit "$status"; fi
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_PRODUCTION_STREAMING_FAIL" /tmp/production-streaming.log; then exit 1; fi
           grep -F "BRUSSELS_PRODUCTION_STREAMING_OK" /tmp/production-streaming.log
@@ -100,10 +103,7 @@ jobs:
           set -o pipefail
           timeout 45s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_source_plan_cluster_test.gd 2>&1 | tee /tmp/source-plan-cluster.log
           status=${PIPESTATUS[0]}
-          if [ "$status" -eq 124 ]; then
-            echo "BRUSSELS_SOURCE_PLAN_CLUSTER_FAIL: timed out after 45s"
-            exit 1
-          fi
+          if [ "$status" -eq 124 ]; then echo "BRUSSELS_SOURCE_PLAN_CLUSTER_FAIL: timed out after 45s"; exit 1; fi
           if [ "$status" -ne 0 ]; then exit "$status"; fi
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_SOURCE_PLAN_CLUSTER_FAIL" /tmp/source-plan-cluster.log; then exit 1; fi
           grep -F "BRUSSELS_SOURCE_PLAN_CLUSTER_OK" /tmp/source-plan-cluster.log

@@ -11,9 +11,15 @@ signal emergency_mode_changed(enabled: bool)
 @export var emergency_yield_radius_m: float = 24.0
 @export var emergency_flash_hz: float = 5.5
 @export_range(0.0, 1.0, 0.05) var yielded_speed_factor: float = 0.15
+@export_range(-30.0, 6.0, 0.5) var siren_volume_db: float = -4.0
+@export var siren_max_distance_m: float = 95.0
+@export var siren_low_hz: float = 660.0
+@export var siren_high_hz: float = 880.0
+@export var siren_cycle_s: float = 1.20
 
 var _left_beacon: OmniLight3D = null
 var _right_beacon: OmniLight3D = null
+var _siren_player: AudioStreamPlayer3D = null
 var _flash_elapsed: float = 0.0
 var _yielded_vehicles: Dictionary = {}
 
@@ -23,13 +29,16 @@ func _ready() -> void:
     add_to_group("emergency_vehicle")
     traffic_archetype = "car"
     _ensure_emergency_lights()
+    _ensure_siren()
     _apply_emergency_tuning()
+    _sync_siren_state()
 
 func set_emergency_mode(enabled: bool) -> void:
     if emergency_mode == enabled:
         return
     emergency_mode = enabled
     _apply_emergency_tuning()
+    _sync_siren_state()
     if not emergency_mode:
         _release_all_yielding_traffic()
         _set_beacons(false, false)
@@ -40,6 +49,9 @@ func toggle_emergency_mode() -> void:
 
 func is_emergency_mode() -> bool:
     return emergency_mode
+
+func is_siren_playing() -> bool:
+    return _siren_player != null and _siren_player.playing
 
 func _apply_emergency_tuning() -> void:
     if emergency_mode:
@@ -99,6 +111,55 @@ func _set_beacons(left_enabled: bool, right_enabled: bool) -> void:
     if _right_beacon != null:
         _right_beacon.visible = right_enabled
 
+func _ensure_siren() -> void:
+    _siren_player = get_node_or_null("Siren3D") as AudioStreamPlayer3D
+    if _siren_player != null:
+        return
+    _siren_player = AudioStreamPlayer3D.new()
+    _siren_player.name = "Siren3D"
+    _siren_player.position = Vector3(0.0, 1.45, -0.65)
+    _siren_player.volume_db = siren_volume_db
+    _siren_player.max_distance = siren_max_distance_m
+    _siren_player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+    _siren_player.unit_size = 7.0
+    _siren_player.stream = _build_siren_stream()
+    add_child(_siren_player)
+
+func _build_siren_stream() -> AudioStreamWAV:
+    var stream := AudioStreamWAV.new()
+    var sample_rate := 22050
+    var cycle := maxf(0.40, siren_cycle_s)
+    var sample_count := maxi(1, int(round(float(sample_rate) * cycle)))
+    var half_cycle := cycle * 0.5
+    var pcm := PackedByteArray()
+    pcm.resize(sample_count * 2)
+    for index: int in range(sample_count):
+        var t := float(index) / float(sample_rate)
+        var frequency := siren_low_hz if fmod(t, cycle) < half_cycle else siren_high_hz
+        var phase := TAU * frequency * t
+        var fundamental := sin(phase)
+        var harmonic := 0.22 * sin(phase * 2.0)
+        var edge_smooth := minf(1.0, minf(t, cycle - t) * 45.0)
+        var sample := clampf((fundamental + harmonic) * 0.56 * edge_smooth, -1.0, 1.0)
+        pcm.encode_s16(index * 2, int(round(sample * 32767.0)))
+    stream.format = AudioStreamWAV.FORMAT_16_BITS
+    stream.mix_rate = sample_rate
+    stream.stereo = false
+    stream.data = pcm
+    stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+    stream.loop_begin = 0
+    stream.loop_end = sample_count
+    return stream
+
+func _sync_siren_state() -> void:
+    if _siren_player == null:
+        return
+    if emergency_mode:
+        if not _siren_player.playing:
+            _siren_player.play()
+    elif _siren_player.playing:
+        _siren_player.stop()
+
 func _update_yielding_traffic() -> void:
     var current: Dictionary = {}
     for node: Node in get_tree().get_nodes_in_group("traffic_vehicle"):
@@ -143,6 +204,9 @@ func get_ambulance_contract() -> Dictionary:
         "player_emergency_toggle": "H",
         "emergency_mode": emergency_mode,
         "blue_beacons": true,
+        "siren": true,
+        "siren_spatial_3d": true,
+        "siren_generated_runtime": true,
         "traffic_priority_radius_m": emergency_yield_radius_m,
         "yielded_speed_factor": yielded_speed_factor,
         "external_driver_supported": true,

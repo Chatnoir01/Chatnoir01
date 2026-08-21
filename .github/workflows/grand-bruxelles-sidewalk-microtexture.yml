@@ -44,10 +44,13 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_SIDEWALK_MICROTEXTURE_VISUAL_FAIL" /tmp/sidewalk-microtexture-witness.log; then exit 1; fi
           grep -q "BRUSSELS_SIDEWALK_MICROTEXTURE_VISUAL_OK" /tmp/sidewalk-microtexture-witness.log
       - name: Upload microtexture evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: brussels-sidewalk-microtexture-ab
           path: |
             grand-bruxelles-game/artifacts/visual/sidewalk_microtexture_before.png
             grand-bruxelles-game/artifacts/visual/sidewalk_microtexture_after.png
-          if-no-files-found: error
+            grand-bruxelles-game/artifacts/visual/sidewalk_microtexture_control.png
+            /tmp/sidewalk-microtexture-witness.log
+          if-no-files-found: warn

@@ -1,0 +1,30 @@
+{
+  "schema": "grand-bruxelles-urbis-lod2-source-campaign-registry-v1",
+  "campaign_id": "region-lod2-C02-30000",
+  "production_base_sha": "292ce27314dae6362a0b3845b4adde4dac0ff468",
+  "contract": "grand-bruxelles-game/data/qa/region_lod2_campaigns/region_lod2_C02_30000.contract.json",
+  "selection_policy": "deterministic_from_locked_planner_artifact_after_exact_C01_exclusion",
+  "selection": {
+    "owner_count": 30000,
+    "owner_sequence_sha256": "c1e3cd3451943f0b597030d582ca4f2677d1733fe51869edcc68dc77bf66060e",
+    "municipality_counts": {
+      "Bruxelles": 17060,
+      "Uccle": 12940
+    },
+    "distribution_count": 62,
+    "cell_count": 168,
+    "planner_group_count": 240,
+    "first_sequence_owner": "1636350",
+    "last_sequence_owner": "1723694"
+  },
+  "source_shards": {},
+  "campaign_metrics_status": "measurement_pending",
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "geometry_modified": false,
+  "semantic_names_authorized": false,
+  "game_world_transform_authorized": false,
+  "jouable_promotion_authorized": false,
+  "note": "Exact-current-main rebuild of the second 30k immutable source-only campaign from locked planner artifact 9371456570. Selection is unchanged from verified C02 evidence. Source metrics remain measurement_pending until a complete 62-shard run is measured, locked and exactly reproduced."
+}

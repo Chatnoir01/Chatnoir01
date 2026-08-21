@@ -63,6 +63,10 @@ def test_conflicting_duplicate_fails_closed() -> None:
 def test_real_slice_contains_shipped_direct_entry_roads() -> None:
     catalog = module.build_catalog(ROOT / "data" / "osm")
     module.validate_contract(catalog)
+    print(
+        "ROAD_DESTINATION_CATALOG_REAL_COUNT: "
+        f"entries={catalog['entry_count']} documents={catalog['compatible_document_count']}"
+    )
     assert catalog["entry_count"] >= 140
     for osm_id in (359177328, 487501805, 1382734012):
         entry = catalog["entries"].get(str(osm_id))

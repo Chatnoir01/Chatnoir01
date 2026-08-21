@@ -112,11 +112,11 @@ func _run() -> void:
         _fail("shared sidewalk material not found on generated sidewalk")
         return
 
-    var authored_strength_variant := material.get_shader_parameter("micro_grain_strength")
+    var authored_strength_variant: Variant = material.get_shader_parameter("micro_grain_strength")
     if authored_strength_variant == null:
         _fail("authored micro_grain_strength missing")
         return
-    var authored_strength := float(authored_strength_variant)
+    var authored_strength: float = float(authored_strength_variant)
     if authored_strength <= 0.0:
         _fail("authored micro_grain_strength must be positive")
         return

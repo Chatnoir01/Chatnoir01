@@ -1,0 +1,46 @@
+name: Grand Bruxelles Terrain Gate Measurement Persistence
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/persist_terrain_runtime_gate_measurement.py"
+      - "grand-bruxelles-game/tools/citygen/test_persist_terrain_runtime_gate_measurement.py"
+      - "grand-bruxelles-game/tools/citygen/build_terrain_runtime_gate_evidence.py"
+      - ".github/workflows/grand-bruxelles-terrain-gate-measurement-persistence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove persistence guardrails
+        run: python3 grand-bruxelles-game/tools/citygen/test_persist_terrain_runtime_gate_measurement.py
+
+      - name: Prove aggregator still consumes persisted measurements fail-closed
+        run: |
+          python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3"
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_runtime_gate_evidence.py
+
+      - name: Compile persistence tool
+        run: |
+          python3 -m py_compile \
+            grand-bruxelles-game/tools/citygen/persist_terrain_runtime_gate_measurement.py \
+            grand-bruxelles-game/tools/citygen/test_persist_terrain_runtime_gate_measurement.py
+
+      - name: Assert no production authorization path was introduced
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          tool=Path('grand-bruxelles-game/tools/citygen/persist_terrain_runtime_gate_measurement.py').read_text()
+          assert 'runtime_promotion_allowed' in tool
+          assert 'production_discovery_eligible' not in tool
+          assert 'runtime_mount_authorized' not in tool
+          print('TERRAIN_GATE_MEASUREMENT_PERSIST_POLICY_OK production_mutation=false runtime_promotion=false')
+          PY

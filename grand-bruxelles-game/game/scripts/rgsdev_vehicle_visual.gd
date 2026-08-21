@@ -67,12 +67,18 @@ static var _scene_cache: Dictionary = {}
 @export var model_offset: Vector3 = Vector3.ZERO
 @export var wheel_radius_m: float = 0.34
 @export var animate_wheels: bool = true
+@export var auto_align_forward: bool = true
+@export var auto_ground_model: bool = true
+@export_range(0.0, 0.08, 0.001) var ground_clearance_m: float = 0.015
 
 var _instance: Node3D = null
 var _wheel_nodes: Array[Node3D] = []
 var _front_wheels: Array[Node3D] = []
+var _rear_wheels: Array[Node3D] = []
 var _wheel_base_rotation: Dictionary = {}
 var _spin_angle: float = 0.0
+var _forward_yaw_correction_rad: float = 0.0
+var _ground_offset_applied_m: float = 0.0
 
 func _ready() -> void:
     _load_model()
@@ -100,17 +106,32 @@ func get_visual_contract() -> Dictionary:
         "model_count": MODEL_PATHS.size(),
         "heavy_models": HEAVY_MODELS.duplicate(),
         "police_models": POLICE_MODELS.duplicate(),
+        "auto_align_forward": auto_align_forward,
+        "auto_ground_model": auto_ground_model,
+        "forward_yaw_correction_rad": _forward_yaw_correction_rad,
+        "ground_offset_applied_m": _ground_offset_applied_m,
+        "ground_contact_y": get_ground_contact_y(),
+        "target_ground_y": _target_ground_y(),
     }
 
 func instantiate_model_for_test(test_model_id: String) -> Node3D:
     return _instantiate_model(test_model_id)
+
+func get_ground_contact_y() -> float:
+    var bounds := _mesh_bounds_in_visual_space()
+    if bool(bounds.get("valid", false)):
+        return float(bounds.get("min_y", 0.0))
+    return INF
 
 func _load_model() -> void:
     if _instance != null and is_instance_valid(_instance):
         _instance.queue_free()
     _wheel_nodes.clear()
     _front_wheels.clear()
+    _rear_wheels.clear()
     _wheel_base_rotation.clear()
+    _forward_yaw_correction_rad = 0.0
+    _ground_offset_applied_m = 0.0
     _instance = _instantiate_model(model_id)
     if _instance == null:
         return
@@ -121,6 +142,11 @@ func _load_model() -> void:
     _instance.position = model_offset
     add_child(_instance)
     _collect_wheels(_instance)
+    if auto_align_forward:
+        _align_model_forward_from_wheels()
+    if auto_ground_model:
+        _snap_model_to_collision_bottom()
+    _capture_wheel_base_rotations()
     set_meta("rgsdev_model_id", model_id)
     set_meta("rgsdev_source_path", str(MODEL_PATHS.get(model_id, "")))
     set_meta("rgsdev_license", "CC0")
@@ -148,10 +174,93 @@ func _collect_wheels(node: Node) -> void:
             var lowered := spatial.name.to_lower()
             if "wheel" in lowered:
                 _wheel_nodes.append(spatial)
-                _wheel_base_rotation[spatial.get_instance_id()] = spatial.rotation
                 if "front" in lowered:
                     _front_wheels.append(spatial)
+                elif "rear" in lowered:
+                    _rear_wheels.append(spatial)
         _collect_wheels(child)
+
+func _capture_wheel_base_rotations() -> void:
+    _wheel_base_rotation.clear()
+    for wheel: Node3D in _wheel_nodes:
+        if is_instance_valid(wheel):
+            _wheel_base_rotation[wheel.get_instance_id()] = wheel.rotation
+
+func _wheel_center_in_visual_space(wheels: Array[Node3D]) -> Vector3:
+    if wheels.is_empty():
+        return Vector3.ZERO
+    var center := Vector3.ZERO
+    var count := 0
+    for wheel: Node3D in wheels:
+        if not is_instance_valid(wheel):
+            continue
+        center += to_local(wheel.global_position)
+        count += 1
+    if count <= 0:
+        return Vector3.ZERO
+    return center / float(count)
+
+func _align_model_forward_from_wheels() -> void:
+    if _instance == null or _front_wheels.is_empty() or _rear_wheels.is_empty():
+        return
+    var front_center := _wheel_center_in_visual_space(_front_wheels)
+    var rear_center := _wheel_center_in_visual_space(_rear_wheels)
+    var current_forward := front_center - rear_center
+    current_forward.y = 0.0
+    if current_forward.length_squared() <= 0.0001:
+        return
+    current_forward = current_forward.normalized()
+    _forward_yaw_correction_rad = current_forward.signed_angle_to(Vector3.FORWARD, Vector3.UP)
+    _instance.rotate_y(_forward_yaw_correction_rad)
+
+func _target_ground_y() -> float:
+    var parent := get_parent()
+    if parent != null:
+        var collision := parent.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        if collision != null and collision.shape is BoxShape3D:
+            var box := collision.shape as BoxShape3D
+            return collision.position.y - box.size.y * 0.5 + ground_clearance_m
+    return ground_clearance_m
+
+func _snap_model_to_collision_bottom() -> void:
+    if _instance == null:
+        return
+    var bounds := _mesh_bounds_in_visual_space()
+    if not bool(bounds.get("valid", false)):
+        return
+    var min_y := float(bounds.get("min_y", 0.0))
+    var target_y := _target_ground_y()
+    _ground_offset_applied_m = target_y - min_y
+    _instance.position.y += _ground_offset_applied_m
+
+func _mesh_bounds_in_visual_space() -> Dictionary:
+    if _instance == null or not is_instance_valid(_instance):
+        return {"valid": false}
+    var state := {
+        "valid": false,
+        "min_y": INF,
+        "max_y": -INF,
+    }
+    _accumulate_mesh_bounds(_instance, state)
+    return state
+
+func _accumulate_mesh_bounds(node: Node, state: Dictionary) -> void:
+    if node is MeshInstance3D:
+        var mesh_node := node as MeshInstance3D
+        if mesh_node.mesh != null:
+            var aabb := mesh_node.get_aabb()
+            for corner_index: int in range(8):
+                var corner := aabb.position + Vector3(
+                    aabb.size.x if (corner_index & 1) != 0 else 0.0,
+                    aabb.size.y if (corner_index & 2) != 0 else 0.0,
+                    aabb.size.z if (corner_index & 4) != 0 else 0.0
+                )
+                var visual_point := to_local(mesh_node.to_global(corner))
+                state["min_y"] = minf(float(state["min_y"]), visual_point.y)
+                state["max_y"] = maxf(float(state["max_y"]), visual_point.y)
+                state["valid"] = true
+    for child: Node in node.get_children():
+        _accumulate_mesh_bounds(child, state)
 
 func _process(delta: float) -> void:
     if not animate_wheels or _wheel_nodes.is_empty():

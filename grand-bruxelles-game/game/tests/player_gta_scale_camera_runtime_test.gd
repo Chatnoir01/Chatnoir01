@@ -29,12 +29,24 @@ func _settle_camera_guard() -> void:
     await process_frame
 
 
+func _settle_camera_rig() -> void:
+    await _settle_camera_guard()
+    # SpringArm3D updates its direct children during physics. Two boundaries make
+    # the assertion observe the post-physics camera transform instead of a transient
+    # local offset written before the arm moved its child.
+    await physics_frame
+    await physics_frame
+
+
+func _camera_shoulder_x(pivot: Node3D, camera: Camera3D) -> float:
+    return pivot.to_local(camera.global_position).x
+
+
 func _run() -> void:
     var main := MAIN_SCENE.instantiate()
     root.add_child(main)
     current_scene = main
-    await _settle_camera_guard()
-    await physics_frame
+    await _settle_camera_rig()
 
     var runtime := root.get_node_or_null("GtaScaleCameraRuntime")
     var player := main.get_node_or_null("Player") as CharacterBody3D
@@ -71,8 +83,9 @@ func _run() -> void:
     if str(player.get_meta("gta_scale_camera_owner", "")) != "gta_gameplay":
         _fail("normal gameplay did not own the standard camera")
         return
-    if absf(camera.position.x - THIRD_PERSON_SHOULDER_X_M) > 0.01:
-        _fail("third-person camera lacks shoulder composition offset: actual=%.3f" % camera.position.x)
+    var shoulder_x := _camera_shoulder_x(pivot, camera)
+    if absf(shoulder_x - THIRD_PERSON_SHOULDER_X_M) > 0.01:
+        _fail("third-person camera lacks SpringArm-stable shoulder composition: actual=%.3f" % shoulder_x)
         return
     if pivot.rotation_degrees.x > -4.0 or pivot.rotation_degrees.x < -10.0:
         _fail("default camera pitch is not a bounded downward third-person angle: actual=%.3f" % pivot.rotation_degrees.x)
@@ -99,20 +112,26 @@ func _run() -> void:
         return
 
     player.call("cycle_camera_view")
-    await _settle_camera_guard()
+    await _settle_camera_rig()
     if absf(arm.spring_length - CLOSE_DISTANCE_M) > 0.01:
         _fail("close camera profile was not remapped from the legacy oversized view: actual=%.3f" % arm.spring_length)
+        return
+    if absf(_camera_shoulder_x(pivot, camera) - THIRD_PERSON_SHOULDER_X_M) > 0.01:
+        _fail("close camera lost the third-person shoulder offset after physics")
         return
 
     if not bool(player.call("fast_travel_to", "midi")):
         _fail("Midi fast travel failed")
         return
-    await _settle_camera_guard()
+    await _settle_camera_rig()
     if absf(arm.spring_length - STANDARD_DISTANCE_M) > 0.01 or absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
         _fail("fast travel restored the legacy camera instead of the GTA-scale standard: distance=%.3f fov=%.3f" % [arm.spring_length, camera.fov])
         return
     if pivot.rotation_degrees.x > -4.0 or pivot.rotation_degrees.x < -10.0:
         _fail("fast travel did not restore the bounded GTA-scale pitch: actual=%.3f" % pivot.rotation_degrees.x)
+        return
+    if absf(_camera_shoulder_x(pivot, camera) - THIRD_PERSON_SHOULDER_X_M) > 0.01:
+        _fail("fast travel did not restore the SpringArm-stable shoulder offset")
         return
 
     # Combat Arsenal writes a legacy default FOV every process cycle. Prove that
@@ -120,38 +139,48 @@ func _run() -> void:
     # ownership only for the active aim state.
     player.set_meta("combat_weapon_aiming", true)
     camera.fov = 69.0
-    await _settle_camera_guard()
+    await _settle_camera_rig()
     if absf(camera.fov - COMBAT_AIM_FOV_DEG) > 0.01:
         _fail("combat aim did not receive its FOV authority: actual=%.3f" % camera.fov)
         return
     if str(player.get_meta("gta_scale_camera_owner", "")) != "combat_aim":
         _fail("combat aim owner metadata missing")
         return
+    if absf(_camera_shoulder_x(pivot, camera) - THIRD_PERSON_SHOULDER_X_M) > 0.01:
+        _fail("combat aim lost the third-person shoulder offset after physics")
+        return
 
     player.set_meta("combat_weapon_aiming", false)
-    await _settle_camera_guard()
+    await _settle_camera_rig()
     if absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
         _fail("normal GTA camera did not recover after combat aim: actual=%.3f" % camera.fov)
         return
 
     # Ixelles is a source-verified first-person presentation. Prove that the same
-    # legacy combat writer cannot drift its locked FOV.
+    # legacy combat writer cannot drift its locked FOV and that the special view is
+    # centred rather than inheriting the GTA shoulder offset.
     player.set_meta("camera_view_locked_first_person", true)
     camera.fov = 69.0
-    await _settle_camera_guard()
+    await _settle_camera_rig()
     if absf(arm.spring_length - FIRST_PERSON_DISTANCE_M) > 0.01 or absf(camera.fov - FIRST_PERSON_FOV_DEG) > 0.01:
         _fail("Ixelles first-person camera lock drifted: distance=%.3f fov=%.3f" % [arm.spring_length, camera.fov])
         return
     if str(player.get_meta("gta_scale_camera_owner", "")) != "special_presentation":
         _fail("Ixelles special presentation did not own camera")
         return
+    if absf(_camera_shoulder_x(pivot, camera)) > 0.01:
+        _fail("Ixelles first-person special view was not centred: shoulder=%.3f" % _camera_shoulder_x(pivot, camera))
+        return
     player.remove_meta("camera_view_locked_first_person")
     if not bool(player.call("fast_travel_to", "midi")):
         _fail("Midi fast travel after Ixelles camera lock failed")
         return
-    await _settle_camera_guard()
+    await _settle_camera_rig()
     if absf(arm.spring_length - STANDARD_DISTANCE_M) > 0.01 or absf(camera.fov - STANDARD_FOV_DEG) > 0.01:
         _fail("normal gameplay did not recover after Ixelles lock: distance=%.3f fov=%.3f" % [arm.spring_length, camera.fov])
+        return
+    if absf(_camera_shoulder_x(pivot, camera) - THIRD_PERSON_SHOULDER_X_M) > 0.01:
+        _fail("normal gameplay did not restore shoulder composition after Ixelles exit")
         return
 
     # DirectSpawnPresentation marks Atomium and hides the avatar while its exact
@@ -162,18 +191,21 @@ func _run() -> void:
     player.set_meta("atomium_direct_presentation_avatar_hidden", true)
     visual_upgrade.visible = false
     camera.fov = ATOMIUM_PRESENTATION_FOV_DEG
-    await _settle_camera_guard()
+    await _settle_camera_rig()
     if absf(camera.fov - ATOMIUM_PRESENTATION_FOV_DEG) > 0.01:
         _fail("camera authority failed to preserve active Atomium presentation FOV: actual=%.3f" % camera.fov)
         return
     if str(player.get_meta("gta_scale_camera_owner", "")) != "special_presentation":
         _fail("Atomium special presentation did not own camera")
         return
+    if absf(_camera_shoulder_x(pivot, camera)) > 0.01:
+        _fail("Atomium source-backed presentation was not centred: shoulder=%.3f" % _camera_shoulder_x(pivot, camera))
+        return
 
     if not bool(player.call("fast_travel_to", "midi")):
         _fail("Midi fast travel from Atomium presentation failed")
         return
-    await _settle_camera_guard()
+    await _settle_camera_rig()
     if not player.has_meta("atomium_direct_presentation_fov_degrees"):
         _fail("Atomium stale-metadata exit proof unexpectedly lost its marker")
         return
@@ -186,6 +218,10 @@ func _run() -> void:
     if str(player.get_meta("gta_scale_camera_owner", "")) != "gta_gameplay":
         _fail("gameplay camera ownership did not recover after Atomium exit")
         return
+    shoulder_x = _camera_shoulder_x(pivot, camera)
+    if absf(shoulder_x - THIRD_PERSON_SHOULDER_X_M) > 0.01:
+        _fail("gameplay shoulder composition did not recover after Atomium exit: actual=%.3f" % shoulder_x)
+        return
 
     player.remove_meta("atomium_direct_presentation_fov_degrees")
     player.remove_meta("atomium_direct_presentation_avatar_hidden")
@@ -197,7 +233,7 @@ func _run() -> void:
         arm.spring_length,
         camera.fov,
         CLOSE_DISTANCE_M,
-        camera.position.x,
+        shoulder_x,
         projected_share,
         COMBAT_AIM_FOV_DEG,
     ])

@@ -82,6 +82,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert report1["policy"]["maturity_gate_count"] == len(all_gates)
     assert report1["policy"]["runtime_promotion"] == "forbidden_without_full_regional_maturity_contract"
     assert report1["policy"]["secondary_height_frontier"].startswith("autonomous_urbis3d")
+    assert "six_per_cell_measured_gates" in report1["policy"]["runtime_gate_frontier"]
     # Existing authoritative source cells must mature before CityGen expands into
     # a new MISSING_SOURCE cell, otherwise a large target grid can starve evidence.
     assert report1["selected_batch"]==[cells[1],cells[3]],report1["selected_batch"]
@@ -114,7 +115,8 @@ with tempfile.TemporaryDirectory() as tmp:
     ]
     assert mod.select_batch(mature_vs_expansion,1)==["bxl-e141500-n167500-s500"]
 
-    # Prove the old ten-stage manual frontier is now three autonomous stages.
+    # Prove the old ten-stage manual frontier is now four autonomous stages,
+    # ending in a digest-bound readiness contract instead of direct promotion.
     frontier_cell = cells[3]
     for filename, _action in mod.EVIDENCE_STAGES[:8]:
         write_json(source/frontier_cell/filename, {"cell_id": frontier_cell})
@@ -151,7 +153,23 @@ with tempfile.TemporaryDirectory() as tmp:
         "secondary_validation_complete": True,
     })
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == len(mod.EVIDENCE_STAGES) == 13
+    assert progress == 13
+    assert action == "derive_terrain_runtime_readiness"
+    write_json(source/frontier_cell/"terrain_runtime_readiness.json", {
+        "cell_id": frontier_cell,
+        "runtime_promotion_allowed": False,
+        "promotion_ready_for_explicit_review": False,
+    })
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == len(mod.EVIDENCE_STAGES) == 14
+    assert action == mod.RUNTIME_GATE_EVIDENCE_ACTION
+    write_json(source/frontier_cell/"terrain_runtime_readiness.json", {
+        "cell_id": frontier_cell,
+        "runtime_promotion_allowed": False,
+        "promotion_ready_for_explicit_review": True,
+    })
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == len(mod.EVIDENCE_STAGES) == 14
     assert action == mod.MANUAL_FRONTIER_ACTION
 
     # Regression: rematerializing authoritative Buildings can change ownership
@@ -187,6 +205,8 @@ with tempfile.TemporaryDirectory() as tmp:
         payload={"cell_id":refresh_cell}
         if filename=="secondary_height_validation.json":
             payload={"cell_id":refresh_cell,"runtime_promotion_allowed":False,"secondary_validation_complete":True}
+        elif filename=="terrain_runtime_readiness.json":
+            payload={"cell_id":refresh_cell,"runtime_promotion_allowed":False,"promotion_ready_for_explicit_review":True}
         write_json(refreshed_source/refresh_cell/filename,payload)
     refreshed=mod.run(
         refreshed_source,
@@ -206,4 +226,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert refreshed_row["next_action"] == mod.MANUAL_FRONTIER_ACTION
     assert refreshed_row["autonomous_actionable"] is False
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true automatic_secondary_height_stages=3 stale_height_frontier_requeue=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true automatic_secondary_height_stages=3 terrain_runtime_readiness_stage=true digest_bound_runtime_frontier=true stale_height_frontier_requeue=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")

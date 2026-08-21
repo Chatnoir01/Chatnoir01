@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "base_main_sha": "51e5f163688ea9fbbf9026c4d11282a86adba4f6",
+  "purpose": "Evaluate LimboAI 1.8.0 GDExtension for controlled NPC/police behavior-tree and HSM use without replacing the current Character/NPC runtime.",
+  "upstream": {
+    "repository": "https://github.com/limbonaut/limboai.git",
+    "tag": "v1.8.0",
+    "expected_commit_prefix": "3fbd851",
+    "license": "MIT",
+    "release_asset": "limboai+v1.8.0.gdextension-4.6.zip",
+    "release_asset_sha256": "f95ef170ee41cb587cc720bdd1ea5f496ada1d4017456348c01f308495973c40"
+  },
+  "engine": {
+    "version": "4.7.1-stable",
+    "renderer": "gl_compatibility"
+  },
+  "required_classes": ["BehaviorTree", "BTPlayer", "LimboHSM", "LimboState", "Blackboard"],
+  "policy": {
+    "canonical_addon_install_authorized": false,
+    "runtime_authorized": false,
+    "pc_export_authorized": false,
+    "web_export_authorized": false,
+    "replace_existing_npc_runtime_authorized": false,
+    "ci_temp_copy_only": true
+  },
+  "success_criteria": {
+    "source_pin_exact": true,
+    "release_hash_exact": true,
+    "godot_4_7_1_loads_extension": true,
+    "required_ai_classes_exist": true,
+    "behavior_tree_resource_constructs": true,
+    "btplayer_constructs": true,
+    "web_binary_present": true,
+    "web_export_succeeds": true,
+    "canonical_project_remains_clean": true
+  }
+}

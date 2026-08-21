@@ -2,13 +2,13 @@ extends SceneTree
 
 const WIDTH := 1280
 const HEIGHT := 720
-const BEFORE_PATH := "res://artifacts/visual/sidewalk_paving_rhythm_before.png"
-const AFTER_PATH := "res://artifacts/visual/sidewalk_paving_rhythm_after.png"
+const BEFORE_PATH := "res://artifacts/visual/sidewalk_microtexture_before.png"
+const AFTER_PATH := "res://artifacts/visual/sidewalk_microtexture_after.png"
 const CAMERA_POS := Vector3(-272.04, 1.65, -217.07)
 const LOOK_TARGET := Vector3(-260.0, 0.10, -208.0)
-const MIN_CHANGED_3 := 0.0010
-const MIN_CHANGED_8 := 0.0005
-const MAX_CHANGED_3 := 0.0800
+const MIN_CHANGED_3 := 0.0008
+const MIN_CHANGED_8 := 0.0003
+const MAX_CHANGED_3 := 0.0500
 const MIN_BBOX_W := 180
 const MIN_BBOX_H := 55
 
@@ -16,7 +16,7 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _fail(message: String) -> void:
-    push_error("BRUSSELS_SIDEWALK_PAVING_RHYTHM_VISUAL_FAIL: %s" % message)
+    push_error("BRUSSELS_SIDEWALK_MICROTEXTURE_VISUAL_FAIL: %s" % message)
     quit(1)
 
 func _capture(viewport: SubViewport, path: String) -> Image:
@@ -119,11 +119,11 @@ func _run() -> void:
     camera.current = true
     scene.add_child(camera)
 
-    material.set_shader_parameter("joint_strength", 0.0)
+    material.set_shader_parameter("micro_grain_strength", 0.0)
     for _frame: int in range(8):
         await process_frame
     var before := await _capture(viewport, BEFORE_PATH)
-    material.set_shader_parameter("joint_strength", 0.22)
+    material.set_shader_parameter("micro_grain_strength", 0.16)
     for _frame: int in range(8):
         await process_frame
     var after := await _capture(viewport, AFTER_PATH)
@@ -140,15 +140,15 @@ func _run() -> void:
     var changed_8 := float(gt8["fraction"])
     var bbox_w := int(gt3["bbox_w"])
     var bbox_h := int(gt3["bbox_h"])
-    print("BRUSSELS_SIDEWALK_PAVING_RHYTHM_VISUAL_METRICS: changed_gt3=%.6f changed_gt8=%.6f bbox=%dx%d sidewalks=%d" % [changed_3, changed_8, bbox_w, bbox_h, int(runtime.call("applied_sidewalk_count"))])
+    print("BRUSSELS_SIDEWALK_MICROTEXTURE_VISUAL_METRICS: changed_gt3=%.6f changed_gt8=%.6f bbox=%dx%d sidewalks=%d" % [changed_3, changed_8, bbox_w, bbox_h, int(runtime.call("applied_sidewalk_count"))])
     if changed_3 < MIN_CHANGED_3 or changed_8 < MIN_CHANGED_8:
-        _fail("authored paving rhythm is not player-visible enough")
+        _fail("non-semantic microtexture is not player-visible enough")
         return
     if changed_3 > MAX_CHANGED_3:
-        _fail("authored paving rhythm overpowers the player frame")
+        _fail("non-semantic microtexture overpowers the player frame")
         return
     if bbox_w < MIN_BBOX_W or bbox_h < MIN_BBOX_H:
-        _fail("authored paving rhythm lacks broad screen coverage")
+        _fail("non-semantic microtexture lacks broad screen coverage")
         return
-    print("BRUSSELS_SIDEWALK_PAVING_RHYTHM_VISUAL_OK: eye=1.65m fov=67 changed_gt3=%.4f%% changed_gt8=%.4f%% bbox=%dx%d geometry_changed=false" % [changed_3 * 100.0, changed_8 * 100.0, bbox_w, bbox_h])
+    print("BRUSSELS_SIDEWALK_MICROTEXTURE_VISUAL_OK: eye=1.65m fov=67 changed_gt3=%.4f%% changed_gt8=%.4f%% bbox=%dx%d geometry_changed=false paving_dimensions_claimed=false" % [changed_3 * 100.0, changed_8 * 100.0, bbox_w, bbox_h])
     quit(0)

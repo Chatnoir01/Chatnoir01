@@ -41,8 +41,10 @@ jobs:
           from pathlib import Path
           p = json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text(encoding='utf-8'))
           assert p['format'] == 'grand-bruxelles-road-destination-catalog-v1'
-          assert p['eligible_record_count'] >= 140
+          assert p['drivable_record_count'] >= 140
+          assert p['eligible_record_count'] >= 139
           assert p['entry_count'] >= 139
+          assert p['rejected_drivable_record_count'] == p['drivable_record_count'] - p['eligible_record_count']
           assert p['duplicate_record_count'] == p['eligible_record_count'] - p['entry_count']
           auth = p['authorization']
           assert auth['source_lookup_only'] is True
@@ -52,7 +54,8 @@ jobs:
               assert road_id in p['entries'], road_id
           print(
               'ROAD_DESTINATION_CATALOG_GATE_GREEN: '
-              f"entries={p['entry_count']} eligible_records={p['eligible_record_count']} "
+              f"entries={p['entry_count']} drivable_records={p['drivable_record_count']} "
+              f"eligible_records={p['eligible_record_count']} rejected_drivable={p['rejected_drivable_record_count']} "
               f"duplicate_records={p['duplicate_record_count']} sha256={p['catalog_sha256']}"
           )
           PY

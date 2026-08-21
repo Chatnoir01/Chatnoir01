@@ -165,6 +165,23 @@ func _strong_heights_path(cell_id: String) -> String:
     return ""
 
 
+func _manifest_allows_production_discovery(manifest: Dictionary) -> bool:
+    var authorization: Variant = manifest.get("authorization", {})
+    if authorization is Dictionary and not (authorization as Dictionary).is_empty():
+        var auth := authorization as Dictionary
+        if bool(auth.get("candidate_only", false)):
+            return false
+        if auth.has("runtime_mount_authorized") and not bool(auth.get("runtime_mount_authorized", false)):
+            return false
+
+    var promotion: Variant = manifest.get("promotion", {})
+    if promotion is Dictionary and not (promotion as Dictionary).is_empty():
+        var promotion_dict := promotion as Dictionary
+        if promotion_dict.has("production_discovery_eligible") and not bool(promotion_dict.get("production_discovery_eligible", false)):
+            return false
+    return true
+
+
 func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Dictionary:
     if not _is_canonical_cell_id(cell_id):
         return {}
@@ -181,6 +198,8 @@ func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Diction
     if manifest.is_empty() or runtime_cell.is_empty() or runtime_network.is_empty():
         return {}
     if str(manifest.get("format", "")) != BUILT_CELL_FORMAT or str(manifest.get("crs", "")) != EXPECTED_CRS:
+        return {}
+    if not _manifest_allows_production_discovery(manifest):
         return {}
     if str(manifest.get("cell_id", "")) != cell_id or str(runtime_cell.get("cell_id", "")) != cell_id or str(runtime_network.get("cell_id", "")) != cell_id:
         return {}

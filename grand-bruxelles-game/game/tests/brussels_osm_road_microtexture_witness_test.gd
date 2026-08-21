@@ -10,7 +10,7 @@ const MIN_CHANGED_3 := 0.0010
 const MIN_CHANGED_8 := 0.0003
 const MAX_CHANGED_3 := 0.0800
 const MIN_BBOX_W := 220
-const MIN_BBOX_H := 80
+const MIN_BBOX_CONTROL_COVERAGE := 0.75
 const MIN_CONTROL_CHANGED_8 := 0.0005
 const MIN_WITNESS_LENGTH_M := 8.0
 
@@ -159,7 +159,6 @@ func _run() -> void:
             return
 
     var tangent := road.global_basis.z.normalized()
-    var normal := road.global_basis.x.normalized()
     var length_m := _road_length_m(road)
     var width_m := _road_width_m(road)
     var height_m := road.size.y * road.global_basis.y.length()
@@ -192,7 +191,9 @@ func _run() -> void:
         _fail("1280x720 control capture failed")
         return
     var control_gt8 := _metrics(before, control, 8)
-    print("BRUSSELS_ROAD_MICROTEXTURE_CONTROL_METRICS: changed_gt8=%.6f bbox=%dx%d" % [float(control_gt8["fraction"]), int(control_gt8["bbox_w"]), int(control_gt8["bbox_h"])])
+    var control_bbox_w := int(control_gt8["bbox_w"])
+    var control_bbox_h := int(control_gt8["bbox_h"])
+    print("BRUSSELS_ROAD_MICROTEXTURE_CONTROL_METRICS: changed_gt8=%.6f bbox=%dx%d" % [float(control_gt8["fraction"]), control_bbox_w, control_bbox_h])
     for index: int in range(materials.size()):
         materials[index].set_shader_parameter("dark_color", darks[index])
         materials[index].set_shader_parameter("light_color", lights[index])
@@ -222,8 +223,19 @@ func _run() -> void:
     if changed_3 > MAX_CHANGED_3:
         _fail("non-semantic road microtexture overpowers the player frame")
         return
-    if bbox_w < MIN_BBOX_W or bbox_h < MIN_BBOX_H:
-        _fail("non-semantic road microtexture lacks broad screen coverage")
+    if bbox_w < MIN_BBOX_W:
+        _fail("non-semantic road microtexture lacks broad horizontal screen coverage")
         return
-    print("BRUSSELS_ROAD_MICROTEXTURE_VISUAL_OK: eye=1.65m fov=67 changed_gt3=%.4f%% changed_gt8=%.4f%% bbox=%dx%d geometry_changed=false composition_claimed=false" % [changed_3 * 100.0, changed_8 * 100.0, bbox_w, bbox_h])
+    # The control render is the upper bound of pixels this material family can
+    # affect with the locked camera. Requiring 80 px of vertical bbox was
+    # impossible when the material itself occupies only 46 px vertically.
+    # Keep the camera and pixel-delta thresholds frozen; require the actual
+    # microtexture to cover at least 75% of the control-material footprint.
+    if control_bbox_w <= 0 or control_bbox_h <= 0:
+        _fail("road control footprint missing")
+        return
+    if float(bbox_w) / float(control_bbox_w) < MIN_BBOX_CONTROL_COVERAGE or float(bbox_h) / float(control_bbox_h) < MIN_BBOX_CONTROL_COVERAGE:
+        _fail("non-semantic road microtexture does not cover enough of the visible road footprint")
+        return
+    print("BRUSSELS_ROAD_MICROTEXTURE_VISUAL_OK: eye=1.65m fov=67 changed_gt3=%.4f%% changed_gt8=%.4f%% bbox=%dx%d control_bbox=%dx%d geometry_changed=false composition_claimed=false" % [changed_3 * 100.0, changed_8 * 100.0, bbox_w, bbox_h, control_bbox_w, control_bbox_h])
     quit(0)

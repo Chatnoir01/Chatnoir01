@@ -25,10 +25,10 @@ const MAX_HEAD_YAW_DEG := 10.0
 # Run 30 proved the sole-preserving approach is mechanically correct, but the
 # real feet/ground and 2 m frames still show a conspicuous bare-ankle band above
 # the CC0 shoe. Preserve the exact source sole plane and extend only the shoe's
-# vertical collar enough to cover part of the visible ankle, with a measured
-# top-lift gate. Run 32 still leaves a skin-colored strip. Do not stretch the
-# shoe any further: add a tiny review-only dark sock bridge instead, positioned
-# from the actual LeftFoot/RightFoot bones, with no body/skeleton/sole mutation.
+# vertical collar enough to cover the visible ankle, with a measured top-lift
+# gate so this cannot silently regress into either a low shoe or an exaggerated
+# boot. Width/depth, source geometry, character skin/skeleton and ground contact
+# remain untouched.
 const FOOTWEAR_HEIGHT_SCALE := 1.48
 const MIN_FOOTWEAR_HEIGHT_SCALE := 1.40
 const MAX_FOOTWEAR_HEIGHT_SCALE := 1.55
@@ -37,14 +37,6 @@ const MIN_FOOTWEAR_FINAL_HEIGHT_M := 0.165
 const MAX_FOOTWEAR_FINAL_HEIGHT_M := 0.185
 const MIN_FOOTWEAR_TOP_LIFT_M := 0.045
 const MAX_FOOTWEAR_TOP_LIFT_M := 0.065
-const ANKLE_BRIDGE_HEIGHT_M := 0.105
-const ANKLE_BRIDGE_OVERLAP_M := 0.018
-const ANKLE_BRIDGE_BOTTOM_RADIUS_M := 0.050
-const ANKLE_BRIDGE_TOP_RADIUS_M := 0.056
-const MIN_ANKLE_BRIDGE_HEIGHT_M := 0.085
-const MAX_ANKLE_BRIDGE_HEIGHT_M := 0.120
-const MIN_ANKLE_BRIDGE_OVERLAP_M := 0.010
-const MAX_ANKLE_BRIDGE_OVERLAP_M := 0.025
 
 func _relax_pose_if_rigged(root: Node) -> Dictionary:
     var skeleton := _find_skeleton(root)
@@ -215,88 +207,11 @@ func _add_cc0_footwear(candidate: Node3D, body_bounds: AABB) -> Dictionary:
     audit["sole_y_after_fit"] = sole_y_after
     audit["sole_drift_m"] = sole_drift
     audit["max_sole_drift_m"] = MAX_FOOTWEAR_SOLE_DRIFT_M
-
-    var bridge_audit := _add_review_ankle_bridges(candidate, top_y_after)
-    var bridge_gate := bool(bridge_audit.get("added", false))
-    audit["ankle_bridge"] = bridge_audit
-    audit["fit_gate"] = fit_gate and bridge_gate
-    if not bool(audit["fit_gate"]):
+    audit["fit_gate"] = fit_gate
+    if not fit_gate:
         audit["added"] = false
-        audit["reason"] = "footwear or ankle-bridge fit outside bounded review gate"
+        audit["reason"] = "footwear collar/height/sole-preservation fit outside bounded review gate"
     print("GB_CIV1_FOOTWEAR_FIT ", JSON.stringify(audit))
-    return audit
-
-func _add_review_ankle_bridges(candidate: Node3D, shoe_top_y: float) -> Dictionary:
-    var skeleton := _find_skeleton(candidate)
-    if skeleton == null:
-        return {"added": false, "reason": "Skeleton3D missing for ankle bridge placement"}
-    var left_foot := skeleton.find_bone("LeftFoot")
-    var right_foot := skeleton.find_bone("RightFoot")
-    if left_foot < 0 or right_foot < 0:
-        return {"added": false, "reason": "LeftFoot/RightFoot bones missing"}
-
-    var height_gate := ANKLE_BRIDGE_HEIGHT_M >= MIN_ANKLE_BRIDGE_HEIGHT_M and ANKLE_BRIDGE_HEIGHT_M <= MAX_ANKLE_BRIDGE_HEIGHT_M
-    var overlap_gate := ANKLE_BRIDGE_OVERLAP_M >= MIN_ANKLE_BRIDGE_OVERLAP_M and ANKLE_BRIDGE_OVERLAP_M <= MAX_ANKLE_BRIDGE_OVERLAP_M
-    if not height_gate or not overlap_gate:
-        return {"added": false, "reason": "ankle bridge dimensions outside gate"}
-
-    var mat := StandardMaterial3D.new()
-    mat.albedo_color = Color(0.035, 0.035, 0.045)
-    mat.roughness = 0.96
-    mat.metallic = 0.0
-    mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-
-    var center_y := shoe_top_y + ANKLE_BRIDGE_HEIGHT_M * 0.5 - ANKLE_BRIDGE_OVERLAP_M
-    var names := ["LeftAnkleBridge_Review", "RightAnkleBridge_Review"]
-    var bones := [left_foot, right_foot]
-    var positions: Array = []
-    for i in range(2):
-        var bone_world := skeleton.to_global(skeleton.get_bone_global_pose(int(bones[i])).origin)
-        var local_foot := candidate.to_local(bone_world)
-        var mesh := CylinderMesh.new()
-        mesh.top_radius = ANKLE_BRIDGE_TOP_RADIUS_M
-        mesh.bottom_radius = ANKLE_BRIDGE_BOTTOM_RADIUS_M
-        mesh.height = ANKLE_BRIDGE_HEIGHT_M
-        mesh.radial_segments = 24
-        mesh.rings = 1
-        mesh.cap_top = true
-        mesh.cap_bottom = true
-        var bridge := MeshInstance3D.new()
-        bridge.name = str(names[i])
-        bridge.mesh = mesh
-        bridge.material_override = mat
-        bridge.position = Vector3(local_foot.x, center_y, local_foot.z)
-        bridge.set_meta("review_only", true)
-        bridge.set_meta("production_authorized", false)
-        bridge.set_meta("purpose", "cover_visible_ankle_gap_without_mutating_source_shoe")
-        candidate.add_child(bridge)
-        positions.append([bridge.position.x, bridge.position.y, bridge.position.z])
-
-    var top_y := center_y + ANKLE_BRIDGE_HEIGHT_M * 0.5
-    var bottom_y := center_y - ANKLE_BRIDGE_HEIGHT_M * 0.5
-    var overlap_actual := shoe_top_y - bottom_y
-    var added_gate := candidate.get_node_or_null("LeftAnkleBridge_Review") != null and candidate.get_node_or_null("RightAnkleBridge_Review") != null
-    var audit := {
-        "added": added_gate,
-        "review_only": true,
-        "production_authorized": false,
-        "count": 2,
-        "height_m": ANKLE_BRIDGE_HEIGHT_M,
-        "height_gate_m": [MIN_ANKLE_BRIDGE_HEIGHT_M, MAX_ANKLE_BRIDGE_HEIGHT_M],
-        "overlap_m": overlap_actual,
-        "overlap_gate_m": [MIN_ANKLE_BRIDGE_OVERLAP_M, MAX_ANKLE_BRIDGE_OVERLAP_M],
-        "bottom_radius_m": ANKLE_BRIDGE_BOTTOM_RADIUS_M,
-        "top_radius_m": ANKLE_BRIDGE_TOP_RADIUS_M,
-        "shoe_top_y": shoe_top_y,
-        "bridge_bottom_y": bottom_y,
-        "bridge_top_y": top_y,
-        "positions": positions,
-        "placement_source": "LeftFoot/RightFoot bone xz plus sole-preserving shoe top",
-        "body_changed": false,
-        "skeleton_changed": false,
-        "sole_changed": false
-    }
-    print("GB_CIV1_ANKLE_BRIDGE ", JSON.stringify(audit))
     return audit
 
 func _natural_world_arm_target(current: Vector3, horizontal_component: float) -> Vector3:

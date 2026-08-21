@@ -17,10 +17,6 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: grand-bruxelles-autonomous-citygen
-  cancel-in-progress: false
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -50,6 +46,7 @@ jobs:
           python3 grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py
           python3 grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
           python3 grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py
+          python3 grand-bruxelles-game/tools/citygen/test_build_terrain_runtime_readiness.py
       - name: Existing city-generation guardrails
         run: |
           set -euo pipefail
@@ -63,6 +60,11 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 75
+    # The shared lock protects only state-branch mutation. PR validation is
+    # intentionally outside this group so concurrent evidence checks can run.
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -149,7 +151,7 @@ jobs:
             if python3 grand-bruxelles-game/tools/citygen/build_cell_elevation_requirements.py --cell-dir "$D" --output "$D/elevation_requirements.json" >"$REQLOG" 2>&1; then
               rm -f "$REQLOG"
             else
-              rm -f "$D/elevation_requirements.json" "$D/elevation_dsm_resolution.json" "$D/elevation_dtm_resolution.json"
+              rm -f "$D/elevation_requirements.json" "$D/elevation_dsm_resolution.json" "$D/elevation_dtm_resolution.json" "$D/terrain_runtime_readiness.json"
               echo "ELEVATION_REQUIREMENTS_PENDING ${CELL}"
               continue
             fi
@@ -158,7 +160,7 @@ jobs:
               if python3 grand-bruxelles-game/tools/citygen/resolve_cell_elevation_sources.py --requirements "$D/elevation_requirements.json" --kind "$KIND" --output "$D/elevation_${KIND}_resolution.json" >"$LOG" 2>&1; then
                 rm -f "$LOG"
               else
-                rm -f "$D/elevation_${KIND}_resolution.json"
+                rm -f "$D/elevation_${KIND}_resolution.json" "$D/terrain_runtime_readiness.json"
                 echo "ELEVATION_SOURCE_RESOLUTION_PENDING ${CELL} ${KIND}"
               fi
             done
@@ -178,7 +180,7 @@ jobs:
               if python3 grand-bruxelles-game/tools/citygen/validate_cell_elevation_archives.py --resolution "$R" --work-dir /tmp/citygen-elevation-archive-cache --output "$D/elevation_${KIND}_archive_validation.json" >"$LOG" 2>&1; then
                 rm -f "$LOG"
               else
-                rm -f "$D/elevation_${KIND}_archive_validation.json"
+                rm -f "$D/elevation_${KIND}_archive_validation.json" "$D/terrain_runtime_readiness.json"
                 echo "ELEVATION_ARCHIVE_VALIDATION_PENDING ${CELL} ${KIND}"
               fi
             done
@@ -207,7 +209,7 @@ jobs:
               --archive-cache /tmp/citygen-elevation-archive-cache \
               --extract-root /tmp/citygen-raster-extract \
               --output "$D/elevation_raster_validation.json" >"$RLOG" 2>&1; then
-              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
+              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json" "$D/terrain_runtime_readiness.json"
               echo "ELEVATION_RASTER_VALIDATION_PENDING ${CELL}"
               continue
             fi
@@ -219,7 +221,7 @@ jobs:
               --output "$D/elevation_value_evidence.json" >"$VLOG" 2>&1; then
               rm -f "$VLOG"
             else
-              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
+              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json" "$D/terrain_runtime_readiness.json"
               echo "ELEVATION_VALUE_ASSESSMENT_PENDING ${CELL}"
             fi
           done < /tmp/citygen-out/worklist.txt
@@ -240,8 +242,9 @@ jobs:
                 --value-evidence "$D/elevation_value_evidence.json" \
                 --candidate-package "$PACKAGE" \
                 --output "$D/elevation_candidate_frontier.json"
+              rm -f "$D/terrain_runtime_readiness.json"
             else
-              rm -f "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
+              rm -f "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json" "$D/terrain_runtime_readiness.json"
             fi
           done < /tmp/citygen-out/worklist.txt
           python3 - <<'PY'
@@ -262,7 +265,7 @@ jobs:
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
             VALUE="$D/elevation_value_evidence.json"; FRONTIER="$D/elevation_candidate_frontier.json"; RASTER="$D/elevation_raster_validation.json"
             if [ ! -f "$VALUE" ] || [ ! -f "$FRONTIER" ] || [ ! -f "$RASTER" ]; then
-              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
+              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json" "$D/terrain_runtime_readiness.json"
               continue
             fi
             LOG="/tmp/citygen-out/building-height-errors/${CELL}.log"
@@ -273,9 +276,9 @@ jobs:
               --raster-validation "$RASTER" \
               --extract-root /tmp/citygen-raster-extract \
               --output "$D/building_height_candidates.json" >"$LOG" 2>&1; then
-              rm -f "$LOG"
+              rm -f "$LOG" "$D/terrain_runtime_readiness.json"
             else
-              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
+              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json" "$D/terrain_runtime_readiness.json"
               echo "BUILDING_HEIGHT_CANDIDATES_PENDING ${CELL}"
             fi
           done < /tmp/citygen-out/worklist.txt
@@ -290,7 +293,7 @@ jobs:
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
             VALUE="$D/elevation_value_evidence.json"; RASTER="$D/elevation_raster_validation.json"; HEIGHTS="$D/building_height_candidates.json"
             if [ ! -f "$VALUE" ] || [ ! -f "$RASTER" ] || [ ! -f "$HEIGHTS" ]; then
-              rm -f "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
+              rm -f "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json" "$D/terrain_runtime_readiness.json"
               continue
             fi
             LOG="/tmp/citygen-out/terrain-lod-errors/${CELL}.log"
@@ -299,9 +302,9 @@ jobs:
               --value-evidence "$VALUE" \
               --extract-root /tmp/citygen-raster-extract \
               --output "$D/terrain_lod_evidence.json" >"$LOG" 2>&1; then
-              rm -f "$LOG"
+              rm -f "$LOG" "$D/terrain_runtime_readiness.json"
             else
-              rm -f "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
+              rm -f "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json" "$D/terrain_runtime_readiness.json"
               echo "TERRAIN_LOD_EVIDENCE_PENDING ${CELL}"
             fi
           done < /tmp/citygen-out/worklist.txt
@@ -378,7 +381,7 @@ jobs:
             SECONDARY="$D/secondary_height_evidence.json"
             VALIDATION="$D/secondary_height_validation.json"
             if [ ! -f "$HEIGHTS" ] || [ ! -f "$SEMANTIC" ]; then
-              rm -f "$SECONDARY" "$VALIDATION"
+              rm -f "$SECONDARY" "$VALIDATION" "$D/terrain_runtime_readiness.json"
               continue
             fi
             LOG="/tmp/citygen-out/secondary-height-errors/${CELL}.log"
@@ -386,10 +389,11 @@ jobs:
               --semantic "$SEMANTIC" --height-candidates "$HEIGHTS" --output "$SECONDARY" >"$LOG" 2>&1 \
               && python3 grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py \
               --height-candidates "$HEIGHTS" --secondary "$SECONDARY" --output "$VALIDATION" >>"$LOG" 2>&1; then
+              rm -f "$D/terrain_runtime_readiness.json"
               cat "$LOG"
               rm -f "$LOG"
             else
-              rm -f "$SECONDARY" "$VALIDATION"
+              rm -f "$SECONDARY" "$VALIDATION" "$D/terrain_runtime_readiness.json"
               echo "SECONDARY_HEIGHT_VALIDATION_PENDING ${CELL}"
               cat "$LOG"
             fi
@@ -436,7 +440,7 @@ jobs:
           cp -a /tmp/citygen-prev/grand-bruxelles-game/data/qa/autonomous_sources/. grand-bruxelles-game/data/qa/autonomous_sources/ 2>/dev/null || true
           cp /tmp/citygen-out/candidates/*.json grand-bruxelles-game/data/qa/autonomous_candidates/ 2>/dev/null || true
           cp -a /tmp/citygen-selected-sources/. grand-bruxelles-game/data/qa/autonomous_sources/ 2>/dev/null || true
-          git add grand-bruxelles-game/data/qa
+          git add -- grand-bruxelles-game/data/qa
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "citygen: persist autonomous scheduler pass"
           git push --force-with-lease origin citygen-autonomous-state

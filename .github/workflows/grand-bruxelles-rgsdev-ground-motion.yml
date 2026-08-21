@@ -1,0 +1,98 @@
+name: Grand Bruxelles Rgsdev Ground Motion
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/assets/vehicles/rgsdev/**"
+      - "grand-bruxelles-game/game/scripts/rgsdev_vehicle_visual.gd"
+      - "grand-bruxelles-game/game/scripts/drivable_traffic_vehicle.gd"
+      - "grand-bruxelles-game/game/tests/rgsdev_ground_motion_probe.gd"
+      - ".github/workflows/grand-bruxelles-rgsdev-ground-motion.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install software renderer and Godot 4.7.1
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version
+
+      - name: Isolate unrelated autoloads and import FBX resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('grand-bruxelles-game/project.godot')
+          lines=path.read_text(encoding='utf-8').splitlines(keepends=True)
+          out=[]; in_autoload=False
+          for line in lines:
+              s=line.strip()
+              if s == '[autoload]':
+                  out.append(line); in_autoload=True; continue
+              if in_autoload and s.startswith('[') and s.endswith(']'):
+                  out.append('\n'); out.append(line); in_autoload=False; continue
+              if in_autoload:
+                  continue
+              out.append(line)
+          if in_autoload:
+              out.append('\n')
+          path.write_text(''.join(out), encoding='utf-8')
+          PY
+          rm -rf grand-bruxelles-game/.godot
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path grand-bruxelles-game --quit 2>&1 | tee /tmp/rgsdev-ground-import.log
+          if grep -E "Parse Error:|SCRIPT ERROR|ERROR: Failed to load script|Failed to import" /tmp/rgsdev-ground-import.log; then exit 1; fi
+          test -s grand-bruxelles-game/.godot/global_script_class_cache.cfg
+
+      - name: Prove ground contact, forward orientation and rolling motion
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --path grand-bruxelles-game \
+            --script res://game/tests/rgsdev_ground_motion_probe.gd \
+            -- --output=/tmp/rgsdev_ground_motion_proof.png --result=/tmp/rgsdev_ground_motion_result.json 2>&1 | tee /tmp/rgsdev-ground-motion.log
+          if grep -E "SCRIPT ERROR|Parse Error:|RGSDEV_GROUND_MOTION_FAIL" /tmp/rgsdev-ground-motion.log; then exit 1; fi
+          grep -q "RGSDEV_GROUND_MOTION_OK grounded=21 moving=3 engine=4.7.1" /tmp/rgsdev-ground-motion.log
+          test -s /tmp/rgsdev_ground_motion_proof.png
+          test -s /tmp/rgsdev_ground_motion_result.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/rgsdev_ground_motion_result.json'))
+          assert p['grounded_models']==21
+          assert p['grounded_expected']==21
+          assert len(p['moving_models'])==3
+          for row in p['moving_models']:
+              assert row['distance_m'] >= 4.0
+              assert row['forward_delta_m'] >= 4.0
+              assert row['wheel_spin_rad'] >= 0.15
+          print('RGSDEV_GROUND_MOTION_RESULT_VERIFIED')
+          PY
+
+      - name: Upload grounded moving vehicle proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rgsdev-grounded-moving-vehicle-proof
+          path: |
+            /tmp/rgsdev_ground_motion_proof.png
+            /tmp/rgsdev_ground_motion_result.json
+            /tmp/rgsdev-ground-motion.log
+            /tmp/rgsdev-ground-import.log
+          if-no-files-found: warn

@@ -8,6 +8,7 @@ class_name BrusselsWorldStreamingRuntime
 const STREAMER_SCRIPT := preload("res://game/scripts/brussels_cell_streaming_manager.gd")
 const BACKEND_SCRIPT := preload("res://game/scripts/brussels_cell_node_backend.gd")
 const IXELLES_STREAMED_SCRIPT_PATH := "res://game/zones/ixelles/ixelles_streamed_microslice.gd"
+const IXELLES_NORTH_DTM_STREAMED_SCRIPT_PATH := "res://game/zones/ixelles/ixelles_streamed_north_dtm_cell.gd"
 const SOURCE_PLAN_STREAMED_SCRIPT_PATH := "res://game/scripts/brussels_source_plan_streamed_cell.gd"
 
 const SHIPPED_CELLS: Array[Dictionary] = [
@@ -26,7 +27,9 @@ const SHIPPED_CELLS: Array[Dictionary] = [
         "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/runtime/cell.game.json",
         "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/runtime/network.game.json",
         "strong_heights_path": "res://data/terrain/ixelles/bxl-e149000-n169500-s500_strong_heights.game.json",
-        "script_path": SOURCE_PLAN_STREAMED_SCRIPT_PATH,
+        "script_path": IXELLES_NORTH_DTM_STREAMED_SCRIPT_PATH,
+        "destination_collision_authorized": true,
+        "metadata": {"build_collision": false},
     },
     {
         "cell_id": "bxl-e149500-n169000-s500",
@@ -64,7 +67,6 @@ var _destination_preload_active := false
 var _destination_preload_cell_id := ""
 var _destination_preload_position := Vector3.ZERO
 
-
 func _ready() -> void:
     disabled_for_direct_ixelles = _has_direct_ixelles_spawn(OS.get_cmdline_user_args())
     if disabled_for_direct_ixelles:
@@ -98,7 +100,6 @@ func _ready() -> void:
     _feed_observer()
     print("BRUSSELS_WORLD_STREAMING_READY: cells=%d visual=%.0fm collision=%.0fm" % [int(manager.get_metrics().get("registered_cells", 0)), visual_load_radius_m, collision_radius_m])
 
-
 func _physics_process(_delta: float) -> void:
     if not runtime_ready:
         return
@@ -107,13 +108,11 @@ func _physics_process(_delta: float) -> void:
         return
     _feed_observer()
 
-
 func _has_direct_ixelles_spawn(args: PackedStringArray) -> bool:
     for arg: String in args:
         if arg.strip_edges().to_lower() == "spawn=ixelles":
             return true
     return false
-
 
 func _read_json(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):
@@ -122,7 +121,6 @@ func _read_json(path: String) -> Dictionary:
     if typeof(parsed) != TYPE_DICTIONARY:
         return {}
     return parsed as Dictionary
-
 
 func _world_center_from_contract(manifest: Dictionary, runtime_cell: Dictionary) -> Vector3:
     var bbox: Variant = manifest.get("bbox", [])
@@ -138,7 +136,6 @@ func _world_center_from_contract(manifest: Dictionary, runtime_cell: Dictionary)
     var anchor_x := float((coords as Dictionary).get("world_anchor_x", 0.0))
     var anchor_z := float((coords as Dictionary).get("world_anchor_z", 0.0))
     return Vector3(anchor_x + (center_e - origin_e), 0.0, anchor_z - (center_n - origin_n))
-
 
 func _register_shipped_cells() -> int:
     var registered_count := 0
@@ -174,18 +171,15 @@ func _register_shipped_cells() -> int:
         registered_count += 1
     return registered_count
 
-
 func get_shipped_cell_contract(cell_id: String) -> Dictionary:
     for descriptor: Dictionary in SHIPPED_CELLS:
         if str(descriptor.get("cell_id", "")) == cell_id:
             return descriptor.duplicate(true)
     return {}
 
-
 func is_destination_collision_authorized(cell_id: String) -> bool:
     var descriptor := get_shipped_cell_contract(cell_id)
     return not descriptor.is_empty() and bool(descriptor.get("destination_collision_authorized", false))
-
 
 func begin_destination_preload(cell_id: String, target_position: Vector3) -> bool:
     if not runtime_ready or cell_id.is_empty() or not target_position.is_finite():
@@ -205,7 +199,6 @@ func begin_destination_preload(cell_id: String, target_position: Vector3) -> boo
         return false
     manager.update_observer(target_position, Vector3.ZERO)
     return true
-
 
 func get_destination_readiness(cell_id: String) -> Dictionary:
     var result := {
@@ -236,12 +229,10 @@ func get_destination_readiness(cell_id: String) -> Dictionary:
     result["ready"] = bool(result["active"]) and bool(result["instance_loaded"]) and bool(result["collision_scheduled"]) and bool(result["collision_enabled"]) and bool(result["authoritative_collision_body"])
     return result
 
-
 func get_destination_instance(cell_id: String) -> Node:
     if not runtime_ready or not backend.has_active_instance(cell_id):
         return null
     return backend.get_instance(cell_id)
-
 
 func finish_destination_preload(cell_id: String) -> void:
     if not runtime_ready:
@@ -254,13 +245,11 @@ func finish_destination_preload(cell_id: String) -> void:
         _destination_preload_position = Vector3.ZERO
     _feed_observer()
 
-
 func _select_observer() -> Node3D:
     for vehicle: Node in get_tree().get_nodes_in_group("vehicle"):
         if vehicle is Node3D and vehicle.has_method("has_driver") and bool(vehicle.call("has_driver")):
             return vehicle as Node3D
     return _player
-
 
 func _observer_velocity(observer: Node3D) -> Vector3:
     if observer is CharacterBody3D:
@@ -271,7 +260,6 @@ func _observer_velocity(observer: Node3D) -> Vector3:
         return observer.global_position - _last_observer_position
     return Vector3.ZERO
 
-
 func _feed_observer() -> void:
     var observer := _select_observer()
     if observer == null or not is_instance_valid(observer):
@@ -280,7 +268,6 @@ func _feed_observer() -> void:
     manager.update_observer(observer.global_position, velocity)
     _last_observer_position = observer.global_position
     _has_last_observer = true
-
 
 func get_streaming_metrics() -> Dictionary:
     if not runtime_ready:

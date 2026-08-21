@@ -26,6 +26,7 @@ def write(path: Path, payload: dict) -> None:
 with tempfile.TemporaryDirectory() as tmp:
     root = Path(tmp)
     terrain_path = root / "terrain_lod_evidence.json"
+    terrain_candidate_path = root / "terrain_runtime_candidate.json"
     secondary_path = root / "secondary_height_validation.json"
     candidate_path = root / "candidate.json"
     gates_path = root / "terrain_runtime_gate_evidence.json"
@@ -34,9 +35,33 @@ with tempfile.TemporaryDirectory() as tmp:
         "format": mod.TERRAIN_LOD_FORMAT,
         "cell_id": CELL_ID,
         "crs": mod.CRS,
-        "selection": {"selected_resolution_m": 2.0},
+        "selection": {
+            "selected_resolution_m": 2.0,
+            "canonical_edge_alignment_required": True,
+        },
         "runtime_approved": False,
         "evidence_digest": sha("a"),
+    }
+    terrain_candidate = {
+        "format": mod.TERRAIN_CANDIDATE_FORMAT,
+        "cell_id": CELL_ID,
+        "crs": mod.CRS,
+        "spacing_m": 2.0,
+        "topology": {
+            "includes_all_four_canonical_cell_edges": True,
+            "shared_edge_coordinates_are_exact": True,
+        },
+        "source": {
+            "terrain_lod_evidence_digest": terrain["evidence_digest"],
+        },
+        "authorization": {
+            "candidate_only": True,
+            "terrain_runtime_authorized": False,
+            "collision_authorized": False,
+            "runtime_mount_authorized": False,
+            "jouable_promotion_authorized": False,
+        },
+        "candidate_digest": sha("d"),
     }
     secondary = {
         "format": mod.SECONDARY_FORMAT,
@@ -60,10 +85,11 @@ with tempfile.TemporaryDirectory() as tmp:
         "candidate_digest": sha("c"),
     }
     write(terrain_path, terrain)
+    write(terrain_candidate_path, terrain_candidate)
     write(secondary_path, secondary)
     write(candidate_path, candidate)
 
-    pending = mod.build(terrain_path, secondary_path, candidate_path)
+    pending = mod.build(terrain_path, terrain_candidate_path, secondary_path, candidate_path)
     assert pending["passed_runtime_gate_count"] == 0
     assert pending["all_runtime_gates_passed"] is False
     assert pending["promotion_ready_for_explicit_review"] is False
@@ -71,6 +97,8 @@ with tempfile.TemporaryDirectory() as tmp:
     assert pending["automatic_production_mutation"] is False
     assert pending["next_action"] == "collect_measured_runtime_gate_evidence"
     assert len(pending["blockers"]) == len(mod.RUNTIME_GATES)
+    assert pending["bindings"]["terrain_runtime_candidate_digest"] == terrain_candidate["candidate_digest"]
+    assert pending["policy"]["measured_gates_bind_actual_terrain_artifact"] is True
 
     gates = {
         "format": mod.GATE_EVIDENCE_FORMAT,
@@ -78,6 +106,7 @@ with tempfile.TemporaryDirectory() as tmp:
         "crs": mod.CRS,
         "bindings": {
             "terrain_lod_evidence_digest": terrain["evidence_digest"],
+            "terrain_runtime_candidate_digest": terrain_candidate["candidate_digest"],
             "secondary_height_validation_digest": secondary["validation_digest"],
             "runtime_candidate_digest": candidate["candidate_digest"],
         },
@@ -92,7 +121,7 @@ with tempfile.TemporaryDirectory() as tmp:
         },
     }
     write(gates_path, gates)
-    ready = mod.build(terrain_path, secondary_path, candidate_path, gates_path)
+    ready = mod.build(terrain_path, terrain_candidate_path, secondary_path, candidate_path, gates_path)
     assert ready["passed_runtime_gate_count"] == len(mod.RUNTIME_GATES)
     assert ready["all_runtime_gates_passed"] is True
     assert ready["promotion_ready_for_explicit_review"] is True
@@ -106,21 +135,31 @@ with tempfile.TemporaryDirectory() as tmp:
     failed["gates"]["collisions"]["passed"] = False
     failed["gates"]["collisions"]["status"] = "failed_collision_shape_probe"
     write(gates_path, failed)
-    blocked = mod.build(terrain_path, secondary_path, candidate_path, gates_path)
+    blocked = mod.build(terrain_path, terrain_candidate_path, secondary_path, candidate_path, gates_path)
     assert blocked["promotion_ready_for_explicit_review"] is False
     assert "runtime_gate_failed:collisions" in blocked["blockers"]
 
-    stale = json.loads(json.dumps(gates))
-    stale["bindings"]["runtime_candidate_digest"] = sha("d")
-    write(gates_path, stale)
+    stale_runtime = json.loads(json.dumps(gates))
+    stale_runtime["bindings"]["runtime_candidate_digest"] = sha("e")
+    write(gates_path, stale_runtime)
     try:
-        mod.build(terrain_path, secondary_path, candidate_path, gates_path)
+        mod.build(terrain_path, terrain_candidate_path, secondary_path, candidate_path, gates_path)
     except ValueError as exc:
         assert "stale against runtime candidate" in str(exc)
     else:
         raise AssertionError("stale per-cell runtime gate evidence must fail closed")
 
+    stale_terrain = json.loads(json.dumps(gates))
+    stale_terrain["bindings"]["terrain_runtime_candidate_digest"] = sha("f")
+    write(gates_path, stale_terrain)
+    try:
+        mod.build(terrain_path, terrain_candidate_path, secondary_path, candidate_path, gates_path)
+    except ValueError as exc:
+        assert "stale against terrain runtime candidate" in str(exc)
+    else:
+        raise AssertionError("stale measured terrain artifact evidence must fail closed")
+
 print(
-    "TERRAIN_RUNTIME_READINESS_OK gates=6 digest_bound=true missing=false failed=false "
-    "all_passed=review_only runtime_promotion=false"
+    "TERRAIN_RUNTIME_READINESS_OK gates=6 lod_digest=true terrain_artifact_digest=true "
+    "missing=false failed=false all_passed=review_only runtime_promotion=false"
 )

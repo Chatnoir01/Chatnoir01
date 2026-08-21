@@ -11,9 +11,9 @@ assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
-# Synthetic 7x7 footprint: outer ring follows the primary DSM hypothesis (12 m),
-# inner 5x5 follows the semantic hypothesis (4 m). This tests spatial reporting
-# only; no cause or automatic resolution may be inferred.
+# Synthetic 7x7 footprint: outer one-pixel ring follows the primary DSM hypothesis
+# (12 m), inner 5x5 follows the semantic hypothesis (4 m). This tests spatial
+# reporting only; no cause or automatic resolution may be inferred.
 inside = [[True] * 7 for _ in range(7)]
 deltas = [[4.0] * 7 for _ in range(7)]
 for y in range(7):
@@ -27,7 +27,7 @@ result = module.analyze_grid(
     primary_height_m=12.0,
     semantic_height_m=4.0,
     strong_delta_m=2.0,
-    erosion_pixels=2,
+    erosion_pixels=1,
 )
 assert result["valid_pixel_count"] == 49
 assert result["bands"]["primary"]["pixel_count"] == 24

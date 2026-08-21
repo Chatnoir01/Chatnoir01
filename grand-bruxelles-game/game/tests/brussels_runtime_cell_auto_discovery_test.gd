@@ -48,6 +48,33 @@ func _manifest(cell_id: String, easting: float, northing: float) -> Dictionary:
     }
 
 
+func _sealed_candidate_manifest(cell_id: String, easting: float, northing: float) -> Dictionary:
+    var result := _manifest(cell_id, easting, northing)
+    result["format"] = "grand-bruxelles-urbis-built-cell-candidate-v1"
+    result["authorization"] = {
+        "candidate_only": true,
+        "runtime_mount_authorized": false,
+    }
+    result["promotion"] = {
+        "state": "qa_candidate_only",
+        "production_discovery_eligible": false,
+        "requires_explicit_validated_promotion": true,
+    }
+    return result
+
+
+func _unsealed_candidate_manifest(cell_id: String, easting: float, northing: float) -> Dictionary:
+    var result := _manifest(cell_id, easting, northing)
+    result["authorization"] = {
+        "candidate_only": true,
+        "runtime_mount_authorized": false,
+        "collision_authorized": false,
+        "terrain_runtime_authorized": false,
+        "jouable_promotion_authorized": false,
+    }
+    return result
+
+
 func _runtime_cell(cell_id: String, easting: float, northing: float) -> Dictionary:
     return {
         "format": "grand-bruxelles-urbis-cell-runtime-v1",
@@ -69,13 +96,17 @@ func _runtime_network(cell_id: String) -> Dictionary:
     }
 
 
-func _write_complete_cell(cell_id: String, easting: float, northing: float) -> bool:
+func _write_complete_cell_with_manifest(cell_id: String, easting: float, northing: float, manifest: Dictionary) -> bool:
     var base := TEST_ROOT.path_join(cell_id)
     return (
-        _write_json(base.path_join("manifest.json"), _manifest(cell_id, easting, northing))
+        _write_json(base.path_join("manifest.json"), manifest)
         and _write_json(base.path_join("runtime/cell.game.json"), _runtime_cell(cell_id, easting, northing))
         and _write_json(base.path_join("runtime/network.game.json"), _runtime_network(cell_id))
     )
+
+
+func _write_complete_cell(cell_id: String, easting: float, northing: float) -> bool:
+    return _write_complete_cell_with_manifest(cell_id, easting, northing, _manifest(cell_id, easting, northing))
 
 
 func _run() -> void:
@@ -83,6 +114,8 @@ func _run() -> void:
     var second_id := "bxl-e100500-n200000-s500"
     var incomplete_id := "bxl-e101000-n200000-s500"
     var mismatched_id := "bxl-e101500-n200000-s500"
+    var sealed_candidate_id := "bxl-e102000-n200000-s500"
+    var unsealed_candidate_id := "bxl-e102500-n200000-s500"
 
     if not _expect(_write_complete_cell(second_id, 100500.0, 200000.0), "could not write second complete cell fixture"):
         return
@@ -101,12 +134,34 @@ func _run() -> void:
     if not _expect(_write_json(mismatched_base.path_join("runtime/network.game.json"), _runtime_network("bxl-e999999-n999999-s500")), "could not write mismatched network fixture"):
         return
 
+    if not _expect(
+        _write_complete_cell_with_manifest(
+            sealed_candidate_id,
+            102000.0,
+            200000.0,
+            _sealed_candidate_manifest(sealed_candidate_id, 102000.0, 200000.0)
+        ),
+        "could not write sealed candidate fixture"
+    ):
+        return
+
+    if not _expect(
+        _write_complete_cell_with_manifest(
+            unsealed_candidate_id,
+            102500.0,
+            200000.0,
+            _unsealed_candidate_manifest(unsealed_candidate_id, 102500.0, 200000.0)
+        ),
+        "could not write unsealed candidate fixture"
+    ):
+        return
+
     var runtime := RUNTIME_SCRIPT.new()
     if not _expect(runtime.has_method("discover_runtime_cell_descriptors"), "production runtime still has no automatic pregenerated-cell discovery API"):
         return
     var descriptors: Array[Dictionary] = runtime.discover_runtime_cell_descriptors(TEST_ROOT)
 
-    if not _expect(descriptors.size() == 2, "automatic discovery should accept exactly the two complete source-safe fixtures, got %d" % descriptors.size()):
+    if not _expect(descriptors.size() == 2, "automatic discovery should accept only the two production-safe fixtures, got %d" % descriptors.size()):
         return
     if not _expect(str(descriptors[0].get("cell_id", "")) == first_id and str(descriptors[1].get("cell_id", "")) == second_id, "automatic discovery should be deterministic and sorted by cell id"):
         return
@@ -121,5 +176,5 @@ func _run() -> void:
         if not _expect(FileAccess.file_exists(str(descriptor.get("runtime_network_path", ""))), "descriptor runtime network path is not resolvable"):
             return
 
-    print("BRUSSELS_RUNTIME_CELL_AUTO_DISCOVERY_OK: complete pregenerated cells are discovered automatically; incomplete or identity-mismatched cells fail closed")
+    print("BRUSSELS_RUNTIME_CELL_AUTO_DISCOVERY_OK: complete production cells are discovered automatically; incomplete, identity-mismatched, sealed candidate and unsealed unauthorized candidate cells fail closed")
     quit(0)

@@ -15,6 +15,7 @@ from typing import Any
 
 FORMAT = "grand-bruxelles-terrain-runtime-readiness-v1"
 TERRAIN_LOD_FORMAT = "grand-bruxelles-cell-dtm-lod-evidence-v1"
+TERRAIN_CANDIDATE_FORMAT = "grand-bruxelles-cell-terrain-runtime-candidate-v1"
 SECONDARY_FORMAT = "grand-bruxelles-citygen-secondary-height-validation-v1"
 CANDIDATE_FORMAT = "grand-bruxelles-runtime-candidate-bundle-v1"
 GATE_EVIDENCE_FORMAT = "grand-bruxelles-terrain-runtime-gate-evidence-v1"
@@ -42,11 +43,14 @@ def _require_digest(name: str, value: Any) -> str:
 
 def _validate_base(
     terrain: dict[str, Any],
+    terrain_candidate: dict[str, Any],
     secondary: dict[str, Any],
     candidate: dict[str, Any],
-) -> tuple[str, str, str, str]:
+) -> tuple[str, str, str, str, str]:
     if terrain.get("format") != TERRAIN_LOD_FORMAT or terrain.get("crs") != CRS:
         raise ValueError("unsupported terrain LOD evidence")
+    if terrain_candidate.get("format") != TERRAIN_CANDIDATE_FORMAT or terrain_candidate.get("crs") != CRS:
+        raise ValueError("unsupported terrain runtime candidate")
     if secondary.get("format") != SECONDARY_FORMAT or secondary.get("crs") != CRS:
         raise ValueError("unsupported secondary height validation")
     if candidate.get("format") != CANDIDATE_FORMAT:
@@ -55,14 +59,32 @@ def _validate_base(
     cell_id = terrain.get("cell_id")
     if not isinstance(cell_id, str) or not cell_id.startswith("bxl-"):
         raise ValueError("terrain readiness cell identity missing")
-    if secondary.get("cell_id") != cell_id or candidate.get("cell_id") != cell_id:
+    if terrain_candidate.get("cell_id") != cell_id or secondary.get("cell_id") != cell_id or candidate.get("cell_id") != cell_id:
         raise ValueError("terrain/runtime readiness identity mismatch")
 
     selection = terrain.get("selection")
     if not isinstance(selection, dict) or selection.get("selected_resolution_m") is None:
         raise ValueError("terrain LOD has no selected source-faithful candidate")
+    if selection.get("canonical_edge_alignment_required") is not True:
+        raise ValueError("terrain LOD does not lock canonical edge alignment")
     if terrain.get("runtime_approved") is not False:
         raise ValueError("terrain LOD evidence must remain runtime-unapproved")
+
+    terrain_authorization = terrain_candidate.get("authorization")
+    topology = terrain_candidate.get("topology")
+    source = terrain_candidate.get("source")
+    if not isinstance(terrain_authorization, dict) or not isinstance(topology, dict) or not isinstance(source, dict):
+        raise ValueError("terrain runtime candidate safety/topology contract missing")
+    if terrain_authorization.get("candidate_only") is not True:
+        raise ValueError("terrain runtime candidate must remain candidate-only")
+    for flag in ("terrain_runtime_authorized", "collision_authorized", "runtime_mount_authorized", "jouable_promotion_authorized"):
+        if terrain_authorization.get(flag) is not False:
+            raise ValueError(f"terrain runtime candidate unexpectedly authorizes {flag}")
+    if topology.get("includes_all_four_canonical_cell_edges") is not True or topology.get("shared_edge_coordinates_are_exact") is not True:
+        raise ValueError("terrain runtime candidate does not lock canonical shared edges")
+    if abs(float(terrain_candidate.get("spacing_m", 0.0)) - float(selection["selected_resolution_m"])) > 1e-9:
+        raise ValueError("terrain runtime candidate spacing drifted from selected LOD")
+
     if secondary.get("runtime_promotion_allowed") is not False:
         raise ValueError("secondary height validation unexpectedly authorizes runtime promotion")
     if secondary.get("secondary_validation_complete") is not True:
@@ -80,21 +102,28 @@ def _validate_base(
         raise ValueError("runtime candidate safety contract drifted")
 
     terrain_digest = _require_digest("terrain evidence digest", terrain.get("evidence_digest"))
+    terrain_candidate_digest = _require_digest("terrain runtime candidate digest", terrain_candidate.get("candidate_digest"))
+    if source.get("terrain_lod_evidence_digest") != terrain_digest:
+        raise ValueError("terrain runtime candidate is stale against terrain LOD evidence")
     secondary_digest = _require_digest("secondary validation digest", secondary.get("validation_digest"))
     candidate_digest = _require_digest("runtime candidate digest", candidate.get("candidate_digest"))
-    return cell_id, terrain_digest, secondary_digest, candidate_digest
+    return cell_id, terrain_digest, terrain_candidate_digest, secondary_digest, candidate_digest
 
 
 def build(
     terrain_path: Path,
+    terrain_candidate_path: Path,
     secondary_path: Path,
     candidate_path: Path,
     gate_evidence_path: Path | None = None,
 ) -> dict[str, Any]:
     terrain = _read(terrain_path)
+    terrain_candidate = _read(terrain_candidate_path)
     secondary = _read(secondary_path)
     candidate = _read(candidate_path)
-    cell_id, terrain_digest, secondary_digest, candidate_digest = _validate_base(terrain, secondary, candidate)
+    cell_id, terrain_digest, terrain_candidate_digest, secondary_digest, candidate_digest = _validate_base(
+        terrain, terrain_candidate, secondary, candidate
+    )
 
     measured: dict[str, Any] = {}
     evidence_digest = None
@@ -110,6 +139,8 @@ def build(
             raise ValueError("terrain/runtime gate evidence bindings missing")
         if bindings.get("terrain_lod_evidence_digest") != terrain_digest:
             raise ValueError("terrain/runtime gate evidence is stale against terrain LOD evidence")
+        if bindings.get("terrain_runtime_candidate_digest") != terrain_candidate_digest:
+            raise ValueError("terrain/runtime gate evidence is stale against terrain runtime candidate")
         if bindings.get("secondary_height_validation_digest") != secondary_digest:
             raise ValueError("terrain/runtime gate evidence is stale against secondary height validation")
         if bindings.get("runtime_candidate_digest") != candidate_digest:
@@ -150,6 +181,7 @@ def build(
         "crs": CRS,
         "bindings": {
             "terrain_lod_evidence_digest": terrain_digest,
+            "terrain_runtime_candidate_digest": terrain_candidate_digest,
             "secondary_height_validation_digest": secondary_digest,
             "runtime_candidate_digest": candidate_digest,
             "runtime_gate_evidence_digest": evidence_digest,
@@ -170,6 +202,7 @@ def build(
         ),
         "policy": {
             "per_cell_digest_binding_required": True,
+            "measured_gates_bind_actual_terrain_artifact": True,
             "missing_evidence_never_assumed_passed": True,
             "global_workflow_green_is_not_cell_proof": True,
             "promotion_requires_separate_explicit_step": True,
@@ -182,6 +215,7 @@ def build(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--terrain-lod", type=Path, required=True)
+    parser.add_argument("--terrain-runtime-candidate", type=Path, required=True)
     parser.add_argument("--secondary-height-validation", type=Path, required=True)
     parser.add_argument("--runtime-candidate", type=Path, required=True)
     parser.add_argument("--runtime-gate-evidence", type=Path)
@@ -190,6 +224,7 @@ def main() -> int:
     try:
         result = build(
             args.terrain_lod,
+            args.terrain_runtime_candidate,
             args.secondary_height_validation,
             args.runtime_candidate,
             args.runtime_gate_evidence,

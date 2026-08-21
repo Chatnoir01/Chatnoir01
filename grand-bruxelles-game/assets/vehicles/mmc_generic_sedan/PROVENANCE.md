@@ -2,6 +2,8 @@
 
 Status: **SOURCE_SELECTED / OFFICIAL_BYTES_PENDING / NOT_PRODUCTION_AUTHORIZED**
 
+Integration base: `main@51907a1bfb5caccbcb83b82571d081fe2eaddb1b`
+
 This directory is the controlled intake location for the first close-camera authored civilian car witness.
 
 ## Source

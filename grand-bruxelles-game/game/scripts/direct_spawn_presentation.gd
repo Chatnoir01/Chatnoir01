@@ -160,7 +160,9 @@ func _safe_road_viewpoint(document: Dictionary, road: Dictionary, preferred_targ
         return {}
     var segment_index := -1
     var segment_length := -1.0
-    if is_finite(preferred_target.x) and is_finite(preferred_target.y):
+    var projected_target := Vector2(INF, INF)
+    var has_preferred_target := is_finite(preferred_target.x) and is_finite(preferred_target.y)
+    if has_preferred_target:
         var best_distance := INF
         for index: int in range(points.size() - 1):
             var start := points[index]
@@ -176,6 +178,7 @@ func _safe_road_viewpoint(document: Dictionary, road: Dictionary, preferred_targ
                 best_distance = distance
                 segment_index = index
                 segment_length = segment.length()
+                projected_target = projected
     else:
         for index: int in range(points.size() - 1):
             var length := points[index].distance_to(points[index + 1])
@@ -186,7 +189,9 @@ func _safe_road_viewpoint(document: Dictionary, road: Dictionary, preferred_targ
         return {}
     var start := points[segment_index]
     var finish := points[segment_index + 1]
-    var target := preferred_target if is_finite(preferred_target.x) and is_finite(preferred_target.y) else start.lerp(finish, 0.5)
+    var target := projected_target if has_preferred_target else start.lerp(finish, 0.5)
+    if not is_finite(target.x) or not is_finite(target.y) or _point_inside_any_source_building(document, target):
+        return {}
     var direction := (finish - start).normalized()
     var perpendicular := Vector2(-direction.y, direction.x)
     var half_road := _display_road_width(road) * 0.5

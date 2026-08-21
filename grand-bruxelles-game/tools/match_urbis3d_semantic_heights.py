@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Build read-only per-building UrbIS3D semantic height evidence for one cell.
 
-This is the cell-agnostic successor to the historical Ixelles matcher. 2D INSPIRE_ID
-and 3D BUSOLID_ID remain separate identities and are matched spatially using
-GROUNDSURFACE overlap. Height evidence is derived only from semantically tagged
-ROOFSURFACE/GROUNDSURFACE Z samples. Runtime approval is never granted here.
+UrbIS3D BuildingSolids.bu2d_Id is the primary 3D-to-2D building identity when
+available. GROUNDSURFACE overlap remains an explicit spatial diagnostic and a
+fallback only when no official solid-to-building link exists. Height evidence is
+derived only from semantically tagged ROOFSURFACE/GROUNDSURFACE Z samples.
+Runtime approval is never granted here.
 """
 from __future__ import annotations
 
@@ -76,6 +77,21 @@ def envelopes_intersect(a: tuple[float, float, float, float], b: tuple[float, fl
     return not (a[1] < b[0] or b[1] < a[0] or a[3] < b[2] or b[3] < a[2])
 
 
+def normalize_field_name(value: str) -> str:
+    return "".join(ch for ch in value.casefold() if ch.isalnum())
+
+
+def resolve_field_name(layer: ogr.Layer, expected: str) -> str:
+    wanted = normalize_field_name(expected)
+    definition = layer.GetLayerDefn()
+    for index in range(definition.GetFieldCount()):
+        field = definition.GetFieldDefn(index)
+        name = field.GetName()
+        if normalize_field_name(name) == wanted:
+            return name
+    raise RuntimeError(f"Layer {layer.GetName()} missing required field {expected}")
+
+
 def load_buildings(path: Path, bbox: tuple[float, float, float, float]) -> list[dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     minx, miny, maxx, maxy = bbox
@@ -105,6 +121,7 @@ def load_buildings(path: Path, bbox: tuple[float, float, float, float]) -> list[
 
 
 def find_buildingfaces(root: Path) -> tuple[ogr.DataSource, ogr.Layer, Path]:
+    """Compatibility helper for older callers that need only BuildingFaces."""
     for path in sorted(p for p in root.rglob("*.gpkg") if p.is_file()):
         dataset = ogr.Open(str(path), 0)
         if dataset is None:
@@ -113,6 +130,44 @@ def find_buildingfaces(root: Path) -> tuple[ogr.DataSource, ogr.Layer, Path]:
         if layer is not None:
             return dataset, layer, path
     raise RuntimeError("No BuildingFaces layer found")
+
+
+def find_urbis3d_layers(root: Path) -> tuple[ogr.DataSource, ogr.Layer, ogr.Layer, Path]:
+    """Find one official package carrying both face geometry and solid identity."""
+    for path in sorted(p for p in root.rglob("*.gpkg") if p.is_file()):
+        dataset = ogr.Open(str(path), 0)
+        if dataset is None:
+            continue
+        faces = dataset.GetLayerByName("BuildingFaces")
+        solids = dataset.GetLayerByName("BuildingSolids")
+        if faces is not None and solids is not None:
+            return dataset, faces, solids, path
+    raise RuntimeError("No GeoPackage with both BuildingFaces and BuildingSolids found")
+
+
+def collect_solid_building_links(layer: ogr.Layer) -> dict[str, str]:
+    """Read the official 3D-solid → 2D-building identity relation fail-closed."""
+    solid_field = resolve_field_name(layer, "inspire_Id")
+    building_field = resolve_field_name(layer, "bu2d_Id")
+    links: dict[str, str] = {}
+    layer.ResetReading()
+    for feature in layer:
+        solid_value = feature.GetField(solid_field)
+        building_value = feature.GetField(building_field)
+        if solid_value is None or building_value is None:
+            continue
+        solid_id = str(solid_value).strip()
+        building_id = str(building_value).strip()
+        if not solid_id or not building_id:
+            continue
+        previous = links.get(solid_id)
+        if previous is not None and previous != building_id:
+            raise ValueError(
+                f"Conflicting BuildingSolids.bu2d_Id values for {solid_id}: {previous} vs {building_id}"
+            )
+        links[solid_id] = building_id
+    layer.ResetReading()
+    return links
 
 
 def collect_solids(layer: ogr.Layer, bbox: tuple[float, float, float, float]) -> dict[str, dict[str, Any]]:
@@ -124,9 +179,11 @@ def collect_solids(layer: ogr.Layer, bbox: tuple[float, float, float, float]) ->
         "ground_geometries": [], "roof_geometries": [], "ground_z": [], "roof_z": [],
         "ground_faces": 0, "roof_faces": 0,
     })
+    solid_field = resolve_field_name(layer, "BUSOLID_ID")
+    type_field = resolve_field_name(layer, "TYPE")
     for feature in layer:
-        solid_id = feature.GetField("BUSOLID_ID")
-        face_type = feature.GetField("TYPE")
+        solid_id = feature.GetField(solid_field)
+        face_type = feature.GetField(type_field)
         geometry = feature.GetGeometryRef()
         if not solid_id or face_type not in (GROUND, ROOF) or geometry is None:
             continue
@@ -170,6 +227,7 @@ def build_evidence(
     *,
     cell_id: str,
     municipality: str,
+    solid_building_links: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if not cell_id.strip():
         raise ValueError("cell_id is required")
@@ -179,8 +237,12 @@ def build_evidence(
     if maxx <= minx or maxy <= miny:
         raise ValueError("invalid EPSG:31370 bbox")
 
+    links = solid_building_links or {}
+    building_by_id = {building["inspire_id"]: building for building in buildings}
     matches = []
     counters = defaultdict(int)
+    identity_counters = defaultdict(int)
+
     for solid_id in sorted(solids):
         solid = solids[solid_id]
         ground = union_geometries(solid["ground_geometries"])
@@ -189,6 +251,7 @@ def build_evidence(
         if ground is None or ground.IsEmpty():
             counters["no_ground_geometry"] += 1
             continue
+
         candidates = []
         ground_envelope = ground.GetEnvelope()
         for building in buildings:
@@ -200,17 +263,55 @@ def build_evidence(
         candidates.sort(key=lambda item: (-item["score"], item["inspire_id"]))
         best = candidates[0] if candidates else None
         runner = candidates[1] if len(candidates) > 1 else None
-        margin = (best["score"] - runner["score"]) if best and runner else (best["score"] if best else 0.0)
-        unique_match = bool(best and best["score"] >= MIN_MATCH_SCORE and margin >= MIN_RUNNER_UP_MARGIN)
+        spatial_margin = (best["score"] - runner["score"]) if best and runner else (best["score"] if best else 0.0)
+        spatial_unique_match = bool(
+            best and best["score"] >= MIN_MATCH_SCORE and spatial_margin >= MIN_RUNNER_UP_MARGIN
+        )
+
+        direct_id = links.get(solid_id)
+        identity_basis = "spatial_ground_overlap"
+        matched_inspire_id: str | None = None
+        match_score = None if best is None else best["score"]
+        match_margin = spatial_margin
+        identity_resolved = False
+        official_identity_missing_2d = False
+
+        if direct_id is not None:
+            identity_basis = "building_solids_bu2d_id"
+            direct_building = building_by_id.get(direct_id)
+            if direct_building is None:
+                official_identity_missing_2d = True
+                match_score = 0.0
+                match_margin = 0.0
+                identity_counters["official_identity_missing_2d_building"] += 1
+            else:
+                matched_inspire_id = direct_id
+                identity_resolved = True
+                identity_counters["official_identity"] += 1
+                direct_spatial = score_match(ground, direct_building["geometry"])
+                direct_score = 0.0 if direct_spatial is None else direct_spatial["score"]
+                competitor_scores = [
+                    candidate["score"] for candidate in candidates if candidate["inspire_id"] != direct_id
+                ]
+                competitor_score = max(competitor_scores) if competitor_scores else 0.0
+                match_score = direct_score
+                match_margin = direct_score - competitor_score
+        elif spatial_unique_match and best is not None:
+            matched_inspire_id = best["inspire_id"]
+            identity_resolved = True
+            identity_counters["spatial_fallback_identity"] += 1
+        else:
+            identity_counters["spatial_fallback_unresolved"] += 1
 
         ground_median = percentile(ground_z, 0.50)
         roof_median = percentile(roof_z, 0.50)
         height = None if ground_median is None or roof_median is None else roof_median - ground_median
         height_plausible = bool(height is not None and MIN_HEIGHT_M <= height <= MAX_HEIGHT_M)
-        if not candidates:
-            status = "unmatched"
-        elif not unique_match:
-            status = "ambiguous"
+
+        if official_identity_missing_2d:
+            status = "official_identity_missing_2d_building"
+        elif not identity_resolved:
+            status = "unmatched" if not candidates else "ambiguous"
         elif not roof_z or not ground_z:
             status = "matched_missing_semantic_z"
         elif not height_plausible:
@@ -218,10 +319,13 @@ def build_evidence(
         else:
             status = "matched_semantic_evidence"
         counters[status] += 1
+
         matches.append({
             "busolid_id": solid_id,
             "status": status,
-            "matched_inspire_id": best["inspire_id"] if unique_match and best else None,
+            "identity_basis": identity_basis,
+            "official_bu2d_id": direct_id,
+            "matched_inspire_id": matched_inspire_id,
             "candidate_count": len(candidates),
             "best_candidate_inspire_id": None if best is None else best["inspire_id"],
             "best_intersection_area_m2": None if best is None else best["intersection_area_m2"],
@@ -230,9 +334,9 @@ def build_evidence(
             "runner_up_candidate_inspire_id": None if runner is None else runner["inspire_id"],
             "runner_up_ground_coverage": None if runner is None else runner["ground_coverage"],
             "runner_up_building_coverage": None if runner is None else runner["building_coverage"],
-            "match_score": None if best is None else best["score"],
+            "match_score": match_score,
             "runner_up_score": None if runner is None else runner["score"],
-            "match_margin": margin,
+            "match_margin": match_margin,
             "ground_faces": solid["ground_faces"],
             "roof_faces": solid["roof_faces"],
             "ground_z_samples": len(ground_z),
@@ -257,7 +361,11 @@ def build_evidence(
         "bbox_epsg31370": list(bbox),
         "policy": {
             "crs": "EPSG:31370",
-            "match_basis": "BUSOLID_ID GROUNDSURFACE 2D overlap against UrbIS 2D building footprint",
+            "primary_identity_basis": "BuildingSolids.bu2d_Id",
+            "match_basis": (
+                "BuildingSolids.bu2d_Id official 3D-to-2D identity; "
+                "BUSOLID_ID GROUNDSURFACE 2D overlap retained as diagnostics and fallback"
+            ),
             "height_basis": "median ROOFSURFACE Z minus median GROUNDSURFACE Z",
             "min_match_score": MIN_MATCH_SCORE,
             "min_runner_up_margin": MIN_RUNNER_UP_MARGIN,
@@ -268,6 +376,8 @@ def build_evidence(
         "counts": {
             "urbis_2d_buildings": len(buildings),
             "building_solids_in_bbox": len(solids),
+            "official_solid_building_links_in_package": len(links),
+            **dict(sorted(identity_counters.items())),
             **dict(sorted(counters.items())),
         },
         "semantic_height_summary_m": {
@@ -297,14 +407,16 @@ def main() -> int:
     args = parse_args()
     bbox = tuple(args.bbox)
     buildings = load_buildings(args.buildings, bbox)
-    dataset, layer, package = find_buildingfaces(args.root)
-    solids = collect_solids(layer, bbox)
+    dataset, faces_layer, solids_layer, package = find_urbis3d_layers(args.root)
+    solid_building_links = collect_solid_building_links(solids_layer)
+    solids = collect_solids(faces_layer, bbox)
     evidence = build_evidence(
         buildings,
         solids,
         bbox,
         cell_id=args.cell_id,
         municipality=args.municipality,
+        solid_building_links=solid_building_links,
     )
     evidence["source_package_path"] = str(package)
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -316,6 +428,7 @@ def main() -> int:
         "municipality=", args.municipality,
         "buildings=", counts["urbis_2d_buildings"],
         "solids=", counts["building_solids_in_bbox"],
+        "official_links=", counts["official_solid_building_links_in_package"],
         "semantic=", counts.get("matched_semantic_evidence", 0),
         "runtime_approved=false",
     )

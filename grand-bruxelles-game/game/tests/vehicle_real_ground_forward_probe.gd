@@ -1,4 +1,5 @@
 extends SceneTree
+# Production regression probe: real Y=0 road, tire contact, visual forward and actual forward drive.
 
 const DRIVABLE := preload("res://game/scripts/drivable_traffic_vehicle.gd")
 const VISUAL := preload("res://game/scripts/rgsdev_vehicle_visual.gd")

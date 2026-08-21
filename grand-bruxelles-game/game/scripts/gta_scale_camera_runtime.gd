@@ -95,16 +95,30 @@ func _is_legacy_distance(index: int, distance_m: float) -> bool:
     return absf(distance_m - LEGACY_VIEW_DISTANCES[index]) <= VIEW_MATCH_TOLERANCE_M
 
 
+func _atomium_presentation_is_active() -> bool:
+    if not is_instance_valid(_player):
+        return false
+    if not _player.has_meta("atomium_direct_presentation_fov_degrees"):
+        return false
+    if not bool(_player.get_meta("atomium_direct_presentation_avatar_hidden", false)):
+        return false
+    # DirectSpawnPresentation hides the normal avatar while its 48-degree witness
+    # owns the view. Player._apply_camera_view() restores VisualUpgrade on travel
+    # or when gameplay retakes control, so a stale Atomium metadata marker must not
+    # keep blocking the normal GTA camera after the player has left that witness.
+    var visual_upgrade := _player.get_node_or_null("VisualUpgrade") as Node3D
+    return visual_upgrade != null and not visual_upgrade.visible
+
+
 func _special_presentation_owns_camera() -> bool:
     if not is_instance_valid(_player):
         return false
     # Ixelles uses a source-verified first-person witness and locks the camera.
     if bool(_player.get_meta("camera_view_locked_first_person", false)):
         return true
-    # Atomium has a dedicated 48-degree presentation witness. Do not trample it.
-    if _player.has_meta("atomium_direct_presentation_fov_degrees"):
-        return true
-    return false
+    # Atomium has a dedicated 48-degree presentation witness while its avatar is
+    # intentionally hidden. The active visual state, not metadata alone, owns it.
+    return _atomium_presentation_is_active()
 
 
 func _apply_camera_contract() -> void:

@@ -112,6 +112,15 @@ func _run() -> void:
         _fail("shared sidewalk material not found on generated sidewalk")
         return
 
+    var authored_strength_variant := material.get_shader_parameter("micro_grain_strength")
+    if authored_strength_variant == null:
+        _fail("authored micro_grain_strength missing")
+        return
+    var authored_strength := float(authored_strength_variant)
+    if authored_strength <= 0.0:
+        _fail("authored micro_grain_strength must be positive")
+        return
+
     var camera := Camera3D.new()
     camera.position = CAMERA_POS
     camera.look_at_from_position(CAMERA_POS, LOOK_TARGET, Vector3.UP)
@@ -123,7 +132,7 @@ func _run() -> void:
     for _frame: int in range(8):
         await process_frame
     var before := await _capture(viewport, BEFORE_PATH)
-    material.set_shader_parameter("micro_grain_strength", 0.16)
+    material.set_shader_parameter("micro_grain_strength", authored_strength)
     for _frame: int in range(8):
         await process_frame
     var after := await _capture(viewport, AFTER_PATH)
@@ -140,7 +149,7 @@ func _run() -> void:
     var changed_8 := float(gt8["fraction"])
     var bbox_w := int(gt3["bbox_w"])
     var bbox_h := int(gt3["bbox_h"])
-    print("BRUSSELS_SIDEWALK_MICROTEXTURE_VISUAL_METRICS: changed_gt3=%.6f changed_gt8=%.6f bbox=%dx%d sidewalks=%d" % [changed_3, changed_8, bbox_w, bbox_h, int(runtime.call("applied_sidewalk_count"))])
+    print("BRUSSELS_SIDEWALK_MICROTEXTURE_VISUAL_METRICS: changed_gt3=%.6f changed_gt8=%.6f bbox=%dx%d sidewalks=%d authored_strength=%.3f" % [changed_3, changed_8, bbox_w, bbox_h, int(runtime.call("applied_sidewalk_count")), authored_strength])
     if changed_3 < MIN_CHANGED_3 or changed_8 < MIN_CHANGED_8:
         _fail("non-semantic microtexture is not player-visible enough")
         return
@@ -150,5 +159,5 @@ func _run() -> void:
     if bbox_w < MIN_BBOX_W or bbox_h < MIN_BBOX_H:
         _fail("non-semantic microtexture lacks broad screen coverage")
         return
-    print("BRUSSELS_SIDEWALK_MICROTEXTURE_VISUAL_OK: eye=1.65m fov=67 changed_gt3=%.4f%% changed_gt8=%.4f%% bbox=%dx%d geometry_changed=false paving_dimensions_claimed=false" % [changed_3 * 100.0, changed_8 * 100.0, bbox_w, bbox_h])
+    print("BRUSSELS_SIDEWALK_MICROTEXTURE_VISUAL_OK: eye=1.65m fov=67 changed_gt3=%.4f%% changed_gt8=%.4f%% bbox=%dx%d authored_strength=%.3f geometry_changed=false paving_dimensions_claimed=false" % [changed_3 * 100.0, changed_8 * 100.0, bbox_w, bbox_h, authored_strength])
     quit(0)

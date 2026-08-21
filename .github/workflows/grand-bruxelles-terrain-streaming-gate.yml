@@ -1,0 +1,502 @@
+name: Grand Bruxelles Terrain Streaming Gate
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/**"
+      - "grand-bruxelles-game/game/tests/terrain_streaming_candidate_probe.gd"
+      - ".github/workflows/grand-bruxelles-terrain-streaming-gate.yml"
+      - ".github/workflows/grand-bruxelles-terrain-runtime-gate-evidence.yml"
+      - ".github/workflows/grand-bruxelles-terrain-runtime-readiness.yml"
+  workflow_run:
+    workflows:
+      - "Grand Bruxelles Terrain Runtime Gate Evidence"
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare deterministic test stack
+        run: python3 -m pip install --disable-pip-version-check "numpy>=1.26,<3"
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Prove streaming and persisted-evidence guardrails
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_runtime_gate_evidence.py
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_streaming_gate.py
+
+      - name: Prepare exact sealed streaming fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf \
+            grand-bruxelles-game/.qa_streaming_fixture \
+            /tmp/terrain-streaming-fixture-probes \
+            /tmp/terrain-streaming-fixture-results \
+            /tmp/terrain-streaming-fixture-measurements
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_streaming_gate.py \
+            --emit-fixture-root grand-bruxelles-game/.qa_streaming_fixture \
+            --emit-probe-root /tmp/terrain-streaming-fixture-probes \
+            --fixture-resource-root res://.qa_streaming_fixture
+
+      - name: Isolate streaming fixture from unrelated game autoloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path=Path('grand-bruxelles-game/project.godot')
+          original=path.read_text(encoding='utf-8')
+          output=[]
+          in_autoload=False
+          removed=0
+          for line in original.splitlines(keepends=True):
+              stripped=line.strip()
+              if stripped == '[autoload]':
+                  output.append(line)
+                  in_autoload=True
+                  continue
+              if in_autoload and stripped.startswith('[') and stripped.endswith(']'):
+                  output.append('\n')
+                  output.append(line)
+                  in_autoload=False
+                  continue
+              if in_autoload:
+                  if stripped and not stripped.startswith(';'):
+                      removed += 1
+                  continue
+              output.append(line)
+          if in_autoload:
+              output.append('\n')
+          isolated=''.join(output)
+          if removed < 1:
+              raise SystemExit('streaming fixture isolation expected at least one autoload')
+          for section in ('[autoload]','[application]','[display]','[physics]'):
+              if section not in isolated:
+                  raise SystemExit(f'streaming fixture isolation damaged {section}')
+          path.write_text(isolated,encoding='utf-8')
+          print(f'TERRAIN_STREAMING_CI_AUTOLOAD_ISOLATION_OK removed={removed}')
+          PY
+
+      - name: Build Godot global class cache for streaming fixture
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -rf grand-bruxelles-game/.godot
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --editor --path grand-bruxelles-game --quit \
+            2>&1 | tee /tmp/terrain-streaming-godot-import.log
+          CACHE=grand-bruxelles-game/.godot/global_script_class_cache.cfg
+          test -s "$CACHE"
+          grep -q "BrusselsCellStreamingManager" "$CACHE"
+          grep -q "BrusselsCellNodeBackend" "$CACHE"
+          grep -q "BrusselsAssetCache" "$CACHE"
+          if grep -E "Parse Error:" /tmp/terrain-streaming-godot-import.log; then
+            exit 1
+          fi
+          echo "TERRAIN_STREAMING_GODOT_CLASS_CACHE_OK"
+
+      - name: Prove generic sealed-candidate streaming in Godot 4.7.1
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/terrain_streaming_candidate_probe.gd \
+            -- \
+            --probe-root=/tmp/terrain-streaming-fixture-probes \
+            --result-root=/tmp/terrain-streaming-fixture-results 2>&1 | tee /tmp/terrain-streaming-godot-fixture.log
+          if grep -E "SCRIPT ERROR|Parse Error:|TERRAIN_STREAMING_GODOT_FAIL|TERRAIN_STREAMING_GODOT_CELL_FAIL" /tmp/terrain-streaming-godot-fixture.log; then
+            exit 1
+          fi
+          grep -q "TERRAIN_STREAMING_GODOT_OK" /tmp/terrain-streaming-godot-fixture.log
+
+      - name: Verify exact Godot streaming measurement
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_terrain_streaming_gate.py \
+            --verify-probe-root /tmp/terrain-streaming-fixture-probes \
+            --godot-result-root /tmp/terrain-streaming-fixture-results \
+            --measurement-root /tmp/terrain-streaming-fixture-measurements
+
+  measure:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    needs: validate
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Recover durable CityGen state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/terrain-streaming-prev
+          mkdir -p /tmp/terrain-streaming-prev
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          if git cat-file -e "origin/citygen-autonomous-state:grand-bruxelles-game/data/qa" 2>/dev/null; then
+            git archive origin/citygen-autonomous-state grand-bruxelles-game/data/qa | tar -x -C /tmp/terrain-streaming-prev
+          fi
+          rm -rf grand-bruxelles-game/data/qa
+          mkdir -p grand-bruxelles-game/data/qa
+          cp -a /tmp/terrain-streaming-prev/grand-bruxelles-game/data/qa/. grand-bruxelles-game/data/qa/ 2>/dev/null || true
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Select cells with exact streaming prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > /tmp/terrain-streaming-worklist.txt
+          import json
+          from pathlib import Path
+
+          qa=Path('grand-bruxelles-game/data/qa')
+          sources=qa/'autonomous_sources'
+          candidates=qa/'autonomous_candidates'/'runtime'
+          target=qa/'brussels_regional_target_grid.json'
+          if not sources.exists() or not target.is_file():
+              raise SystemExit(0)
+          try:
+              grid=json.loads(target.read_text())
+          except Exception as exc:
+              raise SystemExit(f'invalid regional target grid: {exc}')
+          if grid.get('format') != 'grand-bruxelles-regional-target-grid-v1' or grid.get('crs') != 'EPSG:31370':
+              raise SystemExit('unsupported regional target grid contract')
+          target_ids={row.get('cell_id') for row in (grid.get('cells') or []) if isinstance(row,dict)}
+          for cell in sorted(p for p in sources.iterdir() if p.is_dir() and p.name in target_ids):
+              bundle=candidates/cell.name
+              required=[
+                  cell/'terrain_lod_evidence.json',
+                  cell/'terrain_runtime_candidate.json',
+                  cell/'secondary_height_validation.json',
+                  cell/'terrain_runtime_gate_evidence.json',
+                  bundle/'candidate.json',
+                  bundle/'manifest.json',
+                  bundle/'runtime'/'cell.game.json',
+                  bundle/'runtime'/'network.game.json',
+              ]
+              if not all(path.is_file() for path in required):
+                  continue
+              try:
+                  evidence=json.loads((cell/'terrain_runtime_gate_evidence.json').read_text())
+                  secondary=json.loads((cell/'secondary_height_validation.json').read_text())
+              except Exception:
+                  continue
+              gates=evidence.get('gates') or {}
+              if secondary.get('secondary_validation_complete') is not True:
+                  continue
+              if secondary.get('runtime_promotion_allowed') is not False:
+                  continue
+              if not all(name in gates for name in ('seams','normals','collisions')):
+                  continue
+              print(cell.name)
+          PY
+          echo "TERRAIN_STREAMING_WORKLIST selected=$(grep -cve '^$' /tmp/terrain-streaming-worklist.txt || true)"
+
+      - name: Prepare exact per-cell streaming probes
+        shell: bash
+        run: |
+          set -u
+          QA="grand-bruxelles-game/data/qa"
+          SOURCES="$QA/autonomous_sources"
+          CANDIDATES="$QA/autonomous_candidates/runtime"
+          rm -rf /tmp/terrain-streaming-probes /tmp/terrain-streaming-results /tmp/terrain-streaming-logs
+          mkdir -p /tmp/terrain-streaming-probes /tmp/terrain-streaming-results /tmp/terrain-streaming-logs
+          : > /tmp/terrain-streaming-prepared.txt
+          : > /tmp/terrain-streaming-pending.txt
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="$SOURCES/$CELL"
+            B="$CANDIDATES/$CELL"
+            C="$B/candidate.json"
+            P="/tmp/terrain-streaming-probes/${CELL}.json"
+            LOG="/tmp/terrain-streaming-logs/${CELL}.prepare.log"
+            rm -f "$D/terrain_streaming_gate_measurement.json"
+            if python3 grand-bruxelles-game/tools/citygen/terrain_streaming_gate.py prepare \
+                --terrain-lod "$D/terrain_lod_evidence.json" \
+                --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+                --secondary-height-validation "$D/secondary_height_validation.json" \
+                --runtime-candidate "$C" \
+                --candidate-dir "$B" \
+                --candidate-resource-root "res://data/qa/autonomous_candidates/runtime/${CELL}" \
+                --output "$P" >"$LOG" 2>&1; then
+              echo "$CELL" >> /tmp/terrain-streaming-prepared.txt
+              cat "$LOG"
+            else
+              rm -f "$P"
+              echo "$CELL" >> /tmp/terrain-streaming-pending.txt
+              echo "TERRAIN_STREAMING_PROBE_PENDING cell=${CELL}"
+              cat "$LOG"
+            fi
+          done < /tmp/terrain-streaming-worklist.txt
+          echo "TERRAIN_STREAMING_PROBE_BATCH prepared=$(grep -cve '^$' /tmp/terrain-streaming-prepared.txt || true) pending=$(grep -cve '^$' /tmp/terrain-streaming-pending.txt || true)"
+
+      - name: Isolate regional streaming probes and build Godot global class cache
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path=Path('grand-bruxelles-game/project.godot')
+          original=path.read_text(encoding='utf-8')
+          output=[]
+          in_autoload=False
+          removed=0
+          for line in original.splitlines(keepends=True):
+              stripped=line.strip()
+              if stripped == '[autoload]':
+                  output.append(line)
+                  in_autoload=True
+                  continue
+              if in_autoload and stripped.startswith('[') and stripped.endswith(']'):
+                  output.append('\n')
+                  output.append(line)
+                  in_autoload=False
+                  continue
+              if in_autoload:
+                  if stripped and not stripped.startswith(';'):
+                      removed += 1
+                  continue
+              output.append(line)
+          if in_autoload:
+              output.append('\n')
+          isolated=''.join(output)
+          if removed < 1:
+              raise SystemExit('regional streaming isolation expected at least one autoload')
+          path.write_text(isolated,encoding='utf-8')
+          print(f'TERRAIN_STREAMING_REGIONAL_AUTOLOAD_ISOLATION_OK removed={removed}')
+          PY
+          rm -rf grand-bruxelles-game/.godot
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --editor --path grand-bruxelles-game --quit \
+            2>&1 | tee /tmp/terrain-streaming-godot-import.log
+          CACHE=grand-bruxelles-game/.godot/global_script_class_cache.cfg
+          test -s "$CACHE"
+          grep -q "BrusselsCellStreamingManager" "$CACHE"
+          grep -q "BrusselsCellNodeBackend" "$CACHE"
+          grep -q "BrusselsAssetCache" "$CACHE"
+          if grep -E "Parse Error:" /tmp/terrain-streaming-godot-import.log; then
+            exit 1
+          fi
+          echo "TERRAIN_STREAMING_GODOT_CLASS_CACHE_OK regional=true"
+
+      - name: Run exact streaming probes once in Godot 4.7.1
+        shell: bash
+        run: |
+          set -u
+          PREPARED=$(find /tmp/terrain-streaming-probes -maxdepth 1 -name '*.json' -type f | wc -l)
+          if [ "$PREPARED" -eq 0 ]; then
+            echo "TERRAIN_STREAMING_GODOT_NO_PROBES"
+            exit 0
+          fi
+          set +e
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless \
+            --path grand-bruxelles-game \
+            --script res://game/tests/terrain_streaming_candidate_probe.gd \
+            -- \
+            --probe-root=/tmp/terrain-streaming-probes \
+            --result-root=/tmp/terrain-streaming-results 2>&1 | tee /tmp/terrain-streaming-godot-batch.log
+          GODOT_RC=${PIPESTATUS[0]}
+          set -e
+          RESULTS=$(find /tmp/terrain-streaming-results -maxdepth 1 -name '*.json' -type f | wc -l)
+          echo "TERRAIN_STREAMING_GODOT_BATCH prepared=${PREPARED} results=${RESULTS} godot_rc=${GODOT_RC}"
+          if [ "$RESULTS" -eq 0 ]; then
+            echo "::error::Godot streaming probe produced no per-cell results for ${PREPARED} prepared probes"
+            exit 1
+          fi
+
+      - name: Finalize streaming measurements and refresh 4-of-6 readiness
+        shell: bash
+        run: |
+          set -u
+          QA="grand-bruxelles-game/data/qa"
+          SOURCES="$QA/autonomous_sources"
+          CANDIDATES="$QA/autonomous_candidates/runtime"
+          : > /tmp/terrain-streaming-measured.txt
+          : > /tmp/terrain-streaming-refresh-pending.txt
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="$SOURCES/$CELL"
+            C="$CANDIDATES/$CELL/candidate.json"
+            P="/tmp/terrain-streaming-probes/${CELL}.json"
+            R="/tmp/terrain-streaming-results/${CELL}.json"
+            M="$D/terrain_streaming_gate_measurement.json"
+            OUT="$D/terrain_runtime_gate_evidence.json"
+            READINESS="$D/terrain_runtime_readiness.json"
+            NEXT_OUT="/tmp/terrain-streaming-logs/${CELL}.gate-evidence.json"
+            NEXT_READINESS="/tmp/terrain-streaming-logs/${CELL}.readiness.json"
+            LOG="/tmp/terrain-streaming-logs/${CELL}.finalize.log"
+            if [ -f "$P" ] && [ -f "$R" ] \
+              && python3 grand-bruxelles-game/tools/citygen/terrain_streaming_gate.py finalize \
+                --probe "$P" \
+                --godot-result "$R" \
+                --output "$M" >"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_gate_evidence.py \
+                --terrain-lod "$D/terrain_lod_evidence.json" \
+                --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+                --secondary-height-validation "$D/secondary_height_validation.json" \
+                --runtime-candidate "$C" \
+                --existing-evidence "$OUT" \
+                --measurement "$M" \
+                --output "$NEXT_OUT" >>"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_readiness.py \
+                --terrain-lod "$D/terrain_lod_evidence.json" \
+                --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
+                --secondary-height-validation "$D/secondary_height_validation.json" \
+                --runtime-candidate "$C" \
+                --runtime-gate-evidence "$NEXT_OUT" \
+                --output "$NEXT_READINESS" >>"$LOG" 2>&1; then
+              mv "$NEXT_OUT" "$OUT"
+              mv "$NEXT_READINESS" "$READINESS"
+              echo "$CELL" >> /tmp/terrain-streaming-measured.txt
+              cat "$LOG"
+            else
+              rm -f "$M" "$NEXT_OUT" "$NEXT_READINESS"
+              echo "$CELL" >> /tmp/terrain-streaming-refresh-pending.txt
+              echo "TERRAIN_STREAMING_MEASUREMENT_PENDING cell=${CELL}"
+              [ -f "$LOG" ] && cat "$LOG" || true
+            fi
+          done < /tmp/terrain-streaming-worklist.txt
+          echo "TERRAIN_STREAMING_MEASUREMENT_BATCH measured=$(grep -cve '^$' /tmp/terrain-streaming-measured.txt || true) pending=$(grep -cve '^$' /tmp/terrain-streaming-refresh-pending.txt || true)"
+
+      - name: Build streaming gate report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          def lines(path):
+              p=Path(path)
+              return [row.strip() for row in p.read_text().splitlines() if row.strip()] if p.exists() else []
+
+          root=Path('grand-bruxelles-game/data/qa/autonomous_sources')
+          rows=[]
+          if root.exists():
+              for cell in sorted(p for p in root.iterdir() if p.is_dir()):
+                  evidence_path=cell/'terrain_runtime_gate_evidence.json'
+                  readiness_path=cell/'terrain_runtime_readiness.json'
+                  measurement_path=cell/'terrain_streaming_gate_measurement.json'
+                  if not evidence_path.is_file() or not readiness_path.is_file() or not measurement_path.is_file():
+                      continue
+                  try:
+                      evidence=json.loads(evidence_path.read_text())
+                      readiness=json.loads(readiness_path.read_text())
+                  except Exception:
+                      continue
+                  gate=(evidence.get('gates') or {}).get('streaming') or {}
+                  rows.append({
+                      'cell_id':cell.name,
+                      'streaming_passed':gate.get('passed') is True,
+                      'streaming_status':gate.get('status'),
+                      'passed_runtime_gate_count':readiness.get('passed_runtime_gate_count'),
+                      'runtime_gate_count':readiness.get('runtime_gate_count'),
+                      'missing_runtime_gates':evidence.get('missing_runtime_gates'),
+                      'promotion_ready_for_explicit_review':readiness.get('promotion_ready_for_explicit_review') is True,
+                      'runtime_promotion_allowed':readiness.get('runtime_promotion_allowed'),
+                  })
+          report={
+              'format':'grand-bruxelles-terrain-streaming-gate-report-v1',
+              'cells':rows,
+              'prepared':lines('/tmp/terrain-streaming-prepared.txt'),
+              'prepare_pending':lines('/tmp/terrain-streaming-pending.txt'),
+              'measured':lines('/tmp/terrain-streaming-measured.txt'),
+              'refresh_pending':lines('/tmp/terrain-streaming-refresh-pending.txt'),
+              'policy':{
+                  'generic_source_plan_renderer_used':True,
+                  'sealed_candidate_direct_qa_registration':True,
+                  'production_runtime_index_used':False,
+                  'production_runtime_index_mutated':False,
+                  'collision_gate_is_separate':True,
+                  'runtime_promotion_allowed':False,
+                  'automatic_production_mutation':False,
+              },
+          }
+          Path('/tmp/terrain-streaming-gate-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('TERRAIN_STREAMING_GATE_REPORT',json.dumps({
+              'cells':len(rows),
+              'passed':sum(1 for row in rows if row['streaming_passed']),
+              'four_of_six':sum(1 for row in rows if row['passed_runtime_gate_count'] == 4),
+              'promotion_ready':sum(1 for row in rows if row['promotion_ready_for_explicit_review']),
+              'pending':len(report['refresh_pending']),
+          },sort_keys=True))
+          PY
+
+      - name: Persist streaming measurements off main
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/terrain-streaming-save
+          mkdir -p /tmp/terrain-streaming-save
+          cp -a grand-bruxelles-game/data/qa /tmp/terrain-streaming-save/qa
+          cp /tmp/terrain-streaming-gate-report.json /tmp/terrain-streaming-save/qa/terrain_streaming_gate_latest_report.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git reset --hard
+          git clean -fd
+          git switch -C citygen-autonomous-state origin/main
+          rm -rf grand-bruxelles-game/data/qa
+          mkdir -p grand-bruxelles-game/data
+          cp -a /tmp/terrain-streaming-save/qa grand-bruxelles-game/data/qa
+
+          git add -- grand-bruxelles-game/data/qa
+          if git diff --cached --quiet; then
+            echo "TERRAIN_STREAMING_GATE_NO_CHANGE"
+            exit 0
+          fi
+          git commit -m "citygen: persist measured terrain streaming gate"
+          git push --force-with-lease origin citygen-autonomous-state
+
+      - name: Upload streaming gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-streaming-gate-${{ github.run_number }}
+          path: |
+            /tmp/terrain-streaming-gate-report.json
+            /tmp/terrain-streaming-worklist.txt
+            /tmp/terrain-streaming-probes/
+            /tmp/terrain-streaming-results/
+            /tmp/terrain-streaming-logs/
+            /tmp/terrain-streaming-godot-import.log
+            /tmp/terrain-streaming-godot-batch.log
+          retention-days: 30

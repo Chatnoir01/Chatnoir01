@@ -13,6 +13,7 @@ const STREAMER_SCRIPT := preload("res://game/scripts/brussels_cell_streaming_man
 const BACKEND_SCRIPT := preload("res://game/scripts/brussels_cell_node_backend.gd")
 const IXELLES_STREAMED_SCRIPT_PATH := "res://game/zones/ixelles/ixelles_streamed_microslice.gd"
 const IXELLES_NORTH_DTM_STREAMED_SCRIPT_PATH := "res://game/zones/ixelles/ixelles_streamed_north_dtm_cell.gd"
+const IXELLES_EAST_DTM_STREAMED_SCRIPT_PATH := "res://game/zones/ixelles/ixelles_streamed_east_dtm_cell.gd"
 const SOURCE_PLAN_STREAMED_SCRIPT_PATH := "res://game/scripts/brussels_source_plan_streamed_cell.gd"
 
 const SHIPPED_CELLS: Array[Dictionary] = [
@@ -41,7 +42,9 @@ const SHIPPED_CELLS: Array[Dictionary] = [
         "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/runtime/cell.game.json",
         "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/runtime/network.game.json",
         "strong_heights_path": "res://data/terrain/ixelles/bxl-e149500-n169000-s500_strong_heights.game.json",
-        "script_path": SOURCE_PLAN_STREAMED_SCRIPT_PATH,
+        "script_path": IXELLES_EAST_DTM_STREAMED_SCRIPT_PATH,
+        "destination_collision_authorized": true,
+        "metadata": {"build_collision": false},
     },
     {
         "cell_id": "bxl-e149500-n169500-s500",

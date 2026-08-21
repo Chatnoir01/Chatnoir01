@@ -65,10 +65,17 @@
       "gap_m": 0.10
     },
     "road_widths": {
-      "authority": "heuristic_fallback",
-      "source_width_key": "width_m",
-      "source_width_takes_precedence": true,
-      "precise_real_width_claimed": false
+      "authority": "authored_presentation",
+      "runtime_data_width_key": "width",
+      "default_width_m": 4.5,
+      "runtime_data_width_is_base": true,
+      "class_minimums_can_expand_base": true,
+      "precise_real_width_claimed": false,
+      "class_minimums_m": {
+        "primary": 10.5,
+        "secondary": 8.5,
+        "tertiary": 7.2
+      }
     },
     "bollard": {
       "authority": "authored_presentation",

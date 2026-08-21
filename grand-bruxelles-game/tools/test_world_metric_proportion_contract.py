@@ -47,6 +47,18 @@ def tscn_float(block: str, key: str) -> float:
     return float(match.group(1))
 
 
+def assert_road_width_contract(text: str, label: str, contract: dict) -> None:
+    width_key = str(contract["runtime_data_width_key"])
+    default_width = float(contract["default_width_m"])
+    pattern = rf'road\.get\("{re.escape(width_key)}",\s*{default_width:g}\)'
+    if not re.search(pattern, text):
+        raise AssertionError(f"{label}: runtime data width base drifted")
+    for road_class, minimum in contract["class_minimums_m"].items():
+        class_pattern = rf'"{re.escape(road_class)}"[\s\S]{{0,100}}?maxf\(width,\s*{float(minimum):g}\)'
+        if not re.search(class_pattern, text):
+            raise AssertionError(f"{label}: {road_class} minimum drifted from {minimum}m")
+
+
 contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
 assert contract["format"] == "grand-bruxelles-world-metric-proportion-contract-v1"
 assert contract["world_units"]["godot_units_per_meter"] == 1.0
@@ -108,11 +120,15 @@ for const_name, field in {
 }.items():
     close(gd_const(sidewalk, const_name), float(anchors["anneessens_midi_sidewalk"][field]), f"sidewalk {field}")
 
-road = read("game/scripts/automatic_road_direct_spawn.gd")
-require(road, 'properties.get("width_m", 0.0)', "road source width")
-assert anchors["road_widths"]["authority"] == "heuristic_fallback"
-assert anchors["road_widths"]["source_width_takes_precedence"] is True
-assert anchors["road_widths"]["precise_real_width_claimed"] is False
+# Road width is runtime-data-backed but class minimums are authored presentation guards.
+# Both the renderer and direct-spawn viewpoint must use the same metre contract.
+road_contract = anchors["road_widths"]
+assert road_contract["authority"] == "authored_presentation"
+assert road_contract["runtime_data_width_is_base"] is True
+assert road_contract["class_minimums_can_expand_base"] is True
+assert road_contract["precise_real_width_claimed"] is False
+assert_road_width_contract(read("game/scripts/osm_city_builder.gd"), "OSM road renderer", road_contract)
+assert_road_width_contract(read("game/scripts/automatic_road_direct_spawn.gd"), "direct road spawn", road_contract)
 
 for anchor_key, rel, checks in (
     ("bollard", "game/scripts/brussels_bollard_asset.gd", {"BODY_HEIGHT": "body_height_m", "CAP_HEIGHT": "cap_height_m", "COLLISION_HEIGHT": "collision_height_m"}),
@@ -146,4 +162,4 @@ converted = lambert.convert_document({"type": "Point", "coordinates": [oe + 3.0,
 assert converted["grand_bruxelles_coordinate_system"]["units"] == "metres"
 close(math.hypot(*converted["coordinates"]), 5.0, "Lambert 3-4-5 distance")
 
-print("WORLD_METRIC_PROPORTION_OK units=1m player=1.80m radius=0.42m visual=1.78m npc=0.92-1.08 vehicles=metric sidewalks=1.85/2.55m gap=0.10m roads=source-first/fallback-labeled furniture=authored-metric geography=distance-preserving")
+print("WORLD_METRIC_PROPORTION_OK units=1m player=1.80m radius=0.42m visual=1.78m npc=0.92-1.08 vehicles=metric sidewalks=1.85/2.55m gap=0.10m roads=runtime-width+consistent-class-minimums furniture=authored-metric geography=distance-preserving")

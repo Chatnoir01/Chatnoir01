@@ -40,6 +40,13 @@ func _init() -> void:
     build_collision = false
 
 
+func _shared_datum_valid(datum: Dictionary) -> bool:
+    if str(datum.get("schema", "")) != EXPECTED_SHARED_DATUM_SCHEMA:
+        return false
+    var reference := float(datum.get("reference_absolute_m", INF))
+    return is_finite(reference) and absf(reference - EXPECTED_REFERENCE_M) <= 0.000001
+
+
 func _load_dtm_contract() -> bool:
     var terrain := _read_json(TERRAIN_PATH)
     if terrain.is_empty():
@@ -56,16 +63,10 @@ func _load_dtm_contract() -> bool:
         push_error("IxellesStreamedNorthDtmCell: official DTM CRS drifted")
         return false
     var datum: Variant = terrain.get("shared_vertical_datum", {})
-    if not datum is Dictionary:
-        push_error("IxellesStreamedNorthDtmCell: shared vertical datum missing")
-        return false
-    if str(datum.get("schema", "")) != EXPECTED_SHARED_DATUM_SCHEMA:
-        push_error("IxellesStreamedNorthDtmCell: shared datum schema drifted")
-        return false
-    vertical_reference_absolute_m = float(datum.get("reference_absolute_m", INF))
-    if not is_finite(vertical_reference_absolute_m) or absf(vertical_reference_absolute_m - EXPECTED_REFERENCE_M) > 0.000001:
+    if not datum is Dictionary or not _shared_datum_valid(datum as Dictionary):
         push_error("IxellesStreamedNorthDtmCell: shared vertical datum drifted")
         return false
+    vertical_reference_absolute_m = float((datum as Dictionary).get("reference_absolute_m", INF))
 
     var bbox_raw: Variant = terrain.get("bbox_epsg31370", [])
     if not bbox_raw is Array or bbox_raw.size() != 4:

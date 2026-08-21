@@ -43,6 +43,9 @@ def test_synthetic_determinism_and_duplicate_coalescing() -> None:
         assert module.canonical_json(first) == module.canonical_json(second)
         assert list(first["entries"]) == ["10", "20"]
         assert first["entries"]["10"]["source_file_count"] == 2
+        assert first["eligible_record_count"] == 3
+        assert first["entry_count"] == 2
+        assert first["duplicate_record_count"] == 1
         assert first["authorization"]["source_lookup_only"] is True
         assert first["authorization"]["jouable_authorized"] is False
 
@@ -65,9 +68,14 @@ def test_real_slice_contains_shipped_direct_entry_roads() -> None:
     module.validate_contract(catalog)
     print(
         "ROAD_DESTINATION_CATALOG_REAL_COUNT: "
-        f"entries={catalog['entry_count']} documents={catalog['compatible_document_count']}"
+        f"entries={catalog['entry_count']} eligible_records={catalog['eligible_record_count']} "
+        f"duplicate_records={catalog['duplicate_record_count']} documents={catalog['compatible_document_count']}"
     )
-    assert catalog["entry_count"] >= 140
+    # Measured on live main@2570887: 140 eligible records resolve to 139
+    # unique OSM ids because one equivalent duplicate record is coalesced.
+    assert catalog["eligible_record_count"] >= 140
+    assert catalog["entry_count"] >= 139
+    assert catalog["duplicate_record_count"] == catalog["eligible_record_count"] - catalog["entry_count"]
     for osm_id in (359177328, 487501805, 1382734012):
         entry = catalog["entries"].get(str(osm_id))
         assert entry is not None, f"missing shipped direct-entry road {osm_id}"

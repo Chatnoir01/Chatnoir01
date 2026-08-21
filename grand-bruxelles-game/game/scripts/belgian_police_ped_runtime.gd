@@ -11,7 +11,9 @@ const LOCAL_VISUAL_FOOT_OFFSET_Y := 1.01611328
 
 const PUBLIC_BASE_MODEL_PATH := "res://assets/characters/player_character.glb"
 const PUBLIC_BASE_LICENSE := "CC0-1.0"
-const PUBLIC_BASE_POSITION := Vector3(0.0, -0.90, 0.0)
+# NpcAgent spawns are ground-origin. The public GLB is foot-origin, so unlike the
+# centered Player capsule it must not inherit the player's -0.90 m visual offset.
+const PUBLIC_BASE_POSITION := Vector3.ZERO
 const PUBLIC_BASE_ROTATION_DEGREES := Vector3(0.0, 180.0, 0.0)
 
 const SOURCE_GROUP := "police_officer"

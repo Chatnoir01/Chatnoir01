@@ -12,9 +12,12 @@ from bootstrap_cell_maturity import GATES as MATURITY_GATES, missing_declared_so
 FORMAT = "grand-bruxelles-autonomous-citygen-v1"
 TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 TERMINAL = {"RUNTIME_READY", "QUARANTINE"}
-MANUAL_FRONTIER_ACTION = "secondary_height_validation_and_terrain_runtime_checks"
+# Secondary UrbIS3D validation is now an autonomous evidence stage. The remaining
+# frontier is the runtime terrain/promotion gate, which still stays fail-closed.
+MANUAL_FRONTIER_ACTION = "terrain_runtime_validation_and_promotion_readiness"
 MANUAL_ELEVATION_QUALITY_ACTION = "resolve_elevation_quality_blockers"
-MANUAL_ACTIONS = {MANUAL_FRONTIER_ACTION, MANUAL_ELEVATION_QUALITY_ACTION}
+SECONDARY_BLOCKED_ACTION = "resolve_blocked_secondary_height_candidates_without_guessing"
+MANUAL_ACTIONS = {MANUAL_FRONTIER_ACTION, MANUAL_ELEVATION_QUALITY_ACTION, SECONDARY_BLOCKED_ACTION}
 STALE_HEIGHT_FRONTIER_BLOCKER = "frontier_building_target_count_mismatch"
 EVIDENCE_STAGES = (
     ("elevation_requirements.json", "derive_elevation_requirements"),
@@ -27,6 +30,9 @@ EVIDENCE_STAGES = (
     ("elevation_candidate_frontier.json", "derive_elevation_candidate_frontier"),
     ("building_height_candidates.json", "derive_building_height_candidates"),
     ("terrain_lod_evidence.json", "evaluate_terrain_lod"),
+    ("urbis3d_semantic_height_evidence.json", "derive_urbis3d_semantic_height_evidence"),
+    ("secondary_height_evidence.json", "compare_semantic_dsm_heights"),
+    ("secondary_height_validation.json", "validate_secondary_height_evidence"),
 )
 
 
@@ -120,6 +126,15 @@ def evidence_plan(cell_id: str, source_root: Path) -> tuple[int, str]:
             blockers = height_evidence.get("blockers") or []
             if isinstance(blockers, list) and STALE_HEIGHT_FRONTIER_BLOCKER in blockers:
                 return frontier_stage_index, "derive_elevation_candidate_frontier"
+        elif filename == "secondary_height_validation.json":
+            try:
+                validation = _read_json(path)
+            except (OSError, ValueError, json.JSONDecodeError):
+                return completed - 1, action
+            if validation.get("runtime_promotion_allowed") is not False:
+                return completed - 1, action
+            if validation.get("secondary_validation_complete") is not True:
+                return completed, SECONDARY_BLOCKED_ACTION
     return completed, MANUAL_FRONTIER_ACTION
 
 
@@ -267,7 +282,8 @@ def run(
             "incomplete_source_priority": "repair_declared_source_payloads_before_evidence_or_regional_expansion",
             "missing_source_priority": "expand_only_after_existing_source_cells_reach_their_current_autonomous_frontier",
             "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_materializing_more_source_cells",
-            "manual_frontier": "exclude_measured_elevation_quality_and_secondary_height_terrain_runtime_frontiers_from_retries",
+            "secondary_height_frontier": "autonomous_urbis3d_semantic_crosscheck_before_runtime_terrain_promotion_frontier",
+            "manual_frontier": "exclude_measured_elevation_quality_secondary_conflicts_and_runtime_terrain_promotion_frontiers_from_blind_retries",
             "refresh_only": "recompute durable classification_and_evidence_progress_without_new_attempts_or_batch_selection",
         },
     }

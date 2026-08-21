@@ -79,10 +79,11 @@ jobs:
           if not sources.exists():
               raise SystemExit(0)
           for cell in sorted(p for p in sources.iterdir() if p.is_dir()):
-              terrain=cell/'terrain_lod_evidence.json'
+              terrain_lod=cell/'terrain_lod_evidence.json'
+              terrain_candidate=cell/'terrain_runtime_candidate.json'
               secondary=cell/'secondary_height_validation.json'
               candidate=candidates/cell.name/'candidate.json'
-              if not terrain.is_file() or not secondary.is_file() or not candidate.is_file():
+              if not terrain_lod.is_file() or not terrain_candidate.is_file() or not secondary.is_file() or not candidate.is_file():
                   continue
               try:
                   validation=json.loads(secondary.read_text())
@@ -106,6 +107,7 @@ jobs:
             if [ -f "$G" ]; then GATE_ARGS=(--runtime-gate-evidence "$G"); fi
             if python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_readiness.py \
               --terrain-lod "$D/terrain_lod_evidence.json" \
+              --terrain-runtime-candidate "$D/terrain_runtime_candidate.json" \
               --secondary-height-validation "$D/secondary_height_validation.json" \
               --runtime-candidate "$C" \
               "${GATE_ARGS[@]}" \
@@ -145,6 +147,7 @@ jobs:
                       continue
                   rows.append({
                       'cell_id':cell.name,
+                      'terrain_runtime_candidate_digest':(payload.get('bindings') or {}).get('terrain_runtime_candidate_digest'),
                       'passed_runtime_gate_count':payload.get('passed_runtime_gate_count'),
                       'runtime_gate_count':payload.get('runtime_gate_count'),
                       'promotion_ready_for_explicit_review':payload.get('promotion_ready_for_explicit_review') is True,
@@ -161,6 +164,7 @@ jobs:
                   'runtime_promotion_allowed':False,
                   'global_workflow_green_is_not_cell_proof':True,
                   'per_cell_digest_binding_required':True,
+                  'measured_gates_bind_actual_terrain_artifact':True,
               },
           }
           Path('/tmp/terrain-runtime-readiness-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')

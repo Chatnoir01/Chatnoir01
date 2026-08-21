@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/vehicle_real_ground_forward_probe.gd 2>&1 | tee /tmp/vehicle-real-ground-forward.log
           if grep -E "SCRIPT ERROR|Parse Error:|VEHICLE_REAL_GROUND_FORWARD_FAIL" /tmp/vehicle-real-ground-forward.log; then exit 1; fi
-          grep -q "VEHICLE_REAL_GROUND_FORWARD_OK models=21" /tmp/vehicle-real-ground-forward.log
+          grep -q "VEHICLE_REAL_GROUND_FORWARD_OK all=21 active=12" /tmp/vehicle-real-ground-forward.log
           grep -q "engine=4.7.1" /tmp/vehicle-real-ground-forward.log
       - name: Prove ambulance-only special gameplay
         run: |

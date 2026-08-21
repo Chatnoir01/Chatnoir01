@@ -111,6 +111,28 @@ def base_artifacts(center_candidate: dict) -> tuple[dict, dict, dict]:
     return terrain, secondary, runtime
 
 
+def make_single_gate_bundle(bindings: dict, gate: str = "streaming", passed: bool = True) -> dict:
+    row = {
+        "cell_id": CENTER,
+        "gate": gate,
+        "passed": passed,
+        "status": "passed_fixture" if passed else "failed_fixture",
+        "source": "deterministic_test_fixture",
+        "metrics": {"fixture": True},
+    }
+    row["measurement_digest"] = geometry_mod._digest(row)
+    bundle = {
+        "format": evidence_mod.MEASUREMENT_FORMAT,
+        "cell_id": CENTER,
+        "crs": readiness_mod.CRS,
+        "bindings": copy.deepcopy(bindings),
+        "gates": {gate: row},
+        "policy": {"runtime_promotion_allowed": False},
+    }
+    bundle["measurement_bundle_digest"] = geometry_mod._digest(bundle)
+    return bundle
+
+
 with tempfile.TemporaryDirectory() as tmp:
     root = Path(tmp)
     sources = root / "sources"
@@ -128,6 +150,7 @@ with tempfile.TemporaryDirectory() as tmp:
     target_path = root / "brussels_regional_target_grid.json"
     measurement_path = root / "geometry_measurement.json"
     evidence_path = root / "terrain_runtime_gate_evidence.json"
+    persisted_streaming_path = root / "terrain_streaming_gate_measurement.json"
     east_path = sources / EAST / "terrain_runtime_candidate.json"
 
     write(terrain_path, terrain)
@@ -167,6 +190,48 @@ with tempfile.TemporaryDirectory() as tmp:
     assert readiness["runtime_promotion_allowed"] is False
     assert {"runtime_gate_missing:collisions", "runtime_gate_missing:streaming", "runtime_gate_missing:performance", "runtime_gate_missing:photo_match"}.issubset(set(readiness["blockers"]))
 
+    streaming_bundle = make_single_gate_bundle(measured["bindings"], "streaming", True)
+    write(persisted_streaming_path, streaming_bundle)
+    preserved = evidence_mod.build(terrain_path, center_path, secondary_path, runtime_path, [measurement_path])
+    assert preserved["measured_gate_count"] == 3
+    assert set(preserved["gates"]) == {"seams", "normals", "streaming"}
+    assert preserved["gates"]["streaming"]["passed"] is True
+    assert preserved["missing_runtime_gates"] == ["collisions", "performance", "photo_match"]
+    assert preserved["policy"]["persisted_measurement_files_checked"] == ["terrain_streaming_gate_measurement.json"]
+    assert preserved["policy"]["stale_persisted_measurements_skipped"] == []
+
+    reused = evidence_mod.build(
+        terrain_path, center_path, secondary_path, runtime_path, [persisted_streaming_path],
+        existing_evidence_path=evidence_path,
+        discover_persisted_measurements=False,
+    )
+    assert reused["measured_gate_count"] == 3
+    assert set(reused["gates"]) == {"seams", "normals", "streaming"}
+    assert reused["policy"]["existing_gate_evidence_reused"] is True
+
+    stale_persisted = copy.deepcopy(streaming_bundle)
+    stale_persisted["bindings"]["runtime_candidate_digest"] = "d" * 64
+    stale_persisted.pop("measurement_bundle_digest", None)
+    stale_persisted["measurement_bundle_digest"] = geometry_mod._digest(stale_persisted)
+    write(persisted_streaming_path, stale_persisted)
+    stale_skipped = evidence_mod.build(terrain_path, center_path, secondary_path, runtime_path, [measurement_path])
+    assert stale_skipped["measured_gate_count"] == 2
+    assert set(stale_skipped["gates"]) == {"seams", "normals"}
+    assert stale_skipped["policy"]["stale_persisted_measurements_skipped"] == ["terrain_streaming_gate_measurement.json"]
+
+    corrupted_persisted = copy.deepcopy(streaming_bundle)
+    corrupted_persisted["gates"]["streaming"]["status"] = "tampered_without_gate_rehash"
+    corrupted_persisted.pop("measurement_bundle_digest", None)
+    corrupted_persisted["measurement_bundle_digest"] = geometry_mod._digest(corrupted_persisted)
+    write(persisted_streaming_path, corrupted_persisted)
+    try:
+        evidence_mod.build(terrain_path, center_path, secondary_path, runtime_path, [measurement_path])
+    except ValueError as exc:
+        assert "measurement digest mismatch: streaming" in str(exc)
+    else:
+        raise AssertionError("corrupted persisted streaming measurement must fail closed")
+    write(persisted_streaming_path, streaming_bundle)
+
     east_path.unlink()
     pending = geometry_mod.measure(terrain_path, center_path, secondary_path, runtime_path, target_path, sources)
     assert pending["gates"]["seams"]["passed"] is False
@@ -194,7 +259,7 @@ with tempfile.TemporaryDirectory() as tmp:
     except ValueError as exc:
         assert "stale against exact cell artifacts" in str(exc)
     else:
-        raise AssertionError("stale measurement binding must fail closed")
+        raise AssertionError("stale explicit measurement binding must fail closed")
 
     tampered = copy.deepcopy(measured)
     tampered["gates"]["normals"]["status"] = "tampered_without_rehash"
@@ -236,4 +301,9 @@ with tempfile.TemporaryDirectory() as tmp:
     assert steep["gates"]["normals"]["passed"] is False
     assert steep["gates"]["normals"]["status"] == "failed_degenerate_or_nonfinite_normals"
 
-print("TERRAIN_RUNTIME_GATE_EVIDENCE_GUARDRAILS_OK seams=measured normals=measured missing_neighbor=pending wrong_neighbor_bbox=rejected stale_binding=rejected tamper=rejected conflict=rejected remaining_gates=missing runtime_promotion=false")
+print(
+    "TERRAIN_RUNTIME_GATE_EVIDENCE_GUARDRAILS_OK seams=measured normals=measured "
+    "persisted_streaming=preserved stale_persisted=skipped corrupted_persisted=rejected "
+    "missing_neighbor=pending wrong_neighbor_bbox=rejected stale_binding=rejected tamper=rejected "
+    "conflict=rejected remaining_gates=missing runtime_promotion=false"
+)

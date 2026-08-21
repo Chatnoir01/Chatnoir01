@@ -5,8 +5,7 @@ const HEIGHT := 720
 const BEFORE_PATH := "res://artifacts/visual/sidewalk_microtexture_before.png"
 const AFTER_PATH := "res://artifacts/visual/sidewalk_microtexture_after.png"
 const CONTROL_PATH := "res://artifacts/visual/sidewalk_microtexture_control.png"
-const CAMERA_POS := Vector3(-272.04, 1.65, -217.07)
-const LOOK_TARGET := Vector3(-260.0, 0.10, -208.0)
+const CORRIDOR_ANCHOR := Vector3(-272.04, 0.0, -217.07)
 const MIN_CHANGED_3 := 0.0008
 const MIN_CHANGED_8 := 0.0003
 const MAX_CHANGED_3 := 0.0500
@@ -69,6 +68,25 @@ func _hide_dynamic(scene: Node) -> void:
         if traffic is Node3D:
             (traffic as Node3D).visible = false
 
+func _find_witness_sidewalk(roads: Node) -> CSGBox3D:
+    var best: CSGBox3D = null
+    var best_distance_sq: float = INF
+    for child: Node in roads.get_children():
+        if not child is CSGBox3D:
+            continue
+        var sidewalk := child as CSGBox3D
+        if str(sidewalk.get_meta("material_family", "")) != "brussels_osm_sidewalk_surface_v1":
+            continue
+        if not sidewalk.visible or sidewalk.material == null:
+            continue
+        var delta := sidewalk.global_position - CORRIDOR_ANCHOR
+        delta.y = 0.0
+        var distance_sq: float = delta.length_squared()
+        if distance_sq < best_distance_sq:
+            best_distance_sq = distance_sq
+            best = sidewalk
+    return best
+
 func _run() -> void:
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null:
@@ -104,14 +122,13 @@ func _run() -> void:
     if roads == null:
         _fail("GeneratedRoads missing")
         return
-    var material: ShaderMaterial = null
-    for child: Node in roads.get_children():
-        if child is CSGBox3D and str(child.get_meta("material_family", "")) == "brussels_osm_sidewalk_surface_v1":
-            material = (child as CSGBox3D).material as ShaderMaterial
-            if material != null:
-                break
+    var sidewalk := _find_witness_sidewalk(roads)
+    if sidewalk == null:
+        _fail("no rendered OSM sidewalk found near corridor anchor")
+        return
+    var material := sidewalk.material as ShaderMaterial
     if material == null:
-        _fail("shared sidewalk material not found on generated sidewalk")
+        _fail("witness sidewalk does not use shared shader material")
         return
 
     var authored_strength_variant: Variant = material.get_shader_parameter("micro_grain_strength")
@@ -127,12 +144,25 @@ func _run() -> void:
         _fail("authored micro_grain_strength must be positive")
         return
 
+    var tangent := sidewalk.global_basis.x.normalized()
+    var normal := sidewalk.global_basis.z.normalized()
+    var length_m: float = sidewalk.size.x * sidewalk.global_basis.x.length()
+    var width_m: float = sidewalk.size.z * sidewalk.global_basis.z.length()
+    var height_m: float = sidewalk.size.y * sidewalk.global_basis.y.length()
+    if length_m < 4.0 or width_m <= 0.0:
+        _fail("witness sidewalk dimensions are unsuitable for player-frame proof")
+        return
+    var surface_center := sidewalk.global_position + Vector3.UP * (height_m * 0.5)
+    var lateral_offset: float = minf(width_m * 0.20, 0.35)
+    var forward_m: float = clampf(length_m * 0.35, 4.0, 10.0)
+    var camera_pos := surface_center + normal * lateral_offset + Vector3.UP * 1.65 - tangent * minf(2.0, length_m * 0.15)
+    var look_target := surface_center + normal * lateral_offset + tangent * forward_m + Vector3.UP * 0.10
     var camera := Camera3D.new()
-    camera.position = CAMERA_POS
-    camera.look_at_from_position(CAMERA_POS, LOOK_TARGET, Vector3.UP)
+    camera.look_at_from_position(camera_pos, look_target, Vector3.UP)
     camera.fov = 67.0
     camera.current = true
     scene.add_child(camera)
+    print("BRUSSELS_SIDEWALK_MICROTEXTURE_WITNESS_TARGET: node=%s anchor_distance=%.3f length=%.3f width=%.3f eye=1.65 fov=67" % [sidewalk.name, Vector2(sidewalk.global_position.x - CORRIDOR_ANCHOR.x, sidewalk.global_position.z - CORRIDOR_ANCHOR.z).length(), length_m, width_m])
 
     material.set_shader_parameter("micro_grain_strength", 0.0)
     for _frame: int in range(8):
@@ -142,9 +172,8 @@ func _run() -> void:
         _fail("1280x720 baseline capture failed")
         return
 
-    # Control probe: force only this shared material to an unmistakable color.
-    # If the frame does not move, the selected material/camera is not a valid
-    # witness target and microtexture tuning must not be used to fake a pass.
+    # Control probe: prove this exact rendered surface and its material reach
+    # player-frame pixels before using the microtexture metrics as a gate.
     material.set_shader_parameter("dark_color", Color(1.0, 0.0, 1.0, 1.0))
     material.set_shader_parameter("light_color", Color(1.0, 0.0, 1.0, 1.0))
     for _frame: int in range(8):
@@ -161,7 +190,7 @@ func _run() -> void:
     material.set_shader_parameter("dark_color", authored_dark)
     material.set_shader_parameter("light_color", authored_light)
     if control_changed_8 < MIN_CONTROL_CHANGED_8:
-        _fail("selected shared sidewalk material does not reach player-frame pixels")
+        _fail("selected rendered sidewalk material does not reach player-frame pixels")
         return
 
     material.set_shader_parameter("micro_grain_strength", authored_strength)

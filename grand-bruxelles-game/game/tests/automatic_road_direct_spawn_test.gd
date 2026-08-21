@@ -5,6 +5,8 @@ const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn
 const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
 const SOURCE_SHA256 := "a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493"
 const LEMONNIER_ID := 359177328
+const WITNESS_DIR := "res://artifacts/automatic_road"
+const WITNESS_PATH := WITNESS_DIR + "/automatic_road_player_witness.png"
 
 
 func _initialize() -> void:
@@ -31,6 +33,22 @@ func _rendered(world: Node, osm_id: int) -> bool:
         for child: Node in node.get_children():
             stack.append(child)
     return false
+
+
+func _capture_player_witness() -> Error:
+    var absolute_dir := ProjectSettings.globalize_path(WITNESS_DIR)
+    var mkdir_error := DirAccess.make_dir_recursive_absolute(absolute_dir)
+    if mkdir_error != OK and mkdir_error != ERR_ALREADY_EXISTS:
+        return mkdir_error
+    for _frame: int in range(3):
+        await process_frame
+    await RenderingServer.frame_post_draw
+    var image := root.get_texture().get_image()
+    if image == null or image.is_empty():
+        return ERR_CANT_CREATE
+    if image.get_width() != 1280 or image.get_height() != 720:
+        return ERR_INVALID_DATA
+    return image.save_png(WITNESS_PATH)
 
 
 func _run() -> void:
@@ -146,5 +164,13 @@ func _run() -> void:
         _fail("source sightline gate missing")
         return
 
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d second=%d second_name=%s source=%s source_sha=%s ground_y=%.3f" % [resolver.runtime_index_road_count(), resolver.runtime_index_source_document_count(), LEMONNIER_ID, second_id, second_name, source_path, SOURCE_SHA256, ground_y])
+    var witness_error: Error = await _capture_player_witness()
+    if witness_error != OK:
+        _fail("1280x720 player witness capture failed: %s" % error_string(witness_error))
+        return
+    if not FileAccess.file_exists(WITNESS_PATH):
+        _fail("player witness PNG was not persisted")
+        return
+
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d second=%d second_name=%s source=%s source_sha=%s ground_y=%.3f lookup=deterministic_runtime_index witness=%s" % [resolver.runtime_index_road_count(), resolver.runtime_index_source_document_count(), LEMONNIER_ID, second_id, second_name, source_path, SOURCE_SHA256, ground_y, WITNESS_PATH])
     quit(0)

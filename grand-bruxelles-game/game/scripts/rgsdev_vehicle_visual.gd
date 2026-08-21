@@ -2,23 +2,24 @@ extends Node3D
 class_name RgsdevVehicleVisual
 
 const PACK_CONTRACT := "rgsdev_cc0_vehicles_v1"
-const MAX_DECOMPRESSED_MODEL_BYTES := 2 * 1024 * 1024
+const COMPACT_MAGIC := "RGV1"
+const MAX_DECOMPRESSED_MODEL_BYTES := 512 * 1024
 const MODEL_PATHS := {
-    "hatchback": "res://game/assets/vehicles/rgsdev/hatchback.gltfz",
-    "limousine": "res://game/assets/vehicles/rgsdev/limousine.gltfz",
-    "muscle": "res://game/assets/vehicles/rgsdev/muscle.gltfz",
-    "muscle_2": "res://game/assets/vehicles/rgsdev/muscle_2.gltfz",
-    "pickup": "res://game/assets/vehicles/rgsdev/pickup.gltfz",
-    "police_muscle": "res://game/assets/vehicles/rgsdev/police_muscle.gltfz",
-    "police_sedan": "res://game/assets/vehicles/rgsdev/police_sedan.gltfz",
-    "police_sports": "res://game/assets/vehicles/rgsdev/police_sports.gltfz",
-    "police_suv": "res://game/assets/vehicles/rgsdev/police_suv.gltfz",
-    "roadster": "res://game/assets/vehicles/rgsdev/roadster.gltfz",
-    "sedan": "res://game/assets/vehicles/rgsdev/sedan.gltfz",
-    "sports": "res://game/assets/vehicles/rgsdev/sports.gltfz",
-    "suv": "res://game/assets/vehicles/rgsdev/suv.gltfz",
-    "taxi": "res://game/assets/vehicles/rgsdev/taxi.gltfz",
-    "van": "res://game/assets/vehicles/rgsdev/van.gltfz",
+    "hatchback": "res://game/assets/vehicles/rgsdev/hatchback.rgvz",
+    "limousine": "res://game/assets/vehicles/rgsdev/limousine.rgvz",
+    "muscle": "res://game/assets/vehicles/rgsdev/muscle.rgvz",
+    "muscle_2": "res://game/assets/vehicles/rgsdev/muscle_2.rgvz",
+    "pickup": "res://game/assets/vehicles/rgsdev/pickup.rgvz",
+    "police_muscle": "res://game/assets/vehicles/rgsdev/police_muscle.rgvz",
+    "police_sedan": "res://game/assets/vehicles/rgsdev/police_sedan.rgvz",
+    "police_sports": "res://game/assets/vehicles/rgsdev/police_sports.rgvz",
+    "police_suv": "res://game/assets/vehicles/rgsdev/police_suv.rgvz",
+    "roadster": "res://game/assets/vehicles/rgsdev/roadster.rgvz",
+    "sedan": "res://game/assets/vehicles/rgsdev/sedan.rgvz",
+    "sports": "res://game/assets/vehicles/rgsdev/sports.rgvz",
+    "suv": "res://game/assets/vehicles/rgsdev/suv.rgvz",
+    "taxi": "res://game/assets/vehicles/rgsdev/taxi.rgvz",
+    "van": "res://game/assets/vehicles/rgsdev/van.rgvz",
 }
 const CIVILIAN_MODELS := [
     "sedan", "hatchback", "suv", "van", "pickup", "muscle", "muscle_2", "roadster", "sports", "taxi", "limousine"
@@ -116,36 +117,117 @@ func _instantiate_model(requested_model_id: String) -> Node3D:
         return cached.instantiate() as Node3D
     var path := str(MODEL_PATHS[safe_model_id])
     if not FileAccess.file_exists(path):
-        push_error("RGSDEV compressed model missing: %s" % path)
+        push_error("RGSDEV compact model missing: %s" % path)
         return null
     var encoded := FileAccess.get_file_as_string(path).strip_edges()
     var compressed := Marshalls.base64_to_raw(encoded)
     if compressed.is_empty():
-        push_error("RGSDEV compressed model payload is invalid base64: %s" % path)
+        push_error("RGSDEV compact model is invalid base64: %s" % path)
         return null
-    var gltf_bytes := compressed.decompress_dynamic(MAX_DECOMPRESSED_MODEL_BYTES, FileAccess.COMPRESSION_GZIP)
-    if gltf_bytes.is_empty():
-        push_error("RGSDEV compressed model payload cannot be decompressed: %s" % path)
+    var raw := compressed.decompress_dynamic(MAX_DECOMPRESSED_MODEL_BYTES, FileAccess.COMPRESSION_ZSTD)
+    if raw.is_empty():
+        push_error("RGSDEV compact model cannot be decompressed: %s" % path)
         return null
-    var document := GLTFDocument.new()
-    var state := GLTFState.new()
-    var error := document.append_from_buffer(gltf_bytes, "", state)
-    if error != OK:
-        push_error("RGSDEV glTF parse failed for %s: %s" % [path, error_string(error)])
-        return null
-    var generated := document.generate_scene(state)
-    if generated == null or not generated is Node3D:
-        push_error("RGSDEV glTF scene generation failed: %s" % path)
+    var generated := _decode_compact_scene(raw)
+    if generated == null:
+        push_error("RGSDEV compact model decode failed: %s" % path)
         return null
     var packed := PackedScene.new()
     var pack_error := packed.pack(generated)
     if pack_error != OK:
-        push_error("RGSDEV scene cache packing failed for %s: %s" % [path, error_string(pack_error)])
-        generated.queue_free()
+        push_error("RGSDEV compact scene cache packing failed for %s: %s" % [path, error_string(pack_error)])
+        generated.free()
         return null
     _scene_cache[safe_model_id] = packed
     generated.free()
     return packed.instantiate() as Node3D
+
+func _decode_compact_scene(raw: PackedByteArray) -> Node3D:
+    var peer := StreamPeerBuffer.new()
+    peer.big_endian = false
+    peer.data_array = raw
+    var magic_result := peer.get_data(4)
+    if int(magic_result[0]) != OK:
+        return null
+    var magic: PackedByteArray = magic_result[1]
+    if magic.get_string_from_ascii() != COMPACT_MAGIC:
+        return null
+    var root := Node3D.new()
+    root.name = "RgsdevVehicleModel"
+    var node_count := peer.get_u16()
+    if node_count <= 0 or node_count > 64:
+        root.free()
+        return null
+    for _node_index: int in range(node_count):
+        var name_length := peer.get_u8()
+        var name_result := peer.get_data(name_length)
+        if int(name_result[0]) != OK:
+            root.free()
+            return null
+        var node_name: String = (name_result[1] as PackedByteArray).get_string_from_utf8()
+        var translation := Vector3(peer.get_float(), peer.get_float(), peer.get_float())
+        var rotation := Quaternion(peer.get_float(), peer.get_float(), peer.get_float(), peer.get_float()).normalized()
+        var node_scale := Vector3(peer.get_float(), peer.get_float(), peer.get_float())
+        var primitive_count := peer.get_u8()
+        if primitive_count <= 0 or primitive_count > 32:
+            root.free()
+            return null
+        var array_mesh := ArrayMesh.new()
+        for _primitive_index: int in range(primitive_count):
+            var color := Color(
+                float(peer.get_u8()) / 255.0,
+                float(peer.get_u8()) / 255.0,
+                float(peer.get_u8()) / 255.0,
+                float(peer.get_u8()) / 255.0
+            )
+            var roughness := float(peer.get_u8()) / 255.0
+            var metallic := float(peer.get_u8()) / 255.0
+            var vertex_count := peer.get_u16()
+            var index_count := peer.get_u16()
+            if vertex_count <= 0 or vertex_count > 65535 or index_count < 3 or index_count > 65535:
+                root.free()
+                return null
+            var minimum := Vector3(peer.get_float(), peer.get_float(), peer.get_float())
+            var maximum := Vector3(peer.get_float(), peer.get_float(), peer.get_float())
+            var positions := PackedVector3Array()
+            positions.resize(vertex_count)
+            for vertex_index: int in range(vertex_count):
+                var qx := float(peer.get_u16()) / 65535.0
+                var qy := float(peer.get_u16()) / 65535.0
+                var qz := float(peer.get_u16()) / 65535.0
+                positions[vertex_index] = Vector3(
+                    lerpf(minimum.x, maximum.x, qx),
+                    lerpf(minimum.y, maximum.y, qy),
+                    lerpf(minimum.z, maximum.z, qz)
+                )
+            var indices := PackedInt32Array()
+            indices.resize(index_count)
+            for index: int in range(index_count):
+                indices[index] = peer.get_u16()
+                if indices[index] < 0 or indices[index] >= vertex_count:
+                    root.free()
+                    return null
+            var material := StandardMaterial3D.new()
+            material.albedo_color = color
+            material.roughness = roughness
+            material.metallic = metallic
+            var surface := SurfaceTool.new()
+            surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+            surface.set_material(material)
+            for index: int in indices:
+                surface.add_vertex(positions[index])
+            surface.generate_normals()
+            surface.index()
+            surface.commit(array_mesh)
+        var mesh_node := MeshInstance3D.new()
+        mesh_node.name = node_name
+        mesh_node.mesh = array_mesh
+        mesh_node.position = translation
+        mesh_node.quaternion = rotation
+        mesh_node.scale = node_scale
+        root.add_child(mesh_node)
+        mesh_node.owner = root
+    return root
 
 func _collect_wheels(node: Node) -> void:
     for child: Node in node.get_children():

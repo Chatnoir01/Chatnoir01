@@ -8,7 +8,7 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _fail(message: String) -> void:
-    push_error("BRUSSELS_SIDEWALK_PAVING_RHYTHM_FAIL: %s" % message)
+    push_error("BRUSSELS_SIDEWALK_MICROTEXTURE_FAIL: %s" % message)
     quit(1)
 
 func _run() -> void:
@@ -17,7 +17,7 @@ func _run() -> void:
         _fail("shared sidewalk material missing")
         return
     if not "PRESENTATION_REVISION" in material_script or int(material_script.PRESENTATION_REVISION) != EXPECTED_REVISION:
-        _fail("sidewalk paving presentation revision 2 missing")
+        _fail("sidewalk presentation revision 2 missing")
         return
     if str(material_script.MATERIAL_FAMILY) != EXPECTED_FAMILY:
         _fail("shared material family changed")
@@ -31,23 +31,30 @@ func _run() -> void:
         _fail("OSM provenance/license metadata missing")
         return
     if bool(material.get_meta("surface_composition_claimed", true)):
-        _fail("authored paving rhythm must not claim real composition")
+        _fail("authored microtexture must not claim real composition")
         return
     if bool(material.get_meta("paving_unit_dimensions_claimed", true)):
-        _fail("authored paving rhythm must not claim measured unit dimensions")
+        _fail("authored microtexture must not claim paving dimensions")
         return
     if bool(material.get_meta("geometry_changed", true)):
-        _fail("material presentation must remain geometry-only false")
+        _fail("material presentation must not change geometry")
         return
-    if not bool(material.get_meta("authored_paving_rhythm", false)):
-        _fail("authored paving rhythm metadata missing")
+    if not bool(material.get_meta("authored_nonsemantic_microtexture", false)):
+        _fail("non-semantic microtexture metadata missing")
+        return
+    if bool(material.get_meta("microtexture_scale_source_measured", true)):
+        _fail("microtexture scale must remain explicitly non-measured")
         return
 
     var shader_code := material.shader.code
-    for token: String in ["joint_strength", "joint_spacing_m", "joint_width_m", "fwidth", "paving_joint"]:
+    for token: String in ["micro_grain_strength", "micro_grain_frequency", "fine_grain"]:
         if token not in shader_code:
-            _fail("paving rhythm shader contract missing token: %s" % token)
+            _fail("microtexture shader contract missing token: %s" % token)
+            return
+    for forbidden: String in ["joint_spacing_m", "joint_width_m", "paving_joint"]:
+        if forbidden in shader_code:
+            _fail("production-wall forbidden paving-joint dimension contract leaked into shader: %s" % forbidden)
             return
 
-    print("BRUSSELS_SIDEWALK_PAVING_RHYTHM_OK: family=%s revision=%d source=OSM-adjacent authored-presentation license=ODbL-1.0 geometry_changed=false" % [EXPECTED_FAMILY, EXPECTED_REVISION])
+    print("BRUSSELS_SIDEWALK_MICROTEXTURE_OK: family=%s revision=%d source=OSM-adjacent authored-presentation license=ODbL-1.0 geometry_changed=false paving_dimensions_claimed=false" % [EXPECTED_FAMILY, EXPECTED_REVISION])
     quit(0)

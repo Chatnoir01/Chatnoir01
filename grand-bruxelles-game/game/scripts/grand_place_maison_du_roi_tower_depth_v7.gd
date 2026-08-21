@@ -27,10 +27,22 @@ const BALUSTRADE_RAIL_HEIGHT_M := 0.10
 const BALUSTRADE_POST_HEIGHT_M := 0.38
 const BALUSTRADE_POST_COUNT := 5
 
+# Urban Brussels 31143 also explicitly states that the axial tower has four
+# levels. The exact articulation/profile of those level breaks is not surveyed,
+# so three shallow stone cues are authored only to make the exact level count
+# legible in the frozen player frame without moving the tower/source geometry.
+const TOWER_LEVEL_COUNT := 4
+const TOWER_LEVEL_SEPARATOR_COUNT := 3
+const LEVEL_BREAK_WIDTH_SCALE := 1.04
+const LEVEL_BREAK_HEIGHT_RATIO := 0.035
+const LEVEL_BREAK_DEPTH_M := 0.070
+const LEVEL_BREAK_SURFACE_CLEARANCE_M := 0.035
+
 var built := false
 var failed := false
 var roof_register_bay_count := 0
 var roof_balustrade_element_count := 0
+var tower_level_separator_count := 0
 var _v5: Node = null
 
 func _ready() -> void:
@@ -125,6 +137,27 @@ func _add_front_balustrade(details: Node3D, tower: MeshInstance3D, size_after: V
         _add_box(details, "MaisonDuRoiTowerRoofBaluster_%02d" % index, face_center + tangent * u + Vector3.UP * (BALUSTRADE_POST_HEIGHT_M * 0.5), tangent, normal, Vector3(0.075, BALUSTRADE_POST_HEIGHT_M, 0.075), stone)
         roof_balustrade_element_count += 1
 
+func _add_four_level_articulation(details: Node3D, tower: MeshInstance3D, size_after: Vector3, tangent: Vector3, normal: Vector3, stone: Material) -> void:
+    var bottom_y := tower.global_position.y - size_after.y * 0.5
+    var front_center := tower.global_position + normal * (size_after.z * 0.5 + LEVEL_BREAK_SURFACE_CLEARANCE_M + LEVEL_BREAK_DEPTH_M * 0.5)
+    var band_height := size_after.y * LEVEL_BREAK_HEIGHT_RATIO
+    for index: int in range(TOWER_LEVEL_SEPARATOR_COUNT):
+        var level_fraction := float(index + 1) / float(TOWER_LEVEL_COUNT)
+        var y := bottom_y + size_after.y * level_fraction
+        var band := _add_box(
+            details,
+            "MaisonDuRoiTowerLevelBreak_%02d" % index,
+            Vector3(front_center.x, y, front_center.z),
+            tangent,
+            normal,
+            Vector3(size_after.x * LEVEL_BREAK_WIDTH_SCALE, band_height, LEVEL_BREAK_DEPTH_M),
+            stone
+        )
+        band.set_meta("heritage_fact", "axial_tower_four_levels")
+        band.set_meta("literal_level_break_profile_source_backed", false)
+        band.set_meta("level_count_source_backed", true)
+        tower_level_separator_count += 1
+
 func _build_when_ready() -> void:
     for _frame: int in range(1200):
         _v5 = get_tree().root.get_node_or_null(V5_NAME)
@@ -156,12 +189,6 @@ func _build_when_ready() -> void:
     if normal.length_squared() < 0.99 or tangent.length_squared() < 0.99:
         _fail("tower facade basis invalid"); return
 
-    # V5's BoxMesh is geometrically symmetric, so its local +Z sign is not a
-    # reliable semantic front. Resolve that sign the same way as the canonical
-    # Grand-Place facade witness: the outward depth axis must face the frozen
-    # player camera. Flipping X and Z together is a 180-degree frame rotation;
-    # it preserves the authored box geometry while making the front semantic
-    # deterministic for depth growth and roof-register placement.
     var to_camera := Vector3(CANONICAL_CAMERA.x - tower.global_position.x, 0.0, CANONICAL_CAMERA.z - tower.global_position.z)
     if to_camera.length_squared() < 0.01:
         _fail("canonical camera direction collapsed at Maison du Roi tower"); return
@@ -181,9 +208,6 @@ func _build_when_ready() -> void:
     if ratio < MIN_DEPTH_RATIO or ratio > MAX_DEPTH_RATIO:
         _fail("authored square-plan depth ratio escaped bounds: %.4f" % ratio); return
 
-    # Preserve the exact player-facing plane from V5 and grow depth only toward
-    # the building. This avoids moving the validated facade relief toward the
-    # camera while making the documented square-plan tower read in oblique views.
     var depth_delta := target_depth - depth_before
     var mesh := tower.mesh as BoxMesh
     mesh.size.z = mesh.size.z * (target_depth / depth_before)
@@ -203,9 +227,6 @@ func _build_when_ready() -> void:
     if absf((spire.global_position - tower.global_position).dot(normal)) > 0.01:
         _fail("spire no longer centered on tower depth axis"); return
 
-    # Replace the player-visible blank tower slab with only source-documented
-    # roof-register cues. One bay is authored on each of the three documented
-    # visible faces; exact bay dimensions remain explicitly non-surveyed.
     var dark := _dark_recess_material()
     var front_face := tower.global_position + normal * (size_after.z * 0.5 + BAY_SURFACE_OFFSET_M)
     _add_roof_register_bay(details, "MaisonDuRoiTowerRoofBayFront", front_face, tangent, normal, size_after.x, size_after.y, dark)
@@ -218,10 +239,13 @@ func _build_when_ready() -> void:
     if stone == null:
         stone = _fallback_stone_material()
     _add_front_balustrade(details, tower, size_after, tangent, normal, stone)
+    _add_four_level_articulation(details, tower, size_after, tangent, normal, stone)
     if roof_register_bay_count != 3:
         _fail("roof register must expose exactly three documented face cues"); return
     if roof_balustrade_element_count != BALUSTRADE_POST_COUNT + 1:
         _fail("roof balustrade accounting drifted"); return
+    if tower_level_separator_count != TOWER_LEVEL_SEPARATOR_COUNT:
+        _fail("four-level tower articulation accounting drifted"); return
 
     tower.set_meta("heritage_fact", "axial_square_tower")
     tower.set_meta("square_plan_depth_authored", true)
@@ -230,9 +254,11 @@ func _build_when_ready() -> void:
     tower.set_meta("front_plane_preserved", true)
     tower.set_meta("depth_extended_behind_facade", true)
     tower.set_meta("source_record", "Urban Brussels 31143")
+    tower.set_meta("tower_levels_exact_count", TOWER_LEVEL_COUNT)
+    tower.set_meta("tower_levels_exact_count_source_backed", true)
 
     set_meta("source_record", "Urban Brussels 31143")
-    set_meta("source_fact", "axial tower of square plan; roof-level pointed-arch bays on three faces; projecting openwork balustrade")
+    set_meta("source_fact", "axial tower of square plan with four levels; roof-level pointed-arch bays on three faces; projecting openwork balustrade")
     set_meta("source_geometry_changed", false)
     set_meta("source_collision_changed", false)
     set_meta("camera_changed", false)
@@ -243,6 +269,11 @@ func _build_when_ready() -> void:
     set_meta("canonical_front_facing_score", front_facing_score)
     set_meta("tower_depth_ratio", TOWER_DEPTH_TO_WIDTH)
     set_meta("tower_depth_dimension_surveyed", false)
+    set_meta("tower_four_levels_documented", true)
+    set_meta("tower_level_count", TOWER_LEVEL_COUNT)
+    set_meta("tower_level_separator_count", tower_level_separator_count)
+    set_meta("tower_level_separator_dimensions_surveyed", false)
+    set_meta("tower_level_separator_profile_source_backed", false)
     set_meta("roof_register_bays_documented", true)
     set_meta("roof_register_bay_count", roof_register_bay_count)
     set_meta("roof_register_bay_dimensions_surveyed", false)
@@ -252,4 +283,4 @@ func _build_when_ready() -> void:
     set_meta("finished_perfect", false)
 
     built = true
-    print("GRAND_PLACE_MAISON_DU_ROI_TOWER_DEPTH_V7_READY: width=%.3f old_depth=%.3f new_depth=%.3f ratio=%.3f front_plane_error=%.6f front_facing_score=%.3f roof_bays=%d balustrade_elements=%d source=Urban_Brussels_31143 collisions=0" % [size_after.x,depth_before,size_after.z,size_after.z/size_after.x,front_plane_error,front_facing_score,roof_register_bay_count,roof_balustrade_element_count])
+    print("GRAND_PLACE_MAISON_DU_ROI_TOWER_DEPTH_V7_READY: width=%.3f old_depth=%.3f new_depth=%.3f ratio=%.3f front_plane_error=%.6f front_facing_score=%.3f tower_levels=%d level_breaks=%d roof_bays=%d balustrade_elements=%d source=Urban_Brussels_31143 collisions=0" % [size_after.x,depth_before,size_after.z,size_after.z/size_after.x,front_plane_error,front_facing_score,TOWER_LEVEL_COUNT,tower_level_separator_count,roof_register_bay_count,roof_balustrade_element_count])

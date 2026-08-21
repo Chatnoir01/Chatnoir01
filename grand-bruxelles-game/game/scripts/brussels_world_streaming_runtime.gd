@@ -3,16 +3,55 @@ class_name BrusselsWorldStreamingRuntime
 
 ## Production bridge for the clean-room Brussels cell streamer.
 ## Tracks the real player/driven vehicle and discovers source-backed, pregenerated
-## runtime cell bundles instead of maintaining a hand-authored cell allowlist.
+## runtime cell bundles instead of using a hand-authored regional allowlist.
 ## Discovery is fail-closed: incomplete, malformed or identity-mismatched bundles
 ## are ignored and can never be promoted implicitly.
+## SHIPPED_CELLS is retained only for the existing Ixelles destination-preload
+## compatibility contract; it is not the regional streaming source of truth.
 
 const STREAMER_SCRIPT := preload("res://game/scripts/brussels_cell_streaming_manager.gd")
 const BACKEND_SCRIPT := preload("res://game/scripts/brussels_cell_node_backend.gd")
-const CELL_SOURCE_ROOT := "res://data/urbis/remaining_brussels/cells"
-const IXELLES_STREAMED_CELL_ID := "bxl-e149000-n169000-s500"
 const IXELLES_STREAMED_SCRIPT_PATH := "res://game/zones/ixelles/ixelles_streamed_microslice.gd"
 const SOURCE_PLAN_STREAMED_SCRIPT_PATH := "res://game/scripts/brussels_source_plan_streamed_cell.gd"
+
+const SHIPPED_CELLS: Array[Dictionary] = [
+    {
+        "cell_id": "bxl-e149000-n169000-s500",
+        "manifest_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/manifest.json",
+        "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/cell.game.json",
+        "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169000-s500/runtime/network.game.json",
+        "script_path": IXELLES_STREAMED_SCRIPT_PATH,
+        "destination_collision_authorized": true,
+        "metadata": {"build_collision": false},
+    },
+    {
+        "cell_id": "bxl-e149000-n169500-s500",
+        "manifest_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/manifest.json",
+        "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/runtime/cell.game.json",
+        "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149000-n169500-s500/runtime/network.game.json",
+        "strong_heights_path": "res://data/terrain/ixelles/bxl-e149000-n169500-s500_strong_heights.game.json",
+        "script_path": SOURCE_PLAN_STREAMED_SCRIPT_PATH,
+    },
+    {
+        "cell_id": "bxl-e149500-n169000-s500",
+        "manifest_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/manifest.json",
+        "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/runtime/cell.game.json",
+        "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169000-s500/runtime/network.game.json",
+        "strong_heights_path": "res://data/terrain/ixelles/bxl-e149500-n169000-s500_strong_heights.game.json",
+        "script_path": SOURCE_PLAN_STREAMED_SCRIPT_PATH,
+    },
+    {
+        "cell_id": "bxl-e149500-n169500-s500",
+        "manifest_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169500-s500/manifest.json",
+        "runtime_cell_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169500-s500/runtime/cell.game.json",
+        "runtime_network_path": "res://data/urbis/remaining_brussels/cells/bxl-e149500-n169500-s500/runtime/network.game.json",
+        "strong_heights_path": "res://data/terrain/ixelles/bxl-e149500-n169500-s500_strong_heights.game.json",
+        "script_path": SOURCE_PLAN_STREAMED_SCRIPT_PATH,
+    },
+]
+
+const CELL_SOURCE_ROOT := "res://data/urbis/remaining_brussels/cells"
+const IXELLES_STREAMED_CELL_ID := "bxl-e149000-n169000-s500"
 const BUILT_CELL_FORMAT := "grand-bruxelles-urbis-built-cell-v1"
 const RUNTIME_CELL_FORMAT := "grand-bruxelles-urbis-cell-runtime-v1"
 const RUNTIME_NETWORK_FORMAT := "grand-bruxelles-urbis-network-cell-runtime-v2"
@@ -35,7 +74,6 @@ var backend: BrusselsCellNodeBackend
 var runtime_ready := false
 var disabled_for_direct_ixelles := false
 var discovered_cell_count := 0
-var runtime_cell_descriptors: Array[Dictionary] = []
 var _player: CharacterBody3D
 var _last_observer_position := Vector3.ZERO
 var _has_last_observer := false
@@ -69,12 +107,12 @@ func _ready() -> void:
     add_child(backend)
     backend.bind_manager(manager)
 
-    runtime_cell_descriptors = discover_runtime_cell_descriptors()
-    discovered_cell_count = runtime_cell_descriptors.size()
+    var descriptors := discover_runtime_cell_descriptors()
+    discovered_cell_count = descriptors.size()
     if discovered_cell_count == 0:
         push_error("BrusselsWorldStreamingRuntime: no valid pregenerated runtime cells discovered")
         return
-    var registered_count := _register_runtime_cells(runtime_cell_descriptors)
+    var registered_count := _register_runtime_cells(descriptors)
     if registered_count != discovered_cell_count:
         push_error("BrusselsWorldStreamingRuntime: runtime cell registration incomplete %d/%d" % [registered_count, discovered_cell_count])
         return
@@ -117,22 +155,6 @@ func _is_canonical_cell_id(cell_id: String) -> bool:
     var raw_easting := parts[1].trim_prefix("e")
     var raw_northing := parts[2].trim_prefix("n")
     return not raw_easting.is_empty() and raw_easting.is_valid_int() and not raw_northing.is_empty() and raw_northing.is_valid_int()
-
-
-func _world_center_from_contract(manifest: Dictionary, runtime_cell: Dictionary) -> Vector3:
-    var bbox: Variant = manifest.get("bbox", [])
-    var coords: Variant = runtime_cell.get("coordinate_system", {})
-    if not bbox is Array or bbox.size() != 4 or not coords is Dictionary:
-        return Vector3.INF
-    if not bool((coords as Dictionary).get("coordinates_are_current_game_world", false)):
-        return Vector3.INF
-    var center_e := (float(bbox[0]) + float(bbox[2])) * 0.5
-    var center_n := (float(bbox[1]) + float(bbox[3])) * 0.5
-    var origin_e := float((coords as Dictionary).get("lambert_origin_e", 0.0))
-    var origin_n := float((coords as Dictionary).get("lambert_origin_n", 0.0))
-    var anchor_x := float((coords as Dictionary).get("world_anchor_x", 0.0))
-    var anchor_z := float((coords as Dictionary).get("world_anchor_z", 0.0))
-    return Vector3(anchor_x + (center_e - origin_e), 0.0, anchor_z - (center_n - origin_n))
 
 
 func _strong_heights_path(cell_id: String) -> String:
@@ -178,10 +200,8 @@ func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Diction
 
     var script_path := SOURCE_PLAN_STREAMED_SCRIPT_PATH
     var metadata: Dictionary = {"build_collision": false}
-    var destination_collision_authorized := false
     if cell_id == IXELLES_STREAMED_CELL_ID:
         script_path = IXELLES_STREAMED_SCRIPT_PATH
-        destination_collision_authorized = true
     else:
         metadata["manifest_path"] = manifest_path
         metadata["runtime_cell_path"] = runtime_cell_path
@@ -194,7 +214,6 @@ func _descriptor_for_runtime_cell(root_path: String, cell_id: String) -> Diction
         "runtime_cell_path": runtime_cell_path,
         "runtime_network_path": runtime_network_path,
         "script_path": script_path,
-        "destination_collision_authorized": destination_collision_authorized,
         "metadata": metadata,
     }
 
@@ -222,6 +241,22 @@ func discover_runtime_cell_descriptors(root_path: String = CELL_SOURCE_ROOT) -> 
     return descriptors
 
 
+func _world_center_from_contract(manifest: Dictionary, runtime_cell: Dictionary) -> Vector3:
+    var bbox: Variant = manifest.get("bbox", [])
+    var coords: Variant = runtime_cell.get("coordinate_system", {})
+    if not bbox is Array or bbox.size() != 4 or not coords is Dictionary:
+        return Vector3.INF
+    if not bool((coords as Dictionary).get("coordinates_are_current_game_world", false)):
+        return Vector3.INF
+    var center_e := (float(bbox[0]) + float(bbox[2])) * 0.5
+    var center_n := (float(bbox[1]) + float(bbox[3])) * 0.5
+    var origin_e := float((coords as Dictionary).get("lambert_origin_e", 0.0))
+    var origin_n := float((coords as Dictionary).get("lambert_origin_n", 0.0))
+    var anchor_x := float((coords as Dictionary).get("world_anchor_x", 0.0))
+    var anchor_z := float((coords as Dictionary).get("world_anchor_z", 0.0))
+    return Vector3(anchor_x + (center_e - origin_e), 0.0, anchor_z - (center_n - origin_n))
+
+
 func _register_runtime_cells(descriptors: Array[Dictionary]) -> int:
     var registered_count := 0
     for descriptor: Dictionary in descriptors:
@@ -247,8 +282,43 @@ func _register_runtime_cells(descriptors: Array[Dictionary]) -> int:
     return registered_count
 
 
+func _register_shipped_cells() -> int:
+    var registered_count := 0
+    for descriptor: Dictionary in SHIPPED_CELLS:
+        var cell_id := str(descriptor.get("cell_id", ""))
+        var manifest_path := str(descriptor.get("manifest_path", ""))
+        var runtime_cell_path := str(descriptor.get("runtime_cell_path", ""))
+        var runtime_network_path := str(descriptor.get("runtime_network_path", ""))
+        var script_path := str(descriptor.get("script_path", ""))
+        var manifest := _read_json(manifest_path)
+        var runtime_cell := _read_json(runtime_cell_path)
+        if manifest.is_empty() or runtime_cell.is_empty() or str(manifest.get("cell_id", "")) != cell_id or str(runtime_cell.get("cell_id", "")) != cell_id:
+            push_error("BrusselsWorldStreamingRuntime: invalid shipped contract %s" % cell_id)
+            continue
+        var center := _world_center_from_contract(manifest, runtime_cell)
+        if not center.is_finite():
+            push_error("BrusselsWorldStreamingRuntime: invalid world center %s" % cell_id)
+            continue
+
+        var metadata: Dictionary = (descriptor.get("metadata", {}) as Dictionary).duplicate(true)
+        if script_path == SOURCE_PLAN_STREAMED_SCRIPT_PATH:
+            metadata["manifest_path"] = manifest_path
+            metadata["runtime_cell_path"] = runtime_cell_path
+            metadata["runtime_network_path"] = runtime_network_path
+            metadata["strong_heights_path"] = str(descriptor.get("strong_heights_path", ""))
+            metadata["build_collision"] = false
+        if not backend.register_script_cell(cell_id, script_path, metadata):
+            push_error("BrusselsWorldStreamingRuntime: backend registration failed %s" % cell_id)
+            continue
+        if not manager.register_manifest_dict(manifest, center):
+            push_error("BrusselsWorldStreamingRuntime: scheduler registration failed %s" % cell_id)
+            continue
+        registered_count += 1
+    return registered_count
+
+
 func get_shipped_cell_contract(cell_id: String) -> Dictionary:
-    for descriptor: Dictionary in runtime_cell_descriptors:
+    for descriptor: Dictionary in SHIPPED_CELLS:
         if str(descriptor.get("cell_id", "")) == cell_id:
             return descriptor.duplicate(true)
     return {}
@@ -359,13 +429,11 @@ func get_streaming_metrics() -> Dictionary:
         return {
             "runtime_ready": false,
             "disabled_for_direct_ixelles": disabled_for_direct_ixelles,
-            "discovered_cells": discovered_cell_count,
             "destination_preload_active": _destination_preload_active,
         }
     return {
         "runtime_ready": true,
         "disabled_for_direct_ixelles": false,
-        "discovered_cells": discovered_cell_count,
         "destination_preload_active": _destination_preload_active,
         "destination_preload_cell_id": _destination_preload_cell_id,
         "scheduler": manager.get_metrics(),

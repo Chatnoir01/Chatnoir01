@@ -1,0 +1,106 @@
+name: Grand Bruxelles Police Authored LOD
+
+on:
+  push:
+    branches:
+      - visual/mmc-police-authored-lod-7712a33
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/vehicles/mmc_generic_sedan/authored_lod/**"
+      - "grand-bruxelles-game/assets/vehicles/mmc_generic_sport_coupe/authored_lod/**"
+      - "grand-bruxelles-game/game/scripts/authored_geometry_payload.gd"
+      - "grand-bruxelles-game/game/scripts/mmc_police_authored_lod_runtime.gd"
+      - "grand-bruxelles-game/game/tests/mmc_police_authored_lod_runtime_test.gd"
+      - "grand-bruxelles-game/data/runtime/modules/mmc_police_authored_lod.json"
+      - "grand-bruxelles-game/export_presets.cfg"
+      - ".github/workflows/grand-bruxelles-police-authored-lod.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-police-authored-lod-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  authored-lod:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify source provenance and compact payload hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, hashlib, json, pathlib, zlib
+          cases = [
+              ("grand-bruxelles-game/assets/vehicles/mmc_generic_sedan/authored_lod", "a021faaf6427bebae58c9f380502d901d33415130772f4010c64bf4a2d84f1e2", "6e37ef3f80e3b164e1eea538544c104f4daaaed5d1b056638de6b48fc3fde695", 2443, 1339),
+              ("grand-bruxelles-game/assets/vehicles/mmc_generic_sport_coupe/authored_lod", "5c3d5836d19b12347d9ab8e044fe9593b15255d211282ffa374f140e58d9eabd", "2f93859aaa55f48590ead123224d90e9628e7952b5e0a41e37ae94ea59fad3c9", 2178, 1209),
+          ]
+          for directory, source_sha, payload_sha, triangles, vertices in cases:
+              root = pathlib.Path(directory)
+              meta = json.loads((root / "meta.json").read_text())
+              assert meta["license"] == "CC BY 4.0"
+              assert meta["source_sha256"] == source_sha
+              assert meta["payload_sha256"] == payload_sha
+              assert meta["triangles"] == triangles
+              assert meta["vertices"] == vertices
+              encoded = "".join((root / name).read_text().strip() for name in meta["payload_parts"])
+              raw = zlib.decompress(base64.b64decode(encoded))
+              assert len(raw) == meta["raw_bytes"]
+              assert raw[:4] == b"GBAG"
+              assert hashlib.sha256(raw).hexdigest() == payload_sha
+          print("MMC_POLICE_AUTHORED_LOD_PAYLOAD_OK")
+          PY
+
+      - name: Refuse heavyweight source GLBs and GTA bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e grand-bruxelles-game/assets/vehicles/mmc_generic_sedan/generic_sedan.glb
+          test ! -e grand-bruxelles-game/assets/vehicles/mmc_generic_sport_coupe/generic_sport_coupe.glb
+          if find grand-bruxelles-game -type f \( -iname '*.yft' -o -iname '*.ytd' \) -print -quit | grep -q .; then
+            echo "Forbidden GTA mod geometry/texture byte detected"
+            exit 1
+          fi
+
+      - name: Verify export inclusion
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRESET=grand-bruxelles-game/export_presets.cfg
+          grep -Fq 'authored_lod/*.txt' "$PRESET"
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project and reject parser failures
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/authored-lod-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Couldn't load project data" /tmp/authored-lod-import.log; then
+            exit 1
+          fi
+
+      - name: Run authored LOD renderer-only test
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/mmc_police_authored_lod_runtime_test.gd 2>&1 | tee /tmp/authored-lod-test.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MMC_POLICE_AUTHORED_LOD_FAIL" /tmp/authored-lod-test.log; then
+            exit 1
+          fi
+          grep -q "MMC_POLICE_AUTHORED_LOD_OK" /tmp/authored-lod-test.log

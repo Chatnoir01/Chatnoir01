@@ -25,6 +25,14 @@ MIN_MATCH_SCORE = 0.70
 MIN_RUNNER_UP_MARGIN = 0.15
 MIN_HEIGHT_M = 2.0
 MAX_HEIGHT_M = 100.0
+FACE_METADATA_FIELDS = (
+    "INSPIRE_ID",
+    "SOURCEURI",
+    "SOURCETYPE",
+    "SOURCEID",
+    "BEGINGENERATION",
+    "ENDGENERATION",
+)
 
 
 def percentile(values: list[float], p: float) -> float | None:
@@ -115,6 +123,15 @@ def find_buildingfaces(root: Path) -> tuple[ogr.DataSource, ogr.Layer, Path]:
     raise RuntimeError("No BuildingFaces layer found")
 
 
+def _feature_text(feature: ogr.Feature, field_name: str) -> str | None:
+    """Return a deterministic textual field value without requiring optional fields."""
+    index = feature.GetFieldIndex(field_name)
+    if index < 0 or not feature.IsFieldSetAndNotNull(index):
+        return None
+    value = feature.GetFieldAsString(index).strip()
+    return value or None
+
+
 def collect_solids(layer: ogr.Layer, bbox: tuple[float, float, float, float]) -> dict[str, dict[str, Any]]:
     minx, miny, maxx, maxy = bbox
     if maxx <= minx or maxy <= miny:
@@ -123,6 +140,7 @@ def collect_solids(layer: ogr.Layer, bbox: tuple[float, float, float, float]) ->
     solids: dict[str, dict[str, Any]] = defaultdict(lambda: {
         "ground_geometries": [], "roof_geometries": [], "ground_z": [], "roof_z": [],
         "ground_faces": 0, "roof_faces": 0,
+        "buildingfaces_metadata": {field: set() for field in FACE_METADATA_FIELDS},
     })
     for feature in layer:
         solid_id = feature.GetField("BUSOLID_ID")
@@ -131,6 +149,10 @@ def collect_solids(layer: ogr.Layer, bbox: tuple[float, float, float, float]) ->
         if not solid_id or face_type not in (GROUND, ROOF) or geometry is None:
             continue
         record = solids[str(solid_id)]
+        for field in FACE_METADATA_FIELDS:
+            value = _feature_text(feature, field)
+            if value is not None:
+                record["buildingfaces_metadata"][field].add(value)
         samples = [z for _x, _y, z in iter_points(geometry) if math.isfinite(z)]
         if face_type == GROUND:
             record["ground_faces"] += 1
@@ -141,7 +163,15 @@ def collect_solids(layer: ogr.Layer, bbox: tuple[float, float, float, float]) ->
             record["roof_z"].extend(samples)
             record["roof_geometries"].append(geometry.Clone())
     layer.SetSpatialFilter(None)
-    return dict(solids)
+
+    normalized: dict[str, dict[str, Any]] = {}
+    for solid_id, record in solids.items():
+        record["buildingfaces_metadata"] = {
+            field: sorted(record["buildingfaces_metadata"][field])
+            for field in FACE_METADATA_FIELDS
+        }
+        normalized[solid_id] = record
+    return normalized
 
 
 def score_match(ground: ogr.Geometry, building: ogr.Geometry) -> dict[str, float] | None:
@@ -245,6 +275,7 @@ def build_evidence(
             "roof_z_p75_m": percentile(roof_z, 0.75),
             "semantic_height_m": height,
             "height_plausible": height_plausible,
+            "buildingfaces_metadata": solid["buildingfaces_metadata"],
             "runtime_approved": False,
         })
 

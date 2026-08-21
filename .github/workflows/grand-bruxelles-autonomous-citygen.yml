@@ -44,6 +44,12 @@ jobs:
           python3 grand-bruxelles-game/tools/citygen/test_assess_cell_elevation_values.py
           python3 grand-bruxelles-game/tools/citygen/test_build_cell_elevation_candidate_frontier.py
           python3 grand-bruxelles-game/tools/citygen/test_derive_cell_building_height_candidates.py
+          python3 grand-bruxelles-game/tools/citygen/test_evaluate_cell_dtm_lod.py
+          python3 grand-bruxelles-game/tools/citygen/test_select_cell_urbis3d_packages.py
+          python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis3d_semantic_batch.py
+          python3 grand-bruxelles-game/tools/citygen/test_build_semantic_dsm_height_comparison.py
+          python3 grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
+          python3 grand-bruxelles-game/tools/citygen/test_persist_secondary_height_evidence.py
       - name: Existing city-generation guardrails
         run: |
           set -euo pipefail
@@ -201,7 +207,7 @@ jobs:
               --archive-cache /tmp/citygen-elevation-archive-cache \
               --extract-root /tmp/citygen-raster-extract \
               --output "$D/elevation_raster_validation.json" >"$RLOG" 2>&1; then
-              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
+              rm -f "$D/elevation_raster_validation.json" "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
               echo "ELEVATION_RASTER_VALIDATION_PENDING ${CELL}"
               continue
             fi
@@ -213,7 +219,7 @@ jobs:
               --output "$D/elevation_value_evidence.json" >"$VLOG" 2>&1; then
               rm -f "$VLOG"
             else
-              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
+              rm -f "$D/elevation_value_evidence.json" "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
               echo "ELEVATION_VALUE_ASSESSMENT_PENDING ${CELL}"
             fi
           done < /tmp/citygen-out/worklist.txt
@@ -235,7 +241,7 @@ jobs:
                 --candidate-package "$PACKAGE" \
                 --output "$D/elevation_candidate_frontier.json"
             else
-              rm -f "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
+              rm -f "$D/elevation_candidate_frontier.json" "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
             fi
           done < /tmp/citygen-out/worklist.txt
           python3 - <<'PY'
@@ -256,7 +262,7 @@ jobs:
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
             VALUE="$D/elevation_value_evidence.json"; FRONTIER="$D/elevation_candidate_frontier.json"; RASTER="$D/elevation_raster_validation.json"
             if [ ! -f "$VALUE" ] || [ ! -f "$FRONTIER" ] || [ ! -f "$RASTER" ]; then
-              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
+              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
               continue
             fi
             LOG="/tmp/citygen-out/building-height-errors/${CELL}.log"
@@ -269,7 +275,7 @@ jobs:
               --output "$D/building_height_candidates.json" >"$LOG" 2>&1; then
               rm -f "$LOG"
             else
-              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json"
+              rm -f "$D/building_height_candidates.json" "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
               echo "BUILDING_HEIGHT_CANDIDATES_PENDING ${CELL}"
             fi
           done < /tmp/citygen-out/worklist.txt
@@ -284,7 +290,7 @@ jobs:
             D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
             VALUE="$D/elevation_value_evidence.json"; RASTER="$D/elevation_raster_validation.json"; HEIGHTS="$D/building_height_candidates.json"
             if [ ! -f "$VALUE" ] || [ ! -f "$RASTER" ] || [ ! -f "$HEIGHTS" ]; then
-              rm -f "$D/terrain_lod_evidence.json"
+              rm -f "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
               continue
             fi
             LOG="/tmp/citygen-out/terrain-lod-errors/${CELL}.log"
@@ -295,8 +301,97 @@ jobs:
               --output "$D/terrain_lod_evidence.json" >"$LOG" 2>&1; then
               rm -f "$LOG"
             else
-              rm -f "$D/terrain_lod_evidence.json"
+              rm -f "$D/terrain_lod_evidence.json" "$D/secondary_height_evidence.json" "$D/secondary_height_validation.json"
               echo "TERRAIN_LOD_EVIDENCE_PENDING ${CELL}"
+            fi
+          done < /tmp/citygen-out/worklist.txt
+
+      - name: Plan automatic UrbIS3D secondary-height evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('grand-bruxelles-game/data/urbis/remaining_brussels/cells')
+          work=[x.strip() for x in Path('/tmp/citygen-out/worklist.txt').read_text().splitlines() if x.strip()]
+          selected=[]
+          for cell in work:
+              d=root/cell
+              if (d/'building_height_candidates.json').is_file() and (d/'terrain_lod_evidence.json').is_file():
+                  selected.append(cell)
+          Path('/tmp/citygen-out/urbis3d_semantic_worklist.txt').write_text(''.join(cell+'\n' for cell in selected))
+          print(f'CITYGEN_URBIS3D_SEMANTIC_WORKLIST selected={len(selected)}')
+          PY
+          if [ ! -s /tmp/citygen-out/urbis3d_semantic_worklist.txt ]; then
+            echo "CITYGEN_URBIS3D_SEMANTIC_NOT_NEEDED"
+            exit 0
+          fi
+          python3 - <<'PY'
+          import importlib.util,json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/tools/discover_urbis_sources.py')
+          spec=importlib.util.spec_from_file_location('discover_urbis_sources',p); assert spec and spec.loader
+          module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+          source_id='urbis_3d_constructions'
+          feed=module.parse_feed(source_id,module.DEFAULT_FEEDS[source_id])
+          if feed.get('entry_count',0)<=0: raise SystemExit('official UrbIS3D feed is empty')
+          Path('/tmp/citygen-out/urbis3d_discovered.json').write_text(json.dumps({'schema':1,'purpose':'autonomous regional CityGen secondary height evidence','feeds':[feed]},ensure_ascii=False,indent=2)+'\n')
+          print('CITYGEN_URBIS3D_DISCOVERY_OK',feed.get('feed_updated'),feed.get('entry_count'))
+          PY
+          python3 grand-bruxelles-game/tools/citygen/select_cell_urbis3d_packages.py \
+            --feed /tmp/citygen-out/urbis3d_discovered.json \
+            --target-grid /tmp/citygen-out/brussels_regional_target_grid.json \
+            --worklist /tmp/citygen-out/urbis3d_semantic_worklist.txt \
+            --output /tmp/citygen-out/urbis3d_package_plan.json
+
+      - name: Prepare read-only UrbIS3D tooling
+        run: |
+          set -euo pipefail
+          if [ ! -s /tmp/citygen-out/urbis3d_semantic_worklist.txt ]; then exit 0; fi
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin python3-gdal unzip
+          ogrinfo --version
+          python3 - <<'PY'
+          from osgeo import ogr
+          print('CITYGEN_GDAL_READY',ogr.GetDriverCount())
+          PY
+
+      - name: Materialize independent UrbIS3D semantic evidence
+        run: |
+          set -euo pipefail
+          if [ ! -s /tmp/citygen-out/urbis3d_semantic_worklist.txt ]; then exit 0; fi
+          python3 grand-bruxelles-game/tools/citygen/materialize_urbis3d_semantic_batch.py \
+            --plan /tmp/citygen-out/urbis3d_package_plan.json \
+            --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
+            --cache-root /tmp/citygen-urbis3d-cache \
+            --report /tmp/citygen-out/urbis3d_semantic_batch_report.json
+
+      - name: Compare and validate automatic secondary heights
+        run: |
+          set -u
+          mkdir -p /tmp/citygen-out/secondary-height-errors
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
+            HEIGHTS="$D/building_height_candidates.json"
+            SEMANTIC="$D/urbis3d_semantic_height_evidence.json"
+            SECONDARY="$D/secondary_height_evidence.json"
+            VALIDATION="$D/secondary_height_validation.json"
+            if [ ! -f "$HEIGHTS" ] || [ ! -f "$SEMANTIC" ]; then
+              rm -f "$SECONDARY" "$VALIDATION"
+              continue
+            fi
+            LOG="/tmp/citygen-out/secondary-height-errors/${CELL}.log"
+            if python3 grand-bruxelles-game/tools/citygen/build_semantic_dsm_height_comparison.py \
+              --semantic "$SEMANTIC" --height-candidates "$HEIGHTS" --output "$SECONDARY" >"$LOG" 2>&1 \
+              && python3 grand-bruxelles-game/tools/citygen/validate_secondary_height_evidence.py \
+              --height-candidates "$HEIGHTS" --secondary "$SECONDARY" --output "$VALIDATION" >>"$LOG" 2>&1; then
+              cat "$LOG"
+              rm -f "$LOG"
+            else
+              rm -f "$SECONDARY" "$VALIDATION"
+              echo "SECONDARY_HEIGHT_VALIDATION_PENDING ${CELL}"
+              cat "$LOG"
             fi
           done < /tmp/citygen-out/worklist.txt
 

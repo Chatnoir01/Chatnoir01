@@ -1,0 +1,242 @@
+name: Grand Bruxelles Terrain Candidate Factory
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/citygen/build_terrain_runtime_candidate_manifest.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_terrain_runtime_candidate_manifest.py"
+      - ".github/workflows/grand-bruxelles-terrain-candidate-factory.yml"
+  workflow_run:
+    workflows: ["Grand Bruxelles Secondary Height Factory"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Maximum terrain candidate manifests to refresh"
+        required: false
+        default: "8"
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove terrain candidate guardrails
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_build_terrain_runtime_candidate_manifest.py
+          python3 grand-bruxelles-game/tools/citygen/test_evaluate_cell_dtm_lod.py
+          python3 grand-bruxelles-game/tools/citygen/test_validate_secondary_height_evidence.py
+
+  factory:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Recover durable CityGen state
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/terrain-state
+          mkdir -p /tmp/terrain-state
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          STATE_PATH="grand-bruxelles-game/data/qa/autonomous_sources"
+          git cat-file -e "origin/citygen-autonomous-state:${STATE_PATH}" \
+            || { echo "TERRAIN_CANDIDATE_STATE_PENDING missing=${STATE_PATH}"; exit 1; }
+          git archive origin/citygen-autonomous-state "$STATE_PATH" | tar -x -C /tmp/terrain-state
+          rm -rf "$STATE_PATH"
+          mkdir -p grand-bruxelles-game/data/qa
+          cp -a "/tmp/terrain-state/${STATE_PATH}" "$STATE_PATH"
+
+      - name: Select stale or missing terrain candidates
+        id: plan
+        env:
+          INPUT_BATCH_SIZE: ${{ inputs.batch_size }}
+        run: |
+          set -euo pipefail
+          BATCH="${INPUT_BATCH_SIZE:-8}"
+          python3 - "$BATCH" <<'PY'
+          import json, sys
+          from pathlib import Path
+
+          root=Path('grand-bruxelles-game/data/qa/autonomous_sources')
+          limit=int(sys.argv[1])
+          if limit < 1 or limit > 32:
+              raise SystemExit('batch_size must be between 1 and 32')
+
+          eligible=[]
+          for cell in sorted(p for p in root.iterdir() if p.is_dir()) if root.exists() else []:
+              lod_path=cell/'terrain_lod_evidence.json'
+              validation_path=cell/'secondary_height_validation.json'
+              if not lod_path.is_file() or not validation_path.is_file():
+                  continue
+              try:
+                  lod=json.loads(lod_path.read_text(encoding='utf-8'))
+                  validation=json.loads(validation_path.read_text(encoding='utf-8'))
+              except Exception:
+                  continue
+              lod_digest=lod.get('evidence_digest')
+              validation_digest=validation.get('validation_digest')
+              selected=((lod.get('selection') or {}).get('selected_resolution_m'))
+              if not isinstance(lod_digest,str) or not isinstance(validation_digest,str) or selected is None:
+                  continue
+              candidate_path=cell/'terrain_runtime_candidate.json'
+              fresh=False
+              if candidate_path.is_file():
+                  try:
+                      candidate=json.loads(candidate_path.read_text(encoding='utf-8'))
+                      fresh=(
+                          candidate.get('format')=='grand-bruxelles-citygen-terrain-runtime-candidate-manifest-v1'
+                          and (candidate.get('terrain') or {}).get('terrain_lod_evidence_digest')==lod_digest
+                          and (candidate.get('building_heights') or {}).get('source_validation_digest')==validation_digest
+                          and candidate.get('terrain_runtime_authorized') is False
+                          and candidate.get('collision_authorized') is False
+                          and candidate.get('runtime_mount_authorized') is False
+                          and candidate.get('production_discovery_eligible') is False
+                      )
+                  except Exception:
+                      fresh=False
+              if not fresh:
+                  eligible.append(cell.name)
+
+          selected=eligible[:limit]
+          Path('/tmp/terrain-candidate-worklist.txt').write_text(''.join(value+'\n' for value in selected),encoding='utf-8')
+          Path('/tmp/terrain-candidate-plan.json').write_text(
+              json.dumps({'eligible_cells':len(eligible),'selected_cells':selected},indent=2,sort_keys=True)+'\n',
+              encoding='utf-8',
+          )
+          Path('/tmp/terrain-candidate-has-work.txt').write_text('true' if selected else 'false',encoding='utf-8')
+          print(f'TERRAIN_CANDIDATE_FACTORY_PLAN eligible={len(eligible)} selected={len(selected)}')
+          PY
+          echo "has_work=$(cat /tmp/terrain-candidate-has-work.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Build fail-closed terrain candidate manifests
+        if: steps.plan.outputs.has_work == 'true'
+        run: |
+          set -u
+          mkdir -p /tmp/terrain-candidate-errors
+          : > /tmp/terrain-candidate-success.txt
+          : > /tmp/terrain-candidate-failed.txt
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            D="grand-bruxelles-game/data/qa/autonomous_sources/${CELL}"
+            LOG="/tmp/terrain-candidate-errors/${CELL}.log"
+            if python3 grand-bruxelles-game/tools/citygen/build_terrain_runtime_candidate_manifest.py \
+                 --terrain-lod "$D/terrain_lod_evidence.json" \
+                 --secondary-validation "$D/secondary_height_validation.json" \
+                 --output "$D/terrain_runtime_candidate.json" >"$LOG" 2>&1; then
+              echo "$CELL" >> /tmp/terrain-candidate-success.txt
+              cat "$LOG"
+            else
+              rm -f "$D/terrain_runtime_candidate.json"
+              echo "$CELL" >> /tmp/terrain-candidate-failed.txt
+              echo "TERRAIN_CANDIDATE_CELL_PENDING cell=${CELL}"
+              cat "$LOG" 2>/dev/null || true
+            fi
+          done < /tmp/terrain-candidate-worklist.txt
+
+      - name: Build report and enforce systemic failure guard
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          plan=json.loads(Path('/tmp/terrain-candidate-plan.json').read_text(encoding='utf-8'))
+          def lines(path):
+              p=Path(path)
+              return [line.strip() for line in p.read_text(encoding='utf-8').splitlines() if line.strip()] if p.exists() else []
+
+          success=lines('/tmp/terrain-candidate-success.txt')
+          failed=lines('/tmp/terrain-candidate-failed.txt')
+          complete_height=0
+          partial_height=0
+          root=Path('grand-bruxelles-game/data/qa/autonomous_sources')
+          for cell_id in success:
+              candidate=json.loads((root/cell_id/'terrain_runtime_candidate.json').read_text(encoding='utf-8'))
+              if (candidate.get('building_heights') or {}).get('contract_complete') is True:
+                  complete_height += 1
+              else:
+                  partial_height += 1
+
+          report={
+              **plan,
+              'success_cells':success,
+              'failed_cells':failed,
+              'complete_height_contract_cells':complete_height,
+              'partial_height_contract_cells':partial_height,
+              'policy':{
+                  'validated_height_subset_only':True,
+                  'unvalidated_height_fallback_allowed':False,
+                  'terrain_runtime_authorized':False,
+                  'runtime_geometry_authorized':False,
+                  'collision_authorized':False,
+                  'navigation_authorized':False,
+                  'runtime_mount_authorized':False,
+                  'production_discovery_eligible':False,
+                  'automatic_production_mutation':False,
+                  'durable_state_only':True,
+              },
+          }
+          Path('/tmp/terrain-candidate-factory-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          print('TERRAIN_CANDIDATE_FACTORY_REPORT',json.dumps({
+              'eligible':report['eligible_cells'],
+              'selected':len(report['selected_cells']),
+              'success':len(success),
+              'failed':len(failed),
+              'complete_height':complete_height,
+              'partial_height':partial_height,
+          },sort_keys=True))
+          if report['selected_cells'] and not success:
+              raise SystemExit('all selected terrain candidates failed; probable systemic contract/tooling failure')
+          PY
+
+      - name: Persist terrain candidates off main
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/terrain-save
+          mkdir -p /tmp/terrain-save
+          cp -a grand-bruxelles-game/data/qa/autonomous_sources /tmp/terrain-save/
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git reset --hard
+          git clean -fd
+          git switch -C citygen-autonomous-state origin/citygen-autonomous-state
+          rm -rf grand-bruxelles-game/data/qa/autonomous_sources
+          cp -a /tmp/terrain-save/autonomous_sources grand-bruxelles-game/data/qa/
+          cp /tmp/terrain-candidate-factory-report.json grand-bruxelles-game/data/qa/terrain_candidate_factory_latest_report.json
+          git add -- grand-bruxelles-game/data/qa/autonomous_sources grand-bruxelles-game/data/qa/terrain_candidate_factory_latest_report.json
+          if git diff --cached --quiet; then
+            echo "TERRAIN_CANDIDATE_FACTORY_NO_CHANGE"
+            exit 0
+          fi
+          git commit -m "citygen: persist terrain runtime candidate manifests"
+          git push --force-with-lease origin citygen-autonomous-state
+
+      - name: Upload terrain candidate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-candidate-factory-${{ github.run_number }}
+          path: |
+            /tmp/terrain-candidate-plan.json
+            /tmp/terrain-candidate-factory-report.json
+            /tmp/terrain-candidate-errors/
+          retention-days: 30

@@ -19,6 +19,25 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require branch built from live main
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base "$PR_HEAD_SHA" origin/main)"
+          echo "live_main=$live_main"
+          echo "pr_head=$PR_HEAD_SHA"
+          echo "merge_base=$merge_base"
+          test "$merge_base" = "$live_main" || {
+            echo "AUTOMATIC_ROAD_PLAYER_WITNESS_STALE_MAIN live_main=$live_main pr_head=$PR_HEAD_SHA merge_base=$merge_base"
+            exit 1
+          }
       - name: Install display dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
       - name: Install Godot 4.7.1

@@ -85,7 +85,7 @@ jobs:
           text = path.read_text(encoding="utf-8")
           needle = "const GODOT_THREADS_ENABLED = false;"
           injection = """const DIRECT_SPAWN = new URLSearchParams(window.location.search).get('spawn');
-          if (DIRECT_SPAWN === 'bourse' || DIRECT_SPAWN === 'atomium' || DIRECT_SPAWN === 'ixelles' || DIRECT_SPAWN === 'lemonnier') {
+          if (DIRECT_SPAWN === 'bourse' || DIRECT_SPAWN === 'atomium' || DIRECT_SPAWN === 'ixelles' || DIRECT_SPAWN === 'lemonnier' || DIRECT_SPAWN === 'anneessens') {
           \tGODOT_CONFIG.args = ['--', `spawn=${DIRECT_SPAWN}`];
           }
           
@@ -95,7 +95,7 @@ jobs:
           text = text.replace(needle, injection + needle, 1)
           path.write_text(text, encoding="utf-8")
           PY
-          grep -F "DIRECT_SPAWN === 'bourse' || DIRECT_SPAWN === 'atomium' || DIRECT_SPAWN === 'ixelles' || DIRECT_SPAWN === 'lemonnier'" grand-bruxelles-game/web-preview/index.html
+          grep -F "DIRECT_SPAWN === 'bourse' || DIRECT_SPAWN === 'atomium' || DIRECT_SPAWN === 'ixelles' || DIRECT_SPAWN === 'lemonnier' || DIRECT_SPAWN === 'anneessens'" grand-bruxelles-game/web-preview/index.html
           grep -F "GODOT_CONFIG.args = ['--', \`spawn=\${DIRECT_SPAWN}\`];" grand-bruxelles-game/web-preview/index.html
 
       - name: Verify Web files are servable

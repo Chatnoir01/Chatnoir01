@@ -55,13 +55,25 @@ def main() -> int:
 
     secondary_workflow=SECONDARY_WORKFLOW.read_text(encoding="utf-8")
     persistence_workflow=PERSISTENCE_WORKFLOW.read_text(encoding="utf-8")
-    assert "contents: write" in secondary_workflow
-    assert "Persist validated secondary evidence off main" in secondary_workflow
-    assert "persist_secondary_height_evidence.py" in secondary_workflow
-    assert "git switch -C citygen-autonomous-state" in secondary_workflow
-    assert "github.event_name != 'pull_request'" in secondary_workflow
+
+    # The historical Anderlecht compatibility witness is deliberately read-only.
+    # It proves the current candidate contract but must not mutate durable state.
+    assert "contents: read" in secondary_workflow
+    assert "contents: write" not in secondary_workflow
+    assert "Select current durable Anderlecht witness" in secondary_workflow
+    assert "Persist validated secondary evidence off main" not in secondary_workflow
+    assert "git switch -C citygen-autonomous-state" not in secondary_workflow
+
+    # The companion persistence workflow owns orchestration only: on main it may
+    # dispatch the exact-current-main witness, while the compact persistence tool
+    # remains independently regression-tested above.
+    assert "actions: write" in persistence_workflow
+    assert "contents: read" in persistence_workflow
     assert "workflow_run:" not in persistence_workflow
-    print("PERSIST_SECONDARY_HEIGHT_EVIDENCE_TEST_OK source=automatic legacy_compatible=true")
+    assert "Dispatch exact-current-main secondary-height gate" in persistence_workflow
+    assert "persist_secondary_height_evidence.py" not in persistence_workflow
+
+    print("PERSIST_SECONDARY_HEIGHT_EVIDENCE_TEST_OK source=automatic legacy_compatible=true witness_read_only=true")
     return 0
 
 if __name__ == "__main__":

@@ -12,9 +12,11 @@ on:
 jobs:
   corridor-tree-lod:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -31,3 +33,19 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_corridor_tree_distance_lod_test.gd 2>&1 | tee /tmp/corridor-tree-lod.log
           if grep -E 'SCRIPT ERROR|Parse Error:|BRUSSELS_CORRIDOR_TREE_LOD_FAIL' /tmp/corridor-tree-lod.log; then exit 1; fi
           grep -q 'BRUSSELS_CORRIDOR_TREE_LOD_OK' /tmp/corridor-tree-lod.log
+      - name: 1280x720 full-detail to production-LOD A/B
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -o pipefail
+          timeout 150s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_corridor_tree_distance_lod_witness_test.gd 2>&1 | tee /tmp/corridor-tree-lod-witness.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|BRUSSELS_CORRIDOR_TREE_LOD_VISUAL_FAIL' /tmp/corridor-tree-lod-witness.log; then exit 1; fi
+          grep -q 'BRUSSELS_CORRIDOR_TREE_LOD_VISUAL_OK' /tmp/corridor-tree-lod-witness.log
+      - name: Upload corridor tree LOD evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-corridor-tree-lod-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/corridor_tree_lod_full_detail_before.png
+            grand-bruxelles-game/artifacts/visual/corridor_tree_lod_distance_after.png
+          if-no-files-found: error

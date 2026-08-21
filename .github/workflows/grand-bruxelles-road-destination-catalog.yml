@@ -1,0 +1,70 @@
+name: Grand Bruxelles Road Destination Catalog
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/tools/build_road_destination_catalog.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_destination_catalog.py'
+      - '.github/workflows/grand-bruxelles-road-destination-catalog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run catalog regressions
+        working-directory: grand-bruxelles-game
+        run: python3 tools/tests/test_road_destination_catalog.py
+
+      - name: Build deterministic catalog twice
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/road-catalog
+          python3 tools/build_road_destination_catalog.py --source-root data/osm --output artifacts/road-catalog/catalog-a.json
+          python3 tools/build_road_destination_catalog.py --source-root data/osm --output artifacts/road-catalog/catalog-b.json
+          cmp artifacts/road-catalog/catalog-a.json artifacts/road-catalog/catalog-b.json
+          sha256sum artifacts/road-catalog/catalog-a.json | tee artifacts/road-catalog/catalog-file.sha256
+
+      - name: Validate source-only authorization rails
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text(encoding='utf-8'))
+          assert p['format'] == 'grand-bruxelles-road-destination-catalog-v1'
+          assert p['drivable_record_count'] >= 140
+          assert p['eligible_record_count'] >= 139
+          assert p['entry_count'] >= 139
+          assert p['rejected_drivable_record_count'] == p['drivable_record_count'] - p['eligible_record_count']
+          assert p['duplicate_record_count'] == p['eligible_record_count'] - p['entry_count']
+          auth = p['authorization']
+          assert auth['source_lookup_only'] is True
+          for key in ('render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
+              assert auth[key] is False, key
+          for road_id in ('359177328','487501805','1382734012'):
+              assert road_id in p['entries'], road_id
+          print(
+              'ROAD_DESTINATION_CATALOG_GATE_GREEN: '
+              f"entries={p['entry_count']} drivable_records={p['drivable_record_count']} "
+              f"eligible_records={p['eligible_record_count']} rejected_drivable={p['rejected_drivable_record_count']} "
+              f"duplicate_records={p['duplicate_record_count']} sha256={p['catalog_sha256']}"
+          )
+          PY
+
+      - name: Upload catalog evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-road-destination-catalog
+          path: |
+            grand-bruxelles-game/artifacts/road-catalog/catalog-a.json
+            grand-bruxelles-game/artifacts/road-catalog/catalog-file.sha256
+          if-no-files-found: error

@@ -63,6 +63,25 @@ func _road_points(road: Dictionary) -> PackedVector2Array:
         result.append(Vector2(float(raw[0]), float(raw[1])))
     return result
 
+func _source_building_polygons(document: Dictionary) -> Array[PackedVector2Array]:
+    var result: Array[PackedVector2Array] = []
+    var buildings: Variant = document.get("buildings", [])
+    if not buildings is Array:
+        return result
+    for raw: Variant in buildings:
+        if not raw is Dictionary:
+            continue
+        var footprint_raw: Variant = (raw as Dictionary).get("footprint", [])
+        if not footprint_raw is Array or footprint_raw.size() < 3:
+            continue
+        var polygon := PackedVector2Array()
+        for pair: Variant in footprint_raw:
+            if pair is Array and pair.size() >= 2:
+                polygon.append(Vector2(float(pair[0]), float(pair[1])))
+        if polygon.size() >= 3:
+            result.append(polygon)
+    return result
+
 func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
     var segment := finish - start
     var length_squared := segment.length_squared()
@@ -78,22 +97,20 @@ func _distance_to_road(point: Vector2, points: PackedVector2Array) -> float:
     return result
 
 func _inside_source_building(document: Dictionary, point: Vector2) -> bool:
-    var buildings: Variant = document.get("buildings", [])
-    if not buildings is Array:
-        return false
-    for raw: Variant in buildings:
-        if not raw is Dictionary:
-            continue
-        var footprint_raw: Variant = (raw as Dictionary).get("footprint", [])
-        if not footprint_raw is Array or footprint_raw.size() < 3:
-            continue
-        var polygon := PackedVector2Array()
-        for pair: Variant in footprint_raw:
-            if pair is Array and pair.size() >= 2:
-                polygon.append(Vector2(float(pair[0]), float(pair[1])))
-        if polygon.size() >= 3 and Geometry2D.is_point_in_polygon(point, polygon):
+    for polygon: PackedVector2Array in _source_building_polygons(document):
+        if Geometry2D.is_point_in_polygon(point, polygon):
             return true
     return false
+
+func _source_sightline_clear(document: Dictionary, start: Vector2, finish: Vector2) -> bool:
+    if _inside_source_building(document, start) or _inside_source_building(document, finish):
+        return false
+    for polygon: PackedVector2Array in _source_building_polygons(document):
+        for index: int in range(polygon.size()):
+            var intersection: Variant = Geometry2D.segment_intersects_segment(start, finish, polygon[index], polygon[(index + 1) % polygon.size()])
+            if intersection != null:
+                return false
+    return true
 
 func _run() -> void:
     if _sha256_file(SOURCE_PATH) != EXPECTED_SOURCE_SHA256:
@@ -155,6 +172,12 @@ func _run() -> void:
     if _inside_source_building(document, target_xz):
         _fail("camera target intersects a source building footprint")
         return
+    if not bool(player.get_meta("anneessens_direct_source_sightline_clear", false)):
+        _fail("runtime did not prove a source-building-clear sightline")
+        return
+    if not _source_sightline_clear(document, spawn_xz, target_xz):
+        _fail("spawn-to-Place-Anneessens target sightline crosses a source building footprint")
+        return
 
     var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
     if camera == null:
@@ -182,5 +205,5 @@ func _run() -> void:
     if image.save_png(absolute_output) != OK:
         _fail("capture save failed")
         return
-    print("ANNEESSENS_DIRECT_SPAWN_OK: osm_id=%d anchor_distance=%.3f target_road_distance=%.3f spawn=(%.3f, %.3f) target_screen=(%.1f, %.1f) capture=%s" % [EXPECTED_OSM_ID, spawn_xz.distance_to(EXPECTED_ANCHOR), target_road_distance, spawn_xz.x, spawn_xz.y, screen.x, screen.y, OUTPUT_PATH])
+    print("ANNEESSENS_DIRECT_SPAWN_OK: osm_id=%d anchor_distance=%.3f target_road_distance=%.3f source_sightline_clear=true spawn=(%.3f, %.3f) target_screen=(%.1f, %.1f) capture=%s" % [EXPECTED_OSM_ID, spawn_xz.distance_to(EXPECTED_ANCHOR), target_road_distance, spawn_xz.x, spawn_xz.y, screen.x, screen.y, OUTPUT_PATH])
     quit(0)

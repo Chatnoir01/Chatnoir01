@@ -17,10 +17,6 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: grand-bruxelles-autonomous-citygen
-  cancel-in-progress: false
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -42,6 +38,9 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:

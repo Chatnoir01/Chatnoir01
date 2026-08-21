@@ -3,24 +3,24 @@ class_name RgsdevVehicleVisual
 
 const PACK_CONTRACT := "rgsdev_cc0_vehicles_v1"
 const COMPACT_MAGIC := "RGV1"
-const MAX_DECOMPRESSED_MODEL_BYTES := 512 * 1024
-const MODEL_PATHS := {
-    "hatchback": "res://game/assets/vehicles/rgsdev/hatchback.rgvz",
-    "limousine": "res://game/assets/vehicles/rgsdev/limousine.rgvz",
-    "muscle": "res://game/assets/vehicles/rgsdev/muscle.rgvz",
-    "muscle_2": "res://game/assets/vehicles/rgsdev/muscle_2.rgvz",
-    "pickup": "res://game/assets/vehicles/rgsdev/pickup.rgvz",
-    "police_muscle": "res://game/assets/vehicles/rgsdev/police_muscle.rgvz",
-    "police_sedan": "res://game/assets/vehicles/rgsdev/police_sedan.rgvz",
-    "police_sports": "res://game/assets/vehicles/rgsdev/police_sports.rgvz",
-    "police_suv": "res://game/assets/vehicles/rgsdev/police_suv.rgvz",
-    "roadster": "res://game/assets/vehicles/rgsdev/roadster.rgvz",
-    "sedan": "res://game/assets/vehicles/rgsdev/sedan.rgvz",
-    "sports": "res://game/assets/vehicles/rgsdev/sports.rgvz",
-    "suv": "res://game/assets/vehicles/rgsdev/suv.rgvz",
-    "taxi": "res://game/assets/vehicles/rgsdev/taxi.rgvz",
-    "van": "res://game/assets/vehicles/rgsdev/van.rgvz",
-}
+const PACK_MAGIC := "RGP1"
+const MAX_DECOMPRESSED_PACK_BYTES := 1024 * 1024
+const MODEL_IDS := [
+    "sedan", "hatchback", "suv", "van", "pickup", "muscle", "muscle_2", "roadster", "sports", "taxi", "limousine",
+    "police_sedan", "police_suv", "police_muscle", "police_sports",
+]
+const PACK_CHUNK_PATHS := [
+    "res://game/assets/vehicles/rgsdev/vehicles_00.rgvp",
+    "res://game/assets/vehicles/rgsdev/vehicles_01.rgvp",
+    "res://game/assets/vehicles/rgsdev/vehicles_02.rgvp",
+    "res://game/assets/vehicles/rgsdev/vehicles_03.rgvp",
+    "res://game/assets/vehicles/rgsdev/vehicles_04.rgvp",
+    "res://game/assets/vehicles/rgsdev/vehicles_05.rgvp",
+    "res://game/assets/vehicles/rgsdev/vehicles_06.rgvp",
+    "res://game/assets/vehicles/rgsdev/vehicles_07.rgvp",
+    "res://game/assets/vehicles/rgsdev/vehicles_08.rgvp",
+    "res://game/assets/vehicles/rgsdev/vehicles_09.rgvp",
+]
 const CIVILIAN_MODELS := [
     "sedan", "hatchback", "suv", "van", "pickup", "muscle", "muscle_2", "roadster", "sports", "taxi", "limousine"
 ]
@@ -47,6 +47,8 @@ const MODEL_SCALES := {
 }
 
 static var _scene_cache: Dictionary = {}
+static var _model_payload_cache: Dictionary = {}
+static var _pack_loaded := false
 
 @export var model_id: String = "sedan"
 @export var model_scale: Vector3 = Vector3.ONE
@@ -71,7 +73,7 @@ func configure_for_police(serial: int = 0) -> void:
     model_id = POLICE_MODELS[posmod(serial, POLICE_MODELS.size())]
 
 func configure_model(new_model_id: String) -> void:
-    if MODEL_PATHS.has(new_model_id):
+    if new_model_id in MODEL_IDS:
         model_id = new_model_id
     if is_inside_tree():
         _load_model()
@@ -80,10 +82,11 @@ func get_visual_contract() -> Dictionary:
     return {
         "quality": PACK_CONTRACT,
         "model_id": model_id,
-        "source_path": str(MODEL_PATHS.get(model_id, "")),
+        "source_path": "rgsdev_compact_pack:%s" % model_id,
         "license": "CC0",
         "wheel_animation": animate_wheels,
         "wheel_count": _wheel_nodes.size(),
+        "road_models": MODEL_IDS.size(),
         "special_models_pending_heavy_physics": SPECIAL_MODELS_REQUIRING_HEAVY_PHYSICS.duplicate(),
     }
 
@@ -107,50 +110,83 @@ func _load_model() -> void:
     add_child(_instance)
     _collect_wheels(_instance)
     set_meta("rgsdev_model_id", model_id)
-    set_meta("rgsdev_source_path", str(MODEL_PATHS.get(model_id, "")))
+    set_meta("rgsdev_source_path", "rgsdev_compact_pack:%s" % model_id)
     set_meta("rgsdev_license", "CC0")
 
 func _instantiate_model(requested_model_id: String) -> Node3D:
-    var safe_model_id := requested_model_id if MODEL_PATHS.has(requested_model_id) else "sedan"
+    var safe_model_id := requested_model_id if requested_model_id in MODEL_IDS else "sedan"
     if _scene_cache.has(safe_model_id):
         var cached := _scene_cache[safe_model_id] as PackedScene
         return cached.instantiate() as Node3D
-    var path := str(MODEL_PATHS[safe_model_id])
-    if not FileAccess.file_exists(path):
-        push_error("RGSDEV compact model missing: %s" % path)
+    if not _ensure_pack_loaded() or not _model_payload_cache.has(safe_model_id):
+        push_error("RGSDEV compact pack does not contain model: %s" % safe_model_id)
         return null
-    var encoded := FileAccess.get_file_as_string(path).strip_edges()
-    var compressed := Marshalls.base64_to_raw(encoded)
-    if compressed.is_empty():
-        push_error("RGSDEV compact model is invalid base64: %s" % path)
-        return null
-    var raw := compressed.decompress_dynamic(MAX_DECOMPRESSED_MODEL_BYTES, FileAccess.COMPRESSION_ZSTD)
-    if raw.is_empty():
-        push_error("RGSDEV compact model cannot be decompressed: %s" % path)
-        return null
+    var raw: PackedByteArray = _model_payload_cache[safe_model_id]
     var generated := _decode_compact_scene(raw)
     if generated == null:
-        push_error("RGSDEV compact model decode failed: %s" % path)
+        push_error("RGSDEV compact model decode failed: %s" % safe_model_id)
         return null
     var packed := PackedScene.new()
     var pack_error := packed.pack(generated)
     if pack_error != OK:
-        push_error("RGSDEV compact scene cache packing failed for %s: %s" % [path, error_string(pack_error)])
+        push_error("RGSDEV compact scene cache packing failed for %s: %s" % [safe_model_id, error_string(pack_error)])
         generated.free()
         return null
     _scene_cache[safe_model_id] = packed
     generated.free()
     return packed.instantiate() as Node3D
 
+func _ensure_pack_loaded() -> bool:
+    if _pack_loaded:
+        return _model_payload_cache.size() == MODEL_IDS.size()
+    var encoded := ""
+    for path: String in PACK_CHUNK_PATHS:
+        if not FileAccess.file_exists(path):
+            push_error("RGSDEV compact pack chunk missing: %s" % path)
+            return false
+        encoded += FileAccess.get_file_as_string(path).strip_edges()
+    var compressed := Marshalls.base64_to_raw(encoded)
+    if compressed.is_empty():
+        push_error("RGSDEV compact pack is invalid base64")
+        return false
+    var raw := compressed.decompress_dynamic(MAX_DECOMPRESSED_PACK_BYTES, FileAccess.COMPRESSION_ZSTD)
+    if raw.is_empty():
+        push_error("RGSDEV compact pack cannot be decompressed")
+        return false
+    var peer := StreamPeerBuffer.new()
+    peer.big_endian = false
+    peer.data_array = raw
+    var magic_result := peer.get_data(4)
+    if int(magic_result[0]) != OK or (magic_result[1] as PackedByteArray).get_string_from_ascii() != PACK_MAGIC:
+        push_error("RGSDEV compact pack magic mismatch")
+        return false
+    var model_count := peer.get_u8()
+    if model_count != MODEL_IDS.size():
+        push_error("RGSDEV compact pack model count mismatch: %d" % model_count)
+        return false
+    _model_payload_cache.clear()
+    for _index: int in range(model_count):
+        var name_length := peer.get_u8()
+        var name_result := peer.get_data(name_length)
+        if int(name_result[0]) != OK:
+            return false
+        var packed_model_id := (name_result[1] as PackedByteArray).get_string_from_utf8()
+        var byte_count := peer.get_u32()
+        if byte_count <= 0 or byte_count > MAX_DECOMPRESSED_PACK_BYTES:
+            return false
+        var payload_result := peer.get_data(byte_count)
+        if int(payload_result[0]) != OK:
+            return false
+        _model_payload_cache[packed_model_id] = payload_result[1] as PackedByteArray
+    _pack_loaded = true
+    return _model_payload_cache.size() == MODEL_IDS.size()
+
 func _decode_compact_scene(raw: PackedByteArray) -> Node3D:
     var peer := StreamPeerBuffer.new()
     peer.big_endian = false
     peer.data_array = raw
     var magic_result := peer.get_data(4)
-    if int(magic_result[0]) != OK:
-        return null
-    var magic: PackedByteArray = magic_result[1]
-    if magic.get_string_from_ascii() != COMPACT_MAGIC:
+    if int(magic_result[0]) != OK or (magic_result[1] as PackedByteArray).get_string_from_ascii() != COMPACT_MAGIC:
         return null
     var root := Node3D.new()
     root.name = "RgsdevVehicleModel"
@@ -164,7 +200,7 @@ func _decode_compact_scene(raw: PackedByteArray) -> Node3D:
         if int(name_result[0]) != OK:
             root.free()
             return null
-        var node_name: String = (name_result[1] as PackedByteArray).get_string_from_utf8()
+        var node_name := (name_result[1] as PackedByteArray).get_string_from_utf8()
         var translation := Vector3(peer.get_float(), peer.get_float(), peer.get_float())
         var rotation := Quaternion(peer.get_float(), peer.get_float(), peer.get_float(), peer.get_float()).normalized()
         var node_scale := Vector3(peer.get_float(), peer.get_float(), peer.get_float())
@@ -174,17 +210,12 @@ func _decode_compact_scene(raw: PackedByteArray) -> Node3D:
             return null
         var array_mesh := ArrayMesh.new()
         for _primitive_index: int in range(primitive_count):
-            var color := Color(
-                float(peer.get_u8()) / 255.0,
-                float(peer.get_u8()) / 255.0,
-                float(peer.get_u8()) / 255.0,
-                float(peer.get_u8()) / 255.0
-            )
+            var color := Color(float(peer.get_u8()) / 255.0, float(peer.get_u8()) / 255.0, float(peer.get_u8()) / 255.0, float(peer.get_u8()) / 255.0)
             var roughness := float(peer.get_u8()) / 255.0
             var metallic := float(peer.get_u8()) / 255.0
             var vertex_count := peer.get_u16()
             var index_count := peer.get_u16()
-            if vertex_count <= 0 or vertex_count > 65535 or index_count < 3 or index_count > 65535:
+            if vertex_count <= 0 or index_count < 3:
                 root.free()
                 return null
             var minimum := Vector3(peer.get_float(), peer.get_float(), peer.get_float())
@@ -192,19 +223,16 @@ func _decode_compact_scene(raw: PackedByteArray) -> Node3D:
             var positions := PackedVector3Array()
             positions.resize(vertex_count)
             for vertex_index: int in range(vertex_count):
-                var qx := float(peer.get_u16()) / 65535.0
-                var qy := float(peer.get_u16()) / 65535.0
-                var qz := float(peer.get_u16()) / 65535.0
                 positions[vertex_index] = Vector3(
-                    lerpf(minimum.x, maximum.x, qx),
-                    lerpf(minimum.y, maximum.y, qy),
-                    lerpf(minimum.z, maximum.z, qz)
+                    lerpf(minimum.x, maximum.x, float(peer.get_u16()) / 65535.0),
+                    lerpf(minimum.y, maximum.y, float(peer.get_u16()) / 65535.0),
+                    lerpf(minimum.z, maximum.z, float(peer.get_u16()) / 65535.0)
                 )
             var indices := PackedInt32Array()
             indices.resize(index_count)
             for index: int in range(index_count):
                 indices[index] = peer.get_u16()
-                if indices[index] < 0 or indices[index] >= vertex_count:
+                if indices[index] >= vertex_count:
                     root.free()
                     return null
             var material := StandardMaterial3D.new()

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Bound CIV-1 review textures and stage the pinned CC0 footwear witness.
+"""Bound CIV-1 review textures and stage pinned CC0 footwear witnesses.
 
 This runs only after the legal/animation-free preparation step. It never edits
-Vitruvian GLB geometry, skins, skeletons or shaders. The MakeHuman footwear is
-staged as a separate review-only mesh with its own pinned source/license so the
-painted-bare-foot surface can be rejected without hiding provenance.
+Vitruvian GLB geometry, skins, skeletons or shaders. MakeHuman footwear is
+staged as separate review-only geometry with pinned source/license evidence.
+The primary visual witness is shoes03 (boots); shoes04 is retained only as a
+compatibility resource for the historical parent capture gate.
 """
 from __future__ import annotations
 
@@ -22,10 +23,12 @@ IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
 
 FOOTWEAR_REPOSITORY = "furqonat/makehuman-assets"
 FOOTWEAR_COMMIT = "8cf9645b975a98eea056b140df11a1d278da0d10"
-FOOTWEAR_OBJ_PATH = "base/clothes/shoes04/shoes04.obj"
+FOOTWEAR_OBJ_PATH = "base/clothes/shoes03/shoes03.obj"
 FOOTWEAR_LICENSE_PATH = "LICENSE.txt"
-FOOTWEAR_OBJ_GIT_BLOB = "5137b1da52be37e8b5c98f1d3d47c31165ed4023"
+FOOTWEAR_OBJ_GIT_BLOB = "2cd09f0af9c5bd13604d57d8af19e9205933ee85"
 FOOTWEAR_LICENSE_GIT_BLOB = "0e259d42c996742e9e3cba14c677129b2c1b6311"
+LEGACY_FOOTWEAR_OBJ_PATH = "base/clothes/shoes04/shoes04.obj"
+LEGACY_FOOTWEAR_OBJ_GIT_BLOB = "5137b1da52be37e8b5c98f1d3d47c31165ed4023"
 RAW_ROOT = (
     "https://raw.githubusercontent.com/"
     + FOOTWEAR_REPOSITORY
@@ -60,25 +63,33 @@ def fetch_bytes(relative_path: str) -> bytes:
     return data
 
 
+def _verify_cc0_obj(data: bytes, expected_blob: str, label: str) -> None:
+    if git_blob_sha1(data) != expected_blob:
+        raise RuntimeError(f"pinned {label} OBJ blob hash mismatch")
+    header = data[:4096].decode("utf-8", errors="replace")
+    if "explicitly released as CC0" not in header:
+        raise RuntimeError(f"{label} OBJ lacks explicit CC0 header evidence")
+
+
 def stage_cc0_footwear(root: pathlib.Path) -> dict[str, Any]:
     obj = fetch_bytes(FOOTWEAR_OBJ_PATH)
+    legacy_obj = fetch_bytes(LEGACY_FOOTWEAR_OBJ_PATH)
     license_text = fetch_bytes(FOOTWEAR_LICENSE_PATH)
 
-    if git_blob_sha1(obj) != FOOTWEAR_OBJ_GIT_BLOB:
-        raise RuntimeError("pinned shoes04 OBJ blob hash mismatch")
+    _verify_cc0_obj(obj, FOOTWEAR_OBJ_GIT_BLOB, "shoes03")
+    _verify_cc0_obj(legacy_obj, LEGACY_FOOTWEAR_OBJ_GIT_BLOB, "shoes04")
     if git_blob_sha1(license_text) != FOOTWEAR_LICENSE_GIT_BLOB:
         raise RuntimeError("pinned MakeHuman CC0 license blob hash mismatch")
 
-    header = obj[:4096].decode("utf-8", errors="replace")
-    if "explicitly released as CC0" not in header:
-        raise RuntimeError("shoes04 OBJ lacks explicit CC0 header evidence")
     decoded_license = license_text.decode("utf-8", errors="replace")
     if "CC0 1.0 Universal" not in decoded_license:
         raise RuntimeError("MakeHuman asset license is not CC0 1.0 Universal")
 
-    obj_out = root / "shoes04_cc0.obj"
-    license_out = root / "MAKEHUMAN_SHOES04_CC0_LICENSE.txt"
+    obj_out = root / "shoes03_cc0.obj"
+    legacy_out = root / "shoes04_cc0.obj"
+    license_out = root / "MAKEHUMAN_SHOES03_CC0_LICENSE.txt"
     obj_out.write_bytes(obj)
+    legacy_out.write_bytes(legacy_obj)
     license_out.write_bytes(license_text)
 
     return {
@@ -91,6 +102,13 @@ def stage_cc0_footwear(root: pathlib.Path) -> dict[str, Any]:
         "obj_sha256": hashlib.sha256(obj).hexdigest(),
         "obj_bytes": len(obj),
         "staged_name": obj_out.name,
+        "asset_role": "primary_visual_boot",
+        "legacy_gate_resource": {
+            "path": LEGACY_FOOTWEAR_OBJ_PATH,
+            "obj_git_blob_sha1": git_blob_sha1(legacy_obj),
+            "staged_name": legacy_out.name,
+            "visual_owner": False,
+        },
         "character_geometry_modified": False,
         "review_only": True,
     }
@@ -164,7 +182,7 @@ def main() -> None:
         )
 
     report = {
-        "schema": "grand-bruxelles-civ1-review-optimization-v2",
+        "schema": "grand-bruxelles-civ1-review-optimization-v3",
         "production_authorized": False,
         "geometry_modified": False,
         "skin_skeleton_modified": False,

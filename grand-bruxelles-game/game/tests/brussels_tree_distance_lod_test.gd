@@ -2,6 +2,7 @@ extends SceneTree
 
 const RUNTIME := preload("res://game/scripts/brussels_osm_environment_runtime.gd")
 const TREE := preload("res://game/scripts/brussels_street_tree_asset.gd")
+const JETTE_DATA := "res://data/osm/zones/jette/environment.game.json"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -17,9 +18,16 @@ func _instance_count(node: Node, name_value: String) -> int:
     return batch.multimesh.instance_count
 
 func _run() -> void:
+    if not FileAccess.file_exists(JETTE_DATA):
+        _fail("valid environment fixture missing")
+        return
     var runtime := RUNTIME.new()
+    runtime.data_path = JETTE_DATA
     root.add_child(runtime)
     runtime.set_process(false)
+    if not bool(runtime.call("loaded_ok")):
+        _fail("valid environment fixture rejected")
+        return
     if not "tree_full_detail_radius_m" in runtime:
         _fail("distance-aware tree LOD radius missing")
         return
@@ -32,6 +40,9 @@ func _run() -> void:
         {"osm_id": 101, "position": near_base, "distance_sq": near_base.length_squared()},
         {"osm_id": 202, "position": far_base, "distance_sq": far_base.length_squared()},
     ]
+    for child in runtime.get_children():
+        runtime.remove_child(child)
+        child.queue_free()
     runtime.call("_build_tree_batches", rows)
     if _instance_count(runtime, "TreeTrunks") != 2:
         _fail("tree LOD must preserve every source-backed trunk")
@@ -55,5 +66,5 @@ func _run() -> void:
         if runtime.get_node_or_null(name_value) == null:
             _fail("deterministic tree batch name lost after repeated rebuild: %s" % name_value)
             return
-    print("BRUSSELS_TREE_DISTANCE_LOD_OK: trunks=2 foliage=%d full_detail=%d near_lobes=%d deterministic_rebuild=true" % [foliage_total, full_detail_total, TREE.FOLIAGE_LOBE_COUNT])
+    print("BRUSSELS_TREE_DISTANCE_LOD_OK: trunks=2 foliage=%d full_detail=%d near_lobes=%d deterministic_rebuild=true fixture_contract=true" % [foliage_total, full_detail_total, TREE.FOLIAGE_LOBE_COUNT])
     quit(0)

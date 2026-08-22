@@ -1,11 +1,11 @@
-name: Grand Bruxelles Primary Physical Vehicle
+name: Grand Bruxelles Production Mission Vehicle
 
 on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/mission_drive_to_center.gd"
-      - "grand-bruxelles-game/game/scripts/vehicle_dynamics_60hz.gd"
-      - "grand-bruxelles-game/game/scripts/vehicle_physics_controller.gd"
+      - "grand-bruxelles-game/game/scripts/vehicle_controller.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_manager_rgsdev_vehicle_extension.gd"
       - "grand-bruxelles-game/game/tests/primary_physical_vehicle_test.gd"
       - ".github/workflows/grand-bruxelles-primary-physical-vehicle.yml"
   workflow_dispatch:
@@ -14,26 +14,37 @@ permissions:
   contents: read
 
 jobs:
-  primary-physical-vehicle:
-    runs-on: ubuntu-latest
+  production-mission-vehicle:
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Install Godot 4.7.1
         run: |
+          set -euo pipefail
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -F "4.7.1.stable"
       - name: Import project
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/primary-vehicle-import.log
-          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/primary-vehicle-import.log; then exit 1; fi
-      - name: Prove physical B mission vehicle and driving tune
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/production-mission-vehicle-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/production-mission-vehicle-import.log; then exit 1; fi
+      - name: Prove production mission vehicle lifecycle
         shell: bash
         run: |
           set -o pipefail
-          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/primary_physical_vehicle_test.gd 2>&1 | tee /tmp/primary-vehicle.log
-          if grep -E "SCRIPT ERROR|Parse Error:|PRIMARY_PHYSICAL_VEHICLE_FAIL" /tmp/primary-vehicle.log; then exit 1; fi
-          grep -q "PRIMARY_PHYSICAL_VEHICLE_OK" /tmp/primary-vehicle.log
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/primary_physical_vehicle_test.gd 2>&1 | tee /tmp/production-mission-vehicle.log
+          if grep -E "SCRIPT ERROR|Parse Error:|PRODUCTION_MISSION_VEHICLE_FAIL" /tmp/production-mission-vehicle.log; then exit 1; fi
+          grep -F "PRODUCTION_MISSION_VEHICLE_OK primary=PrototypeCar physical_prototype_removed=true mission_started=true" /tmp/production-mission-vehicle.log
+      - name: Upload production mission vehicle evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-production-mission-vehicle
+          path: |
+            /tmp/production-mission-vehicle-import.log
+            /tmp/production-mission-vehicle.log
+          if-no-files-found: error

@@ -19,7 +19,6 @@ from urllib.request import Request, urlopen
 SCHEMA = "grand-bruxelles-official-sidewalk-corridor-extract-v1"
 CRS = "EPSG:31370"
 LAYER = "bm_urbis:urbadm_ssw"
-GEOMETRY_FIELD = "geom"
 REQUIRED_CLASS = "SW"
 DEFAULT_BBOX = [147650.0, 169300.0, 149100.0, 171050.0]
 WFS_ENDPOINT = "https://data.mobility.brussels/geoserver/bm_urbis/wfs"
@@ -42,14 +41,6 @@ def _validate_bbox(query_bbox: list[float]) -> list[float]:
     return bbox
 
 
-def build_cql_filter(query_bbox: list[float] | None = None) -> str:
-    min_x, min_y, max_x, max_y = _validate_bbox(query_bbox or DEFAULT_BBOX)
-    return (
-        f"BBOX({GEOMETRY_FIELD},{min_x:.3f},{min_y:.3f},{max_x:.3f},{max_y:.3f},'{CRS}') "
-        f"AND ssft='{REQUIRED_CLASS}'"
-    )
-
-
 def build_wfs_url(query_bbox: list[float] | None = None) -> str:
     bbox = _validate_bbox(query_bbox or DEFAULT_BBOX)
     params = {
@@ -59,7 +50,7 @@ def build_wfs_url(query_bbox: list[float] | None = None) -> str:
         "typeName": LAYER,
         "outputFormat": "json",
         "srsName": CRS,
-        "CQL_FILTER": build_cql_filter(bbox),
+        "bbox": ",".join(f"{value:.3f}" for value in bbox),
     }
     return f"{WFS_ENDPOINT}?{urlencode(params)}"
 
@@ -90,24 +81,28 @@ def canonicalize_feature_collection(raw: bytes, query_bbox: list[float] | None =
         raise ValueError("official sidewalk response has no features")
 
     features: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
+    seen_selected_ids: set[str] = set()
+    excluded_ssft_counts: dict[str, int] = {}
     for feature in source_features:
         if not isinstance(feature, dict):
             raise ValueError("malformed sidewalk feature")
         feature_id = str(feature.get("id", "")).strip()
         if not feature_id:
             raise ValueError("sidewalk feature identity missing")
-        if feature_id in seen_ids:
-            raise ValueError(f"duplicate sidewalk feature identity: {feature_id}")
-        seen_ids.add(feature_id)
         properties = feature.get("properties")
         if not isinstance(properties, dict):
             raise ValueError(f"sidewalk feature properties missing: {feature_id}")
         ssft = str(properties.get("ssft", "")).strip()
         if ssft != REQUIRED_CLASS:
-            raise ValueError(f"non-SW feature leaked into sidewalk extract: {feature_id} ssft={ssft!r}")
+            excluded_ssft_counts[ssft or "<missing>"] = excluded_ssft_counts.get(ssft or "<missing>", 0) + 1
+            continue
+        if feature_id in seen_selected_ids:
+            raise ValueError(f"duplicate selected sidewalk feature identity: {feature_id}")
+        seen_selected_ids.add(feature_id)
         features.append({"feature_id": feature_id, "ssft": ssft, "geometry": _canonical_geometry(feature)})
 
+    if not features:
+        raise ValueError("official bounded sidewalk response has no SW features")
     features.sort(key=lambda item: item["feature_id"])
     ids_bytes = "".join(f"{item['feature_id']}\n" for item in features).encode("utf-8")
     return {
@@ -120,13 +115,15 @@ def canonicalize_feature_collection(raw: bytes, query_bbox: list[float] | None =
             "crs": CRS,
             "semantic_field": "ssft",
             "semantic_class": REQUIRED_CLASS,
-            "geometry_field": GEOMETRY_FIELD,
             "wfs_endpoint": WFS_ENDPOINT,
         },
         "crs": CRS,
         "query_bbox": bbox,
-        "query_filter": build_cql_filter(bbox),
+        "query_filter": "server_bbox_only_then_fail_closed_local_ssft_SW_selection",
+        "input_feature_count": len(source_features),
         "feature_count": len(features),
+        "excluded_non_sw_count": len(source_features) - len(features),
+        "excluded_ssft_counts": dict(sorted(excluded_ssft_counts.items())),
         "source_sha256": _sha256(raw),
         "feature_id_sha256": _sha256(ids_bytes),
         "features": features,
@@ -187,6 +184,8 @@ def main() -> int:
     print(
         "OFFICIAL_SIDEWALK_EXTRACT_OK "
         f"features={canonical['feature_count']} "
+        f"input={canonical['input_feature_count']} "
+        f"excluded_non_sw={canonical['excluded_non_sw_count']} "
         f"source_sha256={canonical['source_sha256']} "
         f"feature_id_sha256={canonical['feature_id_sha256']} "
         f"bbox={','.join(str(value) for value in bbox)} "

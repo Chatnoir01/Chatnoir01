@@ -59,6 +59,37 @@ jobs:
           grep -F "witness=res://artifacts/automatic_road/automatic_road_player_witness.png" /tmp/automatic-road-spawn.log
           test -s grand-bruxelles-game/artifacts/automatic_road/automatic_road_player_witness.png
 
+      - name: Stage exact player-view evidence
+        run: |
+          set -euo pipefail
+          evidence_dir=/tmp/automatic-road-evidence
+          witness=grand-bruxelles-game/artifacts/automatic_road/automatic_road_player_witness.png
+          rm -rf "$evidence_dir"
+          mkdir -p "$evidence_dir"
+          cp /tmp/automatic-road-import.log "$evidence_dir/automatic-road-import.log"
+          cp /tmp/automatic-road-spawn.log "$evidence_dir/automatic-road-spawn.log"
+          cp "$witness" "$evidence_dir/automatic_road_player_witness.png"
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+
+          path = Path('/tmp/automatic-road-evidence/automatic_road_player_witness.png')
+          data = path.read_bytes()
+          if len(data) <= 24:
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: PNG is empty/truncated')
+          if data[:8] != b'\x89PNG\r\n\x1a\n':
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: invalid PNG signature')
+          if data[12:16] != b'IHDR':
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: missing IHDR')
+          width, height = struct.unpack('>II', data[16:24])
+          if (width, height) != (1280, 720):
+              raise SystemExit(f'AUTOMATIC_ROAD_WITNESS_FAIL: expected 1280x720, got {width}x{height}')
+          print(f'AUTOMATIC_ROAD_WITNESS_STAGED: bytes={len(data)} size={width}x{height}')
+          PY
+          test -s "$evidence_dir/automatic-road-import.log"
+          test -s "$evidence_dir/automatic-road-spawn.log"
+          test -s "$evidence_dir/automatic_road_player_witness.png"
+
       - name: Verify safe Web request grammar
         run: |
           grep -F "const DIRECT_SPAWN_ROAD = /^road-[1-9][0-9]{0,17}$/.test(DIRECT_SPAWN || '');" .github/workflows/grand-bruxelles-web.yml
@@ -70,9 +101,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: automatic-road-spawn-evidence
-          path: |
-            /tmp/automatic-road-import.log
-            /tmp/automatic-road-spawn.log
-            grand-bruxelles-game/artifacts/automatic_road/automatic_road_player_witness.png
+          path: /tmp/automatic-road-evidence/
           if-no-files-found: error
           retention-days: 14

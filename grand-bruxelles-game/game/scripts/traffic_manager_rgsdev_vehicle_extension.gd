@@ -23,6 +23,11 @@ func _configure_labo_civilian_visual(visual: Node, serial: int) -> void:
 func get_labo_civilian_model_cycle() -> Array:
     return LABO_CIVILIAN_MODEL_CYCLE.duplicate()
 
+func _static_vehicle_position_respects_player_clearance(candidate_position: Vector3) -> bool:
+    var planar_delta := candidate_position - _anchor_position()
+    planar_delta.y = 0.0
+    return planar_delta.length() >= MIN_SPAWN_CLEARANCE_M
+
 func _create_vehicle_node() -> TrafficVehicleCore:
     var archetype := _choose_archetype()
     var vehicle := DRIVABLE_TRAFFIC_VEHICLE_SCRIPT.new() as TrafficVehicleCore
@@ -64,10 +69,7 @@ func _add_car_visual(vehicle: Node3D) -> void:
 
 func _spawn_parked_vehicle(candidate: Dictionary) -> void:
     var candidate_position: Vector3 = candidate.get("position", Vector3.ZERO)
-    var anchor := _anchor_position()
-    var planar_delta := candidate_position - anchor
-    planar_delta.y = 0.0
-    if planar_delta.length() < MIN_SPAWN_CLEARANCE_M:
+    if not _static_vehicle_position_respects_player_clearance(candidate_position):
         return
 
     var body := DRIVABLE_TRAFFIC_VEHICLE_SCRIPT.new()
@@ -95,12 +97,46 @@ func _spawn_parked_vehicle(candidate: Dictionary) -> void:
     body.call("configure_as_parked")
     _parking_root.add_child(body)
 
+func _replenish_deliveries() -> void:
+    if not auto_spawn_runtime or _delivery_root == null or max_delivery_vehicles <= 0:
+        return
+    var anchor := _anchor_position()
+    var eligible: Array[Dictionary] = []
+    for candidate: Dictionary in _parking_candidates:
+        if not DELIVERY_CLASSES.has(str(candidate.get("road_class", ""))):
+            continue
+        var position: Vector3 = candidate.get("position", Vector3.ZERO)
+        if position.distance_to(anchor) > delivery_spawn_radius_m:
+            continue
+        if not _static_vehicle_position_respects_player_clearance(position):
+            continue
+        var candidate_id := int(candidate.get("id", -1))
+        if is_parking_candidate_available(candidate_id):
+            eligible.append(candidate)
+    var attempts := 0
+    while get_delivery_vehicle_count() < max_delivery_vehicles and attempts < eligible.size() * 3:
+        attempts += 1
+        var candidate: Dictionary = eligible[_delivery_rng.randi_range(0, eligible.size() - 1)]
+        var candidate_id := int(candidate.get("id", -1))
+        var owner := "delivery:%d" % _delivery_serial
+        if not reserve_parking_candidate(candidate_id, owner):
+            continue
+        _spawn_delivery_vehicle(candidate, owner)
+        eligible.erase(candidate)
+        if eligible.is_empty():
+            break
+
 func _spawn_delivery_vehicle(candidate: Dictionary, reservation_owner: String) -> void:
+    var candidate_position: Vector3 = candidate.get("position", Vector3.ZERO)
+    if not _static_vehicle_position_respects_player_clearance(candidate_position):
+        release_parking_candidate(int(candidate.get("id", -1)), reservation_owner)
+        return
+
     var van := DRIVABLE_TRAFFIC_VEHICLE_SCRIPT.new()
     van.name = "DeliveryVan_%03d" % _delivery_serial
     van.collision_layer = 1
     van.collision_mask = 1
-    van.position = candidate.get("position", Vector3.ZERO)
+    van.position = candidate_position
     van.rotation.y = float(candidate.get("yaw", 0.0))
     van.set_meta("parking_candidate_id", int(candidate.get("id", -1)))
     van.set_meta("reservation_owner", reservation_owner)

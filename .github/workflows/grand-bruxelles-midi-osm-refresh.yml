@@ -7,12 +7,16 @@ on:
       - feat/city-machine-midi-osm-regional-cache
     paths:
       - ".github/workflows/grand-bruxelles-midi-osm-refresh.yml"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-osm-refresh.yml"
 
 permissions:
   contents: write
 
 jobs:
   refresh-midi-osm:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feat/city-machine-midi-osm-regional-cache'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

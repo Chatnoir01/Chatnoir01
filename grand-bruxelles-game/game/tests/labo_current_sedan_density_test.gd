@@ -2,6 +2,7 @@ extends SceneTree
 
 const MANAGER_SCRIPT := preload("res://game/scripts/traffic_manager_npc_crossing_extension.gd")
 const RGSDEV_SCRIPT := preload("res://game/scripts/rgsdev_vehicle_visual.gd")
+const EXPECTED_PLAYER_CLEARANCE_M := 7.0
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -58,6 +59,40 @@ func _run() -> void:
     root.add_child(world)
     manager.reparent(world)
 
+    # RED regression for the player-visible Performance blocker. Moving traffic
+    # already uses the core MIN_SPAWN_CLEARANCE_M (7 m), but the parked path
+    # historically bypassed it and could place a bright vehicle directly beside
+    # the canonical player spawn, clipping into the right edge of the frozen
+    # 1280x720 frame. Parking must honor the same existing clearance contract.
+    var player := Node3D.new()
+    player.name = "Player"
+    player.position = Vector3.ZERO
+    world.add_child(player)
+    var near_candidate := {
+        "id": 9001,
+        "position": Vector3(EXPECTED_PLAYER_CLEARANCE_M - 0.5, 0.0, 0.0),
+        "yaw": 0.0,
+        "road_name": "clearance-red",
+        "osm_id": 1,
+    }
+    manager.call("_spawn_parked_vehicle", near_candidate)
+    await process_frame
+    if int(manager.call("get_parked_vehicle_count")) != 0:
+        _fail("parked vehicle spawned inside existing %.1f m player clearance" % EXPECTED_PLAYER_CLEARANCE_M)
+        return
+    var safe_candidate := {
+        "id": 9002,
+        "position": Vector3(EXPECTED_PLAYER_CLEARANCE_M + 1.0, 0.0, 0.0),
+        "yaw": 0.0,
+        "road_name": "clearance-green",
+        "osm_id": 2,
+    }
+    manager.call("_spawn_parked_vehicle", safe_candidate)
+    await process_frame
+    if int(manager.call("get_parked_vehicle_count")) != 1:
+        _fail("parked vehicle outside player clearance was incorrectly rejected")
+        return
+
     var starter := Node3D.new()
     starter.name = "PrototypeCar"
     world.add_child(starter)
@@ -89,5 +124,5 @@ func _run() -> void:
         _fail("starter vehicle is no longer the current sedan")
         return
 
-    print("LABO_CURRENT_SEDAN_DENSITY_OK: current_sedan=6/10 allowed=sedan,hatchback,suv,van,pickup legacy_removed=true")
+    print("LABO_CURRENT_SEDAN_DENSITY_OK: current_sedan=6/10 allowed=sedan,hatchback,suv,van,pickup legacy_removed=true parking_player_clearance_m=%.1f" % EXPECTED_PLAYER_CLEARANCE_M)
     quit(0)

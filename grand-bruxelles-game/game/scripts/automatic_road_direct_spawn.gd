@@ -115,6 +115,27 @@ func runtime_index_source_document_count() -> int:
     return _source_sha_by_path.size() if _load_runtime_index() else 0
 
 
+func runtime_index_playable_authorized() -> bool:
+    var index := _parse_document(RUNTIME_INDEX_PATH)
+    if index.is_empty() or str(index.get("format", "")) != RUNTIME_INDEX_FORMAT:
+        return false
+    # The source registry may be used for deterministic identity lookup without
+    # granting any runtime side effects. Player movement requires an explicit
+    # all-green authorization contract; missing keys also fail closed.
+    if bool(index.get("source_lookup_only", true)):
+        return false
+    var authorization: Variant = index.get("authorization", {})
+    if not authorization is Dictionary:
+        return false
+    var auth := authorization as Dictionary
+    if bool(auth.get("source_lookup_only", true)):
+        return false
+    for required: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:
+        if not bool(auth.get(required, false)):
+            return false
+    return true
+
+
 func _source_bundle_by_id(osm_id: int) -> Dictionary:
     if osm_id <= 0 or not _load_runtime_index() or not _road_source_path_by_id.has(osm_id):
         return {}

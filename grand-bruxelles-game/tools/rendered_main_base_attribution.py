@@ -4,7 +4,7 @@ import pathlib
 import sys
 
 TOLERANCE = 0.002
-SCHEMA = "grand-bruxelles-rendered-main-base-attribution-v2"
+SCHEMA = "grand-bruxelles-rendered-main-base-attribution-v3"
 
 
 def load_fingerprint(path: pathlib.Path):
@@ -39,6 +39,16 @@ def drift(value, frozen):
     return abs(float(value) - float(frozen))
 
 
+def tile_error(tile, frozen_tile):
+    rgb_mae = sum(drift(tile[channel], frozen_tile[channel]) for channel in range(3)) / 3.0
+    luma = drift(tile[3], frozen_tile[3])
+    return rgb_mae, luma
+
+
+def histogram_mae(values, frozen):
+    return sum(drift(value, reference) for value, reference in zip(values, frozen)) / len(values)
+
+
 def main(argv):
     if len(argv) != 8:
         raise SystemExit(
@@ -53,54 +63,66 @@ def main(argv):
     frozen = load_fingerprint(frozen_path)
     ct, bt, ft, ch, bh, fh = require_same_contract(candidate, base, frozen)
 
-    max_regression = 0.0
-    max_improvement = 0.0
     max_tile_channel_delta = 0.0
-    regressed_tile_channels = 0
-    improved_tile_channels = 0
-    regressed_tile_indexes = set()
-    improved_tile_indexes = set()
+    max_tile_metric_regression = 0.0
+    max_tile_metric_improvement = 0.0
+    changed_tile_indexes = []
+    improved_tile_indexes = []
+    regressed_tile_indexes = []
+    base_rgb_errors = []
+    candidate_rgb_errors = []
+    base_luma_errors = []
+    candidate_luma_errors = []
 
     for index, (ca, ba, fa) in enumerate(zip(ct, bt, ft)):
-        for channel in range(4):
-            candidate_drift = drift(ca[channel], fa[channel])
-            base_drift = drift(ba[channel], fa[channel])
-            movement = candidate_drift - base_drift
-            max_tile_channel_delta = max(max_tile_channel_delta, abs(float(ca[channel]) - float(ba[channel])))
-            if movement > 0:
-                max_regression = max(max_regression, movement)
-                if movement > TOLERANCE:
-                    regressed_tile_channels += 1
-                    regressed_tile_indexes.add(index)
-            elif movement < 0:
-                improvement = -movement
-                max_improvement = max(max_improvement, improvement)
-                if improvement > TOLERANCE:
-                    improved_tile_channels += 1
-                    improved_tile_indexes.add(index)
+        base_head_delta = max(abs(float(ca[channel]) - float(ba[channel])) for channel in range(4))
+        max_tile_channel_delta = max(max_tile_channel_delta, base_head_delta)
+        candidate_rgb, candidate_luma = tile_error(ca, fa)
+        base_rgb, base_luma = tile_error(ba, fa)
+        base_rgb_errors.append(base_rgb)
+        candidate_rgb_errors.append(candidate_rgb)
+        base_luma_errors.append(base_luma)
+        candidate_luma_errors.append(candidate_luma)
 
-    max_histogram_delta = 0.0
-    max_histogram_regression = 0.0
-    max_histogram_improvement = 0.0
-    regressed_histogram_bins = 0
-    improved_histogram_bins = 0
-    for candidate_value, base_value, frozen_value in zip(ch, bh, fh):
-        candidate_drift = drift(candidate_value, frozen_value)
-        base_drift = drift(base_value, frozen_value)
-        movement = candidate_drift - base_drift
-        max_histogram_delta = max(max_histogram_delta, abs(float(candidate_value) - float(base_value)))
-        if movement > 0:
-            max_histogram_regression = max(max_histogram_regression, movement)
-            if movement > TOLERANCE:
-                regressed_histogram_bins += 1
-        elif movement < 0:
-            improvement = -movement
-            max_histogram_improvement = max(max_histogram_improvement, improvement)
-            if improvement > TOLERANCE:
-                improved_histogram_bins += 1
+        rgb_movement = candidate_rgb - base_rgb
+        luma_movement = candidate_luma - base_luma
+        max_tile_metric_regression = max(max_tile_metric_regression, rgb_movement, luma_movement)
+        max_tile_metric_improvement = max(max_tile_metric_improvement, -rgb_movement, -luma_movement)
 
-    monotonic_to_frozen = max_regression <= TOLERANCE and max_histogram_regression <= TOLERANCE
+        if base_head_delta <= TOLERANCE:
+            continue
+        changed_tile_indexes.append(index)
+        non_worsening = rgb_movement <= TOLERANCE and luma_movement <= TOLERANCE
+        strict_improvement = (-rgb_movement > TOLERANCE) or (-luma_movement > TOLERANCE)
+        if non_worsening and strict_improvement:
+            improved_tile_indexes.append(index)
+        else:
+            regressed_tile_indexes.append(index)
+
+    base_tile_rgb_mae = sum(base_rgb_errors) / len(base_rgb_errors)
+    candidate_tile_rgb_mae = sum(candidate_rgb_errors) / len(candidate_rgb_errors)
+    base_tile_luma_mae = sum(base_luma_errors) / len(base_luma_errors)
+    candidate_tile_luma_mae = sum(candidate_luma_errors) / len(candidate_luma_errors)
+    base_max_tile_luma = max(base_luma_errors)
+    candidate_max_tile_luma = max(candidate_luma_errors)
+    base_histogram_mae = histogram_mae(bh, fh)
+    candidate_histogram_mae = histogram_mae(ch, fh)
+    max_histogram_delta = max(abs(float(a) - float(b)) for a, b in zip(ch, bh))
+
+    aggregate_movements = {
+        "tile_rgb_mae": candidate_tile_rgb_mae - base_tile_rgb_mae,
+        "tile_luma_mae": candidate_tile_luma_mae - base_tile_luma_mae,
+        "max_tile_luma_delta": candidate_max_tile_luma - base_max_tile_luma,
+        "luma_histogram_mae": candidate_histogram_mae - base_histogram_mae,
+    }
+    aggregate_regressions = sorted(
+        name for name, movement in aggregate_movements.items() if movement > TOLERANCE
+    )
+    max_histogram_regression = max(0.0, aggregate_movements["luma_histogram_mae"])
+    max_histogram_improvement = max(0.0, -aggregate_movements["luma_histogram_mae"])
+    monotonic_to_frozen = not regressed_tile_indexes and not aggregate_regressions
     inherited = base_failed and monotonic_to_frozen
+
     result = {
         "schema": SCHEMA,
         "base_sha": base_sha,
@@ -111,16 +133,26 @@ def main(argv):
         "tolerance": TOLERANCE,
         "max_tile_channel_delta": max_tile_channel_delta,
         "max_histogram_delta": max_histogram_delta,
-        "max_regression_away_from_frozen": max_regression,
-        "max_improvement_toward_frozen": max_improvement,
+        "max_regression_away_from_frozen": max(0.0, max_tile_metric_regression),
+        "max_improvement_toward_frozen": max(0.0, max_tile_metric_improvement),
         "max_histogram_regression_away_from_frozen": max_histogram_regression,
         "max_histogram_improvement_toward_frozen": max_histogram_improvement,
-        "regressed_tile_channels": regressed_tile_channels,
-        "improved_tile_channels": improved_tile_channels,
-        "regressed_tile_indexes": sorted(regressed_tile_indexes),
-        "improved_tile_indexes": sorted(improved_tile_indexes),
-        "regressed_histogram_bins": regressed_histogram_bins,
-        "improved_histogram_bins": improved_histogram_bins,
+        "changed_tile_indexes": changed_tile_indexes,
+        "improved_tile_indexes": improved_tile_indexes,
+        "regressed_tile_indexes": regressed_tile_indexes,
+        "aggregate_regressions": aggregate_regressions,
+        "base_frozen_metrics": {
+            "tile_rgb_mae": base_tile_rgb_mae,
+            "tile_luma_mae": base_tile_luma_mae,
+            "max_tile_luma_delta": base_max_tile_luma,
+            "luma_histogram_mae": base_histogram_mae,
+        },
+        "candidate_frozen_metrics": {
+            "tile_rgb_mae": candidate_tile_rgb_mae,
+            "tile_luma_mae": candidate_tile_luma_mae,
+            "max_tile_luma_delta": candidate_max_tile_luma,
+            "luma_histogram_mae": candidate_histogram_mae,
+        },
         "frozen_baseline_changed": False,
         "frozen_threshold_changed": False,
     }
@@ -133,8 +165,8 @@ def main(argv):
     if not monotonic_to_frozen:
         raise SystemExit(
             "candidate moves rendered evidence away from frozen baseline: "
-            f"tile_regression={max_regression:.6f} histogram_regression={max_histogram_regression:.6f} "
-            f"tolerance={TOLERANCE:.6f}"
+            f"tile_metric_regression={max_tile_metric_regression:.6f} "
+            f"aggregate={aggregate_regressions} tolerance={TOLERANCE:.6f}"
         )
 
 

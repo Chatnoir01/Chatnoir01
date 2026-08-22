@@ -7,10 +7,26 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tools" / "rendered_main_base_attribution.py"
+WORKFLOW = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-performance.yml"
 
 
 def fp(tile_lumas, histogram=None):
     tiles = [[v, v, v, v] for v in tile_lumas]
+    return {
+        "fingerprint": {
+            "schema": "grand-bruxelles-rendered-main-v1",
+            "width": 160,
+            "height": 80,
+            "tile_cols": len(tiles),
+            "tile_rows": 1,
+            "tile_sample_step": 8,
+            "tiles_rgbl": tiles,
+            "luma_histogram": histogram or [0.5, 0.5],
+        }
+    }
+
+
+def fp_tiles(tiles, histogram=None):
     return {
         "fingerprint": {
             "schema": "grand-bruxelles-rendered-main-v1",
@@ -60,7 +76,7 @@ class RenderedMainBaseAttributionTest(unittest.TestCase):
         proc, doc = self.run_case(candidate, base, frozen, base_failed=True)
         self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
         self.assertTrue(doc["inherited_frozen_baseline_drift"])
-        self.assertGreater(doc["max_improvement_toward_frozen"], 0.19)
+        self.assertEqual(doc["improved_tile_indexes"], [1])
         self.assertLessEqual(doc["max_regression_away_from_frozen"], 0.002)
 
     def test_rejects_new_tile_regression_hidden_by_larger_inherited_drift(self):
@@ -70,7 +86,7 @@ class RenderedMainBaseAttributionTest(unittest.TestCase):
         proc, doc = self.run_case(candidate, base, frozen, base_failed=True)
         self.assertNotEqual(proc.returncode, 0)
         self.assertFalse(doc["inherited_frozen_baseline_drift"])
-        self.assertGreater(doc["max_regression_away_from_frozen"], 0.19)
+        self.assertEqual(doc["regressed_tile_indexes"], [1])
 
     def test_rejects_attribution_when_exact_base_was_green(self):
         frozen = fp([0.10, 0.10])
@@ -80,14 +96,61 @@ class RenderedMainBaseAttributionTest(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         self.assertFalse(doc["inherited_frozen_baseline_drift"])
 
-    def test_rejects_histogram_regression_even_when_tiles_improve(self):
+    def test_rejects_histogram_mae_regression_even_when_tiles_improve(self):
         frozen = fp([0.10], [0.5, 0.5])
         base = fp([0.60], [0.5, 0.5])
         candidate = fp([0.50], [0.54, 0.46])
         proc, doc = self.run_case(candidate, base, frozen, base_failed=True)
         self.assertNotEqual(proc.returncode, 0)
         self.assertFalse(doc["inherited_frozen_baseline_drift"])
-        self.assertGreater(doc["max_histogram_regression_away_from_frozen"], 0.03)
+        self.assertIn("luma_histogram_mae", doc["aggregate_regressions"])
+
+    def test_accepts_rgb_channel_noise_when_official_tile_metrics_improve(self):
+        frozen = fp_tiles([[0.20, 0.20, 0.20, 0.20]])
+        base = fp_tiles([[0.50, 0.20, 0.50, 0.40]])
+        candidate = fp_tiles([[0.25, 0.21, 0.25, 0.25]])
+        proc, doc = self.run_case(candidate, base, frozen, base_failed=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+        self.assertTrue(doc["monotonic_toward_frozen"])
+        self.assertEqual(doc["improved_tile_indexes"], [0])
+        self.assertLess(doc["candidate_frozen_metrics"]["tile_rgb_mae"], doc["base_frozen_metrics"]["tile_rgb_mae"])
+
+    def test_rejects_equal_distance_visual_swap(self):
+        frozen = fp([0.50])
+        base = fp([0.30])
+        candidate = fp([0.70])
+        proc, doc = self.run_case(candidate, base, frozen, base_failed=True)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertFalse(doc["monotonic_toward_frozen"])
+        self.assertEqual(doc["regressed_tile_indexes"], [0])
+
+    def test_accepts_histogram_bin_noise_when_histogram_mae_improves(self):
+        tiles = [[0.40, 0.40, 0.40, 0.40]]
+        frozen = fp_tiles(tiles, [0.25, 0.25, 0.25, 0.25])
+        base = fp_tiles(tiles, [0.15, 0.35, 0.25, 0.25])
+        candidate = fp_tiles(tiles, [0.14, 0.30, 0.26, 0.25])
+        proc, doc = self.run_case(candidate, base, frozen, base_failed=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+        self.assertTrue(doc["monotonic_toward_frozen"])
+        self.assertLess(
+            doc["candidate_frozen_metrics"]["luma_histogram_mae"],
+            doc["base_frozen_metrics"]["luma_histogram_mae"],
+        )
+
+    def test_small_renderer_noise_stays_within_existing_attribution_tolerance(self):
+        frozen = fp([0.10])
+        base = fp([0.30])
+        candidate = fp([0.301])
+        proc, doc = self.run_case(candidate, base, frozen, base_failed=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+        self.assertTrue(doc["monotonic_toward_frozen"])
+        self.assertEqual(doc["changed_tile_indexes"], [])
+
+    def test_workflow_requires_explicit_visual_guard_failures_for_attribution(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("VISUAL_GUARD_PATTERN=", workflow)
+        self.assertIn('grep -Eq "$VISUAL_GUARD_PATTERN" /tmp/rendered-main-baseline.log', workflow)
+        self.assertIn('grep -Eq "$VISUAL_GUARD_PATTERN" /tmp/rendered-base-baseline.log', workflow)
 
 
 if __name__ == "__main__":

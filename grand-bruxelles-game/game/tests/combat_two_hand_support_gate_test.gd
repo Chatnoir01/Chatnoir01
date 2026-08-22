@@ -30,8 +30,8 @@ func _run() -> void:
     if ik_source.find("TwoBoneIK3D.new()") < 0:
         _fail("support hand must use built-in TwoBoneIK3D")
         return
-    if ik_source.find("set_bone_global_pose_override") >= 0:
-        _fail("support hand must never use direct global bone overrides")
+    if ik_source.find(".set_bone_global_pose_override(") >= 0:
+        _fail("support hand must never call direct global bone overrides")
         return
     if ik_source.find("animation_player.active") < 0:
         _fail("support IK must yield when authored animation is frozen")

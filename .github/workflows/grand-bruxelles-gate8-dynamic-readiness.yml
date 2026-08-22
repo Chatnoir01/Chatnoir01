@@ -1,0 +1,153 @@
+name: Grand Bruxelles Gate-8 Dynamic Readiness
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd"
+      - ".github/workflows/grand-bruxelles-gate8-dynamic-readiness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  gate8-dynamic-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GATE8_ARTIFACT_ID: "9470539830"
+      GATE8_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-dynamic-project"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static fail-closed truth gates
+        run: |
+          set -euo pipefail
+          grep -q '"production_authorized": false' grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json
+          grep -q '"activation_ready": false' grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json
+          grep -q '"mixamo_payload_allowed": false' grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json
+          grep -q 'assets/characters/player_character.glb' grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json
+          grep -q 'const SURVIVOR_VARIANTS: Array\[int\] = \[1, 3, 5, 6, 8\]' grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd
+          grep -q 'const REJECTED_VARIANTS: Array\[int\] = \[2, 4, 7\]' grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd
+          grep -q 'autoload_contamination' grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd
+
+      - name: Download immutable helper-clean Gate-8 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${GATE8_ARTIFACT_ID}/zip" > /tmp/gate8-artifact.zip
+          test "$(sha256sum /tmp/gate8-artifact.zip | awk '{print $1}')" = "$GATE8_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-artifact.zip -d /tmp/gate8-artifact
+          test "$(find /tmp/gate8-artifact -type f -name 'npc_gate_*.glb' | wc -l)" = "8"
+          test -n "$(find /tmp/gate8-artifact -type f -name 'gate8_glb_manifest.json' -print -quit)"
+          mkdir -p grand-bruxelles-game/game/assets/characters/civilians/gate8
+          find /tmp/gate8-artifact -type f -name 'npc_gate_*.glb' -exec cp {} grand-bruxelles-game/game/assets/characters/civilians/gate8/ \;
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Import reviewed survivors in the real project
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --editor --path grand-bruxelles-game --quit-after 1200 2>&1 | tee /tmp/gate8-dynamic-import.log
+          test -d grand-bruxelles-game/.godot/imported
+          ! grep -E 'SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-dynamic-import.log
+
+      - name: Build isolated Godot witness project
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"
+          mkdir -p "$ISOLATED_PROJECT/game/assets/characters/civilians/gate8" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          ; Gate-8 Character/NPC CI witness only. No autoloads, no canonical runtime.
+          config_version=5
+
+          [application]
+          config/name="Gate8DynamicReadinessWitness"
+
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd "$ISOLATED_PROJECT/game/tests/"
+          for idx in 01 03 05 06 08; do
+            cp "grand-bruxelles-game/game/assets/characters/civilians/gate8/npc_gate_${idx}.glb" "$ISOLATED_PROJECT/game/assets/characters/civilians/gate8/"
+          done
+          test "$(find "$ISOLATED_PROJECT/game/assets/characters/civilians/gate8" -type f -name 'npc_gate_*.glb' | wc -l)" = "5"
+          ! grep -q '^\[autoload\]' "$ISOLATED_PROJECT/project.godot"
+
+      - name: Import isolated witness assets
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-dynamic-isolated-import.log
+          test -d "$ISOLATED_PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-dynamic-isolated-import.log
+
+      - name: Measure skeleton skin material and locomotion readiness
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_dynamic_readiness_test.gd 2>&1 | tee /tmp/gate8-dynamic-readiness.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-dynamic-readiness.log
+          grep -q '^GATE8_DYNAMIC_PREFLIGHT_OK candidates=5 rejected_excluded=3 locomotion_ready=0 blocked=5 .* player_asset_reused=false animation_retargeted=false production_activation=false autoload_isolated=true$' /tmp/gate8-dynamic-readiness.log
+          test "$(grep -c '^GATE8_DYNAMIC_VARIANT ' /tmp/gate8-dynamic-readiness.log)" = "5"
+          test "$(grep -c 'locomotion_ready=false$' /tmp/gate8-dynamic-readiness.log)" = "5"
+          test "$(grep '^GATE8_DYNAMIC_VARIANT ' /tmp/gate8-dynamic-readiness.log | grep -c 'animation_players=0 animations=0')" = "5"
+          ! grep -q '^GATE8_DYNAMIC_VARIANT variant=02\|^GATE8_DYNAMIC_VARIANT variant=04\|^GATE8_DYNAMIC_VARIANT variant=07' /tmp/gate8-dynamic-readiness.log
+
+      - name: Prove ephemeral import leaves repository clean
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf grand-bruxelles-game/game/assets/characters/civilians/gate8
+          rm -rf grand-bruxelles-game/.godot
+          rm -rf "$ISOLATED_PROJECT"
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-dynamic-post-cleanup.txt
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            code="${line:0:2}"
+            path="${line:3}"
+            if [ "$code" != "??" ]; then
+              echo "Unexpected tracked drift: $line" >&2
+              exit 1
+            fi
+            case "$path" in
+              *.uid|*.import|grand-bruxelles-game/assets/characters/player_character_rogue_texture.png)
+                rm -f -- "$path"
+                ;;
+              *)
+                echo "Unexpected untracked drift: $line" >&2
+                exit 1
+                ;;
+            esac
+          done < /tmp/gate8-dynamic-post-cleanup.txt
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-dynamic-final-status.txt
+          test ! -s /tmp/gate8-dynamic-final-status.txt
+
+      - name: Upload dynamic readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-dynamic-readiness
+          path: |
+            /tmp/gate8-dynamic-readiness.log
+            /tmp/gate8-dynamic-import.log
+            /tmp/gate8-dynamic-isolated-import.log
+            /tmp/godot-version.txt
+            /tmp/gate8-dynamic-post-cleanup.txt
+            /tmp/gate8-dynamic-final-status.txt
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 0

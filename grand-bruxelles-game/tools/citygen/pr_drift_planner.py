@@ -35,8 +35,13 @@ def build_drift_plan(snapshot: dict[str, Any], *, max_commits: int = 20, max_age
         commits = max(0, int(pr.get("commits") or 0))
         age_hours = max(0.0, float(pr.get("age_hours") or 0.0))
         long_lived = commits >= max_commits or age_hours >= max_age_hours
+        files_complete = bool(pr.get("files_complete", True))
 
-        if overlaps:
+        if not files_complete:
+            state = "OWNERSHIP_UNCERTAIN"
+            auto_rebuild = False
+            action = "complete_file_inventory_before_rebuild"
+        elif overlaps:
             state = "OWNERSHIP_CONFLICT"
             auto_rebuild = False
             action = "coordinate_owner_before_rebuild"
@@ -59,6 +64,7 @@ def build_drift_plan(snapshot: dict[str, Any], *, max_commits: int = 20, max_age
             "commits": commits,
             "age_hours": age_hours,
             "changed_file_count": len(file_sets[number]),
+            "files_complete": files_complete,
             "overlaps": overlaps,
             "state": state,
             "rebuild_required": state == "REBUILD_REQUIRED",
@@ -81,6 +87,7 @@ def build_drift_plan(snapshot: dict[str, Any], *, max_commits: int = 20, max_age
             "current_count": sum(r["state"] == "CURRENT" for r in rows),
             "rebuild_required_count": sum(r["state"] == "REBUILD_REQUIRED" for r in rows),
             "ownership_conflict_count": sum(r["state"] == "OWNERSHIP_CONFLICT" for r in rows),
+            "ownership_uncertain_count": sum(r["state"] == "OWNERSHIP_UNCERTAIN" for r in rows),
             "long_lived_risk_count": sum(r["long_lived_risk"] for r in rows),
         },
     }

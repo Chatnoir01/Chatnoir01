@@ -15,6 +15,22 @@ def write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
+def terrain_candidate(cell_id: str, lod_digest: str = "a" * 64) -> dict:
+    return {
+        "format": mod.TERRAIN_RUNTIME_CANDIDATE_FORMAT,
+        "cell_id": cell_id,
+        "source": {"terrain_lod_evidence_digest": lod_digest},
+        "authorization": {
+            "candidate_only": True,
+            "terrain_runtime_authorized": False,
+            "collision_authorized": False,
+            "runtime_mount_authorized": False,
+            "jouable_promotion_authorized": False,
+        },
+        "candidate_digest": "b" * 64,
+    }
+
+
 with tempfile.TemporaryDirectory() as tmp:
     root = Path(tmp); source = root / "source"; maturity = root / "maturity"; out1 = root / "out1"; out2 = root / "out2"; target_grid = root / "target_grid.json"
     cells = ["bxl-e149000-n169000-s500","bxl-e149000-n169500-s500","bxl-e149500-n169000-s500","bxl-e149500-n169500-s500","bxl-e150000-n169000-s500"]
@@ -30,10 +46,6 @@ with tempfile.TemporaryDirectory() as tmp:
     write_json(maturity/f"{cells[2]}.json",{"cell_id":cells[2],"crs":"EPSG:4326","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{}}})
     write_json(source/cells[3]/"maturity.json",{"cell_id":cells[3],"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:False for name in all_gates}}})
 
-    # Regression: the legacy seven runtime gates are insufficient for a
-    # Region-scale mature cell. A legacy-complete manifest must remain pending
-    # until production evidence exists for sources/materials/facade/clutter,
-    # mobility, verification, licensing and hero-independent scalability.
     contract_source = root / "contract-source"
     contract_maturity = root / "contract-maturity"
     legacy_cell = "bxl-e160000-n175000-s500"
@@ -61,8 +73,6 @@ with tempfile.TemporaryDirectory() as tmp:
         "region_scalable",
     }.issubset(set(legacy_blockers)), legacy_blockers
 
-    # Scheduler source-repair detection must delegate to the same declared-file
-    # contract used by maturity bootstrap, while remaining lightweight.
     shared_cell = "bxl-e160500-n175000-s500"
     shared_dir = contract_source / shared_cell
     shared_manifest = {
@@ -81,8 +91,6 @@ with tempfile.TemporaryDirectory() as tmp:
     assert report1["counts"]=={"DATA_READY":2,"MISSING_SOURCE":1,"QUARANTINE":1,"RUNTIME_READY":1},report1["counts"]
     assert report1["policy"]["maturity_gate_count"] == len(all_gates)
     assert report1["policy"]["runtime_promotion"] == "forbidden_without_full_regional_maturity_contract"
-    # Existing authoritative source cells must mature before CityGen expands into
-    # a new MISSING_SOURCE cell, otherwise a large target grid can starve evidence.
     assert report1["selected_batch"]==[cells[1],cells[3]],report1["selected_batch"]
     local=next(cell for cell in report1["cells"] if cell["cell_id"]==cells[3])
     assert local["state"]=="DATA_READY" and "terrain" in local["blockers"]
@@ -114,24 +122,31 @@ with tempfile.TemporaryDirectory() as tmp:
     assert mod.select_batch(mature_vs_expansion,1)==["bxl-e141500-n167500-s500"]
 
     frontier_cell = cells[3]
-    for filename, _action in mod.EVIDENCE_STAGES[:-2]:
+    for filename, _action in mod.EVIDENCE_STAGES[:-3]:
         write_json(source/frontier_cell/filename, {"cell_id": frontier_cell})
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == len(mod.EVIDENCE_STAGES)-2
+    assert progress == len(mod.EVIDENCE_STAGES)-3
     assert action == "derive_building_height_candidates"
     write_json(source/frontier_cell/"building_height_candidates.json", {"cell_id": frontier_cell})
     progress, action = mod.evidence_plan(frontier_cell, source)
-    assert progress == len(mod.EVIDENCE_STAGES)-1
+    assert progress == len(mod.EVIDENCE_STAGES)-2
     assert action == "evaluate_terrain_lod"
-    write_json(source/frontier_cell/"terrain_lod_evidence.json", {"cell_id": frontier_cell})
+    write_json(source/frontier_cell/"terrain_lod_evidence.json", {"cell_id": frontier_cell, "evidence_digest": "a" * 64})
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == len(mod.EVIDENCE_STAGES)-1
+    assert action == "build_terrain_runtime_candidate"
+    write_json(source/frontier_cell/"terrain_runtime_candidate.json", terrain_candidate(frontier_cell))
     progress, action = mod.evidence_plan(frontier_cell, source)
     assert progress == len(mod.EVIDENCE_STAGES)
-    assert action == "secondary_height_validation_and_terrain_runtime_checks"
+    assert action == mod.MANUAL_FRONTIER_ACTION
 
-    # Regression: rematerializing authoritative Buildings can change ownership
-    # counts after an older elevation frontier was created. The height sampler
-    # deliberately records that as a blocker. The scheduler must requeue the
-    # frontier stage instead of falsely treating all ten evidence files as mature.
+    stale_candidate = terrain_candidate(frontier_cell, "c" * 64)
+    write_json(source/frontier_cell/"terrain_runtime_candidate.json", stale_candidate)
+    progress, action = mod.evidence_plan(frontier_cell, source)
+    assert progress == len(mod.EVIDENCE_STAGES)-1
+    assert action == "build_terrain_runtime_candidate"
+    write_json(source/frontier_cell/"terrain_runtime_candidate.json", terrain_candidate(frontier_cell))
+
     write_json(
         source/frontier_cell/"building_height_candidates.json",
         {"cell_id": frontier_cell, "blockers": ["frontier_building_target_count_mismatch"]},
@@ -142,9 +157,6 @@ with tempfile.TemporaryDirectory() as tmp:
 
     assert mod.discover_cells(source)==sorted(cells[:4])
 
-    # Regression: durable scheduler state must be refreshed after the selected
-    # worklist has materially advanced. Refreshing must never count as another
-    # scheduler run or another attempt, and it must not select a new batch.
     refreshed_source = root / "refreshed-source"
     refreshed_maturity = root / "refreshed-maturity"
     refreshed_out1 = root / "refreshed-out1"
@@ -158,7 +170,13 @@ with tempfile.TemporaryDirectory() as tmp:
     write_json(refreshed_source/refresh_cell/"manifest.json",{"cell_id":refresh_cell,"crs":"EPSG:31370","layers":["buildings"]})
     write_json(refreshed_source/refresh_cell/"maturity.json",{"cell_id":refresh_cell,"crs":"EPSG:31370","geometry":{"authoritative_geometry_ready":True},"maturity":{"gates":{name:False for name in all_gates}}})
     for filename, _action in mod.EVIDENCE_STAGES:
-        write_json(refreshed_source/refresh_cell/filename,{"cell_id":refresh_cell})
+        if filename == "terrain_lod_evidence.json":
+            payload = {"cell_id":refresh_cell,"evidence_digest":"a"*64}
+        elif filename == "terrain_runtime_candidate.json":
+            payload = terrain_candidate(refresh_cell)
+        else:
+            payload = {"cell_id":refresh_cell}
+        write_json(refreshed_source/refresh_cell/filename,payload)
     refreshed=mod.run(
         refreshed_source,
         refreshed_maturity,
@@ -176,4 +194,4 @@ with tempfile.TemporaryDirectory() as tmp:
     assert refreshed_row["evidence_progress"] == len(mod.EVIDENCE_STAGES)
     assert refreshed_row["next_action"] == mod.MANUAL_FRONTIER_ACTION
 
-print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true building_height_stage=true stale_height_frontier_requeue=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")
+print("AUTONOMOUS_CITYGEN_GUARDRAILS_OK source_local_maturity=true shared_source_contract=true mature_before_expansion=true terrain_lod_stage=true terrain_runtime_candidate_stage=true stale_terrain_candidate_requeue=true building_height_stage=true stale_height_frontier_requeue=true evidence_frontier=true fair_within_stage=true fail_closed=true resume=true post_pass_refresh=true regional_maturity_contract=true")

@@ -5,6 +5,16 @@ const EXPECTED_COUNT := 8
 const BASE_SEED := 81001
 const SEED_STEP := 97
 const MAX_GROUNDING_CORRECTION_M := 0.15
+const EXPECTED_VERDICTS := {
+    1: "AMELIORER",
+    2: "JETER",
+    3: "AMELIORER",
+    4: "JETER",
+    5: "AMELIORER",
+    6: "AMELIORER",
+    7: "JETER",
+    8: "AMELIORER",
+}
 var _problems: Array[String] = []
 
 func _init() -> void:
@@ -17,8 +27,18 @@ func _run() -> void:
         _problems.append("available_count=%d expected=%d" % [Gate8Loader.available_count(), EXPECTED_COUNT])
     if Gate8Loader.approved_count() != 0:
         _problems.append("approved_count=%d expected=0" % Gate8Loader.approved_count())
+    if Gate8Loader.rejected_count() != 3:
+        _problems.append("rejected_count=%d expected=3" % Gate8Loader.rejected_count())
+    if Gate8Loader.pending_review_count() != 5:
+        _problems.append("pending_review_count=%d expected=5" % Gate8Loader.pending_review_count())
     if Gate8Loader.runtime_available_count() != 0:
         _problems.append("runtime_available_count=%d expected=0" % Gate8Loader.runtime_available_count())
+    if Gate8Loader.VISUAL_REVIEW_RUN != 32559626470:
+        _problems.append("visual_review_run=%d expected=32559626470" % Gate8Loader.VISUAL_REVIEW_RUN)
+    if Gate8Loader.VISUAL_REVIEW_ARTIFACT != 9472459666:
+        _problems.append("visual_review_artifact=%d expected=9472459666" % Gate8Loader.VISUAL_REVIEW_ARTIFACT)
+    if Gate8Loader.VISUAL_REVIEW_ARTIFACT_SHA256 != "1ce9000f5db0422ed1a13b451ce5a9a90ceb7c47413f2d8968838353d839e140":
+        _problems.append("visual_review_artifact_sha256_mismatch")
 
     var seen_paths: Dictionary = {}
     for offset: int in range(EXPECTED_COUNT):
@@ -33,8 +53,12 @@ func _run() -> void:
         seen_paths[path] = true
         if Gate8Loader.path_for_seed(seed_value) != path:
             _problems.append("seed=%d mapping_not_deterministic" % seed_value)
-        if Gate8Loader.variant_verdict(variant_index) != "AMELIORER":
-            _problems.append("variant=%d verdict=%s expected=AMELIORER" % [variant_index, Gate8Loader.variant_verdict(variant_index)])
+        var expected_verdict := str(EXPECTED_VERDICTS.get(variant_index, ""))
+        if Gate8Loader.variant_verdict(variant_index) != expected_verdict:
+            _problems.append("variant=%d verdict=%s expected=%s" % [variant_index, Gate8Loader.variant_verdict(variant_index), expected_verdict])
+        var expected_rejected := expected_verdict == "JETER"
+        if Gate8Loader.is_variant_rejected(variant_index) != expected_rejected:
+            _problems.append("variant=%d rejected=%s expected=%s" % [variant_index, str(Gate8Loader.is_variant_rejected(variant_index)), str(expected_rejected)])
         if Gate8Loader.is_variant_approved(variant_index):
             _problems.append("variant=%d unexpectedly_approved" % variant_index)
         if Gate8Loader.instantiate_for_seed(seed_value) != null:
@@ -90,7 +114,7 @@ func _run() -> void:
         for problem: String in _problems: print("- ", problem)
         quit(1)
         return
-    print("GATE8_RUNTIME_REVIEW_GATE_OK approved=0 pending_review=8 source_run=%d source_artifact=%d" % [Gate8Loader.SOURCE_GENERATION_RUN, Gate8Loader.SOURCE_GENERATION_ARTIFACT])
+    print("GATE8_RUNTIME_REVIEW_GATE_OK approved=0 rejected=3 pending_review=5 visual_review_run=%d visual_review_artifact=%d" % [Gate8Loader.VISUAL_REVIEW_RUN, Gate8Loader.VISUAL_REVIEW_ARTIFACT])
     print("GATE8_GODOT_CONTRACT_OK count=8 unique_variants=8 movement_owner_changed=false navigation_changed=false animation_retargeted=false dynamic_grounding=true grounding_measurement=rest_vertices")
     quit(0)
 

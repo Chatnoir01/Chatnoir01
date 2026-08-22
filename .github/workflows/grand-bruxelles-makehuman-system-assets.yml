@@ -1,0 +1,208 @@
+name: Grand Bruxelles MakeHuman Gate-8
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/characters/civilians/civ1/gate8_system_asset_selection.json"
+      - "grand-bruxelles-game/tools/fetch_makehuman_system_assets.py"
+      - "grand-bruxelles-game/tools/fetch_mpfb_2017.py"
+      - "grand-bruxelles-game/tools/build_makehuman_gate8_subset.py"
+      - "grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py"
+      - "grand-bruxelles-game/tools/verify_mpfb_gate8_glbs.py"
+      - "grand-bruxelles-game/tests/test_makehuman_gate8_selection_manifest.py"
+      - ".github/workflows/grand-bruxelles-makehuman-system-assets.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: makehuman-gate8-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  makehuman-gate8:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax and selection gates
+        run: |
+          set -euo pipefail
+          python3 -m py_compile grand-bruxelles-game/tools/fetch_makehuman_system_assets.py
+          python3 -m py_compile grand-bruxelles-game/tools/fetch_mpfb_2017.py
+          python3 -m py_compile grand-bruxelles-game/tools/build_makehuman_gate8_subset.py
+          python3 -m py_compile grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py
+          python3 -m py_compile grand-bruxelles-game/tools/verify_mpfb_gate8_glbs.py
+          python3 grand-bruxelles-game/tests/test_makehuman_gate8_selection_manifest.py
+
+      - name: Download and validate official CC0 system assets
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/makehuman-system-assets
+          python3 grand-bruxelles-game/tools/fetch_makehuman_system_assets.py \
+            --output /tmp/makehuman-system-assets/makehuman_system_assets_cc0.zip \
+            --manifest /tmp/makehuman-system-assets/makehuman_system_assets_cc0.manifest.json \
+            --retries 3 | tee /tmp/makehuman-system-assets/fetch.log
+          grep -q '^MAKEHUMAN_SYSTEM_ASSETS_FETCH_OK ' /tmp/makehuman-system-assets/fetch.log
+
+      - name: Verify acquisition witness
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path('/tmp/makehuman-system-assets/makehuman_system_assets_cc0.manifest.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          assert data['size_bytes'] == 280_737_770, data['size_bytes']
+          assert data['sha256'] == 'b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107', data['sha256']
+          assert data['file_count'] >= 100, data['file_count']
+          assert all(data['signals'].values()), data['signals']
+          print(json.dumps(data, indent=2, sort_keys=True))
+          PY
+
+      - name: Build bounded Gate-8 MPFB asset pack
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/makehuman-gate8
+          python3 grand-bruxelles-game/tools/build_makehuman_gate8_subset.py \
+            --source /tmp/makehuman-system-assets/makehuman_system_assets_cc0.zip \
+            --selection grand-bruxelles-game/assets/characters/civilians/civ1/gate8_system_asset_selection.json \
+            --output /tmp/makehuman-gate8/makehuman_gate8_system_assets_cc0.zip \
+            --manifest /tmp/makehuman-gate8/makehuman_gate8_system_assets_cc0.manifest.json \
+            | tee /tmp/makehuman-gate8/build.log
+          grep -q '^MAKEHUMAN_GATE8_SUBSET_OK ' /tmp/makehuman-gate8/build.log
+
+      - name: Verify Gate-8 subset witness
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import zipfile
+          from pathlib import Path
+
+          manifest_path = Path('/tmp/makehuman-gate8/makehuman_gate8_system_assets_cc0.manifest.json')
+          zip_path = Path('/tmp/makehuman-gate8/makehuman_gate8_system_assets_cc0.zip')
+          data = json.loads(manifest_path.read_text(encoding='utf-8'))
+          assert data['source_sha256'] == 'b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107'
+          assert data['subset_sha256'] == '6b1d673e4c1fd169372d3a74fe174d9c185069c1f55ff6bf6b224f6655e4b67a'
+          assert data['selected_asset_count'] == 30, data['selected_asset_count']
+          assert data['subset_size_bytes'] == 81_255_948, data['subset_size_bytes']
+          assert data['subset_size_bytes'] < 100 * 1024 * 1024
+          with zipfile.ZipFile(zip_path, 'r') as archive:
+              assert archive.testzip() is None
+              assert 'packs/makehuman_system_assets.json' in archive.namelist()
+              assert 'grand_bruxelles_gate8_provenance.json' in archive.namelist()
+          print(json.dumps(data, indent=2, sort_keys=True))
+          PY
+
+      - name: Acquire exact Blender 4.2 LTS and MPFB 2.0.17
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gb-blender
+          BLENDER_ARCHIVE=blender-4.2.23-linux-x64.tar.xz
+          curl --fail --location --retry 3 --retry-all-errors \
+            "https://download.blender.org/release/Blender4.2/${BLENDER_ARCHIVE}" \
+            --output "/tmp/${BLENDER_ARCHIVE}"
+          curl --fail --location --retry 3 --retry-all-errors \
+            "https://download.blender.org/release/Blender4.2/blender-4.2.23.sha256" \
+            --output /tmp/blender-4.2.23.sha256
+          grep " ${BLENDER_ARCHIVE}$" /tmp/blender-4.2.23.sha256 > /tmp/blender-linux.sha256
+          test -s /tmp/blender-linux.sha256
+          (cd /tmp && sha256sum --check blender-linux.sha256)
+          tar -xJf "/tmp/${BLENDER_ARCHIVE}" -C /tmp/gb-blender
+          BLENDER_BIN="$(find /tmp/gb-blender -mindepth 2 -maxdepth 2 -type f -name blender -perm -111 | head -n 1)"
+          test -x "$BLENDER_BIN"
+          "$BLENDER_BIN" --version | tee /tmp/makehuman-gate8/blender-version.txt
+          grep -q '^Blender 4\.2\.23' /tmp/makehuman-gate8/blender-version.txt
+          echo "$BLENDER_BIN" > /tmp/makehuman-gate8/blender-bin.txt
+
+          python3 grand-bruxelles-game/tools/fetch_mpfb_2017.py \
+            --output /tmp/makehuman-gate8/mpfb2-2.0.17.zip \
+            --manifest /tmp/makehuman-gate8/mpfb2-2.0.17.manifest.json \
+            --retries 3 | tee /tmp/makehuman-gate8/mpfb-fetch.log
+          grep -q '^MPFB_2017_FETCH_OK ' /tmp/makehuman-gate8/mpfb-fetch.log
+
+      - name: Install and enable exact MPFB extension
+        env:
+          HOME: /tmp/grand-bruxelles-blender-home
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" /tmp/makehuman-gate8/blender-extensions
+          BLENDER_BIN="$(cat /tmp/makehuman-gate8/blender-bin.txt)"
+          "$BLENDER_BIN" --background --command extension repo-add gb_ci \
+            --name "Grand Bruxelles CI" \
+            --directory /tmp/makehuman-gate8/blender-extensions \
+            --clear-all | tee /tmp/makehuman-gate8/extension-repo-add.txt
+          "$BLENDER_BIN" --background --command extension install-file \
+            --repo gb_ci --enable /tmp/makehuman-gate8/mpfb2-2.0.17.zip \
+            | tee /tmp/makehuman-gate8/mpfb-install.txt
+          "$BLENDER_BIN" --background --command extension repo-list | tee /tmp/makehuman-gate8/extension-repos.txt
+          "$BLENDER_BIN" --background --command extension list | tee /tmp/makehuman-gate8/extensions.txt
+          grep -qi 'mpfb' /tmp/makehuman-gate8/extensions.txt
+
+      - name: Generate 8 grounded game-engine-rigged GLBs headlessly
+        env:
+          HOME: /tmp/grand-bruxelles-blender-home
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="$(cat /tmp/makehuman-gate8/blender-bin.txt)"
+          mkdir -p /tmp/makehuman-gate8/glbs
+          "$BLENDER_BIN" --background --offline-mode \
+            --python grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py \
+            -- \
+            --asset-pack /tmp/makehuman-gate8/makehuman_gate8_system_assets_cc0.zip \
+            --output-dir /tmp/makehuman-gate8/glbs \
+            | tee /tmp/makehuman-gate8/generation.log
+          grep -q '^GB_GATE8 SUCCESS count=8 ' /tmp/makehuman-gate8/generation.log
+          python3 grand-bruxelles-game/tools/verify_mpfb_gate8_glbs.py /tmp/makehuman-gate8/glbs \
+            | tee /tmp/makehuman-gate8/glb-verification.log
+          grep -q '^GATE8_GLB_VERIFY_OK characters=8 ' /tmp/makehuman-gate8/glb-verification.log
+
+      - name: Upload full MakeHuman System Assets artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: makehuman-system-assets-cc0
+          path: |
+            /tmp/makehuman-system-assets/makehuman_system_assets_cc0.zip
+            /tmp/makehuman-system-assets/makehuman_system_assets_cc0.manifest.json
+            /tmp/makehuman-system-assets/fetch.log
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+      - name: Upload Gate-8 MakeHuman asset pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: makehuman-gate8-assets-cc0
+          path: |
+            /tmp/makehuman-gate8/makehuman_gate8_system_assets_cc0.zip
+            /tmp/makehuman-gate8/makehuman_gate8_system_assets_cc0.manifest.json
+            /tmp/makehuman-gate8/build.log
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload generated Gate-8 GLBs
+        uses: actions/upload-artifact@v4
+        with:
+          name: makehuman-gate8-glbs
+          path: |
+            /tmp/makehuman-gate8/glbs/*.glb
+            /tmp/makehuman-gate8/glbs/gate8_glb_manifest.json
+            /tmp/makehuman-gate8/generation.log
+            /tmp/makehuman-gate8/glb-verification.log
+            /tmp/makehuman-gate8/blender-version.txt
+            /tmp/makehuman-gate8/mpfb2-2.0.17.manifest.json
+            /tmp/makehuman-gate8/mpfb-fetch.log
+            /tmp/makehuman-gate8/mpfb-install.txt
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Prove repository stayed clean
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"

@@ -136,7 +136,11 @@ jobs:
               > grand-bruxelles-game/artifacts/rendered-main-baseline.json
             test -s grand-bruxelles-game/artifacts/rendered-main-baseline.png
           else
-            grep -q "RENDERED_MAIN_BASELINE_FAIL:" /tmp/rendered-main-baseline.log
+            VISUAL_GUARD_PATTERN='RENDERED_MAIN_BASELINE_FAIL: visual (tile RGB MAE|tile luma MAE|max tile luma delta|luma histogram MAE) [0-9.]+ exceeds [0-9.]+'
+            grep -Eq "$VISUAL_GUARD_PATTERN" /tmp/rendered-main-baseline.log || {
+              echo "candidate RED is not an attributable frozen visual guard failure" >&2
+              exit 1
+            }
           fi
 
       - name: Localize frozen visual drift
@@ -231,6 +235,13 @@ jobs:
             | sed 's/^.*RENDERED_MAIN_VISUAL_FINGERPRINT_JSON: //' \
             > grand-bruxelles-game/artifacts/rendered-main-base-fingerprint.json
           test -s grand-bruxelles-game/artifacts/rendered-main-base-fingerprint.json
+          if [[ "$status" -ne 0 ]]; then
+            VISUAL_GUARD_PATTERN='RENDERED_MAIN_BASELINE_FAIL: visual (tile RGB MAE|tile luma MAE|max tile luma delta|luma histogram MAE) [0-9.]+ exceeds [0-9.]+'
+            grep -Eq "$VISUAL_GUARD_PATTERN" /tmp/rendered-base-baseline.log || {
+              echo "exact PR base RED is not an attributable frozen visual guard failure" >&2
+              exit 1
+            }
+          fi
 
       - name: Attribute inherited or improved visual drift to PR base
         if: steps.candidate.outputs.status != '0' && github.event_name == 'pull_request'

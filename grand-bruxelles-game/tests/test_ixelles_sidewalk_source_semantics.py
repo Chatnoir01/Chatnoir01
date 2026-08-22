@@ -19,10 +19,24 @@ def test_ixelles_sidewalk_runtime_does_not_reintroduce_sw_only_semantics() -> No
     assert extract["ssft_filter_required"] is False
     assert policy["runtime_geometry_authorized"] is False
 
+    runtime_text = RUNTIME.read_text(encoding="utf-8")
     project_text = PROJECT.read_text(encoding="utf-8")
-    assert "IxellesMidiSidewalkRuntime" not in project_text
 
-    if RUNTIME.exists():
-        runtime_text = RUNTIME.read_text(encoding="utf-8")
-        assert "StreetSurfaces_SW" not in runtime_text
-        assert "official SW surface missing" not in runtime_text
+    # Keep the already-shipped Ixelles LABO material presentation, but make its
+    # legacy source identity explicit and distinct from the current corridor
+    # urbadm_ssw contract. It must never reinterpret legacy type=SW as a local
+    # ssft filter for the current official layer.
+    assert 'LEGACY_SOURCE_CONTRACT := "Paradigm UrbIS WFS cell.game street_surfaces.type"' in runtime_text
+    assert 'CURRENT_OFFICIAL_LAYER := "bm_urbis:urbadm_ssw"' in runtime_text
+    assert 'LEGACY_SURFACE_TYPE := "SW"' in runtime_text
+    assert "ssft=SW" not in runtime_text and 'ssft == "SW"' not in runtime_text
+    assert 'set_meta("uses_current_official_ssft_filter", false)' in runtime_text
+    assert 'set_meta("material_identity_source_backed", false)' in runtime_text
+
+    # The global autoload may remain only if it is event-driven/dormant outside
+    # the Ixelles slice. The old 240-frame poll + error path is forbidden.
+    assert "IxellesMidiSidewalkRuntime" in project_text
+    assert "node_added.connect" in runtime_text
+    assert "range(240)" not in runtime_text
+    assert "official SW surface missing" not in runtime_text
+    assert "push_error" not in runtime_text

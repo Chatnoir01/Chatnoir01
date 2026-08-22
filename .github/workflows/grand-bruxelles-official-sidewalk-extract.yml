@@ -1,0 +1,100 @@
+name: Grand Bruxelles Official Sidewalk Extract
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_source.json'
+      - 'grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_source.py'
+      - 'grand-bruxelles-game/tools/brussels_mobility_sidewalk_extract.py'
+      - 'grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_extract.py'
+      - '.github/workflows/grand-bruxelles-official-sidewalk-extract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-fixture:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --disable-pip-version-check pytest==8.4.2
+      - name: Run fail-closed source and extractor regressions
+        working-directory: grand-bruxelles-game
+        run: |
+          python tests/test_brussels_mobility_sidewalk_source.py
+          python -m pytest -q tests/test_brussels_mobility_sidewalk_extract.py
+
+  live-source-artifact:
+    needs: contract-and-fixture
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Fetch bounded official source and attribute domain
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p artifacts/official-sidewalk
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path('tools/brussels_mobility_sidewalk_extract.py')
+          spec = importlib.util.spec_from_file_location('sidewalk_extract', path)
+          mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+          out = Path('artifacts/official-sidewalk')
+          raw, url = mod.fetch_official(mod.DEFAULT_BBOX)
+          domain = mod.fetch_attribute_domain()
+          (out / 'brussels_mobility_sidewalk_corridor_source.geojson').write_bytes(raw)
+          (out / 'brussels_mobility_ssft_attribute_domain.json').write_bytes(domain)
+          (out / 'source_query_url.txt').write_text(url + '\n')
+          (out / 'ssft_attribute_domain_url.txt').write_text(mod.ATTRIBUTE_DOMAIN_ENDPOINT + '\n')
+          print('OFFICIAL_SIDEWALK_RAW_CAPTURED', len(raw), url)
+          print('OFFICIAL_SSFT_ATTRIBUTE_DOMAIN_CAPTURED', len(domain), mod._sha256(domain))
+          PY
+      - name: Canonicalize official sidewalk layer fail-closed
+        working-directory: grand-bruxelles-game
+        run: |
+          python tools/brussels_mobility_sidewalk_extract.py \
+            --input artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_source.geojson \
+            --attribute-domain artifacts/official-sidewalk/brussels_mobility_ssft_attribute_domain.json \
+            --output artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json
+      - name: Verify live source matches validated snapshot
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          contract = json.loads(Path('data/provenance/brussels_mobility_sidewalk_source.json').read_text())
+          doc = json.loads(Path('artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json').read_text())
+          expected = contract['required_corridor_extract']['validated_snapshot']
+          assert doc['schema'] == 'grand-bruxelles-official-sidewalk-corridor-extract-v1'
+          assert doc['crs'] == 'EPSG:31370'
+          assert doc['query_bbox'] == [147650.0,169300.0,149100.0,171050.0]
+          assert doc['source']['layer'] == 'bm_urbis:urbadm_ssw'
+          assert doc['source']['ssft_filter_applied'] is False
+          assert doc['feature_count'] == doc['input_feature_count'] == expected['feature_count'], (doc['feature_count'], expected['feature_count'])
+          assert doc['feature_id_sha256'] == expected['feature_id_sha256'], doc['feature_id_sha256']
+          assert doc['canonical_source_content_sha256'] == expected['canonical_source_content_sha256'], doc['canonical_source_content_sha256']
+          assert doc['source']['attribute_domain_sha256'] == expected['attribute_domain_sha256'], doc['source']['attribute_domain_sha256']
+          assert doc['ssft_counts'] == expected['ssft_counts'], doc['ssft_counts']
+          assert doc['claims']['sidewalk_semantics_derived_from_layer_identity'] is True
+          assert doc['claims']['ssft_sw_filter_source_backed'] is False
+          assert doc['claims']['curb_height_source_backed'] is False
+          assert doc['claims']['surface_elevation_source_backed'] is False
+          assert doc['policy']['runtime_geometry_authorized'] is False
+          assert doc['policy']['jouable_promotion_authorized'] is False
+          print('OFFICIAL_SIDEWALK_VALIDATED_SNAPSHOT_OK', doc['feature_count'], doc['canonical_source_content_sha256'], doc['feature_id_sha256'])
+          PY
+      - name: Upload source and canonical extract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-mobility-sidewalk-corridor-extract
+          path: grand-bruxelles-game/artifacts/official-sidewalk/
+          if-no-files-found: error
+          retention-days: 30

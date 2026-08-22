@@ -5,6 +5,7 @@ const EXPECTED_FAMILY := "brussels_osm_facade_articulation_v1"
 const EXPECTED_LICENSE := "ODbL-1.0"
 const EXPECTED_SOURCE_FRAGMENT := "OpenStreetMap contributors via Overpass API; generic building footprint/placement/kind only"
 const EXPECTED_RECIPE_PROVENANCE := "authored_presentation_from_existing_mesh_normal_not_source_measurement"
+const EXPECTED_READABILITY_PROFILE := "isotropic_contrast_shaped_fine_grain_v2"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -29,6 +30,8 @@ func _run() -> void:
         _fail("active facade articulation source scope/provenance mismatch"); return
     if str(material.get_meta("visual_recipe_provenance", "")) != EXPECTED_RECIPE_PROVENANCE:
         _fail("active facade articulation authored recipe provenance mismatch"); return
+    if str(material.get_meta("readability_profile", "")) != EXPECTED_READABILITY_PROFILE:
+        _fail("active facade articulation readability profile mismatch"); return
     var strength: Variant = material.get_shader_parameter("surface_readability_strength")
     if strength == null or float(strength) <= 0.0 or float(strength) > 0.25:
         _fail("bounded readability strength missing"); return
@@ -41,7 +44,7 @@ func _run() -> void:
     for forbidden_token: String in ["mortar", "brick_course", "stone_joint", "window_grid", "floor_band"]:
         if forbidden_token in code:
             _fail("manufactured facade semantics leaked into shader: %s" % forbidden_token); return
-    if not "fine_grain" in code or not "surface_readability_strength" in code:
-        _fail("active facade readability shader path missing"); return
-    print("BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_OK: family=%s revision=2 strength=%.3f source=OSM license=%s geometry_changed=false provenance_locked=true" % [EXPECTED_FAMILY, float(strength), EXPECTED_LICENSE])
+    if not "fine_grain" in code or not "surface_readability_strength" in code or not "pow(" in code:
+        _fail("contrast-shaped facade readability shader path missing"); return
+    print("BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_OK: family=%s revision=2 strength=%.3f profile=%s source=OSM license=%s geometry_changed=false provenance_locked=true" % [EXPECTED_FAMILY, float(strength), EXPECTED_READABILITY_PROFILE, EXPECTED_LICENSE])
     quit(0)

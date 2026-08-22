@@ -5,12 +5,16 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/brussels_osm_facade_articulation_material.gd"
       - "grand-bruxelles-game/game/tests/brussels_osm_facade_articulation_readability_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_facade_articulation_readability_witness_test.gd"
+      - "grand-bruxelles-game/tools/check_osm_facade_articulation_readability_ab.py"
       - ".github/workflows/grand-bruxelles-osm-facade-articulation-readability.yml"
   push:
     branches: ["main"]
     paths:
       - "grand-bruxelles-game/game/scripts/brussels_osm_facade_articulation_material.gd"
       - "grand-bruxelles-game/game/tests/brussels_osm_facade_articulation_readability_test.gd"
+      - "grand-bruxelles-game/game/tests/brussels_osm_facade_articulation_readability_witness_test.gd"
+      - "grand-bruxelles-game/tools/check_osm_facade_articulation_readability_ab.py"
   workflow_dispatch:
 
 permissions:
@@ -19,9 +23,11 @@ permissions:
 jobs:
   articulation-readability:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 python3-pil
       - name: Install Godot 4.7.1
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
@@ -40,3 +46,22 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_facade_articulation_readability_test.gd 2>&1 | tee /tmp/facade-articulation-readability.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_FAIL" /tmp/facade-articulation-readability.log; then exit 1; fi
           grep -q "BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_OK" /tmp/facade-articulation-readability.log
+      - name: Capture same-camera active-material readability A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/brussels_osm_facade_articulation_readability_witness_test.gd 2>&1 | tee /tmp/facade-articulation-readability-witness.log
+          if grep -E "Parse Error:|BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_VISUAL_FAIL" /tmp/facade-articulation-readability-witness.log; then exit 1; fi
+          grep -q "BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_VISUAL_CAPTURED" /tmp/facade-articulation-readability-witness.log
+          python3 grand-bruxelles-game/tools/check_osm_facade_articulation_readability_ab.py
+      - name: Upload readability evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-osm-facade-articulation-readability-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/osm_facade_readability_before.png
+            grand-bruxelles-game/artifacts/visual/osm_facade_readability_control.png
+            grand-bruxelles-game/artifacts/visual/osm_facade_readability_after.png
+            /tmp/facade-articulation-readability.log
+            /tmp/facade-articulation-readability-witness.log
+          if-no-files-found: error

@@ -16,6 +16,12 @@ if SPEC is None or SPEC.loader is None:
 base = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(base)
 
+# Gate-8 generation now consumes the immutable Blender Extensions release of
+# MPFB 2.0.17. The base generator previously targeted a mutable post-release
+# nightly; override only its build identity while preserving all generation
+# contracts and deterministic seeds.
+base.EXPECTED_MPFB_BUILD = "20260722"
+
 _original_export_character = base.export_character
 
 

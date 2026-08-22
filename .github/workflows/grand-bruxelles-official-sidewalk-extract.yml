@@ -51,6 +51,24 @@ jobs:
           (out / 'source_query_url.txt').write_text(url + '\n')
           print('OFFICIAL_SIDEWALK_RAW_CAPTURED', len(raw), url)
           PY
+      - name: Fetch official ssft attribute domain
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          url = 'https://data.mobility.brussels/data/attributevalues/?tid=ssft'
+          req = Request(url, headers={'Accept': 'application/json', 'User-Agent': 'Grand-Bruxelles-Source-Gate/1.0'})
+          with urlopen(req, timeout=60) as response:
+              raw = response.read()
+              content_type = str(response.headers.get('Content-Type', ''))
+          out = Path('artifacts/official-sidewalk')
+          (out / 'brussels_mobility_ssft_attribute_domain.json').write_bytes(raw)
+          (out / 'ssft_attribute_domain_url.txt').write_text(url + '\n')
+          if 'json' not in content_type.lower() and not raw.lstrip().startswith((b'{', b'[')):
+              raise SystemExit(f'official ssft attribute domain returned non-JSON content: {content_type}')
+          print('OFFICIAL_SSFT_ATTRIBUTE_DOMAIN_CAPTURED', len(raw), content_type)
+          PY
       - name: Census published ssft values before canonical selection
         working-directory: grand-bruxelles-game
         run: |
@@ -101,7 +119,7 @@ jobs:
           assert doc['policy']['jouable_promotion_authorized'] is False
           print('OFFICIAL_SIDEWALK_ARTIFACT_VERIFIED', doc['feature_count'], doc['source_sha256'], doc['feature_id_sha256'])
           PY
-      - name: Upload raw source, census, and canonical extract evidence
+      - name: Upload raw source, domain, census, and canonical extract evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:

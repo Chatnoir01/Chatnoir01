@@ -98,7 +98,12 @@ func _surface_facing_stats(mesh_instance: MeshInstance3D, camera_position: Vecto
         if arrays.size() <= Mesh.ARRAY_VERTEX:
             continue
         var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-        var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+        var indices := PackedInt32Array()
+        if arrays.size() > Mesh.ARRAY_INDEX and arrays[Mesh.ARRAY_INDEX] != null:
+            if typeof(arrays[Mesh.ARRAY_INDEX]) != TYPE_PACKED_INT32_ARRAY:
+                _fail("source render mesh index array has unexpected type for %s" % mesh_instance.name)
+                return {}
+            indices = arrays[Mesh.ARRAY_INDEX]
         var element_count := indices.size() if not indices.is_empty() else vertices.size()
         if element_count % 3 != 0:
             _fail("source render mesh triangle stream is malformed for %s" % mesh_instance.name)

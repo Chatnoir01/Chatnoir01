@@ -1,0 +1,57 @@
+{
+  "schema": "grand-bruxelles-official-sidewalk-source-v1",
+  "production_base_sha": "407ab23fbf477dd430be67600d601dd41b7146ad",
+  "source": {
+    "publisher": "Paradigm",
+    "dataset": "Trottoir",
+    "layer": "bm_urbis:urbadm_ssw",
+    "license": "CC0-1.0",
+    "crs": "EPSG:31370",
+    "feature_type_field": "ssft",
+    "sidewalk_feature_code": "SW",
+    "metadata_created": "2022-01-01",
+    "metadata_last_updated": "2024-06-21",
+    "accessed_on": "2026-08-22",
+    "urls": {
+      "metadata": "https://data.mobility.brussels/en/info/urbadm_ssw/",
+      "lambert72_json": "https://data.mobility.brussels/geoserver/bm_urbis/wfs?outputFormat=json&request=GetFeature&service=wfs&srsName=EPSG%3A31370&typeName=bm_urbis%3Aurbadm_ssw&version=1.1.0",
+      "wfs_layer": "bm_urbis:urbadm_ssw",
+      "attribute_domain": "https://data.mobility.brussels/data/attributevalues/?tid=ssft"
+    },
+    "metadata_evidence": {
+      "description": "Sidewalks are the common part of the Urbis ADM Street Sections and Side Walks layers.",
+      "published_attribute_fields": ["ssft"],
+      "ssft_sw_label_fr": "Trottoir",
+      "ssft_sw_label_nl": "Voetpad"
+    }
+  },
+  "claims": {
+    "horizontal_sidewalk_geometry_source_backed": true,
+    "sidewalk_semantic_class_source_backed": true,
+    "curb_height_source_backed": false,
+    "surface_elevation_source_backed": false,
+    "sidewalk_profile_source_backed": false,
+    "paving_unit_dimensions_source_backed": false,
+    "material_identity_source_backed": false
+  },
+  "policy": {
+    "horizontal_runtime_candidate_allowed": true,
+    "vertical_extrusion_allowed": false,
+    "curb_height_inference_allowed": false,
+    "runtime_geometry_authorized": false,
+    "jouable_promotion_authorized": false,
+    "requires_bounded_corridor_extract_before_runtime": true,
+    "requires_exact_feature_identity_and_digest_before_runtime": true,
+    "requires_independent_vertical_source_for_curb_height": true
+  },
+  "ownership": {
+    "scope": "Shared Environment source/provenance intake only",
+    "does_not_own": [
+      "Bourse exact public-space grounding",
+      "Grand-Place exact architecture",
+      "curb height or profile",
+      "runtime sidewalk replacement"
+    ]
+  },
+  "next_gate": "Build a bounded Midi-to-Grand-Place Lambert72 extract, persist exact feature identities plus digest, compare horizontal coverage against generic sidewalks, and keep runtime geometry unauthorized until that extract is independently validated."
+}

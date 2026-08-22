@@ -1,0 +1,21 @@
+name: Grand Bruxelles Official Sidewalk Source
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_source.json'
+      - 'grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_source.py'
+      - '.github/workflows/grand-bruxelles-official-sidewalk-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate fail-closed official sidewalk source contract
+        run: python3 grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_source.py

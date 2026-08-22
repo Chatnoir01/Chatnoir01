@@ -6,21 +6,27 @@ const ASSET_DIR := "res://game/assets/characters/civilians/gate8"
 const VARIANT_COUNT := 8
 const PROXY_Y_OFFSET := 0.67
 # Source generation was rebuilt on #1099 with helpers/masks/shapekeys baked.
-# Those bytes have not yet passed a fresh front-facing Godot player-view review,
-# so runtime activation must fail closed without prejudging the visual verdict.
+# The isolated Godot 4.7.1 player-view witness on run 32559626470 was reviewed
+# at 2 m / 5 m / 8 m. No variant is production-approved yet: variants 02/04/07
+# are rejected for obvious body/clothing-fit defects; the remaining five still
+# require the separate idle/walk/run + grounding/foot-slide gate.
 const VISUAL_REVIEW_APPROVED_INDICES := []
+const VISUAL_REVIEW_REJECTED_INDICES := [2, 4, 7]
 const VISUAL_REVIEW_VERDICTS := {
     1: "AMELIORER",
-    2: "AMELIORER",
+    2: "JETER",
     3: "AMELIORER",
-    4: "AMELIORER",
+    4: "JETER",
     5: "AMELIORER",
     6: "AMELIORER",
-    7: "AMELIORER",
+    7: "JETER",
     8: "AMELIORER",
 }
 const SOURCE_GENERATION_RUN := 32552758284
 const SOURCE_GENERATION_ARTIFACT := 9470539830
+const VISUAL_REVIEW_RUN := 32559626470
+const VISUAL_REVIEW_ARTIFACT := 9472459666
+const VISUAL_REVIEW_ARTIFACT_SHA256 := "1ce9000f5db0422ed1a13b451ce5a9a90ceb7c47413f2d8968838353d839e140"
 
 static func enabled() -> bool:
     return bool(ProjectSettings.get_setting(ENABLE_SETTING, false))
@@ -42,8 +48,17 @@ static func variant_verdict(index: int) -> String:
 static func is_variant_approved(index: int) -> bool:
     return index in VISUAL_REVIEW_APPROVED_INDICES and variant_verdict(index) == "GARDER"
 
+static func is_variant_rejected(index: int) -> bool:
+    return index in VISUAL_REVIEW_REJECTED_INDICES and variant_verdict(index) == "JETER"
+
 static func approved_count() -> int:
     return VISUAL_REVIEW_APPROVED_INDICES.size()
+
+static func rejected_count() -> int:
+    return VISUAL_REVIEW_REJECTED_INDICES.size()
+
+static func pending_review_count() -> int:
+    return VARIANT_COUNT - approved_count() - rejected_count()
 
 static func available_count() -> int:
     var count := 0
@@ -126,11 +141,15 @@ static func status() -> Dictionary:
         "available": runtime_available_count(),
         "source_available": available_count(),
         "approved": approved_count(),
-        "pending_review": VARIANT_COUNT - approved_count(),
+        "rejected": rejected_count(),
+        "pending_review": pending_review_count(),
         "expected": VARIANT_COUNT,
         "asset_dir": ASSET_DIR,
         "source_generation_run": SOURCE_GENERATION_RUN,
         "source_generation_artifact": SOURCE_GENERATION_ARTIFACT,
+        "visual_review_run": VISUAL_REVIEW_RUN,
+        "visual_review_artifact": VISUAL_REVIEW_ARTIFACT,
+        "visual_review_artifact_sha256": VISUAL_REVIEW_ARTIFACT_SHA256,
         "production_activation_blocked": approved_count() == 0,
         "animation_retargeted": false,
         "movement_owner_changed": false,

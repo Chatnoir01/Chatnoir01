@@ -37,7 +37,9 @@ func _support_y(world: World3D, point: Vector3) -> Variant:
 func _find_anneessens_road(roads_root: Node) -> CSGBox3D:
     for child: Node in roads_root.get_children():
         if child is CSGBox3D and child.name.begins_with(ANNEESSENS_ROAD_PREFIX):
-            return child as CSGBox3D
+            var box := child as CSGBox3D
+            if box.is_visible_in_tree():
+                return box
     return null
 
 func _classify_surfaces(roads_root: Node) -> Dictionary:
@@ -47,6 +49,8 @@ func _classify_surfaces(roads_root: Node) -> Dictionary:
         if not child is CSGBox3D:
             continue
         var box := child as CSGBox3D
+        if not box.is_visible_in_tree():
+            continue
         if box.name.begins_with("Road_") and absf(box.size.y - ROAD_HEIGHT_M) <= HEIGHT_EPSILON_M:
             roads.append(box)
         elif absf(box.size.y - SIDEWALK_HEIGHT_M) <= HEIGHT_EPSILON_M:
@@ -62,6 +66,9 @@ func _contains_render_geometry(node: Node) -> bool:
     return false
 
 func _assert_supported(label: String, box: CSGBox3D, world: World3D) -> bool:
+    if not box.is_visible_in_tree():
+        _fail("%s is hidden and must not be part of generic rendered support evidence" % label)
+        return false
     var support_variant: Variant = _support_y(world, box.global_position)
     if support_variant == null:
         _fail("%s has no physical support ray hit" % label)
@@ -106,13 +113,13 @@ func _run() -> void:
         _fail("GeneratedRoads missing from production OSM scene")
         return
     if road == null:
-        _fail("source-backed Anneessens road 359177328 is not rendered")
+        _fail("source-backed Anneessens road 359177328 is not visibly rendered")
         return
 
     var roads := surfaces.get("roads", []) as Array
     var sidewalks := surfaces.get("sidewalks", []) as Array
     if roads.is_empty() or sidewalks.size() < 2:
-        _fail("generic rendered support surfaces missing")
+        _fail("generic visibly rendered support surfaces missing")
         return
     if support_body == null:
         _fail("generic OSM support body did not materialize")
@@ -144,10 +151,10 @@ func _run() -> void:
 
     var expected_triangles := (roads.size() + sidewalks.size()) * 2
     if int(support_body.get_meta("road_support_surfaces", -1)) != roads.size():
-        _fail("road support surface accounting mismatch")
+        _fail("visible road support surface accounting mismatch")
         return
     if int(support_body.get_meta("sidewalk_support_surfaces", -1)) != sidewalks.size():
-        _fail("sidewalk support surface accounting mismatch")
+        _fail("visible sidewalk support surface accounting mismatch")
         return
     if int(support_body.get_meta("support_shape_count", -1)) != 1:
         _fail("support shape count metadata mismatch")
@@ -157,6 +164,9 @@ func _run() -> void:
         return
     if str(support_body.get_meta("support_mode", "")) != "top_surfaces_only":
         _fail("support mode must remain top-surfaces-only")
+        return
+    if not bool(support_body.get_meta("visible_surfaces_only", false)):
+        _fail("generic support must exclude hidden/superseded OSM surfaces")
         return
     if int(support_body.get_meta("support_collision_layer", -1)) != EXPECTED_SUPPORT_COLLISION_LAYER:
         _fail("support collision layer metadata mismatch")
@@ -168,7 +178,7 @@ func _run() -> void:
         _fail("support runtime manufactured source geometry/height semantics")
         return
     if bool(support_body.get_meta("visual_output_changed", true)):
-        _fail("physics support must not claim or introduce rendered output changes")
+        _fail("physics support must not claim or introduce rendered geometry")
         return
     if int(support_body.get_meta("render_geometry_count", -1)) != 0:
         _fail("physics support render-geometry accounting must remain zero")
@@ -185,5 +195,5 @@ func _run() -> void:
     if not _assert_supported("generic sidewalk B", sidewalks[1] as CSGBox3D, world):
         return
 
-    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s roads=%d sidewalks=%d support_shapes=1 support_triangles=%d collision_layer=%d collision_mask=%d player_mask_overlap=true tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false visual_output_changed=false render_geometry_count=0 exact_bourse_scope=false" % [road.name, roads.size(), sidewalks.size(), expected_triangles, EXPECTED_SUPPORT_COLLISION_LAYER, EXPECTED_SUPPORT_COLLISION_MASK, MAX_SUPPORT_GAP_M])
+    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s visible_roads=%d visible_sidewalks=%d support_shapes=1 support_triangles=%d collision_layer=%d collision_mask=%d player_mask_overlap=true visible_surfaces_only=true tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false render_geometry_count=0 exact_bourse_scope=false" % [road.name, roads.size(), sidewalks.size(), expected_triangles, EXPECTED_SUPPORT_COLLISION_LAYER, EXPECTED_SUPPORT_COLLISION_MASK, MAX_SUPPORT_GAP_M])
     quit(0)

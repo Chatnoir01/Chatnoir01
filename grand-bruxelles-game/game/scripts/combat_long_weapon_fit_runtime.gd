@@ -9,7 +9,7 @@ extends Node
 const CBR4_ID := &"cbr4"
 const SCT8_ID := &"sct8"
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
-const SIGNATURE := "combat_long_weapon_fit_v2_reachable_foregrip"
+const SIGNATURE := "combat_long_weapon_fit_v3_compact_rear_profile"
 
 # Compact support positions measured from the canonical right-hand grip frame.
 # They keep roughly 13-20 cm of forward separation after each weapon's visual
@@ -20,8 +20,20 @@ const SCT8_SUPPORT_LOCAL := Vector3(0.0, -0.03, -0.18)
 
 const CBR4_HANDGUARD_SIZE := Vector3(0.19, 0.16, 0.36)
 const CBR4_HANDGUARD_POSITION := Vector3(0.0, 0.015, -0.30)
+const CBR4_STOCK_BEAM_SIZE := Vector3(0.10, 0.10, 0.18)
+const CBR4_STOCK_BEAM_POSITION := Vector3(0.0, -0.04, 0.18)
+const CBR4_SHOULDER_PAD_SIZE := Vector3(0.16, 0.22, 0.07)
+const CBR4_SHOULDER_PAD_POSITION := Vector3(0.0, -0.06, 0.30)
+const CBR4_REAR_EXTENT_M := 0.335
+
 const SCT8_FOREGRIP_SIZE := Vector3(0.18, 0.16, 0.28)
 const SCT8_FOREGRIP_POSITION := Vector3(0.0, -0.035, -0.25)
+const SCT8_STOCK_NECK_SIZE := Vector3(0.12, 0.13, 0.16)
+const SCT8_STOCK_NECK_POSITION := Vector3(0.0, -0.05, 0.14)
+const SCT8_STOCK_SIZE := Vector3(0.16, 0.21, 0.20)
+const SCT8_STOCK_POSITION := Vector3(0.0, -0.09, 0.27)
+const SCT8_REAR_EXTENT_M := 0.37
+
 const SURFACE_EPSILON_M := 0.002
 
 var _holder_id := 0
@@ -53,6 +65,7 @@ func _process(_delta: float) -> void:
         player.set_meta("combat_long_weapon_fit_weapon_id", weapon_id)
         player.set_meta("combat_long_weapon_support_surface_locked", bool(holder.get_meta("combat_long_weapon_support_surface_locked", false)))
         player.set_meta("combat_long_weapon_support_surface_name", String(holder.get_meta("combat_long_weapon_support_surface_name", "")))
+        player.set_meta("combat_long_weapon_rear_extent_m", float(holder.get_meta("combat_long_weapon_rear_extent_m", 999.0)))
 
 func _apply_fit(holder: Node3D, weapon_id: StringName) -> bool:
     var support := holder.find_child(SUPPORT_SOCKET_NAME, true, false) as Node3D
@@ -60,28 +73,27 @@ func _apply_fit(holder: Node3D, weapon_id: StringName) -> bool:
         return false
 
     var support_surface_name := ""
+    var rear_extent_m := 999.0
     match weapon_id:
         CBR4_ID:
             support.position = CBR4_SUPPORT_LOCAL
-            # Bring the rear portion of the visible handguard back toward the
-            # receiver. Barrel/muzzle length stays unchanged, so silhouette and
-            # muzzle framing do not collapse just to satisfy the IK.
             _fit_box(holder, "CarbineHandguard", CBR4_HANDGUARD_SIZE, CBR4_HANDGUARD_POSITION)
-            _fit_box(holder, "CarbineStockBeam", Vector3(0.10, 0.10, 0.28), Vector3(0.0, -0.04, 0.24))
-            _fit_box(holder, "CarbineShoulderPad", Vector3(0.16, 0.24, 0.08), Vector3(0.0, -0.06, 0.42))
+            _fit_box(holder, "CarbineStockBeam", CBR4_STOCK_BEAM_SIZE, CBR4_STOCK_BEAM_POSITION)
+            _fit_box(holder, "CarbineShoulderPad", CBR4_SHOULDER_PAD_SIZE, CBR4_SHOULDER_PAD_POSITION)
             support_surface_name = "CarbineHandguard"
+            rear_extent_m = CBR4_REAR_EXTENT_M
         SCT8_ID:
             support.position = SCT8_SUPPORT_LOCAL
-            # The pump/foregrip itself moves with the socket. This prevents a
-            # numerically green hand from gripping empty space.
             _fit_box(holder, "ScatterForegrip", SCT8_FOREGRIP_SIZE, SCT8_FOREGRIP_POSITION)
-            _fit_box(holder, "ScatterStockNeck", Vector3(0.13, 0.14, 0.22), Vector3(0.0, -0.05, 0.18))
-            _fit_box(holder, "ScatterStock", Vector3(0.17, 0.23, 0.30), Vector3(0.0, -0.10, 0.39))
+            _fit_box(holder, "ScatterStockNeck", SCT8_STOCK_NECK_SIZE, SCT8_STOCK_NECK_POSITION)
+            _fit_box(holder, "ScatterStock", SCT8_STOCK_SIZE, SCT8_STOCK_POSITION)
             support_surface_name = "ScatterForegrip"
+            rear_extent_m = SCT8_REAR_EXTENT_M
         _:
             return false
 
     holder.set_meta("combat_weapon_support_local_fitted", support.position)
+    holder.set_meta("combat_long_weapon_rear_extent_m", rear_extent_m)
     _publish_support_surface_contract(holder, support, support_surface_name)
     return true
 

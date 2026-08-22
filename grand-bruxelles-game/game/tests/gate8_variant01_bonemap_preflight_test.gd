@@ -12,8 +12,6 @@ const REQUIRED_ROLES: Array[String] = [
 
 const ROLE_ALIASES := {
     "hips": ["hips", "pelvis", "hip"],
-    "spine": ["spine", "spine01", "spine1"],
-    "chest": ["chest", "spine02", "spine2", "spine03", "spine3"],
     "neck": ["neck", "neck01", "neck1"],
     "head": ["head"],
     "left_upper_arm": ["leftarm", "upperarml", "lupperarm", "armleft"],
@@ -23,10 +21,10 @@ const ROLE_ALIASES := {
     "right_forearm": ["rightforearm", "lowerarmr", "forearmr", "rforearm"],
     "right_hand": ["righthand", "handr", "rhand"],
     "left_upper_leg": ["leftupleg", "leftupperleg", "thighl", "upperlegl", "lthigh"],
-    "left_lower_leg": ["leftleg", "leftlowerleg", "calfl", "lowerlegl", "lcalf"],
+    "left_lower_leg": ["leftleg", "leftlowerleg", "calfl", "lowerlegl", "lcalf", "shinl"],
     "left_foot": ["leftfoot", "footl", "lfoot"],
     "right_upper_leg": ["rightupleg", "rightupperleg", "thighr", "upperlegr", "rthigh"],
-    "right_lower_leg": ["rightleg", "rightlowerleg", "calfr", "lowerlegr", "rcalf"],
+    "right_lower_leg": ["rightleg", "rightlowerleg", "calfr", "lowerlegr", "rcalf", "shinr"],
     "right_foot": ["rightfoot", "footr", "rfoot"]
 }
 
@@ -38,6 +36,7 @@ func _init() -> void:
 func _run() -> void:
     _regression_duplicate_assignment_rejected()
     _regression_missing_role_rejected()
+    _regression_torso_chain_resolution()
 
     var source_skeleton := await _load_skeleton(SOURCE_SCENE, "source")
     var target_skeleton := await _load_skeleton(TARGET_SCENE, "target")
@@ -68,14 +67,16 @@ func _run() -> void:
     elif leg_ratio < 0.55 or leg_ratio > 1.80:
         _failures.append("target_to_source_leg_ratio=%.4f outside=0.55..1.80" % leg_ratio)
 
-    var source_upper_chest := _find_optional_upper_chest(source_skeleton)
-    var target_upper_chest := _find_optional_upper_chest(target_skeleton)
+    var source_upper_chest := _find_optional_upper_chest(source_skeleton, source_map)
+    var target_upper_chest := _find_optional_upper_chest(target_skeleton, target_map)
     var result := {
         "format": "grand-bruxelles-gate8-variant01-bonemap-preflight-result-v1",
         "engine_version": Engine.get_version_info().get("string", "unknown"),
         "candidate_variant": 1,
         "source_bone_count": source_skeleton.get_bone_count(),
         "target_bone_count": target_skeleton.get_bone_count(),
+        "source_bone_inventory": _skeleton_inventory(source_skeleton),
+        "target_bone_inventory": _skeleton_inventory(target_skeleton),
         "source_roles": source_map,
         "target_roles": target_map,
         "source_upper_chest_candidates": source_upper_chest,
@@ -137,6 +138,8 @@ func _resolve_roles(skeleton: Skeleton3D, label: String) -> Dictionary:
     for bone_idx in range(skeleton.get_bone_count()):
         normalized_names.append(_normalize(skeleton.get_bone_name(bone_idx)))
     for role in REQUIRED_ROLES:
+        if role == "spine" or role == "chest":
+            continue
         var matches: Array[int] = []
         var aliases: Array = ROLE_ALIASES.get(role, [])
         for bone_idx in range(normalized_names.size()):
@@ -156,7 +159,42 @@ func _resolve_roles(skeleton: Skeleton3D, label: String) -> Dictionary:
                 names.append(skeleton.get_bone_name(idx))
             _failures.append("%s_role_ambiguous role=%s candidates=%s" % [label, role, ",".join(names)])
             mapping[role] = ""
+    _resolve_torso_roles(skeleton, mapping, label)
     return mapping
+
+func _resolve_torso_roles(skeleton: Skeleton3D, mapping: Dictionary, label: String) -> void:
+    var hips_idx := skeleton.find_bone(String(mapping.get("hips", "")))
+    var neck_idx := skeleton.find_bone(String(mapping.get("neck", "")))
+    if hips_idx < 0 or neck_idx < 0:
+        mapping["spine"] = ""
+        mapping["chest"] = ""
+        _failures.append("%s_torso_chain_anchor_missing" % label)
+        return
+    var chain: Array[int] = []
+    var cursor := skeleton.get_bone_parent(neck_idx)
+    while cursor >= 0 and cursor != hips_idx:
+        chain.push_front(cursor)
+        cursor = skeleton.get_bone_parent(cursor)
+    if cursor != hips_idx:
+        mapping["spine"] = ""
+        mapping["chest"] = ""
+        _failures.append("%s_torso_chain_not_under_hips" % label)
+        return
+    var torso_candidates: Array[int] = []
+    for idx in chain:
+        var normalized := _normalize(skeleton.get_bone_name(idx))
+        if normalized.contains("spine") or normalized.contains("chest"):
+            torso_candidates.append(idx)
+    if torso_candidates.size() < 2:
+        mapping["spine"] = ""
+        mapping["chest"] = ""
+        var names: Array[String] = []
+        for idx in chain:
+            names.append(skeleton.get_bone_name(idx))
+        _failures.append("%s_torso_chain_insufficient candidates=%s" % [label, ",".join(names)])
+        return
+    mapping["spine"] = skeleton.get_bone_name(torso_candidates[0])
+    mapping["chest"] = skeleton.get_bone_name(torso_candidates[1])
 
 func _validate_required_roles(mapping: Dictionary, label: String) -> void:
     for role in REQUIRED_ROLES:
@@ -220,7 +258,6 @@ func _bone_position(skeleton: Skeleton3D, mapping: Dictionary, role: String) -> 
     return _bone_global_rest(skeleton, idx).origin
 
 func _torso_bend_deg(skeleton: Skeleton3D, mapping: Dictionary) -> float:
-    var hips := _bone_position(skeleton, mapping, "hips")
     var spine := _bone_position(skeleton, mapping, "spine")
     var chest := _bone_position(skeleton, mapping, "chest")
     var neck := _bone_position(skeleton, mapping, "neck")
@@ -239,12 +276,24 @@ func _mean_leg_length(skeleton: Skeleton3D, mapping: Dictionary) -> float:
         values.append(upper.distance_to(lower) + lower.distance_to(foot))
     return (values[0] + values[1]) * 0.5
 
-func _find_optional_upper_chest(skeleton: Skeleton3D) -> Array[String]:
+func _find_optional_upper_chest(skeleton: Skeleton3D, mapping: Dictionary) -> Array[String]:
+    var result: Array[String] = []
+    var chest_idx := skeleton.find_bone(String(mapping.get("chest", "")))
+    var neck_idx := skeleton.find_bone(String(mapping.get("neck", "")))
+    if chest_idx < 0 or neck_idx < 0:
+        return result
+    var cursor := skeleton.get_bone_parent(neck_idx)
+    while cursor >= 0 and cursor != chest_idx:
+        var normalized := _normalize(skeleton.get_bone_name(cursor))
+        if normalized.contains("spine") or normalized.contains("chest") or normalized.contains("upperchest"):
+            result.push_front(skeleton.get_bone_name(cursor))
+        cursor = skeleton.get_bone_parent(cursor)
+    return result
+
+func _skeleton_inventory(skeleton: Skeleton3D) -> Array[String]:
     var result: Array[String] = []
     for idx in range(skeleton.get_bone_count()):
-        var normalized := _normalize(skeleton.get_bone_name(idx))
-        if normalized.contains("upperchest") or normalized.contains("spine03") or normalized.contains("spine3"):
-            result.append(skeleton.get_bone_name(idx))
+        result.append(skeleton.get_bone_name(idx))
     return result
 
 func _regression_duplicate_assignment_rejected() -> void:
@@ -270,6 +319,22 @@ func _regression_missing_role_rejected() -> void:
         _failures.append("regression_missing_role_not_detected")
     else:
         _failures.resize(before)
+
+func _regression_torso_chain_resolution() -> void:
+    var skeleton := Skeleton3D.new()
+    var names: Array[String] = ["hips", "spine_01", "spine_02", "spine_03", "neck"]
+    for name in names:
+        skeleton.add_bone(name)
+    for idx in range(1, names.size()):
+        skeleton.set_bone_parent(idx, idx - 1)
+    var mapping := {"hips": "hips", "neck": "neck"}
+    var before := _failures.size()
+    _resolve_torso_roles(skeleton, mapping, "regression_torso")
+    if _failures.size() != before:
+        _failures.append("regression_torso_chain_unexpected_failure")
+    elif String(mapping.get("spine", "")) != "spine_01" or String(mapping.get("chest", "")) != "spine_02":
+        _failures.append("regression_torso_chain_wrong_selection spine=%s chest=%s" % [mapping.get("spine", ""), mapping.get("chest", "")])
+    skeleton.free()
 
 func _write_result(result: Dictionary) -> void:
     var file := FileAccess.open("res://gate8_variant01_bonemap_preflight_result.json", FileAccess.WRITE)

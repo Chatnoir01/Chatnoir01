@@ -4,7 +4,7 @@ class_name BrusselsOsmFacadeArticulationMaterial
 const MATERIAL_FAMILY := "brussels_osm_facade_articulation_v1"
 const PRESENTATION_REVISION := 2
 const SOURCE_LABEL := "OpenStreetMap contributors via Overpass API; generic building footprint/placement/kind only; ODbL-1.0"
-const SURFACE_READABILITY_STRENGTH := 0.10
+const SURFACE_READABILITY_STRENGTH := 0.22
 
 static func _shader() -> Shader:
     var shader := Shader.new()
@@ -13,7 +13,7 @@ shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 uniform vec4 base_color : source_color = vec4(0.45, 0.40, 0.34, 1.0);
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.91;
-uniform float surface_readability_strength : hint_range(0.0, 0.25) = 0.10;
+uniform float surface_readability_strength : hint_range(0.0, 0.25) = 0.22;
 varying vec3 world_pos;
 varying vec3 world_normal;
 float hash31(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }

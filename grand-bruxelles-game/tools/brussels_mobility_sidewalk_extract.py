@@ -51,7 +51,6 @@ def build_wfs_url(query_bbox: list[float] | None = None) -> str:
         "outputFormat": "json",
         "srsName": CRS,
         "bbox": ",".join(f"{value:.3f}" for value in bbox),
-        "CQL_FILTER": "ssft='SW'",
     }
     return f"{WFS_ENDPOINT}?{urlencode(params)}"
 
@@ -116,7 +115,7 @@ def canonicalize_feature_collection(raw: bytes, query_bbox: list[float] | None =
         },
         "crs": CRS,
         "query_bbox": bbox,
-        "query_filter": "ssft='SW'",
+        "query_filter": "bounded layer query; canonicalizer requires ssft='SW' for every feature",
         "feature_count": len(features),
         "source_sha256": _sha256(raw),
         "feature_id_sha256": _sha256(ids_bytes),

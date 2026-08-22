@@ -1,16 +1,17 @@
 extends Node
 
 # Uses Godot 4.7's built-in FABRIK3D as a non-destructive support-hand layer.
-# A production two-handed pose needs the clavicle to participate: the authored
-# rig's upper/lower arm alone is shorter than the shoulder-to-weapon distance.
-# The chain therefore solves clavicle -> upper arm -> lower arm -> wrist, while
-# wrist-to-hand offset compensation keeps the palm on the authored support grip.
+# A production two-handed pose needs the shoulder root to participate: the
+# authored rig's upper/lower arm alone is shorter than the shoulder-to-weapon
+# distance. The chain therefore solves shoulder-root -> upper arm -> lower arm
+# -> wrist, while wrist-to-hand offset compensation keeps the palm on the
+# authored support grip.
 
 const ACTIVE_WEAPONS: Array[StringName] = [&"cbr4", &"sct8", &"crossbow"]
 const IK_NAME := "CombatSupportHandIK"
 const TARGET_NAME := "CombatSupportHandTarget"
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
-const SIGNATURE := "combat_support_hand_ik_v5_fabrik_clavicle"
+const SIGNATURE := "combat_support_hand_ik_v6_fabrik_shoulder_root"
 const MAX_BIND_ATTEMPTS := 480
 
 var _player: CharacterBody3D = null
@@ -21,6 +22,8 @@ var _hand_bone := -1
 var _wrist_bone := -1
 var _lower_arm_bone := -1
 var _upper_arm_bone := -1
+# Kept as _clavicle_bone for compatibility with the existing diagnostic gate.
+# Some authored rigs name this bone collar/shoulder rather than clavicle.
 var _clavicle_bone := -1
 var _bind_attempts := 0
 
@@ -111,10 +114,21 @@ func _ensure_bound() -> bool:
     var wrist := skeleton.get_bone_parent(hand)
     var lower := _find_named_ancestor(skeleton, wrist, "lowerarm") if wrist >= 0 else -1
     var upper := _find_named_ancestor(skeleton, lower, "upperarm") if lower >= 0 else -1
-    var clavicle := _find_named_ancestor(skeleton, upper, "clavicle") if upper >= 0 else -1
-    if clavicle < 0 and upper >= 0:
-        clavicle = _find_named_ancestor(skeleton, upper, "shoulder")
+    var clavicle := _find_support_root_bone(skeleton, upper)
+
+    # Publish the real ancestor chain even when a bind fails. This turns a
+    # future gate failure into actionable rig evidence instead of zeros.
+    _player.set_meta("combat_support_ik_bind_chain", _ancestor_chain(skeleton, hand, 8))
+    _player.set_meta("combat_support_ik_bind_indices", {
+        "hand": hand,
+        "wrist": wrist,
+        "lower": lower,
+        "upper": upper,
+        "root": clavicle,
+    })
+
     if wrist < 0 or lower < 0 or upper < 0 or clavicle < 0:
+        _player.set_meta("combat_support_ik_reason", "bind_chain_unresolved")
         return false
 
     _skeleton = skeleton
@@ -153,6 +167,28 @@ func _ensure_bound() -> bool:
         "hand": String(_skeleton.get_bone_name(_hand_bone)),
     })
     return true
+
+func _find_support_root_bone(skeleton: Skeleton3D, upper: int) -> int:
+    if upper < 0:
+        return -1
+    for semantic: String in ["clavicle", "shoulder", "collar"]:
+        var named := _find_named_ancestor(skeleton, upper, semantic)
+        if named >= 0:
+            return named
+    # The production model may use a neutral authored name for the shoulder
+    # root. The immediate parent of upperarm is still the only contiguous bone
+    # that can extend the arm without skipping joints, so it is the safe
+    # structural fallback for FABRIK. Visual witness remains the final guard
+    # against an unsuitable torso deformation.
+    return skeleton.get_bone_parent(upper)
+
+func _ancestor_chain(skeleton: Skeleton3D, start_bone: int, max_count: int) -> Array[String]:
+    var chain: Array[String] = []
+    var current := start_bone
+    while current >= 0 and chain.size() < max_count:
+        chain.append(String(skeleton.get_bone_name(current)))
+        current = skeleton.get_bone_parent(current)
+    return chain
 
 func _resolve_support_target(player: CharacterBody3D, weapon_id: StringName) -> Dictionary:
     if weapon_id == &"cbr4" or weapon_id == &"sct8":

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+import base64
 import hashlib
 import json
+import lzma
 from collections import Counter
 from pathlib import Path
 
@@ -22,6 +24,11 @@ def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def canonical_id_blob(features: list[dict]) -> bytes:
+    # The merged source lock uses newline-delimited IDs with a terminal newline.
+    return ("\n".join(feature["feature_id"] for feature in features) + "\n").encode("utf-8")
+
+
 def validate_source(payload: dict) -> list[dict]:
     assert payload["schema"] == "grand-bruxelles-official-sidewalk-corridor-extract-v1"
     assert payload["feature_count"] == EXPECTED_FEATURE_COUNT
@@ -39,8 +46,7 @@ def validate_source(payload: dict) -> list[dict]:
     features = sorted(payload["features"], key=lambda feature: feature["feature_id"])
     assert len(features) == EXPECTED_FEATURE_COUNT
     assert len({feature["feature_id"] for feature in features}) == EXPECTED_FEATURE_COUNT
-    ids = "\n".join(feature["feature_id"] for feature in features).encode("utf-8")
-    assert sha256_bytes(ids) == EXPECTED_FEATURE_ID_SHA256
+    assert sha256_bytes(canonical_id_blob(features)) == EXPECTED_FEATURE_ID_SHA256
     assert sha256_bytes(canonical_json(features)) == EXPECTED_RECORD_SHA256
     assert Counter(feature["ssft"] for feature in features) == Counter(EXPECTED_SSFT)
 
@@ -77,14 +83,21 @@ def write_geometry(source: dict, features: list[dict], output_root: Path, produc
             "feature_count": len(subset),
             "features": subset,
         }
-        raw = canonical_json(payload)
-        filename = f"chunk_{chunk_index:02d}.json"
-        (chunk_dir / filename).write_bytes(raw)
+        canonical = canonical_json(payload)
+        compressed = lzma.compress(canonical, format=lzma.FORMAT_XZ, preset=9 | lzma.PRESET_EXTREME)
+        encoded = base64.b64encode(compressed) + b"\n"
+        filename = f"chunk_{chunk_index:02d}.json.xz.b64"
+        (chunk_dir / filename).write_bytes(encoded)
         chunks.append({
             "chunk_index": chunk_index,
             "file": filename,
+            "encoding": "base64+xz",
             "feature_count": len(subset),
-            "sha256": sha256_bytes(raw),
+            "canonical_sha256": sha256_bytes(canonical),
+            "compressed_sha256": sha256_bytes(compressed),
+            "file_sha256": sha256_bytes(encoded),
+            "canonical_bytes": len(canonical),
+            "compressed_bytes": len(compressed),
             "first_feature_id": subset[0]["feature_id"],
             "last_feature_id": subset[-1]["feature_id"],
         })
@@ -131,6 +144,7 @@ def write_geometry(source: dict, features: list[dict], output_root: Path, produc
             "game_world_transform_applied": False,
             "overlap_measurement_required_before_runtime": True,
             "overlap_measurement_authorizes_runtime": False,
+            "storage_compression_changes_canonical_records": False,
         },
         "next_gate": {
             "measure_horizontal_overlap_against_generic_sidewalks": True,

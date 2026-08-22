@@ -51,3 +51,20 @@ def test_capture_harness_is_engine_bound_and_writes_four_png_views():
         assert marker in source, f"capture harness is not bound to an isolated real-engine witness contract; missing {marker!r}"
     for view_id in ("canonical", "cornet_renard", "brasseurs_rose_thabor", "maison_du_roi"):
         assert view_id in source
+
+
+def test_maison_du_roi_witness_records_real_source_surface_facing_measurement():
+    source = CAPTURE.read_text(encoding="utf-8")
+    required = [
+        'MAISON_DU_ROI_OWNER_ID := "1654360"',
+        "_owner_surface_facing_measurement",
+        '"source_surface_facing"',
+        '"wall_triangles"',
+        '"roof_triangles"',
+        '"front_facing_wall_triangles"',
+        '"front_facing_wall_area_ratio"',
+        '"front_facing_roof_area_ratio"',
+        '"dominant_front_wall_normal"',
+    ]
+    for marker in required:
+        assert marker in source, f"Maison du Roi witness does not quantify exact source surface orientation; missing {marker!r}"

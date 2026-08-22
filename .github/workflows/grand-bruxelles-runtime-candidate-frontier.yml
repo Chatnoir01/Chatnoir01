@@ -1,0 +1,112 @@
+name: Grand Bruxelles Runtime Candidate Frontier
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/grand-bruxelles-runtime-candidate-frontier.yml"
+      - "grand-bruxelles-game/tools/citygen/build_regional_runtime_candidates.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_regional_runtime_candidates.py"
+      - "grand-bruxelles-game/tools/citygen/build_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py"
+  schedule:
+    - cron: "47 * * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-runtime-candidate-frontier.yml"
+      - "grand-bruxelles-game/tools/citygen/build_regional_runtime_candidates.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_regional_runtime_candidates.py"
+      - "grand-bruxelles-game/tools/citygen/build_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grand-bruxelles-runtime-candidate-frontier
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate runtime candidate contracts
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py
+          python3 grand-bruxelles-game/tools/citygen/test_build_regional_runtime_candidates.py
+
+  build-frontier:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Recover durable regional sources and scheduler state
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/citygen-runtime-input /tmp/citygen-runtime-existing /tmp/citygen-runtime-new /tmp/citygen-runtime-out
+          mkdir -p /tmp/citygen-runtime-input /tmp/citygen-runtime-existing /tmp/citygen-runtime-new /tmp/citygen-runtime-out
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          STATE_ROOT="grand-bruxelles-game/data/qa"
+          git show "origin/citygen-autonomous-state:${STATE_ROOT}/autonomous_citygen_state.json" > /tmp/citygen-runtime-input/state.json
+          git show "origin/citygen-autonomous-state:${STATE_ROOT}/brussels_regional_target_grid.json" > /tmp/citygen-runtime-input/grid.json
+          git archive origin/citygen-autonomous-state "${STATE_ROOT}/autonomous_sources" | tar -x -C /tmp/citygen-runtime-input
+          test -d "/tmp/citygen-runtime-input/${STATE_ROOT}/autonomous_sources"
+
+          if git fetch origin citygen-runtime-candidates:refs/remotes/origin/citygen-runtime-candidates 2>/dev/null; then
+            if git cat-file -e "origin/citygen-runtime-candidates:${STATE_ROOT}/runtime_candidates" 2>/dev/null; then
+              git archive origin/citygen-runtime-candidates "${STATE_ROOT}/runtime_candidates" | tar -x -C /tmp/citygen-runtime-existing
+            fi
+          fi
+
+      - name: Compile next municipality-balanced runtime candidate batch
+        run: |
+          set -euo pipefail
+          EXISTING_ARGS=()
+          EXISTING_ROOT="/tmp/citygen-runtime-existing/grand-bruxelles-game/data/qa/runtime_candidates"
+          if [ -d "$EXISTING_ROOT" ]; then EXISTING_ARGS=(--existing-root "$EXISTING_ROOT"); fi
+          python3 grand-bruxelles-game/tools/citygen/build_regional_runtime_candidates.py \
+            --source-root /tmp/citygen-runtime-input/grand-bruxelles-game/data/qa/autonomous_sources \
+            --state /tmp/citygen-runtime-input/state.json \
+            --target-grid /tmp/citygen-runtime-input/grid.json \
+            --output-root /tmp/citygen-runtime-new \
+            --report /tmp/citygen-runtime-out/runtime_candidate_frontier_report.json \
+            --limit 32 \
+            "${EXISTING_ARGS[@]}"
+          cat /tmp/citygen-runtime-out/runtime_candidate_frontier_report.json
+
+      - name: Persist candidate-only runtime bundles off main
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C citygen-runtime-candidates
+          DEST="grand-bruxelles-game/data/qa/runtime_candidates"
+          mkdir -p "$DEST"
+          cp -a /tmp/citygen-runtime-existing/grand-bruxelles-game/data/qa/runtime_candidates/. "$DEST/" 2>/dev/null || true
+          cp -a /tmp/citygen-runtime-new/. "$DEST/" 2>/dev/null || true
+          cp /tmp/citygen-runtime-out/runtime_candidate_frontier_report.json grand-bruxelles-game/data/qa/runtime_candidate_frontier_report.json
+          git add "$DEST" grand-bruxelles-game/data/qa/runtime_candidate_frontier_report.json
+          if git diff --cached --quiet; then
+            echo "RUNTIME_CANDIDATE_FRONTIER_NO_CHANGE"
+            exit 0
+          fi
+          git commit -m "citygen: persist regional runtime candidate frontier"
+          git push --force-with-lease origin citygen-runtime-candidates
+
+      - name: Upload runtime candidate frontier evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: regional-runtime-candidate-frontier-${{ github.run_number }}
+          path: |
+            /tmp/citygen-runtime-out/
+            /tmp/citygen-runtime-new/
+          retention-days: 30

@@ -33,12 +33,21 @@ func _run() -> void:
         _problems.append("pending_review_count=%d expected=5" % Gate8Loader.pending_review_count())
     if Gate8Loader.runtime_available_count() != 0:
         _problems.append("runtime_available_count=%d expected=0" % Gate8Loader.runtime_available_count())
-    if Gate8Loader.VISUAL_REVIEW_RUN != 32559626470:
-        _problems.append("visual_review_run=%d expected=32559626470" % Gate8Loader.VISUAL_REVIEW_RUN)
-    if Gate8Loader.VISUAL_REVIEW_ARTIFACT != 9472459666:
-        _problems.append("visual_review_artifact=%d expected=9472459666" % Gate8Loader.VISUAL_REVIEW_ARTIFACT)
-    if Gate8Loader.VISUAL_REVIEW_ARTIFACT_SHA256 != "1ce9000f5db0422ed1a13b451ce5a9a90ceb7c47413f2d8968838353d839e140":
+    if Gate8Loader.VISUAL_REVIEW_RUN != 32567113138:
+        _problems.append("visual_review_run=%d expected=32567113138" % Gate8Loader.VISUAL_REVIEW_RUN)
+    if Gate8Loader.VISUAL_REVIEW_ARTIFACT != 9474429495:
+        _problems.append("visual_review_artifact=%d expected=9474429495" % Gate8Loader.VISUAL_REVIEW_ARTIFACT)
+    if Gate8Loader.VISUAL_REVIEW_ARTIFACT_SHA256 != "97d3896fa62dad9baf9a0eb0b1e0fb5e0d2949dbb9a5da3ae48441322bd2833b":
         _problems.append("visual_review_artifact_sha256_mismatch")
+    if Gate8Loader.VISUAL_REVIEW_CAPTURE_COUNT != 32:
+        _problems.append("visual_review_capture_count=%d expected=32" % Gate8Loader.VISUAL_REVIEW_CAPTURE_COUNT)
+    if not Gate8Loader.VISUAL_REVIEW_HAS_THREE_QUARTER:
+        _problems.append("visual_review_three_quarter_evidence_missing")
+    var review_status := Gate8Loader.status()
+    if int(review_status.get("visual_review_capture_count", 0)) != 32:
+        _problems.append("status_visual_review_capture_count_mismatch")
+    if not bool(review_status.get("visual_review_has_three_quarter", false)):
+        _problems.append("status_visual_review_three_quarter_missing")
 
     # Future production activation must not create density holes when reviewed
     # candidates are rejected. The old raw 1..8 mapping would send 3/8 seeds to
@@ -139,7 +148,7 @@ func _run() -> void:
         for problem: String in _problems: print("- ", problem)
         quit(1)
         return
-    print("GATE8_RUNTIME_REVIEW_GATE_OK approved=0 rejected=3 pending_review=5 visual_review_run=%d visual_review_artifact=%d" % [Gate8Loader.VISUAL_REVIEW_RUN, Gate8Loader.VISUAL_REVIEW_ARTIFACT])
+    print("GATE8_RUNTIME_REVIEW_GATE_OK approved=0 rejected=3 pending_review=5 visual_review_run=%d visual_review_artifact=%d captures=%d three_quarter=true" % [Gate8Loader.VISUAL_REVIEW_RUN, Gate8Loader.VISUAL_REVIEW_ARTIFACT, Gate8Loader.VISUAL_REVIEW_CAPTURE_COUNT])
     print("GATE8_SEED_REMAP_OK allowed=5 tested_seeds=100 per_variant=20 no_holes=true")
     print("GATE8_GODOT_CONTRACT_OK count=8 unique_variants=8 movement_owner_changed=false navigation_changed=false animation_retargeted=false dynamic_grounding=true grounding_measurement=rest_vertices")
     quit(0)

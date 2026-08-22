@@ -1,0 +1,248 @@
+name: Grand Bruxelles Intake Driveway Access
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/brussels_driveway_access_intake.contract.json"
+      - "grand-bruxelles-game/data/provenance/brussels_driveway_access.measurement.json"
+      - ".github/workflows/grand-bruxelles-intake-driveway-access.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require exact production base and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/brussels_driveway_access_intake.contract.json').read_text())
+          measurement = json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_access.measurement.json').read_text())
+          expected = contract['production_base_sha']
+          live = subprocess.check_output(['git','rev-parse','origin/main'], text=True).strip()
+          base = subprocess.check_output(['git','merge-base','HEAD','origin/main'], text=True).strip()
+          assert live == expected, f'live main drift: expected={expected} live={live}'
+          assert base == expected, f'branch base drift: expected={expected} merge_base={base}'
+          assert measurement['production_base_sha'] == expected
+          assert contract['license'] == measurement['license'] == 'CC0-1.0'
+          assert contract['source_crs'] == measurement['source_crs'] == 'EPSG:31370'
+          assert contract['metadata_last_updated'] == measurement['metadata_last_updated'] == '2026-03-30'
+          for key, value in contract['hard_rules'].items():
+              assert value is False, f'{key} must remain false'
+              assert measurement[key] is False, f'measurement {key} must remain false'
+          lookups = contract['ogc_api']['lookup_collections']
+          assert lookups == ['type_acces_carrossables','zone_recul_carrossable','zone_served_carrossable']
+          print('DRIVEWAY_ACCESS_EXACT_BASE_OK', live)
+          PY
+
+      - name: Measure official WFS source and OGC reference collections
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/driveway-access"
+          python3 - <<'PY'
+          import hashlib, json, os, time, urllib.error, urllib.parse, urllib.request
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/brussels_driveway_access_intake.contract.json').read_text())
+          out = Path(os.environ['RUNNER_TEMP']) / 'driveway-access'
+          diagnostic_path = out / 'driveway-access-diagnostic.json'
+          partial = {'schema':'grand-bruxelles-driveway-access-diagnostic-v1','production_base_sha':contract['production_base_sha'],'completed':[]}
+          user_agent = 'GrandBruxellesGame-DrivewayAccessIntake/2.0'
+
+          def sha(payload):
+              return hashlib.sha256(payload).hexdigest()
+
+          def request_url(url, timeout=180, retries=4):
+              last = None
+              for attempt in range(retries):
+                  req = urllib.request.Request(url, headers={'User-Agent':user_agent,'Accept':'application/json, application/geo+json, application/xml, */*'})
+                  try:
+                      with urllib.request.urlopen(req, timeout=timeout) as response:
+                          return response.geturl(), response.read(), dict(response.headers)
+                  except urllib.error.HTTPError as exc:
+                      body = exc.read()
+                      last = RuntimeError(f'HTTP {exc.code} {url}: {body[:2000].decode("utf-8","replace")}')
+                  except Exception as exc:
+                      last = exc
+                  if attempt + 1 < retries:
+                      time.sleep(min(2 ** (attempt + 1), 8))
+              raise RuntimeError(f'GET failed after {retries} attempts: {url}: {last}')
+
+          def wfs_request(params):
+              base = contract['wfs']['base_url']
+              return request_url(base + '?' + urllib.parse.urlencode(params))
+
+          def wfs_hits(layer):
+              url, payload, headers = wfs_request({'service':'wfs','version':contract['wfs']['version'],'request':'GetFeature','typeName':layer,'resultType':'hits'})
+              root = ET.fromstring(payload)
+              tag = root.tag.rsplit('}',1)[-1]
+              if tag == 'ExceptionReport':
+                  texts = [' '.join((node.text or '').split()) for node in root.iter() if (node.text or '').strip()]
+                  raise RuntimeError(f'WFS ExceptionReport for {layer}: {texts}')
+              raw = root.attrib.get('numberOfFeatures') or root.attrib.get('numberMatched')
+              if raw is None:
+                  raise RuntimeError(f'WFS hits response lacks count for {layer}: tag={root.tag} attrs={root.attrib}')
+              count = int(raw)
+              if count <= 0:
+                  raise RuntimeError(f'WFS layer unexpectedly empty: {layer}')
+              return {'url':url,'count':count,'response_sha256':sha(payload),'response_bytes':len(payload),'content_type':headers.get('Content-Type')}
+
+          def absolute_next(current_url, links):
+              for link in links or []:
+                  if str(link.get('rel','')).lower() == 'next' and link.get('href'):
+                      return urllib.parse.urljoin(current_url, str(link['href']))
+              return None
+
+          def measure_lookup(collection):
+              base = contract['ogc_api']['collections_base_url'].rstrip('/')
+              current = f'{base}/{urllib.parse.quote(collection)}/items/?f=json&limit=10000'
+              visited = set()
+              page_proofs = []
+              feature_ids = []
+              geometry_types = {}
+              matched_values = set()
+              for page_index in range(100):
+                  if current in visited:
+                      raise RuntimeError(f'OGC pagination cycle for {collection}: {current}')
+                  visited.add(current)
+                  resolved, payload, headers = request_url(current)
+                  obj = json.loads(payload)
+                  if obj.get('type') != 'FeatureCollection':
+                      raise RuntimeError(f'OGC items is not FeatureCollection for {collection}: keys={sorted(obj)[:20]}')
+                  features = obj.get('features') or []
+                  number_returned = obj.get('numberReturned')
+                  if number_returned is not None and int(number_returned) != len(features):
+                      raise RuntimeError(f'OGC numberReturned drift for {collection}: {number_returned} != {len(features)}')
+                  if obj.get('numberMatched') is not None:
+                      matched_values.add(int(obj['numberMatched']))
+                  for feature in features:
+                      fid = feature.get('id')
+                      if fid is None:
+                          props = feature.get('properties') or {}
+                          fid = props.get('id')
+                      if fid is None or str(fid).strip() == '':
+                          raise RuntimeError(f'lookup feature lacks stable id for {collection}')
+                      feature_ids.append(str(fid))
+                      geom = feature.get('geometry')
+                      gtype = 'null' if geom is None else str(geom.get('type','unknown'))
+                      geometry_types[gtype] = geometry_types.get(gtype,0) + 1
+                  page_proofs.append({'index':page_index,'url':resolved,'bytes':len(payload),'sha256':sha(payload),'returned':len(features),'content_type':headers.get('Content-Type')})
+                  nxt = absolute_next(resolved, obj.get('links'))
+                  if not nxt:
+                      break
+                  current = nxt
+              else:
+                  raise RuntimeError(f'OGC pagination exceeded 100 pages for {collection}')
+              if not feature_ids:
+                  raise RuntimeError(f'OGC lookup unexpectedly empty: {collection}')
+              if len(feature_ids) != len(set(feature_ids)):
+                  raise RuntimeError(f'duplicate lookup feature ids: {collection}')
+              if len(matched_values) > 1:
+                  raise RuntimeError(f'OGC numberMatched changed during pagination for {collection}: {sorted(matched_values)}')
+              matched = next(iter(matched_values)) if matched_values else None
+              if matched is not None and matched != len(feature_ids):
+                  raise RuntimeError(f'OGC complete-pagination mismatch for {collection}: matched={matched} collected={len(feature_ids)}')
+              canonical_pages = json.dumps(page_proofs, sort_keys=True, separators=(',',':')).encode()
+              return {
+                  'collection':collection,
+                  'feature_count':len(feature_ids),
+                  'number_matched':matched,
+                  'feature_id_sequence_sha256':sha(('\n'.join(feature_ids)+'\n').encode()),
+                  'geometry_types':dict(sorted(geometry_types.items())),
+                  'page_count':len(page_proofs),
+                  'pages':page_proofs,
+                  'page_proofs_sha256':sha(canonical_pages)
+              }
+
+          try:
+              main_layer = contract['wfs']['main_layer']
+              main_hits = wfs_hits(main_layer)
+              partial['completed'].append({'stage':'main_hits','evidence':main_hits})
+              sample_url, sample_bytes, sample_headers = wfs_request({
+                  'service':'wfs','version':contract['wfs']['version'],'request':'GetFeature','typeName':main_layer,
+                  'srsName':contract['source_crs'],'outputFormat':'json','maxFeatures':str(contract['measurement_policy']['sample_max_features'])
+              })
+              sample = json.loads(sample_bytes)
+              if sample.get('type') != 'FeatureCollection':
+                  raise RuntimeError('main WFS sample is not FeatureCollection')
+              features = sample.get('features') or []
+              if not features:
+                  raise RuntimeError('main source sample is empty')
+              if len(features) > int(contract['measurement_policy']['sample_max_features']):
+                  raise RuntimeError(f'main sample exceeds bound: {len(features)}')
+              required = set(contract['required_main_properties'])
+              ids, xs, ys = [], [], []
+              for feature in features:
+                  geometry = feature.get('geometry') or {}
+                  if geometry.get('type') != 'Point':
+                      raise RuntimeError(f'unexpected main geometry: {geometry.get("type")}')
+                  coords = geometry.get('coordinates') or []
+                  if len(coords) < 2:
+                      raise RuntimeError('main Point lacks XY')
+                  x, y = float(coords[0]), float(coords[1])
+                  if not (0.0 <= x <= 300000.0 and 0.0 <= y <= 300000.0):
+                      raise RuntimeError(f'coordinate outside broad Lambert72 envelope: {(x,y)}')
+                  xs.append(x); ys.append(y)
+                  props = feature.get('properties') or {}
+                  missing = required - set(props)
+                  if missing:
+                      raise RuntimeError(f'missing main properties: {sorted(missing)}')
+                  ids.append(str(props['id']))
+              if len(ids) != len(set(ids)):
+                  raise RuntimeError('duplicate main IDs in deterministic sample')
+              sample_proof = {
+                  'url':sample_url,'sha256':sha(sample_bytes),'bytes':len(sample_bytes),'feature_count':len(features),
+                  'id_sequence_sha256':sha(('\n'.join(ids)+'\n').encode()),'bbox':[min(xs),min(ys),max(xs),max(ys)],
+                  'content_type':sample_headers.get('Content-Type')
+              }
+              partial['completed'].append({'stage':'main_sample','evidence':sample_proof})
+
+              lookups = {}
+              for collection in contract['ogc_api']['lookup_collections']:
+                  lookups[collection] = measure_lookup(collection)
+                  partial['completed'].append({'stage':f'lookup:{collection}','evidence':lookups[collection]})
+
+              report = {
+                  'schema':'grand-bruxelles-brussels-driveway-access-source-measurement-v2',
+                  'production_base_sha':contract['production_base_sha'],
+                  'publisher':contract['publisher'],'dataset':contract['dataset'],'metadata_url':contract['metadata_url'],
+                  'metadata_last_updated':contract['metadata_last_updated'],'license':contract['license'],'source_crs':contract['source_crs'],
+                  'main_layer':main_layer,'main_hits':main_hits,'sample':sample_proof,'lookup_collections':lookups,
+                  'status':'MEASURED_SOURCE_ONLY','source_registration_authorized':False,'parking_evidence_runtime_approved':False,
+                  'runtime_authorized':False,'runtime_mount_authorized':False,'collision_authorized':False,
+                  'materialization_authorized':False,'semantic_names_authorized':False,
+                  'game_world_transform_authorized':False,'jouable_promotion_authorized':False
+              }
+              (out / 'driveway-access-source-measurement.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n')
+              diagnostic_path.write_text(json.dumps({**partial,'status':'success'}, ensure_ascii=False, indent=2)+'\n')
+              print('DRIVEWAY_ACCESS_SOURCE_MEASURED', f'main_count={main_hits["count"]}', f'sample={len(features)}', f'lookups={len(lookups)}', 'registration=false')
+          except Exception as exc:
+              diagnostic = {**partial,'status':'failure','error_type':type(exc).__name__,'error':str(exc)}
+              diagnostic_path.write_text(json.dumps(diagnostic, ensure_ascii=False, indent=2)+'\n')
+              print('DRIVEWAY_ACCESS_SOURCE_RED', type(exc).__name__, str(exc))
+              raise
+          PY
+
+      - name: Upload source measurement and diagnostic
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-driveway-access-source-measurement
+          path: ${{ runner.temp }}/driveway-access
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6

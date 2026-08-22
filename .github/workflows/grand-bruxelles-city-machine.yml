@@ -64,7 +64,7 @@ jobs:
             /tmp/city-machine-jette/*.json
             /tmp/city-machine-build-*.log
 
-  midi-osm-bootstrap:
+  midi-cache-normalize:
     if: github.event_name == 'pull_request' && github.head_ref == 'feat/city-machine-midi-osm-regional-cache'
     permissions:
       contents: write
@@ -74,77 +74,51 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: feat/city-machine-midi-osm-regional-cache
-      - name: Install exact CRS dependency
-        run: python3 -m pip install --disable-pip-version-check "pyproj>=3.7,<4"
-      - name: Build temporary Midi source contract from committed evidence
+      - name: Materialize Midi from committed UrbIS and OSM caches only
         run: |
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          project = Path("grand-bruxelles-game")
-          source = json.loads((project / "data/urbis/midi/manifest.json").read_text(encoding="utf-8"))
-          control = json.loads((project / "data/sources/midi/control_points_lambert72.json").read_text(encoding="utf-8"))
-          origin = control["origin"]
-          assert source["crs"] == "EPSG:31370"
-          assert source["bbox"] == [147250.0, 168900.0, 148500.0, 170250.0]
-          assert control["crs"] == "EPSG:31370"
-          contract = dict(source)
-          contract["source_crs"] = source["crs"]
-          contract["source_license"] = "CC0-1.0"
-          contract["game_origin"] = {
-              "e": float(origin["e"]),
-              "n": float(origin["n"]),
-              "altitude": 0.0,
-              "units": "metres",
-              "axes": "X=east, Y=up, Z=south",
-          }
-          Path("/tmp/midi-city-machine-manifest.json").write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-          print("MIDI_SOURCE_CONTRACT_OK", contract["bbox"], contract["game_origin"])
-          PY
-      - name: Refresh exact Midi regional OSM environment cache
-        run: |
+          set -euo pipefail
+          ROOT=grand-bruxelles-game/data/urbis/midi
+          CONVERTER=grand-bruxelles-game/tools/lambert72_to_game_geojson.py
+          for slug in buildings street_surfaces street_axes train_network; do
+            python3 "$CONVERTER" "$ROOT/$slug.geojson" "$ROOT/$slug.game.json" \
+              --origin-e 148400.0 --origin-n 169900.0 --origin-altitude 0.0
+          done
           python3 grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py \
-            --manifest /tmp/midi-city-machine-manifest.json \
-            --zone midi \
-            --raw-cache grand-bruxelles-game/data/osm/zones/midi/environment.raw.json \
-            --output grand-bruxelles-game/data/osm/zones/midi/environment.game.json \
-            --refresh
-      - name: Prove cached rebuild and exact scope
-        run: |
-          sha256sum grand-bruxelles-game/data/osm/zones/midi/environment.raw.json > /tmp/midi-osm-raw.sha
-          sha256sum grand-bruxelles-game/data/osm/zones/midi/environment.game.json > /tmp/midi-osm-runtime.sha
-          python3 grand-bruxelles-game/tools/city_machine/build_osm_environment_zone.py \
-            --manifest /tmp/midi-city-machine-manifest.json \
+            --manifest "$ROOT/manifest.json" \
             --zone midi \
             --raw-cache grand-bruxelles-game/data/osm/zones/midi/environment.raw.json \
             --output grand-bruxelles-game/data/osm/zones/midi/environment.game.json
-          sha256sum -c /tmp/midi-osm-raw.sha
-          sha256sum -c /tmp/midi-osm-runtime.sha
+          python3 grand-bruxelles-game/tools/validate_jette_phase2_data.py "$ROOT"
+      - name: Prove no raw/network mutation and exact world origin
+        run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
-          raw = json.loads(Path("grand-bruxelles-game/data/osm/zones/midi/environment.raw.json").read_text(encoding="utf-8"))
-          runtime = json.loads(Path("grand-bruxelles-game/data/osm/zones/midi/environment.game.json").read_text(encoding="utf-8"))
-          assert raw["format"] == "grand-bruxelles-osm-zone-environment-cache-v1"
-          assert raw["license"] == "ODbL-1.0"
-          assert runtime["format"] == "grand-bruxelles-osm-zone-environment-v1"
-          assert runtime["license"] == "ODbL-1.0"
-          assert runtime["zone"] == "midi"
-          assert runtime["bbox_31370"] == [147250.0, 168900.0, 148500.0, 170250.0]
-          assert runtime["stats"]["tree"] > 0
-          assert runtime["stats"]["total"] == len(runtime["environment_points"])
-          print("MIDI_OSM_REGIONAL_CACHE_OK", runtime["stats"], runtime["bbox_wgs84"])
+          root = Path("grand-bruxelles-game/data/urbis/midi")
+          for slug in ("buildings", "street_surfaces", "street_axes", "train_network"):
+              doc = json.loads((root / f"{slug}.game.json").read_text(encoding="utf-8"))
+              cs = doc["grand_bruxelles_coordinate_system"]
+              assert cs["origin_e"] == 148400.0
+              assert cs["origin_n"] == 169900.0
+          env = json.loads(Path("grand-bruxelles-game/data/osm/zones/midi/environment.game.json").read_text(encoding="utf-8"))
+          assert env["bbox_31370"] == [147250.0, 168900.0, 148500.0, 170250.0]
+          assert env["stats"] == {"tree": 1694, "street_lamp": 104, "bollard": 732, "total": 2530}
+          print("MIDI_COMMITTED_CACHE_NORMALIZATION_OK")
           PY
-      - name: Commit generated Midi cache only
+          git diff --exit-code -- grand-bruxelles-game/data/osm/zones/midi/environment.raw.json
+      - name: Commit normalized runtime caches
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            grand-bruxelles-game/data/osm/zones/midi/environment.raw.json \
+            grand-bruxelles-game/data/urbis/midi/buildings.game.json \
+            grand-bruxelles-game/data/urbis/midi/street_surfaces.game.json \
+            grand-bruxelles-game/data/urbis/midi/street_axes.game.json \
+            grand-bruxelles-game/data/urbis/midi/train_network.game.json \
             grand-bruxelles-game/data/osm/zones/midi/environment.game.json
           if git diff --cached --quiet; then
-            echo "Midi OSM cache already current"
+            echo "Midi normalized caches already current"
             exit 0
           fi
-          git commit -m "data(osm): add complete Midi regional environment cache"
+          git commit -m "data(city-machine): normalize Midi runtime caches"
           git push origin HEAD:feat/city-machine-midi-osm-regional-cache

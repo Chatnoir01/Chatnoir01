@@ -5,6 +5,7 @@ const MATERIAL_FAMILY := "brussels_osm_facade_articulation_v1"
 const PRESENTATION_REVISION := 2
 const SOURCE_LABEL := "OpenStreetMap contributors via Overpass API; generic building footprint/placement/kind only; ODbL-1.0"
 const SURFACE_READABILITY_STRENGTH := 0.22
+const READABILITY_PROFILE := "isotropic_contrast_shaped_fine_grain_v2"
 
 static func _shader() -> Shader:
     var shader := Shader.new()
@@ -25,9 +26,11 @@ float value_noise3(vec3 p) {
     return mix(mix(nx00,nx10,f.y),mix(nx01,nx11,f.y),f.z);
 }
 float fine_grain(vec3 p) {
-    float a=value_noise3(p*vec3(0.62,0.71,0.62)+vec3(13,37,17));
-    float b=value_noise3(p*vec3(1.21,1.07,1.21)+vec3(53,11,29));
-    return clamp((a-0.5)*0.72+(b-0.5)*0.28,-0.5,0.5);
+    float a=value_noise3(p*vec3(1.35,1.58,1.35)+vec3(13,37,17));
+    float b=value_noise3(p*vec3(2.75,2.31,2.75)+vec3(53,11,29));
+    float mixed=clamp((a-0.5)*0.68+(b-0.5)*0.32,-0.5,0.5);
+    float magnitude=pow(clamp(abs(mixed)*2.0,0.0,1.0),0.35)*0.5;
+    return sign(mixed)*magnitude;
 }
 void vertex(){ world_pos=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz; world_normal=normalize(MODEL_NORMAL_MATRIX*NORMAL); }
 void fragment(){
@@ -54,6 +57,7 @@ static func create_material(base_color: Color, roughness: float = 0.91) -> Shade
     material.set_shader_parameter("surface_readability_strength", SURFACE_READABILITY_STRENGTH)
     material.set_meta("material_family", MATERIAL_FAMILY)
     material.set_meta("presentation_revision", PRESENTATION_REVISION)
+    material.set_meta("readability_profile", READABILITY_PROFILE)
     material.set_meta("source_label", SOURCE_LABEL)
     material.set_meta("license", "ODbL-1.0")
     material.set_meta("procedural_only", true)

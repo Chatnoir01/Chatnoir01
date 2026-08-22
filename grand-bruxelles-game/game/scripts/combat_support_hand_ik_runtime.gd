@@ -8,7 +8,7 @@ const IK_NAME := "CombatSupportHandIK"
 const TARGET_NAME := "CombatSupportHandTarget"
 const POLE_NAME := "CombatSupportElbowPole"
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
-const SIGNATURE := "combat_support_hand_ik_v2"
+const SIGNATURE := "combat_support_hand_ik_v3"
 const MAX_BIND_ATTEMPTS := 480
 
 var _player: CharacterBody3D = null
@@ -17,6 +17,7 @@ var _ik: TwoBoneIK3D = null
 var _target: Node3D = null
 var _pole: Node3D = null
 var _hand_bone := -1
+var _wrist_bone := -1
 var _lower_arm_bone := -1
 var _upper_arm_bone := -1
 var _bind_attempts := 0
@@ -41,10 +42,20 @@ func _process(_delta: float) -> void:
         _set_active(false, weapon_id, "target_unavailable")
         return
 
-    _target.global_position = target_world.get("position", _target.global_position)
+    var desired_hand_world: Vector3 = target_world.get("position", _target.global_position)
+    # TwoBoneIK3D needs a contiguous three-bone chain. KayKit inserts wrist.l
+    # between lowerarm.l and hand.l, so the solver ends at the wrist. Offset the
+    # wrist target by the current wrist->hand vector so the actual hand lands on
+    # the foregrip instead of the wrist itself.
+    var wrist_world := _bone_world_position(_wrist_bone)
+    var hand_world := _bone_world_position(_hand_bone)
+    var wrist_to_hand := hand_world - wrist_world
+    _target.global_position = desired_hand_world - wrist_to_hand
+
     var shoulder_world := _bone_world_position(_upper_arm_bone)
     _pole.global_position = shoulder_world + _player.global_transform.basis * Vector3(-0.42, -0.18, -0.04)
     _set_active(true, weapon_id, "support_grip")
+    _player.set_meta("combat_support_ik_desired_hand_world", desired_hand_world)
     _player.set_meta("combat_support_ik_target_world", _target.global_position)
     _player.set_meta("combat_support_ik_pole_world", _pole.global_position)
     _player.set_meta("combat_support_ik_target_source", String(target_world.get("source", "")))
@@ -72,16 +83,17 @@ func _ensure_bound() -> bool:
     if hand < 0:
         return false
 
-    # KayKit inserts a wrist helper between lowerarm.l and hand.l. A raw
-    # parent-parent walk therefore produced lowerarm->wrist->hand and never
-    # rotated the shoulder. Resolve the semantic arm bones explicitly instead.
-    var lower := _find_named_ancestor(skeleton, hand, "lowerarm")
+    # KayKit arm hierarchy is upperarm.l -> lowerarm.l -> wrist.l -> hand.l.
+    # Resolve the semantic bones and keep the TwoBoneIK3D chain contiguous.
+    var wrist := skeleton.get_bone_parent(hand)
+    var lower := _find_named_ancestor(skeleton, wrist, "lowerarm") if wrist >= 0 else -1
     var upper := _find_named_ancestor(skeleton, lower, "upperarm") if lower >= 0 else -1
-    if lower < 0 or upper < 0:
+    if wrist < 0 or lower < 0 or upper < 0:
         return false
 
     _skeleton = skeleton
     _hand_bone = hand
+    _wrist_bone = wrist
     _lower_arm_bone = lower
     _upper_arm_bone = upper
 
@@ -98,7 +110,7 @@ func _ensure_bound() -> bool:
     _skeleton.add_child(_ik)
     _ik.set_root_bone_name(0, String(_skeleton.get_bone_name(_upper_arm_bone)))
     _ik.set_middle_bone_name(0, String(_skeleton.get_bone_name(_lower_arm_bone)))
-    _ik.set_end_bone_name(0, String(_skeleton.get_bone_name(_hand_bone)))
+    _ik.set_end_bone_name(0, String(_skeleton.get_bone_name(_wrist_bone)))
     _ik.set_target_node(0, _ik.get_path_to(_target))
     _ik.set_pole_node(0, _ik.get_path_to(_pole))
     _ik.set_pole_direction_vector(0, Vector3(0.0, 0.0, 1.0))
@@ -110,8 +122,8 @@ func _ensure_bound() -> bool:
     _player.set_meta("combat_support_ik_bones", {
         "upper": String(_skeleton.get_bone_name(_upper_arm_bone)),
         "lower": String(_skeleton.get_bone_name(_lower_arm_bone)),
+        "end": String(_skeleton.get_bone_name(_wrist_bone)),
         "hand": String(_skeleton.get_bone_name(_hand_bone)),
-        "hand_parent": String(_skeleton.get_bone_name(_skeleton.get_bone_parent(_hand_bone))),
     })
     return true
 
@@ -140,8 +152,9 @@ func _resolve_support_target(player: CharacterBody3D, weapon_id: StringName) -> 
 func _on_ik_processed() -> void:
     if _player == null or _skeleton == null or _target == null or _hand_bone < 0 or _ik == null or not _ik.active:
         return
+    var desired_hand_world: Vector3 = _player.get_meta("combat_support_ik_desired_hand_world", _target.global_position)
     var hand_world := _bone_world_position(_hand_bone)
-    var gap := hand_world.distance_to(_target.global_position)
+    var gap := hand_world.distance_to(desired_hand_world)
     _player.set_meta("combat_support_hand_gap_m", gap)
     _player.set_meta("combat_support_ik_active", true)
     _player.set_meta("combat_support_ik_locked", gap <= 0.085)
@@ -232,6 +245,7 @@ func _clear_binding() -> void:
     _target = null
     _pole = null
     _hand_bone = -1
+    _wrist_bone = -1
     _lower_arm_bone = -1
     _upper_arm_bone = -1
     _bind_attempts = 0

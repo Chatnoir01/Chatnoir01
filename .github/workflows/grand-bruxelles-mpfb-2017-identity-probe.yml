@@ -16,8 +16,30 @@ jobs:
       - name: Probe approved Blender Extensions MPFB 2.0.17 archive
         run: |
           set -euo pipefail
-          URL="https://extensions.blender.org/add-ons/mpfb/2.0.17/download/"
-          curl --fail --location --retry 3 --retry-all-errors "$URL" -o /tmp/mpfb-2.0.17.zip
+          API="https://extensions.blender.org/api/v1/extensions/?blender_version=4.2.0&platform=linux-x64"
+          curl --fail --location --retry 3 --retry-all-errors \
+            -H 'Accept: application/json' "$API" -o /tmp/extensions.json
+          python3 - <<'PY' > /tmp/mpfb-identity.env
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path('/tmp/extensions.json').read_text(encoding='utf-8'))
+          matches = [item for item in data.get('data', []) if item.get('id') == 'mpfb']
+          assert len(matches) == 1, f'mpfb matches={len(matches)}'
+          item = matches[0]
+          assert item.get('version') == '2.0.17', item.get('version')
+          assert item.get('blender_version_min') == '4.2.0', item.get('blender_version_min')
+          archive_hash = item.get('archive_hash', '')
+          assert archive_hash.startswith('sha256:'), archive_hash
+          print(f"MPFB_URL={item['archive_url']}")
+          print(f"MPFB_SIZE={item['archive_size']}")
+          print(f"MPFB_SHA256={archive_hash.split(':', 1)[1]}")
+          PY
+          cat /tmp/mpfb-identity.env
+          source /tmp/mpfb-identity.env
+          curl --fail --location --retry 3 --retry-all-errors "$MPFB_URL" -o /tmp/mpfb-2.0.17.zip
+          test "$(stat -c '%s' /tmp/mpfb-2.0.17.zip)" = "$MPFB_SIZE"
+          test "$(sha256sum /tmp/mpfb-2.0.17.zip | awk '{print $1}')" = "$MPFB_SHA256"
           python3 - <<'PY'
           import hashlib, re, zipfile
           from pathlib import Path

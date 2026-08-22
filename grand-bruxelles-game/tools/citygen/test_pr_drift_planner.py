@@ -28,6 +28,12 @@ class DriftTests(unittest.TestCase):
         self.assertFalse(one["auto_rebuild_candidate"])
         self.assertEqual(one["overlaps"][0]["with_pr"], 2)
 
+    def test_truncated_file_list_fails_closed(self):
+        snap = {"main_sha": "m", "prs": [{"number": 4, "head_sha": "h", "behind_by": 9, "changed_files": ["x"], "files_complete": False}]}
+        row = build_drift_plan(snap)["prs"][0]
+        self.assertEqual(row["state"], "OWNERSHIP_UNCERTAIN")
+        self.assertFalse(row["auto_rebuild_candidate"])
+
     def test_long_branch_risk_is_visible_but_not_fake_conflict(self):
         snap = {"main_sha": "m", "prs": [{"number": 3, "head_sha": "h", "behind_by": 0, "changed_files": ["x"], "commits": 25, "age_hours": 100}]}
         row = build_drift_plan(snap, max_commits=20, max_age_hours=72)["prs"][0]

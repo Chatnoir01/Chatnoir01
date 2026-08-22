@@ -42,7 +42,7 @@ jobs:
           test "$(sha256sum /tmp/mpfb-2.0.17.zip | awk '{print $1}')" = "$MPFB_SHA256"
           python3 - <<'PY'
           import hashlib, re, zipfile
-          from pathlib import Path
+          from pathlib import Path, PurePosixPath
 
           p = Path('/tmp/mpfb-2.0.17.zip')
           raw = p.read_bytes()
@@ -50,8 +50,15 @@ jobs:
           with zipfile.ZipFile(p) as z:
               bad = z.testzip()
               assert bad is None, bad
-              manifest = z.read('mpfb/blender_manifest.toml').decode('utf-8')
-              init_py = z.read('mpfb/__init__.py').decode('utf-8')
+              names = [n for n in z.namelist() if not n.endswith('/')]
+              manifests = [n for n in names if PurePosixPath(n).name == 'blender_manifest.toml']
+              assert manifests, 'blender_manifest.toml not found'
+              manifest_name = min(manifests, key=lambda n: (n.count('/'), len(n)))
+              parent = str(PurePosixPath(manifest_name).parent)
+              init_name = '__init__.py' if parent == '.' else f'{parent}/__init__.py'
+              assert init_name in names, f'__init__.py next to manifest not found: manifest={manifest_name}'
+              manifest = z.read(manifest_name).decode('utf-8')
+              init_py = z.read(init_name).decode('utf-8')
           version = re.search(r'^version\s*=\s*"([^"]+)"', manifest, re.M)
           build = re.search(r'^BUILD_INFO\s*=\s*"([^"]+)"', init_py, re.M)
           blender_min = re.search(r'^blender_version_min\s*=\s*"([^"]+)"', manifest, re.M)
@@ -61,6 +68,7 @@ jobs:
           print(
               'MPFB_2017_STABLE_IDENTITY_OK '
               f'bytes={len(raw)} sha256={digest} version={version.group(1)} '
-              f'build={build.group(1)} blender_min={blender_min.group(1)}'
+              f'build={build.group(1)} blender_min={blender_min.group(1)} '
+              f'manifest_path={manifest_name}'
           )
           PY

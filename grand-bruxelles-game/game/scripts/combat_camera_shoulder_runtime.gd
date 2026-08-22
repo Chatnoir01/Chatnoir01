@@ -2,10 +2,11 @@ extends Node
 
 # Late combat framing owner. GtaScaleCameraRuntime remains authoritative for
 # distance/FOV/special presentations; this layer only increases the third-person
-# shoulder offset while armed so the weapon and both hands are readable.
+# shoulder offset while armed so the weapon and both hands stay readable around
+# the authored player's oversized head silhouette.
 
-const ARMED_OFFSET := Vector3(0.68, 0.14, 0.0)
-const AIM_OFFSET := Vector3(0.80, 0.18, 0.0)
+const ARMED_OFFSET := Vector3(1.00, 0.22, 0.0)
+const AIM_OFFSET := Vector3(1.15, 0.27, 0.0)
 const NORMAL_OFFSET := Vector3(0.34, 0.08, 0.0)
 const MIN_THIRD_PERSON_DISTANCE_M := 0.80
 
@@ -42,8 +43,6 @@ func _process(_delta: float) -> void:
         spring_arm.position = ARMED_OFFSET
         player.set_meta("combat_camera_shoulder_profile", "carry")
     else:
-        # Restore the normal third-person composition because this runtime runs
-        # after the GTA camera arbiter every frame.
         spring_arm.position = NORMAL_OFFSET
         player.set_meta("combat_camera_shoulder_profile", "normal")
     player.set_meta("combat_camera_shoulder_active", armed)

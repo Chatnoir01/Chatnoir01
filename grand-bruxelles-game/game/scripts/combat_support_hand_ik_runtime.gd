@@ -2,14 +2,13 @@ extends Node
 
 # Uses Godot 4.7's built-in TwoBoneIK3D as a non-destructive support-hand layer.
 # The modifier is a direct Skeleton3D child and is only active for long weapons.
-# No set_bone_global_pose_override is used.
 
 const ACTIVE_WEAPONS: Array[StringName] = [&"cbr4", &"sct8", &"crossbow"]
 const IK_NAME := "CombatSupportHandIK"
 const TARGET_NAME := "CombatSupportHandTarget"
 const POLE_NAME := "CombatSupportElbowPole"
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
-const SIGNATURE := "combat_support_hand_ik_v1"
+const SIGNATURE := "combat_support_hand_ik_v2"
 const MAX_BIND_ATTEMPTS := 480
 
 var _player: CharacterBody3D = null
@@ -44,10 +43,11 @@ func _process(_delta: float) -> void:
 
     _target.global_position = target_world.get("position", _target.global_position)
     var shoulder_world := _bone_world_position(_upper_arm_bone)
-    _pole.global_position = shoulder_world + _player.global_transform.basis * Vector3(-0.48, -0.12, 0.12)
+    _pole.global_position = shoulder_world + _player.global_transform.basis * Vector3(-0.42, -0.18, -0.04)
     _set_active(true, weapon_id, "support_grip")
     _player.set_meta("combat_support_ik_target_world", _target.global_position)
     _player.set_meta("combat_support_ik_pole_world", _pole.global_position)
+    _player.set_meta("combat_support_ik_target_source", String(target_world.get("source", "")))
 
 func _ensure_bound() -> bool:
     var current := _current_player()
@@ -71,8 +71,12 @@ func _ensure_bound() -> bool:
     var hand := _find_left_hand_bone(skeleton)
     if hand < 0:
         return false
-    var lower := skeleton.get_bone_parent(hand)
-    var upper := skeleton.get_bone_parent(lower) if lower >= 0 else -1
+
+    # KayKit inserts a wrist helper between lowerarm.l and hand.l. A raw
+    # parent-parent walk therefore produced lowerarm->wrist->hand and never
+    # rotated the shoulder. Resolve the semantic arm bones explicitly instead.
+    var lower := _find_named_ancestor(skeleton, hand, "lowerarm")
+    var upper := _find_named_ancestor(skeleton, lower, "upperarm") if lower >= 0 else -1
     if lower < 0 or upper < 0:
         return false
 
@@ -107,6 +111,7 @@ func _ensure_bound() -> bool:
         "upper": String(_skeleton.get_bone_name(_upper_arm_bone)),
         "lower": String(_skeleton.get_bone_name(_lower_arm_bone)),
         "hand": String(_skeleton.get_bone_name(_hand_bone)),
+        "hand_parent": String(_skeleton.get_bone_name(_skeleton.get_bone_parent(_hand_bone))),
     })
     return true
 
@@ -124,8 +129,10 @@ func _resolve_support_target(player: CharacterBody3D, weapon_id: StringName) -> 
         var crossbow := player.find_child("2H_Crossbow", true, false) as Node3D
         if crossbow == null or not crossbow.visible:
             return {"found": false}
-        var hand_world := _bone_world_position(_hand_bone)
-        var target_world := hand_world + player.global_transform.basis * Vector3(0.06, 0.05, -0.28)
+        # The native crossbow has no authored support socket. Place the target
+        # in its fore-end region relative to the crossbow transform, not relative
+        # to the current hand (which would make the goal move with the solver).
+        var target_world := crossbow.global_transform * Vector3(-0.10, -0.02, -0.30)
         return {"found": true, "position": target_world, "source": "crossbow_foregrip_region"}
 
     return {"found": false}
@@ -183,10 +190,22 @@ func _find_left_hand_bone(skeleton: Skeleton3D) -> int:
             return index
     return -1
 
-static func _is_left_hand_name(value: String) -> bool:
+func _find_named_ancestor(skeleton: Skeleton3D, start_bone: int, semantic: String) -> int:
+    var current := skeleton.get_bone_parent(start_bone) if start_bone >= 0 else -1
+    while current >= 0:
+        if _normalized_bone_name(String(skeleton.get_bone_name(current))).contains(semantic):
+            return current
+        current = skeleton.get_bone_parent(current)
+    return -1
+
+static func _normalized_bone_name(value: String) -> String:
     var compact := value.to_lower()
     for token: String in [":", "_", "-", ".", " "]:
         compact = compact.replace(token, "")
+    return compact
+
+static func _is_left_hand_name(value: String) -> bool:
+    var compact := _normalized_bone_name(value)
     return compact.ends_with("lefthand") or compact.ends_with("handl") or compact == "lhand"
 
 func _bone_world_position(bone_index: int) -> Vector3:

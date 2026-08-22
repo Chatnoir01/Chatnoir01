@@ -42,6 +42,15 @@ def test_contract_declares_exact_extract_scope():
     assert required["runtime_use_before_validated_extract"] is False
 
 
+def test_wfs_query_is_spatially_bounded_and_does_not_mix_mutually_exclusive_filters():
+    module = load_extractor()
+    url = module.build_wfs_url(EXPECTED_BBOX)
+    assert "bbox=" in url
+    assert "CQL_FILTER" not in url
+    assert "outputFormat=json" in url
+    assert "srsName=EPSG%3A31370" in url
+
+
 def test_canonicalize_persists_identity_digests_and_scope():
     module = load_extractor()
     raw = json.dumps({"type": "FeatureCollection", "features": [sample_feature()]}, separators=(",", ":")).encode()
@@ -49,7 +58,9 @@ def test_canonicalize_persists_identity_digests_and_scope():
     assert result["schema"] == "grand-bruxelles-official-sidewalk-corridor-extract-v1"
     assert result["crs"] == EXPECTED_CRS
     assert result["query_bbox"] == EXPECTED_BBOX
+    assert result["input_feature_count"] == 1
     assert result["feature_count"] == 1
+    assert result["excluded_non_sw_count"] == 0
     assert result["features"][0]["feature_id"] == "urbadm_ssw.1"
     assert result["features"][0]["ssft"] == EXPECTED_CLASS
     assert result["source_sha256"] == hashlib.sha256(raw).hexdigest()
@@ -59,18 +70,35 @@ def test_canonicalize_persists_identity_digests_and_scope():
     assert result["policy"]["runtime_geometry_authorized"] is False
 
 
-def test_canonicalize_fails_closed_on_non_sidewalk_or_duplicate_identity():
+def test_canonicalize_selects_sw_locally_and_reports_excluded_classes():
     module = load_extractor()
-    bad_class = json.dumps({"type": "FeatureCollection", "features": [sample_feature(ssft="XX")]}, separators=(",", ":")).encode()
+    raw = json.dumps(
+        {
+            "type": "FeatureCollection",
+            "features": [sample_feature("urbadm_ssw.2", "S"), sample_feature("urbadm_ssw.1", "SW")],
+        },
+        separators=(",", ":"),
+    ).encode()
+    result = module.canonicalize_feature_collection(raw, query_bbox=EXPECTED_BBOX)
+    assert result["input_feature_count"] == 2
+    assert result["feature_count"] == 1
+    assert result["excluded_non_sw_count"] == 1
+    assert result["excluded_ssft_counts"] == {"S": 1}
+    assert [feature["feature_id"] for feature in result["features"]] == ["urbadm_ssw.1"]
+
+
+def test_canonicalize_fails_closed_when_no_sw_or_duplicate_selected_identity():
+    module = load_extractor()
+    no_sw = json.dumps({"type": "FeatureCollection", "features": [sample_feature(ssft="S")]}, separators=(",", ":")).encode()
     try:
-        module.canonicalize_feature_collection(bad_class, query_bbox=EXPECTED_BBOX)
-        assert False, "non-SW feature should fail closed"
+        module.canonicalize_feature_collection(no_sw, query_bbox=EXPECTED_BBOX)
+        assert False, "extract without SW features should fail closed"
     except ValueError as exc:
-        assert "non-SW" in str(exc)
+        assert "no SW" in str(exc)
 
     duplicate = json.dumps({"type": "FeatureCollection", "features": [sample_feature(), sample_feature()]}, separators=(",", ":")).encode()
     try:
         module.canonicalize_feature_collection(duplicate, query_bbox=EXPECTED_BBOX)
-        assert False, "duplicate feature identity should fail closed"
+        assert False, "duplicate selected feature identity should fail closed"
     except ValueError as exc:
         assert "duplicate" in str(exc)

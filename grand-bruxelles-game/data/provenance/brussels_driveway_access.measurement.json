@@ -1,0 +1,59 @@
+{
+  "schema": "grand-bruxelles-brussels-driveway-access-measurement-v3",
+  "production_base_sha": "d0ffc87f88d851298feabea67d52192929ff49cb",
+  "dataset": "Accès carrossables",
+  "publisher": "Bruxelles Mobilité / Parking.brussels",
+  "metadata_url": "https://data.mobility.brussels/en/info/access_carrossables/",
+  "metadata_last_updated": "2026-03-30",
+  "license": "CC0-1.0",
+  "source_crs": "EPSG:31370",
+  "status": "MEASURED_SOURCE_ONLY_CANONICAL_RELOCK_PENDING",
+  "legacy_transport_measurement": {
+    "run_id": 32589788511,
+    "artifact_id": 9480000931,
+    "artifact_sha256": "4690741679e3626ba666e7011228714905e83d6af4f67d5c6f60bb01872c73c7",
+    "measurement_json_sha256": "f4fe56ef533314d5f5cc7992ccdc93a6b1754a4b50e3ee09317f6c16f34fc567",
+    "diagnostic_json_sha256": "79ff2d7232a46bed7ef8cf556d967e2f2783d089a20fbadf1b778af4f9626491",
+    "red_reproduction_run_id": 32589916572,
+    "red_diagnostic_artifact_id": 9480035009,
+    "red_diagnostic_artifact_sha256": "d869512c7467445ca341456cc4ed48f78892598cde31566ee1298f208a59339d",
+    "reason": "Raw HTTP JSON hashes changed while counts, IDs, byte sizes and EPSG:31370 bbox stayed identical; transport hashes are retained as forensic evidence only."
+  },
+  "stable_lock": {
+    "main": {
+      "layer": "bm_parking:access_carrossables",
+      "feature_count": 95805,
+      "sample_feature_count": 500,
+      "sample_id_sequence_sha256": "9f4a9792b7e52238ad7045299e9b62227e71b7c6697e15714e49d7ea44a636d8",
+      "sample_bbox_epsg31370": [147926.07949757, 167078.42117445, 148842.57899645, 167930.55367341]
+    },
+    "lookups": {
+      "type_acces_carrossables": {
+        "feature_count": 7,
+        "feature_id_sequence_sha256": "d28a59f6173184f7ca72607394ee0595bd89786b2df86f7495aa7408c87aa872",
+        "geometry_types": {"null": 7}
+      },
+      "zone_recul_carrossable": {
+        "feature_count": 4,
+        "feature_id_sequence_sha256": "e169bdf59fac30d230f7d21be511d04dc8cc61e5edb1d8255758bc220ba3d4c7",
+        "geometry_types": {"null": 4}
+      },
+      "zone_served_carrossable": {
+        "feature_count": 6,
+        "feature_id_sequence_sha256": "9d6093db34ed3db1834973eb10698ddb099971d39ac0e4707485d5f5aa5b0595",
+        "geometry_types": {"null": 6}
+      }
+    }
+  },
+  "canonical_semantic_lock": null,
+  "source_registration_authorized": false,
+  "parking_evidence_runtime_approved": false,
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "materialization_authorized": false,
+  "semantic_names_authorized": false,
+  "game_world_transform_authorized": false,
+  "jouable_promotion_authorized": false,
+  "note": "Source-only relock candidate. Stable identity/accounting is preserved from verified runs; raw HTTP response hashes are not semantic locks because the publisher changes JSON serialization without changing counts/IDs/bbox. First v3 GREEN run must emit canonical semantic hashes; registration/runtime rails remain closed."
+}

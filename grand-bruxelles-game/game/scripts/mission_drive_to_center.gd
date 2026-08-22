@@ -10,7 +10,7 @@ signal mission_completed(reward_cents: int)
 const MISSION_ID: String = "midi_to_centre_01"
 const STATE_SCHEMA_VERSION: int = 1
 const PRIMARY_VEHICLE_NODE := "PrototypeCar"
-const PRIMARY_VEHICLE_LABEL := "VOITURE"
+const PRIMARY_VEHICLE_LABEL := "VOITURE PRINCIPALE"
 
 const CHECKPOINTS: Array[Dictionary] = [
     {

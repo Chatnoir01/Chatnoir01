@@ -6,6 +6,8 @@ const DISTANCES_M := [2.0, 5.0, 8.0]
 const VARIANT_COUNT := 8
 const FRAMES_TO_SETTLE := 4
 const MODEL_VISUAL_FRONT_YAW_DEGREES := 0.0
+const REVIEW_THREE_QUARTER_YAW_DEGREES := 30.0
+const REVIEW_DETAIL_DISTANCE_M := 2.0
 const MAX_GROUNDING_CORRECTION_M := 0.15
 const CAMERA_EYE_HEIGHT_M := 1.62
 const CAMERA_FOV_DEGREES := 68.0
@@ -33,13 +35,27 @@ func _ready() -> void:
     var capture_count := 0
     for variant_index: int in range(1, VARIANT_COUNT + 1):
         for distance_m: float in DISTANCES_M:
-            var result := await _capture_variant_distance(variant_index, distance_m, output_dir)
+            var result := await _capture_variant(variant_index, distance_m, MODEL_VISUAL_FRONT_YAW_DEGREES, "front", "", output_dir)
             if result != OK:
                 get_tree().quit(3)
                 return
             capture_count += 1
+        # A frontal-only review can hide waist seams, clipping and shoe/leg fit.
+        # Add one close three-quarter witness per candidate before any GARDER.
+        var detail_result := await _capture_variant(
+            variant_index,
+            REVIEW_DETAIL_DISTANCE_M,
+            REVIEW_THREE_QUARTER_YAW_DEGREES,
+            "three_quarter",
+            "-3q",
+            output_dir
+        )
+        if detail_result != OK:
+            get_tree().quit(3)
+            return
+        capture_count += 1
 
-    print("GATE8_RUNTIME_WITNESS_OK captures=%d models=%d distances=2m,5m,8m dynamic_grounding=true isolated_subviewport=true front_facing=true front_yaw_deg=%.1f full_body_framing=true camera_fov_deg=%.1f annotation_max_pixel_size=%.3f" % [capture_count, VARIANT_COUNT, MODEL_VISUAL_FRONT_YAW_DEGREES, CAMERA_FOV_DEGREES, MAX_ANNOTATION_PIXEL_SIZE])
+    print("GATE8_RUNTIME_WITNESS_OK captures=%d models=%d distances=2m,5m,8m views=front,three_quarter detail_distance_m=%.1f detail_yaw_deg=%.1f dynamic_grounding=true isolated_subviewport=true front_facing=true front_yaw_deg=%.1f full_body_framing=true camera_fov_deg=%.1f annotation_max_pixel_size=%.3f" % [capture_count, VARIANT_COUNT, REVIEW_DETAIL_DISTANCE_M, REVIEW_THREE_QUARTER_YAW_DEGREES, MODEL_VISUAL_FRONT_YAW_DEGREES, CAMERA_FOV_DEGREES, MAX_ANNOTATION_PIXEL_SIZE])
     get_tree().quit(0)
 
 func _build_isolated_viewport() -> void:
@@ -96,9 +112,9 @@ func _build_isolated_viewport() -> void:
     _camera.look_at(Vector3(0.0, 1.0, -5.0), Vector3.UP)
     _camera.current = true
 
-func _capture_variant_distance(variant_index: int, distance_m: float, output_dir: String) -> Error:
+func _capture_variant(variant_index: int, distance_m: float, yaw_degrees: float, view_name: String, filename_suffix: String, output_dir: String) -> Error:
     var shot := Node3D.new()
-    shot.name = "Shot_%02d_%dm" % [variant_index, int(distance_m)]
+    shot.name = "Shot_%02d_%dm_%s" % [variant_index, int(distance_m), view_name]
     _shot_root.add_child(shot)
 
     var path := Gate8Loader.path_for_index(variant_index)
@@ -116,25 +132,21 @@ func _capture_variant_distance(variant_index: int, distance_m: float, output_dir
 
     model.name = "Gate8_%02d" % variant_index
     model.position = Vector3(0.0, 0.0, -distance_m)
-    # Gate-8 MPFB exports visually face +Z at zero yaw. The camera sits on +Z
-    # looking toward -Z, so adding PI turns every witness away from the player.
-    # Keep this witness-only correction explicit and gated; runtime activation stays OFF.
-    model.rotation_degrees.y = MODEL_VISUAL_FRONT_YAW_DEGREES
+    # Gate-8 MPFB exports visually face +Z at zero yaw. Front evidence stays at
+    # zero; the bounded +30 degree detail view is witness-only and never runtime.
+    model.rotation_degrees.y = yaw_degrees
     model.set_meta("gate8_external_visual", true)
     shot.add_child(model)
 
     var correction := Gate8Loader.ground_external_visual(model)
-    # The grounding API returns a signed translation. Clean helper-free exports
-    # can legitimately need a small negative move when their feet start above
-    # the model origin. Gate the magnitude, matching the runtime contract.
     if absf(correction) > MAX_GROUNDING_CORRECTION_M:
-        push_error("Gate-8 witness grounding correction out of range model=%02d distance=%.1f correction=%.4f" % [variant_index, distance_m, correction])
+        push_error("Gate-8 witness grounding correction out of range model=%02d distance=%.1f view=%s correction=%.4f" % [variant_index, distance_m, view_name, correction])
         shot.queue_free()
         return ERR_INVALID_DATA
 
     var world_bounds := _rest_vertex_world_bounds(model)
     if not bool(world_bounds.get("valid", false)):
-        push_error("Gate-8 witness has no rest vertices for framing model=%02d distance=%.1f" % [variant_index, distance_m])
+        push_error("Gate-8 witness has no rest vertices for framing model=%02d distance=%.1f view=%s" % [variant_index, distance_m, view_name])
         shot.queue_free()
         return ERR_INVALID_DATA
     var bounds_min: Vector3 = world_bounds["min"]
@@ -144,7 +156,7 @@ func _capture_variant_distance(variant_index: int, distance_m: float, output_dir
     _camera.look_at(visual_center, Vector3.UP)
 
     _add_scale_marker(shot, Vector3(0.95, 0.0, -distance_m))
-    _add_label(shot, "variant %02d | %d m" % [variant_index, int(distance_m)], Vector3(-0.95, 2.22, -distance_m), REVIEW_LABEL_PIXEL_SIZE)
+    _add_label(shot, "variant %02d | %d m | %s" % [variant_index, int(distance_m), view_name], Vector3(-0.95, 2.22, -distance_m), REVIEW_LABEL_PIXEL_SIZE)
 
     for _frame: int in range(FRAMES_TO_SETTLE):
         await get_tree().process_frame
@@ -152,28 +164,28 @@ func _capture_variant_distance(variant_index: int, distance_m: float, output_dir
 
     var screen_bounds := _rest_vertex_screen_bounds(model)
     if not bool(screen_bounds.get("valid", false)):
-        push_error("Gate-8 witness could not project rest vertices model=%02d distance=%.1f" % [variant_index, distance_m])
+        push_error("Gate-8 witness could not project rest vertices model=%02d distance=%.1f view=%s" % [variant_index, distance_m, view_name])
         shot.queue_free()
         return ERR_INVALID_DATA
     var screen_min: Vector2 = screen_bounds["min"]
     var screen_max: Vector2 = screen_bounds["max"]
     var min_margin_px := minf(minf(screen_min.x, screen_min.y), minf(float(CAPTURE_SIZE.x) - screen_max.x, float(CAPTURE_SIZE.y) - screen_max.y))
     if min_margin_px < FRAME_MARGIN_PX:
-        push_error("Gate-8 witness clips full body model=%02d distance=%.1f margin_px=%.2f screen_min=%s screen_max=%s" % [variant_index, distance_m, min_margin_px, screen_min, screen_max])
+        push_error("Gate-8 witness clips full body model=%02d distance=%.1f view=%s margin_px=%.2f screen_min=%s screen_max=%s" % [variant_index, distance_m, view_name, min_margin_px, screen_min, screen_max])
         shot.queue_free()
         return ERR_INVALID_DATA
 
     var image := _shot_viewport.get_texture().get_image()
     if image == null or image.is_empty():
-        push_error("Gate-8 witness screenshot image is empty model=%02d distance=%.1f" % [variant_index, distance_m])
+        push_error("Gate-8 witness screenshot image is empty model=%02d distance=%.1f view=%s" % [variant_index, distance_m, view_name])
         shot.queue_free()
         return ERR_CANT_ACQUIRE_RESOURCE
     if image.get_size() != CAPTURE_SIZE:
-        push_error("Gate-8 witness wrong dimensions model=%02d distance=%.1f size=%s" % [variant_index, distance_m, image.get_size()])
+        push_error("Gate-8 witness wrong dimensions model=%02d distance=%.1f view=%s size=%s" % [variant_index, distance_m, view_name, image.get_size()])
         shot.queue_free()
         return ERR_INVALID_DATA
 
-    var filename := "gate8-%02d-%dm.png" % [variant_index, int(distance_m)]
+    var filename := "gate8-%02d-%dm%s.png" % [variant_index, int(distance_m), filename_suffix]
     var output_path := output_dir.path_join(filename)
     var save_error := image.save_png(output_path)
     if save_error != OK:
@@ -181,7 +193,7 @@ func _capture_variant_distance(variant_index: int, distance_m: float, output_dir
         shot.queue_free()
         return save_error
 
-    print("GATE8_RUNTIME_FRAME_OK model=%02d distance=%dm correction=%.4f front_yaw_deg=%.1f frame_margin_px=%.1f full_body=true screenshot=%s" % [variant_index, int(distance_m), correction, MODEL_VISUAL_FRONT_YAW_DEGREES, min_margin_px, output_path])
+    print("GATE8_RUNTIME_FRAME_OK model=%02d distance=%dm view=%s yaw_deg=%.1f correction=%.4f frame_margin_px=%.1f full_body=true screenshot=%s" % [variant_index, int(distance_m), view_name, yaw_degrees, correction, min_margin_px, output_path])
     shot.queue_free()
     await get_tree().process_frame
     return OK

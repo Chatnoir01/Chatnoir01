@@ -2,6 +2,7 @@ extends SceneTree
 
 const MAIN_SCENE := "res://game/main.tscn"
 const ANNEESSENS_ROAD_PREFIX := "Road_359177328_"
+const SUPPORT_BODY_NAME := "GenericOsmSurfaceCollisionBody"
 const MAX_SUPPORT_GAP_M := 0.035
 const SIDEWALK_HEIGHT_M := 0.12
 const MAX_READY_FRAMES := 240
@@ -46,9 +47,6 @@ func _find_generic_sidewalks(roads_root: Node) -> Array[CSGBox3D]:
     return sidewalks
 
 func _assert_supported(label: String, box: CSGBox3D, world: World3D) -> bool:
-    if not box.use_collision:
-        _fail("%s visual surface has collision disabled" % label)
-        return false
     var support_variant: Variant = _support_y(world, box.global_position)
     if support_variant == null:
         _fail("%s has no physical support ray hit" % label)
@@ -56,12 +54,11 @@ func _assert_supported(label: String, box: CSGBox3D, world: World3D) -> bool:
     var support_y := float(support_variant)
     var visual_top_y := _surface_top_y(box)
     var gap := visual_top_y - support_y
-    print("GENERIC_OSM_GROUND_SAMPLE: label=%s visual_top_y=%.4f support_y=%.4f gap_m=%.4f collision=%s" % [
+    print("GENERIC_OSM_GROUND_SAMPLE: label=%s visual_top_y=%.4f support_y=%.4f gap_m=%.4f" % [
         label,
         visual_top_y,
         support_y,
         gap,
-        str(box.use_collision),
     ])
     if absf(gap) > MAX_SUPPORT_GAP_M:
         _fail("%s visual/support gap %.4f m exceeds %.4f m" % [label, gap, MAX_SUPPORT_GAP_M])
@@ -82,6 +79,7 @@ func _run() -> void:
     var roads_root: Node = null
     var road: CSGBox3D = null
     var sidewalks: Array[CSGBox3D] = []
+    var support_body: StaticBody3D = null
     for _frame: int in range(MAX_READY_FRAMES):
         await physics_frame
         roads_root = scene.get_node_or_null("BrusselsOSM/GeneratedRoads")
@@ -89,7 +87,8 @@ func _run() -> void:
             continue
         road = _find_anneessens_road(roads_root)
         sidewalks = _find_generic_sidewalks(roads_root)
-        if road != null and road.use_collision and sidewalks.size() >= 2 and sidewalks[0].use_collision and sidewalks[1].use_collision:
+        support_body = roads_root.get_node_or_null(SUPPORT_BODY_NAME) as StaticBody3D
+        if road != null and sidewalks.size() >= 2 and support_body != null and support_body.get_child_count() >= 3:
             await physics_frame
             break
 
@@ -101,6 +100,9 @@ func _run() -> void:
         return
     if sidewalks.size() < 2:
         _fail("expected at least two generic rendered sidewalks, got %d" % sidewalks.size())
+        return
+    if support_body == null or support_body.get_child_count() < 3:
+        _fail("generic OSM support body did not materialize")
         return
 
     var world := scene.get_world_3d()
@@ -115,9 +117,10 @@ func _run() -> void:
     if not _assert_supported("generic sidewalk B", sidewalks[1], world):
         return
 
-    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s sidewalks=%d tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false exact_bourse_scope=false" % [
+    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s sidewalks=%d support_shapes=%d tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false exact_bourse_scope=false" % [
         road.name,
         sidewalks.size(),
+        support_body.get_child_count(),
         MAX_SUPPORT_GAP_M,
     ])
     quit(0)

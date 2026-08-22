@@ -123,11 +123,16 @@ func _run() -> void:
         return
 
     var project_text := FileAccess.get_file_as_string("res://project.godot")
-    var expected_autoload := "PlayerMeleeCombatRuntime=\"*res://game/scripts/player_melee_combat_hardened_runtime.gd\""
+    var expected_autoload := "PlayerMeleeCombatRuntime=\"*res://game/scripts/player_melee_combat_weapon_safe_runtime.gd\""
     if project_text.find(expected_autoload) < 0:
-        _fail("project must activate the hardened melee runtime"); return
+        _fail("project must activate the weapon-safe hardened melee runtime"); return
+    var safe_source := FileAccess.get_file_as_string("res://game/scripts/player_melee_combat_weapon_safe_runtime.gd")
+    if safe_source.find("extends \"res://game/scripts/player_melee_combat_hardened_runtime.gd\"") < 0:
+        _fail("weapon-safe runtime must preserve hardened melee inheritance"); return
+    if safe_source.find("cancel_pending_attack_for_weapon_switch") < 0 or safe_source.find("combat_attack_cancel_reason") < 0:
+        _fail("weapon-safe runtime must cancel unresolved contact on weapon switch"); return
 
-    print("PLAYER_MELEE_HARDENED_OK: evade=0 parry=0 block=2 open=8 telegraph_ms=%d strike_impact_ms=%d directional_profiles=4 npc_styles=3 move_recovery=green delayed_contact=green single_attack_input_owner=green autoload=green" % [HARDENED.COUNTER_TELEGRAPH_MS, HARDENED.COUNTER_STRIKE_IMPACT_MS])
+    print("PLAYER_MELEE_HARDENED_OK: evade=0 parry=0 block=2 open=8 telegraph_ms=%d strike_impact_ms=%d directional_profiles=4 npc_styles=3 move_recovery=green delayed_contact=green switch_cancel=green single_attack_input_owner=green autoload=green" % [HARDENED.COUNTER_TELEGRAPH_MS, HARDENED.COUNTER_STRIKE_IMPACT_MS])
     quit(0)
 
 func _verify_delayed_player_impact() -> bool:

@@ -13,6 +13,9 @@ func _fail(message: String) -> void:
 
 func _run() -> void:
     var resolver := AUTOMATIC_ROAD_SCRIPT.new()
+    if resolver.runtime_index_source_document_count() <= 0:
+        _fail("locked source document registry is unavailable")
+        return
     if resolver.runtime_index_road_count() <= 0:
         _fail("locked source runtime index is unavailable")
         return
@@ -39,5 +42,5 @@ func _run() -> void:
         _fail("refused unknown direct-entry request still changed player position")
         return
 
-    print("AUTOMATIC_ROAD_SOURCE_LOOKUP_AUTH_OK: source_lookup_only=true playable_catalog=false unknown_osm_id=%d fail_closed=true player_unchanged=true" % UNKNOWN_OSM_ID)
+    print("AUTOMATIC_ROAD_SOURCE_LOOKUP_AUTH_OK: source_documents=%d source_lookup_only=true playable_catalog=false unknown_osm_id=%d fail_closed=true player_unchanged=true" % [resolver.runtime_index_source_document_count(), UNKNOWN_OSM_ID])
     quit(0)

@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/tools/fetch_mpfb_2017.py"
       - "grand-bruxelles-game/tools/build_makehuman_gate8_subset.py"
       - "grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py"
+      - "grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py"
       - "grand-bruxelles-game/tools/verify_mpfb_gate8_glbs.py"
       - "grand-bruxelles-game/tests/test_makehuman_gate8_selection_manifest.py"
       - ".github/workflows/grand-bruxelles-makehuman-system-assets.yml"
@@ -34,6 +35,7 @@ jobs:
           python3 -m py_compile grand-bruxelles-game/tools/fetch_mpfb_2017.py
           python3 -m py_compile grand-bruxelles-game/tools/build_makehuman_gate8_subset.py
           python3 -m py_compile grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py
+          python3 -m py_compile grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py
           python3 -m py_compile grand-bruxelles-game/tools/verify_mpfb_gate8_glbs.py
           python3 grand-bruxelles-game/tests/test_makehuman_gate8_selection_manifest.py
 
@@ -99,6 +101,8 @@ jobs:
           PY
 
       - name: Acquire exact Blender 4.2 LTS and MPFB 2.0.17
+        env:
+          HOME: /tmp/grand-bruxelles-blender-home
         run: |
           set -euo pipefail
           mkdir -p /tmp/gb-blender
@@ -143,7 +147,7 @@ jobs:
           "$BLENDER_BIN" --background --command extension list | tee /tmp/makehuman-gate8/extensions.txt
           grep -qi 'mpfb' /tmp/makehuman-gate8/extensions.txt
 
-      - name: Generate 8 grounded game-engine-rigged GLBs headlessly
+      - name: Generate 8 export-ready grounded game-engine-rigged GLBs headlessly
         env:
           HOME: /tmp/grand-bruxelles-blender-home
         run: |
@@ -151,15 +155,32 @@ jobs:
           BLENDER_BIN="$(cat /tmp/makehuman-gate8/blender-bin.txt)"
           mkdir -p /tmp/makehuman-gate8/glbs
           "$BLENDER_BIN" --background --offline-mode \
-            --python grand-bruxelles-game/tools/generate_mpfb_gate8_glbs.py \
+            --python grand-bruxelles-game/tools/generate_mpfb_gate8_export_ready_glbs.py \
             -- \
             --asset-pack /tmp/makehuman-gate8/makehuman_gate8_system_assets_cc0.zip \
             --output-dir /tmp/makehuman-gate8/glbs \
             | tee /tmp/makehuman-gate8/generation.log
           grep -q '^GB_GATE8 SUCCESS count=8 ' /tmp/makehuman-gate8/generation.log
+          test "$(grep -c '^GB_GATE8 EXPORT_READY .*helpers_removed=true masks_baked=true shapekeys_baked=true$' /tmp/makehuman-gate8/generation.log)" = "8"
           python3 grand-bruxelles-game/tools/verify_mpfb_gate8_glbs.py /tmp/makehuman-gate8/glbs \
             | tee /tmp/makehuman-gate8/glb-verification.log
           grep -q '^GATE8_GLB_VERIFY_OK characters=8 ' /tmp/makehuman-gate8/glb-verification.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path('/tmp/makehuman-gate8/glbs/gate8_glb_manifest.json').read_text(encoding='utf-8'))
+          assert data['character_count'] == 8
+          for character in data['characters']:
+              assert character['export_copy'] is True
+              assert character['modeling_shapekeys_baked'] is True
+              assert character['mask_modifiers_baked'] is True
+              assert character['helpers_removed'] is True
+              assert character['basemesh_vertices_after'] < character['basemesh_vertices_before']
+              assert character['helper_groups_after'] == []
+              assert character['mask_modifiers_after'] == []
+          print('GATE8_EXPORT_READY_MANIFEST_OK count=8')
+          PY
 
       - name: Upload full MakeHuman System Assets artifact
         uses: actions/upload-artifact@v4

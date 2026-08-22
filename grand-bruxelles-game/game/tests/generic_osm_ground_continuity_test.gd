@@ -51,6 +51,14 @@ func _classify_surfaces(roads_root: Node) -> Dictionary:
             sidewalks.append(box)
     return {"roads": roads, "sidewalks": sidewalks}
 
+func _contains_render_geometry(node: Node) -> bool:
+    for child: Node in node.get_children():
+        if child is GeometryInstance3D:
+            return true
+        if _contains_render_geometry(child):
+            return true
+    return false
+
 func _assert_supported(label: String, box: CSGBox3D, world: World3D) -> bool:
     var support_variant: Variant = _support_y(world, box.global_position)
     if support_variant == null:
@@ -114,6 +122,9 @@ func _run() -> void:
     if support_node == null or not support_node.shape is ConcavePolygonShape3D:
         _fail("compact support shape is not ConcavePolygonShape3D")
         return
+    if _contains_render_geometry(support_body):
+        _fail("physics-only support layer leaked GeometryInstance3D render content")
+        return
 
     var expected_triangles := (roads.size() + sidewalks.size()) * 2
     if int(support_body.get_meta("road_support_surfaces", -1)) != roads.size():
@@ -134,6 +145,12 @@ func _run() -> void:
     if bool(support_body.get_meta("source_geometry_changed", true)) or bool(support_body.get_meta("source_height_inferred", true)):
         _fail("support runtime manufactured source geometry/height semantics")
         return
+    if bool(support_body.get_meta("visual_output_changed", true)):
+        _fail("physics support must not claim or introduce rendered output changes")
+        return
+    if int(support_body.get_meta("render_geometry_count", -1)) != 0:
+        _fail("physics support render-geometry accounting must remain zero")
+        return
 
     var world := scene.get_world_3d()
     if world == null:
@@ -146,5 +163,5 @@ func _run() -> void:
     if not _assert_supported("generic sidewalk B", sidewalks[1] as CSGBox3D, world):
         return
 
-    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s roads=%d sidewalks=%d support_shapes=1 support_triangles=%d tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false exact_bourse_scope=false" % [road.name, roads.size(), sidewalks.size(), expected_triangles, MAX_SUPPORT_GAP_M])
+    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s roads=%d sidewalks=%d support_shapes=1 support_triangles=%d tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false visual_output_changed=false render_geometry_count=0 exact_bourse_scope=false" % [road.name, roads.size(), sidewalks.size(), expected_triangles, MAX_SUPPORT_GAP_M])
     quit(0)

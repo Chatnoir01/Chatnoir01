@@ -33,6 +33,13 @@ def candidate(evidence_id: str, road_id: int, source_id: int) -> dict:
         "source_url": f"https://www.openstreetmap.org/way/{source_id}",
         "source_license": "ODbL-1.0",
         "source_accessed_at": "2026-08-22",
+        "source_element": {
+            "type": "way",
+            "id": source_id,
+            "version": 7,
+            "timestamp": "2026-08-22T08:00:00Z",
+            "tags": {"parking:right": "parallel"},
+        },
         "evidence_tags": {"parking:right": "parallel"},
         "evidence_note": "Exact OSM way carries explicit curbside parking semantics.",
         "runtime_approved": True,
@@ -90,8 +97,23 @@ class ParkingEvidenceValidatorTest(unittest.TestCase):
     def test_unrelated_osm_tag_cannot_authorize_parking(self) -> None:
         bad = candidate("midi-parking-tree", 288509378, 288509378)
         bad["evidence_tags"] = {"natural": "tree"}
+        bad["source_element"]["tags"] = {"natural": "tree"}
         data = registry([bad], False)
         with self.assertRaisesRegex(ValueError, "unsupported parking evidence tag"):
+            module.validate(data, snapshot(), False)
+
+    def test_evidence_tags_must_match_versioned_osm_source_element(self) -> None:
+        bad = candidate("midi-parking-tag-drift", 288509378, 288509378)
+        bad["source_element"]["tags"] = {"highway": "primary"}
+        data = registry([bad], False)
+        with self.assertRaisesRegex(ValueError, "source element tags do not contain evidence"):
+            module.validate(data, snapshot(), False)
+
+    def test_source_element_identity_must_match_declared_osm_identity(self) -> None:
+        bad = candidate("midi-parking-source-drift", 288509378, 288509378)
+        bad["source_element"]["id"] = 408211693
+        data = registry([bad], False)
+        with self.assertRaisesRegex(ValueError, "source element identity"):
             module.validate(data, snapshot(), False)
 
     def test_declared_ready_cannot_override_computed_readiness(self) -> None:

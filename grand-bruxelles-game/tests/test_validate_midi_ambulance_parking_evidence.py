@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import tempfile
@@ -24,7 +25,19 @@ def snapshot() -> dict:
     }
 
 
+def source_digest(element: dict) -> str:
+    payload = json.dumps(element, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def candidate(evidence_id: str, road_id: int, source_id: int) -> dict:
+    source_element = {
+        "type": "way",
+        "id": source_id,
+        "version": 7,
+        "timestamp": "2026-08-22T08:00:00Z",
+        "tags": {"parking:right": "parallel"},
+    }
     return {
         "evidence_id": evidence_id,
         "road_osm_id": road_id,
@@ -33,17 +46,16 @@ def candidate(evidence_id: str, road_id: int, source_id: int) -> dict:
         "source_url": f"https://www.openstreetmap.org/way/{source_id}",
         "source_license": "ODbL-1.0",
         "source_accessed_at": "2026-08-22",
-        "source_element": {
-            "type": "way",
-            "id": source_id,
-            "version": 7,
-            "timestamp": "2026-08-22T08:00:00Z",
-            "tags": {"parking:right": "parallel"},
-        },
+        "source_element": source_element,
+        "source_element_sha256": source_digest(source_element),
         "evidence_tags": {"parking:right": "parallel"},
         "evidence_note": "Exact OSM way carries explicit curbside parking semantics.",
         "runtime_approved": True,
     }
+
+
+def refresh_digest(item: dict) -> None:
+    item["source_element_sha256"] = source_digest(item["source_element"])
 
 
 def registry(candidates: list[dict], ready: bool) -> dict:
@@ -98,6 +110,7 @@ class ParkingEvidenceValidatorTest(unittest.TestCase):
         bad = candidate("midi-parking-tree", 288509378, 288509378)
         bad["evidence_tags"] = {"natural": "tree"}
         bad["source_element"]["tags"] = {"natural": "tree"}
+        refresh_digest(bad)
         data = registry([bad], False)
         with self.assertRaisesRegex(ValueError, "unsupported parking evidence tag"):
             module.validate(data, snapshot(), False)
@@ -105,6 +118,7 @@ class ParkingEvidenceValidatorTest(unittest.TestCase):
     def test_evidence_tags_must_match_versioned_osm_source_element(self) -> None:
         bad = candidate("midi-parking-tag-drift", 288509378, 288509378)
         bad["source_element"]["tags"] = {"highway": "primary"}
+        refresh_digest(bad)
         data = registry([bad], False)
         with self.assertRaisesRegex(ValueError, "source element tags do not contain evidence"):
             module.validate(data, snapshot(), False)
@@ -112,8 +126,24 @@ class ParkingEvidenceValidatorTest(unittest.TestCase):
     def test_source_element_identity_must_match_declared_osm_identity(self) -> None:
         bad = candidate("midi-parking-source-drift", 288509378, 288509378)
         bad["source_element"]["id"] = 408211693
+        refresh_digest(bad)
         data = registry([bad], False)
         with self.assertRaisesRegex(ValueError, "source element identity"):
+            module.validate(data, snapshot(), False)
+
+    def test_source_element_digest_drift_is_rejected(self) -> None:
+        bad = candidate("midi-parking-digest-drift", 288509378, 288509378)
+        bad["source_element"]["tags"]["parking:right"] = "diagonal"
+        data = registry([bad], False)
+        with self.assertRaisesRegex(ValueError, "source element SHA-256"):
+            module.validate(data, snapshot(), False)
+
+    def test_invalid_source_element_version_is_rejected(self) -> None:
+        bad = candidate("midi-parking-version-drift", 288509378, 288509378)
+        bad["source_element"]["version"] = 0
+        refresh_digest(bad)
+        data = registry([bad], False)
+        with self.assertRaisesRegex(ValueError, "source element version"):
             module.validate(data, snapshot(), False)
 
     def test_declared_ready_cannot_override_computed_readiness(self) -> None:

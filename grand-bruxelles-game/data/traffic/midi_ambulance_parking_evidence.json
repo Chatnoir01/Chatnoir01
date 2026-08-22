@@ -1,0 +1,17 @@
+{
+  "format": "grand-bruxelles-midi-ambulance-parking-evidence-v1",
+  "source_contract": {
+    "provider": "OpenStreetMap contributors",
+    "license": "ODbL-1.0",
+    "accepted_osm_types": ["node", "way", "relation"],
+    "required_runtime_tag_families": ["amenity=parking", "amenity=parking_space", "parking:left=*", "parking:right=*", "parking:both=*"]
+  },
+  "target": {
+    "zone": "Midi",
+    "required_distinct_road_count": 2,
+    "consumer": "TrafficManagerNpcCrossingExtension dedicated ambulances"
+  },
+  "candidates": [],
+  "runtime_ready": false,
+  "status": "HOLD: normalized vertical_slice_01.game.json currently strips parking semantics; no source-backed ambulance parking road is registered yet."
+}

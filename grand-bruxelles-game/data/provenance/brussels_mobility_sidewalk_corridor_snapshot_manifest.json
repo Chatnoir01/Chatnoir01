@@ -1,0 +1,71 @@
+{
+  "schema": "grand-bruxelles-official-sidewalk-corridor-snapshot-manifest-v1",
+  "production_base_sha": "078befc176f26f0ece55cad3a2fdc3c79f1e700c",
+  "source_lock_merge_pr": 1146,
+  "source_lock_merge_sha": "078befc176f26f0ece55cad3a2fdc3c79f1e700c",
+  "source": {
+    "publisher": "Paradigm",
+    "dataset": "Trottoir",
+    "layer": "bm_urbis:urbadm_ssw",
+    "license": "CC0-1.0",
+    "crs": "EPSG:31370",
+    "query_bbox": [147650.0, 169300.0, 149100.0, 171050.0],
+    "semantics_basis": "official_dataset_and_layer_identity",
+    "ssft_filter_applied": false
+  },
+  "validated_snapshot": {
+    "feature_count": 3158,
+    "feature_id_sha256": "779f6fdac205ebf3ebfa99dd360f992e5b13682a99f05a27858405bb34fe5fb8",
+    "canonical_source_content_sha256": "fff46be67855b1d2e651e735397e970550513e4e657bda3b3f09cc285b30b3dc",
+    "attribute_domain_sha256": "7c6fcec4a5b8add262e127bb0097350928450ebb2fe01aa96c63025e627cdc79",
+    "ssft_counts": {
+      "A": 12,
+      "AC": 2,
+      "C": 26,
+      "G": 12,
+      "I": 1337,
+      "IC": 55,
+      "K": 22,
+      "M": 96,
+      "O": 1,
+      "S": 1554,
+      "SC": 7,
+      "W": 34
+    }
+  },
+  "acquisition_evidence": {
+    "workflow_run_id": 32584912488,
+    "artifact_id": 9478782615,
+    "artifact_digest": "sha256:d48565b26e2b5c7893b5deb554d49ae2cca26ed8eb61434c63ae712cc1068dc6",
+    "artifact_name": "brussels-mobility-sidewalk-corridor-extract",
+    "raw_source_sha256": "066c859684a7d3060064e94485625fae04e4cd88617b044a80ba00220eff9cb1",
+    "raw_source_digest_is_stability_authority": false,
+    "raw_source_digest_volatility_reason": "GeoServer FeatureCollection.timeStamp changes between otherwise identical acquisitions"
+  },
+  "claims": {
+    "horizontal_sidewalk_geometry_source_backed": true,
+    "official_feature_identity_source_backed": true,
+    "ssft_values_source_backed": true,
+    "curb_height_source_backed": false,
+    "surface_elevation_source_backed": false,
+    "sidewalk_profile_source_backed": false,
+    "paving_unit_dimensions_source_backed": false,
+    "material_identity_source_backed": false
+  },
+  "policy": {
+    "manifest_is_geometry_payload": false,
+    "canonical_geometry_payload_persisted": false,
+    "runtime_geometry_authorized": false,
+    "jouable_promotion_authorized": false,
+    "vertical_extrusion_allowed": false,
+    "curb_height_inference_allowed": false,
+    "overlap_measurement_required_before_runtime": true,
+    "overlap_measurement_authorizes_runtime": false
+  },
+  "next_gate": {
+    "persist_exact_canonical_geometry_payload": true,
+    "measure_horizontal_overlap_against_generic_sidewalks": true,
+    "generic_sidewalk_count_reference": 430,
+    "runtime_replacement_forbidden_until_gate_green": true
+  }
+}

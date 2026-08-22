@@ -6,6 +6,11 @@ The official `bm_urbis:urbadm_ssw` layer is itself the sidewalk dataset. The
 domain, but it is not used as a local `SW` filter: the live corridor response
 contains no `ssft=SW` rows even though `SW` exists in the published domain.
 
+Raw WFS bytes are retained as acquisition evidence. Because GeoServer changes
+the top-level FeatureCollection `timeStamp` between otherwise identical
+responses, a second canonical content digest is computed from the same response
+with only that volatile field removed and features sorted by exact WFS id.
+
 This tool only establishes source-backed horizontal sidewalk geometry plus the
 published layer/attribute identities. It never authorizes runtime geometry,
 elevations, curb profiles, paving dimensions, or material identity.
@@ -30,6 +35,7 @@ DEFAULT_BBOX = [147650.0, 169300.0, 149100.0, 171050.0]
 WFS_ENDPOINT = "https://data.mobility.brussels/geoserver/bm_urbis/wfs"
 ATTRIBUTE_DOMAIN_ENDPOINT = "https://data.mobility.brussels/data/attributevalues/?tid=ssft"
 ALLOWED_GEOMETRIES = {"Polygon", "MultiPolygon"}
+VOLATILE_WFS_METADATA_FIELDS = {"timeStamp"}
 
 
 def _sha256(data: bytes) -> str:
@@ -87,6 +93,29 @@ def _parse_ssft_domain(raw: bytes) -> dict[str, dict[str, str]]:
     return domain
 
 
+def _canonical_source_content_sha256(payload: dict[str, Any]) -> str:
+    """Digest source content while excluding only known volatile WFS metadata.
+
+    Feature ordering is representation-only, so features are sorted by the exact
+    WFS id before JSON canonicalization. All feature properties and geometry are
+    retained; any substantive source change changes this digest.
+    """
+    stable_payload = {key: value for key, value in payload.items() if key not in VOLATILE_WFS_METADATA_FIELDS}
+    features = stable_payload.get("features")
+    if not isinstance(features, list) or not features:
+        raise ValueError("official sidewalk response has no features for canonical digest")
+    if any(not isinstance(feature, dict) or not str(feature.get("id", "")).strip() for feature in features):
+        raise ValueError("official sidewalk response contains feature without identity")
+    stable_payload["features"] = sorted(features, key=lambda feature: str(feature["id"]))
+    canonical_bytes = json.dumps(
+        stable_payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return _sha256(canonical_bytes)
+
+
 def _canonical_geometry(feature: dict[str, Any]) -> dict[str, Any]:
     geometry = feature.get("geometry")
     if not isinstance(geometry, dict):
@@ -117,6 +146,8 @@ def canonicalize_feature_collection(
     source_features = payload.get("features")
     if not isinstance(source_features, list) or not source_features:
         raise ValueError("official sidewalk response has no features")
+    response_timestamp = str(payload.get("timeStamp", "")).strip()
+    canonical_source_content_sha256 = _canonical_source_content_sha256(payload)
 
     features: list[dict[str, Any]] = []
     seen_feature_ids: set[str] = set()
@@ -181,6 +212,8 @@ def canonicalize_feature_collection(
             "attribute_domain_url": ATTRIBUTE_DOMAIN_ENDPOINT,
             "attribute_domain_sha256": _sha256(attribute_domain_raw),
             "wfs_endpoint": WFS_ENDPOINT,
+            "volatile_wfs_metadata_fields": sorted(VOLATILE_WFS_METADATA_FIELDS),
+            "response_timestamp": response_timestamp,
         },
         "crs": CRS,
         "query_bbox": bbox,
@@ -189,6 +222,7 @@ def canonicalize_feature_collection(
         "feature_count": len(features),
         "ssft_counts": dict(sorted(ssft_counts.items())),
         "source_sha256": _sha256(raw),
+        "canonical_source_content_sha256": canonical_source_content_sha256,
         "feature_id_sha256": _sha256(ids_bytes),
         "features": features,
         "claims": {
@@ -270,6 +304,7 @@ def main() -> int:
         f"input={canonical['input_feature_count']} "
         f"ssft_values={','.join(canonical['source']['observed_ssft_values'])} "
         f"source_sha256={canonical['source_sha256']} "
+        f"canonical_source_content_sha256={canonical['canonical_source_content_sha256']} "
         f"feature_id_sha256={canonical['feature_id_sha256']} "
         f"bbox={','.join(str(value) for value in bbox)} "
         f"runtime_authorized={canonical['policy']['runtime_geometry_authorized']}"

@@ -1,0 +1,70 @@
+name: Grand Bruxelles Official Sidewalk Extract
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_source.json'
+      - 'grand-bruxelles-game/tools/brussels_mobility_sidewalk_extract.py'
+      - 'grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_extract.py'
+      - '.github/workflows/grand-bruxelles-official-sidewalk-extract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-fixture:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest==8.4.2
+      - name: Run fail-closed extractor regressions
+        working-directory: grand-bruxelles-game
+        run: python -m pytest -q tests/test_brussels_mobility_sidewalk_extract.py
+
+  live-source-artifact:
+    needs: contract-and-fixture
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Fetch bounded official Lambert72 sidewalk source
+        working-directory: grand-bruxelles-game
+        run: |
+          mkdir -p artifacts/official-sidewalk
+          python tools/brussels_mobility_sidewalk_extract.py \
+            --output artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json \
+            --raw-output artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_source.geojson
+      - name: Verify extract remains source-only and bounded
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json')
+          doc = json.loads(p.read_text())
+          assert doc['schema'] == 'grand-bruxelles-official-sidewalk-corridor-extract-v1'
+          assert doc['crs'] == 'EPSG:31370'
+          assert doc['query_bbox'] == [147650.0, 169300.0, 149100.0, 171050.0]
+          assert doc['feature_count'] > 0
+          assert len(doc['source_sha256']) == 64
+          assert len(doc['feature_id_sha256']) == 64
+          assert all(f['ssft'] == 'SW' for f in doc['features'])
+          assert doc['claims']['curb_height_source_backed'] is False
+          assert doc['claims']['surface_elevation_source_backed'] is False
+          assert doc['policy']['runtime_geometry_authorized'] is False
+          assert doc['policy']['jouable_promotion_authorized'] is False
+          print('OFFICIAL_SIDEWALK_ARTIFACT_VERIFIED', doc['feature_count'], doc['source_sha256'], doc['feature_id_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brussels-mobility-sidewalk-corridor-extract
+          path: grand-bruxelles-game/artifacts/official-sidewalk/
+          if-no-files-found: error
+          retention-days: 30

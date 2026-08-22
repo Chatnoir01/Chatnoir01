@@ -44,7 +44,11 @@ def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
     ObjectService = services.ObjectService
     TargetService = services.TargetService
 
+    canonical_id = root.name
     source_seed = _seed_from_hierarchy(root)
+    if source_seed is None:
+        raise RuntimeError(f"{canonical_id}: source randomization seed missing")
+
     export_root = ExportService.create_character_copy(
         root,
         name_suffix="_gate8_export",
@@ -53,7 +57,7 @@ def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
     export_basemesh = ObjectService.find_object_of_type_amongst_nearest_relatives(export_root)
     if export_basemesh is None or export_basemesh.type != "MESH":
         _delete_hierarchy(export_root)
-        raise RuntimeError(f"{root.name}: MPFB export copy has no basemesh")
+        raise RuntimeError(f"{canonical_id}: MPFB export copy has no basemesh")
 
     vertices_before = len(export_basemesh.data.vertices)
     helper_groups_before = sorted(
@@ -95,31 +99,35 @@ def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
     if vertices_after >= vertices_before:
         _delete_hierarchy(export_root)
         raise RuntimeError(
-            f"{root.name}: helper bake did not reduce basemesh vertices "
+            f"{canonical_id}: helper bake did not reduce basemesh vertices "
             f"before={vertices_before} after={vertices_after}"
         )
     if helper_groups_after:
         _delete_hierarchy(export_root)
         raise RuntimeError(
-            f"{root.name}: helper vertex groups survived export prep: {helper_groups_after}"
+            f"{canonical_id}: helper vertex groups survived export prep: {helper_groups_after}"
         )
     if mask_modifiers_after:
         _delete_hierarchy(export_root)
         raise RuntimeError(
-            f"{root.name}: MASK modifiers survived export prep: {mask_modifiers_after}"
+            f"{canonical_id}: MASK modifiers survived export prep: {mask_modifiers_after}"
         )
     if TargetService.has_any_shapekey(export_basemesh):
         _delete_hierarchy(export_root)
-        raise RuntimeError(f"{root.name}: modelling shape keys survived export prep")
+        raise RuntimeError(f"{canonical_id}: modelling shape keys survived export prep")
 
-    if source_seed is not None and _seed_from_hierarchy(export_root) is None:
+    if _seed_from_hierarchy(export_root) is None:
         export_basemesh["mpfb_randomization_seed"] = int(source_seed)
 
     prepared_root = base.root_of(export_basemesh)
-    prepared_root.name = root.name
 
     try:
         record = _original_export_character(prepared_root, output_path)
+        # Blender can append .001 to duplicated object names while the source
+        # hierarchy still exists. Runtime identity must stay deterministic and
+        # tied to the canonical source slot, not Blender's temporary copy name.
+        record["id"] = canonical_id
+        record["seed"] = int(source_seed)
         record.update(
             {
                 "export_copy": True,

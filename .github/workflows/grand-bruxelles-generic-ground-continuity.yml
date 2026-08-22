@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/osm_city_builder.gd"
+      - "grand-bruxelles-game/game/scripts/generic_osm_surface_collision_runtime.gd"
+      - "grand-bruxelles-game/data/runtime/modules/generic_osm_surface_collision.json"
       - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/game/tests/generic_osm_ground_continuity_test.gd"
       - ".github/workflows/grand-bruxelles-generic-ground-continuity.yml"

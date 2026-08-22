@@ -1,18 +1,18 @@
 extends Node
 
 # Production two-handed carry pose for long weapons.
-# The authored rig has no dedicated left clavicle bone, so the torso must remain
-# untouched. Instead, a right-arm TwoBoneIK3D recenters the weapon into a compact
-# low-ready carry pose; a second TwoBoneIK3D then brings the left hand onto the
-# visible support grip. Both solvers use contiguous upperarm -> lowerarm -> wrist
-# chains and pole targets, with wrist-to-hand compensation so the palms, not just
-# the wrist joints, reach their authored grip points.
+# The authored rig has no dedicated clavicle bones, so the torso remains under
+# authored animation control. A right-arm TwoBoneIK3D first recenters the weapon
+# into a compact low-ready carry pose. Once that modifier has actually solved,
+# the canonical weapon owner is refreshed from the solved right hand and only
+# then is the visible support grip resolved for the left-arm TwoBoneIK3D.
+# This ordering prevents the support hand from chasing a one-frame-stale weapon.
 
 const ACTIVE_WEAPONS: Array[StringName] = [&"cbr4", &"sct8", &"crossbow"]
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
-const SIGNATURE := "combat_two_hand_pose_v7_dual_two_bone_ik"
+const SIGNATURE := "combat_two_hand_pose_v8_post_carry_refresh"
 const MAX_BIND_ATTEMPTS := 480
-const LOCK_EPSILON_M := 0.085
+const LOCK_EPSILON_M := 0.09
 
 const CARRY_TARGET_LOCAL := {
     &"cbr4": Vector3(0.16, -0.14, -0.24),
@@ -40,6 +40,8 @@ var _left_wrist_bone := -1
 var _left_lower_bone := -1
 var _left_upper_bone := -1
 var _bind_attempts := 0
+var _active_weapon_id: StringName = &""
+var _support_target_ready := false
 
 func _ready() -> void:
     process_priority = 210
@@ -54,21 +56,22 @@ func _process(_delta: float) -> void:
     var animation_ready := _authored_animation_is_active(_player)
     var desired_active := weapon_id in ACTIVE_WEAPONS and not switching and animation_ready
     if not desired_active:
+        _active_weapon_id = &""
+        _support_target_ready = false
         _set_active(false, weapon_id, "inactive_mode")
         return
 
-    var support_result := _resolve_support_target(_player, weapon_id)
-    if not bool(support_result.get("found", false)):
-        _set_active(false, weapon_id, "support_target_unavailable")
-        return
+    if weapon_id != _active_weapon_id:
+        _active_weapon_id = weapon_id
+        _support_target_ready = false
+        if _support_ik != null:
+            _support_ik.active = false
 
     var basis := _player.global_transform.basis.orthonormalized()
     var right_shoulder := _bone_world_position(_right_upper_bone)
     var left_shoulder := _bone_world_position(_left_upper_bone)
     var shoulder_mid := (right_shoulder + left_shoulder) * 0.5
 
-    # First, pull the weapon hand back toward the torso. This moves the actual
-    # right hand, so the existing weapon mount follows the skeleton naturally.
     var carry_local: Vector3 = CARRY_TARGET_LOCAL.get(weapon_id, CARRY_TARGET_LOCAL[&"cbr4"])
     var desired_right_hand := shoulder_mid + basis * carry_local
     var right_wrist := _bone_world_position(_right_wrist_bone)
@@ -78,29 +81,30 @@ func _process(_delta: float) -> void:
     _carry_target.global_position = desired_right_wrist
     _carry_pole.global_position = right_shoulder + basis * RIGHT_POLE_LOCAL
 
-    # The holder is mounted from the solved right hand on the following frame;
-    # the support target therefore converges over a couple of frames without
-    # ever detaching the weapon from its canonical right-hand socket.
-    var desired_left_hand: Vector3 = support_result.get("position", _support_target.global_position)
-    var left_wrist := _bone_world_position(_left_wrist_bone)
-    var left_hand := _bone_world_position(_left_hand_bone)
-    var left_wrist_to_hand := left_hand - left_wrist
-    var desired_left_wrist := desired_left_hand - left_wrist_to_hand
-    _support_target.global_position = desired_left_wrist
-    _support_pole.global_position = left_shoulder + basis * LEFT_POLE_LOCAL
+    _player.set_meta("combat_carry_shoulder_mid_world", shoulder_mid)
+    _player.set_meta("combat_carry_right_shoulder_world", right_shoulder)
+    _player.set_meta("combat_support_ik_shoulder_world", left_shoulder)
+    _player.set_meta("combat_carry_ik_pre_hand_world", right_hand)
+    _player.set_meta("combat_carry_ik_desired_hand_world", desired_right_hand)
+    _player.set_meta("combat_carry_ik_target_world", _carry_target.global_position)
+    _player.set_meta("combat_carry_ik_lengths", _arm_lengths(
+        _right_upper_bone,
+        _right_lower_bone,
+        _right_wrist_bone,
+        _right_hand_bone,
+        desired_right_hand
+    ))
+    _player.set_meta("combat_support_ik_weapon_id", weapon_id)
+    _player.set_meta("combat_support_ik_reason", "awaiting_post_carry_weapon_refresh")
 
-    _publish_pre_solve_metrics(
-        weapon_id,
-        shoulder_mid,
-        right_shoulder,
-        left_shoulder,
-        right_hand,
-        left_hand,
-        desired_right_hand,
-        desired_left_hand,
-        support_result
-    )
-    _set_active(true, weapon_id, "dual_arm_low_ready")
+    _carry_ik.active = true
+    # Keep the left solver enabled only after a support target has been derived
+    # from a weapon remounted on the solved right hand. If Godot emits the carry
+    # callback after the support modifier in a frame, this state persists and
+    # the left solver consumes the corrected target on the next frame.
+    _support_ik.active = _support_target_ready
+    _player.set_meta("combat_carry_ik_active", true)
+    _player.set_meta("combat_support_ik_active", _support_target_ready)
 
 func _ensure_bound() -> bool:
     var current := _current_player()
@@ -148,8 +152,6 @@ func _ensure_bound() -> bool:
     _support_target = _make_target("CombatSupportHandTarget")
     _support_pole = _make_target("CombatSupportElbowPole")
 
-    # Add the carry modifier first. The support modifier sees the same authored
-    # frame and converges against the weapon holder that follows the right hand.
     _carry_ik = _make_two_bone_ik(
         "CombatCarryHandIK",
         _right_upper_bone,
@@ -214,6 +216,37 @@ func _resolve_arm_chain(skeleton: Skeleton3D, hand: int, left: bool) -> Dictiona
         return {}
     return {"upper": upper, "lower": lower, "wrist": wrist}
 
+func _refresh_weapon_after_carry(weapon_id: StringName) -> bool:
+    if _player == null:
+        return false
+
+    if weapon_id == &"cbr4" or weapon_id == &"sct8":
+        var holder := _player.get_node_or_null("CombatWeaponVisual") as Node3D
+        if holder == null:
+            return false
+        var visual_owner := get_node_or_null("/root/CombatWeaponVisualUpgradeRuntime")
+        var orientation_owner := get_node_or_null("/root/CombatWeaponHandOrientationRuntime")
+        if visual_owner == null or orientation_owner == null:
+            return false
+        if not visual_owner.has_method("mount_weapon_to_hand") or not orientation_owner.has_method("orient_weapon_from_player"):
+            return false
+        var mounted := bool(visual_owner.call("mount_weapon_to_hand", holder, _player, weapon_id))
+        var oriented := bool(orientation_owner.call("orient_weapon_from_player", holder, _player, weapon_id))
+        _player.set_meta("combat_support_weapon_post_carry_refresh", mounted and oriented)
+        _player.set_meta("combat_support_weapon_post_carry_refresh_source", "procedural")
+        return mounted and oriented
+
+    if weapon_id == &"crossbow":
+        var native_owner := get_node_or_null("/root/CombatNativeWeaponPresentationRuntime")
+        if native_owner == null or not native_owner.has_method("refresh_crossbow_from_current_hand"):
+            return false
+        var refreshed := bool(native_owner.call("refresh_crossbow_from_current_hand", _player))
+        _player.set_meta("combat_support_weapon_post_carry_refresh", refreshed)
+        _player.set_meta("combat_support_weapon_post_carry_refresh_source", "native_crossbow")
+        return refreshed
+
+    return false
+
 func _resolve_support_target(player: CharacterBody3D, weapon_id: StringName) -> Dictionary:
     if weapon_id == &"cbr4" or weapon_id == &"sct8":
         var holder := player.get_node_or_null("CombatWeaponVisual") as Node3D
@@ -224,7 +257,7 @@ func _resolve_support_target(player: CharacterBody3D, weapon_id: StringName) -> 
             return {"found": false}
         player.set_meta("combat_support_socket_local", support.position)
         player.set_meta("combat_support_socket_world", support.global_position)
-        return {"found": true, "position": support.global_position, "source": "support_socket"}
+        return {"found": true, "position": support.global_position, "source": "post_carry_support_socket"}
 
     if weapon_id == &"crossbow":
         var crossbow := player.find_child("2H_Crossbow", true, false) as Node3D
@@ -234,23 +267,49 @@ func _resolve_support_target(player: CharacterBody3D, weapon_id: StringName) -> 
         var target_world := crossbow.global_transform * local_target
         player.set_meta("combat_support_socket_local", local_target)
         player.set_meta("combat_support_socket_world", target_world)
-        return {"found": true, "position": target_world, "source": "crossbow_foregrip_region"}
+        return {"found": true, "position": target_world, "source": "post_carry_crossbow_foregrip"}
     return {"found": false}
 
-func _publish_pre_solve_metrics(weapon_id: StringName, shoulder_mid: Vector3, right_shoulder: Vector3, left_shoulder: Vector3, right_hand: Vector3, left_hand: Vector3, desired_right_hand: Vector3, desired_left_hand: Vector3, support_result: Dictionary) -> void:
-    _player.set_meta("combat_carry_shoulder_mid_world", shoulder_mid)
-    _player.set_meta("combat_carry_right_shoulder_world", right_shoulder)
-    _player.set_meta("combat_support_ik_shoulder_world", left_shoulder)
-    _player.set_meta("combat_carry_ik_pre_hand_world", right_hand)
+func _update_support_target_after_carry(weapon_id: StringName) -> bool:
+    if not _refresh_weapon_after_carry(weapon_id):
+        _support_target_ready = false
+        _support_ik.active = false
+        _player.set_meta("combat_support_ik_reason", "post_carry_weapon_refresh_failed")
+        return false
+
+    var support_result := _resolve_support_target(_player, weapon_id)
+    if not bool(support_result.get("found", false)):
+        _support_target_ready = false
+        _support_ik.active = false
+        _player.set_meta("combat_support_ik_reason", "post_carry_support_target_unavailable")
+        return false
+
+    var basis := _player.global_transform.basis.orthonormalized()
+    var left_shoulder := _bone_world_position(_left_upper_bone)
+    var left_wrist := _bone_world_position(_left_wrist_bone)
+    var left_hand := _bone_world_position(_left_hand_bone)
+    var desired_left_hand: Vector3 = support_result.get("position", _support_target.global_position)
+    var left_wrist_to_hand := left_hand - left_wrist
+    var desired_left_wrist := desired_left_hand - left_wrist_to_hand
+    _support_target.global_position = desired_left_wrist
+    _support_pole.global_position = left_shoulder + basis * LEFT_POLE_LOCAL
+
     _player.set_meta("combat_support_ik_pre_hand_world", left_hand)
-    _player.set_meta("combat_carry_ik_desired_hand_world", desired_right_hand)
     _player.set_meta("combat_support_ik_desired_hand_world", desired_left_hand)
-    _player.set_meta("combat_carry_ik_target_world", _carry_target.global_position)
     _player.set_meta("combat_support_ik_target_world", _support_target.global_position)
     _player.set_meta("combat_support_ik_target_source", String(support_result.get("source", "")))
-    _player.set_meta("combat_support_ik_weapon_id", weapon_id)
-    _player.set_meta("combat_carry_ik_lengths", _arm_lengths(_right_upper_bone, _right_lower_bone, _right_wrist_bone, _right_hand_bone, desired_right_hand))
-    _player.set_meta("combat_support_ik_lengths", _arm_lengths(_left_upper_bone, _left_lower_bone, _left_wrist_bone, _left_hand_bone, desired_left_hand))
+    _player.set_meta("combat_support_ik_lengths", _arm_lengths(
+        _left_upper_bone,
+        _left_lower_bone,
+        _left_wrist_bone,
+        _left_hand_bone,
+        desired_left_hand
+    ))
+    _player.set_meta("combat_support_ik_reason", "post_carry_support_target_ready")
+    _support_target_ready = true
+    _support_ik.active = true
+    _player.set_meta("combat_support_ik_active", true)
+    return true
 
 func _arm_lengths(upper: int, lower: int, wrist: int, hand: int, desired_hand: Vector3) -> Dictionary:
     var shoulder_world := _bone_world_position(upper)
@@ -282,8 +341,16 @@ func _on_carry_ik_processed() -> void:
     _player.set_meta("combat_carry_ik_active", true)
     _player.set_meta("combat_carry_ik_locked", gap <= LOCK_EPSILON_M)
 
+    var weapon_id := StringName(_player.get_meta("combat_weapon_id", &""))
+    if weapon_id != _active_weapon_id or weapon_id not in ACTIVE_WEAPONS:
+        _support_target_ready = false
+        if _support_ik != null:
+            _support_ik.active = false
+        return
+    _update_support_target_after_carry(weapon_id)
+
 func _on_support_ik_processed() -> void:
-    if _player == null or _support_ik == null or not _support_ik.active:
+    if _player == null or _support_ik == null or not _support_ik.active or not _support_target_ready:
         return
     var desired: Vector3 = _player.get_meta("combat_support_ik_desired_hand_world", Vector3.ZERO)
     var hand_world := _bone_world_position(_left_hand_bone)
@@ -297,10 +364,10 @@ func _set_active(enabled: bool, weapon_id: StringName, reason: String) -> void:
     if _carry_ik != null:
         _carry_ik.active = enabled
     if _support_ik != null:
-        _support_ik.active = enabled
+        _support_ik.active = enabled and _support_target_ready
     if _player != null:
         _player.set_meta("combat_carry_ik_active", enabled)
-        _player.set_meta("combat_support_ik_active", enabled)
+        _player.set_meta("combat_support_ik_active", enabled and _support_target_ready)
         _player.set_meta("combat_support_ik_weapon_id", weapon_id)
         _player.set_meta("combat_support_ik_reason", reason)
         if not enabled:
@@ -407,3 +474,5 @@ func _clear_binding() -> void:
     _left_lower_bone = -1
     _left_upper_bone = -1
     _bind_attempts = 0
+    _active_weapon_id = &""
+    _support_target_ready = false

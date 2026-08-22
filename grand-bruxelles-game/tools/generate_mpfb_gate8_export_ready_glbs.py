@@ -25,6 +25,43 @@ base.EXPECTED_MPFB_BUILD = "20260722"
 _original_export_character = base.export_character
 
 
+def _is_helper_group_name(name: str) -> bool:
+    return (
+        name in {"HelperGeometry", "JointCubes", "Mid", "Left", "Right"}
+        or name.startswith("helper-")
+        or name.startswith("joint-")
+    )
+
+
+def _helper_group_names(obj: bpy.types.Object) -> list[str]:
+    return sorted(group.name for group in obj.vertex_groups if _is_helper_group_name(group.name))
+
+
+def _helper_weighted_vertex_count(obj: bpy.types.Object) -> int:
+    helper_indices = {
+        group.index for group in obj.vertex_groups if _is_helper_group_name(group.name)
+    }
+    if not helper_indices:
+        return 0
+    count = 0
+    for vertex in obj.data.vertices:
+        if any(
+            assignment.group in helper_indices and assignment.weight > 0.0
+            for assignment in vertex.groups
+        ):
+            count += 1
+    return count
+
+
+def _remove_empty_helper_groups(obj: bpy.types.Object) -> None:
+    # MPFB's body MASK can physically remove helper vertices while leaving the
+    # now-empty HelperGeometry/JointCubes group definitions. Only remove those
+    # definitions after proving that no surviving vertex is assigned to them.
+    for group in list(obj.vertex_groups):
+        if _is_helper_group_name(group.name):
+            obj.vertex_groups.remove(group)
+
+
 def _seed_from_hierarchy(root: bpy.types.Object):
     return next(
         (
@@ -66,13 +103,8 @@ def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
         raise RuntimeError(f"{canonical_id}: MPFB export copy has no basemesh")
 
     vertices_before = len(export_basemesh.data.vertices)
-    helper_groups_before = sorted(
-        group.name
-        for group in export_basemesh.vertex_groups
-        if group.name in {"HelperGeometry", "JointCubes", "Mid", "Left", "Right"}
-        or group.name.startswith("helper-")
-        or group.name.startswith("joint-")
-    )
+    helper_groups_before = _helper_group_names(export_basemesh)
+    helper_vertices_before = _helper_weighted_vertex_count(export_basemesh)
     mask_modifiers_before = [
         modifier.name for modifier in export_basemesh.modifiers if modifier.type == "MASK"
     ]
@@ -91,13 +123,8 @@ def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
     bpy.context.view_layer.update()
 
     vertices_after = len(export_basemesh.data.vertices)
-    helper_groups_after = sorted(
-        group.name
-        for group in export_basemesh.vertex_groups
-        if group.name in {"HelperGeometry", "JointCubes", "Mid", "Left", "Right"}
-        or group.name.startswith("helper-")
-        or group.name.startswith("joint-")
-    )
+    helper_groups_after_bake = _helper_group_names(export_basemesh)
+    helper_vertices_after_bake = _helper_weighted_vertex_count(export_basemesh)
     mask_modifiers_after = [
         modifier.name for modifier in export_basemesh.modifiers if modifier.type == "MASK"
     ]
@@ -108,10 +135,14 @@ def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
             f"{canonical_id}: helper bake did not reduce basemesh vertices "
             f"before={vertices_before} after={vertices_after}"
         )
-    if helper_groups_after:
+    if helper_vertices_before <= 0:
+        _delete_hierarchy(export_root)
+        raise RuntimeError(f"{canonical_id}: source helper vertex witness unexpectedly empty")
+    if helper_vertices_after_bake != 0:
         _delete_hierarchy(export_root)
         raise RuntimeError(
-            f"{canonical_id}: helper vertex groups survived export prep: {helper_groups_after}"
+            f"{canonical_id}: {helper_vertices_after_bake} helper-assigned vertices "
+            "survived MPFB export prep"
         )
     if mask_modifiers_after:
         _delete_hierarchy(export_root)
@@ -121,6 +152,16 @@ def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
     if TargetService.has_any_shapekey(export_basemesh):
         _delete_hierarchy(export_root)
         raise RuntimeError(f"{canonical_id}: modelling shape keys survived export prep")
+
+    # Stale empty group definitions are not geometry, but remove them so the
+    # exported contract is unambiguous and downstream importers never see them.
+    _remove_empty_helper_groups(export_basemesh)
+    helper_groups_after = _helper_group_names(export_basemesh)
+    if helper_groups_after:
+        _delete_hierarchy(export_root)
+        raise RuntimeError(
+            f"{canonical_id}: empty helper group cleanup failed: {helper_groups_after}"
+        )
 
     if _seed_from_hierarchy(export_root) is None:
         export_basemesh["mpfb_randomization_seed"] = int(source_seed)
@@ -142,7 +183,10 @@ def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
                 "helpers_removed": True,
                 "basemesh_vertices_before": vertices_before,
                 "basemesh_vertices_after": vertices_after,
+                "helper_vertices_before": helper_vertices_before,
+                "helper_vertices_after_bake": helper_vertices_after_bake,
                 "helper_groups_before": helper_groups_before,
+                "helper_groups_after_bake": helper_groups_after_bake,
                 "helper_groups_after": helper_groups_after,
                 "mask_modifiers_before": mask_modifiers_before,
                 "mask_modifiers_after": mask_modifiers_after,
@@ -152,6 +196,8 @@ def export_character_ready(root: bpy.types.Object, output_path: Path) -> dict:
             "EXPORT_READY "
             f"id={record['id']} seed={record['seed']} "
             f"vertices_before={vertices_before} vertices_after={vertices_after} "
+            f"helper_vertices_before={helper_vertices_before} "
+            f"helper_vertices_after_bake={helper_vertices_after_bake} "
             "helpers_removed=true masks_baked=true shapekeys_baked=true"
         )
         return record

@@ -31,12 +31,14 @@ def main() -> int:
 
     checks = {row["id"]: row for row in report["checks"]}
     assert checks["source_crs"]["status"] == "PASS"
+    assert checks["city_machine_source_contract"]["status"] == "PASS"
     assert checks["catalog_arrival_contract"]["status"] == "PASS"
     assert checks["runtime_arrival_pose"]["status"] == "PASS"
+    assert checks["regional_osm_cache"]["status"] == "PASS"
+    assert checks["regional_osm_runtime"]["status"] == "PASS"
     assert checks["partial_slice_rejected"]["status"] == "PASS"
-    assert checks["regional_osm_cache"]["status"] == "FAIL"
-    assert checks["regional_osm_runtime"]["status"] == "FAIL"
-    assert set(report["failed_checks"]) == {"regional_osm_cache", "regional_osm_runtime"}
+    assert checks["runtime_consumes_city_machine_outputs"]["status"] == "FAIL"
+    assert set(report["failed_checks"]) == {"runtime_consumes_city_machine_outputs"}
 
     candidates = json.loads((HERE / "onboarding_candidates.json").read_text(encoding="utf-8"))
     midi = candidates["candidates"]["midi"]
@@ -47,7 +49,7 @@ def main() -> int:
     registry = json.loads((HERE / "registry.json").read_text(encoding="utf-8"))
     assert "midi" not in registry["zone_profiles"], "blocked candidate must never become an executable profile"
 
-    print("CITY_MACHINE_MIDI_PREFLIGHT_OK eligible=false fail_closed=true crs=true arrival=true full_osm=false partial_slice_rejected=true")
+    print("CITY_MACHINE_MIDI_PREFLIGHT_OK eligible=false fail_closed=true crs=true arrival=true full_osm=true runtime_wiring=false partial_slice_rejected=true")
     return 0
 
 

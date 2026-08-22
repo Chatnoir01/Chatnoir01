@@ -41,10 +41,11 @@ jobs:
           source = data["animation_source"]
           rails = data["rails"]
           gate = data["preflight_gate"]
-          assert data["format"] == "grand-bruxelles-gate8-variant01-retarget-preflight-v1"
+          assert data["format"] == "grand-bruxelles-gate8-variant01-retarget-preflight-v2"
           assert data["base_main_sha"] == "d0ffc87f88d851298feabea67d52192929ff49cb"
           assert data["candidate_variant"] == 1
           assert data["candidate_static_verdict"] == "AMELIORER"
+          assert data["candidate_dynamic_state"] == "BLOCKED_NO_EXACT_RUN"
           assert target["artifact_id"] == 9470539830
           assert target["artifact_sha256"] == "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
           assert target["glb_filename"] == "npc_gate_01.glb"
@@ -55,6 +56,9 @@ jobs:
           assert source["godot_standard_glb"] == "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
           assert source["publisher_marks_unstable"] is True
           assert source["known_upper_chest_risk"] is True
+          assert source["expected_engine_animation_count"] == 46
+          assert source["expected_exact_token_counts"] == {"idle": 8, "walk": 2, "run": 0}
+          assert source["review_only_run_alternatives"] == ["Jog_Fwd", "Sprint"]
           assert rails["single_survivor_only"] is True
           assert rails["allowed_variants"] == [1]
           assert rails["rejected_variants_forbidden"] == [2, 4, 7]
@@ -67,12 +71,14 @@ jobs:
           assert rails["activation_ready"] is False
           assert rails["adoption_ready"] is False
           assert rails["package_bytes_committed"] is False
+          assert rails["semantic_alias_auto_promotion_allowed"] is False
           assert gate["godot_version"] == "4.7.1"
           assert gate["isolated_project_required"] is True
           assert gate["engine_visible_internal_catalog_required"] is True
-          assert gate["exact_token_locomotion_surface_required"] is True
+          assert gate["exact_token_locomotion_surface_required_for_adoption"] is True
+          assert gate["blocked_source_is_valid_preflight_result"] is True
           assert gate["bone_map_application_authorized"] is False
-          print("GATE8_VARIANT01_RETARGET_STATIC_OK candidate=01 license=CC0-1.0 retarget_applied=false production_authorized=false")
+          print("GATE8_VARIANT01_RETARGET_STATIC_OK candidate=01 state=BLOCKED_NO_EXACT_RUN license=CC0-1.0 retarget_applied=false production_authorized=false")
           PY
 
       - name: Download immutable helper-clean Gate-8 target
@@ -169,9 +175,9 @@ jobs:
       - name: Measure engine-visible catalog skeleton and humanoid anchors
         run: |
           set -euo pipefail
-          timeout 180s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_retarget_preflight_test.gd 2>&1 | tee /tmp/gate8-variant01-retarget-preflight.log
+          timeout 90s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_retarget_preflight_test.gd 2>&1 | tee /tmp/gate8-variant01-retarget-preflight.log
           ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-variant01-retarget-preflight.log
-          grep -q '^GATE8_VARIANT01_RETARGET_PREFLIGHT_OK$' /tmp/gate8-variant01-retarget-preflight.log
+          grep -q '^GATE8_VARIANT01_RETARGET_PREFLIGHT_OK state=BLOCKED_NO_EXACT_RUN$' /tmp/gate8-variant01-retarget-preflight.log
           test -s "$ISOLATED_PROJECT/gate8_variant01_retarget_preflight_result.json"
           cp "$ISOLATED_PROJECT/gate8_variant01_retarget_preflight_result.json" /tmp/gate8_variant01_retarget_preflight_result.json
           python - <<'PY'
@@ -179,15 +185,26 @@ jobs:
           from pathlib import Path
 
           result = json.loads(Path('/tmp/gate8_variant01_retarget_preflight_result.json').read_text())
-          assert result['format'] == 'grand-bruxelles-gate8-variant01-retarget-preflight-result-v1'
+          assert result['format'] == 'grand-bruxelles-gate8-variant01-retarget-preflight-result-v2'
           assert result['engine_version'].startswith('4.7.1.stable')
           assert result['candidate_variant'] == 1
           assert result['candidate_static_verdict'] == 'AMELIORER'
+          assert result['candidate_dynamic_state'] == 'BLOCKED_NO_EXACT_RUN'
           assert result['source_animation_players'] >= 1
-          assert result['source_animation_count'] > 0
+          assert result['source_animation_count'] == 46
           assert result['target_animation_players'] == 0
           assert result['target_animation_count'] == 0
-          assert result['complete_exact_token_locomotion_surface'] is True
+          assert result['locomotion_candidates']['idle'] == [
+              'Crouch_Idle', 'Idle', 'Idle_Talking', 'Idle_Torch', 'Pistol_Idle',
+              'Sitting_Idle', 'Spell_Simple_Idle', 'Swim_Idle'
+          ]
+          assert result['locomotion_candidates']['walk'] == ['Walk', 'Walk_Formal']
+          assert result['locomotion_candidates']['run'] == []
+          assert result['run_alternatives_review_only'] == {'jog': ['Jog_Fwd'], 'sprint': ['Sprint']}
+          assert result['complete_exact_token_locomotion_surface'] is False
+          assert result['exact_single_idle_walk_run_trio'] is False
+          assert result['source_suitable_for_direct_idle_walk_run_adoption'] is False
+          assert result['semantic_alias_auto_promotion_allowed'] is False
           assert result['source_skeletons'] >= 1
           assert result['target_skeletons'] >= 1
           assert result['target_skinned_meshes'] >= 1
@@ -201,14 +218,11 @@ jobs:
           assert result['failures'] == []
           print(
               'GATE8_VARIANT01_ENGINE_PREFLIGHT_OK '
-              f"animations={result['source_animation_count']} "
-              f"idle={len(result['locomotion_candidates']['idle'])} "
-              f"walk={len(result['locomotion_candidates']['walk'])} "
-              f"run={len(result['locomotion_candidates']['run'])} "
-              f"exact_single_trio={str(result['exact_single_idle_walk_run_trio']).lower()} "
+              f"animations={result['source_animation_count']} idle=8 walk=2 run=0 "
+              f"run_alternatives={result['run_alternatives_review_only']} "
               f"source_upper_chest={result['source_upper_chest_candidates']} "
               f"target_upper_chest={result['target_upper_chest_candidates']} "
-              'retarget_applied=false production_authorized=false'
+              'state=BLOCKED_NO_EXACT_RUN retarget_applied=false production_authorized=false'
           )
           PY
 

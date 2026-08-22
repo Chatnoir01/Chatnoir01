@@ -11,11 +11,61 @@ on:
       - '.github/workflows/grand-bruxelles-official-sidewalk-canonical-geometry.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 1
+
+      - name: Materialize locked official geometry when absent
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LOCKED_ARTIFACT_ID: '9478782615'
+          PRODUCTION_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          chunk='grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry/chunk_00.json.xz.b64'
+          if [[ -f "$chunk" ]]; then
+            echo 'OFFICIAL_SIDEWALK_GEOMETRY_ALREADY_MATERIALIZED'
+            exit 0
+          fi
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${LOCKED_ARTIFACT_ID}/zip" \
+            --output /tmp/official-sidewalk.zip
+          rm -rf /tmp/official-sidewalk
+          mkdir -p /tmp/official-sidewalk
+          unzip -q /tmp/official-sidewalk.zip -d /tmp/official-sidewalk
+          test -f /tmp/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json
+          python grand-bruxelles-game/tools/source_factory/persist_brussels_mobility_sidewalk_geometry.py \
+            /tmp/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json \
+            grand-bruxelles-game/data/provenance \
+            --production-base-sha "$PRODUCTION_BASE_SHA"
+
       - name: Verify persisted canonical sidewalk geometry
         run: python grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_canonical_geometry.py
+
+      - name: Commit deterministic geometry materialization
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry_manifest.json grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry/; then
+            echo 'OFFICIAL_SIDEWALK_GEOMETRY_TREE_CLEAN'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry_manifest.json
+          git add grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry/
+          git commit -m 'data(env): materialize locked official sidewalk geometry'
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"

@@ -4,6 +4,7 @@ const SOURCE_SCENE := "res://assets/animation_source.glb"
 const TARGET_SCENE := "res://assets/npc_gate_01.glb"
 const RESULT_PATH := "res://gate8_variant01_retarget_preflight_result.json"
 const LOCOMOTION_TOKENS := ["idle", "walk", "run"]
+const RUN_ALTERNATIVE_TOKENS := ["jog", "sprint"]
 const REJECT_TOKENS := {
 	"attack": true,
 	"combat": true,
@@ -61,16 +62,33 @@ func _tokens_for_name(value: String) -> Array[String]:
 	return tokens
 
 
-func _classify_locomotion(value: String) -> Array[String]:
-	var tokens := _tokens_for_name(value)
+func _has_reject_token(tokens: Array[String]) -> bool:
 	for token in tokens:
 		if REJECT_TOKENS.has(token):
-			return []
+			return true
+	return false
+
+
+func _classify_locomotion(value: String) -> Array[String]:
+	var tokens := _tokens_for_name(value)
+	if _has_reject_token(tokens):
+		return []
 	var hits: Array[String] = []
 	for locomotion_token in LOCOMOTION_TOKENS:
 		if tokens.has(locomotion_token):
 			hits.append(locomotion_token)
 	return hits
+
+
+func _names_with_exact_token(names: Array[String], wanted_token: String) -> Array[String]:
+	var matches: Array[String] = []
+	for animation_name in names:
+		var tokens := _tokens_for_name(animation_name)
+		if _has_reject_token(tokens):
+			continue
+		if tokens.has(wanted_token):
+			matches.append(animation_name)
+	return _unique_sorted_strings(matches)
 
 
 func _compact_name(value: String) -> String:
@@ -177,6 +195,8 @@ func _run_classifier_regressions() -> void:
 		_unique_sorted_strings(dictionary_backed["walk"]) == ["Alpha_Walk", "Zulu_Walk"],
 		"dictionary_backed_array_normalization_regression",
 	)
+	_require(_names_with_exact_token(["Jog_Fwd", "Runway_Look"], "jog") == ["Jog_Fwd"], "jog_alias_inventory_regression")
+	_require(_names_with_exact_token(["Sprint", "Sprint_Start"], "sprint") == ["Sprint"], "sprint_alias_inventory_regression")
 
 
 func _run() -> void:
@@ -187,7 +207,7 @@ func _run() -> void:
 	_require(source_resource is PackedScene, "source_glb_not_imported_as_packed_scene")
 	_require(target_resource is PackedScene, "target_glb_not_imported_as_packed_scene")
 	if not (source_resource is PackedScene) or not (target_resource is PackedScene):
-		_write_result({"format": "grand-bruxelles-gate8-variant01-retarget-preflight-result-v1", "failures": _failures})
+		_write_result({"format": "grand-bruxelles-gate8-variant01-retarget-preflight-result-v2", "failures": _failures})
 		quit(1)
 		return
 
@@ -218,11 +238,16 @@ func _run() -> void:
 	for token in LOCOMOTION_TOKENS:
 		candidates[token] = _unique_sorted_strings(candidates[token])
 
+	var run_alternatives := {
+		"jog": _names_with_exact_token(source_names, "jog"),
+		"sprint": _names_with_exact_token(source_names, "sprint"),
+	}
 	var complete_locomotion_surface := true
 	var exact_single_trio := true
 	for token in LOCOMOTION_TOKENS:
 		complete_locomotion_surface = complete_locomotion_surface and candidates[token].size() > 0
 		exact_single_trio = exact_single_trio and candidates[token].size() == 1
+	var source_suitability := "EXACT_IDLE_WALK_RUN_AVAILABLE" if complete_locomotion_surface else "BLOCKED_NO_EXACT_RUN"
 
 	var source_bones := _bone_names(source_skeletons)
 	var target_bones := _bone_names(target_skeletons)
@@ -234,11 +259,16 @@ func _run() -> void:
 	_require(source_skeletons.size() >= 1, "source_skeleton_missing")
 	_require(target_skeletons.size() >= 1, "target_skeleton_missing")
 	_require(source_players.size() >= 1, "source_animation_player_missing")
-	_require(source_names.size() > 0, "source_animation_catalog_empty")
+	_require(source_names.size() == 46, "source_animation_catalog_drift")
 	_require(target_players.size() == 0, "target_should_remain_animation_free_before_retarget")
 	_require(target_names.size() == 0, "target_animation_catalog_should_be_empty_before_retarget")
 	_require(target_skinned_meshes >= 1, "target_skinned_mesh_missing")
-	_require(complete_locomotion_surface, "source_exact_token_idle_walk_run_surface_incomplete")
+	_require(candidates["idle"].size() == 8, "source_idle_exact_token_count_drift")
+	_require(candidates["walk"].size() == 2, "source_walk_exact_token_count_drift")
+	_require(candidates["run"].size() == 0, "source_run_exact_token_count_drift")
+	_require(source_suitability == "BLOCKED_NO_EXACT_RUN", "source_suitability_should_remain_blocked")
+	_require(run_alternatives["jog"] == ["Jog_Fwd"], "source_jog_alternative_drift")
+	_require(run_alternatives["sprint"] == ["Sprint"], "source_sprint_alternative_drift")
 	_require(source_anchors["hips"].size() > 0, "source_hips_anchor_missing")
 	_require(target_anchors["hips"].size() > 0, "target_hips_anchor_missing")
 	_require(source_anchors["head"].size() > 0, "source_head_anchor_missing")
@@ -249,18 +279,22 @@ func _run() -> void:
 	_require(target_anchors["right_foot"].size() > 0, "target_right_foot_anchor_missing")
 
 	var result := {
-		"format": "grand-bruxelles-gate8-variant01-retarget-preflight-result-v1",
+		"format": "grand-bruxelles-gate8-variant01-retarget-preflight-result-v2",
 		"engine_version": String(Engine.get_version_info().get("string", "unknown")),
 		"candidate_variant": 1,
 		"candidate_static_verdict": "AMELIORER",
+		"candidate_dynamic_state": source_suitability,
 		"source_animation_players": source_players.size(),
 		"source_animation_count": source_names.size(),
 		"source_animation_names": source_names,
 		"target_animation_players": target_players.size(),
 		"target_animation_count": target_names.size(),
 		"locomotion_candidates": candidates,
+		"run_alternatives_review_only": run_alternatives,
 		"complete_exact_token_locomotion_surface": complete_locomotion_surface,
 		"exact_single_idle_walk_run_trio": exact_single_trio,
+		"source_suitable_for_direct_idle_walk_run_adoption": false,
+		"semantic_alias_auto_promotion_allowed": false,
 		"source_skeletons": source_skeletons.size(),
 		"target_skeletons": target_skeletons.size(),
 		"source_skinned_meshes": source_skinned_meshes,
@@ -284,10 +318,9 @@ func _run() -> void:
 
 	print(
 		"GATE8_VARIANT01_RETARGET_PREFLIGHT " +
-		"candidate=01 " +
-		"source_animations=%d target_animations=%d " % [source_names.size(), target_names.size()] +
+		"candidate=01 source_animations=%d target_animations=%d " % [source_names.size(), target_names.size()] +
 		"idle_candidates=%d walk_candidates=%d run_candidates=%d " % [candidates["idle"].size(), candidates["walk"].size(), candidates["run"].size()] +
-		"exact_single_trio=%s " % str(exact_single_trio).to_lower() +
+		"dynamic_state=%s exact_single_trio=%s " % [source_suitability, str(exact_single_trio).to_lower()] +
 		"source_skeletons=%d target_skeletons=%d " % [source_skeletons.size(), target_skeletons.size()] +
 		"source_upper_chest=%d target_upper_chest=%d " % [source_anchors["chest"].size(), target_anchors["chest"].size()] +
 		"target_skinned_meshes=%d retarget_applied=false production_authorized=false" % target_skinned_meshes
@@ -295,11 +328,12 @@ func _run() -> void:
 	print("GATE8_VARIANT01_IDLE_CANDIDATES " + str(candidates["idle"]))
 	print("GATE8_VARIANT01_WALK_CANDIDATES " + str(candidates["walk"]))
 	print("GATE8_VARIANT01_RUN_CANDIDATES " + str(candidates["run"]))
+	print("GATE8_VARIANT01_RUN_ALTERNATIVES_REVIEW_ONLY " + str(run_alternatives))
 
 	source_root.queue_free()
 	target_root.queue_free()
 	if _failures.is_empty():
-		print("GATE8_VARIANT01_RETARGET_PREFLIGHT_OK")
+		print("GATE8_VARIANT01_RETARGET_PREFLIGHT_OK state=" + source_suitability)
 		quit(0)
 	else:
 		print("GATE8_VARIANT01_RETARGET_PREFLIGHT_FAIL failures=" + str(_failures))

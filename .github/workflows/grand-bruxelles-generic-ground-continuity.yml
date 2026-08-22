@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/data/runtime/modules/generic_osm_surface_collision.json"
       - "grand-bruxelles-game/game/main.tscn"
       - "grand-bruxelles-game/game/tests/generic_osm_ground_continuity_test.gd"
+      - "grand-bruxelles-game/game/tests/generic_osm_ground_collision_isolation_test.gd"
       - ".github/workflows/grand-bruxelles-generic-ground-continuity.yml"
   workflow_dispatch:
 
@@ -47,6 +48,15 @@ jobs:
           grep -q "support_shapes=1" /tmp/generic-ground-continuity.log
           grep -q "source_height_inferred=false" /tmp/generic-ground-continuity.log
 
+      - name: Prove generic support is isolated to the canonical Player
+        run: |
+          set -o pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/generic_osm_ground_collision_isolation_test.gd 2>&1 | tee /tmp/generic-ground-isolation.log
+          if grep -E "SCRIPT ERROR|Parse Error:|GENERIC_OSM_GROUND_ISOLATION_FAIL" /tmp/generic-ground-isolation.log; then exit 1; fi
+          grep -q "GENERIC_OSM_GROUND_ISOLATION_OK" /tmp/generic-ground-isolation.log
+
       - name: Upload continuity evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,4 +65,5 @@ jobs:
           path: |
             /tmp/generic-ground-import.log
             /tmp/generic-ground-continuity.log
+            /tmp/generic-ground-isolation.log
           if-no-files-found: error

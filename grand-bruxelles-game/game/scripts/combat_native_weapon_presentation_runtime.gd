@@ -5,7 +5,7 @@ extends Node
 # it only adjusts the visible native mesh while its corresponding weapon is the
 # canonical active equipment.
 
-const SIGNATURE := "combat_native_weapon_presentation_v1"
+const SIGNATURE := "combat_native_weapon_presentation_v2_post_ik_refresh"
 const CROSSBOW_ID := &"crossbow"
 const KNIFE_ID := &"knife"
 const CROSSBOW_NODE := "2H_Crossbow"
@@ -42,6 +42,21 @@ func _process(_delta: float) -> void:
         return
     player.set_meta("combat_native_crossbow_orientation_locked", false)
     player.set_meta("combat_native_knife_orientation_locked", false)
+
+# Public post-IK refresh used by the dual-arm carry owner. The normal process
+# pass still owns presentation, but this lets the crossbow follow the right hand
+# immediately after CombatCarryHandIK has solved it instead of one frame later.
+func refresh_crossbow_from_current_hand(player: CharacterBody3D) -> bool:
+    if player == null or not is_instance_valid(player):
+        return false
+    if StringName(player.get_meta("combat_weapon_id", &"")) != CROSSBOW_ID:
+        return false
+    var crossbow := player.find_child(CROSSBOW_NODE, true, false) as Node3D
+    if crossbow == null or not crossbow.visible:
+        return false
+    _present_crossbow(player)
+    player.set_meta("combat_native_crossbow_post_ik_refresh", true)
+    return bool(player.get_meta("combat_native_crossbow_orientation_locked", false))
 
 func _present_crossbow(player: CharacterBody3D) -> void:
     var crossbow := player.find_child(CROSSBOW_NODE, true, false) as Node3D

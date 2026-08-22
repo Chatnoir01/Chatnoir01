@@ -1,0 +1,78 @@
+name: Grand Bruxelles CIV-1 Source Acquisition Witness
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/assets/characters/civilians/civ1/source_status.json"
+      - "grand-bruxelles-game/tools/fetch_civ1_pinned_sources.py"
+      - "grand-bruxelles-game/tools/validate_civ1_runtime_packaging.py"
+      - "grand-bruxelles-game/tests/test_civ1_source_manifest_completeness.py"
+      - ".github/workflows/grand-bruxelles-civ1-source-acquisition-witness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  civ1-source-acquisition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate immutable source manifest
+        run: |
+          python3 grand-bruxelles-game/tests/test_civ1_source_manifest_completeness.py
+          python3 grand-bruxelles-game/tools/validate_civ1_runtime_packaging.py
+
+      - name: Fetch and verify exact pinned CC0 bytes
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/fetch_civ1_pinned_sources.py --fetch | tee /tmp/civ1-fetch-first.log
+          test "$(grep -c '^fetched_verified ' /tmp/civ1-fetch-first.log)" -eq 5
+
+      - name: Record acquisition witness
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > /tmp/civ1-source-acquisition.txt
+          import json
+          import subprocess
+          from pathlib import Path
+
+          root = Path.cwd()
+          status = json.loads((root / "assets/characters/civilians/civ1/source_status.json").read_text())
+          total = 0
+          for rel in status["source_paths"]:
+              path = root / rel
+              size = path.stat().st_size
+              blob = subprocess.check_output(["git", "hash-object", str(path)], text=True).strip()
+              pin = status["source_manifest"][rel]
+              assert size == pin["size_bytes"], (rel, size, pin["size_bytes"])
+              assert blob == pin["git_blob_sha1"], (rel, blob, pin["git_blob_sha1"])
+              total += size
+              print(f"{rel}\tsize={size}\tgit_blob={blob}")
+          assert total == 53_274_960, total
+          print(f"TOTAL\tfiles={len(status['source_paths'])}\tbytes={total}")
+          PY
+          cat /tmp/civ1-source-acquisition.txt
+
+      - name: Prove acquisition is idempotent
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/fetch_civ1_pinned_sources.py --fetch | tee /tmp/civ1-fetch-second.log
+          test "$(grep -c '^already_verified ' /tmp/civ1-fetch-second.log)" -eq 5
+
+      - name: Upload source identity witness only
+        uses: actions/upload-artifact@v4
+        with:
+          name: civ1-source-acquisition-witness
+          path: /tmp/civ1-source-acquisition.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove ephemeral source bytes and prove clean checkout
+        run: |
+          set -euo pipefail
+          rm -rf grand-bruxelles-game/assets/characters/civilians/civ1/source
+          test -z "$(git status --porcelain)"

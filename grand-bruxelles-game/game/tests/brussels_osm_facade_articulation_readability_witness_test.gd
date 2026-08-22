@@ -16,9 +16,9 @@ func _fail(message: String) -> void: push_error("BRUSSELS_OSM_FACADE_ARTICULATIO
 func _disable_owned_unrelated_runtime(scene: Node) -> void:
     var stack: Array[Node] = [scene]
     while not stack.is_empty():
-        var node := stack.pop_back()
-        var script := node.get_script()
-        if script is Script and (script as Script).resource_path == "res://game/scripts/mission_drive_to_center.gd":
+        var node: Node = stack.pop_back()
+        var script: Script = node.get_script() as Script
+        if script != null and script.resource_path == "res://game/scripts/mission_drive_to_center.gd":
             node.process_mode = Node.PROCESS_MODE_DISABLED
         for child: Node in node.get_children(): stack.append(child)
 

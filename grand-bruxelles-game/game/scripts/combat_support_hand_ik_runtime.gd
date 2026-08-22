@@ -8,7 +8,7 @@ const IK_NAME := "CombatSupportHandIK"
 const TARGET_NAME := "CombatSupportHandTarget"
 const POLE_NAME := "CombatSupportElbowPole"
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
-const SIGNATURE := "combat_support_hand_ik_v3"
+const SIGNATURE := "combat_support_hand_ik_v4_diag"
 const MAX_BIND_ATTEMPTS := 480
 
 var _player: CharacterBody3D = null
@@ -43,22 +43,43 @@ func _process(_delta: float) -> void:
         return
 
     var desired_hand_world: Vector3 = target_world.get("position", _target.global_position)
-    # TwoBoneIK3D needs a contiguous three-bone chain. KayKit inserts wrist.l
-    # between lowerarm.l and hand.l, so the solver ends at the wrist. Offset the
-    # wrist target by the current wrist->hand vector so the actual hand lands on
-    # the foregrip instead of the wrist itself.
+    var shoulder_world := _bone_world_position(_upper_arm_bone)
+    var elbow_world := _bone_world_position(_lower_arm_bone)
     var wrist_world := _bone_world_position(_wrist_bone)
     var hand_world := _bone_world_position(_hand_bone)
     var wrist_to_hand := hand_world - wrist_world
-    _target.global_position = desired_hand_world - wrist_to_hand
+    var desired_wrist_world := desired_hand_world - wrist_to_hand
+    _target.global_position = desired_wrist_world
 
-    var shoulder_world := _bone_world_position(_upper_arm_bone)
+    var upper_len := shoulder_world.distance_to(elbow_world)
+    var lower_len := elbow_world.distance_to(wrist_world)
+    var hand_len := wrist_world.distance_to(hand_world)
+    var two_bone_reach := upper_len + lower_len
+    var full_hand_reach := two_bone_reach + hand_len
+    var wrist_target_distance := shoulder_world.distance_to(desired_wrist_world)
+    var hand_target_distance := shoulder_world.distance_to(desired_hand_world)
+
     _pole.global_position = shoulder_world + _player.global_transform.basis * Vector3(-0.42, -0.18, -0.04)
     _set_active(true, weapon_id, "support_grip")
     _player.set_meta("combat_support_ik_desired_hand_world", desired_hand_world)
     _player.set_meta("combat_support_ik_target_world", _target.global_position)
     _player.set_meta("combat_support_ik_pole_world", _pole.global_position)
     _player.set_meta("combat_support_ik_target_source", String(target_world.get("source", "")))
+    _player.set_meta("combat_support_ik_pre_hand_world", hand_world)
+    _player.set_meta("combat_support_ik_shoulder_world", shoulder_world)
+    _player.set_meta("combat_support_ik_elbow_world", elbow_world)
+    _player.set_meta("combat_support_ik_pre_wrist_world", wrist_world)
+    _player.set_meta("combat_support_ik_lengths", {
+        "upper": upper_len,
+        "lower": lower_len,
+        "wrist_to_hand": hand_len,
+        "two_bone_reach": two_bone_reach,
+        "full_hand_reach": full_hand_reach,
+        "wrist_target_distance": wrist_target_distance,
+        "hand_target_distance": hand_target_distance,
+        "wrist_target_reachable": wrist_target_distance <= two_bone_reach + 0.01,
+        "hand_target_reachable": hand_target_distance <= full_hand_reach + 0.01,
+    })
 
 func _ensure_bound() -> bool:
     var current := _current_player()
@@ -83,8 +104,6 @@ func _ensure_bound() -> bool:
     if hand < 0:
         return false
 
-    # KayKit arm hierarchy is upperarm.l -> lowerarm.l -> wrist.l -> hand.l.
-    # Resolve the semantic bones and keep the TwoBoneIK3D chain contiguous.
     var wrist := skeleton.get_bone_parent(hand)
     var lower := _find_named_ancestor(skeleton, wrist, "lowerarm") if wrist >= 0 else -1
     var upper := _find_named_ancestor(skeleton, lower, "upperarm") if lower >= 0 else -1
@@ -135,16 +154,17 @@ func _resolve_support_target(player: CharacterBody3D, weapon_id: StringName) -> 
         var support := holder.find_child(SUPPORT_SOCKET_NAME, true, false) as Node3D
         if support == null:
             return {"found": false}
+        player.set_meta("combat_support_socket_local", support.position)
+        player.set_meta("combat_support_socket_world", support.global_position)
         return {"found": true, "position": support.global_position, "source": "support_socket"}
 
     if weapon_id == &"crossbow":
         var crossbow := player.find_child("2H_Crossbow", true, false) as Node3D
         if crossbow == null or not crossbow.visible:
             return {"found": false}
-        # The native crossbow has no authored support socket. Place the target
-        # in its fore-end region relative to the crossbow transform, not relative
-        # to the current hand (which would make the goal move with the solver).
         var target_world := crossbow.global_transform * Vector3(-0.10, -0.02, -0.30)
+        player.set_meta("combat_support_socket_local", Vector3(-0.10, -0.02, -0.30))
+        player.set_meta("combat_support_socket_world", target_world)
         return {"found": true, "position": target_world, "source": "crossbow_foregrip_region"}
 
     return {"found": false}
@@ -154,7 +174,10 @@ func _on_ik_processed() -> void:
         return
     var desired_hand_world: Vector3 = _player.get_meta("combat_support_ik_desired_hand_world", _target.global_position)
     var hand_world := _bone_world_position(_hand_bone)
+    var wrist_world := _bone_world_position(_wrist_bone)
     var gap := hand_world.distance_to(desired_hand_world)
+    _player.set_meta("combat_support_hand_world", hand_world)
+    _player.set_meta("combat_support_wrist_world", wrist_world)
     _player.set_meta("combat_support_hand_gap_m", gap)
     _player.set_meta("combat_support_ik_active", true)
     _player.set_meta("combat_support_ik_locked", gap <= 0.085)

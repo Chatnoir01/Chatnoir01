@@ -3,10 +3,25 @@ class_name TrafficManagerRgsdevVehicleExtension
 
 const RGSDEV_VEHICLE_VISUAL_SCRIPT := preload("res://game/scripts/rgsdev_vehicle_visual.gd")
 const DRIVABLE_TRAFFIC_VEHICLE_SCRIPT := preload("res://game/scripts/drivable_traffic_vehicle.gd")
+const LABO_CIVILIAN_MODEL_CYCLE := [
+    "sedan", "sedan", "sedan", "sedan", "sedan", "sedan",
+    "hatchback", "suv", "van", "pickup",
+]
 
 func _ready() -> void:
     super._ready()
     call_deferred("_upgrade_scene_vehicle_visuals")
+
+func _configure_labo_civilian_visual(visual: Node, serial: int) -> void:
+    if visual == null:
+        return
+    var model_id := str(LABO_CIVILIAN_MODEL_CYCLE[posmod(serial, LABO_CIVILIAN_MODEL_CYCLE.size())])
+    visual.call("configure_model", model_id)
+    visual.set_meta("labo_vehicle_mix", true)
+    visual.set_meta("labo_vehicle_model", model_id)
+
+func get_labo_civilian_model_cycle() -> Array:
+    return LABO_CIVILIAN_MODEL_CYCLE.duplicate()
 
 func _create_vehicle_node() -> TrafficVehicleCore:
     var archetype := _choose_archetype()
@@ -44,7 +59,7 @@ func _create_vehicle_node() -> TrafficVehicleCore:
 func _add_car_visual(vehicle: Node3D) -> void:
     var visual := RGSDEV_VEHICLE_VISUAL_SCRIPT.new()
     visual.name = "RgsdevVisual"
-    visual.call("configure_for_traffic", _spawn_serial)
+    _configure_labo_civilian_visual(visual, _spawn_serial)
     vehicle.add_child(visual)
 
 func _spawn_parked_vehicle(candidate: Dictionary) -> void:
@@ -67,7 +82,7 @@ func _spawn_parked_vehicle(candidate: Dictionary) -> void:
     body.add_child(collision)
     var visual := RGSDEV_VEHICLE_VISUAL_SCRIPT.new()
     visual.name = "RgsdevVisual"
-    visual.call("configure_for_traffic", int(candidate.get("id", 0)))
+    _configure_labo_civilian_visual(visual, int(candidate.get("id", 0)))
     body.add_child(visual)
     body.configure_archetype("car")
     body.call("configure_as_parked")
@@ -233,11 +248,13 @@ func _upgrade_scene_vehicle_visuals() -> void:
         return
     for legacy_name: String in ["Body", "Cabin", "VisualUpgrade", "ABLabel"]:
         var legacy := vehicle.get_node_or_null(legacy_name)
-        if legacy is Node3D:
-            (legacy as Node3D).visible = false
+        if legacy != null:
+            legacy.queue_free()
     if vehicle.get_node_or_null("RgsdevVisual") != null:
         return
     var visual := RGSDEV_VEHICLE_VISUAL_SCRIPT.new()
     visual.name = "RgsdevVisual"
     visual.call("configure_model", "sedan")
+    visual.set_meta("labo_vehicle_mix", true)
+    visual.set_meta("labo_vehicle_model", "sedan")
     vehicle.add_child(visual)

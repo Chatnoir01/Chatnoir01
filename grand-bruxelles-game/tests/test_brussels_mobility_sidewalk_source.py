@@ -20,6 +20,7 @@ assert source["feature_type_field"] == "ssft"
 assert source["sidewalk_semantics_basis"] == "official_dataset_and_layer_identity"
 assert source["published_domain_sidewalk_code"] == "SW"
 assert source["corridor_requires_ssft_sw"] is False
+assert source["volatile_wfs_metadata_fields"] == ["timeStamp"]
 assert "sidewalk_feature_code" not in source
 assert source["metadata_last_updated"] == "2024-06-21"
 assert source["accessed_on"] == "2026-08-22"
@@ -57,7 +58,9 @@ assert extract["required_identity_fields"] == ["feature_id", "source_gid", "sour
 assert extract["digest_algorithm"] == "sha256"
 assert extract["bounded_to_vertical_slice"] is True
 assert extract["must_record_query_bbox"] is True
-assert extract["must_record_source_digest"] is True
+assert extract["must_record_raw_source_digest"] is True
+assert extract["must_record_canonical_source_content_digest"] is True
+assert extract["canonical_source_digest_ignores_only"] == ["timeStamp"]
 assert extract["must_record_feature_count"] is True
 assert extract["must_record_feature_id_digest"] is True
 assert extract["must_record_ssft_counts"] is True

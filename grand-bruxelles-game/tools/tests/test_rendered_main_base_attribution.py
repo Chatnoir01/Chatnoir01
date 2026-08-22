@@ -7,6 +7,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tools" / "rendered_main_base_attribution.py"
+WORKFLOW = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-performance.yml"
 
 
 def fp(tile_lumas, histogram=None):
@@ -144,6 +145,12 @@ class RenderedMainBaseAttributionTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
         self.assertTrue(doc["monotonic_toward_frozen"])
         self.assertEqual(doc["changed_tile_indexes"], [])
+
+    def test_workflow_requires_explicit_visual_guard_failures_for_attribution(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("VISUAL_GUARD_PATTERN=", workflow)
+        self.assertIn('grep -Eq "$VISUAL_GUARD_PATTERN" /tmp/rendered-main-baseline.log', workflow)
+        self.assertIn('grep -Eq "$VISUAL_GUARD_PATTERN" /tmp/rendered-base-baseline.log', workflow)
 
 
 if __name__ == "__main__":

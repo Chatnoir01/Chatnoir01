@@ -6,6 +6,8 @@ const HEIGHT_EPSILON_M := 0.001
 const MAX_BIND_FRAMES := 240
 const BODY_NAME := "GenericOsmSurfaceCollisionBody"
 const SHAPE_NAME := "GenericOsmTopSupport"
+const SUPPORT_COLLISION_LAYER := 1
+const SUPPORT_COLLISION_MASK := 1
 
 var _ready_complete := false
 var _road_surfaces := 0
@@ -73,11 +75,18 @@ func _bind_when_ready() -> void:
 
         var collision_body := StaticBody3D.new()
         collision_body.name = BODY_NAME
+        # Do not depend on engine/project defaults for the gameplay support.
+        # The canonical Player currently queries layer 1; keep the support
+        # explicitly on that layer and record it for regression checks.
+        collision_body.collision_layer = SUPPORT_COLLISION_LAYER
+        collision_body.collision_mask = SUPPORT_COLLISION_MASK
         collision_body.set_meta("road_support_surfaces", road_count)
         collision_body.set_meta("sidewalk_support_surfaces", sidewalk_count)
         collision_body.set_meta("support_shape_count", 1)
         collision_body.set_meta("support_triangle_count", int(support_faces.size() / 3))
         collision_body.set_meta("support_mode", "top_surfaces_only")
+        collision_body.set_meta("support_collision_layer", SUPPORT_COLLISION_LAYER)
+        collision_body.set_meta("support_collision_mask", SUPPORT_COLLISION_MASK)
         collision_body.set_meta("source_geometry_changed", false)
         collision_body.set_meta("source_height_inferred", false)
         # This module is physics-only. Lock that contract explicitly so a future
@@ -92,7 +101,7 @@ func _bind_when_ready() -> void:
         _sidewalk_surfaces = sidewalk_count
         _triangle_count = int(support_faces.size() / 3)
         _ready_complete = true
-        print("GENERIC_OSM_SURFACE_COLLISIONS_READY: roads=%d sidewalks=%d body_count=1 shape_count=1 triangles=%d support_mode=top_surfaces_only source_geometry_changed=false source_height_inferred=false visual_output_changed=false render_geometry_count=0" % [_road_surfaces, _sidewalk_surfaces, _triangle_count])
+        print("GENERIC_OSM_SURFACE_COLLISIONS_READY: roads=%d sidewalks=%d body_count=1 shape_count=1 triangles=%d support_mode=top_surfaces_only collision_layer=%d collision_mask=%d source_geometry_changed=false source_height_inferred=false visual_output_changed=false render_geometry_count=0" % [_road_surfaces, _sidewalk_surfaces, _triangle_count, SUPPORT_COLLISION_LAYER, SUPPORT_COLLISION_MASK])
         return
     push_error("GENERIC_OSM_SURFACE_COLLISIONS_FAIL: GeneratedRoads unavailable")
 
@@ -105,6 +114,8 @@ func readiness() -> Dictionary:
         "shape_count": 1 if _ready_complete else 0,
         "triangle_count": _triangle_count,
         "support_mode": "top_surfaces_only",
+        "support_collision_layer": SUPPORT_COLLISION_LAYER,
+        "support_collision_mask": SUPPORT_COLLISION_MASK,
         "source_geometry_changed": false,
         "source_height_inferred": false,
         "visual_output_changed": false,

@@ -7,23 +7,10 @@ signal mission_completed(reward_cents: int)
 @export var time_limit_seconds: float = 240.0
 @export var completion_reward_cents: int = 35000
 
-@onready var player: CharacterBody3D = get_node("../Player")
-@onready var car: Node3D = get_node("../PhysicalCarB")
-@onready var mission_label: Label = get_node("../MissionLabel")
-
-var _stage: int = 0
-var _time_remaining: float = 0.0
-var _failed: bool = false
-var _reward_claimed: bool = false
-var _marker: CSGCylinder3D
-var _marker_material: StandardMaterial3D
-var _player_spawn_transform: Transform3D
-var _car_spawn_transform: Transform3D
-
 const MISSION_ID: String = "midi_to_centre_01"
 const STATE_SCHEMA_VERSION: int = 1
-const PRIMARY_VEHICLE_NODE := "PhysicalCarB"
-const PRIMARY_VEHICLE_LABEL := "B · PHYSIQUE 60 HZ"
+const PRIMARY_VEHICLE_NODE := "PrototypeCar"
+const PRIMARY_VEHICLE_LABEL := "VOITURE"
 
 const CHECKPOINTS: Array[Dictionary] = [
     {
@@ -40,10 +27,48 @@ const CHECKPOINTS: Array[Dictionary] = [
     },
 ]
 
+@onready var player: CharacterBody3D = get_node("../Player")
+@onready var car: Node3D = get_node_or_null("../%s" % PRIMARY_VEHICLE_NODE) as Node3D
+@onready var mission_label: Label = get_node("../MissionLabel")
+
+var _stage: int = 0
+var _time_remaining: float = 0.0
+var _failed: bool = false
+var _reward_claimed: bool = false
+var _marker: CSGCylinder3D
+var _marker_material: StandardMaterial3D
+var _player_spawn_transform: Transform3D
+var _car_spawn_transform: Transform3D
+
+
+func _resolve_primary_vehicle() -> Node3D:
+    if is_instance_valid(car) and not car.is_queued_for_deletion():
+        return car
+    var candidate := get_node_or_null("../%s" % PRIMARY_VEHICLE_NODE) as Node3D
+    if candidate == null or not is_instance_valid(candidate) or candidate.is_queued_for_deletion():
+        car = null
+        return null
+    car = candidate
+    return car
+
+
+func _vehicle_contract_valid(vehicle: Node3D) -> bool:
+    return (
+        vehicle != null
+        and is_instance_valid(vehicle)
+        and not vehicle.is_queued_for_deletion()
+        and vehicle.has_method("has_driver")
+        and vehicle.has_method("exit_driver")
+    )
+
 
 func _ready() -> void:
     _player_spawn_transform = player.global_transform
-    _car_spawn_transform = car.global_transform
+    var vehicle := _resolve_primary_vehicle()
+    if _vehicle_contract_valid(vehicle):
+        _car_spawn_transform = vehicle.global_transform
+    else:
+        push_warning("MissionDriveToCenter: production primary vehicle unavailable at startup")
     _time_remaining = maxf(time_limit_seconds, 1.0)
     _marker_material = StandardMaterial3D.new()
     _marker_material.albedo_color = Color(1.0, 0.78, 0.08, 0.72)
@@ -68,8 +93,15 @@ func _physics_process(delta: float) -> void:
     if _failed:
         return
 
+    var vehicle := _resolve_primary_vehicle()
+    if not _vehicle_contract_valid(vehicle):
+        mission_label.text = "MISSION 01 · MIDI → CENTRE\nVoiture indisponible"
+        if is_instance_valid(_marker):
+            _marker.visible = false
+        return
+
     if _stage == 0:
-        if bool(car.call("has_driver")):
+        if bool(vehicle.call("has_driver")):
             _stage = 1
             _time_remaining = maxf(time_limit_seconds, 1.0)
             _update_ui()
@@ -83,16 +115,16 @@ func _physics_process(delta: float) -> void:
         _fail_mission()
         return
 
-    if not bool(car.call("has_driver")):
+    if not bool(vehicle.call("has_driver")):
         mission_label.text = (
-            "MISSION 01 · MIDI → CENTRE · %s\nRemonte dans la voiture %s · E" %
-            [_format_time(_time_remaining), PRIMARY_VEHICLE_LABEL]
+            "MISSION 01 · MIDI → CENTRE · %s\nRemonte dans la %s · E" %
+            [_format_time(_time_remaining), PRIMARY_VEHICLE_LABEL.to_lower()]
         )
         return
 
     var target: Dictionary = CHECKPOINTS[_stage - 1]
     var target_position: Vector3 = target["position"]
-    var distance: float = car.global_position.distance_to(target_position)
+    var distance: float = vehicle.global_position.distance_to(target_position)
     mission_label.text = (
         "MISSION 01 · MIDI → CENTRE · %s\n%s · %.0f m" %
         [_format_time(_time_remaining), str(target["name"]), distance]
@@ -117,8 +149,8 @@ func _update_ui() -> void:
 
     if _stage == 0:
         mission_label.text = (
-            "MISSION 01 · MIDI → CENTRE · %s\nMonte dans la voiture %s · E" %
-            [_format_time(time_limit_seconds), PRIMARY_VEHICLE_LABEL]
+            "MISSION 01 · MIDI → CENTRE · %s\nMonte dans la %s · E" %
+            [_format_time(time_limit_seconds), PRIMARY_VEHICLE_LABEL.to_lower()]
         )
         _marker.visible = false
         return
@@ -153,25 +185,30 @@ func _fail_mission() -> void:
     _update_ui()
 
 
-func _reset_primary_vehicle() -> void:
-    car.global_transform = _car_spawn_transform
-    if car is RigidBody3D:
-        var rigid := car as RigidBody3D
+func _reset_primary_vehicle() -> bool:
+    var vehicle := _resolve_primary_vehicle()
+    if not _vehicle_contract_valid(vehicle):
+        return false
+    vehicle.global_transform = _car_spawn_transform
+    if vehicle is RigidBody3D:
+        var rigid := vehicle as RigidBody3D
         rigid.linear_velocity = Vector3.ZERO
         rigid.angular_velocity = Vector3.ZERO
         rigid.sleeping = false
-    elif car is CharacterBody3D:
-        var character := car as CharacterBody3D
+    elif vehicle is CharacterBody3D:
+        var character := vehicle as CharacterBody3D
         character.velocity = Vector3.ZERO
         if "speed" in character:
             character.set("speed", 0.0)
-    if car.has_method("clear_control_override"):
-        car.call("clear_control_override")
+    if vehicle.has_method("clear_control_override"):
+        vehicle.call("clear_control_override")
+    return true
 
 
 func restart_mission() -> void:
-    if bool(car.call("has_driver")):
-        car.call("exit_driver")
+    var vehicle := _resolve_primary_vehicle()
+    if _vehicle_contract_valid(vehicle) and bool(vehicle.call("has_driver")):
+        vehicle.call("exit_driver")
     player.global_transform = _player_spawn_transform
     player.velocity = Vector3.ZERO
     _reset_primary_vehicle()
@@ -273,3 +310,7 @@ func is_failed() -> bool:
 
 func primary_vehicle_node_name() -> String:
     return PRIMARY_VEHICLE_NODE
+
+
+func primary_vehicle_is_valid() -> bool:
+    return _vehicle_contract_valid(_resolve_primary_vehicle())

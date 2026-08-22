@@ -32,9 +32,16 @@ func target_horizontal_velocity(input_axis: Vector2, camera_yaw_rad: float, spri
 func approach_horizontal(current: Vector3, target: Vector3, grounded: bool, dt: float) -> Vector3:
     var current_xz := Vector2(current.x, current.z)
     var target_xz := Vector2(target.x, target.z)
+    var has_target_input := target_xz.length_squared() > 0.0001
+
+    # Releasing movement in mid-air must preserve carried horizontal momentum.
+    # Active steering still uses air_acceleration; grounded release still brakes.
+    if not grounded and not has_target_input:
+        return Vector3(current_xz.x, current.y, current_xz.y)
+
     var rate := air_acceleration
     if grounded:
-        rate = ground_acceleration if target_xz.length_squared() > 0.0001 else ground_deceleration
+        rate = ground_acceleration if has_target_input else ground_deceleration
     current_xz = current_xz.move_toward(target_xz, maxf(dt, 0.0) * rate)
     return Vector3(current_xz.x, current.y, current_xz.y)
 

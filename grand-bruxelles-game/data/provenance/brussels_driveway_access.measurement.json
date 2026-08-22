@@ -7,7 +7,7 @@
   "metadata_last_updated": "2026-03-30",
   "license": "CC0-1.0",
   "source_crs": "EPSG:31370",
-  "status": "MEASURED_SOURCE_ONLY_CANONICAL_RELOCK_PENDING",
+  "status": "MEASURED_SOURCE_ONLY_CANONICAL_LOCKED",
   "legacy_transport_measurement": {
     "run_id": 32589788511,
     "artifact_id": 9480000931,
@@ -45,7 +45,22 @@
       }
     }
   },
-  "canonical_semantic_lock": null,
+  "canonical_relock_measurement": {
+    "run_id": 32592757677,
+    "artifact_id": 9480755209,
+    "artifact_sha256": "f285dc8246c44233531f660c9e8eda8059676ac74a98e4a9b6fe0824326b5f42",
+    "measurement_json_sha256": "0185aea9b5dad2e364fd236276bc7b8aee14309326827a5ec20095eaa73ad896",
+    "diagnostic_json_sha256": "2f7369d284b1671d125f6be1f55aab46f4f9108453a32c2082efbbd69b4b9f38",
+    "reproduction_status": "canonical-relock-measurement"
+  },
+  "canonical_semantic_lock": {
+    "main_sample_canonical_semantic_sha256": "5c9112caee34847fff87c7a1dbe06f01b39c44321a10b08be83ef79cf7ea9956",
+    "lookup_canonical_semantic_sha256": {
+      "type_acces_carrossables": "c0e850273b0523cd46059179d8a099213b4ef8a43a2f7b009e0fba4ce7510022",
+      "zone_recul_carrossable": "402cb5a23088fb35e938b724ffff675d092c34da76b9a2f2768be7b0763db552",
+      "zone_served_carrossable": "0edd3032c3472c16ae188b9dee994750a7567af5454e40e2351878cc12a7c519"
+    }
+  },
   "source_registration_authorized": false,
   "parking_evidence_runtime_approved": false,
   "runtime_authorized": false,
@@ -55,5 +70,5 @@
   "semantic_names_authorized": false,
   "game_world_transform_authorized": false,
   "jouable_promotion_authorized": false,
-  "note": "Source-only relock candidate. Stable identity/accounting is preserved from verified runs; raw HTTP response hashes are not semantic locks because the publisher changes JSON serialization without changing counts/IDs/bbox. First v3 GREEN run must emit canonical semantic hashes; registration/runtime rails remain closed."
+  "note": "Source-only canonical semantic lock. Raw HTTP hashes remain forensic-only because publisher JSON serialization is transport-nondeterministic. Stable accounting plus canonical semantic hashes must reproduce exactly; registration/runtime rails remain closed."
 }

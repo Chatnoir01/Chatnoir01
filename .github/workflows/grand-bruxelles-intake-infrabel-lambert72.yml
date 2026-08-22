@@ -27,8 +27,7 @@ jobs:
           python3 - <<'PY'
           import json, subprocess
           from pathlib import Path
-          p = Path('grand-bruxelles-game/data/qa/infrabel_track_segments_intake.contract.json')
-          contract = json.loads(p.read_text())
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/infrabel_track_segments_intake.contract.json').read_text())
           expected = contract['production_base_sha']
           live = subprocess.check_output(['git','rev-parse','origin/main'], text=True).strip()
           base = subprocess.check_output(['git','merge-base','HEAD','origin/main'], text=True).strip()
@@ -43,17 +42,12 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/infrabel"
           python3 - <<'PY'
-          import hashlib
-          import json
-          import re
-          import urllib.parse
-          import urllib.request
+          import hashlib, json, os, re, urllib.parse, urllib.request
           from pathlib import Path
 
-          contract_path = Path('grand-bruxelles-game/data/qa/infrabel_track_segments_intake.contract.json')
-          contract = json.loads(contract_path.read_text())
-          out = Path(__import__('os').environ['RUNNER_TEMP']) / 'infrabel'
-          headers = {'User-Agent': 'GrandBruxellesGame-InfrabelLambert72Intake/2.0', 'Accept': '*/*'}
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/infrabel_track_segments_intake.contract.json').read_text())
+          out = Path(os.environ['RUNNER_TEMP']) / 'infrabel'
+          headers = {'User-Agent':'GrandBruxellesGame-InfrabelLambert72Intake/2.1','Accept':'*/*'}
 
           def get(url, timeout=180):
               req = urllib.request.Request(url, headers=headers)
@@ -62,81 +56,88 @@ jobs:
 
           metadata_bytes, metadata_headers = get(contract['metadata_api'])
           metadata = json.loads(metadata_bytes)
-          (out / 'dataset-metadata.json').write_bytes(metadata_bytes)
+          (out/'dataset-metadata.json').write_bytes(metadata_bytes)
 
-          base = 'https://opendata.infrabel.be'
+          # Infrabel exposes the original master file through Opendatasoft
+          # alternative_exports. The filename does not say Lambert72, so CRS
+          # identity is proven from publisher metadata + payload coordinates,
+          # not guessed from the attachment name.
+          alternatives = metadata.get('alternative_exports') or []
           candidates = []
-          seen = set()
-          lambert_re = re.compile(r'(lambert\s*72|lambert72|epsg\s*[:_-]?\s*31370|31370)', re.I)
-          geojson_re = re.compile(r'geo\s*json|\.geojson(?:$|[?#])', re.I)
+          for item in alternatives:
+              if not isinstance(item, dict):
+                  continue
+              url = item.get('url')
+              title = str(item.get('title') or '')
+              mimetype = str(item.get('mimetype') or '')
+              descriptor = f'{title} {mimetype} {url or ""}'
+              if isinstance(url, str) and re.search(r'geojson|\.geojson', descriptor, re.I):
+                  candidates.append({'url':urllib.parse.urljoin('https://opendata.infrabel.be',url),'title':title,'mimetype':mimetype})
 
-          def walk(node, path='root'):
-              if isinstance(node, dict):
-                  url = node.get('url') or node.get('href') or node.get('download_url')
-                  label = ' '.join(str(node.get(k) or '') for k in ('name','title','filename','description','format'))
-                  if isinstance(url, str):
-                      absolute = urllib.parse.urljoin(base, url)
-                      descriptor = f'{label} {absolute}'
-                      if geojson_re.search(descriptor) and lambert_re.search(descriptor):
-                          key = absolute.strip()
-                          if key not in seen:
-                              seen.add(key)
-                              candidates.append({'url': key, 'label': label.strip(), 'metadata_path': path})
-                  for key, value in node.items():
-                      walk(value, f'{path}.{key}')
-              elif isinstance(node, list):
-                  for index, value in enumerate(node):
-                      walk(value, f'{path}[{index}]')
-
-          walk(metadata)
           discovery = {
               'dataset_id': contract['dataset_id'],
               'metadata_api': contract['metadata_api'],
-              'candidate_count': len(candidates),
+              'alternative_export_count': len(alternatives),
+              'geojson_candidate_count': len(candidates),
               'candidates': candidates,
           }
-          (out / 'lambert72-discovery.json').write_text(json.dumps(discovery, indent=2, ensure_ascii=False) + '\n')
-          assert len(candidates) == 1, f'expected exactly one Lambert72 GeoJSON candidate, got {len(candidates)}: {candidates}'
+          (out/'lambert72-discovery.json').write_text(json.dumps(discovery,indent=2,ensure_ascii=False)+'\n')
+          assert candidates, 'publisher metadata exposed no alternative GeoJSON export'
 
-          source_url = candidates[0]['url']
-          payload, source_headers = get(source_url)
-          source_sha = hashlib.sha256(payload).hexdigest()
-          source_path = out / 'track-segments-lambert72.geojson'
-          source_path.write_bytes(payload)
-          obj = json.loads(payload)
-          assert obj.get('type') == 'FeatureCollection', f'unexpected GeoJSON type: {obj.get("type")}'
-          features = obj.get('features')
-          assert isinstance(features, list), 'GeoJSON features missing'
+          validated = []
           minimum = int(contract['required_payload']['minimum_feature_count'])
-          assert len(features) >= minimum, f'feature count too small: {len(features)} < {minimum}'
+          for index, candidate in enumerate(candidates):
+              payload, source_headers = get(candidate['url'])
+              try:
+                  obj = json.loads(payload)
+              except Exception:
+                  continue
+              if obj.get('type') != 'FeatureCollection' or not isinstance(obj.get('features'), list):
+                  continue
+              features = obj['features']
+              if len(features) < minimum:
+                  continue
+              samples = []
+              def collect(coords):
+                  if len(samples) >= 20000:
+                      return
+                  if isinstance(coords,(list,tuple)):
+                      if len(coords) >= 2 and isinstance(coords[0],(int,float)) and isinstance(coords[1],(int,float)):
+                          samples.append((float(coords[0]),float(coords[1])))
+                      else:
+                          for value in coords:
+                              collect(value)
+              for feature in features:
+                  collect((feature.get('geometry') or {}).get('coordinates'))
+                  if len(samples) >= 20000:
+                      break
+              if len(samples) < 100:
+                  continue
+              lambert_like = sum(0 <= x <= 300000 and 0 <= y <= 300000 for x,y in samples)
+              wgs84_like = sum(-180 <= x <= 180 and -90 <= y <= 90 for x,y in samples)
+              lambert_ratio = lambert_like/len(samples)
+              wgs84_ratio = wgs84_like/len(samples)
+              crs_text = json.dumps(obj.get('crs'),ensure_ascii=False).lower()
+              explicit_crs_ok = obj.get('crs') is None or '31370' in crs_text or 'lambert' in crs_text
+              if lambert_ratio >= 0.95 and wgs84_ratio <= 0.05 and explicit_crs_ok:
+                  fn = out/f'candidate-{index}-lambert72.geojson'
+                  fn.write_bytes(payload)
+                  validated.append({
+                      'candidate':candidate,
+                      'payload':payload,
+                      'headers':source_headers,
+                      'feature_count':len(features),
+                      'samples':len(samples),
+                      'lambert_ratio':lambert_ratio,
+                      'wgs84_ratio':wgs84_ratio,
+                  })
 
-          samples = []
-          def collect(coords):
-              if len(samples) >= 20000:
-                  return
-              if isinstance(coords, (list, tuple)):
-                  if len(coords) >= 2 and isinstance(coords[0], (int, float)) and isinstance(coords[1], (int, float)):
-                      samples.append((float(coords[0]), float(coords[1])))
-                  else:
-                      for value in coords:
-                          collect(value)
-
-          for feature in features:
-              geometry = feature.get('geometry') or {}
-              collect(geometry.get('coordinates'))
-              if len(samples) >= 20000:
-                  break
-          assert len(samples) >= 100, f'not enough coordinate samples: {len(samples)}'
-          lambert_like = sum(0 <= x <= 300000 and 0 <= y <= 300000 for x, y in samples)
-          wgs84_like = sum(-180 <= x <= 180 and -90 <= y <= 90 for x, y in samples)
-          lambert_ratio = lambert_like / len(samples)
-          wgs84_ratio = wgs84_like / len(samples)
-          assert lambert_ratio >= 0.95, f'coordinate range is not Lambert72-like: ratio={lambert_ratio:.4f}'
-          assert wgs84_ratio <= 0.05, f'payload appears WGS84-like: ratio={wgs84_ratio:.4f}'
-
-          crs_text = json.dumps(obj.get('crs'), ensure_ascii=False).lower()
-          if obj.get('crs') is not None:
-              assert '31370' in crs_text or 'lambert' in crs_text, f'GeoJSON CRS contradicts Lambert72 contract: {obj.get("crs")}'
+          assert len(validated) == 1, f'expected exactly one content-validated Lambert72 GeoJSON, got {len(validated)}'
+          chosen = validated[0]
+          payload = chosen['payload']
+          source_url = chosen['candidate']['url']
+          source_sha = hashlib.sha256(payload).hexdigest()
+          (out/'track-segments-lambert72.geojson').write_bytes(payload)
 
           hard = contract['hard_rules']
           for key in ('runtime_authorized','runtime_mount_authorized','collision_authorized','materialization_authorized','geometry_modified','semantic_names_authorized','game_world_transform_authorized','jouable_promotion_authorized'):
@@ -145,34 +146,35 @@ jobs:
           assert contract['required_payload']['wgs84_fallback_authorized'] is False
 
           manifest = {
-              'schema': 'grand-bruxelles-infrabel-track-segments-source-manifest-v1',
-              'publisher': contract['publisher'],
-              'dataset_id': contract['dataset_id'],
-              'dataset_page': contract['dataset_page'],
-              'license': contract['license'],
-              'source_url': source_url,
-              'source_format': 'GeoJSON',
-              'source_crs': 'EPSG:31370',
-              'feature_count': len(features),
-              'bytes': len(payload),
-              'sha256': source_sha,
-              'coordinate_sample_count': len(samples),
-              'lambert72_range_ratio': lambert_ratio,
-              'wgs84_range_ratio': wgs84_ratio,
-              'metadata_sha256': hashlib.sha256(metadata_bytes).hexdigest(),
-              'metadata_last_modified': metadata_headers.get('Last-Modified'),
-              'source_last_modified': source_headers.get('Last-Modified'),
-              'runtime_authorized': False,
-              'runtime_mount_authorized': False,
-              'collision_authorized': False,
-              'materialization_authorized': False,
-              'geometry_modified': False,
-              'semantic_names_authorized': False,
-              'game_world_transform_authorized': False,
-              'jouable_promotion_authorized': False,
+              'schema':'grand-bruxelles-infrabel-track-segments-source-manifest-v1',
+              'publisher':contract['publisher'],
+              'dataset_id':contract['dataset_id'],
+              'dataset_page':contract['dataset_page'],
+              'license':contract['license'],
+              'source_url':source_url,
+              'source_title':chosen['candidate']['title'],
+              'source_format':'GeoJSON',
+              'source_crs':'EPSG:31370',
+              'feature_count':chosen['feature_count'],
+              'bytes':len(payload),
+              'sha256':source_sha,
+              'coordinate_sample_count':chosen['samples'],
+              'lambert72_range_ratio':chosen['lambert_ratio'],
+              'wgs84_range_ratio':chosen['wgs84_ratio'],
+              'metadata_sha256':hashlib.sha256(metadata_bytes).hexdigest(),
+              'metadata_last_modified':metadata_headers.get('Last-Modified'),
+              'source_last_modified':chosen['headers'].get('Last-Modified'),
+              'runtime_authorized':False,
+              'runtime_mount_authorized':False,
+              'collision_authorized':False,
+              'materialization_authorized':False,
+              'geometry_modified':False,
+              'semantic_names_authorized':False,
+              'game_world_transform_authorized':False,
+              'jouable_promotion_authorized':False,
           }
-          (out / 'manifest.json').write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n')
-          print('INFRABEL_LAMBERT72_INTAKE_OK', f'features={len(features)}', f'bytes={len(payload)}', f'sha256={source_sha}')
+          (out/'manifest.json').write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n')
+          print('INFRABEL_LAMBERT72_INTAKE_OK',f'features={chosen["feature_count"]}',f'bytes={len(payload)}',f'sha256={source_sha}')
           PY
 
       - uses: actions/upload-artifact@v4

@@ -24,13 +24,15 @@ func _append_top_face(faces: PackedVector3Array, box: CSGBox3D) -> void:
     var p11 := box.transform * Vector3(half_x, half_y, half_z)
     var p01 := box.transform * Vector3(-half_x, half_y, half_z)
 
-    # Upward winding only: this runtime provides walk support, not authored curb walls.
+    # Godot's concave front face for this X/Z plane uses this winding when
+    # backface_collision is disabled. Keep only the rendered top plane: no
+    # authored curb walls or underside volume are manufactured here.
     faces.append(p00)
-    faces.append(p11)
     faces.append(p10)
-    faces.append(p00)
-    faces.append(p01)
     faces.append(p11)
+    faces.append(p00)
+    faces.append(p11)
+    faces.append(p01)
 
 func _bind_when_ready() -> void:
     for _attempt: int in range(MAX_BIND_FRAMES):
@@ -74,7 +76,7 @@ func _bind_when_ready() -> void:
         collision_body.set_meta("road_support_surfaces", road_count)
         collision_body.set_meta("sidewalk_support_surfaces", sidewalk_count)
         collision_body.set_meta("support_shape_count", 1)
-        collision_body.set_meta("support_triangle_count", support_faces.size() / 3)
+        collision_body.set_meta("support_triangle_count", int(support_faces.size() / 3))
         collision_body.set_meta("support_mode", "top_surfaces_only")
         collision_body.set_meta("source_geometry_changed", false)
         collision_body.set_meta("source_height_inferred", false)
@@ -83,7 +85,7 @@ func _bind_when_ready() -> void:
 
         _road_surfaces = road_count
         _sidewalk_surfaces = sidewalk_count
-        _triangle_count = support_faces.size() / 3
+        _triangle_count = int(support_faces.size() / 3)
         _ready_complete = true
         print("GENERIC_OSM_SURFACE_COLLISIONS_READY: roads=%d sidewalks=%d body_count=1 shape_count=1 triangles=%d support_mode=top_surfaces_only source_geometry_changed=false source_height_inferred=false" % [_road_surfaces, _sidewalk_surfaces, _triangle_count])
         return

@@ -12,6 +12,7 @@ from bootstrap_cell_maturity import GATES as MATURITY_GATES, missing_declared_so
 FORMAT = "grand-bruxelles-autonomous-citygen-v1"
 TARGET_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 TERMINAL = {"RUNTIME_READY", "QUARANTINE"}
+REGIONAL_MUNICIPALITY_TARGET = 19
 MANUAL_FRONTIER_ACTION = "secondary_height_validation_and_terrain_runtime_checks"
 MANUAL_ELEVATION_QUALITY_ACTION = "resolve_elevation_quality_blockers"
 MANUAL_ACTIONS = {MANUAL_FRONTIER_ACTION, MANUAL_ELEVATION_QUALITY_ACTION}
@@ -182,17 +183,67 @@ def _selection_priority(cell: dict[str, Any]) -> int:
     return {"DATA_READY": 0, "DISCOVERED": 1, "MISSING_SOURCE": 2}.get(str(cell.get("state")), 99)
 
 
-def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
-    # Finish already-materialized source cells before expanding regional coverage,
-    # but repair physically incomplete source cells first.
-    candidates = [cell for cell in cells if _autonomously_actionable(cell)]
-    candidates.sort(key=lambda cell: (
+def _selection_key(cell: dict[str, Any]) -> tuple[Any, ...]:
+    return (
         _selection_priority(cell),
         -int(cell.get("evidence_progress", 0)) if cell["state"] == "DATA_READY" else 0,
         int(cell.get("attempts", 0)),
         cell["cell_id"],
-    ))
-    return [cell["cell_id"] for cell in candidates[:batch_size]]
+    )
+
+
+def _municipality_names(cell: dict[str, Any]) -> list[str]:
+    values = cell.get("municipalities") or []
+    if not isinstance(values, list):
+        return []
+    return sorted({str(value).strip() for value in values if str(value).strip()})
+
+
+def select_batch(cells: list[dict[str, Any]], batch_size: int) -> list[str]:
+    # Small/default passes retain the historic fail-closed priority: finish
+    # already-materialized evidence and source repairs before regional expansion.
+    # A maximum regional pass (>= 19 slots) additionally reserves first coverage
+    # for every actionable municipality represented by the official target grid,
+    # then fills remaining slots using the exact historic priority order.
+    candidates = [cell for cell in cells if _autonomously_actionable(cell)]
+    candidates.sort(key=_selection_key)
+    if batch_size < REGIONAL_MUNICIPALITY_TARGET:
+        return [cell["cell_id"] for cell in candidates[:batch_size]]
+
+    municipality_names = sorted({name for cell in candidates for name in _municipality_names(cell)})
+    if not municipality_names:
+        return [cell["cell_id"] for cell in candidates[:batch_size]]
+
+    selected: list[dict[str, Any]] = []
+    selected_ids: set[str] = set()
+    covered: set[str] = set()
+
+    for municipality in municipality_names:
+        if municipality in covered or len(selected) >= batch_size:
+            continue
+        choice = next(
+            (
+                cell
+                for cell in candidates
+                if cell["cell_id"] not in selected_ids and municipality in _municipality_names(cell)
+            ),
+            None,
+        )
+        if choice is None:
+            continue
+        selected.append(choice)
+        selected_ids.add(choice["cell_id"])
+        covered.update(_municipality_names(choice))
+
+    for cell in candidates:
+        if len(selected) >= batch_size:
+            break
+        if cell["cell_id"] in selected_ids:
+            continue
+        selected.append(cell)
+        selected_ids.add(cell["cell_id"])
+
+    return [cell["cell_id"] for cell in selected]
 
 
 def run(
@@ -244,6 +295,12 @@ def run(
 
     batch = [] if refresh_only else select_batch(cells, batch_size)
     batch_set = set(batch)
+    selected_municipalities = sorted({
+        municipality
+        for cell in cells
+        if cell["cell_id"] in batch_set
+        for municipality in _municipality_names(cell)
+    })
     if not refresh_only:
         for cell in cells:
             if cell["cell_id"] in batch_set:
@@ -256,6 +313,8 @@ def run(
         "target_cell_count": len(target) if target else len(source_cells),
         "counts": dict(sorted(counts.items())),
         "selected_batch": batch,
+        "selected_municipalities": selected_municipalities,
+        "selected_municipality_count": len(selected_municipalities),
         "refresh_only": refresh_only,
         "cells": cells,
         "policy": {
@@ -264,9 +323,10 @@ def run(
             "maturity_gate_count": len(MATURITY_GATES),
             "runtime_promotion": "forbidden_without_full_regional_maturity_contract",
             "uncertain_evidence": "quarantine_or_keep_pending_never_guess",
-            "incomplete_source_priority": "repair_declared_source_payloads_before_evidence_or_regional_expansion",
-            "missing_source_priority": "expand_only_after_existing_source_cells_reach_their_current_autonomous_frontier",
-            "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_materializing_more_source_cells",
+            "incomplete_source_priority": "repair_declared_source_payloads_before_ordinary_evidence_or_fill_slots",
+            "missing_source_priority": "small_batches_mature_existing_sources_first_regional_batches_cover_actionable_municipalities_then_fill_by_priority",
+            "data_ready_priority": "finish_most_advanced_autonomous_evidence_frontier_before_lower_priority_fill_slots",
+            "regional_municipality_balance": "batch_19_plus_cover_each_actionable_official_municipality_before_priority_fill",
             "manual_frontier": "exclude_measured_elevation_quality_and_secondary_height_terrain_runtime_frontiers_from_retries",
             "refresh_only": "recompute durable classification_and_evidence_progress_without_new_attempts_or_batch_selection",
         },
@@ -289,7 +349,11 @@ def run(
     (output_dir / "autonomous_citygen_state.json").write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_dir / "worklist.txt").write_text("".join(f"{cell_id}\n" for cell_id in batch), encoding="utf-8")
     mode = "refresh" if refresh_only else "schedule"
-    print(f"AUTONOMOUS_CITYGEN_OK mode={mode} run={run_number} source_cells={len(source_cells)} target_cells={report['target_cell_count']} selected={len(batch)} counts={report['counts']}")
+    print(
+        f"AUTONOMOUS_CITYGEN_OK mode={mode} run={run_number} source_cells={len(source_cells)} "
+        f"target_cells={report['target_cell_count']} selected={len(batch)} "
+        f"municipalities={len(selected_municipalities)} counts={report['counts']}"
+    )
     return report
 
 

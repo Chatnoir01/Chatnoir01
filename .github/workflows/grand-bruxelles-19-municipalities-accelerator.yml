@@ -6,6 +6,8 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-19-municipalities-accelerator.yml"
       - "grand-bruxelles-game/tools/citygen/test_regional_acceleration_contract.py"
+      - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen_municipality_balance.py"
+      - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
   schedule:
     - cron: "17 */2 * * *"
   workflow_dispatch:
@@ -13,6 +15,7 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-19-municipalities-accelerator.yml"
       - "grand-bruxelles-game/tools/citygen/test_regional_acceleration_contract.py"
+      - "grand-bruxelles-game/tools/citygen/test_autonomous_citygen_municipality_balance.py"
       - "grand-bruxelles-game/tools/citygen/build_brussels_regional_grid.py"
       - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
       - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
@@ -32,7 +35,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate 19-municipality acceleration contract
-        run: python3 grand-bruxelles-game/tools/citygen/test_regional_acceleration_contract.py
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_regional_acceleration_contract.py
+          python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen_municipality_balance.py
 
   dispatch-regional-citygen:
     if: github.event_name != 'pull_request'
@@ -52,4 +58,4 @@ jobs:
             "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-autonomous-citygen.yml/dispatches" \
             -f ref=main \
             -f 'inputs[batch_size]=32'
-          echo "REGIONAL_MUNICIPALITY_TARGET_OK municipalities=19 batch=32 cadence=2h immediate=true promotion_bypass=false"
+          echo "REGIONAL_MUNICIPALITY_TARGET_OK municipalities=19 batch=32 cadence=2h immediate=true balanced=true promotion_bypass=false"

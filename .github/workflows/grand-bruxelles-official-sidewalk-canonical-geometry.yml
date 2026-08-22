@@ -1,0 +1,20 @@
+name: Grand Bruxelles Official Sidewalk Canonical Geometry
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_snapshot_manifest.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry_manifest.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry/**'
+      - 'grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_canonical_geometry.py'
+      - '.github/workflows/grand-bruxelles-official-sidewalk-canonical-geometry.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify persisted canonical sidewalk geometry
+        run: python grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_canonical_geometry.py

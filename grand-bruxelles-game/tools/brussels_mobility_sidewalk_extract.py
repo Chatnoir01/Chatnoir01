@@ -48,9 +48,9 @@ def build_wfs_url(query_bbox: list[float] | None = None) -> str:
         "version": "1.1.0",
         "request": "GetFeature",
         "typeName": LAYER,
-        "outputFormat": "application/json",
+        "outputFormat": "json",
         "srsName": CRS,
-        "bbox": ",".join(f"{value:.3f}" for value in bbox) + f",{CRS}",
+        "bbox": ",".join(f"{value:.3f}" for value in bbox),
         "CQL_FILTER": "ssft='SW'",
     }
     return f"{WFS_ENDPOINT}?{urlencode(params)}"
@@ -148,7 +148,8 @@ def fetch_official(query_bbox: list[float] | None = None, timeout_seconds: int =
         content_type = str(response.headers.get("Content-Type", ""))
         raw = response.read()
     if "json" not in content_type.lower() and not raw.lstrip().startswith(b"{"):
-        raise ValueError(f"official sidewalk WFS returned non-JSON content: {content_type}")
+        snippet = raw[:500].decode("utf-8", errors="replace").replace("\n", " ")
+        raise ValueError(f"official sidewalk WFS returned non-JSON content: {content_type}; {snippet}")
     return raw, url
 
 

@@ -107,10 +107,11 @@ func _wait_for_grip(player: CharacterBody3D, weapon_id: StringName) -> Dictionar
     }
 
 func _final_right_hand(player: CharacterBody3D, weapon_id: StringName, visual_runtime: Node) -> Dictionary:
-    # Skeleton3D.get_bone_global_pose() read later in an arbitrary process frame
-    # exposes the authored/pre-modifier pose. Long weapons are driven by
-    # TwoBoneIK3D, so their rendered hand.r truth is the pose captured from the
-    # modifier's modification_processed callback and published by the runtime.
+    # Godot evaluates SkeletonModifier3D after ordinary process callbacks. For
+    # the long-weapon TwoBoneIK3D modes, the authoritative rendered hand.r pose
+    # is therefore the value captured from modification_processed and published
+    # as combat_carry_ik_post_hand_world. Reading Skeleton3D later would compare
+    # against the authored/pre-modifier hand pose instead of the rendered hand.
     if weapon_id == &"cbr4" or weapon_id == &"sct8":
         if StringName(player.get_meta("combat_support_ik_weapon_id", &"")) != weapon_id:
             return {"found": false, "source": "modifier:stale_weapon"}

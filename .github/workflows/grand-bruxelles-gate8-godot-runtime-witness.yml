@@ -37,6 +37,8 @@ jobs:
           grep -q 'GATE8_VISUAL_LOADER.ground_external_visual' grand-bruxelles-game/game/scripts/midi_ambient_npc_visual_runtime.gd
           grep -q 'isolated_subviewport=true' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
           grep -q '^const MODEL_VISUAL_FRONT_YAW_DEGREES := 0\.0$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const REVIEW_THREE_QUARTER_YAW_DEGREES := 30\.0$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const REVIEW_DETAIL_DISTANCE_M := 2\.0$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
           grep -q '^const REVIEW_LABEL_PIXEL_SIZE := 0\.004$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
           grep -q '^const SCALE_LABEL_PIXEL_SIZE := 0\.003$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
           grep -q '^const MAX_ANNOTATION_PIXEL_SIZE := 0\.004$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
@@ -76,7 +78,7 @@ jobs:
           set -euo pipefail
           timeout 180s "$GODOT" --headless --path grand-bruxelles-game --script res://game/tests/gate8_visual_contract_test.gd 2>&1 | tee /tmp/gate8-contract.log
           grep -q '^GATE8_GODOT_CONTRACT_OK count=8 unique_variants=8 movement_owner_changed=false navigation_changed=false animation_retargeted=false dynamic_grounding=true grounding_measurement=rest_vertices$' /tmp/gate8-contract.log
-      - name: Render isolated 1280x720 variant witnesses at 2m 5m 8m
+      - name: Render isolated 1280x720 variant witnesses at 2m 5m 8m plus 2m three-quarter
         run: |
           set -euo pipefail
           sudo apt-get update -qq
@@ -99,9 +101,12 @@ jobs:
               key, value = token.split('=', 1)
               fields[key] = value
           required = {
-              'captures': '24',
+              'captures': '32',
               'models': '8',
               'distances': '2m,5m,8m',
+              'views': 'front,three_quarter',
+              'detail_distance_m': '2.0',
+              'detail_yaw_deg': '30.0',
               'dynamic_grounding': 'true',
               'isolated_subviewport': 'true',
               'front_facing': 'true',
@@ -117,21 +122,23 @@ jobs:
           }
           assert not mismatches, f'Gate-8 witness summary mismatch: {mismatches}; fields={fields}'
           PY
-          test "$(grep -c '^GATE8_RUNTIME_FRAME_OK .* front_yaw_deg=0\.0 ' /tmp/gate8-witness.log)" = "24"
-          test "$(find /tmp/gate8-witness -maxdepth 1 -type f -name 'gate8-*.png' | wc -l)" = "24"
+          test "$(grep -c '^GATE8_RUNTIME_FRAME_OK .* view=front yaw_deg=0\.0 ' /tmp/gate8-witness.log)" = "24"
+          test "$(grep -c '^GATE8_RUNTIME_FRAME_OK .* view=three_quarter yaw_deg=30\.0 ' /tmp/gate8-witness.log)" = "8"
+          test "$(find /tmp/gate8-witness -maxdepth 1 -type f -name 'gate8-*.png' | wc -l)" = "32"
+          test "$(find /tmp/gate8-witness -maxdepth 1 -type f -name 'gate8-*-2m-3q.png' | wc -l)" = "8"
           python3 - <<'PY'
           import hashlib
           import struct
           from pathlib import Path
           files = sorted(Path('/tmp/gate8-witness').glob('gate8-*.png'))
-          assert len(files) == 24, len(files)
+          assert len(files) == 32, len(files)
           digests = set()
           for path in files:
               data = path.read_bytes()
               assert data[:8] == b'\x89PNG\r\n\x1a\n', path
               assert struct.unpack('>II', data[16:24]) == (1280, 720), path
               digests.add(hashlib.sha256(data).hexdigest())
-          assert len(digests) == 24, f'non-unique witness frames: {24-len(digests)} duplicates'
+          assert len(digests) == 32, f'non-unique witness frames: {32-len(digests)} duplicates'
           PY
       - name: Prove production remains clean and binary-free
         if: always()

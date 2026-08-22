@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_source.json'
+      - 'grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_source.py'
       - 'grand-bruxelles-game/tools/brussels_mobility_sidewalk_extract.py'
       - 'grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_extract.py'
       - '.github/workflows/grand-bruxelles-official-sidewalk-extract.yml'
@@ -22,9 +23,11 @@ jobs:
           python-version: '3.13'
       - name: Install test dependency
         run: python -m pip install --disable-pip-version-check pytest==8.4.2
-      - name: Run fail-closed extractor regressions
+      - name: Run fail-closed source and extractor regressions
         working-directory: grand-bruxelles-game
-        run: python -m pytest -q tests/test_brussels_mobility_sidewalk_extract.py
+        run: |
+          python tests/test_brussels_mobility_sidewalk_source.py
+          python -m pytest -q tests/test_brussels_mobility_sidewalk_extract.py
 
   live-source-artifact:
     needs: contract-and-fixture
@@ -55,21 +58,19 @@ jobs:
         working-directory: grand-bruxelles-game
         run: |
           python - <<'PY'
+          import importlib.util
           from pathlib import Path
-          from urllib.request import Request, urlopen
-          url = 'https://data.mobility.brussels/data/attributevalues/?tid=ssft'
-          req = Request(url, headers={'Accept': 'application/json', 'User-Agent': 'Grand-Bruxelles-Source-Gate/1.0'})
-          with urlopen(req, timeout=60) as response:
-              raw = response.read()
-              content_type = str(response.headers.get('Content-Type', ''))
+          path = Path('tools/brussels_mobility_sidewalk_extract.py')
+          spec = importlib.util.spec_from_file_location('sidewalk_extract', path)
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          raw = mod.fetch_attribute_domain()
           out = Path('artifacts/official-sidewalk')
           (out / 'brussels_mobility_ssft_attribute_domain.json').write_bytes(raw)
-          (out / 'ssft_attribute_domain_url.txt').write_text(url + '\n')
-          if 'json' not in content_type.lower() and not raw.lstrip().startswith((b'{', b'[')):
-              raise SystemExit(f'official ssft attribute domain returned non-JSON content: {content_type}')
-          print('OFFICIAL_SSFT_ATTRIBUTE_DOMAIN_CAPTURED', len(raw), content_type)
+          (out / 'ssft_attribute_domain_url.txt').write_text(mod.ATTRIBUTE_DOMAIN_ENDPOINT + '\n')
+          print('OFFICIAL_SSFT_ATTRIBUTE_DOMAIN_CAPTURED', len(raw), mod._sha256(raw))
           PY
-      - name: Census published ssft values before canonical selection
+      - name: Census published ssft values before canonicalization
         working-directory: grand-bruxelles-game
         run: |
           python - <<'PY'
@@ -92,32 +93,43 @@ jobs:
           (out / 'brussels_mobility_sidewalk_ssft_census.json').write_text(json.dumps(census, indent=2, sort_keys=True) + '\n')
           print('OFFICIAL_SIDEWALK_SSFT_CENSUS', json.dumps(census, sort_keys=True))
           PY
-      - name: Canonicalize required SW subset fail-closed
+      - name: Canonicalize official sidewalk layer fail-closed
         working-directory: grand-bruxelles-game
         run: |
           python tools/brussels_mobility_sidewalk_extract.py \
             --input artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_source.geojson \
+            --attribute-domain artifacts/official-sidewalk/brussels_mobility_ssft_attribute_domain.json \
             --output artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json
-      - name: Verify extract remains source-only and bounded
+      - name: Verify extract remains source-only and layer-faithful
         working-directory: grand-bruxelles-game
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          p = Path('artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json')
-          doc = json.loads(p.read_text())
+          out = Path('artifacts/official-sidewalk')
+          doc = json.loads((out / 'brussels_mobility_sidewalk_corridor_extract.json').read_text())
+          census = json.loads((out / 'brussels_mobility_sidewalk_ssft_census.json').read_text())
+          domain = {row['value'] for row in json.loads((out / 'brussels_mobility_ssft_attribute_domain.json').read_text())}
           assert doc['schema'] == 'grand-bruxelles-official-sidewalk-corridor-extract-v1'
           assert doc['crs'] == 'EPSG:31370'
           assert doc['query_bbox'] == [147650.0, 169300.0, 149100.0, 171050.0]
-          assert doc['feature_count'] > 0
+          assert doc['source']['layer'] == 'bm_urbis:urbadm_ssw'
+          assert doc['source']['ssft_filter_applied'] is False
+          assert doc['feature_count'] == doc['input_feature_count'] == census['input_feature_count']
+          assert doc['ssft_counts'] == census['ssft_counts']
+          assert set(doc['source']['observed_ssft_values']) <= domain
+          assert all(f['ssft'] in domain for f in doc['features'])
+          assert all(f['feature_id'] == f"urbadm_ssw.{f['source_gid']}" for f in doc['features'])
           assert len(doc['source_sha256']) == 64
           assert len(doc['feature_id_sha256']) == 64
-          assert all(f['ssft'] == 'SW' for f in doc['features'])
+          assert len(doc['source']['attribute_domain_sha256']) == 64
+          assert doc['claims']['sidewalk_semantics_derived_from_layer_identity'] is True
+          assert doc['claims']['ssft_sw_filter_source_backed'] is False
           assert doc['claims']['curb_height_source_backed'] is False
           assert doc['claims']['surface_elevation_source_backed'] is False
           assert doc['policy']['runtime_geometry_authorized'] is False
           assert doc['policy']['jouable_promotion_authorized'] is False
-          print('OFFICIAL_SIDEWALK_ARTIFACT_VERIFIED', doc['feature_count'], doc['source_sha256'], doc['feature_id_sha256'])
+          print('OFFICIAL_SIDEWALK_ARTIFACT_VERIFIED', doc['feature_count'], doc['ssft_counts'], doc['source_sha256'], doc['feature_id_sha256'])
           PY
       - name: Upload raw source, domain, census, and canonical extract evidence
         if: always()

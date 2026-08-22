@@ -15,6 +15,22 @@ func _wait_frames(count: int) -> void:
     for _i: int in range(count):
         await process_frame
 
+func _support_diag(player: CharacterBody3D) -> String:
+    return "active=%s gap=%.4f bones=%s reason=%s source=%s socket_local=%s lengths=%s shoulder=%s pre_hand=%s hand=%s target_hand=%s target_wrist=%s" % [
+        str(player.get_meta("combat_support_ik_active", false)),
+        float(player.get_meta("combat_support_hand_gap_m", 999.0)),
+        str(player.get_meta("combat_support_ik_bones", {})),
+        String(player.get_meta("combat_support_ik_reason", "")),
+        String(player.get_meta("combat_support_ik_target_source", "")),
+        str(player.get_meta("combat_support_socket_local", Vector3.ZERO)),
+        str(player.get_meta("combat_support_ik_lengths", {})),
+        str(player.get_meta("combat_support_ik_shoulder_world", Vector3.ZERO)),
+        str(player.get_meta("combat_support_ik_pre_hand_world", Vector3.ZERO)),
+        str(player.get_meta("combat_support_hand_world", Vector3.ZERO)),
+        str(player.get_meta("combat_support_ik_desired_hand_world", Vector3.ZERO)),
+        str(player.get_meta("combat_support_ik_target_world", Vector3.ZERO)),
+    ]
+
 func _run() -> void:
     var project_source := FileAccess.get_file_as_string("res://project.godot")
     for token: String in [
@@ -78,14 +94,10 @@ func _run() -> void:
                 support_locked = true
                 break
         if not support_locked:
-            _fail("support hand never reached %s foregrip: active=%s gap=%.4f bones=%s reason=%s" % [
-                weapon_id,
-                str(player.get_meta("combat_support_ik_active", false)),
-                float(player.get_meta("combat_support_hand_gap_m", 999.0)),
-                str(player.get_meta("combat_support_ik_bones", {})),
-                String(player.get_meta("combat_support_ik_reason", "")),
-            ])
+            _fail("support hand never reached %s foregrip: %s" % [weapon_id, _support_diag(player)])
             return
+
+        print("COMBAT_TWO_HAND_SUPPORT_WEAPON_OK: weapon=%s %s" % [weapon_id, _support_diag(player)])
 
         var shoulder_profile := String(player.get_meta("combat_camera_shoulder_profile", ""))
         var shoulder_offset: Vector3 = player.get_meta("combat_camera_shoulder_offset", Vector3.ZERO)

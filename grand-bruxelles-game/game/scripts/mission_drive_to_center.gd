@@ -10,7 +10,7 @@ signal mission_completed(reward_cents: int)
 const MISSION_ID: String = "midi_to_centre_01"
 const STATE_SCHEMA_VERSION: int = 1
 const PRIMARY_VEHICLE_NODE := "PrototypeCar"
-const PRIMARY_VEHICLE_LABEL := "VOITURE PRINCIPALE"
+const PRIMARY_VEHICLE_LABEL := "PRINCIPALE 60 HZ"
 
 const CHECKPOINTS: Array[Dictionary] = [
     {
@@ -117,7 +117,7 @@ func _physics_process(delta: float) -> void:
 
     if not bool(vehicle.call("has_driver")):
         mission_label.text = (
-            "MISSION 01 · MIDI → CENTRE · %s\nRemonte dans la %s · E" %
+            "MISSION 01 · MIDI → CENTRE · %s\nRemonte dans la voiture %s · E" %
             [_format_time(_time_remaining), PRIMARY_VEHICLE_LABEL.to_lower()]
         )
         return
@@ -149,7 +149,7 @@ func _update_ui() -> void:
 
     if _stage == 0:
         mission_label.text = (
-            "MISSION 01 · MIDI → CENTRE · %s\nMonte dans la %s · E" %
+            "MISSION 01 · MIDI → CENTRE · %s\nMonte dans la voiture %s · E" %
             [_format_time(time_limit_seconds), PRIMARY_VEHICLE_LABEL.to_lower()]
         )
         _marker.visible = false

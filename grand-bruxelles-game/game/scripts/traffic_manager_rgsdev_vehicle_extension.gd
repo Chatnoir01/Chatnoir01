@@ -219,18 +219,25 @@ func _upgrade_scene_vehicle_visuals() -> void:
     var world := get_parent()
     if world == null:
         return
-    var targets := {"PrototypeCar": "sedan", "PhysicalCarB": "suv"}
-    for node_name: String in targets.keys():
-        var vehicle := world.get_node_or_null(node_name) as Node3D
-        if vehicle == null:
-            continue
-        for legacy_name: String in ["Body", "Cabin", "VisualUpgrade", "ABLabel"]:
-            var legacy := vehicle.get_node_or_null(legacy_name)
-            if legacy is Node3D:
-                (legacy as Node3D).visible = false
-        if vehicle.get_node_or_null("RgsdevVisual") != null:
-            continue
-        var visual := RGSDEV_VEHICLE_VISUAL_SCRIPT.new()
-        visual.name = "RgsdevVisual"
-        visual.call("configure_model", str(targets[node_name]))
-        vehicle.add_child(visual)
+
+    # PhysicalCarB was an A/B physics prototype. Keeping it in the production
+    # `vehicle` group gave the player a second, divergent driving model.
+    # Remove it entirely at runtime so every selectable production vehicle uses
+    # the same drivable traffic contract.
+    var physical_prototype := world.get_node_or_null("PhysicalCarB")
+    if physical_prototype != null:
+        physical_prototype.queue_free()
+
+    var vehicle := world.get_node_or_null("PrototypeCar") as Node3D
+    if vehicle == null:
+        return
+    for legacy_name: String in ["Body", "Cabin", "VisualUpgrade", "ABLabel"]:
+        var legacy := vehicle.get_node_or_null(legacy_name)
+        if legacy is Node3D:
+            (legacy as Node3D).visible = false
+    if vehicle.get_node_or_null("RgsdevVisual") != null:
+        return
+    var visual := RGSDEV_VEHICLE_VISUAL_SCRIPT.new()
+    visual.name = "RgsdevVisual"
+    visual.call("configure_model", "sedan")
+    vehicle.add_child(visual)

@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/infrabel-parity"
           python3 - <<'PY'
-          import csv, hashlib, io, json, os, time, urllib.parse, urllib.request
+          import csv, hashlib, io, json, os, sys, time, urllib.parse, urllib.request
           from collections import Counter
           from pathlib import Path
 
@@ -100,6 +100,9 @@ jobs:
           csv_bytes, csv_headers = get_bytes(export_url, accept='text/csv,*/*')
           (out/'publisher-accounting.csv').write_bytes(csv_bytes)
           text = csv_bytes.decode('utf-8-sig')
+          # geo_shape can legitimately contain very large serialized geometries.
+          # Raise only the parser capacity; all accounting/provenance checks below remain fail-closed.
+          csv.field_size_limit(min(sys.maxsize, 256 * 1024 * 1024))
           reader = csv.DictReader(io.StringIO(text))
           assert reader.fieldnames, 'publisher accounting CSV has no header'
           normalized = {name.strip().casefold(): name for name in reader.fieldnames}

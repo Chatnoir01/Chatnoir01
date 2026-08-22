@@ -40,6 +40,31 @@ func _run() -> void:
     if Gate8Loader.VISUAL_REVIEW_ARTIFACT_SHA256 != "1ce9000f5db0422ed1a13b451ce5a9a90ceb7c47413f2d8968838353d839e140":
         _problems.append("visual_review_artifact_sha256_mismatch")
 
+    # Future production activation must not create density holes when reviewed
+    # candidates are rejected. The old raw 1..8 mapping would send 3/8 seeds to
+    # 02/04/07 and instantiate_for_seed() would return null for those civilians.
+    # Remapping over the allowed pool keeps every seed deterministic and viable.
+    var survivor_pool: Array[int] = [1, 3, 5, 6, 8]
+    var survivor_counts: Dictionary = {}
+    for seed_value: int in range(0, 100):
+        var remapped := Gate8Loader.remap_seed_to_variant(seed_value, survivor_pool)
+        if remapped not in survivor_pool:
+            _problems.append("seed=%d remapped_to_disallowed_variant=%d" % [seed_value, remapped])
+        survivor_counts[remapped] = int(survivor_counts.get(remapped, 0)) + 1
+        if Gate8Loader.remap_seed_to_variant(seed_value, survivor_pool) != remapped:
+            _problems.append("seed=%d approved_pool_mapping_not_deterministic" % seed_value)
+    if survivor_counts.size() != survivor_pool.size():
+        _problems.append("approved_pool_coverage=%d expected=%d" % [survivor_counts.size(), survivor_pool.size()])
+    for variant_index: int in survivor_pool:
+        if int(survivor_counts.get(variant_index, 0)) != 20:
+            _problems.append("variant=%d approved_pool_distribution=%d expected=20" % [variant_index, int(survivor_counts.get(variant_index, 0))])
+    if Gate8Loader.remap_seed_to_variant(BASE_SEED, []) != 0:
+        _problems.append("empty_approved_pool_must_fail_closed")
+    if Gate8Loader.approved_variant_index_for_seed(BASE_SEED) != 0:
+        _problems.append("current_zero_approval_pool_must_not_select_variant")
+    if str(Gate8Loader.status().get("runtime_seed_mapping", "")) != "approved_pool_no_holes":
+        _problems.append("runtime_seed_mapping_contract_missing")
+
     var seen_paths: Dictionary = {}
     for offset: int in range(EXPECTED_COUNT):
         var seed_value := BASE_SEED + offset * SEED_STEP
@@ -115,6 +140,7 @@ func _run() -> void:
         quit(1)
         return
     print("GATE8_RUNTIME_REVIEW_GATE_OK approved=0 rejected=3 pending_review=5 visual_review_run=%d visual_review_artifact=%d" % [Gate8Loader.VISUAL_REVIEW_RUN, Gate8Loader.VISUAL_REVIEW_ARTIFACT])
+    print("GATE8_SEED_REMAP_OK allowed=5 tested_seeds=100 per_variant=20 no_holes=true")
     print("GATE8_GODOT_CONTRACT_OK count=8 unique_variants=8 movement_owner_changed=false navigation_changed=false animation_retargeted=false dynamic_grounding=true grounding_measurement=rest_vertices")
     quit(0)
 

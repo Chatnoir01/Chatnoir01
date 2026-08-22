@@ -1,6 +1,6 @@
 {
   "schema": "grand-bruxelles-official-sidewalk-source-v1",
-  "production_base_sha": "5249c0124504ac6ae830193f39491c5f1a76b082",
+  "production_base_sha": "f7b355421098e9de1cecddeaf999df622fd04aec",
   "source": {
     "publisher": "Paradigm",
     "dataset": "Trottoir",
@@ -8,7 +8,9 @@
     "license": "CC0-1.0",
     "crs": "EPSG:31370",
     "feature_type_field": "ssft",
-    "sidewalk_feature_code": "SW",
+    "sidewalk_semantics_basis": "official_dataset_and_layer_identity",
+    "published_domain_sidewalk_code": "SW",
+    "corridor_requires_ssft_sw": false,
     "metadata_created": "2022-01-01",
     "metadata_last_updated": "2024-06-21",
     "accessed_on": "2026-08-22",
@@ -22,12 +24,16 @@
       "description": "Sidewalks are the common part of the Urbis ADM Street Sections and Side Walks layers.",
       "published_attribute_fields": ["ssft"],
       "ssft_sw_label_fr": "Trottoir",
-      "ssft_sw_label_nl": "Voetpad"
+      "ssft_sw_label_nl": "Voetpad",
+      "selection_rule": "The official urbadm_ssw layer identity establishes sidewalk semantics; ssft is preserved as a published classification attribute and is not a local SW filter."
     }
   },
   "claims": {
     "horizontal_sidewalk_geometry_source_backed": true,
     "sidewalk_semantic_class_source_backed": true,
+    "sidewalk_semantics_derived_from_layer_identity": true,
+    "ssft_values_source_backed": true,
+    "ssft_sw_filter_source_backed": false,
     "curb_height_source_backed": false,
     "surface_elevation_source_backed": false,
     "sidewalk_profile_source_backed": false,
@@ -38,14 +44,18 @@
     "schema": "grand-bruxelles-official-sidewalk-corridor-extract-v1",
     "target_path": "data/provenance/brussels_mobility_sidewalk_corridor_extract.json",
     "crs": "EPSG:31370",
-    "required_feature_class": "SW",
-    "required_identity_fields": ["feature_id", "ssft"],
+    "required_layer": "bm_urbis:urbadm_ssw",
+    "required_feature_class": null,
+    "ssft_filter_required": false,
+    "required_identity_fields": ["feature_id", "source_gid", "source_id", "ssft"],
     "digest_algorithm": "sha256",
     "bounded_to_vertical_slice": true,
     "must_record_query_bbox": true,
     "must_record_source_digest": true,
     "must_record_feature_count": true,
     "must_record_feature_id_digest": true,
+    "must_record_ssft_counts": true,
+    "must_validate_ssft_against_published_domain": true,
     "runtime_use_before_validated_extract": false
   },
   "policy": {
@@ -67,5 +77,5 @@
       "runtime sidewalk replacement"
     ]
   },
-  "next_gate": "Build the bounded Midi-to-Grand-Place Lambert72 extract at the declared target path, persist exact feature identities plus source and feature-id digests, compare horizontal coverage against generic sidewalks, and keep runtime geometry unauthorized until independently validated."
+  "next_gate": "Build and validate the bounded Midi-to-Grand-Place Lambert72 urbadm_ssw extract by layer identity, preserve exact feature identities and published ssft values plus source/domain/id digests, compare horizontal coverage against generic sidewalks, and keep runtime geometry unauthorized until independently validated."
 }

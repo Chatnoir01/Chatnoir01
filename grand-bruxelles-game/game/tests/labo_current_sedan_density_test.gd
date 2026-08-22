@@ -59,11 +59,11 @@ func _run() -> void:
     root.add_child(world)
     manager.reparent(world)
 
-    # RED regression for the player-visible Performance blocker. Moving traffic
-    # already uses the core MIN_SPAWN_CLEARANCE_M (7 m), but the parked path
-    # historically bypassed it and could place a bright vehicle directly beside
-    # the canonical player spawn, clipping into the right edge of the frozen
-    # 1280x720 frame. Parking must honor the same existing clearance contract.
+    # Player-clearance regression for static traffic. Moving traffic already
+    # uses the core MIN_SPAWN_CLEARANCE_M (7 m). Parked cars and deliveries
+    # must honor the same existing contract so no static vehicle can appear
+    # directly beside the canonical player spawn and clip into the frozen
+    # 1280x720 frame.
     var player := Node3D.new()
     player.name = "Player"
     player.position = Vector3.ZERO
@@ -91,6 +91,29 @@ func _run() -> void:
     await process_frame
     if int(manager.call("get_parked_vehicle_count")) != 1:
         _fail("parked vehicle outside player clearance was incorrectly rejected")
+        return
+
+    # RED: delivery traffic historically bypassed the same player clearance.
+    # A rejected delivery must also release its reserved parking slot; otherwise
+    # repeated maintenance can leak reservations and starve the parking model.
+    var delivery_candidate := {
+        "id": 9003,
+        "position": Vector3(EXPECTED_PLAYER_CLEARANCE_M - 0.25, 0.0, 0.0),
+        "yaw": 0.0,
+        "road_name": "delivery-clearance-red",
+        "osm_id": 3,
+    }
+    var reservation_owner := "delivery:red"
+    if not bool(manager.call("reserve_parking_candidate", 9003, reservation_owner)):
+        _fail("delivery RED setup could not reserve parking candidate")
+        return
+    manager.call("_spawn_delivery_vehicle", delivery_candidate, reservation_owner)
+    await process_frame
+    if int(manager.call("get_delivery_vehicle_count")) != 0:
+        _fail("delivery vehicle spawned inside existing %.1f m player clearance" % EXPECTED_PLAYER_CLEARANCE_M)
+        return
+    if int(manager.call("get_reserved_parking_candidate_count")) != 0:
+        _fail("rejected delivery leaked its parking reservation")
         return
 
     var starter := Node3D.new()
@@ -124,5 +147,5 @@ func _run() -> void:
         _fail("starter vehicle is no longer the current sedan")
         return
 
-    print("LABO_CURRENT_SEDAN_DENSITY_OK: current_sedan=6/10 allowed=sedan,hatchback,suv,van,pickup legacy_removed=true parking_player_clearance_m=%.1f" % EXPECTED_PLAYER_CLEARANCE_M)
+    print("LABO_CURRENT_SEDAN_DENSITY_OK: current_sedan=6/10 allowed=sedan,hatchback,suv,van,pickup legacy_removed=true parking_player_clearance_m=%.1f delivery_player_clearance_m=%.1f" % [EXPECTED_PLAYER_CLEARANCE_M, EXPECTED_PLAYER_CLEARANCE_M])
     quit(0)

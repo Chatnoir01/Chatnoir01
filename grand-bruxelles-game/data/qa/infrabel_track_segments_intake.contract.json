@@ -1,0 +1,31 @@
+{
+  "schema": "grand-bruxelles-infrabel-track-segments-intake-contract-v1",
+  "production_base_sha": "aa7593d1b03dbc452db59194f6a94e4d984af454",
+  "publisher": "Infrabel",
+  "dataset_title": "Geographical position of all track segments",
+  "dataset_id": "geografische-positie-van-alle-spoorsegmenten",
+  "dataset_page": "https://opendata.infrabel.be/explore/dataset/geografische-positie-van-alle-spoorsegmenten/",
+  "metadata_api": "https://opendata.infrabel.be/api/explore/v2.1/catalog/datasets/geografische-positie-van-alle-spoorsegmenten",
+  "license": "CC0-1.0",
+  "publisher_master_crs": "EPSG:31370",
+  "publisher_accuracy_note": "10 cm to 1 m depending on location",
+  "required_payload": {
+    "format": "GeoJSON",
+    "crs": "EPSG:31370",
+    "wgs84_fallback_authorized": false,
+    "minimum_feature_count": 1000,
+    "require_unique_lambert72_candidate": true,
+    "require_coordinate_range_validation": true
+  },
+  "hard_rules": {
+    "source_registration_only": true,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "materialization_authorized": false,
+    "geometry_modified": false,
+    "semantic_names_authorized": false,
+    "game_world_transform_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

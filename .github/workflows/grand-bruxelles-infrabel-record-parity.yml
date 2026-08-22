@@ -13,7 +13,7 @@ permissions:
 jobs:
   audit-record-parity:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,51 +37,35 @@ jobs:
           print('INFRABEL_PARITY_EXACT_BASE_OK', live)
           PY
 
-      - name: Audit publisher records against locked Lambert72 IDs
+      - name: Audit publisher accounting against locked Lambert72 IDs
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/infrabel-parity"
           python3 - <<'PY'
-          import hashlib, json, os, time, urllib.parse, urllib.request
+          import csv, hashlib, io, json, os, time, urllib.parse, urllib.request
           from collections import Counter
           from pathlib import Path
 
-          measurement_path = Path('grand-bruxelles-game/data/provenance/infrabel_track_segments_lambert72.measurement.json')
-          measurement = json.loads(measurement_path.read_text())
+          measurement = json.loads(Path('grand-bruxelles-game/data/provenance/infrabel_track_segments_lambert72.measurement.json').read_text())
           out = Path(os.environ['RUNNER_TEMP']) / 'infrabel-parity'
-          headers = {'User-Agent':'GrandBruxellesGame-InfrabelRecordParity/1.0','Accept':'application/json'}
+          user_agent = 'GrandBruxellesGame-InfrabelRecordParity/1.1'
 
-          def get_json(url, timeout=180, retries=4):
+          def get_bytes(url, accept='*/*', timeout=240, retries=4):
               last = None
               for attempt in range(retries):
-                  req = urllib.request.Request(url, headers=headers)
+                  req = urllib.request.Request(url, headers={'User-Agent':user_agent,'Accept':accept})
                   try:
                       with urllib.request.urlopen(req, timeout=timeout) as response:
-                          return json.loads(response.read())
+                          return response.read(), dict(response.headers)
                   except Exception as exc:
                       last = exc
                       if attempt + 1 < retries:
                           time.sleep(min(2 ** (attempt + 1), 8))
               raise RuntimeError(f'GET failed: {url}: {last}')
 
-          def get_bytes(url, timeout=240, retries=4):
-              last = None
-              for attempt in range(retries):
-                  req = urllib.request.Request(url, headers={'User-Agent':headers['User-Agent'],'Accept':'*/*'})
-                  try:
-                      with urllib.request.urlopen(req, timeout=timeout) as response:
-                          return response.read()
-                  except Exception as exc:
-                      last = exc
-                      if attempt + 1 < retries:
-                          time.sleep(min(2 ** (attempt + 1), 8))
-              raise RuntimeError(f'GET failed: {url}: {last}')
-
-          metadata_api = measurement['metadata_api']
-          records_api = metadata_api.rstrip('/') + '/records'
           locked_source = measurement['source']
-          payload = get_bytes(locked_source['url'])
+          payload, _ = get_bytes(locked_source['url'])
           payload_sha = hashlib.sha256(payload).hexdigest()
           assert payload_sha == locked_source['sha256'], (payload_sha, locked_source['sha256'])
           source = json.loads(payload)
@@ -90,60 +74,58 @@ jobs:
           assert len(features) == locked_source['feature_count']
 
           source_ids = []
-          null_source_ids = 0
           for feature in features:
               props = feature.get('properties') or {}
               value = props.get('ID')
-              if value is None or str(value).strip() == '':
-                  null_source_ids += 1
-              else:
-                  source_ids.append(str(value).strip())
+              assert value is not None and str(value).strip(), 'Lambert72 feature missing ID'
+              source_ids.append(str(value).strip())
           source_counts = Counter(source_ids)
           source_unique = set(source_counts)
           source_set_sha = hashlib.sha256(('\n'.join(sorted(source_unique))+'\n').encode()).hexdigest()
-          assert null_source_ids == 0
-          assert len(source_ids) == locked_source['feature_count']
           assert len(source_unique) == locked_source['unique_segment_id_count']
           assert all(count == 1 for count in source_counts.values())
           assert source_set_sha == locked_source['segment_id_set_sha256']
 
-          rows = []
-          offset = 0
-          limit = 100
-          total_count = None
-          while True:
-              query = urllib.parse.urlencode({'limit':limit,'offset':offset})
-              page = get_json(records_api + '?' + query)
-              if total_count is None:
-                  total_count = int(page['total_count'])
-              batch = page.get('results') or []
-              rows.extend(batch)
-              offset += len(batch)
-              if not batch or offset >= total_count:
-                  break
-              if len(rows) > total_count:
-                  raise RuntimeError('records pagination exceeded total_count')
+          # Explore API records pagination is capped at offset+limit < 10000.
+          # The publisher export endpoint has no such record limit, so use it
+          # strictly as an accounting witness, never as canonical geometry.
+          base = measurement['metadata_api'].rstrip('/')
+          export_url = base + '/exports/csv?' + urllib.parse.urlencode({
+              'select':'id,geo_shape',
+              'use_labels':'false',
+              'delimiter':',',
+              'with_bom':'false',
+              'timezone':'UTC',
+          })
+          csv_bytes, csv_headers = get_bytes(export_url, accept='text/csv,*/*')
+          (out/'publisher-accounting.csv').write_bytes(csv_bytes)
+          text = csv_bytes.decode('utf-8-sig')
+          reader = csv.DictReader(io.StringIO(text))
+          assert reader.fieldnames, 'publisher accounting CSV has no header'
+          normalized = {name.strip().casefold(): name for name in reader.fieldnames}
+          id_field = normalized.get('id')
+          geo_field = normalized.get('geo_shape')
+          assert id_field, f'id field absent from accounting export: {reader.fieldnames}'
+          assert geo_field, f'geo_shape field absent from accounting export: {reader.fieldnames}'
+          rows = list(reader)
 
-          assert total_count == measurement['publisher_metadata']['records_count']
-          assert len(rows) == total_count, (len(rows), total_count)
+          expected_records = int(measurement['publisher_metadata']['records_count'])
+          assert len(rows) == expected_records, (len(rows), expected_records)
 
           api_ids = []
           geometry_ids = []
           null_id_rows = []
           no_geometry_ids = []
-          malformed_geometry_ids = []
           for index, row in enumerate(rows):
-              raw_id = row.get('id')
+              raw_id = row.get(id_field)
               segment_id = None if raw_id is None else str(raw_id).strip()
               if not segment_id:
                   null_id_rows.append(index)
                   continue
               api_ids.append(segment_id)
-              geo = row.get('geo_shape')
-              if geo is None:
+              raw_geo = row.get(geo_field)
+              if raw_geo is None or not str(raw_geo).strip() or str(raw_geo).strip().casefold() in {'null','none'}:
                   no_geometry_ids.append(segment_id)
-              elif not isinstance(geo, dict) or not geo.get('type') or geo.get('coordinates') is None:
-                  malformed_geometry_ids.append(segment_id)
               else:
                   geometry_ids.append(segment_id)
 
@@ -161,10 +143,9 @@ jobs:
           def digest(values):
               return hashlib.sha256(('\n'.join(values)+'\n').encode()).hexdigest() if values else hashlib.sha256(b'').hexdigest()
 
-          delta = total_count - len(features)
+          delta = len(rows) - len(features)
           non_geometric_relation = (
               not null_id_rows
-              and not malformed_geometry_ids
               and len(no_geometry_ids) == delta
               and len(geometry_ids) == len(features)
               and all(count == 1 for count in geometry_counts.values())
@@ -172,7 +153,6 @@ jobs:
           )
           duplicate_relation = (
               not null_id_rows
-              and not malformed_geometry_ids
               and not missing_from_lambert
               and not extra_in_lambert
               and duplicate_id_extra_rows == delta
@@ -187,10 +167,13 @@ jobs:
           report = {
               'schema':'grand-bruxelles-infrabel-track-segments-record-parity-v1',
               'dataset_id':measurement['dataset_id'],
-              'records_api':records_api,
+              'accounting_export_url':export_url,
+              'accounting_export_sha256':hashlib.sha256(csv_bytes).hexdigest(),
+              'accounting_export_bytes':len(csv_bytes),
+              'accounting_export_last_modified':csv_headers.get('Last-Modified'),
               'locked_source_url':locked_source['url'],
               'locked_source_sha256':payload_sha,
-              'publisher_record_count':total_count,
+              'publisher_record_count':len(rows),
               'lambert72_feature_count':len(features),
               'record_minus_feature_delta':delta,
               'api_id_row_count':len(api_ids),
@@ -202,7 +185,6 @@ jobs:
               'api_geometry_row_count':len(geometry_ids),
               'api_no_geometry_row_count':len(no_geometry_ids),
               'api_no_geometry_ids_sha256':digest(sorted(no_geometry_ids)),
-              'api_malformed_geometry_row_count':len(malformed_geometry_ids),
               'api_id_set_missing_from_lambert_count':len(missing_from_lambert),
               'api_id_set_missing_from_lambert_sha256':digest(missing_from_lambert),
               'lambert_id_set_missing_from_api_count':len(extra_in_lambert),
@@ -212,9 +194,14 @@ jobs:
               'lambert72_id_set_sha256':source_set_sha,
               'accounting_relation':relation,
               'record_count_parity_proven':relation != 'UNEXPLAINED',
+              'canonical_geometry_source_changed':False,
               'source_registration_authorized':False,
               'runtime_authorized':False,
+              'runtime_mount_authorized':False,
               'collision_authorized':False,
+              'materialization_authorized':False,
+              'semantic_names_authorized':False,
+              'game_world_transform_authorized':False,
               'jouable_promotion_authorized':False,
           }
           (out/'record-parity.json').write_text(json.dumps(report, indent=2, ensure_ascii=False)+'\n')

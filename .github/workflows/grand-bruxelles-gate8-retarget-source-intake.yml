@@ -1,0 +1,157 @@
+name: Grand Bruxelles Gate-8 Retarget Source Intake
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/gate8_retarget_source_probe.py"
+      - "grand-bruxelles-game/tests/test_gate8_retarget_source_probe.py"
+      - "grand-bruxelles-game/data/qa/gate8_retarget_source_intake.json"
+      - ".github/workflows/grand-bruxelles-gate8-retarget-source-intake.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SOURCE_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      SOURCE_MANIFEST: "grand-bruxelles-game/data/qa/gate8_retarget_source_intake.json"
+      SOURCE_PROBE: "grand-bruxelles-game/tools/gate8_retarget_source_probe.py"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static fail-closed ownership and provenance gates
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          data = json.loads(Path("grand-bruxelles-game/data/qa/gate8_retarget_source_intake.json").read_text())
+          source = data["source"]
+          assert data["base_main_sha"] == "078befc176f26f0ece55cad3a2fdc3c79f1e700c"
+          assert data["candidate_variant"] == 1
+          assert data["candidate_static_verdict"] == "AMELIORER"
+          assert data["candidate_dynamic_state"] == "BLOCKED_NO_ANIMATIONS"
+          assert source["license"] == "CC0-1.0"
+          assert source["publisher_marks_unstable"] is True
+          assert re.fullmatch(r"[0-9a-f]{64}", source["package_sha256"])
+          assert source["package_size_bytes"] > 1_000_000
+          assert source["zip_file_entries"] > 0
+          assert source["zip_uncompressed_bytes"] >= source["package_size_bytes"]
+          assert source["animation_asset_entry_count"] > 0
+          assert source["godot_standard_glb"] == "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+          assert data["adoption_gate"]["exact_package_sha256_pinned"] is True
+          assert data["adoption_gate"]["archive_characterized"] is True
+          assert data["adoption_gate"]["internal_godot_glb_catalog_required"] is True
+          assert data["adoption_gate"]["internal_godot_glb_catalog_pinned"] is False
+          assert data["rails"]["single_survivor_only"] is True
+          assert data["rails"]["survivor_variants_allowed"] == [1]
+          assert data["rails"]["rejected_variants_forbidden"] == [2, 4, 7]
+          assert data["rails"]["other_pending_survivors_not_in_scope"] == [3, 5, 6, 8]
+          assert data["rails"]["mixamo_payload_allowed"] is False
+          assert data["rails"]["player_character_reuse_allowed"] is False
+          assert data["rails"]["production_authorized"] is False
+          assert data["rails"]["retarget_authorized"] is False
+          assert data["rails"]["activation_ready"] is False
+          assert data["adoption_gate"]["adoption_ready"] is False
+          print(
+              "GATE8_RETARGET_INTAKE_STATIC_OK "
+              f"candidate=01 sha256={source['package_sha256']} bytes={source['package_size_bytes']} "
+              "license=CC0-1.0 unstable=true internal_catalog_required=true adoption_ready=false"
+          )
+          PY
+
+      - name: Run source probe regressions
+        run: |
+          set -euo pipefail
+          python -m unittest -v grand-bruxelles-game/tests/test_gate8_retarget_source_probe.py
+
+      - name: Acquire exact official Store package
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 --retry-delay 2 \
+            --connect-timeout 20 --max-time 180 \
+            -A 'Grand-Bruxelles-Character-NPC-Source-Witness/1.0' \
+            "$SOURCE_URL" -o /tmp/gate8-retarget-source.zip
+          test -s /tmp/gate8-retarget-source.zip
+          python - <<'PY'
+          import zipfile
+          path = "/tmp/gate8-retarget-source.zip"
+          if not zipfile.is_zipfile(path):
+              raise SystemExit("download is not a valid ZIP")
+          with zipfile.ZipFile(path) as archive:
+              files = [i for i in archive.infolist() if not i.is_dir()]
+              if not files:
+                  raise SystemExit("downloaded ZIP is empty")
+          print(f"GATE8_RETARGET_DOWNLOAD_OK files={len(files)}")
+          PY
+
+      - name: Characterize immutable package identity and internal Godot animation catalog
+        run: |
+          set -euo pipefail
+          python "$SOURCE_PROBE" /tmp/gate8-retarget-source.zip --out /tmp/gate8-retarget-source-result.json \
+            | tee /tmp/gate8-retarget-source-probe.log
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          manifest = json.loads(Path("grand-bruxelles-game/data/qa/gate8_retarget_source_intake.json").read_text())
+          expected = manifest["source"]
+          result = json.loads(Path("/tmp/gate8-retarget-source-result.json").read_text())
+          assert result["format"] == "grand-bruxelles-gate8-retarget-source-probe-v2"
+          assert re.fullmatch(r"[0-9a-f]{64}", result["package_sha256"])
+          assert result["package_sha256"] == expected["package_sha256"]
+          assert result["package_size_bytes"] == expected["package_size_bytes"]
+          assert result["zip_file_entries"] == expected["zip_file_entries"]
+          assert result["zip_uncompressed_bytes"] == expected["zip_uncompressed_bytes"]
+          assert result["animation_asset_entry_count"] == expected["animation_asset_entry_count"]
+          assert result["godot_standard_glb"] == expected["godot_standard_glb"]
+          assert result["internal_animation_count"] > 0
+          assert len(result["internal_animation_names"]) == result["internal_animation_count"]
+          assert len(set(result["internal_animation_names"])) == result["internal_animation_count"]
+          assert set(result["internal_token_hits"]) == {"idle", "walk", "run"}
+          assert result["candidate_variant"] == 1
+          assert result["production_authorized"] is False
+          assert result["retarget_authorized"] is False
+          assert result["adoption_ready"] is False
+          assert result["manual_player_view_required"] is True
+          assert result["godot_4_7_1_retarget_required"] is True
+          assert result["foot_slide_measurement_required"] is True
+          print(
+              "GATE8_RETARGET_CHARACTERIZATION_OK "
+              f"sha256={result['package_sha256']} "
+              f"bytes={result['package_size_bytes']} "
+              f"entries={result['zip_file_entries']} "
+              f"animation_entries={result['animation_asset_entry_count']} "
+              f"internal_animations={result['internal_animation_count']} "
+              f"internal_tokens_complete={str(result['complete_internal_token_surface']).lower()} "
+              f"exact_single_trio={str(result['exact_single_idle_walk_run_trio']).lower()} "
+              "identity_match=true adoption_ready=false"
+          )
+          PY
+
+      - name: Prove no package bytes or repository drift remain
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -f /tmp/gate8-retarget-source.zip
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-retarget-source-git-status.txt
+          test ! -s /tmp/gate8-retarget-source-git-status.txt
+
+      - name: Upload source characterization evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-retarget-source-intake
+          path: |
+            /tmp/gate8-retarget-source-result.json
+            /tmp/gate8-retarget-source-probe.log
+            /tmp/gate8-retarget-source-git-status.txt
+          if-no-files-found: warn
+          retention-days: 14

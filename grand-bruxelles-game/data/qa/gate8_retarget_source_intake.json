@@ -1,0 +1,61 @@
+{
+  "format": "grand-bruxelles-gate8-retarget-source-intake-v2",
+  "base_main_sha": "078befc176f26f0ece55cad3a2fdc3c79f1e700c",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "candidate_dynamic_state": "BLOCKED_NO_ANIMATIONS",
+  "source": {
+    "publisher": "Quaternius",
+    "asset": "Universal Animation Library",
+    "official_store_page": "https://store.godotengine.org/asset/quaternius/universal-animation-library/",
+    "download_endpoint": "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/",
+    "license": "CC0-1.0",
+    "store_last_updated": "2026-06-10",
+    "store_version": "Standard-1.0",
+    "publisher_marks_unstable": true,
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205,
+    "zip_file_entries": 7,
+    "zip_uncompressed_bytes": 55161225,
+    "animation_asset_entry_count": 3,
+    "godot_standard_glb": "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb",
+    "identity_evidence": {
+      "workflow_run": 32587142846,
+      "artifact_id": 9479342397,
+      "artifact_digest": "sha256:dc0981d0bf44ff74f110c75d94fb6988160192607b166b9f0abf0f4081f0ea1d"
+    }
+  },
+  "selection_reason": "official Godot Store source, CC0, humanoid locomotion coverage, source-backed retarget candidate",
+  "known_review_risk": "recent Store review reports excessive UpperChest bend on some retargeted characters; must be measured on the actual Gate-8 rig",
+  "rails": {
+    "single_survivor_only": true,
+    "survivor_variants_allowed": [1],
+    "rejected_variants_forbidden": [2, 4, 7],
+    "other_pending_survivors_not_in_scope": [3, 5, 6, 8],
+    "mixamo_payload_allowed": false,
+    "player_character_reuse_allowed": false,
+    "production_authorized": false,
+    "retarget_authorized": false,
+    "activation_ready": false,
+    "package_bytes_committed": false,
+    "godot_4_7_1_engine_proof_required": true,
+    "web_gl_compatibility_proof_required": true,
+    "foot_slide_measurement_required": true,
+    "player_view_1280x720_required": true
+  },
+  "adoption_gate": {
+    "exact_package_sha256_pinned": true,
+    "archive_characterized": true,
+    "internal_godot_glb_catalog_required": true,
+    "internal_godot_glb_catalog_pinned": false,
+    "idle_walk_run_identified": false,
+    "humanoid_bonemap_validated": false,
+    "upper_chest_ab_test_passed": false,
+    "grounding_passed": false,
+    "foot_slide_passed": false,
+    "player_view_passed": false,
+    "web_gl_passed": false,
+    "adoption_ready": false
+  },
+  "next_action": "run the exact pinned package through the internal Godot GLB catalog probe; inspect and pin its exact animation names and locomotion-token candidates before any BoneMap retarget or activation"
+}

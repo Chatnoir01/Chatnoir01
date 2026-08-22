@@ -37,6 +37,9 @@ jobs:
           grep -q 'GATE8_VISUAL_LOADER.ground_external_visual' grand-bruxelles-game/game/scripts/midi_ambient_npc_visual_runtime.gd
           grep -q 'isolated_subviewport=true' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
           grep -q '^const MODEL_VISUAL_FRONT_YAW_DEGREES := 0\.0$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const REVIEW_LABEL_PIXEL_SIZE := 0\.004$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const SCALE_LABEL_PIXEL_SIZE := 0\.003$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
+          grep -q '^const MAX_ANNOTATION_PIXEL_SIZE := 0\.004$' grand-bruxelles-game/game/tests/gate8_runtime_witness.gd
       - name: Download immutable Gate-8 GLB witness artifact
         env:
           GH_TOKEN: ${{ github.token }}
@@ -105,6 +108,7 @@ jobs:
               'front_yaw_deg': '0.0',
               'full_body_framing': 'true',
               'camera_fov_deg': '68.0',
+              'annotation_max_pixel_size': '0.004',
           }
           mismatches = {
               key: (fields.get(key), expected)

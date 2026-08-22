@@ -2,6 +2,7 @@ extends SceneTree
 
 const CONTOUR_RUNTIME := preload("res://game/scripts/grand_place_complete_contour_runtime.gd")
 const SOURCE_OWNER_ID := "1601883"
+const PACKAGE_SHA256 := "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2"
 const OUTSIDE_DISTANCE_M := 2.5
 
 func _initialize() -> void:
@@ -51,12 +52,9 @@ func _run() -> void:
     if str(source.get("crs", "")) != "EPSG:31370" or str(source.get("license", "")) != "CC0-1.0":
         _fail("source CRS/license drifted")
         return
-    if str(source.get("package_sha256", "")) != str(runtime.get("PACKAGE_SHA256")):
-        # Script constants are not instance properties on every Godot build;
-        # fall back to the immutable package value already enforced by _read_owner.
-        if str(source.get("package_sha256", "")) != "cf8449d1a62b0e47aafe6d715ff6a2739f5c48f6d75995f7f418305a5d6cf3d2":
-            _fail("source package digest drifted")
-            return
+    if str(source.get("package_sha256", "")) != PACKAGE_SHA256:
+        _fail("source package digest drifted")
+        return
 
     var faces: Array = source_data.get("faces", [])
     var bounds: Rect2 = runtime.call("_horizontal_bounds", faces)

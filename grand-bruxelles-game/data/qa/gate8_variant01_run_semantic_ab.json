@@ -1,0 +1,44 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-run-semantic-ab-v1",
+  "base_main_sha": "d83495ad605507737dd9191eb0a46e51692e256e",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "source_dynamic_state": "BLOCKED_NO_EXACT_RUN",
+  "animation_source": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205,
+    "godot_standard_glb": "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb",
+    "candidate_clips": ["Jog_Fwd", "Sprint"],
+    "exact_run_candidates": []
+  },
+  "measurement_gate": {
+    "godot_version": "4.7.1",
+    "isolated_project_required": true,
+    "sample_rate_hz": 120,
+    "required_anchors": ["hips", "left_foot", "right_foot"],
+    "measure_clip_length": true,
+    "measure_step_cadence": true,
+    "measure_hips_horizontal_motion": true,
+    "measure_foot_contact_slide": true,
+    "selection_requires_human_review": true,
+    "bone_map_application_authorized": false
+  },
+  "rails": {
+    "single_survivor_only": true,
+    "allowed_variants": [1],
+    "rejected_variants_forbidden": [2, 4, 7],
+    "other_survivors_out_of_scope": [3, 5, 6, 8],
+    "mixamo_payload_allowed": false,
+    "player_character_reuse_allowed": false,
+    "semantic_alias_auto_promotion_allowed": false,
+    "run_alias_selected": "",
+    "retarget_authorized": false,
+    "retarget_applied": false,
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "package_bytes_committed": false
+  }
+}

@@ -28,16 +28,34 @@ func _run() -> void:
     var floor := StaticBody3D.new()
     var floor_collision := CollisionShape3D.new()
     var floor_shape := BoxShape3D.new()
-    floor_shape.size = Vector3(80.0, 0.4, 80.0)
+    floor_shape.size = Vector3(160.0, 0.4, 160.0)
     floor_collision.shape = floor_shape
     floor_collision.position = Vector3(0.0, -0.2, 0.0)
     floor.add_child(floor_collision)
     world.add_child(floor)
 
+    var player := Node3D.new()
+    player.name = "Player"
+    world.add_child(player)
+
     var manager := MANAGER_SCRIPT.new()
     manager.auto_load_data = false
     manager.auto_spawn_runtime = false
     manager.dedicated_ambulance_count = 2
+    manager.configure_test_data([
+        {
+            "osm_id": 990001,
+            "name": "Ambulance Test Service Road",
+            "class": "service",
+            "drivable": true,
+            "width": 6.0,
+            "points": [[-55.0, 0.0], [75.0, 0.0]],
+            "parking_evidence": {
+                "runtime_approved": true,
+                "source": "ambulance-probe-source-backed-parking",
+            },
+        }
+    ], [])
     world.add_child(manager)
     for _frame: int in range(4):
         await process_frame
@@ -48,12 +66,30 @@ func _run() -> void:
     if special_nodes.size() != 2:
         _fail("special_vehicle_count=%d expected=2" % special_nodes.size())
         return
+    var parking_ids: Dictionary = {}
     for node: Node in special_nodes:
         if not node is AMBULANCE_SCRIPT:
             _fail("non_ambulance_special_spawned=%s" % node.name)
             return
         if str(node.get_meta("special_vehicle_kind", "")) != "ambulance":
             _fail("wrong_special_kind=%s" % node.name)
+            return
+        var parking_candidate_id := int(node.get_meta("parking_candidate_id", -1))
+        if parking_candidate_id < 0:
+            _fail("ambulance_not_source_backed=%s parking_candidate_id=%d" % [node.name, parking_candidate_id])
+            return
+        if parking_ids.has(parking_candidate_id):
+            _fail("ambulance_parking_candidate_reused=%d" % parking_candidate_id)
+            return
+        parking_ids[parking_candidate_id] = true
+        if int(node.get_meta("source_osm_id", 0)) != 990001:
+            _fail("ambulance_source_osm_drifted=%s source_osm_id=%d" % [node.name, int(node.get_meta("source_osm_id", 0))])
+            return
+        if str(node.get_meta("parking_evidence_source", "")) != "ambulance-probe-source-backed-parking":
+            _fail("ambulance_parking_evidence_missing=%s" % node.name)
+            return
+        if not bool(node.get_meta("parking_evidence_runtime_approved", false)):
+            _fail("ambulance_parking_evidence_not_approved=%s" % node.name)
             return
 
     var ambulance := AMBULANCE_SCRIPT.new() as AmbulanceVehicle
@@ -147,5 +183,5 @@ func _run() -> void:
         _fail("other_special_vehicles_enabled")
         return
 
-    print("AMBULANCE_PROBE_OK ambulances=2 emergency=true siren=true yield_restore=true external_drive_m=%.3f other_special=false engine=%s" % [displacement, version])
+    print("AMBULANCE_PROBE_OK ambulances=2 source_backed_parking=2 emergency=true siren=true yield_restore=true external_drive_m=%.3f other_special=false engine=%s" % [displacement, version])
     quit(0)

@@ -40,6 +40,27 @@ def _view_contracts():
     ]
 
 
+def _source_surface_facing():
+    return {
+        "owner_id": "1654360",
+        "camera_position": [319.01, 1.72, -535.20],
+        "wall_triangles": 12,
+        "roof_triangles": 6,
+        "front_facing_wall_triangles": 5,
+        "front_facing_roof_triangles": 2,
+        "wall_area_m2": 120.0,
+        "roof_area_m2": 75.0,
+        "front_facing_wall_area_m2": 42.0,
+        "front_facing_roof_area_m2": 15.0,
+        "front_facing_wall_area_ratio": 0.35,
+        "front_facing_roof_area_ratio": 0.20,
+        "dominant_front_wall_normal": [0.1, 0.0, -0.995],
+        "dominant_front_roof_normal": [0.0, 0.7, -0.714],
+        "source_geometry_changed": False,
+        "source_collision_changed": False,
+    }
+
+
 def _manifest(tmp_path: Path, **overrides):
     for view_id in REQUIRED_VIEWS:
         _write_png(tmp_path / f"{view_id}.png")
@@ -53,6 +74,7 @@ def _manifest(tmp_path: Path, **overrides):
         "fov_deg": 62.0,
         "human_review_required": True,
         "human_review_status": "pending",
+        "source_surface_facing": _source_surface_facing(),
         "views": _view_contracts(),
     }
     data.update(overrides)
@@ -74,6 +96,7 @@ def test_accepts_only_structurally_complete_pending_witness(tmp_path):
     assert result["resolution"] == [1280, 720]
     assert result["human_review_status"] == "pending"
     assert result["visual_approval_claimed"] is False
+    assert result["source_surface_facing"]["owner_id"] == "1654360"
 
 
 @pytest.mark.parametrize(
@@ -92,6 +115,31 @@ def test_accepts_only_structurally_complete_pending_witness(tmp_path):
 def test_rejects_contract_drift_or_fake_human_approval(tmp_path, field, value):
     with pytest.raises(EvidenceValidationError):
         validate_evidence(GATE, _manifest(tmp_path, **{field: value}), tmp_path)
+
+
+def test_rejects_missing_or_forged_source_surface_facing_measurement(tmp_path):
+    with pytest.raises(EvidenceValidationError):
+        validate_evidence(GATE, _manifest(tmp_path, source_surface_facing=None), tmp_path)
+
+    bad = _source_surface_facing()
+    bad["owner_id"] = "1608847"
+    with pytest.raises(EvidenceValidationError):
+        validate_evidence(GATE, _manifest(tmp_path, source_surface_facing=bad), tmp_path)
+
+    bad = _source_surface_facing()
+    bad["camera_position"] = [0.0, 0.0, 0.0]
+    with pytest.raises(EvidenceValidationError):
+        validate_evidence(GATE, _manifest(tmp_path, source_surface_facing=bad), tmp_path)
+
+    bad = _source_surface_facing()
+    bad["front_facing_wall_area_ratio"] = 1.01
+    with pytest.raises(EvidenceValidationError):
+        validate_evidence(GATE, _manifest(tmp_path, source_surface_facing=bad), tmp_path)
+
+    bad = _source_surface_facing()
+    bad["source_geometry_changed"] = True
+    with pytest.raises(EvidenceValidationError):
+        validate_evidence(GATE, _manifest(tmp_path, source_surface_facing=bad), tmp_path)
 
 
 def test_rejects_source_target_substitution_even_with_valid_pngs(tmp_path):

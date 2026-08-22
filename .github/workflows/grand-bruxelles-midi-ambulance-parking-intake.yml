@@ -1,0 +1,38 @@
+name: Grand Bruxelles Midi Ambulance Parking Intake
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/traffic/midi_ambulance_parking_evidence.json'
+      - 'grand-bruxelles-game/tools/validate_midi_ambulance_parking_evidence.py'
+      - 'grand-bruxelles-game/tests/test_validate_midi_ambulance_parking_evidence.py'
+      - '.github/workflows/grand-bruxelles-midi-ambulance-parking-intake.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-evidence-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate exact source-backed production registry
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/validate_midi_ambulance_parking_evidence.py \
+            --registry data/traffic/midi_ambulance_parking_evidence.json \
+            --snapshot data/osm/vertical_slice_01.game.json \
+            --require-ready \
+            | tee /tmp/midi_ambulance_parking_registry.log
+          grep -q '"versioned_source_binding": true' /tmp/midi_ambulance_parking_registry.log
+          grep -q '"positive_curb_semantics_required": true' /tmp/midi_ambulance_parking_registry.log
+          grep -q '"runtime_candidate_count": 3' /tmp/midi_ambulance_parking_registry.log
+          grep -q '"required_runtime_candidate_count": 2' /tmp/midi_ambulance_parking_registry.log
+          grep -q '"runtime_ready": true' /tmp/midi_ambulance_parking_registry.log
+
+      - name: Run parking evidence regression tests
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests/test_validate_midi_ambulance_parking_evidence.py

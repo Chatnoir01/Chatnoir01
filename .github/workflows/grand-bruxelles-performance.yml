@@ -109,6 +109,7 @@ jobs:
             /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --path grand-bruxelles-game \
             --rendering-method gl_compatibility \
+            --fixed-fps 60 \
             --script res://game/tests/rendered_main_baseline_test.gd 2>&1 | tee /tmp/rendered-main-baseline.log
           status=${PIPESTATUS[0]}
           set -e
@@ -210,6 +211,7 @@ jobs:
             /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
             --path /tmp/grand-bruxelles-base/grand-bruxelles-game \
             --rendering-method gl_compatibility \
+            --fixed-fps 60 \
             --script res://game/tests/rendered_main_baseline_test.gd \
             2>&1 | tee /tmp/rendered-base-baseline.log
           status=${PIPESTATUS[0]}

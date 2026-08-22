@@ -46,6 +46,7 @@ def test_persisted_official_sidewalk_geometry_is_exact_and_fail_closed():
     features = []
     for chunk in manifest["chunks"]:
         path = CHUNK_DIR / chunk["file"]
+        assert path.exists(), f"required persisted geometry chunk missing: {path}"
         raw = path.read_bytes()
         assert hashlib.sha256(raw).hexdigest() == chunk["sha256"]
         payload = json.loads(raw)
@@ -76,3 +77,8 @@ def test_persisted_official_sidewalk_geometry_is_exact_and_fail_closed():
                 for point in ring:
                     assert len(point) == 2, "persisted source geometry must remain horizontal XY only"
     assert (polygons, rings, vertices) == (EXPECTED_POLYGONS, EXPECTED_RINGS, EXPECTED_VERTICES)
+
+
+if __name__ == "__main__":
+    test_persisted_official_sidewalk_geometry_is_exact_and_fail_closed()
+    print("OFFICIAL_SIDEWALK_CANONICAL_GEOMETRY_OK")

@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 SCHEMA = "grand-bruxelles-official-sidewalk-corridor-extract-v1"
 CRS = "EPSG:31370"
 LAYER = "bm_urbis:urbadm_ssw"
+GEOMETRY_FIELD = "geom"
 REQUIRED_CLASS = "SW"
 DEFAULT_BBOX = [147650.0, 169300.0, 149100.0, 171050.0]
 WFS_ENDPOINT = "https://data.mobility.brussels/geoserver/bm_urbis/wfs"
@@ -41,6 +42,14 @@ def _validate_bbox(query_bbox: list[float]) -> list[float]:
     return bbox
 
 
+def build_cql_filter(query_bbox: list[float] | None = None) -> str:
+    min_x, min_y, max_x, max_y = _validate_bbox(query_bbox or DEFAULT_BBOX)
+    return (
+        f"BBOX({GEOMETRY_FIELD},{min_x:.3f},{min_y:.3f},{max_x:.3f},{max_y:.3f},'{CRS}') "
+        f"AND ssft='{REQUIRED_CLASS}'"
+    )
+
+
 def build_wfs_url(query_bbox: list[float] | None = None) -> str:
     bbox = _validate_bbox(query_bbox or DEFAULT_BBOX)
     params = {
@@ -50,7 +59,7 @@ def build_wfs_url(query_bbox: list[float] | None = None) -> str:
         "typeName": LAYER,
         "outputFormat": "json",
         "srsName": CRS,
-        "bbox": ",".join(f"{value:.3f}" for value in bbox),
+        "CQL_FILTER": build_cql_filter(bbox),
     }
     return f"{WFS_ENDPOINT}?{urlencode(params)}"
 
@@ -111,11 +120,12 @@ def canonicalize_feature_collection(raw: bytes, query_bbox: list[float] | None =
             "crs": CRS,
             "semantic_field": "ssft",
             "semantic_class": REQUIRED_CLASS,
+            "geometry_field": GEOMETRY_FIELD,
             "wfs_endpoint": WFS_ENDPOINT,
         },
         "crs": CRS,
         "query_bbox": bbox,
-        "query_filter": "bounded layer query; canonicalizer requires ssft='SW' for every feature",
+        "query_filter": build_cql_filter(bbox),
         "feature_count": len(features),
         "source_sha256": _sha256(raw),
         "feature_id_sha256": _sha256(ids_bytes),

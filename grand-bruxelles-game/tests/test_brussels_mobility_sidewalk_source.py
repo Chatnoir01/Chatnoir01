@@ -9,7 +9,7 @@ assert P.exists(), "official Brussels Mobility sidewalk source contract missing"
 D = json.loads(P.read_text(encoding="utf-8"))
 
 assert D["schema"] == "grand-bruxelles-official-sidewalk-source-v1"
-assert D["production_base_sha"] == "5249c0124504ac6ae830193f39491c5f1a76b082"
+assert D["production_base_sha"] == "f1257b7948c3ba23a703a4a6719a085062b9cf28"
 source = D["source"]
 assert source["publisher"] == "Paradigm"
 assert source["dataset"] == "Trottoir"
@@ -17,13 +17,27 @@ assert source["layer"] == "bm_urbis:urbadm_ssw"
 assert source["license"] == "CC0-1.0"
 assert source["crs"] == "EPSG:31370"
 assert source["feature_type_field"] == "ssft"
-assert source["sidewalk_feature_code"] == "SW"
+assert source["sidewalk_semantics_basis"] == "official_dataset_and_layer_identity"
+assert source["published_domain_sidewalk_code"] == "SW"
+assert source["corridor_requires_ssft_sw"] is False
+assert source["volatile_wfs_metadata_fields"] == ["timeStamp"]
+assert "sidewalk_feature_code" not in source
 assert source["metadata_last_updated"] == "2024-06-21"
 assert source["accessed_on"] == "2026-08-22"
+
+metadata = source["metadata_evidence"]
+assert "common part" in metadata["description"]
+assert metadata["published_attribute_fields"] == ["ssft"]
+assert metadata["ssft_sw_label_fr"] == "Trottoir"
+assert metadata["ssft_sw_label_nl"] == "Voetpad"
+assert "not a local SW filter" in metadata["selection_rule"]
 
 claims = D["claims"]
 assert claims["horizontal_sidewalk_geometry_source_backed"] is True
 assert claims["sidewalk_semantic_class_source_backed"] is True
+assert claims["sidewalk_semantics_derived_from_layer_identity"] is True
+assert claims["ssft_values_source_backed"] is True
+assert claims["ssft_sw_filter_source_backed"] is False
 for unsupported in (
     "curb_height_source_backed",
     "surface_elevation_source_backed",
@@ -37,15 +51,27 @@ extract = D["required_corridor_extract"]
 assert extract["schema"] == "grand-bruxelles-official-sidewalk-corridor-extract-v1"
 assert extract["target_path"] == "data/provenance/brussels_mobility_sidewalk_corridor_extract.json"
 assert extract["crs"] == "EPSG:31370"
-assert extract["required_feature_class"] == "SW"
-assert extract["required_identity_fields"] == ["feature_id", "ssft"]
+assert extract["required_layer"] == "bm_urbis:urbadm_ssw"
+assert extract["required_feature_class"] is None
+assert extract["ssft_filter_required"] is False
+assert extract["required_identity_fields"] == ["feature_id", "source_gid", "source_id", "ssft"]
 assert extract["digest_algorithm"] == "sha256"
 assert extract["bounded_to_vertical_slice"] is True
 assert extract["must_record_query_bbox"] is True
-assert extract["must_record_source_digest"] is True
+assert extract["must_record_raw_source_digest"] is True
+assert extract["must_record_canonical_source_content_digest"] is True
+assert extract["canonical_source_digest_ignores_only"] == ["timeStamp"]
 assert extract["must_record_feature_count"] is True
 assert extract["must_record_feature_id_digest"] is True
+assert extract["must_record_ssft_counts"] is True
+assert extract["must_validate_ssft_against_published_domain"] is True
 assert extract["runtime_use_before_validated_extract"] is False
+snapshot = extract["validated_snapshot"]
+assert snapshot["feature_count"] == 3158
+assert snapshot["feature_id_sha256"] == "779f6fdac205ebf3ebfa99dd360f992e5b13682a99f05a27858405bb34fe5fb8"
+assert snapshot["canonical_source_content_sha256"] == "fff46be67855b1d2e651e735397e970550513e4e657bda3b3f09cc285b30b3dc"
+assert snapshot["attribute_domain_sha256"] == "7c6fcec4a5b8add262e127bb0097350928450ebb2fe01aa96c63025e627cdc79"
+assert snapshot["ssft_counts"] == {"A":12,"AC":2,"C":26,"G":12,"I":1337,"IC":55,"K":22,"M":96,"O":1,"S":1554,"SC":7,"W":34}
 
 policy = D["policy"]
 assert policy["horizontal_runtime_candidate_allowed"] is True
@@ -62,5 +88,6 @@ assert urls["metadata"] == "https://data.mobility.brussels/en/info/urbadm_ssw/"
 assert "typeName=bm_urbis%3Aurbadm_ssw" in urls["lambert72_json"]
 assert "srsName=EPSG%3A31370" in urls["lambert72_json"]
 assert urls["wfs_layer"] == "bm_urbis:urbadm_ssw"
+assert urls["attribute_domain"].endswith("?tid=ssft")
 
 print("BRUSSELS_MOBILITY_SIDEWALK_SOURCE_OK")

@@ -51,7 +51,7 @@ func _find_nearby_sidewalks(roads_root: Node, road: CSGBox3D) -> Array[CSGBox3D]
     return sidewalks
 
 func _assert_supported(label: String, box: CSGBox3D, world: World3D) -> void:
-    var support_variant := _support_y(world, box.global_position)
+    var support_variant: Variant = _support_y(world, box.global_position)
     if support_variant == null:
         _fail("%s has no physical support ray hit" % label)
         return

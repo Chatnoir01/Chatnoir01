@@ -8,6 +8,8 @@ const ROAD_HEIGHT_M := 0.10
 const SIDEWALK_HEIGHT_M := 0.12
 const HEIGHT_EPSILON_M := 0.001
 const MAX_READY_FRAMES := 240
+const EXPECTED_SUPPORT_COLLISION_LAYER := 1
+const EXPECTED_SUPPORT_COLLISION_MASK := 1
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -24,7 +26,7 @@ func _support_y(world: World3D, point: Vector3) -> Variant:
         Vector3(point.x, 5.0, point.z),
         Vector3(point.x, -5.0, point.z)
     )
-    query.collision_mask = 1
+    query.collision_mask = EXPECTED_SUPPORT_COLLISION_LAYER
     query.collide_with_areas = false
     query.collide_with_bodies = true
     var hit := world.direct_space_state.intersect_ray(query)
@@ -126,6 +128,20 @@ func _run() -> void:
         _fail("physics-only support layer leaked GeometryInstance3D render content")
         return
 
+    var player := scene.get_node_or_null("Player") as CharacterBody3D
+    if player == null:
+        _fail("canonical Player CharacterBody3D missing")
+        return
+    if support_body.collision_layer != EXPECTED_SUPPORT_COLLISION_LAYER:
+        _fail("support collision layer drifted: got %d expected %d" % [support_body.collision_layer, EXPECTED_SUPPORT_COLLISION_LAYER])
+        return
+    if support_body.collision_mask != EXPECTED_SUPPORT_COLLISION_MASK:
+        _fail("support collision mask drifted: got %d expected %d" % [support_body.collision_mask, EXPECTED_SUPPORT_COLLISION_MASK])
+        return
+    if (player.collision_mask & support_body.collision_layer) == 0:
+        _fail("canonical Player collision mask does not query generic support layer")
+        return
+
     var expected_triangles := (roads.size() + sidewalks.size()) * 2
     if int(support_body.get_meta("road_support_surfaces", -1)) != roads.size():
         _fail("road support surface accounting mismatch")
@@ -141,6 +157,12 @@ func _run() -> void:
         return
     if str(support_body.get_meta("support_mode", "")) != "top_surfaces_only":
         _fail("support mode must remain top-surfaces-only")
+        return
+    if int(support_body.get_meta("support_collision_layer", -1)) != EXPECTED_SUPPORT_COLLISION_LAYER:
+        _fail("support collision layer metadata mismatch")
+        return
+    if int(support_body.get_meta("support_collision_mask", -1)) != EXPECTED_SUPPORT_COLLISION_MASK:
+        _fail("support collision mask metadata mismatch")
         return
     if bool(support_body.get_meta("source_geometry_changed", true)) or bool(support_body.get_meta("source_height_inferred", true)):
         _fail("support runtime manufactured source geometry/height semantics")
@@ -163,5 +185,5 @@ func _run() -> void:
     if not _assert_supported("generic sidewalk B", sidewalks[1] as CSGBox3D, world):
         return
 
-    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s roads=%d sidewalks=%d support_shapes=1 support_triangles=%d tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false visual_output_changed=false render_geometry_count=0 exact_bourse_scope=false" % [road.name, roads.size(), sidewalks.size(), expected_triangles, MAX_SUPPORT_GAP_M])
+    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s roads=%d sidewalks=%d support_shapes=1 support_triangles=%d collision_layer=%d collision_mask=%d player_mask_overlap=true tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false visual_output_changed=false render_geometry_count=0 exact_bourse_scope=false" % [road.name, roads.size(), sidewalks.size(), expected_triangles, EXPECTED_SUPPORT_COLLISION_LAYER, EXPECTED_SUPPORT_COLLISION_MASK, MAX_SUPPORT_GAP_M])
     quit(0)

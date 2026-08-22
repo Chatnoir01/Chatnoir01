@@ -8,7 +8,7 @@ signal mission_completed(reward_cents: int)
 @export var completion_reward_cents: int = 35000
 
 @onready var player: CharacterBody3D = get_node("../Player")
-@onready var car: Node3D = get_node("../PhysicalCarB")
+@onready var car: Node3D = get_node("../PrototypeCar")
 @onready var mission_label: Label = get_node("../MissionLabel")
 
 var _stage: int = 0
@@ -22,8 +22,8 @@ var _car_spawn_transform: Transform3D
 
 const MISSION_ID: String = "midi_to_centre_01"
 const STATE_SCHEMA_VERSION: int = 1
-const PRIMARY_VEHICLE_NODE := "PhysicalCarB"
-const PRIMARY_VEHICLE_LABEL := "B · PHYSIQUE 60 HZ"
+const PRIMARY_VEHICLE_NODE := "PrototypeCar"
+const PRIMARY_VEHICLE_LABEL := "VOITURE DE DÉPART"
 
 const CHECKPOINTS: Array[Dictionary] = [
     {
@@ -67,9 +67,11 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
     if _failed:
         return
+    if not is_instance_valid(car):
+        return
 
     if _stage == 0:
-        if bool(car.call("has_driver")):
+        if car.has_method("has_driver") and bool(car.call("has_driver")):
             _stage = 1
             _time_remaining = maxf(time_limit_seconds, 1.0)
             _update_ui()
@@ -83,7 +85,7 @@ func _physics_process(delta: float) -> void:
         _fail_mission()
         return
 
-    if not bool(car.call("has_driver")):
+    if not car.has_method("has_driver") or not bool(car.call("has_driver")):
         mission_label.text = (
             "MISSION 01 · MIDI → CENTRE · %s\nRemonte dans la voiture %s · E" %
             [_format_time(_time_remaining), PRIMARY_VEHICLE_LABEL]
@@ -154,6 +156,8 @@ func _fail_mission() -> void:
 
 
 func _reset_primary_vehicle() -> void:
+    if not is_instance_valid(car):
+        return
     car.global_transform = _car_spawn_transform
     if car is RigidBody3D:
         var rigid := car as RigidBody3D
@@ -167,11 +171,14 @@ func _reset_primary_vehicle() -> void:
             character.set("speed", 0.0)
     if car.has_method("clear_control_override"):
         car.call("clear_control_override")
+    elif car.has_method("set_external_drive_input"):
+        car.call("set_external_drive_input", 0.0, 0.0, 1.0)
 
 
 func restart_mission() -> void:
-    if bool(car.call("has_driver")):
-        car.call("exit_driver")
+    if is_instance_valid(car) and car.has_method("has_driver") and bool(car.call("has_driver")):
+        if car.has_method("exit_driver"):
+            car.call("exit_driver")
     player.global_transform = _player_spawn_transform
     player.velocity = Vector3.ZERO
     _reset_primary_vehicle()

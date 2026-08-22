@@ -53,11 +53,16 @@ jobs:
           grep -q "PERFORMANCE_BASELINE_OK" /tmp/performance-baseline.log
           grep "PERFORMANCE_BASELINE_JSON:" /tmp/performance-baseline.log | sed 's/^.*PERFORMANCE_BASELINE_JSON: //' > performance-baseline.json
 
-      - name: Upload baseline artifact
+      - name: Upload baseline evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-performance-baseline
-          path: performance-baseline.json
+          path: |
+            /tmp/perf-import.log
+            /tmp/performance-baseline.log
+            performance-baseline.json
+          if-no-files-found: error
 
   rendered-baseline:
     runs-on: ubuntu-latest
@@ -111,11 +116,125 @@ jobs:
           test -s grand-bruxelles-game/artifacts/rendered-main-fingerprint.json
           test -s grand-bruxelles-game/artifacts/rendered-main-baseline.png
 
-      - name: Upload rendered baseline artifacts
+      - name: Recover rendered fingerprint on RED
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT="grand-bruxelles-game/artifacts/rendered-main-fingerprint.json"
+          LOG="/tmp/rendered-main-baseline.log"
+          if [[ -s "$CURRENT" ]]; then
+            echo "RENDERED_MAIN_FINGERPRINT_RECOVERY_OK: persisted"
+            exit 0
+          fi
+          test -s "$LOG"
+          mkdir -p "$(dirname "$CURRENT")"
+          grep "RENDERED_MAIN_VISUAL_FINGERPRINT_JSON:" "$LOG" \
+            | tail -n 1 \
+            | sed 's/^.*RENDERED_MAIN_VISUAL_FINGERPRINT_JSON: //' > "$CURRENT"
+          test -s "$CURRENT"
+          python3 - "$CURRENT" <<'PY'
+          import json
+          import pathlib
+          import sys
+          path = pathlib.Path(sys.argv[1])
+          doc = json.loads(path.read_text())
+          fingerprint = doc.get("fingerprint")
+          if not isinstance(fingerprint, dict):
+              raise SystemExit("recovered fingerprint wrapper missing fingerprint")
+          required = ("schema", "width", "height", "tile_cols", "tile_rows", "tiles_rgbl")
+          missing = [key for key in required if key not in fingerprint]
+          if missing:
+              raise SystemExit("recovered fingerprint missing keys: " + ",".join(missing))
+          print("RENDERED_MAIN_FINGERPRINT_RECOVERY_OK: recovered_from_log=true")
+          PY
+
+      - name: Localize frozen visual drift
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT="grand-bruxelles-game/artifacts/rendered-main-fingerprint.json"
+          FROZEN="grand-bruxelles-game/data/qa/rendered_main_baseline.json"
+          OUTPUT="grand-bruxelles-game/artifacts/rendered-main-drift-localization.json"
+          test -s "$CURRENT"
+          test -s "$FROZEN"
+          python3 - "$CURRENT" "$FROZEN" "$OUTPUT" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          current_path, frozen_path, output_path = map(pathlib.Path, sys.argv[1:])
+          current_doc = json.loads(current_path.read_text())
+          frozen_doc = json.loads(frozen_path.read_text())
+          current = current_doc["fingerprint"]
+          frozen = frozen_doc["fingerprint"]
+          if current.get("schema") != frozen.get("schema"):
+              raise SystemExit("fingerprint schema mismatch")
+          for key in ("width", "height", "tile_cols", "tile_rows"):
+              if int(current[key]) != int(frozen[key]):
+                  raise SystemExit(f"fingerprint geometry mismatch: {key}")
+          current_tiles = current["tiles_rgbl"]
+          frozen_tiles = frozen["tiles_rgbl"]
+          if len(current_tiles) != len(frozen_tiles) or not current_tiles:
+              raise SystemExit("tile vector mismatch")
+          deltas = [abs(float(a[3]) - float(b[3])) for a, b in zip(current_tiles, frozen_tiles)]
+          index = max(range(len(deltas)), key=deltas.__getitem__)
+          cols = int(current["tile_cols"])
+          rows = int(current["tile_rows"])
+          width = int(current["width"])
+          height = int(current["height"])
+          col = index % cols
+          row = index // cols
+          tile_width = width // cols
+          tile_height = height // rows
+          result = {
+              "schema": "grand-bruxelles-rendered-main-drift-localization-v1",
+              "max_tile_index": index,
+              "max_tile_row": row,
+              "max_tile_col": col,
+              "pixel_bbox": [col * tile_width, row * tile_height, min(width, (col + 1) * tile_width), min(height, (row + 1) * tile_height)],
+              "current_tile_luma": float(current_tiles[index][3]),
+              "frozen_tile_luma": float(frozen_tiles[index][3]),
+              "max_tile_luma_delta": deltas[index],
+              "threshold_changed": False,
+              "baseline_changed": False,
+          }
+          output_path.parent.mkdir(parents=True, exist_ok=True)
+          output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+          print("RENDERED_MAIN_DRIFT_LOCALIZATION_JSON: " + json.dumps(result, sort_keys=True))
+          PY
+          test -s "$OUTPUT"
+
+      - name: Stage rendered baseline evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="grand-bruxelles-game/artifacts/performance-rendered-evidence"
+          rm -rf "$EVIDENCE"
+          mkdir -p "$EVIDENCE"
+          test -s /tmp/rendered-import.log
+          test -s /tmp/rendered-main-baseline.log
+          test -s grand-bruxelles-game/artifacts/rendered-main-fingerprint.json
+          test -s grand-bruxelles-game/artifacts/rendered-main-drift-localization.json
+          cp /tmp/rendered-import.log "$EVIDENCE/rendered-import.log"
+          cp /tmp/rendered-main-baseline.log "$EVIDENCE/rendered-main-baseline.log"
+          cp grand-bruxelles-game/artifacts/rendered-main-fingerprint.json "$EVIDENCE/rendered-main-fingerprint.json"
+          cp grand-bruxelles-game/artifacts/rendered-main-drift-localization.json "$EVIDENCE/rendered-main-drift-localization.json"
+          if [[ -s grand-bruxelles-game/artifacts/rendered-main-baseline.json ]]; then
+            cp grand-bruxelles-game/artifacts/rendered-main-baseline.json "$EVIDENCE/rendered-main-baseline.json"
+          fi
+          if [[ -s grand-bruxelles-game/artifacts/rendered-main-baseline.png ]]; then
+            cp grand-bruxelles-game/artifacts/rendered-main-baseline.png "$EVIDENCE/rendered-main-baseline.png"
+          fi
+          test "$(find "$EVIDENCE" -maxdepth 1 -type f | wc -l)" -ge 4
+          echo "RENDERED_MAIN_EVIDENCE_STAGED: $(find "$EVIDENCE" -maxdepth 1 -type f -printf '%f ' | sort)"
+
+      - name: Upload rendered baseline evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-rendered-main-baseline
-          path: |
-            grand-bruxelles-game/artifacts/rendered-main-baseline.json
-            grand-bruxelles-game/artifacts/rendered-main-fingerprint.json
-            grand-bruxelles-game/artifacts/rendered-main-baseline.png
+          path: grand-bruxelles-game/artifacts/performance-rendered-evidence/
+          if-no-files-found: error

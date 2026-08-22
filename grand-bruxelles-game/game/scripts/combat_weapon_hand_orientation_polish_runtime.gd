@@ -5,8 +5,14 @@ extends "res://game/scripts/combat_weapon_hand_orientation_runtime.gd"
 # the whole weapon around the already locked right-hand grip until the *real*
 # visible support socket falls inside the left arm's reachable volume. No bone
 # override is used and the weapon is never translated away from hand.r.
+#
+# The two-hand IK resolves later than this orientation runtime. To prevent the
+# final solved hand.r pose from drifting away from the already-oriented weapon,
+# long weapons are translated one last time from Skeleton3D.skeleton_updated.
+# That signal is emitted after SkeletonModifier3D processing, so the relock uses
+# the final skinning pose while preserving the authored weapon orientation.
 
-const SIGNATURE_POLISH := "combat_weapon_hand_orientation_polish_v2_support_autofit"
+const SIGNATURE_POLISH := "combat_weapon_hand_orientation_polish_v3_final_skeleton_relock"
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
 const LONG_WEAPONS: Array[StringName] = [&"cbr4", &"sct8"]
 const AUTOFIT_MAX_YAW_DEG := 75.0
@@ -15,10 +21,15 @@ const AUTOFIT_REACH_MARGIN_M := 0.03
 const AUTOFIT_FALLBACK_REACH_M := 0.44
 const AUTOFIT_MIN_FORWARD_DOT := 0.45
 
+var _final_relock_player: CharacterBody3D = null
+var _final_relock_skeleton: Skeleton3D = null
+
 func orient_weapon_from_player(holder: Node3D, player: CharacterBody3D, weapon_id: StringName) -> bool:
     var locked := super.orient_weapon_from_player(holder, player, weapon_id)
     if holder == null or player == null:
         return false
+
+    _ensure_final_relock_binding(player)
 
     var state := StringName(player.get_meta("combat_weapon_state", &"equipped"))
     if state != &"holstering" and state != &"equipping":
@@ -147,6 +158,106 @@ func _apply_locked_carry(holder: Node3D, socket: Node3D, hand_world: Vector3, pl
         deg_to_rad(carry_deg.z)
     )
     holder.global_position += hand_world - socket.global_position
+
+func _ensure_final_relock_binding(player: CharacterBody3D) -> void:
+    if player == null or not is_instance_valid(player):
+        _clear_final_relock_binding()
+        return
+    if _final_relock_player == player and is_instance_valid(_final_relock_skeleton):
+        return
+
+    _clear_final_relock_binding()
+    var visual := player.get_node_or_null("VisualUpgrade")
+    if visual == null:
+        return
+    var skeleton := _find_final_relock_skeleton(visual)
+    if skeleton == null:
+        return
+
+    _final_relock_player = player
+    _final_relock_skeleton = skeleton
+    var callback := Callable(self, "_on_final_skeleton_updated")
+    if not skeleton.skeleton_updated.is_connected(callback):
+        skeleton.skeleton_updated.connect(callback)
+    player.set_meta("combat_weapon_final_relock_bound", true)
+
+func _on_final_skeleton_updated() -> void:
+    var player := _final_relock_player
+    if player == null or not is_instance_valid(player):
+        return
+    var weapon_id := StringName(player.get_meta("combat_weapon_id", &""))
+    if weapon_id not in LONG_WEAPONS:
+        return
+    if bool(player.get_meta("combat_weapon_switching", false)):
+        return
+    if StringName(player.get_meta("combat_weapon_state", &"")) != &"equipped":
+        return
+
+    var holder := player.get_node_or_null("CombatWeaponVisual") as Node3D
+    if holder == null or not is_instance_valid(holder):
+        return
+    var socket := holder.get_node_or_null(RIGHT_HAND_SOCKET_NAME) as Node3D
+    if socket == null:
+        return
+
+    var grip_runtime := get_node_or_null("/root/CombatWeaponVisualUpgradeRuntime")
+    if grip_runtime == null or not grip_runtime.has_method("resolve_right_hand_anchor"):
+        return
+    var anchor_variant: Variant = grip_runtime.call("resolve_right_hand_anchor", player)
+    if not anchor_variant is Dictionary:
+        return
+    var anchor := anchor_variant as Dictionary
+    if not bool(anchor.get("found", false)):
+        return
+
+    var hand_transform: Transform3D = anchor.get("transform", Transform3D.IDENTITY)
+    # Translation only: preserve the orientation/autofit already selected while
+    # making the canonical grip follow the final hand.r skinning pose.
+    holder.global_position += hand_transform.origin - socket.global_position
+    var final_gap_m := socket.global_position.distance_to(hand_transform.origin)
+    var final_locked := final_gap_m <= HAND_LOCK_EPSILON_M
+    var reachable := bool(holder.get_meta("combat_weapon_support_autofit_reachable", true))
+
+    holder.set_meta("weapon_hand_mount_locked", final_locked)
+    holder.set_meta("weapon_hand_gap_m", final_gap_m)
+    holder.set_meta("combat_weapon_orientation_locked", final_locked and reachable)
+    holder.set_meta("combat_weapon_final_relock_applied", true)
+    holder.set_meta("combat_weapon_final_relock_gap_m", final_gap_m)
+    holder.set_meta("combat_weapon_final_relock_source", String(anchor.get("source", "unknown")))
+    player.set_meta("combat_weapon_grip_locked", final_locked)
+    player.set_meta("combat_weapon_hand_gap_m", final_gap_m)
+    player.set_meta("combat_weapon_orientation_locked", final_locked and reachable)
+    player.set_meta("combat_weapon_orientation_gap_m", final_gap_m)
+    player.set_meta("combat_weapon_final_relock_applied", true)
+    player.set_meta("combat_weapon_final_relock_gap_m", final_gap_m)
+
+func _find_final_relock_skeleton(node: Node) -> Skeleton3D:
+    if node is Skeleton3D:
+        var skeleton := node as Skeleton3D
+        for bone_index: int in range(skeleton.get_bone_count()):
+            if _is_right_hand_bone_name(String(skeleton.get_bone_name(bone_index))):
+                return skeleton
+    for child: Node in node.get_children():
+        var found := _find_final_relock_skeleton(child)
+        if found != null:
+            return found
+    return null
+
+static func _is_right_hand_bone_name(value: String) -> bool:
+    var compact := value.to_lower()
+    for token: String in [":", "_", "-", ".", " "]:
+        compact = compact.replace(token, "")
+    return compact.ends_with("righthand") or compact.ends_with("handr") or compact == "rhand"
+
+func _clear_final_relock_binding() -> void:
+    if is_instance_valid(_final_relock_skeleton):
+        var callback := Callable(self, "_on_final_skeleton_updated")
+        if _final_relock_skeleton.skeleton_updated.is_connected(callback):
+            _final_relock_skeleton.skeleton_updated.disconnect(callback)
+    if is_instance_valid(_final_relock_player):
+        _final_relock_player.set_meta("combat_weapon_final_relock_bound", false)
+    _final_relock_player = null
+    _final_relock_skeleton = null
 
 func _clear_autofit_meta(holder: Node3D, player: CharacterBody3D) -> void:
     if holder != null:

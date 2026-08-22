@@ -1,0 +1,185 @@
+name: Grand Bruxelles Intake Driveway Access
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/brussels_driveway_access_intake.contract.json"
+      - "grand-bruxelles-game/data/provenance/brussels_driveway_access.measurement.json"
+      - ".github/workflows/grand-bruxelles-intake-driveway-access.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require exact production base and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/brussels_driveway_access_intake.contract.json').read_text())
+          measurement = json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_access.measurement.json').read_text())
+          expected = contract['production_base_sha']
+          live = subprocess.check_output(['git','rev-parse','origin/main'], text=True).strip()
+          base = subprocess.check_output(['git','merge-base','HEAD','origin/main'], text=True).strip()
+          assert live == expected, f'live main drift: expected={expected} live={live}'
+          assert base == expected, f'branch base drift: expected={expected} merge_base={base}'
+          assert measurement['production_base_sha'] == expected
+          assert contract['license'] == measurement['license'] == 'CC0-1.0'
+          assert contract['source_crs'] == measurement['source_crs'] == 'EPSG:31370'
+          for key, value in contract['hard_rules'].items():
+              assert value is False, f'{key} must remain false'
+              assert measurement[key] is False, f'measurement {key} must remain false'
+          print('DRIVEWAY_ACCESS_EXACT_BASE_OK', live)
+          PY
+
+      - name: Measure official WFS source and lookup tables
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/driveway-access"
+          python3 - <<'PY'
+          import hashlib, json, os, time, urllib.parse, urllib.request
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/brussels_driveway_access_intake.contract.json').read_text())
+          measurement = json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_access.measurement.json').read_text())
+          out = Path(os.environ['RUNNER_TEMP']) / 'driveway-access'
+          base_url = contract['wfs']['base_url']
+          version = contract['wfs']['version']
+          user_agent = 'GrandBruxellesGame-DrivewayAccessIntake/1.0'
+
+          def get_bytes(params, timeout=180, retries=4):
+              url = base_url + '?' + urllib.parse.urlencode(params)
+              last = None
+              for attempt in range(retries):
+                  req = urllib.request.Request(url, headers={'User-Agent': user_agent, 'Accept': '*/*'})
+                  try:
+                      with urllib.request.urlopen(req, timeout=timeout) as response:
+                          return url, response.read(), dict(response.headers)
+                  except Exception as exc:
+                      last = exc
+                      if attempt + 1 < retries:
+                          time.sleep(min(2 ** (attempt + 1), 8))
+              raise RuntimeError(f'GET failed: {url}: {last}')
+
+          def hits_count(layer):
+              url, payload, headers = get_bytes({
+                  'service':'wfs','version':version,'request':'GetFeature','typeName':layer,'resultType':'hits'
+              })
+              root = ET.fromstring(payload)
+              raw = root.attrib.get('numberOfFeatures') or root.attrib.get('numberMatched')
+              if raw is None:
+                  raise RuntimeError(f'WFS hits response lacks count for {layer}: {root.attrib}')
+              count = int(raw)
+              if count <= 0:
+                  raise RuntimeError(f'WFS layer unexpectedly empty: {layer}')
+              return {'url':url,'count':count,'sha256':hashlib.sha256(payload).hexdigest(),'bytes':len(payload),'content_type':headers.get('Content-Type')}
+
+          main_layer = contract['wfs']['main_layer']
+          main_hits = hits_count(main_layer)
+          sample_url, sample_bytes, sample_headers = get_bytes({
+              'service':'wfs','version':version,'request':'GetFeature','typeName':main_layer,
+              'srsName':contract['source_crs'],'outputFormat':'json','maxFeatures':str(contract['measurement_policy']['sample_max_features'])
+          })
+          sample = json.loads(sample_bytes)
+          assert sample.get('type') == 'FeatureCollection'
+          features = sample.get('features') or []
+          assert features, 'main source sample is empty'
+          assert len(features) <= int(contract['measurement_policy']['sample_max_features'])
+          required = set(contract['required_main_properties'])
+          ids = []
+          xs, ys = [], []
+          for feature in features:
+              assert feature.get('type') == 'Feature'
+              geometry = feature.get('geometry') or {}
+              assert geometry.get('type') == 'Point', geometry.get('type')
+              coords = geometry.get('coordinates') or []
+              assert len(coords) >= 2
+              x, y = float(coords[0]), float(coords[1])
+              # Broad Belgian Lambert72 sanity envelope. It rejects WGS84 and EPSG:3812 coordinates.
+              assert 0.0 <= x <= 300000.0 and 0.0 <= y <= 300000.0, (x, y)
+              xs.append(x); ys.append(y)
+              props = feature.get('properties') or {}
+              missing = required - set(props)
+              assert not missing, f'missing properties: {sorted(missing)}'
+              ids.append(str(props['id']))
+          assert len(ids) == len(set(ids)), 'duplicate IDs in deterministic sample'
+
+          lookups = {}
+          for layer in contract['wfs']['lookup_layers']:
+              hit = hits_count(layer)
+              url, payload, headers = get_bytes({
+                  'service':'wfs','version':version,'request':'GetFeature','typeName':layer,
+                  'outputFormat':'json','maxFeatures':str(max(hit['count'], 1))
+              })
+              obj = json.loads(payload)
+              assert obj.get('type') == 'FeatureCollection'
+              returned = len(obj.get('features') or [])
+              assert returned == hit['count'], f'lookup truncation {layer}: returned={returned} count={hit["count"]}'
+              lookups[layer] = {
+                  **hit,
+                  'payload_url': url,
+                  'payload_sha256': hashlib.sha256(payload).hexdigest(),
+                  'payload_bytes': len(payload),
+                  'returned': returned,
+                  'content_type': headers.get('Content-Type')
+              }
+
+          report = {
+              'schema':'grand-bruxelles-brussels-driveway-access-source-measurement-v1',
+              'production_base_sha':contract['production_base_sha'],
+              'publisher':contract['publisher'],
+              'dataset':contract['dataset'],
+              'metadata_url':contract['metadata_url'],
+              'license':contract['license'],
+              'source_crs':contract['source_crs'],
+              'main_layer':main_layer,
+              'main_hits':main_hits,
+              'sample':{
+                  'url':sample_url,
+                  'sha256':hashlib.sha256(sample_bytes).hexdigest(),
+                  'bytes':len(sample_bytes),
+                  'feature_count':len(features),
+                  'id_sequence_sha256':hashlib.sha256(('\n'.join(ids)+'\n').encode()).hexdigest(),
+                  'bbox':[min(xs),min(ys),max(xs),max(ys)],
+                  'content_type':sample_headers.get('Content-Type')
+              },
+              'lookup_layers':lookups,
+              'status':'MEASURED_SOURCE_ONLY',
+              'source_registration_authorized':False,
+              'parking_evidence_runtime_approved':False,
+              'runtime_authorized':False,
+              'runtime_mount_authorized':False,
+              'collision_authorized':False,
+              'materialization_authorized':False,
+              'semantic_names_authorized':False,
+              'game_world_transform_authorized':False,
+              'jouable_promotion_authorized':False
+          }
+          report_path = out / 'driveway-access-source-measurement.json'
+          report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+          print('DRIVEWAY_ACCESS_SOURCE_MEASURED', f'main_count={main_hits["count"]}', f'sample={len(features)}', f'lookups={len(lookups)}', 'registration=false')
+          PY
+
+      - name: Upload source measurement
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-driveway-access-source-measurement
+          path: ${{ runner.temp }}/driveway-access
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6

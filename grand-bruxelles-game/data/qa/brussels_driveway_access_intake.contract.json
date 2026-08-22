@@ -1,0 +1,53 @@
+{
+  "schema": "grand-bruxelles-brussels-driveway-access-intake-contract-v1",
+  "production_base_sha": "edbda650e88979131753279343bebf2e5c1d35c5",
+  "publisher": "Bruxelles Mobilité / Parking.brussels",
+  "dataset": "Accès carrossables",
+  "metadata_url": "https://data.mobility.brussels/en/info/access_carrossables/",
+  "license": "CC0-1.0",
+  "source_crs": "EPSG:31370",
+  "wfs": {
+    "base_url": "https://data.mobility.brussels/geoserver/bm_parking/wfs",
+    "version": "1.1.0",
+    "main_layer": "bm_parking:access_carrossables",
+    "lookup_layers": [
+      "bm_parking:type_acces_carrossables",
+      "bm_parking:zone_recul_carrossable",
+      "bm_parking:zone_served_carrossable"
+    ],
+    "canonical_main_geojson_url": "https://data.mobility.brussels/geoserver/bm_parking/wfs?outputFormat=json&request=GetFeature&service=wfs&srsName=EPSG%3A31370&typeName=bm_parking%3Aaccess_carrossables&version=1.1.0"
+  },
+  "required_main_properties": [
+    "gid",
+    "id",
+    "building_type",
+    "setback_zone",
+    "typacar",
+    "evp",
+    "typreg",
+    "code_metier",
+    "si_id",
+    "sd_id",
+    "md_id",
+    "city_id"
+  ],
+  "measurement_policy": {
+    "require_wfs_hits_count": true,
+    "sample_max_features": 500,
+    "require_all_sample_geometries": "Point",
+    "require_lambert72_coordinate_range": true,
+    "require_lookup_layer_presence": true,
+    "lock_response_hashes_only_after_exact_head_green": true
+  },
+  "hard_rules": {
+    "source_registration_authorized": false,
+    "parking_evidence_runtime_approved": false,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "materialization_authorized": false,
+    "semantic_names_authorized": false,
+    "game_world_transform_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

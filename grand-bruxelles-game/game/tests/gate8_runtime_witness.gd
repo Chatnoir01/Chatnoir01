@@ -7,6 +7,9 @@ const VARIANT_COUNT := 8
 const FRAMES_TO_SETTLE := 4
 const MODEL_VISUAL_FRONT_YAW_DEGREES := 0.0
 const MAX_GROUNDING_CORRECTION_M := 0.15
+const CAMERA_EYE_HEIGHT_M := 1.62
+const CAMERA_FOV_DEGREES := 68.0
+const FRAME_MARGIN_PX := 20.0
 
 var _shot_viewport: SubViewport
 var _shot_root: Node3D
@@ -33,7 +36,7 @@ func _ready() -> void:
                 return
             capture_count += 1
 
-    print("GATE8_RUNTIME_WITNESS_OK captures=%d models=%d distances=2m,5m,8m dynamic_grounding=true isolated_subviewport=true front_facing=true front_yaw_deg=%.1f" % [capture_count, VARIANT_COUNT, MODEL_VISUAL_FRONT_YAW_DEGREES])
+    print("GATE8_RUNTIME_WITNESS_OK captures=%d models=%d distances=2m,5m,8m dynamic_grounding=true isolated_subviewport=true front_facing=true front_yaw_deg=%.1f full_body_framing=true camera_fov_deg=%.1f" % [capture_count, VARIANT_COUNT, MODEL_VISUAL_FRONT_YAW_DEGREES, CAMERA_FOV_DEGREES])
     get_tree().quit(0)
 
 func _build_isolated_viewport() -> void:
@@ -83,8 +86,8 @@ func _build_isolated_viewport() -> void:
 
     _camera = Camera3D.new()
     _camera.name = "WitnessCamera"
-    _camera.position = Vector3(0.0, 1.62, 0.0)
-    _camera.fov = 62.0
+    _camera.position = Vector3(0.0, CAMERA_EYE_HEIGHT_M, 0.0)
+    _camera.fov = CAMERA_FOV_DEGREES
     _camera.near = 0.05
     _shot_root.add_child(_camera)
     _camera.look_at(Vector3(0.0, 1.0, -5.0), Vector3.UP)
@@ -126,12 +129,36 @@ func _capture_variant_distance(variant_index: int, distance_m: float, output_dir
         shot.queue_free()
         return ERR_INVALID_DATA
 
+    var world_bounds := _rest_vertex_world_bounds(model)
+    if not bool(world_bounds.get("valid", false)):
+        push_error("Gate-8 witness has no rest vertices for framing model=%02d distance=%.1f" % [variant_index, distance_m])
+        shot.queue_free()
+        return ERR_INVALID_DATA
+    var bounds_min: Vector3 = world_bounds["min"]
+    var bounds_max: Vector3 = world_bounds["max"]
+    var visual_center := (bounds_min + bounds_max) * 0.5
+    _camera.position = Vector3(0.0, CAMERA_EYE_HEIGHT_M, 0.0)
+    _camera.look_at(visual_center, Vector3.UP)
+
     _add_scale_marker(shot, Vector3(0.95, 0.0, -distance_m))
     _add_label(shot, "variant %02d | %d m" % [variant_index, int(distance_m)], Vector3(-0.95, 2.22, -distance_m), 0.17)
 
     for _frame: int in range(FRAMES_TO_SETTLE):
         await get_tree().process_frame
     await RenderingServer.frame_post_draw
+
+    var screen_bounds := _rest_vertex_screen_bounds(model)
+    if not bool(screen_bounds.get("valid", false)):
+        push_error("Gate-8 witness could not project rest vertices model=%02d distance=%.1f" % [variant_index, distance_m])
+        shot.queue_free()
+        return ERR_INVALID_DATA
+    var screen_min: Vector2 = screen_bounds["min"]
+    var screen_max: Vector2 = screen_bounds["max"]
+    var min_margin_px := minf(minf(screen_min.x, screen_min.y), minf(float(CAPTURE_SIZE.x) - screen_max.x, float(CAPTURE_SIZE.y) - screen_max.y))
+    if min_margin_px < FRAME_MARGIN_PX:
+        push_error("Gate-8 witness clips full body model=%02d distance=%.1f margin_px=%.2f screen_min=%s screen_max=%s" % [variant_index, distance_m, min_margin_px, screen_min, screen_max])
+        shot.queue_free()
+        return ERR_INVALID_DATA
 
     var image := _shot_viewport.get_texture().get_image()
     if image == null or image.is_empty():
@@ -151,10 +178,57 @@ func _capture_variant_distance(variant_index: int, distance_m: float, output_dir
         shot.queue_free()
         return save_error
 
-    print("GATE8_RUNTIME_FRAME_OK model=%02d distance=%dm correction=%.4f front_yaw_deg=%.1f screenshot=%s" % [variant_index, int(distance_m), correction, MODEL_VISUAL_FRONT_YAW_DEGREES, output_path])
+    print("GATE8_RUNTIME_FRAME_OK model=%02d distance=%dm correction=%.4f front_yaw_deg=%.1f frame_margin_px=%.1f full_body=true screenshot=%s" % [variant_index, int(distance_m), correction, MODEL_VISUAL_FRONT_YAW_DEGREES, min_margin_px, output_path])
     shot.queue_free()
     await get_tree().process_frame
     return OK
+
+func _rest_vertex_world_bounds(root: Node3D) -> Dictionary:
+    var minimum := Vector3(INF, INF, INF)
+    var maximum := Vector3(-INF, -INF, -INF)
+    var vertex_count := 0
+    for raw: Node in root.find_children("*", "MeshInstance3D", true, false):
+        var mesh_instance := raw as MeshInstance3D
+        if mesh_instance == null or mesh_instance.mesh == null:
+            continue
+        for surface_index: int in range(mesh_instance.mesh.get_surface_count()):
+            var arrays := mesh_instance.mesh.surface_get_arrays(surface_index)
+            if arrays.size() <= Mesh.ARRAY_VERTEX:
+                continue
+            var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+            for vertex: Vector3 in vertices:
+                var world_vertex := mesh_instance.global_transform * vertex
+                minimum.x = minf(minimum.x, world_vertex.x)
+                minimum.y = minf(minimum.y, world_vertex.y)
+                minimum.z = minf(minimum.z, world_vertex.z)
+                maximum.x = maxf(maximum.x, world_vertex.x)
+                maximum.y = maxf(maximum.y, world_vertex.y)
+                maximum.z = maxf(maximum.z, world_vertex.z)
+                vertex_count += 1
+    return {"valid": vertex_count > 0, "min": minimum, "max": maximum, "vertex_count": vertex_count}
+
+func _rest_vertex_screen_bounds(root: Node3D) -> Dictionary:
+    var minimum := Vector2(INF, INF)
+    var maximum := Vector2(-INF, -INF)
+    var vertex_count := 0
+    for raw: Node in root.find_children("*", "MeshInstance3D", true, false):
+        var mesh_instance := raw as MeshInstance3D
+        if mesh_instance == null or mesh_instance.mesh == null:
+            continue
+        for surface_index: int in range(mesh_instance.mesh.get_surface_count()):
+            var arrays := mesh_instance.mesh.surface_get_arrays(surface_index)
+            if arrays.size() <= Mesh.ARRAY_VERTEX:
+                continue
+            var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+            for vertex: Vector3 in vertices:
+                var world_vertex := mesh_instance.global_transform * vertex
+                var screen_vertex := _camera.unproject_position(world_vertex)
+                minimum.x = minf(minimum.x, screen_vertex.x)
+                minimum.y = minf(minimum.y, screen_vertex.y)
+                maximum.x = maxf(maximum.x, screen_vertex.x)
+                maximum.y = maxf(maximum.y, screen_vertex.y)
+                vertex_count += 1
+    return {"valid": vertex_count > 0, "min": minimum, "max": maximum, "vertex_count": vertex_count}
 
 func _add_label(parent: Node3D, text_value: String, position_value: Vector3, pixel_size: float) -> void:
     var label := Label3D.new()

@@ -5,12 +5,15 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-combat-weapon-polish.yml"
       - "grand-bruxelles-game/game/scripts/player_combat_arsenal_polish_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/player_melee_combat_weapon_safe_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_surface_impact_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_native_weapon_presentation_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_weapon_hand_orientation_polish_runtime.gd"
       - "grand-bruxelles-game/game/scripts/authored_player_combat_locomotion_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_authored_pose_polish_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_audio_feedback_runtime.gd"
       - "grand-bruxelles-game/game/tests/combat_weapon_system_polish_gate_test.gd"
+      - "grand-bruxelles-game/game/tests/combat_weapon_switch_melee_cancel_test.gd"
       - "grand-bruxelles-game/project.godot"
   workflow_dispatch:
 
@@ -47,3 +50,10 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --script res://game/tests/combat_weapon_system_polish_gate_test.gd 2>&1 | tee /tmp/combat-polish-gate.log
           if grep -E "SCRIPT ERROR|Parse Error:|COMBAT_WEAPON_POLISH_GATE_FAIL" /tmp/combat-polish-gate.log; then exit 1; fi
           grep -F "COMBAT_WEAPON_POLISH_GATE_OK" /tmp/combat-polish-gate.log
+      - name: Run melee switch cancellation gate
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --script res://game/tests/combat_weapon_switch_melee_cancel_test.gd 2>&1 | tee /tmp/combat-switch-cancel.log
+          if grep -E "SCRIPT ERROR|Parse Error:|COMBAT_WEAPON_SWITCH_MELEE_CANCEL_FAIL" /tmp/combat-switch-cancel.log; then exit 1; fi
+          grep -F "COMBAT_WEAPON_SWITCH_MELEE_CANCEL_OK" /tmp/combat-switch-cancel.log

@@ -55,6 +55,7 @@ jobs:
           grep -q "BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_VISUAL_CAPTURED" /tmp/facade-articulation-readability-witness.log
           python3 grand-bruxelles-game/tools/check_osm_facade_articulation_readability_ab.py
       - name: Upload readability evidence
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-osm-facade-articulation-readability-ab

@@ -8,8 +8,8 @@ const ROAD_HEIGHT_M := 0.10
 const SIDEWALK_HEIGHT_M := 0.12
 const HEIGHT_EPSILON_M := 0.001
 const MAX_READY_FRAMES := 240
-const EXPECTED_SUPPORT_COLLISION_LAYER := 1
-const EXPECTED_SUPPORT_COLLISION_MASK := 1
+const EXPECTED_SUPPORT_COLLISION_LAYER := 1 << 19
+const EXPECTED_SUPPORT_COLLISION_MASK := 0
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -168,6 +168,9 @@ func _run() -> void:
     if not bool(support_body.get_meta("visible_surfaces_only", false)):
         _fail("generic support must exclude hidden/superseded OSM surfaces")
         return
+    if not bool(support_body.get_meta("player_only_collision", false)):
+        _fail("generic support must remain isolated to the canonical Player")
+        return
     if int(support_body.get_meta("support_collision_layer", -1)) != EXPECTED_SUPPORT_COLLISION_LAYER:
         _fail("support collision layer metadata mismatch")
         return
@@ -195,5 +198,5 @@ func _run() -> void:
     if not _assert_supported("generic sidewalk B", sidewalks[1] as CSGBox3D, world):
         return
 
-    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s visible_roads=%d visible_sidewalks=%d support_shapes=1 support_triangles=%d collision_layer=%d collision_mask=%d player_mask_overlap=true visible_surfaces_only=true tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false render_geometry_count=0 exact_bourse_scope=false" % [road.name, roads.size(), sidewalks.size(), expected_triangles, EXPECTED_SUPPORT_COLLISION_LAYER, EXPECTED_SUPPORT_COLLISION_MASK, MAX_SUPPORT_GAP_M])
+    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s visible_roads=%d visible_sidewalks=%d support_shapes=1 support_triangles=%d collision_layer=%d collision_mask=%d player_mask_overlap=true player_only_collision=true visible_surfaces_only=true tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false render_geometry_count=0 exact_bourse_scope=false" % [road.name, roads.size(), sidewalks.size(), expected_triangles, EXPECTED_SUPPORT_COLLISION_LAYER, EXPECTED_SUPPORT_COLLISION_MASK, MAX_SUPPORT_GAP_M])
     quit(0)

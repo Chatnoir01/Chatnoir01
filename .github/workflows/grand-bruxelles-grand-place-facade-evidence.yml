@@ -112,6 +112,16 @@ jobs:
           fi
           grep -q "GRAND_PLACE_FACADE_CAPTURE_OK views=4 resolution=1280x720 human_review=pending" /tmp/grand-place-facade-capture.log
 
+      - name: Bind witness PNG bytes with SHA-256 sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/grand-place-facade-evidence
+          sha256sum canonical.png cornet_renard.png brasseurs_rose_thabor.png maison_du_roi.png > png-sha256.txt
+          sha256sum --check png-sha256.txt
+          test "$(wc -l < png-sha256.txt)" -eq 4
+          echo "GRAND_PLACE_FACADE_PNG_HASHES_OK count=4"
+
       - name: Validate engine-generated witness artifact
         shell: bash
         run: |
@@ -129,6 +139,7 @@ jobs:
           path: |
             grand-bruxelles-game/artifacts/grand-place-facade-evidence/manifest.json
             grand-bruxelles-game/artifacts/grand-place-facade-evidence/*.png
+            grand-bruxelles-game/artifacts/grand-place-facade-evidence/png-sha256.txt
             /tmp/grand-place-facade-import.log
             /tmp/grand-place-facade-capture.log
           if-no-files-found: error

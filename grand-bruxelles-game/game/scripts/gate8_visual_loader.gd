@@ -34,6 +34,21 @@ static func enabled() -> bool:
 static func variant_index_for_seed(seed_value: int) -> int:
     return 1 + posmod(seed_value, VARIANT_COUNT)
 
+static func remap_seed_to_variant(seed_value: int, allowed_indices: Array[int]) -> int:
+    if allowed_indices.is_empty():
+        return 0
+    return allowed_indices[posmod(seed_value, allowed_indices.size())]
+
+static func approved_variant_indices() -> Array[int]:
+    var indices: Array[int] = []
+    for index: int in VISUAL_REVIEW_APPROVED_INDICES:
+        if is_variant_approved(index):
+            indices.append(index)
+    return indices
+
+static func approved_variant_index_for_seed(seed_value: int) -> int:
+    return remap_seed_to_variant(seed_value, approved_variant_indices())
+
 static func path_for_seed(seed_value: int) -> String:
     return "%s/npc_gate_%02d.glb" % [ASSET_DIR, variant_index_for_seed(seed_value)]
 
@@ -52,7 +67,7 @@ static func is_variant_rejected(index: int) -> bool:
     return index in VISUAL_REVIEW_REJECTED_INDICES and variant_verdict(index) == "JETER"
 
 static func approved_count() -> int:
-    return VISUAL_REVIEW_APPROVED_INDICES.size()
+    return approved_variant_indices().size()
 
 static func rejected_count() -> int:
     return VISUAL_REVIEW_REJECTED_INDICES.size()
@@ -69,16 +84,16 @@ static func available_count() -> int:
 
 static func runtime_available_count() -> int:
     var count := 0
-    for index: int in VISUAL_REVIEW_APPROVED_INDICES:
-        if is_variant_approved(index) and ResourceLoader.exists(path_for_index(index)):
+    for index: int in approved_variant_indices():
+        if ResourceLoader.exists(path_for_index(index)):
             count += 1
     return count
 
 static func instantiate_for_seed(seed_value: int) -> Node3D:
     if not enabled():
         return null
-    var variant_index := variant_index_for_seed(seed_value)
-    if not is_variant_approved(variant_index):
+    var variant_index := approved_variant_index_for_seed(seed_value)
+    if variant_index == 0:
         return null
     var path := path_for_index(variant_index)
     if not ResourceLoader.exists(path):
@@ -151,6 +166,7 @@ static func status() -> Dictionary:
         "visual_review_artifact": VISUAL_REVIEW_ARTIFACT,
         "visual_review_artifact_sha256": VISUAL_REVIEW_ARTIFACT_SHA256,
         "production_activation_blocked": approved_count() == 0,
+        "runtime_seed_mapping": "approved_pool_no_holes",
         "animation_retargeted": false,
         "movement_owner_changed": false,
         "navigation_changed": false,

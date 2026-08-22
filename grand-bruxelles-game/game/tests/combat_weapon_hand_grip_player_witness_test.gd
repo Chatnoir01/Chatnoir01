@@ -106,6 +106,39 @@ func _wait_for_grip(player: CharacterBody3D, weapon_id: StringName) -> Dictionar
         "source": String(player.get_meta("combat_weapon_mount_source", "")),
     }
 
+func _final_right_hand(player: CharacterBody3D, weapon_id: StringName, visual_runtime: Node) -> Dictionary:
+    # Godot evaluates SkeletonModifier3D after ordinary process callbacks. For
+    # the long-weapon TwoBoneIK3D modes, the authoritative rendered hand.r pose
+    # is therefore the value captured from modification_processed and published
+    # as combat_carry_ik_post_hand_world. Reading Skeleton3D later would compare
+    # against the authored/pre-modifier hand pose instead of the rendered hand.
+    if weapon_id == &"cbr4" or weapon_id == &"sct8":
+        if StringName(player.get_meta("combat_support_ik_weapon_id", &"")) != weapon_id:
+            return {"found": false, "source": "modifier:stale_weapon"}
+        if not bool(player.get_meta("combat_carry_ik_active", false)):
+            return {"found": false, "source": "modifier:carry_inactive"}
+        var final_world: Vector3 = player.get_meta("combat_carry_ik_post_hand_world", Vector3.ZERO)
+        if final_world == Vector3.ZERO:
+            return {"found": false, "source": "modifier:final_hand_unavailable"}
+        return {
+            "found": true,
+            "position": final_world,
+            "source": "modifier:CombatCarryHandIK.modification_processed",
+        }
+
+    var anchor_variant: Variant = visual_runtime.call("resolve_right_hand_anchor", player)
+    if not anchor_variant is Dictionary:
+        return {"found": false, "source": "skeleton:invalid_payload"}
+    var anchor := anchor_variant as Dictionary
+    if not bool(anchor.get("found", false)):
+        return {"found": false, "source": String(anchor.get("source", "skeleton:unresolved"))}
+    var transform: Transform3D = anchor.get("transform", Transform3D.IDENTITY)
+    return {
+        "found": true,
+        "position": transform.origin,
+        "source": String(anchor.get("source", "skeleton:unknown")),
+    }
+
 func _collect_mesh_instances(node: Node, out: Array[MeshInstance3D]) -> void:
     if node is MeshInstance3D:
         var mesh_instance := node as MeshInstance3D
@@ -200,9 +233,6 @@ func _run() -> void:
         _fail("stable authored skeleton right hand unavailable: source=%s" % String(anchor.get("source", "")))
         return
 
-    # Give authored visual replacement and camera spring one final stabilization
-    # window before baseline. The earlier witness was polluted by NPC/avatar
-    # changes between weapon captures and could report a false visual PASS.
     for _frame: int in range(45):
         _hide_dynamic_occluders(player)
         await process_frame
@@ -268,25 +298,24 @@ func _run() -> void:
         if right_socket == null:
             _fail("%s right-hand socket missing" % weapon_id)
             return
-        var current_anchor_variant: Variant = visual_runtime.call("resolve_right_hand_anchor", player)
-        if not current_anchor_variant is Dictionary:
-            _fail("%s refreshed hand anchor invalid" % weapon_id)
+        var final_hand := _final_right_hand(player, weapon_id, visual_runtime)
+        if not bool(final_hand.get("found", false)):
+            _fail("%s final right hand unavailable: source=%s" % [weapon_id, String(final_hand.get("source", ""))])
             return
-        var current_anchor := current_anchor_variant as Dictionary
-        var current_hand_transform: Transform3D = current_anchor.get("transform", Transform3D.IDENTITY)
-        var direct_gap := right_socket.global_position.distance_to(current_hand_transform.origin)
+        var current_hand_world: Vector3 = final_hand.get("position", Vector3.ZERO)
+        var direct_gap := right_socket.global_position.distance_to(current_hand_world)
         if direct_gap > MAX_HAND_GAP_M:
-            _fail("%s socket-to-hand gap %.6f m exceeds gate" % [weapon_id, direct_gap])
+            _fail("%s socket-to-final-hand gap %.6f m exceeds gate source=%s" % [weapon_id, direct_gap, String(final_hand.get("source", ""))])
             return
 
         if camera.is_position_behind(right_socket.global_position):
             _fail("%s right-hand socket ended behind camera" % weapon_id)
             return
-        var current_hand_screen := camera.unproject_position(current_hand_transform.origin)
+        var current_hand_screen := camera.unproject_position(current_hand_world)
         var socket_screen := camera.unproject_position(right_socket.global_position)
         var socket_screen_gap := current_hand_screen.distance_to(socket_screen)
         if socket_screen_gap > MAX_SOCKET_SCREEN_GAP_PX:
-            _fail("%s projected socket is %.3f px from real hand" % [weapon_id, socket_screen_gap])
+            _fail("%s projected socket is %.3f px from final rendered hand" % [weapon_id, socket_screen_gap])
             return
 
         if not bool(player.get_meta("combat_weapon_support_grip_ready", false)):
@@ -319,6 +348,7 @@ func _run() -> void:
             "gap_m": float(grip.get("gap_m", 999.0)),
             "orientation_gap_m": float(grip.get("orientation_gap_m", 999.0)),
             "direct_gap_m": direct_gap,
+            "direct_gap_source": String(final_hand.get("source", "")),
             "socket_screen_gap_px": socket_screen_gap,
             "mount_source": String(grip.get("source", "")),
             "grip_locked": true,
@@ -337,5 +367,5 @@ func _run() -> void:
     report_file.store_string(JSON.stringify(report, "  "))
     report_file.close()
 
-    print("COMBAT_WEAPON_HAND_GRIP_PLAYER_WITNESS_OK: player_view=1280x720 authored_hand=true grip=true orientation=true projected_mesh=true bx9=visible cbr4=visible sct8=visible max_gap_m=%.3f source=%s" % [MAX_HAND_GAP_M, String(anchor.get("source", ""))])
+    print("COMBAT_WEAPON_HAND_GRIP_PLAYER_WITNESS_OK: player_view=1280x720 authored_hand=true final_modifier_hand=true grip=true orientation=true projected_mesh=true bx9=visible cbr4=visible sct8=visible max_gap_m=%.3f source=%s" % [MAX_HAND_GAP_M, String(anchor.get("source", ""))])
     quit(0)

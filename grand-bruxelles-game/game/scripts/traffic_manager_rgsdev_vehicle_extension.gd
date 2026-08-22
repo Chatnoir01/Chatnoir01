@@ -63,6 +63,13 @@ func _add_car_visual(vehicle: Node3D) -> void:
     vehicle.add_child(visual)
 
 func _spawn_parked_vehicle(candidate: Dictionary) -> void:
+    var candidate_position: Vector3 = candidate.get("position", Vector3.ZERO)
+    var anchor := _anchor_position()
+    var planar_delta := candidate_position - anchor
+    planar_delta.y = 0.0
+    if planar_delta.length() < MIN_SPAWN_CLEARANCE_M:
+        return
+
     var body := DRIVABLE_TRAFFIC_VEHICLE_SCRIPT.new()
     body.name = "ParkedCar_%03d" % int(candidate.get("id", 0))
     body.collision_layer = 1
@@ -72,7 +79,7 @@ func _spawn_parked_vehicle(candidate: Dictionary) -> void:
     body.set_meta("parking_departed", false)
     body.set_meta("road_name", str(candidate.get("road_name", "")))
     body.set_meta("source_osm_id", int(candidate.get("osm_id", 0)))
-    body.position = candidate.get("position", Vector3.ZERO)
+    body.position = candidate_position
     body.rotation.y = float(candidate.get("yaw", 0.0))
     var collision := CollisionShape3D.new()
     collision.name = "CollisionShape3D"

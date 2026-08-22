@@ -5,7 +5,7 @@ const EXPECTED_FAMILY := "brussels_osm_facade_articulation_v1"
 const EXPECTED_LICENSE := "ODbL-1.0"
 const EXPECTED_SOURCE_FRAGMENT := "OpenStreetMap contributors via Overpass API; generic building footprint/placement/kind only"
 const EXPECTED_RECIPE_PROVENANCE := "authored_presentation_from_existing_mesh_normal_not_source_measurement"
-const EXPECTED_READABILITY_PROFILE := "isotropic_contrast_shaped_fine_grain_v2"
+const EXPECTED_READABILITY_PROFILE := "isotropic_contrast_shaped_fine_grain_v3"
 
 func _initialize() -> void:
     call_deferred("_run")

@@ -10,12 +10,16 @@ on:
       - "grand-bruxelles-game/game/scripts/combat_surface_impact_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_native_weapon_presentation_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_weapon_hand_orientation_polish_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_long_weapon_fit_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_support_hand_ik_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_camera_shoulder_runtime.gd"
       - "grand-bruxelles-game/game/scripts/authored_player_combat_locomotion_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_authored_pose_polish_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_audio_feedback_runtime.gd"
       - "grand-bruxelles-game/game/tests/combat_weapon_system_polish_gate_test.gd"
       - "grand-bruxelles-game/game/tests/combat_weapon_switch_melee_cancel_test.gd"
       - "grand-bruxelles-game/game/tests/combat_touch_weapon_cycle_test.gd"
+      - "grand-bruxelles-game/game/tests/combat_two_hand_support_gate_test.gd"
       - "grand-bruxelles-game/project.godot"
   workflow_dispatch:
 
@@ -66,3 +70,10 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --script res://game/tests/combat_touch_weapon_cycle_test.gd 2>&1 | tee /tmp/combat-touch-cycle.log
           if grep -E "SCRIPT ERROR|Parse Error:|COMBAT_TOUCH_WEAPON_CYCLE_FAIL" /tmp/combat-touch-cycle.log; then exit 1; fi
           grep -F "COMBAT_TOUCH_WEAPON_CYCLE_OK" /tmp/combat-touch-cycle.log
+      - name: Run two-hand support and framing gate
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --script res://game/tests/combat_two_hand_support_gate_test.gd 2>&1 | tee /tmp/combat-two-hand-support.log
+          if grep -E "SCRIPT ERROR|Parse Error:|COMBAT_TWO_HAND_SUPPORT_FAIL" /tmp/combat-two-hand-support.log; then exit 1; fi
+          grep -F "COMBAT_TWO_HAND_SUPPORT_OK" /tmp/combat-two-hand-support.log

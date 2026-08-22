@@ -4,13 +4,17 @@ on:
   push:
     branches: [main]
     paths:
+      - "grand-bruxelles-game/data/traffic/midi_ambulance_parking_evidence.json"
+      - "grand-bruxelles-game/game/scripts/traffic_manager_npc_crossing_extension.gd"
       - "grand-bruxelles-game/game/scripts/traffic_manager_rgsdev_vehicle_extension.gd"
       - "grand-bruxelles-game/game/scripts/vehicle_controller.gd"
       - "grand-bruxelles-game/game/tests/runtime_vehicle_cleanup_probe.gd"
       - "grand-bruxelles-game/game/tests/main_scene_vehicle_drive_probe.gd"
+      - "grand-bruxelles-game/game/tests/ambulance_main_scene_presence_probe.gd"
       - ".github/workflows/grand-bruxelles-ambulance.yml"
   pull_request:
     paths:
+      - "grand-bruxelles-game/data/traffic/midi_ambulance_parking_evidence.json"
       - "grand-bruxelles-game/game/scripts/ambulance_vehicle.gd"
       - "grand-bruxelles-game/game/scripts/traffic_manager_npc_crossing_extension.gd"
       - "grand-bruxelles-game/game/scripts/traffic_manager_rgsdev_vehicle_extension.gd"
@@ -18,6 +22,7 @@ on:
       - "grand-bruxelles-game/game/scripts/vehicle_controller.gd"
       - "grand-bruxelles-game/game/scripts/rgsdev_vehicle_visual.gd"
       - "grand-bruxelles-game/game/tests/ambulance_vehicle_probe.gd"
+      - "grand-bruxelles-game/game/tests/ambulance_main_scene_presence_probe.gd"
       - "grand-bruxelles-game/game/tests/vehicle_real_ground_forward_probe.gd"
       - "grand-bruxelles-game/game/tests/runtime_vehicle_cleanup_probe.gd"
       - "grand-bruxelles-game/game/tests/main_scene_vehicle_drive_probe.gd"
@@ -77,6 +82,12 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|MAIN_SCENE_VEHICLE_DRIVE_FAIL" /tmp/main-scene-vehicle-drive.log; then exit 1; fi
           grep -q "MAIN_SCENE_VEHICLE_DRIVE_OK" /tmp/main-scene-vehicle-drive.log
           grep -q "engine=4.7.1" /tmp/main-scene-vehicle-drive.log
+      - name: Require dedicated ambulances in actual main scene
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/ambulance_main_scene_presence_probe.gd 2>&1 | tee /tmp/ambulance-main-scene-presence.log
+          if grep -E "SCRIPT ERROR|Parse Error:|AMBULANCE_MAIN_SCENE_PRESENCE_FAIL" /tmp/ambulance-main-scene-presence.log; then exit 1; fi
+          grep -q "AMBULANCE_MAIN_SCENE_PRESENCE_OK ambulances=2 source_backed=2 unique_parking=2 osm=108931599 evidence_roads=1 engine=4.7.1" /tmp/ambulance-main-scene-presence.log
       - name: Prove real road ground contact and forward direction
         run: |
           set -euo pipefail
@@ -100,6 +111,7 @@ jobs:
             /tmp/ambulance-import.log
             /tmp/runtime-vehicle-cleanup.log
             /tmp/main-scene-vehicle-drive.log
+            /tmp/ambulance-main-scene-presence.log
             /tmp/vehicle-real-ground-forward.log
             /tmp/ambulance-probe.log
           if-no-files-found: warn

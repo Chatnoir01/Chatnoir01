@@ -13,6 +13,7 @@ on:
       - "grand-bruxelles-game/game/scripts/authored_player_combat_locomotion_runtime.gd"
       - "grand-bruxelles-game/game/scripts/combat_authored_pose_polish_runtime.gd"
       - "grand-bruxelles-game/game/tests/combat_native_weapon_player_witness_test.gd"
+      - "grand-bruxelles-game/game/tests/combat_native_crossbow_geometry_probe_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -62,12 +63,27 @@ jobs:
           test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/knife_close.png
           test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/bx9_after_native_close.png
           test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/report.json
+      - name: Probe native crossbow geometry
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.arm64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/combat_native_crossbow_geometry_probe_test.gd \
+            2>&1 | tee /tmp/combat-native-crossbow-probe.log
+          if grep -E "SCRIPT ERROR|Parse Error:|COMBAT_NATIVE_CROSSBOW_GEOMETRY_PROBE_FAIL" /tmp/combat-native-crossbow-probe.log; then exit 1; fi
+          grep -F "COMBAT_NATIVE_CROSSBOW_GEOMETRY_PROBE_OK" /tmp/combat-native-crossbow-probe.log
+          test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/crossbow_geometry_probe.json
       - name: Preserve witness logs
         if: always()
         shell: bash
         run: |
           mkdir -p grand-bruxelles-game/artifacts/qa/combat_native_weapon
           test ! -f /tmp/combat-native-witness.log || cp /tmp/combat-native-witness.log grand-bruxelles-game/artifacts/qa/combat_native_weapon/witness.log
+          test ! -f /tmp/combat-native-crossbow-probe.log || cp /tmp/combat-native-crossbow-probe.log grand-bruxelles-game/artifacts/qa/combat_native_weapon/crossbow_probe.log
           test ! -f /tmp/combat-native-import.log || cp /tmp/combat-native-import.log grand-bruxelles-game/artifacts/qa/combat_native_weapon/import.log
       - name: Validate close witness metrics
         shell: bash

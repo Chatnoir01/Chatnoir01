@@ -44,6 +44,8 @@ jobs:
               assert measurement[key] is False, f'measurement {key} must remain false'
           lookups = contract['ogc_api']['lookup_collections']
           assert lookups == ['type_acces_carrossables','zone_recul_carrossable','zone_served_carrossable']
+          if measurement.get('measurement') is not None:
+              assert measurement['status'] == 'MEASURED_SOURCE_ONLY_LOCKED'
           print('DRIVEWAY_ACCESS_EXACT_BASE_OK', live)
           PY
 
@@ -58,6 +60,7 @@ jobs:
           from xml.etree import ElementTree as ET
 
           contract = json.loads(Path('grand-bruxelles-game/data/qa/brussels_driveway_access_intake.contract.json').read_text())
+          measurement = json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_access.measurement.json').read_text())
           out = Path(os.environ['RUNNER_TEMP']) / 'driveway-access'
           diagnostic_path = out / 'driveway-access-diagnostic.json'
           partial = {'schema':'grand-bruxelles-driveway-access-diagnostic-v1','production_base_sha':contract['production_base_sha'],'completed':[]}
@@ -168,6 +171,31 @@ jobs:
                   'page_proofs_sha256':sha(canonical_pages)
               }
 
+          def locked_comparable(main_layer, main_hits, sample_proof, lookups):
+              lookup_lock = {}
+              for name, value in lookups.items():
+                  total_bytes = sum(int(page['bytes']) for page in value['pages'])
+                  payload_hash = value['pages'][0]['sha256'] if value['page_count'] == 1 else value['page_proofs_sha256']
+                  lookup_lock[name] = {
+                      'feature_count':value['feature_count'],
+                      'feature_id_sequence_sha256':value['feature_id_sequence_sha256'],
+                      'payload_bytes':total_bytes,
+                      'payload_sha256':payload_hash,
+                      'geometry_types':value['geometry_types']
+                  }
+              return {
+                  'main': {
+                      'layer':main_layer,
+                      'feature_count':main_hits['count'],
+                      'sample_feature_count':sample_proof['feature_count'],
+                      'sample_bytes':sample_proof['bytes'],
+                      'sample_sha256':sample_proof['sha256'],
+                      'sample_id_sequence_sha256':sample_proof['id_sequence_sha256'],
+                      'sample_bbox_epsg31370':sample_proof['bbox']
+                  },
+                  'lookups':lookup_lock
+              }
+
           try:
               main_layer = contract['wfs']['main_layer']
               main_hits = wfs_hits(main_layer)
@@ -216,20 +244,31 @@ jobs:
                   lookups[collection] = measure_lookup(collection)
                   partial['completed'].append({'stage':f'lookup:{collection}','evidence':lookups[collection]})
 
+              comparable = locked_comparable(main_layer, main_hits, sample_proof, lookups)
+              locked = measurement.get('measurement')
+              reproduction = 'measurement'
+              if locked is not None:
+                  expected = {'main':locked['main'],'lookups':locked['lookups']}
+                  if comparable != expected:
+                      raise RuntimeError(f'locked source reproduction mismatch: observed={comparable!r} expected={expected!r}')
+                  reproduction = 'locked-exact'
+                  partial['completed'].append({'stage':'locked_reproduction','status':'locked-exact'})
+
               report = {
                   'schema':'grand-bruxelles-brussels-driveway-access-source-measurement-v2',
                   'production_base_sha':contract['production_base_sha'],
                   'publisher':contract['publisher'],'dataset':contract['dataset'],'metadata_url':contract['metadata_url'],
                   'metadata_last_updated':contract['metadata_last_updated'],'license':contract['license'],'source_crs':contract['source_crs'],
                   'main_layer':main_layer,'main_hits':main_hits,'sample':sample_proof,'lookup_collections':lookups,
+                  'reproduction_status':reproduction,
                   'status':'MEASURED_SOURCE_ONLY','source_registration_authorized':False,'parking_evidence_runtime_approved':False,
                   'runtime_authorized':False,'runtime_mount_authorized':False,'collision_authorized':False,
                   'materialization_authorized':False,'semantic_names_authorized':False,
                   'game_world_transform_authorized':False,'jouable_promotion_authorized':False
               }
               (out / 'driveway-access-source-measurement.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n')
-              diagnostic_path.write_text(json.dumps({**partial,'status':'success'}, ensure_ascii=False, indent=2)+'\n')
-              print('DRIVEWAY_ACCESS_SOURCE_MEASURED', f'main_count={main_hits["count"]}', f'sample={len(features)}', f'lookups={len(lookups)}', 'registration=false')
+              diagnostic_path.write_text(json.dumps({**partial,'status':'success','reproduction_status':reproduction}, ensure_ascii=False, indent=2)+'\n')
+              print('DRIVEWAY_ACCESS_SOURCE_MEASURED', f'reproduction={reproduction}', f'main_count={main_hits["count"]}', f'sample={len(features)}', f'lookups={len(lookups)}', 'registration=false')
           except Exception as exc:
               diagnostic = {**partial,'status':'failure','error_type':type(exc).__name__,'error':str(exc)}
               diagnostic_path.write_text(json.dumps(diagnostic, ensure_ascii=False, indent=2)+'\n')

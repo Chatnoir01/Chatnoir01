@@ -24,7 +24,12 @@
     "segment_id_min": 7435821,
     "segment_id_max": 7461053,
     "coordinate_count": 1224335,
-    "bbox_epsg31370": [25132.54, 26599.96, 274868.26, 241881.87],
+    "bbox_epsg31370": [
+      25132.54,
+      26599.96,
+      274868.26,
+      241881.87
+    ],
     "sha256": "0ae90345fb602d393143cd11680c1610c148c8cb948ba7d9a641ba11539dbc10",
     "segment_id_sequence_sha256": "add778a76b0810b305efca88829f235075b22a9ba8636b84680092dc889301a6",
     "segment_id_set_sha256": "88628b09b1aac78f5315e2ec0eba49e0c16077bed5a451490646b76d19134034",
@@ -53,6 +58,8 @@
     "publisher_current_id_min": 8119281,
     "publisher_current_id_max": 8144428,
     "publisher_current_id_set_sha256": "bcf56557380b9f21ac2bbab0ff2bf3658a7041ab46015b10a7a8ffb63742e2bb",
+    "publisher_current_id_export_sha256": "b87c49285778237af3d3d67af4fad20003879ebfa45b3dda9c324f15a5b74d7f",
+    "publisher_current_id_export_bytes": 226336,
     "snapshot_id_set_overlap_count": 0,
     "snapshot_id_set_overlap_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "currentness_proven": false,
@@ -72,6 +79,22 @@
     "artifact_sha256": "22a6e46c7f2ae1e7a52be61986ccd2b44e05e865bc8899680f004af57dc3dfc2",
     "accounting_export_sha256": "3a74e0935afd7e7ea2609fead978ca92bdbdca4182243c28c30e663f3676ddbb",
     "head_sha": "79341bb4f0c6609f73679914597464d6962014db"
+  },
+  "latest_reproduction_evidence": {
+    "pr": 1115,
+    "head_sha": "05eb39ca9dd50039093452e1bb6fafd5a57e5174",
+    "source_verification": {
+      "run_id": 32553633966,
+      "artifact_id": 9470787529,
+      "artifact_sha256": "fc44b94fda3a0fd80ee38e1d1f9e8020ccf971b71c55ff79f5fd476a77d7a1c5"
+    },
+    "revision_alignment": {
+      "run_id": 32553634018,
+      "artifact_id": 9470782993,
+      "artifact_sha256": "34c36868047579bb6dd81a9a3a3ce4ec85cdbd4bd329459ca43d5b8b9e2be727",
+      "publisher_current_id_export_sha256": "b87c49285778237af3d3d67af4fad20003879ebfa45b3dda9c324f15a5b74d7f",
+      "publisher_current_id_export_bytes": 226336
+    }
   },
   "status": "MEASURED_HOLD_PUBLISHER_LAMBERT72_SNAPSHOT_STALE",
   "source_registration_authorized": false,

@@ -1,0 +1,44 @@
+name: Grand Bruxelles MPFB 2.0.17 Identity Probe
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-mpfb-2017-identity-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe approved Blender Extensions MPFB 2.0.17 archive
+        run: |
+          set -euo pipefail
+          URL="https://extensions.blender.org/add-ons/mpfb/2.0.17/download/"
+          curl --fail --location --retry 3 --retry-all-errors "$URL" -o /tmp/mpfb-2.0.17.zip
+          python3 - <<'PY'
+          import hashlib, re, zipfile
+          from pathlib import Path
+
+          p = Path('/tmp/mpfb-2.0.17.zip')
+          raw = p.read_bytes()
+          digest = hashlib.sha256(raw).hexdigest()
+          with zipfile.ZipFile(p) as z:
+              bad = z.testzip()
+              assert bad is None, bad
+              manifest = z.read('mpfb/blender_manifest.toml').decode('utf-8')
+              init_py = z.read('mpfb/__init__.py').decode('utf-8')
+          version = re.search(r'^version\s*=\s*"([^"]+)"', manifest, re.M)
+          build = re.search(r'^BUILD_INFO\s*=\s*"([^"]+)"', init_py, re.M)
+          blender_min = re.search(r'^blender_version_min\s*=\s*"([^"]+)"', manifest, re.M)
+          assert version and version.group(1) == '2.0.17', version.group(1) if version else None
+          assert blender_min and blender_min.group(1) == '4.2.0', blender_min.group(1) if blender_min else None
+          assert build, 'BUILD_INFO not found'
+          print(
+              'MPFB_2017_STABLE_IDENTITY_OK '
+              f'bytes={len(raw)} sha256={digest} version={version.group(1)} '
+              f'build={build.group(1)} blender_min={blender_min.group(1)}'
+          )
+          PY

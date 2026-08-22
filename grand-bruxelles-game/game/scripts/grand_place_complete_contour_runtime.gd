@@ -13,7 +13,7 @@ const EXPECTED_OWNER_IDS := [
     "1649069", "1653185", "1654360", "1661439", "1781508"
 ]
 const DEDICATED_RUNTIME_OWNER_IDS := ["1655673", "1786758"]
-const OSM_MASK_GROW_M := 3.0
+const OSM_MASK_GROW_M := 0.0
 
 var geometry_loaded := false
 var source_face_count := 0

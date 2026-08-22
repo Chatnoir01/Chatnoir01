@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -16,6 +17,8 @@ ALLOWED_TAGS = {
     ("amenity", "parking_space"),
 }
 PARKING_PREFIXES = ("parking:left", "parking:right", "parking:both")
+ISO_UTC_RE = re.compile(r"20\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ")
+SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
 def fail(message: str) -> None:
@@ -66,6 +69,53 @@ def validate_tag(key: str, value: str) -> None:
     fail(f"unsupported parking evidence tag: {key}={value}")
 
 
+def canonical_source_element_sha256(element: dict) -> str:
+    payload = json.dumps(
+        element,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def validate_source_element(raw: dict, index: int, osm_type: str, source_osm_id: int, accessed: str) -> dict[str, str]:
+    element = raw.get("source_element")
+    if not isinstance(element, dict):
+        fail(f"candidate[{index}] versioned source element missing")
+    if element.get("type") != osm_type or element.get("id") != source_osm_id:
+        fail(f"candidate[{index}] source element identity does not match declared OSM identity")
+    version = element.get("version")
+    if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
+        fail(f"candidate[{index}] source element version must be a positive integer")
+    timestamp = str(element.get("timestamp", ""))
+    if not ISO_UTC_RE.fullmatch(timestamp):
+        fail(f"candidate[{index}] source element timestamp must be UTC YYYY-MM-DDTHH:MM:SSZ")
+    if timestamp[:10] > accessed:
+        fail(f"candidate[{index}] source element timestamp is newer than source_accessed_at")
+    tags = element.get("tags")
+    if not isinstance(tags, dict) or not tags:
+        fail(f"candidate[{index}] source element tags missing")
+    normalized_tags: dict[str, str] = {}
+    for key, value in tags.items():
+        key_text = str(key).strip()
+        value_text = str(value).strip()
+        if not key_text or not value_text:
+            fail(f"candidate[{index}] source element tag key/value must be non-empty")
+        normalized_tags[key_text] = value_text
+
+    declared_digest = str(raw.get("source_element_sha256", "")).strip()
+    if not SHA256_RE.fullmatch(declared_digest):
+        fail(f"candidate[{index}] source element SHA-256 must be 64 lowercase hex characters")
+    actual_digest = canonical_source_element_sha256(element)
+    if declared_digest != actual_digest:
+        fail(
+            f"candidate[{index}] source element SHA-256 drift: "
+            f"declared={declared_digest} actual={actual_digest}"
+        )
+    return normalized_tags
+
+
 def validate(registry: dict, snapshot: dict, require_ready: bool) -> dict:
     if registry.get("format") != FORMAT:
         fail(f"unexpected registry format: {registry.get('format')!r}")
@@ -85,6 +135,7 @@ def validate(registry: dict, snapshot: dict, require_ready: bool) -> dict:
         fail("candidates must be an array")
 
     seen_evidence: set[str] = set()
+    seen_source_versions: set[tuple[str, int, int]] = set()
     approved_roads: set[int] = set()
     for index, raw in enumerate(candidates):
         if not isinstance(raw, dict):
@@ -97,14 +148,19 @@ def validate(registry: dict, snapshot: dict, require_ready: bool) -> dict:
         seen_evidence.add(evidence_id)
 
         road_osm_id = raw.get("road_osm_id")
-        if not isinstance(road_osm_id, int) or road_osm_id <= 0:
+        if not isinstance(road_osm_id, int) or isinstance(road_osm_id, bool) or road_osm_id <= 0:
             fail(f"candidate[{index}] road_osm_id must be a positive integer")
         if road_osm_id not in known_roads:
             fail(f"candidate[{index}] road_osm_id {road_osm_id} is not in vertical slice")
 
         osm_type = str(raw.get("source_osm_type", ""))
         source_osm_id = raw.get("source_osm_id")
-        if osm_type not in OSM_TYPES or not isinstance(source_osm_id, int) or source_osm_id <= 0:
+        if (
+            osm_type not in OSM_TYPES
+            or not isinstance(source_osm_id, int)
+            or isinstance(source_osm_id, bool)
+            or source_osm_id <= 0
+        ):
             fail(f"candidate[{index}] invalid source OSM identity")
         source_url = str(raw.get("source_url", ""))
         if not valid_osm_url(source_url, osm_type, source_osm_id):
@@ -115,11 +171,28 @@ def validate(registry: dict, snapshot: dict, require_ready: bool) -> dict:
         if not re.fullmatch(r"20\d\d-\d\d-\d\d", accessed):
             fail(f"candidate[{index}] source_accessed_at must be YYYY-MM-DD")
 
+        source_tags = validate_source_element(raw, index, osm_type, source_osm_id, accessed)
+        source_version = int(raw["source_element"]["version"])
+        source_key = (osm_type, source_osm_id, source_version)
+        if source_key in seen_source_versions:
+            fail(
+                f"candidate[{index}] duplicate source element version: "
+                f"{osm_type}/{source_osm_id}@{source_version}"
+            )
+        seen_source_versions.add(source_key)
+
         tags = raw.get("evidence_tags")
         if not isinstance(tags, dict) or not tags:
             fail(f"candidate[{index}] evidence_tags missing")
         for key, value in tags.items():
-            validate_tag(str(key), str(value))
+            key_text = str(key).strip()
+            value_text = str(value).strip()
+            validate_tag(key_text, value_text)
+            if source_tags.get(key_text) != value_text:
+                fail(
+                    f"candidate[{index}] source element tags do not contain evidence: "
+                    f"{key_text}={value_text}"
+                )
 
         if not bool(raw.get("runtime_approved", False)):
             continue
@@ -145,6 +218,7 @@ def validate(registry: dict, snapshot: dict, require_ready: bool) -> dict:
         "approved_distinct_road_count": len(approved_roads),
         "required_distinct_road_count": required,
         "runtime_ready": computed_ready,
+        "versioned_source_binding": True,
     }
 
 

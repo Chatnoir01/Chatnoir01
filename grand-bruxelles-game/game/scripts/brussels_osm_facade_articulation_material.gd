@@ -4,8 +4,8 @@ class_name BrusselsOsmFacadeArticulationMaterial
 const MATERIAL_FAMILY := "brussels_osm_facade_articulation_v1"
 const PRESENTATION_REVISION := 2
 const SOURCE_LABEL := "OpenStreetMap contributors via Overpass API; generic building footprint/placement/kind only; ODbL-1.0"
-const SURFACE_READABILITY_STRENGTH := 0.22
-const READABILITY_PROFILE := "isotropic_contrast_shaped_fine_grain_v2"
+const SURFACE_READABILITY_STRENGTH := 0.19
+const READABILITY_PROFILE := "isotropic_contrast_shaped_fine_grain_v3"
 
 static func _shader() -> Shader:
     var shader := Shader.new()
@@ -14,7 +14,7 @@ shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 uniform vec4 base_color : source_color = vec4(0.45, 0.40, 0.34, 1.0);
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.91;
-uniform float surface_readability_strength : hint_range(0.0, 0.25) = 0.22;
+uniform float surface_readability_strength : hint_range(0.0, 0.25) = 0.19;
 varying vec3 world_pos;
 varying vec3 world_normal;
 float hash31(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
@@ -29,7 +29,7 @@ float fine_grain(vec3 p) {
     float a=value_noise3(p*vec3(1.35,1.58,1.35)+vec3(13,37,17));
     float b=value_noise3(p*vec3(2.75,2.31,2.75)+vec3(53,11,29));
     float mixed=clamp((a-0.5)*0.68+(b-0.5)*0.32,-0.5,0.5);
-    float magnitude=pow(clamp(abs(mixed)*2.0,0.0,1.0),0.35)*0.5;
+    float magnitude=pow(clamp(abs(mixed)*2.0,0.0,1.0),0.60)*0.5;
     return sign(mixed)*magnitude;
 }
 void vertex(){ world_pos=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz; world_normal=normalize(MODEL_NORMAL_MATRIX*NORMAL); }

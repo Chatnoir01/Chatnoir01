@@ -2,11 +2,20 @@ extends SceneTree
 
 const HUMANOID_VISUAL := preload("res://game/scripts/humanoid_visual.gd")
 const LOCOMOTION_RUNTIME := preload("res://game/scripts/authored_player_locomotion_runtime.gd")
+const PROFILE_SCRIPT := preload("res://game/scripts/player_locomotion_profile.gd")
 const REAL_ASSET := "res://assets/characters/player_character.glb"
+const ANALOG_DEADZONE := 0.12
+const FLOAT_EPSILON := 0.0001
 
 func _fail(message: String) -> void:
     push_error("AUTHORED_PLAYER_LOCOMOTION_FAIL: %s" % message)
     quit(1)
+
+func _expect_close(actual: float, expected: float, label: String) -> bool:
+    if absf(actual - expected) > FLOAT_EPSILON:
+        _fail("%s expected %.6f, got %.6f" % [label, expected, actual])
+        return false
+    return true
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -14,6 +23,31 @@ func _initialize() -> void:
 func _run() -> void:
     if not ResourceLoader.exists(REAL_ASSET):
         _fail("real authored player asset is unavailable")
+        return
+
+    var profile = PROFILE_SCRIPT.new()
+    var below_deadzone: Vector3 = profile.camera_relative_direction(Vector2(0.06, 0.0), 0.0)
+    if not _expect_close(below_deadzone.length(), 0.0, "analog input below deadzone"):
+        return
+    var edge_deadzone: Vector3 = profile.camera_relative_direction(Vector2(ANALOG_DEADZONE, 0.0), 0.0)
+    if not _expect_close(edge_deadzone.length(), 0.0, "analog input at deadzone"):
+        return
+    var just_above_input := 0.13
+    var just_above_expected := (just_above_input - ANALOG_DEADZONE) / (1.0 - ANALOG_DEADZONE)
+    var just_above: Vector3 = profile.camera_relative_direction(Vector2(just_above_input, 0.0), 0.0)
+    if not _expect_close(just_above.length(), just_above_expected, "analog input just above deadzone"):
+        return
+    var full_input: Vector3 = profile.camera_relative_direction(Vector2(1.0, 0.0), 0.0)
+    if not _expect_close(full_input.length(), 1.0, "full analog input"):
+        return
+    var diagonal_input := Vector2(0.5, 0.5)
+    var diagonal_expected_magnitude := (diagonal_input.length() - ANALOG_DEADZONE) / (1.0 - ANALOG_DEADZONE)
+    var diagonal: Vector3 = profile.camera_relative_direction(diagonal_input, 0.0)
+    if not _expect_close(diagonal.length(), diagonal_expected_magnitude, "diagonal analog magnitude"):
+        return
+    var expected_diagonal_direction := Vector3(diagonal_input.normalized().x, 0.0, diagonal_input.normalized().y)
+    if diagonal.normalized().dot(expected_diagonal_direction) < 0.9999:
+        _fail("radial deadzone remap changed analog direction")
         return
 
     var actor := CharacterBody3D.new()
@@ -173,5 +207,5 @@ func _run() -> void:
         _fail("reversal facing response changed gameplay body yaw")
         return
 
-    print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s walk_scale=%.3f/%.3f/%.3f run_scale=%.3f strafe_facing=%.1fdeg idle_hold=%.1fdeg reversal_error=%.1fdeg" % [idle_name, walk_name, run_name, walk_scale_slow, walk_scale_reference, walk_scale_fast, runtime.current_playback_speed_scale(), rad_to_deg(strafe_offset), rad_to_deg(idle_hold_offset), rad_to_deg(reversal_error)])
+    print("AUTHORED_PLAYER_LOCOMOTION_OK idle=%s walk=%s run=%s walk_scale=%.3f/%.3f/%.3f run_scale=%.3f strafe_facing=%.1fdeg idle_hold=%.1fdeg reversal_error=%.1fdeg analog_deadzone=GREEN" % [idle_name, walk_name, run_name, walk_scale_slow, walk_scale_reference, walk_scale_fast, runtime.current_playback_speed_scale(), rad_to_deg(strafe_offset), rad_to_deg(idle_hold_offset), rad_to_deg(reversal_error)])
     quit(0)

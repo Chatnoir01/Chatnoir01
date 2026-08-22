@@ -5,6 +5,7 @@ on:
     paths:
       - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
       - "grand-bruxelles-game/game/tests/midi_exact_building_collision_test.gd"
+      - "grand-bruxelles-game/tools/city_machine/test_midi_runtime_city_machine_wiring.py"
       - "grand-bruxelles-game/data/urbis/midi/**"
       - ".github/workflows/grand-bruxelles-midi-solid-world.yml"
   workflow_dispatch:
@@ -24,6 +25,8 @@ jobs:
         with:
           version: 4.7.1
           use-dotnet: false
+      - name: Prove normalized Midi City Machine spatial contract
+        run: python3 grand-bruxelles-game/tools/city_machine/test_midi_runtime_city_machine_wiring.py
       - name: Import project
         run: godot --headless --path grand-bruxelles-game --editor --quit
       - name: Force contact against exact Midi building walls

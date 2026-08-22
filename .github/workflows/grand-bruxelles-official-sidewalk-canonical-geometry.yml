@@ -6,6 +6,7 @@ on:
       - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_snapshot_manifest.json'
       - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry_manifest.json'
       - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry/**'
+      - 'grand-bruxelles-game/tools/source_factory/persist_brussels_mobility_sidewalk_geometry.py'
       - 'grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_canonical_geometry.py'
       - '.github/workflows/grand-bruxelles-official-sidewalk-canonical-geometry.yml'
   workflow_dispatch:

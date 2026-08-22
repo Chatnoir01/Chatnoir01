@@ -1,0 +1,63 @@
+{
+  "schema": "grand-bruxelles-brussels-driveway-access-intake-contract-v3",
+  "production_base_sha": "d83495ad605507737dd9191eb0a46e51692e256e",
+  "publisher": "Bruxelles Mobilité / Parking.brussels",
+  "dataset": "Accès carrossables",
+  "metadata_url": "https://data.mobility.brussels/en/info/access_carrossables/",
+  "metadata_last_updated": "2026-03-30",
+  "license": "CC0-1.0",
+  "source_crs": "EPSG:31370",
+  "wfs": {
+    "base_url": "https://data.mobility.brussels/geoserver/bm_parking/wfs",
+    "version": "1.1.0",
+    "main_layer": "bm_parking:access_carrossables",
+    "canonical_main_geojson_url": "https://data.mobility.brussels/geoserver/bm_parking/wfs?outputFormat=json&request=GetFeature&service=wfs&srsName=EPSG%3A31370&typeName=bm_parking%3Aaccess_carrossables&version=1.1.0"
+  },
+  "ogc_api": {
+    "collections_base_url": "https://data.mobility.brussels/datasets/v1/parking/collections",
+    "lookup_collections": [
+      "type_acces_carrossables",
+      "zone_recul_carrossable",
+      "zone_served_carrossable"
+    ]
+  },
+  "required_main_properties": [
+    "gid",
+    "id",
+    "building_type",
+    "setback_zone",
+    "typacar",
+    "evp",
+    "typreg",
+    "code_metier",
+    "si_id",
+    "sd_id",
+    "md_id",
+    "city_id"
+  ],
+  "measurement_policy": {
+    "require_wfs_hits_count": true,
+    "sample_max_features": 500,
+    "require_all_sample_geometries": "Point",
+    "require_lambert72_coordinate_range": true,
+    "require_lookup_collections_exact_allowlist": true,
+    "require_lookup_complete_pagination": true,
+    "require_lookup_unique_feature_ids": true,
+    "raw_http_sha256_is_forensic_only": true,
+    "require_canonical_semantic_sha256": true,
+    "canonical_feature_order": "stable_id_sorted",
+    "canonical_json": "utf8-sort-keys-compact",
+    "write_failure_diagnostic_before_exit": true
+  },
+  "hard_rules": {
+    "source_registration_authorized": false,
+    "parking_evidence_runtime_approved": false,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "materialization_authorized": false,
+    "semantic_names_authorized": false,
+    "game_world_transform_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

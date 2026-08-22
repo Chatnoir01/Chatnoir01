@@ -10,6 +10,9 @@ const MAX_GROUNDING_CORRECTION_M := 0.15
 const CAMERA_EYE_HEIGHT_M := 1.62
 const CAMERA_FOV_DEGREES := 68.0
 const FRAME_MARGIN_PX := 20.0
+const REVIEW_LABEL_PIXEL_SIZE := 0.004
+const SCALE_LABEL_PIXEL_SIZE := 0.003
+const MAX_ANNOTATION_PIXEL_SIZE := 0.004
 
 var _shot_viewport: SubViewport
 var _shot_root: Node3D
@@ -36,7 +39,7 @@ func _ready() -> void:
                 return
             capture_count += 1
 
-    print("GATE8_RUNTIME_WITNESS_OK captures=%d models=%d distances=2m,5m,8m dynamic_grounding=true isolated_subviewport=true front_facing=true front_yaw_deg=%.1f full_body_framing=true camera_fov_deg=%.1f" % [capture_count, VARIANT_COUNT, MODEL_VISUAL_FRONT_YAW_DEGREES, CAMERA_FOV_DEGREES])
+    print("GATE8_RUNTIME_WITNESS_OK captures=%d models=%d distances=2m,5m,8m dynamic_grounding=true isolated_subviewport=true front_facing=true front_yaw_deg=%.1f full_body_framing=true camera_fov_deg=%.1f annotation_max_pixel_size=%.3f" % [capture_count, VARIANT_COUNT, MODEL_VISUAL_FRONT_YAW_DEGREES, CAMERA_FOV_DEGREES, MAX_ANNOTATION_PIXEL_SIZE])
     get_tree().quit(0)
 
 func _build_isolated_viewport() -> void:
@@ -141,7 +144,7 @@ func _capture_variant_distance(variant_index: int, distance_m: float, output_dir
     _camera.look_at(visual_center, Vector3.UP)
 
     _add_scale_marker(shot, Vector3(0.95, 0.0, -distance_m))
-    _add_label(shot, "variant %02d | %d m" % [variant_index, int(distance_m)], Vector3(-0.95, 2.22, -distance_m), 0.17)
+    _add_label(shot, "variant %02d | %d m" % [variant_index, int(distance_m)], Vector3(-0.95, 2.22, -distance_m), REVIEW_LABEL_PIXEL_SIZE)
 
     for _frame: int in range(FRAMES_TO_SETTLE):
         await get_tree().process_frame
@@ -231,6 +234,9 @@ func _rest_vertex_screen_bounds(root: Node3D) -> Dictionary:
     return {"valid": vertex_count > 0, "min": minimum, "max": maximum, "vertex_count": vertex_count}
 
 func _add_label(parent: Node3D, text_value: String, position_value: Vector3, pixel_size: float) -> void:
+    if pixel_size <= 0.0 or pixel_size > MAX_ANNOTATION_PIXEL_SIZE:
+        push_error("Gate-8 witness annotation pixel size out of range: %.4f" % pixel_size)
+        return
     var label := Label3D.new()
     label.text = text_value
     label.position = position_value
@@ -253,4 +259,4 @@ func _add_scale_marker(parent: Node3D, base_position: Vector3) -> void:
     marker.mesh = mesh
     marker.position = base_position + Vector3(0.0, 1.0, 0.0)
     parent.add_child(marker)
-    _add_label(parent, "2.0 m", base_position + Vector3(0.18, 2.05, 0.0), 0.13)
+    _add_label(parent, "2.0 m", base_position + Vector3(0.18, 2.05, 0.0), SCALE_LABEL_PIXEL_SIZE)

@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import argparse, hashlib, json, os, time, urllib.request, zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 URLS = [
-    'https://files2.makehumancommunity.org/plugins/mpfb2-latest.zip',
-    'https://files.makehumancommunity.org/plugins/mpfb2-latest.zip',
+    'https://extensions.blender.org/download/sha256:4f0a879d64a39bf646fbf5f53601ac678855da329d650617dca5737548239a87/add-on-mpfb-v2.0.17.zip',
 ]
-EXPECTED_SIZE = 43_903_704
-# The secondary mirror republished the same expected 2.0.17/build-20260821
-# archive identity with a new ZIP digest. Keep the digest pinned, and still
-# reject any archive whose embedded extension version/build does not match.
-EXPECTED_SHA256 = 'abbb405c5614bd6c214dbb53db563389955b55d9cb286fe94d18da996ad5cd0b'
+EXPECTED_SIZE = 45_031_536
+EXPECTED_SHA256 = '4f0a879d64a39bf646fbf5f53601ac678855da329d650617dca5737548239a87'
 EXPECTED_VERSION = '2.0.17'
-EXPECTED_BUILD = '20260821'
+EXPECTED_BUILD = '20260722'
+EXPECTED_BLENDER_MIN = '4.2.0'
 
 
 def sha256(path: Path) -> str:
@@ -22,6 +19,19 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(1024 * 1024), b''):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _extension_identity(z: zipfile.ZipFile) -> tuple[str, str]:
+    names = [name for name in z.namelist() if not name.endswith('/')]
+    manifests = [name for name in names if PurePosixPath(name).name == 'blender_manifest.toml']
+    if not manifests:
+        raise ValueError('MPFB blender_manifest.toml missing')
+    manifest_name = min(manifests, key=lambda name: (name.count('/'), len(name)))
+    parent = str(PurePosixPath(manifest_name).parent)
+    init_name = '__init__.py' if parent == '.' else f'{parent}/__init__.py'
+    if init_name not in names:
+        raise ValueError(f'MPFB __init__.py missing next to manifest: {manifest_name}')
+    return manifest_name, init_name
 
 
 def validate(path: Path) -> dict:
@@ -35,15 +45,23 @@ def validate(path: Path) -> dict:
         bad = z.testzip()
         if bad:
             raise ValueError(f'MPFB CRC failure: {bad}')
-        manifest = z.read('mpfb/blender_manifest.toml').decode('utf-8')
-        init_py = z.read('mpfb/__init__.py').decode('utf-8')
+        manifest_name, init_name = _extension_identity(z)
+        manifest = z.read(manifest_name).decode('utf-8')
+        init_py = z.read(init_name).decode('utf-8')
     if f'version = "{EXPECTED_VERSION}"' not in manifest:
         raise ValueError('MPFB manifest version mismatch')
-    if 'blender_version_min = "4.2.0"' not in manifest:
+    if f'blender_version_min = "{EXPECTED_BLENDER_MIN}"' not in manifest:
         raise ValueError('MPFB minimum Blender version mismatch')
     if f'BUILD_INFO = "{EXPECTED_BUILD}"' not in init_py:
         raise ValueError('MPFB build mismatch')
-    return {'size_bytes': size, 'sha256': digest, 'version': EXPECTED_VERSION, 'build': EXPECTED_BUILD}
+    return {
+        'size_bytes': size,
+        'sha256': digest,
+        'version': EXPECTED_VERSION,
+        'build': EXPECTED_BUILD,
+        'blender_version_min': EXPECTED_BLENDER_MIN,
+        'manifest_path': manifest_name,
+    }
 
 
 def download(url: str, target: Path, retries: int) -> None:
@@ -81,9 +99,17 @@ def main() -> int:
             print('FETCH', url)
             download(url, target, args.retries)
             meta = validate(target)
-            meta.update({'source': url, 'mirrors': URLS, 'license': 'GPL-3.0-or-later add-on; generated outputs not claimed by MPFB'})
+            meta.update({
+                'source': url,
+                'mirrors': URLS,
+                'license': 'GPL-3.0-or-later add-on; generated outputs not claimed by MPFB',
+                'distribution': 'Blender Extensions approved MPFB 2.0.17 archive',
+            })
             Path(args.manifest).write_text(json.dumps(meta, indent=2, sort_keys=True), encoding='utf-8')
-            print(f"MPFB_2017_FETCH_OK bytes={meta['size_bytes']} sha256={meta['sha256']} source={url}")
+            print(
+                f"MPFB_2017_FETCH_OK bytes={meta['size_bytes']} sha256={meta['sha256']} "
+                f"version={meta['version']} build={meta['build']} source={url}"
+            )
             return 0
         except Exception as exc:
             print('FETCH_FAIL', url, repr(exc))

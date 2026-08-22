@@ -233,9 +233,6 @@ func _run() -> void:
         _fail("stable authored skeleton right hand unavailable: source=%s" % String(anchor.get("source", "")))
         return
 
-    # Give authored visual replacement and camera spring one final stabilization
-    # window before baseline. The earlier witness was polluted by NPC/avatar
-    # changes between weapon captures and could report a false visual PASS.
     for _frame: int in range(45):
         _hide_dynamic_occluders(player)
         await process_frame

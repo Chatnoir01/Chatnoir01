@@ -7,8 +7,46 @@
   "metadata_last_updated": "2026-03-30",
   "license": "CC0-1.0",
   "source_crs": "EPSG:31370",
-  "status": "MEASUREMENT_PENDING",
-  "measurement": null,
+  "status": "MEASURED_SOURCE_ONLY_LOCKED",
+  "measurement": {
+    "run_id": 32589788511,
+    "artifact_id": 9480000931,
+    "artifact_sha256": "4690741679e3626ba666e7011228714905e83d6af4f67d5c6f60bb01872c73c7",
+    "measurement_json_sha256": "f4fe56ef533314d5f5cc7992ccdc93a6b1754a4b50e3ee09317f6c16f34fc567",
+    "diagnostic_json_sha256": "79ff2d7232a46bed7ef8cf556d967e2f2783d089a20fbadf1b778af4f9626491",
+    "main": {
+      "layer": "bm_parking:access_carrossables",
+      "feature_count": 95805,
+      "sample_feature_count": 500,
+      "sample_bytes": 198452,
+      "sample_sha256": "e11f1bb2625fbd80575d15da8aa4d825471988dabd0096fd462be56a7b50138f",
+      "sample_id_sequence_sha256": "9f4a9792b7e52238ad7045299e9b62227e71b7c6697e15714e49d7ea44a636d8",
+      "sample_bbox_epsg31370": [147926.07949757, 167078.42117445, 148842.57899645, 167930.55367341]
+    },
+    "lookups": {
+      "type_acces_carrossables": {
+        "feature_count": 7,
+        "feature_id_sequence_sha256": "d28a59f6173184f7ca72607394ee0595bd89786b2df86f7495aa7408c87aa872",
+        "payload_bytes": 3762,
+        "payload_sha256": "f6b5a1c736cba75feb4cc7f7787695e53b266eccfc00a9bea9e2d31f30c2a550",
+        "geometry_types": {"null": 7}
+      },
+      "zone_recul_carrossable": {
+        "feature_count": 4,
+        "feature_id_sequence_sha256": "e169bdf59fac30d230f7d21be511d04dc8cc61e5edb1d8255758bc220ba3d4c7",
+        "payload_bytes": 1976,
+        "payload_sha256": "31bc81e3d616349ccdca16a64bbaa6fa6a71cf8c6d474caf2747b5e4ed089c60",
+        "geometry_types": {"null": 4}
+      },
+      "zone_served_carrossable": {
+        "feature_count": 6,
+        "feature_id_sequence_sha256": "9d6093db34ed3db1834973eb10698ddb099971d39ac0e4707485d5f5aa5b0595",
+        "payload_bytes": 2985,
+        "payload_sha256": "9f65ff5c393aae9627c9333cf049ec259a686b6d5f7627bab2fe29103748205c",
+        "geometry_types": {"null": 6}
+      }
+    }
+  },
   "source_registration_authorized": false,
   "parking_evidence_runtime_approved": false,
   "runtime_authorized": false,
@@ -18,5 +56,5 @@
   "semantic_names_authorized": false,
   "game_world_transform_authorized": false,
   "jouable_promotion_authorized": false,
-  "note": "Source-only acquisition gate. Main geometry is measured from the official EPSG:31370 WFS layer. The three published reference tables are measured from their exact allowlisted OGC API collections, not guessed WFS feature types. This file never self-authorizes runtime parking evidence."
+  "note": "Locked source-only measurement from exact-head GREEN run 32589788511. Main geometry remains WFS EPSG:31370; published reference tables are non-spatial OGC API collections. Registration and every runtime/promotion rail remain closed."
 }

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import struct
 import zlib
@@ -18,6 +19,7 @@ from typing import Any
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 EXPECTED_SCHEMA = "grand-bruxelles-grand-place-facade-evidence-v1"
+MAISON_DU_ROI_OWNER_ID = "1654360"
 
 
 class EvidenceValidationError(ValueError):
@@ -122,15 +124,58 @@ def _validate_view_target_binding(view: dict[str, Any], frozen: dict[str, Any]) 
         if "target_owner_ids" in view:
             _fail(f"view {frozen['id']!r} must not invent target_owner_ids")
     elif method == "source_bbox_cluster_center":
-        _exact_sequence(
-            f"view {frozen['id']} target_owner_ids",
-            view.get("target_owner_ids"),
-            frozen.get("target_owner_ids"),
-        )
+        _exact_sequence(f"view {frozen['id']} target_owner_ids", view.get("target_owner_ids"), frozen.get("target_owner_ids"))
         if "target" in view:
             _fail(f"view {frozen['id']!r} must not replace source owners with a free target")
     else:
         _fail(f"unsupported frozen target_method for {frozen.get('id')!r}: {method!r}")
+
+
+def _finite_number(value: Any, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        _fail(f"{name} must be numeric")
+    value = float(value)
+    if not math.isfinite(value):
+        _fail(f"{name} must be finite")
+    return value
+
+
+def _validate_source_surface_facing(manifest: dict[str, Any], frozen_camera: list[Any]) -> dict[str, Any]:
+    evidence = manifest.get("source_surface_facing")
+    if not isinstance(evidence, dict):
+        _fail("witness is missing source_surface_facing measurement")
+    if evidence.get("owner_id") != MAISON_DU_ROI_OWNER_ID:
+        _fail("source_surface_facing must measure exact Maison du Roi owner 1654360")
+    _exact_sequence("source_surface_facing camera_position", evidence.get("camera_position"), frozen_camera)
+    if evidence.get("source_geometry_changed") is not False or evidence.get("source_collision_changed") is not False:
+        _fail("source-facing measurement must not mutate source geometry or collision")
+    for key in ("wall_triangles", "roof_triangles", "front_facing_wall_triangles", "front_facing_roof_triangles"):
+        value = evidence.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            _fail(f"{key} must be a non-negative integer")
+    if evidence["wall_triangles"] <= 0 or evidence["roof_triangles"] <= 0:
+        _fail("source-facing measurement must include wall and roof triangles")
+    if evidence["front_facing_wall_triangles"] > evidence["wall_triangles"] or evidence["front_facing_roof_triangles"] > evidence["roof_triangles"]:
+        _fail("front-facing triangle count exceeds total")
+    for key in ("wall_area_m2", "roof_area_m2", "front_facing_wall_area_m2", "front_facing_roof_area_m2"):
+        value = _finite_number(evidence.get(key), key)
+        if value < 0.0:
+            _fail(f"{key} must be non-negative")
+    if evidence["wall_area_m2"] <= 0.0 or evidence["roof_area_m2"] <= 0.0:
+        _fail("source-facing measurement must include positive wall and roof area")
+    if evidence["front_facing_wall_area_m2"] > evidence["wall_area_m2"] + 1e-9 or evidence["front_facing_roof_area_m2"] > evidence["roof_area_m2"] + 1e-9:
+        _fail("front-facing area exceeds total source area")
+    for key in ("front_facing_wall_area_ratio", "front_facing_roof_area_ratio"):
+        ratio = _finite_number(evidence.get(key), key)
+        if ratio < 0.0 or ratio > 1.0:
+            _fail(f"{key} must be within [0,1]")
+    for key in ("dominant_front_wall_normal", "dominant_front_roof_normal"):
+        vec = evidence.get(key)
+        if not isinstance(vec, list) or len(vec) != 3:
+            _fail(f"{key} must be a 3-vector")
+        for component in vec:
+            _finite_number(component, key)
+    return evidence
 
 
 def validate_evidence(gate_path: Path | str, manifest_path: Path | str, artifact_root: Path | str | None = None) -> dict[str, Any]:
@@ -166,6 +211,7 @@ def validate_evidence(gate_path: Path | str, manifest_path: Path | str, artifact
         _fail("dedicated witness must require human full-frame review")
     if manifest.get("human_review_status") != "pending":
         _fail("CI evidence must remain human-review pending; it cannot self-approve or self-reject")
+    source_surface_facing = _validate_source_surface_facing(manifest, gate.get("camera_position"))
     required_ids = contract.get("required_view_ids")
     if not isinstance(required_ids, list) or not required_ids or not all(isinstance(item, str) and item for item in required_ids):
         _fail("gate required_view_ids is malformed")
@@ -212,6 +258,7 @@ def validate_evidence(gate_path: Path | str, manifest_path: Path | str, artifact
         "view_count": len(validated_files),
         "view_ids": view_ids,
         "files": validated_files,
+        "source_surface_facing": source_surface_facing,
         "human_review_status": "pending",
         "visual_approval_claimed": False,
     }
@@ -228,9 +275,12 @@ def main() -> int:
     except EvidenceValidationError as exc:
         print(f"GRAND_PLACE_FACADE_EVIDENCE_FAIL {exc}")
         return 1
+    facing = result["source_surface_facing"]
     print(
         "GRAND_PLACE_FACADE_EVIDENCE_STRUCTURALLY_VALID "
         f"views={result['view_count']} resolution={result['resolution'][0]}x{result['resolution'][1]} "
+        f"maison_du_roi_front_wall_ratio={facing['front_facing_wall_area_ratio']:.6f} "
+        f"maison_du_roi_front_roof_ratio={facing['front_facing_roof_area_ratio']:.6f} "
         "human_review=pending visual_approval_claimed=false"
     )
     return 0

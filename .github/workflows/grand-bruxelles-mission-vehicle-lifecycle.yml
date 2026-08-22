@@ -45,3 +45,112 @@ jobs:
             /tmp/mission-vehicle-import.log
             /tmp/mission-vehicle-lifecycle.log
           if-no-files-found: error
+
+  rendered-base-head-diagnostic:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+      - name: Install renderer dependencies and Godot 4.7.1
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-utils
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | grep -F "4.7.1.stable"
+      - name: Import exact base and head
+        run: |
+          set -euo pipefail
+          for side in base head; do
+            rm -rf "$side/grand-bruxelles-game/.godot"
+            /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path "$side/grand-bruxelles-game" --quit > "/tmp/mission-render-${side}-import.log" 2>&1
+            if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|Failed to import" "/tmp/mission-render-${side}-import.log"; then exit 1; fi
+          done
+      - name: Capture frozen rendered fingerprints without overriding their verdict
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mission-render-delta
+          for side in base head; do
+            set +e
+            timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+              --path "$side/grand-bruxelles-game" \
+              --rendering-method gl_compatibility \
+              --script res://game/tests/rendered_main_baseline_test.gd \
+              > "/tmp/mission-render-delta/${side}.log" 2>&1
+            rc=$?
+            set -e
+            printf '%s\n' "$rc" > "/tmp/mission-render-delta/${side}.exit_code"
+            grep -q "RENDERED_MAIN_VISUAL_FINGERPRINT_JSON:" "/tmp/mission-render-delta/${side}.log"
+            SIDE="$side" python3 - <<'PY'
+          import json, os, pathlib
+          side = os.environ["SIDE"]
+          log = pathlib.Path(f"/tmp/mission-render-delta/{side}.log").read_text(errors="replace")
+          marker = "RENDERED_MAIN_VISUAL_FINGERPRINT_JSON: "
+          rows = [line.split(marker, 1)[1] for line in log.splitlines() if marker in line]
+          if not rows:
+              raise SystemExit(f"missing fingerprint for {side}")
+          payload = json.loads(rows[-1])
+          pathlib.Path(f"/tmp/mission-render-delta/{side}-fingerprint.json").write_text(
+              json.dumps(payload, sort_keys=True, indent=2) + "\n"
+          )
+          PY
+            if test -s "$side/grand-bruxelles-game/artifacts/rendered-main-baseline.png"; then
+              cp "$side/grand-bruxelles-game/artifacts/rendered-main-baseline.png" "/tmp/mission-render-delta/${side}.png"
+            fi
+          done
+      - name: Measure exact base-to-head visual delta
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('/tmp/mission-render-delta')
+          base = json.loads((root / 'base-fingerprint.json').read_text())['fingerprint']
+          head = json.loads((root / 'head-fingerprint.json').read_text())['fingerprint']
+          if base['width'] != head['width'] or base['height'] != head['height']:
+              raise SystemExit('base/head dimensions differ')
+          bt = base['tiles_rgbl']
+          ht = head['tiles_rgbl']
+          if len(bt) != len(ht) or not bt:
+              raise SystemExit('base/head tile grids differ')
+          deltas = [abs(float(a[3]) - float(b[3])) for a, b in zip(bt, ht)]
+          idx = max(range(len(deltas)), key=deltas.__getitem__)
+          cols = int(base['tile_cols'])
+          result = {
+              'schema': 'grand-bruxelles-mission-render-base-head-delta-v1',
+              'base_sha': '${{ github.event.pull_request.base.sha }}',
+              'head_sha': '${{ github.event.pull_request.head.sha }}',
+              'max_tile_luma_delta': round(deltas[idx], 6),
+              'max_tile_index': idx,
+              'max_tile_row': idx // cols,
+              'max_tile_col': idx % cols,
+              'base_tile_luma': float(bt[idx][3]),
+              'head_tile_luma': float(ht[idx][3]),
+              'base_frozen_exit_code': int((root / 'base.exit_code').read_text().strip()),
+              'head_frozen_exit_code': int((root / 'head.exit_code').read_text().strip()),
+              'merge_authorized_by_diagnostic': False,
+              'frozen_threshold_changed': False,
+          }
+          (root / 'comparison.json').write_text(json.dumps(result, sort_keys=True, indent=2) + '\n')
+          print('MISSION_RENDER_BASE_HEAD_DELTA_JSON:', json.dumps(result, sort_keys=True))
+          PY
+      - name: Upload exact base/head diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-mission-render-base-head-delta
+          path: /tmp/mission-render-delta
+          if-no-files-found: error

@@ -1,0 +1,34 @@
+{
+  "schema": "grand-bruxelles-city-machine-zone-onboarding-candidate-v1",
+  "zone": "midi",
+  "source_root": "data/urbis/midi",
+  "source_crs": "EPSG:31370",
+  "coordinate_contract": {
+    "frame": "grand_bruxelles_project_global",
+    "origin_easting_m": 147868.29422791934,
+    "origin_northing_m": 169538.62414926197,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres",
+    "runtime_translation_m": [0.0, 0.0, 0.0],
+    "additional_zone_offset_allowed": false
+  },
+  "normalized_runtime_inputs": {
+    "buildings": "data/urbis/midi/buildings.game.json",
+    "street_surfaces": "data/urbis/midi/street_surfaces.game.json",
+    "street_axes": "data/urbis/midi/street_axes.game.json"
+  },
+  "legacy_runtime_inputs_forbidden": [
+    "data/urbis/midi/midi_runtime.game.json"
+  ],
+  "activation": {
+    "registry_mutation_authorized": false,
+    "runtime_mount_authorized": false,
+    "jouable_promotion_authorized": false
+  },
+  "blockers": [
+    "REGISTRY_OWNERSHIP_CONFLICT",
+    "SOURCE_LICENSE_FIELD_MISSING",
+    "OSM_ENVIRONMENT_CACHE_MISSING",
+    "RUNTIME_GEOMETRY_MOUNT_NOT_REGISTERED"
+  ]
+}

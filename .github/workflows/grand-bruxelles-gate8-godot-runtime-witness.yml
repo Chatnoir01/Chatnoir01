@@ -81,7 +81,38 @@ jobs:
           mkdir -p /tmp/gate8-witness
           export GATE8_WITNESS_DIR=/tmp/gate8-witness
           timeout 240s xvfb-run -a "$GODOT" --path grand-bruxelles-game --rendering-method gl_compatibility --audio-driver Dummy res://game/tests/gate8_runtime_witness.tscn 2>&1 | tee /tmp/gate8-witness.log
-          grep -q '^GATE8_RUNTIME_WITNESS_OK captures=24 models=8 distances=2m,5m,8m dynamic_grounding=true isolated_subviewport=true front_facing=true front_yaw_deg=0\.0$' /tmp/gate8-witness.log
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lines = [
+              line for line in Path('/tmp/gate8-witness.log').read_text().splitlines()
+              if line.startswith('GATE8_RUNTIME_WITNESS_OK ')
+          ]
+          assert len(lines) == 1, f'expected exactly one witness summary, got {lines!r}'
+          fields = {}
+          for token in lines[0].split()[1:]:
+              if '=' not in token:
+                  continue
+              key, value = token.split('=', 1)
+              fields[key] = value
+          required = {
+              'captures': '24',
+              'models': '8',
+              'distances': '2m,5m,8m',
+              'dynamic_grounding': 'true',
+              'isolated_subviewport': 'true',
+              'front_facing': 'true',
+              'front_yaw_deg': '0.0',
+              'full_body_framing': 'true',
+              'camera_fov_deg': '68.0',
+          }
+          mismatches = {
+              key: (fields.get(key), expected)
+              for key, expected in required.items()
+              if fields.get(key) != expected
+          }
+          assert not mismatches, f'Gate-8 witness summary mismatch: {mismatches}; fields={fields}'
+          PY
           test "$(grep -c '^GATE8_RUNTIME_FRAME_OK .* front_yaw_deg=0\.0 ' /tmp/gate8-witness.log)" = "24"
           test "$(find /tmp/gate8-witness -maxdepth 1 -type f -name 'gate8-*.png' | wc -l)" = "24"
           python3 - <<'PY'

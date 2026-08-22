@@ -33,6 +33,8 @@ jobs:
           grep -q 'const SURVIVOR_VARIANTS: Array\[int\] = \[1, 3, 5, 6, 8\]' grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd
           grep -q 'const REJECTED_VARIANTS: Array\[int\] = \[2, 4, 7\]' grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd
           grep -q 'autoload_contamination' grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd
+          grep -q 'regression_invalid_skeleton_link_not_detected' grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd
+          grep -q 'regression_missing_skinned_material_not_detected' grand-bruxelles-game/game/tests/gate8_dynamic_readiness_test.gd
 
       - name: Download immutable helper-clean Gate-8 artifact
         env:
@@ -101,9 +103,10 @@ jobs:
           set -euo pipefail
           timeout 180s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_dynamic_readiness_test.gd 2>&1 | tee /tmp/gate8-dynamic-readiness.log
           ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-dynamic-readiness.log
-          grep -q '^GATE8_DYNAMIC_PREFLIGHT_OK candidates=5 rejected_excluded=3 locomotion_ready=0 blocked=5 .* player_asset_reused=false animation_retargeted=false production_activation=false autoload_isolated=true$' /tmp/gate8-dynamic-readiness.log
+          grep -q '^GATE8_DYNAMIC_PREFLIGHT_OK candidates=5 rejected_excluded=3 locomotion_ready=0 blocked=5 skeletons=5 skinned_meshes=40 skinned_surfaces=40 materials=40 vertices=110309 invalid_skeleton_links=0 missing_material_surfaces=0 animation_players=0 animations=0 foot_bones=10 player_asset_reused=false animation_retargeted=false production_activation=false autoload_isolated=true skin_links_resolved=true skinned_surface_materials_complete=true$' /tmp/gate8-dynamic-readiness.log
           test "$(grep -c '^GATE8_DYNAMIC_VARIANT ' /tmp/gate8-dynamic-readiness.log)" = "5"
           test "$(grep -c 'locomotion_ready=false$' /tmp/gate8-dynamic-readiness.log)" = "5"
+          test "$(grep '^GATE8_DYNAMIC_VARIANT ' /tmp/gate8-dynamic-readiness.log | grep -c 'invalid_skeleton_links=0 missing_material_surfaces=0')" = "5"
           test "$(grep '^GATE8_DYNAMIC_VARIANT ' /tmp/gate8-dynamic-readiness.log | grep -c 'animation_players=0 animations=0')" = "5"
           ! grep -q '^GATE8_DYNAMIC_VARIANT variant=02\|^GATE8_DYNAMIC_VARIANT variant=04\|^GATE8_DYNAMIC_VARIANT variant=07' /tmp/gate8-dynamic-readiness.log
 

@@ -8,11 +8,16 @@ const ACTION_META := "combat_action_lock_until_ms"
 const TRANSIENT_BLEND_S := 0.055
 const SHOT_LOCK_MS := 180
 const SHOT_RESTART_GUARD_MS := 95
+const HITSTOP_MIN_MS := 24
+const HITSTOP_MAX_MS := 72
 
 var _bound_player_id := 0
 var _animation_player: AnimationPlayer = null
 var _animation_names: PackedStringArray = PackedStringArray()
 var _last_shot_animation_ms := -100000
+var _hitstop_active := false
+var _hitstop_token := 0
+var _hitstop_restore_speed := 1.0
 
 func _ready() -> void:
     process_priority = 50
@@ -68,6 +73,31 @@ func request_shot_pose(player: CharacterBody3D, weapon_id: StringName) -> void:
     _play_transient(animation, 1.22 if weapon_id == &"sct8" else 1.34)
     player.set_meta("combat_pose_shot_safe_fallback", false)
 
+func request_hitstop(player: CharacterBody3D, duration_ms: int) -> void:
+    if player == null or not is_instance_valid(player) or not _ensure_bound(player):
+        return
+    var clamped_ms := clampi(duration_ms, HITSTOP_MIN_MS, HITSTOP_MAX_MS)
+    _hitstop_token += 1
+    var token := _hitstop_token
+    if not _hitstop_active:
+        _hitstop_restore_speed = maxf(_animation_player.speed_scale, 0.01)
+    _hitstop_active = true
+    _animation_player.speed_scale = 0.0
+    var now := Time.get_ticks_msec()
+    player.set_meta("combat_hitstop_active", true)
+    player.set_meta("combat_hitstop_until_ms", now + clamped_ms)
+    player.set_meta("combat_hitstop_animation_speed_before", _hitstop_restore_speed)
+    var timer := get_tree().create_timer(float(clamped_ms) / 1000.0, true, false, true)
+    await timer.timeout
+    if token != _hitstop_token:
+        return
+    if is_instance_valid(_animation_player):
+        _animation_player.speed_scale = maxf(_hitstop_restore_speed, 0.01)
+    _hitstop_active = false
+    if player != null and is_instance_valid(player):
+        player.set_meta("combat_hitstop_active", false)
+        player.set_meta("combat_hitstop_released_ms", Time.get_ticks_msec())
+
 func _ensure_bound(player: CharacterBody3D) -> bool:
     if _bound_player_id == player.get_instance_id() and is_instance_valid(_animation_player):
         return true
@@ -116,10 +146,15 @@ func _current_player() -> CharacterBody3D:
     return scene.get_node_or_null("Player") as CharacterBody3D
 
 func _clear_binding() -> void:
+    if _hitstop_active and is_instance_valid(_animation_player):
+        _animation_player.speed_scale = maxf(_hitstop_restore_speed, 0.01)
     _bound_player_id = 0
     _animation_player = null
     _animation_names = PackedStringArray()
     _last_shot_animation_ms = -100000
+    _hitstop_active = false
+    _hitstop_token += 1
+    _hitstop_restore_speed = 1.0
 
 static func melee_variant_hint(move_id: StringName) -> String:
     match move_id:

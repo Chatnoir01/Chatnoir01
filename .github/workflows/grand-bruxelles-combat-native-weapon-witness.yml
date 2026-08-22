@@ -1,0 +1,102 @@
+name: Grand Bruxelles Combat Native Weapon Witness
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-combat-native-weapon-witness.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/player_combat_arsenal_polish_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_native_weapon_presentation_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_weapon_hand_orientation_polish_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/authored_player_combat_locomotion_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/combat_authored_pose_polish_runtime.gd"
+      - "grand-bruxelles-game/game/tests/combat_native_weapon_player_witness_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: combat-native-witness-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-player-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/combat-native-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/combat-native-import.log; then exit 1; fi
+      - name: Capture native weapon player witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/combat_native_weapon_player_witness_test.gd \
+            2>&1 | tee /tmp/combat-native-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|COMBAT_NATIVE_WEAPON_PLAYER_WITNESS_FAIL" /tmp/combat-native-witness.log; then exit 1; fi
+          grep -F "COMBAT_NATIVE_WEAPON_PLAYER_WITNESS_OK" /tmp/combat-native-witness.log
+          test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/crossbow.png
+          test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/knife.png
+          test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/bx9_after_native.png
+          test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/report.json
+      - name: Validate native witness metrics
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('grand-bruxelles-game/artifacts/qa/combat_native_weapon')
+          report = json.loads((root / 'report.json').read_text(encoding='utf-8'))
+          if report.get('resolution') != [1280, 720]:
+              raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: resolution drift')
+          if report.get('single_visual_owner') is not True:
+              raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: single owner false')
+          crossbow = report['weapons']['crossbow']
+          knife = report['weapons']['knife']
+          bx9 = report['weapons']['bx9_after_native']
+          if crossbow.get('native_visible') != ['2H_Crossbow']:
+              raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: crossbow native inventory drift')
+          if float(crossbow.get('hand_region_gap_m', 999)) > 0.1201 or not crossbow.get('orientation_locked'):
+              raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: crossbow grip/orientation')
+          c_extent = crossbow['bounds']['extent_px']
+          k_extent = knife['bounds']['extent_px']
+          if float(c_extent[0]) < 10 or float(c_extent[1]) < 8:
+              raise SystemExit(f'COMBAT_NATIVE_WITNESS_METRICS_FAIL: crossbow extent {c_extent}')
+          if knife.get('native_visible') != ['Knife'] or not knife.get('orientation_locked'):
+              raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: knife visibility/orientation')
+          if float(k_extent[0]) < 4 or float(k_extent[1]) < 4:
+              raise SystemExit(f'COMBAT_NATIVE_WITNESS_METRICS_FAIL: knife extent {k_extent}')
+          if bx9.get('native_visible') != [] or not bx9.get('grip_locked') or not bx9.get('orientation_locked'):
+              raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: BX-9 regrip/ghost regression')
+          if int(bx9.get('max_visual_owners_during_rapid_switch', 99)) > 1:
+              raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: rapid switch overlap')
+          print('COMBAT_NATIVE_WITNESS_METRICS_OK: crossbow_extent=%sx%s knife_extent=%sx%s max_owner=1' % (*c_extent, *k_extent))
+          PY
+          cp /tmp/combat-native-witness.log grand-bruxelles-game/artifacts/qa/combat_native_weapon/witness.log
+          cp /tmp/combat-native-import.log grand-bruxelles-game/artifacts/qa/combat_native_weapon/import.log
+      - name: Upload native weapon evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: combat-native-weapon-player-witness
+          path: grand-bruxelles-game/artifacts/qa/combat_native_weapon
+          if-no-files-found: error

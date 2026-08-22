@@ -1,0 +1,45 @@
+{
+  "schema": "grand-bruxelles-infrabel-track-segments-intake-contract-v2",
+  "production_base_sha": "edbda650e88979131753279343bebf2e5c1d35c5",
+  "publisher": "Infrabel",
+  "dataset_title": "Geographical position of all track segments",
+  "dataset_id": "geografische-positie-van-alle-spoorsegmenten",
+  "dataset_page": "https://opendata.infrabel.be/explore/dataset/geografische-positie-van-alle-spoorsegmenten/",
+  "metadata_api": "https://opendata.infrabel.be/api/explore/v2.1/catalog/datasets/geografische-positie-van-alle-spoorsegmenten",
+  "license": "CC0-1.0",
+  "publisher_master_crs": "EPSG:31370",
+  "publisher_accuracy_note": "10 cm to 1 m depending on location",
+  "locked_snapshot": {
+    "title": "Data_INFRABEL_TRA_SECTION_20250430.geojson.geojson",
+    "snapshot_date": "2025-04-30",
+    "url": "https://opendata.infrabel.be/api/explore/v2.1/catalog/datasets/geografische-positie-van-alle-spoorsegmenten/alternative_exports/data_infrabel_tra_section_20250430_geojson_geojson",
+    "sha256": "0ae90345fb602d393143cd11680c1610c148c8cb948ba7d9a641ba11539dbc10",
+    "feature_count": 25068,
+    "segment_id_set_sha256": "88628b09b1aac78f5315e2ec0eba49e0c16077bed5a451490646b76d19134034"
+  },
+  "freshness_policy": {
+    "require_revision_alignment_before_source_registration": true,
+    "historical_snapshot_registration_authorized": false,
+    "wgs84_reprojection_as_canonical_source_authorized": false
+  },
+  "required_payload": {
+    "format": "GeoJSON",
+    "crs": "EPSG:31370",
+    "wgs84_fallback_authorized": false,
+    "minimum_feature_count": 1000,
+    "require_unique_lambert72_candidate": true,
+    "require_coordinate_range_validation": true
+  },
+  "hard_rules": {
+    "source_registration_only": true,
+    "source_registration_authorized": false,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "materialization_authorized": false,
+    "geometry_modified": false,
+    "semantic_names_authorized": false,
+    "game_world_transform_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

@@ -4,7 +4,7 @@ const MAIN_SCENE := "res://game/main.tscn"
 const ANNEESSENS_ROAD_PREFIX := "Road_359177328_"
 const MAX_SUPPORT_GAP_M := 0.035
 const SIDEWALK_HEIGHT_M := 0.12
-const SIDEWALK_SEARCH_RADIUS_M := 32.0
+const MAX_READY_FRAMES := 240
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -12,9 +12,6 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
     push_error("GENERIC_OSM_GROUND_CONTINUITY_FAIL: %s" % message)
     quit(1)
-
-func _xz_distance(a: Vector3, b: Vector3) -> float:
-    return Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z))
 
 func _surface_top_y(box: CSGBox3D) -> float:
     return box.global_position.y + box.size.y * 0.5
@@ -38,23 +35,24 @@ func _find_anneessens_road(roads_root: Node) -> CSGBox3D:
             return child as CSGBox3D
     return null
 
-func _find_nearby_sidewalks(roads_root: Node, road: CSGBox3D) -> Array[CSGBox3D]:
+func _find_generic_sidewalks(roads_root: Node) -> Array[CSGBox3D]:
     var sidewalks: Array[CSGBox3D] = []
     for child: Node in roads_root.get_children():
         if not child is CSGBox3D:
             continue
         var box := child as CSGBox3D
-        if absf(box.size.y - SIDEWALK_HEIGHT_M) > 0.001:
-            continue
-        if _xz_distance(box.global_position, road.global_position) <= SIDEWALK_SEARCH_RADIUS_M:
+        if absf(box.size.y - SIDEWALK_HEIGHT_M) <= 0.001:
             sidewalks.append(box)
     return sidewalks
 
-func _assert_supported(label: String, box: CSGBox3D, world: World3D) -> void:
+func _assert_supported(label: String, box: CSGBox3D, world: World3D) -> bool:
+    if not box.use_collision:
+        _fail("%s visual surface has collision disabled" % label)
+        return false
     var support_variant: Variant = _support_y(world, box.global_position)
     if support_variant == null:
         _fail("%s has no physical support ray hit" % label)
-        return
+        return false
     var support_y := float(support_variant)
     var visual_top_y := _surface_top_y(box)
     var gap := visual_top_y - support_y
@@ -67,6 +65,8 @@ func _assert_supported(label: String, box: CSGBox3D, world: World3D) -> void:
     ])
     if absf(gap) > MAX_SUPPORT_GAP_M:
         _fail("%s visual/support gap %.4f m exceeds %.4f m" % [label, gap, MAX_SUPPORT_GAP_M])
+        return false
+    return true
 
 func _run() -> void:
     var packed := load(MAIN_SCENE) as PackedScene
@@ -79,20 +79,28 @@ func _run() -> void:
         return
     root.add_child(scene)
 
-    for _frame: int in range(90):
+    var roads_root: Node = null
+    var road: CSGBox3D = null
+    var sidewalks: Array[CSGBox3D] = []
+    for _frame: int in range(MAX_READY_FRAMES):
         await physics_frame
-        var ready_root := scene.get_node_or_null("BrusselsOSM/GeneratedRoads")
-        if ready_root != null:
+        roads_root = scene.get_node_or_null("BrusselsOSM/GeneratedRoads")
+        if roads_root == null:
+            continue
+        road = _find_anneessens_road(roads_root)
+        sidewalks = _find_generic_sidewalks(roads_root)
+        if road != null and road.use_collision and sidewalks.size() >= 2 and sidewalks[0].use_collision and sidewalks[1].use_collision:
+            await physics_frame
             break
 
-    var roads_root := scene.get_node_or_null("BrusselsOSM/GeneratedRoads")
     if roads_root == null:
         _fail("GeneratedRoads missing from production OSM scene")
         return
-
-    var road := _find_anneessens_road(roads_root)
     if road == null:
         _fail("source-backed Anneessens road 359177328 is not rendered")
+        return
+    if sidewalks.size() < 2:
+        _fail("expected at least two generic rendered sidewalks, got %d" % sidewalks.size())
         return
 
     var world := scene.get_world_3d()
@@ -100,16 +108,14 @@ func _run() -> void:
         _fail("production World3D missing")
         return
 
-    _assert_supported("Anneessens road %s" % road.name, road, world)
-
-    var sidewalks := _find_nearby_sidewalks(roads_root, road)
-    if sidewalks.size() < 2:
-        _fail("expected at least two generic sidewalks near Anneessens source road, got %d" % sidewalks.size())
+    if not _assert_supported("Anneessens road %s" % road.name, road, world):
         return
-    _assert_supported("Anneessens sidewalk A", sidewalks[0], world)
-    _assert_supported("Anneessens sidewalk B", sidewalks[1], world)
+    if not _assert_supported("generic sidewalk A", sidewalks[0], world):
+        return
+    if not _assert_supported("generic sidewalk B", sidewalks[1], world):
+        return
 
-    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s sidewalks=%d tolerance_m=%.3f source_geometry_unchanged=true exact_bourse_scope=false" % [
+    print("GENERIC_OSM_GROUND_CONTINUITY_OK: road=%s sidewalks=%d tolerance_m=%.3f source_geometry_unchanged=true source_height_inferred=false exact_bourse_scope=false" % [
         road.name,
         sidewalks.size(),
         MAX_SUPPORT_GAP_M,

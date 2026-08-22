@@ -186,11 +186,11 @@ jobs:
 
           result = json.loads(Path('/tmp/gate8_variant01_retarget_preflight_result.json').read_text())
           assert result['format'] == 'grand-bruxelles-gate8-variant01-retarget-preflight-result-v2'
-          assert result['engine_version'].startswith('4.7.1.stable')
+          assert result['engine_version'] == '4.7.1-stable (official)'
           assert result['candidate_variant'] == 1
           assert result['candidate_static_verdict'] == 'AMELIORER'
           assert result['candidate_dynamic_state'] == 'BLOCKED_NO_EXACT_RUN'
-          assert result['source_animation_players'] >= 1
+          assert result['source_animation_players'] == 1
           assert result['source_animation_count'] == 46
           assert result['target_animation_players'] == 0
           assert result['target_animation_count'] == 0
@@ -205,9 +205,11 @@ jobs:
           assert result['exact_single_idle_walk_run_trio'] is False
           assert result['source_suitable_for_direct_idle_walk_run_adoption'] is False
           assert result['semantic_alias_auto_promotion_allowed'] is False
-          assert result['source_skeletons'] >= 1
-          assert result['target_skeletons'] >= 1
-          assert result['target_skinned_meshes'] >= 1
+          assert result['source_skeletons'] == 1
+          assert result['target_skeletons'] == 1
+          assert result['target_skinned_meshes'] == 8
+          assert result['source_upper_chest_candidates'] == 2
+          assert result['target_upper_chest_candidates'] == 2
           assert result['retarget_applied'] is False
           assert result['production_authorized'] is False
           assert result['activation_ready'] is False
@@ -218,10 +220,10 @@ jobs:
           assert result['failures'] == []
           print(
               'GATE8_VARIANT01_ENGINE_PREFLIGHT_OK '
-              f"animations={result['source_animation_count']} idle=8 walk=2 run=0 "
+              "animations=46 idle=8 walk=2 run=0 "
               f"run_alternatives={result['run_alternatives_review_only']} "
-              f"source_upper_chest={result['source_upper_chest_candidates']} "
-              f"target_upper_chest={result['target_upper_chest_candidates']} "
+              'source_skeletons=1 target_skeletons=1 target_skinned_meshes=8 '
+              'source_upper_chest=2 target_upper_chest=2 '
               'state=BLOCKED_NO_EXACT_RUN retarget_applied=false production_authorized=false'
           )
           PY

@@ -1,0 +1,68 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-retarget-preflight-v2",
+  "base_main_sha": "d0ffc87f88d851298feabea67d52192929ff49cb",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "candidate_dynamic_state": "BLOCKED_NO_EXACT_RUN",
+  "target_character": {
+    "artifact_id": 9470539830,
+    "artifact_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "artifact_source_pr": 1099,
+    "glb_filename": "npc_gate_01.glb",
+    "expected_animation_players": 0,
+    "minimum_skeletons": 1,
+    "minimum_skinned_meshes": 1
+  },
+  "animation_source": {
+    "publisher": "Quaternius",
+    "asset": "Universal Animation Library",
+    "store_version": "Standard-1.0",
+    "license": "CC0-1.0",
+    "download_endpoint": "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205,
+    "godot_standard_glb": "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb",
+    "publisher_marks_unstable": true,
+    "known_upper_chest_risk": true,
+    "expected_engine_animation_count": 46,
+    "expected_exact_token_counts": {
+      "idle": 8,
+      "walk": 2,
+      "run": 0
+    },
+    "review_only_run_alternatives": ["Jog_Fwd", "Sprint"]
+  },
+  "rails": {
+    "single_survivor_only": true,
+    "allowed_variants": [1],
+    "rejected_variants_forbidden": [2, 4, 7],
+    "other_survivors_out_of_scope": [3, 5, 6, 8],
+    "mixamo_payload_allowed": false,
+    "player_character_reuse_allowed": false,
+    "production_authorized": false,
+    "retarget_authorized": false,
+    "retarget_applied": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "package_bytes_committed": false,
+    "semantic_alias_auto_promotion_allowed": false
+  },
+  "preflight_gate": {
+    "godot_version": "4.7.1",
+    "isolated_project_required": true,
+    "engine_visible_internal_catalog_required": true,
+    "exact_token_locomotion_surface_required_for_adoption": true,
+    "blocked_source_is_valid_preflight_result": true,
+    "target_skeleton_required": true,
+    "source_skeleton_required": true,
+    "target_skin_required": true,
+    "humanoid_anchor_inventory_required": true,
+    "upper_chest_candidate_measurement_required": true,
+    "bone_map_application_authorized": false,
+    "grounding_measurement_required_after_retarget": true,
+    "foot_slide_measurement_required_after_retarget": true,
+    "player_view_1280x720_required_after_retarget": true,
+    "web_gl_proof_required_after_retarget": true
+  },
+  "next_action": "preserve BLOCKED_NO_EXACT_RUN; do not auto-map jog or sprint to run. If this source remains under consideration, compare Jog_Fwd and Sprint explicitly in a later isolated semantic A/B before any BoneMap retarget, while keeping production and adoption closed"
+}

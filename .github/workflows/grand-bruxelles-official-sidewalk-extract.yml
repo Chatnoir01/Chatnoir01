@@ -34,13 +34,52 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Fetch bounded official Lambert72 sidewalk source
+      - name: Fetch exact bounded Lambert72 response
         working-directory: grand-bruxelles-game
         run: |
           mkdir -p artifacts/official-sidewalk
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path('tools/brussels_mobility_sidewalk_extract.py')
+          spec = importlib.util.spec_from_file_location('sidewalk_extract', path)
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          raw, url = mod.fetch_official(mod.DEFAULT_BBOX)
+          out = Path('artifacts/official-sidewalk')
+          (out / 'brussels_mobility_sidewalk_corridor_source.geojson').write_bytes(raw)
+          (out / 'source_query_url.txt').write_text(url + '\n')
+          print('OFFICIAL_SIDEWALK_RAW_CAPTURED', len(raw), url)
+          PY
+      - name: Census published ssft values before canonical selection
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from collections import Counter
+          from pathlib import Path
+          out = Path('artifacts/official-sidewalk')
+          raw = (out / 'brussels_mobility_sidewalk_corridor_source.geojson').read_bytes()
+          doc = json.loads(raw)
+          features = doc.get('features', [])
+          counts = Counter(str((f.get('properties') or {}).get('ssft', '')).strip() or '<missing>' for f in features)
+          ids = sorted(str(f.get('id', '')).strip() for f in features if str(f.get('id', '')).strip())
+          census = {
+            'query_bbox': [147650.0, 169300.0, 149100.0, 171050.0],
+            'input_feature_count': len(features),
+            'ssft_counts': dict(sorted(counts.items())),
+            'raw_source_sha256': hashlib.sha256(raw).hexdigest(),
+            'all_feature_id_sha256': hashlib.sha256(''.join(f'{fid}\n' for fid in ids).encode()).hexdigest(),
+          }
+          (out / 'brussels_mobility_sidewalk_ssft_census.json').write_text(json.dumps(census, indent=2, sort_keys=True) + '\n')
+          print('OFFICIAL_SIDEWALK_SSFT_CENSUS', json.dumps(census, sort_keys=True))
+          PY
+      - name: Canonicalize required SW subset fail-closed
+        working-directory: grand-bruxelles-game
+        run: |
           python tools/brussels_mobility_sidewalk_extract.py \
-            --output artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json \
-            --raw-output artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_source.geojson
+            --input artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_source.geojson \
+            --output artifacts/official-sidewalk/brussels_mobility_sidewalk_corridor_extract.json
       - name: Verify extract remains source-only and bounded
         working-directory: grand-bruxelles-game
         run: |
@@ -62,7 +101,9 @@ jobs:
           assert doc['policy']['jouable_promotion_authorized'] is False
           print('OFFICIAL_SIDEWALK_ARTIFACT_VERIFIED', doc['feature_count'], doc['source_sha256'], doc['feature_id_sha256'])
           PY
-      - uses: actions/upload-artifact@v4
+      - name: Upload raw source, census, and canonical extract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: brussels-mobility-sidewalk-corridor-extract
           path: grand-bruxelles-game/artifacts/official-sidewalk/

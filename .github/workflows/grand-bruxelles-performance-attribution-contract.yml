@@ -1,0 +1,43 @@
+name: Grand Bruxelles Performance Attribution Contract
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/tools/rendered_main_base_attribution.py"
+      - "grand-bruxelles-game/tools/tests/test_rendered_main_base_attribution.py"
+      - ".github/workflows/grand-bruxelles-performance-attribution-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  attribution-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run attribution regression suite
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v grand-bruxelles-game/tools/tests/test_rendered_main_base_attribution.py
+
+      - name: Prove frozen guard constants remain unchanged
+        run: |
+          set -euo pipefail
+          grep -q 'const MAX_SINGLE_TILE_LUMA_DELTA := 0.165' grand-bruxelles-game/game/tests/rendered_main_baseline_test.gd
+          grep -q 'const MAX_TILE_RGB_MAE := 0.055' grand-bruxelles-game/game/tests/rendered_main_baseline_test.gd
+          grep -q 'const MAX_TILE_LUMA_MAE := 0.045' grand-bruxelles-game/game/tests/rendered_main_baseline_test.gd
+          grep -q 'const MAX_LUMA_HISTOGRAM_MAE := 0.055' grand-bruxelles-game/game/tests/rendered_main_baseline_test.gd
+          echo 'PERFORMANCE_ATTRIBUTION_FROZEN_GUARDS_OK'
+
+      - name: Require fail-closed monotonic contract
+        run: |
+          set -euo pipefail
+          grep -q 'base_frozen_baseline_failed' grand-bruxelles-game/tools/rendered_main_base_attribution.py
+          grep -q 'max_regression_away_from_frozen' grand-bruxelles-game/tools/rendered_main_base_attribution.py
+          grep -q 'max_histogram_regression_away_from_frozen' grand-bruxelles-game/tools/rendered_main_base_attribution.py
+          grep -q 'monotonic_toward_frozen' grand-bruxelles-game/tools/rendered_main_base_attribution.py
+          echo 'PERFORMANCE_ATTRIBUTION_CONTRACT_OK'

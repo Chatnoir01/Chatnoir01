@@ -20,6 +20,19 @@ def test_facade_evidence_workflow_runs_real_godot_capture():
         assert marker in workflow, f"dedicated facade evidence workflow is fixture-only or not exact-head; missing {marker!r}"
 
 
+def test_facade_evidence_artifact_hashes_all_four_exact_png_frames():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    required = [
+        "sha256sum canonical.png cornet_renard.png brasseurs_rose_thabor.png maison_du_roi.png > png-sha256.txt",
+        "sha256sum --check png-sha256.txt",
+        'test "$(wc -l < png-sha256.txt)" -eq 4',
+        "GRAND_PLACE_FACADE_PNG_HASHES_OK count=4",
+        "grand-bruxelles-game/artifacts/grand-place-facade-evidence/png-sha256.txt",
+    ]
+    for marker in required:
+        assert marker in workflow, f"facade witness bytes are not fail-closed and hash-bound; missing {marker!r}"
+
+
 def test_capture_harness_is_engine_bound_and_writes_four_png_views():
     assert CAPTURE.is_file(), "real Godot facade capture harness is missing"
     source = CAPTURE.read_text(encoding="utf-8")

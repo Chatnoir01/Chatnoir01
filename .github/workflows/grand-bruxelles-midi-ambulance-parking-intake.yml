@@ -18,6 +18,51 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+
+      - name: Discover current exact OSM parking tags on vertical-slice roads
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 - <<'PY'
+          import json
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          snapshot = json.loads(Path('data/osm/vertical_slice_01.game.json').read_text(encoding='utf-8'))
+          road_ids = sorted({int(road['osm_id']) for road in snapshot.get('roads', []) if isinstance(road, dict) and isinstance(road.get('osm_id'), int)})
+          query = '[out:json][timeout:60];way(id:%s);out tags meta;' % ','.join(map(str, road_ids))
+          request = urllib.request.Request(
+              'https://overpass-api.de/api/interpreter',
+              data=urllib.parse.urlencode({'data': query}).encode('utf-8'),
+              headers={'User-Agent': 'GrandBruxellesGame/1.0 parking-evidence-intake'},
+          )
+          with urllib.request.urlopen(request, timeout=90) as response:
+              payload = json.load(response)
+
+          found = []
+          for element in payload.get('elements', []):
+              tags = element.get('tags', {}) if isinstance(element.get('tags'), dict) else {}
+              evidence = {
+                  key: value for key, value in tags.items()
+                  if key in {'amenity'} and value in {'parking', 'parking_space'}
+                  or key == 'parking:left' or key.startswith('parking:left:')
+                  or key == 'parking:right' or key.startswith('parking:right:')
+                  or key == 'parking:both' or key.startswith('parking:both:')
+              }
+              if not evidence:
+                  continue
+              found.append({
+                  'type': element.get('type'),
+                  'id': element.get('id'),
+                  'version': element.get('version'),
+                  'timestamp': element.get('timestamp'),
+                  'tags': tags,
+                  'parking_evidence_tags': evidence,
+              })
+          print('MIDI_OSM_PARKING_DISCOVERY_JSON=' + json.dumps(found, ensure_ascii=False, sort_keys=True, separators=(',', ':')))
+          print('MIDI_OSM_PARKING_DISCOVERY_COUNT=%d' % len(found))
+          PY
+
       - name: Validate current fail-closed registry
         working-directory: grand-bruxelles-game
         run: |

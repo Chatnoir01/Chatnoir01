@@ -23,7 +23,9 @@ jobs:
         run: |
           python3 tools/validate_midi_ambulance_parking_evidence.py \
             --registry data/traffic/midi_ambulance_parking_evidence.json \
-            --snapshot data/osm/vertical_slice_01.game.json
+            --snapshot data/osm/vertical_slice_01.game.json \
+            | tee /tmp/midi_ambulance_parking_registry.log
+          grep -q '"versioned_source_binding": true' /tmp/midi_ambulance_parking_registry.log
       - name: Prove production readiness remains closed without two source records
         working-directory: grand-bruxelles-game
         run: |

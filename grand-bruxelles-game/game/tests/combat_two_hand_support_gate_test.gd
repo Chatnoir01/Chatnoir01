@@ -85,6 +85,24 @@ func _run() -> void:
             _fail("weapon never reached equipped state: %s" % weapon_id)
             return
 
+        # CBR-4 and SCT-8 are procedural. Their numeric IK target must live
+        # inside the actual visible handguard/foregrip so this gate can never
+        # pass by making the avatar grip empty space.
+        if weapon_id == &"cbr4" or weapon_id == &"sct8":
+            var holder := player.get_node_or_null("CombatWeaponVisual") as Node3D
+            if holder == null:
+                _fail("long-weapon holder unavailable for %s" % weapon_id)
+                return
+            if not bool(holder.get_meta("combat_long_weapon_support_surface_locked", false)):
+                _fail("support socket is outside visible foregrip for %s: surface=%s socket=%s center=%s size=%s" % [
+                    weapon_id,
+                    String(holder.get_meta("combat_long_weapon_support_surface_name", "")),
+                    str(holder.get_meta("combat_long_weapon_support_socket_local", Vector3.ZERO)),
+                    str(holder.get_meta("combat_long_weapon_support_surface_position", Vector3.ZERO)),
+                    str(holder.get_meta("combat_long_weapon_support_surface_size", Vector3.ZERO)),
+                ])
+                return
+
         var support_locked := false
         for _attempt: int in range(180):
             await process_frame
@@ -105,5 +123,5 @@ func _run() -> void:
             _fail("armed shoulder camera not active for %s: profile=%s offset=%s" % [weapon_id, shoulder_profile, shoulder_offset])
             return
 
-    print("COMBAT_TWO_HAND_SUPPORT_OK: weapons=cbr4/sct8/crossbow builtin_ik=green no_bone_override=green left_hand_gap<=%.2fm shoulder_camera=green" % MAX_SUPPORT_GAP_M)
+    print("COMBAT_TWO_HAND_SUPPORT_OK: weapons=cbr4/sct8/crossbow builtin_ik=green no_bone_override=green left_hand_gap<=%.2fm visible_foregrip_contract=green shoulder_camera=green" % MAX_SUPPORT_GAP_M)
     quit(0)

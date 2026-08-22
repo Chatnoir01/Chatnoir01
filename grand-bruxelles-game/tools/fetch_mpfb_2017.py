@@ -93,6 +93,9 @@ def main() -> int:
     args = ap.parse_args()
     target = Path(args.output)
     target.parent.mkdir(parents=True, exist_ok=True)
+    if not URLS or any(f'sha256:{EXPECTED_SHA256}' not in url for url in URLS):
+        print('MPFB_2017_FETCH_FAIL: stable archive URL is not content-addressed by EXPECTED_SHA256')
+        return 1
     last = None
     for url in URLS:
         try:

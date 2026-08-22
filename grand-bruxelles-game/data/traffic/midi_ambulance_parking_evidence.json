@@ -4,7 +4,10 @@
     "provider": "OpenStreetMap contributors",
     "license": "ODbL-1.0",
     "accepted_osm_types": ["node", "way", "relation"],
-    "required_runtime_tag_families": ["amenity=parking", "amenity=parking_space", "parking:left=*", "parking:right=*", "parking:both=*"]
+    "required_runtime_tag_families": ["amenity=parking", "amenity=parking_space", "parking:left=*", "parking:right=*", "parking:both=*"],
+    "versioned_source_binding_required": true,
+    "source_element_required_fields": ["type", "id", "version", "timestamp", "tags"],
+    "source_element_digest": "sha256(canonical-json-sort-keys-compact-utf8)"
   },
   "target": {
     "zone": "Midi",
@@ -13,5 +16,5 @@
   },
   "candidates": [],
   "runtime_ready": false,
-  "status": "HOLD: normalized vertical_slice_01.game.json currently strips parking semantics; no source-backed ambulance parking road is registered yet."
+  "status": "HOLD: normalized vertical_slice_01.game.json currently strips parking semantics; no source-backed ambulance parking road is registered yet. Future approvals must bind exact versioned OSM element tags and canonical SHA-256."
 }

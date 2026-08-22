@@ -62,6 +62,13 @@ jobs:
           test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/knife_close.png
           test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/bx9_after_native_close.png
           test -s grand-bruxelles-game/artifacts/qa/combat_native_weapon/report.json
+      - name: Preserve witness logs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/combat_native_weapon
+          test ! -f /tmp/combat-native-witness.log || cp /tmp/combat-native-witness.log grand-bruxelles-game/artifacts/qa/combat_native_weapon/witness.log
+          test ! -f /tmp/combat-native-import.log || cp /tmp/combat-native-import.log grand-bruxelles-game/artifacts/qa/combat_native_weapon/import.log
       - name: Validate close witness metrics
         shell: bash
         run: |
@@ -71,6 +78,7 @@ jobs:
 
           root = Path('grand-bruxelles-game/artifacts/qa/combat_native_weapon')
           report = json.loads((root / 'report.json').read_text(encoding='utf-8'))
+          print(json.dumps(report, indent=2, sort_keys=True))
           if report.get('resolution') != [1280, 720]:
               raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: resolution drift')
           if report.get('single_visual_owner') is not True:
@@ -99,8 +107,10 @@ jobs:
               raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: crossbow native inventory drift')
           if float(crossbow.get('hand_region_gap_m', 999)) > 0.1201 or not crossbow.get('orientation_locked'):
               raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: crossbow grip/orientation')
-          if float(crossbow.get('carry_gap_m', 999)) > 0.09 or float(crossbow.get('support_gap_m', 999)) > 0.09:
-              raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: crossbow two-hand gap')
+          carry = float(crossbow.get('carry_gap_m', 999))
+          support = float(crossbow.get('support_gap_m', 999))
+          if carry > 0.09 or support > 0.09:
+              raise SystemExit(f'COMBAT_NATIVE_WITNESS_METRICS_FAIL: crossbow two-hand gap carry={carry:.4f} support={support:.4f}')
           c_extent = crossbow['bounds']['extent_px']
           k_extent = knife['bounds']['extent_px']
           if float(c_extent[0]) < 10 or float(c_extent[1]) < 8:
@@ -115,9 +125,8 @@ jobs:
               raise SystemExit('COMBAT_NATIVE_WITNESS_METRICS_FAIL: rapid switch overlap')
           print('COMBAT_NATIVE_WITNESS_METRICS_OK: close_2h=cbr4/sct8/crossbow knife=green bx9_regrip=green max_owner=1')
           PY
-          cp /tmp/combat-native-witness.log grand-bruxelles-game/artifacts/qa/combat_native_weapon/witness.log
-          cp /tmp/combat-native-import.log grand-bruxelles-game/artifacts/qa/combat_native_weapon/import.log
       - name: Upload native weapon evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: combat-native-weapon-player-witness

@@ -4,6 +4,7 @@ const MAIN_SCENE := "res://game/main.tscn"
 const OUT_DIR := "res://artifacts/qa/combat_native_weapon"
 const WIDTH := 1280
 const HEIGHT := 720
+const MAX_TWO_HAND_GAP_M := 0.09
 const NATIVE_NAMES: Array[String] = [
     "Knife_Offhand",
     "1H_Crossbow",
@@ -39,6 +40,17 @@ func _hide_dynamic(node: Node, player: CharacterBody3D) -> void:
         return
     for child: Node in node.get_children():
         _hide_dynamic(child, player)
+
+func _configure_close_pose_camera(player: CharacterBody3D, camera: Camera3D) -> void:
+    var spring_arm := player.get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
+    if spring_arm == null:
+        return
+    # Witness-only composition: close enough to judge shoulders, wrists, palms
+    # and the weapon. Production shoulder-camera behavior has its own gate.
+    player.set_meta("gta_scale_camera_owner", "special_presentation")
+    spring_arm.spring_length = 2.25
+    spring_arm.position = Vector3(0.58, 0.16, 0.0)
+    camera.fov = 48.0
 
 func _capture(path: String) -> bool:
     for _frame: int in range(8):
@@ -78,6 +90,17 @@ func _wait_equipped(player: CharacterBody3D, weapon_id: StringName) -> bool:
         if bool(player.get_meta("combat_weapon_switching", true)):
             continue
         return true
+    return false
+
+func _wait_two_hand_pose(player: CharacterBody3D) -> bool:
+    for _attempt: int in range(240):
+        await process_frame
+        var carry_gap := float(player.get_meta("combat_carry_hand_gap_m", 999.0))
+        var support_gap := float(player.get_meta("combat_support_hand_gap_m", 999.0))
+        if bool(player.get_meta("combat_carry_ik_locked", false)) \
+                and bool(player.get_meta("combat_support_ik_locked", false)) \
+                and carry_gap <= MAX_TWO_HAND_GAP_M and support_gap <= MAX_TWO_HAND_GAP_M:
+            return true
     return false
 
 func _collect_meshes(node: Node, out: Array[MeshInstance3D]) -> void:
@@ -136,6 +159,50 @@ func _assert_single_visual_owner(player: CharacterBody3D) -> bool:
         return false
     return true
 
+func _witness_long_weapon(player: CharacterBody3D, arsenal: Node, camera: Camera3D, weapon_id: StringName, report: Dictionary) -> bool:
+    if not bool(arsenal.call("equip_weapon", player, weapon_id)):
+        _fail("%s equip request rejected" % weapon_id)
+        return false
+    if not await _wait_equipped(player, weapon_id):
+        _fail("%s never reached equipped state" % weapon_id)
+        return false
+    if not await _wait_two_hand_pose(player):
+        _fail("%s two-hand pose did not lock: carry_gap=%.4f support_gap=%.4f" % [
+            weapon_id,
+            float(player.get_meta("combat_carry_hand_gap_m", 999.0)),
+            float(player.get_meta("combat_support_hand_gap_m", 999.0)),
+        ])
+        return false
+    await _wait_frames(16)
+    if not _visible_native_names(player).is_empty():
+        _fail("native ghost visible with %s: %s" % [weapon_id, str(_visible_native_names(player))])
+        return false
+    if not _assert_single_visual_owner(player):
+        return false
+    var holder := player.get_node_or_null("CombatWeaponVisual") as Node3D
+    if holder == null:
+        _fail("%s procedural holder unavailable" % weapon_id)
+        return false
+    var bounds := _project_bounds(holder, camera)
+    if not bool(bounds.get("visible", false)):
+        _fail("%s is not projected in close witness camera" % weapon_id)
+        return false
+    var carry_gap := float(player.get_meta("combat_carry_hand_gap_m", 999.0))
+    var support_gap := float(player.get_meta("combat_support_hand_gap_m", 999.0))
+    var path := OUT_DIR + "/%s_close.png" % String(weapon_id)
+    if not await _capture(path):
+        _fail("%s close capture failed" % weapon_id)
+        return false
+    report["weapons"][String(weapon_id)] = {
+        "two_hand_pose_locked": true,
+        "carry_gap_m": carry_gap,
+        "support_gap_m": support_gap,
+        "support_surface_locked": bool(holder.get_meta("combat_long_weapon_support_surface_locked", false)),
+        "bounds": bounds,
+        "capture": path,
+    }
+    return true
+
 func _run() -> void:
     if change_scene_to_file(MAIN_SCENE) != OK:
         _fail("main scene load failed")
@@ -164,8 +231,14 @@ func _run() -> void:
     player.velocity = Vector3.ZERO
     player.set_physics_process(false)
     _hide_dynamic(root, player)
+    _configure_close_pose_camera(player, camera)
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
-    var report: Dictionary = {"resolution": [WIDTH, HEIGHT], "weapons": {}, "single_visual_owner": true}
+    var report: Dictionary = {"resolution": [WIDTH, HEIGHT], "weapons": {}, "single_visual_owner": true, "close_pose_camera": true}
+
+    if not await _witness_long_weapon(player, arsenal, camera, &"cbr4", report):
+        return
+    if not await _witness_long_weapon(player, arsenal, camera, &"sct8", report):
+        return
 
     if not bool(arsenal.call("equip_weapon", player, &"crossbow")):
         _fail("crossbow equip request rejected")
@@ -173,7 +246,10 @@ func _run() -> void:
     if not await _wait_equipped(player, &"crossbow"):
         _fail("crossbow never reached equipped state")
         return
-    await _wait_frames(24)
+    if not await _wait_two_hand_pose(player):
+        _fail("crossbow two-hand pose did not lock")
+        return
+    await _wait_frames(16)
     var crossbow_visible := _visible_native_names(player)
     if crossbow_visible != ["2H_Crossbow"]:
         _fail("crossbow visibility invariant failed: %s" % str(crossbow_visible))
@@ -189,14 +265,17 @@ func _run() -> void:
     if not bool(player.get_meta("combat_native_crossbow_orientation_locked", false)) or crossbow_gap > 0.1201:
         _fail("crossbow hand-region lock failed: gap=%.4f" % crossbow_gap)
         return
-    if not await _capture(OUT_DIR + "/crossbow.png"):
+    if not await _capture(OUT_DIR + "/crossbow_close.png"):
         _fail("crossbow capture failed")
         return
     report["weapons"]["crossbow"] = {
         "native_visible": crossbow_visible,
         "hand_region_gap_m": crossbow_gap,
+        "carry_gap_m": float(player.get_meta("combat_carry_hand_gap_m", 999.0)),
+        "support_gap_m": float(player.get_meta("combat_support_hand_gap_m", 999.0)),
         "orientation_locked": true,
         "bounds": crossbow_bounds,
+        "capture": OUT_DIR + "/crossbow_close.png",
     }
 
     if not bool(arsenal.call("equip_weapon", player, &"knife")):
@@ -232,7 +311,7 @@ func _run() -> void:
     if not bool(player.get_meta("combat_native_knife_orientation_locked", false)):
         _fail("knife presentation never locked")
         return
-    if not await _capture(OUT_DIR + "/knife.png"):
+    if not await _capture(OUT_DIR + "/knife_close.png"):
         _fail("knife capture failed")
         return
     report["weapons"]["knife"] = {
@@ -240,9 +319,9 @@ func _run() -> void:
         "orientation_locked": true,
         "bounds": knife_bounds,
         "max_visual_owners_during_crossbow_to_knife": max_visual_owners,
+        "capture": OUT_DIR + "/knife_close.png",
     }
 
-    # Rapid input: last request must win while never creating two visible owners.
     if not bool(arsenal.call("equip_weapon", player, &"cbr4")):
         _fail("CBR-4 switch request rejected")
         return
@@ -278,7 +357,7 @@ func _run() -> void:
     if not bool(player.get_meta("combat_weapon_grip_locked", false)) or not bool(player.get_meta("combat_weapon_orientation_locked", false)):
         _fail("BX-9 hand/orientation lock missing after rapid switch")
         return
-    if not await _capture(OUT_DIR + "/bx9_after_native.png"):
+    if not await _capture(OUT_DIR + "/bx9_after_native_close.png"):
         _fail("BX-9 after-native capture failed")
         return
     report["weapons"]["bx9_after_native"] = {
@@ -286,6 +365,7 @@ func _run() -> void:
         "grip_locked": true,
         "orientation_locked": true,
         "max_visual_owners_during_rapid_switch": max_visual_owners,
+        "capture": OUT_DIR + "/bx9_after_native_close.png",
     }
 
     var report_file := FileAccess.open(OUT_DIR + "/report.json", FileAccess.WRITE)
@@ -295,5 +375,5 @@ func _run() -> void:
     report_file.store_string(JSON.stringify(report, "  "))
     report_file.close()
 
-    print("COMBAT_NATIVE_WEAPON_PLAYER_WITNESS_OK: crossbow=visible_lock knife=visible_lock rapid_switch=last_wins single_owner=true bx9_regrip=true")
+    print("COMBAT_NATIVE_WEAPON_PLAYER_WITNESS_OK: cbr4=close_2h sct8=close_2h crossbow=close_2h knife=visible_lock rapid_switch=last_wins single_owner=true bx9_regrip=true")
     quit(0)

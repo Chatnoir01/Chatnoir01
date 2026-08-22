@@ -16,7 +16,8 @@ func _wait_frames(count: int) -> void:
         await process_frame
 
 func _support_diag(player: CharacterBody3D) -> String:
-    return "active=%s gap=%.4f bones=%s reason=%s source=%s socket_local=%s lengths=%s shoulder=%s pre_hand=%s hand=%s target_hand=%s target_wrist=%s" % [
+    return "solver=%s active=%s gap=%.4f bones=%s reason=%s source=%s socket_local=%s lengths=%s clavicle=%s shoulder=%s pre_hand=%s hand=%s target_hand=%s target_wrist=%s" % [
+        String(player.get_meta("combat_support_ik_solver", "")),
         str(player.get_meta("combat_support_ik_active", false)),
         float(player.get_meta("combat_support_hand_gap_m", 999.0)),
         str(player.get_meta("combat_support_ik_bones", {})),
@@ -24,6 +25,7 @@ func _support_diag(player: CharacterBody3D) -> String:
         String(player.get_meta("combat_support_ik_target_source", "")),
         str(player.get_meta("combat_support_socket_local", Vector3.ZERO)),
         str(player.get_meta("combat_support_ik_lengths", {})),
+        str(player.get_meta("combat_support_ik_clavicle_world", Vector3.ZERO)),
         str(player.get_meta("combat_support_ik_shoulder_world", Vector3.ZERO)),
         str(player.get_meta("combat_support_ik_pre_hand_world", Vector3.ZERO)),
         str(player.get_meta("combat_support_hand_world", Vector3.ZERO)),
@@ -43,8 +45,11 @@ func _run() -> void:
             return
 
     var ik_source := FileAccess.get_file_as_string("res://game/scripts/combat_support_hand_ik_runtime.gd")
-    if ik_source.find("TwoBoneIK3D.new()") < 0:
-        _fail("support hand must use built-in TwoBoneIK3D")
+    if ik_source.find("FABRIK3D.new()") < 0:
+        _fail("support hand must use built-in multi-bone FABRIK3D")
+        return
+    if ik_source.find("_clavicle_bone") < 0:
+        _fail("support IK must include clavicle/shoulder participation")
         return
     if ik_source.find(".set_bone_global_pose_override(") >= 0:
         _fail("support hand must never call direct global bone overrides")
@@ -85,9 +90,9 @@ func _run() -> void:
             _fail("weapon never reached equipped state: %s" % weapon_id)
             return
 
-        # CBR-4 and SCT-8 are procedural. Their numeric IK target must live
-        # inside the actual visible handguard/foregrip so this gate can never
-        # pass by making the avatar grip empty space.
+        # CBR-4 and SCT-8 are procedural. Their IK target must stay in the
+        # actual visible handguard/foregrip so a green numeric result can never
+        # mean the avatar is gripping empty space.
         if weapon_id == &"cbr4" or weapon_id == &"sct8":
             var holder := player.get_node_or_null("CombatWeaponVisual") as Node3D
             if holder == null:
@@ -115,6 +120,10 @@ func _run() -> void:
             _fail("support hand never reached %s foregrip: %s" % [weapon_id, _support_diag(player)])
             return
 
+        if String(player.get_meta("combat_support_ik_solver", "")) != "FABRIK3D":
+            _fail("unexpected support IK solver for %s: %s" % [weapon_id, String(player.get_meta("combat_support_ik_solver", ""))])
+            return
+
         print("COMBAT_TWO_HAND_SUPPORT_WEAPON_OK: weapon=%s %s" % [weapon_id, _support_diag(player)])
 
         var shoulder_profile := String(player.get_meta("combat_camera_shoulder_profile", ""))
@@ -123,5 +132,5 @@ func _run() -> void:
             _fail("armed shoulder camera not active for %s: profile=%s offset=%s" % [weapon_id, shoulder_profile, shoulder_offset])
             return
 
-    print("COMBAT_TWO_HAND_SUPPORT_OK: weapons=cbr4/sct8/crossbow builtin_ik=green no_bone_override=green left_hand_gap<=%.2fm visible_foregrip_contract=green shoulder_camera=green" % MAX_SUPPORT_GAP_M)
+    print("COMBAT_TWO_HAND_SUPPORT_OK: weapons=cbr4/sct8/crossbow builtin_fabrik=green clavicle_chain=green no_bone_override=green left_hand_gap<=%.2fm visible_foregrip_contract=green shoulder_camera=green" % MAX_SUPPORT_GAP_M)
     quit(0)

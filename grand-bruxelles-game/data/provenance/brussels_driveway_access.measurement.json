@@ -1,0 +1,22 @@
+{
+  "schema": "grand-bruxelles-brussels-driveway-access-measurement-v2",
+  "production_base_sha": "078befc176f26f0ece55cad3a2fdc3c79f1e700c",
+  "dataset": "Accès carrossables",
+  "publisher": "Bruxelles Mobilité / Parking.brussels",
+  "metadata_url": "https://data.mobility.brussels/en/info/access_carrossables/",
+  "metadata_last_updated": "2026-03-30",
+  "license": "CC0-1.0",
+  "source_crs": "EPSG:31370",
+  "status": "MEASUREMENT_PENDING",
+  "measurement": null,
+  "source_registration_authorized": false,
+  "parking_evidence_runtime_approved": false,
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "materialization_authorized": false,
+  "semantic_names_authorized": false,
+  "game_world_transform_authorized": false,
+  "jouable_promotion_authorized": false,
+  "note": "Source-only acquisition gate. Main geometry is measured from the official EPSG:31370 WFS layer. The three published reference tables are measured from their exact allowlisted OGC API collections, not guessed WFS feature types. This file never self-authorizes runtime parking evidence."
+}

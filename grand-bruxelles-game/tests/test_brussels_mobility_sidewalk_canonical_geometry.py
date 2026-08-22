@@ -1,5 +1,7 @@
+import base64
 import hashlib
 import json
+import lzma
 from collections import Counter
 from pathlib import Path
 
@@ -22,6 +24,10 @@ def _load(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _sha256(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
 def test_persisted_official_sidewalk_geometry_is_exact_and_fail_closed():
     snapshot = _load(SNAPSHOT)
     manifest = _load(GEOMETRY_MANIFEST)
@@ -39,6 +45,7 @@ def test_persisted_official_sidewalk_geometry_is_exact_and_fail_closed():
     for key in ("runtime_geometry_authorized","jouable_promotion_authorized","vertical_extrusion_allowed","curb_height_inference_allowed","game_world_transform_applied"):
         assert policy[key] is False, f"unsafe authorization enabled: {key}"
     assert policy["source_geometry_modified"] is False
+    assert policy["storage_compression_changes_canonical_records"] is False
     assert manifest["claims"]["horizontal_sidewalk_geometry_source_backed"] is True
     for key in ("curb_height_source_backed","surface_elevation_source_backed","sidewalk_profile_source_backed","paving_unit_dimensions_source_backed","material_identity_source_backed"):
         assert manifest["claims"][key] is False, f"unsupported source claim enabled: {key}"
@@ -47,22 +54,32 @@ def test_persisted_official_sidewalk_geometry_is_exact_and_fail_closed():
     for chunk in manifest["chunks"]:
         path = CHUNK_DIR / chunk["file"]
         assert path.exists(), f"required persisted geometry chunk missing: {path}"
-        raw = path.read_bytes()
-        assert hashlib.sha256(raw).hexdigest() == chunk["sha256"]
-        payload = json.loads(raw)
+        encoded = path.read_bytes()
+        assert _sha256(encoded) == chunk["file_sha256"]
+        assert chunk["encoding"] == "base64+xz"
+        compressed = base64.b64decode(encoded, validate=False)
+        assert len(compressed) == chunk["compressed_bytes"]
+        assert _sha256(compressed) == chunk["compressed_sha256"]
+        canonical = lzma.decompress(compressed, format=lzma.FORMAT_XZ)
+        assert len(canonical) == chunk["canonical_bytes"]
+        assert _sha256(canonical) == chunk["canonical_sha256"]
+        payload = json.loads(canonical)
         assert payload["schema"] == "grand-bruxelles-official-sidewalk-corridor-geometry-chunk-v1"
         assert payload["chunk_index"] == chunk["chunk_index"]
+        assert payload["feature_start"] == len(features)
         assert len(payload["features"]) == chunk["feature_count"]
+        assert payload["features"][0]["feature_id"] == chunk["first_feature_id"]
+        assert payload["features"][-1]["feature_id"] == chunk["last_feature_id"]
         features.extend(payload["features"])
 
     assert len(features) == EXPECTED_FEATURES
-    assert [f["feature_id"] for f in features] == sorted(f["feature_id"] for f in features)
-    assert len({f["feature_id"] for f in features}) == EXPECTED_FEATURES
-    ids_blob = "\n".join(f["feature_id"] for f in features).encode()
-    assert hashlib.sha256(ids_blob).hexdigest() == EXPECTED_IDS
-    records_blob = json.dumps(features, ensure_ascii=False, separators=(",",":"), sort_keys=True).encode()
-    assert hashlib.sha256(records_blob).hexdigest() == EXPECTED_RECORDS
-    assert Counter(f["ssft"] for f in features) == Counter(EXPECTED_SSFT)
+    assert [feature["feature_id"] for feature in features] == sorted(feature["feature_id"] for feature in features)
+    assert len({feature["feature_id"] for feature in features}) == EXPECTED_FEATURES
+    ids_blob = ("\n".join(feature["feature_id"] for feature in features) + "\n").encode("utf-8")
+    assert _sha256(ids_blob) == EXPECTED_IDS
+    records_blob = json.dumps(features, ensure_ascii=False, separators=(",",":"), sort_keys=True).encode("utf-8")
+    assert _sha256(records_blob) == EXPECTED_RECORDS
+    assert Counter(feature["ssft"] for feature in features) == Counter(EXPECTED_SSFT)
 
     polygons = rings = vertices = 0
     for feature in features:
@@ -75,7 +92,7 @@ def test_persisted_official_sidewalk_geometry_is_exact_and_fail_closed():
                 rings += 1
                 vertices += len(ring)
                 for point in ring:
-                    assert len(point) == 2, "persisted source geometry must remain horizontal XY only"
+                    assert len(point) == 2, "persisted source geometry must remain horizontal Lambert72 XY only"
     assert (polygons, rings, vertices) == (EXPECTED_POLYGONS, EXPECTED_RINGS, EXPECTED_VERTICES)
 
 

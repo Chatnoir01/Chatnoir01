@@ -51,7 +51,7 @@ func _require(condition: bool, message: String) -> void:
 
 func _tokens_for_name(value: String) -> Array[String]:
 	var normalized := value.to_lower()
-	for separator in ["_", "-", ".", "/", ":", "(", ")", "[", "]", "{​", "}"]:
+	for separator in ["_", "-", ".", "/", ":", "(", ")", "[", "]", "{", "}"]:
 		normalized = normalized.replace(separator, " ")
 	var tokens: Array[String] = []
 	for raw_token in normalized.split(" ", false):
@@ -101,10 +101,10 @@ func _collect_meshes(node: Node, output: Array) -> void:
 		_collect_meshes(child, output)
 
 
-func _unique_sorted_strings(values: Array[String]) -> Array[String]:
+func _unique_sorted_strings(values: Array) -> Array[String]:
 	var seen := {}
 	for value in values:
-		seen[value] = true
+		seen[String(value)] = true
 	var result: Array[String] = []
 	for value in seen.keys():
 		result.append(String(value))
@@ -172,6 +172,11 @@ func _run_classifier_regressions() -> void:
 	_require(_classify_locomotion("Backpack_Walk") == ["walk"], "classifier_backpack_walk_false_negative")
 	_require(_classify_locomotion("Civil_Idle") == ["idle"], "classifier_idle_false_negative")
 	_require(_classify_locomotion("Civil_Run") == ["run"], "classifier_run_false_negative")
+	var dictionary_backed := {"walk": ["Zulu_Walk", "Alpha_Walk", "Zulu_Walk"]}
+	_require(
+		_unique_sorted_strings(dictionary_backed["walk"]) == ["Alpha_Walk", "Zulu_Walk"],
+		"dictionary_backed_array_normalization_regression",
+	)
 
 
 func _run() -> void:

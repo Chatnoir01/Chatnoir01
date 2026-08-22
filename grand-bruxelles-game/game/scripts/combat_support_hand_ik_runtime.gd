@@ -10,14 +10,17 @@ extends Node
 
 const ACTIVE_WEAPONS: Array[StringName] = [&"cbr4", &"sct8", &"crossbow"]
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
-const SIGNATURE := "combat_two_hand_pose_v8_post_carry_refresh"
+const SIGNATURE := "combat_two_hand_pose_v9_chest_low_ready"
 const MAX_BIND_ATTEMPTS := 480
 const LOCK_EPSILON_M := 0.09
 
+# Keep the carry hand in front of the chest instead of near the authored head.
+# The shorter forward reach also leaves solver margin while idle animation moves
+# the shoulders, so a pose that locks once remains locked after stabilization.
 const CARRY_TARGET_LOCAL := {
-    &"cbr4": Vector3(0.16, -0.14, -0.24),
-    &"sct8": Vector3(0.17, -0.15, -0.23),
-    &"crossbow": Vector3(0.15, -0.12, -0.26),
+    &"cbr4": Vector3(0.18, -0.24, -0.12),
+    &"sct8": Vector3(0.18, -0.25, -0.11),
+    &"crossbow": Vector3(0.15, -0.10, -0.18),
 }
 const RIGHT_POLE_LOCAL := Vector3(0.42, -0.18, 0.08)
 const LEFT_POLE_LOCAL := Vector3(-0.42, -0.18, 0.08)
@@ -87,6 +90,7 @@ func _process(_delta: float) -> void:
     _player.set_meta("combat_carry_ik_pre_hand_world", right_hand)
     _player.set_meta("combat_carry_ik_desired_hand_world", desired_right_hand)
     _player.set_meta("combat_carry_ik_target_world", _carry_target.global_position)
+    _player.set_meta("combat_carry_target_local", carry_local)
     _player.set_meta("combat_carry_ik_lengths", _arm_lengths(
         _right_upper_bone,
         _right_lower_bone,

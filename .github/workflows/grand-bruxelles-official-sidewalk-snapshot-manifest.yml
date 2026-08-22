@@ -1,0 +1,61 @@
+name: Grand Bruxelles Official Sidewalk Snapshot Manifest
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_source.json"
+      - "grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_snapshot_manifest.json"
+      - "grand-bruxelles-game/tests/test_brussels_mobility_sidewalk_corridor_snapshot_manifest.py"
+      - ".github/workflows/grand-bruxelles-official-sidewalk-snapshot-manifest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot-manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate persisted official sidewalk snapshot evidence
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import runpy
+
+          scope = runpy.run_path("tests/test_brussels_mobility_sidewalk_corridor_snapshot_manifest.py")
+          scope["test_snapshot_manifest_matches_merged_source_lock"]()
+          scope["test_snapshot_manifest_is_evidence_not_runtime_authorization"]()
+          print("OFFICIAL_SIDEWALK_SNAPSHOT_ASSERTIONS_OK")
+          PY
+
+      - name: Emit locked snapshot summary
+        working-directory: grand-bruxelles-game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("data/provenance/brussels_mobility_sidewalk_corridor_snapshot_manifest.json")
+          manifest = json.loads(path.read_text(encoding="utf-8"))
+          snapshot = manifest["validated_snapshot"]
+          policy = manifest["policy"]
+          assert snapshot["feature_count"] == 3158
+          assert policy["runtime_geometry_authorized"] is False
+          assert policy["jouable_promotion_authorized"] is False
+          assert policy["curb_height_inference_allowed"] is False
+          print(
+              "OFFICIAL_SIDEWALK_SNAPSHOT_MANIFEST_OK "
+              f"features={snapshot['feature_count']} "
+              f"identity_sha256={snapshot['feature_id_sha256']} "
+              f"canonical_sha256={snapshot['canonical_source_content_sha256']}"
+          )
+          PY

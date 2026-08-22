@@ -5,10 +5,10 @@ const HEIGHT := 720
 const BEFORE_PATH := "res://artifacts/visual/osm_facade_readability_before.png"
 const CONTROL_PATH := "res://artifacts/visual/osm_facade_readability_control.png"
 const AFTER_PATH := "res://artifacts/visual/osm_facade_readability_after.png"
+const MATERIAL_PATH := "res://game/scripts/brussels_osm_facade_articulation_material.gd"
 const ANNEESSENS := Vector2(-272.04, -217.07)
 const SEARCH_RADIUS_M := 105.0
 const MATERIAL_FAMILY := "brussels_osm_facade_articulation_v1"
-const READABILITY_STRENGTH := 0.10
 
 func _initialize() -> void: call_deferred("_run")
 func _fail(message: String) -> void: push_error("BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_VISUAL_FAIL: %s" % message); quit(1)
@@ -74,6 +74,12 @@ func _active_materials(buildings_root: Node3D) -> Array[ShaderMaterial]:
     return result
 
 func _run() -> void:
+    var material_factory := load(MATERIAL_PATH)
+    if material_factory == null or not "SURFACE_READABILITY_STRENGTH" in material_factory:
+        _fail("authored facade readability strength unavailable"); return
+    var authored_strength := float(material_factory.SURFACE_READABILITY_STRENGTH)
+    if authored_strength <= 0.0 or authored_strength > 0.25:
+        _fail("authored facade readability strength outside frozen bounds"); return
     var packed := load("res://game/main.tscn") as PackedScene
     if packed == null: _fail("production main scene missing"); return
     var scene := packed.instantiate() as Node3D
@@ -106,11 +112,11 @@ func _run() -> void:
     var control := await _capture(viewport, CONTROL_PATH)
     for i: int in range(materials.size()):
         materials[i].set_shader_parameter("base_color", colors[i])
-        materials[i].set_shader_parameter("surface_readability_strength", READABILITY_STRENGTH)
+        materials[i].set_shader_parameter("surface_readability_strength", authored_strength)
     for _frame: int in range(8): await process_frame
     var after := await _capture(viewport, AFTER_PATH)
     if before == null or control == null or after == null: _fail("1280x720 readability capture failed"); return
     if not building.global_transform.is_equal_approx(original_transform) or building.polygon != original_polygon or not is_equal_approx(building.depth, original_depth): _fail("building geometry changed during readability A/B"); return
     if not bool(runtime.call("geometry_unchanged")): _fail("runtime geometry invariant failed"); return
-    print("BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_VISUAL_CAPTURED: building=%s distance=%.2f materials=%d player_eye_height=1.65m fov=67 strength=%.2f same_camera=true geometry_unchanged=true" % [building.name, camera_distance, materials.size(), READABILITY_STRENGTH])
+    print("BRUSSELS_OSM_FACADE_ARTICULATION_READABILITY_VISUAL_CAPTURED: building=%s distance=%.2f materials=%d player_eye_height=1.65m fov=67 strength=%.2f same_camera=true geometry_unchanged=true authored_strength_bound=true" % [building.name, camera_distance, materials.size(), authored_strength])
     quit(0)

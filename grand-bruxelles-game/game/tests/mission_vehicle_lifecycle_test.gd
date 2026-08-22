@@ -16,18 +16,18 @@ func _fail(message: String) -> void:
 
 
 func _find_mission(node: Node) -> Node:
-    var script := node.get_script()
+    var script: Variant = node.get_script()
     if script is Script and str((script as Script).resource_path) == MISSION_SCRIPT_PATH:
         return node
     for child: Node in node.get_children():
-        var found := _find_mission(child)
+        var found: Node = _find_mission(child)
         if found != null:
             return found
     return null
 
 
 func _run() -> void:
-    var main := MAIN_SCENE.instantiate()
+    var main: Node = MAIN_SCENE.instantiate()
     root.add_child(main)
 
     # Let the production traffic extension execute its deferred cleanup and let
@@ -50,7 +50,7 @@ func _run() -> void:
             _fail("production vehicle contract missing method: %s" % required_method)
             return
 
-    var mission := _find_mission(main)
+    var mission: Node = _find_mission(main)
     if mission == null:
         _fail("MissionDriveToCenter runtime missing")
         return

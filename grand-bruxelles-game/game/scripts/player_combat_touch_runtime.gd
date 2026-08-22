@@ -3,11 +3,15 @@ extends Node
 # Touch-only bridge for the combat arsenal. It stays independent from the existing
 # movement controls so combat can evolve without destabilising mobile locomotion.
 
-const WEAPON_CYCLE: Array[StringName] = [&"", &"bx9", &"cbr4", &"sct8"]
+const CROSSBOW_ID := &"crossbow"
+const KNIFE_ID := &"knife"
+const WEAPON_CYCLE: Array[StringName] = [&"", &"bx9", &"cbr4", &"sct8", CROSSBOW_ID, KNIFE_ID]
 const WEAPON_LABELS: Dictionary = {
     &"bx9": "BX-9",
     &"cbr4": "CBR-4",
     &"sct8": "SCT-8",
+    CROSSBOW_ID: "ARBALETE",
+    KNIFE_ID: "COUTEAU",
 }
 const HOLD_RETRY_MS := 45
 
@@ -133,7 +137,7 @@ func _cycle_weapon() -> void:
     var player := _current_player()
     if arsenal == null or player == null:
         return
-    var current := StringName(arsenal.call("equipped_weapon"))
+    var current := _weapon_id(arsenal)
     var index := WEAPON_CYCLE.find(current)
     var next_index := 0 if index < 0 else (index + 1) % WEAPON_CYCLE.size()
     arsenal.call("equip_weapon", player, WEAPON_CYCLE[next_index])
@@ -144,18 +148,23 @@ func _secondary_down() -> void:
     var player := _current_player()
     if arsenal == null or player == null:
         return
+    var weapon_id := _weapon_id(arsenal)
+    if weapon_id == KNIFE_ID or weapon_id == &"":
+        var melee := _melee()
+        if melee != null and melee.has_method("set_guarding"):
+            melee.call("set_guarding", player, true)
+        _refresh_labels(arsenal)
+        return
     if bool(arsenal.call("is_armed")):
         _toggle_aim()
-        return
-    var melee := _melee()
-    if melee != null and melee.has_method("set_guarding"):
-        melee.call("set_guarding", player, true)
-    _refresh_labels(arsenal)
 
 func _secondary_up() -> void:
     var arsenal := _arsenal()
     var player := _current_player()
-    if arsenal == null or player == null or bool(arsenal.call("is_armed")):
+    if arsenal == null or player == null:
+        return
+    var weapon_id := _weapon_id(arsenal)
+    if weapon_id != KNIFE_ID and weapon_id != &"":
         return
     var melee := _melee()
     if melee != null and melee.has_method("set_guarding"):
@@ -167,6 +176,8 @@ func _toggle_aim() -> void:
     var player := _current_player()
     if arsenal == null or player == null or not bool(arsenal.call("is_armed")):
         return
+    if _weapon_id(arsenal) == KNIFE_ID:
+        return
     var next_aim := not bool(player.get_meta("combat_weapon_aiming", false))
     if arsenal.has_method("set_aiming"):
         arsenal.call("set_aiming", player, next_aim)
@@ -177,7 +188,8 @@ func _utility_action() -> void:
     var player := _current_player()
     if arsenal == null or player == null:
         return
-    if bool(arsenal.call("is_armed")):
+    var weapon_id := _weapon_id(arsenal)
+    if weapon_id != &"" and weapon_id != KNIFE_ID:
         arsenal.call("request_reload", player)
         return
     var dodge := _dodge()
@@ -204,9 +216,9 @@ func _perform_primary_action(arsenal: Node, player: CharacterBody3D) -> void:
 func _refresh_labels(arsenal: Node) -> void:
     if _action_button == null or _mode_button == null or _aim_button == null or _reload_button == null or _status_label == null:
         return
-    var armed := bool(arsenal.call("is_armed"))
-    if not armed:
-        var player := _current_player()
+    var player := _current_player()
+    var weapon_id := _weapon_id(arsenal)
+    if weapon_id == &"":
         var guarding := player != null and bool(player.get_meta("combat_guarding", false))
         _status_label.text = "COMBAT · MAINS NUES%s" % (" · GARDE" if guarding else "")
         _action_button.text = "FRAPPER"
@@ -216,7 +228,18 @@ func _refresh_labels(arsenal: Node) -> void:
         _reload_button.disabled = false
         _mode_button.text = "ARME"
         return
-    var weapon_id := StringName(arsenal.call("equipped_weapon"))
+
+    if weapon_id == KNIFE_ID:
+        var guarding := player != null and bool(player.get_meta("combat_guarding", false))
+        _status_label.text = "COUTEAU · MELEE%s" % (" · GARDE" if guarding else "")
+        _action_button.text = "TAILLER"
+        _aim_button.text = "GARDE"
+        _aim_button.disabled = false
+        _reload_button.text = "ESQUIVE"
+        _reload_button.disabled = false
+        _mode_button.text = "CHANGER"
+        return
+
     var label := String(WEAPON_LABELS.get(weapon_id, String(weapon_id).to_upper()))
     var ammo_variant: Variant = arsenal.call("ammo_state", weapon_id)
     var mag := 0
@@ -224,7 +247,6 @@ func _refresh_labels(arsenal: Node) -> void:
     if ammo_variant is Dictionary:
         mag = int((ammo_variant as Dictionary).get("mag", 0))
         reserve = int((ammo_variant as Dictionary).get("reserve", 0))
-    var player := _current_player()
     var aiming := player != null and bool(player.get_meta("combat_weapon_aiming", false))
     _status_label.text = "%s · %d/%d%s" % [label, mag, reserve, " · VISÉE" if aiming else ""]
     _action_button.text = "TIR"
@@ -233,6 +255,11 @@ func _refresh_labels(arsenal: Node) -> void:
     _reload_button.text = "RECH."
     _reload_button.disabled = false
     _mode_button.text = "CHANGER"
+
+func _weapon_id(arsenal: Node) -> StringName:
+    if arsenal == null or not arsenal.has_method("equipped_weapon"):
+        return &""
+    return StringName(arsenal.call("equipped_weapon"))
 
 func _arsenal() -> Node:
     return get_node_or_null("/root/PlayerCombatArsenalRuntime")

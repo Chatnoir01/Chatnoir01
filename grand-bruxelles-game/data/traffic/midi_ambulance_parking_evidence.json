@@ -3,18 +3,64 @@
   "source_contract": {
     "provider": "OpenStreetMap contributors",
     "license": "ODbL-1.0",
-    "accepted_osm_types": ["node", "way", "relation"],
-    "required_runtime_tag_families": ["amenity=parking", "amenity=parking_space", "parking:left=*", "parking:right=*", "parking:both=*"],
+    "accepted_osm_types": ["way"],
+    "required_runtime_tag_families": ["parking:right=<positive>", "parking:both=<positive>"],
+    "positive_runtime_values": ["yes", "lane", "street_side", "on_kerb", "half_on_kerb", "shoulder", "separate"],
+    "runtime_source_must_equal_road_way": true,
+    "runtime_side": "right side of directed road geometry; parking:both also authorizes",
+    "runtime_candidate_geometry_contract": "traffic_parking_model.gd: min_segment=18m,end_clearance=8m,spacing=26m,curb_margin=1.25m",
     "versioned_source_binding_required": true,
     "source_element_required_fields": ["type", "id", "version", "timestamp", "tags"],
     "source_element_digest": "sha256(canonical-json-sort-keys-compact-utf8)"
   },
   "target": {
     "zone": "Midi",
-    "required_distinct_road_count": 2,
+    "anchor_id": "midi",
+    "candidate_radius_m": 360.0,
+    "required_runtime_candidate_count": 2,
     "consumer": "TrafficManagerNpcCrossingExtension dedicated ambulances"
   },
-  "candidates": [],
-  "runtime_ready": false,
-  "status": "HOLD: normalized vertical_slice_01.game.json currently strips parking semantics; no source-backed ambulance parking road is registered yet. Future approvals must bind exact versioned OSM element tags and canonical SHA-256."
+  "candidates": [
+    {
+      "evidence_id": "midi-parking-angleterre-108931599",
+      "road_osm_id": 108931599,
+      "source_osm_type": "way",
+      "source_osm_id": 108931599,
+      "source_url": "https://www.openstreetmap.org/way/108931599",
+      "source_license": "ODbL-1.0",
+      "source_accessed_at": "2026-08-22",
+      "source_element": {
+        "type": "way",
+        "id": 108931599,
+        "version": 16,
+        "timestamp": "2025-01-11T05:16:31Z",
+        "tags": {
+          "cycleway:both": "no",
+          "highway": "residential",
+          "lane_markings": "no",
+          "lit": "yes",
+          "maxspeed": "30",
+          "name": "Rue d'Angleterre - Engelandstraat",
+          "name:fr": "Rue d'Angleterre",
+          "name:nl": "Engelandstraat",
+          "oneway": "yes",
+          "oneway:bicycle": "no",
+          "parking:both": "yes",
+          "parking:both:fee": "yes",
+          "parking:both:orientation": "parallel",
+          "sidewalk:both": "separate",
+          "source:maxspeed": "BE-BRU:urban",
+          "surface": "asphalt"
+        }
+      },
+      "source_element_sha256": "4059963c6c007bc3542fcb7ae5ca68948c12cf183c86df09b04fea62df69c760",
+      "evidence_tags": {
+        "parking:both": "yes"
+      },
+      "evidence_note": "Exact current OSM road way carries parking:both=yes; the existing TrafficParkingModel geometry yields three curb candidates within 360 m of the Midi anchor.",
+      "runtime_approved": true
+    }
+  ],
+  "runtime_ready": true,
+  "status": "READY: exact current OSM way 108931599 is version-bound and yields three source-backed runtime parking candidates within 360 m of Midi, satisfying the two-ambulance capacity requirement without invented coordinates."
 }

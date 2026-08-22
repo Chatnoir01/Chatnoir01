@@ -8,7 +8,10 @@ URLS = [
     'https://files.makehumancommunity.org/plugins/mpfb2-latest.zip',
 ]
 EXPECTED_SIZE = 43_903_704
-EXPECTED_SHA256 = 'fd492b95101f92ba209357134beaecf5e3d9e5ceb0cd71ad757a2094546d9b5f'
+# The secondary mirror republished the same expected 2.0.17/build-20260821
+# archive identity with a new ZIP digest. Keep the digest pinned, and still
+# reject any archive whose embedded extension version/build does not match.
+EXPECTED_SHA256 = 'abbb405c5614bd6c214dbb53db563389955b55d9cb286fe94d18da996ad5cd0b'
 EXPECTED_VERSION = '2.0.17'
 EXPECTED_BUILD = '20260821'
 

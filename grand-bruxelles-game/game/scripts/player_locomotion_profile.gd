@@ -12,14 +12,24 @@ var air_acceleration: float = 7.5
 var jump_velocity: float = 5.4
 var coyote_time_s: float = 0.12
 var jump_buffer_s: float = 0.14
+var input_deadzone: float = 0.12
 
 var _time_since_grounded_s: float = 999.0
 var _jump_buffer_remaining_s: float = 0.0
 
 
+func shape_input_vector(input_axis: Vector2) -> Vector2:
+    var magnitude := minf(input_axis.length(), 1.0)
+    var deadzone := clampf(input_deadzone, 0.0, 0.99)
+    if magnitude <= deadzone:
+        return Vector2.ZERO
+    var scaled_magnitude := (magnitude - deadzone) / (1.0 - deadzone)
+    return input_axis.normalized() * scaled_magnitude
+
+
 func camera_relative_direction(input_axis: Vector2, camera_yaw_rad: float) -> Vector3:
-    var limited := input_axis.limit_length(1.0)
-    var local := Vector3(limited.x, 0.0, limited.y)
+    var shaped := shape_input_vector(input_axis)
+    var local := Vector3(shaped.x, 0.0, shaped.y)
     return local.rotated(Vector3.UP, camera_yaw_rad)
 
 

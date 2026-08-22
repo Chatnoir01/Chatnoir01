@@ -1,15 +1,23 @@
 name: Grand Bruxelles Ambulance
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "grand-bruxelles-game/game/scripts/traffic_manager_rgsdev_vehicle_extension.gd"
+      - "grand-bruxelles-game/game/tests/runtime_vehicle_cleanup_probe.gd"
+      - ".github/workflows/grand-bruxelles-ambulance.yml"
   pull_request:
     paths:
       - "grand-bruxelles-game/game/scripts/ambulance_vehicle.gd"
       - "grand-bruxelles-game/game/scripts/traffic_manager_npc_crossing_extension.gd"
+      - "grand-bruxelles-game/game/scripts/traffic_manager_rgsdev_vehicle_extension.gd"
       - "grand-bruxelles-game/game/scripts/drivable_traffic_vehicle.gd"
       - "grand-bruxelles-game/game/scripts/vehicle_controller.gd"
       - "grand-bruxelles-game/game/scripts/rgsdev_vehicle_visual.gd"
       - "grand-bruxelles-game/game/tests/ambulance_vehicle_probe.gd"
       - "grand-bruxelles-game/game/tests/vehicle_real_ground_forward_probe.gd"
+      - "grand-bruxelles-game/game/tests/runtime_vehicle_cleanup_probe.gd"
       - ".github/workflows/grand-bruxelles-ambulance.yml"
   workflow_dispatch:
 
@@ -53,6 +61,12 @@ jobs:
           rm -rf grand-bruxelles-game/.godot
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --editor --path grand-bruxelles-game --quit 2>&1 | tee /tmp/ambulance-import.log
           if grep -E "Parse Error:|SCRIPT ERROR|ERROR: Failed to load script|Failed to import" /tmp/ambulance-import.log; then exit 1; fi
+      - name: Prove runtime prototype cleanup
+        run: |
+          set -euo pipefail
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/runtime_vehicle_cleanup_probe.gd 2>&1 | tee /tmp/runtime-vehicle-cleanup.log
+          if grep -E "SCRIPT ERROR|Parse Error:|RUNTIME_VEHICLE_CLEANUP_FAIL" /tmp/runtime-vehicle-cleanup.log; then exit 1; fi
+          grep -q "RUNTIME_VEHICLE_CLEANUP_OK prototype=true physical=false" /tmp/runtime-vehicle-cleanup.log
       - name: Prove real road ground contact and forward direction
         run: |
           set -euo pipefail
@@ -74,6 +88,7 @@ jobs:
           name: grand-bruxelles-vehicle-proof
           path: |
             /tmp/ambulance-import.log
+            /tmp/runtime-vehicle-cleanup.log
             /tmp/vehicle-real-ground-forward.log
             /tmp/ambulance-probe.log
           if-no-files-found: warn

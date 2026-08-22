@@ -11,24 +11,25 @@ func _fail(message: String) -> void:
 
 func _run() -> void:
     var project_text := FileAccess.get_file_as_string("res://project.godot")
-    var melee_pos := project_text.find("PlayerMeleeCombatRuntime=\"*res://game/scripts/player_melee_combat_hardened_runtime.gd\"")
+    var melee_pos := project_text.find("PlayerMeleeCombatRuntime=\"*res://game/scripts/player_melee_combat_weapon_safe_runtime.gd\"")
     var arsenal_pos := project_text.find("PlayerCombatArsenalRuntime=\"*res://game/scripts/player_combat_arsenal_polish_runtime.gd\"")
     var visual_pos := project_text.find("CombatWeaponVisualUpgradeRuntime=\"*res://game/scripts/combat_weapon_visual_upgrade_runtime.gd\"")
     var touch_pos := project_text.find("PlayerCombatTouchRuntime=\"*res://game/scripts/player_combat_touch_runtime.gd\"")
     if melee_pos < 0 or arsenal_pos < 0:
-        _fail("hardened melee + polish arsenal autoloads missing from project.godot"); return
+        _fail("weapon-safe melee + polish arsenal autoloads missing from project.godot"); return
     if visual_pos < 0:
         _fail("weapon visual upgrade runtime missing from project.godot"); return
     if touch_pos < 0:
         _fail("touch combat bridge missing from project.godot"); return
-    # Godot sends _input in reverse depth-first order. Arsenal must therefore be
-    # declared after melee so it receives and consumes fire/melee input first.
     if arsenal_pos <= melee_pos:
         _fail("arsenal autoload must be declared after melee for input priority"); return
 
     var polish_source := FileAccess.get_file_as_string("res://game/scripts/player_combat_arsenal_polish_runtime.gd")
     if polish_source.find("extends \"res://game/scripts/player_combat_arsenal_hardened_runtime.gd\"") < 0:
         _fail("polish arsenal must preserve hardened Combat V3 inheritance"); return
+    var safe_melee_source := FileAccess.get_file_as_string("res://game/scripts/player_melee_combat_weapon_safe_runtime.gd")
+    if safe_melee_source.find("extends \"res://game/scripts/player_melee_combat_hardened_runtime.gd\"") < 0 or safe_melee_source.find("cancel_pending_attack_for_weapon_switch") < 0:
+        _fail("weapon-safe melee must preserve hardened inheritance and cancel unresolved switch contact"); return
 
     var touch_text := FileAccess.get_file_as_string("res://game/scripts/player_combat_touch_runtime.gd")
     if touch_text.find("func _toggle_aim()") < 0 or touch_text.find("set_aiming") < 0:
@@ -85,5 +86,5 @@ func _run() -> void:
     if ARSENAL.damage_at_distance(25.0, 999.0, 50.0, 0.5) < 12.49:
         _fail("falloff must clamp at the configured minimum factor"); return
 
-    print("PLAYER_COMBAT_ARSENAL_OK: input_order=green touch_aim=green touch_guard_dodge=green visual_runtime=green hardened_melee=green hardened_inheritance=green moves=%d weapons=%d deterministic tuning invariants green" % [ARSENAL.MELEE_MOVES.size(), expected_weapons.size()])
+    print("PLAYER_COMBAT_ARSENAL_OK: input_order=green touch_aim=green touch_guard_dodge=green visual_runtime=green weapon_safe_melee=green hardened_inheritance=green moves=%d weapons=%d deterministic tuning invariants green" % [ARSENAL.MELEE_MOVES.size(), expected_weapons.size()])
     quit(0)

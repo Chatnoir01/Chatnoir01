@@ -12,6 +12,14 @@ const NATIVE_NAMES: Array[String] = [
     "Knife",
     "Throwable",
 ]
+const DYNAMIC_SPAWNER_NAMES: Array[String] = [
+    "NpcPopulationDirector",
+    "NpcRuntimeIntegration",
+    "MidiUrbanLife",
+    "TrafficManager",
+    "PoliceDirector",
+    "PoliceRuntime",
+]
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -32,11 +40,22 @@ func _mask_canvas(node: Node) -> void:
     for child: Node in node.get_children():
         _mask_canvas(child)
 
+func _disable_dynamic_spawners(scene: Node) -> void:
+    for node_name: String in DYNAMIC_SPAWNER_NAMES:
+        var spawner := scene.get_node_or_null(node_name)
+        if spawner == null:
+            continue
+        spawner.process_mode = Node.PROCESS_MODE_DISABLED
+        spawner.set_process(false)
+        spawner.set_physics_process(false)
+
 func _hide_dynamic(node: Node, player: CharacterBody3D) -> void:
-    if node != player and not player.is_ancestor_of(node) and node is NpcAgent:
+    var outside_player := node != player and not player.is_ancestor_of(node)
+    if outside_player and (node is CharacterBody3D or node is RigidBody3D or node is NpcAgent):
         node.set_process(false)
         node.set_physics_process(false)
-        (node as Node3D).visible = false
+        if node is Node3D:
+            (node as Node3D).visible = false
         return
     for child: Node in node.get_children():
         _hide_dynamic(child, player)
@@ -45,17 +64,22 @@ func _configure_close_pose_camera(player: CharacterBody3D, camera: Camera3D) -> 
     var spring_arm := player.get_node_or_null("CameraPivot/SpringArm3D") as SpringArm3D
     if spring_arm == null:
         return
-    # Witness-only composition: close enough to judge shoulders, wrists, palms
-    # and the weapon. Production shoulder-camera behavior has its own gate.
+    # Match the production armed shoulder direction while keeping a close QA
+    # composition. The authored head must not hide the stock, wrists or palms.
     player.set_meta("gta_scale_camera_owner", "special_presentation")
-    spring_arm.spring_length = 2.25
-    spring_arm.position = Vector3(0.58, 0.16, 0.0)
-    camera.fov = 48.0
+    spring_arm.spring_length = 2.65
+    spring_arm.position = Vector3(1.00, 0.22, 0.0)
+    camera.fov = 50.0
 
 func _capture(path: String) -> bool:
+    var player := current_scene.get_node_or_null("Player") as CharacterBody3D if current_scene != null else null
     for _frame: int in range(8):
         _mask_canvas(root)
+        if player != null:
+            _hide_dynamic(root, player)
         await process_frame
+    if player != null:
+        _hide_dynamic(root, player)
     RenderingServer.force_draw()
     await process_frame
     var image := root.get_texture().get_image()
@@ -189,6 +213,7 @@ func _witness_long_weapon(player: CharacterBody3D, arsenal: Node, camera: Camera
         return false
     var carry_gap := float(player.get_meta("combat_carry_hand_gap_m", 999.0))
     var support_gap := float(player.get_meta("combat_support_hand_gap_m", 999.0))
+    var rear_extent_m := float(holder.get_meta("combat_long_weapon_rear_extent_m", 999.0))
     var path := OUT_DIR + "/%s_close.png" % String(weapon_id)
     if not await _capture(path):
         _fail("%s close capture failed" % weapon_id)
@@ -197,6 +222,7 @@ func _witness_long_weapon(player: CharacterBody3D, arsenal: Node, camera: Camera
         "two_hand_pose_locked": true,
         "carry_gap_m": carry_gap,
         "support_gap_m": support_gap,
+        "rear_extent_m": rear_extent_m,
         "support_surface_locked": bool(holder.get_meta("combat_long_weapon_support_surface_locked", false)),
         "bounds": bounds,
         "capture": path,
@@ -230,10 +256,17 @@ func _run() -> void:
 
     player.velocity = Vector3.ZERO
     player.set_physics_process(false)
+    _disable_dynamic_spawners(current_scene)
     _hide_dynamic(root, player)
     _configure_close_pose_camera(player, camera)
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
-    var report: Dictionary = {"resolution": [WIDTH, HEIGHT], "weapons": {}, "single_visual_owner": true, "close_pose_camera": true}
+    var report: Dictionary = {
+        "resolution": [WIDTH, HEIGHT],
+        "weapons": {},
+        "single_visual_owner": true,
+        "close_pose_camera": true,
+        "dynamic_actor_isolation": true,
+    }
 
     if not await _witness_long_weapon(player, arsenal, camera, &"cbr4", report):
         return
@@ -375,5 +408,5 @@ func _run() -> void:
     report_file.store_string(JSON.stringify(report, "  "))
     report_file.close()
 
-    print("COMBAT_NATIVE_WEAPON_PLAYER_WITNESS_OK: cbr4=close_2h sct8=close_2h crossbow=close_2h knife=visible_lock rapid_switch=last_wins single_owner=true bx9_regrip=true")
+    print("COMBAT_NATIVE_WEAPON_PLAYER_WITNESS_OK: isolated=true cbr4=close_2h sct8=close_2h crossbow=close_2h knife=visible_lock rapid_switch=last_wins single_owner=true bx9_regrip=true")
     quit(0)

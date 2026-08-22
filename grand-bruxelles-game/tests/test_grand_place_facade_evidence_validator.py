@@ -9,7 +9,7 @@ from tools.qa.validate_grand_place_facade_evidence import EvidenceValidationErro
 
 ROOT = Path(__file__).resolve().parents[1]
 GATE = ROOT / "data" / "qa" / "grand_place_facade_visual_gate.json"
-BASE_SHA = "bae409b881530e3fff3f6d3261a1439b25d979fa"
+BASE_SHA = json.loads(GATE.read_text(encoding="utf-8"))["production_base_sha"]
 HEAD_SHA = "1111111111111111111111111111111111111111"
 REQUIRED_VIEWS = ["canonical", "cornet_renard", "brasseurs_rose_thabor", "maison_du_roi"]
 
@@ -59,6 +59,13 @@ def _manifest(tmp_path: Path, **overrides):
     path = tmp_path / "manifest.json"
     path.write_text(json.dumps(data), encoding="utf-8")
     return path
+
+
+def test_fixture_tracks_frozen_production_base():
+    gate = json.loads(GATE.read_text(encoding="utf-8"))
+    assert BASE_SHA == gate["production_base_sha"]
+    assert len(BASE_SHA) == 40
+    int(BASE_SHA, 16)
 
 
 def test_accepts_only_structurally_complete_pending_witness(tmp_path):

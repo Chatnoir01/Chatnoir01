@@ -80,6 +80,11 @@ func _bind_when_ready() -> void:
         collision_body.set_meta("support_mode", "top_surfaces_only")
         collision_body.set_meta("source_geometry_changed", false)
         collision_body.set_meta("source_height_inferred", false)
+        # This module is physics-only. Lock that contract explicitly so a future
+        # cleanup cannot smuggle render geometry into the support layer and then
+        # accidentally invalidate player-view/fingerprint evidence.
+        collision_body.set_meta("visual_output_changed", false)
+        collision_body.set_meta("render_geometry_count", 0)
         collision_body.add_child(collision_shape)
         roads_root.add_child(collision_body)
 
@@ -87,7 +92,7 @@ func _bind_when_ready() -> void:
         _sidewalk_surfaces = sidewalk_count
         _triangle_count = int(support_faces.size() / 3)
         _ready_complete = true
-        print("GENERIC_OSM_SURFACE_COLLISIONS_READY: roads=%d sidewalks=%d body_count=1 shape_count=1 triangles=%d support_mode=top_surfaces_only source_geometry_changed=false source_height_inferred=false" % [_road_surfaces, _sidewalk_surfaces, _triangle_count])
+        print("GENERIC_OSM_SURFACE_COLLISIONS_READY: roads=%d sidewalks=%d body_count=1 shape_count=1 triangles=%d support_mode=top_surfaces_only source_geometry_changed=false source_height_inferred=false visual_output_changed=false render_geometry_count=0" % [_road_surfaces, _sidewalk_surfaces, _triangle_count])
         return
     push_error("GENERIC_OSM_SURFACE_COLLISIONS_FAIL: GeneratedRoads unavailable")
 
@@ -102,4 +107,6 @@ func readiness() -> Dictionary:
         "support_mode": "top_surfaces_only",
         "source_geometry_changed": false,
         "source_height_inferred": false,
+        "visual_output_changed": false,
+        "render_geometry_count": 0,
     }

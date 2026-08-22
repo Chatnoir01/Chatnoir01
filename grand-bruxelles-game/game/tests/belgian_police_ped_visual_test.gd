@@ -100,8 +100,15 @@ func _run() -> void:
             _fail("legacy police visual remains visible on %s" % agent.name)
             return
         var visual := agent.get_node_or_null("BelgianPoliceVisual") as Node3D
-        if visual == null or visual.get_node_or_null("CC0PoliceBody") == null:
+        if visual == null:
             _fail("public authored visual missing on existing police %s" % agent.name)
+            return
+        var body := visual.get_node_or_null("CC0PoliceBody") as Node3D
+        if body == null:
+            _fail("public authored body missing on existing police %s" % agent.name)
+            return
+        if absf(body.position.y) > 0.001:
+            _fail("public authored body is sunk on %s: local_y=%.3f" % [agent.name, body.position.y])
             return
 
     var metrics: Dictionary = runtime.call("get_runtime_metrics")
@@ -151,5 +158,5 @@ func _run() -> void:
         _fail("could not save witness PNG")
         return
 
-    print("BELGIAN_POLICE_PED_VISUAL_OK path=%s design=%s existing_npc=true standalone=false real_midi=true staged_safe_camera=true public_cc0=true" % [OUTPUT_PATH, EXPECTED_DESIGN])
+    print("BELGIAN_POLICE_PED_VISUAL_OK path=%s design=%s existing_npc=true standalone=false real_midi=true grounded=true staged_safe_camera=true public_cc0=true" % [OUTPUT_PATH, EXPECTED_DESIGN])
     quit(0)

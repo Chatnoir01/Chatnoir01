@@ -48,6 +48,13 @@ func _run() -> void:
         if agent.get_node_or_null("RuntimeCharacterCollision") == null:
             _fail("visible NpcAgent missing completed physical collision")
             return
+        var legacy_visual := agent.get_node_or_null("VisibleHumanoid") as Node3D
+        if legacy_visual == null:
+            _fail("visible NpcAgent missing legacy/profile visual")
+            return
+        if absf(legacy_visual.position.y - 0.90) > 0.001:
+            _fail("ground-origin NpcAgent visual lift drifted for %s: y=%.3f" % [agent.name, legacy_visual.position.y])
+            return
 
     runtime.call("trigger_incident_for_test", Vector3(-668.5, 0.16, 627.84))
     for _frame in range(5):
@@ -77,7 +84,7 @@ func _run() -> void:
         _fail("player-facing police state is not exposed in the HUD")
         return
 
-    print("VISIBLE_CITY_RUNTIME_OK: civilians=%d police=%d reacting=%d responders=%d" % [
+    print("VISIBLE_CITY_RUNTIME_OK: civilians=%d police=%d reacting=%d responders=%d grounded_visuals=true" % [
         int(counts.get("civilians", 0)),
         int(counts.get("police", 0)),
         civilians_reacting,

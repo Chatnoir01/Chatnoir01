@@ -1,0 +1,21 @@
+name: Grand Bruxelles Grand-Place OSM Mask Contract
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/grand_place_complete_contour_runtime.gd"
+      - "grand-bruxelles-game/tools/qa/grand_place_osm_mask_contract.py"
+      - ".github/workflows/grand-bruxelles-grand-place-osm-mask-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-footprint-mask:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact authoritative footprint masking
+        run: python3 grand-bruxelles-game/tools/qa/grand_place_osm_mask_contract.py

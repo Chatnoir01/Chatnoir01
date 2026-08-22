@@ -1,0 +1,66 @@
+{
+  "schema": "grand-bruxelles-infrabel-track-segments-locked-measurement-v1",
+  "publisher": "Infrabel",
+  "dataset_id": "geografische-positie-van-alle-spoorsegmenten",
+  "dataset_title": "Geographical position of all track segments",
+  "dataset_page": "https://opendata.infrabel.be/explore/dataset/geografische-positie-van-alle-spoorsegmenten/",
+  "metadata_api": "https://opendata.infrabel.be/api/explore/v2.1/catalog/datasets/geografische-positie-van-alle-spoorsegmenten",
+  "license": "CC0-1.0",
+  "publisher_master_crs": "EPSG:31370",
+  "publisher_accuracy_note": "10 cm to 1 m depending on location",
+  "source": {
+    "url": "https://opendata.infrabel.be/api/explore/v2.1/catalog/datasets/geografische-positie-van-alle-spoorsegmenten/alternative_exports/data_infrabel_tra_section_20250430_geojson_geojson",
+    "title": "Data_INFRABEL_TRA_SECTION_20250430.geojson.geojson",
+    "format": "GeoJSON",
+    "crs": "EPSG:31370",
+    "bytes": 50861422,
+    "feature_count": 25068,
+    "geometry_type_counts": {
+      "LineString": 25068
+    },
+    "unique_segment_id_count": 25068,
+    "coordinate_count": 1224335,
+    "bbox_epsg31370": [
+      25132.54,
+      26599.96,
+      274868.26,
+      241881.87
+    ],
+    "sha256": "0ae90345fb602d393143cd11680c1610c148c8cb948ba7d9a641ba11539dbc10",
+    "segment_id_sequence_sha256": "add778a76b0810b305efca88829f235075b22a9ba8636b84680092dc889301a6",
+    "segment_id_set_sha256": "88628b09b1aac78f5315e2ec0eba49e0c16077bed5a451490646b76d19134034",
+    "coordinate_sample_count": 20000,
+    "lambert72_range_ratio": 1.0,
+    "wgs84_range_ratio": 0.0
+  },
+  "publisher_metadata": {
+    "sha256": "3755a41a90a96dd7ac7174b7ccbca454e28fed08b3ca28609ead60f1578a52df",
+    "records_count": 25148,
+    "data_processed": "2026-06-15T12:42:30+00:00",
+    "metadata_processed_at_measurement": "2026-08-22T01:17:35.984000+00:00",
+    "alternative_export_count": 1,
+    "geojson_candidate_count": 1
+  },
+  "accounting": {
+    "payload_feature_minus_metadata_record_count": -80,
+    "record_count_parity_proven": false,
+    "note": "The canonical Lambert72 alternative export contains 25,068 unique LineString features while publisher metadata reports 25,148 records. This measurement does not infer why 80 metadata records are absent from the Lambert72 FeatureCollection."
+  },
+  "measurement_evidence": {
+    "pr": 1111,
+    "run_id": 32545530765,
+    "artifact_id": 9468379699,
+    "artifact_sha256": "d3fae81a9bbc31a5b82c6f3e8be58d9f18b575725b5299cad451b6782a9d21ea",
+    "head_sha": "29f2ce48598b1098aa625f12741885425d81a311"
+  },
+  "status": "MEASURED_HOLD_RECORD_COUNT_PARITY",
+  "source_registration_authorized": false,
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "materialization_authorized": false,
+  "geometry_modified": false,
+  "semantic_names_authorized": false,
+  "game_world_transform_authorized": false,
+  "jouable_promotion_authorized": false
+}

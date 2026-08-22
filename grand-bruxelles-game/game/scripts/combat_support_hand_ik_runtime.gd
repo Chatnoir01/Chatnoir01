@@ -10,7 +10,7 @@ extends Node
 
 const ACTIVE_WEAPONS: Array[StringName] = [&"cbr4", &"sct8", &"crossbow"]
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
-const SIGNATURE := "combat_two_hand_pose_v10_reachable_crossbow_foregrip"
+const SIGNATURE := "combat_two_hand_pose_v11_animation_owner_safe"
 const MAX_BIND_ATTEMPTS := 480
 const LOCK_EPSILON_M := 0.09
 
@@ -62,7 +62,7 @@ func _process(_delta: float) -> void:
     if not desired_active:
         _active_weapon_id = &""
         _support_target_ready = false
-        _set_active(false, weapon_id, "inactive_mode")
+        _set_active(false, weapon_id, "authored_animation_inactive" if not animation_ready else "inactive_mode")
         return
 
     if weapon_id != _active_weapon_id:
@@ -278,6 +278,13 @@ func _resolve_support_target(player: CharacterBody3D, weapon_id: StringName) -> 
     return {"found": false}
 
 func _update_support_target_after_carry(weapon_id: StringName) -> bool:
+    if not _authored_animation_is_active(_player):
+        _support_target_ready = false
+        if _support_ik != null:
+            _support_ik.active = false
+        _player.set_meta("combat_support_ik_active", false)
+        _player.set_meta("combat_support_ik_reason", "authored_animation_inactive")
+        return false
     if not _refresh_weapon_after_carry(weapon_id):
         _support_target_ready = false
         _support_ik.active = false
@@ -321,6 +328,11 @@ func _update_support_target_after_carry(weapon_id: StringName) -> bool:
 func _on_carry_ik_processed() -> void:
     if _player == null or _skeleton == null or _active_weapon_id == &"":
         return
+    if not _authored_animation_is_active(_player):
+        _support_target_ready = false
+        _set_active(false, _active_weapon_id, "authored_animation_inactive_callback")
+        _active_weapon_id = &""
+        return
     var right_hand := _bone_world_position(_right_hand_bone)
     var desired_right_hand: Vector3 = _player.get_meta("combat_carry_ik_desired_hand_world", right_hand)
     var gap := right_hand.distance_to(desired_right_hand)
@@ -331,6 +343,11 @@ func _on_carry_ik_processed() -> void:
 
 func _on_support_ik_processed() -> void:
     if _player == null or _skeleton == null or _active_weapon_id == &"":
+        return
+    if not _authored_animation_is_active(_player):
+        _support_target_ready = false
+        _set_active(false, _active_weapon_id, "authored_animation_inactive_callback")
+        _active_weapon_id = &""
         return
     var left_hand := _bone_world_position(_left_hand_bone)
     var desired_left_hand: Vector3 = _player.get_meta("combat_support_ik_desired_hand_world", left_hand)
@@ -358,7 +375,19 @@ func _authored_animation_is_active(player: CharacterBody3D) -> bool:
     var visual := player.get_node_or_null("VisualUpgrade")
     if visual == null:
         return false
+    var animation_player := _find_animation_player(visual)
+    if animation_player == null or not animation_player.active:
+        return false
     return visual.find_child("Skeleton3D", true, false) != null
+
+func _find_animation_player(node: Node) -> AnimationPlayer:
+    if node is AnimationPlayer:
+        return node as AnimationPlayer
+    for child: Node in node.get_children():
+        var found := _find_animation_player(child)
+        if found != null:
+            return found
+    return null
 
 func _find_two_hand_skeleton(root: Node) -> Skeleton3D:
     if root is Skeleton3D:

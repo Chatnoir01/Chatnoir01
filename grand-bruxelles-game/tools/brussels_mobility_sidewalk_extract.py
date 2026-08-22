@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Bounded, fail-closed Brussels Mobility sidewalk extractor.
 
-This tool only establishes source-backed horizontal sidewalk geometry and the
-published SW semantic class. It never authorizes runtime geometry, elevations,
-curb profiles, paving dimensions, or material identity.
+The official `bm_urbis:urbadm_ssw` layer is itself the sidewalk dataset. The
+`ssft` attribute is preserved and validated against the publisher's attribute
+domain, but it is not used as a local `SW` filter: the live corridor response
+contains no `ssft=SW` rows even though `SW` exists in the published domain.
+
+This tool only establishes source-backed horizontal sidewalk geometry plus the
+published layer/attribute identities. It never authorizes runtime geometry,
+elevations, curb profiles, paving dimensions, or material identity.
 """
 
 from __future__ import annotations
@@ -11,6 +16,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -19,9 +25,10 @@ from urllib.request import Request, urlopen
 SCHEMA = "grand-bruxelles-official-sidewalk-corridor-extract-v1"
 CRS = "EPSG:31370"
 LAYER = "bm_urbis:urbadm_ssw"
-REQUIRED_CLASS = "SW"
+PUBLISHED_SIDEWALK_DOMAIN_CODE = "SW"
 DEFAULT_BBOX = [147650.0, 169300.0, 149100.0, 171050.0]
 WFS_ENDPOINT = "https://data.mobility.brussels/geoserver/bm_urbis/wfs"
+ATTRIBUTE_DOMAIN_ENDPOINT = "https://data.mobility.brussels/data/attributevalues/?tid=ssft"
 ALLOWED_GEOMETRIES = {"Polygon", "MultiPolygon"}
 
 
@@ -55,6 +62,31 @@ def build_wfs_url(query_bbox: list[float] | None = None) -> str:
     return f"{WFS_ENDPOINT}?{urlencode(params)}"
 
 
+def _parse_ssft_domain(raw: bytes) -> dict[str, dict[str, str]]:
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("official ssft attribute domain is not valid UTF-8 JSON") from exc
+    if not isinstance(payload, list) or not payload:
+        raise ValueError("official ssft attribute domain is empty or malformed")
+    domain: dict[str, dict[str, str]] = {}
+    for row in payload:
+        if not isinstance(row, dict):
+            raise ValueError("official ssft attribute domain contains a malformed row")
+        value = str(row.get("value", "")).strip()
+        label_fr = str(row.get("label_fr", "")).strip()
+        label_nl = str(row.get("label_nl", "")).strip()
+        if not value or not label_fr or not label_nl:
+            raise ValueError("official ssft attribute domain row is incomplete")
+        if value in domain:
+            raise ValueError(f"duplicate ssft attribute-domain code: {value}")
+        domain[value] = {"label_fr": label_fr, "label_nl": label_nl}
+    sidewalk_code = domain.get(PUBLISHED_SIDEWALK_DOMAIN_CODE)
+    if sidewalk_code != {"label_fr": "Trottoir", "label_nl": "Voetpad"}:
+        raise ValueError("official ssft domain no longer maps SW to Trottoir/Voetpad")
+    return domain
+
+
 def _canonical_geometry(feature: dict[str, Any]) -> dict[str, Any]:
     geometry = feature.get("geometry")
     if not isinstance(geometry, dict):
@@ -68,8 +100,14 @@ def _canonical_geometry(feature: dict[str, Any]) -> dict[str, Any]:
     return {"type": geometry_type, "coordinates": coordinates}
 
 
-def canonicalize_feature_collection(raw: bytes, query_bbox: list[float] | None = None) -> dict[str, Any]:
+def canonicalize_feature_collection(
+    raw: bytes,
+    *,
+    attribute_domain_raw: bytes,
+    query_bbox: list[float] | None = None,
+) -> dict[str, Any]:
     bbox = _validate_bbox(query_bbox or DEFAULT_BBOX)
+    domain = _parse_ssft_domain(attribute_domain_raw)
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -81,8 +119,9 @@ def canonicalize_feature_collection(raw: bytes, query_bbox: list[float] | None =
         raise ValueError("official sidewalk response has no features")
 
     features: list[dict[str, Any]] = []
-    seen_selected_ids: set[str] = set()
-    excluded_ssft_counts: dict[str, int] = {}
+    seen_feature_ids: set[str] = set()
+    seen_gids: set[int] = set()
+    ssft_counts: Counter[str] = Counter()
     for feature in source_features:
         if not isinstance(feature, dict):
             raise ValueError("malformed sidewalk feature")
@@ -92,19 +131,40 @@ def canonicalize_feature_collection(raw: bytes, query_bbox: list[float] | None =
         properties = feature.get("properties")
         if not isinstance(properties, dict):
             raise ValueError(f"sidewalk feature properties missing: {feature_id}")
-        ssft = str(properties.get("ssft", "")).strip()
-        if ssft != REQUIRED_CLASS:
-            excluded_ssft_counts[ssft or "<missing>"] = excluded_ssft_counts.get(ssft or "<missing>", 0) + 1
-            continue
-        if feature_id in seen_selected_ids:
-            raise ValueError(f"duplicate selected sidewalk feature identity: {feature_id}")
-        seen_selected_ids.add(feature_id)
-        features.append({"feature_id": feature_id, "ssft": ssft, "geometry": _canonical_geometry(feature)})
+        try:
+            source_gid = int(properties["gid"])
+            source_id = int(properties["id"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"sidewalk feature source identity missing: {feature_id}") from exc
+        if source_gid <= 0 or source_id <= 0:
+            raise ValueError(f"sidewalk feature source identity invalid: {feature_id}")
+        expected_feature_id = f"urbadm_ssw.{source_gid}"
+        if feature_id != expected_feature_id:
+            raise ValueError(f"sidewalk WFS identity does not match gid: {feature_id} != {expected_feature_id}")
+        if feature_id in seen_feature_ids or source_gid in seen_gids:
+            raise ValueError(f"duplicate sidewalk feature identity: {feature_id}")
+        seen_feature_ids.add(feature_id)
+        seen_gids.add(source_gid)
 
-    if not features:
-        raise ValueError("official bounded sidewalk response has no SW features")
+        ssft = str(properties.get("ssft", "")).strip()
+        if not ssft:
+            raise ValueError(f"sidewalk feature ssft missing: {feature_id}")
+        if ssft not in domain:
+            raise ValueError(f"sidewalk feature uses unpublished ssft code {ssft}: {feature_id}")
+        ssft_counts[ssft] += 1
+        features.append(
+            {
+                "feature_id": feature_id,
+                "source_gid": source_gid,
+                "source_id": source_id,
+                "ssft": ssft,
+                "geometry": _canonical_geometry(feature),
+            }
+        )
+
     features.sort(key=lambda item: item["feature_id"])
     ids_bytes = "".join(f"{item['feature_id']}\n" for item in features).encode("utf-8")
+    observed_ssft = sorted(ssft_counts)
     return {
         "schema": SCHEMA,
         "source": {
@@ -113,23 +173,30 @@ def canonicalize_feature_collection(raw: bytes, query_bbox: list[float] | None =
             "layer": LAYER,
             "license": "CC0-1.0",
             "crs": CRS,
+            "sidewalk_semantics_basis": "official_dataset_and_layer_identity",
             "semantic_field": "ssft",
-            "semantic_class": REQUIRED_CLASS,
+            "ssft_filter_applied": False,
+            "published_sidewalk_domain_code": PUBLISHED_SIDEWALK_DOMAIN_CODE,
+            "observed_ssft_values": observed_ssft,
+            "attribute_domain_url": ATTRIBUTE_DOMAIN_ENDPOINT,
+            "attribute_domain_sha256": _sha256(attribute_domain_raw),
             "wfs_endpoint": WFS_ENDPOINT,
         },
         "crs": CRS,
         "query_bbox": bbox,
-        "query_filter": "server_bbox_only_then_fail_closed_local_ssft_SW_selection",
+        "query_filter": "server_bbox_only_layer_identity_no_local_ssft_filter",
         "input_feature_count": len(source_features),
         "feature_count": len(features),
-        "excluded_non_sw_count": len(source_features) - len(features),
-        "excluded_ssft_counts": dict(sorted(excluded_ssft_counts.items())),
+        "ssft_counts": dict(sorted(ssft_counts.items())),
         "source_sha256": _sha256(raw),
         "feature_id_sha256": _sha256(ids_bytes),
         "features": features,
         "claims": {
             "horizontal_sidewalk_geometry_source_backed": True,
             "sidewalk_semantic_class_source_backed": True,
+            "sidewalk_semantics_derived_from_layer_identity": True,
+            "ssft_values_source_backed": True,
+            "ssft_sw_filter_source_backed": False,
             "curb_height_source_backed": False,
             "surface_elevation_source_backed": False,
             "sidewalk_profile_source_backed": False,
@@ -159,9 +226,24 @@ def fetch_official(query_bbox: list[float] | None = None, timeout_seconds: int =
     return raw, url
 
 
+def fetch_attribute_domain(timeout_seconds: int = 60) -> bytes:
+    request = Request(
+        ATTRIBUTE_DOMAIN_ENDPOINT,
+        headers={"Accept": "application/json", "User-Agent": "Grand-Bruxelles-Source-Gate/1.0"},
+    )
+    with urlopen(request, timeout=timeout_seconds) as response:
+        content_type = str(response.headers.get("Content-Type", ""))
+        raw = response.read()
+    if "json" not in content_type.lower() and not raw.lstrip().startswith((b"{", b"[")):
+        raise ValueError(f"official ssft attribute domain returned non-JSON content: {content_type}")
+    _parse_ssft_domain(raw)
+    return raw
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, help="Read a captured WFS GeoJSON response instead of the network")
+    parser.add_argument("--attribute-domain", type=Path, help="Read the captured official ssft attribute-domain JSON")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--raw-output", type=Path, help="Persist exact source bytes when network acquisition is used")
     parser.add_argument("--bbox", nargs=4, type=float, default=DEFAULT_BBOX)
@@ -177,7 +259,8 @@ def main() -> int:
             args.raw_output.parent.mkdir(parents=True, exist_ok=True)
             args.raw_output.write_bytes(raw)
 
-    canonical = canonicalize_feature_collection(raw, query_bbox=bbox)
+    attribute_domain_raw = args.attribute_domain.read_bytes() if args.attribute_domain else fetch_attribute_domain()
+    canonical = canonicalize_feature_collection(raw, attribute_domain_raw=attribute_domain_raw, query_bbox=bbox)
     canonical["source_query_url"] = source_url
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(canonical, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -185,7 +268,7 @@ def main() -> int:
         "OFFICIAL_SIDEWALK_EXTRACT_OK "
         f"features={canonical['feature_count']} "
         f"input={canonical['input_feature_count']} "
-        f"excluded_non_sw={canonical['excluded_non_sw_count']} "
+        f"ssft_values={','.join(canonical['source']['observed_ssft_values'])} "
         f"source_sha256={canonical['source_sha256']} "
         f"feature_id_sha256={canonical['feature_id_sha256']} "
         f"bbox={','.join(str(value) for value in bbox)} "

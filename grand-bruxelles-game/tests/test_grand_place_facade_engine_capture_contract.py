@@ -68,3 +68,20 @@ def test_maison_du_roi_witness_records_real_source_surface_facing_measurement():
     ]
     for marker in required:
         assert marker in source, f"Maison du Roi witness does not quantify exact source surface orientation; missing {marker!r}"
+
+
+def test_source_facing_measurement_accepts_legitimate_unindexed_mesh_surfaces():
+    source = CAPTURE.read_text(encoding="utf-8")
+    assert "var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]" not in source, (
+        "Godot returns null in ARRAY_INDEX for legitimate unindexed ArrayMesh surfaces; "
+        "a typed direct assignment reproduces the Facade Evidence crash"
+    )
+    required = [
+        "var indices := PackedInt32Array()",
+        "arrays.size() > Mesh.ARRAY_INDEX and arrays[Mesh.ARRAY_INDEX] != null",
+        "typeof(arrays[Mesh.ARRAY_INDEX]) != TYPE_PACKED_INT32_ARRAY",
+        "indices = arrays[Mesh.ARRAY_INDEX]",
+        "indices.size() if not indices.is_empty() else vertices.size()",
+    ]
+    for marker in required:
+        assert marker in source, f"unindexed source meshes are not handled fail-closed; missing {marker!r}"

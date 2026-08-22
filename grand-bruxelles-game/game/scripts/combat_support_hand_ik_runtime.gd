@@ -10,7 +10,7 @@ extends Node
 
 const ACTIVE_WEAPONS: Array[StringName] = [&"cbr4", &"sct8", &"crossbow"]
 const SUPPORT_SOCKET_NAME := "WeaponSupportGripSocket"
-const SIGNATURE := "combat_two_hand_pose_v9_chest_low_ready"
+const SIGNATURE := "combat_two_hand_pose_v10_reachable_crossbow_foregrip"
 const MAX_BIND_ATTEMPTS := 480
 const LOCK_EPSILON_M := 0.09
 
@@ -22,6 +22,7 @@ const CARRY_TARGET_LOCAL := {
     &"sct8": Vector3(0.18, -0.25, -0.11),
     &"crossbow": Vector3(0.15, -0.10, -0.18),
 }
+const CROSSBOW_SUPPORT_LOCAL := Vector3(-0.10, -0.02, -0.20)
 const RIGHT_POLE_LOCAL := Vector3(0.42, -0.18, 0.08)
 const LEFT_POLE_LOCAL := Vector3(-0.42, -0.18, 0.08)
 
@@ -267,9 +268,11 @@ func _resolve_support_target(player: CharacterBody3D, weapon_id: StringName) -> 
         var crossbow := player.find_child("2H_Crossbow", true, false) as Node3D
         if crossbow == null or not crossbow.visible:
             return {"found": false}
-        var local_target := Vector3(-0.10, -0.02, -0.30)
-        var target_world := crossbow.global_transform * local_target
-        player.set_meta("combat_support_socket_local", local_target)
+        # Keep the support palm on the visible inner foregrip/receiver area. The
+        # old z=-0.30 target sat beyond the authored left-arm reach once the bow
+        # orientation was corrected to follow the right hand.
+        var target_world := crossbow.global_transform * CROSSBOW_SUPPORT_LOCAL
+        player.set_meta("combat_support_socket_local", CROSSBOW_SUPPORT_LOCAL)
         player.set_meta("combat_support_socket_world", target_world)
         return {"found": true, "position": target_world, "source": "post_carry_crossbow_foregrip"}
     return {"found": false}
@@ -301,7 +304,6 @@ func _update_support_target_after_carry(weapon_id: StringName) -> bool:
     _player.set_meta("combat_support_ik_pre_hand_world", left_hand)
     _player.set_meta("combat_support_ik_desired_hand_world", desired_left_hand)
     _player.set_meta("combat_support_ik_target_world", _support_target.global_position)
-    _player.set_meta("combat_support_ik_target_source", String(support_result.get("source", "")))
     _player.set_meta("combat_support_ik_lengths", _arm_lengths(
         _left_upper_bone,
         _left_lower_bone,
@@ -309,120 +311,74 @@ func _update_support_target_after_carry(weapon_id: StringName) -> bool:
         _left_hand_bone,
         desired_left_hand
     ))
+    _player.set_meta("combat_support_ik_target_source", String(support_result.get("source", "")))
     _player.set_meta("combat_support_ik_reason", "post_carry_support_target_ready")
     _support_target_ready = true
     _support_ik.active = true
     _player.set_meta("combat_support_ik_active", true)
     return true
 
-func _arm_lengths(upper: int, lower: int, wrist: int, hand: int, desired_hand: Vector3) -> Dictionary:
-    var shoulder_world := _bone_world_position(upper)
-    var elbow_world := _bone_world_position(lower)
-    var wrist_world := _bone_world_position(wrist)
-    var hand_world := _bone_world_position(hand)
-    var upper_len := shoulder_world.distance_to(elbow_world)
-    var lower_len := elbow_world.distance_to(wrist_world)
-    var hand_len := wrist_world.distance_to(hand_world)
-    var full_reach := upper_len + lower_len + hand_len
-    var target_distance := shoulder_world.distance_to(desired_hand)
-    return {
-        "upper": upper_len,
-        "lower": lower_len,
-        "wrist_to_hand": hand_len,
-        "full_hand_reach": full_reach,
-        "hand_target_distance": target_distance,
-        "hand_target_reachable": target_distance <= full_reach + 0.01,
-    }
-
 func _on_carry_ik_processed() -> void:
-    if _player == null or _carry_ik == null or not _carry_ik.active:
+    if _player == null or _skeleton == null or _active_weapon_id == &"":
         return
-    var desired: Vector3 = _player.get_meta("combat_carry_ik_desired_hand_world", Vector3.ZERO)
-    var hand_world := _bone_world_position(_right_hand_bone)
-    var gap := hand_world.distance_to(desired)
-    _player.set_meta("combat_carry_hand_world", hand_world)
+    var right_hand := _bone_world_position(_right_hand_bone)
+    var desired_right_hand: Vector3 = _player.get_meta("combat_carry_ik_desired_hand_world", right_hand)
+    var gap := right_hand.distance_to(desired_right_hand)
+    _player.set_meta("combat_carry_ik_post_hand_world", right_hand)
     _player.set_meta("combat_carry_hand_gap_m", gap)
-    _player.set_meta("combat_carry_ik_active", true)
     _player.set_meta("combat_carry_ik_locked", gap <= LOCK_EPSILON_M)
-
-    var weapon_id := StringName(_player.get_meta("combat_weapon_id", &""))
-    if weapon_id != _active_weapon_id or weapon_id not in ACTIVE_WEAPONS:
-        _support_target_ready = false
-        if _support_ik != null:
-            _support_ik.active = false
-        return
-    _update_support_target_after_carry(weapon_id)
+    _update_support_target_after_carry(_active_weapon_id)
 
 func _on_support_ik_processed() -> void:
-    if _player == null or _support_ik == null or not _support_ik.active or not _support_target_ready:
+    if _player == null or _skeleton == null or _active_weapon_id == &"":
         return
-    var desired: Vector3 = _player.get_meta("combat_support_ik_desired_hand_world", Vector3.ZERO)
-    var hand_world := _bone_world_position(_left_hand_bone)
-    var gap := hand_world.distance_to(desired)
-    _player.set_meta("combat_support_hand_world", hand_world)
+    var left_hand := _bone_world_position(_left_hand_bone)
+    var desired_left_hand: Vector3 = _player.get_meta("combat_support_ik_desired_hand_world", left_hand)
+    var gap := left_hand.distance_to(desired_left_hand)
+    _player.set_meta("combat_support_ik_post_hand_world", left_hand)
     _player.set_meta("combat_support_hand_gap_m", gap)
-    _player.set_meta("combat_support_ik_active", true)
     _player.set_meta("combat_support_ik_locked", gap <= LOCK_EPSILON_M)
 
-func _set_active(enabled: bool, weapon_id: StringName, reason: String) -> void:
+func _set_active(active: bool, weapon_id: StringName, reason: String) -> void:
     if _carry_ik != null:
-        _carry_ik.active = enabled
+        _carry_ik.active = active
     if _support_ik != null:
-        _support_ik.active = enabled and _support_target_ready
+        _support_ik.active = active and _support_target_ready
     if _player != null:
-        _player.set_meta("combat_carry_ik_active", enabled)
-        _player.set_meta("combat_support_ik_active", enabled and _support_target_ready)
+        _player.set_meta("combat_carry_ik_active", active)
+        _player.set_meta("combat_support_ik_active", active and _support_target_ready)
+        _player.set_meta("combat_carry_ik_locked", false)
+        _player.set_meta("combat_support_ik_locked", false)
         _player.set_meta("combat_support_ik_weapon_id", weapon_id)
         _player.set_meta("combat_support_ik_reason", reason)
-        if not enabled:
-            _player.set_meta("combat_carry_ik_locked", false)
-            _player.set_meta("combat_support_ik_locked", false)
-            _player.set_meta("combat_carry_hand_gap_m", 999.0)
-            _player.set_meta("combat_support_hand_gap_m", 999.0)
 
 func _authored_animation_is_active(player: CharacterBody3D) -> bool:
+    if bool(player.get_meta("combat_animation_frozen", false)):
+        return false
     var visual := player.get_node_or_null("VisualUpgrade")
     if visual == null:
         return false
-    var animation_player := _find_animation_player(visual)
-    return animation_player != null and animation_player.active
+    return visual.find_child("Skeleton3D", true, false) != null
 
-func _find_animation_player(node: Node) -> AnimationPlayer:
-    if node is AnimationPlayer:
-        return node as AnimationPlayer
-    for child: Node in node.get_children():
-        var found := _find_animation_player(child)
-        if found != null:
-            return found
-    return null
-
-func _find_two_hand_skeleton(node: Node) -> Skeleton3D:
-    if node is Skeleton3D:
-        var skeleton := node as Skeleton3D
-        if _find_hand_bone(skeleton, true) >= 0 and _find_hand_bone(skeleton, false) >= 0:
-            return skeleton
-    for child: Node in node.get_children():
+func _find_two_hand_skeleton(root: Node) -> Skeleton3D:
+    if root is Skeleton3D:
+        return root
+    for child: Node in root.get_children():
         var found := _find_two_hand_skeleton(child)
         if found != null:
             return found
     return null
 
 func _find_hand_bone(skeleton: Skeleton3D, left: bool) -> int:
-    for index: int in range(skeleton.get_bone_count()):
-        var compact := _normalized_bone_name(String(skeleton.get_bone_name(index)))
-        if left and (compact.ends_with("lefthand") or compact.ends_with("handl") or compact == "lhand"):
-            return index
-        if not left and (compact.ends_with("righthand") or compact.ends_with("handr") or compact == "rhand"):
-            return index
+    for i: int in range(skeleton.get_bone_count()):
+        var normalized := _normalize_bone_name(String(skeleton.get_bone_name(i)))
+        if normalized == ("handl" if left else "handr"):
+            return i
+    for i: int in range(skeleton.get_bone_count()):
+        var normalized := _normalize_bone_name(String(skeleton.get_bone_name(i)))
+        if normalized.contains("hand") and _bone_is_left(skeleton, i) == left:
+            return i
     return -1
-
-func _bone_has_semantic(skeleton: Skeleton3D, bone: int, semantic: String) -> bool:
-    return bone >= 0 and _normalized_bone_name(String(skeleton.get_bone_name(bone))).contains(semantic)
-
-func _bone_is_left(skeleton: Skeleton3D, bone: int) -> bool:
-    var raw := String(skeleton.get_bone_name(bone)).to_lower()
-    var compact := _normalized_bone_name(raw)
-    return raw.ends_with(".l") or raw.ends_with("_l") or raw.contains("left") or compact.ends_with("l")
 
 func _bone_contract(upper: int, lower: int, wrist: int, hand: int) -> Dictionary:
     return {
@@ -432,24 +388,59 @@ func _bone_contract(upper: int, lower: int, wrist: int, hand: int) -> Dictionary
         "hand": String(_skeleton.get_bone_name(hand)),
     }
 
-func _ancestor_chain(skeleton: Skeleton3D, start_bone: int, max_count: int) -> Array[String]:
-    var chain: Array[String] = []
-    var current := start_bone
-    while current >= 0 and chain.size() < max_count:
-        chain.append(String(skeleton.get_bone_name(current)))
-        current = skeleton.get_bone_parent(current)
-    return chain
+func _arm_lengths(upper: int, lower: int, wrist: int, hand: int, target_hand: Vector3) -> Dictionary:
+    var upper_pos := _bone_world_position(upper)
+    var lower_pos := _bone_world_position(lower)
+    var wrist_pos := _bone_world_position(wrist)
+    var hand_pos := _bone_world_position(hand)
+    var upper_len := upper_pos.distance_to(lower_pos)
+    var lower_len := lower_pos.distance_to(wrist_pos)
+    var hand_len := wrist_pos.distance_to(hand_pos)
+    var full_reach := upper_len + lower_len + hand_len
+    var target_distance := upper_pos.distance_to(target_hand)
+    return {
+        "upper": upper_len,
+        "lower": lower_len,
+        "wrist_to_hand": hand_len,
+        "full_hand_reach": full_reach,
+        "hand_target_distance": target_distance,
+        "hand_target_reachable": target_distance <= full_reach + 0.001,
+    }
 
-static func _normalized_bone_name(value: String) -> String:
-    var compact := value.to_lower()
-    for token: String in [":", "_", "-", ".", " "]:
-        compact = compact.replace(token, "")
-    return compact
-
-func _bone_world_position(bone_index: int) -> Vector3:
-    if _skeleton == null or bone_index < 0:
+func _bone_world_position(bone_idx: int) -> Vector3:
+    if _skeleton == null or bone_idx < 0:
         return Vector3.ZERO
-    return (_skeleton.global_transform * _skeleton.get_bone_global_pose(bone_index)).origin
+    return _skeleton.global_transform * _skeleton.get_bone_global_pose(bone_idx).origin
+
+func _normalize_bone_name(value: String) -> String:
+    var out := value.to_lower()
+    for token: String in ["mixamorig", "_", ".", "-", ":", " "]:
+        out = out.replace(token, "")
+    return out
+
+func _bone_has_semantic(skeleton: Skeleton3D, bone_idx: int, semantic: String) -> bool:
+    if bone_idx < 0:
+        return false
+    return _normalize_bone_name(String(skeleton.get_bone_name(bone_idx))).contains(semantic)
+
+func _bone_is_left(skeleton: Skeleton3D, bone_idx: int) -> bool:
+    var raw := String(skeleton.get_bone_name(bone_idx)).to_lower()
+    var normalized := _normalize_bone_name(raw)
+    if raw.ends_with(".l") or raw.ends_with("_l") or raw.ends_with("-l") or raw.ends_with(":l"):
+        return true
+    if raw.ends_with(".r") or raw.ends_with("_r") or raw.ends_with("-r") or raw.ends_with(":r"):
+        return false
+    return normalized.contains("left") or normalized.ends_with("l")
+
+func _ancestor_chain(skeleton: Skeleton3D, start: int, depth: int) -> Array[String]:
+    var chain: Array[String] = []
+    var cursor := start
+    for _step: int in range(depth):
+        if cursor < 0:
+            break
+        chain.append(String(skeleton.get_bone_name(cursor)))
+        cursor = skeleton.get_bone_parent(cursor)
+    return chain
 
 func _current_player() -> CharacterBody3D:
     var scene := get_tree().current_scene
@@ -458,10 +449,18 @@ func _current_player() -> CharacterBody3D:
     return scene.get_node_or_null("Player") as CharacterBody3D
 
 func _clear_binding() -> void:
-    for node: Node in [_carry_ik, _support_ik, _carry_target, _carry_pole, _support_target, _support_pole]:
-        if is_instance_valid(node):
-            node.queue_free()
-    _player = null
+    if is_instance_valid(_carry_ik):
+        _carry_ik.queue_free()
+    if is_instance_valid(_support_ik):
+        _support_ik.queue_free()
+    if is_instance_valid(_carry_target):
+        _carry_target.queue_free()
+    if is_instance_valid(_carry_pole):
+        _carry_pole.queue_free()
+    if is_instance_valid(_support_target):
+        _support_target.queue_free()
+    if is_instance_valid(_support_pole):
+        _support_pole.queue_free()
     _skeleton = null
     _carry_ik = null
     _support_ik = null
@@ -480,3 +479,7 @@ func _clear_binding() -> void:
     _bind_attempts = 0
     _active_weapon_id = &""
     _support_target_ready = false
+    if _player != null:
+        _player.set_meta("combat_carry_ik_active", false)
+        _player.set_meta("combat_support_ik_active", false)
+    _player = null

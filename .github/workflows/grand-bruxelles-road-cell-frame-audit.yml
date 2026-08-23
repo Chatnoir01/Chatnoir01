@@ -1,0 +1,79 @@
+name: Grand Bruxelles Road Cell Frame Audit
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/tools/qa/road_registered_cell_frame_audit.py'
+      - 'grand-bruxelles-game/tools/qa/test_road_registered_cell_frame_audit.py'
+      - '.github/workflows/grand-bruxelles-road-cell-frame-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frame-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          CANDIDATE_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA" || {
+            echo "RED: road-cell frame candidate does not contain live main" >&2
+            exit 1
+          }
+          echo "ROAD_CELL_FRAME_LIVE_MAIN_OK live=$LIVE_MAIN_SHA candidate=$CANDIDATE_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run fail-closed frame regressions
+        working-directory: grand-bruxelles-game/tools/qa
+        run: python test_road_registered_cell_frame_audit.py
+      - name: Measure current road-to-Lambert72 frame readiness
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/road-cell-frame-audit"
+          python grand-bruxelles-game/tools/qa/road_registered_cell_frame_audit.py \
+            --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \
+            --cell-index grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
+            --crosswalk grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json \
+            --report "$RUNNER_TEMP/road-cell-frame-audit/report.json" | tee "$RUNNER_TEMP/road-cell-frame-audit/run.log"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP']) / 'road-cell-frame-audit' / 'report.json'
+          r = json.loads(p.read_text())
+          assert r['status'] == 'HOLD_UNPROVEN_ROAD_TO_LAMBERT72_FRAME', r
+          assert r['road_source_document_count'] == 1, r
+          assert r['indexed_road_count'] == 139, r
+          assert r['registered_cell_count'] == 1, r
+          assert r['registered_cell_crs'] == 'EPSG:31370', r
+          assert r['road_cell_crosswalk_present'] is False, r
+          assert all(v is False for k, v in r.items() if k.endswith('_authorized')), r
+          frame = r['source_frames'][0]
+          assert frame['path'] == 'data/osm/vertical_slice_01.game.json', frame
+          assert frame['sha256'] == 'a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493', frame
+          assert frame['origin'] == {'lat': 50.8419, 'lon': 4.348}, frame
+          assert frame['explicit_crs'] is None, frame
+          assert frame['coordinate_transform_present'] is False, frame
+          assert frame['frame_proven'] is False, frame
+          print('ROAD_CELL_FRAME_HOLD_LOCKED_EXACT roads=139 cells=1 frame_proven=false crosswalk=false')
+          PY
+      - name: Upload coordinate-frame HOLD proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-cell-frame-audit
+          path: ${{ runner.temp }}/road-cell-frame-audit
+          if-no-files-found: error

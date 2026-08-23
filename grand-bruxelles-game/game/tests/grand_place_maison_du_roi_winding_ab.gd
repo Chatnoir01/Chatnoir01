@@ -113,7 +113,7 @@ func _capture_png(filename: String) -> Image:
     var absolute := ProjectSettings.globalize_path(output_path)
     var error := DirAccess.make_dir_recursive_absolute(absolute.get_base_dir())
     if error != OK and error != ERR_ALREADY_EXISTS:
-        _fail("cannot create A/B evidence directory")
+        _fail("cannot create winding evidence directory")
         return null
     error = image.save_png(absolute)
     if error != OK:
@@ -176,11 +176,11 @@ func _run() -> void:
     if presentation == null or bool(presentation.get("failed")):
         _fail("owner identity presentation did not become ready")
         return
-    if not presentation.has_method("set_source_winding_mitigation_enabled"):
-        _fail("owner presentation does not expose reversible winding diagnostic")
+    if not presentation.has_method("set_source_winding_diagnostic_cull_mode"):
+        _fail("owner presentation does not expose bounded winding cull-mode diagnostic")
         return
-    if bool(presentation.get_meta("source_winding_mitigation_enabled", true)):
-        _fail("production winding state must default to CULL_BACK before A/B")
+    if int(presentation.get_meta("source_winding_diagnostic_cull_mode", -1)) != BaseMaterial3D.CULL_BACK:
+        _fail("production winding state must default to CULL_BACK before diagnostic")
         return
 
     scene.process_mode = Node.PROCESS_MODE_DISABLED
@@ -200,54 +200,64 @@ func _run() -> void:
     camera.look_at(target, Vector3.UP)
     camera.current = true
 
-    if not bool(presentation.call("set_source_winding_mitigation_enabled", false)):
+    if not bool(presentation.call("set_source_winding_diagnostic_cull_mode", BaseMaterial3D.CULL_BACK)):
         _fail("could not enforce Maison du Roi CULL_BACK state")
         return
     var cull_back := await _capture_png("maison_du_roi_cull_back.png")
     if cull_back == null:
         return
 
-    if not bool(presentation.call("set_source_winding_mitigation_enabled", true)):
+    if not bool(presentation.call("set_source_winding_diagnostic_cull_mode", BaseMaterial3D.CULL_FRONT)):
+        _fail("could not enable diagnostic Maison du Roi CULL_FRONT state")
+        return
+    var cull_front := await _capture_png("maison_du_roi_cull_front.png")
+    if cull_front == null:
+        return
+
+    if not bool(presentation.call("set_source_winding_diagnostic_cull_mode", BaseMaterial3D.CULL_DISABLED)):
         _fail("could not enable diagnostic Maison du Roi CULL_DISABLED state")
         return
     var cull_disabled := await _capture_png("maison_du_roi_cull_disabled.png")
     if cull_disabled == null:
         return
 
-    var delta := _pixel_delta(cull_back, cull_disabled)
-    if delta.is_empty():
-        _fail("could not compare A/B frames")
+    var delta_front := _pixel_delta(cull_back, cull_front)
+    var delta_disabled := _pixel_delta(cull_back, cull_disabled)
+    if delta_front.is_empty() or delta_disabled.is_empty():
+        _fail("could not compare winding diagnostic frames")
         return
 
-    if not bool(presentation.call("set_source_winding_mitigation_enabled", false)):
-        _fail("could not restore production CULL_BACK state after A/B")
+    if not bool(presentation.call("set_source_winding_diagnostic_cull_mode", BaseMaterial3D.CULL_BACK)):
+        _fail("could not restore production CULL_BACK state after diagnostic")
         return
-    if bool(presentation.get_meta("source_winding_mitigation_enabled", true)):
-        _fail("production winding state was not restored to CULL_BACK after A/B")
+    if int(presentation.get_meta("source_winding_diagnostic_cull_mode", -1)) != BaseMaterial3D.CULL_BACK:
+        _fail("production winding state was not restored to CULL_BACK after diagnostic")
         return
 
     var report := {
-        "schema": "grand-bruxelles-grand-place-maison-winding-ab-v1",
+        "schema": "grand-bruxelles-grand-place-maison-winding-ab-v2",
         "owner_id": MAISON_DU_ROI_OWNER_ID,
         "camera_position": camera_position.duplicate(true),
         "fov_deg": float(gate.get("fov_deg", 0.0)),
         "resolution": [WIDTH, HEIGHT],
         "target_method": "source_bbox_cluster_center",
         "state_a": {"cull_mode": "CULL_BACK", "png": "maison_du_roi_cull_back.png"},
-        "state_b": {"cull_mode": "CULL_DISABLED", "png": "maison_du_roi_cull_disabled.png"},
+        "state_b": {"cull_mode": "CULL_FRONT", "png": "maison_du_roi_cull_front.png"},
+        "state_c": {"cull_mode": "CULL_DISABLED", "png": "maison_du_roi_cull_disabled.png"},
         "production_default_cull_mode": "CULL_BACK",
         "production_mitigation_authorized": false,
-        "delta": delta,
+        "delta_cull_front_vs_back": delta_front,
+        "delta_cull_disabled_vs_back": delta_disabled,
         "source_geometry_changed": false,
         "source_collision_changed": false,
         "human_review_required": true,
         "human_review_status": "pending",
     }
     if not _write_json("%s/maison_du_roi_winding_ab.json" % OUTPUT_DIR, report):
-        _fail("could not write A/B report")
+        _fail("could not write winding diagnostic report")
         return
 
-    print("GRAND_PLACE_MAISON_WINDING_AB_OK changed_fraction=%.6f mean_delta=%.6f production_default=cull_back human_review=pending" % [float(delta["changed_fraction_gt_0_001"]), float(delta["mean_rgb_abs_delta"])])
+    print("GRAND_PLACE_MAISON_WINDING_AB_OK front_changed_fraction=%.6f disabled_changed_fraction=%.6f production_default=cull_back human_review=pending" % [float(delta_front["changed_fraction_gt_0_001"]), float(delta_disabled["changed_fraction_gt_0_001"])])
     camera.queue_free()
     scene.queue_free()
     await process_frame

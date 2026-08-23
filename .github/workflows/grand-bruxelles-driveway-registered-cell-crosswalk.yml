@@ -1,0 +1,97 @@
+name: Grand Bruxelles Driveway Registered Cell Crosswalk
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/brussels_driveway_regional_cells.contract.json"
+      - "grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json"
+      - "grand-bruxelles-game/data/cell_manifests/*.json"
+      - "grand-bruxelles-game/tools/qa/build_brussels_driveway_regional_cell_catalog.py"
+      - "grand-bruxelles-game/tools/qa/build_driveway_registered_cell_crosswalk.py"
+      - ".github/workflows/grand-bruxelles-driveway-registered-cell-crosswalk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crosswalk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          CANDIDATE_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA" || {
+            echo "RED: driveway crosswalk candidate does not contain live main: live=$LIVE_MAIN_SHA candidate=$CANDIDATE_SHA" >&2
+            exit 1
+          }
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          echo "DRIVEWAY_CROSSWALK_LIVE_MAIN_OK live=$LIVE_MAIN_SHA candidate=$CANDIDATE_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install source-catalog geometry dependency
+        run: python -m pip install --disable-pip-version-check shapely
+      - name: Rebuild locked driveway regional source catalog
+        run: |
+          python grand-bruxelles-game/tools/qa/build_brussels_driveway_regional_cell_catalog.py \
+            --contract grand-bruxelles-game/data/qa/brussels_driveway_regional_cells.contract.json \
+            --out "$RUNNER_TEMP/brussels_driveway_regional_cells.json"
+      - name: Build registered-cell crosswalk candidate
+        run: |
+          python grand-bruxelles-game/tools/qa/build_driveway_registered_cell_crosswalk.py \
+            --driveway-catalog "$RUNNER_TEMP/brussels_driveway_regional_cells.json" \
+            --cell-manifests grand-bruxelles-game/data/cell_manifests \
+            --production-base-sha "$LIVE_MAIN_SHA" \
+            --out "$RUNNER_TEMP/brussels_driveway_registered_cell_crosswalk.json"
+      - name: Upload candidate before lock verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: driveway-registered-cell-crosswalk-candidate
+          path: ${{ runner.temp }}/brussels_driveway_registered_cell_crosswalk.json
+          if-no-files-found: error
+      - name: Require persisted byte-exact crosswalk lock
+        run: |
+          set -euo pipefail
+          LOCK="grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json"
+          CANDIDATE="$RUNNER_TEMP/brussels_driveway_registered_cell_crosswalk.json"
+          test -f "$LOCK" || { echo "RED: persisted driveway registered-cell crosswalk lock missing" >&2; exit 1; }
+          cmp -s "$LOCK" "$CANDIDATE" || { echo "RED: persisted crosswalk differs from regenerated candidate" >&2; diff -u "$LOCK" "$CANDIDATE" || true; exit 1; }
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          p = json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json').read_text())
+          assert p['schema'] == 'grand-bruxelles-driveway-registered-cell-crosswalk-v1'
+          assert p['production_base_sha'] == os.environ['LIVE_MAIN_SHA'], (p['production_base_sha'], os.environ['LIVE_MAIN_SHA'])
+          assert p['destination_readiness'] == 'CELL_CROSSWALK_EVIDENCE_ONLY'
+          for key in [
+              'source_registration_authorized', 'road_crosswalk_authorized',
+              'parking_evidence_runtime_approved', 'runtime_authorized',
+              'runtime_mount_authorized', 'rendered_geometry_authorized',
+              'collision_authorized', 'safe_spawn_authorized', 'jouable_promotion_authorized',
+          ]:
+              assert p[key] is False, key
+          for row in p['matches']:
+              assert row['crosswalk_evidence_only'] is True
+              assert row['road_crosswalk_authorized'] is False
+              assert row['runtime_mount_authorized'] is False
+              assert row['collision_authorized'] is False
+              assert row['safe_spawn_authorized'] is False
+              assert row['jouable_promotion_authorized'] is False
+          print(
+              'DRIVEWAY_REGISTERED_CELL_CROSSWALK_LOCKED_EXACT: '
+              f"live_main={p['production_base_sha']} registered={p['registered_manifest_count']} "
+              f"matched={p['matched_registered_manifest_count']} unmatched={p['unmatched_registered_manifest_count']} "
+              f"semantic_sha256={p['semantic_sha256']}"
+          )
+          PY

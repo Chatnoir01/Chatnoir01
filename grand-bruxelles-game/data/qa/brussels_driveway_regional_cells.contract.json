@@ -1,0 +1,48 @@
+{
+  "schema": "grand-bruxelles-driveway-regional-cell-catalog-contract-v1",
+  "production_base_sha": "b2dac91a5681b065d61071c8858bedf54e5649b1",
+  "publisher": "Bruxelles Mobilité / Parking.brussels",
+  "dataset": "Accès carrossables",
+  "metadata_url": "https://data.mobility.brussels/en/info/access_carrossables/",
+  "metadata_last_updated": "2026-03-30",
+  "license": "CC0-1.0",
+  "source_crs": "EPSG:31370",
+  "source": {
+    "wfs_url": "https://data.mobility.brussels/geoserver/bm_parking/wfs",
+    "type_name": "bm_parking:access_carrossables",
+    "expected_feature_count": 95805,
+    "stable_id_property": "id",
+    "page_size": 5000
+  },
+  "municipalities": {
+    "wfs_url": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "type_name": "urbisvector:Municipalities",
+    "expected_count": 19,
+    "allowlist": [
+      "Anderlecht", "Auderghem", "Berchem-Sainte-Agathe", "Bruxelles", "Etterbeek",
+      "Evere", "Forest", "Ganshoren", "Ixelles", "Jette", "Koekelberg",
+      "Molenbeek-Saint-Jean", "Saint-Gilles", "Saint-Josse-ten-Noode",
+      "Schaerbeek", "Uccle", "Watermael-Boitsfort", "Woluwe-Saint-Lambert",
+      "Woluwe-Saint-Pierre"
+    ]
+  },
+  "partition": {
+    "cell_size_m": 500,
+    "cell_id_format": "E<floor_easting>_N<floor_northing>",
+    "require_exact_single_municipality_cover": true,
+    "require_unassigned_count": 0,
+    "require_ambiguous_count": 0
+  },
+  "hard_rules": {
+    "source_registration_authorized": false,
+    "road_crosswalk_authorized": false,
+    "parking_evidence_runtime_approved": false,
+    "runtime_authorized": false,
+    "runtime_mount_authorized": false,
+    "collision_authorized": false,
+    "materialization_authorized": false,
+    "semantic_names_authorized": false,
+    "game_world_transform_authorized": false,
+    "jouable_promotion_authorized": false
+  }
+}

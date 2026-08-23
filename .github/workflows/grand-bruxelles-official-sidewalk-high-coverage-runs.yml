@@ -1,0 +1,41 @@
+name: Grand Bruxelles Official Sidewalk High Coverage Runs
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry_manifest.json"
+      - "grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry/**"
+      - "grand-bruxelles-game/data/provenance/brussels_sidewalk_overlap_georef.json"
+      - "grand-bruxelles-game/data/provenance/brussels_sidewalk_horizontal_overlap_measurement.json"
+      - "grand-bruxelles-game/data/provenance/brussels_sidewalk_high_coverage_runs.json"
+      - "grand-bruxelles-game/tools/source_factory/measure_brussels_sidewalk_horizontal_overlap.py"
+      - "grand-bruxelles-game/tools/source_factory/classify_brussels_sidewalk_high_coverage_runs.py"
+      - "grand-bruxelles-game/tests/test_brussels_sidewalk_high_coverage_runs.py"
+      - ".github/workflows/grand-bruxelles-official-sidewalk-high-coverage-runs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Classify high-coverage generic sidewalk runs
+        run: |
+          python3 grand-bruxelles-game/tools/source_factory/classify_brussels_sidewalk_high_coverage_runs.py \
+            --output /tmp/brussels_sidewalk_high_coverage_runs.json
+      - name: Validate durable high-coverage run lock
+        run: |
+          python3 grand-bruxelles-game/tests/test_brussels_sidewalk_high_coverage_runs.py \
+            --candidate /tmp/brussels_sidewalk_high_coverage_runs.json
+      - name: Upload classification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-sidewalk-high-coverage-runs
+          path: /tmp/brussels_sidewalk_high_coverage_runs.json
+          if-no-files-found: error

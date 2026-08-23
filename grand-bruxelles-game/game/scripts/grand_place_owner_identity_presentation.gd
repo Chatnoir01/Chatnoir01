@@ -82,6 +82,7 @@ func _apply_when_ready() -> void:
     set_meta("focus_contrast_guarded", true)
     set_meta("focus_visibility_guarded", true)
     set_meta("source_winding_diagnostic_owner_ids", WINDING_DIAGNOSTIC_OWNER_IDS.duplicate())
+    set_meta("source_winding_diagnostic_cull_mode", BaseMaterial3D.CULL_BACK)
     set_meta("source_winding_mitigation_enabled", false)
     set_meta("source_winding_mitigation_production_authorized", false)
     set_meta("finished_perfect", false)
@@ -104,15 +105,19 @@ func _apply_material(surface: MeshInstance3D, owner_id: String, is_roof: bool) -
     mat.set_meta("exact_rgb_is_photometric_measurement", false)
     mat.set_meta("focus_visibility_boost", owner_id in FOCUS_OWNER_IDS)
     mat.set_meta("source_winding_diagnostic_candidate", owner_id in WINDING_DIAGNOSTIC_OWNER_IDS)
+    mat.set_meta("source_winding_diagnostic_cull_mode", BaseMaterial3D.CULL_BACK)
     mat.set_meta("source_winding_mitigation_enabled", false)
     surface.material_override = mat
     surface.set_meta("presentation_identity", facts["label"])
     surface.set_meta("source_geometry_unchanged", true)
     surface.set_meta("source_collision_unchanged", true)
 
-func set_source_winding_mitigation_enabled(enabled: bool) -> bool:
+func set_source_winding_diagnostic_cull_mode(mode: int) -> bool:
     if not built or _contour == null:
-        _fail("source winding diagnostic toggle requested before presentation readiness")
+        _fail("source winding diagnostic cull mode requested before presentation readiness")
+        return false
+    if mode not in [BaseMaterial3D.CULL_BACK, BaseMaterial3D.CULL_FRONT, BaseMaterial3D.CULL_DISABLED]:
+        _fail("unsupported source winding diagnostic cull mode: %d" % mode)
         return false
     for owner_id: String in WINDING_DIAGNOSTIC_OWNER_IDS:
         for suffix: String in ["WALLSURFACE", "ROOFSURFACE"]:
@@ -124,10 +129,15 @@ func set_source_winding_mitigation_enabled(enabled: bool) -> bool:
             if mat == null or str(mat.get_meta("urbis_owner_id", "")) != owner_id or not bool(mat.get_meta("source_winding_diagnostic_candidate", false)):
                 _fail("source winding diagnostic material ownership drifted: %s %s" % [owner_id, suffix])
                 return false
-            mat.cull_mode = BaseMaterial3D.CULL_DISABLED if enabled else BaseMaterial3D.CULL_BACK
-            mat.set_meta("source_winding_mitigation_enabled", enabled)
-    set_meta("source_winding_mitigation_enabled", enabled)
+            mat.cull_mode = mode
+            mat.set_meta("source_winding_diagnostic_cull_mode", mode)
+            mat.set_meta("source_winding_mitigation_enabled", mode == BaseMaterial3D.CULL_DISABLED)
+    set_meta("source_winding_diagnostic_cull_mode", mode)
+    set_meta("source_winding_mitigation_enabled", mode == BaseMaterial3D.CULL_DISABLED)
     return true
+
+func set_source_winding_mitigation_enabled(enabled: bool) -> bool:
+    return set_source_winding_diagnostic_cull_mode(BaseMaterial3D.CULL_DISABLED if enabled else BaseMaterial3D.CULL_BACK)
 
 func collision_object_count() -> int:
     return 0

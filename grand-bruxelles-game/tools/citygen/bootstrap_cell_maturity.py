@@ -17,6 +17,15 @@ from typing import Any
 
 FORMAT = "grand-bruxelles-cell-maturity-v1"
 CRS = "EPSG:31370"
+PRODUCTION_SOURCE_FORMAT = "grand-bruxelles-urbis-source-cell-v1"
+LEGACY_BUILT_SOURCE_FORMAT = "grand-bruxelles-urbis-built-cell-v1"
+REGIONAL_REQUIRED_SOURCE_LAYERS: tuple[tuple[str, str], ...] = (
+    ("buildings", "raw/buildings.geojson"),
+    ("street_surfaces", "raw/street_surfaces.geojson"),
+    ("street_axes", "raw/street_axes.geojson"),
+    ("tram_network", "raw/tram_network.geojson"),
+    ("train_network", "raw/train_network.geojson"),
+)
 GATES = (
     "source_requirements",
     "crs",
@@ -65,12 +74,48 @@ def _declared_source_file_specs(source: dict[str, Any]) -> list[tuple[str, dict[
 
 
 def missing_declared_source_files(source: dict[str, Any], cell_dir: Path) -> list[str]:
-    """Return unsafe or absent explicitly declared source files without parsing payloads."""
+    """Return source defects that require authoritative regional rematerialization.
+
+    Explicit file contracts are always enforced. Production regional source cells also
+    require the complete five-layer UrbIS base-city contract. Real legacy built-cell
+    caches carrying embedded runtime metadata are deliberately requeued so the
+    autonomous materializer upgrades them to the canonical source-cell format.
+
+    Focused synthetic/list-style fixtures remain backwards compatible: mandatory
+    regional layers are only imposed on the canonical production format.
+    """
     missing: list[str] = []
+    seen: set[str] = set()
+
+    def add(item: str) -> None:
+        if item not in seen:
+            seen.add(item)
+            missing.append(item)
+
     for layer_name, _spec, declared in _declared_source_file_specs(source):
         relative = Path(declared)
         if relative.is_absolute() or ".." in relative.parts or not (cell_dir / relative).is_file():
-            missing.append(f"{layer_name}:{declared}")
+            add(f"{layer_name}:{declared}")
+
+    source_format = source.get("format")
+    layers = source.get("layers")
+    if source_format == PRODUCTION_SOURCE_FORMAT:
+        layer_map = layers if isinstance(layers, dict) else {}
+        for layer_name, canonical_file in REGIONAL_REQUIRED_SOURCE_LAYERS:
+            spec = layer_map.get(layer_name)
+            if not isinstance(spec, dict):
+                add(f"{layer_name}:{canonical_file}")
+                continue
+            declared = spec.get("file")
+            if not isinstance(declared, str) or not declared.strip():
+                add(f"{layer_name}:{canonical_file}")
+                continue
+            relative = Path(declared.strip())
+            if relative.is_absolute() or ".." in relative.parts or not (cell_dir / relative).is_file():
+                add(f"{layer_name}:{declared.strip()}")
+    elif source_format == LEGACY_BUILT_SOURCE_FORMAT and isinstance(source.get("runtime"), dict):
+        add(f"manifest:legacy_format:{LEGACY_BUILT_SOURCE_FORMAT}")
+
     return missing
 
 

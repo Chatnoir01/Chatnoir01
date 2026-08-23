@@ -10,6 +10,8 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_runtime_frontier_source_completeness.py"
       - "grand-bruxelles-game/tools/citygen/build_runtime_candidate_bundle.py"
       - "grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/validate_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/test_validate_runtime_candidate_bundle.py"
   schedule:
     - cron: "47 * * * *"
   workflow_dispatch:
@@ -21,6 +23,8 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_runtime_frontier_source_completeness.py"
       - "grand-bruxelles-game/tools/citygen/build_runtime_candidate_bundle.py"
       - "grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/validate_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/test_validate_runtime_candidate_bundle.py"
 
 permissions:
   contents: write
@@ -41,6 +45,7 @@ jobs:
           python3 grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py
           python3 grand-bruxelles-game/tools/citygen/test_build_regional_runtime_candidates.py
           python3 grand-bruxelles-game/tools/citygen/test_runtime_frontier_source_completeness.py
+          python3 grand-bruxelles-game/tools/citygen/test_validate_runtime_candidate_bundle.py
 
   build-frontier:
     if: github.event_name != 'pull_request'
@@ -71,6 +76,33 @@ jobs:
               git archive origin/citygen-runtime-candidates "${STATE_ROOT}/runtime_candidates" | tar -x -C /tmp/citygen-runtime-existing
             fi
           fi
+
+      - name: Requeue previously blocked candidate validations
+        run: |
+          set -euo pipefail
+          ROOT="/tmp/citygen-runtime-existing/grand-bruxelles-game/data/qa/runtime_candidates"
+          python3 - "$ROOT" <<'PY'
+          import json
+          import shutil
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          requeued = []
+          if root.is_dir():
+              for bundle in sorted(path for path in root.iterdir() if path.is_dir()):
+                  validation = bundle / 'validation.json'
+                  if not validation.is_file():
+                      continue
+                  try:
+                      payload = json.loads(validation.read_text(encoding='utf-8'))
+                  except Exception:
+                      payload = {"status": "blocked"}
+                  if payload.get('status') != 'validated':
+                      requeued.append(bundle.name)
+                      shutil.rmtree(bundle)
+          print(f'RUNTIME_CANDIDATE_REQUEUE_BLOCKED count={len(requeued)} cells={",".join(requeued)}')
+          PY
 
       - name: Compile next municipality-balanced runtime candidate batch
         run: |
@@ -109,6 +141,73 @@ jobs:
           print(f'RUNTIME_CANDIDATE_PARTIAL_PROGRESS_OK selected={selected} built={built} failures={failures}')
           PY
 
+      - name: Validate candidate bundles against current durable sources
+        run: |
+          set -u
+          : > /tmp/citygen-runtime-validation-failures.tsv
+          SOURCE_ROOT="/tmp/citygen-runtime-input/grand-bruxelles-game/data/qa/autonomous_sources"
+          for ROOT in \
+            /tmp/citygen-runtime-existing/grand-bruxelles-game/data/qa/runtime_candidates \
+            /tmp/citygen-runtime-new; do
+            [ -d "$ROOT" ] || continue
+            while IFS= read -r -d '' BUNDLE; do
+              CELL="$(basename "$BUNDLE")"
+              SOURCE="${SOURCE_ROOT}/${CELL}"
+              LOG="/tmp/citygen-runtime-out/validate-${CELL}.log"
+              if python3 grand-bruxelles-game/tools/citygen/validate_runtime_candidate_bundle.py \
+                --bundle-dir "$BUNDLE" \
+                --source-dir "$SOURCE" \
+                --output "$BUNDLE/validation.json" >"$LOG" 2>&1; then
+                rm -f "$LOG"
+              else
+                printf '%s\t%s\n' "$CELL" "$(tail -n 1 "$LOG" | tr '\t\r\n' '   ')" >> /tmp/citygen-runtime-validation-failures.tsv
+                echo "RUNTIME_CANDIDATE_VALIDATION_BLOCKED ${CELL}"
+              fi
+            done < <(find "$ROOT" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+          done
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          roots = [
+              Path('/tmp/citygen-runtime-existing/grand-bruxelles-game/data/qa/runtime_candidates'),
+              Path('/tmp/citygen-runtime-new'),
+          ]
+          rows = []
+          for root in roots:
+              if not root.is_dir():
+                  continue
+              for bundle in sorted(path for path in root.iterdir() if path.is_dir()):
+                  path = bundle / 'validation.json'
+                  if not path.is_file():
+                      rows.append({"cell_id": bundle.name, "status": "blocked", "blockers": ["validation_evidence_missing"]})
+                      continue
+                  payload = json.loads(path.read_text(encoding='utf-8'))
+                  rows.append({
+                      "cell_id": payload.get('cell_id', bundle.name),
+                      "status": payload.get('status'),
+                      "validation_digest": payload.get('validation_digest'),
+                      "blockers": payload.get('blockers', []),
+                      "promotion_ready": payload.get('promotion_ready'),
+                  })
+          validated = sum(row.get('status') == 'validated' for row in rows)
+          blocked = len(rows) - validated
+          report = {
+              "format": "grand-bruxelles-runtime-candidate-validation-report-v1",
+              "candidate_count": len(rows),
+              "validated_count": validated,
+              "blocked_count": blocked,
+              "runtime_mount_authorized": False,
+              "jouable_promotion_authorized": False,
+              "candidates": rows,
+          }
+          Path('/tmp/citygen-runtime-out/runtime_candidate_validation_report.json').write_text(
+              json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          print(f'RUNTIME_CANDIDATE_VALIDATION_REPORT candidates={len(rows)} validated={validated} blocked={blocked}')
+          PY
+
       - name: Persist candidate-only runtime bundles off main
         run: |
           set -euo pipefail
@@ -121,7 +220,10 @@ jobs:
           cp -a /tmp/citygen-runtime-existing/grand-bruxelles-game/data/qa/runtime_candidates/. "$DEST/" 2>/dev/null || true
           cp -a /tmp/citygen-runtime-new/. "$DEST/" 2>/dev/null || true
           cp /tmp/citygen-runtime-out/runtime_candidate_frontier_report.json grand-bruxelles-game/data/qa/runtime_candidate_frontier_report.json
-          git add "$DEST" grand-bruxelles-game/data/qa/runtime_candidate_frontier_report.json
+          cp /tmp/citygen-runtime-out/runtime_candidate_validation_report.json grand-bruxelles-game/data/qa/runtime_candidate_validation_report.json
+          git add "$DEST" \
+                  grand-bruxelles-game/data/qa/runtime_candidate_frontier_report.json \
+                  grand-bruxelles-game/data/qa/runtime_candidate_validation_report.json
           if git diff --cached --quiet; then
             echo "RUNTIME_CANDIDATE_FRONTIER_NO_CHANGE"
           else
@@ -144,7 +246,7 @@ jobs:
             /tmp/citygen-runtime-new/
           retention-days: 30
 
-      - name: Surface cell compilation failures after durable progress
+      - name: Surface compilation or validation failures after durable progress
         run: |
           set -euo pipefail
           COMPILER_RC="$(cat /tmp/citygen-runtime-compiler-rc 2>/dev/null || echo 1)"
@@ -154,9 +256,14 @@ jobs:
           from pathlib import Path
 
           compiler_rc = int(sys.argv[1])
-          report = json.loads(Path('/tmp/citygen-runtime-out/runtime_candidate_frontier_report.json').read_text(encoding='utf-8'))
-          failures = int(report.get('failure_count', 0))
-          if failures or compiler_rc:
-              raise SystemExit(f'RUNTIME_CANDIDATE_FRONTIER_PARTIAL_FAILURES persisted_successes=true failures={failures} compiler_rc={compiler_rc}')
-          print('RUNTIME_CANDIDATE_FRONTIER_COMPLETE_FAILURES=0')
+          build_report = json.loads(Path('/tmp/citygen-runtime-out/runtime_candidate_frontier_report.json').read_text(encoding='utf-8'))
+          validation_report = json.loads(Path('/tmp/citygen-runtime-out/runtime_candidate_validation_report.json').read_text(encoding='utf-8'))
+          failures = int(build_report.get('failure_count', 0))
+          blocked = int(validation_report.get('blocked_count', 0))
+          if failures or compiler_rc or blocked:
+              raise SystemExit(
+                  'RUNTIME_CANDIDATE_FRONTIER_PARTIAL_FAILURES '
+                  f'persisted_successes=true compilation_failures={failures} compiler_rc={compiler_rc} validation_blocked={blocked}'
+              )
+          print('RUNTIME_CANDIDATE_FRONTIER_COMPLETE compilation_failures=0 validation_blocked=0 promotion_bypass=false')
           PY

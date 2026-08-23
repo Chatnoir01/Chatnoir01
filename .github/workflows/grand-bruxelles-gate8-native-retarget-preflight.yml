@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_preflight_test.gd"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_canonical_names_test.gd"
       - ".github/workflows/grand-bruxelles-gate8-native-retarget-preflight.yml"
   workflow_dispatch:
 
@@ -33,11 +34,17 @@ jobs:
         run: |
           set -euo pipefail
           TEST=grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_preflight_test.gd
+          CANON=grand-bruxelles-game/game/tests/gate8_variant01_native_canonical_names_test.gd
           grep -q 'RetargetModifier3D.new()' "$TEST"
           grep -q 'BLOCKED_NEEDS_CANONICAL_BONE_NAMES' "$TEST"
           grep -q 'set_position_enabled(false)' "$TEST"
           grep -q 'set_rotation_enabled(true)' "$TEST"
           grep -q 'set_scale_enabled(false)' "$TEST"
+          grep -q 'set_bone_name' "$CANON"
+          grep -q 'READY_CANONICAL_NATIVE_AB' "$CANON"
+          grep -q 'rest_pose_unchanged' "$CANON"
+          grep -q 'parent_topology_unchanged' "$CANON"
+          grep -q 'retarget_applied.*false' "$CANON"
           curl -L --fail --retry 3 https://raw.githubusercontent.com/godotengine/godot/4.7.1-stable/scene/3d/retarget_modifier_3d.cpp -o /tmp/retarget_modifier_3d.cpp
           test "$(grep -c 'find_bone(E)' /tmp/retarget_modifier_3d.cpp)" -ge 2
           grep -q 'PackedStringArray bone_names = profile->get_bone_names()' /tmp/retarget_modifier_3d.cpp
@@ -46,7 +53,7 @@ jobs:
       - name: Download exact pinned CC0 animation source
         run: |
           set -euo pipefail
-          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-Native-Retarget-Preflight/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-Native-Retarget-Preflight/1.1' "$ANIM_URL" -o /tmp/animation-source.zip
           test -s /tmp/animation-source.zip
           test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
           test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
@@ -94,6 +101,7 @@ jobs:
           cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
           cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
           cp grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_preflight_test.gd "$ISOLATED_PROJECT/game/tests/"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_native_canonical_names_test.gd "$ISOLATED_PROJECT/game/tests/"
           timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-native-import.log
           ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-native-import.log
 
@@ -110,12 +118,38 @@ jobs:
           assert r['reviewed_roles']==22
           assert r['retarget_modifier_available'] is True
           assert r['direct_native_ready'] is False
-          assert r['heteronymous_role_count'] > 0
+          assert r['same_name_role_count']==0
+          assert r['heteronymous_role_count']==22
           assert r['selection_state']=='BLOCKED_NEEDS_CANONICAL_BONE_NAMES'
           assert r['position_enabled'] is False and r['rotation_enabled'] is True and r['scale_enabled'] is False
           assert r['run_alias_selected']=='' and r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
           assert not r['failures']
-          print('GATE8_NATIVE_RETARGET_PREFLIGHT_CONTRACT_OK roles=22 direct_native_ready=false production_authorized=false')
+          print('GATE8_NATIVE_RETARGET_PREFLIGHT_CONTRACT_OK roles=22 same_name=0 heteronymous=22 production_authorized=false')
+          PY
+
+      - name: Prove runtime-only canonical names preserve rest pose and topology
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_native_canonical_names_test.gd 2>&1 | tee /tmp/gate8-native-canonical.log
+          test -s "$ISOLATED_PROJECT/gate8_variant01_native_canonical_names_result.json"
+          cp "$ISOLATED_PROJECT/gate8_variant01_native_canonical_names_result.json" /tmp/gate8_variant01_native_canonical_names_result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8_variant01_native_canonical_names_result.json').read_text())
+          assert r['reviewed_roles']==22
+          assert r['source_renamed_roles']==22 and r['target_renamed_roles']==22
+          assert r['canonical_common_role_count']==22
+          assert r['rest_pose_unchanged'] is True
+          assert r['parent_topology_unchanged'] is True
+          assert r['bone_indices_unchanged'] is True
+          assert r['canonicalization_runtime_only'] is True
+          assert r['source_asset_modified'] is False and r['target_asset_modified'] is False
+          assert r['retarget_applied'] is False
+          assert r['selection_state']=='READY_CANONICAL_NATIVE_AB'
+          assert r['run_alias_selected']=='' and r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert not r['failures']
+          print('GATE8_NATIVE_CANONICAL_NAMES_CONTRACT_OK roles=22 common=22 rest_pose_unchanged=true topology_unchanged=true retarget_applied=false')
           PY
 
       - name: Upload native-retarget preflight evidence
@@ -127,6 +161,8 @@ jobs:
           path: |
             /tmp/gate8-native-import.log
             /tmp/gate8-native-preflight.log
+            /tmp/gate8-native-canonical.log
             /tmp/gate8_variant01_native_retarget_preflight_result.json
+            /tmp/gate8_variant01_native_canonical_names_result.json
             /tmp/godot-version.txt
             /tmp/godot-retarget-source.sha256

@@ -42,6 +42,8 @@ jobs:
     needs: validate-contract
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    outputs:
+      durable_progress: ${{ steps.persist.outputs.durable_progress }}
     # Only the writer shares the autonomous durable-state lock. Pull-request
     # validation must stay independent so it cannot cancel or be cancelled by
     # the full Autonomous CityGen workflow.
@@ -138,6 +140,7 @@ jobs:
             --refresh-only
 
       - name: Persist repaired sources and refreshed state immediately
+        id: persist
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -170,6 +173,7 @@ jobs:
               --force-with-lease="refs/heads/citygen-autonomous-state:${REMOTE_SHA}" \
               origin HEAD:refs/heads/citygen-autonomous-state
           fi
+          echo "durable_progress=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload source-repair evidence
         uses: actions/upload-artifact@v4
@@ -192,3 +196,26 @@ jobs:
             exit 1
           fi
           echo "CITYGEN_SOURCE_REPAIR_COMPLETE failures=0 persisted_successes=true promotion_bypass=false"
+
+  dispatch-regional-citygen:
+    if: always() && github.event_name != 'pull_request' && needs.repair-frontier.outputs.durable_progress == 'true'
+    needs: repair-frontier
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Dispatch governed regional CityGen after durable source repair
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-autonomous-citygen.yml/dispatches" \
+            -f ref=main \
+            -f 'inputs[batch_size]=32'
+          echo "CITYGEN_SOURCE_REPAIR_CHAIN_OK durable_progress=true next=autonomous_citygen batch=32 promotion_bypass=false"

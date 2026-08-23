@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Dispatch source repair then governed regional CityGen
+      - name: Dispatch governed source repair frontier
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -66,12 +66,4 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-citygen-source-repair-frontier.yml/dispatches" \
             -f ref=main
-          echo "REGIONAL_SOURCE_REPAIR_DISPATCH_OK batch=32 writer_lock=shared promotion_bypass=false"
-          gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-autonomous-citygen.yml/dispatches" \
-            -f ref=main \
-            -f 'inputs[batch_size]=32'
-          echo "REGIONAL_MUNICIPALITY_TARGET_OK municipalities=19 batch=32 cadence=2h immediate=true balanced=true source_repair=true promotion_bypass=false"
+          echo "REGIONAL_SOURCE_REPAIR_DISPATCH_OK batch=32 writer_lock=shared chained_citygen=true promotion_bypass=false"

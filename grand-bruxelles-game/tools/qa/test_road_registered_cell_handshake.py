@@ -116,6 +116,28 @@ class RoadRegisteredCellHandshakeTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             validate_handshake(self.road, self.cells, self.crosswalk)
 
+    def test_future_row_authorization_fails_closed(self):
+        payload = self.payload()
+        payload["rows"][0]["streaming_mount_authorized"] = True
+        write(self.crosswalk, payload)
+        with self.assertRaises(RuntimeError):
+            validate_handshake(self.road, self.cells, self.crosswalk)
+
+    def test_future_crosswalk_authorization_fails_closed(self):
+        payload = self.payload()
+        payload["streaming_mount_authorized"] = True
+        write(self.crosswalk, payload)
+        with self.assertRaises(RuntimeError):
+            validate_handshake(self.road, self.cells, self.crosswalk)
+
+    def test_future_cell_authorization_fails_closed(self):
+        cells = json.loads(self.cells.read_text())
+        cells["entries"][0]["streaming_mount_authorized"] = True
+        write(self.cells, cells)
+        write(self.crosswalk, self.payload())
+        with self.assertRaises(RuntimeError):
+            validate_handshake(self.road, self.cells, self.crosswalk)
+
 
 if __name__ == "__main__":
     unittest.main()

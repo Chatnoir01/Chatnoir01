@@ -9,6 +9,15 @@ from pathlib import Path
 from typing import Any
 
 CELL_ID_RE = re.compile(r"^bxl-e(?P<east>-?\d+)-n(?P<north>-?\d+)-s(?P<size>\d+)$")
+REQUIRED_SOURCE_ONLY_GATES = (
+    "runtime_geometry",
+    "collisions",
+    "streaming",
+    "terrain",
+    "heights",
+    "photo_match",
+    "performance",
+)
 
 
 def canonical_json(value: Any) -> bytes:
@@ -46,10 +55,17 @@ def load_registered_cells(root: Path) -> list[dict[str, Any]]:
         if bbox != expected_bbox:
             raise RuntimeError(f"registered cell bbox mismatch: {cell_id}: {bbox!r} != {expected_bbox!r}")
         maturity = payload.get("maturity") or {}
+        if maturity.get("state") != "data_ready":
+            raise RuntimeError(f"registered cell maturity state drift: {cell_id}: {maturity.get('state')!r}")
         gates = maturity.get("gates") or {}
-        for gate in ("runtime_geometry", "collisions", "streaming", "terrain", "heights", "photo_match", "performance"):
+        for gate in REQUIRED_SOURCE_ONLY_GATES:
             if gate not in gates or not isinstance(gates[gate], bool):
                 raise RuntimeError(f"registered cell missing boolean maturity gate {gate}: {cell_id}")
+        for gate, value in gates.items():
+            if not isinstance(value, bool):
+                raise RuntimeError(f"registered cell maturity gate must be boolean {gate}: {cell_id}")
+            if value is not False:
+                raise RuntimeError(f"registered cell maturity gate opened unexpectedly {gate}: {cell_id}")
         rows.append({
             "registered_cell_id": cell_id,
             "driveway_cell_id": driveway_cell_id,

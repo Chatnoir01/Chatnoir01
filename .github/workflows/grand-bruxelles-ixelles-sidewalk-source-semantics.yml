@@ -1,0 +1,29 @@
+name: Grand Bruxelles Ixelles Sidewalk Source Semantics
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-ixelles-sidewalk-source-semantics.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_source.json"
+      - "grand-bruxelles-game/game/scripts/ixelles_midi_sidewalk_runtime.gd"
+      - "grand-bruxelles-game/tests/test_ixelles_sidewalk_source_semantics.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-semantics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Ixelles sidewalk source and binding semantics
+        run: |
+          python3 - <<'PY'
+          import runpy
+          ns = runpy.run_path('grand-bruxelles-game/tests/test_ixelles_sidewalk_source_semantics.py')
+          ns['test_ixelles_sidewalk_runtime_does_not_reintroduce_sw_only_semantics']()
+          print('IXELLES_SIDEWALK_SOURCE_SEMANTICS_OK')
+          PY

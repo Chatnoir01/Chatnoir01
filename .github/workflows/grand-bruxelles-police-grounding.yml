@@ -1,0 +1,64 @@
+name: Grand Bruxelles Police Grounding
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/belgian_police_grounding_runtime.gd"
+      - "grand-bruxelles-game/game/tests/belgian_police_grounding_runtime_test.gd"
+      - "grand-bruxelles-game/data/runtime/modules/belgian_police_grounding.json"
+      - ".github/workflows/grand-bruxelles-police-grounding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  police-grounding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          timeout 60s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            --rendering-method gl_compatibility 2>&1 | tee /tmp/police-grounding-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|SHADER ERROR|Shader compilation failed|ERROR: Failed to load script|couldn.t be loaded' /tmp/police-grounding-import.log; then exit 1; fi
+
+      - name: Verify rendered police feet are on ground
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -o pipefail
+          timeout 90s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/belgian_police_grounding_runtime_test.gd \
+            2>&1 | tee /tmp/police-grounding-test.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|SHADER ERROR|Shader compilation failed|BELGIAN_POLICE_GROUNDING_FAIL' /tmp/police-grounding-test.log; then exit 1; fi
+          grep -q 'BELGIAN_POLICE_GROUNDING_OK' /tmp/police-grounding-test.log
+
+      - name: Preserve grounding evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: belgian-police-grounding
+          path: |
+            /tmp/police-grounding-import.log
+            /tmp/police-grounding-test.log

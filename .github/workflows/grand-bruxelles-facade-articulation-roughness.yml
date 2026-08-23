@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/game/scripts/brussels_osm_facade_articulation_material.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_osm_facade_roughness_ab_test.gd'
       - 'grand-bruxelles-game/tools/test_facade_articulation_roughness_contract.py'
+      - 'grand-bruxelles-game/tools/check_osm_facade_roughness_ab.py'
       - '.github/workflows/grand-bruxelles-facade-articulation-roughness.yml'
   workflow_dispatch:
 
@@ -13,9 +15,45 @@ permissions:
 
 jobs:
   facade-roughness-contract:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
       - name: Validate active facade roughness contract
         run: python3 grand-bruxelles-game/tools/test_facade_articulation_roughness_contract.py
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 python3-pil
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/facade-roughness-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/facade-roughness-import.log; then exit 1; fi
+      - name: Capture same-camera facade roughness A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --resolution 1280x720 --script res://game/tests/brussels_osm_facade_roughness_ab_test.gd 2>&1 | tee /tmp/facade-roughness-witness.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_FACADE_ROUGHNESS_VISUAL_FAIL' /tmp/facade-roughness-witness.log; then exit 1; fi
+          grep -q 'BRUSSELS_OSM_FACADE_ROUGHNESS_VISUAL_CAPTURED' /tmp/facade-roughness-witness.log
+          python3 grand-bruxelles-game/tools/check_osm_facade_roughness_ab.py
+      - name: Upload roughness evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-osm-facade-roughness-ab
+          path: |
+            grand-bruxelles-game/artifacts/visual/osm_facade_roughness_before.png
+            grand-bruxelles-game/artifacts/visual/osm_facade_roughness_control.png
+            grand-bruxelles-game/artifacts/visual/osm_facade_roughness_after.png
+            /tmp/facade-roughness-import.log
+            /tmp/facade-roughness-witness.log
+          if-no-files-found: error

@@ -23,12 +23,6 @@ on:
 permissions:
   contents: write
 
-# Share the exact writer lock with the full autonomous pipeline. Source repair is
-# short, but it must never race a second writer of citygen-autonomous-state.
-concurrency:
-  group: grand-bruxelles-autonomous-citygen
-  cancel-in-progress: false
-
 jobs:
   validate-contract:
     runs-on: ubuntu-latest
@@ -48,6 +42,12 @@ jobs:
     needs: validate-contract
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    # Only the writer shares the autonomous durable-state lock. Pull-request
+    # validation must stay independent so it cannot cancel or be cancelled by
+    # the full Autonomous CityGen workflow.
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:

@@ -48,7 +48,7 @@ jobs:
           xvfb-run -a godot --headless --rendering-method gl_compatibility --editor --path . --quit-after 1 \
             2>&1 | tee /tmp/maison-winding-import.log
 
-      - name: Capture reversible same-camera A-B
+      - name: Capture reversible same-camera cull-mode diagnostic
         working-directory: grand-bruxelles-game
         shell: bash
         run: |
@@ -59,7 +59,7 @@ jobs:
             2>&1 | tee /tmp/maison-winding-capture.log
           grep -q 'GRAND_PLACE_MAISON_WINDING_AB_OK' /tmp/maison-winding-capture.log
 
-      - name: Validate A-B evidence fail-closed
+      - name: Validate winding evidence fail-closed
         working-directory: grand-bruxelles-game
         shell: bash
         run: |
@@ -70,11 +70,12 @@ jobs:
 
           root = Path('artifacts/grand-place-maison-winding-ab')
           report_path = root / 'maison_du_roi_winding_ab.json'
-          before = root / 'maison_du_roi_cull_back.png'
-          after = root / 'maison_du_roi_cull_disabled.png'
-          for path in (report_path, before, after):
+          back = root / 'maison_du_roi_cull_back.png'
+          front = root / 'maison_du_roi_cull_front.png'
+          disabled = root / 'maison_du_roi_cull_disabled.png'
+          for path in (report_path, back, front, disabled):
               if not path.is_file():
-                  raise SystemExit(f'missing winding A/B evidence: {path}')
+                  raise SystemExit(f'missing winding diagnostic evidence: {path}')
 
           def dims(path: Path):
               blob = path.read_bytes()
@@ -82,17 +83,22 @@ jobs:
                   raise SystemExit(f'invalid PNG: {path}')
               return struct.unpack('>II', blob[16:24])
 
-          if dims(before) != (1280, 720) or dims(after) != (1280, 720):
-              raise SystemExit('winding A/B must stay exact 1280x720')
-          if before.read_bytes() == after.read_bytes():
-              raise SystemExit('winding A/B frames are byte-identical; mitigation effect is not evidenced')
+          for path in (back, front, disabled):
+              if dims(path) != (1280, 720):
+                  raise SystemExit(f'winding diagnostic must stay exact 1280x720: {path}')
+          if back.read_bytes() == front.read_bytes():
+              raise SystemExit('CULL_FRONT is byte-identical to production CULL_BACK; diagnostic is not informative')
+          if back.read_bytes() == disabled.read_bytes():
+              raise SystemExit('CULL_DISABLED is byte-identical to production CULL_BACK; diagnostic is not informative')
 
           report = json.loads(report_path.read_text())
           expected = {
-              'schema': 'grand-bruxelles-grand-place-maison-winding-ab-v1',
+              'schema': 'grand-bruxelles-grand-place-maison-winding-ab-v2',
               'owner_id': '1654360',
               'resolution': [1280, 720],
               'target_method': 'source_bbox_cluster_center',
+              'production_default_cull_mode': 'CULL_BACK',
+              'production_mitigation_authorized': False,
               'source_geometry_changed': False,
               'source_collision_changed': False,
               'human_review_required': True,
@@ -100,20 +106,23 @@ jobs:
           }
           for key, value in expected.items():
               if report.get(key) != value:
-                  raise SystemExit(f'winding A/B contract drifted for {key}: {report.get(key)!r}')
+                  raise SystemExit(f'winding diagnostic contract drifted for {key}: {report.get(key)!r}')
           if report.get('state_a') != {'cull_mode': 'CULL_BACK', 'png': 'maison_du_roi_cull_back.png'}:
               raise SystemExit('state A drifted')
-          if report.get('state_b') != {'cull_mode': 'CULL_DISABLED', 'png': 'maison_du_roi_cull_disabled.png'}:
+          if report.get('state_b') != {'cull_mode': 'CULL_FRONT', 'png': 'maison_du_roi_cull_front.png'}:
               raise SystemExit('state B drifted')
-          delta = report.get('delta')
-          if not isinstance(delta, dict):
-              raise SystemExit('missing pixel delta diagnostics')
-          for key in ('changed_pixels_gt_0_001', 'changed_fraction_gt_0_001', 'mean_rgb_abs_delta', 'max_rgb_abs_delta'):
-              if key not in delta:
-                  raise SystemExit(f'missing A/B delta field: {key}')
-          if not (0.0 < float(delta['changed_fraction_gt_0_001']) <= 1.0):
-              raise SystemExit('A/B change fraction must prove a real non-zero visual effect')
-          print('GRAND_PLACE_MAISON_WINDING_AB_EVIDENCE_OK human_review=pending')
+          if report.get('state_c') != {'cull_mode': 'CULL_DISABLED', 'png': 'maison_du_roi_cull_disabled.png'}:
+              raise SystemExit('state C drifted')
+          for delta_key in ('delta_cull_front_vs_back', 'delta_cull_disabled_vs_back'):
+              delta = report.get(delta_key)
+              if not isinstance(delta, dict):
+                  raise SystemExit(f'missing pixel delta diagnostics: {delta_key}')
+              for key in ('changed_pixels_gt_0_001', 'changed_fraction_gt_0_001', 'mean_rgb_abs_delta', 'max_rgb_abs_delta'):
+                  if key not in delta:
+                      raise SystemExit(f'missing {delta_key} field: {key}')
+              if not (0.0 < float(delta['changed_fraction_gt_0_001']) <= 1.0):
+                  raise SystemExit(f'{delta_key} must prove a real non-zero visual effect')
+          print('GRAND_PLACE_MAISON_WINDING_AB_EVIDENCE_OK states=3 production_default=cull_back human_review=pending')
           PY
 
       - name: Bind A-B evidence hashes
@@ -121,8 +130,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sha256sum maison_du_roi_cull_back.png maison_du_roi_cull_disabled.png maison_du_roi_winding_ab.json > evidence-sha256.txt
-          test "$(wc -l < evidence-sha256.txt)" -eq 3
+          sha256sum maison_du_roi_cull_back.png maison_du_roi_cull_front.png maison_du_roi_cull_disabled.png maison_du_roi_winding_ab.json > evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 4
           sha256sum --check evidence-sha256.txt
 
       - name: Stage logs
@@ -139,7 +148,7 @@ jobs:
           set -euo pipefail
           cd grand-bruxelles-game/artifacts/grand-place-maison-winding-ab
           test -f evidence-sha256.txt
-          test "$(wc -l < evidence-sha256.txt)" -eq 3
+          test "$(wc -l < evidence-sha256.txt)" -eq 4
           sha256sum --check evidence-sha256.txt
 
       - name: Upload Maison du Roi winding A-B

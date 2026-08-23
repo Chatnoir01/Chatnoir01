@@ -1,0 +1,68 @@
+{
+  "schema": "grand-bruxelles-driveway-regional-cell-catalog-measurement-v1",
+  "production_base_sha": "5642b33857a5fec7c2bb748afe26bc9f238a67a9",
+  "source": {
+    "publisher": "Bruxelles Mobilité / Parking.brussels",
+    "dataset": "Accès carrossables",
+    "license": "CC0-1.0",
+    "crs": "EPSG:31370",
+    "feature_count": 95805,
+    "stable_id_set_sha256": "f3f4d6002f6b94c0e1149126186278cfe3e0cd8029aef5091b4d730de0e33b8d"
+  },
+  "partition": {
+    "cell_size_m": 500,
+    "municipality_count": 19,
+    "cell_count": 832,
+    "assigned_feature_count": 95805,
+    "unassigned_count": 0,
+    "ambiguous_count": 0,
+    "municipality_counts": {
+      "Anderlecht": 9144,
+      "Auderghem": 5211,
+      "Berchem-Sainte-Agathe": 3032,
+      "Bruxelles": 13037,
+      "Etterbeek": 3028,
+      "Evere": 2886,
+      "Forest": 3841,
+      "Ganshoren": 2038,
+      "Ixelles": 4854,
+      "Jette": 4049,
+      "Koekelberg": 972,
+      "Molenbeek-Saint-Jean": 4696,
+      "Saint-Gilles": 1385,
+      "Saint-Josse-ten-Noode": 632,
+      "Schaerbeek": 5428,
+      "Uccle": 12707,
+      "Watermael-Boitsfort": 3584,
+      "Woluwe-Saint-Lambert": 6987,
+      "Woluwe-Saint-Pierre": 8294
+    },
+    "cells_sha256": "9475d83f0524e917a0cdf89bced41a25b5521e5a7b842d29a9536a5302b2fe8b"
+  },
+  "catalog_semantic_sha256": "ceadc3273ccada1e57f29dbe9d193278c2a952000de3ed57e77eb48d990f1d48",
+  "catalog_semantic_hash_scope": "canonical JSON of complete catalog with production_base_sha removed; exact production base is validated separately",
+  "first_measurement_proof": {
+    "run_id": 32622159033,
+    "artifact_id": 9488673691,
+    "artifact_sha256": "551feac2765abfc11d474b943eecc426c1a3cc753944db146e2fed8c7826a209",
+    "catalog_json_sha256": "e19e620e9d12958e7b7a20f805bcb1888e8b8ee31c9881dc5d1aee7c531d5250"
+  },
+  "second_reproduction_proof": {
+    "run_id": 32624373996,
+    "artifact_id": 9489287345,
+    "artifact_sha256": "18c2b037b4d220ff7e1077dbf12022164b69bcc228fdadcc09ad643d3df543cf",
+    "catalog_json_sha256": "e19e620e9d12958e7b7a20f805bcb1888e8b8ee31c9881dc5d1aee7c531d5250"
+  },
+  "reproduction_status": "locked_exact",
+  "destination_readiness": "DISCOVERED_SOURCE_ONLY",
+  "source_registration_authorized": false,
+  "road_crosswalk_authorized": false,
+  "parking_evidence_runtime_approved": false,
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "materialization_authorized": false,
+  "semantic_names_authorized": false,
+  "game_world_transform_authorized": false,
+  "jouable_promotion_authorized": false
+}

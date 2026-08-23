@@ -1,0 +1,106 @@
+name: Grand Bruxelles Road Surface Microtexture
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/tests/brussels_road_surface_microtexture_ab_test.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_road_surface_material.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_road_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/game/main.tscn'
+      - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - '.github/workflows/grand-bruxelles-road-surface-microtexture.yml'
+  workflow_dispatch:
+
+jobs:
+  road-surface-microtexture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Install rendering dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libglu1-mesa
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
+            -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/road-surface-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/road-surface-import.log; then
+            exit 1
+          fi
+
+      - name: Capture same-camera road surface A/B
+        run: |
+          set -o pipefail
+          mkdir -p grand-bruxelles-game/artifacts/road_surface_microtexture_ab
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --resolution 1280x720 \
+            --script res://game/tests/brussels_road_surface_microtexture_ab_test.gd \
+            2>&1 | tee grand-bruxelles-game/artifacts/road_surface_microtexture_ab/witness.log
+          grep -q 'BRUSSELS_ROAD_SURFACE_MICROTEXTURE_OK' grand-bruxelles-game/artifacts/road_surface_microtexture_ab/witness.log
+
+      - name: Validate A/B evidence contract
+        run: |
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          root = Path('grand-bruxelles-game/artifacts/road_surface_microtexture_ab')
+          for name in ['road_surface_before.png', 'road_surface_after.png']:
+              data = (root / name).read_bytes()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n', name
+              assert data[12:16] == b'IHDR', name
+              assert struct.unpack('>II', data[16:24]) == (1280, 720), name
+          report = json.loads((root / 'road_surface_microtexture_ab.json').read_text())
+          assert report['schema'] == 'grand-bruxelles-road-surface-microtexture-ab-v1'
+          assert report['target_osm_id'] == 359177328
+          assert report['presentation_revision'] == 2
+          assert report['material_family'] == 'brussels_osm_road_surface_v1'
+          assert report['camera_copied_from_legitimate_player_witness'] is True
+          assert report['geometry_changed'] is False
+          assert report['license'] == 'ODbL-1.0'
+          assert report['surface_composition_claimed'] is False
+          assert report['aggregate_scale_claimed'] is False
+          assert report['wear_pattern_claimed'] is False
+          assert report['road_marking_claimed'] is False
+          assert report['microtexture_scale_source_measured'] is False
+          assert report['human_review_status'] == 'pending'
+          m = report['metrics']
+          assert m['fraction_gt_3_rgb'] >= 0.002
+          assert m['fraction_gt_3_rgb'] <= 0.08
+          assert m['bbox_width'] >= 220
+          assert m['bbox_height'] >= 80
+          print('ROAD_SURFACE_MICROTEXTURE_EVIDENCE_OK', m)
+          PY
+
+      - name: Bind evidence hashes
+        if: always()
+        run: |
+          cd grand-bruxelles-game/artifacts/road_surface_microtexture_ab
+          if [ -f road_surface_before.png ] && [ -f road_surface_after.png ] && [ -f road_surface_microtexture_ab.json ]; then
+            sha256sum road_surface_before.png road_surface_after.png road_surface_microtexture_ab.json > evidence-sha256.txt
+            sha256sum --check evidence-sha256.txt
+          fi
+
+      - name: Upload exact A/B artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-road-surface-microtexture-ab
+          path: grand-bruxelles-game/artifacts/road_surface_microtexture_ab
+          if-no-files-found: warn

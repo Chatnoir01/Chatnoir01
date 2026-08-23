@@ -72,6 +72,36 @@ jobs:
           print('IXELLES_MIDI_SIDEWALK_AB',r)
           if r['gt3_fraction'] < 0.0025 or r['gt8_fraction'] < 0.001: raise SystemExit('player-visible change too weak')
           PY
+      - name: Validate durable full-frame evidence
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import json
+          p = Path('grand-bruxelles-game/artifacts/ixelles')
+          required = [
+              p / 'ixelles_midi_sidewalk_before.png',
+              p / 'ixelles_midi_sidewalk_after.png',
+              p / 'ixelles_midi_sidewalk_ab.json',
+          ]
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise SystemExit(f'missing Ixelles sidewalk evidence: {missing}')
+          for path in required[:2]:
+              with path.open('rb') as f:
+                  if f.read(8) != b'\x89PNG\r\n\x1a\n':
+                      raise SystemExit(f'invalid PNG signature: {path}')
+              with Image.open(path) as image:
+                  if image.size != (1280, 720):
+                      raise SystemExit(f'invalid witness dimensions {image.size}: {path}')
+          data = json.loads(required[2].read_text())
+          for key in ('gt3_pixels','gt8_pixels','gt3_fraction','gt8_fraction','gt8_bbox'):
+              if key not in data:
+                  raise SystemExit(f'missing A/B evidence field: {key}')
+          print('IXELLES_MIDI_SIDEWALK_EVIDENCE_OK before=1280x720 after=1280x720 json=complete')
+          PY
       - name: Upload witness
         if: always()
         uses: actions/upload-artifact@v4
@@ -82,4 +112,4 @@ jobs:
             grand-bruxelles-game/artifacts/ixelles/ixelles_midi_sidewalk_after.png
             grand-bruxelles-game/artifacts/ixelles/ixelles_midi_sidewalk_ab.json
             /tmp/sidewalk.log
-          if-no-files-found: warn
+          if-no-files-found: error

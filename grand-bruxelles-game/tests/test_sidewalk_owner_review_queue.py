@@ -18,11 +18,15 @@ assert data["surface_count"] == 47
 assert len(data["queue"]) == 27
 assert all(x["exact_location_owner_review_required"] for x in data["queue"])
 assert all(not x["runtime_replacement_authorized"] for x in data["queue"])
+assert all(x["nearest_anchor_role"] == "triage_only" for x in data["queue"])
+assert all(x["nearest_anchor_authorizes_ownership"] is False for x in data["queue"])
 assert data["policy"]["horizontal_only"] is True
 assert data["policy"]["curb_height_authorized"] is False
 assert data["policy"]["vertical_profile_authorized"] is False
 assert data["policy"]["runtime_geometry_authorized"] is False
 assert data["policy"]["jouable_promotion_authorized"] is False
+assert data["policy"]["nearest_anchor_role"] == "triage_only"
+assert data["policy"]["nearest_anchor_authorizes_ownership"] is False
 expected_ids = {x["run_id"] for x in json.loads(LOCK.read_text())["runs"]}
 assert {x["run_id"] for x in data["queue"]} == expected_ids
 assert all(x["road_name"] and x["nearest_corridor_anchor"] in {"midi","anneessens","bourse","grand_place"} for x in data["queue"])

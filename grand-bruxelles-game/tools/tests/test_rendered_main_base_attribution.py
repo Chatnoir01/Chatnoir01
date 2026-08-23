@@ -152,6 +152,17 @@ class RenderedMainBaseAttributionTest(unittest.TestCase):
         self.assertIn('grep -Eq "$VISUAL_GUARD_PATTERN" /tmp/rendered-main-baseline.log', workflow)
         self.assertIn('grep -Eq "$VISUAL_GUARD_PATTERN" /tmp/rendered-base-baseline.log', workflow)
 
+    def test_workflow_retries_both_godot_release_downloads(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        download_url = "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+        install_blocks = workflow.split("- name: Install Godot 4.7.1")[1:]
+        self.assertEqual(len(install_blocks), 2)
+        for block in install_blocks:
+            self.assertIn(download_url, block)
+            self.assertIn("--retry 4", block)
+            self.assertIn("--retry-all-errors", block)
+            self.assertIn("--retry-delay 2", block)
+
 
 if __name__ == "__main__":
     unittest.main()

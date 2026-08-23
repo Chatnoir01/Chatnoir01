@@ -54,6 +54,7 @@ jobs:
           set -euo pipefail
           rm -rf /tmp/citygen-runtime-input /tmp/citygen-runtime-existing /tmp/citygen-runtime-new /tmp/citygen-runtime-out
           mkdir -p /tmp/citygen-runtime-input /tmp/citygen-runtime-existing /tmp/citygen-runtime-new /tmp/citygen-runtime-out
+          : > /tmp/citygen-runtime-remote-sha
           git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
           STATE_ROOT="grand-bruxelles-game/data/qa"
           git show "origin/citygen-autonomous-state:${STATE_ROOT}/autonomous_citygen_state.json" > /tmp/citygen-runtime-input/state.json
@@ -62,6 +63,7 @@ jobs:
           test -d "/tmp/citygen-runtime-input/${STATE_ROOT}/autonomous_sources"
 
           if git fetch origin citygen-runtime-candidates:refs/remotes/origin/citygen-runtime-candidates 2>/dev/null; then
+            git rev-parse refs/remotes/origin/citygen-runtime-candidates > /tmp/citygen-runtime-remote-sha
             if git cat-file -e "origin/citygen-runtime-candidates:${STATE_ROOT}/runtime_candidates" 2>/dev/null; then
               git archive origin/citygen-runtime-candidates "${STATE_ROOT}/runtime_candidates" | tar -x -C /tmp/citygen-runtime-existing
             fi
@@ -88,6 +90,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          REMOTE_SHA="$(cat /tmp/citygen-runtime-remote-sha 2>/dev/null || true)"
           git switch -C citygen-runtime-candidates
           DEST="grand-bruxelles-game/data/qa/runtime_candidates"
           mkdir -p "$DEST"
@@ -100,7 +103,13 @@ jobs:
             exit 0
           fi
           git commit -m "citygen: persist regional runtime candidate frontier"
-          git push --force-with-lease origin citygen-runtime-candidates
+          if [ -n "$REMOTE_SHA" ]; then
+            git push \
+              --force-with-lease="refs/heads/citygen-runtime-candidates:${REMOTE_SHA}" \
+              origin HEAD:refs/heads/citygen-runtime-candidates
+          else
+            git push origin HEAD:refs/heads/citygen-runtime-candidates
+          fi
 
       - name: Upload runtime candidate frontier evidence
         uses: actions/upload-artifact@v4

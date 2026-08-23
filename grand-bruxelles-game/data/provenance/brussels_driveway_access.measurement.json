@@ -1,0 +1,93 @@
+{
+  "schema": "grand-bruxelles-brussels-driveway-access-measurement-v3",
+  "production_base_sha": "796a1dc16d821b5cb2830992e383de4692a24147",
+  "dataset": "Accès carrossables",
+  "publisher": "Bruxelles Mobilité / Parking.brussels",
+  "metadata_url": "https://data.mobility.brussels/en/info/access_carrossables/",
+  "metadata_last_updated": "2026-03-30",
+  "license": "CC0-1.0",
+  "source_crs": "EPSG:31370",
+  "status": "MEASURED_SOURCE_ONLY_CANONICAL_LOCKED",
+  "legacy_transport_measurement": {
+    "run_id": 32589788511,
+    "artifact_id": 9480000931,
+    "artifact_sha256": "4690741679e3626ba666e7011228714905e83d6af4f67d5c6f60bb01872c73c7",
+    "measurement_json_sha256": "f4fe56ef533314d5f5cc7992ccdc93a6b1754a4b50e3ee09317f6c16f34fc567",
+    "diagnostic_json_sha256": "79ff2d7232a46bed7ef8cf556d967e2f2783d089a20fbadf1b778af4f9626491",
+    "red_reproduction_run_id": 32589916572,
+    "red_diagnostic_artifact_id": 9480035009,
+    "red_diagnostic_artifact_sha256": "d869512c7467445ca341456cc4ed48f78892598cde31566ee1298f208a59339d",
+    "reason": "Raw HTTP JSON hashes changed while counts, IDs, byte sizes and EPSG:31370 bbox stayed identical; transport hashes are retained as forensic evidence only."
+  },
+  "stable_lock": {
+    "main": {
+      "layer": "bm_parking:access_carrossables",
+      "feature_count": 95805,
+      "sample_feature_count": 500,
+      "sample_id_sequence_sha256": "9f4a9792b7e52238ad7045299e9b62227e71b7c6697e15714e49d7ea44a636d8",
+      "sample_bbox_epsg31370": [147926.07949757, 167078.42117445, 148842.57899645, 167930.55367341]
+    },
+    "lookups": {
+      "type_acces_carrossables": {
+        "feature_count": 7,
+        "feature_id_sequence_sha256": "d28a59f6173184f7ca72607394ee0595bd89786b2df86f7495aa7408c87aa872",
+        "geometry_types": {"null": 7}
+      },
+      "zone_recul_carrossable": {
+        "feature_count": 4,
+        "feature_id_sequence_sha256": "e169bdf59fac30d230f7d21be511d04dc8cc61e5edb1d8255758bc220ba3d4c7",
+        "geometry_types": {"null": 4}
+      },
+      "zone_served_carrossable": {
+        "feature_count": 6,
+        "feature_id_sequence_sha256": "9d6093db34ed3db1834973eb10698ddb099971d39ac0e4707485d5f5aa5b0595",
+        "geometry_types": {"null": 6}
+      }
+    }
+  },
+  "canonical_relock_measurement": {
+    "run_id": 32592757677,
+    "artifact_id": 9480755209,
+    "artifact_sha256": "f285dc8246c44233531f660c9e8eda8059676ac74a98e4a9b6fe0824326b5f42",
+    "measurement_json_sha256": "0185aea9b5dad2e364fd236276bc7b8aee14309326827a5ec20095eaa73ad896",
+    "diagnostic_json_sha256": "2f7369d284b1671d125f6be1f55aab46f4f9108453a32c2082efbbd69b4b9f38",
+    "reproduction_status": "canonical-relock-measurement"
+  },
+  "canonical_semantic_lock": {
+    "main_sample_canonical_semantic_sha256": "5c9112caee34847fff87c7a1dbe06f01b39c44321a10b08be83ef79cf7ea9956",
+    "lookup_canonical_semantic_sha256": {
+      "type_acces_carrossables": "c0e850273b0523cd46059179d8a099213b4ef8a43a2f7b009e0fba4ce7510022",
+      "zone_recul_carrossable": "402cb5a23088fb35e938b724ffff675d092c34da76b9a2f2768be7b0763db552",
+      "zone_served_carrossable": "0edd3032c3472c16ae188b9dee994750a7567af5454e40e2351878cc12a7c519"
+    }
+  },
+  "locked_exact_reproduction": {
+    "run_id": 32592825651,
+    "artifact_id": 9480772261,
+    "artifact_sha256": "edd0e8dd97b8189e11c94fa2d02156e541a4191b71ba19195a53f50d50492284",
+    "measurement_json_sha256": "87a61cbc1e29bbed20ba4767a305971667d44dcdb37a1bf934ffa91e44f4a4ca",
+    "diagnostic_json_sha256": "366328a3e8d37864620b983427cce51bc73b837a930eab607ac33deed6f38147",
+    "reproduction_status": "locked-exact",
+    "all_general_gates_green": true
+  },
+  "latest_exact_head_reproduction": {
+    "run_id": 32606577281,
+    "artifact_id": 9484272462,
+    "artifact_sha256": "d1363167065f7d9957d61f2d611024bb48f730ae44f5e8325e30960828f25114",
+    "measurement_json_sha256": "4fac299a7f10a7988bb1bec71787420b95b716bb8d15a5d6c1641b96f4ad1236",
+    "diagnostic_json_sha256": "9fcd63eb36483c631d6d1539501fb8180db3b15bb5605198b900db68a5448ccf",
+    "reproduction_status": "locked-exact",
+    "all_general_gates_green": true,
+    "source_head_sha": "0d56a71c89962deaec8e51f69c5897df2879dd99"
+  },
+  "source_registration_authorized": false,
+  "parking_evidence_runtime_approved": false,
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "collision_authorized": false,
+  "materialization_authorized": false,
+  "semantic_names_authorized": false,
+  "game_world_transform_authorized": false,
+  "jouable_promotion_authorized": false,
+  "note": "Source-only canonical semantic lock reproduced locked-exact across successive exact heads. Raw HTTP hashes remain forensic-only because publisher JSON serialization is transport-nondeterministic. Registration/runtime rails remain closed."
+}

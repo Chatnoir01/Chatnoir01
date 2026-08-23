@@ -1,0 +1,66 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-native-retarget-ab-v1",
+  "base_main_sha": "a600ec5bedde79bd5a647b396a26f42322012aac",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "source_animation": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205,
+    "glb": "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_zip_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb": "npc_gate_01.glb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "native_preflight": {
+    "source_pr": 1168,
+    "run_id": 32625024400,
+    "state": "GREEN",
+    "reviewed_roles": 22,
+    "same_name_roles_before_runtime_rename": 0,
+    "heteronymous_roles_before_runtime_rename": 22
+  },
+  "run_candidates": ["Jog_Fwd", "Sprint"],
+  "retarget": {
+    "engine": "RetargetModifier3D",
+    "godot_version": "4.7.1",
+    "use_global_pose": false,
+    "position_enabled": false,
+    "rotation_enabled": true,
+    "scale_enabled": false,
+    "target_runtime_rename_to_source_names": true,
+    "source_bone_names_unchanged": true,
+    "source_animation_tracks_unchanged": true,
+    "target_rest_pose_unchanged": true,
+    "target_parent_topology_unchanged": true,
+    "target_bone_indices_unchanged": true
+  },
+  "measurement_gate": {
+    "sample_rate_hz": 120,
+    "minimum_samples_per_clip": 80,
+    "ground_clearance_m": 0.02,
+    "contact_height_window_m": 0.04,
+    "max_ground_correction_span_m": 0.18,
+    "max_ground_correction_step_m": 0.08,
+    "max_mean_torso_bend_delta_deg": 15.0,
+    "max_peak_torso_bend_delta_deg": 30.0,
+    "require_contact_samples": true,
+    "require_finite_foot_slide_metrics": true,
+    "require_two_1280x720_frames": true
+  },
+  "rails": {
+    "run_alias_selected": "",
+    "selection_state": "NATIVE_AB_MEASUREMENT_REQUIRED",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_payload_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

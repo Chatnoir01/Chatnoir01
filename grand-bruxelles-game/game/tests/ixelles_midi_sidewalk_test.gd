@@ -41,7 +41,7 @@ func _run() -> void:
     if not _expect(runtime != null and bool(runtime.call("ready_complete")) and not bool(runtime.call("failed")), "Ixelles sidewalk runtime not ready"):
         return
 
-    # Let the shared sidewalk runtime finish its own deferred scan. This is the
+    # Let the shared sidewalk runtime and streamed context finish. This is the
     # regression for the former last-writer-wins material race.
     for _frame: int in range(6):
         await process_frame
@@ -71,8 +71,9 @@ func _run() -> void:
     var shared_runtime := root.get_node_or_null("BrusselsOsmSidewalkSurfaceRuntime")
     if not _expect(shared_runtime != null and bool(shared_runtime.call("ready_complete")) and not bool(shared_runtime.call("failed")), "shared sidewalk runtime not ready"):
         return
-    if not _expect(int(shared_runtime.call("official_applied_sidewalk_count")) == 0, "shared sidewalk runtime stole the reserved Ixelles LABO material"):
+    if not _expect(not bool(shared_runtime.call("official_manages_sidewalk", sidewalk)), "shared sidewalk runtime stole the reserved direct Ixelles LABO mesh"):
         return
+    var shared_official_count := int(shared_runtime.call("official_applied_sidewalk_count"))
 
-    print("IXELLES_MIDI_SIDEWALK_OK: zone=ixelles status=LABO surfaces=1 recipe=midi owner=%s shared_official_overrides=0 streets=309 axes=277 buildings=260 skipped=460 geometry_changed=false collision_preserved=true" % MATERIAL_OWNER)
+    print("IXELLES_MIDI_SIDEWALK_OK: zone=ixelles status=LABO surfaces=1 recipe=midi owner=%s direct_reserved=true other_official_overrides=%d streets=309 axes=277 buildings=260 skipped=460 geometry_changed=false collision_preserved=true" % [MATERIAL_OWNER, shared_official_count])
     quit(0)

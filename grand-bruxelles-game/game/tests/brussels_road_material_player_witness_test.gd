@@ -27,7 +27,7 @@ func _target_roads(root_node: Node) -> Array[CSGBox3D]:
     var prefix := "Road_%d_" % TARGET_OSM_ID
     var stack: Array[Node] = [root_node]
     while not stack.is_empty():
-        var node := stack.pop_back()
+        var node: Node = stack.pop_back()
         if node is CSGBox3D and str(node.name).begins_with(prefix):
             found.append(node as CSGBox3D)
         for child: Node in node.get_children():
@@ -56,7 +56,7 @@ func _hide_dynamic_review_noise(main: Node, player: Node3D) -> void:
         traffic.process_mode = Node.PROCESS_MODE_DISABLED
     var stack: Array[Node] = [main]
     while not stack.is_empty():
-        var node := stack.pop_back()
+        var node: Node = stack.pop_back()
         if node is CanvasItem:
             (node as CanvasItem).visible = false
         for child: Node in node.get_children():

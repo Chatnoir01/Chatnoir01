@@ -1,0 +1,68 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-native-retarget-ab-v1",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "source_animation": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205,
+    "godot_standard_glb": "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_zip_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "target_glb": "npc_gate_01.glb",
+    "target_glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "native_preflight": {
+    "workflow_run_id": 32625024400,
+    "artifact_id": 9489441873,
+    "artifact_sha256": "c18be571b0804e315a92beb8bc714266d7c5e2e9f2e77c29164764305ae2549a",
+    "reviewed_roles": 22,
+    "canonical_common_role_count": 22,
+    "rest_pose_unchanged": true,
+    "parent_topology_unchanged": true,
+    "bone_indices_unchanged": true
+  },
+  "run_candidates": ["Jog_Fwd", "Sprint"],
+  "canonicalization_strategy": "source_to_target_native_names_runtime_only",
+  "target_bone_names_mutated": false,
+  "source_animation_tracks_remapped_runtime_only": true,
+  "native_modifier": {
+    "class": "RetargetModifier3D",
+    "use_global_pose": false,
+    "position_enabled": false,
+    "rotation_enabled": true,
+    "scale_enabled": false,
+    "profile": "runtime_custom_22_target_native_names"
+  },
+  "measurement_gate": {
+    "godot_version": "4.7.1",
+    "sample_rate_hz": 120,
+    "minimum_samples_per_clip": 80,
+    "ground_clearance_m": 0.02,
+    "contact_height_window_m": 0.04,
+    "max_ground_correction_span_m": 0.18,
+    "max_ground_correction_step_m": 0.08,
+    "max_mean_torso_bend_delta_deg": 15.0,
+    "max_peak_torso_bend_delta_deg": 30.0,
+    "minimum_source_animation_motion_m": 0.02,
+    "require_two_1280x720_frames": true,
+    "require_finite_foot_slide_metrics": true,
+    "require_contact_samples": true,
+    "require_target_mesh_bindings_resolve": true
+  },
+  "rails": {
+    "run_alias_selected": "",
+    "selection_state": "NATIVE_AB_MEASURED_REVIEW_REQUIRED",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "package_bytes_committed": false,
+    "mixamo_payload_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

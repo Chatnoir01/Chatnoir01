@@ -42,6 +42,8 @@ def main():
             "surface_count": int(run["surface_count"]),
             "midpoint_xz": [round(mx, 3), round(mz, 3)],
             "nearest_corridor_anchor": nearest["id"], "nearest_anchor_distance_m": round(dist, 3),
+            "nearest_anchor_role": "triage_only",
+            "nearest_anchor_authorizes_ownership": False,
             "exact_location_owner_review_required": True,
             "runtime_replacement_authorized": False,
         })
@@ -53,7 +55,8 @@ def main():
         "queue": queue,
         "policy": {"horizontal_only": True, "curb_height_authorized": False, "vertical_profile_authorized": False,
                    "runtime_geometry_authorized": False, "runtime_replacement_authorized": False,
-                   "jouable_promotion_authorized": False, "exact_location_owner_review_required": True},
+                   "jouable_promotion_authorized": False, "exact_location_owner_review_required": True,
+                   "nearest_anchor_role": "triage_only", "nearest_anchor_authorizes_ownership": False},
     }
     out["canonical_sha256"] = canonical_sha(out)
     Path(args.output).write_text(json.dumps(out, indent=2, sort_keys=True, ensure_ascii=False)+"\n")

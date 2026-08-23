@@ -6,6 +6,9 @@ const EXPECTED_WIDTHS := [1.85, 2.55]
 const WIDTH_TOLERANCE := 0.02
 const HEIGHT := 0.12
 const HEIGHT_TOLERANCE := 0.005
+const IXELLES_TARGET_NAME := &"StreetSurfaces_SW"
+const IXELLES_PARENT_NAME := &"OfficialIxellesStreetSurfaces"
+const IXELLES_ROOT_NAME := &"IxellesDirectMicroSlice"
 
 var _sidewalks: Array[CSGBox3D] = []
 var _legacy_materials: Dictionary = {}
@@ -81,11 +84,26 @@ func _on_node_added(node: Node) -> void:
     _register_official_sidewalk(node)
 
 func _scan_existing_official_sidewalks() -> void:
-    var ixelles := get_tree().root.find_child("StreetSurfaces_SW", true, false)
+    var ixelles := get_tree().root.find_child(str(IXELLES_TARGET_NAME), true, false)
     if ixelles != null:
         _register_official_sidewalk(ixelles)
 
+func _is_reserved_ixelles_sidewalk(node: Node) -> bool:
+    if node == null or node.name != IXELLES_TARGET_NAME:
+        return false
+    var parent := node.get_parent()
+    if parent == null or parent.name != IXELLES_PARENT_NAME:
+        return false
+    var slice_root := parent.get_parent()
+    return slice_root != null and slice_root.name == IXELLES_ROOT_NAME
+
 func _register_official_sidewalk(node: Node) -> void:
+    # The historical Ixelles LABO mesh has its own authored blue-stone
+    # presentation. Its `SW` name comes from legacy cell.street_surfaces.type,
+    # not the current Brussels Mobility urbadm_ssw contract. Do not let this
+    # generic shared runtime race or overwrite the specialized material owner.
+    if _is_reserved_ixelles_sidewalk(node):
+        return
     if not node is MeshInstance3D:
         return
     if str(node.name) != "StreetSurfaces_SW" or node.get_parent() == null or str(node.get_parent().name) != "OfficialIxellesStreetSurfaces":
@@ -146,6 +164,11 @@ func shared_material_count() -> int:
 
 func official_applied_sidewalk_count() -> int:
     return _official_sidewalks.size()
+
+func official_manages_sidewalk(node: Node) -> bool:
+    if node == null or not is_instance_valid(node):
+        return false
+    return _official_sidewalks.has(node.get_instance_id())
 
 func geometry_unchanged() -> bool:
     for sidewalk: CSGBox3D in _sidewalks:

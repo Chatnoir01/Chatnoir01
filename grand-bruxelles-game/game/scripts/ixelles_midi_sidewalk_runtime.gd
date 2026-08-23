@@ -1,50 +1,101 @@
 extends Node
 
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_blue_stone_material.gd")
-const TARGET_NAME := "StreetSurfaces_SW"
+const SLICE_NAME := "IxellesDirectMicroSlice"
+const SOURCE_PARENT_NAME := "OfficialIxellesStreetSurfaces"
+const LEGACY_TARGET_NAME := "StreetSurfaces_SW"
+const LEGACY_SOURCE_CONTRACT := "Paradigm UrbIS WFS cell.game street_surfaces.type"
+const LEGACY_SURFACE_TYPE := "SW"
+const CURRENT_OFFICIAL_LAYER := "bm_urbis:urbadm_ssw"
 const DISABLE_ENV := "GB_IXELLES_MIDI_SIDEWALK"
 
 var _target: MeshInstance3D = null
 var _material: ShaderMaterial = null
 var _ready_complete := false
 var _failed := false
+var _dormant := true
 
 func _ready() -> void:
-    call_deferred("_apply_when_ready")
+    process_mode = Node.PROCESS_MODE_ALWAYS
+    get_tree().node_added.connect(_on_node_added)
+    call_deferred("_try_bind_existing")
 
-func _apply_when_ready() -> void:
-    for _attempt: int in range(240):
-        await get_tree().process_frame
-        var candidate := get_tree().root.find_child(TARGET_NAME, true, false)
-        if candidate is MeshInstance3D and candidate.get_parent() != null and candidate.get_parent().name == "OfficialIxellesStreetSurfaces":
-            _target = candidate as MeshInstance3D
-            break
-    if _target == null:
-        push_error("Ixelles Midi sidewalk runtime: official SW surface missing")
-        _failed = true
-        _ready_complete = true
+func _on_node_added(node: Node) -> void:
+    if node.name == LEGACY_TARGET_NAME and node is MeshInstance3D:
+        if _try_bind_candidate(node as MeshInstance3D):
+            return
+    if node.name == SLICE_NAME or node.name == SOURCE_PARENT_NAME:
+        call_deferred("_try_bind_existing")
+
+func _try_bind_existing() -> void:
+    if is_instance_valid(_target):
         return
+    var slice := get_tree().root.find_child(SLICE_NAME, true, false)
+    if slice == null:
+        _dormant = true
+        return
+    var source_parent := slice.find_child(SOURCE_PARENT_NAME, true, false)
+    if source_parent == null:
+        _dormant = true
+        return
+    var candidate := source_parent.find_child(LEGACY_TARGET_NAME, true, false)
+    if candidate is MeshInstance3D:
+        _try_bind_candidate(candidate as MeshInstance3D)
+    else:
+        _dormant = true
 
+func _try_bind_candidate(candidate: MeshInstance3D) -> bool:
+    if candidate == null or not is_instance_valid(candidate):
+        return false
+    var source_parent := candidate.get_parent()
+    if source_parent == null or source_parent.name != SOURCE_PARENT_NAME:
+        return false
+    if not _has_named_ancestor(source_parent, SLICE_NAME):
+        return false
+    _bind_candidate(candidate)
+    return true
+
+func _has_named_ancestor(node: Node, ancestor_name: String) -> bool:
+    var cursor := node
+    while cursor != null:
+        if cursor.name == ancestor_name:
+            return true
+        cursor = cursor.get_parent()
+    return false
+
+func _bind_candidate(candidate: MeshInstance3D) -> void:
+    if is_instance_valid(_target):
+        return
+    _target = candidate
     _material = MATERIAL_FACTORY.create(
         Color(0.095, 0.125, 0.145, 1.0),
         Color(0.255, 0.275, 0.285, 1.0),
         0.78,
-        "Midi blue-stone recipe reused for Ixelles official sidewalk LABO surfaces"
+        "Authored Midi blue-stone presentation on legacy Ixelles UrbIS cell surface; material identity not source-backed"
     )
     _material.set_meta("recipe_source", "midi")
     _material.set_meta("zone", "ixelles")
     _material.set_meta("presentation_only", true)
+    _material.set_meta("material_identity_source_backed", false)
+    _material.set_meta("legacy_source_contract", LEGACY_SOURCE_CONTRACT)
+    _material.set_meta("legacy_surface_type", LEGACY_SURFACE_TYPE)
+    _material.set_meta("current_official_layer", CURRENT_OFFICIAL_LAYER)
+    _material.set_meta("uses_current_official_ssft_filter", false)
 
     if OS.get_environment(DISABLE_ENV) != "0":
         _target.material_override = _material
+    _dormant = false
     _ready_complete = true
-    print("IXELLES_MIDI_SIDEWALK_READY: surfaces=1 recipe=midi geometry_changed=false enabled=%s" % str(OS.get_environment(DISABLE_ENV) != "0"))
+    print("IXELLES_MIDI_SIDEWALK_READY: surfaces=1 recipe=midi legacy_cell_type=SW current_official_ssft_filter=false geometry_changed=false enabled=%s" % str(OS.get_environment(DISABLE_ENV) != "0"))
 
 func ready_complete() -> bool:
     return _ready_complete
 
 func failed() -> bool:
     return _failed
+
+func dormant() -> bool:
+    return _dormant
 
 func applied_surface_count() -> int:
     return 1 if _ready_complete and not _failed and _target != null and _target.material_override == _material else 0

@@ -31,10 +31,21 @@ def test_overlap_requires_source_backed_georef() -> None:
     if not isinstance(origin, dict) or set(origin) != {"lat", "lon"}:
         fail("OSM local-space origin contract missing")
 
-    if official.get("crs") != "EPSG:31370":
+    source = official.get("source")
+    snapshot = official.get("source_snapshot")
+    policy = official.get("policy")
+    if not isinstance(source, dict) or source.get("crs") != "EPSG:31370":
         fail("official sidewalk persisted geometry must remain Lambert72 EPSG:31370")
-    if int(official.get("feature_count", 0)) != 3158:
+    if source.get("publisher") != "Paradigm" or source.get("layer") != "bm_urbis:urbadm_ssw":
+        fail("official sidewalk source identity drifted before overlap measurement")
+    if source.get("license") != "CC0-1.0":
+        fail("official sidewalk source license drifted before overlap measurement")
+    if not isinstance(snapshot, dict) or int(snapshot.get("feature_count", 0)) != 3158:
         fail("official sidewalk feature count drifted before overlap measurement")
+    if not isinstance(policy, dict) or policy.get("game_world_transform_applied") is not False:
+        fail("persisted official geometry must remain untransformed before overlap georef validation")
+    if policy.get("overlap_measurement_required_before_runtime") is not True:
+        fail("official geometry no longer requires overlap measurement before runtime")
 
     if not GEOREF_PATH.exists():
         fail("source-backed game-local <-> EPSG:31370 georef contract missing; horizontal overlap is not authorized")

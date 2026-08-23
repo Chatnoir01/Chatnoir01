@@ -23,6 +23,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Run winding contract regressions
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-cache-dir pytest
+          python3 -m pytest -q tests/test_grand_place_maison_du_roi_winding_ab_contract.py
+
       - name: Install runtime packages
         run: |
           sudo apt-get update

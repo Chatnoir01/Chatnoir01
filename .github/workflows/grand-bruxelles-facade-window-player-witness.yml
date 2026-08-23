@@ -1,0 +1,121 @@
+name: Grand Bruxelles Facade Window Player Witness
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/tests/brussels_facade_window_player_witness_test.gd'
+      - 'grand-bruxelles-game/game/scripts/osm_city_builder.gd'
+      - '.github/workflows/grand-bruxelles-facade-window-player-witness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  facade-window-player-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Install display dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/facade-window-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/facade-window-import.log; then exit 1; fi
+      - name: Capture source-backed facade window witness
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --resolution 1280x720 --script res://game/tests/brussels_facade_window_player_witness_test.gd 2>&1 | tee /tmp/facade-window-witness.log
+          witness_status=${PIPESTATUS[0]}
+          set -e
+
+          artifact_dir=grand-bruxelles-game/artifacts/facade_window_player_witness
+          test -s "$artifact_dir/facade_windows_current.png"
+          test -s "$artifact_dir/facade_windows_control.png"
+          test -s "$artifact_dir/facade_window_player_witness.json"
+
+          if grep -q 'BRUSSELS_FACADE_WINDOW_PLAYER_WITNESS_FAIL: facade windows occupy too little of legitimate player frame:' /tmp/facade-window-witness.log; then
+            if [ "$witness_status" -eq 0 ]; then
+              echo 'Low-coverage facade-window witness unexpectedly exited zero' >&2
+              exit 1
+            fi
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/artifacts/facade_window_player_witness/facade_window_player_witness.json')
+          report = json.loads(path.read_text(encoding='utf-8'))
+          if report.get('candidate_status') != 'REJECT_LOW_SCREEN_COVERAGE':
+              raise SystemExit('negative facade-window classification drifted')
+          if report.get('art_pass_authorized') is not False or report.get('runtime_changed') is not False:
+              raise SystemExit('negative facade-window classification authorized mutation')
+          print('BRUSSELS_FACADE_WINDOW_PLAYER_WITNESS_VETO: candidate_status=REJECT_LOW_SCREEN_COVERAGE')
+          PY
+          elif [ "$witness_status" -ne 0 ]; then
+            echo "Facade-window witness failed for a non-classifiable reason (exit $witness_status)" >&2
+            exit "$witness_status"
+          else
+            if grep -E 'SCRIPT ERROR|Parse Error:|BRUSSELS_FACADE_WINDOW_PLAYER_WITNESS_FAIL' /tmp/facade-window-witness.log; then exit 1; fi
+            grep -q 'BRUSSELS_FACADE_WINDOW_PLAYER_WITNESS_OK' /tmp/facade-window-witness.log
+          fi
+      - name: Validate durable full-frame evidence
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import struct
+          from pathlib import Path
+
+          root = Path('grand-bruxelles-game/artifacts/facade_window_player_witness')
+          for name in ('facade_windows_current.png', 'facade_windows_control.png'):
+              data = (root / name).read_bytes()
+              if data[:8] != b'\x89PNG\r\n\x1a\n':
+                  raise SystemExit(f'{name}: invalid PNG signature')
+              width, height = struct.unpack('>II', data[16:24])
+              if (width, height) != (1280, 720):
+                  raise SystemExit(f'{name}: expected 1280x720, got {width}x{height}')
+
+          report = json.loads((root / 'facade_window_player_witness.json').read_text(encoding='utf-8'))
+          if report.get('schema') != 'grand-bruxelles-facade-window-player-witness-v1':
+              raise SystemExit('facade-window witness schema drifted')
+          if report.get('target_road_osm_id') != 359177328 or report.get('source_license') != 'ODbL-1.0':
+              raise SystemExit('facade-window source/provenance drifted')
+          if report.get('resolution') != [1280, 720] or report.get('runtime_changed') is not False:
+              raise SystemExit('facade-window runtime/resolution contract drifted')
+          if report.get('art_pass_authorized') is not False:
+              raise SystemExit('facade-window witness self-authorized art pass')
+          claims = report.get('claims', {})
+          if claims.get('building_footprint_placement_source_backed') is not True:
+              raise SystemExit('building footprint source basis missing')
+          for key in ('window_presence_source_backed','window_dimensions_source_backed','window_material_identity_source_backed','window_grid_source_backed'):
+              if claims.get(key) is not False:
+                  raise SystemExit(f'unsupported facade-window claim enabled: {key}')
+          status = report.get('candidate_status')
+          if status not in ('REVIEWABLE', 'REJECT_LOW_SCREEN_COVERAGE'):
+              raise SystemExit(f'unknown facade-window status: {status}')
+          print(f'BRUSSELS_FACADE_WINDOW_EVIDENCE_OK: status={status}')
+          PY
+      - name: Upload facade window witness evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-facade-window-player-witness
+          path: |
+            grand-bruxelles-game/artifacts/facade_window_player_witness/facade_windows_current.png
+            grand-bruxelles-game/artifacts/facade_window_player_witness/facade_windows_control.png
+            grand-bruxelles-game/artifacts/facade_window_player_witness/facade_window_player_witness.json
+            /tmp/facade-window-import.log
+            /tmp/facade-window-witness.log
+          if-no-files-found: error

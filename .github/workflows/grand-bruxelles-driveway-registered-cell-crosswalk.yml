@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/data/cell_manifests/*.json"
       - "grand-bruxelles-game/tools/qa/build_brussels_driveway_regional_cell_catalog.py"
       - "grand-bruxelles-game/tools/qa/build_driveway_registered_cell_crosswalk.py"
+      - "grand-bruxelles-game/tools/qa/test_build_driveway_registered_cell_crosswalk.py"
       - ".github/workflows/grand-bruxelles-driveway-registered-cell-crosswalk.yml"
   workflow_dispatch:
 
@@ -38,6 +39,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Run registered-cell fail-closed regressions
+        working-directory: grand-bruxelles-game/tools/qa
+        run: python test_build_driveway_registered_cell_crosswalk.py
       - name: Install source-catalog geometry dependency
         run: python -m pip install --disable-pip-version-check shapely
       - name: Rebuild locked driveway regional source catalog

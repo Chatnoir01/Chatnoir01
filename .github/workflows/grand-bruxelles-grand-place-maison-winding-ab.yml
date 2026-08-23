@@ -1,0 +1,133 @@
+name: Grand Bruxelles Grand-Place Maison Winding A-B
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/grand_place_owner_identity_presentation.gd'
+      - 'grand-bruxelles-game/game/tests/grand_place_maison_du_roi_winding_ab.gd'
+      - 'grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json'
+      - '.github/workflows/grand-bruxelles-grand-place-maison-winding-ab.yml'
+      - 'grand-bruxelles-game/tests/test_grand_place_maison_du_roi_winding_ab_contract.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maison-winding-ab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install runtime packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb unzip libgl1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2
+
+      - name: Install official Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
+            -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          install -m 0755 /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version | tee /tmp/maison-winding-godot-version.txt
+          grep -q '^4\.7\.1' /tmp/maison-winding-godot-version.txt
+
+      - name: Import exact project
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a godot --headless --rendering-method gl_compatibility --editor --path . --quit-after 1 \
+            2>&1 | tee /tmp/maison-winding-import.log
+
+      - name: Capture reversible same-camera A-B
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/grand-place-maison-winding-ab
+          xvfb-run -a godot --rendering-method gl_compatibility --path . \
+            --script res://game/tests/grand_place_maison_du_roi_winding_ab.gd \
+            2>&1 | tee /tmp/maison-winding-capture.log
+          grep -q 'GRAND_PLACE_MAISON_WINDING_AB_OK' /tmp/maison-winding-capture.log
+
+      - name: Validate A-B evidence fail-closed
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+
+          root = Path('artifacts/grand-place-maison-winding-ab')
+          report_path = root / 'maison_du_roi_winding_ab.json'
+          before = root / 'maison_du_roi_cull_back.png'
+          after = root / 'maison_du_roi_cull_disabled.png'
+          for path in (report_path, before, after):
+              if not path.is_file():
+                  raise SystemExit(f'missing winding A/B evidence: {path}')
+
+          def dims(path: Path):
+              blob = path.read_bytes()
+              if len(blob) < 24 or blob[:8] != b'\x89PNG\r\n\x1a\n' or blob[12:16] != b'IHDR':
+                  raise SystemExit(f'invalid PNG: {path}')
+              return struct.unpack('>II', blob[16:24])
+
+          if dims(before) != (1280, 720) or dims(after) != (1280, 720):
+              raise SystemExit('winding A/B must stay exact 1280x720')
+          if before.read_bytes() == after.read_bytes():
+              raise SystemExit('winding A/B frames are byte-identical; mitigation effect is not evidenced')
+
+          report = json.loads(report_path.read_text())
+          expected = {
+              'schema': 'grand-bruxelles-grand-place-maison-winding-ab-v1',
+              'owner_id': '1654360',
+              'resolution': [1280, 720],
+              'target_method': 'source_bbox_cluster_center',
+              'source_geometry_changed': False,
+              'source_collision_changed': False,
+              'human_review_required': True,
+              'human_review_status': 'pending',
+          }
+          for key, value in expected.items():
+              if report.get(key) != value:
+                  raise SystemExit(f'winding A/B contract drifted for {key}: {report.get(key)!r}')
+          if report.get('state_a') != {'cull_mode': 'CULL_BACK', 'png': 'maison_du_roi_cull_back.png'}:
+              raise SystemExit('state A drifted')
+          if report.get('state_b') != {'cull_mode': 'CULL_DISABLED', 'png': 'maison_du_roi_cull_disabled.png'}:
+              raise SystemExit('state B drifted')
+          delta = report.get('delta')
+          if not isinstance(delta, dict):
+              raise SystemExit('missing pixel delta diagnostics')
+          for key in ('changed_pixels_gt_0_001', 'changed_fraction_gt_0_001', 'mean_rgb_abs_delta', 'max_rgb_abs_delta'):
+              if key not in delta:
+                  raise SystemExit(f'missing A/B delta field: {key}')
+          if not (0.0 < float(delta['changed_fraction_gt_0_001']) <= 1.0):
+              raise SystemExit('A/B change fraction must prove a real non-zero visual effect')
+          print('GRAND_PLACE_MAISON_WINDING_AB_EVIDENCE_OK human_review=pending')
+          PY
+
+      - name: Stage logs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/grand-place-maison-winding-ab
+          test ! -f /tmp/maison-winding-import.log || cp /tmp/maison-winding-import.log grand-bruxelles-game/artifacts/grand-place-maison-winding-ab/
+          test ! -f /tmp/maison-winding-capture.log || cp /tmp/maison-winding-capture.log grand-bruxelles-game/artifacts/grand-place-maison-winding-ab/
+
+      - name: Upload Maison du Roi winding A-B
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-maison-winding-ab
+          path: grand-bruxelles-game/artifacts/grand-place-maison-winding-ab/
+          if-no-files-found: error

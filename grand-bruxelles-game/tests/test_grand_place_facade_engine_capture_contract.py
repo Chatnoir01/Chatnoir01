@@ -137,13 +137,14 @@ def test_maison_du_roi_two_sided_mitigation_is_exact_owner_presentation_only():
     source = PRESENTATION.read_text(encoding="utf-8")
     required = [
         'TWO_SIDED_SOURCE_OWNER_IDS := ["1654360"]',
-        'owner_id in TWO_SIDED_SOURCE_OWNER_IDS',
-        'BaseMaterial3D.CULL_DISABLED',
-        'BaseMaterial3D.CULL_BACK',
-        '"source_winding_mitigation", owner_id in TWO_SIDED_SOURCE_OWNER_IDS',
+        'var mitigation_enabled := owner_id in TWO_SIDED_SOURCE_OWNER_IDS',
+        'BaseMaterial3D.CULL_DISABLED if mitigation_enabled else BaseMaterial3D.CULL_BACK',
+        'mat.set_meta("source_winding_mitigation", mitigation_enabled)',
+        'mat.set_meta("source_winding_mitigation_enabled", mitigation_enabled)',
     ]
     for marker in required:
         assert marker in source, f"Maison du Roi two-sided mitigation is missing or not exact-owner bounded; missing {marker!r}"
+    assert 'TWO_SIDED_SOURCE_OWNER_IDS := ["1654360",' not in source
     assert "mat.transparency" not in source
     assert "mat.no_depth_test" not in source
     assert ".position =" not in source

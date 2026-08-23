@@ -1,0 +1,25 @@
+name: Grand Bruxelles Sidewalk Owner Review Runtime Isolation
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/provenance/brussels_sidewalk_owner_review_queue.json'
+      - 'grand-bruxelles-game/project.godot'
+      - 'grand-bruxelles-game/game/**/*.gd'
+      - 'grand-bruxelles-game/game/**/*.tscn'
+      - 'grand-bruxelles-game/game/**/*.tres'
+      - 'grand-bruxelles-game/tests/test_sidewalk_owner_review_runtime_isolation.py'
+      - '.github/workflows/grand-bruxelles-sidewalk-owner-runtime-isolation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify owner-review queue remains QA/provenance-only
+        run: python grand-bruxelles-game/tests/test_sidewalk_owner_review_runtime_isolation.py

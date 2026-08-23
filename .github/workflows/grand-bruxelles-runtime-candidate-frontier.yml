@@ -10,8 +10,11 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_runtime_frontier_source_completeness.py"
       - "grand-bruxelles-game/tools/citygen/build_runtime_candidate_bundle.py"
       - "grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/seal_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/test_seal_runtime_candidate_bundle.py"
       - "grand-bruxelles-game/tools/citygen/validate_runtime_candidate_bundle.py"
       - "grand-bruxelles-game/tools/citygen/test_validate_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/test_runtime_candidate_seal_validation_pipeline.py"
   schedule:
     - cron: "47 * * * *"
   workflow_dispatch:
@@ -23,8 +26,11 @@ on:
       - "grand-bruxelles-game/tools/citygen/test_runtime_frontier_source_completeness.py"
       - "grand-bruxelles-game/tools/citygen/build_runtime_candidate_bundle.py"
       - "grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/seal_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/test_seal_runtime_candidate_bundle.py"
       - "grand-bruxelles-game/tools/citygen/validate_runtime_candidate_bundle.py"
       - "grand-bruxelles-game/tools/citygen/test_validate_runtime_candidate_bundle.py"
+      - "grand-bruxelles-game/tools/citygen/test_runtime_candidate_seal_validation_pipeline.py"
 
 permissions:
   contents: write
@@ -45,7 +51,9 @@ jobs:
           python3 grand-bruxelles-game/tools/citygen/test_build_runtime_candidate_bundle.py
           python3 grand-bruxelles-game/tools/citygen/test_build_regional_runtime_candidates.py
           python3 grand-bruxelles-game/tools/citygen/test_runtime_frontier_source_completeness.py
+          python3 grand-bruxelles-game/tools/citygen/test_seal_runtime_candidate_bundle.py
           python3 grand-bruxelles-game/tools/citygen/test_validate_runtime_candidate_bundle.py
+          python3 grand-bruxelles-game/tools/citygen/test_runtime_candidate_seal_validation_pipeline.py
 
   build-frontier:
     if: github.event_name != 'pull_request'
@@ -139,6 +147,67 @@ jobs:
           if report.get('jouable_promotion_authorized') is not False:
               raise SystemExit('JOUABLE promotion authorization unexpectedly enabled')
           print(f'RUNTIME_CANDIDATE_PARTIAL_PROGRESS_OK selected={selected} built={built} failures={failures}')
+          PY
+
+      - name: Seal candidate bundles as QA-only before validation
+        run: |
+          set -euo pipefail
+          for ROOT in \
+            /tmp/citygen-runtime-existing/grand-bruxelles-game/data/qa/runtime_candidates \
+            /tmp/citygen-runtime-new; do
+            [ -d "$ROOT" ] || continue
+            while IFS= read -r -d '' BUNDLE; do
+              FORMAT="$(python3 - "$BUNDLE/manifest.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          path = Path(sys.argv[1])
+          payload = json.loads(path.read_text(encoding='utf-8'))
+          print(payload.get('format', ''))
+          PY
+          )"
+              case "$FORMAT" in
+                grand-bruxelles-urbis-built-cell-v1)
+                  python3 grand-bruxelles-game/tools/citygen/seal_runtime_candidate_bundle.py --bundle-dir "$BUNDLE"
+                  ;;
+                grand-bruxelles-urbis-built-cell-candidate-v1)
+                  echo "RUNTIME_CANDIDATE_ALREADY_SEALED cell=$(basename "$BUNDLE")"
+                  ;;
+                *)
+                  echo "RUNTIME_CANDIDATE_SEAL_BLOCKED cell=$(basename "$BUNDLE") format=${FORMAT}" >&2
+                  exit 1
+                  ;;
+              esac
+            done < <(find "$ROOT" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+          done
+
+      - name: Refresh frontier digests after QA sealing
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report_path = Path('/tmp/citygen-runtime-out/runtime_candidate_frontier_report.json')
+          report = json.loads(report_path.read_text(encoding='utf-8'))
+          new_root = Path('/tmp/citygen-runtime-new')
+          refreshed = 0
+          for row in report.get('built_cells', []):
+              if not isinstance(row, dict):
+                  continue
+              cell_id = row.get('cell_id')
+              candidate_path = new_root / str(cell_id) / 'candidate.json'
+              if not candidate_path.is_file():
+                  continue
+              candidate = json.loads(candidate_path.read_text(encoding='utf-8'))
+              row['candidate_digest'] = candidate.get('candidate_digest')
+              refreshed += 1
+          report['sealed_candidate_count'] = refreshed
+          report['candidate_root_format'] = 'grand-bruxelles-urbis-built-cell-candidate-v1'
+          report['runtime_mount_authorized'] = False
+          report['jouable_promotion_authorized'] = False
+          report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print(f'RUNTIME_CANDIDATE_SEALED_DIGESTS_OK refreshed={refreshed} production_discovery=false')
           PY
 
       - name: Validate candidate bundles against current durable sources

@@ -1,0 +1,54 @@
+{
+  "schema": "grand-bruxelles-driveway-registered-cell-crosswalk-v1",
+  "production_base_sha": "b435112c297360f07daa912e2de0e05717bed136",
+  "source_catalog": {
+    "schema": "grand-bruxelles-driveway-regional-cell-catalog-v1",
+    "feature_count": 95805,
+    "cell_count": 832,
+    "cells_sha256": "9475d83f0524e917a0cdf89bced41a25b5521e5a7b842d29a9536a5302b2fe8b"
+  },
+  "registered_manifest_count": 1,
+  "matched_registered_manifest_count": 1,
+  "unmatched_registered_manifest_count": 0,
+  "matches": [
+    {
+      "registered_cell_id": "bxl-e149000-n169000-s500",
+      "driveway_cell_id": "E149000_N169000",
+      "manifest_path": "grand-bruxelles-game/data/cell_manifests/bxl-e149000-n169000-s500.json",
+      "maturity_state": "data_ready",
+      "maturity_gates": {
+        "collisions": false,
+        "heights": false,
+        "performance": false,
+        "photo_match": false,
+        "runtime_geometry": false,
+        "streaming": false,
+        "terrain": false
+      },
+      "runtime_mount_authorized": false,
+      "collision_authorized": false,
+      "safe_spawn_authorized": false,
+      "jouable_promotion_authorized": false,
+      "driveway_municipalities": [
+        "Bruxelles",
+        "Ixelles",
+        "Saint-Gilles"
+      ],
+      "driveway_feature_count": 145,
+      "crosswalk_evidence_only": true,
+      "road_crosswalk_authorized": false
+    }
+  ],
+  "unmatched_registered_cells": [],
+  "destination_readiness": "CELL_CROSSWALK_EVIDENCE_ONLY",
+  "source_registration_authorized": false,
+  "road_crosswalk_authorized": false,
+  "parking_evidence_runtime_approved": false,
+  "runtime_authorized": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "jouable_promotion_authorized": false,
+  "semantic_sha256": "4930a0c60ce4200fb0c4f1c3da4fd2e9ed68dfc9d4c3ab50b548d53171ad2c8a"
+}

@@ -12,6 +12,37 @@ var _skin_bind_remap_report := {
     "runtime_only": true
 }
 
+func _load_and_wire_native_retarget() -> bool:
+    var ok := await super._load_and_wire_native_retarget()
+    if not ok:
+        return false
+
+    # The base witness hides the source root before wiring. After the target Skeleton3D
+    # becomes a child of the source Skeleton3D through RetargetModifier3D, it would also
+    # inherit that hidden state. Restore root visibility, then hide only source meshes.
+    _source_instance.visible = true
+    _hide_source_meshes_except_gate8(_source_instance)
+
+    var visible_target_meshes := 0
+    for mesh: MeshInstance3D in _target_meshes:
+        if not is_instance_valid(mesh):
+            continue
+        mesh.visible = true
+        if mesh.is_visible_in_tree():
+            visible_target_meshes += 1
+    if visible_target_meshes != _target_meshes.size():
+        _failures.append("target_mesh_visibility_failed visible=%d expected=%d" % [visible_target_meshes, _target_meshes.size()])
+    print("GATE8_NATIVE_VISIBILITY source_root=true target_meshes_visible=%d/%d" % [visible_target_meshes, _target_meshes.size()])
+    return _failures.is_empty()
+
+func _hide_source_meshes_except_gate8(node: Node) -> void:
+    if node is MeshInstance3D:
+        var mesh := node as MeshInstance3D
+        if not _target_meshes.has(mesh):
+            mesh.visible = false
+    for child: Node in node.get_children():
+        _hide_source_meshes_except_gate8(child)
+
 func _rename_target_to_source_namespace() -> bool:
     # Keep the source skeleton untouched so imported AnimationPlayer track paths remain
     # valid. Rename the target bones first, then immediately replace every imported

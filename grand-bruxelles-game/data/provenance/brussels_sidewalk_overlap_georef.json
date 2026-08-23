@@ -1,0 +1,50 @@
+{
+  "schema": "grand-bruxelles-sidewalk-overlap-georef-v1",
+  "game_space": "vertical_slice_01.game local X/Z meters",
+  "official_space": "EPSG:31370 Lambert72 XY meters",
+  "horizontal_only": true,
+  "curb_height_authorized": false,
+  "vertical_profile_authorized": false,
+  "runtime_geometry_authorized": false,
+  "method": {
+    "kind": "validated_affine_2d",
+    "affine": {
+      "x_from_E_N": [1.0, 0.0, -148536.79422791934],
+      "z_from_E_N": [0.0, -1.0, 170166.46414926197]
+    },
+    "control_points": [
+      {
+        "source_id": "urbadm_ssw.66457",
+        "source_vertex_index": 0,
+        "epsg31370_xy": [148654.97527701, 170883.44360342],
+        "game_xz": [118.1810490906646, -716.979454158016]
+      },
+      {
+        "source_id": "urbadm_ssw.66990",
+        "source_vertex_index": 0,
+        "epsg31370_xy": [148646.90942656, 170888.76786965],
+        "game_xz": [110.11519864067668, -722.3037203880341]
+      },
+      {
+        "source_id": "urbadm_ssw.67995",
+        "source_vertex_index": 0,
+        "epsg31370_xy": [148660.58887641, 170890.97025935],
+        "game_xz": [123.79464849067153, -724.5061100880231]
+      }
+    ],
+    "max_horizontal_residual_m": 0.000000000004,
+    "evidence": {
+      "source_file": "data/urbis/bourse_official_sidewalks.game.json",
+      "source_schema": "grand-bruxelles-bourse-official-sidewalk-runtime-v1",
+      "source_layer": "bm_urbis:urbadm_ssw",
+      "source_evidence_artifact_digest": "sha256:1952c9ba82195ce78c75d08f4d8472fc60ea6ee136756a03f4aae1b7d5b5a36a"
+    },
+    "evidence_sha256": "sha256:59492eaa6b3079c100f68bb2242f525e17a2fefe63b0d4e41f163cdeaaa69956"
+  },
+  "policy": {
+    "overlap_qa_authorized": true,
+    "runtime_use_authorized": false,
+    "jouable_promotion_authorized": false,
+    "vertical_inference_authorized": false
+  }
+}

@@ -99,3 +99,57 @@ jobs:
               f"semantic_sha256={p['semantic_sha256']}"
           )
           PY
+      - name: Account source coverage by registered cells
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          p = json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json').read_text())
+          total = int(p['source_catalog']['feature_count'])
+          matched = sum(int(row['driveway_feature_count']) for row in p['matches'])
+          if total <= 0:
+              raise SystemExit('RED: source feature count must be positive')
+          if matched < 0 or matched > total:
+              raise SystemExit(f'RED: matched feature accounting invalid: matched={matched} total={total}')
+          uncovered = total - matched
+          coverage_ppm = (matched * 1_000_000) // total
+          summary = {
+              'schema': 'grand-bruxelles-driveway-registered-cell-coverage-v1',
+              'production_base_sha': os.environ['LIVE_MAIN_SHA'],
+              'source_feature_count': total,
+              'registered_manifest_count': int(p['registered_manifest_count']),
+              'matched_registered_manifest_count': int(p['matched_registered_manifest_count']),
+              'matched_source_feature_count': matched,
+              'uncovered_source_feature_count': uncovered,
+              'coverage_ppm': coverage_ppm,
+              'destination_readiness': 'CELL_CROSSWALK_EVIDENCE_ONLY',
+              'source_registration_authorized': False,
+              'road_crosswalk_authorized': False,
+              'parking_evidence_runtime_approved': False,
+              'runtime_mount_authorized': False,
+              'collision_authorized': False,
+              'safe_spawn_authorized': False,
+              'jouable_promotion_authorized': False,
+          }
+          semantic = dict(summary)
+          semantic.pop('production_base_sha')
+          summary['semantic_sha256'] = hashlib.sha256(
+              json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
+          ).hexdigest()
+          out = Path(os.environ['RUNNER_TEMP']) / 'brussels_driveway_registered_cell_coverage.json'
+          out.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(
+              'DRIVEWAY_REGISTERED_CELL_COVERAGE_OK '
+              f"matched_features={matched} uncovered_features={uncovered} total={total} "
+              f"coverage_ppm={coverage_ppm} semantic_sha256={summary['semantic_sha256']}"
+          )
+          PY
+      - name: Upload registered-cell coverage accounting
+        uses: actions/upload-artifact@v4
+        with:
+          name: driveway-registered-cell-coverage
+          path: ${{ runner.temp }}/brussels_driveway_registered_cell_coverage.json
+          if-no-files-found: error

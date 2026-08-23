@@ -1,0 +1,252 @@
+name: Grand Bruxelles Gate-8 Native Retarget A-B
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/gate8_variant01_native_retarget_ab.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd"
+      - ".github/workflows/grand-bruxelles-gate8-native-retarget-ab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  native-retarget-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-native-retarget-ab"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate native A-B contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_native_retarget_ab.json').read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-native-retarget-ab-v1'
+          assert d['candidate_variant']==1
+          assert d['candidate_static_verdict']=='AMELIORER'
+          assert d['native_preflight']['workflow_run_id']==32625024400
+          assert d['native_preflight']['artifact_id']==9489441873
+          assert d['native_preflight']['artifact_sha256']=='c18be571b0804e315a92beb8bc714266d7c5e2e9f2e77c29164764305ae2549a'
+          assert d['native_preflight']['reviewed_roles']==22
+          assert d['native_preflight']['canonical_common_role_count']==22
+          assert d['run_candidates']==['Jog_Fwd','Sprint']
+          assert d['canonicalization_strategy']=='source_to_target_native_names_runtime_only'
+          assert d['target_bone_names_mutated'] is False
+          assert d['source_animation_tracks_remapped_runtime_only'] is True
+          m=d['native_modifier']
+          assert m['class']=='RetargetModifier3D'
+          assert m['use_global_pose'] is False
+          assert m['position_enabled'] is False
+          assert m['rotation_enabled'] is True
+          assert m['scale_enabled'] is False
+          g=d['measurement_gate']
+          assert g['godot_version']=='4.7.1'
+          assert g['sample_rate_hz']==120
+          assert g['minimum_samples_per_clip']==80
+          assert g['max_ground_correction_span_m']==0.18
+          assert g['max_ground_correction_step_m']==0.08
+          assert g['max_mean_torso_bend_delta_deg']==15.0
+          assert g['max_peak_torso_bend_delta_deg']==30.0
+          r=d['rails']
+          assert r['run_alias_selected']==''
+          assert r['production_authorized'] is False
+          assert r['activation_ready'] is False
+          assert r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False
+          assert r['visual_approval_claimed'] is False
+          print('GATE8_NATIVE_RETARGET_AB_STATIC_OK roles=22 clips=2 production_authorized=false')
+          PY
+          grep -q 'RetargetModifier3D.new()' grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd
+          grep -q 'set_position_enabled(false)' grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd
+          grep -q 'set_rotation_enabled(true)' grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd
+          grep -q 'set_scale_enabled(false)' grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd
+          grep -q 'source_animation_tracks_remapped' grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd
+          grep -q 'target_bone_names_unchanged' grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd
+
+      - name: Download exact pinned CC0 animation source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-Native-Retarget-AB/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          test -s /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python - <<'PY'
+          import os, zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member=os.environ['ANIM_GLB']
+              assert member in z.namelist()
+              Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+          sha256sum /tmp/animation-source.zip > /tmp/animation-source.sha256
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-target-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target-artifact
+          TARGET="$(find /tmp/gate8-target-artifact -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"
+          cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install exact Godot 4.7.1 and software renderer
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 >/dev/null
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated native-retarget project
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"
+          mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01NativeRetargetAB"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          window/size/window_width_override=1280
+          window/size/window_height_override=720
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd "$ISOLATED_PROJECT/game/tests/"
+          ! grep -q '^\[autoload\]' "$ISOLATED_PROJECT/project.godot"
+
+      - name: Import real source and target under Godot 4.7.1
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-native-ab-import.log
+          test -d "$ISOLATED_PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-native-ab-import.log
+
+      - name: Measure native RetargetModifier3D A-B and capture both frames
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          MESA_LOADER_DRIVER_OVERRIDE: "llvmpipe"
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 300s xvfb-run -a -s '-screen 0 1280x720x24' "$GODOT" --path "$ISOLATED_PROJECT" --rendering-method gl_compatibility --script res://game/tests/gate8_variant01_native_retarget_ab_test.gd 2>&1 | tee /tmp/gate8-native-ab.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          test -s "$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json"
+          cp "$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json" /tmp/gate8_variant01_native_retarget_ab_result.json
+          for png in "$ISOLATED_PROJECT/gate8_variant01_native_jog-fwd.png" "$ISOLATED_PROJECT/gate8_variant01_native_sprint.png"; do
+            test -s "$png"
+          done
+          python - <<'PY'
+          import json, math, struct
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8_variant01_native_retarget_ab_result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-variant01-native-retarget-ab-result-v1'
+          assert r['candidate_variant']==1
+          assert r['retarget_method']=='RetargetModifier3D_source_canonicalized_to_target_native_names'
+          assert r['source_bones_renamed']==22
+          assert r['source_animation_tracks_remapped']>0
+          assert r['target_bone_names_unchanged'] is True
+          assert r['resolved_target_mesh_bindings']>0
+          m=r['modifier']
+          assert m['use_global_pose'] is False
+          assert m['position_enabled'] is False
+          assert m['rotation_enabled'] is True
+          assert m['scale_enabled'] is False
+          assert m['profile_bone_count']==22
+          assert r['run_alias_selected']==''
+          assert r['production_authorized'] is False
+          assert r['activation_ready'] is False
+          assert r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False
+          assert len(r['clips'])==2
+          for clip in ['Jog_Fwd','Sprint']:
+              assert float(r['source_animation_motion_m'][clip]) >= 0.02
+              row=r['clips'][clip]
+              assert row['sample_count']>=80
+              assert row['left_contact_samples']+row['right_contact_samples']>0
+              for key in ['mean_contact_slide_mps','peak_contact_slide_mps','ground_correction_span_m','ground_correction_max_step_m','mean_torso_bend_delta_deg','peak_torso_bend_delta_deg']:
+                  assert math.isfinite(float(row[key])), (clip,key)
+              assert row['frame_width']==1280 and row['frame_height']==720
+          def png_size(path):
+              data=Path(path).read_bytes()
+              assert data[:8]==b'\x89PNG\r\n\x1a\n' and data[12:16]==b'IHDR'
+              return struct.unpack('>II', data[16:24])
+          for path in ['/tmp/gate8-native-retarget-ab/gate8_variant01_native_jog-fwd.png','/tmp/gate8-native-retarget-ab/gate8_variant01_native_sprint.png']:
+              assert png_size(path)==(1280,720), path
+          print('GATE8_NATIVE_RETARGET_AB_RESULT_CAPTURED clips=2 frames=2 alias_selected=false production_authorized=false')
+          PY
+          if [ "$STATUS" -eq 0 ]; then
+            grep -q '^GATE8_NATIVE_RETARGET_AB_OK candidate=01 clips=Jog_Fwd,Sprint alias_selected=false production_authorized=false$' /tmp/gate8-native-ab.log
+          else
+            echo "Native Gate-8 retarget A-B failed closed; inspect metrics and both frames." >&2
+            exit "$STATUS"
+          fi
+
+      - name: Stage native A-B evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-native-ab-evidence
+          mkdir -p /tmp/gate8-native-ab-evidence
+          for f in \
+            /tmp/gate8_variant01_native_retarget_ab_result.json \
+            /tmp/gate8-native-ab.log \
+            /tmp/gate8-native-ab-import.log \
+            /tmp/animation-source.sha256 \
+            /tmp/npc_gate_01.sha256 \
+            /tmp/godot-version.txt \
+            "$ISOLATED_PROJECT/gate8_variant01_native_jog-fwd.png" \
+            "$ISOLATED_PROJECT/gate8_variant01_native_sprint.png"; do
+            if [ -s "$f" ]; then cp "$f" /tmp/gate8-native-ab-evidence/; fi
+          done
+          sha256sum /tmp/gate8-native-ab-evidence/* | sort -k2 | tee /tmp/gate8-native-ab-evidence/sha256.txt
+
+      - name: Prove repository remained untouched
+        if: always()
+        run: |
+          set -euo pipefail
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-native-ab-git-status.txt
+          test ! -s /tmp/gate8-native-ab-git-status.txt
+
+      - name: Upload native A-B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-native-retarget-ab
+          path: /tmp/gate8-native-ab-evidence
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

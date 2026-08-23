@@ -1,0 +1,37 @@
+name: Grand Bruxelles Official Sidewalk Horizontal Overlap
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry_manifest.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry/**'
+      - 'grand-bruxelles-game/data/provenance/brussels_sidewalk_overlap_georef.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_sidewalk_horizontal_overlap_measurement.json'
+      - 'grand-bruxelles-game/tools/source_factory/measure_brussels_sidewalk_horizontal_overlap.py'
+      - 'grand-bruxelles-game/tests/test_brussels_sidewalk_horizontal_overlap.py'
+      - '.github/workflows/grand-bruxelles-official-sidewalk-overlap-measure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure exact current horizontal overlap
+        run: >-
+          python grand-bruxelles-game/tools/source_factory/measure_brussels_sidewalk_horizontal_overlap.py
+          --output sidewalk_overlap_candidate.json
+      - name: Verify persisted overlap lock and fail-closed rails
+        run: python grand-bruxelles-game/tests/test_brussels_sidewalk_horizontal_overlap.py
+      - name: Upload overlap candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-official-sidewalk-horizontal-overlap
+          path: sidewalk_overlap_candidate.json
+          if-no-files-found: error

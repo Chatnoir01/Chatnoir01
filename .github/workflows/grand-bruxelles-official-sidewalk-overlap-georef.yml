@@ -1,0 +1,23 @@
+name: Grand Bruxelles Official Sidewalk Overlap Georef
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/provenance/brussels_mobility_sidewalk_corridor_geometry_manifest.json"
+      - "grand-bruxelles-game/data/provenance/brussels_sidewalk_overlap_georef.json"
+      - "grand-bruxelles-game/game/tests/official_sidewalk_overlap_georef_test.py"
+      - ".github/workflows/grand-bruxelles-official-sidewalk-overlap-georef.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  georef-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source-backed overlap georef contract
+        run: python3 grand-bruxelles-game/game/tests/official_sidewalk_overlap_georef_test.py

@@ -165,6 +165,11 @@ func shared_material_count() -> int:
 func official_applied_sidewalk_count() -> int:
     return _official_sidewalks.size()
 
+func official_manages_sidewalk(node: Node) -> bool:
+    if node == null or not is_instance_valid(node):
+        return false
+    return _official_sidewalks.has(node.get_instance_id())
+
 func geometry_unchanged() -> bool:
     for sidewalk: CSGBox3D in _sidewalks:
         if not is_instance_valid(sidewalk):

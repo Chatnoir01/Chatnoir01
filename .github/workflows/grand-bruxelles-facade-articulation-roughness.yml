@@ -1,0 +1,21 @@
+name: Grand Bruxelles Facade Articulation Roughness
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_facade_articulation_material.gd'
+      - 'grand-bruxelles-game/tools/test_facade_articulation_roughness_contract.py'
+      - '.github/workflows/grand-bruxelles-facade-articulation-roughness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  facade-roughness-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate active facade roughness contract
+        run: python3 grand-bruxelles-game/tools/test_facade_articulation_roughness_contract.py

@@ -5,6 +5,7 @@ on:
     paths:
       - "grand-bruxelles-game/data/qa/gate8_variant01_native_retarget_ab.json"
       - "grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd"
       - ".github/workflows/grand-bruxelles-gate8-variant01-native-retarget-ab.yml"
   workflow_dispatch:
 
@@ -58,19 +59,25 @@ jobs:
           assert rails['runtime_population_changed'] is False and rails['visual_approval_claimed'] is False
           print('GATE8_NATIVE_AB_STATIC_OK roles=22 clips=2 production_authorized=false')
           PY
-          TEST=grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd
-          grep -q 'RetargetModifier3D.new()' "$TEST"
-          grep -q 'set_position_enabled(false)' "$TEST"
-          grep -q 'set_rotation_enabled(true)' "$TEST"
-          grep -q 'set_scale_enabled(false)' "$TEST"
-          grep -q '_rename_target_to_source_namespace' "$TEST"
-          grep -q 'source_animation_tracks_unchanged' "$TEST"
-          ! grep -q 'set_bone_name.*_source_skeleton' "$TEST"
+          BASETEST=grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd
+          TEST=grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd
+          grep -q 'RetargetModifier3D.new()' "$BASETEST"
+          grep -q 'set_position_enabled(false)' "$BASETEST"
+          grep -q 'set_rotation_enabled(true)' "$BASETEST"
+          grep -q 'set_scale_enabled(false)' "$BASETEST"
+          grep -q '_rename_target_to_source_namespace' "$BASETEST"
+          grep -q 'source_animation_tracks_unchanged' "$BASETEST"
+          ! grep -q 'set_bone_name.*_source_skeleton' "$BASETEST"
+          grep -q 'duplicate(true) as Skin' "$TEST"
+          grep -q 'set_bind_name' "$TEST"
+          grep -q 'bind_poses_unchanged' "$TEST"
+          grep -q 'bind_bone_indices_unchanged' "$TEST"
+          grep -q 'missing_named_binds_after_remap' "$TEST"
 
       - name: Download exact pinned CC0 animation source
         run: |
           set -euo pipefail
-          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-Native-AB/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-Native-AB/1.1' "$ANIM_URL" -o /tmp/animation-source.zip
           test -s /tmp/animation-source.zip
           test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
           test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
@@ -128,6 +135,7 @@ jobs:
           cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
           cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
           cp grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd "$ISOLATED_PROJECT/game/tests/"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd "$ISOLATED_PROJECT/game/tests/"
           timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-native-ab-import.log
           test -d "$ISOLATED_PROJECT/.godot/imported"
           ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-native-ab-import.log
@@ -139,16 +147,19 @@ jobs:
         run: |
           set -euo pipefail
           set +e
-          timeout 240s xvfb-run -a -s '-screen 0 1280x720x24' "$GODOT" --path "$ISOLATED_PROJECT" --rendering-method gl_compatibility --script res://game/tests/gate8_variant01_native_retarget_ab_test.gd 2>&1 | tee /tmp/gate8-native-ab.log
+          timeout 240s xvfb-run -a -s '-screen 0 1280x720x24' "$GODOT" --path "$ISOLATED_PROJECT" --rendering-method gl_compatibility --script res://game/tests/gate8_variant01_native_retarget_ab_v2_test.gd 2>&1 | tee /tmp/gate8-native-ab.log
           STATUS=${PIPESTATUS[0]}
           set -e
           test -s "$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json"
+          test -s "$ISOLATED_PROJECT/gate8_variant01_native_skin_remap_result.json"
           cp "$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json" /tmp/gate8_variant01_native_retarget_ab_result.json
+          cp "$ISOLATED_PROJECT/gate8_variant01_native_skin_remap_result.json" /tmp/gate8_variant01_native_skin_remap_result.json
           for png in "$ISOLATED_PROJECT/gate8_variant01_native_jog-fwd.png" "$ISOLATED_PROJECT/gate8_variant01_native_sprint.png"; do test -s "$png"; done
           python - <<'PY'
           import json, math, struct
           from pathlib import Path
           r=json.loads(Path('/tmp/gate8_variant01_native_retarget_ab_result.json').read_text())
+          s=json.loads(Path('/tmp/gate8_variant01_native_skin_remap_result.json').read_text())
           assert r['format']=='grand-bruxelles-gate8-variant01-native-retarget-ab-result-v1'
           assert r['candidate_variant']==1 and r['reviewed_roles']==22
           assert r['retarget_engine']=='RetargetModifier3D'
@@ -156,6 +167,10 @@ jobs:
           assert r['source_bone_names_unchanged'] is True and r['source_animation_tracks_unchanged'] is True
           assert r['target_rest_pose_unchanged'] is True and r['target_parent_topology_unchanged'] is True and r['target_bone_indices_unchanged'] is True
           assert r['run_alias_selected']=='' and r['production_authorized'] is False and r['runtime_population_changed'] is False
+          assert s['runtime_only'] is True
+          assert s['skins'] > 0 and s['binds'] > 0 and s['renamed_binds'] >= 22
+          assert s['bind_count_unchanged'] is True and s['bind_poses_unchanged'] is True and s['bind_bone_indices_unchanged'] is True
+          assert s['missing_named_binds_after_remap'] == 0
           assert len(r['clips'])==2
           for clip in ['Jog_Fwd','Sprint']:
               row=r['clips'][clip]
@@ -168,12 +183,14 @@ jobs:
               data=Path(path).read_bytes(); assert data[:8]==b'\x89PNG\r\n\x1a\n'; assert data[12:16]==b'IHDR'; return struct.unpack('>II',data[16:24])
           assert png_size('/tmp/gate8-variant01-native-retarget-ab/gate8_variant01_native_jog-fwd.png')==(1280,720)
           assert png_size('/tmp/gate8-variant01-native-retarget-ab/gate8_variant01_native_sprint.png')==(1280,720)
-          print('GATE8_NATIVE_AB_RESULT_CAPTURED clips=2 frames=2 production_authorized=false')
+          print('GATE8_NATIVE_AB_RESULT_CAPTURED clips=2 frames=2 skin_remap=true production_authorized=false')
           PY
+          ! grep -q 'contains named bind.*Skeleton3D has no bone by that name' /tmp/gate8-native-ab.log
+          grep -q '^GATE8_NATIVE_SKIN_REMAP .*missing=0 .*bind_count_unchanged=true .*bind_poses_unchanged=true .*bind_bones_unchanged=true .*runtime_only=true$' /tmp/gate8-native-ab.log
           if [ "$STATUS" -eq 0 ]; then
             grep -q '^GATE8_VARIANT01_NATIVE_RETARGET_AB_OK candidate=01 clips=Jog_Fwd,Sprint engine=RetargetModifier3D alias_selected=false production_authorized=false$' /tmp/gate8-native-ab.log
           else
-            echo 'Native RetargetModifier3D A-B failed closed; inspect metrics and frames.' >&2
+            echo 'Native RetargetModifier3D A-B failed closed; inspect metrics and valid skin-remapped frames.' >&2
             exit "$STATUS"
           fi
 
@@ -182,7 +199,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/gate8-native-ab-evidence; mkdir -p /tmp/gate8-native-ab-evidence
-          for f in /tmp/gate8_variant01_native_retarget_ab_result.json /tmp/gate8-native-ab.log /tmp/gate8-native-ab-import.log /tmp/animation-source.sha256 /tmp/npc_gate_01.sha256 /tmp/godot-version.txt "$ISOLATED_PROJECT/gate8_variant01_native_jog-fwd.png" "$ISOLATED_PROJECT/gate8_variant01_native_sprint.png"; do
+          for f in /tmp/gate8_variant01_native_retarget_ab_result.json /tmp/gate8_variant01_native_skin_remap_result.json /tmp/gate8-native-ab.log /tmp/gate8-native-ab-import.log /tmp/animation-source.sha256 /tmp/npc_gate_01.sha256 /tmp/godot-version.txt "$ISOLATED_PROJECT/gate8_variant01_native_jog-fwd.png" "$ISOLATED_PROJECT/gate8_variant01_native_sprint.png"; do
             if [ -s "$f" ]; then cp "$f" /tmp/gate8-native-ab-evidence/; fi
           done
           sha256sum /tmp/gate8-native-ab-evidence/* | sort -k2 | tee /tmp/gate8-native-ab-evidence/sha256.txt

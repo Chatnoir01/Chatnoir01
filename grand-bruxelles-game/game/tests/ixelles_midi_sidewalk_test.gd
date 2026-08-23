@@ -1,6 +1,7 @@
 extends SceneTree
 
 const MAIN_SCENE := preload("res://game/main.tscn")
+const MATERIAL_OWNER := "ixelles_midi_sidewalk_runtime"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -39,7 +40,13 @@ func _run() -> void:
     var runtime := root.get_node_or_null("IxellesMidiSidewalkRuntime")
     if not _expect(runtime != null and bool(runtime.call("ready_complete")) and not bool(runtime.call("failed")), "Ixelles sidewalk runtime not ready"):
         return
-    if not _expect(int(runtime.call("applied_surface_count")) == 1, "Midi sidewalk recipe not applied"):
+
+    # Let the shared sidewalk runtime finish its own deferred scan. This is the
+    # regression for the former last-writer-wins material race.
+    for _frame: int in range(6):
+        await process_frame
+
+    if not _expect(int(runtime.call("applied_surface_count")) == 1, "Midi sidewalk recipe not applied or was overwritten"):
         return
     var material := runtime.call("enhanced_material") as ShaderMaterial
     if not _expect(material != null, "enhanced sidewalk material missing"):
@@ -48,10 +55,24 @@ func _run() -> void:
         return
     if not _expect(not bool(material.get_meta("geometry_changed", true)), "material lot changed geometry"):
         return
+    if not _expect(not bool(material.get_meta("material_identity_source_backed", true)), "authored blue-stone presentation was promoted to source identity"):
+        return
 
     var sidewalk := slice.find_child("StreetSurfaces_SW", true, false) as MeshInstance3D
     if not _expect(sidewalk != null and sidewalk.material_override == material, "official Ixelles sidewalk mesh is not using the Midi recipe"):
         return
+    if not _expect(str(sidewalk.get_meta("shared_sidewalk_material_owner", "")) == MATERIAL_OWNER, "Ixelles LABO sidewalk material owner not locked"):
+        return
+    if not _expect(str(sidewalk.get_meta("legacy_surface_type_semantics", "")) == "cell.street_surfaces.type", "legacy SW semantics drifted"):
+        return
+    if not _expect(not bool(sidewalk.get_meta("material_identity_source_backed", true)), "Ixelles material identity claim drifted"):
+        return
 
-    print("IXELLES_MIDI_SIDEWALK_OK: zone=ixelles status=LABO surfaces=1 recipe=midi streets=309 axes=277 buildings=260 skipped=460 geometry_changed=false collision_preserved=true")
+    var shared_runtime := root.get_node_or_null("BrusselsOsmSidewalkSurfaceRuntime")
+    if not _expect(shared_runtime != null and bool(shared_runtime.call("ready_complete")) and not bool(shared_runtime.call("failed")), "shared sidewalk runtime not ready"):
+        return
+    if not _expect(int(shared_runtime.call("official_applied_sidewalk_count")) == 0, "shared sidewalk runtime stole the reserved Ixelles LABO material"):
+        return
+
+    print("IXELLES_MIDI_SIDEWALK_OK: zone=ixelles status=LABO surfaces=1 recipe=midi owner=%s shared_official_overrides=0 streets=309 axes=277 buildings=260 skipped=460 geometry_changed=false collision_preserved=true" % MATERIAL_OWNER)
     quit(0)

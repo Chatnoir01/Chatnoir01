@@ -1,0 +1,238 @@
+name: Grand Bruxelles Runtime Maturity Attachment
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/grand-bruxelles-runtime-maturity-attachment.yml"
+      - "grand-bruxelles-game/tools/citygen/attach_runtime_candidate_maturity.py"
+      - "grand-bruxelles-game/tools/citygen/test_attach_runtime_candidate_maturity.py"
+      - "grand-bruxelles-game/tools/citygen/test_runtime_maturity_attachment_workflow_contract.py"
+  workflow_run:
+    workflows: ["Grand Bruxelles Runtime Candidate Frontier"]
+    types: [completed]
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-runtime-maturity-attachment.yml"
+      - "grand-bruxelles-game/tools/citygen/attach_runtime_candidate_maturity.py"
+      - "grand-bruxelles-game/tools/citygen/test_attach_runtime_candidate_maturity.py"
+      - "grand-bruxelles-game/tools/citygen/test_runtime_maturity_attachment_workflow_contract.py"
+
+permissions:
+  contents: write
+
+jobs:
+  validate-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate runtime maturity attachment contracts
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_attach_runtime_candidate_maturity.py
+          python3 grand-bruxelles-game/tools/citygen/test_runtime_maturity_attachment_workflow_contract.py
+
+  attach-runtime-maturity:
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    needs: validate-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Recover durable source maturity and validated runtime candidates
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/citygen-runtime-maturity
+          mkdir -p /tmp/citygen-runtime-maturity/source /tmp/citygen-runtime-maturity/runtime /tmp/citygen-runtime-maturity/attachments /tmp/citygen-runtime-maturity/out
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          git fetch origin citygen-runtime-candidates:refs/remotes/origin/citygen-runtime-candidates
+          git rev-parse refs/remotes/origin/citygen-autonomous-state > /tmp/citygen-runtime-maturity/remote_sha
+          STATE_ROOT="grand-bruxelles-game/data/qa"
+          git archive origin/citygen-autonomous-state "${STATE_ROOT}/autonomous_sources" | tar -x -C /tmp/citygen-runtime-maturity/source
+          git archive origin/citygen-runtime-candidates "${STATE_ROOT}/runtime_candidates" | tar -x -C /tmp/citygen-runtime-maturity/runtime
+          test -d "/tmp/citygen-runtime-maturity/source/${STATE_ROOT}/autonomous_sources"
+          test -d "/tmp/citygen-runtime-maturity/runtime/${STATE_ROOT}/runtime_candidates"
+
+      - name: Attach validated runtime geometry evidence only
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import importlib.util
+          import json
+          from pathlib import Path
+
+          repo = Path.cwd()
+          tool_path = repo / 'grand-bruxelles-game/tools/citygen/attach_runtime_candidate_maturity.py'
+          spec = importlib.util.spec_from_file_location('runtime_maturity_attach', tool_path)
+          mod = importlib.util.module_from_spec(spec)
+          assert spec and spec.loader
+          spec.loader.exec_module(mod)
+
+          state_root = Path('grand-bruxelles-game/data/qa')
+          source_root = Path('/tmp/citygen-runtime-maturity/source') / state_root / 'autonomous_sources'
+          runtime_root = Path('/tmp/citygen-runtime-maturity/runtime') / state_root / 'runtime_candidates'
+          attachment_root = Path('/tmp/citygen-runtime-maturity/attachments')
+          report_path = Path('/tmp/citygen-runtime-maturity/out/runtime_maturity_attachment_report.json')
+
+          rows = []
+          changed = 0
+          unchanged = 0
+          blocked = 0
+          skipped_unvalidated = 0
+          validated_inputs = 0
+
+          for bundle in sorted(path for path in runtime_root.iterdir() if path.is_dir()):
+              cell_id = bundle.name
+              validation_path = bundle / 'validation.json'
+              candidate_path = bundle / 'candidate.json'
+              source_dir = source_root / cell_id
+              maturity_path = source_dir / 'maturity.json'
+              source_manifest = source_dir / 'manifest.json'
+
+              if not validation_path.is_file():
+                  skipped_unvalidated += 1
+                  rows.append({'cell_id': cell_id, 'status': 'skipped_unvalidated', 'reason': 'validation_missing'})
+                  continue
+              try:
+                  validation = json.loads(validation_path.read_text(encoding='utf-8'))
+              except Exception as exc:
+                  blocked += 1
+                  rows.append({'cell_id': cell_id, 'status': 'blocked', 'reason': f'invalid_validation_json:{exc}'})
+                  continue
+              if validation.get('status') != 'validated':
+                  skipped_unvalidated += 1
+                  rows.append({'cell_id': cell_id, 'status': 'skipped_unvalidated', 'reason': 'validation_status_not_validated'})
+                  continue
+              validated_inputs += 1
+              missing = [
+                  name for name, path in (
+                      ('candidate.json', candidate_path),
+                      ('maturity.json', maturity_path),
+                      ('source manifest', source_manifest),
+                  ) if not path.is_file()
+              ]
+              if missing:
+                  blocked += 1
+                  rows.append({'cell_id': cell_id, 'status': 'blocked', 'reason': 'missing:' + ','.join(missing)})
+                  continue
+              try:
+                  result = mod.attach(maturity_path, validation_path, candidate_path, source_manifest)
+              except Exception as exc:
+                  blocked += 1
+                  rows.append({'cell_id': cell_id, 'status': 'blocked', 'reason': str(exc)})
+                  continue
+
+              canonical = json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + '\n'
+              previous = maturity_path.read_text(encoding='utf-8')
+              if previous == canonical:
+                  unchanged += 1
+                  status = 'already_attached'
+              else:
+                  changed += 1
+                  status = 'attached'
+                  destination = attachment_root / cell_id / 'maturity.json'
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  destination.write_text(canonical, encoding='utf-8')
+              rows.append({
+                  'cell_id': cell_id,
+                  'status': status,
+                  'runtime_geometry': True,
+                  'maturity_state': result['maturity']['state'],
+                  'evidence_digest': result['runtime_geometry_evidence']['evidence_digest'],
+                  'runtime_mount_authorized': False,
+                  'jouable_promotion_authorized': False,
+              })
+
+          report = {
+              'format': 'grand-bruxelles-runtime-maturity-attachment-report-v1',
+              'candidate_count': len([path for path in runtime_root.iterdir() if path.is_dir()]),
+              'validated_input_count': validated_inputs,
+              'attached_count': changed,
+              'already_attached_count': unchanged,
+              'blocked_count': blocked,
+              'skipped_unvalidated_count': skipped_unvalidated,
+              'runtime_mount_authorized': False,
+              'jouable_promotion_authorized': False,
+              'maturity_state_promotion_authorized': False,
+              'rows': rows,
+          }
+          report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print(
+              'RUNTIME_MATURITY_ATTACHMENT_FRONTIER_OK',
+              f"candidates={report['candidate_count']}",
+              f"validated_inputs={validated_inputs}",
+              f"attached={changed}",
+              f"already_attached={unchanged}",
+              f"blocked={blocked}",
+              'runtime_mount=false',
+              'jouable_promotion=false',
+          )
+          PY
+          cat /tmp/citygen-runtime-maturity/out/runtime_maturity_attachment_report.json
+
+      - name: Persist maturity evidence on autonomous durable branch
+        id: persist
+        run: |
+          set -euo pipefail
+          REMOTE_SHA="$(cat /tmp/citygen-runtime-maturity/remote_sha)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C citygen-autonomous-state origin/citygen-autonomous-state
+          DEST="grand-bruxelles-game/data/qa/autonomous_sources"
+          if [ -d /tmp/citygen-runtime-maturity/attachments ]; then
+            cp -a /tmp/citygen-runtime-maturity/attachments/. "$DEST/" 2>/dev/null || true
+          fi
+          cp /tmp/citygen-runtime-maturity/out/runtime_maturity_attachment_report.json \
+            grand-bruxelles-game/data/qa/runtime_maturity_attachment_report.json
+          git add "$DEST" grand-bruxelles-game/data/qa/runtime_maturity_attachment_report.json
+          if git diff --cached --quiet; then
+            echo "RUNTIME_MATURITY_ATTACHMENT_NO_CHANGE"
+            echo "durable_progress=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "citygen: persist validated runtime geometry maturity evidence"
+            git push \
+              --force-with-lease="refs/heads/citygen-autonomous-state:${REMOTE_SHA}" \
+              origin HEAD:refs/heads/citygen-autonomous-state
+            echo "durable_progress=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Surface blocked attachments after durable progress
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('/tmp/citygen-runtime-maturity/out/runtime_maturity_attachment_report.json').read_text(encoding='utf-8'))
+          blocked = int(report.get('blocked_count', 0))
+          if report.get('runtime_mount_authorized') is not False or report.get('jouable_promotion_authorized') is not False:
+              raise SystemExit('runtime/JOUABLE authorization unexpectedly enabled')
+          if blocked:
+              raise SystemExit(f'RUNTIME_MATURITY_ATTACHMENT_PARTIAL_FAILURES persisted_successes=true blocked={blocked}')
+          print(
+              'RUNTIME_MATURITY_ATTACHMENT_COMPLETE',
+              f"attached={report.get('attached_count', 0)}",
+              f"already_attached={report.get('already_attached_count', 0)}",
+              'blocked=0 promotion_bypass=false',
+          )
+          PY
+
+      - name: Upload runtime maturity attachment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-maturity-attachment-${{ github.run_number }}
+          path: /tmp/citygen-runtime-maturity/out/
+          retention-days: 30

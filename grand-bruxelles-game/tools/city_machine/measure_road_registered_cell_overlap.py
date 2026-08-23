@@ -135,14 +135,16 @@ def measure(road_source: Path, cell_index: Path) -> dict[str, Any]:
     if road_sha != EXPECTED_ROAD_SHA256:
         raise ValueError(f"road source SHA-256 mismatch: {road_sha}")
     roads_payload = json.loads(road_bytes)
+    if roads_payload.get("format") != "grand-bruxelles-osm-v1":
+        raise ValueError("road source format drift")
     if roads_payload.get("source") != "OpenStreetMap contributors via Overpass API":
         raise ValueError("road source provider drift")
     if roads_payload.get("license") != "ODbL-1.0":
         raise ValueError("road source license drift")
-    roads = roads_payload.get("corridor", {}).get("roads")
+    roads = roads_payload.get("roads")
     if not isinstance(roads, list) or not roads:
         raise ValueError("road source has no roads")
-    expected_count = roads_payload.get("corridor", {}).get("stats", {}).get("roads")
+    expected_count = roads_payload.get("stats", {}).get("roads")
     if expected_count != len(roads):
         raise ValueError(f"road count drift: stats={expected_count} actual={len(roads)}")
 

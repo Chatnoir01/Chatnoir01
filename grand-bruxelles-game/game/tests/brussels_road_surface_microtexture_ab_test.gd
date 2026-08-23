@@ -96,12 +96,14 @@ func _metrics(before: Image, after: Image) -> Dictionary:
     }
 
 func _run() -> void:
-    if not "PRESENTATION_REVISION" in MATERIAL_FACTORY or int(MATERIAL_FACTORY.PRESENTATION_REVISION) != EXPECTED_PRESENTATION_REVISION:
+    var constants: Dictionary = MATERIAL_FACTORY.get_script_constant_map()
+    if not constants.has("PRESENTATION_REVISION") or int(constants["PRESENTATION_REVISION"]) != EXPECTED_PRESENTATION_REVISION:
         _fail("road surface presentation revision 2 missing")
         return
-    if not "MICRO_GRAIN_STRENGTH" in MATERIAL_FACTORY or float(MATERIAL_FACTORY.MICRO_GRAIN_STRENGTH) <= 0.0:
+    if not constants.has("MICRO_GRAIN_STRENGTH") or float(constants["MICRO_GRAIN_STRENGTH"]) <= 0.0:
         _fail("road surface micro-grain contract missing")
         return
+    var authored_strength := float(constants["MICRO_GRAIN_STRENGTH"])
 
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(ARTIFACT_DIR))
     var main := MAIN_SCENE.instantiate()
@@ -140,7 +142,6 @@ func _run() -> void:
     if materials.size() != 2:
         _fail("expected exactly two shared road materials, got %d" % materials.size())
         return
-    var authored_strength := float(MATERIAL_FACTORY.MICRO_GRAIN_STRENGTH)
     for material: ShaderMaterial in materials:
         material.set_shader_parameter("micro_grain_strength", 0.0)
     var before := await _capture(BEFORE_PATH)

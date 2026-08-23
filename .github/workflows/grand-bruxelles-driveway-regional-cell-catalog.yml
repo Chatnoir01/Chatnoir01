@@ -1,0 +1,79 @@
+name: Grand Bruxelles Driveway Regional Cell Catalog
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/brussels_driveway_regional_cells.contract.json"
+      - "grand-bruxelles-game/tools/qa/build_brussels_driveway_regional_cell_catalog.py"
+      - ".github/workflows/grand-bruxelles-driveway-regional-cell-catalog.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regional-cell-catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Require exact production base and fail-closed rails
+        env:
+          EXPECTED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path('grand-bruxelles-game/data/qa/brussels_driveway_regional_cells.contract.json')
+          c = json.loads(p.read_text())
+          expected = os.environ.get('EXPECTED_BASE')
+          if expected and c['production_base_sha'] != expected:
+              raise SystemExit(f"stale production base: {c['production_base_sha']} != {expected}")
+          for key, value in c['hard_rules'].items():
+              if value is not False:
+                  raise SystemExit(f"rail opened unexpectedly: {key}={value!r}")
+          assert c['source']['expected_feature_count'] == 95805
+          assert c['municipalities']['expected_count'] == 19
+          assert c['partition']['cell_size_m'] == 500
+          print('DRIVEWAY_REGIONAL_CELL_CONTRACT_OK')
+          PY
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install geometry dependency
+        run: python -m pip install --disable-pip-version-check shapely
+      - name: Build source-only regional cell catalog
+        run: |
+          python grand-bruxelles-game/tools/qa/build_brussels_driveway_regional_cell_catalog.py \
+            --contract grand-bruxelles-game/data/qa/brussels_driveway_regional_cells.contract.json \
+            --out "$RUNNER_TEMP/brussels_driveway_regional_cells.json"
+      - name: Validate output rails and accounting
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP']) / 'brussels_driveway_regional_cells.json'
+          data = json.loads(p.read_text())
+          assert data['source']['feature_count'] == 95805
+          assert data['partition']['assigned_feature_count'] == 95805
+          assert data['partition']['municipality_count'] == 19
+          assert data['partition']['unassigned_count'] == 0
+          assert data['partition']['ambiguous_count'] == 0
+          assert data['destination_readiness'] == 'DISCOVERED_SOURCE_ONLY'
+          for key in [
+              'source_registration_authorized', 'road_crosswalk_authorized',
+              'parking_evidence_runtime_approved', 'runtime_authorized',
+              'runtime_mount_authorized', 'collision_authorized',
+              'materialization_authorized', 'semantic_names_authorized',
+              'game_world_transform_authorized', 'jouable_promotion_authorized',
+          ]:
+              assert data[key] is False, key
+          print('DRIVEWAY_REGIONAL_CELL_ACCOUNTING_GREEN')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driveway-regional-cell-catalog
+          path: ${{ runner.temp }}/brussels_driveway_regional_cells.json
+          if-no-files-found: error

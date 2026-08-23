@@ -96,7 +96,12 @@ func _metrics(before: Image, after: Image) -> Dictionary:
     }
 
 func _run() -> void:
-    var constants: Dictionary = MATERIAL_FACTORY.get_script_constant_map()
+    var factory_instance: RefCounted = MATERIAL_FACTORY.new()
+    var factory_script := factory_instance.get_script() as Script
+    if factory_script == null:
+        _fail("road material factory script missing")
+        return
+    var constants: Dictionary = factory_script.get_script_constant_map()
     if not constants.has("PRESENTATION_REVISION") or int(constants["PRESENTATION_REVISION"]) != EXPECTED_PRESENTATION_REVISION:
         _fail("road surface presentation revision 2 missing")
         return

@@ -1,0 +1,33 @@
+name: Grand Bruxelles Sidewalk Owner Review Queue
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_sidewalk_high_coverage_runs.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_sidewalk_owner_review_queue.json'
+      - 'grand-bruxelles-game/tools/source_factory/build_sidewalk_owner_review_queue.py'
+      - 'grand-bruxelles-game/tests/test_sidewalk_owner_review_queue.py'
+      - '.github/workflows/grand-bruxelles-sidewalk-owner-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exact-location review candidate
+        run: python grand-bruxelles-game/tools/source_factory/build_sidewalk_owner_review_queue.py --output sidewalk_owner_review_candidate.json
+      - name: Verify fail-closed owner review queue
+        run: python grand-bruxelles-game/tests/test_sidewalk_owner_review_queue.py
+      - name: Upload owner-review candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-sidewalk-owner-review-queue
+          path: sidewalk_owner_review_candidate.json
+          if-no-files-found: error

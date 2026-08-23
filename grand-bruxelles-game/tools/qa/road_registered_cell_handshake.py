@@ -43,6 +43,14 @@ def _require_false(doc, keys, label):
             raise RuntimeError(f"{label} authorization must remain false: {key}")
 
 
+def _require_all_authorizations_false(doc, label):
+    if not isinstance(doc, dict):
+        raise RuntimeError(f"{label} must be an object")
+    for key, value in doc.items():
+        if key.endswith("_authorized") and value is not False:
+            raise RuntimeError(f"{label} authorization must remain false: {key}")
+
+
 def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_path: Path):
     road = _load(Path(road_index_path))
     cells = _load(Path(cell_index_path))
@@ -56,6 +64,7 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
     if road_auth.get("source_lookup_only") is not True:
         raise RuntimeError("road index authorization must remain source_lookup_only")
     _require_false(road_auth, ROAD_AUTH_KEYS, "road index")
+    _require_all_authorizations_false(road_auth, "road index")
 
     road_ids = set()
     for document in road.get("documents") or []:
@@ -75,6 +84,7 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
     if cells.get("destination_readiness") != "REGISTERED_CELL_INDEX_EVIDENCE_ONLY":
         raise RuntimeError("registered-cell index readiness widened")
     _require_false(cells, CELL_AUTH_KEYS, "registered-cell index")
+    _require_all_authorizations_false(cells, "registered-cell index")
     cell_ids = set()
     for entry in cells.get("entries") or []:
         cell_id = entry.get("cell_id")
@@ -85,6 +95,7 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
         if entry.get("evidence_only") is not True:
             raise RuntimeError(f"registered cell is not evidence-only: {cell_id}")
         _require_false(entry, ROW_AUTH_KEYS, f"registered cell {cell_id}")
+        _require_all_authorizations_false(entry, f"registered cell {cell_id}")
         cell_ids.add(cell_id)
     if len(cell_ids) != cells.get("registered_cell_count"):
         raise RuntimeError("registered-cell count mismatch")
@@ -101,6 +112,7 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
         "safe_spawn_authorized",
         "jouable_promotion_authorized",
     ), "road-cell crosswalk")
+    _require_all_authorizations_false(crosswalk, "road-cell crosswalk")
 
     seen_roads = set()
     mapped_cells = set()
@@ -119,6 +131,7 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
         if row.get("mapping_evidence_only") is not True:
             raise RuntimeError(f"road-cell mapping is not evidence-only: {road_id}")
         _require_false(row, ROW_AUTH_KEYS, f"road-cell row {road_id}")
+        _require_all_authorizations_false(row, f"road-cell row {road_id}")
         seen_roads.add(road_id)
         mapped_cells.add(cell_id)
 

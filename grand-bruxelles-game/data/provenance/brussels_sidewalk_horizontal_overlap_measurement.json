@@ -1,0 +1,52 @@
+{
+  "algorithm": {
+    "area_is_estimate": true,
+    "generic_overlap_semantics": "instance-weighted; overlapping generic surface instances are measured independently",
+    "official_membership": "point-in-MultiPolygon with holes after reviewed affine transform",
+    "surface_sampling": "stratified cell centers in each exact authored sidewalk rectangle",
+    "target_sample_spacing_m": 0.25
+  },
+  "horizontal_only": true,
+  "inputs": {
+    "generic_sidewalk_count": 430,
+    "official_feature_count": 3158,
+    "official_ring_count": 3163,
+    "official_vertex_count": 88303
+  },
+  "measurement": {
+    "generic_instance_area_m2": 17591.252421,
+    "instance_weighted_coverage_fraction": 0.415184705,
+    "median_surface_coverage_fraction": 0.329199735,
+    "official_covered_instance_area_estimate_m2": 7303.618955,
+    "sample_count": 306044,
+    "surfaces_with_any_official_coverage": 320,
+    "surfaces_with_at_least_50pct_coverage": 177,
+    "surfaces_with_at_least_99pct_coverage": 47
+  },
+  "measurement_kind": "deterministic_instance_weighted_area_sampling",
+  "policy": {
+    "curb_height_authorized": false,
+    "jouable_promotion_authorized": false,
+    "measurement_alone_authorizes_runtime": false,
+    "runtime_geometry_authorized": false,
+    "runtime_replacement_authorized": false,
+    "vertical_profile_authorized": false
+  },
+  "schema": "grand-bruxelles-official-generic-sidewalk-horizontal-overlap-v1",
+  "source": {
+    "generic": {
+      "dataset": "vertical_slice_01.game",
+      "license": "ODbL-1.0",
+      "source": "OpenStreetMap contributors via Overpass API"
+    },
+    "georef_evidence_sha256": "sha256:db1edac21c7a2efadc774d07074466dba43e90372c41dea59a055209d5ccd35e",
+    "georef_schema": "grand-bruxelles-sidewalk-overlap-georef-v1",
+    "official": {
+      "crs": "EPSG:31370",
+      "dataset": "Trottoir",
+      "layer": "bm_urbis:urbadm_ssw",
+      "license": "CC0-1.0",
+      "publisher": "Paradigm"
+    }
+  }
+}

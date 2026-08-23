@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -13,6 +14,36 @@ def _load(path: Path):
     if not path.exists():
         raise AssertionError(f"required sidewalk high-coverage evidence missing: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _canonical_sha256(value):
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
+def _compact_lock(candidate):
+    classification = candidate["classification"]
+    return {
+        "schema": "grand-bruxelles-sidewalk-high-coverage-runs-lock-v1",
+        "candidate_schema": candidate["schema"],
+        "candidate_sha256": _canonical_sha256(candidate),
+        "coverage_threshold": candidate["coverage_threshold"],
+        "inputs": candidate["inputs"],
+        "high_coverage_surface_ids": [surface["surface_id"] for surface in classification["high_coverage_surfaces"]],
+        "runs": [
+            {
+                "run_id": run["run_id"],
+                "osm_id": run["osm_id"],
+                "side": run["side"],
+                "start_segment_index": run["start_segment_index"],
+                "end_segment_index": run["end_segment_index"],
+                "surface_count": run["surface_count"],
+                "surface_ids": run["surface_ids"],
+            }
+            for run in classification["runs"]
+        ],
+        "policy": candidate["policy"],
+    }
 
 
 def validate(candidate_path: Path):
@@ -60,7 +91,8 @@ def validate(candidate_path: Path):
     if not LOCK_PATH.exists():
         raise AssertionError("persisted high-coverage sidewalk run lock missing")
     persisted = _load(LOCK_PATH)
-    assert persisted == candidate, "persisted high-coverage sidewalk run lock drifted"
+    expected_lock = _compact_lock(candidate)
+    assert persisted == expected_lock, "persisted high-coverage sidewalk run lock drifted"
     print(
         "OFFICIAL_SIDEWALK_HIGH_COVERAGE_RUNS_OK "
         + json.dumps(
@@ -69,6 +101,7 @@ def validate(candidate_path: Path):
                 "runs": classification["run_count"],
                 "multi_surface_runs": classification["multi_surface_run_count"],
                 "threshold": MIN_COVERAGE,
+                "candidate_sha256": expected_lock["candidate_sha256"],
             },
             sort_keys=True,
         )

@@ -159,7 +159,10 @@ func _spawn_midi_zone() -> void:
         )
 
     for index in range(maxi(midi_police_count, 0)):
-        var side := MIDI_SIDEWALK_B
+        # Keep the first two behavioral patrols on opposite source-aligned sidewalks.
+        # NpcAgent uses CharacterBody3D motion without inter-agent avoidance, so
+        # overlapping patrol segments can otherwise deadlock officers head-on.
+        var side := MIDI_SIDEWALK_B if index % 2 == 0 else MIDI_SIDEWALK_A
         var patrol_a := MIDI + FONSNY_AXIS * (-56.0 + float(index) * 18.0) + ROAD_SIDE * side
         var patrol_b := MIDI + FONSNY_AXIS * (48.0 - float(index) * 14.0) + ROAD_SIDE * side
         patrol_a.y = MIDI.y
@@ -177,7 +180,6 @@ func _spawn_bourse_zone() -> void:
         return
     _bourse_spawned = true
     var point_count := _bourse_points.size()
-
     for index in range(maxi(bourse_civilian_count, 0)):
         var a := _bourse_points[index % point_count]
         var b := _bourse_points[(index + 1) % point_count]

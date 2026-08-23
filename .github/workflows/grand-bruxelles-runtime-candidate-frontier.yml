@@ -75,6 +75,8 @@ jobs:
           EXISTING_ARGS=()
           EXISTING_ROOT="/tmp/citygen-runtime-existing/grand-bruxelles-game/data/qa/runtime_candidates"
           if [ -d "$EXISTING_ROOT" ]; then EXISTING_ARGS=(--existing-root "$EXISTING_ROOT"); fi
+
+          COMPILER_RC=0
           python3 grand-bruxelles-game/tools/citygen/build_regional_runtime_candidates.py \
             --source-root /tmp/citygen-runtime-input/grand-bruxelles-game/data/qa/autonomous_sources \
             --state /tmp/citygen-runtime-input/state.json \
@@ -82,8 +84,27 @@ jobs:
             --output-root /tmp/citygen-runtime-new \
             --report /tmp/citygen-runtime-out/runtime_candidate_frontier_report.json \
             --limit 32 \
-            "${EXISTING_ARGS[@]}"
+            "${EXISTING_ARGS[@]}" || COMPILER_RC=$?
+          printf '%s\n' "$COMPILER_RC" > /tmp/citygen-runtime-compiler-rc
           cat /tmp/citygen-runtime-out/runtime_candidate_frontier_report.json
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('/tmp/citygen-runtime-out/runtime_candidate_frontier_report.json')
+          report = json.loads(path.read_text(encoding='utf-8'))
+          selected = int(report.get('selected_count', 0))
+          built = int(report.get('built_count', 0))
+          failures = int(report.get('failure_count', 0))
+          if selected > 0 and built == 0:
+              raise SystemExit(f'RUNTIME_CANDIDATE_FRONTIER_NO_DURABLE_PROGRESS selected={selected} failures={failures}')
+          if report.get('runtime_mount_authorized') is not False:
+              raise SystemExit('runtime mount authorization unexpectedly enabled')
+          if report.get('jouable_promotion_authorized') is not False:
+              raise SystemExit('JOUABLE promotion authorization unexpectedly enabled')
+          print(f'RUNTIME_CANDIDATE_PARTIAL_PROGRESS_OK selected={selected} built={built} failures={failures}')
+          PY
 
       - name: Persist candidate-only runtime bundles off main
         run: |
@@ -100,15 +121,15 @@ jobs:
           git add "$DEST" grand-bruxelles-game/data/qa/runtime_candidate_frontier_report.json
           if git diff --cached --quiet; then
             echo "RUNTIME_CANDIDATE_FRONTIER_NO_CHANGE"
-            exit 0
-          fi
-          git commit -m "citygen: persist regional runtime candidate frontier"
-          if [ -n "$REMOTE_SHA" ]; then
-            git push \
-              --force-with-lease="refs/heads/citygen-runtime-candidates:${REMOTE_SHA}" \
-              origin HEAD:refs/heads/citygen-runtime-candidates
           else
-            git push origin HEAD:refs/heads/citygen-runtime-candidates
+            git commit -m "citygen: persist regional runtime candidate frontier"
+            if [ -n "$REMOTE_SHA" ]; then
+              git push \
+                --force-with-lease="refs/heads/citygen-runtime-candidates:${REMOTE_SHA}" \
+                origin HEAD:refs/heads/citygen-runtime-candidates
+            else
+              git push origin HEAD:refs/heads/citygen-runtime-candidates
+            fi
           fi
 
       - name: Upload runtime candidate frontier evidence
@@ -119,3 +140,20 @@ jobs:
             /tmp/citygen-runtime-out/
             /tmp/citygen-runtime-new/
           retention-days: 30
+
+      - name: Surface cell compilation failures after durable progress
+        run: |
+          set -euo pipefail
+          COMPILER_RC="$(cat /tmp/citygen-runtime-compiler-rc 2>/dev/null || echo 1)"
+          python3 - "$COMPILER_RC" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          compiler_rc = int(sys.argv[1])
+          report = json.loads(Path('/tmp/citygen-runtime-out/runtime_candidate_frontier_report.json').read_text(encoding='utf-8'))
+          failures = int(report.get('failure_count', 0))
+          if failures or compiler_rc:
+              raise SystemExit(f'RUNTIME_CANDIDATE_FRONTIER_PARTIAL_FAILURES persisted_successes=true failures={failures} compiler_rc={compiler_rc}')
+          print('RUNTIME_CANDIDATE_FRONTIER_COMPLETE_FAILURES=0')
+          PY

@@ -116,6 +116,15 @@ jobs:
           print('GRAND_PLACE_MAISON_WINDING_AB_EVIDENCE_OK human_review=pending')
           PY
 
+      - name: Bind A-B evidence hashes
+        working-directory: grand-bruxelles-game/artifacts/grand-place-maison-winding-ab
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum maison_du_roi_cull_back.png maison_du_roi_cull_disabled.png maison_du_roi_winding_ab.json > evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 3
+          sha256sum --check evidence-sha256.txt
+
       - name: Stage logs
         if: always()
         shell: bash
@@ -123,6 +132,15 @@ jobs:
           mkdir -p grand-bruxelles-game/artifacts/grand-place-maison-winding-ab
           test ! -f /tmp/maison-winding-import.log || cp /tmp/maison-winding-import.log grand-bruxelles-game/artifacts/grand-place-maison-winding-ab/
           test ! -f /tmp/maison-winding-capture.log || cp /tmp/maison-winding-capture.log grand-bruxelles-game/artifacts/grand-place-maison-winding-ab/
+
+      - name: Re-verify A-B evidence hashes before upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game/artifacts/grand-place-maison-winding-ab
+          test -f evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 3
+          sha256sum --check evidence-sha256.txt
 
       - name: Upload Maison du Roi winding A-B
         if: always()

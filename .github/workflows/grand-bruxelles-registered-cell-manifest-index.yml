@@ -1,0 +1,74 @@
+name: Grand Bruxelles Registered Cell Manifest Index
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/cell_manifests/*.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/tools/qa/build_registered_cell_manifest_index.py'
+      - 'grand-bruxelles-game/tools/qa/test_build_registered_cell_manifest_index.py'
+      - '.github/workflows/grand-bruxelles-registered-cell-manifest-index.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registered-cell-index:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          CANDIDATE_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA" || {
+            echo "RED: registered-cell index candidate does not contain live main" >&2
+            exit 1
+          }
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game/tools/qa
+        run: python test_build_registered_cell_manifest_index.py
+      - name: Build deterministic candidate
+        run: |
+          python grand-bruxelles-game/tools/qa/build_registered_cell_manifest_index.py \
+            --manifest-dir grand-bruxelles-game/data/cell_manifests \
+            --repo-root grand-bruxelles-game \
+            --production-base-sha "$LIVE_MAIN_SHA" \
+            --out "$RUNNER_TEMP/brussels_registered_cell_manifest_index.json"
+      - name: Upload candidate before lock verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: registered-cell-manifest-index-candidate
+          path: ${{ runner.temp }}/brussels_registered_cell_manifest_index.json
+          if-no-files-found: error
+      - name: Require persisted byte-exact lock
+        run: |
+          set -euo pipefail
+          LOCK=grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json
+          CANDIDATE="$RUNNER_TEMP/brussels_registered_cell_manifest_index.json"
+          test -f "$LOCK" || { echo "RED: persisted registered-cell manifest index lock missing" >&2; exit 1; }
+          cmp -s "$LOCK" "$CANDIDATE" || { echo "RED: persisted registered-cell index differs from regenerated candidate" >&2; diff -u "$LOCK" "$CANDIDATE" || true; exit 1; }
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=json.loads(Path('grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json').read_text())
+          assert p['schema']=='grand-bruxelles-registered-cell-manifest-index-v1'
+          assert p['production_base_sha']==os.environ['LIVE_MAIN_SHA']
+          assert p['destination_readiness']=='REGISTERED_CELL_INDEX_EVIDENCE_ONLY'
+          assert p['registered_cell_count']>=1
+          for key in ['runtime_directory_scan_authorized','road_crosswalk_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized']:
+              assert p[key] is False, key
+          print('REGISTERED_CELL_MANIFEST_INDEX_LOCKED_EXACT', p['registered_cell_count'], p['semantic_sha256'])
+          PY

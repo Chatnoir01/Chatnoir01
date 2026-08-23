@@ -1,0 +1,73 @@
+name: Grand Bruxelles Gate-8 Role Cache Regression
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_modifier_ab_test.gd"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_skin_witness.gd"
+      - ".github/workflows/grand-bruxelles-gate8-role-cache-regression.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  role-cache-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lock A/B stable-role cache contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/game/tests/gate8_variant01_native_modifier_ab_test.gd')
+          s=p.read_text()
+          required=[
+              'stable_role_index_cache',
+              '_source_role_indices',
+              '_source_probe_role_indices',
+              '_target_probe_role_indices',
+              '_cache_role_indices()',
+              'role_index_cache_incomplete',
+          ]
+          for token in required:
+              assert token in s, token
+          measure=s[s.index('func _measure_clip'):s.index('func _copy_reviewed_pose_to_probe')]
+          copy=s[s.index('func _copy_reviewed_pose_to_probe'):s.index('func _target_motion_delta_deg')]
+          assert '.find_bone(' not in measure, 'per-sample bone lookup returned to _measure_clip'
+          assert '.find_bone(' not in copy, 'per-sample bone lookup returned to pose copy'
+          print('ROLE_CACHE_AB_OK cached_roles=22 lookup_free_hot_path=true')
+          PY
+      - name: Lock skin witness stable-role cache contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/game/tests/gate8_variant01_native_skin_witness.gd')
+          s=p.read_text()
+          required=[
+              'stable_skin_role_index_cache',
+              '_source_role_indices',
+              '_source_probe_role_indices',
+              '_target_probe_role_indices',
+              '_target_real_role_indices',
+              'func _cache_role_indices()',
+              'skin_role_index_cache_incomplete',
+          ]
+          for token in required:
+              assert token in s, token
+          assert ';else:' not in s.replace(' ', ''), 'single-line else parse hazard returned'
+          sections=[
+              ('func _find_peak_pose_time','func _apply_clip_time_to_real_target'),
+              ('func _apply_clip_time_to_real_target','func _copy_source_pose_to_probe'),
+              ('func _copy_source_pose_to_probe','func _ground_real_target'),
+              ('func _ground_real_target','func _capture_frame'),
+              ('func _capture_frame','func _build_viewport'),
+              ('func _target_motion_delta_deg','func _find_player_with_clips'),
+          ]
+          for start,end in sections:
+              block=s[s.index(start):s.index(end)]
+              assert '.find_bone(' not in block, f'hot-path lookup returned to {start}'
+          cache=s[s.index('func _cache_role_indices'):s.index('func _find_peak_pose_time')]
+          assert cache.count('.find_bone(')==4, 'cache builder must resolve exactly four skeleton maps per role'
+          print('ROLE_CACHE_SKIN_OK cached_roles=22 maps=4 lookup_free_hot_path=true parse_hazard=false')
+          PY

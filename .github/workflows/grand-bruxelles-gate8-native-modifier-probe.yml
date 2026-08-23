@@ -1,0 +1,149 @@
+name: Grand Bruxelles Gate-8 Native Modifier Probe
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_modifier_probe_test.gd"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_modifier_ab_test.gd"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_skin_witness.gd"
+      - ".github/workflows/grand-bruxelles-gate8-native-modifier-probe.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  native-modifier-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-native-modifier-probe"
+      GATE8_NATIVE_VISUAL_DIR: "/tmp/gate8-native-skin-witness"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate fail-closed contracts
+        run: |
+          set -euo pipefail
+          P=grand-bruxelles-game/game/tests/gate8_variant01_native_modifier_probe_test.gd
+          A=grand-bruxelles-game/game/tests/gate8_variant01_native_modifier_ab_test.gd
+          V=grand-bruxelles-game/game/tests/gate8_variant01_native_skin_witness.gd
+          grep -q 'source_rest_rotation.*probe_delta' "$P"
+          grep -q 'MIN_TRANSFER_GAIN:=0.85\|MIN_TRANSFER_GAIN := 0.85' "$P"
+          grep -q 'RetargetModifier3D.new()' "$A"
+          grep -q 'mean_contact_slide_mps' "$A"
+          grep -q 'CAPTURE_SIZE:=Vector2i(1280,720)\|CAPTURE_SIZE := Vector2i(1280, 720)' "$V"
+          grep -q 'DISTANCES_M:Array\[float\]=\[2.0,5.0,8.0\]\|DISTANCES_M: Array\[float\] = \[2.0, 5.0, 8.0\]' "$V"
+          grep -q 'skin_safe_pose_mirror' "$V"
+          grep -q '_target_integrity' "$V"
+          grep -q '_apply_clip_time_to_real_target' "$V"
+          ! grep -q 'player_character' "$A"
+          ! grep -q 'player_character' "$V"
+      - name: Download pinned CC0 source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$ANIM_URL" -o /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip|awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python - <<'PY'
+          import os,zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              m=os.environ['ANIM_GLB']; assert m in z.namelist(); Path('/tmp/animation_source.glb').write_bytes(z.read(m))
+          PY
+          sha256sum /tmp/animation-source.zip > /tmp/animation-source.sha256
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-target-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip|awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target-artifact
+          T="$(find /tmp/gate8-target-artifact -type f -name npc_gate_01.glb -print -quit)"; test -n "$T"; cp "$T" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb|awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 "$GODOT_URL" -o /tmp/godot.zip; unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64'|head -1)"; test -x "$GODOT"; "$GODOT" --version|tee /tmp/godot-version.txt; grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt; echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+      - name: Build isolated project
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"; mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8NativeModifierWitness"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"; cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_native_modifier_probe_test.gd "$ISOLATED_PROJECT/game/tests/"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_native_modifier_ab_test.gd "$ISOLATED_PROJECT/game/tests/"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_native_skin_witness.gd "$ISOLATED_PROJECT/game/tests/"
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1|tee /tmp/import.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+      - name: Verify native fidelity
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_native_modifier_probe_test.gd 2>&1|tee /tmp/probe.log
+          cp "$ISOLATED_PROJECT/gate8_variant01_native_modifier_probe_result.json" /tmp/probe.json
+          python - <<'PY'
+          import json
+          r=json.load(open('/tmp/probe.json')); assert r['selection_state']=='READY_NATIVE_AB_MEASUREMENT'; assert 0.85<=float(r['transfer_gain'])<=1.15; assert float(r['transfer_abs_error_deg'])<=3.0; assert r['run_alias_selected']=='' and r['production_authorized'] is False and not r['failures']
+          PY
+      - name: Measure native Jog Sprint
+        run: |
+          set -euo pipefail
+          timeout 240s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_native_modifier_ab_test.gd 2>&1|tee /tmp/ab.log
+          cp "$ISOLATED_PROJECT/gate8_variant01_native_modifier_ab_result.json" /tmp/ab.json
+          python - <<'PY'
+          import json,math
+          r=json.load(open('/tmp/ab.json')); assert set(r['clips'])=={'Jog_Fwd','Sprint'}
+          for v in r['clips'].values(): assert int(v['sample_count'])>=40 and math.isfinite(float(v['mean_contact_slide_mps'])) and float(v['peak_target_pose_delta_deg'])>=5
+          assert r['run_alias_selected']=='' and r['production_authorized'] is False
+          PY
+      - name: Render skin-safe 2-8m witness
+        run: |
+          set -euo pipefail
+          rm -rf "$GATE8_NATIVE_VISUAL_DIR"; mkdir -p "$GATE8_NATIVE_VISUAL_DIR"
+          timeout 300s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_native_skin_witness.gd 2>&1|tee /tmp/skin-witness.log
+          cp "$ISOLATED_PROJECT/gate8_variant01_native_skin_witness_result.json" /tmp/skin-witness.json
+          python - <<'PY'
+          import json,hashlib,struct
+          from pathlib import Path
+          r=json.load(open('/tmp/skin-witness.json')); assert r['capture_size']==[1280,720] and r['distances_m']==[2.0,5.0,8.0] and r['capture_count']==6 and r['skin_safe_pose_mirror'] is True
+          assert r['target_integrity']['skinned_meshes']>0 and r['target_integrity']['skinned_surfaces']>0 and r['target_integrity']['missing_material_surfaces']==0 and not r['failures']
+          ps=sorted(Path('/tmp/gate8-native-skin-witness').glob('*.png')); assert len(ps)==6; hs=set()
+          for p in ps:
+              d=p.read_bytes(); assert d[:8]==b'\x89PNG\r\n\x1a\n'; assert struct.unpack('>II',d[16:24])==(1280,720); hs.add(hashlib.sha256(d).hexdigest())
+          assert len(hs)==6
+          PY
+          sha256sum "$GATE8_NATIVE_VISUAL_DIR"/*.png|sort > /tmp/skin-witness.sha256
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-native-modifier-probe
+          if-no-files-found: error
+          path: |
+            /tmp/import.log
+            /tmp/probe.log
+            /tmp/ab.log
+            /tmp/skin-witness.log
+            /tmp/probe.json
+            /tmp/ab.json
+            /tmp/skin-witness.json
+            /tmp/skin-witness.sha256
+            /tmp/gate8-native-skin-witness/*.png
+            /tmp/godot-version.txt
+            /tmp/animation-source.sha256
+            /tmp/npc_gate_01.sha256

@@ -155,7 +155,10 @@ def test_maison_du_roi_winding_diagnostic_is_exact_owner_and_production_defaults
         'mat.set_meta("source_winding_diagnostic_candidate", owner_id in WINDING_DIAGNOSTIC_OWNER_IDS)',
         'mat.set_meta("source_winding_mitigation_enabled", false)',
         'set_meta("source_winding_mitigation_production_authorized", false)',
-        'mat.cull_mode = BaseMaterial3D.CULL_DISABLED if enabled else BaseMaterial3D.CULL_BACK',
+        'func set_source_winding_diagnostic_cull_mode(mode: int) -> bool:',
+        'mode not in [BaseMaterial3D.CULL_BACK, BaseMaterial3D.CULL_FRONT, BaseMaterial3D.CULL_DISABLED]',
+        'mat.cull_mode = mode',
+        'return set_source_winding_diagnostic_cull_mode(BaseMaterial3D.CULL_DISABLED if enabled else BaseMaterial3D.CULL_BACK)',
     ]
     for marker in required:
         assert marker in source, f"Maison du Roi winding diagnostic/default is missing or not exact-owner bounded; missing {marker!r}"

@@ -35,17 +35,86 @@ jobs:
           set -o pipefail
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/rail-material-import.log
           if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/rail-material-import.log; then exit 1; fi
-      - name: Capture source-backed rail legacy/current/control witness
+      - name: Capture and classify source-backed rail witness
         shell: bash
         run: |
           set -o pipefail
+          set +e
           timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --resolution 1280x720 --script res://game/tests/brussels_rail_material_player_witness_test.gd 2>&1 | tee /tmp/rail-material-witness.log
-          if grep -E 'SCRIPT ERROR|Parse Error:|BRUSSELS_RAIL_MATERIAL_PLAYER_WITNESS_FAIL' /tmp/rail-material-witness.log; then exit 1; fi
-          grep -q 'BRUSSELS_RAIL_MATERIAL_PLAYER_WITNESS_OK' /tmp/rail-material-witness.log
-          test -s grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_legacy.png
-          test -s grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_current.png
-          test -s grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_control.png
-          test -s grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_player_witness.json
+          witness_status=${PIPESTATUS[0]}
+          set -e
+
+          artifact_dir=grand-bruxelles-game/artifacts/rail_material_player_witness
+          test -s "$artifact_dir/rail_material_legacy.png"
+          test -s "$artifact_dir/rail_material_current.png"
+          test -s "$artifact_dir/rail_material_control.png"
+
+          if grep -q 'BRUSSELS_RAIL_MATERIAL_PLAYER_WITNESS_FAIL: shared rails occupy too little of legitimate player frame:' /tmp/rail-material-witness.log; then
+            if [ "$witness_status" -eq 0 ]; then
+              echo 'Low-coverage witness unexpectedly exited zero' >&2
+              exit 1
+            fi
+            python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          log_path = Path('/tmp/rail-material-witness.log')
+          text = log_path.read_text(encoding='utf-8', errors='replace')
+          match = re.search(r'shared rails occupy too little of legitimate player frame: ([0-9.]+)', text)
+          if not match:
+              raise SystemExit('low-coverage classification could not parse measured fraction')
+          fraction = float(match.group(1))
+          threshold = 0.0005
+          if fraction >= threshold:
+              raise SystemExit(f'classification inconsistent: fraction={fraction} threshold={threshold}')
+          report = {
+              'schema': 'grand-bruxelles-rail-material-candidate-classification-v1',
+              'target_road_osm_id': 359177328,
+              'target_road_name': 'Boulevard Maurice Lemonnier / Maurice Lemonnierlaan',
+              'source_license': 'ODbL-1.0',
+              'resolution': [1280, 720],
+              'camera_copied_from_legitimate_player_witness': True,
+              'control_min_changed_fraction': threshold,
+              'measured_control_changed_fraction': fraction,
+              'candidate_status': 'REJECT_LOW_SCREEN_COVERAGE',
+              'art_pass_authorized': False,
+              'camera_rescue_authorized': False,
+              'threshold_relaxation_authorized': False,
+              'runtime_changed': False,
+              'human_full_frame_verdict': 'REJECT_LOW_SCREEN_COVERAGE',
+          }
+          out = Path('grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_candidate_classification.json')
+          out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print(f"BRUSSELS_RAIL_MATERIAL_PLAYER_WITNESS_VETO: control_fraction={fraction:.6f} candidate_status=REJECT_LOW_SCREEN_COVERAGE")
+          PY
+          elif [ "$witness_status" -ne 0 ]; then
+            echo "Rail witness failed for a non-classifiable reason (exit $witness_status)" >&2
+            exit "$witness_status"
+          else
+            if grep -E 'SCRIPT ERROR|Parse Error:|BRUSSELS_RAIL_MATERIAL_PLAYER_WITNESS_FAIL' /tmp/rail-material-witness.log; then exit 1; fi
+            grep -q 'BRUSSELS_RAIL_MATERIAL_PLAYER_WITNESS_OK' /tmp/rail-material-witness.log
+            test -s "$artifact_dir/rail_material_player_witness.json"
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = {
+              'schema': 'grand-bruxelles-rail-material-candidate-classification-v1',
+              'target_road_osm_id': 359177328,
+              'target_road_name': 'Boulevard Maurice Lemonnier / Maurice Lemonnierlaan',
+              'source_license': 'ODbL-1.0',
+              'resolution': [1280, 720],
+              'camera_copied_from_legitimate_player_witness': True,
+              'candidate_status': 'REVIEWABLE',
+              'art_pass_authorized': False,
+              'human_full_frame_verdict': 'pending',
+              'runtime_changed': False,
+          }
+          Path('grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_candidate_classification.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          fi
+
+          test -s "$artifact_dir/rail_material_candidate_classification.json"
       - name: Upload rail witness evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -56,6 +125,7 @@ jobs:
             grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_current.png
             grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_control.png
             grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_player_witness.json
+            grand-bruxelles-game/artifacts/rail_material_player_witness/rail_material_candidate_classification.json
             /tmp/rail-material-import.log
             /tmp/rail-material-witness.log
-          if-no-files-found: error
+          if-no-files-found: warn

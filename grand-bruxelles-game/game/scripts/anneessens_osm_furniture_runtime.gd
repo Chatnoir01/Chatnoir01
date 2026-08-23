@@ -23,22 +23,41 @@ func _process(_delta: float) -> void:
         _reset()
         _try_bind()
         return
-    if not _manual_binding and get_tree().current_scene != _scene:
-        _reset()
-        _try_bind()
-        return
+    if not _manual_binding:
+        var current := get_tree().current_scene
+        if current is Node3D and current != _scene:
+            _reset()
+            _try_bind()
+            return
     if not is_instance_valid(_player):
         _player = _scene.get_node_or_null("Player") as Node3D
     if is_instance_valid(_root) and is_instance_valid(_player):
         _root.visible = Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
 
+func _find_production_scene() -> Node3D:
+    var current := get_tree().current_scene
+    if current is Node3D:
+        return current as Node3D
+    for child: Node in get_tree().root.get_children():
+        if not child is Node3D:
+            continue
+        var candidate := child as Node3D
+        if candidate.get_node_or_null("BrusselsOSM") == null:
+            continue
+        if candidate.get_node_or_null("UrbISMidiExact") == null:
+            continue
+        if candidate.get_node_or_null("Player") == null:
+            continue
+        return candidate
+    return null
+
 func _try_bind() -> void:
     if _manual_binding:
         return
-    var current := get_tree().current_scene
-    if current == null or not current is Node3D:
+    var candidate := _find_production_scene()
+    if candidate == null:
         return
-    _bind_scene(current as Node3D, false)
+    _bind_scene(candidate, false)
 
 func bind_scene(scene: Node3D) -> void:
     _bind_scene(scene, true)
@@ -96,6 +115,12 @@ func _build_once() -> void:
 
     _root = Node3D.new()
     _root.name = "AnneessensOsmFurniture"
+    _root.set_meta("source", str(data.get("source", "")))
+    _root.set_meta("license", str(data.get("license", "")))
+    _root.set_meta("placement_source_backed", true)
+    _root.set_meta("visual_dimensions_source_backed", false)
+    _root.set_meta("source_height_measured", false)
+    _root.set_meta("source_species_measured", false)
     _scene.add_child(_root)
     _tree_materials = TREE_ASSET.create_materials()
 

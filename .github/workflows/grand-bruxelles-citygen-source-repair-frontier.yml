@@ -206,7 +206,7 @@ jobs:
       contents: read
       actions: write
     steps:
-      - name: Dispatch governed regional CityGen after durable source repair
+      - name: Dispatch runtime frontier and regional CityGen after durable source repair
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -215,7 +215,14 @@ jobs:
             --method POST \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-runtime-candidate-frontier.yml/dispatches" \
+            -f ref=main
+          echo "CITYGEN_RUNTIME_FRONTIER_DISPATCH_OK durable_progress=true limit=32 promotion_bypass=false"
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
             "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-autonomous-citygen.yml/dispatches" \
             -f ref=main \
             -f 'inputs[batch_size]=32'
-          echo "CITYGEN_SOURCE_REPAIR_CHAIN_OK durable_progress=true next=autonomous_citygen batch=32 promotion_bypass=false"
+          echo "CITYGEN_SOURCE_REPAIR_CHAIN_OK durable_progress=true next=runtime_frontier+autonomous_citygen batch=32 promotion_bypass=false"

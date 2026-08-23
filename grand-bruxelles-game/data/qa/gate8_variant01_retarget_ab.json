@@ -1,0 +1,92 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-retarget-ab-v6",
+  "base_main_sha": "055197bec091cc78334667e979f90800498adf09",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "bonemap_preflight_pr": 1158,
+  "bonemap_preflight_artifact_id": 9483896905,
+  "bonemap_preflight_artifact_sha256": "436ff91ce4ddafa224e0526525ec4ea1c3b1a12f59ca423fab64d80c20716142",
+  "latest_rejected_solver_output": {
+    "run_id": 32615287335,
+    "artifact_id": 9486751624,
+    "artifact_sha256": "ef520b41359ff4d28cbb31eaed22db2700ed74600bfcc3d717bf646366984ee6",
+    "solver": "godot_native_non_global_pose_rotation_hips_translation_v9",
+    "visual_verdict": "JETER_SOLVER_OUTPUT",
+    "reason": "both real 1280x720 frames remain catastrophically folded; v9 also exceeds the grounding-span gate for both clips and the pose-application gate for Jog_Fwd; the artifact metadata incorrectly reported v8 because the inherited writer overwrote the v9 identity",
+    "jog_fwd": {"ground_correction_span_m":0.2507662177,"ground_correction_max_step_m":0.0324595571,"mean_torso_bend_delta_deg":6.1126919794,"peak_torso_bend_delta_deg":8.3409382220,"max_pose_application_error_deg":0.0559529097,"max_target_bone_length_error_m":0.0000003874,"mean_contact_slide_mps":5.0928894408,"peak_contact_slide_mps":6.3315127906},
+    "sprint": {"ground_correction_span_m":0.2513840497,"ground_correction_max_step_m":0.0391640365,"mean_torso_bend_delta_deg":4.0512959914,"peak_torso_bend_delta_deg":5.6522291325,"max_pose_application_error_deg":0.0395646812,"max_target_bone_length_error_m":0.0000002682,"mean_contact_slide_mps":4.4783019654,"peak_contact_slide_mps":8.9267301321}
+  },
+  "rejected_solver_history": [
+    {"run_id":32605757938,"artifact_id":9484155128,"solver":"static_global_rest_delta_wrong_order","visual_verdict":"JETER_SOLVER_OUTPUT"},
+    {"run_id":32607680368,"artifact_id":9484587902,"solver":"raw_local_pose_copy","visual_verdict":"JETER_LOCAL_POSE_OUTPUT"},
+    {"run_id":32608261419,"artifact_id":9484759931,"solver":"wrong_global_pose_delta_order_v3","visual_verdict":"JETER_SOLVER_OUTPUT"},
+    {"run_id":32608556945,"artifact_id":9484843272,"solver":"godot_4_7_pose_formula_all_bone_positions","visual_verdict":"JETER_ALL_BONE_TRANSLATIONS"},
+    {"run_id":32610132541,"artifact_id":9485268045,"solver":"rest_relative_local_delta_v6","visual_verdict":"JETER_SOLVER_OUTPUT"},
+    {"run_id":32610372202,"artifact_id":9485329757,"solver":"model_space_global_rotation_target_lengths_v7","visual_verdict":"JETER_SOLVER_OUTPUT"},
+    {"run_id":32612534806,"artifact_id":9485926837,"solver":"rest_frame_delta_target_lengths_v8","visual_verdict":"JETER_SOLVER_OUTPUT"},
+    {"run_id":32615287335,"artifact_id":9486751624,"solver":"godot_native_non_global_pose_rotation_hips_translation_v9","visual_verdict":"JETER_SOLVER_OUTPUT"}
+  ],
+  "animation_source": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205,
+    "godot_standard_glb": "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+  },
+  "target_source": {
+    "artifact_id": 9470539830,
+    "artifact_zip_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "target_glb": "npc_gate_01.glb",
+    "target_glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "reviewed_bonemap_roles": 22,
+  "run_candidates": ["Jog_Fwd", "Sprint"],
+  "retarget_solver": "godot_native_non_global_pose_rotation_hips_translation_only",
+  "solver_revision": "godot_native_non_global_pose_rotation_hips_translation_v9",
+  "solver_contract": {
+    "reference": "Godot 4.7.1 RetargetModifier3D non-global-pose basis transfer",
+    "rotation_enabled_for_all_mapped_roles": true,
+    "translation_enabled_roles": ["hips"],
+    "non_hips_target_positions_preserved_at_rest": true,
+    "scale_enabled": false,
+    "motion_scale_ratio": 0.966563730398298,
+    "native_local_basis_formula": "target_parent_global_rest^-1 * source_parent_global_rest * source_pose * source_rest^-1 * source_parent_global_rest^-1 * target_parent_global_rest * target_rest",
+    "target_bone_lengths_preserved": true,
+    "non_commutative_order_regression": true,
+    "solver_identity_guard": true
+  },
+  "measurement_gate": {
+    "godot_version": "4.7.1",
+    "isolated_project_required": true,
+    "sample_rate_hz": 120,
+    "minimum_samples_per_clip": 80,
+    "ground_clearance_m": 0.02,
+    "contact_height_window_m": 0.04,
+    "max_ground_correction_span_m": 0.18,
+    "max_ground_correction_step_m": 0.08,
+    "max_mean_torso_bend_delta_deg": 15.0,
+    "max_peak_torso_bend_delta_deg": 30.0,
+    "max_pose_application_error_deg": 0.05,
+    "max_target_bone_length_error_m": 0.0001,
+    "require_two_1280x720_player_view_frames": true,
+    "require_finite_foot_slide_metrics": true,
+    "require_contact_samples": true
+  },
+  "rails": {
+    "single_survivor_only": true,
+    "allowed_variants": [1],
+    "rejected_variants_forbidden": [2,4,7],
+    "other_survivors_out_of_scope": [3,5,6,8],
+    "mixamo_payload_allowed": false,
+    "player_character_reuse_allowed": false,
+    "retarget_experiment_authorized": true,
+    "run_alias_selected": "",
+    "selection_state": "REJECTED_V9_IDENTITY_REPLAY",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "package_bytes_committed": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false
+  }
+}

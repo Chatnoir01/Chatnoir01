@@ -1,0 +1,200 @@
+name: Grand Bruxelles Gate-8 Variant-01 Retarget A-B
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/gate8_variant01_retarget_ab.json"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_retarget_ab_test.gd"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_retarget_ab_v8_test.gd"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_retarget_ab_v9_test.gd"
+      - ".github/workflows/grand-bruxelles-gate8-variant01-retarget-ab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  variant01-retarget-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-variant01-retarget-ab"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate rejected v9 identity contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_retarget_ab.json').read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-retarget-ab-v6'
+          assert d['base_main_sha']=='055197bec091cc78334667e979f90800498adf09'
+          assert d['candidate_variant']==1 and d['candidate_static_verdict']=='AMELIORER'
+          latest=d['latest_rejected_solver_output']
+          assert latest['run_id']==32615287335 and latest['artifact_id']==9486751624
+          assert latest['artifact_sha256']=='ef520b41359ff4d28cbb31eaed22db2700ed74600bfcc3d717bf646366984ee6'
+          assert latest['solver']=='godot_native_non_global_pose_rotation_hips_translation_v9'
+          assert latest['visual_verdict']=='JETER_SOLVER_OUTPUT'
+          assert d['solver_revision']=='godot_native_non_global_pose_rotation_hips_translation_v9'
+          s=d['solver_contract']
+          assert s['reference']=='Godot 4.7.1 RetargetModifier3D non-global-pose basis transfer'
+          assert s['translation_enabled_roles']==['hips'] and s['non_hips_target_positions_preserved_at_rest'] is True
+          assert s['scale_enabled'] is False and s['target_bone_lengths_preserved'] is True
+          assert s['native_local_basis_formula'].startswith('target_parent_global_rest^-1')
+          assert s['solver_identity_guard'] is True
+          g=d['measurement_gate']
+          assert g['max_ground_correction_span_m']==0.18 and g['max_ground_correction_step_m']==0.08
+          assert g['max_mean_torso_bend_delta_deg']==15.0 and g['max_peak_torso_bend_delta_deg']==30.0
+          assert g['max_pose_application_error_deg']==0.05 and g['max_target_bone_length_error_m']==0.0001
+          r=d['rails']
+          assert r['run_alias_selected']=='' and r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['selection_state']=='REJECTED_V9_IDENTITY_REPLAY'
+          assert r['mixamo_payload_allowed'] is False and r['player_character_reuse_allowed'] is False
+          print('GATE8_VARIANT01_RETARGET_AB_STATIC_OK rejected_solver=v9 identity_guard=true production_authorized=false')
+          PY
+          V9=grand-bruxelles-game/game/tests/gate8_variant01_retarget_ab_v9_test.gd
+          grep -q 'V9_SOLVER := "godot_native_non_global_pose_rotation_hips_translation_v9"' "$V9"
+          grep -q 'target_parent_global_rest_basis.inverse() \* source_parent_global_rest_basis' "$V9"
+          grep -q 'source_rest_basis.inverse() \* source_parent_global_rest_basis.inverse()' "$V9"
+          grep -q 'set_bone_pose_position(target_idx, target_rest.origin)' "$V9"
+          grep -q 'regression_does_not_distinguish_rejected_v8' "$V9"
+          grep -q 'super._write_result(result)' "$V9"
+          grep -q 'result\["solver_identity_guard"\] = true' "$V9"
+          ! grep -q 'set_bone_pose_scale' "$V9"
+
+      - name: Download exact pinned CC0 animation source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-Retarget-AB/9.1' "$ANIM_URL" -o /tmp/animation-source.zip
+          test -s /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python - <<'PY'
+          import os, zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              m=os.environ['ANIM_GLB']; assert m in z.namelist(); Path('/tmp/animation_source.glb').write_bytes(z.read(m))
+          PY
+          sha256sum /tmp/animation-source.zip > /tmp/animation-source.sha256
+
+      - name: Download immutable helper-clean Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-target-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target-artifact
+          TARGET="$(find /tmp/gate8-target-artifact -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"; cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install exact Godot 4.7.1 and software renderer
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 >/dev/null
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"; "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated rejected-v9 replay project
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"; mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01RetargetABV9IdentityReplay"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          window/size/window_width_override=1280
+          window/size/window_height_override=720
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_retarget_ab_test.gd "$ISOLATED_PROJECT/game/tests/"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_retarget_ab_v8_test.gd "$ISOLATED_PROJECT/game/tests/"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_retarget_ab_v9_test.gd "$ISOLATED_PROJECT/game/tests/"
+
+      - name: Import source and target under Godot 4.7.1
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-retarget-import.log
+          test -d "$ISOLATED_PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-retarget-import.log
+
+      - name: Replay rejected v9 and verify truthful evidence identity
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          MESA_LOADER_DRIVER_OVERRIDE: "llvmpipe"
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 240s xvfb-run -a -s '-screen 0 1280x720x24' "$GODOT" --path "$ISOLATED_PROJECT" --rendering-method gl_compatibility --script res://game/tests/gate8_variant01_retarget_ab_v9_test.gd 2>&1 | tee /tmp/gate8-retarget-ab.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          test -s "$ISOLATED_PROJECT/gate8_variant01_retarget_ab_result.json"
+          cp "$ISOLATED_PROJECT/gate8_variant01_retarget_ab_result.json" /tmp/gate8_variant01_retarget_ab_result.json
+          cp "$ISOLATED_PROJECT/gate8_variant01_jog-fwd.png" /tmp/gate8_variant01_jog-fwd.png
+          cp "$ISOLATED_PROJECT/gate8_variant01_sprint.png" /tmp/gate8_variant01_sprint.png
+          python - <<'PY'
+          import json,math,struct
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8_variant01_retarget_ab_result.json').read_text())
+          assert r['retarget_solver_revision']=='godot_native_non_global_pose_rotation_hips_translation_v9'
+          assert r['rotation_transfer_formula'].startswith('target_parent_global_rest^-1')
+          assert r['retarget_reference']=='Godot 4.7.1 RetargetModifier3D non-global-pose basis transfer'
+          assert r['target_local_rest_positions_preserved'] is True
+          assert r['solver_identity_guard'] is True
+          assert r['run_alias_selected']=='' and r['production_authorized'] is False and r['activation_ready'] is False
+          assert len(r['clips'])==2
+          for clip in ('Jog_Fwd','Sprint'):
+              row=r['clips'][clip]; assert row['sample_count']>=80
+              assert row['left_contact_samples']+row['right_contact_samples']>0
+              for k in ('mean_contact_slide_mps','peak_contact_slide_mps','ground_correction_span_m','ground_correction_max_step_m','mean_torso_bend_delta_deg','peak_torso_bend_delta_deg','max_pose_application_error_deg','max_target_bone_length_error_m'):
+                  assert math.isfinite(float(row[k]))
+          for p in ('/tmp/gate8_variant01_jog-fwd.png','/tmp/gate8_variant01_sprint.png'):
+              d=Path(p).read_bytes(); assert d[:8]==b'\x89PNG\r\n\x1a\n'; assert struct.unpack('>II',d[16:24])==(1280,720)
+          print('GATE8_VARIANT01_RETARGET_AB_REJECTED_V9_EVIDENCE_OK clips=2 frames=2 solver=v9 identity_guard=true')
+          PY
+          test "$STATUS" -ne 0
+          grep -q 'GATE8_VARIANT01_RETARGET_AB_FAIL ground_correction_span' /tmp/gate8-retarget-ab.log
+          echo "Rejected v9 replay stayed fail-closed with truthful v9 identity."
+
+      - name: Upload rejected-v9 identity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-variant01-retarget-ab-v9-identity-replay
+          if-no-files-found: error
+          path: |
+            /tmp/gate8-retarget-ab.log
+            /tmp/gate8-retarget-import.log
+            /tmp/godot-version.txt
+            /tmp/animation-source.sha256
+            /tmp/npc_gate_01.sha256
+            /tmp/gate8_variant01_retarget_ab_result.json
+            /tmp/gate8_variant01_jog-fwd.png
+            /tmp/gate8_variant01_sprint.png

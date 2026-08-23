@@ -25,6 +25,7 @@ on:
       - "grand-bruxelles-game/tools/citygen/build_brussels_regional_grid.py"
       - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
       - ".github/workflows/grand-bruxelles-autonomous-citygen.yml"
+      - ".github/workflows/grand-bruxelles-citygen-source-repair-frontier.yml"
 
 permissions:
   contents: read
@@ -54,11 +55,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Dispatch governed regional CityGen at maximum batch
+      - name: Dispatch source repair then governed regional CityGen
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-citygen-source-repair-frontier.yml/dispatches" \
+            -f ref=main
+          echo "REGIONAL_SOURCE_REPAIR_DISPATCH_OK batch=32 writer_lock=shared promotion_bypass=false"
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \

@@ -1,0 +1,103 @@
+name: Grand Bruxelles Road Material Player Witness
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/tests/brussels_road_material_player_witness_test.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_road_surface_material.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_road_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/game/main.tscn'
+      - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - '.github/workflows/grand-bruxelles-road-material-player-witness.yml'
+  workflow_dispatch:
+
+jobs:
+  road-material-player-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Install rendering dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libglu1-mesa
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
+            -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/road-material-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/road-material-import.log; then
+            exit 1
+          fi
+
+      - name: Capture legitimate Lemonnier material witness
+        run: |
+          set -o pipefail
+          mkdir -p grand-bruxelles-game/artifacts/road_material_player_witness
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --path grand-bruxelles-game \
+            --resolution 1280x720 \
+            --script res://game/tests/brussels_road_material_player_witness_test.gd \
+            2>&1 | tee grand-bruxelles-game/artifacts/road_material_player_witness/witness.log
+          grep -q 'BRUSSELS_ROAD_MATERIAL_PLAYER_WITNESS_OK' grand-bruxelles-game/artifacts/road_material_player_witness/witness.log
+
+      - name: Validate exact full-frame evidence
+        run: |
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          root = Path('grand-bruxelles-game/artifacts/road_material_player_witness')
+          expected = ['road_material_before.png', 'road_material_control.png']
+          for name in expected:
+              data = (root / name).read_bytes()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n', name
+              assert data[12:16] == b'IHDR', name
+              width, height = struct.unpack('>II', data[16:24])
+              assert (width, height) == (1280, 720), (name, width, height)
+          report = json.loads((root / 'road_material_player_witness.json').read_text())
+          assert report['schema'] == 'grand-bruxelles-road-material-player-witness-v1'
+          assert report['target_osm_id'] == 359177328
+          assert report['source_license'] == 'ODbL-1.0'
+          assert report['lookup_mode'] == 'deterministic_runtime_index'
+          assert report['resolution'] == [1280, 720]
+          assert report['dynamic_review_noise_hidden'] is True
+          assert report['road_control_is_test_only'] is True
+          assert report['camera_copied_from_legitimate_player_witness'] is True
+          assert report['geometry_changed'] is False
+          assert report['runtime_material_changed'] is False
+          assert report['human_review_status'] == 'pending'
+          metrics = report['metrics']
+          assert metrics['changed_fraction'] >= 0.0015
+          assert metrics['bbox_width'] >= 180
+          assert metrics['bbox_height'] >= 24
+          print('ROAD_MATERIAL_PLAYER_WITNESS_EVIDENCE_OK', metrics)
+          PY
+
+      - name: Bind evidence hashes
+        run: |
+          cd grand-bruxelles-game/artifacts/road_material_player_witness
+          sha256sum road_material_before.png road_material_control.png road_material_player_witness.json > evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 3
+          sha256sum --check evidence-sha256.txt
+
+      - name: Upload exact witness artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-road-material-player-witness
+          path: grand-bruxelles-game/artifacts/road_material_player_witness
+          if-no-files-found: error

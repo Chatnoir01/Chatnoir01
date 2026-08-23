@@ -35,7 +35,15 @@ class RoadRegisteredCellHandshakeTest(unittest.TestCase):
             "schema": "grand-bruxelles-registered-cell-manifest-index-v1",
             "destination_readiness": "REGISTERED_CELL_INDEX_EVIDENCE_ONLY",
             "registered_cell_count": 1,
-            "entries": [{"cell_id": "bxl-e149000-n169000-s500", "evidence_only": True}],
+            "entries": [{
+                "cell_id": "bxl-e149000-n169000-s500",
+                "evidence_only": True,
+                "runtime_mount_authorized": False,
+                "rendered_geometry_authorized": False,
+                "collision_authorized": False,
+                "safe_spawn_authorized": False,
+                "jouable_promotion_authorized": False,
+            }],
             "runtime_directory_scan_authorized": False,
             "road_crosswalk_authorized": False,
             "runtime_mount_authorized": False,
@@ -97,6 +105,14 @@ class RoadRegisteredCellHandshakeTest(unittest.TestCase):
     def test_runtime_authorization_fails_closed(self):
         payload = self.payload(); payload["rows"][0]["safe_spawn_authorized"] = True
         write(self.crosswalk, payload)
+        with self.assertRaises(RuntimeError):
+            validate_handshake(self.road, self.cells, self.crosswalk)
+
+    def test_registered_cell_authorization_fails_closed(self):
+        cells = json.loads(self.cells.read_text())
+        cells["entries"][0]["runtime_mount_authorized"] = True
+        write(self.cells, cells)
+        write(self.crosswalk, self.payload())
         with self.assertRaises(RuntimeError):
             validate_handshake(self.road, self.cells, self.crosswalk)
 

@@ -46,3 +46,26 @@ def test_maison_du_roi_winding_ab_is_real_engine_same_camera_evidence():
     assert capture.count("set_source_winding_mitigation_enabled(false)") >= 2
     assert "set_source_winding_mitigation_enabled(true)" in capture
     assert "production winding state was not restored to CULL_BACK after A/B" in capture
+
+
+def test_maison_du_roi_winding_ab_artifact_is_hash_bound_before_upload():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "evidence-sha256.txt" in workflow, "A/B evidence hash sidecar is missing"
+    for filename in (
+        "maison_du_roi_cull_back.png",
+        "maison_du_roi_cull_disabled.png",
+        "maison_du_roi_winding_ab.json",
+    ):
+        assert filename in workflow, f"A/B evidence hash binding omits {filename}"
+
+    assert "sha256sum maison_du_roi_cull_back.png maison_du_roi_cull_disabled.png maison_du_roi_winding_ab.json > evidence-sha256.txt" in workflow
+    assert workflow.count("sha256sum --check evidence-sha256.txt") >= 2, (
+        "A/B evidence must be verified when bound and again immediately before artifact upload"
+    )
+
+    bind_pos = workflow.index("sha256sum maison_du_roi_cull_back.png maison_du_roi_cull_disabled.png maison_du_roi_winding_ab.json > evidence-sha256.txt")
+    first_check_pos = workflow.index("sha256sum --check evidence-sha256.txt", bind_pos)
+    upload_pos = workflow.index("uses: actions/upload-artifact@v4")
+    second_check_pos = workflow.rindex("sha256sum --check evidence-sha256.txt", 0, upload_pos)
+    assert bind_pos < first_check_pos < second_check_pos < upload_pos

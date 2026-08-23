@@ -6,22 +6,26 @@ on:
       - ".github/workflows/grand-bruxelles-grand-place-facade-evidence.yml"
       - "grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"
       - "grand-bruxelles-game/game/tests/grand_place_facade_evidence_capture.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_owner_identity_presentation.gd"
       - "grand-bruxelles-game/tools/qa/validate_grand_place_facade_evidence.py"
       - "grand-bruxelles-game/tools/qa/grand_place_source_winding_diagnostic.py"
       - "grand-bruxelles-game/tests/test_grand_place_facade_evidence_validator.py"
       - "grand-bruxelles-game/tests/test_grand_place_facade_engine_capture_contract.py"
       - "grand-bruxelles-game/tests/test_grand_place_corridor_refresh_gate.py"
+      - "grand-bruxelles-game/tests/test_grand_place_owner_identity_presentation.py"
   push:
     branches: [main]
     paths:
       - ".github/workflows/grand-bruxelles-grand-place-facade-evidence.yml"
       - "grand-bruxelles-game/data/qa/grand_place_facade_visual_gate.json"
       - "grand-bruxelles-game/game/tests/grand_place_facade_evidence_capture.gd"
+      - "grand-bruxelles-game/game/scripts/grand_place_owner_identity_presentation.gd"
       - "grand-bruxelles-game/tools/qa/validate_grand_place_facade_evidence.py"
       - "grand-bruxelles-game/tools/qa/grand_place_source_winding_diagnostic.py"
       - "grand-bruxelles-game/tests/test_grand_place_facade_evidence_validator.py"
       - "grand-bruxelles-game/tests/test_grand_place_facade_engine_capture_contract.py"
       - "grand-bruxelles-game/tests/test_grand_place_corridor_refresh_gate.py"
+      - "grand-bruxelles-game/tests/test_grand_place_owner_identity_presentation.py"
 
 permissions:
   contents: read
@@ -41,7 +45,12 @@ jobs:
       - name: Install isolated test dependency
         run: python -m pip install --disable-pip-version-check --no-cache-dir pytest
       - name: Validate dedicated Grand-Place facade evidence contract
-        run: python -m pytest -q tests/test_grand_place_facade_evidence_validator.py tests/test_grand_place_facade_engine_capture_contract.py tests/test_grand_place_corridor_refresh_gate.py
+        run: >-
+          python -m pytest -q
+          tests/test_grand_place_facade_evidence_validator.py
+          tests/test_grand_place_facade_engine_capture_contract.py
+          tests/test_grand_place_corridor_refresh_gate.py
+          tests/test_grand_place_owner_identity_presentation.py
       - name: Diagnose Maison du Roi source winding
         run: >-
           python tools/qa/grand_place_source_winding_diagnostic.py

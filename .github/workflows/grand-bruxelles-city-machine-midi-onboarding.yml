@@ -1,0 +1,62 @@
+name: Grand Bruxelles City Machine Midi Onboarding
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/city_machine/midi_onboarding_candidate.json"
+      - "grand-bruxelles-game/tools/city_machine/validate_midi_onboarding_candidate.py"
+      - "grand-bruxelles-game/tests/test_city_machine_midi_onboarding.py"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/urbis/bourse_street_axes.game.json"
+      - ".github/workflows/grand-bruxelles-city-machine-midi-onboarding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  midi-onboarding-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Verify exact live-main certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          candidate_main="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('grand-bruxelles-game/data/qa/city_machine/midi_onboarding_candidate.json').read_text())
+          print(data['production_base_sha'])
+          PY
+          )"
+          test "$candidate_main" = "$live_main"
+          git merge-base --is-ancestor "$live_main" HEAD
+      - name: Prove normalized Midi geometry and OSM roads share the canonical project frame
+        working-directory: grand-bruxelles-game
+        run: python tools/city_machine/validate_midi_onboarding_candidate.py
+      - name: Prove activation and road-cell mapping remain fail-closed
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set +e
+          python tools/city_machine/validate_midi_onboarding_candidate.py --require-activatable > /tmp/midi-strict.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/midi-strict.log
+          test "$status" -eq 3
+          grep -q "RUNTIME_GEOMETRY_MOUNT_NOT_REGISTERED" /tmp/midi-strict.log
+          grep -q "ROAD_CELL_CROSSWALK_NOT_REVIEWED" /tmp/midi-strict.log
+      - name: Run Midi onboarding regressions
+        working-directory: grand-bruxelles-game
+        run: python -m pytest -q tests/test_city_machine_midi_onboarding.py

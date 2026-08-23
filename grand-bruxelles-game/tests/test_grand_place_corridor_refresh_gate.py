@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GATE_PATH = ROOT / "data" / "qa" / "grand_place_facade_visual_gate.json"
 MODULE_PATH = ROOT / "data" / "runtime" / "modules" / "grand_place_owner_identity_presentation.json"
 WORKFLOW_PATH = ROOT.parent / ".github" / "workflows" / "grand-bruxelles-grand-place-facade-evidence.yml"
-LIVE_REBUILD_BASE = "6ba1fb00e0c9d1615fc14412de111bc8be613657"
+LIVE_REBUILD_BASE = "055197bec091cc78334667e979f90800498adf09"
 
 
 def _load(path: Path):

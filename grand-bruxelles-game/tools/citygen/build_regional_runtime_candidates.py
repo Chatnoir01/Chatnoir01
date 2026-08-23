@@ -18,8 +18,16 @@ FORMAT = "grand-bruxelles-regional-runtime-candidate-frontier-v1"
 STATE_FORMAT = "grand-bruxelles-autonomous-citygen-v1"
 GRID_FORMAT = "grand-bruxelles-regional-target-grid-v1"
 CANDIDATE_FORMAT = "grand-bruxelles-runtime-candidate-bundle-v1"
+SOURCE_FORMAT = "grand-bruxelles-urbis-source-cell-v1"
 REGIONAL_MUNICIPALITY_TARGET = 19
 ELIGIBLE_STATES = {"DATA_READY", "RUNTIME_READY"}
+REQUIRED_SOURCE_LAYERS = (
+    "buildings",
+    "street_surfaces",
+    "street_axes",
+    "tram_network",
+    "train_network",
+)
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -59,6 +67,45 @@ def _already_compiled(existing_root: Path | None, cell_id: str) -> bool:
     return candidate.get("format") == CANDIDATE_FORMAT and candidate.get("cell_id") == cell_id
 
 
+def _runtime_source_repair_reasons(cell_dir: Path) -> list[str]:
+    """Return base-city source defects that must be repaired before runtime compilation.
+
+    Legacy/synthetic manifests without the production source format remain accepted for
+    focused unit tests. Production UrbIS cells must expose all five canonical layers and
+    every declared payload must exist as a safe relative file.
+    """
+    manifest_path = cell_dir / "manifest.json"
+    if not manifest_path.is_file():
+        return ["missing_manifest"]
+    try:
+        source = _read(manifest_path)
+    except Exception:
+        return ["invalid_manifest"]
+    if source.get("format") != SOURCE_FORMAT:
+        return []
+    layers = source.get("layers")
+    if not isinstance(layers, dict):
+        return [f"missing_layer:{name}" for name in REQUIRED_SOURCE_LAYERS]
+
+    reasons: list[str] = []
+    for name in REQUIRED_SOURCE_LAYERS:
+        spec = layers.get(name)
+        if not isinstance(spec, dict):
+            reasons.append(f"missing_layer:{name}")
+            continue
+        declared = spec.get("file")
+        if not isinstance(declared, str) or not declared.strip():
+            reasons.append(f"missing_file_contract:{name}")
+            continue
+        relative = Path(declared.strip())
+        if relative.is_absolute() or ".." in relative.parts:
+            reasons.append(f"unsafe_file_contract:{name}:{declared}")
+            continue
+        if not (cell_dir / relative).is_file():
+            reasons.append(f"missing_file:{name}:{declared}")
+    return reasons
+
+
 def _priority(row: dict[str, Any]) -> tuple[Any, ...]:
     # RUNTIME_READY first, then highest evidence progress, then cells with fewer
     # scheduler attempts; cell id keeps selection deterministic.
@@ -71,23 +118,37 @@ def _priority(row: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
-def discover_candidates(
+def _eligible_rows(
     source_root: Path,
     state_path: Path,
     target_grid_path: Path,
     existing_root: Path | None = None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     state = _read(state_path)
     if state.get("format") != STATE_FORMAT or not isinstance(state.get("cells"), dict):
         raise ValueError("unsupported autonomous CityGen state")
     municipalities = _grid_cells(target_grid_path)
     rows: list[dict[str, Any]] = []
+    source_repairs: list[dict[str, Any]] = []
     for cell_id, raw in sorted(state["cells"].items()):
         if not isinstance(raw, dict) or raw.get("state") not in ELIGIBLE_STATES:
             continue
-        if not (source_root / cell_id / "manifest.json").is_file():
+        cell_dir = source_root / cell_id
+        if not (cell_dir / "manifest.json").is_file():
             continue
         if _already_compiled(existing_root, cell_id):
+            continue
+        repair_reasons = _runtime_source_repair_reasons(cell_dir)
+        if repair_reasons:
+            source_repairs.append(
+                {
+                    "cell_id": cell_id,
+                    "state": str(raw.get("state")),
+                    "municipalities": municipalities.get(cell_id, []),
+                    "reasons": repair_reasons,
+                    "next_action": "rematerialize_authoritative_base_city_source",
+                }
+            )
             continue
         rows.append(
             {
@@ -99,6 +160,17 @@ def discover_candidates(
             }
         )
     rows.sort(key=_priority)
+    source_repairs.sort(key=lambda row: row["cell_id"])
+    return rows, source_repairs
+
+
+def discover_candidates(
+    source_root: Path,
+    state_path: Path,
+    target_grid_path: Path,
+    existing_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    rows, _repairs = _eligible_rows(source_root, state_path, target_grid_path, existing_root)
     return rows
 
 
@@ -151,7 +223,7 @@ def run(
     limit: int,
     existing_root: Path | None = None,
 ) -> dict[str, Any]:
-    candidates = discover_candidates(source_root, state_path, target_grid_path, existing_root)
+    candidates, source_repairs = _eligible_rows(source_root, state_path, target_grid_path, existing_root)
     selected = select_batch(candidates, limit)
     output_root.mkdir(parents=True, exist_ok=True)
     built: list[dict[str, Any]] = []
@@ -181,10 +253,15 @@ def run(
 
     selected_municipalities = sorted({m for row in selected for m in row.get("municipalities", [])})
     built_municipalities = sorted({m for row in built for m in row.get("municipalities", [])})
+    source_repair_municipalities = sorted({m for row in source_repairs for m in row.get("municipalities", [])})
     report = {
         "format": FORMAT,
         "limit": limit,
         "eligible_uncompiled_count": len(candidates),
+        "source_repair_required_count": len(source_repairs),
+        "source_repair_required": source_repairs,
+        "source_repair_municipalities": source_repair_municipalities,
+        "source_repair_municipality_count": len(source_repair_municipalities),
         "selected_count": len(selected),
         "selected_cells": [row["cell_id"] for row in selected],
         "selected_municipalities": selected_municipalities,
@@ -230,6 +307,7 @@ def main() -> int:
         f"selected={report['selected_count']}",
         f"built={report['built_count']}",
         f"municipalities={report['built_municipality_count']}",
+        f"source_repairs={report['source_repair_required_count']}",
         f"failures={report['failure_count']}",
         "runtime_mount=false",
         "jouable_promotion=false",

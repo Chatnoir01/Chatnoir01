@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
+import re
 from pathlib import Path
 
 ROAD_AUTH_KEYS = (
@@ -26,6 +28,7 @@ ROW_AUTH_KEYS = (
     "safe_spawn_authorized",
     "jouable_promotion_authorized",
 )
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _load(path: Path):
@@ -51,10 +54,59 @@ def _require_all_authorizations_false(doc, label):
             raise RuntimeError(f"{label} authorization must remain false: {key}")
 
 
+def _require_sha256(value, label):
+    if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
+        raise RuntimeError(f"{label} SHA-256 missing or malformed")
+
+
+def _resolve_registered_manifest(cell_index_path: Path, manifest_path: str) -> Path:
+    if not isinstance(manifest_path, str) or not manifest_path:
+        raise RuntimeError("registered-cell manifest path missing")
+    relative = Path(manifest_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise RuntimeError("registered-cell manifest path must stay repository-relative")
+    repo_root = cell_index_path.resolve().parent.parent.parent
+    resolved = (repo_root / relative).resolve()
+    try:
+        resolved.relative_to(repo_root)
+    except ValueError as exc:
+        raise RuntimeError("registered-cell manifest path escapes repository root") from exc
+    return resolved
+
+
+def _validate_registered_manifest(cell_index_path: Path, entry):
+    manifest_sha = entry.get("manifest_sha256")
+    _require_sha256(manifest_sha, "registered-cell manifest")
+    manifest_path = _resolve_registered_manifest(cell_index_path, entry.get("manifest_path"))
+    if not manifest_path.is_file():
+        raise RuntimeError(f"registered-cell manifest missing: {manifest_path}")
+    actual_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    if actual_sha != manifest_sha:
+        raise RuntimeError(
+            f"registered-cell manifest SHA drift: {actual_sha} != {manifest_sha}"
+        )
+    manifest = _load(manifest_path)
+    if manifest.get("format") != "grand-bruxelles-cell-maturity-v1":
+        raise RuntimeError("unsupported registered-cell manifest format")
+    cell_id = entry.get("cell_id")
+    if manifest.get("cell_id") != cell_id:
+        raise RuntimeError(f"registered-cell manifest identity drift: {cell_id}")
+    if manifest.get("crs") != entry.get("crs"):
+        raise RuntimeError(f"registered-cell manifest CRS drift: {cell_id}")
+    if manifest.get("bbox") != entry.get("bbox"):
+        raise RuntimeError(f"registered-cell manifest bbox drift: {cell_id}")
+    maturity = manifest.get("maturity") or {}
+    if maturity.get("state") != entry.get("maturity_state"):
+        raise RuntimeError(f"registered-cell manifest maturity drift: {cell_id}")
+
+
 def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_path: Path):
-    road = _load(Path(road_index_path))
-    cells = _load(Path(cell_index_path))
-    crosswalk = _load(Path(crosswalk_path))
+    road_index_path = Path(road_index_path)
+    cell_index_path = Path(cell_index_path)
+    crosswalk_path = Path(crosswalk_path)
+    road = _load(road_index_path)
+    cells = _load(cell_index_path)
+    crosswalk = _load(crosswalk_path)
 
     if road.get("format") != "grand-bruxelles-road-runtime-index-v1":
         raise RuntimeError("unsupported road index format")
@@ -68,8 +120,7 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
 
     road_ids = set()
     for document in road.get("documents") or []:
-        if not isinstance(document.get("sha256"), str) or len(document["sha256"]) != 64:
-            raise RuntimeError("road source document SHA-256 missing or malformed")
+        _require_sha256(document.get("sha256"), "road source document")
         for road_id in document.get("road_ids") or []:
             if not isinstance(road_id, int) or road_id <= 0:
                 raise RuntimeError("invalid road id in source index")
@@ -96,6 +147,7 @@ def validate_handshake(road_index_path: Path, cell_index_path: Path, crosswalk_p
             raise RuntimeError(f"registered cell is not evidence-only: {cell_id}")
         _require_false(entry, ROW_AUTH_KEYS, f"registered cell {cell_id}")
         _require_all_authorizations_false(entry, f"registered cell {cell_id}")
+        _validate_registered_manifest(cell_index_path, entry)
         cell_ids.add(cell_id)
     if len(cell_ids) != cells.get("registered_cell_count"):
         raise RuntimeError("registered-cell count mismatch")

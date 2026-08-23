@@ -1,0 +1,111 @@
+name: Grand Bruxelles Driveway Regional Cell Catalog
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/brussels_driveway_regional_cells.contract.json"
+      - "grand-bruxelles-game/data/provenance/brussels_driveway_regional_cells.measurement.json"
+      - "grand-bruxelles-game/tools/qa/build_brussels_driveway_regional_cell_catalog.py"
+      - ".github/workflows/grand-bruxelles-driveway-regional-cell-catalog.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regional-cell-catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Require exact production base and fail-closed rails
+        env:
+          EXPECTED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/brussels_driveway_regional_cells.contract.json').read_text())
+          measurement = json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_regional_cells.measurement.json').read_text())
+          expected = os.environ.get('EXPECTED_BASE')
+          if expected:
+              for name, payload in [('contract', contract), ('measurement', measurement)]:
+                  if payload['production_base_sha'] != expected:
+                      raise SystemExit(f"stale {name} production base: {payload['production_base_sha']} != {expected}")
+          for key, value in contract['hard_rules'].items():
+              if value is not False:
+                  raise SystemExit(f"rail opened unexpectedly: contract {key}={value!r}")
+          for key in [
+              'source_registration_authorized', 'road_crosswalk_authorized',
+              'parking_evidence_runtime_approved', 'runtime_authorized',
+              'runtime_mount_authorized', 'collision_authorized',
+              'materialization_authorized', 'semantic_names_authorized',
+              'game_world_transform_authorized', 'jouable_promotion_authorized',
+          ]:
+              if measurement[key] is not False:
+                  raise SystemExit(f"rail opened unexpectedly: measurement {key}={measurement[key]!r}")
+          assert contract['source']['expected_feature_count'] == 95805
+          assert contract['municipalities']['expected_count'] == 19
+          assert contract['partition']['cell_size_m'] == 500
+          assert measurement['reproduction_status'] == 'locked_exact'
+          assert measurement['first_measurement_proof']['catalog_json_sha256'] == measurement['second_reproduction_proof']['catalog_json_sha256']
+          assert len(measurement['catalog_semantic_sha256']) == 64
+          print('DRIVEWAY_REGIONAL_CELL_CONTRACT_OK')
+          PY
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install geometry dependency
+        run: python -m pip install --disable-pip-version-check shapely
+      - name: Build source-only regional cell catalog
+        run: |
+          python grand-bruxelles-game/tools/qa/build_brussels_driveway_regional_cell_catalog.py \
+            --contract grand-bruxelles-game/data/qa/brussels_driveway_regional_cells.contract.json \
+            --out "$RUNNER_TEMP/brussels_driveway_regional_cells.json"
+      - name: Require exact locked regional accounting
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          output_path = Path(os.environ['RUNNER_TEMP']) / 'brussels_driveway_regional_cells.json'
+          out = json.loads(output_path.read_text())
+          locked = json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_regional_cells.measurement.json').read_text())
+          assert out['source']['feature_count'] == locked['source']['feature_count'] == 95805
+          assert out['source']['stable_id_set_sha256'] == locked['source']['stable_id_set_sha256']
+          for key in [
+              'cell_size_m', 'municipality_count', 'cell_count', 'assigned_feature_count',
+              'unassigned_count', 'ambiguous_count', 'municipality_counts', 'cells_sha256',
+          ]:
+              assert out['partition'][key] == locked['partition'][key], key
+          semantic = dict(out)
+          semantic.pop('production_base_sha', None)
+          semantic_bytes = json.dumps(
+              semantic, ensure_ascii=False, sort_keys=True, separators=(',', ':')
+          ).encode('utf-8')
+          observed_semantic_sha256 = hashlib.sha256(semantic_bytes).hexdigest()
+          assert observed_semantic_sha256 == locked['catalog_semantic_sha256'], (
+              observed_semantic_sha256, locked['catalog_semantic_sha256']
+          )
+          assert out['destination_readiness'] == locked['destination_readiness'] == 'DISCOVERED_SOURCE_ONLY'
+          for key in [
+              'source_registration_authorized', 'road_crosswalk_authorized',
+              'parking_evidence_runtime_approved', 'runtime_authorized',
+              'runtime_mount_authorized', 'collision_authorized',
+              'materialization_authorized', 'semantic_names_authorized',
+              'game_world_transform_authorized', 'jouable_promotion_authorized',
+          ]:
+              assert out[key] is False and locked[key] is False, key
+          print(
+              'DRIVEWAY_REGIONAL_CELL_LOCKED_EXACT: '
+              f"features={out['source']['feature_count']} municipalities={out['partition']['municipality_count']} "
+              f"cells={out['partition']['cell_count']} id_sha256={out['source']['stable_id_set_sha256']} "
+              f"cells_sha256={out['partition']['cells_sha256']} semantic_sha256={observed_semantic_sha256}"
+          )
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driveway-regional-cell-catalog
+          path: ${{ runner.temp }}/brussels_driveway_regional_cells.json
+          if-no-files-found: error

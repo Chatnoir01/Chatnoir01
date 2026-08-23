@@ -91,8 +91,9 @@ jobs:
       - name: Bind evidence hashes
         if: always()
         run: |
-          cd grand-bruxelles-game/artifacts/road_surface_microtexture_ab
-          if [ -f road_surface_before.png ] && [ -f road_surface_after.png ] && [ -f road_surface_microtexture_ab.json ]; then
+          root=grand-bruxelles-game/artifacts/road_surface_microtexture_ab
+          if [ -d "$root" ] && [ -f "$root/road_surface_before.png" ] && [ -f "$root/road_surface_after.png" ] && [ -f "$root/road_surface_microtexture_ab.json" ]; then
+            cd "$root"
             sha256sum road_surface_before.png road_surface_after.png road_surface_microtexture_ab.json > evidence-sha256.txt
             sha256sum --check evidence-sha256.txt
           fi

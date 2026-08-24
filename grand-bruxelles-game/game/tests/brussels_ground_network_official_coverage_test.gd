@@ -15,7 +15,7 @@ func _init() -> void:
         return
     if not _prove_runtime_bindings():
         return
-    print("BRUSSELS_GROUND_NETWORK_OFFICIAL_COVERAGE_OK: zones=7 layers=3 ixelles=road+sidewalk jette=street_surface+tram gaps=explicit geometry_changed=false")
+    print("BRUSSELS_GROUND_NETWORK_OFFICIAL_COVERAGE_OK: canonical_zones=7 review_aliases=1 layers=3 ixelles=road+sidewalk jette=street_surface+tram gaps=explicit geometry_changed=false")
     quit(0)
 
 func _prove_catalog_coverage() -> bool:
@@ -30,16 +30,35 @@ func _prove_catalog_coverage() -> bool:
     var raw_zones: Variant = document.get("zones", [])
     if not raw_zones is Array:
         return _fail("catalog zones are not an array")
-    var catalog_ids: Array[String] = []
+    var canonical_ids: Array[String] = []
+    var review_aliases: Dictionary = {}
+    var alias_rows: Dictionary = {}
     for raw_zone: Variant in raw_zones as Array:
-        if raw_zone is Dictionary:
-            catalog_ids.append(str((raw_zone as Dictionary).get("id", "")))
-    catalog_ids.sort()
-    if catalog_ids != EXPECTED_ZONE_IDS:
-        return _fail("unexpected catalog zone ids: %s" % str(catalog_ids))
+        if not raw_zone is Dictionary:
+            return _fail("catalog zone row is not an object")
+        var zone := raw_zone as Dictionary
+        var zone_id := str(zone.get("id", ""))
+        var alias_of := str(zone.get("review_alias_of", "")).strip_edges()
+        if zone_id.is_empty():
+            return _fail("catalog zone id is empty")
+        if alias_of.is_empty():
+            canonical_ids.append(zone_id)
+        else:
+            review_aliases[zone_id] = alias_of
+            alias_rows[zone_id] = zone
+    canonical_ids.sort()
+    if canonical_ids != EXPECTED_ZONE_IDS:
+        return _fail("unexpected canonical catalog zone ids: %s" % str(canonical_ids))
+    if review_aliases.size() != 1 or str(review_aliases.get("midi_machine_labo", "")) != "midi":
+        return _fail("unexpected ground-network review aliases: %s" % str(review_aliases))
+    var midi_review: Variant = alias_rows.get("midi_machine_labo", {})
+    if not midi_review is Dictionary or str((midi_review as Dictionary).get("quality", "")) != "LABO":
+        return _fail("Midi City Machine review alias must stay LABO")
     var registry_ids: Array[String] = COVERAGE_REGISTRY.zone_ids()
     if registry_ids != EXPECTED_ZONE_IDS:
-        return _fail("coverage registry diverges from catalog: %s" % str(registry_ids))
+        return _fail("coverage registry diverges from canonical catalog: %s" % str(registry_ids))
+    if "midi_machine_labo" in registry_ids:
+        return _fail("review alias must not become an independent ground-network owner")
     for zone_id: String in EXPECTED_ZONE_IDS:
         for layer_id: String in COVERAGE_REGISTRY.LAYERS:
             var entry: Dictionary = COVERAGE_REGISTRY.layer(zone_id, layer_id)

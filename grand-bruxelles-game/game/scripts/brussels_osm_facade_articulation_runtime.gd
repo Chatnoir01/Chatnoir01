@@ -13,9 +13,15 @@ var _original_depths: Dictionary = {}
 var _enhanced_enabled := true
 var _ready_complete := false
 var _failed := false
+var _bind_scheduled := false
+var _base_runtime: Node = null
 
 func _ready() -> void:
-    call_deferred("_apply_when_ready")
+    process_mode = Node.PROCESS_MODE_ALWAYS
+    var tree := get_tree()
+    if not tree.node_added.is_connected(_on_node_added):
+        tree.node_added.connect(_on_node_added)
+    _schedule_apply()
 
 func _material_key(material: ShaderMaterial) -> String:
     var color_variant: Variant = material.get_shader_parameter("base_color")
@@ -42,28 +48,87 @@ func _candidate_for(material: Material) -> ShaderMaterial:
     _candidate_materials[key] = candidate
     return candidate
 
-func _apply_when_ready() -> void:
-    var base_runtime := get_tree().root.get_node_or_null("BrusselsOsmFacadeSurfaceRuntime")
-    if base_runtime == null:
-        push_error("Brussels OSM facade articulation runtime: production facade runtime missing")
-        _failed = true; _ready_complete = true; return
-    for _frame: int in range(240):
-        if bool(base_runtime.call("ready_complete")): break
-        await get_tree().process_frame
-    if not bool(base_runtime.call("ready_complete")) or bool(base_runtime.call("failed")):
-        push_error("Brussels OSM facade articulation runtime: production facade runtime not ready")
-        _failed = true; _ready_complete = true; return
-    var buildings_root := get_tree().root.find_child("GeneratedBuildings", true, false) as Node3D
+func _valid_buildings_root(node: Node) -> bool:
+    return node is Node3D and str(node.name) == "GeneratedBuildings" and node.get_parent() != null and str(node.get_parent().name) == "BrusselsOSM"
+
+func _find_existing_buildings_root() -> Node3D:
+    var direct := get_tree().root.get_node_or_null("BrusselsOSM/GeneratedBuildings")
+    if _valid_buildings_root(direct):
+        return direct as Node3D
+    for child: Node in get_tree().root.get_children():
+        var nested := child.get_node_or_null("BrusselsOSM/GeneratedBuildings")
+        if _valid_buildings_root(nested):
+            return nested as Node3D
+    return null
+
+func _connect_base_runtime() -> void:
+    if is_instance_valid(_base_runtime):
+        return
+    _base_runtime = get_tree().root.get_node_or_null("BrusselsOsmFacadeSurfaceRuntime")
+    if _base_runtime != null and _base_runtime.has_signal("facade_surface_ready"):
+        if not _base_runtime.facade_surface_ready.is_connected(_on_base_surface_ready):
+            _base_runtime.facade_surface_ready.connect(_on_base_surface_ready)
+
+func _on_base_surface_ready() -> void:
+    _schedule_apply()
+
+func _on_node_added(node: Node) -> void:
+    if _ready_complete or _failed:
+        return
+    if str(node.name) == "BrusselsOsmFacadeSurfaceRuntime":
+        _connect_base_runtime()
+    var cursor: Node = node
+    while cursor != null and cursor != get_tree().root:
+        if _valid_buildings_root(cursor):
+            _schedule_apply()
+            return
+        cursor = cursor.get_parent()
+
+func _schedule_apply() -> void:
+    if _bind_scheduled or _ready_complete or _failed:
+        return
+    _bind_scheduled = true
+    call_deferred("_try_apply")
+
+func _disconnect_mount_listener() -> void:
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+
+func _fail(message: String) -> void:
+    push_error("Brussels OSM facade articulation runtime: %s" % message)
+    _failed = true
+    _ready_complete = true
+    _disconnect_mount_listener()
+
+func _try_apply() -> void:
+    _bind_scheduled = false
+    if _ready_complete or _failed:
+        return
+    _connect_base_runtime()
+    if _base_runtime == null:
+        return
+    if bool(_base_runtime.call("failed")):
+        _fail("production facade runtime failed")
+        return
+    if not bool(_base_runtime.call("ready_complete")):
+        return
+
+    var buildings_root := _find_existing_buildings_root()
     if buildings_root == null:
-        push_error("Brussels OSM facade articulation runtime: GeneratedBuildings missing")
-        _failed = true; _ready_complete = true; return
+        return
+    var candidates: Array[CSGPolygon3D] = []
     for child: Node in buildings_root.get_children():
-        if not child is CSGPolygon3D or not str(child.name).begins_with("Building_"): continue
-        var building := child as CSGPolygon3D
+        if child is CSGPolygon3D and str(child.name).begins_with("Building_"):
+            candidates.append(child as CSGPolygon3D)
+    if candidates.is_empty():
+        return
+
+    for building: CSGPolygon3D in candidates:
         var candidate := _candidate_for(building.material)
         if candidate == null:
-            push_error("Brussels OSM facade articulation runtime: unsupported production facade material for %s" % building.name)
-            _failed = true; _ready_complete = true; return
+            _fail("unsupported production facade material for %s" % building.name)
+            return
         var instance_id := building.get_instance_id()
         _buildings.append(building)
         _baseline_materials[instance_id] = building.material
@@ -74,22 +139,25 @@ func _apply_when_ready() -> void:
         building.set_meta("facade_articulation_geometry_changed", false)
         building.set_meta("facade_articulation_source", "OpenStreetMap contributors via Overpass API")
         building.set_meta("facade_articulation_license", "ODbL-1.0")
-    if _buildings.is_empty() or _candidate_materials.size() > EXPECTED_MAX_PALETTE:
-        push_error("Brussels OSM facade articulation runtime: invalid production building/palette state")
-        _failed = true; _ready_complete = true; return
+    if _candidate_materials.size() > EXPECTED_MAX_PALETTE:
+        _fail("invalid production building/palette state")
+        return
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
-    print("BRUSSELS_OSM_FACADE_ARTICULATION_READY: buildings=%d materials=%d family=%s baseline=%s geometry_changed=false" % [_buildings.size(), _candidate_materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY, BASE_FAMILY])
+    _disconnect_mount_listener()
+    print("BRUSSELS_OSM_FACADE_ARTICULATION_READY: buildings=%d materials=%d family=%s baseline=%s geometry_changed=false event_driven=true" % [_buildings.size(), _candidate_materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY, BASE_FAMILY])
 
 func _set_material_state(enabled: bool) -> void:
     for building: CSGPolygon3D in _buildings:
-        if not is_instance_valid(building): continue
+        if not is_instance_valid(building):
+            continue
         var baseline := _baseline_materials.get(building.get_instance_id()) as Material
         building.material = _candidate_for(baseline) if enabled else baseline
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled
-    if _ready_complete and not _failed: _set_material_state(enabled)
+    if _ready_complete and not _failed:
+        _set_material_state(enabled)
 func enhanced_enabled() -> bool: return _enhanced_enabled
 func ready_complete() -> bool: return _ready_complete
 func failed() -> bool: return _failed

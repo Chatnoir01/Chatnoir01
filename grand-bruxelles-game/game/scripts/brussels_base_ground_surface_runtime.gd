@@ -1,7 +1,7 @@
 extends Node
 
 const MATERIAL_FAMILY := "brussels_base_ground_surface_v1"
-const PRESENTATION_REVISION := 4
+const PRESENTATION_REVISION := 5
 const TARGET_MAIN_NODE := "Main"
 const TARGET_GROUND_NODE := "Ground"
 const EXPECTED_POSITION := Vector3(0.0, -0.23, 0.0)
@@ -24,8 +24,8 @@ func _make_material() -> ShaderMaterial:
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
-uniform vec4 ground_dark_color = vec4(0.145, 0.150, 0.147, 1.0);
-uniform vec4 ground_light_color = vec4(0.245, 0.240, 0.225, 1.0);
+uniform vec4 ground_dark_color = vec4(0.155, 0.160, 0.157, 1.0);
+uniform vec4 ground_light_color = vec4(0.265, 0.258, 0.242, 1.0);
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.93;
 
 varying vec3 world_pos;
@@ -52,12 +52,15 @@ void vertex() {
 }
 
 void fragment() {
-    float broad = value_noise(world_pos.xz * 0.055 + vec2(19.0, 37.0));
-    float detail = value_noise(world_pos.xz * 1.15 + vec2(71.0, 11.0));
-    float authored_ground_tone = clamp(broad * 0.45 + detail * 0.55, 0.0, 1.0);
+    float broad = value_noise(world_pos.xz * 0.11 + vec2(19.0, 37.0));
+    float detail = value_noise(world_pos.xz * 1.65 + vec2(71.0, 11.0));
+    float camera_distance = distance(world_pos, CAMERA_POSITION_WORLD);
+    float near_detail = 1.0 - smoothstep(22.0, 95.0, camera_distance);
+    float detail_weight = mix(0.12, 0.42, near_detail);
+    float authored_ground_tone = clamp(mix(broad, detail, detail_weight), 0.0, 1.0);
     vec3 albedo = mix(ground_dark_color.rgb, ground_light_color.rgb, authored_ground_tone);
     ALBEDO = albedo;
-    ROUGHNESS = clamp(base_roughness + (0.5 - detail) * 0.045, 0.88, 0.98);
+    ROUGHNESS = clamp(base_roughness + (0.5 - detail) * 0.035 * near_detail, 0.89, 0.97);
     METALLIC = 0.0;
     SPECULAR = 0.10;
 }

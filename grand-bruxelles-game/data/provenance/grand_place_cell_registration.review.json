@@ -1,0 +1,62 @@
+{
+  "schema": "grand-bruxelles-grand-place-cell-registration-review-v1",
+  "status": "READY_FOR_CANONICAL_MANIFEST_REVIEW",
+  "target": {
+    "cell_id": "bxl-e148000-n170000-s500",
+    "grid_cell_id": "E148000_N170000",
+    "crs": "EPSG:31370",
+    "bbox": [
+      148000.0,
+      170000.0,
+      148500.0,
+      170500.0
+    ],
+    "canonical_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+    "authoritative_source_manifest_path": "data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/manifest.json",
+    "canonical_manifest_present": false,
+    "authoritative_source_manifest_present": true
+  },
+  "municipality_evidence": {
+    "lock_path": "data/provenance/grand_place_road_cell_municipality.measurement.json",
+    "semantic_sha256": "f425d22f2a4530da40c3acbd951387b2e61eb311497c8ef3b5cbbce54897ffdb",
+    "municipality_id": "https://databrussels.be/id/municipality/5000074",
+    "municipality_niscode": "21004",
+    "coverage_ratio": 1.0,
+    "road_ids": [
+      13842686,
+      684214770
+    ],
+    "point_hits": 9,
+    "segment_hits": 7
+  },
+  "registered_cell_index": {
+    "path": "data/provenance/brussels_registered_cell_manifest_index.json",
+    "semantic_sha256": "606c57c18fac82bcd74b4bb870e37d89ff31c775b3fa57533559c17d7a75de6f",
+    "registered_cell_count": 1,
+    "target_already_registered": false
+  },
+  "authoritative_source_evidence": {
+    "manifest_sha256": "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7",
+    "source_digest": "bbee45393ca07d86515f160e6eb9511c624440ccced97dff564b133eeafe7feb",
+    "format": "grand-bruxelles-urbis-source-cell-v1",
+    "promotion": "source_only_no_runtime_mutation",
+    "layer_feature_counts": {
+      "buildings": 772,
+      "street_axes": 97,
+      "street_surfaces": 410,
+      "train_network": 28,
+      "tram_network": 28
+    },
+    "buildings_ownership_filtered": 61,
+    "buildings_invalid_ownership_features": 0
+  },
+  "blocker": "authoritative UrbIS source-cell is present and validated; a separate canonical manifest review may proceed",
+  "registration_authorized": false,
+  "road_cell_mapping_authorized": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "jouable_promotion_authorized": false,
+  "semantic_sha256": "b84398dd084e85dce7e065ebd3fc87f873dcf965edb48ba55ea1eae519e61565"
+}

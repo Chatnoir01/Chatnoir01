@@ -1,7 +1,7 @@
 extends Node
 
 const MATERIAL_FAMILY := "brussels_base_ground_surface_v1"
-const PRESENTATION_REVISION := 7
+const PRESENTATION_REVISION := 6
 const TARGET_MAIN_NODE := "Main"
 const TARGET_GROUND_NODE := "Ground"
 const EXPECTED_POSITION := Vector3(0.0, -0.23, 0.0)

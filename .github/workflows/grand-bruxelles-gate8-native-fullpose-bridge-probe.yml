@@ -94,7 +94,7 @@ jobs:
           timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/import.log
           ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
 
-      - name: Probe full-pose bridge and capture both frames
+      - name: Probe bind pose and full-pose bridge
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
           MESA_LOADER_DRIVER_OVERRIDE: "llvmpipe"
@@ -105,8 +105,11 @@ jobs:
           STATUS=${PIPESTATUS[0]}
           set -e
           test -s "$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json"
+          test -s "$ISOLATED_PROJECT/gate8_variant01_imported-default.png"
+          test -s "$ISOLATED_PROJECT/gate8_variant01_reset-to-rest.png"
           test -s "$ISOLATED_PROJECT/gate8_variant01_native_jog-fwd.png"
           test -s "$ISOLATED_PROJECT/gate8_variant01_native_sprint.png"
+          grep -q '^GATE8_TARGET_BINDPOSE_SANITY ' /tmp/fullpose-bridge.log
           grep -q '^GATE8_NATIVE_FULLPOSE_BRIDGE ' /tmp/fullpose-bridge.log
           exit "$STATUS"
 
@@ -115,12 +118,10 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/evidence && mkdir -p /tmp/evidence
-          for f in /tmp/fullpose-bridge.log /tmp/import.log /tmp/godot-version.txt \
-            "$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json" \
-            "$ISOLATED_PROJECT/gate8_variant01_native_jog-fwd.png" \
-            "$ISOLATED_PROJECT/gate8_variant01_native_sprint.png"; do
+          for f in /tmp/fullpose-bridge.log /tmp/import.log /tmp/godot-version.txt "$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json"; do
             if [ -s "$f" ]; then cp "$f" /tmp/evidence/; fi
           done
+          find "$ISOLATED_PROJECT" -maxdepth 1 -type f -name 'gate8_variant01_*.png' -exec cp {} /tmp/evidence/ \;
           sha256sum /tmp/evidence/* | sort -k2 > /tmp/evidence/sha256.txt
 
       - name: Upload evidence

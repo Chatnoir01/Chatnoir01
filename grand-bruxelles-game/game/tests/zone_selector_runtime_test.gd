@@ -2,7 +2,7 @@ extends SceneTree
 
 const CATALOG_PATH := "res://data/qa/playable_zone_catalog.json"
 const REPORT_RUNTIME_PATH := "res://game/scripts/player_issue_report_runtime.gd"
-const EXPECTED_IDS := ["midi", "anneessens", "bourse", "grand_place", "ixelles", "atomium", "jette"]
+const EXPECTED_IDS := ["midi", "midi_machine_labo", "anneessens", "bourse", "grand_place", "ixelles", "atomium", "jette"]
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -30,6 +30,8 @@ func _run() -> void:
         _fail("zones invalid")
         return
     var ids: Array[String] = []
+    var midi: Dictionary = {}
+    var midi_machine_labo: Dictionary = {}
     var anneessens: Dictionary = {}
     for raw: Variant in zones:
         if not raw is Dictionary:
@@ -44,11 +46,25 @@ func _run() -> void:
             if not ResourceLoader.exists(str(requirement)) and not FileAccess.file_exists(str(requirement)):
                 _fail("missing requirement %s" % str(requirement))
                 return
-        if str(zone.get("id", "")) == "anneessens":
-            anneessens = zone
+        match str(zone.get("id", "")):
+            "midi":
+                midi = zone
+            "midi_machine_labo":
+                midi_machine_labo = zone
+            "anneessens":
+                anneessens = zone
         ids.append(str(zone.get("id", "")))
     if ids != EXPECTED_IDS:
         _fail("unexpected listed zones %s" % str(ids))
+        return
+    if midi.is_empty() or str(midi.get("quality", "")) != "JOUABLE" or str(midi.get("mode", "")) != "fast_travel" or str(midi.get("destination", "")) != "midi":
+        _fail("canonical Midi JOUABLE contract drifted")
+        return
+    if midi_machine_labo.is_empty() or str(midi_machine_labo.get("quality", "")) != "LABO":
+        _fail("Midi City Machine LABO contract missing")
+        return
+    if str(midi_machine_labo.get("review_alias_of", "")) != "midi" or str(midi_machine_labo.get("mode", "")) != "script_zone" or str(midi_machine_labo.get("script", "")) != "res://game/zones/midi/midi_city_machine_zone.gd":
+        _fail("Midi City Machine review alias contract drifted")
         return
     if anneessens.is_empty() or str(anneessens.get("quality", "")) != "LABO":
         _fail("Anneessens LABO contract missing")
@@ -165,5 +181,5 @@ func _run() -> void:
             return
         print("ANNEESSENS_LAB_PLAYABLE_OK: civilians=%d parked=%d moving=%d" % [int((counts as Dictionary).get("civilians", 0)), int((counts as Dictionary).get("parked_vehicles", 0)), int((counts as Dictionary).get("moving_vehicles", 0))])
         print("PLAYER_REPORT_WITNESS_OK: zone=anneessens quality=LABO 1280x720")
-    print("ZONE_SELECTOR_OK: listed=%d playable=1 lab=6 reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
+    print("ZONE_SELECTOR_OK: listed=%d canonical=7 review_aliases=1 playable=1 lab=7 reporting=true anneessens_life=true no_invisible_quarantine=true" % available.size())
     quit(0)

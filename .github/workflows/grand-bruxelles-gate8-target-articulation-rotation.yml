@@ -1,0 +1,135 @@
+name: Grand Bruxelles Gate-8 Target Articulation Rotation
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_target_articulation_rotation_test.gd"
+      - ".github/workflows/grand-bruxelles-gate8-target-articulation-rotation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  target-articulation-rotation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-target-articulation-rotation"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lock rotation-response contract
+        run: |
+          set -euo pipefail
+          P=grand-bruxelles-game/game/tests/gate8_target_articulation_rotation_test.gd
+          grep -q 'measurement_contract.*rest_relative_rotation_not_pivot_translation' "$P"
+          grep -q 'PROBE_DEGREES := 12.0' "$P"
+          grep -q 'left-forearm-twist' "$P"
+          grep -q 'MAX_TWIST_PIVOT_TRANSLATION_M := 0.0001' "$P"
+          grep -q 'production_authorized.*false' "$P"
+          ! grep -q 'run_alias_selected.*Jog_Fwd\|run_alias_selected.*Sprint' "$P"
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-target
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target
+          T="$(find /tmp/gate8-target -type f -name npc_gate_01.glb -print -quit)"
+          test -n "$T"
+          cp "$T" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated articulation project
+        run: |
+          set -euo pipefail
+          rm -rf "$PROJECT"
+          mkdir -p "$PROJECT/assets" "$PROJECT/game/tests"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8TargetArticulationRotation"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_target_articulation_rotation_test.gd "$PROJECT/game/tests/"
+          timeout 300s "$GODOT" --headless --editor --path "$PROJECT" --quit-after 1200 2>&1 | tee /tmp/import.log
+          test -d "$PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+
+      - name: Measure target articulation rotation
+        run: |
+          set -euo pipefail
+          timeout 120s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/gate8_target_articulation_rotation_test.gd 2>&1 | tee /tmp/articulation-rotation.log
+          test -s "$PROJECT/gate8_target_articulation_rotation_result.json"
+          cp "$PROJECT/gate8_target_articulation_rotation_result.json" /tmp/articulation-rotation.json
+          python - <<'PY'
+          import json, math
+          r=json.load(open('/tmp/articulation-rotation.json'))
+          assert r['format']=='grand-bruxelles-gate8-target-articulation-rotation-v1'
+          assert r['measurement_contract']=='rest_relative_rotation_not_pivot_translation'
+          assert r['candidate_variant']==1 and r['selection_state']=='TARGET_ARTICULATION_ROTATION_VALID'
+          assert not r['failures'] and len(r['probes'])==4
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False and r['visual_approval_claimed'] is False
+          assert r['run_alias_selected']==''
+          for row in r['probes'].values():
+              d=float(row['measured_rotation_delta_deg'])
+              assert math.isfinite(d) and 11.5 <= d <= 12.5
+          forearm=r['probes']['left-forearm-twist']
+          assert float(forearm['pivot_translation_m']) <= 0.0001
+          print('GATE8_TARGET_ARTICULATION_ROTATION_RESULT_OK probes=4 forearm_twist_pivot_translation_allowed=true')
+          PY
+          grep -q '^GATE8_TARGET_ARTICULATION_ROTATION_OK probes=4 measurement=rest_relative_rotation production_authorized=false$' /tmp/articulation-rotation.log
+
+      - name: Stage evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-target-articulation-rotation-evidence
+          mkdir -p /tmp/gate8-target-articulation-rotation-evidence
+          for f in /tmp/import.log /tmp/articulation-rotation.log /tmp/articulation-rotation.json /tmp/npc_gate_01.sha256 /tmp/godot-version.txt; do
+            if [ -s "$f" ]; then cp "$f" /tmp/gate8-target-articulation-rotation-evidence/; fi
+          done
+          sha256sum /tmp/gate8-target-articulation-rotation-evidence/* | sort -k2 | tee /tmp/gate8-target-articulation-rotation-evidence/sha256.txt
+
+      - name: Prove repository untouched
+        if: always()
+        run: |
+          set -euo pipefail
+          git status --porcelain --untracked-files=all | tee /tmp/git-status.txt
+          test ! -s /tmp/git-status.txt
+
+      - name: Upload articulation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-target-articulation-rotation
+          path: /tmp/gate8-target-articulation-rotation-evidence
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0

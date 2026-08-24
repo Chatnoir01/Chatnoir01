@@ -1,0 +1,133 @@
+name: Grand Bruxelles Gate-8 Rest Frame Normalization Plan
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_variant01_rest_frame_normalization_plan_test.gd"
+      - ".github/workflows/grand-bruxelles-gate8-rest-frame-normalization-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  rest-frame-normalization-plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-rest-frame-normalization-plan"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lock normalization-plan contract
+        run: |
+          set -euo pipefail
+          P=grand-bruxelles-game/game/tests/gate8_variant01_rest_frame_normalization_plan_test.gd
+          grep -q 'MAX_BILATERAL_LOCAL_DELTA_DIFF_DEG := 1.0' "$P"
+          grep -q 'MAX_BILATERAL_DIRECTION_DELTA_DIFF_DEG := 1.0' "$P"
+          grep -q 'MAX_BILATERAL_LENGTH_RATIO_DIFF := 0.02' "$P"
+          grep -q 'normalization_mutation_applied.*false' "$P"
+          grep -q 'retarget_applied.*false' "$P"
+          grep -q 'production_authorized.*false' "$P"
+          ! grep -q 'run_alias_selected.*Jog_Fwd\|run_alias_selected.*Sprint' "$P"
+
+      - name: Download pinned CC0 source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$ANIM_URL" -o /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          python - <<'PY'
+          import os,zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member=os.environ['ANIM_GLB']; assert member in z.namelist(); Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-target
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target
+          T="$(find /tmp/gate8-target -type f -name npc_gate_01.glb -print -quit)"; test -n "$T"; cp "$T" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"; test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt; grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated project and import real assets
+        run: |
+          set -euo pipefail
+          rm -rf "$PROJECT"; mkdir -p "$PROJECT/assets" "$PROJECT/game/tests"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8RestFrameNormalizationPlan"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_rest_frame_normalization_plan_test.gd "$PROJECT/game/tests/"
+          timeout 300s "$GODOT" --headless --editor --path "$PROJECT" --quit-after 1200 2>&1 | tee /tmp/import.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+
+      - name: Prove mapping symmetry before normalization
+        run: |
+          set -euo pipefail
+          timeout 120s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/gate8_variant01_rest_frame_normalization_plan_test.gd 2>&1 | tee /tmp/normalization-plan.log
+          test -s "$PROJECT/gate8_variant01_rest_frame_normalization_plan.json"
+          cp "$PROJECT/gate8_variant01_rest_frame_normalization_plan.json" /tmp/normalization-plan.json
+          python - <<'PY'
+          import json,math
+          r=json.load(open('/tmp/normalization-plan.json'))
+          assert r['format']=='grand-bruxelles-gate8-rest-frame-normalization-plan-v1'
+          assert r['candidate_variant']==1 and r['reviewed_roles']==22 and r['measured_roles']==22
+          assert r['selection_state']=='REST_FRAME_NORMALIZATION_PREFERRED'
+          assert r['topology_mismatch_roles']==[] and r['bilateral_asymmetry_pairs']==[]
+          assert len(r['bilateral_pairs'])==8 and len(r['roles'])==22
+          assert float(r['max_normalization_reconstruction_error_deg']) <= 0.001
+          assert r['normalization_mutation_applied'] is False and r['retarget_applied'] is False
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['run_alias_selected']=='' and not r['failures']
+          for row in r['bilateral_pairs'].values():
+              assert row['symmetric'] is True
+              assert math.isfinite(float(row['local_delta_difference_deg']))
+              assert math.isfinite(float(row['direction_delta_difference_deg']))
+              assert math.isfinite(float(row['length_ratio_difference']))
+          print('GATE8_REST_FRAME_NORMALIZATION_PLAN_RESULT_OK topology=0 bilateral_asymmetry=0 state=%s' % r['selection_state'])
+          PY
+          grep -q '^GATE8_REST_FRAME_NORMALIZATION_PLAN_OK roles=22 topology=0 bilateral_asymmetry=0 production_authorized=false$' /tmp/normalization-plan.log
+
+      - name: Stage evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/evidence
+          for f in /tmp/import.log /tmp/normalization-plan.log /tmp/normalization-plan.json /tmp/godot-version.txt; do [ -f "$f" ] && cp "$f" /tmp/evidence/; done
+          (cd /tmp/evidence && sha256sum * > sha256.txt) || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-gate8-rest-frame-normalization-plan
+          path: /tmp/evidence
+          if-no-files-found: error
+          retention-days: 90

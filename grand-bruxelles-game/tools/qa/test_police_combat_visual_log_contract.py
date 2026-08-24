@@ -1,14 +1,16 @@
 from pathlib import Path
 import importlib.util
 
-WORKFLOW = Path('.github/workflows/grand-bruxelles-police-combat-visual-witness.yml')
-TEXT = WORKFLOW.read_text(encoding='utf-8')
+VISUAL_WORKFLOW = Path('.github/workflows/grand-bruxelles-police-combat-visual-witness.yml')
+PRESSURE_WORKFLOW = Path('.github/workflows/grand-bruxelles-police-combat-pressure.yml')
+VISUAL_TEXT = VISUAL_WORKFLOW.read_text(encoding='utf-8')
+PRESSURE_TEXT = PRESSURE_WORKFLOW.read_text(encoding='utf-8')
 AUDIT_PATH = Path('grand-bruxelles-game/tools/qa/police_combat_log_audit.py')
 
 
-def require(fragment: str) -> None:
-    if fragment not in TEXT:
-        raise AssertionError(f'missing police combat visual log contract fragment: {fragment}')
+def require(text: str, fragment: str, contract: str) -> None:
+    if fragment not in text:
+        raise AssertionError(f'missing {contract} log contract fragment: {fragment}')
 
 
 def load_audit_module():
@@ -21,10 +23,11 @@ def load_audit_module():
 
 
 def main() -> None:
-    require('grand-bruxelles-game/tools/qa/police_combat_log_audit.py')
-    require('--allow-known-audio-fallback')
-    require('POLICE_COMBAT_VISUAL_LOG_AUDIT_OK')
-    require('POLICE_COMBAT_VISUAL_LOG_AUDIT_FAIL')
+    for text, contract in ((VISUAL_TEXT, 'police combat visual'), (PRESSURE_TEXT, 'police combat pressure')):
+        require(text, 'grand-bruxelles-game/tools/qa/police_combat_log_audit.py', contract)
+        require(text, '--allow-known-audio-fallback', contract)
+        require(text, 'POLICE_COMBAT_VISUAL_LOG_AUDIT_OK', contract)
+        require(text, 'POLICE_COMBAT_VISUAL_LOG_AUDIT_FAIL', contract)
 
     audit = load_audit_module()
     known_audio = '\n'.join([

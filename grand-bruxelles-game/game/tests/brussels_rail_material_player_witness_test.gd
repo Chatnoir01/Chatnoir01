@@ -4,7 +4,8 @@ const MAIN_SCENE := preload("res://game/main.tscn")
 const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn.gd")
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_osm_rail_surface_material.gd")
 const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
-const SOURCE_SHA256 := "a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493"
+const ROAD_CANDIDATE_PATH := "res://data/city_machine/road_cell_coverage_candidates.json"
+const ROAD_SEMANTIC_SHA256 := "4ec4ba4ad46a999d3ea32ab4a42b6825d6e43f11fcae92ac9b7a4236222913e0"
 const TARGET_OSM_ID := 359177328
 const TARGET_NAME_FRAGMENT := "Maurice Lemonnier"
 const ARTIFACT_DIR := "res://artifacts/rail_material_player_witness"
@@ -23,6 +24,71 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
     push_error("BRUSSELS_RAIL_MATERIAL_PLAYER_WITNESS_FAIL: %s" % message)
     quit(1)
+
+func _load_json(path: String) -> Dictionary:
+    if not FileAccess.file_exists(path):
+        return {}
+    var file := FileAccess.open(path, FileAccess.READ)
+    if file == null:
+        return {}
+    var parsed: Variant = JSON.parse_string(file.get_as_text())
+    return parsed as Dictionary if parsed is Dictionary else {}
+
+func _source_target_identity_is_locked() -> bool:
+    var candidate := _load_json(ROAD_CANDIDATE_PATH)
+    if candidate.is_empty():
+        return false
+    if str(candidate.get("schema", "")) != "grand-bruxelles-road-cell-coverage-candidates-v2":
+        return false
+    if str(candidate.get("road_source", "")) != "data/osm/vertical_slice_01.game.json":
+        return false
+    if str(candidate.get("road_source_provider", "")) != "OpenStreetMap contributors via Overpass API":
+        return false
+    if str(candidate.get("road_source_license", "")) != "ODbL-1.0":
+        return false
+    if str(candidate.get("road_semantic_sha256", "")).to_lower() != ROAD_SEMANTIC_SHA256:
+        return false
+    if str(candidate.get("status", "")) != "DISCOVERED_SOURCE_ONLY":
+        return false
+    for authorization: String in ["road_cell_mapping_authorized", "registration_authorized", "runtime_mount_authorized", "rendered_geometry_authorized", "collision_authorized", "safe_spawn_authorized", "jouable_promotion_authorized"]:
+        if bool(candidate.get(authorization, true)):
+            return false
+    var target_in_candidate := false
+    for raw_candidate: Variant in candidate.get("candidates", []) as Array:
+        if not raw_candidate is Dictionary:
+            continue
+        var row := raw_candidate as Dictionary
+        for raw_id: Variant in row.get("road_ids", []) as Array:
+            if int(raw_id) == TARGET_OSM_ID:
+                target_in_candidate = true
+                break
+        if target_in_candidate:
+            break
+    if not target_in_candidate:
+        return false
+
+    var source := _load_json(SOURCE_PATH)
+    if source.is_empty():
+        return false
+    if str(source.get("provider", "")) != "OpenStreetMap contributors via Overpass API":
+        return false
+    if str(source.get("license", "")) != "ODbL-1.0":
+        return false
+    var matched := false
+    for raw_road: Variant in source.get("roads", []) as Array:
+        if not raw_road is Dictionary:
+            continue
+        var road := raw_road as Dictionary
+        if int(road.get("osm_id", 0)) != TARGET_OSM_ID:
+            continue
+        if not str(road.get("name", "")).contains(TARGET_NAME_FRAGMENT):
+            return false
+        var points := road.get("points", []) as Array
+        if points.size() < 2:
+            return false
+        matched = true
+        break
+    return matched
 
 func _capture(path: String) -> Image:
     for _frame: int in range(3):
@@ -103,8 +169,8 @@ func _diff_metrics(a: Image, b: Image) -> Dictionary:
 
 func _run() -> void:
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(ARTIFACT_DIR))
-    if FileAccess.get_sha256(SOURCE_PATH).to_lower() != SOURCE_SHA256:
-        _fail("OSM source SHA drifted")
+    if not _source_target_identity_is_locked():
+        _fail("road-semantic source identity drifted")
         return
     if MATERIAL_FACTORY.MATERIAL_FAMILY != "brussels_osm_rail_surface_v1":
         _fail("shared rail material family drifted")
@@ -224,7 +290,8 @@ func _run() -> void:
         "target_road_osm_id": TARGET_OSM_ID,
         "target_road_name": str(player.get_meta("automatic_road_direct_source_name", "")),
         "source_path": SOURCE_PATH,
-        "source_sha256": SOURCE_SHA256,
+        "road_candidate_path": ROAD_CANDIDATE_PATH,
+        "road_semantic_sha256": ROAD_SEMANTIC_SHA256,
         "source_license": "ODbL-1.0",
         "material_family": MATERIAL_FACTORY.MATERIAL_FAMILY,
         "rail_count": rails.size(),

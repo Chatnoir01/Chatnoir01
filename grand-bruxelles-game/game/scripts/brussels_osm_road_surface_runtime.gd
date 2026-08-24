@@ -18,11 +18,12 @@ var _official_materials: Dictionary = {}
 var _enhanced_enabled := true
 var _ready_complete := false
 var _failed := false
+var _road_bind_scheduled := false
 
 func _ready() -> void:
     if not get_tree().node_added.is_connected(_on_node_added):
         get_tree().node_added.connect(_on_node_added)
-    call_deferred("_apply_when_ready")
+    call_deferred("_schedule_road_bind")
 
 func _load_road_classes() -> Dictionary:
     var classes := {}
@@ -47,20 +48,37 @@ func _osm_id_from_name(node_name: String) -> int:
         return 0
     return int(remainder.substr(0, separator))
 
-func _apply_when_ready() -> void:
-    var roads_root: Node3D = null
-    for _attempt: int in range(180):
-        await get_tree().process_frame
-        var candidate := get_tree().root.find_child("GeneratedRoads", true, false)
-        if candidate is Node3D:
-            roads_root = candidate as Node3D
-            break
-    if roads_root == null:
-        push_error("Brussels OSM road surface runtime: GeneratedRoads missing")
-        _failed = true
-        _ready_complete = true
-        return
+func _is_generated_roads_root(node: Node) -> bool:
+    if not node is Node3D or str(node.name) != "GeneratedRoads":
+        return false
+    var parent := node.get_parent()
+    return parent != null and str(parent.name) == "BrusselsOSM"
 
+func _is_generated_road_child(node: Node) -> bool:
+    if not node is CSGBox3D or not str(node.name).begins_with("Road_"):
+        return false
+    var parent := node.get_parent()
+    return parent != null and _is_generated_roads_root(parent)
+
+func _schedule_road_bind() -> void:
+    if _ready_complete or _failed or _road_bind_scheduled:
+        return
+    _road_bind_scheduled = true
+    call_deferred("_recover_existing_roads")
+
+func _recover_existing_roads() -> void:
+    await get_tree().process_frame
+    _road_bind_scheduled = false
+    if _ready_complete or _failed:
+        return
+    var candidate := get_tree().root.find_child("GeneratedRoads", true, false)
+    if candidate == null or not _is_generated_roads_root(candidate):
+        return
+    _bind_roads_root(candidate as Node3D)
+
+func _bind_roads_root(roads_root: Node3D) -> void:
+    if _ready_complete or _failed:
+        return
     var road_classes := _load_road_classes()
     if road_classes.is_empty():
         push_error("Brussels OSM road surface runtime: source road classes missing")
@@ -68,11 +86,15 @@ func _apply_when_ready() -> void:
         _ready_complete = true
         return
 
-    _materials = MATERIAL_FACTORY.create_materials()
+    var candidates: Array[CSGBox3D] = []
     for child: Node in roads_root.get_children():
-        if not child is CSGBox3D or not child.name.begins_with("Road_"):
-            continue
-        var road := child as CSGBox3D
+        if child is CSGBox3D and child.name.begins_with("Road_"):
+            candidates.append(child as CSGBox3D)
+    if candidates.is_empty():
+        return
+
+    _materials = MATERIAL_FACTORY.create_materials()
+    for road: CSGBox3D in candidates:
         var osm_id := _osm_id_from_name(str(road.name))
         if osm_id == 0 or not road_classes.has(osm_id):
             push_error("Brussels OSM road surface runtime: unresolved source id for %s" % road.name)
@@ -91,12 +113,6 @@ func _apply_when_ready() -> void:
         road.set_meta("license", LICENSE)
         road.set_meta("geometry_changed_by_road_surface_runtime", false)
 
-    if _roads.is_empty():
-        push_error("Brussels OSM road surface runtime: no production road segments found")
-        _failed = true
-        _ready_complete = true
-        return
-
     _scan_existing_official_surfaces()
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
@@ -112,6 +128,10 @@ func _ensure_official_materials() -> void:
 
 func _on_node_added(node: Node) -> void:
     _register_official_surface(node)
+    if _ready_complete or _failed:
+        return
+    if _is_generated_roads_root(node) or _is_generated_road_child(node):
+        _schedule_road_bind()
 
 func _scan_existing_official_surfaces() -> void:
     var ixelles := get_tree().root.find_child("StreetSurfaces_S", true, false)

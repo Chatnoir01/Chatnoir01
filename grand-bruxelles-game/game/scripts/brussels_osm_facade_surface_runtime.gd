@@ -52,16 +52,18 @@ func _buildings_root_from_added(node: Node) -> Node3D:
         if _valid_buildings_root(cursor):
             return cursor as Node3D
         cursor = cursor.get_parent()
+    var nested := node.get_node_or_null("BrusselsOSM/GeneratedBuildings")
+    if _valid_buildings_root(nested):
+        return nested as Node3D
     return null
 
 func _find_existing_buildings_root() -> Node3D:
-    var direct := get_tree().root.get_node_or_null("BrusselsOSM/GeneratedBuildings")
-    if _valid_buildings_root(direct):
-        return direct as Node3D
-    for child: Node in get_tree().root.get_children():
-        var nested := child.get_node_or_null("BrusselsOSM/GeneratedBuildings")
-        if _valid_buildings_root(nested):
-            return nested as Node3D
+    # One bounded recursive recovery covers legitimate test/editor mounts where
+    # production main is nested below a SubViewport. This is event-driven and
+    # never reintroduces the historical frame-by-frame global polling loop.
+    for candidate: Node in get_tree().root.find_children("GeneratedBuildings", "Node3D", true, false):
+        if _valid_buildings_root(candidate):
+            return candidate as Node3D
     return null
 
 func _on_node_added(node: Node) -> void:

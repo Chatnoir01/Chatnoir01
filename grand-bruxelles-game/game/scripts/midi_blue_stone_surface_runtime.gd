@@ -4,6 +4,7 @@ const MATERIAL_FACTORY := preload("res://game/scripts/brussels_blue_stone_materi
 const IDENTITY_PATH := "res://data/visual/midi_blue_stone_material_identity.json"
 const EXPECTED_SURFACES := 3
 const TARGET_NAMES := ["BlueStoneBase"]
+const SUBTREE_READY_FRAMES := 30
 
 var _targets: Array[MeshInstance3D] = []
 var _original_materials: Dictionary = {}
@@ -11,31 +12,52 @@ var _material: ShaderMaterial
 var _ready_complete := false
 var _identity_failure := false
 var _enabled := true
+var _identity: Dictionary = {}
+var _awaiting_midi := false
+var _bind_in_progress := false
 
 func _ready() -> void:
-    call_deferred("_apply_when_ready")
-
-func _apply_when_ready() -> void:
-    await get_tree().process_frame
-    var identity := _read_identity()
-    if identity.is_empty():
+    _identity = _read_identity()
+    if _identity.is_empty():
         _ready_complete = true
+        return
+    _awaiting_midi = true
+    get_tree().node_added.connect(_on_node_added)
+    call_deferred("_bind_existing_midi")
+
+func _bind_existing_midi() -> void:
+    if _ready_complete or _identity_failure or _bind_in_progress:
         return
     var midi := get_tree().root.get_node_or_null("GrandBruxelles/MidiHeroZone")
     if midi == null:
         midi = get_tree().root.find_child("MidiHeroZone", true, false)
-    if midi == null:
-        push_error("Midi blue-stone runtime: MidiHeroZone missing")
-        _identity_failure = true
-        _ready_complete = true
+    if midi != null:
+        _bind_in_progress = true
+        _apply_when_subtree_ready(midi)
+
+func _on_node_added(node: Node) -> void:
+    if _ready_complete or _identity_failure or _bind_in_progress or node.name != "MidiHeroZone":
         return
-    _targets.clear()
-    _collect_targets(midi)
-    if _targets.size() != EXPECTED_SURFACES:
-        push_error("Midi blue-stone runtime: expected %d verified base surfaces, got %d" % [EXPECTED_SURFACES, _targets.size()])
-        _identity_failure = true
-        _ready_complete = true
-        return
+    _bind_in_progress = true
+    _apply_when_subtree_ready(node)
+
+func _apply_when_subtree_ready(midi: Node) -> void:
+    for _frame: int in range(SUBTREE_READY_FRAMES):
+        if not is_instance_valid(midi):
+            _bind_in_progress = false
+            return
+        _targets.clear()
+        _collect_targets(midi)
+        if _targets.size() == EXPECTED_SURFACES:
+            _apply_material()
+            return
+        await get_tree().process_frame
+    push_error("Midi blue-stone runtime: expected %d verified base surfaces, got %d after bounded Midi subtree population" % [EXPECTED_SURFACES, _targets.size()])
+    _identity_failure = true
+    _ready_complete = true
+    _finish_waiting()
+
+func _apply_material() -> void:
     _material = MATERIAL_FACTORY.create(
         Color(0.095, 0.125, 0.145, 1.0),
         Color(0.255, 0.275, 0.285, 1.0),
@@ -46,7 +68,14 @@ func _apply_when_ready() -> void:
         _original_materials[target.get_instance_id()] = target.material_override
         target.material_override = _material
     _ready_complete = true
+    _finish_waiting()
     print("Midi blue-stone runtime: surfaces=%d material_only=true" % _targets.size())
+
+func _finish_waiting() -> void:
+    _awaiting_midi = false
+    _bind_in_progress = false
+    if get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.disconnect(_on_node_added)
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):
@@ -106,6 +135,9 @@ func ready_complete() -> bool:
 
 func identity_failure() -> bool:
     return _identity_failure
+
+func awaiting_midi() -> bool:
+    return _awaiting_midi
 
 func applied_surface_count() -> int:
     return _targets.size() if _ready_complete and not _identity_failure else 0

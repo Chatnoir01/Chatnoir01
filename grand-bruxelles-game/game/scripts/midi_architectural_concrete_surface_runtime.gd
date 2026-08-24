@@ -5,6 +5,8 @@ const FONSNY_FULL_ENTRANCE_RUNTIME := preload("res://game/scripts/midi_fonsny_fu
 const IDENTITY_PATH := "res://data/visual/midi_architectural_concrete_material_identity.json"
 const EXACT_NAMES := ["VerticalGlassTowerFrame", "EntranceConcreteCanopy"]
 const PREFIXES := ["HorizontalBand_", "VerticalMullion_"]
+const EXPECTED_SURFACES := 74
+const SUBTREE_READY_FRAMES := 30
 
 var _targets: Array[MeshInstance3D] = []
 var _original_materials: Dictionary = {}
@@ -14,6 +16,8 @@ var _identity_failure := false
 var _enabled := false
 var _identity: Dictionary = {}
 var _fonsny_full_entrance_runtime: Node
+var _awaiting_midi := false
+var _bind_in_progress := false
 
 func _ready() -> void:
     # Midi-only mount point: keep this exact-location replacement isolated from
@@ -21,34 +25,60 @@ func _ready() -> void:
     _fonsny_full_entrance_runtime = FONSNY_FULL_ENTRANCE_RUNTIME.new()
     _fonsny_full_entrance_runtime.name = "MidiFonsnyFullEntranceRuntime"
     add_child(_fonsny_full_entrance_runtime)
-    call_deferred("_apply_when_ready")
-
-func _apply_when_ready() -> void:
-    await get_tree().process_frame
     _identity = _read_identity()
     if _identity.is_empty():
         _ready_complete = true
         return
+    _awaiting_midi = true
+    get_tree().node_added.connect(_on_node_added)
+    call_deferred("_bind_existing_midi")
+
+func _bind_existing_midi() -> void:
+    if _ready_complete or _identity_failure or _bind_in_progress:
+        return
     var midi := get_tree().root.get_node_or_null("GrandBruxelles/MidiHeroZone")
     if midi == null:
         midi = get_tree().root.find_child("MidiHeroZone", true, false)
-    if midi == null:
-        push_error("Midi concrete runtime: MidiHeroZone missing")
-        _identity_failure = true
-        _ready_complete = true
+    if midi != null:
+        _bind_in_progress = true
+        _apply_when_subtree_ready(midi)
+
+func _on_node_added(node: Node) -> void:
+    if _ready_complete or _identity_failure or _bind_in_progress or node.name != "MidiHeroZone":
         return
-    _collect_targets(midi)
-    if _targets.size() != 74:
-        push_error("Midi concrete runtime: expected 74 verified concrete surfaces, got %d" % _targets.size())
-        _identity_failure = true
-        _ready_complete = true
-        return
+    _bind_in_progress = true
+    _apply_when_subtree_ready(node)
+
+func _apply_when_subtree_ready(midi: Node) -> void:
+    for _frame: int in range(SUBTREE_READY_FRAMES):
+        if not is_instance_valid(midi):
+            _bind_in_progress = false
+            return
+        _targets.clear()
+        _collect_targets(midi)
+        if _targets.size() == EXPECTED_SURFACES:
+            _apply_material()
+            return
+        await get_tree().process_frame
+    push_error("Midi concrete runtime: expected %d verified concrete surfaces, got %d after bounded Midi subtree population" % [EXPECTED_SURFACES, _targets.size()])
+    _identity_failure = true
+    _ready_complete = true
+    _finish_waiting()
+
+func _apply_material() -> void:
     _material = MATERIAL_FACTORY.create("Midi Urban 9423 concrete bay frames and canopy")
     for target in _targets:
         _original_materials[target.get_instance_id()] = target.material_override if target.material_override != null else target.mesh.material
     if _runtime_identity_allowed(_identity):
         set_enhanced_material_enabled(true)
     _ready_complete = true
+    _finish_waiting()
+
+func _finish_waiting() -> void:
+    _awaiting_midi = false
+    _bind_in_progress = false
+    if get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.disconnect(_on_node_added)
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):
@@ -112,6 +142,9 @@ func ready_complete() -> bool:
 
 func identity_failure() -> bool:
     return _identity_failure
+
+func awaiting_midi() -> bool:
+    return _awaiting_midi
 
 func applied_surface_count() -> int:
     return _targets.size() if _ready_complete and not _identity_failure else 0

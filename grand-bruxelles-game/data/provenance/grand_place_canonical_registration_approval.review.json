@@ -1,0 +1,51 @@
+{
+  "authorization": {
+    "canonical_manifest_write": true,
+    "collision": false,
+    "evidence_only_registration": true,
+    "jouable_promotion": false,
+    "registered_index_mutation": true,
+    "rendered_geometry": false,
+    "road_to_cell_mapping": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "safe_spawn": false
+  },
+  "candidate": {
+    "manifest_sha256": "b454022050e850214eeb8d5345fe574e831dcaba6a832123a7dfe44070d0b020",
+    "review_semantic_sha256": "bb0a23818b738b22b20aea1d9c37ecf794827e05d5d4ab8fed4f758d0c6f197e"
+  },
+  "destination_readiness": "APPROVED_FOR_EVIDENCE_ONLY_REGISTRATION_NOT_RENDERED",
+  "production_base_sha": "78c169227fe70f2265a83c3ad30601b03bf9ee16",
+  "registered_cell_index": {
+    "registered_cell_count": 1,
+    "semantic_sha256": "606c57c18fac82bcd74b4bb870e37d89ff31c775b3fa57533559c17d7a75de6f",
+    "target_registered": false
+  },
+  "registration_review": {
+    "semantic_sha256": "b84398dd084e85dce7e065ebd3fc87f873dcf965edb48ba55ea1eae519e61565",
+    "status": "READY_FOR_CANONICAL_MANIFEST_REVIEW"
+  },
+  "schema": "grand-bruxelles-grand-place-canonical-registration-approval-v1",
+  "semantic_sha256": "15ca0cb0d9596e0a6cab2f913244c8ea6ff09c19f51f766877718902f0e8d9db",
+  "source": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "license": "CC0-1.0",
+    "manifest_sha256": "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7",
+    "source_digest": "bbee45393ca07d86515f160e6eb9511c624440ccced97dff564b133eeafe7feb",
+    "source_semantic_sha256": "99cb25db4c95860c02dff5cf25c19cc5a4e11a75166f1fe92734edd1b5a0e7d4"
+  },
+  "status": "APPROVED_EVIDENCE_ONLY_CANONICAL_REGISTRATION",
+  "target": {
+    "bbox": [
+      148000.0,
+      170000.0,
+      148500.0,
+      170500.0
+    ],
+    "canonical_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+    "canonical_manifest_present": false,
+    "cell_id": "bxl-e148000-n170000-s500",
+    "crs": "EPSG:31370"
+  }
+}

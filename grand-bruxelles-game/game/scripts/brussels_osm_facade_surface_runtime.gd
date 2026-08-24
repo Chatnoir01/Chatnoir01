@@ -1,5 +1,7 @@
 extends Node
 
+signal facade_surface_ready
+
 const MATERIAL_FACTORY := preload("res://game/scripts/brussels_osm_facade_surface_material.gd")
 const EXPECTED_MAX_PALETTE := 6
 
@@ -13,9 +15,14 @@ var _enhanced_enabled := true
 var _ready_complete := false
 var _failed := false
 var _hero_replacements_touched := 0
+var _bind_scheduled := false
 
 func _ready() -> void:
-    call_deferred("_apply_when_ready")
+    process_mode = Node.PROCESS_MODE_ALWAYS
+    var tree := get_tree()
+    if not tree.node_added.is_connected(_on_node_added):
+        tree.node_added.connect(_on_node_added)
+    _schedule_apply()
 
 func _palette_key(material: Material) -> String:
     if material is StandardMaterial3D:
@@ -36,29 +43,71 @@ func _shared_material_for(material: Material) -> ShaderMaterial:
     _materials[key] = shared
     return shared
 
-func _apply_when_ready() -> void:
-    var buildings_root: Node3D = null
-    for _attempt: int in range(180):
-        await get_tree().process_frame
-        var candidate := get_tree().root.find_child("GeneratedBuildings", true, false)
-        if candidate is Node3D:
-            buildings_root = candidate as Node3D
-            break
+func _valid_buildings_root(node: Node) -> bool:
+    return node is Node3D and str(node.name) == "GeneratedBuildings" and node.get_parent() != null and str(node.get_parent().name) == "BrusselsOSM"
+
+func _buildings_root_from_added(node: Node) -> Node3D:
+    var cursor: Node = node
+    while cursor != null and cursor != get_tree().root:
+        if _valid_buildings_root(cursor):
+            return cursor as Node3D
+        cursor = cursor.get_parent()
+    var nested := node.get_node_or_null("BrusselsOSM/GeneratedBuildings")
+    if _valid_buildings_root(nested):
+        return nested as Node3D
+    return null
+
+func _find_existing_buildings_root() -> Node3D:
+    # One bounded recursive recovery covers legitimate test/editor mounts where
+    # production main is nested below a SubViewport. This is event-driven and
+    # never reintroduces the historical frame-by-frame global polling loop.
+    for candidate: Node in get_tree().root.find_children("GeneratedBuildings", "Node3D", true, false):
+        if _valid_buildings_root(candidate):
+            return candidate as Node3D
+    return null
+
+func _on_node_added(node: Node) -> void:
+    if _ready_complete or _failed:
+        return
+    if _buildings_root_from_added(node) != null:
+        _schedule_apply()
+
+func _schedule_apply() -> void:
+    if _bind_scheduled or _ready_complete or _failed:
+        return
+    _bind_scheduled = true
+    call_deferred("_try_apply")
+
+func _disconnect_mount_listener() -> void:
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+
+func _fail(message: String) -> void:
+    push_error("Brussels OSM facade surface runtime: %s" % message)
+    _failed = true
+    _ready_complete = true
+    _disconnect_mount_listener()
+
+func _try_apply() -> void:
+    _bind_scheduled = false
+    if _ready_complete or _failed:
+        return
+    var buildings_root := _find_existing_buildings_root()
     if buildings_root == null:
-        push_error("Brussels OSM facade surface runtime: GeneratedBuildings missing")
-        _failed = true
-        _ready_complete = true
         return
 
+    var candidates: Array[CSGPolygon3D] = []
     for child: Node in buildings_root.get_children():
-        if not child is CSGPolygon3D or not str(child.name).begins_with("Building_"):
-            continue
-        var building := child as CSGPolygon3D
+        if child is CSGPolygon3D and str(child.name).begins_with("Building_"):
+            candidates.append(child as CSGPolygon3D)
+    if candidates.is_empty():
+        return
+
+    for building: CSGPolygon3D in candidates:
         var shared := _shared_material_for(building.material)
         if shared == null:
-            push_error("Brussels OSM facade surface runtime: unsupported legacy material for %s" % building.name)
-            _failed = true
-            _ready_complete = true
+            _fail("unsupported legacy material for %s" % building.name)
             return
         var instance_id := building.get_instance_id()
         _buildings.append(building)
@@ -73,20 +122,15 @@ func _apply_when_ready() -> void:
         building.set_meta("building_material_claimed", false)
         building.set_meta("geometry_changed_by_facade_surface_runtime", false)
 
-    if _buildings.is_empty():
-        push_error("Brussels OSM facade surface runtime: no generic production buildings found")
-        _failed = true
-        _ready_complete = true
-        return
     if _materials.size() > EXPECTED_MAX_PALETTE:
-        push_error("Brussels OSM facade surface runtime: unexpected legacy palette expansion (%d)" % _materials.size())
-        _failed = true
-        _ready_complete = true
+        _fail("unexpected legacy palette expansion (%d)" % _materials.size())
         return
 
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
-    print("BRUSSELS_OSM_FACADE_SURFACE_READY: buildings=%d materials=%d family=%s source=OSM license=ODbL-1.0 geometry_changed=false material_identity_claimed=false" % [_buildings.size(), _materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
+    _disconnect_mount_listener()
+    facade_surface_ready.emit()
+    print("BRUSSELS_OSM_FACADE_SURFACE_READY: buildings=%d materials=%d family=%s source=OSM license=ODbL-1.0 geometry_changed=false material_identity_claimed=false event_driven=true" % [_buildings.size(), _materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
 
 func _set_material_state(enabled: bool) -> void:
     for building: CSGPolygon3D in _buildings:

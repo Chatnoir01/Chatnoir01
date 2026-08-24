@@ -52,15 +52,41 @@ jobs:
           print('Runtime bounds:', data['bounds_m'])
           PY
 
-      - name: Commit changed runtime slice
+      - name: Rebuild deterministic road runtime index
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          python3 tools/tests/test_road_destination_catalog.py
+          python3 tools/build_road_runtime_index.py \
+            --source-root data/osm \
+            --output data/runtime/road_destination_runtime_index.json
+          python3 tools/tests/test_road_runtime_index.py
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          source = Path('data/osm/vertical_slice_01.game.json')
+          index = json.loads(Path('data/runtime/road_destination_runtime_index.json').read_text(encoding='utf-8'))
+          assert index['format'] == 'grand-bruxelles-road-runtime-index-v1'
+          descriptors = [d for d in index['documents'] if d['path'] == 'data/osm/vertical_slice_01.game.json']
+          assert len(descriptors) == 1, descriptors
+          actual = hashlib.sha256(source.read_bytes()).hexdigest()
+          expected = descriptors[0]['sha256']
+          assert actual == expected, (actual, expected)
+          print('OSM_RUNTIME_INDEX_ATOMIC_GREEN:', actual, 'roads=', len(descriptors[0]['road_ids']))
+          PY
+
+      - name: Commit changed runtime slice and index
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add grand-bruxelles-game/data/osm/vertical_slice_01.game.json
+          git add \
+            grand-bruxelles-game/data/osm/vertical_slice_01.game.json \
+            grand-bruxelles-game/data/runtime/road_destination_runtime_index.json
           if git diff --cached --quiet; then
-            echo "Brussels runtime slice already up to date."
+            echo "Brussels runtime slice and road index already up to date."
           else
-            git commit -m "data: refresh Brussels OSM runtime slice [osm-sync]"
+            git commit -m "data: refresh Brussels OSM runtime slice and road index [osm-sync]"
             git push origin HEAD:main
           fi

@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+import json
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = ROOT / "tools" / "build_road_runtime_index.py"
+spec = importlib.util.spec_from_file_location("road_runtime_index", SCRIPT)
+assert spec and spec.loader
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+
+def write_document(path: Path, roads: list[dict]) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(
+        {"format": "grand-bruxelles-osm-v1", "roads": roads, "buildings": []},
+        ensure_ascii=False,
+    )
+    path.write_text(text, encoding="utf-8")
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def road(osm_id: int, name: str = "Teststraat - Rue Test") -> dict:
+    return {
+        "osm_id": osm_id,
+        "name": name,
+        "class": "tertiary",
+        "width": 7.0,
+        "drivable": True,
+        "points": [[0.0, 0.0], [10.0, 0.0]],
+    }
+
+
+def test_synthetic_determinism_and_source_binding() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        source_root = Path(tmp) / "data" / "osm"
+        expected_sha = write_document(source_root / "slice.game.json", [road(20), road(10)])
+        catalog = module._catalog_module.build_catalog(source_root)
+        first = module.build_runtime_index(catalog)
+        second = module.build_runtime_index(catalog)
+        assert first == second
+        assert first["format"] == "grand-bruxelles-road-runtime-index-v1"
+        assert first["source_lookup_only"] is True
+        assert first["authorization"]["safe_spawn_authorized"] is False
+        assert len(first["documents"]) == 1
+        descriptor = first["documents"][0]
+        assert descriptor["path"] == "data/osm/slice.game.json"
+        assert descriptor["sha256"] == expected_sha
+        assert descriptor["road_ids"] == [10, 20]
+
+
+def test_duplicate_source_ownership_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        source_root = Path(tmp) / "data" / "osm"
+        write_document(source_root / "a.game.json", [road(42)])
+        write_document(source_root / "b.game.json", [road(42)])
+        catalog = module._catalog_module.build_catalog(source_root)
+        try:
+            module.build_runtime_index(catalog)
+        except SystemExit as exc:
+            assert "exactly one runtime source document" in str(exc)
+        else:
+            raise AssertionError("duplicate runtime source ownership did not fail closed")
+
+
+def test_real_slice_matches_catalog_and_contains_lemonnier() -> None:
+    source_root = ROOT / "data" / "osm"
+    catalog = module._catalog_module.build_catalog(source_root)
+    module._catalog_module.validate_contract(catalog)
+    index = module.build_runtime_index(catalog)
+    module.validate_contract(index)
+
+    assert len(index["documents"]) == 1
+    descriptor = index["documents"][0]
+    assert descriptor["path"] == "data/osm/vertical_slice_01.game.json"
+    assert descriptor["sha256"] == catalog["source_document_sha256"][descriptor["path"]]
+    assert len(descriptor["road_ids"]) == catalog["entry_count"]
+    assert 359177328 in descriptor["road_ids"]
+    assert 487501805 in descriptor["road_ids"]
+    assert 1382734012 in descriptor["road_ids"]
+    assert index["catalog_sha256"] == catalog["catalog_sha256"]
+    print(
+        "ROAD_RUNTIME_INDEX_REAL_COUNT: "
+        f"roads={len(descriptor['road_ids'])} documents={len(index['documents'])} "
+        f"source_sha256={descriptor['sha256']} catalog_sha256={index['catalog_sha256']}"
+    )
+
+
+def main() -> int:
+    test_synthetic_determinism_and_source_binding()
+    test_duplicate_source_ownership_fails_closed()
+    test_real_slice_matches_catalog_and_contains_lemonnier()
+    print("ROAD_RUNTIME_INDEX_TEST_OK")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

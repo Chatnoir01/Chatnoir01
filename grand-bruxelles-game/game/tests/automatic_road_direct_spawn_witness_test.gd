@@ -4,7 +4,8 @@ const MAIN_SCENE := preload("res://game/main.tscn")
 const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn.gd")
 const LEMONNIER_ID := 359177328
 const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
-const SOURCE_SHA256 := "a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493"
+const RUNTIME_INDEX_PATH := "res://data/runtime/road_destination_runtime_index.json"
+const RUNTIME_INDEX_FORMAT := "grand-bruxelles-road-runtime-index-v1"
 const OUTPUT_PATH := "res://artifacts/visual/automatic_road_359177328_player.png"
 const WIDTH := 1280
 const HEIGHT := 720
@@ -16,6 +17,47 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
     push_error("AUTOMATIC_ROAD_DIRECT_SPAWN_WITNESS_FAIL: %s" % message)
     quit(1)
+
+func _runtime_index_source_sha() -> String:
+    if not FileAccess.file_exists(RUNTIME_INDEX_PATH):
+        return ""
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(RUNTIME_INDEX_PATH))
+    if not parsed is Dictionary:
+        return ""
+    var index := parsed as Dictionary
+    if str(index.get("format", "")) != RUNTIME_INDEX_FORMAT or not bool(index.get("source_lookup_only", false)):
+        return ""
+    var authorization: Variant = index.get("authorization", {})
+    if not authorization is Dictionary:
+        return ""
+    var auth := authorization as Dictionary
+    if not bool(auth.get("source_lookup_only", false)):
+        return ""
+    for forbidden: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:
+        if bool(auth.get(forbidden, true)):
+            return ""
+
+    var documents: Variant = index.get("documents", [])
+    if not documents is Array:
+        return ""
+    var source_relative := SOURCE_PATH.trim_prefix("res://")
+    for raw_document: Variant in documents:
+        if not raw_document is Dictionary:
+            return ""
+        var descriptor := raw_document as Dictionary
+        if str(descriptor.get("path", "")) != source_relative:
+            continue
+        var expected_sha := str(descriptor.get("sha256", "")).strip_edges().to_lower()
+        var road_ids: Variant = descriptor.get("road_ids", [])
+        if expected_sha.length() != 64 or not road_ids is Array or road_ids.is_empty():
+            return ""
+        var contains_lemonnier := false
+        for raw_id: Variant in road_ids:
+            if int(raw_id) == LEMONNIER_ID:
+                contains_lemonnier = true
+                break
+        return expected_sha if contains_lemonnier else ""
+    return ""
 
 func _hide_dynamic(scene: Node) -> void:
     for path: String in ["MissionLabel", "PrototypeLabel", "MiniMap", "MobileControls"]:
@@ -67,6 +109,15 @@ func _selected_source_tangent(segment_index: int) -> Vector2:
     return Vector2.ZERO
 
 func _run() -> void:
+    var expected_source_sha := _runtime_index_source_sha()
+    if expected_source_sha.is_empty():
+        _fail("deterministic source-only runtime index contract missing")
+        return
+    var actual_source_sha := FileAccess.get_sha256(SOURCE_PATH).to_lower()
+    if actual_source_sha != expected_source_sha:
+        _fail("source digest no longer matches deterministic runtime index")
+        return
+
     var viewport := SubViewport.new()
     viewport.size = Vector2i(WIDTH, HEIGHT)
     viewport.own_world_3d = true
@@ -98,7 +149,7 @@ func _run() -> void:
     if str(player.get_meta("automatic_road_direct_source_path", "")) != SOURCE_PATH:
         _fail("source path provenance drifted")
         return
-    if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != SOURCE_SHA256:
+    if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != expected_source_sha:
         _fail("source digest provenance drifted")
         return
     if not str(player.get_meta("automatic_road_direct_source_name", "")).contains("Maurice Lemonnier"):
@@ -147,5 +198,5 @@ func _run() -> void:
         _fail("1280x720 player-view capture failed")
         return
 
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_WITNESS_GREEN: osm_id=%d name=%s spawn=(%.3f,%.3f) target=(%.3f,%.3f) ground_y=%.3f offset_m=%.3f road_axis_alignment=%.4f source_sha=%s frame=%s" % [LEMONNIER_ID, str(player.get_meta("automatic_road_direct_source_name", "")), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, ground_y, offset_m, road_axis_alignment, SOURCE_SHA256, OUTPUT_PATH])
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_WITNESS_GREEN: osm_id=%d name=%s spawn=(%.3f,%.3f) target=(%.3f,%.3f) ground_y=%.3f offset_m=%.3f road_axis_alignment=%.4f source_sha=%s frame=%s" % [LEMONNIER_ID, str(player.get_meta("automatic_road_direct_source_name", "")), spawn_xz.x, spawn_xz.y, target_xz.x, target_xz.y, ground_y, offset_m, road_axis_alignment, expected_source_sha, OUTPUT_PATH])
     quit(0)

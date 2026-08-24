@@ -17,6 +17,16 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}" || {
+            echo "RED: rail dormant witness checked out merge-ref/stale commit instead of exact PR head" >&2
+            echo "actual=$(git rev-parse HEAD) expected=${{ github.event.pull_request.head.sha }}" >&2
+            exit 1
+          }
       - name: Install Godot 4.7.1
         shell: bash
         run: |

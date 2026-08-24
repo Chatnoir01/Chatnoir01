@@ -1,0 +1,118 @@
+name: Grand Bruxelles Police Combat Visual Witness
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-police-combat-visual-witness.yml"
+      - "grand-bruxelles-game/project.godot"
+      - "grand-bruxelles-game/game/scripts/npc_police_combat_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/npc_police_combat_feedback_runtime.gd"
+      - "grand-bruxelles-game/game/tests/npc_police_combat_visual_witness_test.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: police-combat-visual-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  police-combat-visual:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha }}"
+          if [ "$actual" != "$expected" ]; then
+            echo "POLICE_COMBAT_EXACT_HEAD_FAIL actual=$actual expected=$expected"
+            exit 1
+          fi
+          echo "POLICE_COMBAT_EXACT_HEAD_OK sha=$actual"
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers
+      - name: Install Godot 4.7.1 ARM64
+        run: |
+          curl --http1.1 -fL --retry 6 --retry-all-errors --retry-delay 3 \
+            -o /tmp/godot.zip \
+            https://godot-releases.nbg1.your-objectstorage.com/4.7.1-stable/Godot_v4.7.1-stable_linux.arm64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.arm64
+      - name: Import and parse project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/police-combat-visual-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/police-combat-visual-import.log; then exit 1; fi
+      - name: Capture police combat player-view witness
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.arm64 \
+            --path grand-bruxelles-game \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --resolution 1280x720 \
+            --script res://game/tests/npc_police_combat_visual_witness_test.gd \
+            2>&1 | tee /tmp/police-combat-visual.log
+          if grep -E "SCRIPT ERROR|Parse Error:|POLICE_COMBAT_VISUAL_WITNESS_FAIL" /tmp/police-combat-visual.log; then exit 1; fi
+          grep -F "POLICE_COMBAT_VISUAL_WITNESS_OK" /tmp/police-combat-visual.log
+          test -s grand-bruxelles-game/artifacts/qa/police_combat_pressure/police_ranged_pressure.png
+          test -s grand-bruxelles-game/artifacts/qa/police_combat_pressure/police_hit_stagger.png
+          test -s grand-bruxelles-game/artifacts/qa/police_combat_pressure/report.json
+      - name: Preserve logs
+        if: always()
+        run: |
+          mkdir -p grand-bruxelles-game/artifacts/qa/police_combat_pressure
+          test ! -f /tmp/police-combat-visual.log || cp /tmp/police-combat-visual.log grand-bruxelles-game/artifacts/qa/police_combat_pressure/witness.log
+          test ! -f /tmp/police-combat-visual-import.log || cp /tmp/police-combat-visual-import.log grand-bruxelles-game/artifacts/qa/police_combat_pressure/import.log
+      - name: Validate witness metrics
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('grand-bruxelles-game/artifacts/qa/police_combat_pressure')
+          report = json.loads((root / 'report.json').read_text(encoding='utf-8'))
+          print(json.dumps(report, indent=2, sort_keys=True))
+          if report.get('resolution') != [1280, 720]:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: resolution')
+          if report.get('ranged_action') != 'ranged_attack':
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: ranged frame did not capture ranged_attack')
+          if int(report.get('ranged_damage', -1)) != 8:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: ranged witness did not execute production damage')
+          if int(report.get('ranged_attack_count_delta', -1)) != 1:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: ranged witness did not execute exactly one production attack')
+          if report.get('ranged_last_attack') != 'ranged_attack':
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: production last-attack metadata missing')
+          health_before = int(report.get('ranged_health_before', -1))
+          health_after = int(report.get('ranged_health_after', -1))
+          if health_before != 100 or health_after != 92 or health_before - health_after != 8:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: ranged health transition is not production 8-damage hit')
+          if report.get('belgian_police_visual') is not True:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: production police visual missing')
+          if int(report.get('stagger_ms', 0)) < 120:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: weak stagger')
+          if float(report.get('impact_intensity', 0.0)) < 1.2:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: weak body impact')
+          if float(report.get('pursuit_speed_mps', 0.0)) < 4.2:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: slow pursuit')
+          print('POLICE_COMBAT_VISUAL_METRICS_OK')
+          PY
+      - name: Upload police combat evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: police-combat-player-view-witness
+          path: grand-bruxelles-game/artifacts/qa/police_combat_pressure
+          if-no-files-found: error

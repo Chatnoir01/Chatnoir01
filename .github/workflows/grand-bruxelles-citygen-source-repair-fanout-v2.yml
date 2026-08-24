@@ -1,0 +1,166 @@
+name: Grand Bruxelles CityGen Source Repair Fanout V2
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-citygen-source-repair-fanout-v2.yml"
+      - "grand-bruxelles-game/tools/citygen/test_source_repair_fanout_v2_contract.py"
+      - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+
+permissions:
+  contents: write
+
+jobs:
+  validate-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 grand-bruxelles-game/tools/citygen/test_source_repair_fanout_v2_contract.py
+
+  select-frontier:
+    if: github.event_name != 'pull_request'
+    needs: validate-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      state_sha: ${{ steps.select.outputs.state_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: select
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/fanout-selection
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          STATE_SHA="$(git rev-parse refs/remotes/origin/citygen-autonomous-state)"
+          echo "state_sha=${STATE_SHA}" >> "$GITHUB_OUTPUT"
+          ROOT=grand-bruxelles-game/data/qa
+          git show "origin/citygen-autonomous-state:${ROOT}/autonomous_citygen_state.json" > /tmp/fanout-selection/state.json
+          git show "origin/citygen-autonomous-state:${ROOT}/brussels_regional_target_grid.json" > /tmp/fanout-selection/grid.json
+          if git cat-file -e "origin/citygen-autonomous-state:${ROOT}/autonomous_sources" 2>/dev/null; then
+            git archive origin/citygen-autonomous-state "${ROOT}/autonomous_sources" | tar -x -C /tmp/fanout-selection
+            mkdir -p grand-bruxelles-game/data/urbis/remaining_brussels/cells
+            cp -a "/tmp/fanout-selection/${ROOT}/autonomous_sources/." grand-bruxelles-game/data/urbis/remaining_brussels/cells/
+          fi
+          python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py \
+            --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
+            --maturity-root grand-bruxelles-game/data/cell_manifests \
+            --state /tmp/fanout-selection/state.json \
+            --target-grid /tmp/fanout-selection/grid.json \
+            --output-dir /tmp/fanout-selection/out \
+            --batch-size 128
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/fanout-selection/out/autonomous_citygen_report.json').read_text())
+          selected=set(r.get('selected_batch', [])); rows=[]
+          for c in r.get('cells', []):
+              if c.get('cell_id') in selected and c.get('state')=='MISSING_SOURCE':
+                  b=c.get('bbox')
+                  if not isinstance(b,list) or len(b)!=4: raise SystemExit('non-canonical bbox')
+                  rows.append((c['cell_id'], ','.join(str(x) for x in b)))
+          for worker in range(16):
+              p=Path(f'/tmp/fanout-selection/worklist-{worker}.tsv')
+              p.write_text(''.join(f'{cell}\t{bbox}\n' for i,(cell,bbox) in enumerate(rows) if i%16==worker))
+          Path('/tmp/fanout-selection/state_sha').write_text('${{ steps.select.outputs.state_sha }}')
+          print(f'SOURCE_REPAIR_FANOUT_SELECTED batch_size: 128 selected={len(rows)} workers=16')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-repair-fanout-selection
+          path: /tmp/fanout-selection
+          retention-days: 1
+
+  materialize-worker:
+    if: github.event_name != 'pull_request'
+    needs: select-frontier
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        worker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: source-repair-fanout-selection
+          path: /tmp/fanout-selection
+      - name: Materialize worker shard outside durable writer lock
+        run: |
+          set -u
+          OUT="/tmp/fanout-worker-${{ matrix.worker }}"
+          mkdir -p "$OUT/sources"
+          : > "$OUT/success.txt"; : > "$OUT/failures.tsv"
+          while IFS=$'\t' read -r CELL BBOX; do
+            [ -n "$CELL" ] || continue
+            DEST="$OUT/sources/$CELL"; LOG="$OUT/$CELL.log"
+            if python3 grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py --cell-id "$CELL" --bbox "$BBOX" --output-dir "$DEST" >"$LOG" 2>&1; then
+              echo "$CELL" >> "$OUT/success.txt"; rm -f "$LOG"
+            else
+              printf '%s\t%s\n' "$CELL" "$(tail -n 1 "$LOG" | tr '\t\r\n' '   ')" >> "$OUT/failures.tsv"
+            fi
+          done < "/tmp/fanout-selection/worklist-${{ matrix.worker }}.tsv"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-repair-worker-${{ matrix.worker }}
+          path: /tmp/fanout-worker-${{ matrix.worker }}
+          retention-days: 1
+
+  persist-fan-in:
+    if: always() && github.event_name != 'pull_request' && needs.select-frontier.result == 'success'
+    needs: [select-frontier, materialize-worker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: grand-bruxelles-autonomous-citygen
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: source-repair-worker-*
+          path: /tmp/fanout-workers
+          merge-multiple: false
+      - name: Persist successful fanout results with stale-state guard
+        run: |
+          set -euo pipefail
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          REMOTE_SHA="$(git rev-parse refs/remotes/origin/citygen-autonomous-state)"
+          EXPECTED_SHA='${{ needs.select-frontier.outputs.state_sha }}'
+          if [ "$REMOTE_SHA" != "$EXPECTED_SHA" ]; then
+            echo "SOURCE_REPAIR_FANOUT_STALE expected=$EXPECTED_SHA current=$REMOTE_SHA" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C citygen-autonomous-state refs/remotes/origin/citygen-autonomous-state
+          ROOT=grand-bruxelles-game/data/qa
+          mkdir -p "$ROOT/autonomous_sources"
+          : > /tmp/fanout-failures.tsv
+          SUCCESS=0
+          for W in /tmp/fanout-workers/source-repair-worker-*; do
+            [ -d "$W" ] || continue
+            cat "$W/failures.tsv" >> /tmp/fanout-failures.tsv 2>/dev/null || true
+            for D in "$W"/sources/*; do
+              [ -d "$D" ] || continue
+              CELL="$(basename "$D")"; mkdir -p "$ROOT/autonomous_sources/$CELL"
+              cp -a "$D/." "$ROOT/autonomous_sources/$CELL/"; SUCCESS=$((SUCCESS+1))
+            done
+          done
+          cp /tmp/fanout-failures.tsv "$ROOT/source_repair_fanout_v2_failures.tsv"
+          git add "$ROOT/autonomous_sources" "$ROOT/source_repair_fanout_v2_failures.tsv"
+          if ! git diff --cached --quiet; then
+            git commit -m "citygen: persist source repair fanout v2"
+            git push --force-with-lease="refs/heads/citygen-autonomous-state:${REMOTE_SHA}" origin HEAD:refs/heads/citygen-autonomous-state
+          fi
+          echo "SOURCE_REPAIR_FANOUT_PERSISTED successes=$SUCCESS failures=$(wc -l < /tmp/fanout-failures.tsv) runtime_mount_authorized=false jouable_promotion_authorized=false"

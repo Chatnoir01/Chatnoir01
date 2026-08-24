@@ -9,6 +9,8 @@ on:
       - "grand-bruxelles-game/game/scripts/npc_police_combat_runtime.gd"
       - "grand-bruxelles-game/game/scripts/npc_police_combat_feedback_runtime.gd"
       - "grand-bruxelles-game/game/tests/npc_police_combat_pressure_test.gd"
+      - "grand-bruxelles-game/tools/qa/police_combat_log_audit.py"
+      - "grand-bruxelles-game/tools/qa/test_police_combat_visual_log_contract.py"
   workflow_dispatch:
 
 permissions:
@@ -42,7 +44,10 @@ jobs:
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.arm64
       - name: Import production project
-        run: /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --editor --quit
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.arm64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/police-combat-pressure-import.log
       - name: Run police combat pressure regression
         shell: bash
         run: |
@@ -53,3 +58,14 @@ jobs:
             2>&1 | tee /tmp/police-combat-pressure.log
           if grep -E "SCRIPT ERROR|Parse Error:|POLICE_COMBAT_PRESSURE_FAIL" /tmp/police-combat-pressure.log; then exit 1; fi
           grep -F "POLICE_COMBAT_PRESSURE_OK" /tmp/police-combat-pressure.log
+      - name: Audit Godot engine errors
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/qa/police_combat_log_audit.py \
+            --allow-known-audio-fallback \
+            /tmp/police-combat-pressure-import.log \
+            /tmp/police-combat-pressure.log \
+            | tee /tmp/police-combat-pressure-log-audit.log
+          if grep -F "POLICE_COMBAT_VISUAL_LOG_AUDIT_FAIL" /tmp/police-combat-pressure-log-audit.log; then exit 1; fi
+          grep -F "POLICE_COMBAT_VISUAL_LOG_AUDIT_OK" /tmp/police-combat-pressure-log-audit.log

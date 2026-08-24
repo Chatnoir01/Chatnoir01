@@ -1,0 +1,30 @@
+name: Grand Bruxelles Police Combat Log Contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-police-combat-log-contract.yml"
+      - ".github/workflows/grand-bruxelles-police-combat-visual-witness.yml"
+      - "grand-bruxelles-game/tools/qa/police_combat_log_audit.py"
+      - "grand-bruxelles-game/tools/qa/test_police_combat_visual_log_contract.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  police-combat-log-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Run police combat visual log contract regression
+        run: python3 grand-bruxelles-game/tools/qa/test_police_combat_visual_log_contract.py

@@ -1,0 +1,92 @@
+name: Grand Bruxelles Road Cell Municipality Preflight
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_road_cell_municipality.measurement.json"
+      - "grand-bruxelles-game/tools/qa/measure_road_cell_municipality_preflight.py"
+      - "grand-bruxelles-game/tools/qa/measure_road_cell_municipality_preflight_v2.py"
+      - "grand-bruxelles-game/tests/test_road_cell_municipality_preflight.py"
+      - "grand-bruxelles-game/tests/test_road_cell_municipality_v2_dependency.py"
+      - ".github/workflows/grand-bruxelles-road-cell-municipality-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  municipality-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install bounded QA dependencies
+        run: python -m pip install --disable-pip-version-check pytest shapely
+
+      - name: Run fail-closed regressions
+        run: |
+          python -m pytest -q \
+            grand-bruxelles-game/tests/test_road_cell_municipality_preflight.py \
+            grand-bruxelles-game/tests/test_road_cell_municipality_v2_dependency.py
+
+      - name: Measure official municipality coverage against road-cell v2
+        run: |
+          python grand-bruxelles-game/tools/qa/measure_road_cell_municipality_preflight_v2.py \
+            --candidate grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json \
+            --output "$RUNNER_TEMP/grand_place_cell_municipality_preflight.json"
+
+      - name: Require exact stable source-only reproduction
+        run: |
+          python - <<'PY'
+          import copy, json, os, re
+          from pathlib import Path
+
+          generated = json.loads((Path(os.environ["RUNNER_TEMP"]) / "grand_place_cell_municipality_preflight.json").read_text())
+          lock = json.loads(Path("grand-bruxelles-game/data/provenance/grand_place_road_cell_municipality.measurement.json").read_text())
+          assert lock["schema"] == "grand-bruxelles-road-cell-municipality-preflight-lock-v3"
+          assert lock["status"] == "LOCKED_SOURCE_ONLY_V2_REBOUND"
+          assert generated["schema"] == "grand-bruxelles-road-cell-municipality-preflight-v3"
+          stable = copy.deepcopy(generated)
+          raw_sha = stable["municipality_source"].pop("raw_payload_sha256")
+          transport_ids = stable["municipality_coverage"].pop("transport_feature_ids")
+          assert re.fullmatch(r"[0-9a-f]{64}", raw_sha)
+          assert isinstance(transport_ids, dict) and len(transport_ids) == 1
+          assert stable == lock["stable_measurement"], (stable, lock["stable_measurement"])
+          assert generated["semantic_sha256"] == "f425d22f2a4530da40c3acbd951387b2e61eb311497c8ef3b5cbbce54897ffdb"
+          coverage = generated["municipality_coverage"]
+          assert coverage["municipality_id"] == "https://databrussels.be/id/municipality/5000074"
+          assert coverage["municipality_niscode"] == "21004"
+          assert coverage["coverage_ratio"] == 1.0
+          for key in [
+              "registration_authorized", "road_cell_mapping_authorized",
+              "runtime_mount_authorized", "rendered_geometry_authorized",
+              "collision_authorized", "safe_spawn_authorized",
+              "jouable_promotion_authorized",
+          ]:
+              assert generated[key] is False, key
+              assert coverage[key] is False, key
+              assert lock[key] is False, key
+          print(
+              "ROAD_CELL_MUNICIPALITY_V2_LOCKED_EXACT: "
+              f"municipality=Bruxelles nis=21004 semantic_sha256={generated['semantic_sha256']} "
+              f"raw_wfs_sha256={raw_sha}"
+          )
+          PY
+
+      - name: Upload municipality preflight evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-cell-municipality-preflight-v2-rebind
+          path: ${{ runner.temp }}/grand_place_cell_municipality_preflight.json
+          if-no-files-found: error

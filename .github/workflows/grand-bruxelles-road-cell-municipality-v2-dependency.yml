@@ -1,0 +1,32 @@
+name: Grand Bruxelles Road Cell Municipality v2 Dependency RED
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json"
+      - "grand-bruxelles-game/tools/qa/measure_road_cell_municipality_preflight.py"
+      - "grand-bruxelles-game/tests/test_road_cell_municipality_v2_dependency.py"
+      - ".github/workflows/grand-bruxelles-road-cell-municipality-v2-dependency.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  red-first-v2-dependency:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install RED-first dependency test
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Run v2 dependency RED-first guard
+        run: python -m pytest -q grand-bruxelles-game/tests/test_road_cell_municipality_v2_dependency.py

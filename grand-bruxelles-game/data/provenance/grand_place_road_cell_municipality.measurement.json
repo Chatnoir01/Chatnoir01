@@ -1,0 +1,91 @@
+{
+  "schema": "grand-bruxelles-road-cell-municipality-preflight-lock-v3",
+  "status": "LOCKED_SOURCE_ONLY_V2_REBOUND",
+  "stable_measurement": {
+    "schema": "grand-bruxelles-road-cell-municipality-preflight-v3",
+    "status": "MUNICIPALITY_PROVEN_SINGLE",
+    "candidate_source": {
+      "path": "grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json",
+      "semantic_sha256": "8aaca3178894950a8a1efe8235e3313f34d4d23656b968a9cbf87666284acd7b",
+      "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+      "road_semantic_sha256": "4ec4ba4ad46a999d3ea32ab4a42b6825d6e43f11fcae92ac9b7a4236222913e0"
+    },
+    "cell": {
+      "grid_cell_id": "E148000_N170000",
+      "bbox": [148000.0, 170000.0, 148500.0, 170500.0],
+      "anchor_id": "grand_place",
+      "road_count": 2,
+      "road_ids": [13842686, 684214770],
+      "point_hits": 9,
+      "segment_hits": 7
+    },
+    "municipality_source": {
+      "provider": "Paradigm / Brussels-Capital Region",
+      "service": "UrbIS vector WFS",
+      "layer": "urbisvector:Municipalities",
+      "crs": "EPSG:31370",
+      "url": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=urbisvector%3AMunicipalities&outputFormat=application%2Fjson&srsName=EPSG%3A31370",
+      "feature_count": 19
+    },
+    "municipality_coverage": {
+      "status": "MUNICIPALITY_PROVEN_SINGLE",
+      "cell_area_m2": 250000.0,
+      "intersection_coverage_sum": 1.0,
+      "municipality_id": "https://databrussels.be/id/municipality/5000074",
+      "municipality_niscode": "21004",
+      "coverage_ratio": 1.0,
+      "intersections": [
+        {
+          "municipality_id": "https://databrussels.be/id/municipality/5000074",
+          "properties": {
+            "AREA": 33086943.5859531,
+            "INSPIRE_ID": "https://databrussels.be/id/municipality/5000074",
+            "NAMEDUT": "Brussel",
+            "NAMEFRE": "Bruxelles",
+            "NISCODE": "21004",
+            "POLICEZONE": "5339"
+          },
+          "intersection_area_m2": 250000.0,
+          "coverage_ratio": 1.0,
+          "covers_entire_cell": true
+        }
+      ],
+      "registration_authorized": false,
+      "road_cell_mapping_authorized": false,
+      "runtime_mount_authorized": false,
+      "rendered_geometry_authorized": false,
+      "collision_authorized": false,
+      "safe_spawn_authorized": false,
+      "jouable_promotion_authorized": false
+    },
+    "registration_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false,
+    "semantic_sha256": "f425d22f2a4530da40c3acbd951387b2e61eb311497c8ef3b5cbbce54897ffdb"
+  },
+  "transport_evidence": {
+    "note": "Raw GeoServer response bytes and generated FIDs remain transport-level forensic evidence and are excluded from the stable semantic lock.",
+    "v2_rebind_measurement": {
+      "workflow_run_id": 32692856670,
+      "artifact_id": 9507827904,
+      "artifact_sha256": "b52189510af65ee92c651102b19cdba5924969f6411911448013ea4edf076246",
+      "measurement_json_sha256": "242ce1ef815197cb7774025af136d46f8de8bcaba944b77f8d14c076da591c43",
+      "raw_payload_sha256": "033c1a36effd0922777c858d81abd97d2d1aba56c946dd6ffd0cb650dbfda6a9"
+    },
+    "historical_v1_raw_payload_sha256": [
+      "dd1e51f6029d63c4a8d7c756280021a577ddca123fb05786a9a48bee751933c1",
+      "e19a9d9af4431c6454a6a3161f7d2ae6769a622e5d97a458558bcafd4b133459"
+    ]
+  },
+  "registration_authorized": false,
+  "road_cell_mapping_authorized": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "jouable_promotion_authorized": false
+}

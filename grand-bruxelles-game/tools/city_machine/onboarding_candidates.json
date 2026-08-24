@@ -3,7 +3,10 @@
   "candidates": {
     "midi": {
       "source_manifest": "data/reconstruction/midi_source_manifest.json",
+      "city_machine_source_manifest": "data/urbis/midi/manifest.json",
       "expected_crs": "EPSG:31370",
+      "expected_bbox": [147250.0, 168900.0, 148500.0, 170250.0],
+      "expected_game_origin": {"e": 148400.0, "n": 169900.0},
       "catalog_mode": "fast_travel",
       "catalog_destination": "midi",
       "runtime_script": "game/scripts/player_controller.gd",
@@ -18,6 +21,13 @@
         "required_runtime": "data/osm/zones/midi/environment.game.json",
         "forbidden_partial_substitute": "data/osm/vertical_slice_01.game.json",
         "require_full_bbox": true
+      },
+      "runtime_data_contract": {
+        "builder_script": "game/scripts/urbis_midi_builder.gd",
+        "required_normalized_inputs": [
+          "res://data/urbis/midi/buildings.game.json",
+          "res://data/urbis/midi/street_surfaces.game.json"
+        ]
       }
     }
   }

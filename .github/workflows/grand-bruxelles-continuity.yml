@@ -19,11 +19,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Validate seven-zone LABO v2 maturity registry
+      - name: Validate seven canonical zones plus visible review aliases
         run: |
           set -euo pipefail
           python3 grand-bruxelles-game/tools/continuity/continuity.py validate | tee /tmp/continuity-validate.log
-          grep -F "CONTINUITY_REGISTRY_OK zones=7 catalog=grand-bruxelles-playable-zone-catalog-v2 midi_baseline=M6 automation_ceiling=M5" /tmp/continuity-validate.log
+          grep -F "CONTINUITY_REGISTRY_OK zones=7 visible=8 review_aliases=1 catalog=grand-bruxelles-playable-zone-catalog-v2 midi_baseline=M6 automation_ceiling=M5" /tmp/continuity-validate.log
       - name: Prove deterministic next lots before report sync
         run: |
           set -euo pipefail

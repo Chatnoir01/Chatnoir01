@@ -53,8 +53,9 @@ func _run() -> void:
     if resolver.runtime_index_source_document_count() != 1:
         _fail("deterministic runtime index source document count drifted")
         return
-    if FileAccess.get_sha256(SOURCE_PATH).to_lower() != SOURCE_SHA256:
-        _fail("source SHA no longer matches generated runtime index")
+    var actual_source_sha := FileAccess.get_sha256(SOURCE_PATH).to_lower()
+    if actual_source_sha != SOURCE_SHA256:
+        _fail("source SHA no longer matches generated runtime index actual=%s expected=%s" % [actual_source_sha, SOURCE_SHA256])
         return
     if resolver.requested_road_id(PackedStringArray(["spawn=road-359177328"])) != LEMONNIER_ID:
         _fail("valid road request did not parse")

@@ -146,6 +146,18 @@ class RenderedMainBaseAttributionTest(unittest.TestCase):
         self.assertTrue(doc["monotonic_toward_frozen"])
         self.assertEqual(doc["changed_tile_indexes"], [])
 
+    def test_accepts_changed_tile_that_is_neutral_within_metric_tolerance(self):
+        frozen = fp_tiles([[0.20, 0.20, 0.20, 0.20]])
+        base = fp_tiles([[0.5000, 0.2000, 0.5000, 0.4000]])
+        candidate = fp_tiles([[0.5021, 0.2000, 0.4950, 0.3982]])
+        proc, doc = self.run_case(candidate, base, frozen, base_failed=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+        self.assertTrue(doc["monotonic_toward_frozen"])
+        self.assertEqual(doc["changed_tile_indexes"], [0])
+        self.assertEqual(doc["regressed_tile_indexes"], [])
+        self.assertIn(0, doc["neutral_tile_indexes"])
+        self.assertLessEqual(doc["max_regression_away_from_frozen"], 0.002)
+
     def test_workflow_requires_explicit_visual_guard_failures_for_attribution(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("VISUAL_GUARD_PATTERN=", workflow)

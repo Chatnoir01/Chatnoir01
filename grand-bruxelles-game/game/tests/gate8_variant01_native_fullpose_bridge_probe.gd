@@ -1,8 +1,7 @@
 extends "res://game/tests/gate8_variant01_native_retarget_ab_test.gd"
 
-# Diagnostic only. First prove whether the imported target survives a reset to its
-# Skeleton3D rest pose before any animation. Then keep the native RetargetModifier3D
-# experiment unchanged except for mirroring the complete 53-bone proxy local pose.
+# Diagnostic only. Prove bind-pose integrity, inspect the exact source/target bone
+# hierarchy, then mirror the complete proxy pose. No production activation.
 
 var _bridge_max_position_error_m := 0.0
 var _bridge_max_rotation_error_deg := 0.0
@@ -15,6 +14,8 @@ func _load_characters() -> bool:
     var ok: bool = await super._load_characters()
     if not ok:
         return false
+
+    _print_hierarchy_diagnostics()
 
     var imported_positions: Array[Vector3] = []
     var imported_rotations: Array[Quaternion] = []
@@ -46,7 +47,6 @@ func _load_characters() -> bool:
 
     await _capture_target_sanity("reset-to-rest")
 
-    # Restore the exact imported pose before the inherited experiment continues.
     for bone_idx: int in range(_target_skeleton.get_bone_count()):
         _target_skeleton.set_bone_pose_position(bone_idx, imported_positions[bone_idx])
         _target_skeleton.set_bone_pose_rotation(bone_idx, imported_rotations[bone_idx])
@@ -59,6 +59,33 @@ func _load_characters() -> bool:
         _imported_to_rest_max_scale_delta
     ])
     return true
+
+func _print_hierarchy_diagnostics() -> void:
+    print("GATE8_HIERARCHY_COUNTS source=%d target=%d" % [_source_skeleton.get_bone_count(), _target_skeleton.get_bone_count()])
+    for role: String in ROLE_ORDER:
+        var pair: Array = ROLE_PAIRS[role]
+        var source_idx := _source_skeleton.find_bone(String(pair[0]))
+        var target_idx := _target_skeleton.find_bone(String(pair[1]))
+        if source_idx < 0 or target_idx < 0:
+            continue
+        var source_parent_idx := _source_skeleton.get_bone_parent(source_idx)
+        var target_parent_idx := _target_skeleton.get_bone_parent(target_idx)
+        var source_parent := "<root>" if source_parent_idx < 0 else String(_source_skeleton.get_bone_name(source_parent_idx))
+        var target_parent := "<root>" if target_parent_idx < 0 else String(_target_skeleton.get_bone_name(target_parent_idx))
+        var sg := _source_skeleton.get_bone_global_rest(source_idx).origin
+        var tg := _target_skeleton.get_bone_global_rest(target_idx).origin
+        print("GATE8_ROLE_HIERARCHY role=%s source=%s source_parent=%s target=%s target_parent=%s source_rest=(%.4f,%.4f,%.4f) target_rest=(%.4f,%.4f,%.4f)" % [
+            role, String(pair[0]), source_parent, String(pair[1]), target_parent,
+            sg.x, sg.y, sg.z, tg.x, tg.y, tg.z
+        ])
+
+    for bone_idx: int in range(_source_skeleton.get_bone_count()):
+        var bone_name := String(_source_skeleton.get_bone_name(bone_idx))
+        if bone_name.contains("spine") or bone_name.contains("hips") or bone_name.contains("neck") or bone_name.contains("head"):
+            var parent_idx := _source_skeleton.get_bone_parent(bone_idx)
+            var parent_name := "<root>" if parent_idx < 0 else String(_source_skeleton.get_bone_name(parent_idx))
+            var g := _source_skeleton.get_bone_global_rest(bone_idx).origin
+            print("GATE8_SOURCE_TORSO_BONE idx=%d name=%s parent=%s rest=(%.4f,%.4f,%.4f)" % [bone_idx, bone_name, parent_name, g.x, g.y, g.z])
 
 func _capture_target_sanity(label: String) -> void:
     var pelvis_idx := _target_skeleton.find_bone("pelvis")
@@ -129,9 +156,6 @@ func _measure_fullpose_bridge_fidelity() -> void:
             (proxy_pose.basis.get_scale() - target_pose.basis.get_scale()).length()
         )
 
-    # Rotation comparison accumulates tiny quaternion-normalization noise through
-    # a 53-bone hierarchy, so record it diagnostically instead of replacing the
-    # authoritative retarget gates. Position/scale must remain effectively exact.
     if _bridge_max_position_error_m > 0.0005:
         _append_bridge_failure_once("fullpose_bridge_position_error=%.6f" % _bridge_max_position_error_m)
     if _bridge_max_scale_error > 0.0005:

@@ -75,6 +75,16 @@ jobs:
               raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: resolution')
           if report.get('ranged_action') != 'ranged_attack':
               raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: ranged frame did not capture ranged_attack')
+          if int(report.get('ranged_damage', -1)) != 8:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: ranged witness did not execute production damage')
+          if int(report.get('ranged_attack_count_delta', -1)) != 1:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: ranged witness did not execute exactly one production attack')
+          if report.get('ranged_last_attack') != 'ranged_attack':
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: production last-attack metadata missing')
+          health_before = int(report.get('ranged_health_before', -1))
+          health_after = int(report.get('ranged_health_after', -1))
+          if health_before != 100 or health_after != 92 or health_before - health_after != 8:
+              raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: ranged health transition is not production 8-damage hit')
           if report.get('belgian_police_visual') is not True:
               raise SystemExit('POLICE_COMBAT_VISUAL_METRICS_FAIL: production police visual missing')
           if int(report.get('stagger_ms', 0)) < 120:

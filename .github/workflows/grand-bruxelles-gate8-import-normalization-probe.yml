@@ -1,0 +1,326 @@
+name: Grand Bruxelles Gate-8 Import Normalization Probe
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_variant01_import_normalization_probe.gd"
+      - ".github/workflows/grand-bruxelles-gate8-import-normalization-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  import-normalization-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-import-normalization"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download immutable source and target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$ANIM_URL" -o /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          python - <<'PY'
+          import os, zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member = os.environ['ANIM_GLB']
+              assert member in z.namelist(), member
+              Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+          mkdir -p /tmp/gate8-target
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target
+          TARGET="$(find /tmp/gate8-target -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"
+          cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 >/dev/null
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated import project and BoneMaps
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"
+          mkdir -p "$ISOLATED_PROJECT/assets/axis_only" "$ISOLATED_PROJECT/assets/silhouette" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8ImportNormalizationProbe"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          window/size/window_width_override=1280
+          window/size/window_height_override=720
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          for MODE in axis_only silhouette; do
+            cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/$MODE/animation_source.glb"
+            cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/$MODE/npc_gate_01.glb"
+          done
+          cp grand-bruxelles-game/game/tests/gate8_variant01_import_normalization_probe.gd "$ISOLATED_PROJECT/game/tests/"
+
+          cat > "$ISOLATED_PROJECT/source_bonemap.tres" <<'EOF'
+          [gd_resource type="BoneMap" load_steps=2 format=3]
+
+          [sub_resource type="SkeletonProfileHumanoid" id="SkeletonProfileHumanoid_gate8_source"]
+
+          [resource]
+          profile = SubResource("SkeletonProfileHumanoid_gate8_source")
+          bone_map/Root = &"root"
+          bone_map/Hips = &"DEF-hips"
+          bone_map/Spine = &"DEF-spine.001"
+          bone_map/Chest = &"DEF-spine.002"
+          bone_map/UpperChest = &"DEF-spine.003"
+          bone_map/Neck = &"DEF-neck"
+          bone_map/Head = &"DEF-head"
+          bone_map/LeftShoulder = &"DEF-shoulder.L"
+          bone_map/LeftUpperArm = &"DEF-upper_arm.L"
+          bone_map/LeftLowerArm = &"DEF-forearm.L"
+          bone_map/LeftHand = &"DEF-hand.L"
+          bone_map/RightShoulder = &"DEF-shoulder.R"
+          bone_map/RightUpperArm = &"DEF-upper_arm.R"
+          bone_map/RightLowerArm = &"DEF-forearm.R"
+          bone_map/RightHand = &"DEF-hand.R"
+          bone_map/LeftUpperLeg = &"DEF-thigh.L"
+          bone_map/LeftLowerLeg = &"DEF-shin.L"
+          bone_map/LeftFoot = &"DEF-foot.L"
+          bone_map/LeftToes = &"DEF-toe.L"
+          bone_map/RightUpperLeg = &"DEF-thigh.R"
+          bone_map/RightLowerLeg = &"DEF-shin.R"
+          bone_map/RightFoot = &"DEF-foot.R"
+          bone_map/RightToes = &"DEF-toe.R"
+          EOF
+
+          cat > "$ISOLATED_PROJECT/target_bonemap.tres" <<'EOF'
+          [gd_resource type="BoneMap" load_steps=2 format=3]
+
+          [sub_resource type="SkeletonProfileHumanoid" id="SkeletonProfileHumanoid_gate8_target"]
+
+          [resource]
+          profile = SubResource("SkeletonProfileHumanoid_gate8_target")
+          bone_map/Root = &"Root"
+          bone_map/Hips = &"pelvis"
+          bone_map/Spine = &"spine_01"
+          bone_map/Chest = &"spine_02"
+          bone_map/UpperChest = &"spine_03"
+          bone_map/Neck = &"neck_01"
+          bone_map/Head = &"head"
+          bone_map/LeftShoulder = &"clavicle_l"
+          bone_map/LeftUpperArm = &"upperarm_l"
+          bone_map/LeftLowerArm = &"lowerarm_l"
+          bone_map/LeftHand = &"hand_l"
+          bone_map/RightShoulder = &"clavicle_r"
+          bone_map/RightUpperArm = &"upperarm_r"
+          bone_map/RightLowerArm = &"lowerarm_r"
+          bone_map/RightHand = &"hand_r"
+          bone_map/LeftUpperLeg = &"thigh_l"
+          bone_map/LeftLowerLeg = &"calf_l"
+          bone_map/LeftFoot = &"foot_l"
+          bone_map/LeftToes = &"ball_l"
+          bone_map/RightUpperLeg = &"thigh_r"
+          bone_map/RightLowerLeg = &"calf_r"
+          bone_map/RightFoot = &"foot_r"
+          bone_map/RightToes = &"ball_r"
+          EOF
+
+      - name: Perform initial raw import
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/raw-import.log
+          test -f "$ISOLATED_PROJECT/assets/axis_only/animation_source.glb.import"
+          test -f "$ISOLATED_PROJECT/assets/axis_only/npc_gate_01.glb.import"
+          test -f "$ISOLATED_PROJECT/assets/silhouette/animation_source.glb.import"
+          test -f "$ISOLATED_PROJECT/assets/silhouette/npc_gate_01.glb.import"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/raw-import.log
+
+      - name: Discover actual Skeleton3D paths
+        run: |
+          set -euo pipefail
+          cat > "$ISOLATED_PROJECT/discover_skeleton_paths.gd" <<'EOF'
+          extends SceneTree
+          func _init() -> void:
+              call_deferred("_run")
+          func _run() -> void:
+              for mode in ["axis_only", "silhouette"]:
+                  for kind in ["animation_source", "npc_gate_01"]:
+                      var path = "res://assets/%s/%s.glb" % [mode, kind]
+                      var packed = load(path) as PackedScene
+                      if packed == null:
+                          push_error("DISCOVER_LOAD_FAILED %s" % path)
+                          quit(2)
+                          return
+                      var instance = packed.instantiate()
+                      root.add_child(instance)
+                      var skeleton = _find_skeleton(instance)
+                      if skeleton == null:
+                          push_error("DISCOVER_SKELETON_MISSING %s" % path)
+                          quit(3)
+                          return
+                      print("GATE8_IMPORT_SKELETON_PATH mode=%s kind=%s path=%s" % [mode, kind, String(instance.get_path_to(skeleton))])
+                      instance.queue_free()
+                      await process_frame
+              quit(0)
+          func _find_skeleton(node: Node) -> Skeleton3D:
+              if node is Skeleton3D:
+                  return node as Skeleton3D
+              for child in node.get_children():
+                  var found = _find_skeleton(child)
+                  if found != null:
+                      return found
+              return null
+          EOF
+          "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://discover_skeleton_paths.gd 2>&1 | tee /tmp/skeleton-paths.log
+          test "$(grep -c '^GATE8_IMPORT_SKELETON_PATH ' /tmp/skeleton-paths.log)" = "4"
+
+      - name: Inject official BoneMap and rest normalization import settings
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          project = Path('/tmp/gate8-import-normalization')
+          log = Path('/tmp/skeleton-paths.log').read_text().splitlines()
+          paths = {}
+          for line in log:
+              m = re.match(r'^GATE8_IMPORT_SKELETON_PATH mode=(\S+) kind=(\S+) path=(.+)$', line)
+              if m:
+                  paths[(m.group(1), m.group(2))] = m.group(3).strip()
+          assert len(paths) == 4, paths
+
+          def patch(mode, kind, bonemap, silhouette):
+              import_path = project / 'assets' / mode / f'{kind}.glb.import'
+              text = import_path.read_text()
+              key = f'PATH:{paths[(mode, kind)]}'
+              node_options = f'''_subresources={{
+          "nodes": {{
+          "{key}": {{
+          "retarget/bone_map": Resource("res://{bonemap}"),
+          "retarget/bone_renamer/rename_bones": true,
+          "retarget/bone_renamer/unique_node/make_unique": true,
+          "retarget/bone_renamer/unique_node/skeleton_name": "GeneralSkeleton",
+          "retarget/rest_fixer/apply_node_transforms": true,
+          "retarget/rest_fixer/normalize_position_tracks": true,
+          "retarget/rest_fixer/reset_all_bone_poses_after_import": true,
+          "retarget/rest_fixer/retarget_method": 1,
+          "retarget/rest_fixer/keep_global_rest_on_leftovers": true,
+          "retarget/rest_fixer/fix_silhouette/enable": {str(silhouette).lower()},
+          "retarget/rest_fixer/fix_silhouette/threshold": 15.0,
+          "retarget/rest_fixer/fix_silhouette/base_height_adjustment": 0.0
+          }}
+          }}
+          }}'''
+              lines = text.splitlines()
+              replaced = False
+              out = []
+              idx = 0
+              while idx < len(lines):
+                  line = lines[idx]
+                  if line.startswith('_subresources='):
+                      # Initial raw import is expected to have no per-node overrides.
+                      assert line == '_subresources={}', (import_path, line)
+                      out.extend(node_options.splitlines())
+                      replaced = True
+                  else:
+                      out.append(line)
+                  idx += 1
+              assert replaced, import_path
+              import_path.write_text('\n'.join(out) + '\n')
+              print(f'GATE8_IMPORT_CONFIGURED mode={mode} kind={kind} key={key} silhouette={str(silhouette).lower()}')
+
+          for mode, silhouette in [('axis_only', False), ('silhouette', True)]:
+              patch(mode, 'animation_source', 'source_bonemap.tres', silhouette)
+              patch(mode, 'npc_gate_01', 'target_bonemap.tres', silhouette)
+          PY
+          grep -R 'retarget/rest_fixer/retarget_method": 1' "$ISOLATED_PROJECT/assets"/*.none 2>/dev/null || true
+          grep -R 'retarget/bone_map' "$ISOLATED_PROJECT/assets"/*/*.glb.import | tee /tmp/import-config-evidence.txt
+          test "$(wc -l < /tmp/import-config-evidence.txt)" -ge 4
+
+      - name: Force normalized reimport under Godot 4.7.1
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT/.godot/imported"
+          timeout 360s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1600 2>&1 | tee /tmp/normalized-import.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/normalized-import.log
+          grep -R 'retarget/bone_map' "$ISOLATED_PROJECT/assets"/*/*.glb.import > /tmp/import-config-after.txt
+          test "$(wc -l < /tmp/import-config-after.txt)" -ge 4
+
+      - name: Measure normalized target and capture six real frames
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          MESA_LOADER_DRIVER_OVERRIDE: "llvmpipe"
+        run: |
+          set -euo pipefail
+          timeout 300s xvfb-run -a -s '-screen 0 1280x720x24' "$GODOT" --path "$ISOLATED_PROJECT" --rendering-method gl_compatibility --script res://game/tests/gate8_variant01_import_normalization_probe.gd 2>&1 | tee /tmp/import-normalization-probe.log
+          test -s "$ISOLATED_PROJECT/gate8_import_normalization_result.json"
+          for f in \
+            gate8_import_axis_only_rest.png \
+            gate8_import_axis_only_jog-fwd.png \
+            gate8_import_axis_only_sprint.png \
+            gate8_import_silhouette_rest.png \
+            gate8_import_silhouette_jog-fwd.png \
+            gate8_import_silhouette_sprint.png; do
+            test -s "$ISOLATED_PROJECT/$f"
+          done
+          grep -q '^GATE8_IMPORT_NORMALIZATION_PROBE_OK ' /tmp/import-normalization-probe.log
+
+      - name: Stage normalization evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/evidence && mkdir -p /tmp/evidence
+          for f in /tmp/godot-version.txt /tmp/raw-import.log /tmp/skeleton-paths.log /tmp/import-config-evidence.txt /tmp/normalized-import.log /tmp/import-normalization-probe.log "$ISOLATED_PROJECT/gate8_import_normalization_result.json"; do
+            if [ -s "$f" ]; then cp "$f" /tmp/evidence/; fi
+          done
+          find "$ISOLATED_PROJECT" -maxdepth 1 -type f -name 'gate8_import_*.png' -exec cp {} /tmp/evidence/ \;
+          cp "$ISOLATED_PROJECT/source_bonemap.tres" /tmp/evidence/
+          cp "$ISOLATED_PROJECT/target_bonemap.tres" /tmp/evidence/
+          for f in "$ISOLATED_PROJECT"/assets/*/*.glb.import; do cp "$f" "/tmp/evidence/$(basename "$(dirname "$f")")-$(basename "$f")"; done
+          sha256sum /tmp/evidence/* | sort -k2 > /tmp/evidence/sha256.txt
+
+      - name: Prove repository remained untouched
+        if: always()
+        run: |
+          set -euo pipefail
+          git status --porcelain --untracked-files=all | tee /tmp/git-status.txt
+          test ! -s /tmp/git-status.txt
+
+      - name: Upload normalization evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-import-normalization-probe
+          path: /tmp/evidence
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

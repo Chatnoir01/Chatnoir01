@@ -1,0 +1,48 @@
+name: Grand Bruxelles Road Source SHA Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - ".github/workflows/grand-bruxelles-road-source-sha-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  road-source-sha:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Measure exact road source SHA without changing authorization
+        run: |
+          set -euo pipefail
+          SOURCE="grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+          ACTUAL="$(sha256sum "$SOURCE" | awk '{print $1}')"
+          EXPECTED="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('grand-bruxelles-game/data/runtime/road_destination_runtime_index.json')
+          d = json.loads(p.read_text())
+          print(d['documents'][0]['sha256'])
+          PY
+          )"
+          echo "ROAD_SOURCE_SHA_DIAGNOSTIC actual=$ACTUAL expected=$EXPECTED"
+          test -n "$ACTUAL"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('grand-bruxelles-game/data/runtime/road_destination_runtime_index.json')
+          d = json.loads(p.read_text())
+          auth = d['authorization']
+          assert d['source_lookup_only'] is True
+          assert auth['source_lookup_only'] is True
+          for key in ('collision_authorized','jouable_authorized','render_authorized','runtime_mount_authorized','safe_spawn_authorized'):
+              assert auth[key] is False, (key, auth[key])
+          print('ROAD_SOURCE_SHA_AUTHORIZATION_OK all_runtime_authorizations=false source_lookup_only=true')
+          PY

@@ -1,0 +1,134 @@
+name: Grand Bruxelles Gate-8 Native Full-Pose Bridge Probe
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd"
+      - "grand-bruxelles-game/game/tests/gate8_variant01_native_fullpose_bridge_probe.gd"
+      - ".github/workflows/grand-bruxelles-gate8-native-fullpose-bridge-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  fullpose-bridge-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-native-fullpose-bridge"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download pinned CC0 source and immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$ANIM_URL" -o /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          member='Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb'
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              assert member in z.namelist()
+              Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          mkdir -p /tmp/gate8-target
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target
+          TARGET="$(find /tmp/gate8-target -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"
+          cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 >/dev/null
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated witness
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"
+          mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8NativeFullPoseBridge"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          window/size/window_width_override=1280
+          window/size/window_height_override=720
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd "$ISOLATED_PROJECT/game/tests/"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_native_fullpose_bridge_probe.gd "$ISOLATED_PROJECT/game/tests/"
+
+      - name: Import real source and target
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/import.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+
+      - name: Probe full-pose bridge and capture both frames
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          MESA_LOADER_DRIVER_OVERRIDE: "llvmpipe"
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 300s xvfb-run -a -s '-screen 0 1280x720x24' "$GODOT" --path "$ISOLATED_PROJECT" --rendering-method gl_compatibility --script res://game/tests/gate8_variant01_native_fullpose_bridge_probe.gd 2>&1 | tee /tmp/fullpose-bridge.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          test -s "$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json"
+          test -s "$ISOLATED_PROJECT/gate8_variant01_native_jog-fwd.png"
+          test -s "$ISOLATED_PROJECT/gate8_variant01_native_sprint.png"
+          grep -q '^GATE8_NATIVE_FULLPOSE_BRIDGE ' /tmp/fullpose-bridge.log
+          exit "$STATUS"
+
+      - name: Stage evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/evidence && mkdir -p /tmp/evidence
+          for f in /tmp/fullpose-bridge.log /tmp/import.log /tmp/godot-version.txt \
+            "$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json" \
+            "$ISOLATED_PROJECT/gate8_variant01_native_jog-fwd.png" \
+            "$ISOLATED_PROJECT/gate8_variant01_native_sprint.png"; do
+            if [ -s "$f" ]; then cp "$f" /tmp/evidence/; fi
+          done
+          sha256sum /tmp/evidence/* | sort -k2 > /tmp/evidence/sha256.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-native-fullpose-bridge-probe
+          path: /tmp/evidence
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

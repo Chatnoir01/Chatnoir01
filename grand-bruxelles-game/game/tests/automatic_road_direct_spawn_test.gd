@@ -3,7 +3,8 @@ extends SceneTree
 const MAIN_SCENE := preload("res://game/main.tscn")
 const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn.gd")
 const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
-const SOURCE_SHA256 := "a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493"
+const RUNTIME_INDEX_PATH := "res://data/runtime/road_destination_runtime_index.json"
+const RUNTIME_INDEX_FORMAT := "grand-bruxelles-road-runtime-index-v1"
 const LEMONNIER_ID := 359177328
 
 
@@ -19,6 +20,49 @@ func _fail(message: String) -> void:
 func _document() -> Dictionary:
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(SOURCE_PATH))
     return parsed as Dictionary if parsed is Dictionary else {}
+
+
+func _runtime_index_contract() -> Dictionary:
+    if not FileAccess.file_exists(RUNTIME_INDEX_PATH):
+        return {}
+    var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(RUNTIME_INDEX_PATH))
+    if not parsed is Dictionary:
+        return {}
+    var index := parsed as Dictionary
+    if str(index.get("format", "")) != RUNTIME_INDEX_FORMAT or not bool(index.get("source_lookup_only", false)):
+        return {}
+    var authorization: Variant = index.get("authorization", {})
+    if not authorization is Dictionary:
+        return {}
+    var auth := authorization as Dictionary
+    if not bool(auth.get("source_lookup_only", false)):
+        return {}
+    for forbidden: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:
+        if bool(auth.get(forbidden, true)):
+            return {}
+
+    var documents: Variant = index.get("documents", [])
+    if not documents is Array or documents.is_empty():
+        return {}
+    var source_relative := SOURCE_PATH.trim_prefix("res://")
+    for raw_document: Variant in documents:
+        if not raw_document is Dictionary:
+            return {}
+        var descriptor := raw_document as Dictionary
+        if str(descriptor.get("path", "")) != source_relative:
+            continue
+        var expected_sha := str(descriptor.get("sha256", "")).strip_edges().to_lower()
+        var road_ids: Variant = descriptor.get("road_ids", [])
+        if expected_sha.length() != 64 or not road_ids is Array or road_ids.is_empty():
+            return {}
+        if not road_ids.has(LEMONNIER_ID):
+            return {}
+        return {
+            "source_sha256": expected_sha,
+            "road_count": road_ids.size(),
+            "document_count": documents.size(),
+        }
+    return {}
 
 
 func _rendered(world: Node, osm_id: int) -> bool:
@@ -45,16 +89,25 @@ func _run() -> void:
         _fail("production Player missing")
         return
 
+    var index_contract := _runtime_index_contract()
+    if index_contract.is_empty():
+        _fail("deterministic runtime index contract missing or invalid")
+        return
+    var expected_source_sha := str(index_contract.get("source_sha256", ""))
+    var expected_road_count := int(index_contract.get("road_count", 0))
+    var expected_document_count := int(index_contract.get("document_count", 0))
+    var actual_source_sha := FileAccess.get_sha256(SOURCE_PATH).to_lower()
+    if actual_source_sha != expected_source_sha:
+        _fail("source SHA no longer matches generated runtime index: actual=%s expected=%s" % [actual_source_sha, expected_source_sha])
+        return
+
     var resolver := RESOLVER_SCRIPT.new()
     root.add_child(resolver)
-    if resolver.runtime_index_road_count() != 139:
-        _fail("deterministic runtime index road count drifted: %d" % resolver.runtime_index_road_count())
+    if resolver.runtime_index_road_count() != expected_road_count:
+        _fail("deterministic runtime index road count drifted: resolver=%d index=%d" % [resolver.runtime_index_road_count(), expected_road_count])
         return
-    if resolver.runtime_index_source_document_count() != 1:
-        _fail("deterministic runtime index source document count drifted")
-        return
-    if FileAccess.get_sha256(SOURCE_PATH).to_lower() != SOURCE_SHA256:
-        _fail("source SHA no longer matches generated runtime index")
+    if resolver.runtime_index_source_document_count() != expected_document_count:
+        _fail("deterministic runtime index source document count drifted: resolver=%d index=%d" % [resolver.runtime_index_source_document_count(), expected_document_count])
         return
     if resolver.requested_road_id(PackedStringArray(["spawn=road-359177328"])) != LEMONNIER_ID:
         _fail("valid road request did not parse")
@@ -87,7 +140,7 @@ func _run() -> void:
     if str(player.get_meta("automatic_road_direct_lookup_mode", "")) != "deterministic_runtime_index":
         _fail("road spawn did not use deterministic runtime index")
         return
-    if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != SOURCE_SHA256:
+    if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != expected_source_sha:
         _fail("road spawn source SHA proof missing")
         return
 
@@ -130,7 +183,7 @@ func _run() -> void:
     if str(player.get_meta("automatic_road_direct_lookup_mode", "")) != "deterministic_runtime_index":
         _fail("second road bypassed deterministic runtime index")
         return
-    if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != SOURCE_SHA256:
+    if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != expected_source_sha:
         _fail("second road source SHA proof drifted")
         return
 
@@ -146,5 +199,5 @@ func _run() -> void:
         _fail("source sightline gate missing")
         return
 
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d second=%d second_name=%s source=%s source_sha=%s ground_y=%.3f" % [resolver.runtime_index_road_count(), resolver.runtime_index_source_document_count(), LEMONNIER_ID, second_id, second_name, source_path, SOURCE_SHA256, ground_y])
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d second=%d second_name=%s source=%s source_sha=%s ground_y=%.3f" % [expected_road_count, expected_document_count, LEMONNIER_ID, second_id, second_name, source_path, expected_source_sha, ground_y])
     quit(0)

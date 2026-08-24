@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,9 @@ HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parents[1]
 CANDIDATES = HERE / "onboarding_candidates.json"
 CATALOG = PROJECT / "data/qa/playable_zone_catalog.json"
+OSM_SOURCE = "OpenStreetMap contributors via Overpass API"
+OSM_LICENSE = "ODbL-1.0"
+OSM_KINDS = {"tree", "street_lamp", "bollard"}
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -20,9 +25,14 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def canonical_digest(value: dict[str, Any]) -> str:
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(raw).hexdigest()
+
+
 def project_path(raw: str) -> Path:
     path = (PROJECT / raw).resolve()
-    if PROJECT.resolve() not in path.parents:
+    if path != PROJECT.resolve() and PROJECT.resolve() not in path.parents:
         raise RuntimeError(f"path escapes project: {raw}")
     return path
 
@@ -54,6 +64,95 @@ def zone_from_catalog(zone_id: str) -> dict[str, Any] | None:
     return None
 
 
+def game_bounds(manifest: dict[str, Any]) -> tuple[float, float, float, float]:
+    bbox = [float(v) for v in manifest["bbox"]]
+    origin = manifest["game_origin"]
+    xs = (bbox[0] - float(origin["e"]), bbox[2] - float(origin["e"]))
+    zs = (-(bbox[1] - float(origin["n"])), -(bbox[3] - float(origin["n"])))
+    return min(xs), min(zs), max(xs), max(zs)
+
+
+def validate_regional_osm(zone_id: str, candidate: dict[str, Any], cache_path: Path, runtime_path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not cache_path.is_file() or not runtime_path.is_file():
+        return rows
+
+    cache = read_json(cache_path)
+    runtime = read_json(runtime_path)
+    execution_manifest = read_json(project_path(candidate["execution_manifest"]))
+
+    cache_contract_ok = (
+        cache.get("format") == "grand-bruxelles-osm-zone-environment-cache-v1"
+        and cache.get("source") == OSM_SOURCE
+        and cache.get("license") == OSM_LICENSE
+        and isinstance(cache.get("elements"), list)
+        and isinstance(cache.get("counts"), dict)
+    )
+    rows.append(check(
+        "regional_osm_cache_contract",
+        cache_contract_ok,
+        f"format={cache.get('format')} source={cache.get('source')!r} license={cache.get('license')!r} elements={len(cache.get('elements') or [])}",
+    ))
+
+    bbox_ok = [float(v) for v in runtime.get("bbox_31370", [])] == [float(v) for v in execution_manifest.get("bbox", [])]
+    runtime_contract_ok = (
+        runtime.get("format") == "grand-bruxelles-osm-zone-environment-v1"
+        and runtime.get("zone") == zone_id
+        and runtime.get("source") == OSM_SOURCE
+        and runtime.get("license") == OSM_LICENSE
+        and runtime.get("source_crs") == "EPSG:4326"
+        and runtime.get("projection_crs") == candidate["expected_crs"]
+        and runtime.get("bbox_wgs84") == cache.get("bbox_wgs84")
+        and bbox_ok
+        and isinstance(runtime.get("environment_points"), list)
+        and isinstance(runtime.get("stats"), dict)
+    )
+    rows.append(check(
+        "regional_osm_runtime_contract",
+        runtime_contract_ok,
+        f"format={runtime.get('format')} zone={runtime.get('zone')} projection={runtime.get('projection_crs')} bbox_match={bbox_ok}",
+    ))
+
+    expected_digest = canonical_digest(cache)
+    digest_ok = runtime.get("source_digest") == expected_digest
+    rows.append(check(
+        "regional_osm_digest",
+        digest_ok,
+        f"runtime={runtime.get('source_digest')} expected={expected_digest}",
+    ))
+
+    points = runtime.get("environment_points") if isinstance(runtime.get("environment_points"), list) else []
+    stats = runtime.get("stats") if isinstance(runtime.get("stats"), dict) else {}
+    cache_counts = cache.get("counts") if isinstance(cache.get("counts"), dict) else {}
+    counts: Counter[str] = Counter()
+    point_contract_ok = True
+    xmin, zmin, xmax, zmax = game_bounds(execution_manifest)
+    tolerance = 2.0
+    for point in points:
+        if not isinstance(point, dict) or point.get("kind") not in OSM_KINDS:
+            point_contract_ok = False
+            continue
+        pos = point.get("position")
+        if not isinstance(pos, list) or len(pos) < 2:
+            point_contract_ok = False
+            continue
+        x, z = map(float, pos[:2])
+        if not (xmin - tolerance <= x <= xmax + tolerance and zmin - tolerance <= z <= zmax + tolerance):
+            point_contract_ok = False
+        counts[str(point["kind"])] += 1
+
+    counts_ok = int(stats.get("total", -1)) == len(points) and len(points) > 0
+    for kind in OSM_KINDS:
+        counts_ok = counts_ok and int(stats.get(kind, -1)) == counts[kind] and int(cache_counts.get(kind, -1)) == counts[kind]
+    counts_ok = counts_ok and counts["tree"] > 0
+    rows.append(check(
+        "regional_osm_points_contract",
+        point_contract_ok and counts_ok,
+        f"total={len(points)} trees={counts['tree']} lamps={counts['street_lamp']} bollards={counts['bollard']} bounds=({xmin:.2f},{zmin:.2f})..({xmax:.2f},{zmax:.2f})",
+    ))
+    return rows
+
+
 def run(zone_id: str) -> dict[str, Any]:
     registry = read_json(CANDIDATES)
     candidate = (registry.get("candidates") or {}).get(zone_id)
@@ -66,6 +165,18 @@ def run(zone_id: str) -> dict[str, Any]:
     manifest = read_json(manifest_path) if manifest_path.is_file() else {}
     crs = (manifest.get("coordinate_policy") or {}).get("authoritative_crs")
     checks.append(check("source_crs", crs == candidate["expected_crs"], f"manifest={candidate['source_manifest']} crs={crs}"))
+
+    execution_manifest_path = project_path(candidate["execution_manifest"])
+    execution_manifest = read_json(execution_manifest_path) if execution_manifest_path.is_file() else {}
+    execution_ok = (
+        execution_manifest.get("source_crs") == candidate["expected_crs"]
+        and isinstance(execution_manifest.get("bbox"), list)
+        and len(execution_manifest.get("bbox", [])) == 4
+        and (execution_manifest.get("game_origin") or {}).get("units") == "metres"
+        and (execution_manifest.get("game_origin") or {}).get("axes") == "X=east, Y=up, Z=south"
+        and bool(str(execution_manifest.get("source_license", "")).strip())
+    )
+    checks.append(check("execution_source_contract", execution_ok, f"manifest={candidate['execution_manifest']} crs={execution_manifest.get('source_crs')} bbox={execution_manifest.get('bbox')}"))
 
     zone = zone_from_catalog(zone_id)
     expected_mode = candidate["catalog_mode"]
@@ -87,6 +198,7 @@ def run(zone_id: str) -> dict[str, Any]:
     regional_runtime_path = project_path(osm["required_runtime"])
     checks.append(check("regional_osm_cache", cache_path.is_file(), f"required={osm['required_cache']}"))
     checks.append(check("regional_osm_runtime", regional_runtime_path.is_file(), f"required={osm['required_runtime']}"))
+    checks.extend(validate_regional_osm(zone_id, candidate, cache_path, regional_runtime_path))
 
     partial_path = project_path(osm["forbidden_partial_substitute"])
     partial = read_json(partial_path) if partial_path.is_file() else {}
@@ -100,10 +212,10 @@ def run(zone_id: str) -> dict[str, Any]:
     checks.append(check(
         "partial_slice_rejected",
         proven_partial,
-        f"corridor={corridor_name!r} roads={selected_roads}/{source_roads}; this artifact is evidence of partial selection only"
+        f"corridor={corridor_name!r} roads={selected_roads}/{source_roads}; this artifact is evidence of partial selection only",
     ))
 
-    eligible = all(row["status"] == "PASS" for row in checks if row["id"] not in {"partial_slice_rejected"})
+    eligible = all(row["status"] == "PASS" for row in checks)
     failed = [row["id"] for row in checks if row["status"] == "FAIL"]
     return {
         "format": "grand-bruxelles-city-machine-onboarding-preflight-v1",
@@ -112,7 +224,7 @@ def run(zone_id: str) -> dict[str, Any]:
         "result": "READY_FOR_PROFILE" if eligible else "BLOCKED_FAIL_CLOSED",
         "failed_checks": failed,
         "checks": checks,
-        "promotion_performed": False
+        "promotion_performed": False,
     }
 
 

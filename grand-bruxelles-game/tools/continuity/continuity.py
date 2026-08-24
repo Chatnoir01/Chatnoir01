@@ -28,9 +28,30 @@ def catalog_ids() -> tuple[str, list[str]]:
     schema = str(data.get("schema", ""))
     if schema not in CATALOG_SCHEMAS: raise ValueError(f"unsupported catalogue schema: {schema}")
     rows = data.get("zones", [])
-    ids = [str(r.get("id", "")) for r in rows if isinstance(r, dict)]
-    if len(ids) != 7 or len(set(ids)) != 7: raise ValueError(f"catalogue must contain exactly seven unique zones, got {ids}")
-    return schema, ids
+    if not isinstance(rows, list): raise ValueError("catalogue zones must be a list")
+    visible_ids = [str(r.get("id", "")) for r in rows if isinstance(r, dict)]
+    if len(visible_ids) != len(rows) or any(not zid for zid in visible_ids): raise ValueError("catalogue contains invalid zone rows or empty ids")
+    if len(visible_ids) != len(set(visible_ids)): raise ValueError(f"catalogue visible ids must be unique, got {visible_ids}")
+    by_id = {str(r["id"]): r for r in rows if isinstance(r, dict)}
+    canonical_ids: list[str] = []
+    aliases: list[str] = []
+    for raw in rows:
+        assert isinstance(raw, dict)
+        zid = str(raw["id"])
+        alias = str(raw.get("review_alias_of", "")).strip()
+        if not alias:
+            canonical_ids.append(zid)
+            continue
+        if alias == zid or alias not in by_id: raise ValueError(f"invalid review alias {zid}->{alias}")
+        target = by_id[alias]
+        if str(target.get("review_alias_of", "")).strip(): raise ValueError(f"review alias may not target another alias: {zid}->{alias}")
+        if str(raw.get("quality", "")) == "JOUABLE": raise ValueError(f"review alias may never be JOUABLE: {zid}")
+        aliases.append(zid)
+    if len(canonical_ids) != 7 or len(set(canonical_ids)) != 7:
+        raise ValueError(f"catalogue must contain exactly seven unique canonical zones, got {canonical_ids}")
+    if len(aliases) != 1 or aliases != ["midi_machine_labo"]:
+        raise ValueError(f"unexpected review aliases: {aliases}")
+    return schema, canonical_ids
 
 def registry_rows() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     data = load_json(REGISTRY); by_id = {}
@@ -126,11 +147,14 @@ def reports_from_sync(path: Path, zone_id: str) -> list[dict[str, Any]]:
 
 def validate() -> None:
     schema, ids = catalog_ids(); reg, by_id = registry_rows()
-    if set(ids) != set(by_id): raise ValueError(f"catalogue/registry zone mismatch: catalog={ids} registry={sorted(by_id)}")
+    if set(ids) != set(by_id): raise ValueError(f"catalogue/registry canonical zone mismatch: catalog={ids} registry={sorted(by_id)}")
     if reg.get("catalog_schema") not in (None, schema): raise ValueError("registry/catalog schema drift")
     midi=by_id["midi"]
     if midi.get("maturity") != "M6_JOUABLE" or midi.get("target_maturity") != "M6_JOUABLE": raise ValueError("Midi human JOUABLE baseline may not silently regress")
-    print(f"CONTINUITY_REGISTRY_OK zones=7 catalog={schema} midi_baseline=M6 automation_ceiling=M5")
+    visible_rows = load_json(CATALOG).get("zones", [])
+    visible_count = len(visible_rows) if isinstance(visible_rows, list) else 0
+    alias_count = sum(1 for row in visible_rows if isinstance(row, dict) and str(row.get("review_alias_of", "")).strip()) if isinstance(visible_rows, list) else 0
+    print(f"CONTINUITY_REGISTRY_OK zones={len(ids)} visible={visible_count} review_aliases={alias_count} catalog={schema} midi_baseline=M6 automation_ceiling=M5")
 
 def next_lot(zone_id: str, report_dir: Path | None, report_sync: Path | None) -> dict[str, Any]:
     _, by_id = registry_rows()

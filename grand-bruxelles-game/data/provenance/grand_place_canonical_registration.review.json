@@ -1,0 +1,42 @@
+{
+  "schema": "grand-bruxelles-grand-place-canonical-registration-review-v1",
+  "production_base_sha": "a037436b408889bd4895c225da4a98da886dbfef",
+  "status": "REGISTRATION_CANDIDATE_EVIDENCE_ONLY",
+  "cell_id": "bxl-e148000-n170000-s500",
+  "source_candidate_manifest_sha256": "b454022050e850214eeb8d5345fe574e831dcaba6a832123a7dfe44070d0b020",
+  "canonical_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
+  "candidate_review_semantic_sha256": "bb0a23818b738b22b20aea1d9c37ecf794827e05d5d4ab8fed4f758d0c6f197e",
+  "registered_index_semantic_sha256": "e3585c11cc54658d0cfc905540ee672907bad93927033cb9170e79991db69c38",
+  "registered_cell_count": 2,
+  "target_registered": true,
+  "destination_readiness": "REGISTERED_NOT_RENDERED",
+  "source_lock": {
+    "source_manifest_path": "data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/manifest.json",
+    "source_manifest_sha256": "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7",
+    "source_manifest_source_digest": "bbee45393ca07d86515f160e6eb9511c624440ccced97dff564b133eeafe7feb",
+    "source_semantic_sha256": "99cb25db4c95860c02dff5cf25c19cc5a4e11a75166f1fe92734edd1b5a0e7d4",
+    "measurement_path": "data/provenance/grand_place_urbis_source_cell.measurement.json",
+    "measurement_schema": "grand-bruxelles-urbis-source-cell-lock-v2",
+    "measurement_status": "LOCKED_EXACT_SOURCE_ONLY_PERSISTED",
+    "authority": "Paradigm / Brussels-Capital Region",
+    "license": "CC0-1.0",
+    "crs": "EPSG:31370",
+    "layer_feature_counts": {
+      "buildings": 772,
+      "street_axes": 97,
+      "street_surfaces": 410,
+      "train_network": 28,
+      "tram_network": 28
+    }
+  },
+  "runtime_authorization": {
+    "road_crosswalk": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  },
+  "blocker": "canonical manifest is registered evidence-only and cryptographically bound to the persisted UrbIS source-cell bytes; runtime/render/collision/spawn/JOUABLE require separate gates"
+}

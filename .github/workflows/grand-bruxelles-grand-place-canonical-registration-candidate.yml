@@ -1,0 +1,52 @@
+name: Grand Bruxelles Grand-Place Canonical Registration Candidate
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/cell_manifests/bxl-e148000-n170000-s500.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_canonical_registration.review.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/manifest.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/raw/**"
+      - "grand-bruxelles-game/tests/test_grand_place_canonical_registration_candidate.py"
+      - ".github/workflows/grand-bruxelles-grand-place-canonical-registration-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registration-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$LIVE_MAIN_SHA" = "a037436b408889bd4895c225da4a98da886dbfef" || { echo "RED: live main moved; rebuild required" >&2; exit 1; }
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || { echo "RED: candidate does not contain live main" >&2; exit 1; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Reproduce canonical registration and exact persisted source-byte provenance
+        run: python grand-bruxelles-game/tests/test_grand_place_canonical_registration_candidate.py
+      - name: Prove no runtime or destination authorization was opened
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('grand-bruxelles-game')
+          idx=json.loads((root/'data/provenance/brussels_registered_cell_manifest_index.json').read_text())
+          rev=json.loads((root/'data/provenance/grand_place_canonical_registration.review.json').read_text())
+          assert idx['destination_readiness']=='REGISTERED_CELL_INDEX_EVIDENCE_ONLY'
+          assert rev['destination_readiness']=='REGISTERED_NOT_RENDERED'
+          assert all(v is False for v in rev['runtime_authorization'].values())
+          print('GRAND_PLACE_REGISTERED_EVIDENCE_ONLY_RUNTIME_RAILS_CLOSED')
+          PY

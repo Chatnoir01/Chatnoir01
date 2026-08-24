@@ -1,0 +1,84 @@
+{
+  "schema": "grand-bruxelles-grand-place-spatial-identity-review-v1",
+  "status": "SPATIAL_IDENTITY_MISMATCH_HOLD",
+  "official_anchor": {
+    "source_authority": "City of Brussels Open Data",
+    "dataset": "points-acces-wifi-gratuit-wifibrussels-vbx",
+    "record_name": "Grand-Place",
+    "source_url": "https://opendata.brussels.be/explore/dataset/points-acces-wifi-gratuit-wifibrussels-vbx/api/",
+    "crs": "EPSG:4326",
+    "coordinate": {
+      "lon": 4.352461951836625,
+      "lat": 50.8467468297299
+    }
+  },
+  "transformed_anchor": {
+    "crs": "EPSG:31370",
+    "coordinate": [
+      148852.74417614136,
+      170704.8857889818
+    ],
+    "method": "EPSG:4326_to_EPSG:31370_PROJ"
+  },
+  "observed_claim": {
+    "cell_id": "bxl-e148000-n170000-s500",
+    "bbox": [
+      148000.0,
+      170000.0,
+      148500.0,
+      170500.0
+    ],
+    "contains_official_anchor": false,
+    "preserve_as_generic_registered_evidence": true
+  },
+  "expected_target": {
+    "cell_id": "bxl-e148500-n170500-s500",
+    "bbox": [
+      148500.0,
+      170500.0,
+      149000.0,
+      171000.0
+    ],
+    "contains_official_anchor": true,
+    "authoritative_source_cell_persisted": false,
+    "canonical_registration_present": false
+  },
+  "conflicting_runtime_frame_evidence": {
+    "path": "data/qa/city_machine/road_registered_cell_overlap_measurement_v2.json",
+    "schema": "grand-bruxelles-road-registered-cell-overlap-measurement-v2",
+    "semantic_sha256": "84802ee94bcbbb2d849e75fa0a11e49f7d19a448e3b0557617f75d5b35b9fa7b",
+    "observed_cell_id": "bxl-e148000-n170000-s500",
+    "road_ids": [
+      13842686,
+      684214770
+    ],
+    "road_names": [
+      "Rue de l'Amigo - Vruntstraat",
+      "Rue du Marché au Charbon - Kolenmarkt"
+    ],
+    "road_lambert72_bbox": [
+      147023.79522791933,
+      168637.98314926197,
+      148125.81622791933,
+      170433.92214926198
+    ],
+    "contains_official_grand_place_anchor": false,
+    "authoritative_spatial_identity": false,
+    "use_for_grand_place_registration": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_mount_authorized": false,
+    "reason": "The runtime-frame overlap measurement maps Grand-Place-adjacent named roads into the historical cell, while its Lambert72 road footprint excludes the official Grand-Place anchor. Preserve this measurement as evidence-only until the road frame and authoritative Grand-Place source cell are reconciled."
+  },
+  "authorization": {
+    "source_acquisition": false,
+    "canonical_registration": false,
+    "road_crosswalk": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  },
+  "blocker": "The previously registered evidence cell is spatially outside the official Grand-Place anchor, and the current runtime-frame road overlap evidence conflicts with that authoritative anchor. Acquire and byte-lock authoritative UrbIS source for bxl-e148500-n170500-s500 and reconcile the road frame before any Grand-Place canonical registration, pedestrian evidence, runtime mount, spawn, or promotion."
+}

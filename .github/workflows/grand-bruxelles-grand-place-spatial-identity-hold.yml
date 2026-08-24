@@ -1,0 +1,42 @@
+name: Grand Bruxelles Grand-Place Spatial Identity HOLD
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/provenance/grand_place_spatial_identity.review.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_cell_registration.review.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_canonical_registration.review.json"
+      - "grand-bruxelles-game/data/cell_manifests/bxl-e148000-n170000-s500.json"
+      - "grand-bruxelles-game/tests/test_grand_place_spatial_identity_hold.py"
+      - "grand-bruxelles-game/tests/test_grand_place_canonical_registration_candidate.py"
+      - ".github/workflows/grand-bruxelles-grand-place-spatial-identity-hold.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spatial-identity-hold:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
+            echo "RED: spatial-identity candidate does not contain live main" >&2
+            exit 1
+          }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Require Grand-Place spatial mismatch HOLD
+        run: python grand-bruxelles-game/tests/test_grand_place_spatial_identity_hold.py
+      - name: Require obsolete registration test to resolve to HOLD
+        run: python grand-bruxelles-game/tests/test_grand_place_canonical_registration_candidate.py

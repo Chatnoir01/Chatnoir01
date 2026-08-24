@@ -4,8 +4,9 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/data/provenance/grand_place_canonical_manifest_candidate.review.json"
-      - "grand-bruxelles-game/tools/qa/build_grand_place_canonical_manifest_candidate.py"
-      - "grand-bruxelles-game/tests/test_grand_place_canonical_manifest_candidate.py"
+      - "grand-bruxelles-game/data/provenance/grand_place_canonical_registration.review.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_spatial_identity.review.json"
+      - "grand-bruxelles-game/data/cell_manifests/bxl-e148000-n170000-s500.json"
       - ".github/workflows/grand-bruxelles-grand-place-canonical-manifest-candidate.yml"
   workflow_dispatch:
 
@@ -21,113 +22,19 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-
       - name: Require exact live-main ancestry
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
-          CANDIDATE_SHA="$(git rev-parse HEAD)"
-          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA" || {
-            echo "RED: candidate branch does not contain live main" >&2
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
+            echo "RED: historical candidate HOLD branch does not contain live main" >&2
             exit 1
           }
-          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
-
-      - name: Detect candidate versus registered phase
-        run: |
-          set -euo pipefail
-          CELL=grand-bruxelles-game/data/cell_manifests/bxl-e148000-n170000-s500.json
-          REG=grand-bruxelles-game/data/provenance/grand_place_canonical_registration.review.json
-          if test -e "$CELL"; then
-            test -e "$REG" || {
-              echo "RED: canonical manifest exists without registration review" >&2
-              exit 1
-            }
-            echo "REGISTERED_PHASE=true" >> "$GITHUB_ENV"
-          else
-            test ! -e "$REG" || {
-              echo "RED: registration review exists without canonical manifest" >&2
-              exit 1
-            }
-            echo "REGISTERED_PHASE=false" >> "$GITHUB_ENV"
-          fi
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Run fail-closed candidate regressions
-        if: env.REGISTERED_PHASE == 'false'
-        run: python grand-bruxelles-game/tests/test_grand_place_canonical_manifest_candidate.py
-
-      - name: Build deterministic candidate without registration
-        if: env.REGISTERED_PHASE == 'false'
-        run: |
-          mkdir -p "$RUNNER_TEMP/grand-place-canonical-candidate"
-          python grand-bruxelles-game/tools/qa/build_grand_place_canonical_manifest_candidate.py \
-            --repo-root grand-bruxelles-game \
-            --production-base-sha "$LIVE_MAIN_SHA" \
-            --out-candidate "$RUNNER_TEMP/grand-place-canonical-candidate/bxl-e148000-n170000-s500.candidate.json" \
-            --out-review "$RUNNER_TEMP/grand-place-canonical-candidate/grand_place_canonical_manifest_candidate.review.json"
-
-      - name: Prove candidate compatibility with registered-cell index builder in sandbox only
-        if: env.REGISTERED_PHASE == 'false'
-        run: |
-          python - <<'PY'
-          import importlib.util
-          import os
-          import shutil
-          from pathlib import Path
-          script=Path('grand-bruxelles-game/tools/qa/build_registered_cell_manifest_index.py')
-          spec=importlib.util.spec_from_file_location('registered_index_builder', script)
-          assert spec and spec.loader
-          mod=importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(mod)
-          root=Path(os.environ['RUNNER_TEMP'])/'candidate-index-sandbox'
-          manifest_dir=root/'data/cell_manifests'
-          manifest_dir.mkdir(parents=True, exist_ok=True)
-          source=Path(os.environ['RUNNER_TEMP'])/'grand-place-canonical-candidate/bxl-e148000-n170000-s500.candidate.json'
-          target=manifest_dir/'bxl-e148000-n170000-s500.json'
-          shutil.copyfile(source, target)
-          built=mod.build(manifest_dir, root, os.environ['LIVE_MAIN_SHA'])
-          assert built['registered_cell_count']==1
-          assert built['entries'][0]['cell_id']=='bxl-e148000-n170000-s500'
-          assert built['entries'][0]['manifest_sha256']=='b454022050e850214eeb8d5345fe574e831dcaba6a832123a7dfe44070d0b020'
-          assert built['entries'][0]['maturity_state']=='data_ready'
-          for key in ['runtime_directory_scan_authorized','road_crosswalk_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized']:
-              assert built[key] is False, key
-          print('GRAND_PLACE_CANONICAL_MANIFEST_CANDIDATE_INDEX_COMPATIBLE_SANDBOX_ONLY')
-          PY
-
-      - name: Require persisted candidate lock before registration
-        if: env.REGISTERED_PHASE == 'false'
-        run: |
-          set -euo pipefail
-          LOCK=grand-bruxelles-game/data/provenance/grand_place_canonical_manifest_candidate.review.json
-          GENERATED="$RUNNER_TEMP/grand-place-canonical-candidate/grand_place_canonical_manifest_candidate.review.json"
-          cmp -s "$LOCK" "$GENERATED" || {
-            echo "RED: persisted candidate review differs from regenerated review" >&2
-            diff -u "$LOCK" "$GENERATED" || true
-            exit 1
-          }
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          review=json.loads(Path('grand-bruxelles-game/data/provenance/grand_place_canonical_manifest_candidate.review.json').read_text())
-          index=json.loads(Path('grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json').read_text())
-          assert review['status']=='CANDIDATE_LOCKED_UNREGISTERED'
-          assert review['semantic_sha256']=='bb0a23818b738b22b20aea1d9c37ecf794827e05d5d4ab8fed4f758d0c6f197e'
-          assert review['candidate_manifest']['sha256']=='b454022050e850214eeb8d5345fe574e831dcaba6a832123a7dfe44070d0b020'
-          assert review['production_base_sha']==os.environ['LIVE_MAIN_SHA']
-          assert all(row['cell_id']!='bxl-e148000-n170000-s500' for row in index['entries'])
-          for value in review['authorization'].values():
-              assert value is False
-          print('GRAND_PLACE_CANONICAL_MANIFEST_CANDIDATE_LOCKED_UNREGISTERED')
-          PY
-
-      - name: Preserve historical candidate lock after registration
-        if: env.REGISTERED_PHASE == 'true'
+      - name: Preserve historical candidate but reject Grand-Place identity
         run: |
           python - <<'PY'
           import json
@@ -135,26 +42,32 @@ jobs:
           root=Path('grand-bruxelles-game')
           candidate=json.loads((root/'data/provenance/grand_place_canonical_manifest_candidate.review.json').read_text())
           registration=json.loads((root/'data/provenance/grand_place_canonical_registration.review.json').read_text())
+          hold=json.loads((root/'data/provenance/grand_place_spatial_identity.review.json').read_text())
           index=json.loads((root/'data/provenance/brussels_registered_cell_manifest_index.json').read_text())
+          historical=root/'data/cell_manifests/bxl-e148000-n170000-s500.json'
+          expected=root/'data/cell_manifests/bxl-e148500-n170500-s500.json'
+
+          assert historical.is_file(), 'historical generic evidence cell must be preserved'
+          assert not expected.exists(), 'correct Grand-Place cell must go through separate source/candidate gates'
           assert candidate['status']=='CANDIDATE_LOCKED_UNREGISTERED'
           assert candidate['semantic_sha256']=='bb0a23818b738b22b20aea1d9c37ecf794827e05d5d4ab8fed4f758d0c6f197e'
           assert candidate['candidate_manifest']['sha256']=='b454022050e850214eeb8d5345fe574e831dcaba6a832123a7dfe44070d0b020'
           assert all(value is False for value in candidate['authorization'].values())
-          assert registration['status']=='REGISTRATION_CANDIDATE_EVIDENCE_ONLY'
-          assert registration['source_candidate_manifest_sha256']==candidate['candidate_manifest']['sha256']
+
+          assert registration['status']=='SPATIAL_IDENTITY_MISMATCH_HOLD'
+          assert registration['target_registered'] is False
+          assert registration['historical_registration']['registered_as_generic_evidence'] is True
+          assert registration['historical_registration']['treat_as_grand_place'] is False
+          assert registration['expected_grand_place_target']['cell_id']=='bxl-e148500-n170500-s500'
           assert all(value is False for value in registration['runtime_authorization'].values())
+          assert hold['status']=='SPATIAL_IDENTITY_MISMATCH_HOLD'
+          assert all(value is False for value in hold['authorization'].values())
+
           rows={row['cell_id']: row for row in index['entries']}
           assert 'bxl-e148000-n170000-s500' in rows
+          assert 'bxl-e148500-n170500-s500' not in rows
           assert rows['bxl-e148000-n170000-s500']['manifest_sha256']==registration['canonical_manifest_sha256']
           for key in ['runtime_directory_scan_authorized','road_crosswalk_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized']:
               assert index[key] is False, key
-          print('GRAND_PLACE_CANONICAL_CANDIDATE_HISTORY_PRESERVED_AFTER_REGISTRATION')
+          print('GRAND_PLACE_MISTARGETED_CANDIDATE_HISTORY_PRESERVED_SPATIAL_IDENTITY_HOLD')
           PY
-
-      - name: Upload candidate and review evidence
-        if: env.REGISTERED_PHASE == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: grand-place-canonical-manifest-candidate
-          path: ${{ runner.temp }}/grand-place-canonical-candidate
-          if-no-files-found: error

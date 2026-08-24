@@ -1,15 +1,32 @@
 {
   "schema": "grand-bruxelles-grand-place-canonical-registration-review-v1",
   "production_base_sha": "a037436b408889bd4895c225da4a98da886dbfef",
-  "status": "REGISTRATION_CANDIDATE_EVIDENCE_ONLY",
+  "status": "SPATIAL_IDENTITY_MISMATCH_HOLD",
   "cell_id": "bxl-e148000-n170000-s500",
   "source_candidate_manifest_sha256": "b454022050e850214eeb8d5345fe574e831dcaba6a832123a7dfe44070d0b020",
   "canonical_manifest_sha256": "53cac9ef1e281b0971dc7bad44be378f8e8392cca753f9f6c2cdafa45dfddb37",
   "candidate_review_semantic_sha256": "bb0a23818b738b22b20aea1d9c37ecf794827e05d5d4ab8fed4f758d0c6f197e",
   "registered_index_semantic_sha256": "e3585c11cc54658d0cfc905540ee672907bad93927033cb9170e79991db69c38",
   "registered_cell_count": 2,
-  "target_registered": true,
-  "destination_readiness": "REGISTERED_NOT_RENDERED",
+  "target_registered": false,
+  "destination_readiness": "HOLD_WRONG_CELL_IDENTITY",
+  "spatial_identity_review": "data/provenance/grand_place_spatial_identity.review.json",
+  "historical_registration": {
+    "cell_id": "bxl-e148000-n170000-s500",
+    "registered_as_generic_evidence": true,
+    "treat_as_grand_place": false
+  },
+  "expected_grand_place_target": {
+    "cell_id": "bxl-e148500-n170500-s500",
+    "bbox": [
+      148500.0,
+      170500.0,
+      149000.0,
+      171000.0
+    ],
+    "source_cell_persisted": false,
+    "canonical_registration_present": false
+  },
   "source_lock": {
     "source_manifest_path": "data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/manifest.json",
     "source_manifest_sha256": "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7",
@@ -38,5 +55,5 @@
     "safe_spawn": false,
     "jouable_promotion": false
   },
-  "blocker": "canonical manifest is registered evidence-only and cryptographically bound to the persisted UrbIS source-cell bytes; runtime/render/collision/spawn/JOUABLE require separate gates"
+  "blocker": "Spatial identity mismatch: bxl-e148000-n170000-s500 remains valid generic registered evidence but is not Grand-Place. Authoritative source acquisition and byte-lock for bxl-e148500-n170500-s500 are required before Grand-Place registration or runtime work."
 }

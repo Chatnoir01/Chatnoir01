@@ -1,0 +1,88 @@
+name: Grand Bruxelles Grand-Place Canonical Registration Approval
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/provenance/grand_place_canonical_registration_approval.review.json"
+      - "grand-bruxelles-game/tools/qa/review_grand_place_canonical_registration_approval.py"
+      - "grand-bruxelles-game/tests/test_grand_place_canonical_registration_approval.py"
+      - ".github/workflows/grand-bruxelles-grand-place-canonical-registration-approval.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-only-approval:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
+            echo "RED: approval branch does not contain live main" >&2
+            exit 1
+          }
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run fail-closed approval regressions
+        run: python grand-bruxelles-game/tests/test_grand_place_canonical_registration_approval.py
+
+      - name: Regenerate evidence-only approval
+        run: |
+          mkdir -p "$RUNNER_TEMP/grand-place-registration-approval"
+          python grand-bruxelles-game/tools/qa/review_grand_place_canonical_registration_approval.py \
+            --repo-root grand-bruxelles-game \
+            --production-base-sha "$LIVE_MAIN_SHA" \
+            --out-review "$RUNNER_TEMP/grand-place-registration-approval/grand_place_canonical_registration_approval.review.json"
+
+      - name: Require persisted approval and closed runtime rails
+        run: |
+          set -euo pipefail
+          LOCK=grand-bruxelles-game/data/provenance/grand_place_canonical_registration_approval.review.json
+          GENERATED="$RUNNER_TEMP/grand-place-registration-approval/grand_place_canonical_registration_approval.review.json"
+          cmp -s "$LOCK" "$GENERATED" || {
+            echo "RED: persisted approval differs from regenerated approval" >&2
+            diff -u "$LOCK" "$GENERATED" || true
+            exit 1
+          }
+          test ! -e grand-bruxelles-game/data/cell_manifests/bxl-e148000-n170000-s500.json || {
+            echo "RED: this review lot must not write the canonical manifest" >&2
+            exit 1
+          }
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          review=json.loads(Path("grand-bruxelles-game/data/provenance/grand_place_canonical_registration_approval.review.json").read_text())
+          index=json.loads(Path("grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json").read_text())
+          assert review["status"]=="APPROVED_EVIDENCE_ONLY_CANONICAL_REGISTRATION"
+          assert review["production_base_sha"]==__import__("os").environ["LIVE_MAIN_SHA"]
+          auth=review["authorization"]
+          assert auth["canonical_manifest_write"] is True
+          assert auth["registered_index_mutation"] is True
+          assert auth["evidence_only_registration"] is True
+          for key in ["road_to_cell_mapping","runtime_directory_scan","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+              assert auth[key] is False, key
+          assert index["registered_cell_count"]==1
+          assert all(row["cell_id"]!="bxl-e148000-n170000-s500" for row in index["entries"])
+          print("GRAND_PLACE_CANONICAL_REGISTRATION_APPROVAL_LOCKED_EVIDENCE_ONLY")
+          PY
+
+      - name: Upload approval evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-canonical-registration-approval
+          path: ${{ runner.temp }}/grand-place-registration-approval
+          if-no-files-found: error

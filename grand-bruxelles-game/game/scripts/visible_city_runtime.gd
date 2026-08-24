@@ -25,9 +25,9 @@ const MIDI_SIDEWALK_B := 8.8
 const BOURSE_CENTER := Vector3(114.0, 0.18, -722.0)
 
 @export var midi_civilian_count: int = 8
-@export var midi_police_count: int = 2
+@export var midi_police_count: int = 4
 @export var bourse_civilian_count: int = 6
-@export var bourse_police_count: int = 2
+@export var bourse_police_count: int = 4
 @export var zone_activation_radius_m: float = 155.0
 @export var dangerous_vehicle_speed_mps: float = 8.5
 @export var dangerous_near_miss_radius_m: float = 4.2
@@ -41,6 +41,7 @@ var _bound := false
 var _midi_spawned := false
 var _bourse_spawned := false
 var _bourse_points: Array[Vector3] = []
+var _population_context: int = -1
 
 var _civilians: Array[NpcAgent] = []
 var _police: Array[NpcAgent] = []
@@ -106,6 +107,7 @@ func _reset_binding() -> void:
     _director = null
     _midi_spawned = false
     _bourse_spawned = false
+    _population_context = -1
     _civilians.clear()
     _police.clear()
     _routes.clear()
@@ -122,14 +124,32 @@ func _ensure_nearby_zone() -> void:
     if not is_instance_valid(_player):
         return
     var observer_position := _active_player_position()
+    _update_population_context(observer_position)
     if not _midi_spawned and observer_position.distance_to(MIDI) <= zone_activation_radius_m:
         _spawn_midi_zone()
     if not _bourse_spawned and not _bourse_points.is_empty() and observer_position.distance_to(BOURSE_CENTER) <= zone_activation_radius_m:
         _spawn_bourse_zone()
 
+func _update_population_context(observer_position: Vector3) -> void:
+    if not is_instance_valid(_director):
+        return
+    var context := NpcPopulationContext.UrbanContext.GENERIC
+    if observer_position.distance_to(MIDI) <= zone_activation_radius_m:
+        context = NpcPopulationContext.UrbanContext.STATION
+    elif not _bourse_points.is_empty() and observer_position.distance_to(BOURSE_CENTER) <= zone_activation_radius_m:
+        context = NpcPopulationContext.UrbanContext.COMMERCIAL
+    if context == _population_context:
+        return
+    _population_context = context
+    # Keep the director's existing neutral noon/weather/event assumptions; only
+    # the urban context changes with the source-backed zone the player occupies.
+    _director.set_population_context(context, 12.0, 1.0, 0.0)
+
 func ensure_zone_for_test(zone_name: String) -> void:
     if not _bound:
         _try_bind()
+    if is_instance_valid(_player):
+        _update_population_context(_active_player_position())
     match zone_name:
         "midi":
             if not _midi_spawned:
@@ -158,13 +178,22 @@ func _spawn_midi_zone() -> void:
             "midi_fonsny_existing_sidewalk_alignment"
         )
 
-    for index in range(maxi(midi_police_count, 0)):
-        # Keep the first two behavioral patrols on opposite source-aligned sidewalks.
-        # NpcAgent uses CharacterBody3D motion without inter-agent avoidance, so
-        # overlapping patrol segments can otherwise deadlock officers head-on.
+    # Partition the existing Fonsny patrol corridor longitudinally by officer pair.
+    # Officers still alternate between the two already-authored sidewalk offsets,
+    # while same-side patrols receive non-overlapping segments to avoid deadlocks.
+    var police_count := maxi(midi_police_count, 0)
+    var pair_slot_count := maxi(ceili(float(police_count) / 2.0), 1)
+    var corridor_start := -72.0
+    var corridor_end := 72.0
+    var slot_width := (corridor_end - corridor_start) / float(pair_slot_count)
+    var slot_margin := minf(8.0, maxf(2.0, slot_width * 0.15))
+    for index in range(police_count):
         var side := MIDI_SIDEWALK_B if index % 2 == 0 else MIDI_SIDEWALK_A
-        var patrol_a := MIDI + FONSNY_AXIS * (-56.0 + float(index) * 18.0) + ROAD_SIDE * side
-        var patrol_b := MIDI + FONSNY_AXIS * (48.0 - float(index) * 14.0) + ROAD_SIDE * side
+        var slot_index := floori(float(index) / 2.0)
+        var patrol_start_axis := corridor_start + float(slot_index) * slot_width + slot_margin
+        var patrol_end_axis := corridor_start + float(slot_index + 1) * slot_width - slot_margin
+        var patrol_a := MIDI + FONSNY_AXIS * patrol_start_axis + ROAD_SIDE * side
+        var patrol_b := MIDI + FONSNY_AXIS * patrol_end_axis + ROAD_SIDE * side
         patrol_a.y = MIDI.y
         patrol_b.y = MIDI.y
         _spawn_behavior_agent(
@@ -404,7 +433,17 @@ func _driven_vehicle() -> Node3D:
     if get_tree() == null:
         return null
     for candidate: Node in get_tree().get_nodes_in_group("vehicle"):
-        if candidate is Node3D and candidate.has_method("has_driver") and bool(candidate.call("has_driver")):
+        if not candidate is Node3D:
+            continue
+        # Modern drivable traffic cars may have an external/NPC driver. Only a
+        # player-controlled vehicle is allowed to replace the player as the
+        # streaming observer/threat target. Legacy physical vehicles do not
+        # expose is_player_controlled(), so retain their player-only has_driver().
+        if candidate.has_method("is_player_controlled"):
+            if bool(candidate.call("is_player_controlled")):
+                return candidate as Node3D
+            continue
+        if candidate.has_method("has_driver") and bool(candidate.call("has_driver")):
             return candidate as Node3D
     return null
 

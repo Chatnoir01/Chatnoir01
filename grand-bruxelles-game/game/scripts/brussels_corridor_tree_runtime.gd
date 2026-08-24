@@ -35,7 +35,7 @@ var _foliage_instance_count := 0
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
-    call_deferred("_bind_when_ready")
+    call_deferred("_start_scene_watch")
 
 func _process(_delta: float) -> void:
     if not _ready_complete or _failed or _scene == null or _source_positions.is_empty():
@@ -50,32 +50,63 @@ func _process(_delta: float) -> void:
     if relevant and (not is_finite(_last_lod_anchor.x) or _xz_distance(anchor, _last_lod_anchor) >= tree_lod_rebuild_distance_m):
         _rebuild_visual_batches(anchor, true)
 
-func _discover_production_scene() -> Node3D:
-    var current := get_tree().current_scene
-    if current is Node3D:
-        return current as Node3D
-    var roads := get_tree().root.find_child("GeneratedRoads", true, false)
-    if roads is Node3D and roads.get_parent() is Node3D:
-        return roads.get_parent() as Node3D
+func _scene_has_production_anchors(candidate: Node3D) -> bool:
+    if candidate == null or not is_instance_valid(candidate):
+        return false
+    return candidate.get_node_or_null("BrusselsOSM/GeneratedRoads") != null \
+        and candidate.get_node_or_null("UrbISMidiExact") != null \
+        and candidate.get_node_or_null("Player") != null
+
+func _production_scene_from_node(node: Node) -> Node3D:
+    var cursor: Node = node
+    while cursor != null:
+        if cursor is Node3D and _scene_has_production_anchors(cursor as Node3D):
+            return cursor as Node3D
+        cursor = cursor.get_parent()
     return null
 
-func _bind_when_ready() -> void:
-    for _attempt: int in range(180):
-        if _manual_binding or _ready_complete:
-            return
-        var candidate := _discover_production_scene()
-        if candidate != null:
-            _scene = candidate
-            _build()
-            return
-        await get_tree().process_frame
-    if not _manual_binding and not _ready_complete:
-        _fail("production scene missing")
+func _discover_production_scene() -> Node3D:
+    var current := get_tree().current_scene
+    if current is Node3D and _scene_has_production_anchors(current as Node3D):
+        return current as Node3D
+    var roads := get_tree().root.find_child("GeneratedRoads", true, false)
+    if roads != null:
+        return _production_scene_from_node(roads)
+    return null
+
+func _disconnect_scene_watch() -> void:
+    var callback := Callable(self, "_on_tree_node_added")
+    if get_tree().node_added.is_connected(callback):
+        get_tree().node_added.disconnect(callback)
+
+func _try_bind_scene(candidate: Node3D) -> void:
+    if _manual_binding or _ready_complete or candidate == null or not _scene_has_production_anchors(candidate):
+        return
+    _disconnect_scene_watch()
+    _scene = candidate
+    _build()
+
+func _on_tree_node_added(node: Node) -> void:
+    if _manual_binding or _ready_complete:
+        _disconnect_scene_watch()
+        return
+    if str(node.name) not in ["GeneratedRoads", "UrbISMidiExact", "Player"]:
+        return
+    _try_bind_scene(_production_scene_from_node(node))
+
+func _start_scene_watch() -> void:
+    if _manual_binding or _ready_complete:
+        return
+    var callback := Callable(self, "_on_tree_node_added")
+    if not get_tree().node_added.is_connected(callback):
+        get_tree().node_added.connect(callback)
+    _try_bind_scene(_discover_production_scene())
 
 func bind_scene(scene: Node3D) -> void:
     if scene == null:
         _fail("manual scene binding received null scene")
         return
+    _disconnect_scene_watch()
     if is_instance_valid(_root):
         _root.queue_free()
     _scene = scene
@@ -99,6 +130,7 @@ func bind_scene(scene: Node3D) -> void:
     _build()
 
 func _fail(message: String) -> void:
+    _disconnect_scene_watch()
     push_error("Brussels corridor tree runtime: %s" % message)
     _failed = true
     _ready_complete = true

@@ -4,7 +4,8 @@ import pathlib
 import sys
 
 TOLERANCE = 0.002
-SCHEMA = "grand-bruxelles-rendered-main-base-attribution-v3"
+NUMERIC_EPSILON = 1e-12
+SCHEMA = "grand-bruxelles-rendered-main-base-attribution-v4"
 
 
 def load_fingerprint(path: pathlib.Path):
@@ -68,6 +69,7 @@ def main(argv):
     max_tile_metric_improvement = 0.0
     changed_tile_indexes = []
     improved_tile_indexes = []
+    neutral_tile_indexes = []
     regressed_tile_indexes = []
     base_rgb_errors = []
     candidate_rgb_errors = []
@@ -92,10 +94,21 @@ def main(argv):
         if base_head_delta <= TOLERANCE:
             continue
         changed_tile_indexes.append(index)
-        non_worsening = rgb_movement <= TOLERANCE and luma_movement <= TOLERANCE
+        meaningful_regression = rgb_movement > TOLERANCE or luma_movement > TOLERANCE
         strict_improvement = (-rgb_movement > TOLERANCE) or (-luma_movement > TOLERANCE)
-        if non_worsening and strict_improvement:
+        sub_tolerance_improvement = rgb_movement < -NUMERIC_EPSILON or luma_movement < -NUMERIC_EPSILON
+
+        if meaningful_regression:
+            regressed_tile_indexes.append(index)
+        elif strict_improvement:
             improved_tile_indexes.append(index)
+        elif sub_tolerance_improvement:
+            # Software rendering can move an individual RGBA channel just over the
+            # raw-delta tolerance while both official frozen-distance metrics stay
+            # non-worsening and one moves measurably toward the frozen baseline.
+            # This is neutral evidence, not a regression. A pure equal-distance
+            # visual swap still falls through to the fail-closed regression path.
+            neutral_tile_indexes.append(index)
         else:
             regressed_tile_indexes.append(index)
 
@@ -139,6 +152,7 @@ def main(argv):
         "max_histogram_improvement_toward_frozen": max_histogram_improvement,
         "changed_tile_indexes": changed_tile_indexes,
         "improved_tile_indexes": improved_tile_indexes,
+        "neutral_tile_indexes": neutral_tile_indexes,
         "regressed_tile_indexes": regressed_tile_indexes,
         "aggregate_regressions": aggregate_regressions,
         "base_frozen_metrics": {

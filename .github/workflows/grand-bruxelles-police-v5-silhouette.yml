@@ -1,0 +1,81 @@
+name: Grand Bruxelles Police V5 Silhouette
+
+on:
+  push:
+    branches:
+      - visual/mmc-police-authored-lod-7712a33
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/mmc_police_v5_silhouette_tuner.gd"
+      - "grand-bruxelles-game/game/tests/mmc_police_v5_silhouette_runtime_test.gd"
+      - "grand-bruxelles-game/game/tests/mmc_police_v5_silhouette_witness_test.gd"
+      - "grand-bruxelles-game/data/runtime/modules/mmc_police_v5_silhouette.json"
+      - ".github/workflows/grand-bruxelles-police-v5-silhouette.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grand-bruxelles-police-v5-silhouette-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  police-v5-silhouette:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify renderer-only scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '"renderer_only": true' grand-bruxelles-game/game/scripts/mmc_police_v5_silhouette_tuner.gd
+          grep -q '"changes_existing_physics": false' grand-bruxelles-game/game/scripts/mmc_police_v5_silhouette_tuner.gd
+          grep -q '"changes_existing_collision": false' grand-bruxelles-game/game/scripts/mmc_police_v5_silhouette_tuner.gd
+          grep -q '"changes_traffic_motion": false' grand-bruxelles-game/game/scripts/mmc_police_v5_silhouette_tuner.gd
+          grep -q '"changes_geography": false' grand-bruxelles-game/game/scripts/mmc_police_v5_silhouette_tuner.gd
+          test -f grand-bruxelles-game/data/runtime/modules/mmc_police_v5_silhouette.json
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Import project and reject parser failures
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/v5-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|ERROR: Couldn't load project data" /tmp/v5-import.log; then exit 1; fi
+      - name: Run V5 silhouette invariants
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/mmc_police_v5_silhouette_runtime_test.gd 2>&1 | tee /tmp/v5-test.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MMC_POLICE_V5_SILHOUETTE_FAIL" /tmp/v5-test.log; then exit 1; fi
+          grep -q "MMC_POLICE_V5_SILHOUETTE_OK" /tmp/v5-test.log
+      - name: Render V5 witnesses 1280x720
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 150s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --resolution 1280x720 --path grand-bruxelles-game --script res://game/tests/mmc_police_v5_silhouette_witness_test.gd 2>&1 | tee /tmp/v5-witness.log
+          if grep -E "SCRIPT ERROR|Parse Error:|MMC_POLICE_V5_VISUAL_FAIL" /tmp/v5-witness.log; then exit 1; fi
+          grep -q "MMC_POLICE_V5_VISUAL_OK" /tmp/v5-witness.log
+          test -s grand-bruxelles-game/artifacts/visual/mmc_police_v5_silhouette_exterior.png
+          test -s grand-bruxelles-game/artifacts/visual/mmc_police_v5_silhouette_side.png
+      - name: Upload V5 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmc-police-v5-silhouette-witness
+          path: |
+            grand-bruxelles-game/artifacts/visual/mmc_police_v5_silhouette_exterior.png
+            grand-bruxelles-game/artifacts/visual/mmc_police_v5_silhouette_side.png
+            /tmp/v5-test.log
+            /tmp/v5-witness.log
+          if-no-files-found: error

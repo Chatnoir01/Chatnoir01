@@ -82,6 +82,32 @@ func _run() -> void:
         _fail("rejected late attacks still published player hit feedback")
         return
 
+    # Impact-time melee must also revalidate physical line-of-sight. The player can
+    # move behind a wall after the attack decision while remaining inside 2.25 m.
+    officer.position = Vector3(0.0, 0.0, 1.8)
+    player.set_meta("combat_health", 100)
+    hit_count_before = int(player.get_meta("combat_police_hit_count", 0))
+    var wall := StaticBody3D.new()
+    wall.name = "MeleeImpactOccluder"
+    wall.position = Vector3(0.0, 1.2, 0.9)
+    var wall_shape := CollisionShape3D.new()
+    var wall_box := BoxShape3D.new()
+    wall_box.size = Vector3(2.0, 2.4, 0.24)
+    wall_shape.shape = wall_box
+    wall.add_child(wall_shape)
+    root.add_child(wall)
+    await physics_frame
+    await physics_frame
+    var occluded_melee := runtime.apply_attack_for_test(officer, player, &"melee_attack")
+    if occluded_melee != 0 or int(player.get_meta("combat_health", 100)) != 100:
+        _fail("melee hit landed through a physical occluder: damage=%d" % occluded_melee)
+        return
+    if int(player.get_meta("combat_police_hit_count", 0)) != hit_count_before:
+        _fail("occluded melee still published player hit feedback")
+        return
+    wall.queue_free()
+    await physics_frame
+
     officer.position = Vector3(0.0, 0.0, 1.8)
     officer.set_meta("melee_hit_count", 1)
     officer.set_meta("combat_last_weapon_damage", 28.0)
@@ -99,5 +125,5 @@ func _run() -> void:
         _fail("struck police officer did not enter PURSUIT")
         return
 
-    print("POLICE_COMBAT_PRESSURE_OK: ranged/melee/reposition pressure, fast pursuit, physical late-hit rejection, player damage and strong police hit reaction")
+    print("POLICE_COMBAT_PRESSURE_OK: ranged/melee/reposition pressure, fast pursuit, physical late-hit and occlusion rejection, player damage and strong police hit reaction")
     quit(0)

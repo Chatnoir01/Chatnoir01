@@ -1,0 +1,28 @@
+name: Grand Bruxelles Facade Window Negative Verdict
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/qa/facade_window_player_witness_verdict.json'
+      - 'grand-bruxelles-game/tools/qa/test_facade_window_player_witness_verdict.py'
+      - 'grand-bruxelles-game/game/scripts/osm_city_builder.gd'
+      - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - '.github/workflows/grand-bruxelles-facade-window-negative-verdict.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  facade-window-negative-verdict:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Validate durable negative player-view verdict
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/qa/test_facade_window_player_witness_verdict.py

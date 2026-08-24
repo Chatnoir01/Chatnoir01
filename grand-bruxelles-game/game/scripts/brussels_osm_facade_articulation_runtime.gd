@@ -52,13 +52,12 @@ func _valid_buildings_root(node: Node) -> bool:
     return node is Node3D and str(node.name) == "GeneratedBuildings" and node.get_parent() != null and str(node.get_parent().name) == "BrusselsOSM"
 
 func _find_existing_buildings_root() -> Node3D:
-    var direct := get_tree().root.get_node_or_null("BrusselsOSM/GeneratedBuildings")
-    if _valid_buildings_root(direct):
-        return direct as Node3D
-    for child: Node in get_tree().root.get_children():
-        var nested := child.get_node_or_null("BrusselsOSM/GeneratedBuildings")
-        if _valid_buildings_root(nested):
-            return nested as Node3D
+    # One bounded recursive recovery covers legitimate test/editor mounts where
+    # production main is nested below a SubViewport. This remains event-driven
+    # and never restores the historical frame polling loop.
+    for candidate: Node in get_tree().root.find_children("GeneratedBuildings", "Node3D", true, false):
+        if _valid_buildings_root(candidate):
+            return candidate as Node3D
     return null
 
 func _connect_base_runtime() -> void:
@@ -83,6 +82,9 @@ func _on_node_added(node: Node) -> void:
             _schedule_apply()
             return
         cursor = cursor.get_parent()
+    var nested := node.get_node_or_null("BrusselsOSM/GeneratedBuildings")
+    if _valid_buildings_root(nested):
+        _schedule_apply()
 
 func _schedule_apply() -> void:
     if _bind_scheduled or _ready_complete or _failed:

@@ -1,6 +1,7 @@
 {
   "schema": "grand-bruxelles-grand-place-cell-registration-review-v1",
-  "status": "READY_FOR_CANONICAL_MANIFEST_REVIEW",
+  "status": "SPATIAL_IDENTITY_MISMATCH_HOLD",
+  "spatial_identity_review": "data/provenance/grand_place_spatial_identity.review.json",
   "target": {
     "cell_id": "bxl-e148000-n170000-s500",
     "grid_cell_id": "E148000_N170000",
@@ -13,8 +14,22 @@
     ],
     "canonical_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
     "authoritative_source_manifest_path": "data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/manifest.json",
-    "canonical_manifest_present": false,
-    "authoritative_source_manifest_present": true
+    "canonical_manifest_present": true,
+    "authoritative_source_manifest_present": true,
+    "treat_as_grand_place": false
+  },
+  "expected_grand_place_target": {
+    "cell_id": "bxl-e148500-n170500-s500",
+    "grid_cell_id": "E148500_N170500",
+    "crs": "EPSG:31370",
+    "bbox": [
+      148500.0,
+      170500.0,
+      149000.0,
+      171000.0
+    ],
+    "authoritative_source_manifest_present": false,
+    "canonical_manifest_present": false
   },
   "municipality_evidence": {
     "lock_path": "data/provenance/grand_place_road_cell_municipality.measurement.json",
@@ -27,13 +42,14 @@
       684214770
     ],
     "point_hits": 9,
-    "segment_hits": 7
+    "segment_hits": 7,
+    "spatial_identity_use": "historical_only_not_grand_place"
   },
   "registered_cell_index": {
     "path": "data/provenance/brussels_registered_cell_manifest_index.json",
-    "semantic_sha256": "606c57c18fac82bcd74b4bb870e37d89ff31c775b3fa57533559c17d7a75de6f",
-    "registered_cell_count": 1,
-    "target_already_registered": false
+    "registered_cell_count": 2,
+    "historical_cell_registered": true,
+    "grand_place_target_registered": false
   },
   "authoritative_source_evidence": {
     "manifest_sha256": "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7",
@@ -48,9 +64,11 @@
       "tram_network": 28
     },
     "buildings_ownership_filtered": 61,
-    "buildings_invalid_ownership_features": 0
+    "buildings_invalid_ownership_features": 0,
+    "spatial_identity": "historical_generic_cell_not_grand_place"
   },
-  "blocker": "authoritative UrbIS source-cell is present and validated; a separate canonical manifest review may proceed",
+  "supersedes_semantic_sha256": "b84398dd084e85dce7e065ebd3fc87f873dcf965edb48ba55ea1eae519e61565",
+  "blocker": "The historical source cell is valid generic evidence but is spatially outside the official Grand-Place anchor. Acquire authoritative source for bxl-e148500-n170500-s500 before any Grand-Place canonical review.",
   "registration_authorized": false,
   "road_cell_mapping_authorized": false,
   "runtime_mount_authorized": false,
@@ -58,5 +76,5 @@
   "collision_authorized": false,
   "safe_spawn_authorized": false,
   "jouable_promotion_authorized": false,
-  "semantic_sha256": "b84398dd084e85dce7e065ebd3fc87f873dcf965edb48ba55ea1eae519e61565"
+  "semantic_sha256": "bcdfd4bce0eefd422f39cd9aab1fc2387416c3688566bf524083d1f7e237b520"
 }

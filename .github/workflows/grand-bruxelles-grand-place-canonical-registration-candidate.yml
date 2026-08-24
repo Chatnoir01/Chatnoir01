@@ -5,10 +5,13 @@ on:
     paths:
       - "grand-bruxelles-game/data/cell_manifests/bxl-e148000-n170000-s500.json"
       - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_cell_registration.review.json"
       - "grand-bruxelles-game/data/provenance/grand_place_canonical_registration.review.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_spatial_identity.review.json"
       - "grand-bruxelles-game/data/provenance/grand_place_urbis_source_cell.measurement.json"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/manifest.json"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/raw/**"
+      - "grand-bruxelles-game/tests/test_grand_place_spatial_identity_hold.py"
       - "grand-bruxelles-game/tests/test_grand_place_canonical_registration_candidate.py"
       - ".github/workflows/grand-bruxelles-grand-place-canonical-registration-candidate.yml"
   workflow_dispatch:
@@ -30,23 +33,47 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin main
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
-          test "$LIVE_MAIN_SHA" = "a037436b408889bd4895c225da4a98da886dbfef" || { echo "RED: live main moved; rebuild required" >&2; exit 1; }
-          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || { echo "RED: candidate does not contain live main" >&2; exit 1; }
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
+            echo "RED: Grand-Place HOLD candidate does not contain live main" >&2
+            exit 1
+          }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Reproduce canonical registration and exact persisted source-byte provenance
-        run: python grand-bruxelles-game/tests/test_grand_place_canonical_registration_candidate.py
-      - name: Prove no runtime or destination authorization was opened
+      - name: Require spatial identity HOLD
+        run: python grand-bruxelles-game/tests/test_grand_place_spatial_identity_hold.py
+      - name: Preserve historical source-byte lock without Grand-Place identity
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root=Path('grand-bruxelles-game')
+          manifest_path=root/'data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/manifest.json'
+          measurement=json.loads((root/'data/provenance/grand_place_urbis_source_cell.measurement.json').read_text())
+          registered=json.loads((root/'data/cell_manifests/bxl-e148000-n170000-s500.json').read_text())
+          assert hashlib.sha256(manifest_path.read_bytes()).hexdigest() == '4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7'
+          assert measurement['locked']['manifest_source_digest'] == 'bbee45393ca07d86515f160e6eb9511c624440ccced97dff564b133eeafe7feb'
+          assert measurement['locked']['source_semantic_sha256'] == '99cb25db4c95860c02dff5cf25c19cc5a4e11a75166f1fe92734edd1b5a0e7d4'
+          assert registered['cell_id'] == 'bxl-e148000-n170000-s500'
+          assert registered['bbox'] == [148000.0,170000.0,148500.0,170500.0]
+          print('HISTORICAL_REGISTERED_CELL_SOURCE_BYTES_PRESERVED_GENERIC_EVIDENCE_ONLY')
+          PY
+      - name: Prove all runtime and promotion rails remain closed
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           root=Path('grand-bruxelles-game')
           idx=json.loads((root/'data/provenance/brussels_registered_cell_manifest_index.json').read_text())
+          upstream=json.loads((root/'data/provenance/grand_place_cell_registration.review.json').read_text())
           rev=json.loads((root/'data/provenance/grand_place_canonical_registration.review.json').read_text())
+          hold=json.loads((root/'data/provenance/grand_place_spatial_identity.review.json').read_text())
           assert idx['destination_readiness']=='REGISTERED_CELL_INDEX_EVIDENCE_ONLY'
-          assert rev['destination_readiness']=='REGISTERED_NOT_RENDERED'
+          assert upstream['status']=='SPATIAL_IDENTITY_MISMATCH_HOLD'
+          assert upstream['target']['treat_as_grand_place'] is False
+          assert rev['destination_readiness']=='HOLD_WRONG_CELL_IDENTITY'
+          assert rev['target_registered'] is False
           assert all(v is False for v in rev['runtime_authorization'].values())
-          print('GRAND_PLACE_REGISTERED_EVIDENCE_ONLY_RUNTIME_RAILS_CLOSED')
+          assert all(v is False for v in hold['authorization'].values())
+          print('GRAND_PLACE_SPATIAL_IDENTITY_HOLD_RUNTIME_RAILS_CLOSED')
           PY

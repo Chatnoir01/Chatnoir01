@@ -4,8 +4,10 @@ on:
   pull_request:
     paths:
       - "grand-bruxelles-game/data/provenance/grand_place_cell_registration.review.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_spatial_identity.review.json"
       - "grand-bruxelles-game/tools/qa/review_grand_place_cell_registration.py"
       - "grand-bruxelles-game/tests/test_grand_place_cell_registration_review.py"
+      - "grand-bruxelles-game/tests/test_grand_place_spatial_identity_hold.py"
       - ".github/workflows/grand-bruxelles-grand-place-cell-registration-review.yml"
   workflow_dispatch:
 
@@ -20,44 +22,46 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 1
-
-      - name: Run registration review regressions
-        run: python grand-bruxelles-game/tests/test_grand_place_cell_registration_review.py
-
-      - name: Rebuild deterministic registration review
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
+            echo "RED: Grand-Place cell registration HOLD branch does not contain live main" >&2
+            exit 1
+          }
+      - name: Run spatial identity and registration review regressions
+        run: |
+          python grand-bruxelles-game/tests/test_grand_place_spatial_identity_hold.py
+          python grand-bruxelles-game/tests/test_grand_place_cell_registration_review.py
+      - name: Rebuild deterministic HOLD review
         run: |
           python grand-bruxelles-game/tools/qa/review_grand_place_cell_registration.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --municipality-lock grand-bruxelles-game/data/provenance/grand_place_road_cell_municipality.measurement.json \
             --output "$RUNNER_TEMP/grand_place_cell_registration.review.json"
-
-      - name: Require exact READY review with all rails closed
+      - name: Require exact spatial HOLD with all rails closed
         run: |
           python - <<'PY'
           import json, os
           from pathlib import Path
-
           generated_path = Path(os.environ["RUNNER_TEMP"]) / "grand_place_cell_registration.review.json"
           locked_path = Path("grand-bruxelles-game/data/provenance/grand_place_cell_registration.review.json")
           generated = json.loads(generated_path.read_text())
           locked = json.loads(locked_path.read_text())
           assert generated == locked, (generated, locked)
-          assert generated["status"] == "READY_FOR_CANONICAL_MANIFEST_REVIEW"
-          assert generated["semantic_sha256"] == "b84398dd084e85dce7e065ebd3fc87f873dcf965edb48ba55ea1eae519e61565"
-          assert generated["municipality_evidence"]["semantic_sha256"] == "f425d22f2a4530da40c3acbd951387b2e61eb311497c8ef3b5cbbce54897ffdb"
-          assert generated["target"]["authoritative_source_manifest_present"] is True
-          assert generated["target"]["canonical_manifest_present"] is False
+          assert generated["status"] == "SPATIAL_IDENTITY_MISMATCH_HOLD"
+          assert generated["semantic_sha256"] == "bcdfd4bce0eefd422f39cd9aab1fc2387416c3688566bf524083d1f7e237b520"
+          assert generated["target"]["cell_id"] == "bxl-e148000-n170000-s500"
+          assert generated["target"]["treat_as_grand_place"] is False
+          assert generated["expected_grand_place_target"]["cell_id"] == "bxl-e148500-n170500-s500"
+          assert generated["expected_grand_place_target"]["authoritative_source_manifest_present"] is False
+          assert generated["expected_grand_place_target"]["canonical_manifest_present"] is False
           source = generated["authoritative_source_evidence"]
           assert source["manifest_sha256"] == "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7"
           assert source["source_digest"] == "bbee45393ca07d86515f160e6eb9511c624440ccced97dff564b133eeafe7feb"
-          assert source["layer_feature_counts"] == {
-              "buildings": 772,
-              "street_axes": 97,
-              "street_surfaces": 410,
-              "train_network": 28,
-              "tram_network": 28,
-          }
           for key in [
               "registration_authorized", "road_cell_mapping_authorized", "runtime_mount_authorized",
               "rendered_geometry_authorized", "collision_authorized", "safe_spawn_authorized",
@@ -65,14 +69,13 @@ jobs:
           ]:
               assert generated[key] is False, key
           print(
-              "GRAND_PLACE_CELL_REGISTRATION_REVIEW_READY_LOCKED_EXACT: "
+              "GRAND_PLACE_CELL_REGISTRATION_REVIEW_SPATIAL_HOLD_LOCKED_EXACT: "
               f"semantic_sha256={generated['semantic_sha256']}"
           )
           PY
-
-      - name: Upload registration review evidence
+      - name: Upload spatial HOLD evidence
         uses: actions/upload-artifact@v4
         with:
-          name: grand-place-cell-registration-review
+          name: grand-place-cell-registration-spatial-hold
           path: ${{ runner.temp }}/grand_place_cell_registration.review.json
           if-no-files-found: error

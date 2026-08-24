@@ -14,7 +14,7 @@ func _fail(message: String) -> void:
     quit(1)
 
 func _run() -> void:
-    var script := load(RUNTIME_PATH)
+    var script: Script = load(RUNTIME_PATH) as Script
     if script == null:
         _fail("runtime missing")
         return
@@ -24,16 +24,19 @@ func _run() -> void:
     if str(script.VISUAL_RECIPE_PROFILE) != EXPECTED_PROFILE or str(script.MATERIAL_FAMILY) != EXPECTED_FAMILY:
         _fail("family/profile mismatch")
         return
-    var runtime := script.new()
+    var runtime: Node = script.new() as Node
+    if runtime == null:
+        _fail("runtime could not be instantiated")
+        return
     var material: Variant = runtime.call("_make_material")
     if not material is ShaderMaterial:
         _fail("runtime did not produce ShaderMaterial")
         return
-    var mat := material as ShaderMaterial
+    var mat: ShaderMaterial = material as ShaderMaterial
     if mat.shader == null:
         _fail("shader missing")
         return
-    var code := mat.shader.code
+    var code: String = mat.shader.code
     for token: String in ["p_a", "p_b", "p_c", "broad_a", "broad_b", "broad_c", "fine_a", "fine_b", "fine_c", "distance_visibility", "float distance_contrast = distance_visibility", "smoothstep(34.0, 102.0", "mix(broad, fine, detail_weight)"]:
         if not code.contains(token):
             _fail("required v8 token missing: %s" % token)

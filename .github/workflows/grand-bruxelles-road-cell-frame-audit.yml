@@ -44,6 +44,9 @@ jobs:
       - name: Measure current road-to-Lambert72 frame readiness
         run: |
           set -euo pipefail
+          SOURCE="grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+          ACTUAL_SHA="$(sha256sum "$SOURCE" | awk '{print $1}')"
+          echo "ROAD_CELL_FRAME_SOURCE_SHA actual=$ACTUAL_SHA expected=a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493"
           mkdir -p "$RUNNER_TEMP/road-cell-frame-audit"
           python grand-bruxelles-game/tools/qa/road_registered_cell_frame_audit.py \
             --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \

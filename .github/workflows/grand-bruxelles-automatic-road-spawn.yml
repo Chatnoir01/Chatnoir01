@@ -22,6 +22,24 @@ jobs:
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify live-main continuity
+        shell: bash
+        env:
+          GB_EVIDENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          GB_EVIDENCE_BASE_SHA="$(git rev-parse origin/main)"
+          if ! git merge-base --is-ancestor "$GB_EVIDENCE_BASE_SHA" "$GB_EVIDENCE_HEAD_SHA"; then
+            echo "AUTOMATIC_ROAD_WITNESS_FAIL: candidate does not contain live main: base=$GB_EVIDENCE_BASE_SHA head=$GB_EVIDENCE_HEAD_SHA" >&2
+            exit 1
+          fi
+          echo "GB_EVIDENCE_BASE_SHA=$GB_EVIDENCE_BASE_SHA" >> "$GITHUB_ENV"
+          echo "AUTOMATIC_ROAD_WITNESS_BASE_OK base=$GB_EVIDENCE_BASE_SHA head=$GB_EVIDENCE_HEAD_SHA"
 
       - name: Install render dependencies
         run: |
@@ -56,6 +74,109 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error:|AUTOMATIC_ROAD_DIRECT_SPAWN_FAIL" /tmp/automatic-road-spawn.log; then exit 1; fi
           grep -F "AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN" /tmp/automatic-road-spawn.log
           grep -F "lookup=deterministic_runtime_index" /tmp/automatic-road-spawn.log
+          grep -F "witness=res://artifacts/automatic_road/automatic_road_player_witness.png" /tmp/automatic-road-spawn.log
+          test -s grand-bruxelles-game/artifacts/automatic_road/automatic_road_player_witness.png
+
+      - name: Stage and bind exact player-view evidence
+        shell: bash
+        env:
+          GB_EVIDENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          evidence_dir=/tmp/automatic-road-evidence
+          witness=grand-bruxelles-game/artifacts/automatic_road/automatic_road_player_witness.png
+          source_file=grand-bruxelles-game/data/osm/vertical_slice_01.game.json
+          runtime_index=grand-bruxelles-game/data/runtime/road_destination_runtime_index.json
+          rm -rf "$evidence_dir"
+          mkdir -p "$evidence_dir"
+          cp /tmp/automatic-road-import.log "$evidence_dir/automatic-road-import.log"
+          cp /tmp/automatic-road-spawn.log "$evidence_dir/automatic-road-spawn.log"
+          cp "$witness" "$evidence_dir/automatic_road_player_witness.png"
+          SOURCE_FILE="$source_file" RUNTIME_INDEX="$runtime_index" python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import struct
+
+          evidence_dir = Path('/tmp/automatic-road-evidence')
+          witness_path = evidence_dir / 'automatic_road_player_witness.png'
+          data = witness_path.read_bytes()
+          if len(data) <= 24:
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: PNG is empty/truncated')
+          if data[:8] != b'\x89PNG\r\n\x1a\n' or data[12:16] != b'IHDR':
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: invalid PNG')
+          width, height = struct.unpack('>II', data[16:24])
+          if (width, height) != (1280, 720):
+              raise SystemExit(f'AUTOMATIC_ROAD_WITNESS_FAIL: expected 1280x720, got {width}x{height}')
+          head_sha = os.environ.get('GB_EVIDENCE_HEAD_SHA', '').strip()
+          base_sha = os.environ.get('GB_EVIDENCE_BASE_SHA', '').strip()
+          if len(head_sha) != 40 or len(base_sha) != 40:
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: missing exact head/base provenance')
+          source_path = Path(os.environ['SOURCE_FILE'])
+          runtime_index_path = Path(os.environ['RUNTIME_INDEX'])
+          source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
+          runtime_index_bytes = runtime_index_path.read_bytes()
+          runtime_index_sha256 = hashlib.sha256(runtime_index_bytes).hexdigest()
+          index = json.loads(runtime_index_bytes)
+          if index.get('format') != 'grand-bruxelles-road-runtime-index-v1' or index.get('source_lookup_only') is not True:
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: runtime index contract drifted')
+          auth = index.get('authorization', {})
+          if auth.get('source_lookup_only') is not True:
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: runtime index lookup authorization drifted')
+          for key in ('render_authorized', 'collision_authorized', 'runtime_mount_authorized', 'safe_spawn_authorized', 'jouable_authorized'):
+              if auth.get(key, True):
+                  raise SystemExit(f'AUTOMATIC_ROAD_WITNESS_FAIL: runtime index unexpectedly authorizes {key}')
+          expected_path = 'data/osm/vertical_slice_01.game.json'
+          descriptors = [d for d in index.get('documents', []) if isinstance(d, dict) and d.get('path') == expected_path]
+          if len(descriptors) != 1 or descriptors[0].get('sha256', '').lower() != source_sha256:
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: source/runtime-index SHA binding drifted')
+          if 359177328 not in {int(v) for v in descriptors[0].get('road_ids', [])}:
+              raise SystemExit('AUTOMATIC_ROAD_WITNESS_FAIL: Lemonnier missing from live runtime index')
+          png_sha256 = hashlib.sha256(data).hexdigest()
+          manifest = {
+              'schema': 'grand_bruxelles_automatic_road_player_witness_v2',
+              'base_sha': base_sha,
+              'head_sha': head_sha,
+              'resolution': [width, height],
+              'source_path': 'res://data/osm/vertical_slice_01.game.json',
+              'source_sha256': source_sha256,
+              'runtime_index_path': 'res://data/runtime/road_destination_runtime_index.json',
+              'runtime_index_sha256': runtime_index_sha256,
+              'runtime_index_format': 'grand-bruxelles-road-runtime-index-v1',
+              'primary_road_osm_id': 359177328,
+              'lookup_mode': 'deterministic_runtime_index',
+              'ground_collision_required': True,
+              'source_sightline_clear_required': True,
+              'playability_claimed': False,
+              'png_sha256': png_sha256,
+          }
+          (evidence_dir / 'witness-manifest.json').write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n', encoding='utf-8')
+          print(f'AUTOMATIC_ROAD_WITNESS_STAGED: bytes={len(data)} size={width}x{height} source_sha256={source_sha256} runtime_index_sha256={runtime_index_sha256} png_sha256={png_sha256}')
+          PY
+          cd "$evidence_dir"
+          sha256sum automatic_road_player_witness.png witness-manifest.json automatic-road-import.log automatic-road-spawn.log > evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 4
+          sha256sum --check evidence-sha256.txt
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          manifest = json.loads(Path('witness-manifest.json').read_text(encoding='utf-8'))
+          assert manifest['schema'] == 'grand_bruxelles_automatic_road_player_witness_v2'
+          assert manifest['base_sha'] == os.environ['GB_EVIDENCE_BASE_SHA']
+          assert manifest['head_sha'] == os.environ['GB_EVIDENCE_HEAD_SHA']
+          assert manifest['resolution'] == [1280, 720]
+          assert manifest['primary_road_osm_id'] == 359177328
+          assert manifest['lookup_mode'] == 'deterministic_runtime_index'
+          assert manifest['runtime_index_format'] == 'grand-bruxelles-road-runtime-index-v1'
+          assert len(manifest['source_sha256']) == 64
+          assert len(manifest['runtime_index_sha256']) == 64
+          assert manifest['ground_collision_required'] is True
+          assert manifest['source_sightline_clear_required'] is True
+          assert manifest['playability_claimed'] is False
+          print('AUTOMATIC_ROAD_WITNESS_MANIFEST_OK exact_head=true live_index_bound=true playability_claimed=false')
+          PY
 
       - name: Verify safe Web request grammar
         run: |
@@ -64,12 +185,18 @@ jobs:
           grep -F "if (DIRECT_SPAWN_STATIC || DIRECT_SPAWN_ROAD || DIRECT_SPAWN_STREETAXIS)" .github/workflows/grand-bruxelles-web.yml
           ! grep -E "spawn=.*(x=|y=|z=|lat=|lon=)" .github/workflows/grand-bruxelles-web.yml
 
+      - name: Re-verify evidence integrity immediately before upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/automatic-road-evidence
+          sha256sum --check evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 4
+
       - name: Upload gate evidence
         uses: actions/upload-artifact@v4
         with:
           name: automatic-road-spawn-evidence
-          path: |
-            /tmp/automatic-road-import.log
-            /tmp/automatic-road-spawn.log
+          path: /tmp/automatic-road-evidence/
           if-no-files-found: error
           retention-days: 14

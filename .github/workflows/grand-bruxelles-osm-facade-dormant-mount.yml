@@ -1,0 +1,47 @@
+name: Grand Bruxelles OSM Facade Dormant Mount
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_facade_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_osm_facade_articulation_runtime.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_osm_facade_runtime_dormant_mount_test.gd'
+      - '.github/workflows/grand-bruxelles-osm-facade-dormant-mount.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  facade-dormant-mount:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
+            -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/facade-dormant-import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/facade-dormant-import.log
+      - name: Validate dormant partial mount then nested event-driven facade bind
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game \
+            --script res://game/tests/brussels_osm_facade_runtime_dormant_mount_test.gd 2>&1 | tee /tmp/facade-dormant.log
+          grep -q 'BRUSSELS_OSM_FACADE_DORMANT_MOUNT_OK' /tmp/facade-dormant.log
+          grep -q 'nested_mount=true' /tmp/facade-dormant.log
+          ! grep -q 'Brussels OSM facade surface runtime: GeneratedBuildings missing' /tmp/facade-dormant.log
+          ! grep -q 'Brussels OSM facade articulation runtime: production facade runtime not ready' /tmp/facade-dormant.log

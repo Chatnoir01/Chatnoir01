@@ -6,21 +6,19 @@ const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
 const RUNTIME_INDEX_PATH := "res://data/runtime/road_destination_runtime_index.json"
 const RUNTIME_INDEX_FORMAT := "grand-bruxelles-road-runtime-index-v1"
 const LEMONNIER_ID := 359177328
-
+const WITNESS_DIR := "res://artifacts/automatic_road"
+const WITNESS_PATH := WITNESS_DIR + "/automatic_road_player_witness.png"
 
 func _initialize() -> void:
     call_deferred("_run")
-
 
 func _fail(message: String) -> void:
     push_error("AUTOMATIC_ROAD_DIRECT_SPAWN_FAIL: %s" % message)
     quit(1)
 
-
 func _document() -> Dictionary:
     var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(SOURCE_PATH))
     return parsed as Dictionary if parsed is Dictionary else {}
-
 
 func _runtime_index_contract() -> Dictionary:
     if not FileAccess.file_exists(RUNTIME_INDEX_PATH):
@@ -40,7 +38,6 @@ func _runtime_index_contract() -> Dictionary:
     for forbidden: String in ["render_authorized", "collision_authorized", "runtime_mount_authorized", "safe_spawn_authorized", "jouable_authorized"]:
         if bool(auth.get(forbidden, true)):
             return {}
-
     var documents: Variant = index.get("documents", [])
     if not documents is Array or documents.is_empty():
         return {}
@@ -55,9 +52,6 @@ func _runtime_index_contract() -> Dictionary:
         var road_ids: Variant = descriptor.get("road_ids", [])
         if expected_sha.length() != 64 or not road_ids is Array or road_ids.is_empty():
             return {}
-        # JSON numbers are parsed as numeric Variants. Normalize them exactly as
-        # the production resolver does before testing membership, so the contract
-        # does not reject a valid deterministic index because of Variant typing.
         var normalized_road_ids: Dictionary = {}
         for raw_id: Variant in road_ids:
             var osm_id := int(raw_id)
@@ -66,13 +60,8 @@ func _runtime_index_contract() -> Dictionary:
             normalized_road_ids[osm_id] = true
         if not normalized_road_ids.has(LEMONNIER_ID):
             return {}
-        return {
-            "source_sha256": expected_sha,
-            "road_count": normalized_road_ids.size(),
-            "document_count": documents.size(),
-        }
+        return {"source_sha256": expected_sha, "road_count": normalized_road_ids.size(), "document_count": documents.size()}
     return {}
-
 
 func _rendered(world: Node, osm_id: int) -> bool:
     var prefix := "Road_%d_" % osm_id
@@ -85,6 +74,20 @@ func _rendered(world: Node, osm_id: int) -> bool:
             stack.append(child)
     return false
 
+func _capture_player_witness() -> Error:
+    var absolute_dir := ProjectSettings.globalize_path(WITNESS_DIR)
+    var mkdir_error := DirAccess.make_dir_recursive_absolute(absolute_dir)
+    if mkdir_error != OK and mkdir_error != ERR_ALREADY_EXISTS:
+        return mkdir_error
+    for _frame: int in range(3):
+        await process_frame
+    await RenderingServer.frame_post_draw
+    var image := root.get_texture().get_image()
+    if image == null or image.is_empty():
+        return ERR_CANT_CREATE
+    if image.get_width() != 1280 or image.get_height() != 720:
+        return ERR_INVALID_DATA
+    return image.save_png(WITNESS_PATH)
 
 func _run() -> void:
     var main := MAIN_SCENE.instantiate()
@@ -92,12 +95,10 @@ func _run() -> void:
     for _frame: int in range(12):
         await process_frame
         await physics_frame
-
     var player := main.get_node_or_null("Player") as CharacterBody3D
     if player == null:
         _fail("production Player missing")
         return
-
     var index_contract := _runtime_index_contract()
     if index_contract.is_empty():
         _fail("deterministic runtime index contract missing or invalid")
@@ -109,7 +110,6 @@ func _run() -> void:
     if actual_source_sha != expected_source_sha:
         _fail("source SHA no longer matches generated runtime index: actual=%s expected=%s" % [actual_source_sha, expected_source_sha])
         return
-
     var resolver := RESOLVER_SCRIPT.new()
     root.add_child(resolver)
     if resolver.runtime_index_road_count() != expected_road_count:
@@ -125,7 +125,6 @@ func _run() -> void:
         if resolver.requested_road_id(PackedStringArray([malformed])) != 0:
             _fail("malformed request accepted: %s" % malformed)
             return
-
     var original_position := player.global_position
     if resolver.apply_to_player(player, 999999999):
         _fail("unknown road was accepted")
@@ -133,7 +132,6 @@ func _run() -> void:
     if player.global_position.distance_to(original_position) > 0.001:
         _fail("unknown road moved the player")
         return
-
     if not _rendered(main, LEMONNIER_ID):
         _fail("known Lemonnier road is not rendered in production scene")
         return
@@ -152,7 +150,6 @@ func _run() -> void:
     if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != expected_source_sha:
         _fail("road spawn source SHA proof missing")
         return
-
     var document := _document()
     if document.is_empty():
         _fail("vertical slice source missing")
@@ -161,7 +158,6 @@ func _run() -> void:
     if not roads is Array:
         _fail("vertical slice roads missing")
         return
-
     var second_id := 0
     var second_name := ""
     for raw: Variant in roads:
@@ -179,7 +175,6 @@ func _run() -> void:
             second_id = osm_id
             second_name = name
             break
-
     if second_id <= 0:
         _fail("no second rendered source-backed road passed the indexed resolver")
         return
@@ -195,7 +190,6 @@ func _run() -> void:
     if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != expected_source_sha:
         _fail("second road source SHA proof drifted")
         return
-
     var source_path := str(player.get_meta("automatic_road_direct_source_path", ""))
     if source_path != SOURCE_PATH:
         _fail("source path provenance drifted: %s" % source_path)
@@ -207,6 +201,12 @@ func _run() -> void:
     if not bool(player.get_meta("automatic_road_direct_source_sightline_clear", false)):
         _fail("source sightline gate missing")
         return
-
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d second=%d second_name=%s source=%s source_sha=%s ground_y=%.3f" % [expected_road_count, expected_document_count, LEMONNIER_ID, second_id, second_name, source_path, expected_source_sha, ground_y])
+    var witness_error: Error = await _capture_player_witness()
+    if witness_error != OK:
+        _fail("1280x720 player witness capture failed: %s" % error_string(witness_error))
+        return
+    if not FileAccess.file_exists(WITNESS_PATH):
+        _fail("player witness PNG was not persisted")
+        return
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d second=%d second_name=%s source=%s source_sha=%s ground_y=%.3f lookup=deterministic_runtime_index witness=%s" % [expected_road_count, expected_document_count, LEMONNIER_ID, second_id, second_name, source_path, expected_source_sha, ground_y, WITNESS_PATH])
     quit(0)

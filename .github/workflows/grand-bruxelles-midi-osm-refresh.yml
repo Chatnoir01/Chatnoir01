@@ -1,0 +1,48 @@
+name: Grand Bruxelles Midi OSM Refresh
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-midi-osm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: grand-bruxelles-game
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install exact projection dependency
+        run: python -m pip install "pyproj>=3.7,<4"
+
+      - name: Refresh Midi regional environment from Overpass
+        run: >-
+          python tools/city_machine/build_osm_environment_zone.py
+          --manifest data/urbis/midi/manifest.json
+          --zone midi
+          --raw-cache data/osm/zones/midi/environment.raw.json
+          --output data/osm/zones/midi/environment.game.json
+          --refresh
+
+      - name: Validate generated Midi onboarding evidence
+        run: python tools/city_machine/check_onboarding_candidate.py --zone midi
+
+      - name: Upload deterministic Midi OSM cache candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-osm-regional-cache
+          path: |
+            grand-bruxelles-game/data/osm/zones/midi/environment.raw.json
+            grand-bruxelles-game/data/osm/zones/midi/environment.game.json
+          if-no-files-found: error
+          retention-days: 7

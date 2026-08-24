@@ -5,6 +5,7 @@ on:
     paths:
       - "grand-bruxelles-game/tools/city_machine/**"
       - "grand-bruxelles-game/tools/validate_jette_phase2_data.py"
+      - "grand-bruxelles-game/tools/validate_midi_city_machine_data.py"
       - "grand-bruxelles-game/tools/lambert72_to_game_geojson.py"
       - "grand-bruxelles-game/data/qa/playable_zone_catalog.json"
       - "grand-bruxelles-game/data/urbis/**"
@@ -13,6 +14,8 @@ on:
       - "grand-bruxelles-game/data/runtime/modules/city_machine_environment.json"
       - "grand-bruxelles-game/game/scripts/brussels_city_machine_environment_runtime.gd"
       - "grand-bruxelles-game/game/scripts/brussels_osm_environment_runtime.gd"
+      - "grand-bruxelles-game/game/scripts/player_controller.gd"
+      - "grand-bruxelles-game/game/scripts/urbis_midi_builder.gd"
       - "grand-bruxelles-game/game/zones/**"
       - ".github/workflows/grand-bruxelles-city-machine.yml"
   workflow_dispatch:
@@ -36,30 +39,52 @@ jobs:
           python3 grand-bruxelles-game/tools/city_machine/test_osm_environment_zone.py
           python3 grand-bruxelles-game/tools/city_machine/test_runtime_environment_index.py
           python3 grand-bruxelles-game/tools/city_machine/test_city_machine.py
-      - name: Dry-run production Jette plan
-        run: python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --dry-run
+      - name: Dry-run production Jette and Midi plans
+        run: |
+          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --dry-run
+          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone midi --dry-run
       - name: Rebuild Jette twice and prove idempotence
         run: |
           set -euo pipefail
           OUT=/tmp/city-machine-jette
-          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --output-dir "$OUT" | tee /tmp/city-machine-build-1.log
+          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --output-dir "$OUT" | tee /tmp/city-machine-jette-build-1.log
           RECEIPT=$(find "$OUT" -maxdepth 1 -name 'build-*.json' -type f | sort)
           test "$(printf '%s\n' "$RECEIPT" | sed '/^$/d' | wc -l)" -eq 1
-          sha256sum "$RECEIPT" > /tmp/city-machine-receipt.sha
-          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --output-dir "$OUT" | tee /tmp/city-machine-build-2.log
-          sha256sum -c /tmp/city-machine-receipt.sha
+          sha256sum "$RECEIPT" > /tmp/city-machine-jette-receipt.sha
+          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone jette --output-dir "$OUT" | tee /tmp/city-machine-jette-build-2.log
+          sha256sum -c /tmp/city-machine-jette-receipt.sha
           test "$(find "$OUT" -maxdepth 1 -name 'build-*.json' -type f | wc -l)" -eq 1
+      - name: Rebuild Midi twice and prove idempotence
+        run: |
+          set -euo pipefail
+          OUT=/tmp/city-machine-midi
+          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone midi --output-dir "$OUT" | tee /tmp/city-machine-midi-build-1.log
+          RECEIPT=$(find "$OUT" -maxdepth 1 -name 'build-*.json' -type f | sort)
+          test "$(printf '%s\n' "$RECEIPT" | sed '/^$/d' | wc -l)" -eq 1
+          sha256sum "$RECEIPT" > /tmp/city-machine-midi-receipt.sha
+          python3 grand-bruxelles-game/tools/city_machine/city_machine.py build --zone midi --output-dir "$OUT" | tee /tmp/city-machine-midi-build-2.log
+          sha256sum -c /tmp/city-machine-midi-receipt.sha
+          test "$(find "$OUT" -maxdepth 1 -name 'build-*.json' -type f | wc -l)" -eq 1
+      - name: Prove committed runtime artifacts do not drift
+        run: |
           git diff --exit-code -- \
             grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/buildings.game.json \
             grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/street_surfaces.game.json \
             grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/street_axes.game.json \
             grand-bruxelles-game/data/urbis/laeken_jette/jette_phase2/train_network.game.json \
             grand-bruxelles-game/data/osm/zones/jette/environment.game.json \
+            grand-bruxelles-game/data/urbis/midi/buildings.game.json \
+            grand-bruxelles-game/data/urbis/midi/street_surfaces.game.json \
+            grand-bruxelles-game/data/urbis/midi/street_axes.game.json \
+            grand-bruxelles-game/data/urbis/midi/train_network.game.json \
+            grand-bruxelles-game/data/osm/zones/midi/environment.game.json \
             grand-bruxelles-game/data/runtime/runtime_environment_index.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: city-machine-jette-proof
+          name: city-machine-regional-proof
           path: |
             /tmp/city-machine-jette/*.json
-            /tmp/city-machine-build-*.log
+            /tmp/city-machine-jette-build-*.log
+            /tmp/city-machine-midi/*.json
+            /tmp/city-machine-midi-build-*.log

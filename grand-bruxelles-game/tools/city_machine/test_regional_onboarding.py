@@ -16,6 +16,7 @@ def expect_machine_error(fn, contains: str) -> None:
 def main() -> int:
     registry = cm.load_registry()
     assert registry["version"] == 4
+    assert set(registry["zone_profiles"]) == {"jette", "midi"}
 
     assert cm.layer_enabled({"enabled_zones": ["*"]}, "future_zone")
     assert cm.layer_enabled({"enabled_zones": ["jette"]}, "jette")
@@ -26,10 +27,14 @@ def main() -> int:
         if layer["kind"] != "disabled":
             assert cm.layer_enabled(layer, "future_zone"), layer["layer_id"]
 
-    jette = registry["zone_profiles"]["jette"]
-    assert cm.profile_script(jette, "validator_script").is_file()
-    assert cm.profile_script(jette, "runtime_script").is_file()
+    for zone_id in ("jette", "midi"):
+        profile = registry["zone_profiles"][zone_id]
+        assert cm.profile_script(profile, "validator_script").is_file()
+        assert cm.profile_script(profile, "runtime_script").is_file()
+        assert cm.source_contract(profile)["source_crs"] == "EPSG:31370"
+        assert cm.build(zone_id, dry=True) is None
 
+    jette = registry["zone_profiles"]["jette"]
     missing_validator = dict(jette)
     missing_validator.pop("validator_script")
     expect_machine_error(lambda: cm.profile_script(missing_validator, "validator_script"), "validator_script")
@@ -44,9 +49,7 @@ def main() -> int:
     expect_machine_error(lambda: cm.build("anneessens", dry=True), "not enabled")
     expect_machine_error(lambda: cm.build("bourse", dry=True), "not enabled")
 
-    assert cm.build("jette", dry=True) is None
-
-    print("CITY_MACHINE_REGIONAL_ONBOARDING_OK wildcard_layers=true profile_scripts=true jette_dry_run=true incomplete_zones_fail_closed=true")
+    print("CITY_MACHINE_REGIONAL_ONBOARDING_OK wildcard_layers=true profiles=jette,midi dry_runs=true incomplete_zones_fail_closed=true")
     return 0
 
 

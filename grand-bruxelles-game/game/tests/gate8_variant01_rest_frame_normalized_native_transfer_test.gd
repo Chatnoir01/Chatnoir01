@@ -9,8 +9,8 @@ const MAX_TRANSFER_ERROR_DEG := 3.0
 const MIN_TRANSFER_GAIN := 0.85
 const MAX_TRANSFER_GAIN := 1.15
 const MAX_RESET_RESIDUAL_DEG := 0.25
-const MAX_REST_DRIFT_DEG := 0.001
 const MAX_REST_ORIGIN_DRIFT_M := 0.000001
+const MAX_REST_BASIS_COMPONENT_DRIFT := 0.000001
 const MAX_SCALE_DRIFT := 0.0001
 
 const ROLE_PAIRS := {
@@ -118,8 +118,8 @@ func _run() -> void:
 			failures.append("transfer_error=%s:%.6f" % [role, transfer_error_deg])
 		if transfer_gain < MIN_TRANSFER_GAIN or transfer_gain > MAX_TRANSFER_GAIN:
 			failures.append("transfer_gain=%s:%.6f" % [role, transfer_gain])
-		worst_error = maxf(worst_error, transfer_error_deg)
-		if transfer_error_deg >= worst_error - 0.0000001:
+		if transfer_error_deg >= worst_error:
+			worst_error = transfer_error_deg
 			worst_role = role
 
 		var target_rest_scale := target_probe.get_bone_rest(target_index).basis.get_scale()
@@ -150,6 +150,11 @@ func _run() -> void:
 	_validate_rest_snapshot(target_real, target_roles, target_rest_snapshot, "target_real")
 	if rows.size() != ROLE_PAIRS.size():
 		failures.append("measured_roles=%d" % rows.size())
+	var rest_unchanged := true
+	for failure in failures:
+		if String(failure).begins_with("rest_drift="):
+			rest_unchanged = false
+			break
 	var state := "READY_REST_NORMALIZED_ANIMATION_AB" if failures.is_empty() else "BLOCKED_REST_NORMALIZED_NATIVE_TRANSFER"
 	var result := {
 		"format":"grand-bruxelles-gate8-rest-frame-normalized-native-transfer-v1",
@@ -159,6 +164,7 @@ func _run() -> void:
 		"measured_roles":rows.size(),
 		"probe_degrees":PROBE_DEGREES,
 		"normalization_formula":"D=Rs^-1*Ps; Pnormalized=Rt*D",
+		"rest_immutability_measure":"basis_component_plus_origin",
 		"native_modifier":"RetargetModifier3D",
 		"use_global_pose":false,
 		"position_enabled":false,
@@ -170,7 +176,7 @@ func _run() -> void:
 		"max_reset_residual_deg":max_reset_residual,
 		"max_scale_drift":max_scale_drift,
 		"source_target_assets_mutated":false,
-		"rest_transforms_unchanged":not failures.any(func(v): return String(v).begins_with("rest_drift=")),
+		"rest_transforms_unchanged":rest_unchanged,
 		"run_alias_selected":"",
 		"production_authorized":false,
 		"activation_ready":false,
@@ -197,7 +203,8 @@ func _validate_topology(skeleton:Skeleton3D, roles:Dictionary, label:String) -> 
 		role_by_bone[int(roles[role])] = String(role)
 	for role_value in ROLE_ORDER:
 		var role := String(role_value)
-		if not roles.has(role): continue
+		if not roles.has(role):
+			continue
 		var actual_parent := _nearest_mapped_parent_role(skeleton, int(roles[role]), role_by_bone)
 		if actual_parent != String(EXPECTED_PARENT_ROLE[role]):
 			failures.append("topology_mismatch=%s:%s:%s" % [label, role, actual_parent])
@@ -252,14 +259,23 @@ func _validate_rest_snapshot(skeleton:Skeleton3D, roles:Dictionary, snapshot:Dic
 		var before:Transform3D = snapshot[String(role)]
 		var after := skeleton.get_bone_rest(int(roles[role]))
 		var origin_drift := before.origin.distance_to(after.origin)
-		var rotation_drift := rad_to_deg(before.basis.orthonormalized().get_rotation_quaternion().angle_to(after.basis.orthonormalized().get_rotation_quaternion()))
-		if origin_drift > MAX_REST_ORIGIN_DRIFT_M or rotation_drift > MAX_REST_DRIFT_DEG:
-			failures.append("rest_drift=%s:%s:%.9f:%.9f" % [label, String(role), origin_drift, rotation_drift])
+		var basis_component_drift := _basis_component_max_drift(before.basis, after.basis)
+		if origin_drift > MAX_REST_ORIGIN_DRIFT_M or basis_component_drift > MAX_REST_BASIS_COMPONENT_DRIFT:
+			failures.append("rest_drift=%s:%s:origin=%.9f:basis=%.9f" % [label, String(role), origin_drift, basis_component_drift])
+
+func _basis_component_max_drift(a:Basis, b:Basis) -> float:
+	var drift := 0.0
+	for column in [Vector3(a.x.x, a.x.y, a.x.z) - Vector3(b.x.x, b.x.y, b.x.z), Vector3(a.y.x, a.y.y, a.y.z) - Vector3(b.y.x, b.y.y, b.y.z), Vector3(a.z.x, a.z.y, a.z.z) - Vector3(b.z.x, b.z.y, b.z.z)]:
+		drift = maxf(drift, absf(column.x))
+		drift = maxf(drift, absf(column.y))
+		drift = maxf(drift, absf(column.z))
+	return drift
 
 func _nearest_mapped_parent_role(skeleton:Skeleton3D, index:int, role_by_bone:Dictionary) -> String:
 	var parent := skeleton.get_bone_parent(index)
 	while parent >= 0:
-		if role_by_bone.has(parent): return String(role_by_bone[parent])
+		if role_by_bone.has(parent):
+			return String(role_by_bone[parent])
 		parent = skeleton.get_bone_parent(parent)
 	return ""
 
@@ -270,18 +286,23 @@ func _canonical(role:String) -> StringName:
 	return StringName("gb_humanoid_%s" % role)
 
 func _find_skeleton(node:Node) -> Skeleton3D:
-	if node is Skeleton3D: return node as Skeleton3D
+	if node is Skeleton3D:
+		return node as Skeleton3D
 	for child in node.get_children():
 		var found := _find_skeleton(child)
-		if found != null: return found
+		if found != null:
+			return found
 	return null
 
 func _finish(result:Dictionary) -> void:
 	var file := FileAccess.open("res://gate8_variant01_rest_frame_normalized_native_transfer.json", FileAccess.WRITE)
 	if file != null:
-		file.store_string(JSON.stringify(result, "  ")); file.close()
+		file.store_string(JSON.stringify(result, "  "))
+		file.close()
 	if result.has("failures") and (result.failures as Array).size() > 0:
-		for failure in result.failures: push_error(String(failure))
-		quit(1); return
+		for failure in result.failures:
+			push_error(String(failure))
+		quit(1)
+		return
 	print("GATE8_REST_NORMALIZED_NATIVE_TRANSFER_OK roles=%d max_error_deg=%.6f max_reset_deg=%.6f production_authorized=false" % [int(result.measured_roles), float(result.max_transfer_error_deg), float(result.max_reset_residual_deg)])
 	quit(0)

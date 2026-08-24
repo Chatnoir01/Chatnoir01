@@ -2,6 +2,8 @@ extends SceneTree
 
 const ANNEESSENS := Vector2(-272.04, -217.07)
 const DETAIL_RADIUS_M := 150.0
+const EXPECTED_SOURCE := "OpenStreetMap contributors via Overpass API"
+const EXPECTED_LICENSE := "ODbL-1.0"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -26,6 +28,25 @@ func _expected_sidewalk_count(scene: Node3D) -> int:
             continue
         eligible += 1
     return eligible * 2
+
+func _assert_proxy_contract(node: Node, label: String) -> bool:
+    if str(node.get_meta("source", "")) != EXPECTED_SOURCE:
+        _fail("%s source provenance mismatch" % label)
+        return false
+    if str(node.get_meta("license", "")) != EXPECTED_LICENSE:
+        _fail("%s source license mismatch" % label)
+        return false
+    if not bool(node.get_meta("road_alignment_source_backed", false)):
+        _fail("%s road-alignment source contract missing" % label)
+        return false
+    for unsupported: String in ["sidewalk_presence_source_backed", "visual_dimensions_source_backed", "vertical_profile_source_backed", "material_identity_source_backed"]:
+        if bool(node.get_meta(unsupported, true)):
+            _fail("%s unsupported source claim enabled: %s" % [label, unsupported])
+            return false
+    if not bool(node.get_meta("authored_proxy", false)):
+        _fail("%s authored-proxy contract missing" % label)
+        return false
+    return true
 
 func _run() -> void:
     var packed := load("res://game/main.tscn") as PackedScene
@@ -75,6 +96,19 @@ func _run() -> void:
     if kit.get_child_count() != expected:
         _fail("mounted sidewalk child count mismatch")
         return
+    if not _assert_proxy_contract(kit, "kit"):
+        return
 
-    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: sidewalks=%d collisions=%d current_scene=null" % [sidewalk_count, collision_count])
+    for child: Node in kit.get_children():
+        if not child is CSGBox3D:
+            _fail("non-CSG sidewalk child leaked into kit")
+            return
+        var pavement := child as CSGBox3D
+        if not pavement.use_collision:
+            _fail("sidewalk collision disabled: %s" % pavement.name)
+            return
+        if not _assert_proxy_contract(pavement, pavement.name):
+            return
+
+    print("ANNEESSENS_MIDI_SIDEWALK_ROOT_BIND_OK: sidewalks=%d collisions=%d current_scene=null source=OSM license=ODbL-1.0 authored_proxy=true" % [sidewalk_count, collision_count])
     quit(0)

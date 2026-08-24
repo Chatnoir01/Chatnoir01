@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin main
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
-          test "$LIVE_MAIN_SHA" = "78c169227fe70f2265a83c3ad30601b03bf9ee16" || { echo "RED: live main moved; rebuild required" >&2; exit 1; }
+          test "$LIVE_MAIN_SHA" = "a037436b408889bd4895c225da4a98da886dbfef" || { echo "RED: live main moved; rebuild required" >&2; exit 1; }
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || { echo "RED: candidate does not contain live main" >&2; exit 1; }
       - uses: actions/setup-python@v5
         with:

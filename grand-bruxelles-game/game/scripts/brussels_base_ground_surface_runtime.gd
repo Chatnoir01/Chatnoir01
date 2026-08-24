@@ -1,7 +1,7 @@
 extends Node
 
 const MATERIAL_FAMILY := "brussels_base_ground_surface_v1"
-const PRESENTATION_REVISION := 6
+const PRESENTATION_REVISION := 7
 const TARGET_MAIN_NODE := "Main"
 const TARGET_GROUND_NODE := "Ground"
 const EXPECTED_POSITION := Vector3(0.0, -0.23, 0.0)
@@ -24,9 +24,9 @@ func _make_material() -> ShaderMaterial:
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
-uniform vec4 ground_dark_color = vec4(0.170, 0.174, 0.172, 1.0);
-uniform vec4 ground_light_color = vec4(0.205, 0.207, 0.201, 1.0);
-uniform float base_roughness : hint_range(0.0, 1.0) = 0.94;
+uniform vec4 ground_dark_color = vec4(0.125, 0.130, 0.128, 1.0);
+uniform vec4 ground_light_color = vec4(0.195, 0.200, 0.194, 1.0);
+uniform float base_roughness : hint_range(0.0, 1.0) = 0.945;
 
 varying vec3 world_pos;
 
@@ -66,14 +66,14 @@ void fragment() {
     float broad = authored_isotropic_noise(world_pos.xz);
     float fine = authored_isotropic_noise(world_pos.xz * 2.65 + vec2(13.0, 57.0));
     float authored_ground_tone = clamp(
-        0.5 + (broad - 0.5) * 0.28 + (fine - 0.5) * 0.08,
-        0.32,
-        0.68
+        0.5 + (broad - 0.5) * 0.60 + (fine - 0.5) * 0.18,
+        0.22,
+        0.78
     );
     ALBEDO = mix(ground_dark_color.rgb, ground_light_color.rgb, authored_ground_tone);
-    ROUGHNESS = clamp(base_roughness + (fine - 0.5) * 0.018, 0.92, 0.96);
+    ROUGHNESS = clamp(base_roughness + (fine - 0.5) * 0.024, 0.92, 0.97);
     METALLIC = 0.0;
-    SPECULAR = 0.08;
+    SPECULAR = 0.07;
 }
 """
 

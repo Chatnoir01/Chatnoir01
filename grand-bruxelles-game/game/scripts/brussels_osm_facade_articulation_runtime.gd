@@ -52,6 +52,8 @@ func _valid_buildings_root(node: Node) -> bool:
     return node is Node3D and str(node.name) == "GeneratedBuildings" and node.get_parent() != null and str(node.get_parent().name) == "BrusselsOSM"
 
 func _find_existing_buildings_root() -> Node3D:
+    # Bounded recovery for an already-mounted scene (including nested SubViewport
+    # harnesses). Per-node events never recurse through the tree.
     for candidate: Node in get_tree().root.find_children("GeneratedBuildings", "Node3D", true, false):
         if _valid_buildings_root(candidate):
             return candidate as Node3D
@@ -73,14 +75,8 @@ func _on_node_added(node: Node) -> void:
         return
     if str(node.name) == "BrusselsOsmFacadeSurfaceRuntime":
         _connect_base_runtime()
-    var cursor: Node = node
-    while cursor != null and cursor != get_tree().root:
-        if _valid_buildings_root(cursor):
-            _schedule_apply()
-            return
-        cursor = cursor.get_parent()
-    var nested := node.get_node_or_null("BrusselsOSM/GeneratedBuildings")
-    if _valid_buildings_root(nested):
+        return
+    if _valid_buildings_root(node):
         _schedule_apply()
 
 func _schedule_apply() -> void:

@@ -1,0 +1,97 @@
+name: Grand Bruxelles Base Ground Surface Player Witness
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/project.godot'
+      - 'grand-bruxelles-game/game/main.tscn'
+      - 'grand-bruxelles-game/game/scripts/brussels_base_ground_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_base_ground_surface_contract_test.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_base_ground_surface_player_witness_test.gd'
+      - 'grand-bruxelles-game/game/tests/brussels_base_ground_banding_regression.gd'
+      - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - '.github/workflows/grand-bruxelles-base-ground-surface-player-witness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  base-ground-surface-player-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Install rendering dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/base-ground-import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/base-ground-import.log
+      - name: Validate v8 material contract
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_base_ground_surface_contract_test.gd 2>&1 | tee /tmp/base-ground-contract.log
+          grep -q 'BRUSSELS_BASE_GROUND_SURFACE_CONTRACT_OK' /tmp/base-ground-contract.log
+      - name: Capture legitimate player-view ground A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p grand-bruxelles-game/artifacts/base_ground_surface_player_witness
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --resolution 1280x720 --script res://game/tests/brussels_base_ground_surface_player_witness_test.gd 2>&1 | tee grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
+          grep -q 'BRUSSELS_BASE_GROUND_SURFACE_READY' grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
+          grep -q 'BRUSSELS_BASE_GROUND_SURFACE_PLAYER_WITNESS_OK' grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
+      - name: Reject directional banding regression
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_base_ground_banding_regression.gd 2>&1 | tee -a grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
+          grep -q 'BRUSSELS_BASE_GROUND_BANDING_OK' grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
+      - name: Validate exact evidence
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          root=Path('grand-bruxelles-game/artifacts/base_ground_surface_player_witness')
+          for name in ['base_ground_before.png','base_ground_after.png']:
+              data=(root/name).read_bytes(); assert data[:8]==b'\x89PNG\r\n\x1a\n'; assert struct.unpack('>II',data[16:24])==(1280,720)
+          report=json.loads((root/'base_ground_surface_player_witness.json').read_text())
+          assert report['schema']=='grand-bruxelles-base-ground-surface-player-witness-v3'
+          assert report['source_index_fresh'] is True
+          assert report['presentation_revision']==8 and report['calibration_revision']==2
+          assert report['anti_banding_revision']==2 and report['far_field_contrast_zero'] is True
+          assert report['geometry_changed'] is False and report['collision_changed'] is False
+          m=report['metrics']; assert 0.18 <= m['changed_fraction'] <= 0.70; assert m['bbox_width']>=700 and m['bbox_height']>=250
+          band=json.loads((root/'base_ground_banding_regression.json').read_text())
+          assert 0.40 <= band['vertical_to_horizontal_gradient_ratio'] <= 2.50
+          print('BASE_GROUND_V8_EVIDENCE_OK',m,band)
+          PY
+      - name: Bind evidence hashes
+        shell: bash
+        run: |
+          cd grand-bruxelles-game/artifacts/base_ground_surface_player_witness
+          sha256sum base_ground_before.png base_ground_after.png base_ground_surface_player_witness.json base_ground_banding_regression.json > evidence-sha256.txt
+          sha256sum --check evidence-sha256.txt
+      - name: Upload exact witness artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-base-ground-surface-player-witness
+          path: grand-bruxelles-game/artifacts/base_ground_surface_player_witness
+          if-no-files-found: error

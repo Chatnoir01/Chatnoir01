@@ -178,7 +178,7 @@ func _attack_still_valid(officer: NpcAgent, player: CharacterBody3D, action_name
     var distance_m := officer.global_position.distance_to(player.global_position)
     match action_name:
         &"melee_attack":
-            return distance_m <= float(ACTION_REQUEST_SCRIPT.MELEE_ATTACK_DISTANCE_M)
+            return distance_m <= float(ACTION_REQUEST_SCRIPT.MELEE_ATTACK_DISTANCE_M) and _has_line_of_sight(officer, player)
         &"ranged_attack":
             return distance_m <= float(ACTION_REQUEST_SCRIPT.RANGED_ATTACK_DISTANCE_M) and _has_line_of_sight(officer, player)
         _:

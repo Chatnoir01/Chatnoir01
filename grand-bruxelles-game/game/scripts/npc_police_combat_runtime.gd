@@ -330,8 +330,8 @@ func _spawn_ranged_feedback(officer: NpcAgent, player: CharacterBody3D) -> void:
     tracer_material.emission_energy_multiplier = 3.0
     tracer_mesh.material = tracer_material
     tracer.mesh = tracer_mesh
-    tracer.global_position = origin.lerp(target, 0.5)
     scene.add_child(tracer)
+    tracer.global_position = origin.lerp(target, 0.5)
     tracer.look_at(target, Vector3.UP)
     var tracer_tween := create_tween()
     tracer_tween.tween_interval(0.055)

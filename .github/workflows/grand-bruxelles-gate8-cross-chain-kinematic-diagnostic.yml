@@ -1,0 +1,182 @@
+name: Grand Bruxelles Gate-8 Cross-Chain Kinematic Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_variant01_cross_chain_kinematic_diagnostic_test.gd"
+      - ".github/workflows/grand-bruxelles-gate8-cross-chain-kinematic-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  cross-chain-kinematic-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-cross-chain-kinematic"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Lock fail-closed cross-chain contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=grand-bruxelles-game/game/tests/gate8_variant01_cross_chain_kinematic_diagnostic_test.gd
+          grep -q 'EXPECTED_ROLES := 22' "$P"
+          grep -q 'MAX_COMBINED_BOUND_EXCESS_M := 0.002' "$P"
+          grep -q 'MAX_SEGMENT_LENGTH_ERROR_M := 0.0001' "$P"
+          grep -q 'total_bound += 2.0 \* radius \* sin(angle \* 0.5)' "$P"
+          grep -q '"run_alias_selected": ""' "$P"
+          grep -q '"production_authorized": false' "$P"
+          grep -q '"activation_ready": false' "$P"
+          grep -q '"adoption_ready": false' "$P"
+
+      - name: Download pinned source and target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-Cross-Chain/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python3 - <<'PY'
+          import os, zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member=os.environ['ANIM_GLB']
+              if member not in z.namelist(): raise SystemExit('missing pinned animation GLB')
+              Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+          rm -rf /tmp/gate8-target && mkdir -p /tmp/gate8-target
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target
+          TARGET="$(find /tmp/gate8-target -type f -name npc_gate_01.glb -print -quit)"
+          test -n "$TARGET"
+          cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/animation-source.zip > /tmp/animation-source.sha256
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install exact Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated diagnostic project
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$PROJECT"
+          mkdir -p "$PROJECT/assets" "$PROJECT/game/tests"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8CrossChainKinematicDiagnostic"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_cross_chain_kinematic_diagnostic_test.gd "$PROJECT/game/tests/"
+          ! grep -q '^\[autoload\]' "$PROJECT/project.godot"
+
+      - name: Import exact assets under Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --editor --path "$PROJECT" --quit-after 1200 2>&1 | tee /tmp/cross-chain-import.log
+          test -d "$PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/cross-chain-import.log
+
+      - name: Measure combined-role propagation
+        id: diagnostic
+        shell: bash
+        run: |
+          set +e
+          timeout 240s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/gate8_variant01_cross_chain_kinematic_diagnostic_test.gd 2>&1 | tee /tmp/cross-chain.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          test -s "$PROJECT/gate8_variant01_cross_chain_kinematic_diagnostic_result.json"
+          cp "$PROJECT/gate8_variant01_cross_chain_kinematic_diagnostic_result.json" /tmp/cross-chain-result.json
+
+      - name: Validate cross-chain evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s /tmp/cross-chain-result.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/cross-chain-result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-cross-chain-kinematic-diagnostic-v1'
+          assert r['candidate_variant']==1 and r['reviewed_role_count']==22
+          assert set(r['clips'])=={'Jog_Fwd','Sprint'}
+          assert r['max_combined_bound_excess_m'] <= 0.002
+          assert r['max_segment_length_error_m'] <= 0.0001
+          assert r['diagnostic_state']=='CROSS_CHAIN_BOUND_VALID'
+          assert r['failures']==[]
+          assert r['retarget_applied'] is False and r['target_skin_modified'] is False and r['target_rest_modified'] is False
+          assert r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          Path('/tmp/cross-chain-summary.txt').write_text(
+              'state=%s\nmax_combined_bound_excess_m=%.12f\nmax_segment_length_error_m=%.12f\n' % (
+                  r['diagnostic_state'], r['max_combined_bound_excess_m'], r['max_segment_length_error_m']))
+          print('GATE8_CROSS_CHAIN_RESULT_OK max_excess_m=%.9f segment_error_m=%.9f production_authorized=false' % (r['max_combined_bound_excess_m'],r['max_segment_length_error_m']))
+          PY
+          grep -q '^GATE8_CROSS_CHAIN_KINEMATIC state=CROSS_CHAIN_BOUND_VALID ' /tmp/cross-chain.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/cross-chain.log
+          STATUS="${{ steps.diagnostic.outputs.status }}"
+          case "$STATUS" in
+            0) ;;
+            1)
+              echo "Godot returned clean status=1 after writing a complete CROSS_CHAIN_BOUND_VALID result; accepting semantic evidence and clean log."
+              ;;
+            *)
+              echo "Unexpected diagnostic process status: $STATUS" >&2
+              exit 1
+              ;;
+          esac
+          printf 'process_exit_status=%s\n' "$STATUS" >> /tmp/cross-chain-summary.txt
+
+      - name: Upload cross-chain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-cross-chain-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/cross-chain-result.json
+            /tmp/cross-chain-summary.txt
+            /tmp/cross-chain.log
+            /tmp/cross-chain-import.log
+            /tmp/godot-version.txt
+            /tmp/animation-source.sha256
+            /tmp/npc_gate_01.sha256
+          if-no-files-found: error

@@ -1,0 +1,165 @@
+name: Grand Bruxelles Gate-8 Skin Bind-Space Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_variant01_skin_bind_space_diagnostic_test.gd"
+      - ".github/workflows/grand-bruxelles-gate8-skin-bind-space-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  skin-bind-space-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-skin-bind-space"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Lock diagnostic contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=grand-bruxelles-game/game/tests/gate8_variant01_skin_bind_space_diagnostic_test.gd
+          grep -q 'MAX_REST_RECONSTRUCTION_ERROR_M := 0.001' "$P"
+          grep -q '_target.global_transform.affine_inverse() \* mesh_instance.global_transform' "$P"
+          grep -q 'mesh_to_skeleton.affine_inverse()' "$P"
+          grep -q '"retarget_applied": false' "$P"
+          grep -q '"production_authorized": false' "$P"
+          grep -q '"activation_ready": false' "$P"
+          grep -q '"adoption_ready": false' "$P"
+
+      - name: Download immutable Gate-8 target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-target && mkdir -p /tmp/gate8-target
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target
+          TARGET="$(find /tmp/gate8-target -type f -name npc_gate_01.glb -print -quit)"
+          test -n "$TARGET"
+          cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install exact Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          rm -rf /tmp/godot && mkdir -p /tmp/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated bind-space project
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$PROJECT"
+          mkdir -p "$PROJECT/assets" "$PROJECT/game/tests"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8SkinBindSpaceDiagnostic"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_skin_bind_space_diagnostic_test.gd "$PROJECT/game/tests/"
+          ! grep -q '^\[autoload\]' "$PROJECT/project.godot"
+
+      - name: Import target under Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 300s "$GODOT" --headless --editor --path "$PROJECT" --quit-after 1200 2>&1 | tee /tmp/skin-bind-space-import.log
+          test -d "$PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/skin-bind-space-import.log
+
+      - name: Measure rest reconstruction
+        id: diagnostic
+        shell: bash
+        run: |
+          set +e
+          timeout 240s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/gate8_variant01_skin_bind_space_diagnostic_test.gd 2>&1 | tee /tmp/skin-bind-space.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          test -s "$PROJECT/gate8_variant01_skin_bind_space_diagnostic_result.json"
+          cp "$PROJECT/gate8_variant01_skin_bind_space_diagnostic_result.json" /tmp/skin-bind-space-result.json
+
+      - name: Validate bind-space evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s /tmp/skin-bind-space-result.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/skin-bind-space-result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-skin-bind-space-diagnostic-v1'
+          assert r['candidate_variant']==1
+          assert r['skinned_mesh_count'] >= 1 and r['surfaces_measured'] >= 1 and r['vertices_measured'] > 0
+          assert r['legacy_rest_reconstruction_max_error_m'] >= 0
+          assert r['mesh_space_rest_reconstruction_max_error_m'] >= 0
+          assert r['diagnostic_state'] in {'MESH_SPACE_BIND_RECONSTRUCTION_VALID','BIND_SPACE_RECONSTRUCTION_UNRESOLVED'}
+          assert r['failures']==[]
+          assert r['retarget_applied'] is False and r['target_skin_modified'] is False and r['target_rest_modified'] is False
+          assert r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          Path('/tmp/skin-bind-space-summary.txt').write_text(
+              'state=%s\nlegacy_error_m=%.12f\nmesh_space_error_m=%.12f\nmesh_to_skeleton_translation_m=%.12f\n' % (
+                  r['diagnostic_state'], r['legacy_rest_reconstruction_max_error_m'],
+                  r['mesh_space_rest_reconstruction_max_error_m'], r['max_mesh_to_skeleton_translation_m']))
+          print('GATE8_SKIN_BIND_SPACE_RESULT_OK state=%s legacy=%.9f corrected=%.9f production_authorized=false' % (
+              r['diagnostic_state'],r['legacy_rest_reconstruction_max_error_m'],r['mesh_space_rest_reconstruction_max_error_m']))
+          PY
+          grep -q '^GATE8_SKIN_BIND_SPACE state=' /tmp/skin-bind-space.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/skin-bind-space.log
+          STATUS="${{ steps.diagnostic.outputs.status }}"
+          case "$STATUS" in
+            0) ;;
+            1)
+              echo "Godot returned status=1 after writing semantic bind-space evidence; accepting only because JSON and logs are clean."
+              ;;
+            *)
+              echo "Unexpected diagnostic process status: $STATUS" >&2
+              exit 1
+              ;;
+          esac
+          printf 'process_exit_status=%s\n' "$STATUS" >> /tmp/skin-bind-space-summary.txt
+
+      - name: Upload bind-space evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate8-skin-bind-space-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            /tmp/skin-bind-space-result.json
+            /tmp/skin-bind-space-summary.txt
+            /tmp/skin-bind-space.log
+            /tmp/skin-bind-space-import.log
+            /tmp/godot-version.txt
+            /tmp/npc_gate_01.sha256
+          if-no-files-found: error

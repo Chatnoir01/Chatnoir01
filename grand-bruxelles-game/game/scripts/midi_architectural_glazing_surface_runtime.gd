@@ -13,29 +13,41 @@ var _ready_complete := false
 var _identity_failure := false
 var _enabled := false
 var _identity: Dictionary = {}
+var _awaiting_midi := false
 
 func _ready() -> void:
-    call_deferred("_apply_when_ready")
-
-func _apply_when_ready() -> void:
-    await get_tree().process_frame
     _identity = _read_identity()
     if _identity.is_empty():
         _ready_complete = true
         return
+    _awaiting_midi = true
+    get_tree().node_added.connect(_on_node_added)
+    call_deferred("_bind_existing_midi")
+
+func _bind_existing_midi() -> void:
+    if _ready_complete or _identity_failure:
+        return
     var midi := get_tree().root.get_node_or_null("GrandBruxelles/MidiHeroZone")
     if midi == null:
         midi = get_tree().root.find_child("MidiHeroZone", true, false)
-    if midi == null:
-        push_error("Midi glazing runtime: MidiHeroZone missing")
-        _identity_failure = true
-        _ready_complete = true
+    if midi != null:
+        _apply_to_midi(midi)
+
+func _on_node_added(node: Node) -> void:
+    if _ready_complete or _identity_failure or node.name != "MidiHeroZone":
         return
+    _apply_to_midi(node)
+
+func _apply_to_midi(midi: Node) -> void:
+    if _ready_complete or _identity_failure:
+        return
+    _targets.clear()
     _collect_targets(midi)
     if _targets.size() != EXPECTED_SURFACES:
         push_error("Midi glazing runtime: expected %d verified glazing surfaces, got %d" % [EXPECTED_SURFACES, _targets.size()])
         _identity_failure = true
         _ready_complete = true
+        _finish_waiting()
         return
     _material = MATERIAL_FACTORY.create("Midi Urban 9423 architectural glazing")
     for target in _targets:
@@ -43,6 +55,12 @@ func _apply_when_ready() -> void:
     if _runtime_identity_allowed(_identity):
         set_enhanced_material_enabled(true)
     _ready_complete = true
+    _finish_waiting()
+
+func _finish_waiting() -> void:
+    _awaiting_midi = false
+    if get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.disconnect(_on_node_added)
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):
@@ -111,6 +129,9 @@ func ready_complete() -> bool:
 
 func identity_failure() -> bool:
     return _identity_failure
+
+func awaiting_midi() -> bool:
+    return _awaiting_midi
 
 func applied_surface_count() -> int:
     return _targets.size() if _ready_complete and not _identity_failure else 0

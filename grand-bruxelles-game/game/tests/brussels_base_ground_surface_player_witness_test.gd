@@ -14,8 +14,8 @@ const MIN_CHANGED_FRACTION := 0.18
 const MAX_CHANGED_FRACTION := 0.70
 const MIN_BBOX_WIDTH := 700
 const MIN_BBOX_HEIGHT := 250
-const EXPECTED_REVISION := 6
-const EXPECTED_PROFILE := "authored_isotropic_neutral_variation_v6"
+const EXPECTED_REVISION := 7
+const EXPECTED_PROFILE := "authored_isotropic_neutral_variation_v7"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -147,11 +147,19 @@ func _run() -> void:
     if shader_material.shader == null or not shader_material.shader.code.contains("authored_ground_tone"):
         _fail("production Ground shader lacks authored ground-tone contract")
         return
-    if shader_material.shader.code.contains("TIME"):
+    var shader_code := shader_material.shader.code
+    if shader_code.contains("TIME"):
         _fail("production Ground shader must remain deterministic and time-independent")
         return
-    if not shader_material.shader.code.contains("rotate2") or not shader_material.shader.code.contains("p_a") or not shader_material.shader.code.contains("p_b"):
-        _fail("v6 ground recipe lost multi-directional isotropic sampling")
+    if not shader_code.contains("rotate2") or not shader_code.contains("p_a") or not shader_code.contains("p_b"):
+        _fail("v7 ground recipe lost multi-directional isotropic sampling")
+        return
+    for token: String in ["ground_dark_color", "ground_light_color", "broad_a", "broad_b", "fine_a", "fine_b", "mix(broad, fine, detail_weight)"]:
+        if not shader_code.contains(token):
+            _fail("v7 calibrated isotropic ground recipe missing token: %s" % token)
+            return
+    if shader_code.contains("value_noise(world_pos.xz"):
+        _fail("v7 ground recipe regressed to perspective-aligned direct world-XZ noise")
         return
     if int(shader_material.get_meta("presentation_revision", 0)) != EXPECTED_REVISION:
         _fail("production Ground presentation revision mismatch")
@@ -183,7 +191,7 @@ func _run() -> void:
         _fail("base-ground pass leaks beyond bounded screen footprint: %.6f" % fraction)
         return
     if int(metrics["bbox_width"]) < MIN_BBOX_WIDTH or int(metrics["bbox_height"]) < MIN_BBOX_HEIGHT:
-        _fail("base-ground player footprint too small: %dx%d" % [int(metrics["bbox_width"]), int(metrics["bbox_height"])])
+        _fail("base-ground player footprint too small: %dx%d" % [int(metrics["bbox_width"]), int(metrics["bbox_height"])] )
         return
 
     var report := {

@@ -1,0 +1,217 @@
+name: Grand Bruxelles Grand-Place UrbIS Source Cell
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-urbis-source-cell.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_urbis_source_cell.contract.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/**"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/bootstrap_cell_maturity.py"
+      - "grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/grand_place_urbis_source_cell.contract.json
+  CELL_ID: bxl-e148000-n170000-s500
+  CELL_BBOX: 148000,170000,148500,170500
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+  LOCKED_ARTIFACT_ID: "9514120032"
+  LOCKED_ARTIFACT_SHA256: 439970c8f1a39537dff4c0061db139ebb11452092a9387ffb7a748ea149ee845
+  LOCKED_ARTIFACT_SIZE: "232066"
+
+jobs:
+  persist-locked-authoritative-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and closed rails
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          python3 - "$LIVE_MAIN" <<'PY'
+          import json, sys
+          from pathlib import Path
+          contract = json.loads(Path("grand-bruxelles-game/data/qa/grand_place_urbis_source_cell.contract.json").read_text(encoding="utf-8"))
+          live = sys.argv[1]
+          assert contract["production_base_sha"] == live, (contract["production_base_sha"], live)
+          assert contract["target"] == {
+              "cell_id": "bxl-e148000-n170000-s500",
+              "crs": "EPSG:31370",
+              "bbox": [148000.0, 170000.0, 148500.0, 170500.0],
+          }
+          auth = contract["authorization"]
+          assert auth["source_acquisition"] is True
+          for key in ["source_registration", "canonical_registration", "road_to_cell_mapping", "runtime_mount", "rendered_geometry", "collision", "safe_spawn", "jouable_promotion"]:
+              assert auth[key] is False, key
+          assert contract["status"] == "SEMANTIC_MEASUREMENT_LOCKED_SOURCE_ONLY"
+          expected = contract["expected"]
+          assert expected["source_semantic_sha256"] == "99cb25db4c95860c02dff5cf25c19cc5a4e11a75166f1fe92734edd1b5a0e7d4"
+          assert expected["manifest_source_digest"] == "bbee45393ca07d86515f160e6eb9511c624440ccced97dff564b133eeafe7feb"
+          print(f"GRAND_PLACE_SOURCE_CELL_CONTRACT_OK live_main={live} semantic_lock={expected['source_semantic_sha256']} rails_closed=true")
+          PY
+          git merge-base --is-ancestor "$LIVE_MAIN" HEAD
+          if git cat-file -e "origin/main:grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL_ID}/manifest.json" 2>/dev/null; then
+            echo "authoritative source cell already exists on live main; ownership changed" >&2
+            exit 1
+          fi
+
+      - name: Run source materializer regressions
+        run: python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py
+
+      - name: Restore exact locked artifact, never rescan mutable WFS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/grand-place-source-cell-${LOCKED_ARTIFACT_ID}.zip"
+          UNPACK="$RUNNER_TEMP/locked-artifact"
+          SOURCE_ROOT="$RUNNER_TEMP/$CELL_ID"
+          rm -rf "$UNPACK" "$SOURCE_ROOT" "$ZIP"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${LOCKED_ARTIFACT_ID}/zip" > "$ZIP"
+          echo "${LOCKED_ARTIFACT_SHA256}  $ZIP" | sha256sum -c -
+          test "$(stat -c '%s' "$ZIP")" = "$LOCKED_ARTIFACT_SIZE"
+          mkdir -p "$UNPACK"
+          unzip -q "$ZIP" -d "$UNPACK"
+          test -f "$UNPACK/source-cell/manifest.json"
+          test -f "$UNPACK/source-cell/maturity.json"
+          cp -a "$UNPACK/source-cell" "$SOURCE_ROOT"
+          test "$(basename "$SOURCE_ROOT")" = "$CELL_ID"
+          echo "LOCKED_ARTIFACT_RESTORED artifact=${LOCKED_ARTIFACT_ID} sha256=${LOCKED_ARTIFACT_SHA256} bytes=${LOCKED_ARTIFACT_SIZE}"
+
+      - name: Reproduce locked semantic v2 identity from artifact bytes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          repo = Path(os.environ["GITHUB_WORKSPACE"])
+          root = Path(os.environ["RUNNER_TEMP"]) / os.environ["CELL_ID"]
+          contract = json.loads((repo / os.environ["CONTRACT"]).read_text(encoding="utf-8"))
+          manifest_path = root / "manifest.json"
+          maturity_path = root / "maturity.json"
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          target = contract["target"]
+          expected = contract["expected"]
+
+          assert root.name == target["cell_id"]
+          assert manifest["format"] == "grand-bruxelles-urbis-source-cell-v1"
+          assert manifest["cell_id"] == target["cell_id"]
+          assert manifest["crs"] == target["crs"] == "EPSG:31370"
+          assert manifest["bbox"] == target["bbox"]
+          assert manifest["promotion"] == "source_only_no_runtime_mutation"
+          assert manifest["source_digest"] == expected["manifest_source_digest"]
+          assert hashlib.sha256(manifest_path.read_bytes()).hexdigest() == "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7"
+
+          specs = {item["logical_name"]: item for item in contract["layers"]}
+          assert set(manifest["layers"]) == set(specs)
+          semantic_layers = {}
+          forensic = {}
+          for logical_name in sorted(specs):
+              spec = specs[logical_name]
+              layer = manifest["layers"][logical_name]
+              assert layer["wfs_name"] == spec["wfs_name"]
+              assert layer["file"] == spec["file"]
+              assert layer["ownership"] == spec["ownership"]
+              raw = (root / spec["file"]).read_bytes()
+              doc = json.loads(raw.decode("utf-8"))
+              features = doc.get("features")
+              assert doc.get("type") == "FeatureCollection" and isinstance(features, list)
+              assert len(features) == int(layer["features"])
+              stable = [{k: v for k, v in feature.items() if k != "id"} for feature in features]
+              stable.sort(key=lambda feature: (
+                  str((feature.get("properties") or {}).get("INSPIRE_ID") or ""),
+                  json.dumps(feature, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+              ))
+              semantic_hash = hashlib.sha256(json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+              locked = expected["layers"][logical_name]
+              assert len(features) == int(locked["features"])
+              assert semantic_hash == locked["semantic_features_sha256"], (logical_name, semantic_hash)
+              semantic_layers[logical_name] = {
+                  "wfs_name": spec["wfs_name"],
+                  "features": len(features),
+                  "semantic_features_sha256": semantic_hash,
+              }
+              forensic[logical_name] = {
+                  "bytes": len(raw),
+                  "sha256": hashlib.sha256(raw).hexdigest(),
+              }
+
+          semantic = {
+              "authority": contract["source"]["authority"],
+              "service": contract["source"]["service"],
+              "license": contract["source"]["license"],
+              "cell_id": target["cell_id"],
+              "crs": target["crs"],
+              "bbox": target["bbox"],
+              "layers": semantic_layers,
+          }
+          semantic_sha = hashlib.sha256(json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+          assert semantic_sha == expected["source_semantic_sha256"]
+          expected_files = {
+              "manifest.json", "maturity.json",
+              "raw/buildings.geojson", "raw/street_axes.geojson", "raw/street_surfaces.geojson",
+              "raw/train_network.geojson", "raw/tram_network.geojson",
+          }
+          actual_files = {str(path.relative_to(root)) for path in root.rglob("*") if path.is_file()}
+          assert actual_files == expected_files, (actual_files, expected_files)
+          evidence = {
+              "artifact_id": int(os.environ["LOCKED_ARTIFACT_ID"]),
+              "artifact_sha256": os.environ["LOCKED_ARTIFACT_SHA256"],
+              "artifact_size_bytes": int(os.environ["LOCKED_ARTIFACT_SIZE"]),
+              "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+              "maturity_sha256": hashlib.sha256(maturity_path.read_bytes()).hexdigest(),
+              "raw_files": forensic,
+              "source_semantic_sha256": semantic_sha,
+              "status": "LOCKED_EXACT_SOURCE_ONLY_ARTIFACT_BYTES",
+          }
+          out = Path(os.environ["RUNNER_TEMP"]) / "locked_source_cell_persistence_evidence.json"
+          out.write_text(json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(f"GRAND_PLACE_SOURCE_CELL_ARTIFACT_LOCK_OK semantic_sha256={semantic_sha} files={len(actual_files)} registration=false runtime=false")
+          PY
+
+      - name: Persist exact artifact bytes on the PR head
+        run: |
+          set -euo pipefail
+          SOURCE_ROOT="$RUNNER_TEMP/$CELL_ID"
+          DEST="grand-bruxelles-game/data/urbis/remaining_brussels/cells/$CELL_ID"
+          if test -d "$DEST"; then
+            diff -qr "$SOURCE_ROOT" "$DEST"
+            echo "SOURCE_CELL_PERSISTED_EXACT path=$DEST mutation=none"
+            exit 0
+          fi
+          test ! -e "$DEST"
+          mkdir -p "$(dirname "$DEST")"
+          cp -a "$SOURCE_ROOT" "$DEST"
+          diff -qr "$SOURCE_ROOT" "$DEST"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$DEST"
+          test -n "$(git diff --cached --name-only)"
+          git commit -m "data(citygen): persist Grand-Place UrbIS source cell"
+          git push origin "HEAD:${HEAD_BRANCH}"
+          echo "SOURCE_CELL_PERSISTED_EXACT path=$DEST mutation=committed branch=$HEAD_BRANCH"
+
+      - name: Upload persistence evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-urbis-source-cell-persistence-${{ github.run_id }}
+          path: ${{ runner.temp }}/locked_source_cell_persistence_evidence.json
+          if-no-files-found: error
+          retention-days: 30

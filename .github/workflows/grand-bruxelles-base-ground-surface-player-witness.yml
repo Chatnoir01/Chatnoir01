@@ -87,8 +87,8 @@ jobs:
           assert report['camera_copied_from_legitimate_player_witness'] is True
           assert report['dynamic_review_noise_hidden'] is True
           assert report['legacy_material_frozen_from_main_ab5d110'] is True
-          assert report['presentation_revision'] == 6
-          assert report['visual_recipe_profile'] == 'authored_isotropic_neutral_variation_v6'
+          assert report['presentation_revision'] == 7
+          assert report['visual_recipe_profile'] == 'authored_isotropic_neutral_variation_v7'
           assert report['geometry_changed'] is False
           assert report['collision_changed'] is False
           assert report['ground_material_only'] is True

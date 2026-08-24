@@ -3,8 +3,10 @@ name: Grand Bruxelles Base Ground Surface Player Witness
 on:
   pull_request:
     paths:
+      - 'grand-bruxelles-game/project.godot'
       - 'grand-bruxelles-game/game/main.tscn'
       - 'grand-bruxelles-game/game/tests/brussels_base_ground_surface_player_witness_test.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_base_ground_surface_runtime.gd'
       - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
       - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
       - '.github/workflows/grand-bruxelles-base-ground-surface-player-witness.yml'
@@ -59,6 +61,8 @@ jobs:
             --resolution 1280x720 \
             --script res://game/tests/brussels_base_ground_surface_player_witness_test.gd \
             2>&1 | tee grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
+          grep -q 'BRUSSELS_BASE_GROUND_SURFACE_READY' \
+            grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
           grep -q 'BRUSSELS_BASE_GROUND_SURFACE_PLAYER_WITNESS_OK' \
             grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
 

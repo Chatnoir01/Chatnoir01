@@ -1,0 +1,168 @@
+name: Grand Bruxelles Gate-8 Rest Frame Normalized Native Transfer
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/tests/gate8_variant01_rest_frame_normalized_native_transfer_test.gd"
+      - ".github/workflows/grand-bruxelles-gate8-rest-frame-normalized-native-transfer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  normalized-native-transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      PROJECT: "/tmp/gate8-rest-normalized-native-transfer"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lock fail-closed transfer contract
+        run: |
+          set -euo pipefail
+          P=grand-bruxelles-game/game/tests/gate8_variant01_rest_frame_normalized_native_transfer_test.gd
+          grep -q 'PROBE_DEGREES := 12.0' "$P"
+          grep -q 'MAX_TRANSFER_ERROR_DEG := 3.0' "$P"
+          grep -q 'MIN_TRANSFER_GAIN := 0.85' "$P"
+          grep -q 'MAX_TRANSFER_GAIN := 1.15' "$P"
+          grep -q 'MAX_RESET_RESIDUAL_DEG := 0.25' "$P"
+          grep -Fq 'D=Rs^-1*Ps; Pnormalized=Rt*D' "$P"
+          grep -q 'set_position_enabled(false)' "$P"
+          grep -q 'set_rotation_enabled(true)' "$P"
+          grep -q 'set_scale_enabled(false)' "$P"
+          grep -q 'production_authorized.*false' "$P"
+          grep -q 'activation_ready.*false' "$P"
+          grep -q 'adoption_ready.*false' "$P"
+          ! grep -q 'run_alias_selected.*Jog_Fwd\|run_alias_selected.*Sprint' "$P"
+
+      - name: Download pinned CC0 animation source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$ANIM_URL" -o /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          python - <<'PY'
+          import os, zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member=os.environ['ANIM_GLB']
+              assert member in z.namelist()
+              Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-target
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target
+          T="$(find /tmp/gate8-target -type f -name npc_gate_01.glb -print -quit)"
+          test -n "$T"
+          cp "$T" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"
+          "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated project and import immutable assets
+        run: |
+          set -euo pipefail
+          rm -rf "$PROJECT"
+          mkdir -p "$PROJECT/assets" "$PROJECT/game/tests"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8RestNormalizedNativeTransfer"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_rest_frame_normalized_native_transfer_test.gd "$PROJECT/game/tests/"
+          timeout 300s "$GODOT" --headless --editor --path "$PROJECT" --quit-after 1200 2>&1 | tee /tmp/import.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/import.log
+
+      - name: Sweep 22 rest-normalized roles through native modifier
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 180s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/gate8_variant01_rest_frame_normalized_native_transfer_test.gd 2>&1 | tee /tmp/normalized-transfer.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          echo "$STATUS" > /tmp/normalized-transfer.exit
+          if [ -s "$PROJECT/gate8_variant01_rest_frame_normalized_native_transfer.json" ]; then
+            cp "$PROJECT/gate8_variant01_rest_frame_normalized_native_transfer.json" /tmp/normalized-transfer.json
+          fi
+          exit "$STATUS"
+
+      - name: Validate normalized transfer evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          test -s /tmp/normalized-transfer.json
+          python - <<'PY'
+          import json, math
+          r=json.load(open('/tmp/normalized-transfer.json'))
+          assert r['format']=='grand-bruxelles-gate8-rest-frame-normalized-native-transfer-v1'
+          assert r['candidate_variant']==1
+          assert r['reviewed_roles']==22 and r['measured_roles']==22
+          assert r['normalization_formula']=='D=Rs^-1*Ps; Pnormalized=Rt*D'
+          assert r['native_modifier']=='RetargetModifier3D'
+          assert r['use_global_pose'] is False
+          assert r['position_enabled'] is False and r['rotation_enabled'] is True and r['scale_enabled'] is False
+          assert r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['source_target_assets_mutated'] is False and r['rest_transforms_unchanged'] is True
+          assert r['selection_state']=='READY_REST_NORMALIZED_ANIMATION_AB'
+          assert not r['failures']
+          assert float(r['max_transfer_error_deg']) <= 3.0
+          assert float(r['max_reset_residual_deg']) <= 0.25
+          assert float(r['max_scale_drift']) <= 0.0001
+          assert len(r['roles'])==22
+          for role,row in r['roles'].items():
+              s=float(row['source_delta_deg']); t=float(row['target_delta_deg']); g=float(row['transfer_gain']); e=float(row['transfer_error_deg']); reset=float(row['reset_residual_deg'])
+              assert 11.5 <= s <= 12.5, (role,s)
+              assert math.isfinite(t) and 0.85 <= g <= 1.15, (role,g)
+              assert e <= 3.0 and reset <= 0.25, (role,e,reset)
+          print('GATE8_REST_NORMALIZED_NATIVE_TRANSFER_RESULT_OK roles=22 state=%s worst=%s error=%.6f' % (r['selection_state'],r['worst_role'],float(r['max_transfer_error_deg'])))
+          PY
+          test "$(cat /tmp/normalized-transfer.exit)" = "0"
+          grep -q '^GATE8_REST_NORMALIZED_NATIVE_TRANSFER_OK roles=22 ' /tmp/normalized-transfer.log
+
+      - name: Stage evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/evidence
+          for f in /tmp/import.log /tmp/normalized-transfer.log /tmp/normalized-transfer.json /tmp/normalized-transfer.exit /tmp/godot-version.txt; do
+            [ -f "$f" ] && cp "$f" /tmp/evidence/
+          done
+          (cd /tmp/evidence && sha256sum * > sha256.txt) || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-gate8-rest-normalized-native-transfer
+          path: /tmp/evidence
+          if-no-files-found: error
+          retention-days: 90

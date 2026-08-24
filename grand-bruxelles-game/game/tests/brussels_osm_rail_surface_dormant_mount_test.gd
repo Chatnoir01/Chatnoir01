@@ -89,6 +89,9 @@ func _run() -> void:
         return
     if not _assert_bound_rail(late_rail, "late rail"):
         return
+    if not bool(runtime.call("geometry_unchanged")):
+        _fail("rail geometry changed during lifecycle bind")
+        return
 
     print("BRUSSELS_OSM_RAIL_SURFACE_DORMANT_MOUNT_OK: rails=2 off_zone_errors=0 nested_mount=true event_driven=true incremental_bind=true geometry_changed=false source=OSM license=ODbL-1.0")
     quit(0)

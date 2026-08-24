@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail-closed Grand Bruxelles zone rebuild orchestrator."""
 from __future__ import annotations
-import argparse, hashlib, json, subprocess, sys
+import argparse, hashlib, json, re, subprocess, sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -114,15 +114,39 @@ def game_bounds(m:dict[str,Any])->tuple[float,float,float,float]:
     xs=(b[0]-float(o["e"]),b[2]-float(o["e"])); zs=(-(b[1]-float(o["n"])),-(b[3]-float(o["n"])))
     return min(xs),min(zs),max(xs),max(zs)
 
+def vector3_const(script:Path,symbol:str)->tuple[float,float,float]|None:
+    text=script.read_text(encoding="utf-8")
+    match=re.search(rf"const\s+{re.escape(symbol)}\s*:=\s*Vector3\(\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*\)",text)
+    if not match: return None
+    return tuple(float(match.group(i)) for i in range(1,4))
+
 def gate_spawn(zone:dict[str,Any],profile:dict[str,Any],m:dict[str,Any])->dict[str,str]:
     s=zone.get("spawn")
-    if not isinstance(s,list) or len(s)<3: raise GateError("G2_spawn_ground","catalog spawn missing")
-    x,y,z=map(float,s[:3]); xmin,zmin,xmax,zmax=game_bounds(m)
-    if not (xmin<=x<=xmax and zmin<=z<=zmax):
-        raise GateError("G2_spawn_ground",f"spawn ({x:.2f},{z:.2f}) outside ({xmin:.2f},{zmin:.2f})..({xmax:.2f},{zmax:.2f})")
-    ground=float(profile["ground_contract"]["ground_y"]); clearance=y-ground
-    if not .05<=clearance<=5: raise GateError("G2_spawn_ground",f"spawn clearance={clearance:.2f}m")
-    detail=f"spawn=({x:.2f},{y:.2f},{z:.2f}) ground_y={ground:.2f} bounds=({xmin:.2f},{zmin:.2f})..({xmax:.2f},{zmax:.2f})"
+    ground=float(profile["ground_contract"]["ground_y"])
+    if isinstance(s,list) and len(s)>=3:
+        x,y,z=map(float,s[:3]); xmin,zmin,xmax,zmax=game_bounds(m)
+        if not (xmin<=x<=xmax and zmin<=z<=zmax):
+            raise GateError("G2_spawn_ground",f"spawn ({x:.2f},{z:.2f}) outside ({xmin:.2f},{zmin:.2f})..({xmax:.2f},{zmax:.2f})")
+        clearance=y-ground
+        if not .05<=clearance<=5: raise GateError("G2_spawn_ground",f"spawn clearance={clearance:.2f}m")
+        detail=f"spawn=({x:.2f},{y:.2f},{z:.2f}) ground_y={ground:.2f} bounds=({xmin:.2f},{zmin:.2f})..({xmax:.2f},{zmax:.2f})"
+    elif zone.get("mode")=="fast_travel":
+        contract=profile.get("arrival_contract") or {}
+        destination=str(zone.get("destination","")).strip()
+        if contract.get("mode")!="fast_travel_constant" or contract.get("destination")!=destination:
+            raise GateError("G2_spawn_ground",f"fast-travel arrival contract mismatch destination={destination!r}")
+        runtime_raw=str(contract.get("runtime_script","")).strip(); symbol=str(contract.get("position_symbol","")).strip()
+        if not runtime_raw or not symbol:
+            raise GateError("G2_spawn_ground","fast-travel runtime_script/position_symbol missing")
+        runtime=p(runtime_raw)
+        if not runtime.is_file(): raise GateError("G2_spawn_ground",f"fast-travel runtime missing: {runtime_raw}")
+        position=vector3_const(runtime,symbol)
+        if position is None: raise GateError("G2_spawn_ground",f"fast-travel position constant missing: {symbol}")
+        x,y,z=position; clearance=y-ground
+        if not .05<=clearance<=5: raise GateError("G2_spawn_ground",f"fast-travel clearance={clearance:.2f}m")
+        detail=f"fast_travel={destination} {symbol}=({x:.2f},{y:.2f},{z:.2f}) ground_y={ground:.2f} runtime={runtime.relative_to(PROJECT)}"
+    else:
+        raise GateError("G2_spawn_ground","catalog arrival missing: neither spawn nor supported fast_travel")
     print(f"CITY_MACHINE_GATE PASS G2_spawn_ground detail={detail}")
     return {"gate":"G2_spawn_ground","status":"PASS","detail":detail}
 

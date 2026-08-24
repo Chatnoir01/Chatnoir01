@@ -95,6 +95,7 @@ func _run() -> void:
     player.velocity = Vector3.ZERO
     player.set_physics_process(false)
     player.set_meta("combat_health", 100)
+    player.set_meta("combat_player_down", false)
     _configure_camera(player, camera)
 
     var forward := -player.global_transform.basis.z.normalized()
@@ -126,12 +127,29 @@ func _run() -> void:
     if ranged_action_at_capture != &"ranged_attack":
         _fail("ranged witness decision was %s instead of ranged_attack" % String(ranged_action_at_capture))
         return
+
+    # Freeze autonomous combat and execute exactly one production attack ourselves.
+    # This prevents the witness from passing on decision metadata plus hand-spawned FX alone.
     combat_runtime.set_process(false)
     combat_runtime.call("_face_player", officer, player)
-    combat_runtime.call("_spawn_ranged_feedback", officer, player)
+    var ranged_health_before := int(player.get_meta("combat_health", 100))
+    var ranged_attack_count_before := int(officer.get_meta("police_combat_attack_count", 0))
+    combat_runtime.call("_perform_attack", officer, player, ranged_action_at_capture, Time.get_ticks_msec())
+    await process_frame
+    var ranged_health_after := int(player.get_meta("combat_health", 100))
+    var ranged_attack_count_after := int(officer.get_meta("police_combat_attack_count", 0))
+    var ranged_damage := int(officer.get_meta("police_combat_last_damage", -1))
+    var ranged_last_attack := StringName(officer.get_meta("police_combat_last_attack", &"none"))
+    var ranged_attack_count_delta := ranged_attack_count_after - ranged_attack_count_before
+    if ranged_health_before != 100 or ranged_health_after != 92 or ranged_damage != 8:
+        _fail("ranged witness did not execute production 8-damage hit: health %d -> %d damage=%d" % [ranged_health_before, ranged_health_after, ranged_damage])
+        return
+    if ranged_attack_count_delta != 1 or ranged_last_attack != &"ranged_attack":
+        _fail("ranged witness did not execute exactly one production ranged attack")
+        return
+
     officer.set_meta("police_combat_action", ranged_action_at_capture)
     officer.set_meta("police_combat_visual_state", &"ranged")
-    await process_frame
     var ranged_path := OUT_DIR + "/police_ranged_pressure.png"
     if not await _capture(ranged_path, player, officer):
         _fail("ranged pressure capture failed")
@@ -154,6 +172,11 @@ func _run() -> void:
         "hit_capture": hit_path,
         "ranged_action": String(ranged_action_at_capture),
         "ranged_distance_m": float(ranged_decision.get("distance_m", INF)),
+        "ranged_damage": ranged_damage,
+        "ranged_health_before": ranged_health_before,
+        "ranged_health_after": ranged_health_after,
+        "ranged_attack_count_delta": ranged_attack_count_delta,
+        "ranged_last_attack": String(ranged_last_attack),
         "stagger_ms": int(reaction.get("stagger_ms", 0)),
         "impact_intensity": float(reaction.get("impact_intensity", 0.0)),
         "pursuit_speed_mps": float(reaction.get("pursuit_speed_mps", 0.0)),
@@ -167,5 +190,5 @@ func _run() -> void:
     report_file.store_string(JSON.stringify(report, "  "))
     report_file.close()
 
-    print("POLICE_COMBAT_VISUAL_WITNESS_OK: true ranged_attack pressure and body-hit stagger captured from production scene")
+    print("POLICE_COMBAT_VISUAL_WITNESS_OK: production ranged_attack damage path and body-hit stagger captured from production scene")
     quit(0)

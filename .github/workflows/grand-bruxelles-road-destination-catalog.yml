@@ -4,8 +4,11 @@ on:
   pull_request:
     paths:
       - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
       - 'grand-bruxelles-game/tools/build_road_destination_catalog.py'
+      - 'grand-bruxelles-game/tools/build_road_runtime_index.py'
       - 'grand-bruxelles-game/tools/tests/test_road_destination_catalog.py'
+      - 'grand-bruxelles-game/tools/tests/test_road_runtime_index.py'
       - '.github/workflows/grand-bruxelles-road-destination-catalog.yml'
   workflow_dispatch:
 
@@ -19,11 +22,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run catalog regressions
+      - name: Run catalog and runtime-index regressions
         working-directory: grand-bruxelles-game
-        run: python3 tools/tests/test_road_destination_catalog.py
+        run: |
+          set -euo pipefail
+          python3 tools/tests/test_road_destination_catalog.py
+          python3 tools/tests/test_road_runtime_index.py
 
-      - name: Build deterministic catalog twice
+      - name: Build deterministic catalog and runtime index twice
         working-directory: grand-bruxelles-game
         run: |
           set -euo pipefail
@@ -32,6 +38,10 @@ jobs:
           python3 tools/build_road_destination_catalog.py --source-root data/osm --output artifacts/road-catalog/catalog-b.json
           cmp artifacts/road-catalog/catalog-a.json artifacts/road-catalog/catalog-b.json
           sha256sum artifacts/road-catalog/catalog-a.json | tee artifacts/road-catalog/catalog-file.sha256
+          python3 tools/build_road_runtime_index.py --source-root data/osm --output artifacts/road-catalog/runtime-index-a.json
+          python3 tools/build_road_runtime_index.py --source-root data/osm --output artifacts/road-catalog/runtime-index-b.json
+          cmp artifacts/road-catalog/runtime-index-a.json artifacts/road-catalog/runtime-index-b.json
+          sha256sum artifacts/road-catalog/runtime-index-a.json | tee artifacts/road-catalog/runtime-index-file.sha256
 
       - name: Validate source-only authorization rails
         working-directory: grand-bruxelles-game
@@ -39,32 +49,52 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p = json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text(encoding='utf-8'))
-          assert p['format'] == 'grand-bruxelles-road-destination-catalog-v1'
-          assert p['drivable_record_count'] >= 140
-          assert p['eligible_record_count'] >= 139
-          assert p['entry_count'] >= 139
-          assert p['rejected_drivable_record_count'] == p['drivable_record_count'] - p['eligible_record_count']
-          assert p['duplicate_record_count'] == p['eligible_record_count'] - p['entry_count']
-          auth = p['authorization']
+          catalog = json.loads(Path('artifacts/road-catalog/catalog-a.json').read_text(encoding='utf-8'))
+          index = json.loads(Path('artifacts/road-catalog/runtime-index-a.json').read_text(encoding='utf-8'))
+          assert catalog['format'] == 'grand-bruxelles-road-destination-catalog-v1'
+          assert catalog['drivable_record_count'] >= 140
+          assert catalog['eligible_record_count'] >= 139
+          assert catalog['entry_count'] >= 139
+          assert catalog['rejected_drivable_record_count'] == catalog['drivable_record_count'] - catalog['eligible_record_count']
+          assert catalog['duplicate_record_count'] == catalog['eligible_record_count'] - catalog['entry_count']
+          auth = catalog['authorization']
           assert auth['source_lookup_only'] is True
           for key in ('render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized'):
               assert auth[key] is False, key
           for road_id in ('359177328','487501805','1382734012'):
-              assert road_id in p['entries'], road_id
+              assert road_id in catalog['entries'], road_id
+          assert index['format'] == 'grand-bruxelles-road-runtime-index-v1'
+          assert index['source_lookup_only'] is True
+          assert index['catalog_sha256'] == catalog['catalog_sha256']
+          assert len(index['documents']) == 1
+          descriptor = index['documents'][0]
+          assert descriptor['path'] == 'data/osm/vertical_slice_01.game.json'
+          assert descriptor['sha256'] == catalog['source_document_sha256'][descriptor['path']]
+          assert len(descriptor['road_ids']) == catalog['entry_count']
           print(
               'ROAD_DESTINATION_CATALOG_GATE_GREEN: '
-              f"entries={p['entry_count']} drivable_records={p['drivable_record_count']} "
-              f"eligible_records={p['eligible_record_count']} rejected_drivable={p['rejected_drivable_record_count']} "
-              f"duplicate_records={p['duplicate_record_count']} sha256={p['catalog_sha256']}"
+              f"entries={catalog['entry_count']} drivable_records={catalog['drivable_record_count']} "
+              f"eligible_records={catalog['eligible_record_count']} rejected_drivable={catalog['rejected_drivable_record_count']} "
+              f"duplicate_records={catalog['duplicate_record_count']} catalog_sha256={catalog['catalog_sha256']} "
+              f"runtime_source_sha256={descriptor['sha256']}"
           )
           PY
 
+      - name: Compare committed runtime index with deterministic rebuild
+        working-directory: grand-bruxelles-game
+        run: |
+          set -euo pipefail
+          cmp data/runtime/road_destination_runtime_index.json artifacts/road-catalog/runtime-index-a.json
+          echo 'ROAD_RUNTIME_INDEX_COMMITTED_MATCH_GREEN'
+
       - name: Upload catalog evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: brussels-road-destination-catalog
           path: |
             grand-bruxelles-game/artifacts/road-catalog/catalog-a.json
             grand-bruxelles-game/artifacts/road-catalog/catalog-file.sha256
-          if-no-files-found: error
+            grand-bruxelles-game/artifacts/road-catalog/runtime-index-a.json
+            grand-bruxelles-game/artifacts/road-catalog/runtime-index-file.sha256
+          if-no-files-found: warn

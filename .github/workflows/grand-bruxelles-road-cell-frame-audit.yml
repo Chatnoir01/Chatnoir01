@@ -51,25 +51,50 @@ jobs:
             --crosswalk grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json \
             --report "$RUNNER_TEMP/road-cell-frame-audit/report.json" | tee "$RUNNER_TEMP/road-cell-frame-audit/run.log"
           python - <<'PY'
-          import json, os
+          import hashlib
+          import json
+          import os
           from pathlib import Path
-          p = Path(os.environ['RUNNER_TEMP']) / 'road-cell-frame-audit' / 'report.json'
-          r = json.loads(p.read_text())
+
+          root = Path('grand-bruxelles-game')
+          report_path = Path(os.environ['RUNNER_TEMP']) / 'road-cell-frame-audit' / 'report.json'
+          r = json.loads(report_path.read_text())
+          road_index = json.loads((root / 'data/runtime/road_destination_runtime_index.json').read_text())
+          cell_index = json.loads((root / 'data/provenance/brussels_registered_cell_manifest_index.json').read_text())
+
+          documents = road_index.get('documents') or []
+          entries = cell_index.get('entries') or []
+          expected_road_count = sum(len(d.get('road_ids') or []) for d in documents)
+
           assert r['status'] == 'HOLD_UNPROVEN_ROAD_TO_LAMBERT72_FRAME', r
-          assert r['road_source_document_count'] == 1, r
-          assert r['indexed_road_count'] == 139, r
-          assert r['registered_cell_count'] == 1, r
+          assert r['road_source_document_count'] == len(documents), r
+          assert r['indexed_road_count'] == expected_road_count, r
+          assert r['registered_cell_count'] == len(entries), r
           assert r['registered_cell_crs'] == 'EPSG:31370', r
           assert r['road_cell_crosswalk_present'] is False, r
           assert all(v is False for k, v in r.items() if k.endswith('_authorized')), r
-          frame = r['source_frames'][0]
-          assert frame['path'] == 'data/osm/vertical_slice_01.game.json', frame
-          assert frame['sha256'] == 'a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493', frame
-          assert frame['origin'] == {'lat': 50.8419, 'lon': 4.348}, frame
-          assert frame['explicit_crs'] is None, frame
-          assert frame['coordinate_transform_present'] is False, frame
-          assert frame['frame_proven'] is False, frame
-          print('ROAD_CELL_FRAME_HOLD_LOCKED_EXACT roads=139 cells=1 frame_proven=false crosswalk=false')
+
+          report_frames = {frame['path']: frame for frame in r['source_frames']}
+          assert len(report_frames) == len(documents), (report_frames, documents)
+          for descriptor in documents:
+              path = descriptor['path']
+              expected_sha = str(descriptor['sha256']).lower()
+              frame = report_frames[path]
+              source_path = root / path
+              actual_sha = hashlib.sha256(source_path.read_bytes()).hexdigest()
+              assert len(expected_sha) == 64, descriptor
+              assert actual_sha == expected_sha, (path, actual_sha, expected_sha)
+              assert frame['sha256'] == expected_sha, frame
+              assert frame['origin'] == {'lat': 50.8419, 'lon': 4.348}, frame
+              assert frame['explicit_crs'] is None, frame
+              assert frame['coordinate_transform_present'] is False, frame
+              assert frame['frame_proven'] is False, frame
+
+          print(
+              'ROAD_CELL_FRAME_HOLD_LOCKED_CURRENT '
+              f'roads={expected_road_count} cells={len(entries)} '
+              f'documents={len(documents)} frame_proven=false crosswalk=false'
+          )
           PY
       - name: Upload coordinate-frame HOLD proof
         uses: actions/upload-artifact@v4

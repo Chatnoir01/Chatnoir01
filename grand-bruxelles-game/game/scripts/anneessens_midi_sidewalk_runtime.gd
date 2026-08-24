@@ -6,36 +6,91 @@ const SIDEWALK_NARROW_M := 1.85
 const SIDEWALK_WIDE_M := 2.55
 const SIDEWALK_HEIGHT_M := 0.12
 const SIDEWALK_GAP_M := 0.10
+const SOURCE_NAME := "OpenStreetMap contributors via Overpass API"
+const SOURCE_LICENSE := "ODbL-1.0"
 
 var _scene: Node3D = null
 var _root: Node3D = null
 var _sidewalk_count := 0
 var _collision_count := 0
+var _manual_binding := false
+var _bind_scheduled := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
-    call_deferred("_try_bind_current_scene")
+    var tree := get_tree()
+    if not tree.node_added.is_connected(_on_node_added):
+        tree.node_added.connect(_on_node_added)
+    _schedule_bind()
 
-func _try_bind_current_scene() -> void:
+func _on_node_added(_node: Node) -> void:
+    if _manual_binding or is_instance_valid(_scene):
+        return
+    _schedule_bind()
+
+func _schedule_bind() -> void:
+    if _bind_scheduled or _manual_binding or is_instance_valid(_scene):
+        return
+    _bind_scheduled = true
+    call_deferred("_try_bind")
+
+func _find_production_scene() -> Node3D:
     var current := get_tree().current_scene
     if current is Node3D:
-        bind_scene(current as Node3D)
+        return current as Node3D
+    for child: Node in get_tree().root.get_children():
+        if not child is Node3D:
+            continue
+        var candidate := child as Node3D
+        if candidate.get_node_or_null("BrusselsOSM") == null:
+            continue
+        if candidate.get_node_or_null("UrbISMidiExact") == null:
+            continue
+        if candidate.get_node_or_null("Player") == null:
+            continue
+        return candidate
+    return null
+
+func _try_bind() -> void:
+    _bind_scheduled = false
+    if _manual_binding or is_instance_valid(_scene):
+        return
+    var candidate := _find_production_scene()
+    if candidate == null:
+        return
+    _bind_scene(candidate, false)
 
 func bind_scene(scene: Node3D) -> void:
+    _bind_scene(scene, true)
+
+func _bind_scene(scene: Node3D, manual: bool) -> void:
     if scene == null:
         return
     if is_instance_valid(_root):
+        var parent := _root.get_parent()
+        if parent != null:
+            parent.remove_child(_root)
         _root.queue_free()
+    _manual_binding = manual
     _scene = scene
     _sidewalk_count = 0
     _collision_count = 0
     _root = Node3D.new()
     _root.name = "AnneessensMidiSidewalkKit"
     _root.set_meta("zone", "anneessens")
-    _root.set_meta("source", "OpenStreetMap road geometry already committed in vertical_slice_01.game.json")
-    _root.set_meta("presentation_recipe", "Midi sidewalk dimensions/material family")
+    _root.set_meta("source", SOURCE_NAME)
+    _root.set_meta("license", SOURCE_LICENSE)
+    _root.set_meta("road_alignment_source_backed", true)
+    _root.set_meta("sidewalk_presence_source_backed", false)
+    _root.set_meta("visual_dimensions_source_backed", false)
+    _root.set_meta("vertical_profile_source_backed", false)
+    _root.set_meta("material_identity_source_backed", false)
+    _root.set_meta("authored_proxy", true)
+    _root.set_meta("presentation_recipe", "authored_midi_sidewalk_proxy_from_osm_road_alignment")
     _scene.add_child(_root)
     _build_from_existing_osm_roads()
+    if get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.disconnect(_on_node_added)
 
 func _build_from_existing_osm_roads() -> void:
     if not is_instance_valid(_scene) or not is_instance_valid(_root):
@@ -74,7 +129,14 @@ func _add_sidewalk_pair(road: CSGBox3D, material: Material) -> void:
         pavement.material = material
         pavement.use_collision = true
         pavement.set_meta("source_road", road.name)
-        pavement.set_meta("source", "OpenStreetMap road geometry")
+        pavement.set_meta("source", SOURCE_NAME)
+        pavement.set_meta("license", SOURCE_LICENSE)
+        pavement.set_meta("road_alignment_source_backed", true)
+        pavement.set_meta("sidewalk_presence_source_backed", false)
+        pavement.set_meta("visual_dimensions_source_backed", false)
+        pavement.set_meta("vertical_profile_source_backed", false)
+        pavement.set_meta("material_identity_source_backed", false)
+        pavement.set_meta("authored_proxy", true)
         pavement.set_meta("recipe", "Midi")
         _root.add_child(pavement)
         pavement.global_position = road.global_position + lateral * offset * side + Vector3(0.0, 0.06, 0.0)

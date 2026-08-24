@@ -15,6 +15,7 @@ const MAX_CHANGED_FRACTION := 0.70
 const MIN_BBOX_WIDTH := 700
 const MIN_BBOX_HEIGHT := 250
 const EXPECTED_REVISION := 7
+const EXPECTED_CALIBRATION_REVISION := 1
 const EXPECTED_PROFILE := "authored_isotropic_neutral_variation_v7"
 
 func _initialize() -> void:
@@ -154,15 +155,18 @@ func _run() -> void:
     if not shader_code.contains("rotate2") or not shader_code.contains("p_a") or not shader_code.contains("p_b"):
         _fail("v7 ground recipe lost multi-directional isotropic sampling")
         return
-    for token: String in ["ground_dark_color", "ground_light_color", "broad_a", "broad_b", "fine_a", "fine_b", "mix(broad, fine, detail_weight)"]:
+    for token: String in ["ground_dark_color", "ground_light_color", "broad_a", "broad_b", "fine_a", "fine_b", "tone_contrast_gain", "centered_ground_tone", "mix(broad, fine, detail_weight)"]:
         if not shader_code.contains(token):
-            _fail("v7 calibrated isotropic ground recipe missing token: %s" % token)
+            _fail("v7.1 calibrated isotropic ground recipe missing token: %s" % token)
             return
     if shader_code.contains("value_noise(world_pos.xz"):
         _fail("v7 ground recipe regressed to perspective-aligned direct world-XZ noise")
         return
     if int(shader_material.get_meta("presentation_revision", 0)) != EXPECTED_REVISION:
         _fail("production Ground presentation revision mismatch")
+        return
+    if int(shader_material.get_meta("calibration_revision", 0)) != EXPECTED_CALIBRATION_REVISION:
+        _fail("production Ground calibration revision mismatch")
         return
     if str(shader_material.get_meta("visual_recipe_profile", "")) != EXPECTED_PROFILE:
         _fail("production Ground visual recipe profile mismatch")
@@ -208,6 +212,7 @@ func _run() -> void:
         "dynamic_review_noise_hidden": true,
         "legacy_material_frozen_from_main_ab5d110": true,
         "presentation_revision": EXPECTED_REVISION,
+        "calibration_revision": EXPECTED_CALIBRATION_REVISION,
         "visual_recipe_profile": EXPECTED_PROFILE,
         "geometry_changed": false,
         "collision_changed": false,
@@ -227,5 +232,5 @@ func _run() -> void:
     file.store_string(JSON.stringify(report, "  "))
     file.close()
 
-    print("BRUSSELS_BASE_GROUND_SURFACE_PLAYER_WITNESS_OK: changed_fraction=%.6f mean_delta=%.6f bbox=%dx%d fov=%.2f revision=%d profile=%s human_review=pending" % [fraction, float(metrics["mean_changed_delta"]), int(metrics["bbox_width"]), int(metrics["bbox_height"]), review_camera.fov, EXPECTED_REVISION, EXPECTED_PROFILE])
+    print("BRUSSELS_BASE_GROUND_SURFACE_PLAYER_WITNESS_OK: changed_fraction=%.6f mean_delta=%.6f bbox=%dx%d fov=%.2f revision=%d calibration=%d profile=%s human_review=pending" % [fraction, float(metrics["mean_changed_delta"]), int(metrics["bbox_width"]), int(metrics["bbox_height"]), review_camera.fov, EXPECTED_REVISION, EXPECTED_CALIBRATION_REVISION, EXPECTED_PROFILE])
     quit(0)

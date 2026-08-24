@@ -8,6 +8,8 @@ on:
       - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
       - "grand-bruxelles-game/tools/citygen/bootstrap_cell_maturity.py"
       - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/build_source_repair_worklist.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_source_repair_worklist.py"
       - "grand-bruxelles-game/tools/citygen/test_citygen_source_repair_frontier_contract.py"
   schedule:
     - cron: "37 * * * *"
@@ -18,10 +20,16 @@ on:
       - "grand-bruxelles-game/tools/citygen/autonomous_citygen.py"
       - "grand-bruxelles-game/tools/citygen/bootstrap_cell_maturity.py"
       - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/build_source_repair_worklist.py"
+      - "grand-bruxelles-game/tools/citygen/test_build_source_repair_worklist.py"
       - "grand-bruxelles-game/tools/citygen/test_citygen_source_repair_frontier_contract.py"
 
 permissions:
   contents: write
+
+env:
+  SOURCE_REPAIR_FRONTIER_LIMIT: "128"
+  SOURCE_REPAIR_SHARDS: "16"
 
 jobs:
   validate-contract:
@@ -35,18 +43,150 @@ jobs:
           python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen_source_completeness.py
           python3 grand-bruxelles-game/tools/citygen/test_autonomous_citygen_regional_source_contract.py
           python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py
+          python3 grand-bruxelles-game/tools/citygen/test_build_source_repair_worklist.py
           python3 grand-bruxelles-game/tools/citygen/test_citygen_source_repair_frontier_contract.py
 
-  repair-frontier:
+  select-frontier:
     if: github.event_name != 'pull_request'
     needs: validate-contract
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      selected_count: ${{ steps.select.outputs.selected_count }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Recover durable source state read-only
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/citygen-source-repair-select
+          mkdir -p /tmp/citygen-source-repair-select/source
+          git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
+          STATE_ROOT="grand-bruxelles-game/data/qa"
+          git show "origin/citygen-autonomous-state:${STATE_ROOT}/autonomous_citygen_state.json" > /tmp/citygen-source-repair-select/previous_state.json
+          git show "origin/citygen-autonomous-state:${STATE_ROOT}/brussels_regional_target_grid.json" > /tmp/citygen-source-repair-select/target_grid.json
+          if git cat-file -e "origin/citygen-autonomous-state:${STATE_ROOT}/autonomous_sources" 2>/dev/null; then
+            git archive origin/citygen-autonomous-state "${STATE_ROOT}/autonomous_sources" | tar -x -C /tmp/citygen-source-repair-select/source
+          fi
+          mkdir -p grand-bruxelles-game/data/urbis/remaining_brussels/cells
+          if [ -d "/tmp/citygen-source-repair-select/source/${STATE_ROOT}/autonomous_sources" ]; then
+            cp -a "/tmp/citygen-source-repair-select/source/${STATE_ROOT}/autonomous_sources/." \
+              grand-bruxelles-game/data/urbis/remaining_brussels/cells/
+          fi
+
+      - name: Build 128-cell municipality-balanced missing-source frontier
+        id: select
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/citygen-source-repair-select/classification
+          python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py \
+            --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
+            --maturity-root grand-bruxelles-game/data/cell_manifests \
+            --state /tmp/citygen-source-repair-select/previous_state.json \
+            --target-grid /tmp/citygen-source-repair-select/target_grid.json \
+            --output-dir /tmp/citygen-source-repair-select/classification \
+            --batch-size 1 \
+            --refresh-only
+          python3 grand-bruxelles-game/tools/citygen/build_source_repair_worklist.py \
+            --report /tmp/citygen-source-repair-select/classification/autonomous_citygen_report.json \
+            --output /tmp/citygen-source-repair-select/repair_worklist.tsv \
+            --summary /tmp/citygen-source-repair-select/source_repair_selection.json \
+            --limit "$SOURCE_REPAIR_FRONTIER_LIMIT" \
+            --shards "$SOURCE_REPAIR_SHARDS"
+          SELECTED="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          payload=json.loads(Path('/tmp/citygen-source-repair-select/source_repair_selection.json').read_text(encoding='utf-8'))
+          print(int(payload['selected_count']))
+          PY
+          )"
+          echo "selected_count=${SELECTED}" >> "$GITHUB_OUTPUT"
+          echo "CITYGEN_SOURCE_REPAIR_SELECTION_OK selected=${SELECTED} frontier=128 workers=16 writer_lock=not_held promotion_bypass=false"
+
+      - name: Package immutable selection artifact
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/citygen-source-repair-selection-artifact
+          cp /tmp/citygen-source-repair-select/repair_worklist.tsv /tmp/citygen-source-repair-selection-artifact/
+          cp /tmp/citygen-source-repair-select/source_repair_selection.json /tmp/citygen-source-repair-selection-artifact/
+          cp /tmp/citygen-source-repair-select/previous_state.json /tmp/citygen-source-repair-selection-artifact/
+          cp /tmp/citygen-source-repair-select/target_grid.json /tmp/citygen-source-repair-selection-artifact/
+
+      - name: Upload source-repair selection
+        uses: actions/upload-artifact@v4
+        with:
+          name: citygen-source-repair-selection-${{ github.run_id }}
+          path: /tmp/citygen-source-repair-selection-artifact/
+          retention-days: 2
+
+  repair-shards:
+    if: github.event_name != 'pull_request' && needs.select-frontier.outputs.selected_count != '0'
+    needs: select-frontier
+    runs-on: ubuntu-latest
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download immutable repair selection
+        uses: actions/download-artifact@v4
+        with:
+          name: citygen-source-repair-selection-${{ github.run_id }}
+          path: /tmp/citygen-source-repair-selection
+
+      - name: Rematerialize assigned authoritative UrbIS sources
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -u
+          ROOT="/tmp/citygen-source-repair-shard"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT/repaired"
+          : > "$ROOT/success.txt"
+          : > "$ROOT/failures.tsv"
+          while IFS=$'\t' read -r CELL BBOX MUNICIPALITIES ASSIGNED_SHARD; do
+            [ -n "$CELL" ] || continue
+            [ "$ASSIGNED_SHARD" = "$SHARD" ] || continue
+            DEST="$ROOT/repaired/${CELL}"
+            LOG="$ROOT/${CELL}.log"
+            if python3 grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py \
+              --cell-id "$CELL" \
+              --bbox "$BBOX" \
+              --output-dir "$DEST" >"$LOG" 2>&1; then
+              echo "$CELL" >> "$ROOT/success.txt"
+              rm -f "$LOG"
+            else
+              printf '%s\t%s\n' "$CELL" "$(tail -n 1 "$LOG" | tr '\t\r\n' '   ')" >> "$ROOT/failures.tsv"
+              rm -rf "$DEST"
+              echo "CITYGEN_SOURCE_REPAIR_PENDING shard=${SHARD} cell=${CELL}"
+            fi
+          done < /tmp/citygen-source-repair-selection/repair_worklist.tsv
+          SUCCESSES="$(wc -l < "$ROOT/success.txt")"
+          FAILURES="$(wc -l < "$ROOT/failures.tsv")"
+          echo "CITYGEN_SOURCE_REPAIR_SHARD_COMPLETE shard=${SHARD} successes=${SUCCESSES} failures=${FAILURES} writer_lock=not_held promotion_bypass=false"
+
+      - name: Upload source-repair shard result
+        uses: actions/upload-artifact@v4
+        with:
+          name: citygen-source-repair-shard-${{ github.run_id }}-${{ matrix.shard }}
+          path: /tmp/citygen-source-repair-shard/
+          retention-days: 2
+
+  repair-frontier:
+    if: always() && github.event_name != 'pull_request' && needs.select-frontier.result == 'success'
+    needs: [select-frontier, repair-shards]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     outputs:
       durable_progress: ${{ steps.persist.outputs.durable_progress }}
-    # Only the writer shares the autonomous durable-state lock. Pull-request
-    # validation must stay independent so it cannot cancel or be cancelled by
-    # the full Autonomous CityGen workflow.
+    # Only this short writer owns the shared durable-state lock. Network
+    # materialization and the 16 fan-out workers run without holding it.
     concurrency:
       group: grand-bruxelles-autonomous-citygen
       cancel-in-progress: false
@@ -55,147 +195,218 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Recover durable source state
+      - name: Download immutable selection
+        uses: actions/download-artifact@v4
+        with:
+          name: citygen-source-repair-selection-${{ github.run_id }}
+          path: /tmp/citygen-source-repair-selection
+
+      - name: Download all available repair shard results
+        if: needs.select-frontier.outputs.selected_count != '0'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: citygen-source-repair-shard-${{ github.run_id }}-*
+          path: /tmp/citygen-source-repair-shards
+
+      - name: Recover latest durable state under writer lock
         run: |
           set -euo pipefail
-          rm -rf /tmp/citygen-source-repair /tmp/citygen-source-repaired
-          mkdir -p /tmp/citygen-source-repair /tmp/citygen-source-repaired
+          rm -rf /tmp/citygen-source-repair-writer
+          mkdir -p /tmp/citygen-source-repair-writer/source \
+                   /tmp/citygen-source-repair-writer/repaired \
+                   /tmp/citygen-source-repair-writer/refreshed
           git fetch origin citygen-autonomous-state:refs/remotes/origin/citygen-autonomous-state
-          git rev-parse refs/remotes/origin/citygen-autonomous-state > /tmp/citygen-source-repair/remote_sha
+          git rev-parse refs/remotes/origin/citygen-autonomous-state > /tmp/citygen-source-repair-writer/remote_sha
           STATE_ROOT="grand-bruxelles-game/data/qa"
-          git show "origin/citygen-autonomous-state:${STATE_ROOT}/autonomous_citygen_state.json" > /tmp/citygen-source-repair/previous_state.json
-          git show "origin/citygen-autonomous-state:${STATE_ROOT}/brussels_regional_target_grid.json" > /tmp/citygen-source-repair/target_grid.json
+          git show "origin/citygen-autonomous-state:${STATE_ROOT}/autonomous_citygen_state.json" > /tmp/citygen-source-repair-writer/current_state.json
+          git show "origin/citygen-autonomous-state:${STATE_ROOT}/brussels_regional_target_grid.json" > /tmp/citygen-source-repair-writer/target_grid.json
           if git cat-file -e "origin/citygen-autonomous-state:${STATE_ROOT}/autonomous_sources" 2>/dev/null; then
-            git archive origin/citygen-autonomous-state "${STATE_ROOT}/autonomous_sources" | tar -x -C /tmp/citygen-source-repair
-            mkdir -p grand-bruxelles-game/data/urbis/remaining_brussels/cells
-            cp -a "/tmp/citygen-source-repair/${STATE_ROOT}/autonomous_sources/." grand-bruxelles-game/data/urbis/remaining_brussels/cells/
+            git archive origin/citygen-autonomous-state "${STATE_ROOT}/autonomous_sources" | tar -x -C /tmp/citygen-source-repair-writer/source
+          fi
+          mkdir -p grand-bruxelles-game/data/urbis/remaining_brussels/cells
+          if [ -d "/tmp/citygen-source-repair-writer/source/${STATE_ROOT}/autonomous_sources" ]; then
+            cp -a "/tmp/citygen-source-repair-writer/source/${STATE_ROOT}/autonomous_sources/." \
+              grand-bruxelles-game/data/urbis/remaining_brussels/cells/
           fi
 
-      - name: Select municipality-balanced source repairs
+      - name: Merge fan-out results and reconcile attempts against latest state
         run: |
           set -euo pipefail
-          mkdir -p /tmp/citygen-source-repair/selection
-          python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py \
-            --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
-            --maturity-root grand-bruxelles-game/data/cell_manifests \
-            --state /tmp/citygen-source-repair/previous_state.json \
-            --target-grid /tmp/citygen-source-repair/target_grid.json \
-            --output-dir /tmp/citygen-source-repair/selection \
-            --batch-size 32
+          : > /tmp/citygen-source-repair-writer/repair_success.txt
+          : > /tmp/citygen-source-repair-writer/repair_failures.tsv
+
+          EXPECTED_SHARDS="$SOURCE_REPAIR_SHARDS"
+          FOUND_SHARDS=0
+          if [ -d /tmp/citygen-source-repair-shards ]; then
+            for SHARD_DIR in /tmp/citygen-source-repair-shards/citygen-source-repair-shard-${{ github.run_id }}-*; do
+              [ -d "$SHARD_DIR" ] || continue
+              FOUND_SHARDS=$((FOUND_SHARDS + 1))
+              cat "$SHARD_DIR/success.txt" >> /tmp/citygen-source-repair-writer/repair_success.txt
+              cat "$SHARD_DIR/failures.tsv" >> /tmp/citygen-source-repair-writer/repair_failures.tsv
+              if [ -d "$SHARD_DIR/repaired" ]; then
+                cp -a "$SHARD_DIR/repaired/." /tmp/citygen-source-repair-writer/repaired/
+              fi
+            done
+          fi
+
+          SELECTED="${{ needs.select-frontier.outputs.selected_count }}"
+          if [ "$SELECTED" != "0" ] && [ "$FOUND_SHARDS" -lt "$EXPECTED_SHARDS" ]; then
+            printf 'fanout\tmissing_shard_artifacts:%s_of_%s\n' "$FOUND_SHARDS" "$EXPECTED_SHARDS" >> /tmp/citygen-source-repair-writer/repair_failures.tsv
+          fi
+
+          sort -u /tmp/citygen-source-repair-writer/repair_success.txt -o /tmp/citygen-source-repair-writer/repair_success.txt
+          sort -u /tmp/citygen-source-repair-writer/repair_failures.tsv -o /tmp/citygen-source-repair-writer/repair_failures.tsv
+
+          while IFS= read -r CELL; do
+            [ -n "$CELL" ] || continue
+            SRC="/tmp/citygen-source-repair-writer/repaired/${CELL}"
+            test -d "$SRC"
+            mkdir -p "grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
+            cp -a "$SRC/." "grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}/"
+          done < /tmp/citygen-source-repair-writer/repair_success.txt
+
           python3 - <<'PY'
           import json
           from pathlib import Path
 
-          report = json.loads(Path('/tmp/citygen-source-repair/selection/autonomous_citygen_report.json').read_text(encoding='utf-8'))
-          selected = set(report.get('selected_batch', []))
-          rows = []
-          municipalities = set()
-          for cell in report.get('cells', []):
-              if cell.get('cell_id') not in selected or cell.get('state') != 'MISSING_SOURCE':
+          state_path = Path('/tmp/citygen-source-repair-writer/current_state.json')
+          state = json.loads(state_path.read_text(encoding='utf-8'))
+          worklist = Path('/tmp/citygen-source-repair-selection/repair_worklist.tsv')
+          selected = []
+          for line in worklist.read_text(encoding='utf-8').splitlines():
+              if not line.strip():
                   continue
-              bbox = cell.get('bbox')
-              if not isinstance(bbox, list) or len(bbox) != 4:
-                  raise SystemExit(f"missing source has no canonical bbox: {cell.get('cell_id')}")
-              rows.append(cell['cell_id'] + '\t' + ','.join(str(v) for v in bbox))
-              municipalities.update(cell.get('municipalities') or [])
-          Path('/tmp/citygen-source-repair/repair_worklist.tsv').write_text(''.join(row + '\n' for row in rows), encoding='utf-8')
-          print(f"CITYGEN_SOURCE_REPAIR_SELECTION_OK selected={len(rows)} municipalities={len(municipalities)} batch=32")
+              selected.append(line.split('\t', 1)[0])
+          cells = state.setdefault('cells', {})
+          for cell_id in selected:
+              row = cells.setdefault(cell_id, {})
+              row['attempts'] = int(row.get('attempts', 0)) + 1
+          Path('/tmp/citygen-source-repair-writer/merged_state.json').write_text(
+              json.dumps(state, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          print(f'CITYGEN_SOURCE_REPAIR_STATE_RECONCILED selected={len(selected)} stale_selection_safe=true')
           PY
 
-      - name: Rematerialize authoritative UrbIS base-city sources
-        run: |
-          set -u
-          : > /tmp/citygen-source-repair/repair_success.txt
-          : > /tmp/citygen-source-repair/repair_failures.tsv
-          while IFS=$'\t' read -r CELL BBOX; do
-            [ -n "$CELL" ] || continue
-            DEST="grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL}"
-            LOG="/tmp/citygen-source-repair/${CELL}.log"
-            if python3 grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py \
-              --cell-id "$CELL" \
-              --bbox "$BBOX" \
-              --output-dir "$DEST" >"$LOG" 2>&1; then
-              echo "$CELL" >> /tmp/citygen-source-repair/repair_success.txt
-              mkdir -p "/tmp/citygen-source-repaired/${CELL}"
-              cp -a "$DEST/." "/tmp/citygen-source-repaired/${CELL}/"
-              rm -f "$LOG"
-            else
-              printf '%s\t%s\n' "$CELL" "$(tail -n 1 "$LOG" | tr '\t\r\n' '   ')" >> /tmp/citygen-source-repair/repair_failures.tsv
-              echo "CITYGEN_SOURCE_REPAIR_PENDING ${CELL}"
-            fi
-          done < /tmp/citygen-source-repair/repair_worklist.tsv
-          echo "CITYGEN_SOURCE_REPAIR_MATERIALIZED successes=$(wc -l < /tmp/citygen-source-repair/repair_success.txt) failures=$(wc -l < /tmp/citygen-source-repair/repair_failures.tsv)"
-
-      - name: Refresh scheduler classification after repairs
+      - name: Refresh scheduler classification after merged repairs
         run: |
           set -euo pipefail
-          mkdir -p /tmp/citygen-source-repair/refreshed
           python3 grand-bruxelles-game/tools/citygen/autonomous_citygen.py \
             --source-root grand-bruxelles-game/data/urbis/remaining_brussels/cells \
             --maturity-root grand-bruxelles-game/data/cell_manifests \
-            --state /tmp/citygen-source-repair/selection/autonomous_citygen_state.json \
-            --target-grid /tmp/citygen-source-repair/target_grid.json \
-            --output-dir /tmp/citygen-source-repair/refreshed \
-            --batch-size 32 \
+            --state /tmp/citygen-source-repair-writer/merged_state.json \
+            --target-grid /tmp/citygen-source-repair-writer/target_grid.json \
+            --output-dir /tmp/citygen-source-repair-writer/refreshed \
+            --batch-size 1 \
             --refresh-only
 
-      - name: Persist repaired sources and refreshed state immediately
+      - name: Build durable source-repair wave report
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          selection = json.loads(Path('/tmp/citygen-source-repair-selection/source_repair_selection.json').read_text(encoding='utf-8'))
+          successes = [line for line in Path('/tmp/citygen-source-repair-writer/repair_success.txt').read_text(encoding='utf-8').splitlines() if line]
+          failures = [line for line in Path('/tmp/citygen-source-repair-writer/repair_failures.tsv').read_text(encoding='utf-8').splitlines() if line]
+          payload = {
+              'format': 'grand-bruxelles-source-repair-wave-report-v2',
+              'frontier_limit': 128,
+              'worker_count': 16,
+              'selected_count': int(selection.get('selected_count', 0)),
+              'selected_municipality_count': int(selection.get('selected_municipality_count', 0)),
+              'success_count': len(successes),
+              'failure_count': len(failures),
+              'runtime_mount_authorized': False,
+              'jouable_promotion_authorized': False,
+              'writer_lock': 'grand-bruxelles-autonomous-citygen',
+              'fanout_compute_outside_writer_lock': True,
+              'success_cells': successes,
+              'failures': failures,
+          }
+          Path('/tmp/citygen-source-repair-writer/source_repair_wave_report.json').write_text(
+              json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          print(
+              'CITYGEN_SOURCE_REPAIR_WAVE_REPORT '
+              f"selected={payload['selected_count']} successes={payload['success_count']} "
+              f"failures={payload['failure_count']} workers=16 promotion_bypass=false"
+          )
+          PY
+
+      - name: Persist merged repairs with explicit lease
         id: persist
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          REMOTE_SHA="$(cat /tmp/citygen-source-repair/remote_sha)"
+          REMOTE_SHA="$(cat /tmp/citygen-source-repair-writer/remote_sha)"
           git switch -C citygen-autonomous-state refs/remotes/origin/citygen-autonomous-state
           STATE_ROOT="grand-bruxelles-game/data/qa"
           mkdir -p "${STATE_ROOT}/autonomous_sources"
+
           while IFS= read -r CELL; do
             [ -n "$CELL" ] || continue
             mkdir -p "${STATE_ROOT}/autonomous_sources/${CELL}"
-            cp -a "/tmp/citygen-source-repaired/${CELL}/." "${STATE_ROOT}/autonomous_sources/${CELL}/"
-          done < /tmp/citygen-source-repair/repair_success.txt
-          cp /tmp/citygen-source-repair/refreshed/autonomous_citygen_state.json "${STATE_ROOT}/autonomous_citygen_state.json"
-          cp /tmp/citygen-source-repair/refreshed/autonomous_citygen_report.json "${STATE_ROOT}/autonomous_citygen_latest_report.json"
-          cp /tmp/citygen-source-repair/refreshed/worklist.txt "${STATE_ROOT}/autonomous_citygen_worklist.txt"
-          cp /tmp/citygen-source-repair/target_grid.json "${STATE_ROOT}/brussels_regional_target_grid.json"
-          cp /tmp/citygen-source-repair/repair_failures.tsv "${STATE_ROOT}/source_repair_failures.tsv"
+            cp -a "/tmp/citygen-source-repair-writer/repaired/${CELL}/." "${STATE_ROOT}/autonomous_sources/${CELL}/"
+          done < /tmp/citygen-source-repair-writer/repair_success.txt
+
+          cp /tmp/citygen-source-repair-writer/refreshed/autonomous_citygen_state.json "${STATE_ROOT}/autonomous_citygen_state.json"
+          cp /tmp/citygen-source-repair-writer/refreshed/autonomous_citygen_report.json "${STATE_ROOT}/autonomous_citygen_latest_report.json"
+          cp /tmp/citygen-source-repair-writer/refreshed/worklist.txt "${STATE_ROOT}/autonomous_citygen_worklist.txt"
+          cp /tmp/citygen-source-repair-writer/target_grid.json "${STATE_ROOT}/brussels_regional_target_grid.json"
+          cp /tmp/citygen-source-repair-writer/repair_failures.tsv "${STATE_ROOT}/source_repair_failures.tsv"
+          cp /tmp/citygen-source-repair-writer/source_repair_wave_report.json "${STATE_ROOT}/source_repair_wave_report.json"
+
           git add "${STATE_ROOT}/autonomous_sources" \
                   "${STATE_ROOT}/autonomous_citygen_state.json" \
                   "${STATE_ROOT}/autonomous_citygen_latest_report.json" \
                   "${STATE_ROOT}/autonomous_citygen_worklist.txt" \
                   "${STATE_ROOT}/brussels_regional_target_grid.json" \
-                  "${STATE_ROOT}/source_repair_failures.tsv"
+                  "${STATE_ROOT}/source_repair_failures.tsv" \
+                  "${STATE_ROOT}/source_repair_wave_report.json"
+
           if git diff --cached --quiet; then
             echo "CITYGEN_SOURCE_REPAIR_NO_CHANGE"
+            echo "durable_progress=false" >> "$GITHUB_OUTPUT"
           else
-            git commit -m "citygen: persist authoritative source repairs"
+            git commit -m "citygen: persist 128-cell fanout source repair wave"
             git push \
               --force-with-lease="refs/heads/citygen-autonomous-state:${REMOTE_SHA}" \
               origin HEAD:refs/heads/citygen-autonomous-state
+            SUCCESSES="$(wc -l < /tmp/citygen-source-repair-writer/repair_success.txt)"
+            if [ "$SUCCESSES" -gt 0 ]; then
+              echo "durable_progress=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "durable_progress=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
-          echo "durable_progress=true" >> "$GITHUB_OUTPUT"
 
-      - name: Upload source-repair evidence
+      - name: Upload merged source-repair evidence
         uses: actions/upload-artifact@v4
         with:
-          name: citygen-source-repair-${{ github.run_number }}
+          name: citygen-source-repair-wave-${{ github.run_number }}
           path: |
-            /tmp/citygen-source-repair/repair_worklist.tsv
-            /tmp/citygen-source-repair/repair_success.txt
-            /tmp/citygen-source-repair/repair_failures.tsv
-            /tmp/citygen-source-repair/refreshed/
+            /tmp/citygen-source-repair-selection/
+            /tmp/citygen-source-repair-writer/repair_success.txt
+            /tmp/citygen-source-repair-writer/repair_failures.tsv
+            /tmp/citygen-source-repair-writer/source_repair_wave_report.json
+            /tmp/citygen-source-repair-writer/refreshed/
           retention-days: 30
 
-      - name: Surface repair failures after durable progress
+      - name: Surface repair failures after durable successes
         run: |
           set -euo pipefail
-          FAILURES="$(wc -l < /tmp/citygen-source-repair/repair_failures.tsv)"
+          FAILURES="$(wc -l < /tmp/citygen-source-repair-writer/repair_failures.tsv)"
+          SUCCESSES="$(wc -l < /tmp/citygen-source-repair-writer/repair_success.txt)"
           if [ "$FAILURES" -gt 0 ]; then
-            cat /tmp/citygen-source-repair/repair_failures.tsv
-            echo "CITYGEN_SOURCE_REPAIR_PARTIAL failures=${FAILURES} persisted_successes=true" >&2
+            cat /tmp/citygen-source-repair-writer/repair_failures.tsv
+            echo "CITYGEN_SOURCE_REPAIR_PARTIAL failures=${FAILURES} successes=${SUCCESSES} persisted_successes=true fanout=16 frontier=128" >&2
             exit 1
           fi
-          echo "CITYGEN_SOURCE_REPAIR_COMPLETE failures=0 persisted_successes=true promotion_bypass=false"
+          echo "CITYGEN_SOURCE_REPAIR_COMPLETE failures=0 successes=${SUCCESSES} persisted_successes=true fanout=16 frontier=128 promotion_bypass=false"
 
   dispatch-regional-citygen:
     if: always() && github.event_name != 'pull_request' && needs.repair-frontier.outputs.durable_progress == 'true'
@@ -206,7 +417,7 @@ jobs:
       contents: read
       actions: write
     steps:
-      - name: Dispatch runtime frontier and regional CityGen after durable source repair
+      - name: Dispatch runtime frontier and governed regional CityGen after durable source repair
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -225,4 +436,4 @@ jobs:
             "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-autonomous-citygen.yml/dispatches" \
             -f ref=main \
             -f 'inputs[batch_size]=32'
-          echo "CITYGEN_SOURCE_REPAIR_CHAIN_OK durable_progress=true next=runtime_frontier+autonomous_citygen batch=32 promotion_bypass=false"
+          echo "CITYGEN_SOURCE_REPAIR_CHAIN_OK durable_progress=true source_frontier=128 fanout=16 next=runtime_frontier+autonomous_citygen batch=32 promotion_bypass=false"

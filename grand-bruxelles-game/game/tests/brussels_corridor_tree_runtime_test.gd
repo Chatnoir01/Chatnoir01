@@ -33,8 +33,18 @@ func _run() -> void:
 
     if failures.is_empty():
         var runtime_script: Script = load(RUNTIME_PATH) as Script
-        var scene := Node3D.new(); scene.name = "TreeContractScene"; root.add_child(scene)
-        var roads := Node3D.new(); roads.name = "GeneratedRoads"; scene.add_child(roads)
+        # Mount the smallest legitimate production-shaped Main. The runtime must
+        # resolve Main itself, never bind to BrusselsOSM merely because it owns
+        # GeneratedRoads; the sibling Player is part of the LOD contract.
+        var scene := Node3D.new(); scene.name = "Main"; root.add_child(scene)
+        var osm := Node3D.new(); osm.name = "BrusselsOSM"; scene.add_child(osm)
+        var roads := Node3D.new(); roads.name = "GeneratedRoads"; osm.add_child(roads)
+        var urbis := Node3D.new(); urbis.name = "UrbISMidiExact"; scene.add_child(urbis)
+        var player := Node3D.new(); player.name = "Player"; scene.add_child(player)
+        if not expected_runtime.is_empty():
+            var anchor := expected_runtime[0].get("position", []) as Array
+            if anchor.size() == 2:
+                player.position = Vector3(float(anchor[0]), 0.0, float(anchor[1]))
         var runtime: Node = runtime_script.new() as Node if runtime_script != null else null
         if runtime == null:
             failures.append("corridor tree runtime failed to instantiate")
@@ -43,7 +53,7 @@ func _run() -> void:
             for _frame: int in range(12):
                 if bool(runtime.call("ready_complete")): break
                 await process_frame
-            if not bool(runtime.call("ready_complete")): failures.append("runtime did not auto-bind from SceneTree root")
+            if not bool(runtime.call("ready_complete")): failures.append("runtime did not auto-bind from validated Main mount")
             elif bool(runtime.call("failed")): failures.append("runtime reported failure during automatic binding")
             if int(runtime.call("tree_count")) != EXPECTED_RUNTIME_TREE_COUNT: failures.append("runtime tree count mismatch")
             if int(runtime.call("total_source_tree_count")) != EXPECTED_SOURCE_TREE_COUNT: failures.append("runtime total-source count mismatch")
@@ -60,9 +70,12 @@ func _run() -> void:
                         failures.append("runtime/source position mismatch at %d" % index); break
             else: failures.append("runtime source-position count mismatch")
             if bool(runtime.call("claims_species")) or bool(runtime.call("claims_measured_dimensions")): failures.append("runtime made unsupported species/dimension claim")
+            if not bool(runtime.call("lod_active")): failures.append("validated Main Player anchor did not activate corridor tree LOD")
+            var tree_root := scene.get_node_or_null("BrusselsCorridorTrees")
+            if tree_root == null: failures.append("corridor trees attached outside validated Main")
             runtime.queue_free()
         scene.queue_free()
-    if failures.is_empty(): print("BRUSSELS_CORRIDOR_TREES_OK: source=273 Anneessens_owned=7 shared_runtime=266 union=273 batches=3 autobind=root_discovery source=OSM license=ODbL-1.0"); quit(0)
+    if failures.is_empty(): print("BRUSSELS_CORRIDOR_TREES_OK: source=273 Anneessens_owned=7 shared_runtime=266 union=273 batches=3 autobind=validated_main source=OSM license=ODbL-1.0"); quit(0)
     for failure: String in failures: push_error("BRUSSELS_CORRIDOR_TREES_FAIL: %s" % failure)
     quit(1)
 

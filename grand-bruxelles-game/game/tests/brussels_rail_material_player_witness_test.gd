@@ -6,6 +6,9 @@ const MATERIAL_FACTORY := preload("res://game/scripts/brussels_osm_rail_surface_
 const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
 const ROAD_CANDIDATE_PATH := "res://data/city_machine/road_cell_coverage_candidates.json"
 const ROAD_SEMANTIC_SHA256 := "4ec4ba4ad46a999d3ea32ab4a42b6825d6e43f11fcae92ac9b7a4236222913e0"
+const SOURCE_FORMAT := "grand-bruxelles-osm-v1"
+const SOURCE_PROVIDER := "OpenStreetMap contributors via Overpass API"
+const SOURCE_LICENSE := "ODbL-1.0"
 const TARGET_OSM_ID := 359177328
 const TARGET_NAME_FRAGMENT := "Maurice Lemonnier"
 const ARTIFACT_DIR := "res://artifacts/rail_material_player_witness"
@@ -42,9 +45,9 @@ func _source_target_identity_is_locked() -> bool:
         return false
     if str(candidate.get("road_source", "")) != "data/osm/vertical_slice_01.game.json":
         return false
-    if str(candidate.get("road_source_provider", "")) != "OpenStreetMap contributors via Overpass API":
+    if str(candidate.get("road_source_provider", "")) != SOURCE_PROVIDER:
         return false
-    if str(candidate.get("road_source_license", "")) != "ODbL-1.0":
+    if str(candidate.get("road_source_license", "")) != SOURCE_LICENSE:
         return false
     if str(candidate.get("road_semantic_sha256", "")).to_lower() != ROAD_SEMANTIC_SHA256:
         return false
@@ -70,9 +73,11 @@ func _source_target_identity_is_locked() -> bool:
     var source := _load_json(SOURCE_PATH)
     if source.is_empty():
         return false
-    if str(source.get("provider", "")) != "OpenStreetMap contributors via Overpass API":
+    if str(source.get("format", "")) != SOURCE_FORMAT:
         return false
-    if str(source.get("license", "")) != "ODbL-1.0":
+    if str(source.get("source", "")) != SOURCE_PROVIDER:
+        return false
+    if str(source.get("license", "")) != SOURCE_LICENSE:
         return false
     var matched := false
     for raw_road: Variant in source.get("roads", []) as Array:
@@ -81,6 +86,8 @@ func _source_target_identity_is_locked() -> bool:
         var road := raw_road as Dictionary
         if int(road.get("osm_id", 0)) != TARGET_OSM_ID:
             continue
+        if not bool(road.get("drivable", false)):
+            return false
         if not str(road.get("name", "")).contains(TARGET_NAME_FRAGMENT):
             return false
         var points := road.get("points", []) as Array
@@ -290,9 +297,11 @@ func _run() -> void:
         "target_road_osm_id": TARGET_OSM_ID,
         "target_road_name": str(player.get_meta("automatic_road_direct_source_name", "")),
         "source_path": SOURCE_PATH,
+        "source_format": SOURCE_FORMAT,
+        "source_provider": SOURCE_PROVIDER,
         "road_candidate_path": ROAD_CANDIDATE_PATH,
         "road_semantic_sha256": ROAD_SEMANTIC_SHA256,
-        "source_license": "ODbL-1.0",
+        "source_license": SOURCE_LICENSE,
         "material_family": MATERIAL_FACTORY.MATERIAL_FAMILY,
         "rail_count": rails.size(),
         "ground_y": ground_y,

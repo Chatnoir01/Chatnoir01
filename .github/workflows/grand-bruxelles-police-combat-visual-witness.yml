@@ -8,6 +8,8 @@ on:
       - "grand-bruxelles-game/game/scripts/npc_police_combat_runtime.gd"
       - "grand-bruxelles-game/game/scripts/npc_police_combat_feedback_runtime.gd"
       - "grand-bruxelles-game/game/tests/npc_police_combat_visual_witness_test.gd"
+      - "grand-bruxelles-game/tools/qa/police_combat_log_audit.py"
+      - "grand-bruxelles-game/tools/qa/test_police_combat_visual_log_contract.py"
   workflow_dispatch:
 
 permissions:
@@ -70,12 +72,24 @@ jobs:
           test -s grand-bruxelles-game/artifacts/qa/police_combat_pressure/police_ranged_pressure.png
           test -s grand-bruxelles-game/artifacts/qa/police_combat_pressure/police_hit_stagger.png
           test -s grand-bruxelles-game/artifacts/qa/police_combat_pressure/report.json
+      - name: Audit Godot engine errors
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 grand-bruxelles-game/tools/qa/police_combat_log_audit.py \
+            --allow-known-audio-fallback \
+            /tmp/police-combat-visual-import.log \
+            /tmp/police-combat-visual.log \
+            | tee /tmp/police-combat-log-audit.log
+          if grep -F "POLICE_COMBAT_VISUAL_LOG_AUDIT_FAIL" /tmp/police-combat-log-audit.log; then exit 1; fi
+          grep -F "POLICE_COMBAT_VISUAL_LOG_AUDIT_OK" /tmp/police-combat-log-audit.log
       - name: Preserve logs
         if: always()
         run: |
           mkdir -p grand-bruxelles-game/artifacts/qa/police_combat_pressure
           test ! -f /tmp/police-combat-visual.log || cp /tmp/police-combat-visual.log grand-bruxelles-game/artifacts/qa/police_combat_pressure/witness.log
           test ! -f /tmp/police-combat-visual-import.log || cp /tmp/police-combat-visual-import.log grand-bruxelles-game/artifacts/qa/police_combat_pressure/import.log
+          test ! -f /tmp/police-combat-log-audit.log || cp /tmp/police-combat-log-audit.log grand-bruxelles-game/artifacts/qa/police_combat_pressure/log_audit.log
       - name: Validate witness metrics
         shell: bash
         run: |

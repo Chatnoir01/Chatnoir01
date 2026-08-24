@@ -1,0 +1,60 @@
+{
+  "authorization": {
+    "canonical_manifest_write": false,
+    "collision": false,
+    "jouable_promotion": false,
+    "registered_index_mutation": false,
+    "rendered_geometry": false,
+    "road_to_cell_mapping": false,
+    "runtime_mount": false,
+    "safe_spawn": false
+  },
+  "blocker": "candidate manifest is locked for separate human/engineering review; canonical path and registered-cell index remain untouched",
+  "candidate_manifest": {
+    "all_maturity_gates_false": true,
+    "artifact_filename": "bxl-e148000-n170000-s500.candidate.json",
+    "format": "grand-bruxelles-cell-maturity-v1",
+    "maturity_state": "data_ready",
+    "sha256": "b454022050e850214eeb8d5345fe574e831dcaba6a832123a7dfe44070d0b020"
+  },
+  "municipality_evidence": {
+    "coverage_ratio": 1.0,
+    "municipality_id": "https://databrussels.be/id/municipality/5000074",
+    "municipality_niscode": "21004"
+  },
+  "production_base_sha": "f6b968d9ac04a2117203bee2721a074b144b814c",
+  "registered_cell_index": {
+    "path": "data/provenance/brussels_registered_cell_manifest_index.json",
+    "registered_cell_count": 1,
+    "target_registered": false
+  },
+  "registration_review": {
+    "path": "data/provenance/grand_place_cell_registration.review.json",
+    "semantic_sha256": "b84398dd084e85dce7e065ebd3fc87f873dcf965edb48ba55ea1eae519e61565",
+    "status": "READY_FOR_CANONICAL_MANIFEST_REVIEW"
+  },
+  "schema": "grand-bruxelles-grand-place-canonical-manifest-candidate-review-v1",
+  "semantic_sha256": "bb0a23818b738b22b20aea1d9c37ecf794827e05d5d4ab8fed4f758d0c6f197e",
+  "source_evidence": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "license": "CC0-1.0",
+    "lock_path": "data/provenance/grand_place_urbis_source_cell.measurement.json",
+    "source_digest": "bbee45393ca07d86515f160e6eb9511c624440ccced97dff564b133eeafe7feb",
+    "source_manifest_path": "data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500/manifest.json",
+    "source_manifest_sha256": "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7",
+    "source_semantic_sha256": "99cb25db4c95860c02dff5cf25c19cc5a4e11a75166f1fe92734edd1b5a0e7d4"
+  },
+  "status": "CANDIDATE_LOCKED_UNREGISTERED",
+  "target": {
+    "bbox": [
+      148000.0,
+      170000.0,
+      148500.0,
+      170500.0
+    ],
+    "canonical_manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
+    "canonical_manifest_present": false,
+    "cell_id": "bxl-e148000-n170000-s500",
+    "crs": "EPSG:31370"
+  }
+}

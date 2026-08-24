@@ -140,10 +140,7 @@ def _feature_key(feature: dict[str, Any]) -> str:
     return str((feature.get("properties") or {}).get("INSPIRE_ID") or feature.get("id") or digest(feature))
 
 
-def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retries: int = 4) -> dict[str, Any]:
-    allowed = {wfs_name for _, wfs_name, _ in BASE_CITY_LAYERS}
-    if layer_name not in allowed:
-        raise ValueError(f"unsupported UrbIS layer: {layer_name}")
+def _request_layer_once(layer_name: str, bbox: tuple[float, float, float, float], retries: int) -> dict[str, Any]:
     params = {
         "service": "WFS",
         "version": "2.0.0",
@@ -153,26 +150,96 @@ def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retr
         "srsName": CRS,
         "bbox": f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]},{CRS}",
     }
-    request = urllib.request.Request(
-        WFS_URL + "?" + urllib.parse.urlencode(params),
-        headers={"User-Agent": USER_AGENT, "Accept": "application/geo+json, application/json"},
-    )
-    last = None
-    for attempt in range(1, max(1, retries) + 1):
+    url = WFS_URL + "?" + urllib.parse.urlencode(params)
+    last: Exception | None = None
+    attempts = max(1, retries)
+    for attempt in range(1, attempts + 1):
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept": "application/geo+json, application/json",
+                "Accept-Encoding": "identity",
+                "Cache-Control": "no-cache",
+                "Connection": "close",
+            },
+        )
         try:
             with urllib.request.urlopen(request, timeout=90) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+                raw = response.read()
+                content_length = response.headers.get("Content-Length") if getattr(response, "headers", None) is not None else None
+                if content_length:
+                    expected = int(content_length)
+                    if len(raw) != expected:
+                        raise RuntimeError(f"truncated UrbIS WFS response for {layer_name}: expected={expected} got={len(raw)}")
+                payload = json.loads(raw.decode("utf-8"))
             if payload.get("type") != "FeatureCollection" or not isinstance(payload.get("features"), list):
                 raise RuntimeError(f"unexpected UrbIS WFS payload for {layer_name}")
             return payload
         except Exception as exc:
             last = exc
-            if attempt < max(1, retries):
+            if attempt < attempts:
                 time.sleep(min(12, 2**attempt))
     raise RuntimeError(f"failed to fetch official {layer_name} layer: {last}")
 
 
-def request_buildings(bbox: tuple[float, float, float, float], retries: int = 4) -> dict[str, Any]:
+def _quarter_bboxes(bbox: tuple[float, float, float, float]) -> tuple[tuple[float, float, float, float], ...]:
+    min_e, min_n, max_e, max_n = bbox
+    mid_e = (min_e + max_e) / 2.0
+    mid_n = (min_n + max_n) / 2.0
+    return (
+        (min_e, min_n, mid_e, mid_n),
+        (mid_e, min_n, max_e, mid_n),
+        (min_e, mid_n, mid_e, max_n),
+        (mid_e, mid_n, max_e, max_n),
+    )
+
+
+def _merge_feature_collections(documents: list[dict[str, Any]]) -> dict[str, Any]:
+    if not documents:
+        raise RuntimeError("cannot merge empty UrbIS WFS fallback")
+    merged: dict[str, Any] = {k: v for k, v in documents[0].items() if k not in {"features", "numberReturned", "numberMatched"}}
+    features_by_key: dict[str, dict[str, Any]] = {}
+    for document in documents:
+        if document.get("type") != "FeatureCollection" or not isinstance(document.get("features"), list):
+            raise RuntimeError("invalid UrbIS WFS quadrant payload")
+        for feature in document.get("features") or []:
+            if not isinstance(feature, dict):
+                raise RuntimeError("invalid UrbIS WFS feature in quadrant payload")
+            features_by_key[_feature_key(feature)] = feature
+    features = sorted(features_by_key.values(), key=_feature_key)
+    merged["type"] = "FeatureCollection"
+    merged["features"] = features
+    merged["numberReturned"] = len(features)
+    merged["numberMatched"] = len(features)
+    return merged
+
+
+def request_layer(layer_name: str, bbox: tuple[float, float, float, float], retries: int = 6) -> dict[str, Any]:
+    allowed = {wfs_name for _, wfs_name, _ in BASE_CITY_LAYERS}
+    if layer_name not in allowed:
+        raise ValueError(f"unsupported UrbIS layer: {layer_name}")
+    try:
+        return _request_layer_once(layer_name, bbox, retries)
+    except RuntimeError as full_bbox_error:
+        # Some UrbIS WFS responses are occasionally truncated while still
+        # returning HTTP 200. Retry a bounded, deterministic 2x2 subdivision.
+        # Every quadrant remains official WFS data; if any quadrant is invalid,
+        # the cell stays pending rather than fabricating or partially accepting it.
+        documents: list[dict[str, Any]] = []
+        quadrant_retries = max(2, min(4, retries // 2))
+        try:
+            for quadrant in _quarter_bboxes(bbox):
+                documents.append(_request_layer_once(layer_name, quadrant, quadrant_retries))
+        except RuntimeError as quadrant_error:
+            raise RuntimeError(
+                f"failed to fetch official {layer_name} layer after full-bbox and quadrant retries: "
+                f"full={full_bbox_error}; quadrant={quadrant_error}"
+            ) from quadrant_error
+        return _merge_feature_collections(documents)
+
+
+def request_buildings(bbox: tuple[float, float, float, float], retries: int = 6) -> dict[str, Any]:
     return request_layer(LAYER, bbox, retries)
 
 
@@ -305,7 +372,7 @@ def main() -> int:
     ap.add_argument("--cell-id", required=True)
     ap.add_argument("--bbox", type=parse_bbox, required=True)
     ap.add_argument("--output-dir", type=Path, required=True)
-    ap.add_argument("--retries", type=int, default=4)
+    ap.add_argument("--retries", type=int, default=6)
     args = ap.parse_args()
     manifest = materialize_base_city(
         args.cell_id,

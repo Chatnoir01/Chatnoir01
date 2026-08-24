@@ -11,7 +11,9 @@ runtime_text = RUNTIME_WORKFLOW.read_text(encoding="utf-8")
 
 required = (
     'group: grand-bruxelles-autonomous-citygen',
-    '--batch-size 32',
+    '--batch-size 128',
+    'SOURCE_REPAIR_WORKERS=16',
+    'xargs -0 -P "$SOURCE_REPAIR_WORKERS"',
     'materialize_urbis_source_cell.py',
     'repair_failures.tsv',
     'repair_success.txt',
@@ -28,8 +30,8 @@ required = (
     'grand-bruxelles-runtime-candidate-frontier.yml/dispatches',
     'CITYGEN_RUNTIME_FRONTIER_DISPATCH_OK durable_progress=true limit=32',
     'grand-bruxelles-autonomous-citygen.yml/dispatches',
-    "inputs[batch_size]=32",
-    'CITYGEN_SOURCE_REPAIR_CHAIN_OK durable_progress=true next=runtime_frontier+autonomous_citygen batch=32',
+    "inputs[batch_size]=128",
+    'CITYGEN_SOURCE_REPAIR_CHAIN_OK durable_progress=true next=runtime_frontier+autonomous_citygen batch=128',
     'promotion_bypass=false',
 )
 for marker in required:
@@ -43,11 +45,13 @@ assert persist_at < surface_at < runtime_dispatch_at < regional_dispatch_at, (
     'source repair must persist first, then dispatch runtime candidates before the longer regional pass'
 )
 assert 'workflow_dispatch:' in runtime_text, 'runtime candidate frontier must remain explicitly dispatchable'
-assert '--limit 32' in runtime_text, 'runtime candidate frontier must keep the governed 32-cell limit'
+assert '--limit 32' in runtime_text, 'runtime candidate frontier must keep the governed 32-cell limit during source fan-out rollout'
 assert 'runtime_mount_authorized' in runtime_text and 'jouable_promotion_authorized' in runtime_text
 
+# Fan-out is compute-only: the durable writer remains unique and lease-protected.
+assert text.count('git push \\\n              --force-with-lease="refs/heads/citygen-autonomous-state:${REMOTE_SHA}"') == 1
 assert 'runtime_mount_authorized=true' not in text
 assert 'jouable_promotion_authorized=true' not in text
 assert 'git push --force origin citygen-autonomous-state' not in text
 
-print('CITYGEN_SOURCE_REPAIR_FRONTIER_CONTRACT_OK batch=32 serialized_writer=true partial_persistence=true explicit_lease=true runtime_frontier_immediate=true chained_after_durable_progress=true promotion_bypass=false')
+print('CITYGEN_SOURCE_REPAIR_FRONTIER_CONTRACT_OK batch=128 workers=16 serialized_writer=true partial_persistence=true explicit_lease=true runtime_frontier_immediate=true chained_after_durable_progress=true promotion_bypass=false')

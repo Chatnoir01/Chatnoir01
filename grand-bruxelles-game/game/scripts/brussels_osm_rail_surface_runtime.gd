@@ -30,7 +30,10 @@ func _is_generated_rails_root(node: Node) -> bool:
     return parent != null and str(parent.name) == "BrusselsOSM"
 
 func _is_generated_rail_child(node: Node) -> bool:
-    if not node is CSGBox3D or not str(node.name).begins_with("Rail_"):
+    if not node is CSGBox3D:
+        return false
+    var name := str(node.name)
+    if not name.begins_with("Rail_"):
         return false
     var parent := node.get_parent()
     return parent != null and _is_generated_rails_root(parent)
@@ -88,9 +91,13 @@ func _bind_rails_root(rails_root: Node3D) -> void:
         return
     var bound_count := 0
     for child: Node in rails_root.get_children():
-        if child is CSGBox3D and str(child.name).begins_with("Rail_"):
-            if _bind_rail(child as CSGBox3D):
-                bound_count += 1
+        if not child is CSGBox3D:
+            continue
+        var name := str(child.name)
+        if not name.begins_with("Rail_"):
+            continue
+        if _bind_rail(child as CSGBox3D):
+            bound_count += 1
     if bound_count == 0:
         return
     _scan_existing_official_rails()

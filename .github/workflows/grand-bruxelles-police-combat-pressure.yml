@@ -20,6 +20,17 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha }}"
+          if [ "$actual" != "$expected" ]; then
+            echo "POLICE_COMBAT_PRESSURE_EXACT_HEAD_FAIL actual=$actual expected=$expected"
+            exit 1
+          fi
+          echo "POLICE_COMBAT_PRESSURE_EXACT_HEAD_OK sha=$actual"
       - name: Install Godot 4.7.1
         run: |
           curl --http1.1 -fL --retry 6 --retry-all-errors --retry-delay 2 \

@@ -62,20 +62,34 @@ void fragment() {
     vec2 p = world_pos.xz;
     vec2 p_a = rotate2(p, 0.819152, 0.573576);
     vec2 p_b = rotate2(p, 0.390731, -0.920505);
-    float broad_a = value_noise(p_a * 0.14 + vec2(19.0, 37.0));
-    float broad_b = value_noise(p_b * 0.17 + vec2(71.0, 11.0));
-    float broad = (broad_a + broad_b) * 0.5;
-    float fine_a = value_noise(p_a * 1.65 + vec2(31.0, 83.0));
-    float fine_b = value_noise(p_b * 2.15 + vec2(97.0, 53.0));
-    float fine = (fine_a + fine_b) * 0.5;
+    vec2 p_c = rotate2(p, -0.707107, 0.707107);
+
+    // Human review of calibration v7.1 found low-frequency world-space noise
+    // perspective-compressed into horizontal streaks. Keep the authored recipe
+    // isotropic but move macro variation into sub-meter/meter scales and fade
+    // all presentation contrast with distance instead of letting compressed far
+    // field bands dominate the player frame.
+    float broad_a = value_noise(p_a * 0.62 + vec2(19.0, 37.0));
+    float broad_b = value_noise(p_b * 0.83 + vec2(71.0, 11.0));
+    float broad_c = value_noise(p_c * 1.07 + vec2(43.0, 67.0));
+    float broad = (broad_a + broad_b + broad_c) / 3.0;
+
+    float fine_a = value_noise(p_a * 1.95 + vec2(31.0, 83.0));
+    float fine_b = value_noise(p_b * 2.55 + vec2(97.0, 53.0));
+    float fine_c = value_noise(p_c * 3.15 + vec2(59.0, 29.0));
+    float fine = (fine_a + fine_b + fine_c) / 3.0;
+
     float camera_distance = distance(world_pos, CAMERA_POSITION_WORLD);
-    float near_detail = 1.0 - smoothstep(24.0, 105.0, camera_distance);
-    float detail_weight = mix(0.10, 0.34, near_detail);
+    float near_detail = 1.0 - smoothstep(18.0, 72.0, camera_distance);
+    float distance_visibility = 1.0 - smoothstep(55.0, 145.0, camera_distance);
+    float detail_weight = mix(0.28, 0.58, near_detail);
     float raw_ground_tone = mix(broad, fine, detail_weight);
     float centered_ground_tone = raw_ground_tone - 0.5;
-    float authored_ground_tone = clamp(0.5 + centered_ground_tone * tone_contrast_gain, 0.0, 1.0);
+    float distance_contrast = mix(0.12, 1.0, distance_visibility);
+    float authored_ground_tone = clamp(0.5 + centered_ground_tone * tone_contrast_gain * distance_contrast, 0.0, 1.0);
+
     ALBEDO = mix(ground_dark_color.rgb, ground_light_color.rgb, authored_ground_tone);
-    ROUGHNESS = clamp(base_roughness + (0.5 - fine) * 0.025 * near_detail, 0.90, 0.96);
+    ROUGHNESS = clamp(base_roughness + (0.5 - fine) * 0.020 * near_detail, 0.90, 0.96);
     METALLIC = 0.0;
     SPECULAR = 0.08;
 }
@@ -87,6 +101,8 @@ void fragment() {
     material.set_meta("presentation_revision", PRESENTATION_REVISION)
     material.set_meta("visual_recipe_profile", VISUAL_RECIPE_PROFILE)
     material.set_meta("calibration_revision", CALIBRATION_REVISION)
+    material.set_meta("anti_banding_revision", 1)
+    material.set_meta("distance_contrast_fade", true)
     material.set_meta("procedural_only", true)
     material.set_meta("time_dependent", false)
     material.set_meta("geometry_changed", false)
@@ -143,7 +159,7 @@ func _apply_when_ready() -> void:
     _enhanced_material = _make_material()
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
-    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d calibration=%d profile=%s material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false" % [MATERIAL_FAMILY, PRESENTATION_REVISION, CALIBRATION_REVISION, VISUAL_RECIPE_PROFILE])
+    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d calibration=%d profile=%s anti_banding=1 material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false" % [MATERIAL_FAMILY, PRESENTATION_REVISION, CALIBRATION_REVISION, VISUAL_RECIPE_PROFILE])
 
 func _set_material_state(enabled: bool) -> void:
     if _ground == null or not is_instance_valid(_ground):

@@ -1,0 +1,65 @@
+{
+  "cell_crs": "EPSG:31370",
+  "collision_authorized": false,
+  "frame": {
+    "crs": "EPSG:31370",
+    "formula": "E=origin_easting_m+x;N=origin_northing_m-z",
+    "origin_easting_m": 147868.29422791934,
+    "origin_northing_m": 169538.62414926197
+  },
+  "jouable_promotion_authorized": false,
+  "overlapping_road_count": 2,
+  "overlaps": [
+    {
+      "cells": [
+        {
+          "cell_id": "bxl-e148000-n170000-s500",
+          "point_hits": 6,
+          "segment_hits": 5
+        }
+      ],
+      "class": "living_street",
+      "name": "Rue de l'Amigo - Vruntstraat",
+      "osm_id": 13842686
+    },
+    {
+      "cells": [
+        {
+          "cell_id": "bxl-e148000-n170000-s500",
+          "point_hits": 3,
+          "segment_hits": 2
+        }
+      ],
+      "class": "living_street",
+      "name": "Rue du Marché au Charbon - Kolenmarkt",
+      "osm_id": 684214770
+    }
+  ],
+  "raw_road_count": 140,
+  "registered_cell_count": 2,
+  "registered_cell_index": "data/provenance/brussels_registered_cell_manifest_index.json",
+  "registered_cell_index_semantic_sha256": "e3585c11cc54658d0cfc905540ee672907bad93927033cb9170e79991db69c38",
+  "rejected_drivable_road_count": 1,
+  "rendered_geometry_authorized": false,
+  "road_cell_mapping_authorized": false,
+  "road_count": 139,
+  "road_lambert72_bbox": [
+    147023.79522791933,
+    168637.98314926197,
+    148125.81622791933,
+    170433.92214926198
+  ],
+  "road_point_count": 752,
+  "road_runtime_catalog_sha256": "7290b8272623e0cd5905224c8696d74a3015b1db9aab00ef19d1cf7676dea59f",
+  "road_runtime_index": "data/runtime/road_destination_runtime_index.json",
+  "road_runtime_index_format": "grand-bruxelles-road-runtime-index-v1",
+  "road_source": "data/osm/vertical_slice_01.game.json",
+  "road_source_license": "ODbL-1.0",
+  "road_source_provider": "OpenStreetMap contributors via Overpass API",
+  "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+  "runtime_descriptor_road_count": 139,
+  "runtime_mount_authorized": false,
+  "safe_spawn_authorized": false,
+  "schema": "grand-bruxelles-road-registered-cell-overlap-measurement-v2",
+  "semantic_sha256": "84802ee94bcbbb2d849e75fa0a11e49f7d19a448e3b0557617f75d5b35b9fa7b"
+}

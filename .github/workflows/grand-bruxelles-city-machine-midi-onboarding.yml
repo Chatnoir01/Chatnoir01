@@ -1,0 +1,89 @@
+name: Grand Bruxelles City Machine Midi Runtime-Index Frame
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/city_machine/**"
+      - "grand-bruxelles-game/tools/city_machine/**"
+      - "grand-bruxelles-game/tests/test_city_machine_runtime_index_frame.py"
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/cell_manifests/*.json"
+      - ".github/workflows/grand-bruxelles-city-machine-midi-onboarding.yml"
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  runtime-index-frame:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Install regression runner
+        run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - name: Exact live-main certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          candidate_main="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path('grand-bruxelles-game/data/qa/city_machine/midi_onboarding_runtime_index_candidate.json').read_text())['production_base_sha'])
+          PY
+          )"
+          test "$candidate_main" = "$live_main"
+          git merge-base --is-ancestor "$live_main" HEAD
+      - name: Validate runtime-index-bound Lambert72 bridge
+        working-directory: grand-bruxelles-game
+        run: python tools/city_machine/validate_midi_runtime_index_frame.py
+      - name: Keep activation fail-closed
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set +e
+          python tools/city_machine/validate_midi_runtime_index_frame.py --require-activatable > /tmp/strict.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/strict.log
+          test "$status" -eq 3
+          grep -q ROAD_CELL_CROSSWALK_NOT_REVIEWED /tmp/strict.log
+      - name: Run current-frame regressions
+        working-directory: grand-bruxelles-game
+        run: python -m pytest -q tests/test_city_machine_runtime_index_frame.py
+      - name: Measure current descriptor road/cell overlap
+        working-directory: grand-bruxelles-game
+        run: python tools/city_machine/measure_runtime_index_road_registered_cell_overlap.py --output "$RUNNER_TEMP/road_registered_cell_overlap_v2.json"
+      - name: Upload measured candidate before lock comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-registered-cell-overlap-v2-candidate
+          path: ${{ runner.temp }}/road_registered_cell_overlap_v2.json
+          if-no-files-found: warn
+      - name: Require evidence-only rails from live descriptors
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path('grand-bruxelles-game');d=json.loads((Path(os.environ['RUNNER_TEMP'])/'road_registered_cell_overlap_v2.json').read_text());ri=json.loads((root/'data/runtime/road_destination_runtime_index.json').read_text());ci=json.loads((root/'data/provenance/brussels_registered_cell_manifest_index.json').read_text());desc=ri['documents'][0]
+          assert d['road_source_sha256']==desc['sha256'];assert d['road_count']==len(desc['road_ids']);assert d['registered_cell_count']==len(ci['entries']);assert d['road_runtime_catalog_sha256']==ri['catalog_sha256']
+          assert d['raw_road_count'] == 140; assert d['rejected_drivable_road_count'] == 1
+          for k in ('road_cell_mapping_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized'): assert d[k] is False,k
+          print(f"CURRENT_FRAME_ACCOUNTING indexed_roads={d['road_count']} raw_roads={d['raw_road_count']} cells={d['registered_cell_count']} overlap={d['overlapping_road_count']} semantic={d['semantic_sha256']}")
+          PY
+      - name: RED-first require persisted v2 lock
+        shell: bash
+        run: |
+          test -f grand-bruxelles-game/data/qa/city_machine/road_registered_cell_overlap_measurement_v2.json
+          cmp "$RUNNER_TEMP/road_registered_cell_overlap_v2.json" grand-bruxelles-game/data/qa/city_machine/road_registered_cell_overlap_measurement_v2.json

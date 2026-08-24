@@ -1,0 +1,47 @@
+{
+  "schema": "grand-bruxelles-city-machine-zone-onboarding-candidate-v2",
+  "production_base_sha": "645ce3e15a8a01d4e44d02ce6b099b72a13849b1",
+  "zone": "midi",
+  "source_root": "data/urbis/midi",
+  "source_crs": "EPSG:31370",
+  "coordinate_contract": {
+    "frame": "grand_bruxelles_project_global",
+    "origin_easting_m": 147868.29422791934,
+    "origin_northing_m": 169538.62414926197,
+    "axes": "X=east, Y=up, Z=south",
+    "units": "metres",
+    "runtime_translation_m": [0.0, 0.0, 0.0],
+    "additional_zone_offset_allowed": false
+  },
+  "normalized_runtime_inputs": {
+    "buildings": "data/urbis/midi/buildings.game.json",
+    "street_surfaces": "data/urbis/midi/street_surfaces.game.json",
+    "street_axes": "data/urbis/midi/street_axes.game.json"
+  },
+  "legacy_runtime_inputs_forbidden": [
+    "data/urbis/midi/midi_runtime.game.json"
+  ],
+  "road_frame_bridge": {
+    "road_runtime_index": "data/runtime/road_destination_runtime_index.json",
+    "road_runtime_index_format": "grand-bruxelles-road-runtime-index-v1",
+    "road_runtime_catalog_sha256": "7290b8272623e0cd5905224c8696d74a3015b1db9aab00ef19d1cf7676dea59f",
+    "road_source": "data/osm/vertical_slice_01.game.json",
+    "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "road_source_provider": "OpenStreetMap contributors via Overpass API",
+    "road_source_license": "ODbL-1.0",
+    "official_world_frame_evidence": "data/urbis/bourse_street_axes.game.json",
+    "expected_midi_world_xz": [-668.5, 627.84],
+    "lambert72_formula": "E=origin_easting_m+x;N=origin_northing_m-z",
+    "road_cell_mapping_authorized": false
+  },
+  "activation": {
+    "registry_mutation_authorized": false,
+    "runtime_mount_authorized": false,
+    "jouable_promotion_authorized": false
+  },
+  "blockers": [
+    "RUNTIME_GEOMETRY_MOUNT_NOT_REGISTERED",
+    "ROAD_CELL_CROSSWALK_NOT_REVIEWED",
+    "JOUABLE_PROMOTION_NOT_REVIEWED"
+  ]
+}

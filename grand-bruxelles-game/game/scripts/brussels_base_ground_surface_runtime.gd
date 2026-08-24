@@ -3,6 +3,7 @@ extends Node
 const MATERIAL_FAMILY := "brussels_base_ground_surface_v1"
 const PRESENTATION_REVISION := 7
 const VISUAL_RECIPE_PROFILE := "authored_isotropic_neutral_variation_v7"
+const CALIBRATION_REVISION := 1
 const TARGET_MAIN_NODE := "Main"
 const TARGET_GROUND_NODE := "Ground"
 const EXPECTED_POSITION := Vector3(0.0, -0.23, 0.0)
@@ -28,6 +29,7 @@ render_mode diffuse_burley, specular_schlick_ggx;
 uniform vec4 ground_dark_color = vec4(0.155, 0.160, 0.157, 1.0);
 uniform vec4 ground_light_color = vec4(0.265, 0.258, 0.242, 1.0);
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.93;
+uniform float tone_contrast_gain : hint_range(1.0, 2.0) = 1.45;
 
 varying vec3 world_pos;
 
@@ -60,16 +62,18 @@ void fragment() {
     vec2 p = world_pos.xz;
     vec2 p_a = rotate2(p, 0.819152, 0.573576);
     vec2 p_b = rotate2(p, 0.390731, -0.920505);
-    float broad_a = value_noise(p_a * 0.11 + vec2(19.0, 37.0));
-    float broad_b = value_noise(p_b * 0.13 + vec2(71.0, 11.0));
+    float broad_a = value_noise(p_a * 0.14 + vec2(19.0, 37.0));
+    float broad_b = value_noise(p_b * 0.17 + vec2(71.0, 11.0));
     float broad = (broad_a + broad_b) * 0.5;
     float fine_a = value_noise(p_a * 1.65 + vec2(31.0, 83.0));
     float fine_b = value_noise(p_b * 2.15 + vec2(97.0, 53.0));
     float fine = (fine_a + fine_b) * 0.5;
     float camera_distance = distance(world_pos, CAMERA_POSITION_WORLD);
     float near_detail = 1.0 - smoothstep(24.0, 105.0, camera_distance);
-    float detail_weight = mix(0.06, 0.24, near_detail);
-    float authored_ground_tone = clamp(mix(broad, fine, detail_weight), 0.0, 1.0);
+    float detail_weight = mix(0.10, 0.34, near_detail);
+    float raw_ground_tone = mix(broad, fine, detail_weight);
+    float centered_ground_tone = raw_ground_tone - 0.5;
+    float authored_ground_tone = clamp(0.5 + centered_ground_tone * tone_contrast_gain, 0.0, 1.0);
     ALBEDO = mix(ground_dark_color.rgb, ground_light_color.rgb, authored_ground_tone);
     ROUGHNESS = clamp(base_roughness + (0.5 - fine) * 0.025 * near_detail, 0.90, 0.96);
     METALLIC = 0.0;
@@ -82,6 +86,7 @@ void fragment() {
     material.set_meta("material_family", MATERIAL_FAMILY)
     material.set_meta("presentation_revision", PRESENTATION_REVISION)
     material.set_meta("visual_recipe_profile", VISUAL_RECIPE_PROFILE)
+    material.set_meta("calibration_revision", CALIBRATION_REVISION)
     material.set_meta("procedural_only", true)
     material.set_meta("time_dependent", false)
     material.set_meta("geometry_changed", false)
@@ -138,7 +143,7 @@ func _apply_when_ready() -> void:
     _enhanced_material = _make_material()
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
-    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d profile=%s material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false" % [MATERIAL_FAMILY, PRESENTATION_REVISION, VISUAL_RECIPE_PROFILE])
+    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d calibration=%d profile=%s material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false" % [MATERIAL_FAMILY, PRESENTATION_REVISION, CALIBRATION_REVISION, VISUAL_RECIPE_PROFILE])
 
 func _set_material_state(enabled: bool) -> void:
     if _ground == null or not is_instance_valid(_ground):

@@ -1,0 +1,122 @@
+{
+  "schema": "grand-bruxelles-urbis-source-cell-lock-v2",
+  "production_base_sha": "480127d0dcc2231769ee90e6ee2e797171e99ee7",
+  "target": {
+    "cell_id": "bxl-e148000-n170000-s500",
+    "crs": "EPSG:31370",
+    "bbox": [148000.0, 170000.0, 148500.0, 170500.0]
+  },
+  "source": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "dataset_family": "UrbIS vector base-city layers",
+    "license": "CC0-1.0",
+    "retrieval_model": "live_authoritative_wfs_content_addressed",
+    "stable_release_identifier_exposed": false
+  },
+  "semantic_identity_policy": "exclude only top-level GeoServer Feature.id/FID; preserve complete geometry and properties; sort by INSPIRE_ID then canonical feature JSON",
+  "locked": {
+    "manifest_source_digest": "bbee45393ca07d86515f160e6eb9511c624440ccced97dff564b133eeafe7feb",
+    "source_semantic_sha256": "99cb25db4c95860c02dff5cf25c19cc5a4e11a75166f1fe92734edd1b5a0e7d4",
+    "layers": {
+      "buildings": {"wfs_name": "urbisvector:Buildings", "features": 772, "semantic_features_sha256": "39b521890e02973ea61bc0ae0d9f686c4b1691c639898e7793f472761a0bc5ec", "ownership": "canonical_centroid_global_500m_cell", "invalid_ownership_features": 0, "ownership_filtered": 61},
+      "street_axes": {"wfs_name": "urbisvector:StreetAxes", "features": 97, "semantic_features_sha256": "aa4781f2586984d57c66f16fbfade37e0ec34d76b8201bfb150fe0a5219991c9", "ownership": "bbox_intersection_source_unclipped"},
+      "street_surfaces": {"wfs_name": "urbisvector:StreetSurfaces", "features": 410, "semantic_features_sha256": "7fdf9174f8109598d03a40acc6b368e3184a9960a205de53e3efb3a92d43e5a7", "ownership": "bbox_intersection_source_unclipped"},
+      "train_network": {"wfs_name": "urbisvector:TrainNetwork", "features": 28, "semantic_features_sha256": "140364fd0ff66059e8b603659239380e974fba414e5282ca819f1f7e775ba801", "ownership": "bbox_intersection_source_unclipped"},
+      "tram_network": {"wfs_name": "urbisvector:TramNetwork", "features": 28, "semantic_features_sha256": "140364fd0ff66059e8b603659239380e974fba414e5282ca819f1f7e775ba801", "ownership": "bbox_intersection_source_unclipped"}
+    }
+  },
+  "first_successful_acquisition": {
+    "run_id": 32710516938,
+    "artifact_id": 9513921614,
+    "artifact_sha256": "5000922ca2314e7f9d21716e59690e74dd48cc11fc12716499b4771c96d49961",
+    "artifact_size_bytes": 231005,
+    "artifact_manifest_sha256": "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7",
+    "artifact_maturity_sha256": "3cce951e950fcd621a32feb222d579d1b9fc421d6d0e895270f7adecb8630454",
+    "raw_forensic_sha256": {
+      "buildings": "0615fe0d44e589d4be57d46ac721f257bc0dd0afaaef1da120b9c6deee6bc81d",
+      "street_axes": "20df6bfda2453cc3c06937c6aba291b220b9f0a24c284ae5098406276e1a96db",
+      "street_surfaces": "9f025fb4c932307363d3aebd866fea0961780643cc76d65044f9009e77922122",
+      "train_network": "a38bd2d8890b6424abc1b0d1254f008e6d178175cf73646c987faa06fa39cf61",
+      "tram_network": "3d6bcc031e684432e7a33ef0e5850d0f0863ffa705e94dbf5604aea511a5ff0d"
+    }
+  },
+  "locked_exact_reproduction": {
+    "run_id": 32710945269,
+    "pull_request_head_sha": "1683437be784936466380f027cd716108f04824e",
+    "artifact_id": 9514058327,
+    "artifact_sha256": "5f78e253ab8b45cde42a9eb9bf4bbb2170b1296104ef1de935ed4d4ee727fbaf",
+    "artifact_size_bytes": 232065,
+    "manifest_sha256": "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7",
+    "maturity_sha256": "868b261f0ae4e069a4eb688bee5048474ae795fc7b3e98055f5af635fcaa13e2",
+    "reproduction_status": "LOCKED_EXACT_SOURCE_ONLY",
+    "raw_forensic_sha256": {
+      "buildings": "79ef524bfb6b19fe298fc67d6d053d8e3463095b30f5d61db3835f947d1c4394",
+      "street_axes": "3e9da2d02699bcc1ee2431d721c8e349e65db9492e8b9f0c7cfc3d5dc2260e34",
+      "street_surfaces": "f12d1ffdbf5dd3c5b695f4f34e2685077af2704192fe2b3c7a4745468f60d021",
+      "train_network": "6b45a1a407a0722abe81a8f69e944f9c52f8d0d417a5060b45ae3b06b59a7459",
+      "tram_network": "d85e56359e9b0e15858494fa03ca735cfb84798407c3d94737d32d07ceb29017"
+    },
+    "transport_drift_observed": {
+      "top_level_geoserver_feature_ids_changed_across_runs": true,
+      "raw_file_hashes_changed_across_runs": true,
+      "maturity_hash_changed_due_to_raw_source_content_digests": true,
+      "manifest_hash_stable": true,
+      "semantic_feature_hashes_stable": true,
+      "semantic_source_hash_stable": true
+    }
+  },
+  "persisted_artifact_bytes": {
+    "source_artifact": {
+      "run_id": 32711130501,
+      "artifact_id": 9514120032,
+      "artifact_sha256": "439970c8f1a39537dff4c0061db139ebb11452092a9387ffb7a748ea149ee845",
+      "artifact_size_bytes": 232066
+    },
+    "persistence": {
+      "workflow_run_id": 32714410721,
+      "evidence_artifact_id": 9515352501,
+      "evidence_artifact_sha256": "f8c62c0eddb35dabec102f4b5a17a113e04e56d4dff33aa4b53a3566d302c22a",
+      "persisted_commit_sha": "14a3522e0671a954774a8909c6d76b60dc9134eb",
+      "path": "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148000-n170000-s500",
+      "file_count": 7,
+      "manifest_sha256": "4c18e124adfbdb230fcd357c444f58c1d532db2812f77d6f97380676f60e00c7",
+      "maturity_sha256": "e9e799fe15756c1e1c26e068bc08908c909981ae2668c45535353c33e6421767",
+      "raw_files": {
+        "buildings": {"bytes": 496088, "sha256": "ce835a5752c7abbafde4f364cb29abfcba26c0ff60c334705e17f8654ae96681"},
+        "street_axes": {"bytes": 62928, "sha256": "0e2b11ede03aa07a059d9e9bad840abe57148efe954f32961fc26293f607c099"},
+        "street_surfaces": {"bytes": 475278, "sha256": "ccb2021f5f44ffb269ba543b87ff41af8c6ef59d434240f143cecb40231c2789"},
+        "train_network": {"bytes": 24216, "sha256": "be5c979bb11d0f4611639307b79ad7e5f636787b12fba0f4453433f98b6996c4"},
+        "tram_network": {"bytes": 24215, "sha256": "734f0019084351601bf0d227bd9aaf4e91a885cd7a93577e5460ee43ce0f595e"}
+      },
+      "source_semantic_sha256": "99cb25db4c95860c02dff5cf25c19cc5a4e11a75166f1fe92734edd1b5a0e7d4",
+      "reproduction_status": "LOCKED_EXACT_SOURCE_ONLY_ARTIFACT_BYTES"
+    }
+  },
+  "maturity_observation": {
+    "state": "data_ready",
+    "source_requirements_complete": true,
+    "source_required_file_count": 5,
+    "crs_gate": true,
+    "verification_gate": true,
+    "runtime_geometry_gate": false,
+    "collisions_gate": false,
+    "streaming_gate": false,
+    "terrain_gate": false,
+    "heights_gate": false,
+    "photo_match_gate": false,
+    "performance_gate": false
+  },
+  "authorization": {
+    "source_acquisition": true,
+    "source_registration": false,
+    "canonical_registration": false,
+    "road_to_cell_mapping": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  },
+  "status": "LOCKED_EXACT_SOURCE_ONLY_PERSISTED"
+}

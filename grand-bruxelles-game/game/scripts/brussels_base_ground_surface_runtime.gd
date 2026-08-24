@@ -24,9 +24,9 @@ func _make_material() -> ShaderMaterial:
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
-uniform vec4 ground_dark_color = vec4(0.125, 0.130, 0.128, 1.0);
-uniform vec4 ground_light_color = vec4(0.195, 0.200, 0.194, 1.0);
-uniform float base_roughness : hint_range(0.0, 1.0) = 0.945;
+uniform vec4 ground_dark_color = vec4(0.135, 0.139, 0.137, 1.0);
+uniform vec4 ground_light_color = vec4(0.180, 0.184, 0.180, 1.0);
+uniform float base_roughness : hint_range(0.0, 1.0) = 0.95;
 
 varying vec3 world_pos;
 
@@ -51,10 +51,10 @@ float value_noise(vec2 p) {
 }
 
 float authored_isotropic_noise(vec2 p) {
-    float n0 = value_noise(p * 0.17 + vec2(19.0, 37.0));
-    float n1 = value_noise((ROT_A * p) * 0.23 + vec2(71.0, 11.0));
-    float n2 = value_noise((ROT_B * p) * 0.31 + vec2(43.0, 83.0));
-    float n3 = value_noise((ROT_A * ROT_B * p) * 0.41 + vec2(97.0, 29.0));
+    float n0 = value_noise(p * 0.028 + vec2(19.0, 37.0));
+    float n1 = value_noise((ROT_A * p) * 0.041 + vec2(71.0, 11.0));
+    float n2 = value_noise((ROT_B * p) * 0.056 + vec2(43.0, 83.0));
+    float n3 = value_noise((ROT_A * ROT_B * p) * 0.073 + vec2(97.0, 29.0));
     return (n0 + n1 + n2 + n3) * 0.25;
 }
 
@@ -63,15 +63,15 @@ void vertex() {
 }
 
 void fragment() {
-    float broad = authored_isotropic_noise(world_pos.xz);
-    float fine = authored_isotropic_noise(world_pos.xz * 2.65 + vec2(13.0, 57.0));
+    float macro_a = authored_isotropic_noise(world_pos.xz * 0.72);
+    float macro_b = authored_isotropic_noise((ROT_B * world_pos.xz) * 0.31 + vec2(13.0, 57.0));
     float authored_ground_tone = clamp(
-        0.5 + (broad - 0.5) * 0.60 + (fine - 0.5) * 0.18,
-        0.22,
-        0.78
+        0.5 + (macro_a - 0.5) * 0.34 + (macro_b - 0.5) * 0.12,
+        0.34,
+        0.66
     );
     ALBEDO = mix(ground_dark_color.rgb, ground_light_color.rgb, authored_ground_tone);
-    ROUGHNESS = clamp(base_roughness + (fine - 0.5) * 0.024, 0.92, 0.97);
+    ROUGHNESS = clamp(base_roughness + (macro_b - 0.5) * 0.008, 0.94, 0.96);
     METALLIC = 0.0;
     SPECULAR = 0.07;
 }
@@ -85,6 +85,7 @@ void fragment() {
     material.set_meta("time_dependent", false)
     material.set_meta("camera_dependent_recipe", false)
     material.set_meta("multidirectional_isotropic_recipe", true)
+    material.set_meta("perspective_safe_macro_recipe", true)
     material.set_meta("geometry_changed", false)
     material.set_meta("collision_changed", false)
     material.set_meta("surface_composition_claimed", false)

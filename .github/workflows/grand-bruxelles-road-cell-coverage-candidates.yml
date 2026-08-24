@@ -1,0 +1,104 @@
+name: Grand Bruxelles Road Cell Coverage Candidates
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/tools/city_machine/discover_road_cell_coverage_candidates.py"
+      - "grand-bruxelles-game/tests/test_road_cell_coverage_candidates.py"
+      - "grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json"
+      - ".github/workflows/grand-bruxelles-road-cell-coverage-candidates.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact frame-proof evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin city-machine/midi-onboarding-f1257b7
+          dependency="$(git rev-parse origin/city-machine/midi-onboarding-f1257b7)"
+          test "${dependency}" = "f3bb55590cf8f8baef458930fe103fbcf757d430"
+          git show "${dependency}:grand-bruxelles-game/data/qa/city_machine/midi_onboarding_candidate.json" > "$RUNNER_TEMP/midi_onboarding_candidate.json"
+          git show "${dependency}:grand-bruxelles-game/data/qa/city_machine/road_registered_cell_overlap_measurement.json" > "$RUNNER_TEMP/road_registered_cell_overlap_measurement.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          candidate=json.loads((root/'midi_onboarding_candidate.json').read_text())
+          overlap=json.loads((root/'road_registered_cell_overlap_measurement.json').read_text())
+          cc=candidate['coordinate_contract']; bridge=candidate['road_frame_bridge']
+          assert cc['origin_easting_m'] == 147868.29422791934
+          assert cc['origin_northing_m'] == 169538.62414926197
+          assert bridge['road_source'] == 'data/osm/vertical_slice_01.game.json'
+          assert bridge['road_source_provider'] == 'OpenStreetMap contributors via Overpass API'
+          assert bridge['road_source_license'] == 'ODbL-1.0'
+          assert bridge['lambert72_formula'] == 'E=origin_easting_m+x;N=origin_northing_m-z'
+          assert bridge['road_cell_mapping_authorized'] is False
+          assert overlap['road_count'] == 140 and overlap['road_point_count'] == 754
+          assert overlap['registered_cell_count'] == 1 and overlap['overlapping_road_count'] == 0
+          assert overlap['semantic_sha256'] == '831705a66dd9910fdf98c358506840a7d0c7b224016a201a2120d51cf735ca80'
+          print('FRAME_PROOF_EVIDENCE_LOCKED_EXACT')
+          PY
+      - name: Run fail-closed candidate regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_road_cell_coverage_candidates.py -v
+      - name: Discover exact Lambert72 500 m coverage candidates
+        working-directory: grand-bruxelles-game
+        run: >-
+          python tools/city_machine/discover_road_cell_coverage_candidates.py
+          --output "$RUNNER_TEMP/road_cell_coverage_candidates.json"
+      - name: Require discovery-only rails and corridor accounting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          d=json.loads((Path(os.environ['RUNNER_TEMP'])/'road_cell_coverage_candidates.json').read_text())
+          assert d['schema'] == 'grand-bruxelles-road-cell-coverage-candidates-v2'
+          assert d['status'] == 'DISCOVERED_SOURCE_ONLY'
+          assert d['road_count'] == 140 and d['road_point_count'] == 754
+          assert d['candidate_cell_count'] == 8
+          assert re.fullmatch(r'[0-9a-f]{64}', d['road_source_sha256'])
+          assert re.fullmatch(r'[0-9a-f]{64}', d['road_semantic_sha256'])
+          assert d['road_source_license'] == 'ODbL-1.0'
+          expected={'midi':'E147000_N168500','anneessens':'E147500_N169500','bourse':'E147500_N170000','grand_place':'E148000_N170000'}
+          assert {a['anchor_id']:a['grid_cell_id'] for a in d['corridor_anchors']} == expected
+          gp=next(c for c in d['candidates'] if c['grid_cell_id']=='E148000_N170000')
+          assert gp['road_ids'] == [13842686,684214770]
+          assert gp['road_count'] == 2 and gp['point_hits'] == 9 and gp['segment_hits'] == 7
+          for key in ['municipality_assignment_authorized','registration_authorized','road_cell_mapping_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized']:
+              assert d[key] is False, key
+          print('ROAD_CELL_COVERAGE_CANDIDATES_V2_MEASURED', d['road_semantic_sha256'], d['semantic_sha256'], d['road_source_sha256'])
+          PY
+      - name: Upload candidate measurement even when lock is stale
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-cell-coverage-candidates
+          path: ${{ runner.temp }}/road_cell_coverage_candidates.json
+          if-no-files-found: error
+      - name: Require persisted v2 candidate lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          generated=json.loads((Path(os.environ['RUNNER_TEMP'])/'road_cell_coverage_candidates.json').read_text())
+          locked=json.loads(Path('grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json').read_text())
+          assert locked.get('schema') == 'grand-bruxelles-road-cell-coverage-candidates-v2', 'RED_FIRST_V2_LOCK_NOT_PERSISTED'
+          assert generated == locked, (generated.get('road_semantic_sha256'), locked.get('road_semantic_sha256'))
+          print('ROAD_CELL_COVERAGE_CANDIDATES_LOCKED_EXACT', generated['road_semantic_sha256'], generated['semantic_sha256'])
+          PY

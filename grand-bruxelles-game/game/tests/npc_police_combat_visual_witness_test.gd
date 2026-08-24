@@ -104,7 +104,7 @@ func _run() -> void:
     officer.role = NpcBehaviorModel.Role.POLICE
     officer.add_to_group("police_officer")
     officer.add_to_group("police_npc")
-    officer.global_position = player.global_position + forward * 7.0 + right * 1.35
+    officer.global_position = player.global_position + forward * 10.0 + right * 1.35
     current_scene.add_child(officer)
     officer.set_spawn_context(NpcBehaviorModel.Role.POLICE, 71, officer.global_position)
     officer.report_police_incident(player.global_position, 1.0, 940071)
@@ -121,9 +121,15 @@ func _run() -> void:
         return
 
     _hide_dynamic(root, [player, officer])
+    var ranged_decision: Dictionary = combat_runtime.call("combat_decision_for_test", officer, player, true)
+    var ranged_action_at_capture := StringName(ranged_decision.get("action_name", &"none"))
+    if ranged_action_at_capture != &"ranged_attack":
+        _fail("ranged witness decision was %s instead of ranged_attack" % String(ranged_action_at_capture))
+        return
+    combat_runtime.set_process(false)
     combat_runtime.call("_face_player", officer, player)
     combat_runtime.call("_spawn_ranged_feedback", officer, player)
-    officer.set_meta("police_combat_action", &"ranged_attack")
+    officer.set_meta("police_combat_action", ranged_action_at_capture)
     officer.set_meta("police_combat_visual_state", &"ranged")
     await process_frame
     var ranged_path := OUT_DIR + "/police_ranged_pressure.png"
@@ -146,7 +152,8 @@ func _run() -> void:
         "resolution": [WIDTH, HEIGHT],
         "ranged_capture": ranged_path,
         "hit_capture": hit_path,
-        "ranged_action": String(officer.get_meta("police_combat_action", &"ranged_attack")),
+        "ranged_action": String(ranged_action_at_capture),
+        "ranged_distance_m": float(ranged_decision.get("distance_m", INF)),
         "stagger_ms": int(reaction.get("stagger_ms", 0)),
         "impact_intensity": float(reaction.get("impact_intensity", 0.0)),
         "pursuit_speed_mps": float(reaction.get("pursuit_speed_mps", 0.0)),
@@ -160,5 +167,5 @@ func _run() -> void:
     report_file.store_string(JSON.stringify(report, "  "))
     report_file.close()
 
-    print("POLICE_COMBAT_VISUAL_WITNESS_OK: ranged pressure and body-hit stagger captured from production scene")
+    print("POLICE_COMBAT_VISUAL_WITNESS_OK: true ranged_attack pressure and body-hit stagger captured from production scene")
     quit(0)

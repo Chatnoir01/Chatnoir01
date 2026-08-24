@@ -1,0 +1,64 @@
+name: Grand Bruxelles Source Repair Watchdog
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/grand-bruxelles-source-repair-watchdog.yml"
+      - ".github/workflows/grand-bruxelles-citygen-source-repair-frontier.yml"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/test_urbis_wfs_retry_resilience.py"
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-source-repair-watchdog.yml"
+      - ".github/workflows/grand-bruxelles-citygen-source-repair-frontier.yml"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/test_urbis_wfs_retry_resilience.py"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: grand-bruxelles-source-repair-watchdog
+  cancel-in-progress: false
+
+jobs:
+  validate-resilience:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate UrbIS WFS retry and fail-closed fallback
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py
+          python3 grand-bruxelles-game/tools/citygen/test_urbis_wfs_retry_resilience.py
+
+  dispatch-source-repair-if-idle:
+    if: github.event_name != 'pull_request'
+    needs: validate-resilience
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch governed Source Repair only when no wave is active
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUNS_API="/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-citygen-source-repair-frontier.yml/runs?per_page=20"
+          ACTIVE="$(gh api "$RUNS_API" --jq '[.workflow_runs[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          if [ "$ACTIVE" -gt 0 ]; then
+            echo "SOURCE_REPAIR_WATCHDOG_SKIP active=${ACTIVE} cadence=15m overlap=false"
+            exit 0
+          fi
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-citygen-source-repair-frontier.yml/dispatches" \
+            -f ref=main
+          echo "SOURCE_REPAIR_WATCHDOG_DISPATCH_OK cadence=15m idle_only=true frontier=128 fanout=16 promotion_bypass=false"

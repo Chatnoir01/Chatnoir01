@@ -32,12 +32,22 @@ func _init() -> void:
             _fail("listing contract gate missing: %s" % key)
             return
     var zones: Array = selector.call("parse_catalog_document", document)
-    if zones.size() != 7:
-        _fail("expected seven valid main zones, got %d" % zones.size())
+    if zones.size() != 8:
+        _fail("expected eight visible entries, got %d" % zones.size())
         return
     var midi := _zone_by_id(zones, "midi")
-    if str(midi.get("quality", "")) != "JOUABLE":
-        _fail("Midi lost JOUABLE compatibility")
+    if str(midi.get("quality", "")) != "JOUABLE" or str(midi.get("mode", "")) != "fast_travel" or str(midi.get("destination", "")) != "midi":
+        _fail("Midi lost canonical JOUABLE compatibility")
+        return
+    var midi_machine_labo := _zone_by_id(zones, "midi_machine_labo")
+    if str(midi_machine_labo.get("quality", "")) != "LABO":
+        _fail("Midi City Machine review entry lost LABO quality")
+        return
+    if str(midi_machine_labo.get("review_alias_of", "")) != "midi":
+        _fail("Midi City Machine review alias ownership missing")
+        return
+    if str(midi_machine_labo.get("mode", "")) != "script_zone" or str(midi_machine_labo.get("script", "")) != "res://game/zones/midi/midi_city_machine_zone.gd":
+        _fail("Midi City Machine review runtime contract drifted")
         return
     var brut_doc := {
         "schema": "grand-bruxelles-playable-zone-catalog-v2",
@@ -72,7 +82,7 @@ func _init() -> void:
     if (selector.call("parse_catalog_document", legacy_doc) as Array).size() != 1:
         _fail("v1 backward compatibility was lost")
         return
-    print("ZONE_CATALOG_V2_OK: zones=7 midi=JOUABLE stored=JOUABLE,LABO,LABO_BRUT derived=LABO_REPORT,NON_LISTE unknown=REJECTED legacy_v1=ACCEPTED")
+    print("ZONE_CATALOG_V2_OK: visible=8 canonical=7 review_aliases=1 midi=JOUABLE midi_machine_labo=LABO stored=JOUABLE,LABO,LABO_BRUT derived=LABO_REPORT,NON_LISTE unknown=REJECTED legacy_v1=ACCEPTED")
     selector.free()
     quit(0)
 

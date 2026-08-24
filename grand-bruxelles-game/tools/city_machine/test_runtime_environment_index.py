@@ -21,19 +21,24 @@ def main() -> int:
     assert generated["format"] == rei.INDEX_FORMAT
     assert generated["visual_only"] is True
     assert generated["promotion_authorized_by_index"] is False
-    assert generated["entries"]
 
     zones = [entry["zone"] for entry in generated["entries"]]
     paths = [entry["data_path"] for entry in generated["entries"]]
+    assert zones == ["jette", "midi"]
     assert zones == sorted(zones)
-    assert len(zones) == len(set(zones))
     assert len(paths) == len(set(paths))
 
-    entry = next(row for row in generated["entries"] if row["zone"] == "jette")
-    assert entry["data_path"] == "res://data/osm/zones/jette/environment.game.json"
-    assert entry["artifact_format"] == rei.ARTIFACT_FORMAT
-    assert entry["bounds_m"] == [-2969.44, -5761.07, -168.12, -3460.32]
-    assert entry["stats"] == {"tree": 3832, "street_lamp": 603, "bollard": 149, "total": 4584}
+    jette = next(row for row in generated["entries"] if row["zone"] == "jette")
+    assert jette["data_path"] == "res://data/osm/zones/jette/environment.game.json"
+    assert jette["artifact_format"] == rei.ARTIFACT_FORMAT
+    assert jette["bounds_m"] == [-2969.44, -5761.07, -168.12, -3460.32]
+    assert jette["stats"] == {"tree": 3832, "street_lamp": 603, "bollard": 149, "total": 4584}
+
+    midi = next(row for row in generated["entries"] if row["zone"] == "midi")
+    assert midi["data_path"] == "res://data/osm/zones/midi/environment.game.json"
+    assert midi["artifact_format"] == rei.ARTIFACT_FORMAT
+    assert midi["bounds_m"] == [-617.36, -711.26, 631.74, 638.94]
+    assert midi["stats"] == {"tree": 1694, "street_lamp": 104, "bollard": 732, "total": 2530}
 
     artifact = rei.read_json(PROJECT / "data/osm/zones/jette/environment.game.json")
     bad_license = dict(artifact)
@@ -66,7 +71,7 @@ def main() -> int:
     assert 'SUPPORTED_KINDS := ["tree", "street_lamp", "bollard"]' in renderer
 
     assert rei.build_index() == generated
-    print("RUNTIME_ENVIRONMENT_INDEX_TEST_OK deterministic=true indexed_zones=%d jette_points=4584 visual_only=true no_runtime_scan=true fail_closed=true" % len(zones))
+    print("RUNTIME_ENVIRONMENT_INDEX_TEST_OK deterministic=true indexed_zones=2 jette_points=4584 midi_points=2530 visual_only=true no_runtime_scan=true fail_closed=true")
     return 0
 
 

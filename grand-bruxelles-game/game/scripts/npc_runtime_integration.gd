@@ -104,6 +104,11 @@ func _register_agent_if_valid(node: Node) -> void:
 func _register_agent(agent: NpcAgent) -> void:
     if not is_instance_valid(agent) or _director == null:
         return
+    # A dynamically spawned agent can arrive immediately after fast travel, before
+    # the periodic observer refresh runs. Refresh the director first so registration
+    # cannot overwrite the agent's fresh zone observer with the previous zone.
+    if is_instance_valid(_observer):
+        _director.set_observer_position(_observer.global_position)
     var accepted := _director.register_agent(agent)
     if accepted and not _agents.has(agent):
         _agents.append(agent)

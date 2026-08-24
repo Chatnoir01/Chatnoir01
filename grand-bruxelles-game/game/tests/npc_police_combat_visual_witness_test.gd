@@ -87,6 +87,11 @@ func _run() -> void:
     if combat_runtime == null:
         _fail("NpcPoliceCombatRuntime autoload unavailable")
         return
+    # Freeze autonomous combat before the witness officer is admitted. The test then
+    # executes exactly one production _perform_attack() itself and can prove the
+    # resulting damage/accounting without a race from the normal process loop.
+    combat_runtime.set_process(false)
+
     var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D") as Camera3D
     if camera == null:
         _fail("production camera unavailable")
@@ -100,13 +105,14 @@ func _run() -> void:
 
     var forward := -player.global_transform.basis.z.normalized()
     var right := player.global_transform.basis.x.normalized()
+    var desired_officer_position := player.global_position + forward * 10.0 + right * 1.35
     var officer := NpcAgent.new()
     officer.name = "PoliceCombatWitnessOfficer"
     officer.role = NpcBehaviorModel.Role.POLICE
     officer.add_to_group("police_officer")
     officer.add_to_group("police_npc")
-    officer.global_position = player.global_position + forward * 10.0 + right * 1.35
     current_scene.add_child(officer)
+    officer.global_position = desired_officer_position
     officer.set_spawn_context(NpcBehaviorModel.Role.POLICE, 71, officer.global_position)
     officer.report_police_incident(player.global_position, 1.0, 940071)
     officer.update_police_threat(true, 1.0, 0.05)
@@ -121,6 +127,13 @@ func _run() -> void:
         _fail("BelgianPoliceVisual was not created on witness officer")
         return
 
+    if int(player.get_meta("combat_health", 100)) != 100:
+        _fail("autonomous combat changed player health before controlled ranged attack")
+        return
+    if int(officer.get_meta("police_combat_attack_count", 0)) != 0:
+        _fail("autonomous combat attacked before controlled ranged witness")
+        return
+
     _hide_dynamic(root, [player, officer])
     var ranged_decision: Dictionary = combat_runtime.call("combat_decision_for_test", officer, player, true)
     var ranged_action_at_capture := StringName(ranged_decision.get("action_name", &"none"))
@@ -128,9 +141,6 @@ func _run() -> void:
         _fail("ranged witness decision was %s instead of ranged_attack" % String(ranged_action_at_capture))
         return
 
-    # Freeze autonomous combat and execute exactly one production attack ourselves.
-    # This prevents the witness from passing on decision metadata plus hand-spawned FX alone.
-    combat_runtime.set_process(false)
     combat_runtime.call("_face_player", officer, player)
     var ranged_health_before := int(player.get_meta("combat_health", 100))
     var ranged_attack_count_before := int(officer.get_meta("police_combat_attack_count", 0))

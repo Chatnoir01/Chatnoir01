@@ -46,21 +46,11 @@ func _shared_material_for(material: Material) -> ShaderMaterial:
 func _valid_buildings_root(node: Node) -> bool:
     return node is Node3D and str(node.name) == "GeneratedBuildings" and node.get_parent() != null and str(node.get_parent().name) == "BrusselsOSM"
 
-func _buildings_root_from_added(node: Node) -> Node3D:
-    var cursor: Node = node
-    while cursor != null and cursor != get_tree().root:
-        if _valid_buildings_root(cursor):
-            return cursor as Node3D
-        cursor = cursor.get_parent()
-    var nested := node.get_node_or_null("BrusselsOSM/GeneratedBuildings")
-    if _valid_buildings_root(nested):
-        return nested as Node3D
-    return null
-
 func _find_existing_buildings_root() -> Node3D:
     # One bounded recursive recovery covers legitimate test/editor mounts where
-    # production main is nested below a SubViewport. This is event-driven and
-    # never reintroduces the historical frame-by-frame global polling loop.
+    # production main is already nested below a SubViewport before this autoload
+    # gets a useful mount event. Event handling itself never performs a recursive
+    # search; only the exact GeneratedBuildings node can schedule a retry.
     for candidate: Node in get_tree().root.find_children("GeneratedBuildings", "Node3D", true, false):
         if _valid_buildings_root(candidate):
             return candidate as Node3D
@@ -69,7 +59,7 @@ func _find_existing_buildings_root() -> Node3D:
 func _on_node_added(node: Node) -> void:
     if _ready_complete or _failed:
         return
-    if _buildings_root_from_added(node) != null:
+    if _valid_buildings_root(node):
         _schedule_apply()
 
 func _schedule_apply() -> void:

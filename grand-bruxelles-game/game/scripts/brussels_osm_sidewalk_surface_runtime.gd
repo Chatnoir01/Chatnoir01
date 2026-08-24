@@ -21,11 +21,12 @@ var _official_material: StandardMaterial3D
 var _enhanced_enabled := true
 var _ready_complete := false
 var _failed := false
+var _sidewalk_bind_scheduled := false
 
 func _ready() -> void:
     if not get_tree().node_added.is_connected(_on_node_added):
         get_tree().node_added.connect(_on_node_added)
-    call_deferred("_apply_when_ready")
+    call_deferred("_schedule_sidewalk_bind")
 
 func _is_generated_sidewalk(box: CSGBox3D) -> bool:
     if str(box.name).begins_with("Road_"):
@@ -37,51 +38,85 @@ func _is_generated_sidewalk(box: CSGBox3D) -> bool:
             return true
     return false
 
-func _apply_when_ready() -> void:
-    var roads_root: Node3D = null
-    for _attempt: int in range(180):
-        await get_tree().process_frame
-        var candidate := get_tree().root.find_child("GeneratedRoads", true, false)
-        if candidate is Node3D:
-            roads_root = candidate as Node3D
-            break
-    if roads_root == null:
-        push_error("Brussels OSM sidewalk surface runtime: GeneratedRoads missing")
-        _failed = true
-        _ready_complete = true
-        return
+func _is_generated_roads_root(node: Node) -> bool:
+    if not node is Node3D or str(node.name) != "GeneratedRoads":
+        return false
+    var parent := node.get_parent()
+    return parent != null and str(parent.name) == "BrusselsOSM"
 
-    _material = MATERIAL_FACTORY.create_material()
+func _is_generated_sidewalk_child(node: Node) -> bool:
+    if not node is CSGBox3D:
+        return false
+    var parent := node.get_parent()
+    if parent == null or not _is_generated_roads_root(parent):
+        return false
+    return _is_generated_sidewalk(node as CSGBox3D)
+
+func _ensure_material() -> void:
+    if _material == null:
+        _material = MATERIAL_FACTORY.create_material()
+
+func _schedule_sidewalk_bind() -> void:
+    if _failed or _sidewalk_bind_scheduled:
+        return
+    _sidewalk_bind_scheduled = true
+    call_deferred("_recover_existing_sidewalks")
+
+func _recover_existing_sidewalks() -> void:
+    await get_tree().process_frame
+    _sidewalk_bind_scheduled = false
+    if _failed:
+        return
+    var roots := get_tree().root.find_children("GeneratedRoads", "Node3D", true, false)
+    for candidate: Node in roots:
+        if _is_generated_roads_root(candidate):
+            _bind_sidewalks_root(candidate as Node3D)
+            if _failed:
+                return
+
+func _bind_sidewalk(sidewalk: CSGBox3D) -> bool:
+    var instance_id := sidewalk.get_instance_id()
+    if _legacy_materials.has(instance_id):
+        return false
+    _ensure_material()
+    _sidewalks.append(sidewalk)
+    _legacy_materials[instance_id] = sidewalk.material
+    _original_transforms[instance_id] = sidewalk.global_transform
+    _original_sizes[instance_id] = sidewalk.size
+    sidewalk.set_meta("environment_role", "generated_osm_sidewalk")
+    sidewalk.set_meta("material_family", MATERIAL_FACTORY.MATERIAL_FAMILY)
+    sidewalk.set_meta("placement_provenance", "adjacent_to_existing_osm_road_runtime_convention")
+    sidewalk.set_meta("surface_composition_claimed", false)
+    sidewalk.set_meta("sidewalk_presence_source_backed", false)
+    sidewalk.set_meta("sidewalk_width_source_backed", false)
+    sidewalk.set_meta("vertical_profile_source_backed", false)
+    sidewalk.set_meta("curb_height_source_backed", false)
+    sidewalk.set_meta("geometry_changed_by_sidewalk_surface_runtime", false)
+    if _enhanced_enabled:
+        sidewalk.material = _material
+    return true
+
+func _bind_sidewalks_root(roads_root: Node3D) -> void:
+    if _failed:
+        return
+    var bound_count := 0
     for child: Node in roads_root.get_children():
-        if not child is CSGBox3D:
-            continue
-        var box := child as CSGBox3D
-        if not _is_generated_sidewalk(box):
-            continue
-        var instance_id := box.get_instance_id()
-        _sidewalks.append(box)
-        _legacy_materials[instance_id] = box.material
-        _original_transforms[instance_id] = box.global_transform
-        _original_sizes[instance_id] = box.size
-        box.set_meta("environment_role", "generated_osm_sidewalk")
-        box.set_meta("material_family", MATERIAL_FACTORY.MATERIAL_FAMILY)
-        box.set_meta("placement_provenance", "adjacent_to_existing_osm_road_runtime_convention")
-        box.set_meta("surface_composition_claimed", false)
-        box.set_meta("geometry_changed_by_sidewalk_surface_runtime", false)
-
-    if _sidewalks.is_empty():
-        push_error("Brussels OSM sidewalk surface runtime: no existing generated sidewalks found")
-        _failed = true
-        _ready_complete = true
+        if child is CSGBox3D and _is_generated_sidewalk(child as CSGBox3D):
+            if _bind_sidewalk(child as CSGBox3D):
+                bound_count += 1
+    if bound_count == 0:
         return
-
     _scan_existing_official_sidewalks()
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
-    print("BRUSSELS_OSM_SIDEWALK_SURFACE_READY: sidewalks=%d materials=1 family=%s source=OSM-adjacent authored-placement license=ODbL-1.0 geometry_changed=false" % [_sidewalks.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
+    print("BRUSSELS_OSM_SIDEWALK_SURFACE_READY: sidewalks=%d newly_bound=%d materials=1 family=%s source=OSM-adjacent authored-placement license=ODbL-1.0 geometry_changed=false event_driven=true" % [_sidewalks.size(), bound_count, MATERIAL_FACTORY.MATERIAL_FAMILY])
 
 func _on_node_added(node: Node) -> void:
     _register_official_sidewalk(node)
+    if _failed:
+        return
+    if _is_generated_roads_root(node) or _is_generated_sidewalk_child(node):
+        _schedule_sidewalk_bind()
 
 func _scan_existing_official_sidewalks() -> void:
     var ixelles := get_tree().root.find_child(str(IXELLES_TARGET_NAME), true, false)
@@ -144,7 +179,7 @@ func _set_material_state(enabled: bool) -> void:
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled
-    if _ready_complete and not _failed:
+    if not _failed:
         _set_material_state(enabled)
 
 func enhanced_enabled() -> bool:

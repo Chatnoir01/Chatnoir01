@@ -66,4 +66,4 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "/repos/${GITHUB_REPOSITORY}/actions/workflows/grand-bruxelles-citygen-source-repair-frontier.yml/dispatches" \
             -f ref=main
-          echo "REGIONAL_SOURCE_REPAIR_DISPATCH_OK batch=32 writer_lock=shared chained_citygen=true promotion_bypass=false"
+          echo "REGIONAL_SOURCE_REPAIR_DISPATCH_OK source_frontier=128 fanout=16 chained_citygen_batch=32 writer_lock=single chained_citygen=true promotion_bypass=false"

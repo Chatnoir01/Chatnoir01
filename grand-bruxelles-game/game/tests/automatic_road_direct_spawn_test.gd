@@ -55,9 +55,6 @@ func _runtime_index_contract() -> Dictionary:
         var road_ids: Variant = descriptor.get("road_ids", [])
         if expected_sha.length() != 64 or not road_ids is Array or road_ids.is_empty():
             return {}
-        # JSON numbers are parsed as numeric Variants. Normalize them exactly as
-        # the production resolver does before testing membership, so the contract
-        # does not reject a valid deterministic index because of Variant typing.
         var normalized_road_ids: Dictionary = {}
         for raw_id: Variant in road_ids:
             var osm_id := int(raw_id)
@@ -208,5 +205,6 @@ func _run() -> void:
         _fail("source sightline gate missing")
         return
 
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d second=%d second_name=%s source=%s source_sha=%s ground_y=%.3f" % [expected_road_count, expected_document_count, LEMONNIER_ID, second_id, second_name, source_path, expected_source_sha, ground_y])
+    print("AUTOMATIC_ROAD_RUNTIME_READY_GREEN: indexed_roads=%d source_documents=%d first=%d witness=%d witness_name=%s source=%s source_sha=%s ground_y=%.3f lookup=deterministic_runtime_index playability_claimed=false" % [expected_road_count, expected_document_count, LEMONNIER_ID, second_id, second_name, source_path, expected_source_sha, ground_y])
+    print("AUTOMATIC_ROAD_PLAYER_WITNESS_HOLD: reason=character_visual_review_owned_separately qa_witness_accepted=false destination_advertisable=false jouable=false")
     quit(0)

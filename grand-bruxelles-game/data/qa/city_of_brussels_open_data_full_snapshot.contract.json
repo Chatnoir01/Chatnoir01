@@ -1,0 +1,33 @@
+{
+  "schema": "grand-bruxelles-city-open-data-full-snapshot-contract-v1",
+  "source": {
+    "authority": "City of Brussels / Ville de Bruxelles / Stad Brussel",
+    "portal": "https://opendata.brussels.be",
+    "api_base": "https://opendata.brussels.be/api/explore/v2.1",
+    "catalog_discovery": "/catalog/datasets",
+    "record_retrieval": "/catalog/datasets/{dataset_id}/exports/json",
+    "retrieval_note": "The catalogue is discovered dynamically at snapshot time; no fixed dataset count is assumed. Complete JSON exports are used instead of /records pagination."
+  },
+  "execution": {
+    "catalog_fetched_once_per_run": true,
+    "deterministic_shard_count": 8,
+    "retry_http_statuses": [429, 500, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511],
+    "per_export_sha256": true,
+    "metadata_preserved": true,
+    "artifact_only": true,
+    "repository_data_persistence": false
+  },
+  "authorization": {
+    "source_acquisition": true,
+    "source_snapshot_artifact": true,
+    "source_registration": false,
+    "canonical_registration": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  },
+  "status": "FULL_PUBLIC_CATALOG_SNAPSHOT_PIPELINE_SOURCE_ONLY"
+}

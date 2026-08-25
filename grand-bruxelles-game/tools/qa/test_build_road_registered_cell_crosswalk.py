@@ -34,6 +34,7 @@ class BuildRoadRegisteredCellCrosswalkTest(unittest.TestCase):
         self.cells.write_text(json.dumps({
             "schema": "grand-bruxelles-registered-cell-manifest-index-v1",
             "destination_readiness": "REGISTERED_CELL_INDEX_EVIDENCE_ONLY",
+            "semantic_sha256": "d" * 64,
             "registered_cell_count": 2,
             "entries": [
                 {"cell_id":"bxl-e147500-n170000-s500","bbox":[147500.0,170000.0,148000.0,170500.0],"evidence_only":True},

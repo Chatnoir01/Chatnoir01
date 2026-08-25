@@ -1,0 +1,164 @@
+name: Grand Bruxelles Bourse UrbIS Source Cell
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-urbis-source-cell.yml"
+      - "grand-bruxelles-game/data/qa/bourse_urbis_source_cell.contract.json"
+      - "grand-bruxelles-game/data/provenance/bourse_road_cell_municipality.measurement.json"
+      - "grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500/**"
+      - "grand-bruxelles-game/tools/citygen/measure_urbis_source_cell_semantic_lock.py"
+      - "grand-bruxelles-game/tools/citygen/test_measure_urbis_source_cell_semantic_lock.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/bourse_urbis_source_cell.contract.json
+  CELL_ID: bxl-e147500-n170000-s500
+  MUNICIPALITY_LOCK: grand-bruxelles-game/data/provenance/bourse_road_cell_municipality.measurement.json
+  SOURCE_LOCK: grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json
+  LOCKED_ARTIFACT_ID: "9546230151"
+  LOCKED_ARTIFACT_SHA256: bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2
+  LOCKED_ARTIFACT_SIZE: "205274"
+
+jobs:
+  reproduce-authoritative-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry, boundary provenance and closed rails
+        id: live
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor "$live_main" HEAD
+          echo "sha=$live_main" >> "$GITHUB_OUTPUT"
+          python3 - "$live_main" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live=sys.argv[1]
+          contract=json.loads(Path("grand-bruxelles-game/data/qa/bourse_urbis_source_cell.contract.json").read_text())
+          boundary=json.loads(Path("grand-bruxelles-game/data/provenance/bourse_road_cell_municipality.measurement.json").read_text())
+          lock=json.loads(Path("grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json").read_text())
+          assert contract["production_base_sha"]==live,(contract["production_base_sha"],live)
+          assert lock["production_base_sha"]==live,(lock["production_base_sha"],live)
+          assert contract["target"]=={"cell_id":"bxl-e147500-n170000-s500","crs":"EPSG:31370","bbox":[147500.0,170000.0,148000.0,170500.0]}
+          assert contract["source"]["authority"]==lock["authority"]=="Paradigm / Brussels-Capital Region"
+          assert contract["source"]["license"]==lock["license"]=="CC0-1.0"
+          assert contract["locked_artifact"]=={
+            "workflow_run_id":32800198111,
+            "artifact_id":9546230151,
+            "artifact_sha256":"bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2",
+            "artifact_size_bytes":205274,
+          }
+          provenance=contract["municipality_boundary_provenance"]
+          assert provenance["semantic_sha256"]==lock["municipality_boundary_provenance"]["semantic_sha256"]=="c01208a81d61d51492b928f7381991e0fdacd68f62e8ac7a77be8ba08f46ff63"
+          assert provenance["status"]==lock["municipality_boundary_provenance"]["status"]=="HOLD_MUNICIPALITY_BOUNDARY_CELL"
+          assert provenance["automatic_municipality_assignment_authorized"] is False
+          assert boundary["semantic_sha256"]==provenance["semantic_sha256"]
+          stable=boundary["stable_measurement"]
+          coverage=stable["municipality_coverage"]
+          assert stable["status"]=="HOLD_MUNICIPALITY_BOUNDARY_CELL"
+          assert coverage["municipality_id"] is None and coverage["municipality_niscode"] is None
+          assert [(x["properties"]["NISCODE"],x["municipality_id"]) for x in coverage["intersections"]]==[
+            ("21001","https://databrussels.be/id/municipality/5000071"),
+            ("21004","https://databrussels.be/id/municipality/5000074"),
+          ]
+          expected=contract["expected"]
+          assert expected["source_semantic_sha256"]==lock["source_semantic_sha256"]=="f88ece4309964ed9939de100424716c90a59409db66924332abb8ea00ff652e0"
+          assert expected["manifest_source_digest"]==lock["manifest_source_digest"]=="fc8851eeb05032e97b3fab39f01349e749edfe1c90713105a4aa1edab3c9521b"
+          assert expected["layer_accounting"]==lock["layer_accounting"]
+          assert expected["building_ownership"]==lock["building_ownership"]
+          auth=contract["authorization"]
+          assert auth["source_acquisition"] is True and auth["source_persistence"] is False
+          for key in ["source_registration","canonical_registration","road_to_cell_mapping","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+            assert auth[key] is False,key
+          for key in ["source_persistence_authorized","source_registration_authorized","canonical_registration_authorized","road_cell_mapping_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+            assert lock[key] is False,key
+          print(f"BOURSE_SOURCE_CELL_LOCK_CONTRACT_OK live_main={live} semantic={lock['source_semantic_sha256']} rails_closed=true")
+          PY
+          if git cat-file -e "origin/main:grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL_ID}/manifest.json" 2>/dev/null; then
+            echo "Bourse source cell already exists on live main; ownership changed" >&2
+            exit 1
+          fi
+
+      - name: Run generic source-cell semantic regressions
+        run: python3 grand-bruxelles-game/tools/citygen/test_measure_urbis_source_cell_semantic_lock.py
+
+      - name: Restore exact RED-first source artifact, never rescan mutable WFS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/bourse-source-${LOCKED_ARTIFACT_ID}.zip"
+          unpack="$RUNNER_TEMP/bourse-source-artifact"
+          source_root="$RUNNER_TEMP/$CELL_ID"
+          rm -rf "$zip" "$unpack" "$source_root"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${LOCKED_ARTIFACT_ID}/zip" > "$zip"
+          echo "${LOCKED_ARTIFACT_SHA256}  $zip" | sha256sum -c -
+          test "$(stat -c '%s' "$zip")" = "$LOCKED_ARTIFACT_SIZE"
+          mkdir -p "$unpack"
+          unzip -q "$zip" -d "$unpack"
+          test -f "$unpack/$CELL_ID/manifest.json"
+          test -f "$unpack/$CELL_ID/maturity.json"
+          cp -a "$unpack/$CELL_ID" "$source_root"
+          test "$(basename "$source_root")" = "$CELL_ID"
+          echo "BOURSE_SOURCE_ARTIFACT_RESTORED id=${LOCKED_ARTIFACT_ID} sha256=${LOCKED_ARTIFACT_SHA256} bytes=${LOCKED_ARTIFACT_SIZE}"
+
+      - name: Reproduce exact semantic and forensic measurement from locked bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/measure_urbis_source_cell_semantic_lock.py \
+            --cell-dir "$RUNNER_TEMP/$CELL_ID" \
+            --output "$RUNNER_TEMP/bourse_urbis_source_cell.reproduced.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"bourse_urbis_source_cell.reproduced.json").read_text())
+          lock=json.loads(Path("grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json").read_text())
+          assert d["schema"]=="grand-bruxelles-urbis-source-cell-semantic-measurement-v1"
+          assert d["cell_id"]==lock["cell_id"]=="bxl-e147500-n170000-s500"
+          assert d["crs"]==lock["crs"]=="EPSG:31370"
+          assert d["bbox"]==lock["bbox"]==[147500.0,170000.0,148000.0,170500.0]
+          assert d["maturity_state"]==lock["maturity_state"]=="data_ready"
+          assert d["source_semantic_sha256"]==lock["source_semantic_sha256"]
+          assert d["manifest_source_digest"]==lock["manifest_source_digest"]
+          assert d["manifest_sha256"]==lock["manifest_sha256"]
+          assert d["maturity_sha256"]==lock["maturity_sha256"]
+          assert {k:v["features"] for k,v in d["layers"].items()}==lock["layer_accounting"]
+          b=d["layers"]["buildings"]
+          assert {"ownership_filtered":b["ownership_filtered"],"invalid_ownership_features":b["invalid_ownership_features"]}==lock["building_ownership"]
+          for name,expected in lock["layers"].items():
+            got=d["layers"][name]
+            assert got["raw_bytes"]==expected["raw_bytes"],name
+            assert got["raw_forensic_sha256"]==expected["raw_forensic_sha256"],name
+            assert got["semantic_features_sha256"]==expected["semantic_features_sha256"],name
+          for key in ["registration_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+            assert d[key] is False,key
+          print("BOURSE_SOURCE_CELL_LOCKED_EXACT_MEASUREMENT",d["source_semantic_sha256"],lock["layer_accounting"])
+          PY
+
+      - name: Upload exact reproduction evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-urbis-source-cell-locked-reproduction
+          path: ${{ runner.temp }}/bourse_urbis_source_cell.reproduced.json
+          if-no-files-found: error

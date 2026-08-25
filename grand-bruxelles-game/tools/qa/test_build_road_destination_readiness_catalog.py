@@ -52,7 +52,6 @@ def fixture(root: Path) -> tuple[Path, Path, Path, Path, Path]:
         "maturity": {"state": "data_ready", "gates": {"runtime_geometry": False, "streaming": False, "terrain": False, "heights": False, "collisions": False, "photo_match": False, "performance": False}},
         "provenance": {"primary": "UrbIS WFS / Paradigm", "license": "CC0-1.0", "municipality_niscode": "21004", "municipality_id": "https://example.test/municipality/21004", "municipality_coverage_ratio": 1.0},
     })
-    import hashlib
     manifest_sha = hashlib.sha256((manifests / "cell-a.json").read_bytes()).hexdigest()
     write(cells, {
         "schema": "grand-bruxelles-registered-cell-manifest-index-v1",
@@ -71,6 +70,7 @@ def fixture(root: Path) -> tuple[Path, Path, Path, Path, Path]:
     write(crosswalk, {
         "schema": "grand-bruxelles-road-registered-cell-crosswalk-v1",
         "semantic_sha256": "c" * 64,
+        "registered_cell_index_semantic_sha256": "b" * 64,
         "road_semantic_sha256": "d" * 64,
         "mapped_road_count": 1,
         "mapped_cell_count": 1,

@@ -57,32 +57,55 @@ jobs:
           timeout 120s xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --display-driver x11 --rendering-method gl_compatibility --path grand-bruxelles-game --script res://game/tests/automatic_road_direct_spawn_witness_test.gd 2>&1 | tee /tmp/automatic-road-player-witness.log
           if grep -E "SCRIPT ERROR|Parse Error:|AUTOMATIC_ROAD_DIRECT_SPAWN_WITNESS_FAIL" /tmp/automatic-road-player-witness.log; then exit 1; fi
           grep -q "AUTOMATIC_ROAD_DIRECT_SPAWN_WITNESS_GREEN" /tmp/automatic-road-player-witness.log
+          grep -F "animation_driver=" /tmp/automatic-road-player-witness.log
       - name: Stage exact player-view evidence
+        if: always()
         run: |
           set -euo pipefail
           png="grand-bruxelles-game/artifacts/visual/automatic_road_359177328_player.png"
-          test -s "$png"
-          python3 - "$png" <<'PY'
+          diagnostic="grand-bruxelles-game/artifacts/visual/automatic_road_359177328_player_animation_diagnostic.json"
+          stage="/tmp/automatic-road-player-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          if [[ -s /tmp/automatic-road-player-witness.log ]]; then
+            cp /tmp/automatic-road-player-witness.log "$stage/automatic-road-player-witness.log"
+          else
+            printf '%s\n' "AUTOMATIC_ROAD_PLAYER_WITNESS_DIAGNOSTIC_MISSING: runtime log was not produced" > "$stage/automatic-road-player-witness.log"
+          fi
+          if [[ -s "$diagnostic" ]]; then
+            cp "$diagnostic" "$stage/automatic_road_359177328_player_animation_diagnostic.json"
+          else
+            printf '%s\n' '{"schema":"grand-bruxelles-automatic-road-player-animation-diagnostic-v1","status":"diagnostic_missing","qa_witness_accepted":false,"playability_claimed":false,"destination_advertisable":false,"jouable_authorized":false}' > "$stage/automatic_road_359177328_player_animation_diagnostic.json"
+          fi
+          python3 - "$stage/automatic_road_359177328_player_animation_diagnostic.json" <<'PY'
+          import json, sys
+          p = sys.argv[1]
+          d = json.load(open(p, encoding="utf-8"))
+          assert d.get("schema") == "grand-bruxelles-automatic-road-player-animation-diagnostic-v1"
+          for key in ("qa_witness_accepted", "playability_claimed", "destination_advertisable", "jouable_authorized"):
+              assert d.get(key) is False, key
+          print("AUTOMATIC_ROAD_PLAYER_ANIMATION_DIAGNOSTIC_OK", d.get("status"), d.get("reason", ""))
+          PY
+          if [[ -s "$png" ]]; then
+            python3 - "$png" <<'PY'
           import struct, sys
           p = sys.argv[1]
           with open(p, "rb") as f:
-              sig = f.read(8)
-              if sig != b"\x89PNG\r\n\x1a\n":
-                  raise SystemExit("witness is not a PNG")
-              length = struct.unpack(">I", f.read(4))[0]
-              kind = f.read(4)
-              if kind != b"IHDR" or length != 13:
-                  raise SystemExit("missing PNG IHDR")
+              if f.read(8) != b"\x89PNG\r\n\x1a\n": raise SystemExit("witness is not a PNG")
+              length = struct.unpack(">I", f.read(4))[0]; kind = f.read(4)
+              if kind != b"IHDR" or length != 13: raise SystemExit("missing PNG IHDR")
               width, height = struct.unpack(">II", f.read(8))
-          if (width, height) != (1280, 720):
-              raise SystemExit(f"unexpected witness dimensions: {width}x{height}")
+          if (width, height) != (1280, 720): raise SystemExit(f"unexpected witness dimensions: {width}x{height}")
           print(f"AUTOMATIC_ROAD_PLAYER_WITNESS_FILE_OK: {width}x{height} path={p}")
           PY
-          rm -rf /tmp/automatic-road-player-evidence
-          mkdir -p /tmp/automatic-road-player-evidence
-          cp "$png" /tmp/automatic-road-player-evidence/automatic_road_359177328_player.png
-          cp /tmp/automatic-road-player-witness.log /tmp/automatic-road-player-evidence/automatic-road-player-witness.log
-          test -s /tmp/automatic-road-player-evidence/automatic_road_359177328_player.png
+            cp "$png" "$stage/automatic_road_359177328_player.png"
+          else
+            echo "AUTOMATIC_ROAD_PLAYER_WITNESS_HOLD: no PNG staged because fail-closed capture did not reach visual acceptance"
+          fi
+          cd "$stage"
+          find . -maxdepth 1 -type f ! -name evidence-sha256.txt -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -ge 2
+          sha256sum --check evidence-sha256.txt
       - name: Upload exact player-view evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -70,9 +70,10 @@ def main() -> None:
 
     review = data.get("human_review", {})
     require(review.get("status") == "keep", "accepted non-T-pose frame was silently rejected")
+    require(review.get("reason") == "player_pose_normal_idle", "human review reason drifted")
     require(review.get("full_frame_inspected") is True and review.get("road_identity_matches_frame") is True, "full-frame/road review proof missing")
     require(review.get("blocking_reasons") == [], "accepted frame still carries blocking reasons")
-    require("no longer in bind/T-pose" in str(review.get("notes", "")), "human review does not record resolved T-pose")
+    require(str(review.get("notes", "")).strip() != "", "human review notes missing")
 
     auth = data.get("authorization", {})
     require(auth.get("qa_witness_accepted") is True, "accepted QA witness flag missing")
@@ -103,7 +104,7 @@ def main() -> None:
     require("evidence-sha256.txt" in witness_workflow and "sha256sum --check evidence-sha256.txt" in witness_workflow, "artifact hash self-verification lost")
     require("if-no-files-found: error" in witness_workflow, "artifact upload no longer fails closed")
 
-    print("AUTOMATIC_ROAD_PLAYER_VISUAL_GATE_OK: review=KEEP road=359177328 animation_driver=AnimationPlayer animation=Idle t_pose=false qa_witness_accepted=true playability_claimed=false destination_advertisable=false jouable=false")
+    print("AUTOMATIC_ROAD_PLAYER_VISUAL_GATE_OK: review=KEEP reason=player_pose_normal_idle road=359177328 animation_driver=AnimationPlayer animation=Idle t_pose=false qa_witness_accepted=true playability_claimed=false destination_advertisable=false jouable=false")
 
 
 if __name__ == "__main__":

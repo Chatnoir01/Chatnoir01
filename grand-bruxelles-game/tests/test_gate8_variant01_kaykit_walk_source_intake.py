@@ -21,6 +21,17 @@ def valid_contract():
         **module.EXPECTED_COUNTS,
         'pin_evidence_run': 32876921778,
         'pin_evidence_artifact': 9574284192,
+        'mechanical_preflight_run': 32889773170,
+        'mechanical_preflight_artifact': 9578990115,
+        'mechanical_preflight_artifact_sha256': 'daf31a2cacd159ae5b9bf4207b40979fc33ce66a7cfdfbacd9aaaa51072447dd',
+        'mechanical_preflight_state': module.BLOCK_STATE,
+        'observed_skeleton_bone_count': 6,
+        'observed_bone_names': module.EXPECTED_BONES,
+        'missing_required_humanoid_roles': module.EXPECTED_MISSING_ROLES,
+        'target_humanoid_retarget_compatible': False,
+        'candidate_target_verdict': module.BLOCK_VERDICT,
+        'walk_candidate_state': module.BLOCK_VERDICT,
+        'run_candidate_state': module.BLOCK_VERDICT,
         'production_authorized': False,
         'activation_ready': False,
         'adoption_ready': False,
@@ -51,4 +62,18 @@ def test_archive_inventory_drift_fails():
     for key in module.EXPECTED_COUNTS:
         data = copy.deepcopy(valid_contract())
         data[key] += 1
+        assert module.validate(data), key
+
+def test_mechanical_block_evidence_drift_fails():
+    cases = [
+        ('mechanical_preflight_state', 'READY'),
+        ('observed_skeleton_bone_count', 7),
+        ('observed_bone_names', module.EXPECTED_BONES[:-1]),
+        ('missing_required_humanoid_roles', module.EXPECTED_MISSING_ROLES[:-1]),
+        ('target_humanoid_retarget_compatible', True),
+        ('candidate_target_verdict', 'GARDER'),
+    ]
+    for key, value in cases:
+        data = copy.deepcopy(valid_contract())
+        data[key] = value
         assert module.validate(data), key

@@ -56,9 +56,7 @@ jobs:
           IDLE_SRC='/tmp/kaykit-unpack/Animations/fbx/Single Animations/Idle.fbx'
           WALK_SRC='/tmp/kaykit-unpack/Animations/fbx/Single Animations/Walk.fbx'
           RUN_SRC='/tmp/kaykit-unpack/Animations/fbx/Single Animations/Run.fbx'
-          test -f "$IDLE_SRC"
-          test -f "$WALK_SRC"
-          test -f "$RUN_SRC"
+          test -f "$IDLE_SRC" && test -f "$WALK_SRC" && test -f "$RUN_SRC"
           cp "$IDLE_SRC" /tmp/kaykit-project/kaykit/Idle.fbx
           cp "$WALK_SRC" /tmp/kaykit-project/kaykit/Walk.fbx
           cp "$RUN_SRC" /tmp/kaykit-project/kaykit/Run.fbx
@@ -82,49 +80,41 @@ jobs:
           grep -Fq 'Walk.fbx' /tmp/kaykit-import.log
           grep -Fq 'Run.fbx' /tmp/kaykit-import.log
 
-      - name: Run locomotion measurement
+      - name: Characterize humanoid retarget compatibility
         run: |
           set -euo pipefail
-          set +e
           timeout 180 /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --audio-driver Dummy --path /tmp/kaykit-project --script res://tests/gate8_variant01_kaykit_locomotion_preflight.gd 2>&1 | tee /tmp/kaykit-locomotion.log
-          status=${PIPESTATUS[0]}
-          set -e
           test -f /tmp/gate8-kaykit-locomotion-preflight.json
           cp /tmp/gate8-kaykit-locomotion-preflight.json /tmp/kaykit-locomotion-preflight.json
           python - <<'PY'
           import json
-          p='/tmp/kaykit-locomotion-preflight.json'
-          d=json.load(open(p))
+          d=json.load(open('/tmp/kaykit-locomotion-preflight.json'))
+          expected_bones=['Body','Head','armLeft','handSlotLeft','armRight','handSlotRight']
+          expected_roles=['hips','left_upper_arm','right_upper_arm','left_foot','right_foot']
+          assert d['schema'].endswith('-v3')
           assert d['source_mode'] == 'single_animation_fbx'
-          assert d['excluded_decoy_container'] == 'KayKit_AnimatedCharacter_v1.2.glb'
+          assert d['mechanical_state'] == 'BLOCKED_NON_HUMANOID_SKELETON'
+          assert d['target_humanoid_retarget_compatible'] is False
+          assert d['observed_skeleton_bones'] == 6
+          assert d['observed_bone_names'] == expected_bones
+          assert d['required_humanoid_roles'] == expected_roles
+          assert d['missing_required_humanoid_roles'] == expected_roles
+          assert d['skeleton_signature_consistent'] is True
+          assert d['metrics'] == {}
           assert d['production_authorized'] is False
           assert d['activation_ready'] is False
           assert d['adoption_ready'] is False
           assert d['walk_alias_selected'] == '' and d['run_alias_selected'] == ''
-          assert d['skeleton_signature_consistent'] is True
-          assert d['skeleton_bones'] >= 15, d['skeleton_bones']
-          assert set(d.get('metrics', {})) == {'idle','walk','run'}
-          expected_paths = {
-              'idle':'res://kaykit/Idle.fbx',
-              'walk':'res://kaykit/Walk.fbx',
-              'run':'res://kaykit/Run.fbx',
-          }
-          for semantic in ('idle','walk','run'):
-              scene=d['source_scenes'][semantic]
-              assert scene['path'] == expected_paths[semantic]
-              assert scene['skeleton_bones'] == d['skeleton_bones']
-              for role in ('hips','left_upper_arm','right_upper_arm','left_foot','right_foot'):
-                  assert scene['roles'][role] >= 0, (semantic, role)
-              v=d['metrics'][semantic]
-              assert v['samples'] >= 2 and v['duration_s'] > 0
-              assert v['max_upper_arm_delta_deg'] >= 0
-              assert v['foot_vertical_span_m'] >= 0
-              assert v['contact_slide_mean_mps'] >= 0
+          assert set(d['source_scenes']) == {'idle','walk','run'}
+          for semantic, scene in d['source_scenes'].items():
+              assert scene['skeleton_bones'] == 6, semantic
+              assert scene['bone_names'] == expected_bones, semantic
+              assert scene['missing_roles'] == expected_roles, semantic
+              assert len(scene['usable_animations']) >= 1, semantic
           assert d.get('failures') == []
-          print('GATE8_KAYKIT_LOCOMOTION_MEASUREMENT_OK source_mode=single_animation_fbx')
+          print('GATE8_KAYKIT_NON_HUMANOID_BLOCK_OK bones=6 missing_roles=5 aliases=empty')
           PY
-          test "$status" -eq 0
-          grep -Fq 'GATE8_KAYKIT_LOCOMOTION_PREFLIGHT_OK source_mode=single_animation_fbx' /tmp/kaykit-locomotion.log
+          grep -Fq 'GATE8_KAYKIT_LOCOMOTION_BLOCK_CONFIRMED state=BLOCKED_NON_HUMANOID_SKELETON bones=6' /tmp/kaykit-locomotion.log
 
       - name: Prove ephemeral assets and clean checkout
         run: |

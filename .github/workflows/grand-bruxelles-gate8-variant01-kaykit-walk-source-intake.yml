@@ -19,7 +19,6 @@ jobs:
     env:
       CONTRACT: grand-bruxelles-game/data/qa/gate8_variant01_kaykit_walk_source_intake.json
       TOOL: grand-bruxelles-game/tools/qa/check_gate8_variant01_kaykit_walk_source_intake.py
-      TEST: grand-bruxelles-game/tests/test_gate8_variant01_kaykit_walk_source_intake.py
       SOURCE_URL: https://opengameart.org/sites/default/files/kaykit_character_animations_1.2.zip
       EXPECTED_SHA256: c9d3fbea492dc6edd0903939369a564c2240b892430bcd99e0aee4876110bb8f
       EXPECTED_SIZE: "7959257"
@@ -46,8 +45,9 @@ jobs:
           set -euo pipefail
           python "$TOOL" | tee /tmp/kaykit-contract.log
           grep -Fq "GATE8_KAYKIT_SOURCE_PIN_OK sha256=$EXPECTED_SHA256 bytes=$EXPECTED_SIZE" /tmp/kaykit-contract.log
+          grep -Fq 'state=BLOCKED_NON_HUMANOID_SKELETON' /tmp/kaykit-contract.log
 
-      - name: Run pin drift regressions without runner dependencies
+      - name: Run pin and block regressions without runner dependencies
         run: |
           set -euo pipefail
           python - <<'PY' | tee /tmp/kaykit-regressions.log
@@ -58,16 +58,22 @@ jobs:
           mod = importlib.util.module_from_spec(spec)
           assert spec.loader is not None
           spec.loader.exec_module(mod)
-          tests = [mod.test_verified_contract_passes, mod.test_sha_or_size_drift_fails, mod.test_production_or_alias_opening_fails, mod.test_archive_inventory_drift_fails]
+          tests = [
+              mod.test_verified_contract_passes,
+              mod.test_sha_or_size_drift_fails,
+              mod.test_production_or_alias_opening_fails,
+              mod.test_archive_inventory_drift_fails,
+              mod.test_mechanical_block_evidence_drift_fails,
+          ]
           for test in tests: test()
           print(f'GATE8_KAYKIT_PIN_REGRESSIONS_OK tests={len(tests)}')
           PY
-          grep -Fxq 'GATE8_KAYKIT_PIN_REGRESSIONS_OK tests=4' /tmp/kaykit-regressions.log
+          grep -Fxq 'GATE8_KAYKIT_PIN_REGRESSIONS_OK tests=5' /tmp/kaykit-regressions.log
 
       - name: Reacquire exact CC0 source bytes
         run: |
           set -euo pipefail
-          curl --fail --location --retry 3 --retry-delay 2 --user-agent 'GrandBruxellesGate8SourceIntake/2.0' "$SOURCE_URL" --output /tmp/kaykit-character-animations-1.2.zip
+          curl --fail --location --retry 3 --retry-delay 2 --user-agent 'GrandBruxellesGate8SourceIntake/3.0' "$SOURCE_URL" --output /tmp/kaykit-character-animations-1.2.zip
           test -s /tmp/kaykit-character-animations-1.2.zip
           unzip -tq /tmp/kaykit-character-animations-1.2.zip >/tmp/kaykit-unzip-test.log
           ACTUAL_SHA256="$(sha256sum /tmp/kaykit-character-animations-1.2.zip | awk '{print $1}')"

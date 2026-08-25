@@ -1,0 +1,199 @@
+name: Grand Bruxelles Grand-Place Correct UrbIS Source Cell
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-correct-urbis-source-cell.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.contract.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_correct_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_spatial_identity.review.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500/**"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/measure_urbis_source_cell_semantic_lock.py"
+      - "grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/test_measure_urbis_source_cell_semantic_lock.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.contract.json
+  LOCK: grand-bruxelles-game/data/provenance/grand_place_correct_urbis_source_cell.measurement.json
+  CELL_ID: bxl-e148500-n170500-s500
+  LOCKED_ARTIFACT_ID: "9575593756"
+  LOCKED_ARTIFACT_SHA256: ae9972e22697573214f510deaabd9f63b13477386032733b55de6b21a228c6d7
+  LOCKED_ARTIFACT_SIZE: "387697"
+
+jobs:
+  reproduce-authoritative-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry, locked artifact, spatial identity and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          head_sha="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$live_main" "$head_sha"
+          python3 - "$live_main" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live = sys.argv[1]
+          root = Path("grand-bruxelles-game")
+          contract = json.loads((root / "data/qa/grand_place_correct_urbis_source_cell.contract.json").read_text(encoding="utf-8"))
+          lock = json.loads((root / "data/provenance/grand_place_correct_urbis_source_cell.measurement.json").read_text(encoding="utf-8"))
+          identity = json.loads((root / "data/provenance/grand_place_spatial_identity.review.json").read_text(encoding="utf-8"))
+          assert contract["production_base_sha"] == live, (contract["production_base_sha"], live)
+          assert contract["status"] == "SEMANTIC_MEASUREMENT_LOCKED_SOURCE_ONLY"
+          assert contract["target"] == {
+              "cell_id": "bxl-e148500-n170500-s500",
+              "crs": "EPSG:31370",
+              "bbox": [148500.0, 170500.0, 149000.0, 171000.0],
+          }
+          dep = contract["identity_dependency"]
+          assert identity["status"] == dep["required_status"] == "SPATIAL_IDENTITY_MISMATCH_HOLD"
+          assert identity["expected_target"]["cell_id"] == contract["target"]["cell_id"]
+          assert identity["expected_target"]["bbox"] == contract["target"]["bbox"]
+          assert identity["expected_target"]["contains_official_anchor"] is True
+          assert identity["transformed_anchor"]["coordinate"] == dep["official_anchor_epsg31370"]
+          assert identity["observed_claim"]["cell_id"] == dep["historical_cell_id"]
+          assert identity["observed_claim"]["contains_official_anchor"] is False
+          assert dep["historical_cell_treat_as_grand_place"] is False
+          assert identity["expected_target"]["authoritative_source_cell_persisted"] is False
+          assert identity["expected_target"]["canonical_registration_present"] is False
+          source = contract["source"]
+          assert source["authority"] == "Paradigm / Brussels-Capital Region"
+          assert source["service"] == "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
+          assert source["license"] == "CC0-1.0"
+          assert source["retrieval_model"] == "first_measurement_live_wfs_then_artifact_only_reproduction"
+          assert contract["municipality_assignment_authorized"] is False
+          evidence = contract["first_measurement_evidence"]
+          assert evidence == {
+              "workflow_run_id": 32880241102,
+              "artifact_id": 9575593756,
+              "artifact_sha256": "ae9972e22697573214f510deaabd9f63b13477386032733b55de6b21a228c6d7",
+              "artifact_size_bytes": 387697,
+              "measurement_sha256": "cb58ecfdb4f912b6dae253e136544e3e1361fea876856192fcf79b55a57bb542",
+              "measurement_size_bytes": 3311,
+              "package_manifest_sha256": "27b65085ef6f8cb5f34658373aff4bf727cf0353dcf6a0a436a3ecc3b25b7047",
+          }
+          expected = contract["expected"]
+          assert lock["source_semantic_sha256"] == expected["source_semantic_sha256"] == "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3"
+          assert lock["manifest_source_digest"] == expected["manifest_source_digest"] == "0645d03062f79ec08d2ba87714754633fc48f1a5eadf3a35e0df2ae4244d4302"
+          assert lock["manifest_sha256"] == expected["manifest_sha256"] == "f464b35581b9231582daafbd28c07f1b15e3aeae2d7b683385b7073b6b73658f"
+          assert lock["maturity_sha256"] == expected["maturity_sha256"] == "e5f3eaddc2fba5a5d359f3e47f5819ae3efd7994174ee7c452104d7ea01d95e1"
+          assert lock["maturity_state"] == "data_ready"
+          for name, spec in expected["layers"].items():
+              got = lock["layers"][name]
+              for key, value in spec.items():
+                  assert got[key] == value, (name, key, got[key], value)
+          auth = contract["authorization"]
+          assert auth["source_acquisition"] is True
+          for key in ["source_persistence","source_registration","canonical_registration","road_to_cell_mapping","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+              assert auth[key] is False, key
+          for key in ["registration_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+              assert lock[key] is False, key
+          print(f"GRAND_PLACE_CORRECT_SOURCE_CELL_LOCK_CONTRACT_OK live_main={live} semantic={lock['source_semantic_sha256']} rails_closed=true")
+          PY
+          if git cat-file -e "origin/main:grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL_ID}/manifest.json" 2>/dev/null; then
+            echo "RED: correct Grand-Place source cell already exists on live main; ownership changed" >&2
+            exit 1
+          fi
+
+      - name: Run generic source semantic-lock regressions
+        run: python3 grand-bruxelles-game/tools/citygen/test_measure_urbis_source_cell_semantic_lock.py
+
+      - name: Restore exact RED-first artifact, never rescan mutable WFS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/grand-place-source-${LOCKED_ARTIFACT_ID}.zip"
+          unpack="$RUNNER_TEMP/grand-place-source-artifact"
+          source_root="$RUNNER_TEMP/$CELL_ID"
+          rm -rf "$zip" "$unpack" "$source_root"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${LOCKED_ARTIFACT_ID}/zip" > "$zip"
+          echo "${LOCKED_ARTIFACT_SHA256}  $zip" | sha256sum -c -
+          test "$(stat -c '%s' "$zip")" = "$LOCKED_ARTIFACT_SIZE"
+          mkdir -p "$unpack"
+          unzip -q "$zip" -d "$unpack"
+          echo "cb58ecfdb4f912b6dae253e136544e3e1361fea876856192fcf79b55a57bb542  $unpack/measurement.json" | sha256sum -c -
+          test "$(stat -c '%s' "$unpack/measurement.json")" = "3311"
+          echo "27b65085ef6f8cb5f34658373aff4bf727cf0353dcf6a0a436a3ecc3b25b7047  $unpack/package_manifest.json" | sha256sum -c -
+          python3 - "$unpack" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          manifest = json.loads((root / "package_manifest.json").read_text(encoding="utf-8"))
+          rows = manifest["files"]
+          assert len(rows) == 8, len(rows)
+          seen = set()
+          for row in rows:
+              rel = Path(row["path"])
+              assert not rel.is_absolute() and ".." not in rel.parts
+              p = root / rel
+              assert p.is_file(), rel
+              raw = p.read_bytes()
+              assert len(raw) == int(row["bytes"]), rel
+              assert hashlib.sha256(raw).hexdigest() == row["sha256"], rel
+              seen.add(str(rel))
+          expected = {
+              "measurement.json",
+              "source-cell/manifest.json", "source-cell/maturity.json",
+              "source-cell/raw/buildings.geojson", "source-cell/raw/street_axes.geojson",
+              "source-cell/raw/street_surfaces.geojson", "source-cell/raw/train_network.geojson", "source-cell/raw/tram_network.geojson",
+          }
+          assert seen == expected, (seen, expected)
+          print(f"GRAND_PLACE_CORRECT_ARTIFACT_PACKAGE_OK files={len(rows)}")
+          PY
+          cp -a "$unpack/source-cell" "$source_root"
+          test "$(basename "$source_root")" = "$CELL_ID"
+          echo "GRAND_PLACE_CORRECT_LOCKED_ARTIFACT_RESTORED artifact=${LOCKED_ARTIFACT_ID} sha256=${LOCKED_ARTIFACT_SHA256} bytes=${LOCKED_ARTIFACT_SIZE}"
+
+      - name: Reproduce exact semantic measurement from locked bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/measure_urbis_source_cell_semantic_lock.py \
+            --cell-dir "$RUNNER_TEMP/$CELL_ID" \
+            --output "$RUNNER_TEMP/grand_place_correct_urbis_source_cell.reproduced.json"
+          cmp "$RUNNER_TEMP/grand_place_correct_urbis_source_cell.reproduced.json" "$LOCK"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          d = json.loads((Path(os.environ["RUNNER_TEMP"]) / "grand_place_correct_urbis_source_cell.reproduced.json").read_text(encoding="utf-8"))
+          assert d["cell_id"] == "bxl-e148500-n170500-s500"
+          assert d["source_semantic_sha256"] == "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3"
+          assert d["layers"]["buildings"]["features"] == 1110
+          assert d["layers"]["buildings"]["ownership_filtered"] == 70
+          assert d["layers"]["buildings"]["invalid_ownership_features"] == 0
+          assert d["layers"]["street_axes"]["features"] == 180
+          assert d["layers"]["street_surfaces"]["features"] == 598
+          assert d["layers"]["tram_network"]["features"] == 12
+          assert d["layers"]["train_network"]["features"] == 12
+          for key in ["registration_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+              assert d[key] is False, key
+          print("GRAND_PLACE_CORRECT_SOURCE_CELL_LOCKED_EXACT semantic=683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3 buildings=1110 ownership_filtered=70 axes=180 surfaces=598 tram=12 train=12 registration=false runtime=false")
+          PY
+
+      - name: Upload exact reproduction evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-correct-urbis-source-cell-locked-reproduction
+          path: ${{ runner.temp }}/grand_place_correct_urbis_source_cell.reproduced.json
+          if-no-files-found: error
+          retention-days: 30

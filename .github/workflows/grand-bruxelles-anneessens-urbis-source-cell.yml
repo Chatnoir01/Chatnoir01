@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/grand-bruxelles-anneessens-urbis-source-cell.yml"
       - "grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.contract.json"
+      - "grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.persistence.contract.json"
       - "grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/**"
       - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
@@ -19,6 +20,7 @@ permissions:
 
 env:
   CONTRACT: grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.contract.json
+  PERSISTENCE_CONTRACT: grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.persistence.contract.json
   LOCK: grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json
   CELL_ID: bxl-e147500-n169500-s500
   LOCKED_ARTIFACT_ID: "9569240423"
@@ -36,7 +38,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Require exact live-main ancestry, locked artifact and closed rails
+      - name: Require exact live-main ancestry, immutable acquisition lock, persisted phase and closed rails
         shell: bash
         run: |
           set -euo pipefail
@@ -47,12 +49,22 @@ jobs:
           python3 - "$live_main" <<'PY'
           import json, sys
           from pathlib import Path
+
           live = sys.argv[1]
-          contract = json.loads(Path("grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.contract.json").read_text(encoding="utf-8"))
-          lock = json.loads(Path("grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json").read_text(encoding="utf-8"))
-          assert contract["production_base_sha"] == live, (contract["production_base_sha"], live)
+          root = Path("grand-bruxelles-game")
+          contract = json.loads((root / "data/qa/anneessens_urbis_source_cell.contract.json").read_text(encoding="utf-8"))
+          persistence = json.loads((root / "data/qa/anneessens_urbis_source_cell.persistence.contract.json").read_text(encoding="utf-8"))
+          lock = json.loads((root / "data/provenance/anneessens_urbis_source_cell.measurement.json").read_text(encoding="utf-8"))
+
+          # The acquisition contract is immutable historical evidence. Do not rewrite
+          # its original production base merely because persistence happens later.
+          assert contract["production_base_sha"] == "23a26808905f892335481069cdcd080a462c2aea"
           assert contract["status"] == "SEMANTIC_MEASUREMENT_LOCKED_SOURCE_ONLY"
-          assert contract["target"] == {"cell_id":"bxl-e147500-n169500-s500","crs":"EPSG:31370","bbox":[147500.0,169500.0,148000.0,170000.0]}
+          assert contract["target"] == {
+              "cell_id":"bxl-e147500-n169500-s500",
+              "crs":"EPSG:31370",
+              "bbox":[147500.0,169500.0,148000.0,170000.0],
+          }
           source = contract["source"]
           assert source["authority"] == "Paradigm / Brussels-Capital Region"
           assert source["service"] == "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
@@ -79,13 +91,42 @@ jobs:
             got = lock["layers"][name]
             for key, value in spec.items():
               assert got[key] == value, (name, key, got[key], value)
-          auth = contract["authorization"]
-          assert auth["source_acquisition"] is True
+
+          acquisition_auth = contract["authorization"]
+          assert acquisition_auth["source_acquisition"] is True
           for key in ["source_persistence","source_registration","canonical_registration","road_to_cell_mapping","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
-            assert auth[key] is False, key
+            assert acquisition_auth[key] is False, key
+
+          # Persistence is a separate current-main phase and owns the live continuity
+          # certificate. It must bind back to the same immutable acquisition artifact.
+          assert persistence["schema"] == "grand-bruxelles-urbis-source-cell-persistence-contract-v1"
+          assert persistence["cell_id"] == contract["target"]["cell_id"]
+          assert persistence["production_base_sha"] == live, (persistence["production_base_sha"], live)
+          assert persistence["status"] == "LOCKED_EXACT_SOURCE_ONLY_PERSISTED"
+          assert persistence["source"]["authority"] == source["authority"]
+          assert persistence["source"]["service"] == source["service"]
+          assert persistence["source"]["license"] == source["license"]
+          assert persistence["source"]["crs"] == contract["target"]["crs"]
+          assert persistence["source"]["bbox"] == contract["target"]["bbox"]
+          persisted_evidence = persistence["locked_artifact"]
+          assert persisted_evidence["artifact_id"] == evidence["artifact_id"]
+          assert persisted_evidence["sha256"] == evidence["artifact_sha256"]
+          assert persisted_evidence["size_bytes"] == evidence["artifact_size_bytes"]
+          assert persisted_evidence["measurement_sha256"] == evidence["measurement_sha256"]
+          assert persisted_evidence["package_manifest_sha256"] == evidence["package_manifest_sha256"]
+          assert persisted_evidence["source_semantic_sha256"] == lock["source_semantic_sha256"]
+          persistence_auth = persistence["authorization"]
+          assert persistence_auth["source_persistence"] is True
+          for key in ["source_registration","canonical_registration","municipality_assignment","road_to_cell_mapping","runtime_directory_scan","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+            assert persistence_auth[key] is False, key
+
           for key in ["registration_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
             assert lock[key] is False, key
-          print(f"ANNEESSENS_SOURCE_CELL_LOCK_CONTRACT_OK live_main={live} semantic={lock['source_semantic_sha256']} rails_closed=true")
+          print(
+            "ANNEESSENS_SOURCE_CELL_PERSISTED_PHASE_OK "
+            f"live_main={live} acquisition_base={contract['production_base_sha']} "
+            f"semantic={lock['source_semantic_sha256']} persistence=true downstream=false"
+          )
           PY
           if git cat-file -e "origin/main:grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL_ID}/manifest.json" 2>/dev/null; then
             echo "RED: Anneessens source cell already exists on live main; ownership changed" >&2

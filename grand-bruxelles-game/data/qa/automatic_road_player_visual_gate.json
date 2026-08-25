@@ -1,12 +1,12 @@
 {
   "schema": "grand-bruxelles-automatic-road-player-visual-gate-v1",
   "evidence": {
-    "production_base_sha": "b96a21367f61830748bb9ba86c34cb71103fbcc3",
-    "evidence_head_sha": "7fc8f2835b60cf6bc227a226c09bf5571e1ecfe6",
-    "workflow_run_id": 32830200285,
-    "artifact_id": 9556476477,
-    "artifact_sha256": "56d958a077a5bcbbfbf75b1344dfc12fe0f25300f38db2a144a6dea545a288f7",
-    "png_sha256": "5c0215788ac0dd77f8d07c69b0885a8f929e64e35bbd7c12a35fd439b5f74c87",
+    "production_base_sha": "c3369e94ed23d8067cbfa0059ca91c00d6836138",
+    "evidence_head_sha": "c2331c3f976bfc48357436e3e402918fc2dc4c8c",
+    "workflow_run_id": 32834619557,
+    "artifact_id": 9558138383,
+    "artifact_sha256": "9559b207530e19dc96a3a21954ab6a995560a7ca918f2aef64f934b94d77f08f",
+    "png_sha256": "0c08fe8e370feb166e32a3e62c85bcfa875f16d9b610fec65e124fa932664085",
     "diagnostic_sha256": "223e3dc8063941f944010703bee519418f9a32c969735affd8f2d49956f5cacf",
     "runtime_log_sha256": "44fec3ba0108456d178fe9bc7d3e5720e77a4daea5b615d55da2ba9bffc44aa9",
     "resolution": [1280, 720],
@@ -14,11 +14,11 @@
     "witness_road_name": "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan"
   },
   "runtime_animation_diagnostic": {
-    "production_base_sha": "b96a21367f61830748bb9ba86c34cb71103fbcc3",
-    "diagnostic_head_sha": "7fc8f2835b60cf6bc227a226c09bf5571e1ecfe6",
-    "workflow_run_id": 32830200285,
-    "artifact_id": 9556476477,
-    "artifact_sha256": "56d958a077a5bcbbfbf75b1344dfc12fe0f25300f38db2a144a6dea545a288f7",
+    "production_base_sha": "c3369e94ed23d8067cbfa0059ca91c00d6836138",
+    "diagnostic_head_sha": "c2331c3f976bfc48357436e3e402918fc2dc4c8c",
+    "workflow_run_id": 32834619557,
+    "artifact_id": 9558138383,
+    "artifact_sha256": "9559b207530e19dc96a3a21954ab6a995560a7ca918f2aef64f934b94d77f08f",
     "diagnostic_sha256": "223e3dc8063941f944010703bee519418f9a32c969735affd8f2d49956f5cacf",
     "runtime_log_sha256": "44fec3ba0108456d178fe9bc7d3e5720e77a4daea5b615d55da2ba9bffc44aa9",
     "road_osm_id": 359177328,
@@ -53,7 +53,7 @@
     "full_frame_inspected": true,
     "road_identity_matches_frame": true,
     "blocking_reasons": [],
-    "notes": "The exact 1280x720 source-backed Lemonnier frame from run 32830200285 was opened full-frame. The authored player is no longer in bind/T-pose: arms are relaxed in a normal idle silhouette. The hash-bound runtime diagnostic independently proves one active AnimationPlayer playing Idle from the 76-clip authored catalog. This clears the historical player_pose_t_pose rejection for this witness only; it does not authorize road-cell mapping, streaming mount, destination advertisement or JOUABLE promotion."
+    "notes": "The exact 1280x720 source-backed Lemonnier frame from run 32834619557 / artifact 9558138383 was downloaded, sidecar-hash-checked, and opened full-frame on 2026-08-25. The authored player remains out of bind/T-pose: arms are relaxed in a normal idle silhouette. The hash-bound runtime diagnostic proves one active AnimationPlayer playing Idle from the 76-clip authored catalog. This preserves the visual KEEP for this witness only; it does not authorize road-cell mapping, streaming mount, destination advertisement or JOUABLE promotion."
   },
   "authorization": {
     "qa_witness_accepted": true,

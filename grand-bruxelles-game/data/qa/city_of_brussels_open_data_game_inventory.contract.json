@@ -1,0 +1,63 @@
+{
+  "schema": "grand-bruxelles-city-open-data-game-inventory-contract-v1",
+  "source_snapshot": {
+    "authority": "City of Brussels / Ville de Bruxelles / Stad Brussel",
+    "source_run_id": "32894160007",
+    "source_artifact_id": "9580617625",
+    "source_artifact_name": "city-open-data-full-snapshot-index",
+    "source_artifact_digest": "sha256:2143d5ff864eec2b906f1c5e74893918335b4904f1a4dba94790c50823a45c5a",
+    "source_head_sha": "2b529cadbccce1b028c6ba38e67e2f184477a987",
+    "source_catalog_sha256": "dc1a2fdec96572f504d7611c17486f830f2514f089fbd3e3fdc6e07ee472191d",
+    "source_snapshot_index_sha256": "8175c4e298fdd980652cbaa690502a3bb62ceb6844b8357c8c54d9ff53da0489",
+    "source_snapshot_all_entries_accounted": true
+  },
+  "classification": {
+    "shape_rule": "downloaded + geo_shape => MAP_GEOMETRY_CANDIDATE",
+    "point_rule": "downloaded + geo_point_2d without geo_shape => MAP_POI_CANDIDATE",
+    "non_geospatial_rule": "downloaded + no geo_point_2d/geo_shape => DATA_ENRICHMENT_CANDIDATE",
+    "source_unavailable_rule": "has_records + source bytes unavailable => HOLD_SOURCE_UNAVAILABLE",
+    "no_records_rule": "has_records=false => HOLD_NO_RECORDS",
+    "realtime_rule": "downloaded + geospatial + update_frequency=CONT => realtime_candidate",
+    "semantic_runtime_role_inferred": false
+  },
+  "measurement": {
+    "catalog_dataset_count": 207,
+    "source_bytes_verified_count": 205,
+    "geospatial_dataset_count": 142,
+    "point_dataset_count": 142,
+    "shape_dataset_count": 78,
+    "map_geometry_candidate_count": 78,
+    "map_poi_candidate_count": 63,
+    "data_enrichment_candidate_count": 64,
+    "continuous_geospatial_dataset_count": 11,
+    "hold_count": 2,
+    "hold_source_unavailable_count": 1,
+    "hold_no_records_count": 1
+  },
+  "witnesses": {
+    "grand_place_buildings": {
+      "dataset_id": "description-des-batiments-de-la-grand-place",
+      "candidate_class": "MAP_POI_CANDIDATE",
+      "runtime_authorized": false
+    },
+    "villo_realtime": {
+      "dataset_id": "disponibilite-en-temps-reel-des-velos-villo-rbc",
+      "candidate_class": "MAP_POI_CANDIDATE",
+      "realtime_candidate": true,
+      "official_theme": "Mobilité",
+      "runtime_authorized": false
+    }
+  },
+  "authorization": {
+    "classification_only": true,
+    "source_registration": false,
+    "canonical_registration": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  },
+  "status": "GAME_INVENTORY_CLASSIFIED_SOURCE_ONLY"
+}

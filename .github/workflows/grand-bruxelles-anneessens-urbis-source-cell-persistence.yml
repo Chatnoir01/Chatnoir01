@@ -92,8 +92,9 @@ jobs:
           assert manifest["crs"] == "EPSG:31370"
           assert manifest["promotion"] == "source_only_no_runtime_mutation"
           assert maturity["maturity"]["state"] == "data_ready"
+          gates=maturity["maturity"]["gates"]
           for key in ["runtime_geometry","collisions","streaming","terrain","heights","photo_match","performance"]:
-              assert maturity["gates"][key] is False, key
+              assert gates[key] is False, key
           print("ANNEESSENS_IMMUTABLE_SOURCE_BYTES_OK files=7 source_only=true")
           PY
 

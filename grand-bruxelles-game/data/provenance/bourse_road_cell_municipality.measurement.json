@@ -1,0 +1,125 @@
+{
+  "schema": "grand-bruxelles-bourse-road-cell-municipality-lock-v1",
+  "status": "LOCKED_SOURCE_ONLY_BOUNDARY_HOLD",
+  "production_base_sha": "7c0df3c930b47d7eadada57680ff62b30d7b35ec",
+  "semantic_sha256": "c01208a81d61d51492b928f7381991e0fdacd68f62e8ac7a77be8ba08f46ff63",
+  "stable_measurement": {
+    "schema": "grand-bruxelles-road-cell-municipality-preflight-v3",
+    "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
+    "candidate_source": {
+      "path": "grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json",
+      "semantic_sha256": "8aaca3178894950a8a1efe8235e3313f34d4d23656b968a9cbf87666284acd7b",
+      "road_source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+      "road_semantic_sha256": "4ec4ba4ad46a999d3ea32ab4a42b6825d6e43f11fcae92ac9b7a4236222913e0"
+    },
+    "cell": {
+      "grid_cell_id": "E147500_N170000",
+      "bbox": [147500.0, 170000.0, 148000.0, 170500.0],
+      "anchor_id": "bourse",
+      "road_count": 11,
+      "road_ids": [8512036, 8512040, 12357557, 14391825, 15497309, 15497711, 15497818, 356328311, 411724192, 591894649, 860225856],
+      "point_hits": 62,
+      "segment_hits": 53
+    },
+    "municipality_source": {
+      "provider": "Paradigm / Brussels-Capital Region",
+      "service": "UrbIS vector WFS",
+      "layer": "urbisvector:Municipalities",
+      "crs": "EPSG:31370",
+      "url": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=urbisvector%3AMunicipalities&outputFormat=application%2Fjson&srsName=EPSG%3A31370",
+      "feature_count": 19
+    },
+    "municipality_coverage": {
+      "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
+      "cell_area_m2": 250000.0,
+      "intersection_coverage_sum": 1.0,
+      "municipality_id": null,
+      "municipality_niscode": null,
+      "coverage_ratio": 0.8320850629128363,
+      "intersections": [
+        {
+          "municipality_id": "https://databrussels.be/id/municipality/5000071",
+          "properties": {
+            "AREA": 17914389.6762021,
+            "INSPIRE_ID": "https://databrussels.be/id/municipality/5000071",
+            "NAMEDUT": "Anderlecht",
+            "NAMEFRE": "Anderlecht",
+            "NISCODE": "21001",
+            "POLICEZONE": "5341"
+          },
+          "intersection_area_m2": 208021.26572820908,
+          "coverage_ratio": 0.8320850629128363,
+          "covers_entire_cell": false
+        },
+        {
+          "municipality_id": "https://databrussels.be/id/municipality/5000074",
+          "properties": {
+            "AREA": 33086943.5859531,
+            "INSPIRE_ID": "https://databrussels.be/id/municipality/5000074",
+            "NAMEDUT": "Brussel",
+            "NAMEFRE": "Bruxelles",
+            "NISCODE": "21004",
+            "POLICEZONE": "5339"
+          },
+          "intersection_area_m2": 41978.734271790905,
+          "coverage_ratio": 0.16791493708716362,
+          "covers_entire_cell": false
+        }
+      ],
+      "registration_authorized": false,
+      "road_cell_mapping_authorized": false,
+      "runtime_mount_authorized": false,
+      "rendered_geometry_authorized": false,
+      "collision_authorized": false,
+      "safe_spawn_authorized": false,
+      "jouable_promotion_authorized": false
+    },
+    "registration_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false,
+    "semantic_sha256": "c01208a81d61d51492b928f7381991e0fdacd68f62e8ac7a77be8ba08f46ff63"
+  },
+  "transport_evidence": {
+    "note": "Raw GeoServer response bytes and generated FIDs are forensic-only and excluded from stable semantic identity.",
+    "workflow_run_id": 32793340307,
+    "artifact_id": 9543933309,
+    "artifact_sha256": "2d984433e1c2ed40aab296da0aed3bbbe0b9a6f02d34e6c263178509f177068a",
+    "measurement_json_sha256": "53a8cf246f38861213a6bc81d5205e1af1c141715393dedf5f75faa5cc3fb6f4",
+    "raw_payload_sha256": "0380184d9fab0a575ad8e1d5158225780e1498f407b31ad36e4a1bcd499e64a7",
+    "transport_feature_ids": {
+      "https://databrussels.be/id/municipality/5000074": "Municipalities.fid--600c9ade_1a0363d332e_-3f03",
+      "https://databrussels.be/id/municipality/5000071": "Municipalities.fid--600c9ade_1a0363d332e_-3efb"
+    }
+  },
+  "boundary_hold": {
+    "cell_area_m2": 250000.0,
+    "intersection_coverage_sum": 1.0,
+    "dominant_intersection": {
+      "municipality_id": "https://databrussels.be/id/municipality/5000071",
+      "municipality_niscode": "21001",
+      "municipality_name": "Anderlecht",
+      "coverage_ratio": 0.8320850629128363,
+      "intersection_area_m2": 208021.26572820908
+    },
+    "secondary_intersection": {
+      "municipality_id": "https://databrussels.be/id/municipality/5000074",
+      "municipality_niscode": "21004",
+      "municipality_name": "Bruxelles / Brussel",
+      "coverage_ratio": 0.16791493708716362,
+      "intersection_area_m2": 41978.734271790905
+    },
+    "automatic_municipality_assignment_authorized": false,
+    "reason": "The 500 m Bourse road cell crosses the official Anderlecht/Bruxelles municipal boundary; dominance is not sufficient for canonical assignment."
+  },
+  "registration_authorized": false,
+  "road_cell_mapping_authorized": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "jouable_promotion_authorized": false
+}

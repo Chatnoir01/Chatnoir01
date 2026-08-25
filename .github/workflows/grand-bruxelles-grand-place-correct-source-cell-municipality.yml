@@ -1,0 +1,118 @@
+name: Grand Bruxelles Grand-Place Correct Source Cell Municipality
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-correct-source-cell-municipality.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.municipality.contract.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_correct_source_cell_municipality.measurement.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_correct_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500/**"
+      - "grand-bruxelles-game/tools/qa/measure_grand_place_correct_source_cell_municipality.py"
+      - "grand-bruxelles-game/tools/qa/measure_road_cell_municipality_preflight.py"
+      - "grand-bruxelles-game/tests/test_grand_place_correct_source_cell_municipality.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.municipality.contract.json
+  LOCK: grand-bruxelles-game/data/provenance/grand_place_correct_source_cell_municipality.measurement.json
+
+jobs:
+  municipality-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and measurement-only rails
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live = sys.argv[1]
+          d = json.loads(Path("grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.municipality.contract.json").read_text())
+          assert d["production_base_sha"] == live, (d["production_base_sha"], live)
+          assert d["status"] in {"MEASUREMENT_PENDING", "LOCKED_SOURCE_ONLY"}
+          assert d["target"] == {
+              "cell_id":"bxl-e148500-n170500-s500",
+              "grid_cell_id":"E148500_N170500",
+              "crs":"EPSG:31370",
+              "bbox":[148500.0,170500.0,149000.0,171000.0],
+          }
+          persisted=d["persisted_source"]
+          assert persisted["source_semantic_sha256"] == "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3"
+          assert persisted["manifest_sha256"] == "f464b35581b9231582daafbd28c07f1b15e3aeae2d7b683385b7073b6b73658f"
+          assert persisted["maturity_sha256"] == "e5f3eaddc2fba5a5d359f3e47f5819ae3efd7994174ee7c452104d7ea01d95e1"
+          assert persisted["layer_counts"] == {"buildings":1110,"street_axes":180,"street_surfaces":598,"train_network":12,"tram_network":12}
+          assert persisted["buildings_ownership_filtered"] == 70
+          assert persisted["buildings_invalid_ownership"] == 0
+          src = d["municipality_source"]
+          assert src["authority"] == "Paradigm / Brussels-Capital Region"
+          assert src["service"] == "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
+          assert src["layer"] == "urbisvector:Municipalities"
+          assert src["license"] == "CC0-1.0"
+          assert src["crs"] == "EPSG:31370"
+          assert src["expected_feature_count"] == 19
+          a = d["authorization"]
+          assert a["source_persistence"] is True
+          assert a["municipality_measurement"] is True
+          for key in ["source_registration","canonical_registration","municipality_assignment","road_to_cell_mapping","runtime_directory_scan","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+              assert a[key] is False, key
+          print(f"GRAND_PLACE_CORRECT_MUNICIPALITY_CONTRACT_OK live_main={live} measurement_only=true rails_closed=true")
+          PY
+
+      - name: Install exact spatial dependency family
+        run: python3 -m pip install --disable-pip-version-check "shapely>=2.0,<3"
+
+      - name: Run fail-closed regressions
+        run: python3 grand-bruxelles-game/tests/test_grand_place_correct_source_cell_municipality.py
+
+      - name: Measure official UrbIS municipality coverage
+        run: |
+          python3 grand-bruxelles-game/tools/qa/measure_grand_place_correct_source_cell_municipality.py \
+            --repo-root grand-bruxelles-game \
+            --output "$RUNNER_TEMP/grand_place_correct_source_cell_municipality.measurement.json"
+
+      - name: Upload municipality measurement candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-correct-source-cell-municipality-measurement
+          path: ${{ runner.temp }}/grand_place_correct_source_cell_municipality.measurement.json
+          if-no-files-found: error
+
+      - name: Require accepted persistent semantic lock
+        run: |
+          set -euo pipefail
+          test -f "$LOCK" || {
+            echo "RED: corrected Grand-Place municipality measurement produced; persistent semantic lock is intentionally absent" >&2
+            exit 1
+          }
+          python3 - "$RUNNER_TEMP/grand_place_correct_source_cell_municipality.measurement.json" "$LOCK" <<'PY'
+          import copy, json, sys
+          from pathlib import Path
+          measured = json.loads(Path(sys.argv[1]).read_text())
+          locked = json.loads(Path(sys.argv[2]).read_text())
+          def semantic_basis(value):
+              basis = copy.deepcopy(value)
+              basis["municipality_source"].pop("raw_payload_sha256", None)
+              coverage = basis.get("municipality_coverage") or {}
+              coverage.pop("transport_feature_ids", None)
+              basis.pop("semantic_sha256", None)
+              return basis
+          assert locked["semantic_sha256"] == measured["semantic_sha256"], (locked["semantic_sha256"], measured["semantic_sha256"])
+          assert semantic_basis(locked) == semantic_basis(measured), "corrected Grand-Place municipality semantic lock drifted"
+          assert locked["status"] in {"MUNICIPALITY_PROVEN_SINGLE","HOLD_MUNICIPALITY_BOUNDARY_CELL","HOLD_MUNICIPALITY_UNRESOLVED"}
+          for key in ["source_registration_authorized","canonical_registration_authorized","municipality_assignment_authorized","road_cell_mapping_authorized","runtime_directory_scan_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+              assert locked[key] is False, key
+          print(f"GRAND_PLACE_CORRECT_MUNICIPALITY_LOCKED_SEMANTIC status={locked['status']} semantic={locked['semantic_sha256']} rails_closed=true")
+          PY

@@ -1,0 +1,53 @@
+{
+  "schema": "grand-bruxelles-urbis-source-cell-persistence-contract-v1",
+  "cell_id": "bxl-e147500-n169500-s500",
+  "production_base_sha": "97384397c438f79311ac782b896d4ce0ae467ad3",
+  "status": "LOCKED_EXACT_SOURCE_ONLY_PERSISTED",
+  "source": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "license": "CC0-1.0",
+    "crs": "EPSG:31370",
+    "bbox": [147500.0, 169500.0, 148000.0, 170000.0]
+  },
+  "locked_artifact": {
+    "workflow_run_id": 32863742209,
+    "artifact_id": 9569240423,
+    "sha256": "484a6b546d1f82c2847ba3fa6bac506b83eb0ca996ba29df1298faf66f740ee5",
+    "size_bytes": 308618,
+    "measurement_sha256": "bc85dec9a65283150ee628d8761154e0201311c5cfcbae95f92796daaa4039c5",
+    "package_manifest_sha256": "53712b26bcf3ad82929338b162451b585f94ca8aba843240c9b911a1465ce730",
+    "source_semantic_sha256": "496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0"
+  },
+  "expected_files": {
+    "manifest.json": {"bytes": 1394, "sha256": "10aac9d4a2404ff23bb7d9af40b9e256b65aa6f25d33c7de1c1e3067244f43d2"},
+    "maturity.json": {"bytes": 5298, "sha256": "7ebbe70634650db6b2fe21b10e4ae87ede7f4c0c170b21b63d1be9765cc69f89"},
+    "raw/buildings.geojson": {"bytes": 228055, "sha256": "46057508dfcb5661c078c392f2d1f91faed64f1adf1812d5c3b21f6ade4e1a1e"},
+    "raw/street_axes.geojson": {"bytes": 72493, "sha256": "80419465dc5ea236666725cc604504ad3a747a3aa36e736c69a9889053f1f366"},
+    "raw/street_surfaces.geojson": {"bytes": 461511, "sha256": "ca9d71bc7057ba58c01c9bf385090022eeef1cc2769971830062906ed818a949"},
+    "raw/train_network.geojson": {"bytes": 278523, "sha256": "8fe5ff5dcd4a4f06864850bcfb71a0e42efd4a08efbf530565aef90bf4a7bfcc"},
+    "raw/tram_network.geojson": {"bytes": 278522, "sha256": "24c3a9608e69d4ce2d3d1fae706a0980fef581f44189e5155bc621a10a79dd96"}
+  },
+  "accounting": {
+    "buildings": 362,
+    "buildings_ownership_filtered": 52,
+    "buildings_invalid_ownership": 0,
+    "street_axes": 104,
+    "street_surfaces": 283,
+    "tram_network": 361,
+    "train_network": 361
+  },
+  "authorization": {
+    "source_persistence": true,
+    "source_registration": false,
+    "canonical_registration": false,
+    "municipality_assignment": false,
+    "road_to_cell_mapping": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  }
+}

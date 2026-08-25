@@ -1,57 +1,97 @@
 extends SceneTree
 
 const SAMPLE_HZ := 120.0
-const REQUIRED := ["idle", "walk", "run"]
+const REQUIRED_SEMANTICS := ["idle", "walk", "run"]
+const REQUIRED_ROLES := ["hips", "left_upper_arm", "right_upper_arm", "left_foot", "right_foot"]
+const SOURCE_SCENES := {
+    "idle": "res://kaykit/Idle.fbx",
+    "walk": "res://kaykit/Walk.fbx",
+    "run": "res://kaykit/Run.fbx",
+}
+const EXCLUDED_DECOY_CONTAINER := "KayKit_AnimatedCharacter_v1.2.glb"
+
 var failures: Array[String] = []
 
 func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    var scenes: Array[String] = []
-    _collect_scenes("res://kaykit", scenes)
-    if scenes.is_empty():
-        failures.append("no_kaykit_gltf_glb_imported")
-        return _finish({})
-    var chosen: Dictionary = {}
-    for path in scenes:
+    var metrics: Dictionary = {}
+    var source_scenes: Dictionary = {}
+    var expected_bone_names: Array[String] = []
+    var skeleton_signature_consistent := true
+
+    for semantic in REQUIRED_SEMANTICS:
+        var path := String(SOURCE_SCENES[semantic])
         var packed := load(path) as PackedScene
         if packed == null:
+            failures.append("missing_or_unimported_scene:%s:%s" % [semantic, path])
             continue
+
         var root := packed.instantiate()
         get_root().add_child(root)
         var player := _find_animation_player(root)
         var skeleton := _find_skeleton(root)
-        if player != null and skeleton != null:
-            var clips := _resolve_required_clips(player)
-            if clips.size() == 3:
-                chosen = {"path": path, "root": root, "player": player, "skeleton": skeleton, "clips": clips}
-                break
+        if player == null:
+            failures.append("missing_animation_player:%s" % semantic)
+            root.queue_free()
+            continue
+        if skeleton == null:
+            failures.append("missing_skeleton:%s" % semantic)
+            root.queue_free()
+            continue
+
+        var roles := _resolve_roles(skeleton)
+        var missing_roles: Array[String] = []
+        for role in REQUIRED_ROLES:
+            if int(roles.get(role, -1)) < 0:
+                missing_roles.append(role)
+        if not missing_roles.is_empty():
+            failures.append("missing_roles:%s:%s" % [semantic, ",".join(missing_roles)])
+            source_scenes[semantic] = {
+                "path": path,
+                "skeleton_bones": skeleton.get_bone_count(),
+                "bone_names": _bone_names(skeleton),
+                "missing_roles": missing_roles,
+            }
+            root.queue_free()
+            continue
+
+        var resolved := _resolve_animation(player, semantic)
+        var animation_name := String(resolved.get("name", ""))
+        if animation_name.is_empty():
+            root.queue_free()
+            continue
+
+        var bone_names := _bone_names(skeleton)
+        if expected_bone_names.is_empty():
+            expected_bone_names = bone_names.duplicate()
+        elif bone_names != expected_bone_names:
+            skeleton_signature_consistent = false
+            failures.append("skeleton_signature_mismatch:%s" % semantic)
+
+        source_scenes[semantic] = {
+            "path": path,
+            "animation": animation_name,
+            "animation_resolution": String(resolved.get("mode", "")),
+            "skeleton_bones": skeleton.get_bone_count(),
+            "roles": roles,
+        }
+        metrics[semantic] = _measure_clip(player, skeleton, animation_name, roles)
         root.queue_free()
-    if chosen.is_empty():
-        failures.append("no_scene_with_exact_idle_walk_run_and_skeleton")
-        return _finish({"scene_count": scenes.size()})
 
-    var skeleton: Skeleton3D = chosen.skeleton
-    var roles := _resolve_roles(skeleton)
-    for role in ["left_upper_arm", "right_upper_arm", "left_foot", "right_foot", "hips"]:
-        if int(roles.get(role, -1)) < 0:
-            failures.append("missing_role:" + role)
-    if not failures.is_empty():
-        return _finish({"scene": chosen.path, "bone_names": _bone_names(skeleton)})
+    if metrics.size() != REQUIRED_SEMANTICS.size():
+        failures.append("incomplete_metrics:%d_of_%d" % [metrics.size(), REQUIRED_SEMANTICS.size()])
 
-    var player: AnimationPlayer = chosen.player
-    var metrics: Dictionary = {}
-    for semantic in REQUIRED:
-        metrics[semantic] = _measure_clip(player, skeleton, String(chosen.clips[semantic]), roles)
     var result := {
-        "schema": "grand-bruxelles-gate8-kaykit-locomotion-preflight-v1",
+        "schema": "grand-bruxelles-gate8-kaykit-locomotion-preflight-v2",
         "godot_version": Engine.get_version_info().get("string", ""),
-        "scene": chosen.path,
-        "scene_count": scenes.size(),
-        "skeleton_bones": skeleton.get_bone_count(),
-        "roles": roles,
-        "clips": chosen.clips,
+        "source_mode": "single_animation_fbx",
+        "source_scenes": source_scenes,
+        "excluded_decoy_container": EXCLUDED_DECOY_CONTAINER,
+        "skeleton_signature_consistent": skeleton_signature_consistent,
+        "skeleton_bones": expected_bone_names.size(),
+        "bone_names": expected_bone_names,
         "metrics": metrics,
         "production_authorized": false,
         "activation_ready": false,
@@ -61,6 +101,26 @@ func _run() -> void:
         "failures": failures,
     }
     _finish(result)
+
+func _resolve_animation(player: AnimationPlayer, semantic: String) -> Dictionary:
+    var exact: Array[String] = []
+    var usable: Array[String] = []
+    for raw_name in player.get_animation_list():
+        var name := String(raw_name)
+        if name.to_lower() == "reset":
+            continue
+        usable.append(name)
+        if semantic in _tokens(name):
+            exact.append(name)
+    if exact.size() == 1:
+        return {"name": exact[0], "mode": "exact_token"}
+    if exact.size() > 1:
+        failures.append("ambiguous_exact_animation:%s:%s" % [semantic, ",".join(exact)])
+        return {}
+    if usable.size() == 1:
+        return {"name": usable[0], "mode": "single_animation_scene"}
+    failures.append("animation_not_resolved:%s:usable=%d" % [semantic, usable.size()])
+    return {}
 
 func _measure_clip(player: AnimationPlayer, skeleton: Skeleton3D, clip: String, roles: Dictionary) -> Dictionary:
     var anim := player.get_animation(clip)
@@ -88,31 +148,31 @@ func _measure_clip(player: AnimationPlayer, skeleton: Skeleton3D, clip: String, 
         var t := minf(anim.length, float(i) / SAMPLE_HZ)
         player.seek(t, true)
         player.advance(0.0)
-        var l_arm := skeleton.get_bone_global_pose(int(roles.left_upper_arm)).basis.get_rotation_quaternion()
-        var r_arm := skeleton.get_bone_global_pose(int(roles.right_upper_arm)).basis.get_rotation_quaternion()
-        max_left_arm = maxf(max_left_arm, rad_to_deg(left_arm_rest.angle_to(l_arm)))
-        max_right_arm = maxf(max_right_arm, rad_to_deg(right_arm_rest.angle_to(r_arm)))
-        var lf := skeleton.get_bone_global_pose(int(roles.left_foot)).origin
-        var rf := skeleton.get_bone_global_pose(int(roles.right_foot)).origin
+        var left_arm_pose := skeleton.get_bone_global_pose(int(roles.left_upper_arm)).basis.get_rotation_quaternion()
+        var right_arm_pose := skeleton.get_bone_global_pose(int(roles.right_upper_arm)).basis.get_rotation_quaternion()
+        max_left_arm = maxf(max_left_arm, rad_to_deg(left_arm_rest.angle_to(left_arm_pose)))
+        max_right_arm = maxf(max_right_arm, rad_to_deg(right_arm_rest.angle_to(right_arm_pose)))
+        var left_foot := skeleton.get_bone_global_pose(int(roles.left_foot)).origin
+        var right_foot := skeleton.get_bone_global_pose(int(roles.right_foot)).origin
         var hips := skeleton.get_bone_global_pose(int(roles.hips)).origin
-        min_foot_y = minf(min_foot_y, minf(lf.y, rf.y))
-        max_foot_y = maxf(max_foot_y, maxf(lf.y, rf.y))
+        min_foot_y = minf(min_foot_y, minf(left_foot.y, right_foot.y))
+        max_foot_y = maxf(max_foot_y, maxf(left_foot.y, right_foot.y))
         if i == 0:
             hips_start = hips
-            prev_left = lf
-            prev_right = rf
+            prev_left = left_foot
+            prev_right = right_foot
         elif i == sample_count - 1:
             hips_end = hips
-        var floor_y := minf(lf.y, rf.y)
+        var floor_y := minf(left_foot.y, right_foot.y)
         var contact_epsilon := 0.025
-        if lf.y <= floor_y + contact_epsilon:
-            left_slide += Vector2(lf.x - prev_left.x, lf.z - prev_left.z).length()
+        if i > 0 and left_foot.y <= floor_y + contact_epsilon:
+            left_slide += Vector2(left_foot.x - prev_left.x, left_foot.z - prev_left.z).length()
             contact_samples += 1
-        if rf.y <= floor_y + contact_epsilon:
-            right_slide += Vector2(rf.x - prev_right.x, rf.z - prev_right.z).length()
+        if i > 0 and right_foot.y <= floor_y + contact_epsilon:
+            right_slide += Vector2(right_foot.x - prev_right.x, right_foot.z - prev_right.z).length()
             contact_samples += 1
-        prev_left = lf
-        prev_right = rf
+        prev_left = left_foot
+        prev_right = right_foot
     var planar_hips := Vector2(hips_end.x - hips_start.x, hips_end.z - hips_start.z).length()
     var duration := float(anim.length)
     return {
@@ -130,74 +190,83 @@ func _measure_clip(player: AnimationPlayer, skeleton: Skeleton3D, clip: String, 
         "contact_slide_mean_mps": (left_slide + right_slide) * SAMPLE_HZ / maxf(1.0, float(contact_samples)),
     }
 
-func _resolve_required_clips(player: AnimationPlayer) -> Dictionary:
-    var out := {}
-    for name in player.get_animation_list():
-        var tokens := _tokens(String(name))
-        for semantic in REQUIRED:
-            if semantic in tokens and not out.has(semantic):
-                out[semantic] = String(name)
-    return out
-
 func _tokens(text: String) -> Array[String]:
     var normalized := text.to_lower()
-    for sep in ["-", " ", ".", "/", ":"]:
-        normalized = normalized.replace(sep, "_")
+    for separator in ["-", " ", ".", "/", ":"]:
+        normalized = normalized.replace(separator, "_")
     var out: Array[String] = []
     for token in normalized.split("_", false):
         out.append(String(token))
     return out
 
+func _normalized_bone_name(text: String) -> String:
+    var normalized := text.to_lower()
+    for separator in ["-", " ", ".", "/", ":"]:
+        normalized = normalized.replace(separator, "_")
+    return normalized
+
+func _is_left(name: String) -> bool:
+    return "left" in name or name.ends_with("_l") or name.begins_with("l_")
+
+func _is_right(name: String) -> bool:
+    return "right" in name or name.ends_with("_r") or name.begins_with("r_")
+
 func _resolve_roles(skeleton: Skeleton3D) -> Dictionary:
     var out := {"hips": -1, "left_upper_arm": -1, "right_upper_arm": -1, "left_foot": -1, "right_foot": -1}
     for i in range(skeleton.get_bone_count()):
-        var n := skeleton.get_bone_name(i).to_lower().replace("-", "_").replace(".", "_")
-        if out.hips < 0 and ("hips" in n or "pelvis" in n): out.hips = i
-        if out.left_upper_arm < 0 and (("upperarm" in n or "upper_arm" in n) and ("left" in n or n.ends_with("_l") or n.ends_with("l"))): out.left_upper_arm = i
-        if out.right_upper_arm < 0 and (("upperarm" in n or "upper_arm" in n) and ("right" in n or n.ends_with("_r") or n.ends_with("r"))): out.right_upper_arm = i
-        if out.left_foot < 0 and "foot" in n and ("left" in n or n.ends_with("_l") or n.ends_with("l")): out.left_foot = i
-        if out.right_foot < 0 and "foot" in n and ("right" in n or n.ends_with("_r") or n.ends_with("r")): out.right_foot = i
+        var name := _normalized_bone_name(skeleton.get_bone_name(i))
+        if int(out.hips) < 0 and ("hips" in name or "pelvis" in name):
+            out.hips = i
+        var is_upper_arm := "upperarm" in name or "upper_arm" in name
+        if int(out.left_upper_arm) < 0 and is_upper_arm and _is_left(name):
+            out.left_upper_arm = i
+        if int(out.right_upper_arm) < 0 and is_upper_arm and _is_right(name):
+            out.right_upper_arm = i
+        if int(out.left_foot) < 0 and "foot" in name and _is_left(name):
+            out.left_foot = i
+        if int(out.right_foot) < 0 and "foot" in name and _is_right(name):
+            out.right_foot = i
     return out
 
 func _bone_names(skeleton: Skeleton3D) -> Array[String]:
     var names: Array[String] = []
-    for i in range(skeleton.get_bone_count()): names.append(skeleton.get_bone_name(i))
+    for i in range(skeleton.get_bone_count()):
+        names.append(skeleton.get_bone_name(i))
     return names
 
 func _find_animation_player(node: Node) -> AnimationPlayer:
-    if node is AnimationPlayer: return node
+    if node is AnimationPlayer:
+        return node
     for child in node.get_children():
         var found := _find_animation_player(child)
-        if found != null: return found
+        if found != null:
+            return found
     return null
 
 func _find_skeleton(node: Node) -> Skeleton3D:
-    if node is Skeleton3D: return node
+    if node is Skeleton3D:
+        return node
     for child in node.get_children():
         var found := _find_skeleton(child)
-        if found != null: return found
+        if found != null:
+            return found
     return null
-
-func _collect_scenes(path: String, out: Array[String]) -> void:
-    var dir := DirAccess.open(path)
-    if dir == null: return
-    dir.list_dir_begin()
-    while true:
-        var name := dir.get_next()
-        if name == "": break
-        if name.begins_with("."): continue
-        var child := path.path_join(name)
-        if dir.current_is_dir(): _collect_scenes(child, out)
-        elif name.to_lower().ends_with(".glb") or name.to_lower().ends_with(".gltf"): out.append(child)
-    dir.list_dir_end()
 
 func _finish(result: Dictionary) -> void:
     result["failures"] = failures
     var path := "/tmp/gate8-kaykit-locomotion-preflight.json"
-    FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(result, "  "))
+    var file := FileAccess.open(path, FileAccess.WRITE)
+    if file == null:
+        push_error("cannot_write_result")
+        quit(1)
+        return
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
     if failures.is_empty():
-        print("GATE8_KAYKIT_LOCOMOTION_PREFLIGHT_OK")
+        print("GATE8_KAYKIT_LOCOMOTION_PREFLIGHT_OK source_mode=single_animation_fbx")
         quit(0)
-    for failure in failures: push_error(failure)
+        return
+    for failure in failures:
+        push_error(failure)
     print("GATE8_KAYKIT_LOCOMOTION_PREFLIGHT_BLOCKED failures=%d" % failures.size())
     quit(1)

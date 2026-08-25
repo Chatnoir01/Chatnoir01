@@ -47,14 +47,27 @@ jobs:
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | tee /tmp/godot-version.txt
           grep -Fq '4.7.1' /tmp/godot-version.txt
 
-      - name: Build isolated import project
+      - name: Build isolated single-animation FBX project
         run: |
           set -euo pipefail
           rm -rf /tmp/kaykit-unpack /tmp/kaykit-project
           mkdir -p /tmp/kaykit-unpack /tmp/kaykit-project/kaykit /tmp/kaykit-project/tests
           unzip -q /tmp/kaykit.zip -d /tmp/kaykit-unpack
-          find /tmp/kaykit-unpack -type f \( -iname '*.glb' -o -iname '*.gltf' \) -print0 | while IFS= read -r -d '' f; do cp "$f" /tmp/kaykit-project/kaykit/; done
-          test "$(find /tmp/kaykit-project/kaykit -maxdepth 1 -type f | wc -l)" -eq 4
+          IDLE_SRC='/tmp/kaykit-unpack/Animations/fbx/Single Animations/Idle.fbx'
+          WALK_SRC='/tmp/kaykit-unpack/Animations/fbx/Single Animations/Walk.fbx'
+          RUN_SRC='/tmp/kaykit-unpack/Animations/fbx/Single Animations/Run.fbx'
+          test -f "$IDLE_SRC"
+          test -f "$WALK_SRC"
+          test -f "$RUN_SRC"
+          cp "$IDLE_SRC" /tmp/kaykit-project/kaykit/Idle.fbx
+          cp "$WALK_SRC" /tmp/kaykit-project/kaykit/Walk.fbx
+          cp "$RUN_SRC" /tmp/kaykit-project/kaykit/Run.fbx
+          printf '%s\n' \
+            'Animations/fbx/Single Animations/Idle.fbx' \
+            'Animations/fbx/Single Animations/Walk.fbx' \
+            'Animations/fbx/Single Animations/Run.fbx' > /tmp/kaykit-selected-source-paths.txt
+          test "$(find /tmp/kaykit-project/kaykit -maxdepth 1 -type f -iname '*.fbx' | wc -l)" -eq 3
+          test "$(find /tmp/kaykit-project/kaykit -maxdepth 1 -type f \( -iname '*.glb' -o -iname '*.gltf' \) | wc -l)" -eq 0
           cp grand-bruxelles-game/tests/gate8_variant01_kaykit_locomotion_preflight.gd /tmp/kaykit-project/tests/
           cat > /tmp/kaykit-project/project.godot <<'EOF'
           [application]
@@ -65,6 +78,9 @@ jobs:
           EOF
           /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path /tmp/kaykit-project --editor --quit-after 120 2>&1 | tee /tmp/kaykit-import.log
           test -d /tmp/kaykit-project/.godot/imported
+          grep -Fq 'Idle.fbx' /tmp/kaykit-import.log
+          grep -Fq 'Walk.fbx' /tmp/kaykit-import.log
+          grep -Fq 'Run.fbx' /tmp/kaykit-import.log
 
       - name: Run locomotion measurement
         run: |
@@ -79,21 +95,36 @@ jobs:
           import json
           p='/tmp/kaykit-locomotion-preflight.json'
           d=json.load(open(p))
+          assert d['source_mode'] == 'single_animation_fbx'
+          assert d['excluded_decoy_container'] == 'KayKit_AnimatedCharacter_v1.2.glb'
           assert d['production_authorized'] is False
           assert d['activation_ready'] is False
           assert d['adoption_ready'] is False
           assert d['walk_alias_selected'] == '' and d['run_alias_selected'] == ''
+          assert d['skeleton_signature_consistent'] is True
+          assert d['skeleton_bones'] >= 15, d['skeleton_bones']
           assert set(d.get('metrics', {})) == {'idle','walk','run'}
-          for k,v in d['metrics'].items():
+          expected_paths = {
+              'idle':'res://kaykit/Idle.fbx',
+              'walk':'res://kaykit/Walk.fbx',
+              'run':'res://kaykit/Run.fbx',
+          }
+          for semantic in ('idle','walk','run'):
+              scene=d['source_scenes'][semantic]
+              assert scene['path'] == expected_paths[semantic]
+              assert scene['skeleton_bones'] == d['skeleton_bones']
+              for role in ('hips','left_upper_arm','right_upper_arm','left_foot','right_foot'):
+                  assert scene['roles'][role] >= 0, (semantic, role)
+              v=d['metrics'][semantic]
               assert v['samples'] >= 2 and v['duration_s'] > 0
               assert v['max_upper_arm_delta_deg'] >= 0
               assert v['foot_vertical_span_m'] >= 0
               assert v['contact_slide_mean_mps'] >= 0
           assert d.get('failures') == []
-          print('GATE8_KAYKIT_LOCOMOTION_MEASUREMENT_OK')
+          print('GATE8_KAYKIT_LOCOMOTION_MEASUREMENT_OK source_mode=single_animation_fbx')
           PY
           test "$status" -eq 0
-          grep -Fq 'GATE8_KAYKIT_LOCOMOTION_PREFLIGHT_OK' /tmp/kaykit-locomotion.log
+          grep -Fq 'GATE8_KAYKIT_LOCOMOTION_PREFLIGHT_OK source_mode=single_animation_fbx' /tmp/kaykit-locomotion.log
 
       - name: Prove ephemeral assets and clean checkout
         run: |
@@ -105,7 +136,7 @@ jobs:
         if: always()
         run: |
           mkdir -p /tmp/gate8-kaykit-locomotion-evidence
-          for f in /tmp/godot-version.txt /tmp/kaykit-import.log /tmp/kaykit-locomotion.log /tmp/kaykit-locomotion-preflight.json; do [ -f "$f" ] && cp "$f" /tmp/gate8-kaykit-locomotion-evidence/; done
+          for f in /tmp/godot-version.txt /tmp/kaykit-import.log /tmp/kaykit-locomotion.log /tmp/kaykit-locomotion-preflight.json /tmp/kaykit-selected-source-paths.txt; do [ -f "$f" ] && cp "$f" /tmp/gate8-kaykit-locomotion-evidence/; done
           git status --porcelain=v1 > /tmp/gate8-kaykit-locomotion-evidence/git-status.txt
 
       - uses: actions/upload-artifact@v4

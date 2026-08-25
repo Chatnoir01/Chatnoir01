@@ -1,0 +1,155 @@
+name: Grand Bruxelles Bourse UrbIS Source Cell Persist
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-bourse-urbis-source-cell-persist.yml"
+      - ".github/workflows/grand-bruxelles-bourse-urbis-source-cell.yml"
+      - "grand-bruxelles-game/data/qa/bourse_urbis_source_cell.contract.json"
+      - "grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  CELL_ID: bxl-e147500-n170000-s500
+  CELL_DIR: grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500
+  CONTRACT: grand-bruxelles-game/data/qa/bourse_urbis_source_cell.contract.json
+  SOURCE_LOCK: grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json
+  LOCKED_ARTIFACT_ID: "9546230151"
+  LOCKED_ARTIFACT_SHA256: bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2
+  LOCKED_ARTIFACT_SIZE: "205274"
+
+jobs:
+  persist-locked-source-cell:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and exclusive persistence ownership
+        id: live
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$live_main" HEAD
+          echo "sha=$live_main" >> "$GITHUB_OUTPUT"
+          if git cat-file -e "origin/main:${CELL_DIR}/manifest.json" 2>/dev/null; then
+            echo "Bourse source cell already exists on live main; ownership changed" >&2
+            exit 1
+          fi
+          python3 - "$live_main" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live=sys.argv[1]
+          c=json.loads(Path("grand-bruxelles-game/data/qa/bourse_urbis_source_cell.contract.json").read_text())
+          m=json.loads(Path("grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json").read_text())
+          assert c["production_base_sha"]==m["production_base_sha"]==live
+          assert c["locked_artifact"]=={"workflow_run_id":32800198111,"artifact_id":9546230151,"artifact_sha256":"bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2","artifact_size_bytes":205274}
+          assert c["expected"]["source_semantic_sha256"]==m["source_semantic_sha256"]=="f88ece4309964ed9939de100424716c90a59409db66924332abb8ea00ff652e0"
+          for key in ["source_registration_authorized","canonical_registration_authorized","road_cell_mapping_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+            assert m[key] is False,key
+          PY
+
+      - name: Stop cleanly when exact persistence commit already exists
+        id: phase
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "$CELL_DIR/manifest.json" ]; then
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path("grand-bruxelles-game/data/qa/bourse_urbis_source_cell.contract.json").read_text())
+          m=json.loads(Path("grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json").read_text())
+          assert c["authorization"]["source_persistence"] is True
+          assert m["source_persistence_authorized"] is True
+          assert m["status"]=="LOCKED_EXACT_SOURCE_ONLY_PERSISTED"
+          assert c["expected"]["measurement_status"]==m["status"]
+          PY
+            echo "needs_commit=false" >> "$GITHUB_OUTPUT"
+            echo "BOURSE_SOURCE_CELL_PERSISTENCE_ALREADY_COMMITTED"
+          else
+            echo "needs_commit=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download immutable source artifact and materialize exact cell bytes
+        if: steps.phase.outputs.needs_commit == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/bourse-source-${LOCKED_ARTIFACT_ID}.zip"
+          unpack="$RUNNER_TEMP/bourse-source-artifact"
+          rm -rf "$zip" "$unpack" "$CELL_DIR"
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${LOCKED_ARTIFACT_ID}/zip" > "$zip"
+          echo "${LOCKED_ARTIFACT_SHA256}  $zip" | sha256sum -c -
+          test "$(stat -c '%s' "$zip")" = "$LOCKED_ARTIFACT_SIZE"
+          mkdir -p "$unpack" "$(dirname "$CELL_DIR")"
+          unzip -q "$zip" -d "$unpack"
+          test -f "$unpack/$CELL_ID/manifest.json"
+          cp -a "$unpack/$CELL_ID" "$CELL_DIR"
+          for rel in manifest.json maturity.json raw/buildings.geojson raw/street_axes.geojson raw/street_surfaces.geojson raw/train_network.geojson raw/tram_network.geojson; do
+            cmp -s "$unpack/$CELL_ID/$rel" "$CELL_DIR/$rel"
+          done
+          echo "BOURSE_SOURCE_CELL_ARTIFACT_MATERIALIZED id=${LOCKED_ARTIFACT_ID} sha256=${LOCKED_ARTIFACT_SHA256}"
+
+      - name: Promote only source-persistence state; keep every downstream rail closed
+        if: steps.phase.outputs.needs_commit == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "${{ steps.live.outputs.sha }}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live=sys.argv[1]
+          cp=Path("grand-bruxelles-game/data/qa/bourse_urbis_source_cell.contract.json")
+          mp=Path("grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json")
+          c=json.loads(cp.read_text()); m=json.loads(mp.read_text())
+          c["production_base_sha"]=live
+          c["expected"]["measurement_status"]="LOCKED_EXACT_SOURCE_ONLY_PERSISTED"
+          c["authorization"]["source_persistence"]=True
+          c["status"]="LOCKED_PERSISTED_SOURCE_ONLY_BOUNDARY_CELL"
+          m["production_base_sha"]=live
+          m["status"]="LOCKED_EXACT_SOURCE_ONLY_PERSISTED"
+          m["source_persistence_authorized"]=True
+          m["persistence"]={
+            "path":"grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500",
+            "source":"locked_artifact_9546230151",
+            "artifact_sha256":"bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2",
+            "byte_exact_required":True,
+            "source_only":True
+          }
+          for key in ["source_registration_authorized","canonical_registration_authorized","road_cell_mapping_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+            assert m[key] is False,key
+          for key in ["source_registration","canonical_registration","road_to_cell_mapping","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+            assert c["authorization"][key] is False,key
+          cp.write_text(json.dumps(c,ensure_ascii=False,indent=2)+"\n")
+          mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+"\n")
+          print("BOURSE_SOURCE_CELL_PERSISTENCE_STATE_ONLY source_persistence=true downstream=false")
+          PY
+
+      - name: Commit artifact-backed persistence to the same PR branch
+        if: steps.phase.outputs.needs_commit == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$CELL_DIR" "$CONTRACT" "$SOURCE_LOCK"
+          git diff --cached --quiet && { echo "no persistence diff" >&2; exit 1; }
+          git commit -m "data(bourse): persist locked UrbIS source cell bytes"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
+          echo "BOURSE_SOURCE_CELL_PERSISTENCE_COMMITTED branch=${GITHUB_HEAD_REF}"

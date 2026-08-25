@@ -1,0 +1,97 @@
+name: Grand Bruxelles Bourse Canonical Registration Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/bourse_canonical_registration_review.contract.json"
+      - "grand-bruxelles-game/data/provenance/bourse_road_cell_municipality.measurement.json"
+      - "grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500/**"
+      - "grand-bruxelles-game/data/cell_manifests/bxl-e147500-n170000-s500.json"
+      - "grand-bruxelles-game/tools/qa/review_bourse_canonical_cell_registration.py"
+      - "grand-bruxelles-game/tools/qa/test_bourse_canonical_cell_registration_review.py"
+      - ".github/workflows/grand-bruxelles-bourse-canonical-registration-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bourse-canonical-registration-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and contract base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          HEAD="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$LIVE_MAIN" "$HEAD"
+          python - "$LIVE_MAIN" <<'PY'
+          import json, sys
+          from pathlib import Path
+          contract = json.loads(Path("grand-bruxelles-game/data/qa/bourse_canonical_registration_review.contract.json").read_text())
+          live = sys.argv[1]
+          if contract["production_base_sha"] != live:
+              raise SystemExit(f"contract base drift: {contract['production_base_sha']} != {live}")
+          print(f"BOURSE_REGISTRATION_REVIEW_LIVE_MAIN_OK: {live}")
+          PY
+
+      - name: Run fail-closed regressions
+        run: python grand-bruxelles-game/tools/qa/test_bourse_canonical_cell_registration_review.py
+
+      - name: Generate review from persisted evidence only
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          python grand-bruxelles-game/tools/qa/review_bourse_canonical_cell_registration.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --production-base-sha "$LIVE_MAIN" \
+            --output "$RUNNER_TEMP/bourse_canonical_registration_review.json"
+
+      - name: Require review contract and closed rails
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          contract = json.loads(Path("grand-bruxelles-game/data/qa/bourse_canonical_registration_review.contract.json").read_text())
+          review = json.loads((Path(os.environ["RUNNER_TEMP"]) / "bourse_canonical_registration_review.json").read_text())
+          assert review["status"] == contract["expected_status"]
+          assert review["cell_id"] == contract["cell_id"]
+          assert review["crs"] == contract["crs"]
+          assert review["bbox"] == contract["bbox"]
+          assert review["source"]["provider"] == contract["source"]["provider"]
+          assert review["source"]["license"] == contract["source"]["license"]
+          assert review["source"]["source_semantic_sha256"] == contract["source"]["source_semantic_sha256"]
+          assert review["source"]["manifest_sha256"] == contract["source"]["manifest_sha256"]
+          assert review["source"]["layer_accounting"] == contract["layer_accounting"]
+          assert review["source"]["building_ownership"] == contract["building_ownership"]
+          got = review["municipality_boundary"]["intersections"]
+          exp = contract["municipality_boundary"]["intersections"]
+          assert [(x["niscode"], x["inspire_id"], x["intersection_area_m2"], x["coverage_ratio"]) for x in got] == [
+              (x["niscode"], x["inspire_id"], x["intersection_area_m2"], x["coverage_ratio"]) for x in exp
+          ]
+          for key in [
+              "registration_authorized", "road_cell_mapping_authorized", "runtime_directory_scan_authorized",
+              "runtime_mount_authorized", "rendered_geometry_authorized", "collision_authorized",
+              "safe_spawn_authorized", "jouable_promotion_authorized",
+          ]:
+              assert review[key] is False, key
+          print("BOURSE_CANONICAL_REGISTRATION_REVIEW_CONTRACT_OK")
+          PY
+
+      - name: Upload review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-canonical-registration-review
+          path: ${{ runner.temp }}/bourse_canonical_registration_review.json
+          if-no-files-found: error

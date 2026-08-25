@@ -1,0 +1,76 @@
+{
+  "schema": "grand-bruxelles-bourse-canonical-registration-review-contract-v1",
+  "production_base_sha": "0fccc9adcc54027020cc6962244cd47bac9675c3",
+  "cell_id": "bxl-e147500-n170000-s500",
+  "crs": "EPSG:31370",
+  "bbox": [
+    147500.0,
+    170000.0,
+    148000.0,
+    170500.0
+  ],
+  "source": {
+    "provider": "Paradigm / Brussels-Capital Region",
+    "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "license": "CC0-1.0",
+    "revision": null,
+    "source_artifact_id": 9546230151,
+    "source_artifact_sha256": "bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2",
+    "source_semantic_sha256": "f88ece4309964ed9939de100424716c90a59409db66924332abb8ea00ff652e0",
+    "manifest_sha256": "01113c2cf21fb5732f42c01c47814fbfd2270836af81fad9a7f7f0491130233a",
+    "maturity_sha256": "ab21f8842c384b87c3f15de82503b0a29065d7282f4a46ca57434b1fc3b9c222"
+  },
+  "layer_accounting": {
+    "buildings": 799,
+    "street_axes": 76,
+    "street_surfaces": 310,
+    "train_network": 14,
+    "tram_network": 14
+  },
+  "building_ownership": {
+    "ownership_filtered": 62,
+    "invalid_ownership_features": 0
+  },
+  "municipality_boundary": {
+    "semantic_sha256": "c01208a81d61d51492b928f7381991e0fdacd68f62e8ac7a77be8ba08f46ff63",
+    "cell_area_m2": 250000.0,
+    "coverage_sum": 1.0,
+    "automatic_municipality_assignment_authorized": false,
+    "intersections": [
+      {
+        "niscode": "21001",
+        "inspire_id": "https://databrussels.be/id/municipality/5000071",
+        "name": "Anderlecht",
+        "intersection_area_m2": 208021.26572820908,
+        "coverage_ratio": 0.8320850629128363
+      },
+      {
+        "niscode": "21004",
+        "inspire_id": "https://databrussels.be/id/municipality/5000074",
+        "name": "Bruxelles / Brussel",
+        "intersection_area_m2": 41978.734271790905,
+        "coverage_ratio": 0.16791493708716362
+      }
+    ]
+  },
+  "prior_green_review_evidence": {
+    "input_head_sha": "c2c4c4466d7d35873df0917f9116b682bf332062",
+    "production_base_sha": "3e63b58e464a504f1df80b835d23597c05cac0d8",
+    "workflow_run_id": 32807996338,
+    "artifact_id": 9548799956,
+    "artifact_sha256": "0c8672be033ee82a2d7c7db89bf29dc5ae3ec11e0feae2bcd557d46c93bd3bed",
+    "review_json_sha256": "4ecdf06f0f9eba3363cd045950849ec1641c588e3600355e8708433698d32d62",
+    "review_semantic_sha256": "1675fe1195045da97e06a5364a18945d788d9652ad5a39965b6c745ec88aa210",
+    "status": "READY_FOR_CANONICAL_MANIFEST_REVIEW_BOUNDARY_CELL",
+    "note": "Historical exact-head GREEN evidence only; the current head must reproduce independently on production_base_sha."
+  },
+  "expected_status": "READY_FOR_CANONICAL_MANIFEST_REVIEW_BOUNDARY_CELL",
+  "registration_authorized": false,
+  "road_cell_mapping_authorized": false,
+  "runtime_directory_scan_authorized": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "jouable_promotion_authorized": false
+}

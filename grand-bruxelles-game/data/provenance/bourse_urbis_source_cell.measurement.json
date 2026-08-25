@@ -1,10 +1,15 @@
 {
   "schema": "grand-bruxelles-bourse-urbis-source-cell-measurement-lock-v1",
-  "status": "LOCKED_EXACT_SOURCE_ONLY_MEASURED_NOT_PERSISTED",
+  "status": "LOCKED_EXACT_SOURCE_ONLY_PERSISTED",
   "production_base_sha": "b651350bcabd9d7384eb963a0f2a5dbe748995be",
   "cell_id": "bxl-e147500-n170000-s500",
   "crs": "EPSG:31370",
-  "bbox": [147500.0, 170000.0, 148000.0, 170500.0],
+  "bbox": [
+    147500.0,
+    170000.0,
+    148000.0,
+    170500.0
+  ],
   "authority": "Paradigm / Brussels-Capital Region",
   "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
   "license": "CC0-1.0",
@@ -15,8 +20,16 @@
     "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
     "automatic_municipality_assignment_authorized": false,
     "intersections": [
-      {"niscode": "21001", "inspire_id": "https://databrussels.be/id/municipality/5000071", "coverage_ratio": 0.8320850629128363},
-      {"niscode": "21004", "inspire_id": "https://databrussels.be/id/municipality/5000074", "coverage_ratio": 0.16791493708716362}
+      {
+        "niscode": "21001",
+        "inspire_id": "https://databrussels.be/id/municipality/5000071",
+        "coverage_ratio": 0.8320850629128363
+      },
+      {
+        "niscode": "21004",
+        "inspire_id": "https://databrussels.be/id/municipality/5000074",
+        "coverage_ratio": 0.16791493708716362
+      }
     ]
   },
   "source_artifact": {
@@ -69,7 +82,7 @@
       "semantic_features_sha256": "04b96bad393fc29f03bdc2e8820b348dcbf81688375a7a697ecbbf5b66d5edb5"
     }
   },
-  "source_persistence_authorized": false,
+  "source_persistence_authorized": true,
   "source_registration_authorized": false,
   "canonical_registration_authorized": false,
   "road_cell_mapping_authorized": false,
@@ -77,5 +90,12 @@
   "rendered_geometry_authorized": false,
   "collision_authorized": false,
   "safe_spawn_authorized": false,
-  "jouable_promotion_authorized": false
+  "jouable_promotion_authorized": false,
+  "persistence": {
+    "path": "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500",
+    "source": "locked_artifact_9546230151",
+    "artifact_sha256": "bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2",
+    "byte_exact_required": true,
+    "source_only": true
+  }
 }

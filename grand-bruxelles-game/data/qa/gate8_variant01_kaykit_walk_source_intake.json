@@ -1,0 +1,33 @@
+{
+  "schema": "grand-bruxelles-gate8-kaykit-walk-source-intake-v1",
+  "owner": "Character/NPC",
+  "candidate": "KayKit Character Animations 1.2",
+  "author": "Kay Lousberg",
+  "source_page": "https://opengameart.org/content/kaykit-character-animations",
+  "download_url": "https://opengameart.org/sites/default/files/kaykit_character_animations_1.2.zip",
+  "license": "CC0-1.0",
+  "license_evidence": "OpenGameArt asset page explicitly lists CC0 and states free personal/commercial use with no attribution required.",
+  "format_expectations": ["gltf", "fbx"],
+  "semantic_expectations": ["idle", "walk", "run"],
+  "godot_compatibility_evidence": "Source page states GLTF support and includes a Godot implementation guide; runtime adoption still requires Godot 4.7.1 import proof.",
+  "source_sha256": "",
+  "source_size_bytes": 0,
+  "pin_state": "PENDING_FIRST_PARTY_BYTE_ACQUISITION",
+  "walk_candidate_state": "PENDING_IMPORT_MEASUREMENT",
+  "run_candidate_state": "PENDING_IMPORT_MEASUREMENT",
+  "production_authorized": false,
+  "activation_ready": false,
+  "adoption_ready": false,
+  "walk_alias_selected": "",
+  "run_alias_selected": "",
+  "mixamo_allowed": false,
+  "player_character_reuse_allowed": false,
+  "required_next_evidence": [
+    "download exact source bytes",
+    "record sha256 and byte size",
+    "inventory archive contents",
+    "prove Idle/Walk/Run assets exist without name guessing",
+    "import under Godot 4.7.1 before retarget",
+    "measure planted-feet speed, grounding, authored arm swing and CPU skin-space before visual witness"
+  ]
+}

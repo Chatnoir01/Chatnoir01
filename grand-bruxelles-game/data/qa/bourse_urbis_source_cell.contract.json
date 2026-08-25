@@ -11,8 +11,8 @@
     "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
     "dataset_family": "UrbIS vector base-city layers",
     "license": "CC0-1.0",
-    "retrieval_model": "live_authoritative_wfs_content_addressed",
-    "revision_note": "The live WFS exposes no stable historical release identifier for this source-cell contract. Do not invent a revision. Durable identity removes only transient top-level GeoServer Feature.id/FID values and retains complete geometry and properties; raw responses remain forensic evidence."
+    "retrieval_model": "artifact_restored_content_addressed_after_red_first_measurement",
+    "revision_note": "The live WFS exposes no stable historical release identifier for this source-cell contract. No revision is invented. The first measured artifact is now the immutable reproduction source; durable identity removes only transient top-level GeoServer Feature.id/FID values and retains complete geometry and properties."
   },
   "municipality_boundary_provenance": {
     "lock_path": "grand-bruxelles-game/data/provenance/bourse_road_cell_municipality.measurement.json",
@@ -43,11 +43,29 @@
     {"logical_name": "tram_network", "wfs_name": "urbisvector:TramNetwork", "file": "raw/tram_network.geojson", "ownership": "bbox_intersection_source_unclipped"},
     {"logical_name": "train_network", "wfs_name": "urbisvector:TrainNetwork", "file": "raw/train_network.geojson", "ownership": "bbox_intersection_source_unclipped"}
   ],
+  "locked_artifact": {
+    "workflow_run_id": 32800198111,
+    "artifact_id": 9546230151,
+    "artifact_sha256": "bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2",
+    "artifact_size_bytes": 205274
+  },
   "expected": {
-    "measurement_status": "RED_FIRST_MEASUREMENT_PENDING",
-    "source_semantic_sha256": null,
-    "manifest_source_digest": null,
-    "layer_accounting": null
+    "measurement_status": "LOCKED_EXACT_SOURCE_ONLY_MEASURED_NOT_PERSISTED",
+    "source_semantic_sha256": "f88ece4309964ed9939de100424716c90a59409db66924332abb8ea00ff652e0",
+    "manifest_source_digest": "fc8851eeb05032e97b3fab39f01349e749edfe1c90713105a4aa1edab3c9521b",
+    "manifest_sha256": "01113c2cf21fb5732f42c01c47814fbfd2270836af81fad9a7f7f0491130233a",
+    "maturity_sha256": "ab21f8842c384b87c3f15de82503b0a29065d7282f4a46ca57434b1fc3b9c222",
+    "layer_accounting": {
+      "buildings": 799,
+      "street_axes": 76,
+      "street_surfaces": 310,
+      "train_network": 14,
+      "tram_network": 14
+    },
+    "building_ownership": {
+      "ownership_filtered": 62,
+      "invalid_ownership_features": 0
+    }
   },
   "expected_persisted_source_path": "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500",
   "authorization": {
@@ -62,5 +80,5 @@
     "safe_spawn": false,
     "jouable_promotion": false
   },
-  "status": "MEASUREMENT_PENDING_SOURCE_ONLY_BOUNDARY_CELL"
+  "status": "LOCKED_MEASUREMENT_SOURCE_ONLY_BOUNDARY_CELL"
 }

@@ -1,0 +1,10 @@
+{
+  "schema": "grand-bruxelles-anneessens-municipality-preflight-contract-v1",
+  "production_base_sha": "be34bb8f0ceb3ff19a70bf4a922c35467417799e",
+  "status": "LOCKED_SOURCE_ONLY",
+  "target": {"cell_id":"bxl-e147500-n169500-s500","grid_cell_id":"E147500_N169500","crs":"EPSG:31370","bbox":[147500.0,169500.0,148000.0,170000.0]},
+  "persisted_source": {"measurement_path":"data/provenance/anneessens_urbis_source_cell.measurement.json","source_semantic_sha256":"496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0","manifest_sha256":"10aac9d4a2404ff23bb7d9af40b9e256b65aa6f25d33c7de1c1e3067244f43d2","maturity_sha256":"7ebbe70634650db6b2fe21b10e4ae87ede7f4c0c170b21b63d1be9765cc69f89","layer_counts":{"buildings":362,"street_axes":104,"street_surfaces":283,"train_network":361,"tram_network":361},"buildings_ownership_filtered":52,"buildings_invalid_ownership":0},
+  "municipality_source": {"authority":"Paradigm / Brussels-Capital Region","service":"https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs","layer":"urbisvector:Municipalities","license":"CC0-1.0","crs":"EPSG:31370","expected_feature_count":19},
+  "locked_measurement": {"path":"data/provenance/anneessens_source_cell_municipality.measurement.json","status":"HOLD_MUNICIPALITY_BOUNDARY_CELL","semantic_sha256":"4148e300ea5a81d60b5f16f0eab1186a3d646308cb7a4a4a1c5036b21e2bba8f","municipality_assignment_authorized":false},
+  "authorization": {"source_persistence":true,"municipality_measurement":true,"source_registration":false,"canonical_registration":false,"municipality_assignment":false,"road_to_cell_mapping":false,"runtime_directory_scan":false,"runtime_mount":false,"rendered_geometry":false,"collision":false,"safe_spawn":false,"jouable_promotion":false}
+}

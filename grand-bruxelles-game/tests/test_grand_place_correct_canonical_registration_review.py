@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "tools/qa/review_grand_place_correct_canonical_registration.py"
 CONTRACT = Path("data/qa/grand_place_correct_canonical_registration_review.contract.json")
+LOCK = Path("data/provenance/grand_place_correct_canonical_registration.review.json")
 BASE = "3e49d0b5933b5c6588d164a8bfec997860c9c117"
 TARGET = "bxl-e148500-n170500-s500"
 
@@ -56,6 +57,19 @@ def main() -> None:
     assert result["runtime_mount_authorized"] is False
     assert result["jouable_promotion_authorized"] is False
 
+    # Once the review is accepted, its semantic result must be persisted exactly.
+    # This deliberately fails while the lock is absent, giving us a RED before persistence.
+    locked = json.loads((ROOT / LOCK).read_text())
+    assert locked["semantic_sha256"] == result["semantic_sha256"]
+    assert locked == result
+    assert locked["registration_authorized"] is False
+    assert locked["road_cell_mapping_authorized"] is False
+    assert locked["runtime_mount_authorized"] is False
+    assert locked["rendered_geometry_authorized"] is False
+    assert locked["collision_authorized"] is False
+    assert locked["safe_spawn_authorized"] is False
+    assert locked["jouable_promotion_authorized"] is False
+
     root = clone_minimal()
     try:
         raw = root / "data/urbis/remaining_brussels/cells" / TARGET / "raw/buildings.geojson"
@@ -95,7 +109,7 @@ def main() -> None:
     finally:
         shutil.rmtree(root)
 
-    print("GRAND_PLACE_CORRECT_CANONICAL_REVIEW_REGRESSIONS_OK cases=5 fail_closed=true")
+    print("GRAND_PLACE_CORRECT_CANONICAL_REVIEW_REGRESSIONS_OK cases=6 lock_exact=true fail_closed=true")
 
 
 if __name__ == "__main__":

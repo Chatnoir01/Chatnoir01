@@ -1,0 +1,28 @@
+{
+  "schema": "grand-bruxelles-shared-environment-lifecycle-contract-v1",
+  "runtime_policy": "dormant_event_driven_nested_mount_safe",
+  "legitimate_absence_is_failure": false,
+  "geometry_or_material_change_authorized": false,
+  "scope": "shared_environment_runtime_lifecycle_only",
+  "notes": [
+    "This registry contains only shared Environment runtimes already migrated to event-driven wakeup on production main.",
+    "Exact-location Grand-Place/Bourse runtimes and NPC/gameplay systems are intentionally excluded.",
+    "AnneessensOsmFurnitureRuntime is intentionally excluded until its separate nested-mount lifecycle defect is resolved and proven."
+  ],
+  "runtimes": [
+    {"path": "game/scripts/midi_blue_stone_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"path": "game/scripts/midi_architectural_concrete_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"path": "game/scripts/midi_architectural_glazing_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"path": "game/scripts/midi_fauquenberg_brick_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"path": "game/scripts/anneessens_midi_sidewalk_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"path": "game/scripts/ixelles_midi_sidewalk_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"path": "game/scripts/brussels_osm_road_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"path": "game/scripts/brussels_osm_sidewalk_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"path": "game/scripts/brussels_osm_facade_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"path": "game/scripts/brussels_osm_facade_articulation_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"path": "game/scripts/brussels_osm_rail_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"path": "game/scripts/brussels_bollard_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"path": "game/scripts/brussels_street_lamp_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"path": "game/scripts/brussels_corridor_tree_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false}
+  ]
+}

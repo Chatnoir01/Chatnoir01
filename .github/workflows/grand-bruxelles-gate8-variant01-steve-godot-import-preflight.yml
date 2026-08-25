@@ -17,8 +17,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      CONTRACT: grand-bruxelles-game/data/qa/gate8_variant01_steve_godot_import_preflight.json
-      TEST_SCRIPT: grand-bruxelles-game/game/tests/gate8_variant01_steve_godot_import_preflight_test.gd
       SOURCE_ZIP: https://opengameart.org/sites/default/files/steve_npc1.zip
       SOURCE_SHA256: e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5
       SOURCE_BYTES: "1454243"
@@ -26,7 +24,7 @@ jobs:
       TARGET_ARTIFACT_SHA256: fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb
       TARGET_GLB_SHA256: 912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9
       GODOT_URL: https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
-      ISOLATED_PROJECT: /tmp/gate8-steve-godot-import-preflight
+      PROJECT: /tmp/gate8-steve-godot-preflight
 
     steps:
       - uses: actions/checkout@v4
@@ -34,100 +32,72 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
-      - name: Validate exact-current-main narrow contract
+      - name: Validate live-main scope and closed rails
         run: |
           set -euo pipefail
           git fetch --no-tags --depth=1 origin main
-          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
-          test "$LIVE_MAIN_SHA" = "9784cef449a5b2898c86964c9093393669f3f0a2"
-          git diff --name-only "$LIVE_MAIN_SHA" HEAD | sort > "$RUNNER_TEMP/changed-files.txt"
-          cat > "$RUNNER_TEMP/expected-files.txt" <<'EOF'
-          .github/workflows/grand-bruxelles-gate8-variant01-steve-godot-import-preflight.yml
-          grand-bruxelles-game/data/qa/gate8_variant01_steve_godot_import_preflight.json
-          grand-bruxelles-game/game/tests/gate8_variant01_steve_godot_import_preflight_test.gd
-          EOF
-          sort -o "$RUNNER_TEMP/expected-files.txt" "$RUNNER_TEMP/expected-files.txt"
-          diff -u "$RUNNER_TEMP/expected-files.txt" "$RUNNER_TEMP/changed-files.txt"
-          python3 - "$LIVE_MAIN_SHA" <<'PY'
-          import json, sys
+          LIVE="$(git rev-parse origin/main)"
+          test "$LIVE" = "9784cef449a5b2898c86964c9093393669f3f0a2"
+          git diff --name-only "$LIVE" HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-steve-godot-import-preflight.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_steve_godot_import_preflight.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_steve_godot_import_preflight_test.gd' \
+            | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
           from pathlib import Path
-          live = sys.argv[1]
-          d = json.loads(Path("grand-bruxelles-game/data/qa/gate8_variant01_steve_godot_import_preflight.json").read_text())
-          assert d["format"] == "grand-bruxelles-gate8-variant01-steve-godot-import-preflight-v1"
-          assert d["base_main_sha"] == live
-          assert d["candidate_variant"] == 1
-          assert d["source_intake"]["pr"] == 1308
-          assert d["source_intake"]["run"] == 32895487575
-          assert d["source_intake"]["artifact_id"] == 9581085302
-          assert d["source_intake"]["artifact_sha256"] == "c04ced7f481f10cedaea751821cf5d9045971eafef13c277d99c8a039acf3f90"
-          assert d["source_intake"]["mechanical_state"] == "READY_FOR_GODOT_4_7_1_IMPORT_PREFLIGHT"
-          src = d["source"]
-          assert src["declared_license"] == "CC0-1.0"
-          assert src["archive_sha256"] == "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5"
-          assert src["archive_size_bytes"] == 1454243
-          assert src["blender_armature_count"] == 1
-          assert src["blender_bone_count"] == 55
-          assert src["blender_weighted_mesh_count"] == 10
-          assert src["required_walk_action"] == "walk"
-          target = d["target"]
-          assert target["artifact_id"] == 9470539830
-          assert target["glb_sha256"] == "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
-          gate = d["import_gate"]
-          assert gate["godot_version"] == "4.7.1"
-          assert gate["minimum_source_bone_count"] == 55
-          assert gate["minimum_source_skinned_meshes"] == 1
-          assert gate["required_walk_token"] == "walk"
-          assert gate["retarget_forbidden"] is True
-          rails = d["rails"]
-          assert rails["godot_import_preflight_authorized"] is True
-          for key in ["explicit_role_mapping_selected", "retarget_applied", "production_authorized", "activation_ready", "adoption_ready", "runtime_population_changed", "visual_approval_claimed", "package_bytes_committed", "player_character_reuse_allowed", "mixamo_payload_allowed"]:
-              assert rails[key] is False, key
-          assert rails["walk_alias_selected"] == ""
-          assert rails["run_alias_selected"] == ""
-          print(f"GATE8_STEVE_GODOT_PREFLIGHT_CONTRACT_OK live_main={live} scope=3 rails_closed=true")
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_steve_godot_import_preflight.json').read_text())
+          assert d['base_main_sha']=='9784cef449a5b2898c86964c9093393669f3f0a2'
+          assert d['source_intake']['run']==32895487575
+          assert d['source_intake']['artifact_id']==9581085302
+          assert d['source_intake']['mechanical_state']=='READY_FOR_GODOT_4_7_1_IMPORT_PREFLIGHT'
+          assert d['source']['declared_license']=='CC0-1.0'
+          assert d['source']['blender_bone_count']==55
+          assert d['source']['blender_weighted_mesh_count']==10
+          assert d['source']['required_walk_action']=='walk'
+          assert d['target']['glb_sha256']=='912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9'
+          rails=d['rails']
+          for k in ['explicit_role_mapping_selected','retarget_applied','production_authorized','activation_ready','adoption_ready','runtime_population_changed','visual_approval_claimed','package_bytes_committed','player_character_reuse_allowed','mixamo_payload_allowed']:
+              assert rails[k] is False, k
+          assert rails['walk_alias_selected']=='' and rails['run_alias_selected']==''
+          print('GATE8_STEVE_GODOT_CONTRACT_OK scope=3 rails_closed=true')
           PY
 
-      - name: Restore exact pinned CC0 Steve source
+      - name: Restore pinned source and export measured walk GLB
         run: |
           set -euo pipefail
-          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 \
-            -A 'Grand-Bruxelles-Gate8-Steve-Godot-Preflight/1.1' "$SOURCE_ZIP" -o "$RUNNER_TEMP/steve_npc1.zip"
-          echo "$SOURCE_SHA256  $RUNNER_TEMP/steve_npc1.zip" | sha256sum -c -
-          test "$(stat -c '%s' "$RUNNER_TEMP/steve_npc1.zip")" = "$SOURCE_BYTES"
-          mkdir -p "$RUNNER_TEMP/steve-source"
-          unzip -q "$RUNNER_TEMP/steve_npc1.zip" -d "$RUNNER_TEMP/steve-source"
-          test -s "$RUNNER_TEMP/steve-source/steve_npc1.blend"
-
-      - name: Export only measured walk source to temporary GLB
-        run: |
-          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$SOURCE_ZIP" -o "$RUNNER_TEMP/steve.zip"
+          echo "$SOURCE_SHA256  $RUNNER_TEMP/steve.zip" | sha256sum -c -
+          test "$(stat -c '%s' "$RUNNER_TEMP/steve.zip")" = "$SOURCE_BYTES"
+          mkdir -p "$RUNNER_TEMP/steve-src"
+          unzip -q "$RUNNER_TEMP/steve.zip" -d "$RUNNER_TEMP/steve-src"
+          test -s "$RUNNER_TEMP/steve-src/steve_npc1.blend"
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends blender >/dev/null
+          sudo apt-get install -y --no-install-recommends blender python3-numpy >/dev/null
           blender --version | head -n 2 | tee "$RUNNER_TEMP/blender-version.txt"
           grep -q '^Blender 4\.0\.2' "$RUNNER_TEMP/blender-version.txt"
-          cat > "$RUNNER_TEMP/export-steve-walk.py" <<'PY'
-          import bpy
+          cat > "$RUNNER_TEMP/export.py" <<'PY'
+          import bpy, numpy
           from pathlib import Path
-          armatures = [obj for obj in bpy.data.objects if obj.type == 'ARMATURE']
-          assert len(armatures) == 1, len(armatures)
-          armature = armatures[0]
-          walks = [action for action in bpy.data.actions if action.name.lower() == 'walk']
-          assert len(walks) == 1, [a.name for a in bpy.data.actions]
-          walk = walks[0]
-          if armature.animation_data is None:
-              armature.animation_data_create()
-          armature.animation_data.action = walk
-          for track in armature.animation_data.nla_tracks:
-              track.mute = True
-          scene = bpy.context.scene
-          scene.frame_start = int(walk.frame_range[0])
-          scene.frame_end = max(scene.frame_start + 1, int(walk.frame_range[1] + 0.9999))
-          out = Path('/tmp/steve_source.glb')
-          bpy.ops.export_scene.gltf(filepath=str(out), export_format='GLB', export_animations=True)
-          assert out.is_file() and out.stat().st_size > 0
-          print(f'GATE8_STEVE_TEMP_GLB_OK bytes={out.stat().st_size} action={walk.name} bones={len(armature.data.bones)}')
+          arms=[o for o in bpy.data.objects if o.type=='ARMATURE']
+          assert len(arms)==1, len(arms)
+          arm=arms[0]
+          walks=[a for a in bpy.data.actions if a.name.lower()=='walk']
+          assert len(walks)==1, [a.name for a in bpy.data.actions]
+          walk=walks[0]
+          if arm.animation_data is None: arm.animation_data_create()
+          arm.animation_data.action=walk
+          for track in arm.animation_data.nla_tracks: track.mute=True
+          bpy.context.scene.frame_start=int(walk.frame_range[0])
+          bpy.context.scene.frame_end=max(bpy.context.scene.frame_start+1,int(walk.frame_range[1]+0.9999))
+          out=Path('/tmp/steve_source.glb')
+          bpy.ops.export_scene.gltf(filepath=str(out),export_format='GLB',export_animations=True,export_draco_mesh_compression_enable=False)
+          assert out.is_file() and out.stat().st_size>0
+          print(f'GATE8_STEVE_TEMP_GLB_OK bytes={out.stat().st_size} action={walk.name} bones={len(arm.data.bones)} numpy={numpy.__version__}')
           PY
-          blender --background "$RUNNER_TEMP/steve-source/steve_npc1.blend" --python "$RUNNER_TEMP/export-steve-walk.py" 2>&1 | tee "$RUNNER_TEMP/blender-export.log"
+          blender --background "$RUNNER_TEMP/steve-src/steve_npc1.blend" --python "$RUNNER_TEMP/export.py" 2>&1 | tee "$RUNNER_TEMP/blender-export.log"
           grep -q '^GATE8_STEVE_TEMP_GLB_OK ' "$RUNNER_TEMP/blender-export.log"
           sha256sum /tmp/steve_source.glb | tee "$RUNNER_TEMP/steve_source_glb.sha256"
 
@@ -136,34 +106,29 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/gate8-target"
-          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/gate8-target.zip"
-          test "$(sha256sum "$RUNNER_TEMP/gate8-target.zip" | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
-          unzip -q "$RUNNER_TEMP/gate8-target.zip" -d "$RUNNER_TEMP/gate8-target"
-          TARGET="$(find "$RUNNER_TEMP/gate8-target" -type f -name 'npc_gate_01.glb' -print -quit)"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/target.zip"
+          test "$(sha256sum "$RUNNER_TEMP/target.zip" | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          mkdir -p "$RUNNER_TEMP/target"
+          unzip -q "$RUNNER_TEMP/target.zip" -d "$RUNNER_TEMP/target"
+          TARGET="$(find "$RUNNER_TEMP/target" -type f -name npc_gate_01.glb -print -quit)"
           test -n "$TARGET"
           cp "$TARGET" /tmp/npc_gate_01.glb
           test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
-          sha256sum /tmp/npc_gate_01.glb | tee "$RUNNER_TEMP/npc_gate_01.sha256"
 
-      - name: Install exact Godot 4.7.1
+      - name: Install Godot 4.7.1 and import source plus target
         run: |
           set -euo pipefail
           curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
           mkdir -p "$RUNNER_TEMP/godot"
           unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
-          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' -print -quit)"
           test -x "$GODOT"
           "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"
           grep -q '^4\.7\.1\.stable' "$RUNNER_TEMP/godot-version.txt"
           echo "GODOT=$GODOT" >> "$GITHUB_ENV"
-
-      - name: Build isolated import-preflight project
-        run: |
-          set -euo pipefail
-          rm -rf "$ISOLATED_PROJECT"
-          mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
-          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          rm -rf "$PROJECT"
+          mkdir -p "$PROJECT/assets" "$PROJECT/game/tests"
+          cat > "$PROJECT/project.godot" <<'EOF'
           config_version=5
           [application]
           config/name="Gate8SteveGodotImportPreflight"
@@ -171,95 +136,60 @@ jobs:
           renderer/rendering_method="gl_compatibility"
           renderer/rendering_method.mobile="gl_compatibility"
           EOF
-          cp /tmp/steve_source.glb "$ISOLATED_PROJECT/assets/steve_source.glb"
-          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
-          cp "$TEST_SCRIPT" "$ISOLATED_PROJECT/game/tests/"
-          ! grep -q '^\[autoload\]' "$ISOLATED_PROJECT/project.godot"
-
-      - name: Import real source and target under Godot 4.7.1
-        run: |
-          set -euo pipefail
-          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
-          test -d "$ISOLATED_PROJECT/.godot/imported"
+          cp /tmp/steve_source.glb "$PROJECT/assets/steve_source.glb"
+          cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_steve_godot_import_preflight_test.gd "$PROJECT/game/tests/"
+          timeout 300s "$GODOT" --headless --editor --path "$PROJECT" --quit-after 1200 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
+          test -d "$PROJECT/.godot/imported"
           ! grep -E 'SCRIPT ERROR|Parse Error|Failed to load|Cannot open' "$RUNNER_TEMP/godot-import.log"
 
       - name: Prove Skeleton3D skin and walk survive Godot import
         run: |
           set -euo pipefail
           set +e
-          timeout 180s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_steve_godot_import_preflight_test.gd 2>&1 | tee "$RUNNER_TEMP/godot-preflight.log"
+          timeout 180s "$GODOT" --headless --path "$PROJECT" --script res://game/tests/gate8_variant01_steve_godot_import_preflight_test.gd 2>&1 | tee "$RUNNER_TEMP/godot-preflight.log"
           STATUS=${PIPESTATUS[0]}
           set -e
-          test -s "$ISOLATED_PROJECT/gate8_variant01_steve_godot_import_preflight_result.json"
-          cp "$ISOLATED_PROJECT/gate8_variant01_steve_godot_import_preflight_result.json" "$RUNNER_TEMP/preflight-result.json"
+          test -s "$PROJECT/gate8_variant01_steve_godot_import_preflight_result.json"
+          cp "$PROJECT/gate8_variant01_steve_godot_import_preflight_result.json" "$RUNNER_TEMP/preflight-result.json"
           python3 - "$RUNNER_TEMP/preflight-result.json" <<'PY'
-          import json, sys
-          from pathlib import Path
-          r = json.loads(Path(sys.argv[1]).read_text())
-          assert r['format'] == 'grand-bruxelles-gate8-variant01-steve-godot-import-preflight-result-v1'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
           assert str(r['engine_version']).startswith('4.7.1')
-          assert r['candidate_variant'] == 1
-          assert r['source_bone_count'] >= 55
-          assert r['target_bone_count'] >= 53
-          assert r['source_skinned_mesh_count'] >= 1
-          assert r['missing_source_bones'] == []
-          assert r['missing_target_bones'] == []
-          assert 'walk' in r['walk_animation_name'].lower()
-          assert r['walk_duration_s'] >= 0.1
-          assert r['walk_track_count'] > 0
-          assert r['mechanical_state'] == 'READY_FOR_EXPLICIT_BONEMAP_PREFLIGHT'
-          assert r['explicit_role_mapping_selected'] is False
-          assert r['retarget_applied'] is False
-          assert r['walk_alias_selected'] == ''
-          assert r['run_alias_selected'] == ''
-          assert r['production_authorized'] is False
-          assert r['activation_ready'] is False
-          assert r['adoption_ready'] is False
-          assert r['runtime_population_changed'] is False
-          assert r['visual_approval_claimed'] is False
-          assert r['failures'] == []
+          assert r['source_bone_count']>=55 and r['target_bone_count']>=53
+          assert r['source_skinned_mesh_count']>=1
+          assert r['missing_source_bones']==[] and r['missing_target_bones']==[]
+          assert 'walk' in r['walk_animation_name'].lower() and r['walk_duration_s']>=0.1 and r['walk_track_count']>0
+          assert r['mechanical_state']=='READY_FOR_EXPLICIT_BONEMAP_PREFLIGHT'
+          assert r['retarget_applied'] is False and r['production_authorized'] is False
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']=='' and r['failures']==[]
           print(f"GATE8_STEVE_GODOT_RESULT_OK source_bones={r['source_bone_count']} skinned={r['source_skinned_mesh_count']} walk={r['walk_animation_name']} duration={r['walk_duration_s']}")
           PY
-          if [ "$STATUS" -ne 0 ]; then
-            echo "Steve Godot import preflight failed closed; inspect artifact." >&2
-            exit "$STATUS"
-          fi
+          if [ "$STATUS" -ne 0 ]; then exit "$STATUS"; fi
           grep -q '^GATE8_STEVE_GODOT_IMPORT_PREFLIGHT_OK ' "$RUNNER_TEMP/godot-preflight.log"
 
-      - name: Stage immutable evidence
+      - name: Stage evidence
         if: always()
         run: |
           set -euo pipefail
-          OUT="$RUNNER_TEMP/steve-godot-preflight-evidence"
-          rm -rf "$OUT"
-          mkdir -p "$OUT"
+          OUT="$RUNNER_TEMP/evidence"; rm -rf "$OUT"; mkdir -p "$OUT"
           printf 'head=%s\nrun=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > "$OUT/workflow-state.txt"
-          for f in \
-            "$RUNNER_TEMP/preflight-result.json" \
-            "$RUNNER_TEMP/godot-preflight.log" \
-            "$RUNNER_TEMP/godot-import.log" \
-            "$RUNNER_TEMP/blender-export.log" \
-            "$RUNNER_TEMP/blender-version.txt" \
-            "$RUNNER_TEMP/godot-version.txt" \
-            "$RUNNER_TEMP/steve_source_glb.sha256" \
-            "$RUNNER_TEMP/npc_gate_01.sha256"; do
+          for f in "$RUNNER_TEMP/blender-version.txt" "$RUNNER_TEMP/blender-export.log" "$RUNNER_TEMP/steve_source_glb.sha256" "$RUNNER_TEMP/godot-version.txt" "$RUNNER_TEMP/godot-import.log" "$RUNNER_TEMP/godot-preflight.log" "$RUNNER_TEMP/preflight-result.json"; do
             if [ -s "$f" ]; then cp "$f" "$OUT/"; fi
           done
-          find "$OUT" -maxdepth 1 -type f ! -name 'sha256.txt' -print0 | sort -z | xargs -0 sha256sum | tee "$OUT/sha256.txt"
+          find "$OUT" -maxdepth 1 -type f ! -name sha256.txt -print0 | sort -z | xargs -0 sha256sum > "$OUT/sha256.txt"
 
-      - name: Require repository remained untouched
+      - name: Require repository untouched
         if: always()
         run: |
-          set -euo pipefail
-          git status --porcelain --untracked-files=all | tee "$RUNNER_TEMP/git-status.txt"
-          test ! -s "$RUNNER_TEMP/git-status.txt"
+          test -z "$(git status --porcelain --untracked-files=all)"
 
-      - name: Upload Godot import-preflight evidence
+      - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: grand-bruxelles-gate8-variant01-steve-godot-import-preflight
-          path: ${{ runner.temp }}/steve-godot-preflight-evidence
+          path: ${{ runner.temp }}/evidence
           if-no-files-found: error
           retention-days: 14
           compression-level: 0

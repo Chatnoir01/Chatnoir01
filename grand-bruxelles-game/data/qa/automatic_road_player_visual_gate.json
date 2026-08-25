@@ -1,0 +1,37 @@
+{
+  "schema": "grand-bruxelles-automatic-road-player-visual-gate-v1",
+  "evidence": {
+    "production_base_sha": "7c0df3c930b47d7eadada57680ff62b30d7b35ec",
+    "evidence_head_sha": "eb3a7e4a83f6d982fd8085ad0db90b28e440a2d2",
+    "workflow_run_id": 32795145150,
+    "artifact_id": 9544576806,
+    "artifact_sha256": "97a1a8b7fd6f14223d9bedc3751efb893c74ca1b55a55721ca0514c164bdb9f0",
+    "png_sha256": "fcf9ccb1cfb61ec18e869772906aa22e59de7c0e5a3b551cb5c237b0327aa67a",
+    "runtime_metadata_sha256": "6a1a5b26646b04573cf2c37e7d92d18d6e5e3f0674a1e7c8bbcf54451bc1df43",
+    "manifest_sha256": "79f2b9a19f4ffe0a309b98a01687563e04370574ab4b069a7fec80ad26490efe",
+    "resolution": [1280, 720],
+    "witness_road_osm_id": 408211693,
+    "witness_road_name": "Avenue Fonsny - Fonsnylaan",
+    "lemonnier_probe_osm_id": 359177328
+  },
+  "source_contract": {
+    "lookup_mode": "deterministic_runtime_index",
+    "source_path": "res://data/osm/vertical_slice_01.game.json",
+    "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "ground_collision_proven": true,
+    "source_sightline_clear": true
+  },
+  "human_review": {
+    "status": "reject",
+    "full_frame_inspected": true,
+    "road_identity_matches_frame": true,
+    "blocking_reasons": ["player_pose_t_pose"],
+    "notes": "The exact 1280x720 source-backed Fonsny frame shows the player with both arms held horizontally in a visible T-pose. The destination witness is therefore not acceptable as a player-facing quality proof even though road identity, source provenance, ground collision and sightline checks are valid. Character/NPC runtime ownership is not modified by this QA gate."
+  },
+  "authorization": {
+    "qa_witness_accepted": false,
+    "playability_claimed": false,
+    "destination_advertisable": false,
+    "jouable_authorized": false
+  }
+}

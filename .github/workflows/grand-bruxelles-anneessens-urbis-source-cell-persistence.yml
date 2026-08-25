@@ -117,10 +117,12 @@ jobs:
           REMOTE_HEAD="$(git ls-remote origin "refs/heads/$HEAD_BRANCH" | awk '{print $1}')"
           test "$REMOTE_HEAD" = "$EXPECTED_HEAD"
 
-          if [ ! -f "$CELL_DIR/manifest.json" ]; then
-            mkdir -p "$CELL_DIR"
-            cp -a "$RUNNER_TEMP/anneessens-source/source-cell/." "$CELL_DIR/"
-          fi
+          # The branch may contain a partial cell skeleton (for example only
+          # manifest/maturity). Never use one file as a completeness proxy:
+          # overwrite exactly the seven authorized paths from the immutable
+          # artifact, then hash every byte before staging.
+          mkdir -p "$CELL_DIR"
+          cp -a "$RUNNER_TEMP/anneessens-source/source-cell/." "$CELL_DIR/"
 
           python3 - <<'PY'
           import hashlib, json, os

@@ -1,0 +1,52 @@
+name: Grand Bruxelles Corridor Road Source Chain
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/data/qa/corridor_road_source_chain.contract.json"
+      - "grand-bruxelles-game/tools/qa/audit_corridor_road_source_chain.py"
+      - "grand-bruxelles-game/tests/test_corridor_road_source_chain.py"
+      - ".github/workflows/grand-bruxelles-corridor-road-source-chain.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit regressions
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests/test_corridor_road_source_chain.py
+      - name: Audit exact corridor source chain
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/qa/audit_corridor_road_source_chain.py \
+            --repo-root . \
+            --contract data/qa/corridor_road_source_chain.contract.json \
+            --output /tmp/corridor-road-source-chain-result.json
+      - name: Require locked source-only result
+        run: |
+          python3 - <<'PY'
+          import json
+          result = json.load(open('/tmp/corridor-road-source-chain-result.json', encoding='utf-8'))
+          assert result['schema'] == 'grand-bruxelles-corridor-road-source-chain-result-v2'
+          assert result['source_sha_locked'] is True
+          assert result['playability_claimed'] is False
+          assert len(result['representatives']) == 4
+          assert all(item['playable_authorized'] is False for item in result['representatives'])
+          assert all(item['source_points'] >= 2 for item in result['representatives'])
+          assert all(item['source_polyline_length'] > 0.0 for item in result['representatives'])
+          print('CORRIDOR_ROAD_SOURCE_CHAIN_RESULT_VERIFIED')
+          PY
+      - name: Upload deterministic source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: corridor-road-source-chain
+          path: /tmp/corridor-road-source-chain-result.json
+          if-no-files-found: error

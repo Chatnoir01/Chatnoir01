@@ -1,0 +1,237 @@
+name: Grand Bruxelles City Open Data Full Snapshot
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-city-open-data-full-snapshot.yml"
+      - "grand-bruxelles-game/data/qa/city_of_brussels_open_data_full_snapshot.contract.json"
+      - "grand-bruxelles-game/tools/citygen/snapshot_city_of_brussels_open_data.py"
+      - "grand-bruxelles-game/tools/citygen/test_snapshot_city_of_brussels_open_data.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SNAPSHOTTER: grand-bruxelles-game/tools/citygen/snapshot_city_of_brussels_open_data.py
+  TESTS: grand-bruxelles-game/tools/citygen/test_snapshot_city_of_brussels_open_data.py
+  CONTRACT: grand-bruxelles-game/data/qa/city_of_brussels_open_data_full_snapshot.contract.json
+  SHARD_COUNT: "8"
+
+jobs:
+  preflight-and-catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require current-main ancestry and source-only contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          head_sha="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$live_main" "$head_sha"
+          python3 - "$CONTRACT" <<'PY'
+          import json, sys
+          from pathlib import Path
+          contract=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          assert contract["schema"]=="grand-bruxelles-city-open-data-full-snapshot-contract-v1"
+          source=contract["source"]
+          assert source["authority"]=="City of Brussels / Ville de Bruxelles / Stad Brussel"
+          assert source["portal"]=="https://opendata.brussels.be"
+          assert source["api_base"]=="https://opendata.brussels.be/api/explore/v2.1"
+          execution=contract["execution"]
+          assert execution["catalog_fetched_once_per_run"] is True
+          assert execution["deterministic_shard_count"]==8
+          assert execution["per_export_sha256"] is True
+          assert execution["artifact_only"] is True
+          assert execution["repository_data_persistence"] is False
+          auth=contract["authorization"]
+          assert auth["source_acquisition"] is True
+          assert auth["source_snapshot_artifact"] is True
+          for key in ["source_registration","canonical_registration","runtime_directory_scan","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+              assert auth[key] is False, key
+          print("CITY_OPEN_DATA_SOURCE_ONLY_CONTRACT_OK")
+          PY
+          echo "CITY_OPEN_DATA_EXACT_MAIN_OK live_main=$live_main head=$head_sha"
+
+      - name: Run deterministic snapshotter regressions
+        run: python3 "$TESTS"
+
+      - name: Discover complete live catalogue once
+        run: |
+          set -euo pipefail
+          python3 "$SNAPSHOTTER" catalog --output "$RUNNER_TEMP/catalog.json" --retries 7
+          python3 - "$RUNNER_TEMP/catalog.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          rows=json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          ids=[row.get("dataset_id") for row in rows]
+          assert len(rows)>0
+          assert all(isinstance(x,str) and x for x in ids)
+          assert len(ids)==len(set(ids))
+          print(f"CITY_OPEN_DATA_CATALOG_DISCOVERED datasets={len(rows)}")
+          PY
+
+      - name: Upload immutable run catalogue
+        uses: actions/upload-artifact@v4
+        with:
+          name: city-open-data-catalog
+          path: |
+            ${{ runner.temp }}/catalog.json
+            ${{ runner.temp }}/catalog.json.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  snapshot-shards:
+    needs: preflight-and-catalog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Restore exact run catalogue
+        uses: actions/download-artifact@v4
+        with:
+          name: city-open-data-catalog
+          path: ${{ runner.temp }}/catalog
+
+      - name: Download complete JSON exports for this shard
+        id: snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          catalog="$RUNNER_TEMP/catalog/catalog.json"
+          echo "$(cut -d' ' -f1 "$RUNNER_TEMP/catalog/catalog.json.sha256")  $catalog" | sha256sum -c -
+          python3 "$SNAPSHOTTER" download-shard \
+            --catalog "$catalog" \
+            --output "$RUNNER_TEMP/city-open-data-shard-${{ matrix.shard }}" \
+            --shard-index "${{ matrix.shard }}" \
+            --shard-count "$SHARD_COUNT" \
+            --retries 7 \
+            --delay 0.15
+
+      - name: Upload exact source snapshot shard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: city-open-data-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/city-open-data-shard-${{ matrix.shard }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
+
+  verify-full-snapshot:
+    needs: [preflight-and-catalog, snapshot-shards]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Restore catalogue
+        uses: actions/download-artifact@v4
+        with:
+          name: city-open-data-catalog
+          path: ${{ runner.temp }}/catalog
+
+      - name: Restore every shard artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: city-open-data-shard-*
+          path: ${{ runner.temp }}/shards
+          merge-multiple: false
+
+      - name: Verify exact partition, every SHA and zero failures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/catalog/catalog.json" "$RUNNER_TEMP/shards" "$RUNNER_TEMP/full_snapshot_manifest.json" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          catalog_path=Path(sys.argv[1])
+          shards_root=Path(sys.argv[2])
+          output=Path(sys.argv[3])
+          catalog=json.loads(catalog_path.read_text(encoding="utf-8"))
+          expected_ids={row["dataset_id"] for row in catalog}
+          manifests=sorted(shards_root.rglob("manifest.json"))
+          assert len(manifests)==8, [str(p) for p in manifests]
+          seen=set()
+          indices=set()
+          entries=[]
+          total_bytes=0
+          catalog_hash=hashlib.sha256(catalog_path.read_bytes()).hexdigest()
+          for path in manifests:
+              m=json.loads(path.read_text(encoding="utf-8"))
+              assert m["schema"]=="grand-bruxelles-city-open-data-snapshot-shard-v1"
+              assert m["catalog_sha256"]==catalog_hash
+              assert m["catalog_dataset_count"]==len(catalog)
+              assert m["shard_count"]==8
+              assert m["source_only"] is True
+              for key in ["runtime_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+                  assert m[key] is False, (path,key)
+              assert m["failures"]==[], (path,m["failures"])
+              indices.add(m["shard_index"])
+              root=path.parent
+              for entry in m["entries"]:
+                  dataset_id=entry["dataset_id"]
+                  assert dataset_id not in seen, dataset_id
+                  seen.add(dataset_id)
+                  if entry["status"]=="downloaded":
+                      data_path=root/entry["file"]
+                      assert data_path.is_file(), data_path
+                      raw=data_path.read_bytes()
+                      digest=hashlib.sha256(raw).hexdigest()
+                      assert digest==entry["sha256"], dataset_id
+                      assert len(raw)==entry["bytes"], dataset_id
+                      total_bytes += len(raw)
+                  else:
+                      assert entry["status"]=="metadata_only_no_records", entry
+                  entries.append(entry)
+          assert indices==set(range(8)), indices
+          assert seen==expected_ids, (len(seen),len(expected_ids), sorted(expected_ids-seen)[:10],sorted(seen-expected_ids)[:10])
+          combined={
+              "schema":"grand-bruxelles-city-open-data-full-snapshot-index-v1",
+              "source":"City of Brussels Open Data",
+              "api_base":"https://opendata.brussels.be/api/explore/v2.1",
+              "catalog_sha256":catalog_hash,
+              "catalog_dataset_count":len(catalog),
+              "dataset_entries_verified":len(entries),
+              "downloaded_bytes_verified":total_bytes,
+              "shards_verified":8,
+              "failures":[],
+              "source_only":True,
+              "runtime_authorized":False,
+              "collision_authorized":False,
+              "safe_spawn_authorized":False,
+              "jouable_promotion_authorized":False,
+              "datasets":sorted(entries,key=lambda e:e["dataset_id"]),
+          }
+          output.write_text(json.dumps(combined,ensure_ascii=False,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+          print(f"CITY_OPEN_DATA_FULL_SNAPSHOT_OK datasets={len(entries)} shards=8 bytes={total_bytes} failures=0")
+          PY
+          sha256sum "$RUNNER_TEMP/full_snapshot_manifest.json" > "$RUNNER_TEMP/full_snapshot_manifest.json.sha256"
+
+      - name: Upload verified full-snapshot index
+        uses: actions/upload-artifact@v4
+        with:
+          name: city-open-data-full-snapshot-index
+          path: |
+            ${{ runner.temp }}/full_snapshot_manifest.json
+            ${{ runner.temp }}/full_snapshot_manifest.json.sha256
+            ${{ runner.temp }}/catalog/catalog.json
+            ${{ runner.temp }}/catalog/catalog.json.sha256
+          if-no-files-found: error
+          retention-days: 30

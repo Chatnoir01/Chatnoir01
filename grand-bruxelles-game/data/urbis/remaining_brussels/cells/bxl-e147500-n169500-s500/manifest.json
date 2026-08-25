@@ -1,0 +1,19 @@
+{
+  "schema": "grand-bruxelles-urbis-source-cell-v1",
+  "cell_id": "bxl-e147500-n169500-s500",
+  "crs": "EPSG:31370",
+  "bbox": [147500.0, 169500.0, 148000.0, 170000.0],
+  "source": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "license": "CC0-1.0"
+  },
+  "promotion": "source_only_no_runtime_mutation",
+  "files": {
+    "raw/buildings.geojson": {"sha256": "46057508dfcb5661c078c392f2d1f91faed64f1adf1812d5c3b21f6ade4e1a1e", "bytes": 228055},
+    "raw/street_axes.geojson": {"sha256": "80419465dc5ea236666725cc604504ad3a747a3aa36e736c69a9889053f1f366", "bytes": 72493},
+    "raw/street_surfaces.geojson": {"sha256": "ca9d71bc7057ba58c01c9bf385090022eeef1cc2769971830062906ed818a949", "bytes": 461511},
+    "raw/train_network.geojson": {"sha256": "8fe5ff5dcd4a4f06864850bcfb71a0e42efd4a08efbf530565aef90bf4a7bfcc", "bytes": 278523},
+    "raw/tram_network.geojson": {"sha256": "24c3a9608e69d4ce2d3d1fae706a0980fef581f44189e5155bc621a10a79dd96", "bytes": 278522}
+  }
+}

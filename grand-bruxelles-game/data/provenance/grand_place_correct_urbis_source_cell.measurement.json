@@ -1,0 +1,79 @@
+{
+  "bbox": [
+    148500.0,
+    170500.0,
+    149000.0,
+    171000.0
+  ],
+  "cell_id": "bxl-e148500-n170500-s500",
+  "collision_authorized": false,
+  "crs": "EPSG:31370",
+  "jouable_promotion_authorized": false,
+  "layers": {
+    "buildings": {
+      "features": 1110,
+      "file": "raw/buildings.geojson",
+      "invalid_ownership_features": 0,
+      "ownership": "canonical_centroid_global_500m_cell",
+      "ownership_filtered": 70,
+      "raw_bytes": 735411,
+      "raw_forensic_sha256": "7f5eb3bbd13efeac22125e0561282ee84dcc9fe570ebebfcad7aadd117295562",
+      "semantic_features_sha256": "aa39edb2c9232f50b2c136a2e610b5ef01bc8375dc74ec2e540dd3d368d0c065",
+      "wfs_name": "urbisvector:Buildings"
+    },
+    "street_axes": {
+      "features": 180,
+      "file": "raw/street_axes.geojson",
+      "invalid_ownership_features": 0,
+      "ownership": "bbox_intersection_source_unclipped",
+      "ownership_filtered": 0,
+      "raw_bytes": 114640,
+      "raw_forensic_sha256": "208c964b435fc85d3f15e2f6bd7e2c50fbeb8523a39eb617310a23a16c212b75",
+      "semantic_features_sha256": "41bf53c9e30191821f06308cf15e5e64f858bc72a6d38d2161695fed00b95067",
+      "wfs_name": "urbisvector:StreetAxes"
+    },
+    "street_surfaces": {
+      "features": 598,
+      "file": "raw/street_surfaces.geojson",
+      "invalid_ownership_features": 0,
+      "ownership": "bbox_intersection_source_unclipped",
+      "ownership_filtered": 0,
+      "raw_bytes": 692006,
+      "raw_forensic_sha256": "98e91c999d4e7a0f7e453bb71acc4c0ac297e7cf6aad37489e1b3ba721e4a623",
+      "semantic_features_sha256": "89d9df04e51381434fb2938905b4310de0ab1af2d16b1a2436436a0bd0e3c522",
+      "wfs_name": "urbisvector:StreetSurfaces"
+    },
+    "train_network": {
+      "features": 12,
+      "file": "raw/train_network.geojson",
+      "invalid_ownership_features": 0,
+      "ownership": "bbox_intersection_source_unclipped",
+      "ownership_filtered": 0,
+      "raw_bytes": 75500,
+      "raw_forensic_sha256": "99bd4a8cd1cfdf56b082aea8be412cc63386f5b168224d5254d993e4f8978c00",
+      "semantic_features_sha256": "27862348b8f28a9b58f1d8fbbdf7c0bb67687c4ee160b4da74e802f1e11e8072",
+      "wfs_name": "urbisvector:TrainNetwork"
+    },
+    "tram_network": {
+      "features": 12,
+      "file": "raw/tram_network.geojson",
+      "invalid_ownership_features": 0,
+      "ownership": "bbox_intersection_source_unclipped",
+      "ownership_filtered": 0,
+      "raw_bytes": 75511,
+      "raw_forensic_sha256": "d9530b0579ba9b2f05bc107d1f2fc6305596a624aaa82f6bc39affd863cc56a2",
+      "semantic_features_sha256": "27862348b8f28a9b58f1d8fbbdf7c0bb67687c4ee160b4da74e802f1e11e8072",
+      "wfs_name": "urbisvector:TramNetwork"
+    }
+  },
+  "manifest_sha256": "f464b35581b9231582daafbd28c07f1b15e3aeae2d7b683385b7073b6b73658f",
+  "manifest_source_digest": "0645d03062f79ec08d2ba87714754633fc48f1a5eadf3a35e0df2ae4244d4302",
+  "maturity_sha256": "e5f3eaddc2fba5a5d359f3e47f5819ae3efd7994174ee7c452104d7ea01d95e1",
+  "maturity_state": "data_ready",
+  "registration_authorized": false,
+  "rendered_geometry_authorized": false,
+  "runtime_mount_authorized": false,
+  "safe_spawn_authorized": false,
+  "schema": "grand-bruxelles-urbis-source-cell-semantic-measurement-v1",
+  "source_semantic_sha256": "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3"
+}

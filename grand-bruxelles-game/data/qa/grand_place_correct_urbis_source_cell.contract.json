@@ -1,0 +1,68 @@
+{
+  "schema": "grand-bruxelles-urbis-source-cell-acquisition-contract-v1",
+  "production_base_sha": "97384397c438f79311ac782b896d4ce0ae467ad3",
+  "target": {
+    "cell_id": "bxl-e148500-n170500-s500",
+    "crs": "EPSG:31370",
+    "bbox": [148500.0, 170500.0, 149000.0, 171000.0]
+  },
+  "source": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "dataset_family": "UrbIS vector base-city layers",
+    "license": "CC0-1.0",
+    "retrieval_model": "first_measurement_live_wfs_then_artifact_only_reproduction",
+    "revision_note": "The live WFS exposes no stable historical release identifier for this source-cell contract; no revision is invented. The accepted first measurement is content-addressed by artifact + complete semantic/raw hashes, and subsequent reproduction must restore those exact artifact bytes rather than re-query mutable WFS."
+  },
+  "identity_dependency": {
+    "review_path": "data/provenance/grand_place_spatial_identity.review.json",
+    "required_status": "SPATIAL_IDENTITY_MISMATCH_HOLD",
+    "official_anchor_epsg31370": [148852.74417614136, 170704.8857889818],
+    "historical_cell_id": "bxl-e148000-n170000-s500",
+    "historical_cell_treat_as_grand_place": false
+  },
+  "layers": [
+    {"logical_name":"buildings","wfs_name":"urbisvector:Buildings","file":"raw/buildings.geojson","ownership":"canonical_centroid_global_500m_cell"},
+    {"logical_name":"street_surfaces","wfs_name":"urbisvector:StreetSurfaces","file":"raw/street_surfaces.geojson","ownership":"bbox_intersection_source_unclipped"},
+    {"logical_name":"street_axes","wfs_name":"urbisvector:StreetAxes","file":"raw/street_axes.geojson","ownership":"bbox_intersection_source_unclipped"},
+    {"logical_name":"tram_network","wfs_name":"urbisvector:TramNetwork","file":"raw/tram_network.geojson","ownership":"bbox_intersection_source_unclipped"},
+    {"logical_name":"train_network","wfs_name":"urbisvector:TrainNetwork","file":"raw/train_network.geojson","ownership":"bbox_intersection_source_unclipped"}
+  ],
+  "expected": {
+    "manifest_source_digest": "0645d03062f79ec08d2ba87714754633fc48f1a5eadf3a35e0df2ae4244d4302",
+    "manifest_sha256": "f464b35581b9231582daafbd28c07f1b15e3aeae2d7b683385b7073b6b73658f",
+    "maturity_sha256": "e5f3eaddc2fba5a5d359f3e47f5819ae3efd7994174ee7c452104d7ea01d95e1",
+    "source_semantic_sha256": "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3",
+    "layers": {
+      "buildings": {"features":1110,"invalid_ownership_features":0,"ownership_filtered":70,"raw_bytes":735411,"raw_forensic_sha256":"7f5eb3bbd13efeac22125e0561282ee84dcc9fe570ebebfcad7aadd117295562","semantic_features_sha256":"aa39edb2c9232f50b2c136a2e610b5ef01bc8375dc74ec2e540dd3d368d0c065"},
+      "street_axes": {"features":180,"invalid_ownership_features":0,"ownership_filtered":0,"raw_bytes":114640,"raw_forensic_sha256":"208c964b435fc85d3f15e2f6bd7e2c50fbeb8523a39eb617310a23a16c212b75","semantic_features_sha256":"41bf53c9e30191821f06308cf15e5e64f858bc72a6d38d2161695fed00b95067"},
+      "street_surfaces": {"features":598,"invalid_ownership_features":0,"ownership_filtered":0,"raw_bytes":692006,"raw_forensic_sha256":"98e91c999d4e7a0f7e453bb71acc4c0ac297e7cf6aad37489e1b3ba721e4a623","semantic_features_sha256":"89d9df04e51381434fb2938905b4310de0ab1af2d16b1a2436436a0bd0e3c522"},
+      "train_network": {"features":12,"invalid_ownership_features":0,"ownership_filtered":0,"raw_bytes":75500,"raw_forensic_sha256":"99bd4a8cd1cfdf56b082aea8be412cc63386f5b168224d5254d993e4f8978c00","semantic_features_sha256":"27862348b8f28a9b58f1d8fbbdf7c0bb67687c4ee160b4da74e802f1e11e8072"},
+      "tram_network": {"features":12,"invalid_ownership_features":0,"ownership_filtered":0,"raw_bytes":75511,"raw_forensic_sha256":"d9530b0579ba9b2f05bc107d1f2fc6305596a624aaa82f6bc39affd863cc56a2","semantic_features_sha256":"27862348b8f28a9b58f1d8fbbdf7c0bb67687c4ee160b4da74e802f1e11e8072"}
+    }
+  },
+  "first_measurement_evidence": {
+    "workflow_run_id": 32880241102,
+    "artifact_id": 9575593756,
+    "artifact_sha256": "ae9972e22697573214f510deaabd9f63b13477386032733b55de6b21a228c6d7",
+    "artifact_size_bytes": 387697,
+    "measurement_sha256": "cb58ecfdb4f912b6dae253e136544e3e1361fea876856192fcf79b55a57bb542",
+    "measurement_size_bytes": 3311,
+    "package_manifest_sha256": "27b65085ef6f8cb5f34658373aff4bf727cf0353dcf6a0a436a3ecc3b25b7047"
+  },
+  "expected_persisted_source_path": "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500",
+  "municipality_assignment_authorized": false,
+  "authorization": {
+    "source_acquisition": true,
+    "source_persistence": false,
+    "source_registration": false,
+    "canonical_registration": false,
+    "road_to_cell_mapping": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  },
+  "status": "SEMANTIC_MEASUREMENT_LOCKED_SOURCE_ONLY"
+}

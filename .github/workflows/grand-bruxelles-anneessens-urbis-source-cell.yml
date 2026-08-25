@@ -1,0 +1,163 @@
+name: Grand Bruxelles Anneessens UrbIS Source Cell
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-anneessens-urbis-source-cell.yml"
+      - "grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.contract.json"
+      - "grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/**"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/measure_urbis_source_cell_semantic_lock.py"
+      - "grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/test_measure_urbis_source_cell_semantic_lock.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.contract.json
+  CELL_ID: bxl-e147500-n169500-s500
+  CELL_BBOX: 147500,169500,148000,170000
+
+jobs:
+  measure-authoritative-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry, source contract and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          head_sha="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$live_main" "$head_sha"
+          python3 - "$live_main" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live = sys.argv[1]
+          contract = json.loads(Path("grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.contract.json").read_text(encoding="utf-8"))
+          assert contract["production_base_sha"] == live, (contract["production_base_sha"], live)
+          assert contract["schema"] == "grand-bruxelles-urbis-source-cell-acquisition-contract-v1"
+          assert contract["target"] == {
+              "cell_id": "bxl-e147500-n169500-s500",
+              "crs": "EPSG:31370",
+              "bbox": [147500.0, 169500.0, 148000.0, 170000.0],
+          }
+          source = contract["source"]
+          assert source["authority"] == "Paradigm / Brussels-Capital Region"
+          assert source["service"] == "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
+          assert source["license"] == "CC0-1.0"
+          assert source["retrieval_model"] == "live_authoritative_wfs_content_addressed"
+          assert contract["municipality_assignment_authorized"] is False
+          auth = contract["authorization"]
+          assert auth["source_acquisition"] is True
+          for key in ["source_persistence","source_registration","canonical_registration","road_to_cell_mapping","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+              assert auth[key] is False, key
+          assert contract["status"] == "MEASUREMENT_PENDING_RED_FIRST"
+          print(f"ANNEESSENS_SOURCE_CELL_CONTRACT_OK live_main={live} rails_closed=true")
+          PY
+          if git cat-file -e "origin/main:grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL_ID}/manifest.json" 2>/dev/null; then
+            echo "RED: Anneessens source cell already exists on live main; ownership changed" >&2
+            exit 1
+          fi
+
+      - name: Run generic source materializer regressions
+        run: python3 grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py
+
+      - name: Run generic source semantic-lock regressions
+        run: python3 grand-bruxelles-game/tools/citygen/test_measure_urbis_source_cell_semantic_lock.py
+
+      - name: Acquire official UrbIS source cell in EPSG:31370
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/$CELL_ID"
+          rm -rf "$out"
+          python3 grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py \
+            --cell-id "$CELL_ID" \
+            --bbox "$CELL_BBOX" \
+            --output-dir "$out" \
+            --retries 6
+          test -f "$out/manifest.json"
+          test -f "$out/maturity.json"
+          test -f "$out/raw/buildings.geojson"
+          test -f "$out/raw/street_surfaces.geojson"
+          test -f "$out/raw/street_axes.geojson"
+          test -f "$out/raw/tram_network.geojson"
+          test -f "$out/raw/train_network.geojson"
+
+      - name: Measure deterministic semantic and forensic identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/measure_urbis_source_cell_semantic_lock.py \
+            --cell-dir "$RUNNER_TEMP/$CELL_ID" \
+            --output "$RUNNER_TEMP/anneessens_urbis_source_cell.measurement.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ["RUNNER_TEMP"]) / "anneessens_urbis_source_cell.measurement.json"
+          d = json.loads(p.read_text(encoding="utf-8"))
+          assert d["schema"] == "grand-bruxelles-urbis-source-cell-semantic-measurement-v1"
+          assert d["cell_id"] == "bxl-e147500-n169500-s500"
+          assert d["crs"] == "EPSG:31370"
+          assert d["bbox"] == [147500.0, 169500.0, 148000.0, 170000.0]
+          assert d["maturity_state"] == "data_ready"
+          assert set(d["layers"]) == {"buildings","street_surfaces","street_axes","tram_network","train_network"}
+          assert int(d["layers"]["buildings"]["features"]) > 0
+          assert int(d["layers"]["street_surfaces"]["features"]) > 0
+          assert int(d["layers"]["street_axes"]["features"]) > 0
+          assert int(d["layers"]["buildings"]["invalid_ownership_features"]) == 0
+          for key in ["registration_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+              assert d[key] is False, key
+          print("ANNEESSENS_SOURCE_CELL_MEASURED", d["source_semantic_sha256"], {k:v["features"] for k,v in d["layers"].items()})
+          PY
+
+      - name: Build immutable measurement package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$RUNNER_TEMP/anneessens-source-cell-package"
+          rm -rf "$package"
+          mkdir -p "$package/source-cell"
+          cp -a "$RUNNER_TEMP/$CELL_ID/." "$package/source-cell/"
+          cp "$RUNNER_TEMP/anneessens_urbis_source_cell.measurement.json" "$package/measurement.json"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "anneessens-source-cell-package"
+          rows = []
+          for p in sorted(x for x in root.rglob("*") if x.is_file()):
+              raw = p.read_bytes()
+              rows.append({"path": str(p.relative_to(root)), "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()})
+          (root / "package_manifest.json").write_text(json.dumps({"files": rows}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload RED-first source measurement artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-urbis-source-cell-red-first
+          path: ${{ runner.temp }}/anneessens-source-cell-package
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Require reviewed persistent lock before any persistence or registration
+        shell: bash
+        run: |
+          set -euo pipefail
+          lock=grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json
+          if test -f "$lock"; then
+            echo "RED: unexpected lock already exists during RED-first acquisition; inspect ownership" >&2
+          else
+            echo "RED_EXPECTED: source acquired and measured; inspect/hash artifact before persisting any lock or source bytes" >&2
+          fi
+          exit 1

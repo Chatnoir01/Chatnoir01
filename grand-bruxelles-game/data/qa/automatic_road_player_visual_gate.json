@@ -1,0 +1,64 @@
+{
+  "schema": "grand-bruxelles-automatic-road-player-visual-gate-v1",
+  "evidence": {
+    "production_base_sha": "b96a21367f61830748bb9ba86c34cb71103fbcc3",
+    "evidence_head_sha": "7fc8f2835b60cf6bc227a226c09bf5571e1ecfe6",
+    "workflow_run_id": 32830200285,
+    "artifact_id": 9556476477,
+    "artifact_sha256": "56d958a077a5bcbbfbf75b1344dfc12fe0f25300f38db2a144a6dea545a288f7",
+    "png_sha256": "5c0215788ac0dd77f8d07c69b0885a8f929e64e35bbd7c12a35fd439b5f74c87",
+    "diagnostic_sha256": "223e3dc8063941f944010703bee519418f9a32c969735affd8f2d49956f5cacf",
+    "runtime_log_sha256": "44fec3ba0108456d178fe9bc7d3e5720e77a4daea5b615d55da2ba9bffc44aa9",
+    "resolution": [1280, 720],
+    "witness_road_osm_id": 359177328,
+    "witness_road_name": "Boulevard Maurice Lemonnier - Maurice Lemonnierlaan"
+  },
+  "runtime_animation_diagnostic": {
+    "production_base_sha": "b96a21367f61830748bb9ba86c34cb71103fbcc3",
+    "diagnostic_head_sha": "7fc8f2835b60cf6bc227a226c09bf5571e1ecfe6",
+    "workflow_run_id": 32830200285,
+    "artifact_id": 9556476477,
+    "artifact_sha256": "56d958a077a5bcbbfbf75b1344dfc12fe0f25300f38db2a144a6dea545a288f7",
+    "diagnostic_sha256": "223e3dc8063941f944010703bee519418f9a32c969735affd8f2d49956f5cacf",
+    "runtime_log_sha256": "44fec3ba0108456d178fe9bc7d3e5720e77a4daea5b615d55da2ba9bffc44aa9",
+    "road_osm_id": 359177328,
+    "using_authored_character": true,
+    "authored_character_found": true,
+    "animation_player_count": 1,
+    "animation_tree_count": 0,
+    "authored_animation_count": 76,
+    "active_driver_count": 1,
+    "active_driver": "AnimationPlayer",
+    "active_animation": "Idle",
+    "autoplay": "",
+    "current_animation": "Idle",
+    "assigned_animation": "Idle",
+    "is_playing": true,
+    "catalog_has_idle": true,
+    "catalog_has_unarmed_idle": true,
+    "catalog_has_t_pose": true,
+    "status": "candidate",
+    "reason": "active_authored_animation_driver"
+  },
+  "source_contract": {
+    "lookup_mode": "deterministic_runtime_index",
+    "source_path": "res://data/osm/vertical_slice_01.game.json",
+    "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
+    "ground_collision_proven": true,
+    "source_sightline_clear": true,
+    "road_axis_alignment": 0.9779
+  },
+  "human_review": {
+    "status": "keep",
+    "full_frame_inspected": true,
+    "road_identity_matches_frame": true,
+    "blocking_reasons": [],
+    "notes": "The exact 1280x720 source-backed Lemonnier frame from run 32830200285 was opened full-frame. The authored player is no longer in bind/T-pose: arms are relaxed in a normal idle silhouette. The hash-bound runtime diagnostic independently proves one active AnimationPlayer playing Idle from the 76-clip authored catalog. This clears the historical player_pose_t_pose rejection for this witness only; it does not authorize road-cell mapping, streaming mount, destination advertisement or JOUABLE promotion."
+  },
+  "authorization": {
+    "qa_witness_accepted": true,
+    "playability_claimed": false,
+    "destination_advertisable": false,
+    "jouable_authorized": false
+  }
+}

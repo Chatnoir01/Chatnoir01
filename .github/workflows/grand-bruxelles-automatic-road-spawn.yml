@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/game/tests/automatic_road_direct_spawn_test.gd"
       - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
       - "grand-bruxelles-game/data/osm/**"
+      - "grand-bruxelles-game/tools/test_automatic_road_player_visual_gate.py"
       - ".github/workflows/grand-bruxelles-web.yml"
       - ".github/workflows/grand-bruxelles-automatic-road-spawn.yml"
 
@@ -22,6 +23,29 @@ jobs:
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify live-main continuity
+        shell: bash
+        env:
+          GB_EVIDENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GB_EVIDENCE_HEAD_SHA"
+          git fetch --no-tags origin main
+          GB_EVIDENCE_BASE_SHA="$(git rev-parse origin/main)"
+          if ! git merge-base --is-ancestor "$GB_EVIDENCE_BASE_SHA" "$GB_EVIDENCE_HEAD_SHA"; then
+            echo "AUTOMATIC_ROAD_RUNTIME_FAIL: candidate does not contain live main: base=$GB_EVIDENCE_BASE_SHA head=$GB_EVIDENCE_HEAD_SHA" >&2
+            exit 1
+          fi
+          echo "AUTOMATIC_ROAD_RUNTIME_BASE_OK base=$GB_EVIDENCE_BASE_SHA head=$GB_EVIDENCE_HEAD_SHA"
+
+      - name: Enforce route-vs-player-review separation contract
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/test_automatic_road_player_visual_gate.py
 
       - name: Install render dependencies
         run: |
@@ -30,7 +54,8 @@ jobs:
 
       - name: Install Godot 4.7.1
         run: |
-          curl -fL -o /tmp/godot.zip \
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 \
+            -o /tmp/godot.zip \
             https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
@@ -43,7 +68,7 @@ jobs:
             --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/automatic-road-import.log
           if grep -E "SCRIPT ERROR|Parse Error:" /tmp/automatic-road-import.log; then exit 1; fi
 
-      - name: Prove generic source-backed road destinations
+      - name: Prove source-backed rendered-road and collision readiness
         run: |
           set -o pipefail
           xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
@@ -54,8 +79,13 @@ jobs:
             --script res://game/tests/automatic_road_direct_spawn_test.gd \
             2>&1 | tee /tmp/automatic-road-spawn.log
           if grep -E "SCRIPT ERROR|Parse Error:|AUTOMATIC_ROAD_DIRECT_SPAWN_FAIL" /tmp/automatic-road-spawn.log; then exit 1; fi
-          grep -F "AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN" /tmp/automatic-road-spawn.log
+          grep -F "AUTOMATIC_ROAD_RUNTIME_READY_GREEN" /tmp/automatic-road-spawn.log
           grep -F "lookup=deterministic_runtime_index" /tmp/automatic-road-spawn.log
+          grep -F "playability_claimed=false" /tmp/automatic-road-spawn.log
+          grep -F "AUTOMATIC_ROAD_PLAYER_WITNESS_HOLD" /tmp/automatic-road-spawn.log
+          grep -F "qa_witness_accepted=false" /tmp/automatic-road-spawn.log
+          grep -F "destination_advertisable=false" /tmp/automatic-road-spawn.log
+          grep -F "jouable=false" /tmp/automatic-road-spawn.log
 
       - name: Verify safe Web request grammar
         run: |
@@ -63,13 +93,3 @@ jobs:
           grep -F "const DIRECT_SPAWN_STREETAXIS = /^streetaxis-[1-9][0-9]{0,17}$/.test(DIRECT_SPAWN || '');" .github/workflows/grand-bruxelles-web.yml
           grep -F "if (DIRECT_SPAWN_STATIC || DIRECT_SPAWN_ROAD || DIRECT_SPAWN_STREETAXIS)" .github/workflows/grand-bruxelles-web.yml
           ! grep -E "spawn=.*(x=|y=|z=|lat=|lon=)" .github/workflows/grand-bruxelles-web.yml
-
-      - name: Upload gate evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: automatic-road-spawn-evidence
-          path: |
-            /tmp/automatic-road-import.log
-            /tmp/automatic-road-spawn.log
-          if-no-files-found: error
-          retention-days: 14

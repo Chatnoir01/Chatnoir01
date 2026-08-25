@@ -40,6 +40,7 @@ ROLE_ALIASES = {
         "leftupperarm",
         "luparm",
         "uparml",
+        "armupl",
     },
     "right_upper_arm": {
         "upperarmr",
@@ -47,9 +48,10 @@ ROLE_ALIASES = {
         "rightupperarm",
         "ruparm",
         "uparmr",
+        "armupr",
     },
-    "left_foot": {"footl", "footleft", "leftfoot", "lfoot"},
-    "right_foot": {"footr", "footright", "rightfoot", "rfoot"},
+    "left_foot": {"footl", "footleft", "leftfoot", "lfoot", "foot1l"},
+    "right_foot": {"footr", "footright", "rightfoot", "rfoot", "foot1r"},
 }
 
 
@@ -127,6 +129,10 @@ def _regression_same_armature_requirement() -> None:
         if all(any(item["armature"] == armature for item in split[role]) for role in ROLE_ALIASES)
     ]
     assert owners == [], owners
+    assert _compact("armup.L") in ROLE_ALIASES["left_upper_arm"]
+    assert _compact("armup.R") in ROLE_ALIASES["right_upper_arm"]
+    assert _compact("foot1.L") in ROLE_ALIASES["left_foot"]
+    assert _compact("foot1.R") in ROLE_ALIASES["right_foot"]
 
 
 def main() -> None:
@@ -160,7 +166,6 @@ def main() -> None:
             armature for armature in armature_objects if armature.name == selected_role_set["armature"]
         )
 
-    skinned_meshes = []
     armature_modifier_meshes = []
     positive_weighted_meshes = []
     material_slot_count = 0
@@ -174,7 +179,6 @@ def main() -> None:
         if not modifiers:
             continue
         armature_modifier_meshes.append(mesh.name)
-        mesh_records = []
         for modifier_armature in modifiers:
             stats = _positive_skin_stats(mesh, modifier_armature)
             record = {
@@ -184,10 +188,8 @@ def main() -> None:
                 "material_slot_count": len(mesh.material_slots),
                 **stats,
             }
-            mesh_records.append(record)
             if stats["positive_weight_assignment_count"] > 0:
                 positive_weighted_meshes.append(record)
-        skinned_meshes.extend(mesh_records)
 
     selected_armature_weighted_meshes = []
     if selected_armature is not None:

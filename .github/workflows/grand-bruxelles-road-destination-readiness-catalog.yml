@@ -9,6 +9,8 @@ on:
       - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
       - 'grand-bruxelles-game/data/cell_manifests/**'
       - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/game/tests/road_destination_readiness_runtime_probe.gd'
       - 'grand-bruxelles-game/tools/qa/build_road_destination_readiness_catalog.py'
       - 'grand-bruxelles-game/tools/qa/test_build_road_destination_readiness_catalog.py'
       - '.github/workflows/grand-bruxelles-road-destination-readiness-catalog.yml'
@@ -84,3 +86,89 @@ jobs:
                   assert row[key] is False, (row['destination_id'], key)
           print(f"ROAD_DESTINATION_READINESS_CATALOG_LOCKED_EXACT destinations={d['destination_count']} semantic={d['semantic_sha256']}")
           PY
+
+  runtime-readiness-probe:
+    if: github.event_name == 'pull_request'
+    needs: readiness-catalog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$HEAD_SHA" || {
+            echo "RED: runtime readiness probe candidate does not contain live main" >&2
+            exit 1
+          }
+          echo "ROAD_DESTINATION_RUNTIME_PROBE_LIVE_MAIN_OK live=$LIVE_MAIN_SHA head=$HEAD_SHA"
+      - name: Install Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Import exact candidate project
+        run: |
+          set -euo pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --editor --quit 2>&1 | tee /tmp/road-destination-runtime-probe-import.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ERROR: Failed to load script" /tmp/road-destination-runtime-probe-import.log; then exit 1; fi
+      - name: Measure all registered corridor destinations in production runtime
+        run: |
+          set -euo pipefail
+          rm -rf grand-bruxelles-game/artifacts/road-destination-readiness
+          timeout 180s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/road_destination_readiness_runtime_probe.gd 2>&1 | tee /tmp/road-destination-runtime-probe.log
+          if grep -E "SCRIPT ERROR|Parse Error:|ROAD_DESTINATION_RUNTIME_PROBE_FAIL" /tmp/road-destination-runtime-probe.log; then exit 1; fi
+          grep -q "ROAD_DESTINATION_RUNTIME_PROBE_OK" /tmp/road-destination-runtime-probe.log
+      - name: Require measurement-only probe rails
+        run: |
+          set -euo pipefail
+          PROBE=grand-bruxelles-game/artifacts/road-destination-readiness/runtime-probe.json
+          test -s "$PROBE"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/artifacts/road-destination-readiness/runtime-probe.json')
+          d=json.loads(p.read_text())
+          assert d['schema'] == 'grand-bruxelles-road-destination-runtime-probe-v1'
+          assert d['destination_count'] == len(d['observations']) == 11
+          assert set(d['required_corridor_approaches']) == {13842686, 411724192}
+          assert d['measurement_only'] is True
+          assert d['catalog_mutated'] is False
+          assert d['playability_claimed'] is False
+          assert d['destination_advertisable'] is False
+          assert d['jouable_authorized'] is False
+          for row in d['observations']:
+              assert row['playability_claimed'] is False
+              assert row['destination_advertisable'] is False
+              assert row['jouable_authorized'] is False
+          print('ROAD_DESTINATION_RUNTIME_PROBE_RAILS_OK')
+          PY
+      - name: Bind runtime probe with SHA-256 evidence
+        run: |
+          set -euo pipefail
+          mkdir -p grand-bruxelles-game/artifacts/road-destination-readiness
+          cp /tmp/road-destination-runtime-probe.log grand-bruxelles-game/artifacts/road-destination-readiness/runtime-probe.log
+          cp /tmp/road-destination-runtime-probe-import.log grand-bruxelles-game/artifacts/road-destination-readiness/runtime-probe-import.log
+          cd grand-bruxelles-game/artifacts/road-destination-readiness
+          sha256sum runtime-probe.json runtime-probe.log runtime-probe-import.log > evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 3
+          sha256sum --check evidence-sha256.txt
+      - name: Re-verify evidence immediately before upload
+        run: |
+          set -euo pipefail
+          cd grand-bruxelles-game/artifacts/road-destination-readiness
+          sha256sum --check evidence-sha256.txt
+      - name: Upload runtime readiness measurement
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-destination-runtime-readiness-probe
+          path: grand-bruxelles-game/artifacts/road-destination-readiness
+          if-no-files-found: error

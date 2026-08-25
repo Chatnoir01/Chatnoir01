@@ -1,0 +1,64 @@
+{
+  "schema": "grand-bruxelles-shared-environment-autoload-classification-v1",
+  "scope": "production_environment_autoload_classification_only",
+  "all_discovered_environment_autoloads_classified": true,
+  "nearest_owner_inference_authorized": false,
+  "shared_runtime_count": 15,
+  "explicit_exclusion_count": 8,
+  "classified_autoload_count": 23,
+  "notes": [
+    "Shared Environment lifecycle ownership comes from the shipped lifecycle contract, never from alias proximity or location guessing.",
+    "Exact-location Grand-Place and Bourse material/paving autoloads remain outside Shared Environment and are listed explicitly so a new Environment autoload cannot silently bypass classification.",
+    "This contract does not authorize runtime, geometry, material, collision, camera, source or JOUABLE changes."
+  ],
+  "explicit_exclusions": [
+    {
+      "autoload_name": "GrandPlaceGranitePaving",
+      "path": "game/scripts/grand_place_granite_paving.gd",
+      "owner_scope": "grand_place_exact",
+      "reason": "exact_location_owner_outside_shared_environment"
+    },
+    {
+      "autoload_name": "GrandPlaceWhiteStoneSurfaceRuntime",
+      "path": "game/scripts/grand_place_white_stone_surface_runtime.gd",
+      "owner_scope": "grand_place_exact",
+      "reason": "exact_location_owner_outside_shared_environment"
+    },
+    {
+      "autoload_name": "GrandPlaceSlateRoofSurfaceRuntime",
+      "path": "game/scripts/grand_place_slate_roof_surface_runtime.gd",
+      "owner_scope": "grand_place_exact",
+      "reason": "exact_location_owner_outside_shared_environment"
+    },
+    {
+      "autoload_name": "GrandPlaceTownHallWindowRhythmRuntime",
+      "path": "game/scripts/grand_place_town_hall_window_rhythm_runtime.gd",
+      "owner_scope": "grand_place_exact",
+      "reason": "exact_location_owner_outside_shared_environment"
+    },
+    {
+      "autoload_name": "BourseWhiteStoneSurfaceRuntime",
+      "path": "game/scripts/bourse_white_stone_surface_runtime.gd",
+      "owner_scope": "bourse_exact",
+      "reason": "exact_location_owner_outside_shared_environment"
+    },
+    {
+      "autoload_name": "BourseLimestoneBaseSurfaceRuntime",
+      "path": "game/scripts/bourse_limestone_base_surface_runtime.gd",
+      "owner_scope": "bourse_exact",
+      "reason": "exact_location_owner_outside_shared_environment"
+    },
+    {
+      "autoload_name": "BourseArchitecturalGlazingSurfaceRuntime",
+      "path": "game/scripts/bourse_architectural_glazing_surface_runtime.gd",
+      "owner_scope": "bourse_exact",
+      "reason": "exact_location_owner_outside_shared_environment"
+    },
+    {
+      "autoload_name": "BourseBlueStonePavingRuntime",
+      "path": "game/scripts/bourse_blue_stone_paving_runtime.gd",
+      "owner_scope": "bourse_exact",
+      "reason": "exact_location_owner_outside_shared_environment"
+    }
+  ]
+}

@@ -18,43 +18,68 @@ var _ready_complete := false
 var _failed := false
 var _visual_enabled := true
 var _manual_binding := false
+var _scene_bind_scheduled := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
-    call_deferred("_bind_when_ready")
+    if not get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.connect(_on_node_added)
+    call_deferred("_schedule_scene_bind")
+
+func _is_production_scene(node: Node) -> bool:
+    if not node is Node3D:
+        return false
+    var candidate := node as Node3D
+    return candidate.has_node("BrusselsOSM") and candidate.has_node("UrbISMidiExact")
 
 func _discover_production_scene() -> Node3D:
     var current := get_tree().current_scene
-    if current is Node3D:
+    if _is_production_scene(current):
         return current as Node3D
-    for child: Node in get_tree().root.get_children():
-        if child is Node3D:
-            var candidate := child as Node3D
-            if candidate.has_node("BrusselsOSM") and candidate.has_node("UrbISMidiExact"):
-                return candidate
+    var osm_roots := get_tree().root.find_children("BrusselsOSM", "Node3D", true, false)
+    for osm_node: Node in osm_roots:
+        var candidate := osm_node.get_parent()
+        if _is_production_scene(candidate):
+            return candidate as Node3D
     return null
 
-func _bind_when_ready() -> void:
-    for _attempt: int in range(180):
-        if _manual_binding or _ready_complete:
-            return
-        var discovered := _discover_production_scene()
-        if discovered != null:
-            _scene = discovered
-            _build()
-            return
-        await get_tree().process_frame
-    if not _manual_binding and not _ready_complete:
-        _fail("production scene missing")
+func _disconnect_scene_watch() -> void:
+    if is_inside_tree() and get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.disconnect(_on_node_added)
+
+func _schedule_scene_bind() -> void:
+    if _manual_binding or _ready_complete or _failed or _scene_bind_scheduled:
+        return
+    _scene_bind_scheduled = true
+    call_deferred("_recover_existing_scene")
+
+func _recover_existing_scene() -> void:
+    await get_tree().process_frame
+    _scene_bind_scheduled = false
+    if _manual_binding or _ready_complete or _failed:
+        return
+    var discovered := _discover_production_scene()
+    if discovered == null:
+        return
+    _scene = discovered
+    _build()
+
+func _on_node_added(node: Node) -> void:
+    if _manual_binding or _ready_complete or _failed:
+        return
+    var node_name := str(node.name)
+    if node_name == "BrusselsOSM" or node_name == "UrbISMidiExact" or _is_production_scene(node):
+        _schedule_scene_bind()
 
 func bind_scene(scene: Node3D) -> void:
     if scene == null:
         _fail("manual scene binding received null scene")
         return
+    _manual_binding = true
+    _disconnect_scene_watch()
     if is_instance_valid(_root):
         _root.queue_free()
     _scene = scene
-    _manual_binding = true
     _root = null
     _pole_batch = null
     _arm_batch = null
@@ -72,6 +97,7 @@ func _fail(message: String) -> void:
     push_error("Brussels source-backed street lamp runtime: %s" % message)
     _failed = true
     _ready_complete = true
+    _disconnect_scene_watch()
 
 func _load_data() -> Dictionary:
     if not FileAccess.file_exists(DATA_PATH):
@@ -147,6 +173,7 @@ func _build() -> void:
     _root.set_meta("visual_material_source_backed", false)
     _root.set_meta("light_photometry_source_backed", false)
     _root.set_meta("visual_recipe_provenance", "authored_presentation_not_source_measurement")
+    _root.set_meta("lifecycle_binding", "dormant_event_driven")
     _scene.add_child(_root)
 
     _pole_batch = _build_batch("StreetLampPoles", ASSET.create_pole_mesh(materials["metal"] as Material), _pole_transforms)
@@ -172,7 +199,8 @@ func _build() -> void:
 
     set_visual_enabled(_visual_enabled)
     _ready_complete = true
-    print("BRUSSELS_STREET_LAMP_READY: points=%d collisions=%d batches=%d family=%s source=OSM license=ODbL-1.0" % [point_count(), collision_count(), visual_batch_count(), ASSET.ASSET_FAMILY])
+    _disconnect_scene_watch()
+    print("BRUSSELS_STREET_LAMP_READY: points=%d collisions=%d batches=%d family=%s source=OSM license=ODbL-1.0 event_driven=true" % [point_count(), collision_count(), visual_batch_count(), ASSET.ASSET_FAMILY])
 
 func set_visual_enabled(enabled: bool) -> void:
     _visual_enabled = enabled

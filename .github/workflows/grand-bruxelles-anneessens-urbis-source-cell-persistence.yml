@@ -1,0 +1,126 @@
+name: Grand Bruxelles Anneessens UrbIS Source Persistence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-anneessens-urbis-source-cell-persistence.yml"
+      - "grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.persistence.contract.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CELL_ID: bxl-e147500-n169500-s500
+  CONTRACT: grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.persistence.contract.json
+  CELL_DIR: grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500
+
+jobs:
+  persistence-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and persistence-only authorization
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live=sys.argv[1]
+          d=json.loads(Path("grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.persistence.contract.json").read_text())
+          assert d["production_base_sha"] == live, (d["production_base_sha"], live)
+          assert d["status"] == "PERSISTENCE_CANDIDATE_ARTIFACT_ONLY"
+          assert d["cell_id"] == "bxl-e147500-n169500-s500"
+          assert d["source"]["license"] == "CC0-1.0"
+          assert d["source"]["crs"] == "EPSG:31370"
+          assert d["locked_artifact"]["artifact_id"] == 9569240423
+          assert d["locked_artifact"]["sha256"] == "484a6b546d1f82c2847ba3fa6bac506b83eb0ca996ba29df1298faf66f740ee5"
+          a=d["authorization"]
+          assert a["source_persistence"] is True
+          for key in ["source_registration","canonical_registration","municipality_assignment","road_to_cell_mapping","runtime_directory_scan","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+              assert a[key] is False, key
+          print(f"ANNEESSENS_PERSISTENCE_CONTRACT_OK live_main={live} rails_closed=true")
+          PY
+          if git cat-file -e "origin/main:grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL_ID}/manifest.json" 2>/dev/null; then
+            echo "RED: Anneessens source cell already exists on live main; ownership changed" >&2
+            exit 1
+          fi
+
+      - name: Restore immutable source artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/anneessens-source.zip"
+          UNPACK="$RUNNER_TEMP/anneessens-source"
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9569240423/zip" > "$ZIP"
+          echo "484a6b546d1f82c2847ba3fa6bac506b83eb0ca996ba29df1298faf66f740ee5  $ZIP" | sha256sum -c -
+          test "$(stat -c '%s' "$ZIP")" = "308618"
+          mkdir -p "$UNPACK"
+          unzip -q "$ZIP" -d "$UNPACK"
+          echo "bc85dec9a65283150ee628d8761154e0201311c5cfcbae95f92796daaa4039c5  $UNPACK/measurement.json" | sha256sum -c -
+          echo "53712b26bcf3ad82929338b162451b585f94ca8aba843240c9b911a1465ce730  $UNPACK/package_manifest.json" | sha256sum -c -
+
+      - name: Verify exact source-cell files and accounting
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          contract=json.loads(Path(os.environ["CONTRACT"]).read_text())
+          root=Path(os.environ["RUNNER_TEMP"])/"anneessens-source"/"source-cell"
+          for rel,spec in contract["expected_files"].items():
+              p=root/rel
+              assert p.is_file(), rel
+              raw=p.read_bytes()
+              assert len(raw)==spec["bytes"], (rel,len(raw),spec["bytes"])
+              assert hashlib.sha256(raw).hexdigest()==spec["sha256"], rel
+          manifest=json.loads((root/"manifest.json").read_text())
+          maturity=json.loads((root/"maturity.json").read_text())
+          assert manifest["cell_id"] == contract["cell_id"]
+          assert manifest["crs"] == "EPSG:31370"
+          assert manifest["promotion"] == "source_only_no_runtime_mutation"
+          assert maturity["maturity"]["state"] == "data_ready"
+          for key in ["runtime_geometry","collisions","streaming","terrain","heights","photo_match","performance"]:
+              assert maturity["gates"][key] is False, key
+          print("ANNEESSENS_IMMUTABLE_SOURCE_BYTES_OK files=7 source_only=true")
+          PY
+
+      - name: Upload exact persistence candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-urbis-source-cell-persistence-candidate
+          path: ${{ runner.temp }}/anneessens-source/source-cell
+          if-no-files-found: error
+
+      - name: Require candidate branch to persist exact artifact bytes
+        run: |
+          set -euo pipefail
+          if [ ! -f "$CELL_DIR/manifest.json" ]; then
+            echo "RED: persistence candidate is measured and uploaded but not yet written to the branch; inspect artifact then persist exact bytes" >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          c=json.loads(Path(os.environ["CONTRACT"]).read_text())
+          repo=Path(os.environ["CELL_DIR"])
+          artifact=Path(os.environ["RUNNER_TEMP"])/"anneessens-source"/"source-cell"
+          for rel,spec in c["expected_files"].items():
+              left=(artifact/rel).read_bytes()
+              right=(repo/rel).read_bytes()
+              assert left == right, rel
+              assert hashlib.sha256(right).hexdigest() == spec["sha256"], rel
+          print("ANNEESSENS_SOURCE_PERSISTENCE_LOCKED_EXACT files=7 registration=false runtime=false")
+          PY

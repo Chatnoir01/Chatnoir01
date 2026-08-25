@@ -83,7 +83,7 @@ jobs:
 
           report = json.loads((root / 'base_ground_surface_player_witness.json').read_text())
           assert report['schema'] == 'grand-bruxelles-base-ground-surface-player-witness-v2'
-          assert report['production_base_sha'] == '20970cc84aae304b268d645d72d22598d6745b4b'
+          assert report['production_base_sha'] == '9784cef449a5b2898c86964c9093393669f3f0a2'
           assert report['presentation_revision'] == 6
           assert report['target_osm_id'] == 359177328
           assert report['source_sha256'] == hashlib.sha256(source_path.read_bytes()).hexdigest()

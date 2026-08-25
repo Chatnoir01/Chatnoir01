@@ -11,8 +11,8 @@
     "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
     "dataset_family": "UrbIS vector base-city layers",
     "license": "CC0-1.0",
-    "retrieval_model": "live_authoritative_wfs_content_addressed",
-    "revision_note": "The live WFS exposes no stable historical release identifier for this source-cell contract; no revision is invented. The first successful measurement must content-address the complete artifact and semantic identity before any persistence or registration step."
+    "retrieval_model": "first_measurement_live_wfs_then_artifact_only_reproduction",
+    "revision_note": "The live WFS exposes no stable historical release identifier for this source-cell contract; no revision is invented. The accepted first measurement is content-addressed by artifact + complete semantic/raw hashes, and subsequent reproduction must restore those exact artifact bytes rather than re-query mutable WFS."
   },
   "layers": [
     {"logical_name": "buildings", "wfs_name": "urbisvector:Buildings", "file": "raw/buildings.geojson", "ownership": "canonical_centroid_global_500m_cell"},
@@ -21,6 +21,28 @@
     {"logical_name": "tram_network", "wfs_name": "urbisvector:TramNetwork", "file": "raw/tram_network.geojson", "ownership": "bbox_intersection_source_unclipped"},
     {"logical_name": "train_network", "wfs_name": "urbisvector:TrainNetwork", "file": "raw/train_network.geojson", "ownership": "bbox_intersection_source_unclipped"}
   ],
+  "expected": {
+    "manifest_source_digest": "06cc9e818a815bb00c74435a03f7d6ff8c7084010316abef0314fd376c210480",
+    "manifest_sha256": "10aac9d4a2404ff23bb7d9af40b9e256b65aa6f25d33c7de1c1e3067244f43d2",
+    "maturity_sha256": "7ebbe70634650db6b2fe21b10e4ae87ede7f4c0c170b21b63d1be9765cc69f89",
+    "source_semantic_sha256": "496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0",
+    "layers": {
+      "buildings": {"features": 362, "ownership_filtered": 52, "invalid_ownership_features": 0, "semantic_features_sha256": "ffb76738192a41384970a53fcd8653d474a376abf275e3b2a932825c8f524ab0", "raw_forensic_sha256": "46057508dfcb5661c078c392f2d1f91faed64f1adf1812d5c3b21f6ade4e1a1e", "raw_bytes": 228055},
+      "street_axes": {"features": 104, "semantic_features_sha256": "2332e6cc5f0f60726c9e83b35bc8518b769a3f92c128246e470b6e8c317c280f", "raw_forensic_sha256": "80419465dc5ea236666725cc604504ad3a747a3aa36e736c69a9889053f1f366", "raw_bytes": 72493},
+      "street_surfaces": {"features": 283, "semantic_features_sha256": "bc3983a63d68f8d5fdaab1622c42a60b328d881144c3e86a3b19d258812d1bce", "raw_forensic_sha256": "ca9d71bc7057ba58c01c9bf385090022eeef1cc2769971830062906ed818a949", "raw_bytes": 461511},
+      "train_network": {"features": 361, "semantic_features_sha256": "e347478d16d12eaaa37b62d14b9b22c04bbb644bc4b2d31b97cddde3a567ec4f", "raw_forensic_sha256": "8fe5ff5dcd4a4f06864850bcfb71a0e42efd4a08efbf530565aef90bf4a7bfcc", "raw_bytes": 278523},
+      "tram_network": {"features": 361, "semantic_features_sha256": "e347478d16d12eaaa37b62d14b9b22c04bbb644bc4b2d31b97cddde3a567ec4f", "raw_forensic_sha256": "24c3a9608e69d4ce2d3d1fae706a0980fef581f44189e5155bc621a10a79dd96", "raw_bytes": 278522}
+    }
+  },
+  "first_measurement_evidence": {
+    "workflow_run_id": 32863742209,
+    "artifact_id": 9569240423,
+    "artifact_sha256": "484a6b546d1f82c2847ba3fa6bac506b83eb0ca996ba29df1298faf66f740ee5",
+    "artifact_size_bytes": 308618,
+    "measurement_sha256": "bc85dec9a65283150ee628d8761154e0201311c5cfcbae95f92796daaa4039c5",
+    "measurement_size_bytes": 3313,
+    "package_manifest_sha256": "53712b26bcf3ad82929338b162451b585f94ca8aba843240c9b911a1465ce730"
+  },
   "expected_persisted_source_path": "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500",
   "municipality_assignment_authorized": false,
   "authorization": {
@@ -35,5 +57,5 @@
     "safe_spawn": false,
     "jouable_promotion": false
   },
-  "status": "MEASUREMENT_PENDING_RED_FIRST"
+  "status": "SEMANTIC_MEASUREMENT_LOCKED_SOURCE_ONLY"
 }

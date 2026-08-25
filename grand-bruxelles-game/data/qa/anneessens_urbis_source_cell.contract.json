@@ -1,0 +1,39 @@
+{
+  "schema": "grand-bruxelles-urbis-source-cell-acquisition-contract-v1",
+  "production_base_sha": "23a26808905f892335481069cdcd080a462c2aea",
+  "target": {
+    "cell_id": "bxl-e147500-n169500-s500",
+    "crs": "EPSG:31370",
+    "bbox": [147500.0, 169500.0, 148000.0, 170000.0]
+  },
+  "source": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "dataset_family": "UrbIS vector base-city layers",
+    "license": "CC0-1.0",
+    "retrieval_model": "live_authoritative_wfs_content_addressed",
+    "revision_note": "The live WFS exposes no stable historical release identifier for this source-cell contract; no revision is invented. The first successful measurement must content-address the complete artifact and semantic identity before any persistence or registration step."
+  },
+  "layers": [
+    {"logical_name": "buildings", "wfs_name": "urbisvector:Buildings", "file": "raw/buildings.geojson", "ownership": "canonical_centroid_global_500m_cell"},
+    {"logical_name": "street_surfaces", "wfs_name": "urbisvector:StreetSurfaces", "file": "raw/street_surfaces.geojson", "ownership": "bbox_intersection_source_unclipped"},
+    {"logical_name": "street_axes", "wfs_name": "urbisvector:StreetAxes", "file": "raw/street_axes.geojson", "ownership": "bbox_intersection_source_unclipped"},
+    {"logical_name": "tram_network", "wfs_name": "urbisvector:TramNetwork", "file": "raw/tram_network.geojson", "ownership": "bbox_intersection_source_unclipped"},
+    {"logical_name": "train_network", "wfs_name": "urbisvector:TrainNetwork", "file": "raw/train_network.geojson", "ownership": "bbox_intersection_source_unclipped"}
+  ],
+  "expected_persisted_source_path": "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500",
+  "municipality_assignment_authorized": false,
+  "authorization": {
+    "source_acquisition": true,
+    "source_persistence": false,
+    "source_registration": false,
+    "canonical_registration": false,
+    "road_to_cell_mapping": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  },
+  "status": "MEASUREMENT_PENDING_RED_FIRST"
+}

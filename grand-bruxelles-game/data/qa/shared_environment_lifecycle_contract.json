@@ -1,0 +1,32 @@
+{
+  "schema": "grand-bruxelles-shared-environment-lifecycle-contract-v3",
+  "runtime_policy": "dormant_event_driven_nested_mount_safe",
+  "legitimate_absence_is_failure": false,
+  "geometry_or_material_change_authorized": false,
+  "scope": "shared_environment_runtime_lifecycle_only",
+  "registered_runtime_count": 15,
+  "registry_complete_for_known_event_driven_runtimes": true,
+  "production_autoload_identity_locked": true,
+  "notes": [
+    "This registry contains shared Environment runtimes already migrated to event-driven wakeup on production main.",
+    "Exact-location Grand-Place/Bourse runtimes and NPC/gameplay systems are intentionally excluded.",
+    "Autoload alias + path identity is locked so lifecycle coverage cannot remain green after a runtime is silently renamed, duplicated, or rewired."
+  ],
+  "runtimes": [
+    {"autoload_name": "MidiBlueStoneSurfaceRuntime", "path": "game/scripts/midi_blue_stone_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"autoload_name": "MidiArchitecturalConcreteSurfaceRuntime", "path": "game/scripts/midi_architectural_concrete_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"autoload_name": "MidiArchitecturalGlazingSurfaceRuntime", "path": "game/scripts/midi_architectural_glazing_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"autoload_name": "MidiFauquenbergBrickSurfaceRuntime", "path": "game/scripts/midi_fauquenberg_brick_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"autoload_name": "AnneessensMidiSidewalkRuntime", "path": "game/scripts/anneessens_midi_sidewalk_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"autoload_name": "AnneessensOsmFurnitureRuntime", "path": "game/scripts/anneessens_osm_furniture_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"autoload_name": "IxellesMidiSidewalkRuntime", "path": "game/scripts/ixelles_midi_sidewalk_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"autoload_name": "BrusselsOsmRoadSurfaceRuntime", "path": "game/scripts/brussels_osm_road_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"autoload_name": "BrusselsOsmSidewalkSurfaceRuntime", "path": "game/scripts/brussels_osm_sidewalk_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"autoload_name": "BrusselsOsmFacadeSurfaceRuntime", "path": "game/scripts/brussels_osm_facade_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"autoload_name": "BrusselsOsmFacadeArticulationRuntime", "path": "game/scripts/brussels_osm_facade_articulation_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"autoload_name": "BrusselsOsmRailSurfaceRuntime", "path": "game/scripts/brussels_osm_rail_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},
+    {"autoload_name": "BrusselsBollardRuntime", "path": "game/scripts/brussels_bollard_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"autoload_name": "BrusselsStreetLampRuntime", "path": "game/scripts/brussels_street_lamp_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false},
+    {"autoload_name": "BrusselsCorridorTreeRuntime", "path": "game/scripts/brussels_corridor_tree_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": false}
+  ]
+}

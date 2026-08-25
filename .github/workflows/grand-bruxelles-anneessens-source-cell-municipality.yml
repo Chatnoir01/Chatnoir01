@@ -1,0 +1,129 @@
+name: Grand Bruxelles Anneessens Source Cell Municipality
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-anneessens-source-cell-municipality.yml"
+      - "grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.municipality.contract.json"
+      - "grand-bruxelles-game/data/provenance/anneessens_source_cell_municipality.measurement.json"
+      - "grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/**"
+      - "grand-bruxelles-game/tools/qa/measure_anneessens_source_cell_municipality.py"
+      - "grand-bruxelles-game/tools/qa/measure_road_cell_municipality_preflight.py"
+      - "grand-bruxelles-game/tests/test_anneessens_source_cell_municipality.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.municipality.contract.json
+  LOCK: grand-bruxelles-game/data/provenance/anneessens_source_cell_municipality.measurement.json
+
+jobs:
+  municipality-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and measurement-only rails
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live = sys.argv[1]
+          d = json.loads(Path("grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.municipality.contract.json").read_text())
+          assert d["production_base_sha"] == live, (d["production_base_sha"], live)
+          assert d["status"] in {"MEASUREMENT_PENDING", "LOCKED_SOURCE_ONLY"}
+          assert d["target"] == {
+              "cell_id":"bxl-e147500-n169500-s500",
+              "grid_cell_id":"E147500_N169500",
+              "crs":"EPSG:31370",
+              "bbox":[147500.0,169500.0,148000.0,170000.0],
+          }
+          src = d["municipality_source"]
+          assert src["authority"] == "Paradigm / Brussels-Capital Region"
+          assert src["service"] == "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
+          assert src["layer"] == "urbisvector:Municipalities"
+          assert src["license"] == "CC0-1.0"
+          assert src["crs"] == "EPSG:31370"
+          assert src["expected_feature_count"] == 19
+          a = d["authorization"]
+          assert a["source_persistence"] is True
+          assert a["municipality_measurement"] is True
+          for key in ["source_registration","canonical_registration","municipality_assignment","road_to_cell_mapping","runtime_directory_scan","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+              assert a[key] is False, key
+          print(f"ANNEESSENS_MUNICIPALITY_CONTRACT_OK live_main={live} measurement_only=true rails_closed=true")
+          PY
+
+      - name: Install exact spatial dependency family
+        run: python3 -m pip install --disable-pip-version-check "shapely>=2.0,<3"
+
+      - name: Run fail-closed regressions
+        run: python3 grand-bruxelles-game/tests/test_anneessens_source_cell_municipality.py
+
+      - name: Measure official UrbIS municipality coverage
+        run: |
+          python3 grand-bruxelles-game/tools/qa/measure_anneessens_source_cell_municipality.py \
+            --repo-root grand-bruxelles-game \
+            --output "$RUNNER_TEMP/anneessens_source_cell_municipality.measurement.json"
+
+      - name: Upload municipality measurement candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-source-cell-municipality-measurement
+          path: ${{ runner.temp }}/anneessens_source_cell_municipality.measurement.json
+          if-no-files-found: error
+
+      - name: Require accepted persistent semantic lock
+        run: |
+          set -euo pipefail
+          test -f "$LOCK" || {
+            echo "RED: municipality measurement produced; persistent semantic lock is intentionally absent" >&2
+            exit 1
+          }
+          python3 - "$RUNNER_TEMP/anneessens_source_cell_municipality.measurement.json" "$LOCK" <<'PY'
+          import copy, json, sys
+          from pathlib import Path
+
+          measured = json.loads(Path(sys.argv[1]).read_text())
+          locked = json.loads(Path(sys.argv[2]).read_text())
+
+          def semantic_basis(value):
+              basis = copy.deepcopy(value)
+              basis["municipality_source"].pop("raw_payload_sha256", None)
+              coverage = basis.get("municipality_coverage") or {}
+              coverage.pop("transport_feature_ids", None)
+              basis.pop("semantic_sha256", None)
+              return basis
+
+          assert locked["semantic_sha256"] == measured["semantic_sha256"], (
+              locked["semantic_sha256"], measured["semantic_sha256"]
+          )
+          assert semantic_basis(locked) == semantic_basis(measured), (
+              "Anneessens municipality semantic lock drifted; forensic raw payload SHA / GeoServer transport FIDs are intentionally excluded"
+          )
+          assert locked["status"] in {"MUNICIPALITY_PROVEN_SINGLE", "HOLD_MUNICIPALITY_BOUNDARY_CELL", "HOLD_MUNICIPALITY_UNRESOLVED"}
+          assert locked["source_registration_authorized"] is False
+          assert locked["canonical_registration_authorized"] is False
+          assert locked["municipality_assignment_authorized"] is False
+          assert locked["road_cell_mapping_authorized"] is False
+          assert locked["runtime_directory_scan_authorized"] is False
+          assert locked["runtime_mount_authorized"] is False
+          assert locked["rendered_geometry_authorized"] is False
+          assert locked["collision_authorized"] is False
+          assert locked["safe_spawn_authorized"] is False
+          assert locked["jouable_promotion_authorized"] is False
+          print(
+              f"ANNEESSENS_MUNICIPALITY_LOCKED_SEMANTIC status={locked['status']} "
+              f"semantic={locked['semantic_sha256']} forensic_transport_drift_allowed=true rails_closed=true"
+          )
+          PY

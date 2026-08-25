@@ -6,8 +6,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = ROOT / "data" / "qa" / "shared_environment_lifecycle_contract.json"
+PROJECT_PATH = ROOT / "project.godot"
 EXPECTED_SCHEMA = "grand-bruxelles-shared-environment-lifecycle-contract-v2"
 LEGACY_POLL_RE = re.compile(r"for\s+[^\n]+\s+in\s+range\(\s*(120|180|240)\s*\)")
+AUTOLOAD_RE = re.compile(r'^\s*[A-Za-z0-9_]+\s*=\s*"\*res://(?P<path>game/scripts/[^"\n]+\.gd)"\s*$', re.MULTILINE)
 EXPECTED_RUNTIMES = {
     "game/scripts/midi_blue_stone_surface_runtime.gd",
     "game/scripts/midi_architectural_concrete_surface_runtime.gd",
@@ -34,6 +36,8 @@ def fail(message: str) -> None:
 def main() -> None:
     if not CONTRACT_PATH.is_file():
         fail("shared Environment lifecycle contract missing")
+    if not PROJECT_PATH.is_file():
+        fail("project.godot missing; cannot verify production autoload lifecycle coverage")
 
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     if contract.get("schema") != EXPECTED_SCHEMA:
@@ -46,6 +50,12 @@ def main() -> None:
         fail("lifecycle contract must not authorize geometry/material changes")
     if contract.get("registry_complete_for_known_event_driven_runtimes") is not True:
         fail("shared Environment lifecycle registry completeness rail missing")
+
+    project_source = PROJECT_PATH.read_text(encoding="utf-8")
+    autoload_paths = {match.group("path") for match in AUTOLOAD_RE.finditer(project_source)}
+    missing_autoloads = sorted(EXPECTED_RUNTIMES - autoload_paths)
+    if missing_autoloads:
+        fail(f"registered shared Environment runtime is no longer a production autoload: {missing_autoloads}")
 
     runtimes = contract.get("runtimes")
     if not isinstance(runtimes, list):
@@ -86,7 +96,8 @@ def main() -> None:
 
     print(
         "SHARED_ENVIRONMENT_LIFECYCLE_CONTRACT_OK: "
-        f"runtimes={len(runtimes)} legacy_polling=0 policy=dormant_event_driven_nested_mount_safe"
+        f"runtimes={len(runtimes)} production_autoloads={len(EXPECTED_RUNTIMES)} "
+        "legacy_polling=0 policy=dormant_event_driven_nested_mount_safe"
     )
 
 

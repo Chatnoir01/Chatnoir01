@@ -83,7 +83,32 @@ def main() -> int:
     assert split["road_cell_mapping_authorized"] is False
     assert split["jouable_promotion_authorized"] is False
 
-    print("ANNEESSENS_MUNICIPALITY_REGRESSIONS_OK source_lock=true single=true boundary_hold=true rails_closed=true")
+    # A dominant municipality must not become an inferred assignment. This
+    # mirrors the real Anneessens measurement, where Saint-Gilles covers
+    # roughly 64.6% while Anderlecht and Bruxelles still intersect the cell.
+    dominant_x = min_x + (max_x - min_x) * 0.65
+    majority_boundary = {
+        "type": "FeatureCollection",
+        "features": [
+            municipality_feature("majority", "33333", box(min_x, min_y, dominant_x, max_y)),
+            municipality_feature("minority", "44444", box(dominant_x, min_y, max_x, max_y)),
+        ],
+    }
+    majority = engine.analyze_municipality_coverage(module.BBOX, majority_boundary)
+    assert majority["status"] == "HOLD_MUNICIPALITY_BOUNDARY_CELL"
+    assert majority["municipality_id"] is None
+    assert majority["municipality_niscode"] is None
+    assert majority["coverage_ratio"] > 0.6
+    assert len(majority["intersections"]) == 2
+    assert majority["registration_authorized"] is False
+    assert majority["road_cell_mapping_authorized"] is False
+    assert majority["runtime_mount_authorized"] is False
+    assert majority["rendered_geometry_authorized"] is False
+    assert majority["collision_authorized"] is False
+    assert majority["safe_spawn_authorized"] is False
+    assert majority["jouable_promotion_authorized"] is False
+
+    print("ANNEESSENS_MUNICIPALITY_REGRESSIONS_OK source_lock=true single=true boundary_hold=true majority_inference_rejected=true rails_closed=true")
     return 0
 
 

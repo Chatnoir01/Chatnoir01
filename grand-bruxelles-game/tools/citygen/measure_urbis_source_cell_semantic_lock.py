@@ -50,6 +50,24 @@ def measure_layer(path: Path) -> dict[str, Any]:
     }
 
 
+def maturity_state(maturity: dict[str, Any]) -> str:
+    if maturity.get("format") != "grand-bruxelles-cell-maturity-v1":
+        raise ValueError("unexpected cell maturity format")
+    block = maturity.get("maturity")
+    if not isinstance(block, dict) or not isinstance(block.get("gates"), dict):
+        raise ValueError("cell maturity contract missing maturity.gates")
+    state = block.get("state")
+    if state != "data_ready":
+        raise ValueError(f"source cell must be data_ready, got {state!r}")
+    gates = block["gates"]
+    if gates.get("source_requirements") is not True or gates.get("verification") is not True or gates.get("crs") is not True:
+        raise ValueError("source-cell data-ready gates are incomplete")
+    for key in ("runtime_geometry", "collisions", "streaming", "terrain", "heights", "photo_match", "performance"):
+        if gates.get(key) is not False:
+            raise ValueError(f"source-only maturity rail unexpectedly open: {key}")
+    return state
+
+
 def measure_cell(root: Path) -> dict[str, Any]:
     manifest_path = root / "manifest.json"
     maturity_path = root / "maturity.json"
@@ -59,6 +77,7 @@ def measure_cell(root: Path) -> dict[str, Any]:
     maturity_raw = maturity_path.read_bytes()
     manifest = json.loads(manifest_raw.decode("utf-8"))
     maturity = json.loads(maturity_raw.decode("utf-8"))
+    state = maturity_state(maturity)
     if manifest.get("format") != "grand-bruxelles-urbis-source-cell-v1":
         raise ValueError("unexpected source-cell manifest format")
     if manifest.get("cell_id") != root.name:
@@ -115,7 +134,7 @@ def measure_cell(root: Path) -> dict[str, Any]:
         "manifest_source_digest": manifest["source_digest"],
         "manifest_sha256": sha256_bytes(manifest_raw),
         "maturity_sha256": sha256_bytes(maturity_raw),
-        "maturity_state": maturity.get("state"),
+        "maturity_state": state,
         "layers": measured_layers,
         "source_semantic_sha256": sha256_bytes(canonical_bytes(stable)),
         "registration_authorized": False,

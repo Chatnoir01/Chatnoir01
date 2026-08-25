@@ -1,0 +1,106 @@
+name: Grand Bruxelles Grand-Place Correct UrbIS Source Persistence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-correct-urbis-source-cell-persistence.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.persistence.contract.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CELL_ID: bxl-e148500-n170500-s500
+  CONTRACT: grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.persistence.contract.json
+  CELL_DIR: grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500
+
+jobs:
+  red-first-persistence-verification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and persistence-only authorization
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live=sys.argv[1]
+          d=json.loads(Path("grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.persistence.contract.json").read_text())
+          assert d["production_base_sha"] == live, (d["production_base_sha"], live)
+          assert d["status"] == "RED_FIRST_EXPECT_LOCKED_EXACT_SOURCE_ONLY_PERSISTENCE"
+          assert d["cell_id"] == "bxl-e148500-n170500-s500"
+          assert d["source"]["bbox"] == [148500.0,170500.0,149000.0,171000.0]
+          assert d["source"]["license"] == "CC0-1.0"
+          assert d["source"]["crs"] == "EPSG:31370"
+          assert d["locked_artifact"]["artifact_id"] == 9575593756
+          assert d["locked_artifact"]["sha256"] == "ae9972e22697573214f510deaabd9f63b13477386032733b55de6b21a228c6d7"
+          assert d["locked_artifact"]["source_semantic_sha256"] == "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3"
+          a=d["authorization"]
+          assert a["source_persistence"] is True
+          for key in ["source_registration","canonical_registration","municipality_assignment","road_to_cell_mapping","runtime_directory_scan","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+              assert a[key] is False, key
+          print(f"GRAND_PLACE_CORRECT_PERSISTENCE_RED_CONTRACT_OK live_main={live} rails_closed=true")
+          PY
+          if git cat-file -e "origin/main:grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL_ID}/manifest.json" 2>/dev/null; then
+            echo "RED: correct Grand-Place source cell already exists on live main; ownership changed" >&2
+            exit 1
+          fi
+
+      - name: Restore immutable correct-cell source artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/grand-place-correct-source.zip"
+          UNPACK="$RUNNER_TEMP/grand-place-correct-source"
+          gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9575593756/zip" > "$ZIP"
+          echo "ae9972e22697573214f510deaabd9f63b13477386032733b55de6b21a228c6d7  $ZIP" | sha256sum -c -
+          test "$(stat -c '%s' "$ZIP")" = "387697"
+          mkdir -p "$UNPACK"
+          unzip -q "$ZIP" -d "$UNPACK"
+          echo "cb58ecfdb4f912b6dae253e136544e3e1361fea876856192fcf79b55a57bb542  $UNPACK/measurement.json" | sha256sum -c -
+          echo "27b65085ef6f8cb5f34658373aff4bf727cf0353dcf6a0a436a3ecc3b25b7047  $UNPACK/package_manifest.json" | sha256sum -c -
+
+      - name: Require exact persisted correct source-cell bytes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          contract=json.loads(Path(os.environ["CONTRACT"]).read_text())
+          artifact=Path(os.environ["RUNNER_TEMP"])/"grand-place-correct-source"/"source-cell"
+          repo=Path(os.environ["CELL_DIR"])
+          for rel,spec in contract["expected_files"].items():
+              left=artifact/rel
+              right=repo/rel
+              assert left.is_file(), f"artifact missing {rel}"
+              assert right.is_file(), f"RED_EXPECTED: persisted correct Grand-Place cell missing {rel}"
+              raw=right.read_bytes()
+              assert raw == left.read_bytes(), rel
+              assert len(raw) == spec["bytes"], (rel, len(raw), spec["bytes"])
+              assert hashlib.sha256(raw).hexdigest() == spec["sha256"], rel
+          manifest=json.loads((repo/"manifest.json").read_text())
+          maturity=json.loads((repo/"maturity.json").read_text())
+          assert manifest["cell_id"] == contract["cell_id"]
+          assert manifest["bbox"] == contract["source"]["bbox"]
+          assert manifest["crs"] == "EPSG:31370"
+          assert manifest["promotion"] == "source_only_no_runtime_mutation"
+          assert maturity["maturity"]["state"] == "data_ready"
+          gates=maturity["maturity"]["gates"]
+          for key in ["runtime_geometry","collisions","streaming","terrain","heights","photo_match","performance"]:
+              assert gates[key] is False, key
+          print("GRAND_PLACE_CORRECT_SOURCE_PERSISTENCE_GREEN files=7 registration=false runtime=false")
+          PY

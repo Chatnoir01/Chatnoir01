@@ -29,6 +29,7 @@ EXPECTED_AUTOLOADS = {
     "BrusselsBollardRuntime": "game/scripts/brussels_bollard_runtime.gd",
     "BrusselsStreetLampRuntime": "game/scripts/brussels_street_lamp_runtime.gd",
     "BrusselsCorridorTreeRuntime": "game/scripts/brussels_corridor_tree_runtime.gd",
+    "BrusselsBaseGroundSurfaceRuntime": "game/scripts/brussels_base_ground_surface_runtime.gd",
 }
 GLOBAL_TREE_SCAN_TOKENS = (
     "get_tree().root",

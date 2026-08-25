@@ -13,46 +13,74 @@ var _tree_materials: Dictionary = {}
 var _trees: Array[StaticBody3D] = []
 var _enhanced_trees_enabled := true
 var _manual_binding := false
+var _watching_tree := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
+    _start_watching()
     call_deferred("_try_bind")
 
 func _process(_delta: float) -> void:
     if not is_instance_valid(_scene):
         _reset()
-        _try_bind()
+        _start_watching()
         return
     if not _manual_binding:
         var current := get_tree().current_scene
-        if current is Node3D and current != _scene:
+        if current is Node3D and current != _scene and _is_production_scene(current as Node3D):
             _reset()
-            _try_bind()
+            _start_watching()
+            call_deferred("_try_bind")
             return
     if not is_instance_valid(_player):
         _player = _scene.get_node_or_null("Player") as Node3D
     if is_instance_valid(_root) and is_instance_valid(_player):
         _root.visible = Vector2(_player.global_position.x - ANNEESSENS.x, _player.global_position.z - ANNEESSENS.z).length() <= activation_radius_m
 
-func _find_production_scene() -> Node3D:
-    var current := get_tree().current_scene
-    if current is Node3D:
-        return current as Node3D
-    for child: Node in get_tree().root.get_children():
-        if not child is Node3D:
-            continue
-        var candidate := child as Node3D
-        if candidate.get_node_or_null("BrusselsOSM") == null:
-            continue
-        if candidate.get_node_or_null("UrbISMidiExact") == null:
-            continue
-        if candidate.get_node_or_null("Player") == null:
-            continue
-        return candidate
+func _start_watching() -> void:
+    if _manual_binding or _watching_tree:
+        return
+    if not get_tree().node_added.is_connected(_on_tree_node_added):
+        get_tree().node_added.connect(_on_tree_node_added)
+    _watching_tree = true
+
+func _stop_watching() -> void:
+    if get_tree().node_added.is_connected(_on_tree_node_added):
+        get_tree().node_added.disconnect(_on_tree_node_added)
+    _watching_tree = false
+
+func _on_tree_node_added(node: Node) -> void:
+    if _manual_binding or is_instance_valid(_scene):
+        return
+    var node_name := str(node.name)
+    if node_name not in ["Main", "BrusselsOSM", "UrbISMidiExact", "Player"]:
+        return
+    call_deferred("_try_bind")
+
+func _is_production_scene(candidate: Node3D) -> bool:
+    return (
+        candidate.get_node_or_null("BrusselsOSM") != null
+        and candidate.get_node_or_null("UrbISMidiExact") != null
+        and candidate.get_node_or_null("Player") is Node3D
+    )
+
+func _find_nested_production_scene(node: Node) -> Node3D:
+    if node is Node3D and _is_production_scene(node as Node3D):
+        return node as Node3D
+    for child: Node in node.get_children():
+        var nested := _find_nested_production_scene(child)
+        if nested != null:
+            return nested
     return null
 
+func _find_production_scene() -> Node3D:
+    var current := get_tree().current_scene
+    if current is Node3D and _is_production_scene(current as Node3D):
+        return current as Node3D
+    return _find_nested_production_scene(get_tree().root)
+
 func _try_bind() -> void:
-    if _manual_binding:
+    if _manual_binding or is_instance_valid(_scene):
         return
     var candidate := _find_production_scene()
     if candidate == null:
@@ -76,6 +104,7 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _manual_binding = manual
     _scene = scene
     _player = player
+    _stop_watching()
     _build_once()
 
 func _reset() -> void:

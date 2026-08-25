@@ -125,9 +125,39 @@ def test_reject_runtime_authorization() -> None:
             raise AssertionError("runtime authorization drift must fail closed")
 
 
+def test_runtime_probe_contract() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    probe = repo_root / "game/tests/road_destination_readiness_runtime_probe.gd"
+    if not probe.is_file():
+        raise AssertionError("runtime readiness probe missing")
+    text = probe.read_text(encoding="utf-8")
+    required = [
+        'const CATALOG_PATH := "res://data/provenance/brussels_road_destination_readiness_catalog.json"',
+        'const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn.gd")',
+        'resolver.apply_to_player(player, osm_id)',
+        '"rendered": rendered',
+        '"resolver_applied": applied',
+        '"ground_ready": ground_ready',
+        '"source_sightline_clear": sightline_clear',
+        '"playability_claimed": false',
+        '"jouable_authorized": false',
+        'ROAD_DESTINATION_RUNTIME_PROBE_OK',
+    ]
+    for marker in required:
+        assert marker in text, marker
+    forbidden = [
+        'set("jouable_authorized", true)',
+        'set("safe_spawn_authorized", true)',
+        'set("render_authorized", true)',
+    ]
+    for marker in forbidden:
+        assert marker not in text, marker
+
+
 def main() -> None:
     test_green()
     test_reject_runtime_authorization()
+    test_runtime_probe_contract()
     print("ROAD_DESTINATION_READINESS_CATALOG_TESTS_GREEN")
 
 

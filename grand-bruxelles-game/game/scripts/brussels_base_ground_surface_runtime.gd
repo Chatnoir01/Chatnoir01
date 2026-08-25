@@ -4,6 +4,7 @@ const MATERIAL_FAMILY := "brussels_base_ground_surface_v1"
 const PRESENTATION_REVISION := 6
 const TARGET_MAIN_NODE := "Main"
 const TARGET_GROUND_NODE := "Ground"
+const REQUIRED_MAIN_ANCHORS := ["BrusselsOSM", "UrbISMidiExact", "Player"]
 const EXPECTED_POSITION := Vector3(0.0, -0.23, 0.0)
 const EXPECTED_SIZE := Vector3(1800.0, 0.4, 1800.0)
 const GEOMETRY_TOLERANCE := 0.0001
@@ -100,31 +101,51 @@ void fragment() {
 func _vectors_match(a: Vector3, b: Vector3) -> bool:
     return a.distance_to(b) <= GEOMETRY_TOLERANCE
 
+func _is_production_main_candidate(main: Node) -> bool:
+    if main == null or main.name != TARGET_MAIN_NODE:
+        return false
+    if main.get_node_or_null(TARGET_GROUND_NODE) == null:
+        return false
+    for anchor_name: String in REQUIRED_MAIN_ANCHORS:
+        if main.get_node_or_null(anchor_name) == null:
+            return false
+    return true
+
+func _find_main_ancestor(node: Node) -> Node:
+    var cursor: Node = node
+    while cursor != null:
+        if cursor.name == TARGET_MAIN_NODE:
+            return cursor
+        cursor = cursor.get_parent()
+    return null
+
 func _bind_existing_main() -> void:
     if _ready_complete or _failed or _bind_in_progress:
         return
     var main := get_tree().root.get_node_or_null(TARGET_MAIN_NODE)
+    if main != null and not _is_production_main_candidate(main):
+        main = null
     if main == null:
-        main = get_tree().root.find_child(TARGET_MAIN_NODE, true, false)
+        var candidate := get_tree().root.find_child(TARGET_MAIN_NODE, true, false)
+        if candidate != null and _is_production_main_candidate(candidate):
+            main = candidate
     if main != null:
         _try_bind_main(main)
 
 func _on_node_added(node: Node) -> void:
     if _ready_complete or _failed or _bind_in_progress:
         return
-    if node.name == TARGET_MAIN_NODE:
-        _try_bind_main(node)
+    if node.name != TARGET_MAIN_NODE and node.name != TARGET_GROUND_NODE and not REQUIRED_MAIN_ANCHORS.has(str(node.name)):
         return
-    if node.name != TARGET_GROUND_NODE:
+    var main := node if node.name == TARGET_MAIN_NODE else _find_main_ancestor(node)
+    if main == null or not _is_production_main_candidate(main):
         return
-    var cursor := node.get_parent()
-    while cursor != null and cursor.name != TARGET_MAIN_NODE:
-        cursor = cursor.get_parent()
-    if cursor != null:
-        _try_bind_main(cursor)
+    call_deferred("_try_bind_main", main)
 
 func _try_bind_main(main: Node) -> void:
     if _ready_complete or _failed or _bind_in_progress:
+        return
+    if not _is_production_main_candidate(main):
         return
     _bind_in_progress = true
     var ground_candidate := main.get_node_or_null(TARGET_GROUND_NODE)
@@ -151,7 +172,7 @@ func _try_bind_main(main: Node) -> void:
     _set_material_state(_enhanced_enabled)
     _ready_complete = true
     _finish_waiting()
-    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false camera_dependent=false multidirectional=true event_driven=true" % [MATERIAL_FAMILY, PRESENTATION_REVISION])
+    print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false camera_dependent=false multidirectional=true event_driven=true production_anchors=true" % [MATERIAL_FAMILY, PRESENTATION_REVISION])
 
 func _fail_binding(message: String) -> void:
     push_error("Brussels base-ground surface runtime: %s" % message)

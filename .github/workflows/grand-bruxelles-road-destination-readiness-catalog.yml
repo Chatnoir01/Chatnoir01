@@ -1,0 +1,74 @@
+name: Grand Bruxelles Road Destination Readiness Catalog
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
+      - 'grand-bruxelles-game/data/cell_manifests/**'
+      - 'grand-bruxelles-game/data/osm/**'
+      - 'grand-bruxelles-game/tools/qa/build_road_destination_readiness_catalog.py'
+      - 'grand-bruxelles-game/tools/qa/test_build_road_destination_readiness_catalog.py'
+      - '.github/workflows/grand-bruxelles-road-destination-readiness-catalog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness-catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
+            echo "RED: readiness catalog candidate does not contain live main" >&2
+            exit 1
+          }
+          echo "ROAD_DESTINATION_READINESS_LIVE_MAIN_OK live=$LIVE_MAIN_SHA head=$(git rev-parse HEAD)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game/tools/qa
+        run: python test_build_road_destination_readiness_catalog.py
+      - name: Regenerate deterministic readiness catalog
+        run: |
+          python grand-bruxelles-game/tools/qa/build_road_destination_readiness_catalog.py \
+            --repo-root grand-bruxelles-game \
+            --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \
+            --cell-index grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
+            --crosswalk grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json \
+            --output /tmp/brussels_road_destination_readiness_catalog.json
+      - name: Require byte-exact persisted lock
+        run: |
+          set -euo pipefail
+          cmp /tmp/brussels_road_destination_readiness_catalog.json \
+            grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
+      - name: Require evidence-only readiness rails
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json')
+          d=json.loads(p.read_text())
+          assert d['destination_count'] == len(d['destinations'])
+          assert d['destination_count'] > 0
+          assert d['status'] == 'SOURCE_BACKED_REGISTERED_NOT_RENDERED'
+          assert all(v is False for k,v in d['authorization'].items())
+          for row in d['destinations']:
+              assert row['readiness'] == 'REGISTERED_NOT_RENDERED'
+              for key in ['render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized']:
+                  assert row[key] is False, (row['destination_id'], key)
+          print(f"ROAD_DESTINATION_READINESS_CATALOG_LOCKED_EXACT destinations={d['destination_count']} semantic={d['semantic_sha256']}")
+          PY

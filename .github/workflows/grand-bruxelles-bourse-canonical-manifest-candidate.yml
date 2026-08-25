@@ -9,6 +9,7 @@ on:
       - "grand-bruxelles-game/data/cell_manifests/bxl-e147500-n170000-s500.json"
       - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
       - "grand-bruxelles-game/data/provenance/bourse_canonical_manifest_candidate.review.json"
+      - "grand-bruxelles-game/data/provenance/bourse_canonical_registration.review.json"
       - "grand-bruxelles-game/tools/qa/build_bourse_canonical_manifest_candidate.py"
       - "grand-bruxelles-game/tests/test_bourse_canonical_manifest_candidate.py"
       - ".github/workflows/grand-bruxelles-bourse-canonical-manifest-candidate.yml"
@@ -43,9 +44,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run fail-closed candidate regressions
-        run: python grand-bruxelles-game/tests/test_bourse_canonical_manifest_candidate.py
-
       - name: Resolve candidate lifecycle phase
         run: |
           set -euo pipefail
@@ -54,6 +52,10 @@ jobs:
           else
             echo "CANDIDATE_PHASE=unregistered" >> "$GITHUB_ENV"
           fi
+
+      - name: Run fail-closed candidate regressions before registration
+        if: env.CANDIDATE_PHASE == 'unregistered'
+        run: python grand-bruxelles-game/tests/test_bourse_canonical_manifest_candidate.py
 
       - name: Build deterministic boundary-cell candidate before registration
         if: env.CANDIDATE_PHASE == 'unregistered'

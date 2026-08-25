@@ -1,0 +1,95 @@
+{
+  "bbox": [
+    147500.0,
+    170000.0,
+    148000.0,
+    170500.0
+  ],
+  "cell_id": "bxl-e147500-n170000-s500",
+  "collisions": {
+    "status": "not_validated"
+  },
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-maturity-v1",
+  "geometry": {
+    "authoritative_geometry_ready": true,
+    "layer_feature_counts": {
+      "buildings": 799,
+      "street_axes": 76,
+      "street_surfaces": 310,
+      "train_network": 14,
+      "tram_network": 14
+    },
+    "layers": [
+      "buildings",
+      "street_surfaces",
+      "street_axes",
+      "tram_network",
+      "train_network"
+    ],
+    "source_digest": "fc8851eeb05032e97b3fab39f01349e749edfe1c90713105a4aa1edab3c9521b",
+    "source_manifest": "data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500/manifest.json"
+  },
+  "maturity": {
+    "gates": {
+      "collisions": false,
+      "heights": false,
+      "performance": false,
+      "photo_match": false,
+      "runtime_geometry": false,
+      "streaming": false,
+      "terrain": false
+    },
+    "state": "data_ready"
+  },
+  "provenance": {
+    "authoritative_source_manifest": "data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500/manifest.json",
+    "authoritative_source_manifest_sha256": "01113c2cf21fb5732f42c01c47814fbfd2270836af81fad9a7f7f0491130233a",
+    "license": "CC0-1.0",
+    "municipality_assignment_policy": "retain_all_official_intersections_no_dominant_municipality_canonicalization",
+    "municipality_boundary_semantic_sha256": "c01208a81d61d51492b928f7381991e0fdacd68f62e8ac7a77be8ba08f46ff63",
+    "municipality_intersections": [
+      {
+        "coverage_ratio": 0.8320850629128363,
+        "inspire_id": "https://databrussels.be/id/municipality/5000071",
+        "niscode": "21001"
+      },
+      {
+        "coverage_ratio": 0.16791493708716362,
+        "inspire_id": "https://databrussels.be/id/municipality/5000074",
+        "niscode": "21004"
+      }
+    ],
+    "primary": "UrbIS WFS / Paradigm",
+    "source_records_present": true,
+    "source_semantic_sha256": "f88ece4309964ed9939de100424716c90a59409db66924332abb8ea00ff652e0"
+  },
+  "transport": {
+    "rail_geometry_present": true,
+    "service_simulation_validated": false,
+    "tram_geometry_present": true
+  },
+  "uncertainties": [
+    "cell crosses Anderlecht and Bruxelles; no single canonical municipality is inferred",
+    "terrain evidence is not registered for this canonical cell",
+    "height evidence is not registered for this canonical cell",
+    "runtime geometry, streaming, collisions, photo-match and performance remain unvalidated"
+  ],
+  "terrain": {
+    "status": "not_registered",
+    "source": "no authoritative terrain evidence registered for this canonical cell"
+  },
+  "heights": {
+    "status": "not_registered",
+    "reason": "no authoritative height evidence is registered for this canonical cell"
+  },
+  "photo_match": {
+    "required": false,
+    "status": "not_validated",
+    "open_major_mismatches": 0
+  },
+  "performance": {
+    "status": "not_measured_as_streamed_cell",
+    "budget_pass": false
+  }
+}

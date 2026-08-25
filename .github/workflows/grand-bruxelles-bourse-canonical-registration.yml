@@ -1,0 +1,81 @@
+name: Grand Bruxelles Bourse Canonical Registration Evidence Only
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/cell_manifests/bxl-e147500-n170000-s500.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json"
+      - "grand-bruxelles-game/data/provenance/bourse_canonical_registration.review.json"
+      - ".github/workflows/grand-bruxelles-bourse-canonical-registration.yml"
+  workflow_dispatch:
+permissions: {contents: read, actions: read}
+jobs:
+  registration-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0}
+      - name: Require exact live-main ancestry
+        run: |
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || exit 1
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Restore locked candidate and driveway catalog
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9554802598/zip" > "$RUNNER_TEMP/bourse.zip"
+          echo "f251f8ca33b05e955cca161f7d4e203e5628788ceb8b45d0ab9ef3b8c60565d3  $RUNNER_TEMP/bourse.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bourse"; unzip -q "$RUNNER_TEMP/bourse.zip" -d "$RUNNER_TEMP/bourse"
+          echo "ee8fca94ca0e2a9b98e20df10e894ccf0407b82ec7be84c5b103be5f46222af4  $RUNNER_TEMP/bourse/bxl-e147500-n170000-s500.candidate.json" | sha256sum -c -
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/9489287345/zip" > "$RUNNER_TEMP/driveway.zip"
+          echo "18c2b037b4d220ff7e1077dbf12022164b69bcc228fdadcc09ad643d3df543cf  $RUNNER_TEMP/driveway.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/driveway"; unzip -q "$RUNNER_TEMP/driveway.zip" -d "$RUNNER_TEMP/driveway"
+          echo "e19e620e9d12958e7b7a20f805bcb1888e8b8ee31c9881dc5d1aee7c531d5250  $RUNNER_TEMP/driveway/brussels_driveway_regional_cells.json" | sha256sum -c -
+      - name: Rehash persisted UrbIS source
+        run: |
+          ROOT=grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500
+          echo "01113c2cf21fb5732f42c01c47814fbfd2270836af81fad9a7f7f0491130233a  $ROOT/manifest.json" | sha256sum -c -
+          echo "ab21f8842c384b87c3f15de82503b0a29065d7282f4a46ca57434b1fc3b9c222  $ROOT/maturity.json" | sha256sum -c -
+          echo "4d8bd11f9df0dfc75d9ce0e4fffb425559b4d125f4a19a96f3a527cec4611c44  $ROOT/raw/buildings.geojson" | sha256sum -c -
+          echo "5dfcf0d6bee3ce24adfea44484f9ff5ca968b4663af3b6cc81a11618ce18a400  $ROOT/raw/street_axes.geojson" | sha256sum -c -
+          echo "5ef7d114742da052f25832fede30030adf8b9fa55ad7360a84caa573e3e80112  $ROOT/raw/street_surfaces.geojson" | sha256sum -c -
+          echo "ae10d1b3c81aa5d22dcc8166bae246dde26f3e2ec891569c0b76827e9b3d7590  $ROOT/raw/train_network.geojson" | sha256sum -c -
+          echo "b06f8e875c5f1b468932f45d96066d180ae483bcc47ed90ad8fada93016366d7  $ROOT/raw/tram_network.geojson" | sha256sum -c -
+      - name: Validate manifest and rebuild production indexes
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/cell_manifests/bxl-e147500-n170000-s500.json'); d=json.loads(p.read_text())
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7'
+          assert [r['niscode'] for r in d['provenance']['municipality_intersections']]==['21001','21004']
+          assert all(v is False for v in d['maturity']['gates'].values())
+          assert d['terrain']['status']==d['heights']['status']=='not_registered'
+          PY
+          python grand-bruxelles-game/tools/qa/build_registered_cell_manifest_index.py --manifest-dir grand-bruxelles-game/data/cell_manifests --repo-root grand-bruxelles-game --production-base-sha "$LIVE_MAIN_SHA" --out "$RUNNER_TEMP/index.json"
+          cmp "$RUNNER_TEMP/index.json" grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json
+          python grand-bruxelles-game/tools/qa/build_driveway_registered_cell_crosswalk.py --driveway-catalog "$RUNNER_TEMP/driveway/brussels_driveway_regional_cells.json" --cell-manifests grand-bruxelles-game/data/cell_manifests --production-base-sha "$LIVE_MAIN_SHA" --out "$RUNNER_TEMP/crosswalk.json"
+          cmp "$RUNNER_TEMP/crosswalk.json" grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json
+      - name: Require closed rails and exact accounting
+        run: |
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          r=json.loads(Path('grand-bruxelles-game/data/provenance/bourse_canonical_registration.review.json').read_text())
+          i=json.loads(Path('grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json').read_text())
+          c=json.loads(Path('grand-bruxelles-game/data/provenance/brussels_driveway_registered_cell_crosswalk.json').read_text())
+          assert r['production_base_sha']==os.environ['LIVE_MAIN_SHA']
+          assert r['status']=='REGISTRATION_CANDIDATE_EVIDENCE_ONLY' and r['destination_readiness']=='REGISTERED_NOT_RENDERED'
+          assert i['registered_cell_count']==3 and i['semantic_sha256']=='488a88cd5c2cb8dae86dd6c79ed276f31a33a2ae12654cccd5653469211fdcd7'
+          assert c['semantic_sha256']=='01287676fde53b92e5ae736f61e9733c1d26a52fe405dadeda9b8648037e2e1a'
+          b=[m for m in c['matches'] if m['driveway_cell_id']=='E147500_N170000']; assert len(b)==1 and b[0]['driveway_feature_count']==197 and b[0]['driveway_municipalities']==['Anderlecht','Bruxelles']
+          assert sum(m['driveway_feature_count'] for m in c['matches'])==536
+          for d in (r,i,c):
+            for k,v in d.items():
+              if k.endswith('_authorized') or k=='parking_evidence_runtime_approved': assert v is False, (k,v)
+          print('BOURSE_CANONICAL_REGISTRATION_EVIDENCE_ONLY_LOCKED_EXACT')
+          PY

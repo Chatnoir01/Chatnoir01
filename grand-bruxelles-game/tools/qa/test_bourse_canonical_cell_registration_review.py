@@ -26,6 +26,11 @@ def copy_fixture(dst: Path) -> Path:
         target = game / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(GAME_ROOT / rel, target)
+    canonical = GAME_ROOT / review.CANONICAL_MANIFEST
+    if canonical.is_file():
+        target = game / review.CANONICAL_MANIFEST
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(canonical, target)
     return game
 
 
@@ -46,9 +51,17 @@ def write_json(path: Path, payload: dict) -> None:
 
 def main() -> None:
     baseline = review.build_review(GAME_ROOT, "fixture-main")
-    assert baseline["status"] == "READY_FOR_CANONICAL_MANIFEST_REVIEW_BOUNDARY_CELL"
     assert baseline["registration_authorized"] is False
     assert len(baseline["municipality_boundary"]["intersections"]) == 2
+    if (GAME_ROOT / review.CANONICAL_MANIFEST).is_file():
+        assert baseline["status"] == "REGISTERED_EVIDENCE_ONLY_REVIEW_RETAINED"
+        assert baseline["lifecycle_phase"] == "registered_evidence_only"
+        assert baseline["canonical_manifest_present"] is True
+        assert baseline["registration_evidence"]["evidence_only"] is True
+    else:
+        assert baseline["status"] == "READY_FOR_CANONICAL_MANIFEST_REVIEW_BOUNDARY_CELL"
+        assert baseline["lifecycle_phase"] == "pre_registration_review"
+        assert baseline["canonical_manifest_present"] is False
 
     def collapse_boundary(game: Path) -> None:
         path = game / review.MUNICIPAL_LOCK
@@ -68,16 +81,30 @@ def main() -> None:
         path = game / review.SOURCE_REL / "raw/buildings.geojson"
         path.write_bytes(path.read_bytes() + b"\n")
 
-    def pre_register_target(game: Path) -> None:
-        path = game / review.REGISTERED_INDEX
-        payload = review.load(path)
-        payload["entries"].append({"cell_id": review.CELL_ID})
-        write_json(path, payload)
+    def break_registration_binding(game: Path) -> None:
+        canonical = game / review.CANONICAL_MANIFEST
+        index_path = game / review.REGISTERED_INDEX
+        index = review.load(index_path)
+        if canonical.is_file():
+            index["entries"] = [row for row in index["entries"] if row.get("cell_id") != review.CELL_ID]
+        else:
+            index["entries"].append({"cell_id": review.CELL_ID})
+        write_json(index_path, index)
+
+    def mutate_canonical_boundary(game: Path) -> None:
+        canonical = game / review.CANONICAL_MANIFEST
+        if not canonical.is_file():
+            return
+        payload = review.load(canonical)
+        payload["provenance"]["municipality_intersections"] = payload["provenance"]["municipality_intersections"][:1]
+        write_json(canonical, payload)
 
     expect_red(collapse_boundary, "dominant municipality shortcut")
     expect_red(open_runtime_gate, "runtime authorization widening")
     expect_red(mutate_raw_source, "persisted source byte drift")
-    expect_red(pre_register_target, "review phase after target registration")
+    expect_red(break_registration_binding, "partial canonical/index registration")
+    if (GAME_ROOT / review.CANONICAL_MANIFEST).is_file():
+        expect_red(mutate_canonical_boundary, "registered canonical boundary collapse")
     print("BOURSE_CANONICAL_REGISTRATION_REVIEW_REGRESSIONS_OK")
 
 

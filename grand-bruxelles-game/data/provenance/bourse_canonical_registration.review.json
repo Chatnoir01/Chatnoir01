@@ -1,0 +1,22 @@
+{
+  "schema": "grand-bruxelles-bourse-canonical-registration-review-v1",
+  "status": "REGISTRATION_CANDIDATE_EVIDENCE_ONLY",
+  "production_base_sha": "c3369e94ed23d8067cbfa0059ca91c00d6836138",
+  "target": {"cell_id": "bxl-e147500-n170000-s500", "crs": "EPSG:31370", "bbox": [147500.0, 170000.0, 148000.0, 170500.0], "canonical_manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json", "canonical_manifest_sha256": "fc91d05e7a4db947edb72223f6604647a551aa9e468e82fe49d1975542dcd6a7"},
+  "source_evidence": {"authority": "Paradigm / Brussels-Capital Region", "license": "CC0-1.0", "source_artifact_id": 9546230151, "source_artifact_sha256": "bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2", "source_manifest_sha256": "01113c2cf21fb5732f42c01c47814fbfd2270836af81fad9a7f7f0491130233a", "source_semantic_sha256": "f88ece4309964ed9939de100424716c90a59409db66924332abb8ea00ff652e0", "layer_accounting": {"buildings": 799, "street_axes": 76, "street_surfaces": 310, "train_network": 14, "tram_network": 14}, "ownership_filtered_buildings": 62, "invalid_ownership_features": 0},
+  "candidate_evidence": {"workflow_artifact_id": 9554802598, "artifact_sha256": "f251f8ca33b05e955cca161f7d4e203e5628788ceb8b45d0ab9ef3b8c60565d3", "candidate_sha256": "ee8fca94ca0e2a9b98e20df10e894ccf0407b82ec7be84c5b103be5f46222af4", "review_semantic_sha256": "dfb707ba5dee41c0cc7a204751ddf229eba3944c389c92629d098634e7ff5ad8"},
+  "municipality_boundary": {"assignment_policy": "retain_all_official_intersections_no_dominant_municipality_canonicalization", "semantic_sha256": "c01208a81d61d51492b928f7381991e0fdacd68f62e8ac7a77be8ba08f46ff63", "intersections": [{"niscode": "21001", "inspire_id": "https://databrussels.be/id/municipality/5000071", "coverage_ratio": 0.8320850629128363}, {"niscode": "21004", "inspire_id": "https://databrussels.be/id/municipality/5000074", "coverage_ratio": 0.16791493708716362}]},
+  "registered_cell_index": {"registered_cell_count": 3, "semantic_sha256": "488a88cd5c2cb8dae86dd6c79ed276f31a33a2ae12654cccd5653469211fdcd7", "file_sha256": "86ed0817f20fbdaa93064a6baf0a62f6af1f8b1a401321c71a27dc668e9b2099"},
+  "driveway_crosswalk": {"registered_manifest_count": 3, "matched_registered_manifest_count": 3, "matched_driveway_feature_count": 536, "bourse_driveway_feature_count": 197, "bourse_municipalities": ["Anderlecht", "Bruxelles"], "semantic_sha256": "01287676fde53b92e5ae736f61e9733c1d26a52fe405dadeda9b8648037e2e1a", "file_sha256": "f885815b63c6751684478ce0d8259b1ded8983c33cb094a9c0507faea1fb6a72"},
+  "destination_readiness": "REGISTERED_NOT_RENDERED",
+  "registration_authorized": false,
+  "road_cell_mapping_authorized": false,
+  "parking_evidence_runtime_approved": false,
+  "runtime_directory_scan_authorized": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "jouable_promotion_authorized": false,
+  "semantic_sha256": "32b2ecada9f54c8bfad71c19d0039c9bbc58b9e4c48e49c10caf57862b4d6b76"
+}

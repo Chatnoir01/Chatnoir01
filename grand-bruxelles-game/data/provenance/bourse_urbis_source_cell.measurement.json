@@ -1,0 +1,81 @@
+{
+  "schema": "grand-bruxelles-bourse-urbis-source-cell-measurement-lock-v1",
+  "status": "LOCKED_EXACT_SOURCE_ONLY_MEASURED_NOT_PERSISTED",
+  "production_base_sha": "6b7821086efa669df24843acb50aa46d231ba814",
+  "cell_id": "bxl-e147500-n170000-s500",
+  "crs": "EPSG:31370",
+  "bbox": [147500.0, 170000.0, 148000.0, 170500.0],
+  "authority": "Paradigm / Brussels-Capital Region",
+  "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+  "license": "CC0-1.0",
+  "revision": null,
+  "revision_note": "The live UrbIS source-cell WFS exposes no stable historical release identifier; no revision is invented. Durable identity is content-addressed and excludes only transient top-level GeoServer Feature.id/FID values.",
+  "municipality_boundary_provenance": {
+    "semantic_sha256": "c01208a81d61d51492b928f7381991e0fdacd68f62e8ac7a77be8ba08f46ff63",
+    "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
+    "automatic_municipality_assignment_authorized": false,
+    "intersections": [
+      {"niscode": "21001", "inspire_id": "https://databrussels.be/id/municipality/5000071", "coverage_ratio": 0.8320850629128363},
+      {"niscode": "21004", "inspire_id": "https://databrussels.be/id/municipality/5000074", "coverage_ratio": 0.16791493708716362}
+    ]
+  },
+  "source_artifact": {
+    "workflow_run_id": 32800198111,
+    "artifact_id": 9546230151,
+    "artifact_sha256": "bf096755442d3762476ce4203ad2efb2c3ac0280fffd9057df0f347f1ee855b2",
+    "artifact_size_bytes": 205274,
+    "note": "This RED-first artifact is the immutable source of truth for reproduction. Future measurement runs must restore these bytes rather than rescan the mutable WFS."
+  },
+  "source_semantic_sha256": "f88ece4309964ed9939de100424716c90a59409db66924332abb8ea00ff652e0",
+  "manifest_source_digest": "fc8851eeb05032e97b3fab39f01349e749edfe1c90713105a4aa1edab3c9521b",
+  "manifest_sha256": "01113c2cf21fb5732f42c01c47814fbfd2270836af81fad9a7f7f0491130233a",
+  "maturity_sha256": "ab21f8842c384b87c3f15de82503b0a29065d7282f4a46ca57434b1fc3b9c222",
+  "maturity_state": "data_ready",
+  "layer_accounting": {
+    "buildings": 799,
+    "street_axes": 76,
+    "street_surfaces": 310,
+    "train_network": 14,
+    "tram_network": 14
+  },
+  "building_ownership": {
+    "ownership_filtered": 62,
+    "invalid_ownership_features": 0
+  },
+  "layers": {
+    "buildings": {
+      "raw_bytes": 486276,
+      "raw_forensic_sha256": "4d8bd11f9df0dfc75d9ce0e4fffb425559b4d125f4a19a96f3a527cec4611c44",
+      "semantic_features_sha256": "0420a9822babf4bd52f282116473a2455a5a18946b23a4e3188f8a42391d84ef"
+    },
+    "street_axes": {
+      "raw_bytes": 49110,
+      "raw_forensic_sha256": "5dfcf0d6bee3ce24adfea44484f9ff5ca968b4663af3b6cc81a11618ce18a400",
+      "semantic_features_sha256": "79a8bfac36c62152d33be7a077445a3bbb2b23013d3bca4098ba53f788dd3370"
+    },
+    "street_surfaces": {
+      "raw_bytes": 389244,
+      "raw_forensic_sha256": "5ef7d114742da052f25832fede30030adf8b9fa55ad7360a84caa573e3e80112",
+      "semantic_features_sha256": "7ab860c4fe808a800cc9e8a917489ef691657b95f031a5491a421ec08bec201b"
+    },
+    "train_network": {
+      "raw_bytes": 13827,
+      "raw_forensic_sha256": "ae10d1b3c81aa5d22dcc8166bae246dde26f3e2ec891569c0b76827e9b3d7590",
+      "semantic_features_sha256": "04b96bad393fc29f03bdc2e8820b348dcbf81688375a7a697ecbbf5b66d5edb5"
+    },
+    "tram_network": {
+      "raw_bytes": 13798,
+      "raw_forensic_sha256": "b06f8e875c5f1b468932f45d96066d180ae483bcc47ed90ad8fada93016366d7",
+      "semantic_features_sha256": "04b96bad393fc29f03bdc2e8820b348dcbf81688375a7a697ecbbf5b66d5edb5"
+    }
+  },
+  "source_persistence_authorized": false,
+  "source_registration_authorized": false,
+  "canonical_registration_authorized": false,
+  "road_cell_mapping_authorized": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "jouable_promotion_authorized": false
+}

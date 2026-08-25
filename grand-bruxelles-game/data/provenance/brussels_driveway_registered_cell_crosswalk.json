@@ -1,20 +1,46 @@
 {
   "schema": "grand-bruxelles-driveway-registered-cell-crosswalk-v1",
-  "production_base_sha": "a037436b408889bd4895c225da4a98da886dbfef",
+  "production_base_sha": "e107c25613533e8a6e4eb3c8550e214c92db8198",
   "source_catalog": {
     "schema": "grand-bruxelles-driveway-regional-cell-catalog-v1",
     "feature_count": 95805,
     "cell_count": 832,
     "cells_sha256": "9475d83f0524e917a0cdf89bced41a25b5521e5a7b842d29a9536a5302b2fe8b"
   },
-  "registered_manifest_count": 2,
-  "matched_registered_manifest_count": 2,
+  "registered_manifest_count": 3,
+  "matched_registered_manifest_count": 3,
   "unmatched_registered_manifest_count": 0,
   "matches": [
     {
+      "registered_cell_id": "bxl-e147500-n170000-s500",
+      "driveway_cell_id": "E147500_N170000",
+      "manifest_path": "data/cell_manifests/bxl-e147500-n170000-s500.json",
+      "maturity_state": "data_ready",
+      "maturity_gates": {
+        "collisions": false,
+        "heights": false,
+        "performance": false,
+        "photo_match": false,
+        "runtime_geometry": false,
+        "streaming": false,
+        "terrain": false
+      },
+      "runtime_mount_authorized": false,
+      "collision_authorized": false,
+      "safe_spawn_authorized": false,
+      "jouable_promotion_authorized": false,
+      "driveway_municipalities": [
+        "Anderlecht",
+        "Bruxelles"
+      ],
+      "driveway_feature_count": 197,
+      "crosswalk_evidence_only": true,
+      "road_crosswalk_authorized": false
+    },
+    {
       "registered_cell_id": "bxl-e148000-n170000-s500",
       "driveway_cell_id": "E148000_N170000",
-      "manifest_path": "grand-bruxelles-game/data/cell_manifests/bxl-e148000-n170000-s500.json",
+      "manifest_path": "data/cell_manifests/bxl-e148000-n170000-s500.json",
       "maturity_state": "data_ready",
       "maturity_gates": {
         "collisions": false,
@@ -39,7 +65,7 @@
     {
       "registered_cell_id": "bxl-e149000-n169000-s500",
       "driveway_cell_id": "E149000_N169000",
-      "manifest_path": "grand-bruxelles-game/data/cell_manifests/bxl-e149000-n169000-s500.json",
+      "manifest_path": "data/cell_manifests/bxl-e149000-n169000-s500.json",
       "maturity_state": "data_ready",
       "maturity_gates": {
         "collisions": false,
@@ -75,5 +101,5 @@
   "collision_authorized": false,
   "safe_spawn_authorized": false,
   "jouable_promotion_authorized": false,
-  "semantic_sha256": "1c2dbb0de466cebd2cd8fdc3e4d3b56fc9651329e140c2c11feb1ea12cb56ee2"
+  "semantic_sha256": "01287676fde53b92e5ae736f61e9733c1d26a52fe405dadeda9b8648037e2e1a"
 }

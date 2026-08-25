@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/data/provenance/bourse_road_cell_municipality.measurement.json"
       - "grand-bruxelles-game/data/provenance/bourse_urbis_source_cell.measurement.json"
       - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/provenance/bourse_canonical_registration.review.json"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500/**"
       - "grand-bruxelles-game/data/cell_manifests/bxl-e147500-n170000-s500.json"
       - "grand-bruxelles-game/tools/qa/review_bourse_canonical_cell_registration.py"
@@ -44,21 +45,33 @@ jobs:
               raise SystemExit(f"contract base drift: {contract['production_base_sha']} != {live}")
           print(f"BOURSE_REGISTRATION_REVIEW_LIVE_MAIN_OK: {live}")
           PY
+          echo "LIVE_MAIN=$LIVE_MAIN" >> "$GITHUB_ENV"
 
-      - name: Run fail-closed regressions
+      - name: Resolve registration lifecycle phase
+        run: |
+          set -euo pipefail
+          if [ -f grand-bruxelles-game/data/cell_manifests/bxl-e147500-n170000-s500.json ]; then
+            echo "REGISTRATION_REVIEW_PHASE=registered" >> "$GITHUB_ENV"
+          else
+            echo "REGISTRATION_REVIEW_PHASE=pre_registration" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run fail-closed pre-registration regressions
+        if: env.REGISTRATION_REVIEW_PHASE == 'pre_registration'
         run: python grand-bruxelles-game/tools/qa/test_bourse_canonical_cell_registration_review.py
 
-      - name: Generate review from persisted evidence only
+      - name: Generate pre-registration review from persisted evidence only
+        if: env.REGISTRATION_REVIEW_PHASE == 'pre_registration'
         shell: bash
         run: |
           set -euo pipefail
-          LIVE_MAIN="$(git rev-parse origin/main)"
           python grand-bruxelles-game/tools/qa/review_bourse_canonical_cell_registration.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --production-base-sha "$LIVE_MAIN" \
             --output "$RUNNER_TEMP/bourse_canonical_registration_review.json"
 
-      - name: Require review contract and closed rails
+      - name: Require pre-registration review contract and closed rails
+        if: env.REGISTRATION_REVIEW_PHASE == 'pre_registration'
         run: |
           python - <<'PY'
           import json, os
@@ -89,9 +102,71 @@ jobs:
           print("BOURSE_CANONICAL_REGISTRATION_REVIEW_CONTRACT_OK")
           PY
 
+      - name: Validate registered evidence-only successor
+        if: env.REGISTRATION_REVIEW_PHASE == 'registered'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bourse-registration-review"
+          cp grand-bruxelles-game/data/provenance/bourse_canonical_registration.review.json \
+            "$RUNNER_TEMP/bourse-registration-review/bourse_canonical_registration.review.json"
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          root = Path('grand-bruxelles-game')
+          manifest_path = root / 'data/cell_manifests/bxl-e147500-n170000-s500.json'
+          review_path = root / 'data/provenance/bourse_canonical_registration.review.json'
+          index_path = root / 'data/provenance/brussels_registered_cell_manifest_index.json'
+          crosswalk_path = root / 'data/provenance/brussels_driveway_registered_cell_crosswalk.json'
+          for path in (manifest_path, review_path, index_path, crosswalk_path):
+              if not path.is_file():
+                  raise SystemExit(f'RED: registered successor missing evidence: {path}')
+
+          manifest_bytes = manifest_path.read_bytes()
+          manifest = json.loads(manifest_bytes)
+          review = json.loads(review_path.read_text())
+          index = json.loads(index_path.read_text())
+          crosswalk = json.loads(crosswalk_path.read_text())
+
+          assert review['schema'] == 'grand-bruxelles-bourse-canonical-registration-review-v1'
+          assert review['status'] == 'REGISTRATION_CANDIDATE_EVIDENCE_ONLY'
+          assert review['production_base_sha'] == os.environ['LIVE_MAIN']
+          assert review['destination_readiness'] == 'REGISTERED_NOT_RENDERED'
+          assert review['target']['cell_id'] == 'bxl-e147500-n170000-s500'
+          assert review['target']['canonical_manifest_sha256'] == hashlib.sha256(manifest_bytes).hexdigest()
+          assert manifest['maturity']['state'] == 'data_ready'
+          assert manifest['maturity']['gates'] and all(value is False for value in manifest['maturity']['gates'].values())
+          assert [row['niscode'] for row in manifest['provenance']['municipality_intersections']] == ['21001', '21004']
+          assert index['registered_cell_count'] == 3
+          assert crosswalk['registered_manifest_count'] == 3
+          assert crosswalk['matched_registered_manifest_count'] == 3
+          assert crosswalk['unmatched_registered_manifest_count'] == 0
+          matches = [row for row in crosswalk['matches'] if row['registered_cell_id'] == 'bxl-e147500-n170000-s500']
+          assert len(matches) == 1
+          assert matches[0]['driveway_feature_count'] == 197
+          assert matches[0]['driveway_municipalities'] == ['Anderlecht', 'Bruxelles']
+
+          for key in (
+              'registration_authorized', 'road_cell_mapping_authorized', 'parking_evidence_runtime_approved',
+              'runtime_directory_scan_authorized', 'runtime_mount_authorized', 'rendered_geometry_authorized',
+              'collision_authorized', 'safe_spawn_authorized', 'jouable_promotion_authorized',
+          ):
+              assert review[key] is False, key
+          print('BOURSE_CANONICAL_REGISTRATION_REVIEW_REGISTERED_EVIDENCE_ONLY_OK')
+          PY
+
       - name: Upload review evidence
+        if: env.REGISTRATION_REVIEW_PHASE == 'pre_registration'
         uses: actions/upload-artifact@v4
         with:
           name: bourse-canonical-registration-review
           path: ${{ runner.temp }}/bourse_canonical_registration_review.json
+          if-no-files-found: error
+
+      - name: Upload registered successor evidence
+        if: env.REGISTRATION_REVIEW_PHASE == 'registered'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-canonical-registration-review
+          path: ${{ runner.temp }}/bourse-registration-review
           if-no-files-found: error

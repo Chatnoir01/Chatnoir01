@@ -18,6 +18,7 @@ REQUIRED_SOURCE_ONLY_GATES = (
     "photo_match",
     "performance",
 )
+CANONICAL_MANIFEST_ROOT = Path("data/cell_manifests")
 
 
 def canonical_json(value: Any) -> bytes:
@@ -38,6 +39,20 @@ def parse_manifest_cell_id(cell_id: str) -> tuple[str, int, int, int]:
     if size != 500:
         raise RuntimeError(f"registered cell must use 500 m grid: {cell_id}")
     return f"E{east}_N{north}", east, north, size
+
+
+def canonical_manifest_path(path: Path, root: Path) -> str:
+    if tuple(root.parts[-2:]) != tuple(CANONICAL_MANIFEST_ROOT.parts):
+        raise RuntimeError(
+            f"registered cell manifest root must end in {CANONICAL_MANIFEST_ROOT.as_posix()}: {root}"
+        )
+    try:
+        relative = path.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError(f"registered cell manifest escaped root: {path}") from exc
+    if len(relative.parts) != 1 or relative.suffix.lower() != ".json":
+        raise RuntimeError(f"registered cell manifest path must be a direct JSON child: {path}")
+    return (CANONICAL_MANIFEST_ROOT / relative).as_posix()
 
 
 def load_registered_cells(root: Path) -> list[dict[str, Any]]:
@@ -69,7 +84,7 @@ def load_registered_cells(root: Path) -> list[dict[str, Any]]:
         rows.append({
             "registered_cell_id": cell_id,
             "driveway_cell_id": driveway_cell_id,
-            "manifest_path": path.as_posix(),
+            "manifest_path": canonical_manifest_path(path, root),
             "maturity_state": maturity.get("state"),
             "maturity_gates": {key: gates[key] for key in sorted(gates)},
             "runtime_mount_authorized": False,

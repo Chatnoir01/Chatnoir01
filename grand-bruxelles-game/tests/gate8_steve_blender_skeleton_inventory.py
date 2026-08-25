@@ -245,7 +245,7 @@ def main() -> None:
         verdict = "AMELIORER_NEEDS_EXPLICIT_ROLE_MAPPING"
 
     result = {
-        "format": "grand-bruxelles-gate8-variant01-steve-blender-skeleton-inventory-result-v2",
+        "format": "grand-bruxelles-gate8-variant01-steve-blender-skeleton-inventory-result-v1",
         "blender_runtime_version": bpy.app.version_string,
         "blend_file_version": list(bpy.data.version),
         "armature_count": len(armatures),

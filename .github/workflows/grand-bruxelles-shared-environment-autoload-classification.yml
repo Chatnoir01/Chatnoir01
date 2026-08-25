@@ -1,0 +1,35 @@
+name: Grand Bruxelles Shared Environment Autoload Classification
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/project.godot'
+      - 'grand-bruxelles-game/data/qa/shared_environment_lifecycle_contract.json'
+      - 'grand-bruxelles-game/data/qa/shared_environment_autoload_classification.json'
+      - 'grand-bruxelles-game/game/tests/shared_environment_autoload_classification_test.py'
+      - '.github/workflows/grand-bruxelles-shared-environment-autoload-classification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  classify-environment-autoloads:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Classify every production Environment autoload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/game/tests/shared_environment_autoload_classification_test.py

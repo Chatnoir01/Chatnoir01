@@ -6,6 +6,7 @@ const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
 const RUNTIME_INDEX_PATH := "res://data/runtime/road_destination_runtime_index.json"
 const RUNTIME_INDEX_FORMAT := "grand-bruxelles-road-runtime-index-v1"
 const LEMONNIER_ID := 359177328
+const POISSONNIERS_ID := 12357557
 
 
 func _initialize() -> void:
@@ -61,7 +62,7 @@ func _runtime_index_contract() -> Dictionary:
             if osm_id <= 0 or normalized_road_ids.has(osm_id):
                 return {}
             normalized_road_ids[osm_id] = true
-        if not normalized_road_ids.has(LEMONNIER_ID):
+        if not normalized_road_ids.has(LEMONNIER_ID) or not normalized_road_ids.has(POISSONNIERS_ID):
             return {}
         return {
             "source_sha256": expected_sha,
@@ -150,6 +151,37 @@ func _run() -> void:
         _fail("road spawn source SHA proof missing")
         return
 
+    # Regression for the exact #1291 runtime-probe exception. Poissonniers is
+    # source-indexed and rendered; the resolver must decide it from the same
+    # generic geometry/sightline/ground chain as every other road.
+    if not _rendered(main, POISSONNIERS_ID):
+        _fail("known Poissonniers road is not rendered in production scene")
+        return
+    if not resolver.apply_to_player(player, POISSONNIERS_ID):
+        _fail("indexed resolver refused rendered Poissonniers")
+        return
+    if int(player.get_meta("automatic_road_direct_osm_id", 0)) != POISSONNIERS_ID:
+        _fail("generic Poissonniers metadata missing")
+        return
+    if not str(player.get_meta("automatic_road_direct_source_name", "")).contains("Poissonniers"):
+        _fail("generic Poissonniers source identity missing")
+        return
+    if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != expected_source_sha:
+        _fail("Poissonniers source SHA proof missing")
+        return
+    if not bool(player.get_meta("automatic_road_direct_source_sightline_clear", false)):
+        _fail("Poissonniers source sightline proof missing")
+        return
+    var poissonniers_ground_y := float(player.get_meta("automatic_road_direct_ground_y", INF))
+    if not is_finite(poissonniers_ground_y):
+        _fail("Poissonniers physics-backed ground height missing")
+        return
+    var poissonniers_alignment := float(player.get_meta("automatic_road_direct_axis_alignment", -1.0))
+    if poissonniers_alignment < 0.90:
+        _fail("Poissonniers source-axis alignment below 0.90: %.6f" % poissonniers_alignment)
+        return
+    print("AUTOMATIC_ROAD_POISSONNIERS_RUNTIME_READY_GREEN: osm_id=%d ground_y=%.3f axis_alignment=%.6f source_sha=%s" % [POISSONNIERS_ID, poissonniers_ground_y, poissonniers_alignment, expected_source_sha])
+
     var document := _document()
     if document.is_empty():
         _fail("vertical slice source missing")
@@ -168,7 +200,7 @@ func _run() -> void:
         var osm_id := int(road.get("osm_id", 0))
         var name := str(road.get("name", "")).strip_edges()
         var points: Variant = road.get("points", [])
-        if osm_id <= 0 or osm_id == LEMONNIER_ID or name.is_empty() or not bool(road.get("drivable", false)):
+        if osm_id <= 0 or osm_id == LEMONNIER_ID or osm_id == POISSONNIERS_ID or name.is_empty() or not bool(road.get("drivable", false)):
             continue
         if not points is Array or points.size() < 2 or not _rendered(main, osm_id):
             continue

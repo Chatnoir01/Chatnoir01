@@ -1,0 +1,79 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-steve-godot-import-preflight-v1",
+  "base_main_sha": "9784cef449a5b2898c86964c9093393669f3f0a2",
+  "candidate_variant": 1,
+  "source_intake": {
+    "pr": 1308,
+    "run": 32895487575,
+    "artifact_id": 9581085302,
+    "artifact_sha256": "c04ced7f481f10cedaea751821cf5d9045971eafef13c277d99c8a039acf3f90",
+    "mechanical_state": "READY_FOR_GODOT_4_7_1_IMPORT_PREFLIGHT"
+  },
+  "source": {
+    "provider": "OpenGameArt",
+    "title": "NPC male Steve",
+    "author": "supersteve",
+    "declared_license": "CC0-1.0",
+    "archive_name": "steve_npc1.zip",
+    "archive_url": "https://opengameart.org/sites/default/files/steve_npc1.zip",
+    "archive_sha256": "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5",
+    "archive_size_bytes": 1454243,
+    "exact_3d_source": "steve_npc1.blend",
+    "blender_armature_count": 1,
+    "blender_bone_count": 55,
+    "blender_weighted_mesh_count": 10,
+    "blender_action_count": 13,
+    "required_walk_action": "walk"
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_zip_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_name": "npc_gate_01.glb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "minimum_bone_count": 53
+  },
+  "import_gate": {
+    "blender_version": "4.0.2",
+    "godot_version": "4.7.1",
+    "temporary_glb_export_only": true,
+    "minimum_source_bone_count": 55,
+    "minimum_source_skinned_meshes": 1,
+    "required_source_bones": [
+      "pelvis",
+      "armup.L",
+      "armup.R",
+      "foot1.L",
+      "foot1.R"
+    ],
+    "required_walk_token": "walk",
+    "minimum_walk_duration_s": 0.1,
+    "required_target_bones": [
+      "pelvis",
+      "spine_01",
+      "upperarm_l",
+      "upperarm_r",
+      "foot_l",
+      "foot_r"
+    ],
+    "retarget_forbidden": true,
+    "bone_rename_forbidden": true,
+    "rest_mutation_forbidden": true,
+    "runtime_population_change_forbidden": true
+  },
+  "rails": {
+    "source_intake_complete": true,
+    "godot_import_preflight_authorized": true,
+    "explicit_role_mapping_selected": false,
+    "retarget_applied": false,
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "package_bytes_committed": false,
+    "player_character_reuse_allowed": false,
+    "mixamo_payload_allowed": false
+  }
+}

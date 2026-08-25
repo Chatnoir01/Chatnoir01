@@ -4,6 +4,7 @@ const MATERIAL_FACTORY := preload("res://game/scripts/brussels_fauquenberg_brick
 const IDENTITY_PATH := "res://data/visual/midi_fauquenberg_brick_material_identity.json"
 const EXPECTED_SURFACES := 3
 const TARGET_NAMES := ["FauquenbergBrick"]
+const SUBTREE_READY_FRAMES := 30
 
 var _targets: Array[Node] = []
 var _original_materials: Dictionary = {}
@@ -11,20 +12,43 @@ var _material: ShaderMaterial
 var _enabled := false
 var _ready_complete := false
 var _identity_failure := false
+var _awaiting_station := false
+var _bind_in_progress := false
 
 func _ready() -> void:
-    call_deferred("_bind_when_ready")
+    _awaiting_station = true
+    get_tree().node_added.connect(_on_node_added)
+    call_deferred("_bind_existing_station")
 
-func _bind_when_ready() -> void:
-    for _attempt: int in range(120):
-        var station := get_tree().root.find_child("BruxellesMidiStation", true, false)
-        if station != null:
+func _bind_existing_station() -> void:
+    if _ready_complete or _identity_failure or _bind_in_progress:
+        return
+    var station := get_tree().root.find_child("BruxellesMidiStation", true, false)
+    if station != null:
+        _bind_in_progress = true
+        _apply_when_subtree_ready(station)
+
+func _on_node_added(node: Node) -> void:
+    if _ready_complete or _identity_failure or _bind_in_progress or node.name != "BruxellesMidiStation":
+        return
+    _bind_in_progress = true
+    _apply_when_subtree_ready(node)
+
+func _apply_when_subtree_ready(station: Node) -> void:
+    for _frame: int in range(SUBTREE_READY_FRAMES):
+        if not is_instance_valid(station):
+            _bind_in_progress = false
+            return
+        _targets.clear()
+        _collect_targets(station)
+        if _targets.size() == EXPECTED_SURFACES:
             bind_station(station)
             return
         await get_tree().process_frame
+    push_error("Midi Fauquenberg runtime: expected %d target surfaces, got %d after bounded station subtree population" % [EXPECTED_SURFACES, _targets.size()])
     _identity_failure = true
     _ready_complete = true
-    push_error("Midi Fauquenberg runtime: BruxellesMidiStation missing")
+    _finish_waiting()
 
 func bind_station(station: Node) -> void:
     _targets.clear()
@@ -34,12 +58,14 @@ func bind_station(station: Node) -> void:
     if identity.is_empty() or not _runtime_identity_allowed(identity):
         _identity_failure = true
         _ready_complete = true
+        _finish_waiting()
         return
     _collect_targets(station)
     if _targets.size() != EXPECTED_SURFACES:
         push_error("Midi Fauquenberg runtime: expected %d target surfaces, got %d" % [EXPECTED_SURFACES, _targets.size()])
         _identity_failure = true
         _ready_complete = true
+        _finish_waiting()
         return
     var dims := identity.get("source_dimensions_m", {}) as Dictionary
     _material = MATERIAL_FACTORY.create(
@@ -52,7 +78,14 @@ func bind_station(station: Node) -> void:
         _original_materials[target.get_instance_id()] = _get_material(target)
     set_enhanced_material_enabled(true)
     _ready_complete = true
+    _finish_waiting()
     print("Midi Fauquenberg runtime: surfaces=%d material_only=true" % _targets.size())
+
+func _finish_waiting() -> void:
+    _awaiting_station = false
+    _bind_in_progress = false
+    if get_tree().node_added.is_connected(_on_node_added):
+        get_tree().node_added.disconnect(_on_node_added)
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):
@@ -115,6 +148,9 @@ func ready_complete() -> bool:
 
 func identity_failure() -> bool:
     return _identity_failure
+
+func awaiting_station() -> bool:
+    return _awaiting_station
 
 func applied_surface_count() -> int:
     return _targets.size()

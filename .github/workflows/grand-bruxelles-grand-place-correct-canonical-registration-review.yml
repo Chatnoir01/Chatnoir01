@@ -1,0 +1,78 @@
+name: Grand Bruxelles Grand-Place Correct Canonical Registration Review
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-grand-place-correct-canonical-registration-review.yml"
+      - "grand-bruxelles-game/data/qa/grand_place_correct_canonical_registration_review.contract.json"
+      - "grand-bruxelles-game/tools/qa/review_grand_place_correct_canonical_registration.py"
+      - "grand-bruxelles-game/tests/test_grand_place_correct_canonical_registration_review.py"
+      - "grand-bruxelles-game/data/provenance/grand_place_correct_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/provenance/grand_place_correct_source_cell_municipality.measurement.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-registration-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and review-only rails
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live=sys.argv[1]
+          p=Path("grand-bruxelles-game/data/qa/grand_place_correct_canonical_registration_review.contract.json")
+          d=json.loads(p.read_text())
+          assert d["production_base_sha"] == live, (d["production_base_sha"], live)
+          assert d["status"] == "REVIEW_PENDING"
+          assert d["target"]["cell_id"] == "bxl-e148500-n170500-s500"
+          for key, value in d["authorization"].items():
+              assert value is False, key
+          print(f"GRAND_PLACE_CORRECT_CANONICAL_REVIEW_BASE_OK live_main={live} rails_closed=true")
+          PY
+
+      - name: Run fail-closed regressions
+        run: python3 grand-bruxelles-game/tests/test_grand_place_correct_canonical_registration_review.py
+
+      - name: Build deterministic review artifact
+        run: |
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          python3 grand-bruxelles-game/tools/qa/review_grand_place_correct_canonical_registration.py \
+            --repo-root grand-bruxelles-game \
+            --contract data/qa/grand_place_correct_canonical_registration_review.contract.json \
+            --production-base-sha "$LIVE_MAIN_SHA" \
+            --output "$RUNNER_TEMP/grand_place_correct_canonical_registration.review.json"
+          python3 - "$RUNNER_TEMP/grand_place_correct_canonical_registration.review.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          d=json.loads(Path(sys.argv[1]).read_text())
+          assert d["status"] == "READY_FOR_CANONICAL_MANIFEST_REVIEW"
+          assert d["registered_cell_index"]["target_present"] is False
+          assert d["municipality_evidence"]["niscode"] == "21004"
+          assert d["municipality_evidence"]["coverage_ratio"] == 1.0
+          for key in ["registration_authorized","road_cell_mapping_authorized","runtime_directory_scan_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+              assert d[key] is False, key
+          print(f"GRAND_PLACE_CORRECT_CANONICAL_REVIEW_ARTIFACT_OK semantic={d['semantic_sha256']} status={d['status']} rails_closed=true")
+          PY
+
+      - name: Upload review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-correct-canonical-registration-review
+          path: ${{ runner.temp }}/grand_place_correct_canonical_registration.review.json
+          if-no-files-found: error

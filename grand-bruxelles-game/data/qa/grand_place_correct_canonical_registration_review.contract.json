@@ -1,0 +1,45 @@
+{
+  "schema": "grand-bruxelles-grand-place-correct-canonical-registration-review-contract-v1",
+  "production_base_sha": "3e49d0b5933b5c6588d164a8bfec997860c9c117",
+  "status": "REVIEW_PENDING",
+  "target": {
+    "cell_id": "bxl-e148500-n170500-s500",
+    "crs": "EPSG:31370",
+    "bbox": [148500.0, 170500.0, 149000.0, 171000.0]
+  },
+  "source_evidence": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "license": "CC0-1.0",
+    "measurement_path": "data/provenance/grand_place_correct_urbis_source_cell.measurement.json",
+    "manifest_sha256": "f464b35581b9231582daafbd28c07f1b15e3aeae2d7b683385b7073b6b73658f",
+    "maturity_sha256": "e5f3eaddc2fba5a5d359f3e47f5819ae3efd7994174ee7c452104d7ea01d95e1",
+    "source_semantic_sha256": "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3",
+    "layer_counts": {"buildings": 1110, "street_axes": 180, "street_surfaces": 598, "train_network": 12, "tram_network": 12},
+    "buildings_ownership_filtered": 70,
+    "buildings_invalid_ownership": 0
+  },
+  "municipality_evidence": {
+    "measurement_path": "data/provenance/grand_place_correct_source_cell_municipality.measurement.json",
+    "status": "MUNICIPALITY_PROVEN_SINGLE",
+    "semantic_sha256": "31b049a8687f65f7b24458357a7b10b010b22190a627697fad5d1090d04dc979",
+    "municipality_id": "https://databrussels.be/id/municipality/5000074",
+    "niscode": "21004",
+    "coverage_ratio": 1.0
+  },
+  "registered_cell_index": {
+    "path": "data/provenance/brussels_registered_cell_manifest_index.json",
+    "target_must_be_absent": true
+  },
+  "authorization": {
+    "source_registration": false,
+    "canonical_registration": false,
+    "municipality_assignment": false,
+    "road_to_cell_mapping": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  }
+}

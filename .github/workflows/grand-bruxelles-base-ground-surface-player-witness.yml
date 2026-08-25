@@ -1,0 +1,126 @@
+name: Grand Bruxelles Base Ground Surface Player Witness
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/project.godot'
+      - 'grand-bruxelles-game/game/main.tscn'
+      - 'grand-bruxelles-game/game/tests/brussels_base_ground_surface_player_witness_test.gd'
+      - 'grand-bruxelles-game/game/scripts/brussels_base_ground_surface_runtime.gd'
+      - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
+      - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - '.github/workflows/grand-bruxelles-base-ground-surface-player-witness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  base-ground-surface-player-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Install rendering dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0
+
+      - name: Install Godot 4.7.1
+        run: |
+          curl -fL --retry 4 --retry-all-errors --retry-delay 2 \
+            -o /tmp/godot.zip \
+            https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+      - name: Import project
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --headless --path grand-bruxelles-game --editor --quit \
+            2>&1 | tee /tmp/base-ground-import.log
+          if grep -E 'SCRIPT ERROR|Parse Error:|ERROR: Failed to load script' /tmp/base-ground-import.log; then
+            exit 1
+          fi
+
+      - name: Capture legitimate player-view ground A/B
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p grand-bruxelles-game/artifacts/base_ground_surface_player_witness
+          xvfb-run -a /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 \
+            --display-driver x11 \
+            --rendering-method gl_compatibility \
+            --path grand-bruxelles-game \
+            --resolution 1280x720 \
+            --script res://game/tests/brussels_base_ground_surface_player_witness_test.gd \
+            2>&1 | tee grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
+          grep -q 'BRUSSELS_BASE_GROUND_SURFACE_READY' \
+            grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
+          grep -q 'BRUSSELS_BASE_GROUND_SURFACE_PLAYER_WITNESS_OK' \
+            grand-bruxelles-game/artifacts/base_ground_surface_player_witness/witness.log
+
+      - name: Validate exact evidence
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, struct
+          from pathlib import Path
+
+          root = Path('grand-bruxelles-game/artifacts/base_ground_surface_player_witness')
+          source_path = Path('grand-bruxelles-game/data/osm/vertical_slice_01.game.json')
+          for name in ['base_ground_before.png', 'base_ground_after.png']:
+              data = (root / name).read_bytes()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n', name
+              assert data[12:16] == b'IHDR', name
+              assert struct.unpack('>II', data[16:24]) == (1280, 720), name
+
+          report = json.loads((root / 'base_ground_surface_player_witness.json').read_text())
+          assert report['schema'] == 'grand-bruxelles-base-ground-surface-player-witness-v2'
+          assert report['production_base_sha'] == '3e49d0b5933b5c6588d164a8bfec997860c9c117'
+          assert report['presentation_revision'] == 6
+          assert report['target_osm_id'] == 359177328
+          assert report['source_sha256'] == hashlib.sha256(source_path.read_bytes()).hexdigest()
+          assert report['source_license'] == 'ODbL-1.0'
+          assert report['resolution'] == [1280, 720]
+          assert report['camera_copied_from_legitimate_player_witness'] is True
+          assert report['dynamic_review_noise_hidden'] is True
+          assert report['legacy_material_captured_from_current_main'] is True
+          assert report['geometry_changed'] is False
+          assert report['collision_changed'] is False
+          assert report['ground_material_only'] is True
+          assert report['procedural_only'] is True
+          assert report['time_dependent'] is False
+          assert report['camera_dependent_recipe'] is False
+          assert report['multidirectional_isotropic_recipe'] is True
+          assert report['source_surface_composition_claimed'] is False
+          assert report['prior_v5_human_verdict'] == 'AMELIORER_DO_NOT_SHIP_BANDING'
+          assert report['human_full_frame_verdict'] == 'pending'
+          metrics = report['metrics']
+          assert 0.18 <= metrics['changed_fraction'] <= 0.70, metrics
+          assert metrics['bbox_width'] >= 700, metrics
+          assert metrics['bbox_height'] >= 250, metrics
+          print('BASE_GROUND_SURFACE_PLAYER_WITNESS_EVIDENCE_OK', metrics)
+          PY
+
+      - name: Bind evidence hashes
+        shell: bash
+        run: |
+          cd grand-bruxelles-game/artifacts/base_ground_surface_player_witness
+          sha256sum base_ground_before.png base_ground_after.png base_ground_surface_player_witness.json > evidence-sha256.txt
+          test "$(wc -l < evidence-sha256.txt)" -eq 3
+          sha256sum --check evidence-sha256.txt
+
+      - name: Upload exact witness artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-base-ground-surface-player-witness
+          path: grand-bruxelles-game/artifacts/base_ground_surface_player_witness
+          if-no-files-found: error

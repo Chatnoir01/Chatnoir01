@@ -1,0 +1,48 @@
+name: Grand Bruxelles Base Ground Decoy Main
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/game/scripts/brussels_base_ground_surface_runtime.gd"
+      - "grand-bruxelles-game/game/tests/brussels_base_ground_surface_decoy_main_test.gd"
+      - ".github/workflows/grand-bruxelles-base-ground-decoy-main.yml"
+      - "grand-bruxelles-game/project.godot"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decoy-main:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact current-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$(git rev-parse origin/main)" HEAD
+
+      - name: Install Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/godot.zip "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          sudo install -m 0755 /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Import project
+        working-directory: grand-bruxelles-game
+        run: godot --headless --editor --path . --quit-after 2
+
+      - name: Reject decoy Main and bind legitimate nested Main
+        working-directory: grand-bruxelles-game
+        run: godot --headless --path . -s res://game/tests/brussels_base_ground_surface_decoy_main_test.gd

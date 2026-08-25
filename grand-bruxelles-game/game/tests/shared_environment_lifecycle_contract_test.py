@@ -22,6 +22,7 @@ EXPECTED_AUTOLOADS = {
     "AnneessensOsmFurnitureRuntime": "game/scripts/anneessens_osm_furniture_runtime.gd",
     "IxellesMidiSidewalkRuntime": "game/scripts/ixelles_midi_sidewalk_runtime.gd",
     "BrusselsOsmRoadSurfaceRuntime": "game/scripts/brussels_osm_road_surface_runtime.gd",
+    "BrusselsBaseGroundSurfaceRuntime": "game/scripts/brussels_base_ground_surface_runtime.gd",
     "BrusselsOsmSidewalkSurfaceRuntime": "game/scripts/brussels_osm_sidewalk_surface_runtime.gd",
     "BrusselsOsmFacadeSurfaceRuntime": "game/scripts/brussels_osm_facade_surface_runtime.gd",
     "BrusselsOsmFacadeArticulationRuntime": "game/scripts/brussels_osm_facade_articulation_runtime.gd",
@@ -92,7 +93,7 @@ def main() -> None:
     if contract.get("registry_complete_for_known_event_driven_runtimes") is not True:
         fail("shared Environment lifecycle registry completeness rail missing")
     if contract.get("production_autoload_identity_locked") is not True:
-        fail("production autoload alias/path identity rail missing")
+        fail("shared Environment production autoload identity rail missing")
     if contract.get("per_frame_global_tree_scan_forbidden") is not True:
         fail("per-frame global SceneTree discovery rail missing")
 

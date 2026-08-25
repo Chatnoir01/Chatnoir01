@@ -5,6 +5,7 @@ const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn
 const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
 const RUNTIME_INDEX_PATH := "res://data/runtime/road_destination_runtime_index.json"
 const RUNTIME_INDEX_FORMAT := "grand-bruxelles-road-runtime-index-v1"
+const LOOKUP_MODE := "deterministic_runtime_index_coverage_lock"
 const LEMONNIER_ID := 359177328
 
 
@@ -146,8 +147,8 @@ func _run() -> void:
     if not str(player.get_meta("automatic_road_direct_source_name", "")).contains("Maurice Lemonnier"):
         _fail("generic Lemonnier source identity missing")
         return
-    if str(player.get_meta("automatic_road_direct_lookup_mode", "")) != "deterministic_runtime_index":
-        _fail("road spawn did not use deterministic runtime index")
+    if str(player.get_meta("automatic_road_direct_lookup_mode", "")) != LOOKUP_MODE:
+        _fail("road spawn did not use coverage-lock deterministic runtime index")
         return
     if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != expected_source_sha:
         _fail("road spawn source SHA proof missing")
@@ -189,8 +190,8 @@ func _run() -> void:
     if str(player.get_meta("automatic_road_direct_source_name", "")) != second_name:
         _fail("second generic road source identity drifted")
         return
-    if str(player.get_meta("automatic_road_direct_lookup_mode", "")) != "deterministic_runtime_index":
-        _fail("second road bypassed deterministic runtime index")
+    if str(player.get_meta("automatic_road_direct_lookup_mode", "")) != LOOKUP_MODE:
+        _fail("second road bypassed coverage-lock deterministic runtime index")
         return
     if str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower() != expected_source_sha:
         _fail("second road source SHA proof drifted")

@@ -1,0 +1,66 @@
+{
+  "schema": "grand-bruxelles-urbis-source-cell-acquisition-contract-v1",
+  "production_base_sha": "6b7821086efa669df24843acb50aa46d231ba814",
+  "target": {
+    "cell_id": "bxl-e147500-n170000-s500",
+    "crs": "EPSG:31370",
+    "bbox": [147500.0, 170000.0, 148000.0, 170500.0]
+  },
+  "source": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "service": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs",
+    "dataset_family": "UrbIS vector base-city layers",
+    "license": "CC0-1.0",
+    "retrieval_model": "live_authoritative_wfs_content_addressed",
+    "revision_note": "The live WFS exposes no stable historical release identifier for this source-cell contract. Do not invent a revision. Durable identity removes only transient top-level GeoServer Feature.id/FID values and retains complete geometry and properties; raw responses remain forensic evidence."
+  },
+  "municipality_boundary_provenance": {
+    "lock_path": "grand-bruxelles-game/data/provenance/bourse_road_cell_municipality.measurement.json",
+    "semantic_sha256": "c01208a81d61d51492b928f7381991e0fdacd68f62e8ac7a77be8ba08f46ff63",
+    "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
+    "automatic_municipality_assignment_authorized": false,
+    "intersections": [
+      {
+        "municipality": "Anderlecht",
+        "niscode": "21001",
+        "inspire_id": "https://databrussels.be/id/municipality/5000071",
+        "area_m2": 208021.26572820908,
+        "coverage_ratio": 0.8320850629128363
+      },
+      {
+        "municipality": "Bruxelles / Brussel",
+        "niscode": "21004",
+        "inspire_id": "https://databrussels.be/id/municipality/5000074",
+        "area_m2": 41978.734271790905,
+        "coverage_ratio": 0.16791493708716362
+      }
+    ]
+  },
+  "layers": [
+    {"logical_name": "buildings", "wfs_name": "urbisvector:Buildings", "file": "raw/buildings.geojson", "ownership": "canonical_centroid_global_500m_cell"},
+    {"logical_name": "street_surfaces", "wfs_name": "urbisvector:StreetSurfaces", "file": "raw/street_surfaces.geojson", "ownership": "bbox_intersection_source_unclipped"},
+    {"logical_name": "street_axes", "wfs_name": "urbisvector:StreetAxes", "file": "raw/street_axes.geojson", "ownership": "bbox_intersection_source_unclipped"},
+    {"logical_name": "tram_network", "wfs_name": "urbisvector:TramNetwork", "file": "raw/tram_network.geojson", "ownership": "bbox_intersection_source_unclipped"},
+    {"logical_name": "train_network", "wfs_name": "urbisvector:TrainNetwork", "file": "raw/train_network.geojson", "ownership": "bbox_intersection_source_unclipped"}
+  ],
+  "expected": {
+    "measurement_status": "RED_FIRST_MEASUREMENT_PENDING",
+    "source_semantic_sha256": null,
+    "manifest_source_digest": null,
+    "layer_accounting": null
+  },
+  "expected_persisted_source_path": "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500",
+  "authorization": {
+    "source_acquisition": true,
+    "source_persistence": false,
+    "source_registration": false,
+    "canonical_registration": false,
+    "road_to_cell_mapping": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  },
+  "status": "MEASUREMENT_PENDING_SOURCE_ONLY_BOUNDARY_CELL"
+}

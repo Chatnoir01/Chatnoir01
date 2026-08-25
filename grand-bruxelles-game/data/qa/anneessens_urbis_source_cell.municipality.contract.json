@@ -1,7 +1,7 @@
 {
   "schema": "grand-bruxelles-anneessens-municipality-preflight-contract-v1",
   "production_base_sha": "188ef30b9286f6ae84ffff80b332b3922864bec2",
-  "status": "MEASUREMENT_PENDING",
+  "status": "LOCKED_SOURCE_ONLY",
   "target": {
     "cell_id": "bxl-e147500-n169500-s500",
     "grid_cell_id": "E147500_N169500",
@@ -30,6 +30,12 @@
     "license": "CC0-1.0",
     "crs": "EPSG:31370",
     "expected_feature_count": 19
+  },
+  "locked_measurement": {
+    "path": "data/provenance/anneessens_source_cell_municipality.measurement.json",
+    "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
+    "semantic_sha256": "4148e300ea5a81d60b5f16f0eab1186a3d646308cb7a4a4a1c5036b21e2bba8f",
+    "municipality_assignment_authorized": false
   },
   "authorization": {
     "source_persistence": true,

@@ -80,7 +80,7 @@ def municipality_evidence(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     inspire = str(provenance.get("municipality_id") or "")
     ratio = float(provenance.get("municipality_coverage_ratio", 0.0))
     if not nis or not inspire or abs(ratio - 1.0) > 1e-9:
-        raise RuntimeError("canonical cell lacks deterministic municipality provenance")
+        raise RuntimeError("mapped canonical cell lacks deterministic municipality provenance")
     return [{"niscode": nis, "inspire_id": inspire, "coverage_ratio": ratio}]
 
 
@@ -125,8 +125,12 @@ def build_catalog(repo_root: Path, road_index_path: Path, cell_index_path: Path,
     if crosswalk.get("registered_cell_index_semantic_sha256") != cell_semantic:
         raise RuntimeError("crosswalk registered-cell identity drift")
 
+    cell_entries = cell_index.get("entries") or []
+    if int(cell_index.get("registered_cell_count", -1)) != len(cell_entries):
+        raise RuntimeError("registered cell index accounting drift")
+
     cells: dict[str, dict[str, Any]] = {}
-    for entry in cell_index.get("entries") or []:
+    for entry in cell_entries:
         cell_id = str(entry.get("cell_id") or "")
         if not cell_id or cell_id in cells:
             raise RuntimeError(f"invalid/duplicate registered cell: {cell_id!r}")
@@ -149,11 +153,7 @@ def build_catalog(repo_root: Path, road_index_path: Path, cell_index_path: Path,
         gates = maturity.get("gates") or {}
         if not gates or any(value is not False for value in gates.values()):
             raise RuntimeError(f"registered cell maturity gate opened: {cell_id}")
-        cells[cell_id] = {
-            "entry": entry,
-            "manifest": manifest,
-            "municipalities": municipality_evidence(manifest),
-        }
+        cells[cell_id] = {"entry": entry, "manifest": manifest}
 
     source_roads: dict[int, dict[str, Any]] = {}
     road_sources: dict[int, dict[str, str]] = {}
@@ -186,6 +186,9 @@ def build_catalog(repo_root: Path, road_index_path: Path, cell_index_path: Path,
     rows = crosswalk.get("rows") or []
     if int(crosswalk.get("mapped_road_count", -1)) != len(rows):
         raise RuntimeError("crosswalk mapped road accounting drift")
+    if int(crosswalk.get("mapped_cell_count", -1)) != len({str(row.get("cell_id") or "") for row in rows}):
+        raise RuntimeError("crosswalk mapped cell accounting drift")
+
     destinations: list[dict[str, Any]] = []
     seen_roads: set[int] = set()
     for mapping in rows:
@@ -209,7 +212,7 @@ def build_catalog(repo_root: Path, road_index_path: Path, cell_index_path: Path,
         if len(bbox) != 4:
             raise RuntimeError(f"invalid registered cell bbox: {cell_id}")
         points_count, points_bbox, points_sha = point_contract(road.get("points"))
-        municipalities = cell["municipalities"]
+        municipalities = municipality_evidence(cell["manifest"])
         destinations.append({
             "destination_id": f"road-{road_id}",
             "road_osm_id": road_id,

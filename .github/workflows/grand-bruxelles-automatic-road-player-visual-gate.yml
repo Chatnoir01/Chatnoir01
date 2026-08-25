@@ -1,0 +1,26 @@
+name: Grand Bruxelles Automatic Road Player Visual Gate
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "grand-bruxelles-game/data/qa/automatic_road_player_visual_gate.json"
+      - "grand-bruxelles-game/tools/test_automatic_road_player_visual_gate.py"
+      - ".github/workflows/grand-bruxelles-automatic-road-player-visual-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual-review-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Enforce exact human-review rejection contract
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/test_automatic_road_player_visual_gate.py

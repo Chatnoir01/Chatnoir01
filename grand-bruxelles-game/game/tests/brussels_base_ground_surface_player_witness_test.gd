@@ -16,7 +16,7 @@ const MAX_CHANGED_FRACTION := 0.70
 const MIN_BBOX_WIDTH := 700
 const MIN_BBOX_HEIGHT := 250
 const EXPECTED_REVISION := 6
-const PRODUCTION_BASE_SHA := "9784cef449a5b2898c86964c9093393669f3f0a2"
+const PRODUCTION_BASE_SHA := "be34bb8f0ceb3ff19a70bf4a922c35467417799e"
 
 func _initialize() -> void:
     call_deferred("_run")

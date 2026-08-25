@@ -1,10 +1,15 @@
 {
   "schema": "grand-bruxelles-urbis-source-cell-acquisition-contract-v1",
-  "production_base_sha": "6b7821086efa669df24843acb50aa46d231ba814",
+  "production_base_sha": "b651350bcabd9d7384eb963a0f2a5dbe748995be",
   "target": {
     "cell_id": "bxl-e147500-n170000-s500",
     "crs": "EPSG:31370",
-    "bbox": [147500.0, 170000.0, 148000.0, 170500.0]
+    "bbox": [
+      147500.0,
+      170000.0,
+      148000.0,
+      170500.0
+    ]
   },
   "source": {
     "authority": "Paradigm / Brussels-Capital Region",
@@ -37,11 +42,36 @@
     ]
   },
   "layers": [
-    {"logical_name": "buildings", "wfs_name": "urbisvector:Buildings", "file": "raw/buildings.geojson", "ownership": "canonical_centroid_global_500m_cell"},
-    {"logical_name": "street_surfaces", "wfs_name": "urbisvector:StreetSurfaces", "file": "raw/street_surfaces.geojson", "ownership": "bbox_intersection_source_unclipped"},
-    {"logical_name": "street_axes", "wfs_name": "urbisvector:StreetAxes", "file": "raw/street_axes.geojson", "ownership": "bbox_intersection_source_unclipped"},
-    {"logical_name": "tram_network", "wfs_name": "urbisvector:TramNetwork", "file": "raw/tram_network.geojson", "ownership": "bbox_intersection_source_unclipped"},
-    {"logical_name": "train_network", "wfs_name": "urbisvector:TrainNetwork", "file": "raw/train_network.geojson", "ownership": "bbox_intersection_source_unclipped"}
+    {
+      "logical_name": "buildings",
+      "wfs_name": "urbisvector:Buildings",
+      "file": "raw/buildings.geojson",
+      "ownership": "canonical_centroid_global_500m_cell"
+    },
+    {
+      "logical_name": "street_surfaces",
+      "wfs_name": "urbisvector:StreetSurfaces",
+      "file": "raw/street_surfaces.geojson",
+      "ownership": "bbox_intersection_source_unclipped"
+    },
+    {
+      "logical_name": "street_axes",
+      "wfs_name": "urbisvector:StreetAxes",
+      "file": "raw/street_axes.geojson",
+      "ownership": "bbox_intersection_source_unclipped"
+    },
+    {
+      "logical_name": "tram_network",
+      "wfs_name": "urbisvector:TramNetwork",
+      "file": "raw/tram_network.geojson",
+      "ownership": "bbox_intersection_source_unclipped"
+    },
+    {
+      "logical_name": "train_network",
+      "wfs_name": "urbisvector:TrainNetwork",
+      "file": "raw/train_network.geojson",
+      "ownership": "bbox_intersection_source_unclipped"
+    }
   ],
   "locked_artifact": {
     "workflow_run_id": 32800198111,
@@ -50,7 +80,7 @@
     "artifact_size_bytes": 205274
   },
   "expected": {
-    "measurement_status": "LOCKED_EXACT_SOURCE_ONLY_MEASURED_NOT_PERSISTED",
+    "measurement_status": "LOCKED_EXACT_SOURCE_ONLY_PERSISTED",
     "source_semantic_sha256": "f88ece4309964ed9939de100424716c90a59409db66924332abb8ea00ff652e0",
     "manifest_source_digest": "fc8851eeb05032e97b3fab39f01349e749edfe1c90713105a4aa1edab3c9521b",
     "manifest_sha256": "01113c2cf21fb5732f42c01c47814fbfd2270836af81fad9a7f7f0491130233a",
@@ -70,7 +100,7 @@
   "expected_persisted_source_path": "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n170000-s500",
   "authorization": {
     "source_acquisition": true,
-    "source_persistence": false,
+    "source_persistence": true,
     "source_registration": false,
     "canonical_registration": false,
     "road_to_cell_mapping": false,
@@ -80,5 +110,5 @@
     "safe_spawn": false,
     "jouable_promotion": false
   },
-  "status": "LOCKED_MEASUREMENT_SOURCE_ONLY_BOUNDARY_CELL"
+  "status": "LOCKED_PERSISTED_SOURCE_ONLY_BOUNDARY_CELL"
 }

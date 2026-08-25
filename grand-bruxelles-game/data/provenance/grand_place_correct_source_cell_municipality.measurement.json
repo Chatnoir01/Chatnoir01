@@ -1,0 +1,85 @@
+{
+  "schema": "grand-bruxelles-grand-place-correct-source-cell-municipality-preflight-v1",
+  "status": "MUNICIPALITY_PROVEN_SINGLE",
+  "cell": {
+    "cell_id": "bxl-e148500-n170500-s500",
+    "grid_cell_id": "E148500_N170500",
+    "crs": "EPSG:31370",
+    "bbox": [
+      148500.0,
+      170500.0,
+      149000.0,
+      171000.0
+    ]
+  },
+  "persisted_source": {
+    "measurement_path": "data/provenance/grand_place_correct_urbis_source_cell.measurement.json",
+    "source_semantic_sha256": "683391007df04a6a6c6c597f3d64411e05b206cf8dd41f7aebaf7d8df76a56e3",
+    "manifest_sha256": "f464b35581b9231582daafbd28c07f1b15e3aeae2d7b683385b7073b6b73658f",
+    "maturity_sha256": "e5f3eaddc2fba5a5d359f3e47f5819ae3efd7994174ee7c452104d7ea01d95e1",
+    "layer_counts": {
+      "buildings": 1110,
+      "street_axes": 180,
+      "street_surfaces": 598,
+      "train_network": 12,
+      "tram_network": 12
+    },
+    "buildings_ownership_filtered": 70,
+    "buildings_invalid_ownership": 0
+  },
+  "municipality_source": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "service": "UrbIS vector WFS",
+    "layer": "urbisvector:Municipalities",
+    "license": "CC0-1.0",
+    "crs": "EPSG:31370",
+    "url": "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=urbisvector%3AMunicipalities&outputFormat=application%2Fjson&srsName=EPSG%3A31370",
+    "feature_count": 19,
+    "raw_payload_sha256": "dc35e81a218ef62429fb8a2e3cc43b857aac0f2aa94de14f03f86b50288f3e46"
+  },
+  "municipality_coverage": {
+    "status": "MUNICIPALITY_PROVEN_SINGLE",
+    "cell_area_m2": 250000.0,
+    "intersection_coverage_sum": 1.0,
+    "municipality_id": "https://databrussels.be/id/municipality/5000074",
+    "municipality_niscode": "21004",
+    "coverage_ratio": 1.0,
+    "intersections": [
+      {
+        "municipality_id": "https://databrussels.be/id/municipality/5000074",
+        "properties": {
+          "AREA": 33086943.5859531,
+          "INSPIRE_ID": "https://databrussels.be/id/municipality/5000074",
+          "NAMEDUT": "Brussel",
+          "NAMEFRE": "Bruxelles",
+          "NISCODE": "21004",
+          "POLICEZONE": "5339"
+        },
+        "intersection_area_m2": 250000.0,
+        "coverage_ratio": 1.0,
+        "covers_entire_cell": true
+      }
+    ],
+    "transport_feature_ids": {
+      "https://databrussels.be/id/municipality/5000074": "Municipalities.fid-f257eac_1a039d56413_2986"
+    },
+    "registration_authorized": false,
+    "road_cell_mapping_authorized": false,
+    "runtime_mount_authorized": false,
+    "rendered_geometry_authorized": false,
+    "collision_authorized": false,
+    "safe_spawn_authorized": false,
+    "jouable_promotion_authorized": false
+  },
+  "source_registration_authorized": false,
+  "canonical_registration_authorized": false,
+  "municipality_assignment_authorized": false,
+  "road_cell_mapping_authorized": false,
+  "runtime_directory_scan_authorized": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "jouable_promotion_authorized": false,
+  "semantic_sha256": "31b049a8687f65f7b24458357a7b10b010b22190a627697fad5d1090d04dc979"
+}

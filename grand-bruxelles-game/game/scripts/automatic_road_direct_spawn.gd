@@ -10,6 +10,7 @@ const RUNTIME_INDEX_FORMAT := "grand-bruxelles-road-runtime-index-v1"
 const REQUEST_PREFIX := "road-"
 const PLAYER_BODY_CLEARANCE_M := 1.05
 const MAX_WORLD_ABS_M := 890.0
+const MIN_SOURCE_AXIS_ALIGNMENT := 0.90
 const CAMERA_PATH := "CameraPivot/SpringArm3D/Camera3D"
 
 var _runtime_index_attempted := false
@@ -236,12 +237,13 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
     var half_road := _display_road_width(road) * 0.5
     var offsets: Array[float] = [half_road + 1.10, half_road + 2.00, half_road + 3.50, half_road + 5.00, half_road + 7.50]
     for offset: float in offsets:
-        # To make the destination legible at player height, the view must look
-        # predominantly along the exact source segment, not perpendicularly
-        # across the carriageway. 2.1x lateral offset guarantees >0.90 axis
-        # alignment while the 45% cap keeps the target inside the source segment.
+        # Keep the target on the exact source segment and enforce the actual
+        # player-view invariant directly. The old 45% proxy could reject a
+        # valid segment by centimeters even when its true source-axis alignment
+        # was >= 0.90. Half the segment length is the exact geometric boundary
+        # from the midpoint; the explicit alignment gate remains fail-closed.
         var required_lookahead := offset * 2.10
-        var max_segment_lookahead := best_length * 0.45
+        var max_segment_lookahead := best_length * 0.5
         var lookahead := minf(22.0, max_segment_lookahead)
         if lookahead < required_lookahead:
             continue
@@ -257,6 +259,12 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
                     continue
                 if _point_inside_any_source_building(document, target):
                     continue
+                var view_axis := target - candidate
+                if view_axis == Vector2.ZERO:
+                    continue
+                var axis_alignment := absf(view_axis.normalized().dot(direction))
+                if axis_alignment < MIN_SOURCE_AXIS_ALIGNMENT:
+                    continue
                 if not _segment_clear_of_source_buildings(document, candidate, target):
                     continue
                 return {
@@ -267,6 +275,7 @@ func _safe_viewpoint(document: Dictionary, road: Dictionary) -> Dictionary:
                     "segment_index": best_index,
                     "source_sightline_clear": true,
                     "axis_lookahead_m": lookahead,
+                    "axis_alignment": axis_alignment,
                 }
     return {}
 
@@ -360,5 +369,6 @@ func apply_to_player(player: Node, osm_id: int) -> bool:
     body.set_meta("automatic_road_direct_segment_index", int(viewpoint["segment_index"]))
     body.set_meta("automatic_road_direct_source_sightline_clear", bool(viewpoint.get("source_sightline_clear", false)))
     body.set_meta("automatic_road_direct_axis_lookahead_m", float(viewpoint.get("axis_lookahead_m", 0.0)))
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_READY: osm_id=%d lookup=deterministic_runtime_index source=%s name=%s spawn=(%.3f, %.3f, %.3f) target=(%.3f, %.3f) axis_lookahead_m=%.3f" % [osm_id, source_path, source_name, body.global_position.x, body.global_position.y, body.global_position.z, target_xz.x, target_xz.y, float(viewpoint.get("axis_lookahead_m", 0.0))])
+    body.set_meta("automatic_road_direct_axis_alignment", float(viewpoint.get("axis_alignment", 0.0)))
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_READY: osm_id=%d lookup=deterministic_runtime_index source=%s name=%s spawn=(%.3f, %.3f, %.3f) target=(%.3f, %.3f) axis_lookahead_m=%.3f axis_alignment=%.6f" % [osm_id, source_path, source_name, body.global_position.x, body.global_position.y, body.global_position.z, target_xz.x, target_xz.y, float(viewpoint.get("axis_lookahead_m", 0.0)), float(viewpoint.get("axis_alignment", 0.0))])
     return true

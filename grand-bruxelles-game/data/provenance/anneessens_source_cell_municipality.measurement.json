@@ -1,0 +1,19 @@
+{
+  "schema": "grand-bruxelles-anneessens-source-cell-municipality-preflight-v1",
+  "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
+  "cell": {"cell_id":"bxl-e147500-n169500-s500","grid_cell_id":"E147500_N169500","crs":"EPSG:31370","bbox":[147500.0,169500.0,148000.0,170000.0]},
+  "persisted_source": {"measurement_path":"data/provenance/anneessens_urbis_source_cell.measurement.json","source_semantic_sha256":"496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0","manifest_sha256":"10aac9d4a2404ff23bb7d9af40b9e256b65aa6f25d33c7de1c1e3067244f43d2","maturity_sha256":"7ebbe70634650db6b2fe21b10e4ae87ede7f4c0c170b21b63d1be9765cc69f89","layer_counts":{"buildings":362,"street_axes":104,"street_surfaces":283,"train_network":361,"tram_network":361},"buildings_ownership_filtered":52,"buildings_invalid_ownership":0},
+  "municipality_source": {"authority":"Paradigm / Brussels-Capital Region","service":"UrbIS vector WFS","layer":"urbisvector:Municipalities","license":"CC0-1.0","crs":"EPSG:31370","url":"https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=urbisvector%3AMunicipalities&outputFormat=application%2Fjson&srsName=EPSG%3A31370","feature_count":19,"raw_payload_sha256":"1691ee0a46d40dbe1e0dc2b79cfc200556b8c899f5082b9d429d2a5daa704263"},
+  "municipality_coverage": {"status":"HOLD_MUNICIPALITY_BOUNDARY_CELL","cell_area_m2":250000.0,"intersection_coverage_sum":1.0,"municipality_id":null,"municipality_niscode":null,"coverage_ratio":0.6455744665162007,"intersections":[{"municipality_id":"https://databrussels.be/id/municipality/5000083","properties":{"AREA":2533846.59800959,"INSPIRE_ID":"https://databrussels.be/id/municipality/5000083","NAMEDUT":"Sint-Gillis","NAMEFRE":"Saint-Gilles","NISCODE":"21013","POLICEZONE":"5341"},"intersection_area_m2":161393.61662905017,"coverage_ratio":0.6455744665162007,"covers_entire_cell":false},{"municipality_id":"https://databrussels.be/id/municipality/5000071","properties":{"AREA":17914389.6762021,"INSPIRE_ID":"https://databrussels.be/id/municipality/5000071","NAMEDUT":"Anderlecht","NAMEFRE":"Anderlecht","NISCODE":"21001","POLICEZONE":"5341"},"intersection_area_m2":87901.38362680243,"coverage_ratio":0.3516055345072097,"covers_entire_cell":false},{"municipality_id":"https://databrussels.be/id/municipality/5000074","properties":{"AREA":33086943.5859531,"INSPIRE_ID":"https://databrussels.be/id/municipality/5000074","NAMEDUT":"Brussel","NAMEFRE":"Bruxelles","NISCODE":"21004","POLICEZONE":"5339"},"intersection_area_m2":704.9997441473968,"coverage_ratio":0.002819998976589587,"covers_entire_cell":false}],"transport_feature_ids":{"https://databrussels.be/id/municipality/5000074":"Municipalities.fid-38fde7fc_1a039d4f7ba_-141b","https://databrussels.be/id/municipality/5000083":"Municipalities.fid-38fde7fc_1a039d4f7ba_-1415","https://databrussels.be/id/municipality/5000071":"Municipalities.fid-38fde7fc_1a039d4f7ba_-1413"},"registration_authorized":false,"road_cell_mapping_authorized":false,"runtime_mount_authorized":false,"rendered_geometry_authorized":false,"collision_authorized":false,"safe_spawn_authorized":false,"jouable_promotion_authorized":false},
+  "source_registration_authorized": false,
+  "canonical_registration_authorized": false,
+  "municipality_assignment_authorized": false,
+  "road_cell_mapping_authorized": false,
+  "runtime_directory_scan_authorized": false,
+  "runtime_mount_authorized": false,
+  "rendered_geometry_authorized": false,
+  "collision_authorized": false,
+  "safe_spawn_authorized": false,
+  "jouable_promotion_authorized": false,
+  "semantic_sha256": "4148e300ea5a81d60b5f16f0eab1186a3d646308cb7a4a4a1c5036b21e2bba8f"
+}

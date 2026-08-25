@@ -55,6 +55,31 @@ def main() -> int:
     else:
         raise AssertionError("registration rail opening must fail closed")
 
+    # Municipality transport bytes and GeoServer feature ids are forensic-only.
+    # A fresh WFS response may legitimately change those without changing the
+    # stable municipality identities, intersections or authorization verdict.
+    semantic_fixture = {
+        "schema": "grand-bruxelles-anneessens-source-cell-municipality-preflight-v1",
+        "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
+        "municipality_source": {
+            "authority": "Paradigm / Brussels-Capital Region",
+            "raw_payload_sha256": "a" * 64,
+        },
+        "municipality_coverage": {
+            "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
+            "transport_feature_ids": {"stable": "transport-a"},
+            "intersections": [{"municipality_id": "stable", "coverage_ratio": 0.65}],
+        },
+        "semantic_sha256": "f" * 64,
+    }
+    forensic_drift = copy.deepcopy(semantic_fixture)
+    forensic_drift["municipality_source"]["raw_payload_sha256"] = "b" * 64
+    forensic_drift["municipality_coverage"]["transport_feature_ids"] = {"stable": "transport-b"}
+    assert module._semantic_basis(semantic_fixture) == module._semantic_basis(forensic_drift)
+    semantic_drift = copy.deepcopy(forensic_drift)
+    semantic_drift["municipality_coverage"]["intersections"][0]["coverage_ratio"] = 0.64
+    assert module._semantic_basis(semantic_fixture) != module._semantic_basis(semantic_drift)
+
     engine = module._load_module(ROOT / "tools/qa/measure_road_cell_municipality_preflight.py")
     min_x, min_y, max_x, max_y = module.BBOX
     full = {
@@ -108,7 +133,7 @@ def main() -> int:
     assert majority["safe_spawn_authorized"] is False
     assert majority["jouable_promotion_authorized"] is False
 
-    print("ANNEESSENS_MUNICIPALITY_REGRESSIONS_OK source_lock=true single=true boundary_hold=true majority_inference_rejected=true rails_closed=true")
+    print("ANNEESSENS_MUNICIPALITY_REGRESSIONS_OK source_lock=true single=true boundary_hold=true majority_inference_rejected=true forensic_drift_ignored=true semantic_drift_rejected=true rails_closed=true")
     return 0
 
 

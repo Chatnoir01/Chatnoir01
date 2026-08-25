@@ -8,6 +8,7 @@ on:
       - "grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd"
       - "grand-bruxelles-game/game/tests/automatic_road_direct_spawn_test.gd"
       - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json"
       - "grand-bruxelles-game/data/osm/**"
       - ".github/workflows/grand-bruxelles-web.yml"
       - ".github/workflows/grand-bruxelles-automatic-road-spawn.yml"
@@ -22,6 +23,24 @@ jobs:
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact PR head and live-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
+            echo "candidate does not contain live main: live_main=$LIVE_MAIN_SHA head=$ACTUAL_SHA" >&2
+            exit 1
+          }
+          echo "AUTOMATIC_ROAD_EXACT_HEAD_OK: live_main=$LIVE_MAIN_SHA head=$ACTUAL_SHA"
 
       - name: Install render dependencies
         run: |
@@ -30,7 +49,7 @@ jobs:
 
       - name: Install Godot 4.7.1
         run: |
-          curl -fL -o /tmp/godot.zip \
+          curl --retry 4 --retry-all-errors --retry-delay 2 -fL -o /tmp/godot.zip \
             https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
           chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
@@ -55,7 +74,7 @@ jobs:
             2>&1 | tee /tmp/automatic-road-spawn.log
           if grep -E "SCRIPT ERROR|Parse Error:|AUTOMATIC_ROAD_DIRECT_SPAWN_FAIL" /tmp/automatic-road-spawn.log; then exit 1; fi
           grep -F "AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN" /tmp/automatic-road-spawn.log
-          grep -F "lookup=deterministic_runtime_index" /tmp/automatic-road-spawn.log
+          grep -F "lookup=deterministic_runtime_index_coverage_lock" /tmp/automatic-road-spawn.log
 
       - name: Verify safe Web request grammar
         run: |

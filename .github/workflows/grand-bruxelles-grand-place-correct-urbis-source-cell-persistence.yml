@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 env:
@@ -18,7 +18,7 @@ env:
   CELL_DIR: grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e148500-n170500-s500
 
 jobs:
-  red-first-persistence-verification:
+  persistence-verification:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
@@ -28,18 +28,19 @@ jobs:
           fetch-depth: 0
 
       - name: Require exact live-main ancestry and persistence-only authorization
+        id: contract
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
-          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          STATUS="$(python3 - "$LIVE_MAIN_SHA" <<'PY'
           import json, sys
           from pathlib import Path
           live=sys.argv[1]
           d=json.loads(Path("grand-bruxelles-game/data/qa/grand_place_correct_urbis_source_cell.persistence.contract.json").read_text())
           assert d["production_base_sha"] == live, (d["production_base_sha"], live)
-          assert d["status"] == "RED_FIRST_EXPECT_LOCKED_EXACT_SOURCE_ONLY_PERSISTENCE"
+          assert d["status"] in {"RED_FIRST_EXPECT_LOCKED_EXACT_SOURCE_ONLY_PERSISTENCE", "LOCKED_EXACT_SOURCE_ONLY_PERSISTED"}
           assert d["cell_id"] == "bxl-e148500-n170500-s500"
           assert d["source"]["bbox"] == [148500.0,170500.0,149000.0,171000.0]
           assert d["source"]["license"] == "CC0-1.0"
@@ -51,12 +52,15 @@ jobs:
           assert a["source_persistence"] is True
           for key in ["source_registration","canonical_registration","municipality_assignment","road_to_cell_mapping","runtime_directory_scan","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
               assert a[key] is False, key
-          print(f"GRAND_PLACE_CORRECT_PERSISTENCE_RED_CONTRACT_OK live_main={live} rails_closed=true")
+          print(d["status"])
           PY
-          if git cat-file -e "origin/main:grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL_ID}/manifest.json" 2>/dev/null; then
+          )"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          if git cat-file -e "origin/main:${CELL_DIR}/manifest.json" 2>/dev/null; then
             echo "RED: correct Grand-Place source cell already exists on live main; ownership changed" >&2
             exit 1
           fi
+          echo "GRAND_PLACE_CORRECT_PERSISTENCE_CONTRACT_OK live_main=$LIVE_MAIN_SHA status=$STATUS rails_closed=true"
 
       - name: Restore immutable correct-cell source artifact
         env:
@@ -74,6 +78,30 @@ jobs:
           echo "cb58ecfdb4f912b6dae253e136544e3e1361fea876856192fcf79b55a57bb542  $UNPACK/measurement.json" | sha256sum -c -
           echo "27b65085ef6f8cb5f34658373aff4bf727cf0353dcf6a0a436a3ecc3b25b7047  $UNPACK/package_manifest.json" | sha256sum -c -
 
+      - name: Persist immutable source bytes after observed RED
+        if: steps.contract.outputs.status == 'RED_FIRST_EXPECT_LOCKED_EXACT_SOURCE_ONLY_PERSISTENCE' && github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          test -n "${GITHUB_HEAD_REF:-}"
+          rm -rf "$CELL_DIR"
+          mkdir -p "$CELL_DIR"
+          cp -a "$RUNNER_TEMP/grand-place-correct-source/source-cell/." "$CELL_DIR/"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path(os.environ["CONTRACT"])
+          d=json.loads(p.read_text())
+          assert d["status"] == "RED_FIRST_EXPECT_LOCKED_EXACT_SOURCE_ONLY_PERSISTENCE"
+          d["status"] = "LOCKED_EXACT_SOURCE_ONLY_PERSISTED"
+          p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add "$CONTRACT" "$CELL_DIR"
+          git diff --cached --exit-code && { echo "RED: persistence transition produced no diff" >&2; exit 1; } || true
+          git commit -m "data(grand-place): persist authoritative correct UrbIS source cell"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
+
       - name: Require exact persisted correct source-cell bytes
         run: |
           set -euo pipefail
@@ -81,13 +109,14 @@ jobs:
           import hashlib, json, os
           from pathlib import Path
           contract=json.loads(Path(os.environ["CONTRACT"]).read_text())
+          assert contract["status"] == "LOCKED_EXACT_SOURCE_ONLY_PERSISTED"
           artifact=Path(os.environ["RUNNER_TEMP"])/"grand-place-correct-source"/"source-cell"
           repo=Path(os.environ["CELL_DIR"])
           for rel,spec in contract["expected_files"].items():
               left=artifact/rel
               right=repo/rel
               assert left.is_file(), f"artifact missing {rel}"
-              assert right.is_file(), f"RED_EXPECTED: persisted correct Grand-Place cell missing {rel}"
+              assert right.is_file(), f"persisted correct Grand-Place cell missing {rel}"
               raw=right.read_bytes()
               assert raw == left.read_bytes(), rel
               assert len(raw) == spec["bytes"], (rel, len(raw), spec["bytes"])
@@ -104,3 +133,13 @@ jobs:
               assert gates[key] is False, key
           print("GRAND_PLACE_CORRECT_SOURCE_PERSISTENCE_GREEN files=7 registration=false runtime=false")
           PY
+
+      - name: Upload persistence verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-place-correct-urbis-source-cell-persistence-verification
+          path: |
+            ${{ env.CONTRACT }}
+            ${{ env.CELL_DIR }}/manifest.json
+            ${{ env.CELL_DIR }}/maturity.json
+          if-no-files-found: error

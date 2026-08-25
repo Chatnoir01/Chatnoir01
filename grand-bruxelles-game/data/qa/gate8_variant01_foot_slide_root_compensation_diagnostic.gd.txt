@@ -1,0 +1,292 @@
+extends "res://game/tests/gate8_variant01_rest_normalized_animation_ab_test.gd"
+
+const RESULT_PATH := "res://gate8_variant01_foot_slide_root_compensation_result.json"
+const DIAGNOSTIC_CLIPS: Array[String] = ["Jog_Fwd", "Sprint"]
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_and_exit({
+            "format": "grand-bruxelles-gate8-variant01-foot-slide-root-compensation-v1",
+            "candidate_variant": 1,
+            "diagnostic_state": "BLOCKED_SETUP",
+            "failures": _failures
+        })
+        return
+
+    _run_math_regressions()
+    var clips := {}
+    for clip: String in DIAGNOSTIC_CLIPS:
+        clips[clip] = await _diagnose_clip(clip)
+
+    var state := "FOOT_SLIDE_ROOT_COMPENSATION_MEASURED"
+    if not _failures.is_empty():
+        state = "BLOCKED_DIAGNOSTIC_FAILURE"
+    var result := {
+        "format": "grand-bruxelles-gate8-variant01-foot-slide-root-compensation-v1",
+        "engine_version": Engine.get_version_info().get("string", "unknown"),
+        "candidate_variant": 1,
+        "diagnostic_state": state,
+        "clips": clips,
+        "sample_rate_hz": SAMPLE_RATE_HZ,
+        "contact_height_window_m": CONTACT_HEIGHT_WINDOW_M,
+        "normalization_formula": "D=Rs^-1*Ps; Pnormalized=Rt*D",
+        "retarget_engine": "RetargetModifier3D",
+        "thresholds_changed": false,
+        "retarget_changed": false,
+        "root_motion_applied": false,
+        "run_alias_selected": "",
+        "production_authorized": false,
+        "activation_ready": false,
+        "adoption_ready": false,
+        "runtime_population_changed": false,
+        "visual_approval_claimed": false,
+        "failures": _failures
+    }
+    _write_and_exit(result)
+
+func _diagnose_clip(clip_token: String) -> Dictionary:
+    var animation_name := _resolve_animation_name(_source_player, clip_token)
+    if animation_name.is_empty():
+        _failures.append("clip_missing=%s" % clip_token)
+        return {}
+    var animation := _source_player.get_animation(animation_name)
+    if animation == null or animation.length <= 0.0:
+        _failures.append("clip_invalid=%s" % clip_token)
+        return {}
+
+    var sample_count := maxi(MINIMUM_SAMPLES, int(ceil(animation.length * SAMPLE_RATE_HZ)))
+    var dt := animation.length / float(sample_count)
+    var left_positions: Array[Vector3] = []
+    var right_positions: Array[Vector3] = []
+
+    _source_player.play(animation_name)
+    _source_player.pause()
+    for sample_index: int in range(sample_count):
+        _source_skeleton.reset_bone_poses()
+        _reset_proxy_pose()
+        _reset_target_pose()
+        var time_s := minf(animation.length - 0.00001, float(sample_index) * dt)
+        _source_player.seek(time_s, true)
+        _source_player.advance(0.0)
+        _source_skeleton.force_update_all_bone_transforms()
+        _apply_rest_frame_normalization_to_proxy()
+        _canonical_proxy.force_update_all_bone_transforms()
+        await process_frame
+        _target_skeleton.force_update_all_bone_transforms()
+        left_positions.append(_target_bone_position("left_foot"))
+        right_positions.append(_target_bone_position("right_foot"))
+    _source_player.stop()
+
+    if left_positions.size() < MINIMUM_SAMPLES or right_positions.size() != left_positions.size():
+        _failures.append("sample_integrity clip=%s left=%d right=%d" % [clip_token, left_positions.size(), right_positions.size()])
+        return {}
+
+    var raw_ground_y := INF
+    for idx: int in range(left_positions.size()):
+        raw_ground_y = minf(raw_ground_y, minf(left_positions[idx].y, right_positions[idx].y))
+    var contact_limit := raw_ground_y + CONTACT_HEIGHT_WINDOW_M
+    var left := _foot_contact_stats(left_positions, contact_limit, dt)
+    var right := _foot_contact_stats(right_positions, contact_limit, dt)
+    var root := _root_compensation_stats(left_positions, right_positions, contact_limit, dt)
+
+    var left_samples := int(left.get("transition_samples", 0))
+    var right_samples := int(right.get("transition_samples", 0))
+    var total_samples := left_samples + right_samples
+    if total_samples <= 0:
+        _failures.append("no_contact_transitions clip=%s" % clip_token)
+    if int(root.get("support_transition_samples", 0)) <= 0:
+        _failures.append("no_support_transitions clip=%s" % clip_token)
+
+    var weighted_mean := 0.0
+    if total_samples > 0:
+        weighted_mean = (
+            float(left.get("speed_sum_mps", 0.0)) + float(right.get("speed_sum_mps", 0.0))
+        ) / float(total_samples)
+    var peak := maxf(float(left.get("peak_mps", 0.0)), float(right.get("peak_mps", 0.0)))
+
+    print("GATE8_FOOT_SLIDE_ROOT clip=%s weighted_mean=%.4f peak=%.4f left_segment=%.4f right_segment=%.4f required_root_mean=%.4f required_root_peak=%.4f root_cycle=%.4f double_support=%d disagreement_peak=%.4f residual_peak=%.4f" % [
+        clip_token,
+        weighted_mean,
+        peak,
+        float(left.get("max_segment_displacement_m", 0.0)),
+        float(right.get("max_segment_displacement_m", 0.0)),
+        float(root.get("required_root_speed_mean_mps", 0.0)),
+        float(root.get("required_root_speed_peak_mps", 0.0)),
+        float(root.get("required_root_displacement_per_cycle_m", 0.0)),
+        int(root.get("double_support_transition_samples", 0)),
+        float(root.get("double_support_velocity_disagreement_peak_mps", 0.0)),
+        float(root.get("optimal_root_residual_slide_peak_mps", 0.0))
+    ])
+
+    return {
+        "animation_name": animation_name,
+        "duration_s": animation.length,
+        "sample_count": sample_count,
+        "dt_s": dt,
+        "raw_ground_y_m": raw_ground_y,
+        "contact_limit_y_m": contact_limit,
+        "left": left,
+        "right": right,
+        "weighted_contact_slide_mean_mps": weighted_mean,
+        "contact_slide_peak_mps": peak,
+        "root_compensation": root
+    }
+
+func _foot_contact_stats(positions: Array[Vector3], contact_limit_y: float, dt: float) -> Dictionary:
+    var transition_samples := 0
+    var speed_sum := 0.0
+    var peak := 0.0
+    var contact_frames := 0
+    var segment_count := 0
+    var max_segment_displacement := 0.0
+    var segment_start := -1
+
+    for idx: int in range(positions.size()):
+        if positions[idx].y <= contact_limit_y:
+            contact_frames += 1
+            if segment_start < 0:
+                segment_start = idx
+        elif segment_start >= 0:
+            if idx - 1 > segment_start:
+                var a := Vector2(positions[segment_start].x, positions[segment_start].z)
+                var b := Vector2(positions[idx - 1].x, positions[idx - 1].z)
+                max_segment_displacement = maxf(max_segment_displacement, a.distance_to(b))
+            segment_count += 1
+            segment_start = -1
+
+    if segment_start >= 0:
+        if positions.size() - 1 > segment_start:
+            var a := Vector2(positions[segment_start].x, positions[segment_start].z)
+            var b := Vector2(positions[positions.size() - 1].x, positions[positions.size() - 1].z)
+            max_segment_displacement = maxf(max_segment_displacement, a.distance_to(b))
+        segment_count += 1
+
+    for idx: int in range(1, positions.size()):
+        var previous := positions[idx - 1]
+        var current := positions[idx]
+        if previous.y > contact_limit_y or current.y > contact_limit_y:
+            continue
+        var speed := Vector2(current.x - previous.x, current.z - previous.z).length() / maxf(dt, 0.000001)
+        transition_samples += 1
+        speed_sum += speed
+        peak = maxf(peak, speed)
+
+    return {
+        "contact_frames": contact_frames,
+        "transition_samples": transition_samples,
+        "speed_sum_mps": speed_sum,
+        "mean_mps": 0.0 if transition_samples == 0 else speed_sum / float(transition_samples),
+        "peak_mps": peak,
+        "segment_count": segment_count,
+        "max_segment_displacement_m": max_segment_displacement
+    }
+
+func _root_compensation_stats(left_positions: Array[Vector3], right_positions: Array[Vector3], contact_limit_y: float, dt: float) -> Dictionary:
+    var support_samples := 0
+    var left_only := 0
+    var right_only := 0
+    var double_support := 0
+    var required_speeds: Array[float] = []
+    var disagreements: Array[float] = []
+    var residuals: Array[float] = []
+    var integrated_root := Vector2.ZERO
+
+    for idx: int in range(1, left_positions.size()):
+        var left_contact := left_positions[idx - 1].y <= contact_limit_y and left_positions[idx].y <= contact_limit_y
+        var right_contact := right_positions[idx - 1].y <= contact_limit_y and right_positions[idx].y <= contact_limit_y
+        if not left_contact and not right_contact:
+            continue
+
+        var left_velocity := Vector2(
+            left_positions[idx].x - left_positions[idx - 1].x,
+            left_positions[idx].z - left_positions[idx - 1].z
+        ) / maxf(dt, 0.000001)
+        var right_velocity := Vector2(
+            right_positions[idx].x - right_positions[idx - 1].x,
+            right_positions[idx].z - right_positions[idx - 1].z
+        ) / maxf(dt, 0.000001)
+
+        var required_root := Vector2.ZERO
+        var residual := 0.0
+        if left_contact and right_contact:
+            double_support += 1
+            required_root = -(left_velocity + right_velocity) * 0.5
+            var disagreement := left_velocity.distance_to(right_velocity)
+            disagreements.append(disagreement)
+            residual = disagreement * 0.5
+        elif left_contact:
+            left_only += 1
+            required_root = -left_velocity
+        else:
+            right_only += 1
+            required_root = -right_velocity
+
+        support_samples += 1
+        required_speeds.append(required_root.length())
+        residuals.append(residual)
+        integrated_root += required_root * dt
+
+    return {
+        "support_transition_samples": support_samples,
+        "left_only_transition_samples": left_only,
+        "right_only_transition_samples": right_only,
+        "double_support_transition_samples": double_support,
+        "required_root_speed_mean_mps": _array_mean(required_speeds),
+        "required_root_speed_peak_mps": _array_max(required_speeds),
+        "required_root_displacement_x_m": integrated_root.x,
+        "required_root_displacement_z_m": integrated_root.y,
+        "required_root_displacement_per_cycle_m": integrated_root.length(),
+        "double_support_velocity_disagreement_mean_mps": _array_mean(disagreements),
+        "double_support_velocity_disagreement_peak_mps": _array_max(disagreements),
+        "optimal_root_residual_slide_mean_mps": _array_mean(residuals),
+        "optimal_root_residual_slide_peak_mps": _array_max(residuals)
+    }
+
+func _run_math_regressions() -> void:
+    var dt := 0.01
+    var left_single: Array[Vector3] = [
+        Vector3(0.00, 0.0, 0.0),
+        Vector3(0.01, 0.0, 0.0),
+        Vector3(0.02, 0.0, 0.0)
+    ]
+    var right_air: Array[Vector3] = [
+        Vector3(0.0, 1.0, 0.0),
+        Vector3(0.0, 1.0, 0.0),
+        Vector3(0.0, 1.0, 0.0)
+    ]
+    var single := _root_compensation_stats(left_single, right_air, 0.1, dt)
+    if absf(float(single.get("required_root_speed_mean_mps", 0.0)) - 1.0) > 0.0001:
+        _failures.append("regression_single_support_root_speed")
+    if float(single.get("optimal_root_residual_slide_peak_mps", 1.0)) > 0.0001:
+        _failures.append("regression_single_support_residual")
+
+    var left_double: Array[Vector3] = [
+        Vector3(0.00, 0.0, 0.0),
+        Vector3(0.01, 0.0, 0.0)
+    ]
+    var right_double: Array[Vector3] = [
+        Vector3(0.00, 0.0, 0.0),
+        Vector3(-0.01, 0.0, 0.0)
+    ]
+    var double := _root_compensation_stats(left_double, right_double, 0.1, dt)
+    if absf(float(double.get("double_support_velocity_disagreement_peak_mps", 0.0)) - 2.0) > 0.0001:
+        _failures.append("regression_double_support_disagreement")
+    if absf(float(double.get("optimal_root_residual_slide_peak_mps", 0.0)) - 1.0) > 0.0001:
+        _failures.append("regression_double_support_residual")
+
+func _write_and_exit(result: Dictionary) -> void:
+    var file := FileAccess.open(RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        _failures.append("result_file_open_failed")
+        quit(1)
+        return
+    result["failures"] = _failures
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
+    print("GATE8_FOOT_SLIDE_ROOT_RESULT state=%s failures=%d root_motion_applied=false alias_selected=false production_authorized=false" % [
+        String(result.get("diagnostic_state", "unknown")),
+        _failures.size()
+    ])
+    quit(0 if _failures.is_empty() else 1)

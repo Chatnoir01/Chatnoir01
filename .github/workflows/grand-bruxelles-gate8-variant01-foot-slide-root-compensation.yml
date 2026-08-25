@@ -1,0 +1,203 @@
+name: Grand Bruxelles Gate-8 Variant-01 Foot-Slide Root Compensation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-foot-slide-root-compensation.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.json"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  foot-slide-root-compensation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      NATIVE_AB_DEPENDENCY_COMMIT: "0f5dbcc64dd44e88490df575bae4664f6bd18520"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-variant01-foot-slide-root"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate fail-closed diagnostic contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.json').read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-foot-slide-root-compensation-contract-v1'
+          assert d['base_main_sha']=='7c0df3c930b47d7eadada57680ff62b30d7b35ec'
+          assert d['owner_pr']==1264 and d['candidate_variant']==1
+          assert d['candidate_static_verdict']=='AMELIORER'
+          assert d['source_animation']['license']=='CC0-1.0'
+          assert d['source_animation']['package_sha256']=='18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2'
+          assert d['target']['glb_sha256']=='912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9'
+          assert d['ground_phase_proof']['diagnostic_state']=='GROUND_SPAN_FAILURE_FLIGHT_PHASE_DRIVEN'
+          assert d['diagnostic']['clips']==['Jog_Fwd','Sprint']
+          assert d['diagnostic']['sample_rate_hz']==120.0
+          r=d['rails']
+          assert r['thresholds_changed'] is False and r['retarget_changed'] is False
+          assert r['root_motion_applied'] is False and r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['mixamo_allowed'] is False and r['player_character_reuse_allowed'] is False
+          print('GATE8_FOOT_SLIDE_ROOT_STATIC_OK production_authorized=false root_motion_applied=false')
+          PY
+          TEST=grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt
+          grep -Fq 'required_root = -(left_velocity + right_velocity) * 0.5' "$TEST"
+          grep -Fq 'residual = disagreement * 0.5' "$TEST"
+          grep -Fq 'regression_double_support_disagreement' "$TEST"
+          grep -Fq 'root_motion_applied": false' "$TEST"
+
+      - name: Download exact pinned CC0 animation source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-FootSlideRoot/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          test -s /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python - <<'PY'
+          import os,zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member=os.environ['ANIM_GLB']; assert member in z.namelist(); Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+          sha256sum /tmp/animation-source.zip > /tmp/animation-source.sha256
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-target-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target-artifact
+          TARGET="$(find /tmp/gate8-target-artifact -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"; cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"; "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated diagnostic project
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"; mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01FootSlideRootCompensation"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          BASE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NATIVE_AB_DEPENDENCY_COMMIT}/grand-bruxelles-game/game/tests"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_test.gd"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_v2_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_rest_normalized_animation_ab_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_foot_slide_root_compensation_diagnostic.gd"
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-foot-slide-root-import.log
+          test -d "$ISOLATED_PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-foot-slide-root-import.log
+
+      - name: Measure foot-slide and root-compensation requirement
+        run: |
+          set -euo pipefail
+          timeout 240s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_foot_slide_root_compensation_diagnostic.gd 2>&1 | tee /tmp/gate8-foot-slide-root.log
+          RESULT="$ISOLATED_PROJECT/gate8_variant01_foot_slide_root_compensation_result.json"
+          test -s "$RESULT"
+          cp "$RESULT" /tmp/gate8_variant01_foot_slide_root_compensation_result.json
+          python - <<'PY'
+          import json,math
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8_variant01_foot_slide_root_compensation_result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-variant01-foot-slide-root-compensation-v1'
+          assert r['candidate_variant']==1
+          assert r['diagnostic_state']=='FOOT_SLIDE_ROOT_COMPENSATION_MEASURED'
+          assert r['sample_rate_hz']==120.0 and r['contact_height_window_m']==0.04
+          assert r['retarget_engine']=='RetargetModifier3D'
+          assert r['root_motion_applied'] is False
+          assert r['run_alias_selected']=='' and r['production_authorized'] is False
+          assert r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False and r['visual_approval_claimed'] is False
+          assert r['failures']==[]
+          for clip in ['Jog_Fwd','Sprint']:
+              row=r['clips'][clip]
+              assert row['sample_count']>=80
+              assert int(row['left']['transition_samples'])+int(row['right']['transition_samples'])>0
+              root=row['root_compensation']
+              assert int(root['support_transition_samples'])>0
+              for key in [
+                  'weighted_contact_slide_mean_mps','contact_slide_peak_mps'
+              ]:
+                  assert math.isfinite(float(row[key]))
+              for key in [
+                  'required_root_speed_mean_mps','required_root_speed_peak_mps',
+                  'required_root_displacement_per_cycle_m',
+                  'double_support_velocity_disagreement_mean_mps',
+                  'double_support_velocity_disagreement_peak_mps',
+                  'optimal_root_residual_slide_mean_mps',
+                  'optimal_root_residual_slide_peak_mps'
+              ]:
+                  assert math.isfinite(float(root[key])),(clip,key)
+          print('GATE8_FOOT_SLIDE_ROOT_RESULT_OK clips=2 production_authorized=false root_motion_applied=false')
+          PY
+          grep -q '^GATE8_FOOT_SLIDE_ROOT_RESULT state=FOOT_SLIDE_ROOT_COMPENSATION_MEASURED failures=0 root_motion_applied=false alias_selected=false production_authorized=false$' /tmp/gate8-foot-slide-root.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-foot-slide-root.log
+
+      - name: Stage diagnostic evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-foot-slide-root-evidence; mkdir -p /tmp/gate8-foot-slide-root-evidence
+          for f in \
+            /tmp/gate8_variant01_foot_slide_root_compensation_result.json \
+            /tmp/gate8-foot-slide-root.log \
+            /tmp/gate8-foot-slide-root-import.log \
+            /tmp/animation-source.sha256 \
+            /tmp/npc_gate_01.sha256 \
+            /tmp/godot-version.txt; do
+            if [ -s "$f" ]; then cp "$f" /tmp/gate8-foot-slide-root-evidence/; fi
+          done
+          sha256sum /tmp/gate8-foot-slide-root-evidence/* | sort -k2 | tee /tmp/gate8-foot-slide-root-evidence/sha256.txt
+
+      - name: Prove repository remained untouched
+        if: always()
+        run: |
+          set -euo pipefail
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-foot-slide-root-git-status.txt
+          test ! -s /tmp/gate8-foot-slide-root-git-status.txt
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-variant01-foot-slide-root-compensation
+          path: /tmp/gate8-foot-slide-root-evidence
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

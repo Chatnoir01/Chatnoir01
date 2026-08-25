@@ -1,0 +1,69 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-foot-slide-root-compensation-contract-v1",
+  "base_main_sha": "7c0df3c930b47d7eadada57680ff62b30d7b35ec",
+  "owner_pr": 1264,
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "source_animation": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_zip_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "ground_phase_proof": {
+    "run_id": 32789332458,
+    "artifact_id": 9542580553,
+    "artifact_digest": "sha256:3b44e4f35f86fdea9285c39e5802656e24228b0e18b9f6ee22bc0e48db5d1766",
+    "diagnostic_state": "GROUND_SPAN_FAILURE_FLIGHT_PHASE_DRIVEN",
+    "support_span_m": 0.0359587669372559,
+    "flight_span_m": 0.216107130050659,
+    "all_phase_span_m": 0.256145358085632
+  },
+  "historical_slide_blocker": {
+    "Jog_Fwd": {
+      "mean_contact_slide_mps": 4.7117,
+      "peak_contact_slide_mps": 6.6600
+    },
+    "Sprint": {
+      "mean_contact_slide_mps": 5.3499,
+      "peak_contact_slide_mps": 11.6131
+    }
+  },
+  "diagnostic": {
+    "clips": ["Jog_Fwd", "Sprint"],
+    "sample_rate_hz": 120.0,
+    "contact_height_window_m": 0.04,
+    "measures": [
+      "weighted_contact_slide_mean_mps",
+      "contact_slide_peak_mps",
+      "left_contact_segment_max_displacement_m",
+      "right_contact_segment_max_displacement_m",
+      "required_root_speed_mean_mps",
+      "required_root_speed_peak_mps",
+      "required_root_displacement_per_cycle_m",
+      "double_support_velocity_disagreement_mean_mps",
+      "double_support_velocity_disagreement_peak_mps",
+      "optimal_root_residual_slide_mean_mps",
+      "optimal_root_residual_slide_peak_mps"
+    ],
+    "purpose": "Determine whether contact slide is primarily cancelable by planar root translation or internally contradictory during double support before any root-motion implementation."
+  },
+  "rails": {
+    "thresholds_changed": false,
+    "retarget_changed": false,
+    "root_motion_applied": false,
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

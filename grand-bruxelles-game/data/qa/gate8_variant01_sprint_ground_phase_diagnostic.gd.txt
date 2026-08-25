@@ -1,0 +1,222 @@
+extends "res://game/tests/gate8_variant01_rest_normalized_animation_ab_test.gd"
+
+# Diagnostic-only continuation of the canonical-proxy A/B witness.
+# It reproduces the frozen Sprint all-phase grounding RED, then separates frames
+# with a foot near the observed ground envelope from airborne/flight frames.
+# No threshold, rest pose, Skin, source asset, target asset, or runtime population
+# state is changed by this script.
+
+const DIAGNOSTIC_CLIP := "Sprint"
+const RESULT_PATH := "res://gate8_variant01_sprint_ground_phase_result.json"
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_and_exit({
+            "format": "grand-bruxelles-gate8-variant01-sprint-ground-phase-v1",
+            "candidate_variant": 1,
+            "clip": DIAGNOSTIC_CLIP,
+            "diagnostic_state": "BLOCKED_SETUP",
+            "failures": _failures,
+        })
+        return
+
+    var result := await _diagnose_ground_phases(DIAGNOSTIC_CLIP)
+    _verify_target_integrity_after_measurement()
+    result["failures"] = _failures.duplicate()
+    result["retarget_engine"] = "RetargetModifier3D"
+    result["normalization_formula"] = "D=Rs^-1*Ps; Pnormalized=Rt*D"
+    result["thresholds_changed"] = false
+    result["source_asset_rest_mutated"] = false
+    result["target_asset_rest_mutated"] = false
+    result["target_skin_modified"] = false
+    result["run_alias_selected"] = ""
+    result["production_authorized"] = false
+    result["activation_ready"] = false
+    result["adoption_ready"] = false
+    result["runtime_population_changed"] = false
+    result["visual_approval_claimed"] = false
+    _write_and_exit(result)
+
+func _diagnose_ground_phases(clip_token: String) -> Dictionary:
+    var animation_name := _resolve_animation_name(_source_player, clip_token)
+    if animation_name.is_empty():
+        _failures.append("clip_missing=%s" % clip_token)
+        return _empty_result(clip_token)
+    var animation := _source_player.get_animation(animation_name)
+    if animation == null or animation.length <= 0.0:
+        _failures.append("clip_invalid=%s" % clip_token)
+        return _empty_result(clip_token)
+
+    var sample_count: int = maxi(MINIMUM_SAMPLES, int(ceil(animation.length * SAMPLE_RATE_HZ)))
+    var dt: float = animation.length / float(sample_count)
+    var left_positions: Array[Vector3] = []
+    var right_positions: Array[Vector3] = []
+    var corrections: Array[float] = []
+
+    _source_instance.position = Vector3.ZERO
+    _target_instance.position = Vector3.ZERO
+    _canonical_proxy.position = _proxy_base_position
+    _source_player.play(animation_name)
+    _source_player.pause()
+
+    for sample_index: int in range(sample_count):
+        _source_skeleton.reset_bone_poses()
+        _reset_proxy_pose()
+        _reset_target_pose()
+        var time_s: float = minf(animation.length - 0.00001, float(sample_index) * dt)
+        _source_player.seek(time_s, true)
+        _source_player.advance(0.0)
+        _source_skeleton.force_update_all_bone_transforms()
+        _apply_rest_frame_normalization_to_proxy()
+        _canonical_proxy.force_update_all_bone_transforms()
+        await process_frame
+        _target_skeleton.force_update_all_bone_transforms()
+
+        var left: Vector3 = _target_bone_position("left_foot")
+        var right: Vector3 = _target_bone_position("right_foot")
+        left_positions.append(left)
+        right_positions.append(right)
+        corrections.append(GROUND_CLEARANCE_M - minf(left.y, right.y))
+
+    _source_player.stop()
+
+    if corrections.size() < MINIMUM_SAMPLES:
+        _failures.append("insufficient_samples=%d" % corrections.size())
+        return _empty_result(clip_token)
+
+    var raw_ground_y: float = INF
+    for idx: int in range(corrections.size()):
+        raw_ground_y = minf(raw_ground_y, minf(left_positions[idx].y, right_positions[idx].y))
+    var contact_limit_y: float = raw_ground_y + CONTACT_HEIGHT_WINDOW_M
+
+    var support_corrections: Array[float] = []
+    var flight_corrections: Array[float] = []
+    var support_frames: Array[int] = []
+    var flight_frames: Array[int] = []
+    for idx: int in range(corrections.size()):
+        var support: bool = left_positions[idx].y <= contact_limit_y or right_positions[idx].y <= contact_limit_y
+        if support:
+            support_corrections.append(corrections[idx])
+            support_frames.append(idx)
+        else:
+            flight_corrections.append(corrections[idx])
+            flight_frames.append(idx)
+
+    if support_corrections.is_empty():
+        _failures.append("support_samples_missing")
+
+    var correction_min: float = _array_min(corrections)
+    var correction_max: float = _array_max(corrections)
+    var all_phase_span: float = correction_max - correction_min
+    var max_step: float = _max_adjacent_delta(corrections)
+    var support_span: float = 0.0
+    if support_corrections.size() >= 2:
+        support_span = _array_max(support_corrections) - _array_min(support_corrections)
+    var flight_span: float = 0.0
+    if flight_corrections.size() >= 2:
+        flight_span = _array_max(flight_corrections) - _array_min(flight_corrections)
+
+    var min_index: int = _index_of_min(corrections)
+    var max_index: int = _index_of_max(corrections)
+    if all_phase_span <= MAX_GROUND_CORRECTION_SPAN_M:
+        _failures.append("historical_red_not_reproduced span=%.6f limit=%.6f" % [all_phase_span, MAX_GROUND_CORRECTION_SPAN_M])
+    if max_step > MAX_GROUND_CORRECTION_STEP_M:
+        _failures.append("adjacent_step_regressed value=%.6f limit=%.6f" % [max_step, MAX_GROUND_CORRECTION_STEP_M])
+
+    var state := "GROUND_SPAN_FAILURE_SUPPORT_PHASE_PERSISTS"
+    if all_phase_span <= MAX_GROUND_CORRECTION_SPAN_M:
+        state = "NO_ALL_PHASE_FAILURE"
+    elif support_span <= MAX_GROUND_CORRECTION_SPAN_M and not flight_frames.is_empty():
+        state = "GROUND_SPAN_FAILURE_FLIGHT_PHASE_DRIVEN"
+
+    print("GATE8_SPRINT_GROUND_PHASE all_span=%.6f support_span=%.6f flight_span=%.6f support=%d flight=%d step=%.6f state=%s" % [
+        all_phase_span,
+        support_span,
+        flight_span,
+        support_frames.size(),
+        flight_frames.size(),
+        max_step,
+        state,
+    ])
+
+    return {
+        "format": "grand-bruxelles-gate8-variant01-sprint-ground-phase-v1",
+        "candidate_variant": 1,
+        "clip": clip_token,
+        "animation_name": animation_name,
+        "duration_s": animation.length,
+        "sample_rate_hz": SAMPLE_RATE_HZ,
+        "sample_count": sample_count,
+        "ground_clearance_m": GROUND_CLEARANCE_M,
+        "contact_height_window_m": CONTACT_HEIGHT_WINDOW_M,
+        "observed_raw_ground_y_m": raw_ground_y,
+        "contact_limit_y_m": contact_limit_y,
+        "all_phase_ground_correction_min_m": correction_min,
+        "all_phase_ground_correction_max_m": correction_max,
+        "all_phase_ground_correction_span_m": all_phase_span,
+        "all_phase_span_limit_m": MAX_GROUND_CORRECTION_SPAN_M,
+        "max_adjacent_ground_correction_step_m": max_step,
+        "max_adjacent_step_limit_m": MAX_GROUND_CORRECTION_STEP_M,
+        "support_sample_count": support_frames.size(),
+        "flight_sample_count": flight_frames.size(),
+        "support_ground_correction_span_m": support_span,
+        "flight_ground_correction_span_m": flight_span,
+        "min_correction_frame": _frame_detail(min_index, dt, left_positions, right_positions, corrections, contact_limit_y),
+        "max_correction_frame": _frame_detail(max_index, dt, left_positions, right_positions, corrections, contact_limit_y),
+        "diagnostic_state": state,
+    }
+
+func _frame_detail(index: int, dt: float, left_positions: Array[Vector3], right_positions: Array[Vector3], corrections: Array[float], contact_limit_y: float) -> Dictionary:
+    if index < 0 or index >= corrections.size():
+        return {}
+    var left: Vector3 = left_positions[index]
+    var right: Vector3 = right_positions[index]
+    return {
+        "sample_index": index,
+        "time_s": float(index) * dt,
+        "left_foot_y_m": left.y,
+        "right_foot_y_m": right.y,
+        "correction_m": corrections[index],
+        "support_phase": left.y <= contact_limit_y or right.y <= contact_limit_y,
+        "lower_foot": "left" if left.y <= right.y else "right",
+    }
+
+func _index_of_min(values: Array[float]) -> int:
+    if values.is_empty():
+        return -1
+    var best_index := 0
+    for idx: int in range(1, values.size()):
+        if values[idx] < values[best_index]:
+            best_index = idx
+    return best_index
+
+func _index_of_max(values: Array[float]) -> int:
+    if values.is_empty():
+        return -1
+    var best_index := 0
+    for idx: int in range(1, values.size()):
+        if values[idx] > values[best_index]:
+            best_index = idx
+    return best_index
+
+func _empty_result(clip_token: String) -> Dictionary:
+    return {
+        "format": "grand-bruxelles-gate8-variant01-sprint-ground-phase-v1",
+        "candidate_variant": 1,
+        "clip": clip_token,
+        "diagnostic_state": "BLOCKED_MEASUREMENT",
+    }
+
+func _write_and_exit(result: Dictionary) -> void:
+    var file := FileAccess.open(RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        push_error("GATE8_SPRINT_GROUND_PHASE_RESULT_WRITE_FAILED")
+        quit(1)
+        return
+    file.store_string(JSON.stringify(result, "\t"))
+    file.close()
+    var failure_count: int = _failures.size()
+    print("GATE8_SPRINT_GROUND_PHASE_RESULT failures=%d production_authorized=false alias_selected=false" % failure_count)
+    quit(0 if failure_count == 0 else 1)

@@ -1,0 +1,68 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-rest-normalized-animation-ab-v1",
+  "base_main_sha": "a037436b408889bd4895c225da4a98da886dbfef",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "animation_source": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205,
+    "godot_standard_glb": "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+  },
+  "target_source": {
+    "artifact_id": 9470539830,
+    "artifact_zip_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "target_glb": "npc_gate_01.glb",
+    "target_glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "native_ab_dependency": {
+    "commit": "0f5dbcc64dd44e88490df575bae4664f6bd18520",
+    "base_test": "grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_test.gd",
+    "skin_test": "grand-bruxelles-game/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd"
+  },
+  "prior_native_raw_ab": {
+    "pr": 1211,
+    "run_id": 32641817130,
+    "artifact_id": 9493810164,
+    "verdict": "BLOCKED_NATIVE_RETARGET_OUTPUT",
+    "jog_fwd_ground_span_m": 0.114,
+    "sprint_ground_span_m": 0.1805,
+    "limit_m": 0.18
+  },
+  "rest_normalized_native_transfer": {
+    "pr": 1202,
+    "run_id": 32679787627,
+    "artifact_id": 9503784041,
+    "state": "READY_REST_NORMALIZED_ANIMATION_AB",
+    "reviewed_roles": 22,
+    "max_transfer_error_deg": 0.000131607,
+    "max_reset_residual_deg": 0.0,
+    "max_scale_drift": 0.0,
+    "formula": "D=Rs^-1*Ps; Pnormalized=Rt*D"
+  },
+  "run_candidates": ["Jog_Fwd", "Sprint"],
+  "measurement_gate": {
+    "godot_version": "4.7.1",
+    "sample_rate_hz": 120,
+    "minimum_samples_per_clip": 80,
+    "max_ground_correction_span_m": 0.18,
+    "max_ground_correction_step_m": 0.08,
+    "max_mean_torso_bend_delta_deg": 15.0,
+    "max_peak_torso_bend_delta_deg": 30.0,
+    "require_two_1280x720_frames": true,
+    "require_contact_samples": true,
+    "require_finite_foot_slide_metrics": true
+  },
+  "rails": {
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_payload_allowed": false,
+    "player_character_reuse_allowed": false,
+    "source_or_target_asset_bytes_committed": false
+  }
+}

@@ -1,0 +1,227 @@
+name: Grand Bruxelles Gate-8 Variant-01 Canonical Proxy Animation A-B
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-canonical-proxy-animation-ab.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  canonical-proxy-animation-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      NATIVE_AB_DEPENDENCY_COMMIT: "0f5dbcc64dd44e88490df575bae4664f6bd18520"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-variant01-canonical-proxy-animation-ab"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate canonical-proxy fail-closed contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab.json').read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-rest-normalized-animation-ab-v1'
+          assert d['base_main_sha']=='a037436b408889bd4895c225da4a98da886dbfef'
+          assert d['native_ab_dependency']['commit']=='0f5dbcc64dd44e88490df575bae4664f6bd18520'
+          assert d['rest_normalized_native_transfer']['state']=='READY_REST_NORMALIZED_ANIMATION_AB'
+          assert d['rest_normalized_native_transfer']['reviewed_roles']==22
+          assert d['run_candidates']==['Jog_Fwd','Sprint']
+          g=d['measurement_gate']
+          assert g['sample_rate_hz']==120 and g['minimum_samples_per_clip']==80
+          assert g['max_ground_correction_span_m']==0.18
+          assert g['max_ground_correction_step_m']==0.08
+          assert g['max_mean_torso_bend_delta_deg']==15.0
+          assert g['max_peak_torso_bend_delta_deg']==30.0
+          r=d['rails']
+          assert r['run_alias_selected']=='' and r['production_authorized'] is False
+          assert r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False and r['visual_approval_claimed'] is False
+          print('GATE8_CANONICAL_PROXY_STATIC_OK thresholds_unchanged=true production_authorized=false')
+          PY
+          WITNESS=grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt
+          grep -Fq 'var _canonical_proxy: Skeleton3D' "$WITNESS"
+          grep -Fq 'source_rest.affine_inverse() * source_pose' "$WITNESS"
+          grep -Fq 'proxy_rest * delta' "$WITNESS"
+          grep -Fq 'source_asset_rest_mutated=false target_asset_rest_mutated=false' "$WITNESS"
+          ! grep -Eq 'MAX_GROUND_CORRECTION_SPAN_M\s*=' "$WITNESS"
+          ! grep -Eq 'MAX_GROUND_CORRECTION_STEP_M\s*=' "$WITNESS"
+          ! grep -Eq 'MAX_MEAN_TORSO_DELTA_DEG\s*=' "$WITNESS"
+          ! grep -Eq 'MAX_PEAK_TORSO_DELTA_DEG\s*=' "$WITNESS"
+
+      - name: Download exact pinned CC0 animation source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-CanonicalProxy-AB/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          test -s /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python - <<'PY'
+          import os,zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member=os.environ['ANIM_GLB']; assert member in z.namelist(); Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+          sha256sum /tmp/animation-source.zip > /tmp/animation-source.sha256
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-target-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target-artifact
+          TARGET="$(find /tmp/gate8-target-artifact -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"; cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 >/dev/null
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"; "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated canonical-proxy witness
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"; mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01CanonicalProxyAnimationAB"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          window/size/window_width_override=1280
+          window/size/window_height_override=720
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          BASE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NATIVE_AB_DEPENDENCY_COMMIT}/grand-bruxelles-game/game/tests"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_test.gd"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_v2_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_rest_normalized_animation_ab_test.gd"
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-canonical-proxy-import.log
+          test -d "$ISOLATED_PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-canonical-proxy-import.log
+
+      - name: Measure canonical-proxy A-B and capture both frames
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          MESA_LOADER_DRIVER_OVERRIDE: "llvmpipe"
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 240s xvfb-run -a -s '-screen 0 1280x720x24' "$GODOT" --path "$ISOLATED_PROJECT" --rendering-method gl_compatibility --script res://game/tests/gate8_variant01_rest_normalized_animation_ab_test.gd 2>&1 | tee /tmp/gate8-canonical-proxy-ab.log
+          STATUS=${PIPESTATUS[0]}; set -e
+          RESULT="$ISOLATED_PROJECT/gate8_variant01_native_retarget_ab_result.json"
+          SKIN="$ISOLATED_PROJECT/gate8_variant01_native_skin_remap_result.json"
+          JOG="$ISOLATED_PROJECT/gate8_variant01_rest_normalized_jog-fwd.png"
+          SPRINT="$ISOLATED_PROJECT/gate8_variant01_rest_normalized_sprint.png"
+          test -s "$RESULT" && test -s "$SKIN" && test -s "$JOG" && test -s "$SPRINT"
+          cp "$RESULT" /tmp/gate8_variant01_canonical_proxy_animation_ab_result.json
+          cp "$SKIN" /tmp/gate8_variant01_native_skin_remap_result.json
+          python - <<'PY'
+          import json,math,struct
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8_variant01_canonical_proxy_animation_ab_result.json').read_text())
+          s=json.loads(Path('/tmp/gate8_variant01_native_skin_remap_result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-variant01-native-retarget-ab-result-v1'
+          assert r['candidate_variant']==1 and r['reviewed_roles']==22
+          assert r['retarget_engine']=='RetargetModifier3D'
+          assert r['normalization_formula']=='D=Rs^-1*Ps; Pnormalized=Rt*D'
+          assert r['normalization_scope']=='canonical_proxy_target_rest'
+          assert r['rest_normalization_roles']==22
+          assert int(r['canonical_proxy_bones'])>=22
+          assert r['source_rest_transforms_unchanged'] is True
+          assert r['target_rest_transforms_unchanged'] is True
+          assert r['failed_direct_normalization_run']==32785869604
+          assert r['run_alias_selected']=='' and r['production_authorized'] is False
+          assert r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False and r['visual_approval_claimed'] is False
+          assert s['runtime_only'] is True and s['missing_named_binds_after_remap']==0
+          assert s['bind_count_unchanged'] is True and s['bind_poses_unchanged'] is True and s['bind_bone_indices_unchanged'] is True
+          for clip in ['Jog_Fwd','Sprint']:
+              row=r['clips'][clip]
+              assert row['sample_count']>=80
+              assert row['left_contact_samples']+row['right_contact_samples']>0
+              for key in ['mean_contact_slide_mps','peak_contact_slide_mps','ground_correction_span_m','ground_correction_max_step_m','mean_torso_bend_delta_deg','peak_torso_bend_delta_deg']:
+                  assert math.isfinite(float(row[key])),(clip,key)
+              assert row['frame_width']==1280 and row['frame_height']==720
+          def size(path):
+              b=Path(path).read_bytes(); assert b[:8]==b'\x89PNG\r\n\x1a\n' and b[12:16]==b'IHDR'; return struct.unpack('>II',b[16:24])
+          assert size('/tmp/gate8-variant01-canonical-proxy-animation-ab/gate8_variant01_rest_normalized_jog-fwd.png')==(1280,720)
+          assert size('/tmp/gate8-variant01-canonical-proxy-animation-ab/gate8_variant01_rest_normalized_sprint.png')==(1280,720)
+          print('GATE8_CANONICAL_PROXY_RESULT_CAPTURED clips=2 frames=2 production_authorized=false')
+          PY
+          if [ "$STATUS" -eq 0 ]; then
+            grep -q '^GATE8_REST_NORMALIZED_AB_RESULT failures=0 proxy=true alias_selected=false production_authorized=false$' /tmp/gate8-canonical-proxy-ab.log
+            grep -q '^GATE8_VARIANT01_NATIVE_RETARGET_AB_OK candidate=01 clips=Jog_Fwd,Sprint engine=RetargetModifier3D alias_selected=false production_authorized=false$' /tmp/gate8-canonical-proxy-ab.log
+          else
+            echo 'Canonical-proxy A-B failed closed; inspect exact metrics and both frames.' >&2
+            exit "$STATUS"
+          fi
+
+      - name: Stage canonical-proxy evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-canonical-proxy-evidence; mkdir -p /tmp/gate8-canonical-proxy-evidence
+          for f in \
+            /tmp/gate8_variant01_canonical_proxy_animation_ab_result.json \
+            /tmp/gate8_variant01_native_skin_remap_result.json \
+            /tmp/gate8-canonical-proxy-ab.log \
+            /tmp/gate8-canonical-proxy-import.log \
+            /tmp/animation-source.sha256 \
+            /tmp/npc_gate_01.sha256 \
+            /tmp/godot-version.txt \
+            "$ISOLATED_PROJECT/gate8_variant01_rest_normalized_jog-fwd.png" \
+            "$ISOLATED_PROJECT/gate8_variant01_rest_normalized_sprint.png"; do
+            if [ -s "$f" ]; then cp "$f" /tmp/gate8-canonical-proxy-evidence/; fi
+          done
+          sha256sum /tmp/gate8-canonical-proxy-evidence/* | sort -k2 | tee /tmp/gate8-canonical-proxy-evidence/sha256.txt
+
+      - name: Prove repository remained untouched
+        if: always()
+        run: |
+          set -euo pipefail
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-canonical-proxy-git-status.txt
+          test ! -s /tmp/gate8-canonical-proxy-git-status.txt
+
+      - name: Upload canonical-proxy evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-variant01-canonical-proxy-animation-ab
+          path: /tmp/gate8-canonical-proxy-evidence
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

@@ -1,0 +1,133 @@
+extends "res://game/tests/gate8_variant01_source_locomotion_candidate_scan.gd"
+
+const ARM_SWING_INVENTORY_RESULT_PATH := "res://gate8_variant01_source_arm_swing_inventory_result.json"
+const ARM_SWING_INVENTORY_SAMPLE_RATE_HZ := 120.0
+const ARM_SWING_INVENTORY_BONES := ["DEF-upper_arm.L", "DEF-upper_arm.R"]
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_inventory_and_exit({
+            "diagnostic_state": "BLOCKED_SETUP",
+            "clips": []
+        })
+        return
+
+    var rows: Array[Dictionary] = []
+    var animation_names: PackedStringArray = _source_player.get_animation_list()
+    animation_names.sort()
+    for animation_name_value in animation_names:
+        var animation_name := String(animation_name_value)
+        if animation_name == "RESET":
+            continue
+        rows.append(await _measure_source_arm_swing(animation_name))
+
+    rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+        var aa := float(a.get("max_upper_arm_swing_deg", INF))
+        var bb := float(b.get("max_upper_arm_swing_deg", INF))
+        if is_equal_approx(aa, bb):
+            return String(a.get("animation_name", "")) < String(b.get("animation_name", ""))
+        return aa < bb
+    )
+
+    _write_inventory_and_exit({
+        "diagnostic_state": "SOURCE_ARM_SWING_INVENTORY_COMPLETE" if _failures.is_empty() else "BLOCKED_DIAGNOSTIC_FAILURE",
+        "clips": rows,
+        "animation_count": rows.size()
+    })
+
+func _measure_source_arm_swing(animation_name: String) -> Dictionary:
+    var animation := _source_player.get_animation(animation_name)
+    if animation == null or animation.length <= 0.0:
+        _failures.append("arm_swing_inventory_invalid_animation=%s" % animation_name)
+        return {
+            "animation_name": animation_name,
+            "error": "invalid_animation",
+            "max_upper_arm_swing_deg": INF
+        }
+
+    var bone_indices := {}
+    for bone_name_value in ARM_SWING_INVENTORY_BONES:
+        var bone_name := String(bone_name_value)
+        var bone_idx := _source_skeleton.find_bone(bone_name)
+        if bone_idx < 0:
+            _failures.append("arm_swing_inventory_bone_missing=%s" % bone_name)
+        bone_indices[bone_name] = bone_idx
+    if not _failures.is_empty():
+        return {
+            "animation_name": animation_name,
+            "error": "bone_missing",
+            "max_upper_arm_swing_deg": INF
+        }
+
+    var sample_count := maxi(24, int(ceil(animation.length * ARM_SWING_INVENTORY_SAMPLE_RATE_HZ)))
+    var maxima := {
+        "DEF-upper_arm.L": {"rotation_deg": 0.0, "phase": 0.0},
+        "DEF-upper_arm.R": {"rotation_deg": 0.0, "phase": 0.0}
+    }
+    for sample_idx in range(sample_count):
+        var phase := float(sample_idx) / float(sample_count)
+        var sample_time := minf(animation.length * phase, maxf(0.0, animation.length - 0.00001))
+        _source_player.play(animation_name)
+        _source_player.seek(sample_time, true)
+        _source_player.advance(0.0)
+        _source_skeleton.force_update_all_bone_transforms()
+        for bone_name_value in ARM_SWING_INVENTORY_BONES:
+            var bone_name := String(bone_name_value)
+            var bone_idx := int(bone_indices[bone_name])
+            var delta := _source_skeleton.get_bone_rest(bone_idx).affine_inverse() * _source_skeleton.get_bone_pose(bone_idx)
+            var angle_deg := rad_to_deg(delta.basis.orthonormalized().get_rotation_quaternion().get_angle())
+            var current: Dictionary = maxima[bone_name]
+            if angle_deg > float(current["rotation_deg"]):
+                maxima[bone_name] = {"rotation_deg": angle_deg, "phase": phase}
+
+    var max_swing := maxf(
+        float(maxima["DEF-upper_arm.L"]["rotation_deg"]),
+        float(maxima["DEF-upper_arm.R"]["rotation_deg"])
+    )
+    print("GATE8_SOURCE_ARM_SWING clip=%s samples=%d max_arm_deg=%.6f" % [animation_name, sample_count, max_swing])
+    return {
+        "animation_name": animation_name,
+        "duration_s": animation.length,
+        "sample_rate_hz": ARM_SWING_INVENTORY_SAMPLE_RATE_HZ,
+        "sample_count": sample_count,
+        "upper_arm_max": maxima,
+        "max_upper_arm_swing_deg": max_swing
+    }
+
+func _write_inventory_and_exit(partial: Dictionary) -> void:
+    var result := {
+        "format": "grand-bruxelles-gate8-variant01-source-arm-swing-inventory-v1",
+        "engine_version": Engine.get_version_info().get("string", "unknown"),
+        "candidate_variant": 1,
+        "candidate_static_verdict": "AMELIORER",
+        "sample_rate_hz": ARM_SWING_INVENTORY_SAMPLE_RATE_HZ,
+        "measured_bones": ARM_SWING_INVENTORY_BONES,
+        "selection_policy": "measurement_only_no_semantic_alias_auto_promotion",
+        "walk_alias_selected": "",
+        "run_alias_selected": "",
+        "production_authorized": false,
+        "activation_ready": false,
+        "adoption_ready": false,
+        "runtime_population_changed": false,
+        "retarget_changed": false,
+        "skin_changed": false,
+        "root_motion_applied": false,
+        "failures": _failures
+    }
+    for key in partial.keys():
+        result[key] = partial[key]
+    result["failures"] = _failures
+    var file := FileAccess.open(ARM_SWING_INVENTORY_RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        quit(1)
+        return
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
+    print("GATE8_SOURCE_ARM_SWING_INVENTORY state=%s animations=%d failures=%d alias_selected=false production_authorized=false" % [
+        String(result.get("diagnostic_state", "unknown")),
+        int(result.get("animation_count", 0)),
+        _failures.size()
+    ])
+    quit(0 if _failures.is_empty() else 1)

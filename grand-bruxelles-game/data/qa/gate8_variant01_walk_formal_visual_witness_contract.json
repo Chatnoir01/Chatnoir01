@@ -1,0 +1,57 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-walk-formal-visual-witness-contract-v1",
+  "owner_pr": 1264,
+  "base_main_sha": "c3369e94ed23d8067cbfa0059ca91c00d6836138",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "walk_candidate": "Walk_Formal",
+  "walk_candidate_status": "MECHANICAL_LEAD_NOT_ADOPTED",
+  "mechanical_evidence": {
+    "run_id": 32822019331,
+    "artifact_id": 9553487737,
+    "artifact_digest": "sha256:827854ac2c6bbc726dd9f069b6d78398362078c472effdff0a9ce4af21825d55",
+    "recommended_visual_candidate": "Walk_Formal",
+    "ground_correction_span_m": 0.0800769329071045,
+    "ground_correction_max_step_m": 0.00421684980392456,
+    "mean_torso_bend_delta_deg": 0.527574760078209,
+    "peak_torso_bend_delta_deg": 1.09787745683356,
+    "irreducible_residual_slide_peak_mps_at_ideal_playback": 0.0
+  },
+  "source_animation": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_bytes": 14541205
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "visual_evidence": {
+    "distances_m": [2.0, 5.0, 8.0],
+    "width": 1280,
+    "height": 720,
+    "camera_fov_deg": 68.0,
+    "sample_phase": 0.35,
+    "require_unique_png_hashes": true,
+    "require_skin_material_skeleton_integrity": true,
+    "require_artifact_png_payload": true,
+    "required_artifact_png_count": 3,
+    "review_state": "PENDING_HUMAN_REVIEW"
+  },
+  "rails": {
+    "thresholds_changed": false,
+    "retarget_changed": false,
+    "root_motion_applied": false,
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

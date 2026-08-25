@@ -1,0 +1,201 @@
+name: Grand Bruxelles Gate-8 Variant-01 Source Locomotion Candidate Scan
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-source-locomotion-candidate-scan.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_source_locomotion_candidate_scan.json"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_source_locomotion_candidate_scan.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt"
+      - "grand-bruxelles-game/game/scripts/midi_realistic_authored_npc_runtime.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  source-locomotion-candidate-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      NATIVE_AB_DEPENDENCY_COMMIT: "0f5dbcc64dd44e88490df575bae4664f6bd18520"
+      GODOT_URL: "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-variant01-source-candidate-scan"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate source-backed candidate contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_source_locomotion_candidate_scan.json').read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-source-locomotion-candidate-scan-v1'
+          assert d['owner_pr']==1264 and d['candidate_variant']==1
+          assert d['candidate_static_verdict']=='AMELIORER'
+          assert d['source']['license']=='CC0-1.0'
+          assert d['source']['package_sha256']=='18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2'
+          assert d['catalog_to_imported_clip']=={
+              'Walk_Loop':'Walk',
+              'Walk_Formal_Loop':'Walk_Formal',
+              'Crouch_Fwd_Loop':'Crouch_Fwd'
+          }
+          assert d['candidate_clips']==['Walk','Walk_Formal','Crouch_Fwd']
+          assert d['runtime_contract']=={'run_enter_mps':1.65,'run_max_mps':2.4,'playback_min':0.82,'playback_max':1.22}
+          r=d['rails']
+          assert r['root_motion_applied'] is False and r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['mixamo_allowed'] is False and r['player_character_reuse_allowed'] is False
+          PY
+          grep -Fq 'SOURCE_CANDIDATES: Array[String] = ["Walk", "Walk_Formal", "Crouch_Fwd"]' grand-bruxelles-game/data/qa/gate8_variant01_source_locomotion_candidate_scan.gd.txt
+
+      - name: Download exact pinned CC0 animation source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-SourceCandidateScan/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          test -s /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python3 - <<'PY'
+          import os,zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member=os.environ['ANIM_GLB']; assert member in z.namelist(); Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-target-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target-artifact
+          TARGET="$(find /tmp/gate8-target-artifact -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"; cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"; "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated candidate-scan project
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"; mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01SourceCandidateScan"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          BASE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NATIVE_AB_DEPENDENCY_COMMIT}/grand-bruxelles-game/game/tests"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_test.gd"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_v2_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_rest_normalized_animation_ab_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_foot_slide_root_compensation_diagnostic.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_source_locomotion_candidate_scan.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_source_locomotion_candidate_scan.gd"
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-source-candidate-import.log
+          test -d "$ISOLATED_PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-source-candidate-import.log
+
+      - name: Measure exact imported source candidates
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 240s "$GODOT" --headless --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_source_locomotion_candidate_scan.gd 2>&1 | tee /tmp/gate8-source-candidate-scan.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          RESULT="$ISOLATED_PROJECT/gate8_variant01_source_locomotion_candidate_scan_result.json"
+          if [ -s "$RESULT" ]; then cp "$RESULT" /tmp/gate8_variant01_source_locomotion_candidate_scan_result.json; fi
+          test "$STATUS" -eq 0
+          test -s /tmp/gate8_variant01_source_locomotion_candidate_scan_result.json
+          grep -q '^GATE8_SOURCE_CANDIDATE_SCAN state=SOURCE_LOCOMOTION_CANDIDATE_SCAN_COMPLETE candidates=3 failures=0 alias_selected=false production_authorized=false$' /tmp/gate8-source-candidate-scan.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-source-candidate-scan.log
+
+      - name: Compare measured planted-feet speeds with live civilian runtime
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          raw=json.loads(Path('/tmp/gate8_variant01_source_locomotion_candidate_scan_result.json').read_text())
+          assert raw['decision_state']=='SOURCE_LOCOMOTION_CANDIDATE_SCAN_COMPLETE' and raw['failures']==[]
+          expected=['Walk','Walk_Formal','Crouch_Fwd']
+          assert raw['source_candidates']==expected
+          text=Path('grand-bruxelles-game/game/scripts/midi_realistic_authored_npc_runtime.gd').read_text()
+          def c(name):
+              m=re.search(rf'^const\s+{name}\s*:=\s*([0-9]+(?:\.[0-9]+)?)\s*$',text,re.M)
+              assert m,name
+              return float(m.group(1))
+          run_enter,run_max,pmin,pmax=c('RUN_ENTER_SPEED_MPS'),c('MAX_OBSERVED_SPEED_MPS'),c('RUN_PLAYBACK_MIN'),c('RUN_PLAYBACK_MAX')
+          assert (run_enter,run_max,pmin,pmax)==(1.65,2.4,0.82,1.22)
+          rows={}; compatible=[]
+          for clip in expected:
+              root=raw['clips'][clip]['root_compensation']
+              speed=float(root['required_root_speed_mean_mps'])
+              planted=[speed*pmin,speed*pmax]
+              overlap=[max(run_enter,planted[0]),min(run_max,planted[1])]
+              ok=overlap[0] <= overlap[1] + 1e-9
+              if ok: compatible.append(clip)
+              rows[clip]={
+                  'required_root_speed_mean_mps_at_1x':speed,
+                  'planted_speed_interval_at_allowed_playback_mps':planted,
+                  'runtime_run_speed_interval_mps':[run_enter,run_max],
+                  'interval_overlap_mps':overlap if ok else None,
+                  'compatible_with_current_civilian_run_contract':ok,
+                  'contact_slide_mean_mps':raw['clips'][clip]['weighted_contact_slide_mean_mps'],
+                  'contact_slide_peak_mps':raw['clips'][clip]['contact_slide_peak_mps']
+              }
+          out={
+              'format':'grand-bruxelles-gate8-variant01-source-locomotion-candidate-speed-result-v1',
+              'candidate_variant':1,
+              'clips':rows,
+              'compatible_candidates':compatible,
+              'compatible_candidate_count':len(compatible),
+              'run_alias_selected':'',
+              'root_motion_applied':False,
+              'production_authorized':False,
+              'activation_ready':False,
+              'adoption_ready':False
+          }
+          Path('/tmp/gate8_variant01_source_locomotion_candidate_speed_result.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print('GATE8_SOURCE_CANDIDATE_SPEED_RESULT compatible=%d clips=%s alias_selected=false production_authorized=false' % (len(compatible),','.join(expected)))
+          PY
+
+      - name: Upload candidate scan evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-variant01-source-locomotion-candidate-scan
+          path: |
+            /tmp/gate8_variant01_source_locomotion_candidate_scan_result.json
+            /tmp/gate8_variant01_source_locomotion_candidate_speed_result.json
+            /tmp/gate8-source-candidate-scan.log
+            /tmp/gate8-source-candidate-import.log
+            /tmp/godot-version.txt
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0

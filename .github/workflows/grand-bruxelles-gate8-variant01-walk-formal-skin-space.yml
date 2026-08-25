@@ -1,0 +1,193 @@
+name: Grand Bruxelles Gate-8 Variant-01 Walk_Formal Skin-Space
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-walk-formal-skin-space.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_space_contract.json"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_space_diagnostic.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_visual_witness.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_mechanical_ab_diagnostic.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  walk-formal-skin-space:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      NATIVE_AB_DEPENDENCY_COMMIT: "0f5dbcc64dd44e88490df575bae4664f6bd18520"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-variant01-walk-formal-skin-space"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Validate fail-closed skin-space contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_space_contract.json').read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-walk-formal-skin-space-contract-v1'
+          assert d['owner_pr']==1264 and d['base_main_sha']=='c3369e94ed23d8067cbfa0059ca91c00d6836138'
+          assert d['candidate_variant']==1 and d['candidate_static_verdict']=='AMELIORER'
+          assert d['walk_candidate']=='Walk_Formal' and d['walk_alias_selected']=='' and d['run_alias_selected']==''
+          assert d['sample_phase']==0.35
+          v=d['visual_evidence']; assert v['run_id']==32831363846 and v['artifact_id']==9556897114
+          assert v['artifact_digest']=='sha256:0b3b7e2cce8e1197e4f0f79c4e33da8f7e86c2c50e25e33ade42b2be24a60d4d'
+          assert v['verdict']=='JETER_SOLVER_OUTPUT'
+          m=d['measurement']; assert m['space']=='cpu_skin_space' and m['measure_triangle_edges'] is True
+          assert m['record_exact_endpoint_weights'] is True and m['require_rigid_transform_regression'] is True
+          assert float(m['severe_absolute_edge_change_m'])==0.25 and float(m['severe_stretch_ratio'])==3.0 and float(m['severe_compression_ratio'])==0.25
+          r=d['rails']; assert r['retarget_changed'] is False and r['thresholds_changed'] is False and r['root_motion_applied'] is False
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False and r['visual_approval_claimed'] is False
+          assert r['mixamo_allowed'] is False and r['player_character_reuse_allowed'] is False
+          print('GATE8_WALK_FORMAL_SKIN_SPACE_STATIC_OK phase=0.35 production_authorized=false')
+          PY
+          TEST=grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_space_diagnostic.gd.txt
+          grep -Fq 'SEVERE_ABSOLUTE_EDGE_CHANGE_M := 0.25' "$TEST"
+          grep -Fq 'skin.get_bind_pose(bind_index)' "$TEST"
+          grep -Fq 'get_bone_global_pose' "$TEST"
+          grep -Fq 'get_bone_global_rest' "$TEST"
+          grep -Fq 'visual_approval_claimed": false' "$TEST"
+
+      - name: Download exact pinned CC0 animation source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-WalkFormalSkinSpace/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          test -s /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python - <<'PY'
+          import os,zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member=os.environ['ANIM_GLB']; assert member in z.namelist(); Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+          sha256sum /tmp/animation-source.zip > /tmp/animation-source.sha256
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-target-artifact; mkdir -p /tmp/gate8-target-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target-artifact
+          TARGET="$(find /tmp/gate8-target-artifact -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"; cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"; "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated skin-space project
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"; mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01WalkFormalSkinSpace"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          BASE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NATIVE_AB_DEPENDENCY_COMMIT}/grand-bruxelles-game/game/tests"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_test.gd"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_v2_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_rest_normalized_animation_ab_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_foot_slide_root_compensation_diagnostic.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_walk_mechanical_ab_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_walk_mechanical_ab_diagnostic.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_visual_witness.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_walk_formal_visual_witness.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_space_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_walk_formal_skin_space_diagnostic.gd"
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-walk-formal-skin-space-import.log
+          test -d "$ISOLATED_PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-walk-formal-skin-space-import.log
+
+      - name: Reproduce Walk_Formal deformation in CPU skin-space
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 300s "$GODOT" --headless --audio-driver Dummy --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_walk_formal_skin_space_diagnostic.gd 2>&1 | tee /tmp/gate8-walk-formal-skin-space.log
+          STATUS=${PIPESTATUS[0]}; set -e
+          RESULT="$ISOLATED_PROJECT/gate8_variant01_walk_formal_skin_space_result.json"
+          test -s "$RESULT"; cp "$RESULT" /tmp/gate8_variant01_walk_formal_skin_space_result.json
+          python - <<'PY'
+          import json,math
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8_variant01_walk_formal_skin_space_result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-variant01-walk-formal-skin-space-v1'
+          assert r['candidate_variant']==1 and r['candidate_static_verdict']=='AMELIORER'
+          assert r['walk_candidate']=='Walk_Formal' and float(r['sample_phase'])==0.35
+          assert r['diagnostic_state']=='SEVERE_SKIN_SPACE_STRETCH_REPRODUCED'
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False and r['visual_approval_claimed'] is False
+          assert r['retarget_changed'] is False and r['thresholds_changed'] is False
+          assert r['failures']==[]
+          d=r['deformation']; assert int(d['weighted_vertex_count'])>0 and int(d['edge_count'])>0
+          vals=[float(d['max_absolute_edge_change_m']),float(d['max_stretch_ratio']),float(d['min_compression_ratio'])]
+          assert all(math.isfinite(v) for v in vals)
+          assert vals[0]>=0.25 or vals[1]>=3.0 or vals[2]<=0.25
+          assert d['max_absolute_edge']['vertex_a_weights'] and d['max_absolute_edge']['vertex_b_weights']
+          print('GATE8_WALK_FORMAL_SKIN_SPACE_REPRODUCED max_abs=%.6f max_ratio=%.6f min_ratio=%.6f production_authorized=false' % tuple(vals))
+          PY
+          test "$STATUS" -eq 0
+          grep -q '^GATE8_WALK_FORMAL_SKIN_SPACE_RESULT state=SEVERE_SKIN_SPACE_STRETCH_REPRODUCED failures=0 alias_selected=false production_authorized=false$' /tmp/gate8-walk-formal-skin-space.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-walk-formal-skin-space.log
+
+      - name: Stage diagnostic evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-walk-formal-skin-space-evidence; mkdir -p /tmp/gate8-walk-formal-skin-space-evidence
+          for f in /tmp/gate8_variant01_walk_formal_skin_space_result.json /tmp/gate8-walk-formal-skin-space.log /tmp/gate8-walk-formal-skin-space-import.log /tmp/animation-source.sha256 /tmp/npc_gate_01.sha256 /tmp/godot-version.txt; do
+            [ -f "$f" ] && cp "$f" /tmp/gate8-walk-formal-skin-space-evidence/
+          done
+          git status --porcelain=v1 > /tmp/gate8-walk-formal-skin-space-evidence/git-status.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-gate8-variant01-walk-formal-skin-space
+          path: /tmp/gate8-walk-formal-skin-space-evidence
+          if-no-files-found: error
+          retention-days: 14

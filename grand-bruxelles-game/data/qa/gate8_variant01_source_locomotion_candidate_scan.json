@@ -1,0 +1,43 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-source-locomotion-candidate-scan-v1",
+  "owner_pr": 1264,
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "source": {
+    "publisher": "Quaternius",
+    "asset": "Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205,
+    "internal_catalog_artifact_id": 9480107658,
+    "internal_catalog_artifact_digest": "sha256:caa4161081f053af269ee104a467d7f74fb6f65e5e487bf110be5f22a9f16fa0"
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "catalog_to_imported_clip": {
+    "Walk_Loop": "Walk",
+    "Walk_Formal_Loop": "Walk_Formal",
+    "Crouch_Fwd_Loop": "Crouch_Fwd"
+  },
+  "candidate_clips": ["Walk", "Walk_Formal", "Crouch_Fwd"],
+  "runtime_contract": {
+    "run_enter_mps": 1.65,
+    "run_max_mps": 2.4,
+    "playback_min": 0.82,
+    "playback_max": 1.22
+  },
+  "rails": {
+    "root_motion_applied": false,
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

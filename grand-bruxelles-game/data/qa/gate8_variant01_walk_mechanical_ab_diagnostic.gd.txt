@@ -1,0 +1,164 @@
+extends "res://game/tests/gate8_variant01_foot_slide_root_compensation_diagnostic.gd"
+
+const WALK_RESULT_PATH := "res://gate8_variant01_walk_mechanical_ab_result.json"
+const WALK_CANDIDATES: Array[String] = ["Walk", "Walk_Formal"]
+const WALK_REFERENCE_SPEED_MPS := 1.0
+const WALK_PLAYBACK_MIN := 0.68
+const WALK_PLAYBACK_MAX := 1.45
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_and_exit({
+            "format": "grand-bruxelles-gate8-variant01-walk-mechanical-ab-v1",
+            "candidate_variant": 1,
+            "diagnostic_state": "BLOCKED_SETUP",
+            "failures": _failures
+        })
+        return
+
+    _run_math_regressions()
+    _run_walk_math_regressions()
+
+    var clips := {}
+    for clip: String in WALK_CANDIDATES:
+        var failure_count_before := _failures.size()
+        var mechanical := await _measure_clip(clip)
+        var foot_slide := await _diagnose_clip(clip)
+        if mechanical.is_empty() or foot_slide.is_empty():
+            clips[clip] = {
+                "mechanical_gate_passed": false,
+                "failure_count_added": _failures.size() - failure_count_before
+            }
+            continue
+
+        var root_comp: Dictionary = foot_slide.get("root_compensation", {})
+        var required_root_speed := float(root_comp.get("required_root_speed_mean_mps", 0.0))
+        var ideal_playback := _ideal_playback(required_root_speed)
+        var playback_in_range := is_finite(ideal_playback) and ideal_playback >= WALK_PLAYBACK_MIN and ideal_playback <= WALK_PLAYBACK_MAX
+        if not playback_in_range:
+            _failures.append("walk_playback_out_of_range clip=%s playback=%.6f" % [clip, ideal_playback])
+
+        var residual_mean := float(root_comp.get("optimal_root_residual_slide_mean_mps", 0.0))
+        var residual_peak := float(root_comp.get("optimal_root_residual_slide_peak_mps", 0.0))
+        var raw_mean := float(foot_slide.get("weighted_contact_slide_mean_mps", 0.0))
+        var raw_peak := float(foot_slide.get("contact_slide_peak_mps", 0.0))
+        var effective_required_root := required_root_speed * ideal_playback
+
+        for value: float in [ideal_playback, residual_mean, residual_peak, raw_mean, raw_peak, effective_required_root]:
+            if not is_finite(value):
+                _failures.append("non_finite_walk_metric clip=%s" % clip)
+                break
+
+        clips[clip] = {
+            "animation_name": String(mechanical.get("animation_name", "")),
+            "duration_s": float(mechanical.get("duration_s", 0.0)),
+            "sample_count": int(mechanical.get("sample_count", 0)),
+            "walk_reference_speed_mps": WALK_REFERENCE_SPEED_MPS,
+            "required_root_speed_1x_mps": required_root_speed,
+            "ideal_playback_for_reference_speed": ideal_playback,
+            "playback_in_live_walk_range": playback_in_range,
+            "effective_required_root_speed_mps": effective_required_root,
+            "ground_correction_span_m": float(mechanical.get("ground_correction_span_m", INF)),
+            "ground_correction_max_step_m": float(mechanical.get("ground_correction_max_step_m", INF)),
+            "mean_torso_bend_delta_deg": float(mechanical.get("mean_torso_bend_delta_deg", INF)),
+            "peak_torso_bend_delta_deg": float(mechanical.get("peak_torso_bend_delta_deg", INF)),
+            "raw_contact_slide_mean_mps_1x": raw_mean,
+            "raw_contact_slide_peak_mps_1x": raw_peak,
+            "raw_contact_slide_mean_mps_at_ideal_playback": raw_mean * ideal_playback,
+            "raw_contact_slide_peak_mps_at_ideal_playback": raw_peak * ideal_playback,
+            "irreducible_residual_slide_mean_mps_1x": residual_mean,
+            "irreducible_residual_slide_peak_mps_1x": residual_peak,
+            "irreducible_residual_slide_mean_mps_at_ideal_playback": residual_mean * ideal_playback,
+            "irreducible_residual_slide_peak_mps_at_ideal_playback": residual_peak * ideal_playback,
+            "double_support_transition_samples": int(root_comp.get("double_support_transition_samples", 0)),
+            "double_support_velocity_disagreement_peak_mps_1x": float(root_comp.get("double_support_velocity_disagreement_peak_mps", 0.0)),
+            "mechanical_gate_passed": _failures.size() == failure_count_before,
+            "failure_count_added": _failures.size() - failure_count_before
+        }
+
+    var recommendation := _recommend_visual_candidate(clips)
+    var state := "WALK_AB_MEASURED_PENDING_ABSOLUTE_FOOT_SLIDE_ACCEPTANCE"
+    if not _failures.is_empty():
+        state = "BLOCKED_MECHANICAL_GATE"
+    elif recommendation.is_empty():
+        state = "BLOCKED_NO_MECHANICALLY_CLEAN_WALK"
+
+    _write_and_exit({
+        "format": "grand-bruxelles-gate8-variant01-walk-mechanical-ab-v1",
+        "engine_version": Engine.get_version_info().get("string", "unknown"),
+        "candidate_variant": 1,
+        "candidate_static_verdict": "AMELIORER",
+        "diagnostic_state": state,
+        "clips": clips,
+        "walk_reference_speed_mps": WALK_REFERENCE_SPEED_MPS,
+        "walk_playback_min": WALK_PLAYBACK_MIN,
+        "walk_playback_max": WALK_PLAYBACK_MAX,
+        "recommended_visual_candidate": recommendation,
+        "foot_slide_evaluation": "comparative_irreducible_residual_no_new_absolute_threshold",
+        "absolute_foot_slide_acceptance_defined": false,
+        "sample_rate_hz": SAMPLE_RATE_HZ,
+        "retarget_engine": "RetargetModifier3D",
+        "normalization_formula": "D=Rs^-1*Ps; Pnormalized=Rt*D",
+        "thresholds_changed": false,
+        "retarget_changed": false,
+        "root_motion_applied": false,
+        "walk_alias_selected": "",
+        "run_alias_selected": "",
+        "production_authorized": false,
+        "activation_ready": false,
+        "adoption_ready": false,
+        "runtime_population_changed": false,
+        "visual_approval_claimed": false,
+        "failures": _failures
+    })
+
+func _ideal_playback(required_root_speed_mps: float) -> float:
+    if required_root_speed_mps <= 0.0 or not is_finite(required_root_speed_mps):
+        return INF
+    return WALK_REFERENCE_SPEED_MPS / required_root_speed_mps
+
+func _recommend_visual_candidate(clips: Dictionary) -> String:
+    var candidates: Array[String] = []
+    for clip: String in WALK_CANDIDATES:
+        var row: Dictionary = clips.get(clip, {})
+        if bool(row.get("mechanical_gate_passed", false)) and bool(row.get("playback_in_live_walk_range", false)):
+            candidates.append(clip)
+    if candidates.is_empty():
+        return ""
+    candidates.sort_custom(func(a: String, b: String) -> bool:
+        var ra: Dictionary = clips[a]
+        var rb: Dictionary = clips[b]
+        var residual_a := float(ra.get("irreducible_residual_slide_peak_mps_at_ideal_playback", INF))
+        var residual_b := float(rb.get("irreducible_residual_slide_peak_mps_at_ideal_playback", INF))
+        if absf(residual_a - residual_b) > 0.000001:
+            return residual_a < residual_b
+        return float(ra.get("raw_contact_slide_peak_mps_at_ideal_playback", INF)) < float(rb.get("raw_contact_slide_peak_mps_at_ideal_playback", INF))
+    )
+    return candidates[0]
+
+func _run_walk_math_regressions() -> void:
+    var playback := _ideal_playback(0.8)
+    if absf(playback - 1.25) > 0.000001:
+        _failures.append("regression_walk_ideal_playback")
+    if absf((0.8 * playback) - WALK_REFERENCE_SPEED_MPS) > 0.000001:
+        _failures.append("regression_walk_reference_speed")
+    if not (playback >= WALK_PLAYBACK_MIN and playback <= WALK_PLAYBACK_MAX):
+        _failures.append("regression_walk_playback_range")
+
+func _write_and_exit(result: Dictionary) -> void:
+    var file := FileAccess.open(WALK_RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        _failures.append("result_file_open_failed")
+        quit(1)
+        return
+    result["failures"] = _failures
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
+    print("GATE8_WALK_MECHANICAL_AB_RESULT state=%s recommendation=%s failures=%d alias_selected=false production_authorized=false" % [
+        String(result.get("diagnostic_state", "unknown")),
+        String(result.get("recommended_visual_candidate", "")),
+        _failures.size()
+    ])
+    quit(0 if _failures.is_empty() else 1)

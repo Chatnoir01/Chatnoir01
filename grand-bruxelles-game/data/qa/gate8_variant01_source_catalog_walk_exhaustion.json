@@ -1,0 +1,44 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-source-catalog-walk-exhaustion-v1",
+  "candidate_variant": 1,
+  "source_library": "Quaternius Universal Animation Library Standard-1.0",
+  "source_license": "CC0-1.0",
+  "source_package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+  "source_package_bytes": 14541205,
+  "inventory_run_id": 32858965629,
+  "inventory_artifact_id": 9567384734,
+  "inventory_artifact_zip_sha256": "d628221dc8c3a12379223b34b711d6b70713403db598a95a1216e4ea313d6f69",
+  "inventory_animation_count": 46,
+  "sample_rate_hz": 120.0,
+  "normal_walk_semantic_candidates": [
+    {
+      "animation_name": "Walk",
+      "max_upper_arm_swing_deg": 75.585161,
+      "target_skin_full_cycle_state": "WALK_DOES_NOT_MATERIALLY_REDUCE_ALL_CRITICAL_DEFORMATION"
+    },
+    {
+      "animation_name": "Walk_Formal",
+      "max_upper_arm_swing_deg": 74.016820,
+      "target_skin_visual_state": "JETER_SOLVER_OUTPUT"
+    }
+  ],
+  "lower_swing_non_walk_examples": [
+    {"animation_name": "Jump", "max_upper_arm_swing_deg": 20.932803, "reason": "jump_action_not_walk"},
+    {"animation_name": "Swim_Idle", "max_upper_arm_swing_deg": 30.583408, "reason": "swim_not_walk"},
+    {"animation_name": "Jog_Fwd", "max_upper_arm_swing_deg": 53.859945, "reason": "JETER_CURRENT_CIVILIAN_RUN_CONTRACT"},
+    {"animation_name": "Spell_Simple_Idle", "max_upper_arm_swing_deg": 58.959033, "reason": "spell_action_not_walk"},
+    {"animation_name": "Crouch_Fwd", "max_upper_arm_swing_deg": 61.759957, "reason": "crouch_only"}
+  ],
+  "material_improvement_ratio_gate": 0.70,
+  "low_swing_review_threshold_deg": 60.0,
+  "catalog_conclusion": "NO_LOWER_SWING_SEMANTIC_NORMAL_WALK_IN_PINNED_SOURCE",
+  "library_rejected_globally": false,
+  "walk_slot_blocked_for_variant01_target_skin": true,
+  "walk_alias_selected": "",
+  "run_alias_selected": "",
+  "dynamic_garder_count": 0,
+  "production_authorized": false,
+  "activation_ready": false,
+  "adoption_ready": false,
+  "notes": "This lock does not auto-promote clips from names or arm swing. It records that the complete pinned 46-clip source inventory contains no additional semantic normal-walk clip with materially lower authored upper-arm swing than the already-tested Walk/Walk_Formal pair for Gate-8 variant 01."
+}

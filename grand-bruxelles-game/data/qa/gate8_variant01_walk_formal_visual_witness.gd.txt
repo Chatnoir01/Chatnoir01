@@ -1,0 +1,182 @@
+extends "res://game/tests/gate8_variant01_walk_mechanical_ab_diagnostic.gd"
+
+const VISUAL_RESULT_PATH := "res://gate8_variant01_walk_formal_visual_witness_result.json"
+const VISUAL_CLIP := "Walk_Formal"
+const VISUAL_SAMPLE_PHASE := 0.35
+const VISUAL_CAMERA_FOV_DEG := 68.0
+const VISUAL_DISTANCES_M: Array[float] = [2.0, 5.0, 8.0]
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_visual_and_exit({
+            "format": "grand-bruxelles-gate8-variant01-walk-formal-visual-witness-v1",
+            "candidate_variant": 1,
+            "visual_review_state": "BLOCKED_SETUP",
+            "failures": _failures
+        })
+        return
+
+    var integrity := _validate_target_visual_integrity()
+    var animation_name := _resolve_animation_name(_source_player, VISUAL_CLIP)
+    if animation_name.is_empty():
+        _failures.append("visual_clip_missing=%s" % VISUAL_CLIP)
+        _write_visual_and_exit(_result_payload(integrity, [], 0.0, "BLOCKED_CLIP"))
+        return
+    var animation := _source_player.get_animation(animation_name)
+    if animation == null or animation.length <= 0.0:
+        _failures.append("visual_clip_invalid=%s" % VISUAL_CLIP)
+        _write_visual_and_exit(_result_payload(integrity, [], 0.0, "BLOCKED_CLIP"))
+        return
+
+    var sample_time := clampf(animation.length * VISUAL_SAMPLE_PHASE, 0.0, maxf(0.0, animation.length - 0.00001))
+    var ground_correction := await _pose_visual_candidate(animation_name, sample_time)
+    var captures: Array[Dictionary] = []
+    for distance_m: float in VISUAL_DISTANCES_M:
+        var row := await _capture_distance(distance_m)
+        if not row.is_empty():
+            captures.append(row)
+
+    var state := "EVIDENCE_READY_PENDING_HUMAN_REVIEW"
+    if captures.size() != VISUAL_DISTANCES_M.size() or not _failures.is_empty():
+        state = "BLOCKED_VISUAL_EVIDENCE"
+    _write_visual_and_exit(_result_payload(integrity, captures, ground_correction, state))
+
+func _validate_target_visual_integrity() -> Dictionary:
+    var mesh_count := 0
+    var surface_count := 0
+    var material_count := 0
+    var skin_count := 0
+    var skeleton_link_count := 0
+    for mesh: MeshInstance3D in _target_meshes:
+        if not is_instance_valid(mesh) or mesh.mesh == null:
+            _failures.append("visual_mesh_missing")
+            continue
+        mesh_count += 1
+        if mesh.skin == null:
+            _failures.append("visual_skin_missing mesh=%s" % mesh.name)
+        else:
+            skin_count += 1
+        var skeleton_node := mesh.get_node_or_null(mesh.skeleton)
+        if skeleton_node != _target_skeleton:
+            _failures.append("visual_skeleton_link_invalid mesh=%s" % mesh.name)
+        else:
+            skeleton_link_count += 1
+        for surface_index: int in range(mesh.mesh.get_surface_count()):
+            surface_count += 1
+            if mesh.get_active_material(surface_index) == null:
+                _failures.append("visual_material_missing mesh=%s surface=%d" % [mesh.name, surface_index])
+            else:
+                material_count += 1
+    if mesh_count <= 0 or surface_count <= 0:
+        _failures.append("visual_target_empty")
+    return {
+        "skinned_meshes": mesh_count,
+        "skinned_surfaces": surface_count,
+        "active_materials": material_count,
+        "skins": skin_count,
+        "valid_skeleton_links": skeleton_link_count,
+        "skeleton_bones": 0 if _target_skeleton == null else _target_skeleton.get_bone_count()
+    }
+
+func _pose_visual_candidate(animation_name: String, sample_time: float) -> float:
+    _source_instance.position = Vector3.ZERO
+    _target_instance.position = Vector3.ZERO
+    _canonical_proxy.position = _proxy_base_position
+    _source_skeleton.reset_bone_poses()
+    _reset_proxy_pose()
+    _reset_target_pose()
+    _source_player.play(animation_name)
+    _source_player.pause()
+    _source_player.seek(sample_time, true)
+    _source_player.advance(0.0)
+    _source_skeleton.force_update_all_bone_transforms()
+    _apply_rest_frame_normalization_to_proxy()
+    _canonical_proxy.force_update_all_bone_transforms()
+    await process_frame
+    _target_skeleton.force_update_all_bone_transforms()
+
+    var left := _target_bone_position("left_foot")
+    var right := _target_bone_position("right_foot")
+    var correction := GROUND_CLEARANCE_M - minf(left.y, right.y)
+    _target_instance.position.y = correction
+    _canonical_proxy.position = _proxy_base_position + Vector3(0.0, correction, 0.0)
+    await process_frame
+    await process_frame
+    return correction
+
+func _capture_distance(distance_m: float) -> Dictionary:
+    _camera.fov = VISUAL_CAMERA_FOV_DEG
+    _camera.look_at_from_position(
+        Vector3(0.0, 1.35, distance_m),
+        Vector3(0.0, 0.92, 0.0),
+        Vector3.UP
+    )
+    await process_frame
+    await process_frame
+    RenderingServer.force_draw(false)
+    await process_frame
+    var image := root.get_texture().get_image()
+    if image == null or image.is_empty():
+        _failures.append("visual_capture_empty distance=%.1f" % distance_m)
+        return {}
+    if image.get_width() != 1280 or image.get_height() != 720:
+        _failures.append("visual_capture_dimensions distance=%.1f got=%dx%d" % [distance_m, image.get_width(), image.get_height()])
+        return {}
+    var distance_token := "%dm" % int(round(distance_m))
+    var path := "res://gate8_variant01_walk-formal_%s.png" % distance_token
+    var save_error := image.save_png(path)
+    if save_error != OK:
+        _failures.append("visual_capture_save_failed distance=%.1f error=%d" % [distance_m, save_error])
+        return {}
+    print("GATE8_WALK_FORMAL_VISUAL_FRAME clip=%s distance_m=%.1f width=1280 height=720 fov_deg=%.1f" % [VISUAL_CLIP, distance_m, VISUAL_CAMERA_FOV_DEG])
+    return {
+        "distance_m": distance_m,
+        "path": path,
+        "width": 1280,
+        "height": 720,
+        "camera_fov_deg": VISUAL_CAMERA_FOV_DEG
+    }
+
+func _result_payload(integrity: Dictionary, captures: Array, ground_correction: float, state: String) -> Dictionary:
+    return {
+        "format": "grand-bruxelles-gate8-variant01-walk-formal-visual-witness-v1",
+        "engine_version": Engine.get_version_info().get("string", "unknown"),
+        "candidate_variant": 1,
+        "candidate_static_verdict": "AMELIORER",
+        "walk_candidate": VISUAL_CLIP,
+        "walk_candidate_status": "MECHANICAL_LEAD_NOT_ADOPTED",
+        "sample_phase": VISUAL_SAMPLE_PHASE,
+        "ground_correction_m": ground_correction,
+        "distances_m": VISUAL_DISTANCES_M,
+        "captures": captures,
+        "target_integrity": integrity,
+        "retarget_engine": "RetargetModifier3D",
+        "normalization_formula": "D=Rs^-1*Ps; Pnormalized=Rt*D",
+        "visual_review_state": state,
+        "walk_alias_selected": "",
+        "run_alias_selected": "",
+        "production_authorized": false,
+        "activation_ready": false,
+        "adoption_ready": false,
+        "runtime_population_changed": false,
+        "visual_approval_claimed": false,
+        "failures": _failures
+    }
+
+func _write_visual_and_exit(result: Dictionary) -> void:
+    var file := FileAccess.open(VISUAL_RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        _failures.append("visual_result_file_open_failed")
+        quit(1)
+        return
+    result["failures"] = _failures
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
+    print("GATE8_WALK_FORMAL_VISUAL_RESULT state=%s captures=%d failures=%d alias_selected=false production_authorized=false" % [
+        String(result.get("visual_review_state", "unknown")),
+        int((result.get("captures", []) as Array).size()),
+        _failures.size()
+    ])
+    quit(0 if _failures.is_empty() else 1)

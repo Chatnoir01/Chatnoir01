@@ -1,0 +1,65 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-walk-formal-skin-edge-culprits-v1",
+  "owner_pr": 1264,
+  "base_main_sha": "e107c25613533e8a6e4eb3c8550e214c92db8198",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "walk_candidate": "Walk_Formal",
+  "walk_alias_selected": "",
+  "run_alias_selected": "",
+  "source_evidence": {
+    "engine": "Godot 4.7.1",
+    "run_id": 32836382692,
+    "artifact_id": 9558784458,
+    "artifact_digest": "sha256:1792b2c24633586870eb4eaef6df0a44a593d56a2e9627800c8bbd2042e7a3c4",
+    "result_file": "gate8_variant01_walk_formal_skin_space_result.json",
+    "diagnostic_state": "SEVERE_SKIN_SPACE_STRETCH_REPRODUCED"
+  },
+  "analysis": {
+    "metric": "endpoint_weight_discontinuity",
+    "formula": "abs(weight_vertex_a - weight_vertex_b) per bone",
+    "dominant_pair_share_min": 0.9,
+    "require_nonzero_discontinuity": true,
+    "require_exact_edge_identity": true,
+    "edges": {
+      "max_absolute_edge": {
+        "mesh": "Human_female_sportsuit01_gate8_export",
+        "surface": 0,
+        "triangle": 71,
+        "vertices": [351, 1080],
+        "expected_pair": ["DEF-upper_arm.L", "DEF-spine.003"],
+        "classification": "left_armpit_upper_arm_spine"
+      },
+      "max_stretch_edge": {
+        "mesh": "Human_female_sportsuit01_gate8_export",
+        "surface": 0,
+        "triangle": 1457,
+        "vertices": [257, 756],
+        "expected_pair": ["DEF-spine.003", "DEF-upper_arm.R"],
+        "classification": "right_armpit_upper_arm_spine"
+      },
+      "min_compression_edge": {
+        "mesh": "Human_shoes01_gate8_export",
+        "surface": 0,
+        "triangle": 3049,
+        "vertices": [1811, 920],
+        "expected_pair": ["DEF-shin.L", "DEF-foot.L"],
+        "classification": "left_ankle_foot_shin"
+      }
+    }
+  },
+  "rails": {
+    "retarget_changed": false,
+    "skin_changed": false,
+    "rest_pose_changed": false,
+    "thresholds_changed": false,
+    "root_motion_applied": false,
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

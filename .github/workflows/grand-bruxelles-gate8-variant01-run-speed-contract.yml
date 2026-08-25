@@ -1,0 +1,99 @@
+name: Grand Bruxelles Gate-8 Variant-01 Run Speed Contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-run-speed-contract.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_run_speed_contract_compatibility.json"
+      - "grand-bruxelles-game/tools/qa/check_gate8_variant01_run_speed_compatibility.py"
+      - "grand-bruxelles-game/tests/test_gate8_variant01_run_speed_compatibility.py"
+      - "grand-bruxelles-game/game/scripts/midi_realistic_authored_npc_runtime.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-speed-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Require fail-closed evidence rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/qa/gate8_variant01_run_speed_contract_compatibility.json')
+          d=json.loads(p.read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-run-speed-contract-compatibility-v1'
+          assert d['base_main_sha']=='6b7821086efa669df24843acb50aa46d231ba814'
+          assert d['owner_pr']==1264 and d['candidate_variant']==1
+          proof=d['root_compensation_proof']
+          assert proof['run_id']==32799163679 and proof['artifact_id']==9545906086
+          assert proof['artifact_digest']=='sha256:616cf21683387116142d1b6962d65c037831a614230670529d84ad7d889005b6'
+          assert proof['diagnostic_state']=='FOOT_SLIDE_ROOT_COMPENSATION_MEASURED'
+          assert proof['double_support_residual_peak_mps']=={'Jog_Fwd':0.0,'Sprint':0.0}
+          decision=d['expected_decision']
+          assert decision['state']=='CURRENT_CIVILIAN_SPEED_CONTRACT_INCOMPATIBLE'
+          assert decision['clip_verdict']=='JETER_CURRENT_CIVILIAN_RUN_CONTRACT'
+          assert decision['compatible_clip_count']==0
+          rails=d['rails']
+          assert rails['runtime_speed_contract_changed'] is False
+          assert rails['playback_bounds_changed'] is False
+          assert rails['root_motion_applied'] is False and rails['run_alias_selected']==''
+          assert rails['production_authorized'] is False and rails['activation_ready'] is False and rails['adoption_ready'] is False
+          assert rails['runtime_population_changed'] is False and rails['visual_approval_claimed'] is False
+          assert rails['mixamo_allowed'] is False and rails['player_character_reuse_allowed'] is False
+          PY
+
+      - name: Run compatibility regressions
+        run: python3 -m unittest -v grand-bruxelles-game/tests/test_gate8_variant01_run_speed_compatibility.py
+
+      - name: Evaluate live civilian speed contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/qa/check_gate8_variant01_run_speed_compatibility.py \
+            --manifest grand-bruxelles-game/data/qa/gate8_variant01_run_speed_contract_compatibility.json \
+            --runtime grand-bruxelles-game/game/scripts/midi_realistic_authored_npc_runtime.gd \
+            --output "$RUNNER_TEMP/gate8_variant01_run_speed_contract_result.json" \
+            | tee "$RUNNER_TEMP/gate8_variant01_run_speed_contract.log"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          r=json.loads((Path(os.environ['RUNNER_TEMP'])/'gate8_variant01_run_speed_contract_result.json').read_text())
+          assert r['decision_state']=='CURRENT_CIVILIAN_SPEED_CONTRACT_INCOMPATIBLE'
+          assert r['compatible_clip_count']==0
+          jog=r['clips']['Jog_Fwd']; sprint=r['clips']['Sprint']
+          assert abs(jog['minimum_world_speed_for_planted_feet_mps']-3.86362415830294)<1e-9
+          assert abs(sprint['minimum_world_speed_for_planted_feet_mps']-4.386941124200818)<1e-9
+          assert jog['ideal_playback_at_runtime_max_speed']<0.82
+          assert sprint['ideal_playback_at_runtime_max_speed']<0.82
+          assert jog['verdict']=='JETER_CURRENT_CIVILIAN_RUN_CONTRACT'
+          assert sprint['verdict']=='JETER_CURRENT_CIVILIAN_RUN_CONTRACT'
+          assert r['run_alias_selected']=='' and r['root_motion_applied'] is False
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          print('GATE8_RUN_SPEED_CONTRACT_LOCKED jog_min=%.6f sprint_min=%.6f max_world=%.6f' % (
+              jog['minimum_world_speed_for_planted_feet_mps'],
+              sprint['minimum_world_speed_for_planted_feet_mps'],
+              r['runtime_contract']['MAX_OBSERVED_SPEED_MPS']))
+          PY
+
+      - name: Upload decision evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-variant01-run-speed-contract
+          path: |
+            ${{ runner.temp }}/gate8_variant01_run_speed_contract_result.json
+            ${{ runner.temp }}/gate8_variant01_run_speed_contract.log
+          if-no-files-found: error
+          retention-days: 14

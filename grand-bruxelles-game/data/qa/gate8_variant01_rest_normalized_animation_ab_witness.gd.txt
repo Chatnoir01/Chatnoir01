@@ -1,0 +1,371 @@
+extends "res://game/tests/gate8_variant01_native_retarget_ab_v2_test.gd"
+
+# Canonical-proxy witness.
+#
+# The first rest-normalized animation attempt wrote target-rest-space rotations
+# directly into the real source skeleton while that skeleton still owned source
+# rest frames. That mixed two local conventions before RetargetModifier3D.
+#
+# This witness keeps imported source + target rest transforms immutable and adds
+# a runtime-only proxy Skeleton3D copied from the target skeleton. The real
+# authored source animation is sampled untouched, converted with:
+#   D = Rs^-1 * Ps
+#   Pnormalized = Rt * D
+# and the normalized rotation is written to the proxy, whose rest frame is Rt.
+# RetargetModifier3D then transfers proxy -> real target. Thresholds are inherited
+# unchanged from the proven native A-B witness.
+
+var _canonical_proxy: Skeleton3D
+var _source_rest_by_role := {}
+var _proxy_rest_by_role := {}
+var _source_rest_snapshot := {}
+var _proxy_base_position := Vector3.ZERO
+
+func _load_and_wire_native_retarget() -> bool:
+    var source_packed := load(SOURCE_SCENE) as PackedScene
+    var target_packed := load(TARGET_SCENE) as PackedScene
+    if source_packed == null or target_packed == null:
+        _failures.append("source_or_target_scene_load_failed")
+        return false
+
+    _source_instance = source_packed.instantiate() as Node3D
+    _target_instance = target_packed.instantiate() as Node3D
+    if _source_instance == null or _target_instance == null:
+        _failures.append("source_or_target_instance_not_node3d")
+        return false
+
+    _source_instance.name = "SourceAnimationRig"
+    _target_instance.name = "Gate8Variant01Visual"
+    _source_instance.visible = false
+    _target_instance.visible = true
+    _world.add_child(_source_instance)
+    _world.add_child(_target_instance)
+    await process_frame
+
+    _source_skeleton = _find_skeleton(_source_instance)
+    _target_skeleton = _find_skeleton(_target_instance)
+    _source_player = _find_animation_player_with_clips(_source_instance)
+    if _source_skeleton == null or _target_skeleton == null or _source_player == null:
+        _failures.append("source_target_or_animation_player_missing")
+        return false
+
+    _target_snapshot = _snapshot_target_mapping()
+    _collect_skinned_meshes(_target_instance, _target_meshes)
+    if _target_meshes.is_empty():
+        _failures.append("target_skinned_meshes_missing")
+        return false
+
+    for role_value: Variant in ROLE_PAIRS.keys():
+        var role := String(role_value)
+        var source_idx := _source_skeleton.find_bone(_source_name(role))
+        if source_idx < 0:
+            _failures.append("proxy_source_role_missing=%s" % role)
+            continue
+        var rest := _source_skeleton.get_bone_rest(source_idx)
+        _source_rest_by_role[role] = rest
+        _source_rest_snapshot[role] = rest
+    if _source_rest_by_role.size() != ROLE_PAIRS.size():
+        _failures.append("proxy_source_rest_count=%d expected=%d" % [_source_rest_by_role.size(), ROLE_PAIRS.size()])
+        return false
+
+    # Dynamic dispatch intentionally uses the v2 override: target bone rename plus
+    # runtime-only duplicated Skin bind-name remap. Imported target bytes stay intact.
+    if not _rename_target_to_source_namespace():
+        return false
+    _verify_target_snapshot_after_rename()
+    if not _failures.is_empty():
+        return false
+
+    _canonical_proxy = _build_proxy_from_target_skeleton()
+    if _canonical_proxy == null:
+        _failures.append("canonical_proxy_build_failed")
+        return false
+    _canonical_proxy.name = "Gate8CanonicalTargetRestProxy"
+    _world.add_child(_canonical_proxy)
+    _canonical_proxy.global_transform = _target_skeleton.global_transform
+    _proxy_base_position = _canonical_proxy.position
+
+    for role_value: Variant in ROLE_PAIRS.keys():
+        var role := String(role_value)
+        var proxy_idx := _canonical_proxy.find_bone(_source_name(role))
+        if proxy_idx < 0:
+            _failures.append("canonical_proxy_role_missing=%s" % role)
+            continue
+        _proxy_rest_by_role[role] = _canonical_proxy.get_bone_rest(proxy_idx)
+    if _proxy_rest_by_role.size() != ROLE_PAIRS.size():
+        _failures.append("canonical_proxy_rest_count=%d expected=%d" % [_proxy_rest_by_role.size(), ROLE_PAIRS.size()])
+        return false
+
+    var profile := SkeletonProfile.new()
+    profile.set_bone_size(ROLE_PAIRS.size())
+    var profile_index := 0
+    for role_value: Variant in ROLE_PAIRS.keys():
+        var role := String(role_value)
+        profile.set_bone_name(profile_index, StringName(_source_name(role)))
+        profile.set_required(profile_index, true)
+        profile_index += 1
+    profile.set_scale_base_bone(StringName(_source_name("hips")))
+
+    _modifier = RetargetModifier3D.new()
+    _modifier.name = "CanonicalProxyNativeRetargetModifier"
+    _modifier.set_use_global_pose(false)
+    _modifier.set_position_enabled(false)
+    _modifier.set_rotation_enabled(true)
+    _modifier.set_scale_enabled(false)
+    _modifier.influence = 1.0
+    _canonical_proxy.add_child(_modifier)
+
+    _target_skeleton.reparent(_modifier, true)
+    for mesh: MeshInstance3D in _target_meshes:
+        if is_instance_valid(mesh):
+            mesh.visible = true
+            mesh.set_skeleton_path(mesh.get_path_to(_target_skeleton))
+    _modifier.set_profile(profile)
+    _reset_proxy_pose()
+    await process_frame
+    await process_frame
+
+    if _modifier.is_using_global_pose():
+        _failures.append("modifier_global_pose_unexpectedly_enabled")
+    if _modifier.is_position_enabled():
+        _failures.append("modifier_position_unexpectedly_enabled")
+    if not _modifier.is_rotation_enabled():
+        _failures.append("modifier_rotation_not_enabled")
+    if _modifier.is_scale_enabled():
+        _failures.append("modifier_scale_unexpectedly_enabled")
+
+    var common := 0
+    for role_value: Variant in ROLE_PAIRS.keys():
+        var role := String(role_value)
+        var name := _source_name(role)
+        if _canonical_proxy.find_bone(name) >= 0 and _target_skeleton.find_bone(name) >= 0:
+            common += 1
+    if common != ROLE_PAIRS.size():
+        _failures.append("canonical_proxy_common_name_count=%d expected=%d" % [common, ROLE_PAIRS.size()])
+
+    var visible_target_meshes := 0
+    for mesh: MeshInstance3D in _target_meshes:
+        if is_instance_valid(mesh) and mesh.is_visible_in_tree():
+            visible_target_meshes += 1
+    if visible_target_meshes != _target_meshes.size():
+        _failures.append("target_mesh_visibility_failed visible=%d expected=%d" % [visible_target_meshes, _target_meshes.size()])
+
+    print("GATE8_CANONICAL_PROXY_READY bones=%d roles=%d target_meshes=%d source_asset_rest_mutated=false target_asset_rest_mutated=false" % [
+        _canonical_proxy.get_bone_count(), ROLE_PAIRS.size(), visible_target_meshes
+    ])
+    return _failures.is_empty()
+
+func _build_proxy_from_target_skeleton() -> Skeleton3D:
+    var proxy := Skeleton3D.new()
+    var count := _target_skeleton.get_bone_count()
+    for bone_index: int in range(count):
+        proxy.add_bone(_target_skeleton.get_bone_name(bone_index))
+    for bone_index: int in range(count):
+        proxy.set_bone_parent(bone_index, _target_skeleton.get_bone_parent(bone_index))
+        var rest := _target_skeleton.get_bone_rest(bone_index)
+        proxy.set_bone_rest(bone_index, rest)
+        proxy.set_bone_pose_position(bone_index, rest.origin)
+        proxy.set_bone_pose_rotation(bone_index, rest.basis.orthonormalized().get_rotation_quaternion().normalized())
+        proxy.set_bone_pose_scale(bone_index, rest.basis.get_scale())
+    return proxy
+
+func _measure_clip(clip_token: String) -> Dictionary:
+    var animation_name := _resolve_animation_name(_source_player, clip_token)
+    if animation_name.is_empty():
+        _failures.append("clip_missing=%s" % clip_token)
+        return {}
+    var animation := _source_player.get_animation(animation_name)
+    if animation == null or animation.length <= 0.0:
+        _failures.append("clip_invalid=%s" % clip_token)
+        return {}
+
+    var sample_count := maxi(MINIMUM_SAMPLES, int(ceil(animation.length * SAMPLE_RATE_HZ)))
+    var dt := animation.length / float(sample_count)
+    var left_positions: Array[Vector3] = []
+    var right_positions: Array[Vector3] = []
+    var corrections: Array[float] = []
+    var torso_deltas: Array[float] = []
+
+    _source_player.play(animation_name)
+    _source_player.pause()
+
+    for sample_index: int in range(sample_count):
+        _source_skeleton.reset_bone_poses()
+        _reset_proxy_pose()
+        _reset_target_pose()
+        var time_s := minf(animation.length - 0.00001, float(sample_index) * dt)
+        _source_player.seek(time_s, true)
+        _source_player.advance(0.0)
+        _source_skeleton.force_update_all_bone_transforms()
+
+        var authored_source_bend := _torso_bend(_source_skeleton, true)
+        _apply_rest_frame_normalization_to_proxy()
+        _canonical_proxy.force_update_all_bone_transforms()
+        await process_frame
+        _target_skeleton.force_update_all_bone_transforms()
+
+        var left := _target_bone_position("left_foot")
+        var right := _target_bone_position("right_foot")
+        left_positions.append(left)
+        right_positions.append(right)
+        corrections.append(GROUND_CLEARANCE_M - minf(left.y, right.y))
+        torso_deltas.append(absf(authored_source_bend - _torso_bend(_target_skeleton, false)))
+
+    _source_player.stop()
+
+    if left_positions.size() < MINIMUM_SAMPLES:
+        _failures.append("insufficient_samples clip=%s samples=%d" % [clip_token, left_positions.size()])
+        return {}
+
+    var raw_ground_y := INF
+    for idx: int in range(left_positions.size()):
+        raw_ground_y = minf(raw_ground_y, minf(left_positions[idx].y, right_positions[idx].y))
+    var contact_limit := raw_ground_y + CONTACT_HEIGHT_WINDOW_M
+    var left_slide := _contact_slide_metrics(left_positions, contact_limit, dt)
+    var right_slide := _contact_slide_metrics(right_positions, contact_limit, dt)
+    var contacts := int(left_slide.get("samples", 0)) + int(right_slide.get("samples", 0))
+    if contacts <= 0:
+        _failures.append("no_contact_samples clip=%s" % clip_token)
+
+    var correction_min := _array_min(corrections)
+    var correction_max := _array_max(corrections)
+    var correction_span := correction_max - correction_min
+    var correction_step := _max_adjacent_delta(corrections)
+    var torso_mean := _array_mean(torso_deltas)
+    var torso_peak := _array_max(torso_deltas)
+
+    _gate_metric(clip_token, "ground_correction_span", correction_span, MAX_GROUND_CORRECTION_SPAN_M)
+    _gate_metric(clip_token, "ground_correction_step", correction_step, MAX_GROUND_CORRECTION_STEP_M)
+    _gate_metric(clip_token, "torso_mean_delta", torso_mean, MAX_MEAN_TORSO_DELTA_DEG)
+    _gate_metric(clip_token, "torso_peak_delta", torso_peak, MAX_PEAK_TORSO_DELTA_DEG)
+
+    var mean_slide := (float(left_slide.get("mean_mps", 0.0)) + float(right_slide.get("mean_mps", 0.0))) * 0.5
+    var peak_slide := maxf(float(left_slide.get("max_mps", 0.0)), float(right_slide.get("max_mps", 0.0)))
+    if not is_finite(mean_slide) or not is_finite(peak_slide):
+        _failures.append("non_finite_slide_metric clip=%s" % clip_token)
+
+    var frame_path := await _capture_clip_frame(clip_token, animation_name, animation.length * 0.35)
+    print("GATE8_CANONICAL_PROXY_CLIP clip=%s samples=%d contacts=%d mean_slide_mps=%.4f peak_slide_mps=%.4f ground_span_m=%.4f ground_step_m=%.4f torso_mean_deg=%.3f torso_peak_deg=%.3f" % [
+        clip_token, sample_count, contacts, mean_slide, peak_slide,
+        correction_span, correction_step, torso_mean, torso_peak
+    ])
+
+    return {
+        "animation_name": animation_name,
+        "duration_s": animation.length,
+        "sample_count": sample_count,
+        "left_contact_samples": int(left_slide.get("samples", 0)),
+        "right_contact_samples": int(right_slide.get("samples", 0)),
+        "mean_contact_slide_mps": mean_slide,
+        "peak_contact_slide_mps": peak_slide,
+        "ground_correction_min_m": correction_min,
+        "ground_correction_max_m": correction_max,
+        "ground_correction_span_m": correction_span,
+        "ground_correction_max_step_m": correction_step,
+        "mean_torso_bend_delta_deg": torso_mean,
+        "peak_torso_bend_delta_deg": torso_peak,
+        "frame_path": frame_path,
+        "frame_width": 1280,
+        "frame_height": 720
+    }
+
+func _reset_proxy_pose() -> void:
+    if _canonical_proxy == null:
+        return
+    for bone_index: int in range(_canonical_proxy.get_bone_count()):
+        var rest := _canonical_proxy.get_bone_rest(bone_index)
+        _canonical_proxy.set_bone_pose_position(bone_index, rest.origin)
+        _canonical_proxy.set_bone_pose_rotation(bone_index, rest.basis.orthonormalized().get_rotation_quaternion().normalized())
+        _canonical_proxy.set_bone_pose_scale(bone_index, rest.basis.get_scale())
+    _canonical_proxy.force_update_all_bone_transforms()
+
+func _apply_rest_frame_normalization_to_proxy() -> void:
+    for role_value: Variant in ROLE_PAIRS.keys():
+        var role := String(role_value)
+        var source_idx := _source_skeleton.find_bone(_source_name(role))
+        var proxy_idx := _canonical_proxy.find_bone(_source_name(role))
+        if source_idx < 0 or proxy_idx < 0:
+            continue
+        var source_rest: Transform3D = _source_rest_by_role[role]
+        var proxy_rest: Transform3D = _proxy_rest_by_role[role]
+        var source_pose := _source_skeleton.get_bone_pose(source_idx)
+        var delta := source_rest.affine_inverse() * source_pose
+        var normalized := proxy_rest * delta
+        _canonical_proxy.set_bone_pose_rotation(
+            proxy_idx,
+            normalized.basis.orthonormalized().get_rotation_quaternion().normalized()
+        )
+
+func _capture_clip_frame(clip_token: String, animation_name: String, sample_time: float) -> String:
+    _source_instance.position = Vector3.ZERO
+    _target_instance.position = Vector3.ZERO
+    _canonical_proxy.position = _proxy_base_position
+    _source_skeleton.reset_bone_poses()
+    _reset_proxy_pose()
+    _reset_target_pose()
+    _source_player.play(animation_name)
+    _source_player.pause()
+    _source_player.seek(sample_time, true)
+    _source_player.advance(0.0)
+    _source_skeleton.force_update_all_bone_transforms()
+    _apply_rest_frame_normalization_to_proxy()
+    _canonical_proxy.force_update_all_bone_transforms()
+    await process_frame
+    _target_skeleton.force_update_all_bone_transforms()
+
+    var left := _target_bone_position("left_foot")
+    var right := _target_bone_position("right_foot")
+    var correction := GROUND_CLEARANCE_M - minf(left.y, right.y)
+    _target_instance.position.y = correction
+    _canonical_proxy.position = _proxy_base_position + Vector3(0.0, correction, 0.0)
+
+    await process_frame
+    await process_frame
+    RenderingServer.force_draw(false)
+    await process_frame
+    var image := root.get_texture().get_image()
+    var normalized_name := clip_token.to_lower().replace("_", "-")
+    var path := "res://gate8_variant01_rest_normalized_%s.png" % normalized_name
+    if image == null or image.is_empty():
+        _failures.append("capture_empty clip=%s" % clip_token)
+        return ""
+    if image.get_width() != 1280 or image.get_height() != 720:
+        _failures.append("capture_size clip=%s got=%dx%d" % [clip_token, image.get_width(), image.get_height()])
+        return ""
+    var err := image.save_png(path)
+    if err != OK:
+        _failures.append("capture_save_failed clip=%s error=%d" % [clip_token, err])
+        return ""
+    _target_instance.position = Vector3.ZERO
+    _canonical_proxy.position = _proxy_base_position
+    _source_player.stop()
+    return path
+
+func _verify_source_rest_immutability() -> bool:
+    for role_value: Variant in _source_rest_snapshot.keys():
+        var role := String(role_value)
+        var idx := _source_skeleton.find_bone(_source_name(role))
+        if idx < 0:
+            return false
+        var before: Transform3D = _source_rest_snapshot[role]
+        if not _source_skeleton.get_bone_rest(idx).is_equal_approx(before):
+            return false
+    return true
+
+func _finish(result: Dictionary) -> void:
+    if not result.is_empty():
+        var source_rest_unchanged := _verify_source_rest_immutability()
+        if not source_rest_unchanged:
+            _failures.append("source_rest_mutated")
+        result["normalization_formula"] = "D=Rs^-1*Ps; Pnormalized=Rt*D"
+        result["normalization_scope"] = "canonical_proxy_target_rest"
+        result["rest_normalization_roles"] = ROLE_PAIRS.size()
+        result["canonical_proxy_bones"] = 0 if _canonical_proxy == null else _canonical_proxy.get_bone_count()
+        result["source_rest_transforms_unchanged"] = source_rest_unchanged
+        result["target_rest_transforms_unchanged"] = not _has_failure_token("target_rest_changed")
+        result["prior_native_raw_ab_run"] = 32641817130
+        result["failed_direct_normalization_run"] = 32785869604
+        result["rest_normalized_transfer_proof_run"] = 32679787627
+        _write_result(result)
+        print("GATE8_REST_NORMALIZED_AB_RESULT failures=%d proxy=true alias_selected=false production_authorized=false" % _failures.size())
+    super._finish(result)

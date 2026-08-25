@@ -1,0 +1,55 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-sprint-ground-phase-contract-v1",
+  "base_main_sha": "bea8265f66fa2a94f5b51cb622cbe1d255bb83de",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "owner_pr": 1264,
+  "source_animation": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_zip_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "reproduced_red": {
+    "run_id": 32786724907,
+    "artifact_id": 9541750894,
+    "artifact_digest_sha256": "5235d8826fa22afec6b3a1ac97d281f7ad855355bb16639e81829343270cb0c4",
+    "jog_fwd_ground_span_m": 0.1377,
+    "sprint_ground_span_m": 0.2561,
+    "ground_span_limit_m": 0.18,
+    "sprint_ground_step_m": 0.0578,
+    "ground_step_limit_m": 0.08,
+    "sprint_mean_slide_mps": 5.3499,
+    "sprint_peak_slide_mps": 11.6131,
+    "failure": "ground_correction_span clip=Sprint value=0.2561 limit=0.1800"
+  },
+  "diagnostic_goal": "separate all-phase grounding span into support-contact and airborne-flight contributions without changing any threshold",
+  "expected_classification_values": [
+    "GROUND_SPAN_FAILURE_FLIGHT_PHASE_DRIVEN",
+    "GROUND_SPAN_FAILURE_SUPPORT_PHASE_PERSISTS"
+  ],
+  "frozen_thresholds": {
+    "sample_rate_hz": 120,
+    "minimum_samples_per_clip": 80,
+    "max_ground_correction_span_m": 0.18,
+    "max_ground_correction_step_m": 0.08,
+    "contact_height_window_m": 0.04
+  },
+  "rails": {
+    "thresholds_changed": false,
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "source_or_target_asset_bytes_committed": false,
+    "mixamo_payload_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

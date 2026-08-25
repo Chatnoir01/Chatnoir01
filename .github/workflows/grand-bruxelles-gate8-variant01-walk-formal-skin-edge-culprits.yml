@@ -1,0 +1,134 @@
+name: Grand Bruxelles Gate-8 Variant-01 Walk_Formal Skin Edge Culprits
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-walk-formal-skin-edge-culprits.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_edge_culprits.json"
+      - "grand-bruxelles-game/tools/analyze_gate8_skin_edge_culprits.py"
+      - "grand-bruxelles-game/tests/test_gate8_skin_edge_culprits.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  skin-edge-culprits:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ARTIFACT_ID: "9558784458"
+      ARTIFACT_DIGEST: "sha256:1792b2c24633586870eb4eaef6df0a44a593d56a2e9627800c8bbd2042e7a3c4"
+      CONTRACT: "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_edge_culprits.json"
+      ANALYZER: "grand-bruxelles-game/tools/analyze_gate8_skin_edge_culprits.py"
+      TEST: "grand-bruxelles-game/tests/test_gate8_skin_edge_culprits.py"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Validate fail-closed culprit contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_edge_culprits.json').read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-walk-formal-skin-edge-culprits-v1'
+          assert d['owner_pr']==1264 and d['base_main_sha']=='e107c25613533e8a6e4eb3c8550e214c92db8198'
+          assert d['candidate_variant']==1 and d['candidate_static_verdict']=='AMELIORER'
+          assert d['walk_candidate']=='Walk_Formal' and d['walk_alias_selected']=='' and d['run_alias_selected']==''
+          e=d['source_evidence']; assert e['engine']=='Godot 4.7.1' and e['run_id']==32836382692 and e['artifact_id']==9558784458
+          assert e['artifact_digest']=='sha256:1792b2c24633586870eb4eaef6df0a44a593d56a2e9627800c8bbd2042e7a3c4'
+          a=d['analysis']; assert a['metric']=='endpoint_weight_discontinuity' and float(a['dominant_pair_share_min'])==0.9
+          expected={
+            'max_absolute_edge': {'DEF-upper_arm.L','DEF-spine.003'},
+            'max_stretch_edge': {'DEF-spine.003','DEF-upper_arm.R'},
+            'min_compression_edge': {'DEF-shin.L','DEF-foot.L'},
+          }
+          for key,pair in expected.items(): assert set(a['edges'][key]['expected_pair'])==pair
+          r=d['rails']
+          for key in ['retarget_changed','skin_changed','rest_pose_changed','thresholds_changed','root_motion_applied','production_authorized','activation_ready','adoption_ready','runtime_population_changed','visual_approval_claimed','mixamo_allowed','player_character_reuse_allowed']:
+              assert r[key] is False
+          print('GATE8_SKIN_EDGE_CULPRIT_CONTRACT_OK production_authorized=false')
+          PY
+
+      - name: Run analyzer regressions
+        run: |
+          set -euo pipefail
+          python "$TEST"
+
+      - name: Fetch immutable Godot 4.7.1 skin-space artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          META="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}")"
+          test "$(printf '%s' "$META" | jq -r '.digest')" = "$ARTIFACT_DIGEST"
+          test "$(printf '%s' "$META" | jq -r '.expired')" = "false"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/gate8-skin-space.zip
+          rm -rf /tmp/gate8-skin-space && mkdir -p /tmp/gate8-skin-space
+          unzip -q /tmp/gate8-skin-space.zip -d /tmp/gate8-skin-space
+          EVIDENCE="$(find /tmp/gate8-skin-space -type f -name 'gate8_variant01_walk_formal_skin_space_result.json' -print -quit)"
+          test -n "$EVIDENCE" && test -s "$EVIDENCE"
+          cp "$EVIDENCE" /tmp/gate8_variant01_walk_formal_skin_space_result.json
+
+      - name: Localize dominant skin-weight boundaries
+        run: |
+          set -euo pipefail
+          python "$ANALYZER" \
+            --evidence /tmp/gate8_variant01_walk_formal_skin_space_result.json \
+            --contract "$CONTRACT" \
+            --output /tmp/gate8_variant01_walk_formal_skin_edge_culprits_result.json \
+            | tee /tmp/gate8-skin-edge-culprits.log
+          python - <<'PY'
+          import json,math
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8_variant01_walk_formal_skin_edge_culprits_result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-variant01-walk-formal-skin-edge-culprits-result-v1'
+          assert r['diagnostic_state']=='DOMINANT_SKIN_WEIGHT_BOUNDARIES_LOCALIZED' and r['failures']==[]
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          expected={
+            'max_absolute_edge': {'DEF-upper_arm.L','DEF-spine.003'},
+            'max_stretch_edge': {'DEF-spine.003','DEF-upper_arm.R'},
+            'min_compression_edge': {'DEF-shin.L','DEF-foot.L'},
+          }
+          for key,pair in expected.items():
+              row=r['edges'][key]
+              assert set(row['dominant_pair'])==pair
+              assert math.isfinite(float(row['dominant_pair_share'])) and float(row['dominant_pair_share'])>=0.9
+              assert float(row['weight_discontinuity_total'])>0.0
+          assert r['edges']['max_absolute_edge']['absolute_change_m'] >= 0.80
+          assert r['edges']['max_stretch_edge']['ratio'] >= 50.0
+          assert r['edges']['min_compression_edge']['ratio'] <= 0.20
+          print('GATE8_SKIN_EDGE_CULPRITS_GREEN left_armpit>=0.90 right_armpit>=0.90 left_ankle>=0.90 production_authorized=false')
+          PY
+          grep -q '^GATE8_SKIN_EDGE_CULPRITS_RESULT state=DOMINANT_SKIN_WEIGHT_BOUNDARIES_LOCALIZED failures=0 production_authorized=false$' /tmp/gate8-skin-edge-culprits.log
+
+      - name: Stage evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-skin-edge-culprits-evidence && mkdir -p /tmp/gate8-skin-edge-culprits-evidence
+          for f in /tmp/gate8_variant01_walk_formal_skin_space_result.json /tmp/gate8_variant01_walk_formal_skin_edge_culprits_result.json /tmp/gate8-skin-edge-culprits.log; do
+            [ -f "$f" ] && cp "$f" /tmp/gate8-skin-edge-culprits-evidence/
+          done
+          git status --porcelain=v1 > /tmp/gate8-skin-edge-culprits-evidence/git-status.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-gate8-variant01-walk-formal-skin-edge-culprits
+          path: /tmp/gate8-skin-edge-culprits-evidence
+          if-no-files-found: error
+          retention-days: 14

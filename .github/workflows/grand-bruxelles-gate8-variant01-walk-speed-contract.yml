@@ -1,0 +1,89 @@
+name: Grand Bruxelles Gate-8 Variant-01 Walk Speed Contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-walk-speed-contract.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_speed_contract_compatibility.json"
+      - "grand-bruxelles-game/tools/qa/check_gate8_variant01_walk_speed_compatibility.py"
+      - "grand-bruxelles-game/tests/test_gate8_variant01_walk_speed_compatibility.py"
+      - "grand-bruxelles-game/game/scripts/midi_realistic_authored_npc_runtime.gd"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  walk-speed-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Lock live walk-slot evidence rails
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_walk_speed_contract_compatibility.json').read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-walk-speed-contract-compatibility-v1'
+          assert d['base_main_sha']=='fe252c6852acf07615b4a27935b2608b93933447'
+          assert d['owner_pr']==1264 and d['candidate_variant']==1
+          p=d['source_scan_proof']
+          assert p['run_id']==32804954219 and p['artifact_id']==9547820697
+          assert p['artifact_digest']=='sha256:ecbe7766dfb2025c9239c378f46e8753961959f91ddcbd7ab4306208f597dcdb'
+          assert p['license']=='CC0-1.0'
+          assert p['package_sha256']=='18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2'
+          assert d['semantic_roles']=={'Walk':'normal_walk','Walk_Formal':'normal_walk','Crouch_Fwd':'crouch_only'}
+          e=d['expected_decision']
+          assert e['state']=='WALK_SPEED_COMPATIBLE_PENDING_GROUNDING_TORSO'
+          assert e['compatible_normal_walk_candidates']==['Walk','Walk_Formal']
+          assert e['rejected_normal_walk_candidates']==['Crouch_Fwd']
+          r=d['rails']
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          assert r['grounding_gate_passed'] is False and r['torso_gate_passed'] is False
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['root_motion_applied'] is False and r['runtime_population_changed'] is False
+          assert r['mixamo_allowed'] is False and r['player_character_reuse_allowed'] is False
+          PY
+
+      - name: Run walk-slot regressions
+        run: python3 -m unittest -v grand-bruxelles-game/tests/test_gate8_variant01_walk_speed_compatibility.py
+
+      - name: Evaluate live civilian walk slot
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/qa/check_gate8_variant01_walk_speed_compatibility.py \
+            --manifest grand-bruxelles-game/data/qa/gate8_variant01_walk_speed_contract_compatibility.json \
+            --runtime grand-bruxelles-game/game/scripts/midi_realistic_authored_npc_runtime.gd \
+            --output "$RUNNER_TEMP/gate8_variant01_walk_speed_contract_result.json" \
+            | tee "$RUNNER_TEMP/gate8_variant01_walk_speed_contract.log"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          r=json.loads((Path(os.environ['RUNNER_TEMP'])/'gate8_variant01_walk_speed_contract_result.json').read_text())
+          assert r['decision_state']=='WALK_SPEED_COMPATIBLE_PENDING_GROUNDING_TORSO'
+          assert r['compatible_normal_walk_candidates']==['Walk','Walk_Formal']
+          assert r['rejected_normal_walk_candidates']==['Crouch_Fwd']
+          assert 0.68 <= r['clips']['Walk']['ideal_playback_at_walk_reference'] <= 1.45
+          assert 0.68 <= r['clips']['Walk_Formal']['ideal_playback_at_walk_reference'] <= 1.45
+          assert r['clips']['Crouch_Fwd']['walk_reference_reachable_with_allowed_playback'] is False
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          print('GATE8_WALK_SPEED_CONTRACT_LOCKED candidates=Walk,Walk_Formal pending=grounding,torso alias_selected=false')
+          PY
+
+      - name: Upload walk-slot decision evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-variant01-walk-speed-contract
+          path: |
+            ${{ runner.temp }}/gate8_variant01_walk_speed_contract_result.json
+            ${{ runner.temp }}/gate8_variant01_walk_speed_contract.log
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,48 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-walk-formal-authored-delta-chain-v1",
+  "owner_pr": 1264,
+  "base_main_sha": "c66424a7f2367557932a307a892716e729da204a",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "walk_candidate": "Walk_Formal",
+  "sample_phase": 0.35,
+  "culprit_transform_evidence": {
+    "run_id": 32847206805,
+    "artifact_id": 9562811177,
+    "artifact_digest": "sha256:67b5de36e09030aee19343ead1b49072a0da4cb84eb22e4b32673848f4d5603c"
+  },
+  "bones": [
+    "DEF-spine.003",
+    "DEF-shoulder.L",
+    "DEF-upper_arm.L",
+    "DEF-shoulder.R",
+    "DEF-upper_arm.R",
+    "DEF-shin.L",
+    "DEF-foot.L"
+  ],
+  "measurement": {
+    "source_local_delta": "source_rest^-1 * source_pose",
+    "proxy_local_delta": "proxy_rest^-1 * proxy_pose",
+    "target_local_delta": "target_rest^-1 * target_pose",
+    "global_delta": "global_rest^-1 * global_pose",
+    "source_to_proxy_local_error_max_deg": 0.25,
+    "proxy_to_target_local_error_max_deg": 0.25,
+    "measure_parent_chain": true
+  },
+  "rails": {
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "retarget_changed": false,
+    "skin_changed": false,
+    "rest_pose_changed": false,
+    "thresholds_changed": false,
+    "root_motion_applied": false,
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

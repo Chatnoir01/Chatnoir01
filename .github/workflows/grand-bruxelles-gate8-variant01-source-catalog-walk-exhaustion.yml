@@ -1,0 +1,119 @@
+name: Grand Bruxelles Gate-8 Variant-01 Source Catalog Walk Exhaustion
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-source-catalog-walk-exhaustion.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_source_catalog_walk_exhaustion.json"
+      - "grand-bruxelles-game/tools/qa/check_gate8_variant01_source_catalog_walk_exhaustion.py"
+      - "grand-bruxelles-game/tests/test_gate8_variant01_source_catalog_walk_exhaustion.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  source-catalog-walk-exhaustion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      INVENTORY_ARTIFACT_ID: "9567384734"
+      INVENTORY_ARTIFACT_SHA256: "d628221dc8c3a12379223b34b711d6b70713403db598a95a1216e4ea313d6f69"
+      INVENTORY_RESULT: "gate8_variant01_source_arm_swing_inventory_result.json"
+      CONTRACT: "grand-bruxelles-game/data/qa/gate8_variant01_source_catalog_walk_exhaustion.json"
+      TOOL: "grand-bruxelles-game/tools/qa/check_gate8_variant01_source_catalog_walk_exhaustion.py"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$HEAD_SHA"
+          echo "GATE8_SOURCE_CATALOG_LIVE_MAIN_OK live=$LIVE_MAIN_SHA head=$HEAD_SHA"
+
+      - name: Validate static fail-closed rails
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/qa/gate8_variant01_source_catalog_walk_exhaustion.json')
+          d=json.loads(p.read_text())
+          assert d['inventory_run_id'] == 32858965629
+          assert d['inventory_artifact_id'] == 9567384734
+          assert d['inventory_artifact_zip_sha256'] == 'd628221dc8c3a12379223b34b711d6b70713403db598a95a1216e4ea313d6f69'
+          assert d['inventory_animation_count'] == 46
+          assert d['normal_walk_semantic_candidates'][0]['animation_name'] == 'Walk'
+          assert d['normal_walk_semantic_candidates'][1]['animation_name'] == 'Walk_Formal'
+          assert d['walk_alias_selected'] == d['run_alias_selected'] == ''
+          assert d['dynamic_garder_count'] == 0
+          assert d['production_authorized'] is False and d['activation_ready'] is False and d['adoption_ready'] is False
+          assert d['library_rejected_globally'] is False
+          assert d['walk_slot_blocked_for_variant01_target_skin'] is True
+          print('GATE8_SOURCE_CATALOG_STATIC_RAILS_OK')
+          PY
+
+      - name: Run fail-closed regressions without undeclared runner dependencies
+        run: |
+          set -euo pipefail
+          python grand-bruxelles-game/tests/test_gate8_variant01_source_catalog_walk_exhaustion.py \
+            | tee /tmp/gate8-source-catalog-regressions.log
+          grep -Fxq 'GATE8_SOURCE_CATALOG_REGRESSIONS_OK tests=3' /tmp/gate8-source-catalog-regressions.log
+
+      - name: Download immutable inventory artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${INVENTORY_ARTIFACT_ID}/zip" > /tmp/source-arm-swing-inventory.zip
+          test "$(sha256sum /tmp/source-arm-swing-inventory.zip | awk '{print $1}')" = "$INVENTORY_ARTIFACT_SHA256"
+          rm -rf /tmp/source-arm-swing-inventory
+          mkdir -p /tmp/source-arm-swing-inventory
+          unzip -q /tmp/source-arm-swing-inventory.zip -d /tmp/source-arm-swing-inventory
+          test -s "/tmp/source-arm-swing-inventory/$INVENTORY_RESULT"
+
+      - name: Verify full 46-clip semantic review lock
+        run: |
+          set -euo pipefail
+          python "$TOOL" \
+            --inventory "/tmp/source-arm-swing-inventory/$INVENTORY_RESULT" \
+            --contract "$CONTRACT" \
+            --output /tmp/gate8-source-catalog-walk-exhaustion-result.json | tee /tmp/gate8-source-catalog-walk-exhaustion.log
+          grep -q '^GATE8_SOURCE_CATALOG_WALK_EXHAUSTION_OK animations=46 ' /tmp/gate8-source-catalog-walk-exhaustion.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8-source-catalog-walk-exhaustion-result.json').read_text())
+          assert r['normal_walk_below_threshold'] == []
+          assert r['conclusion'] == 'NO_LOWER_SWING_SEMANTIC_NORMAL_WALK_IN_PINNED_SOURCE'
+          print('GATE8_SOURCE_CATALOG_EXHAUSTION_LOCK_OK')
+          PY
+
+      - name: Stage evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-source-catalog-evidence
+          for f in /tmp/gate8-source-catalog-regressions.log /tmp/gate8-source-catalog-walk-exhaustion-result.json /tmp/gate8-source-catalog-walk-exhaustion.log; do
+            [ -f "$f" ] && cp "$f" /tmp/gate8-source-catalog-evidence/
+          done
+          cp "$CONTRACT" /tmp/gate8-source-catalog-evidence/
+          git status --porcelain=v1 > /tmp/gate8-source-catalog-evidence/git-status.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-gate8-variant01-source-catalog-walk-exhaustion
+          path: /tmp/gate8-source-catalog-evidence
+          if-no-files-found: error
+          retention-days: 14

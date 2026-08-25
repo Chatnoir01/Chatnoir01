@@ -1,0 +1,252 @@
+name: Grand Bruxelles Gate-8 Variant-01 Walk_Formal Visual Witness
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-walk-formal-visual-witness.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_visual_witness_contract.json"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_visual_witness.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_mechanical_ab_diagnostic.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  walk-formal-visual-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      NATIVE_AB_DEPENDENCY_COMMIT: "0f5dbcc64dd44e88490df575bae4664f6bd18520"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-variant01-walk-formal-visual"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Validate visual witness contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_visual_witness_contract.json').read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-walk-formal-visual-witness-contract-v1'
+          assert d['owner_pr']==1264 and d['base_main_sha']=='c3369e94ed23d8067cbfa0059ca91c00d6836138'
+          assert d['candidate_variant']==1 and d['candidate_static_verdict']=='AMELIORER'
+          assert d['walk_candidate']=='Walk_Formal' and d['walk_candidate_status']=='MECHANICAL_LEAD_NOT_ADOPTED'
+          m=d['mechanical_evidence']
+          assert m['run_id']==32822019331 and m['artifact_id']==9553487737
+          assert m['artifact_digest']=='sha256:827854ac2c6bbc726dd9f069b6d78398362078c472effdff0a9ce4af21825d55'
+          assert m['recommended_visual_candidate']=='Walk_Formal'
+          assert float(m['irreducible_residual_slide_peak_mps_at_ideal_playback'])==0.0
+          assert d['source_animation']['license']=='CC0-1.0'
+          assert d['source_animation']['package_sha256']=='18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2'
+          assert d['target']['glb_sha256']=='912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9'
+          v=d['visual_evidence']
+          assert v['distances_m']==[2.0,5.0,8.0] and v['width']==1280 and v['height']==720
+          assert v['camera_fov_deg']==68.0 and v['sample_phase']==0.35
+          assert v['require_unique_png_hashes'] is True and v['require_skin_material_skeleton_integrity'] is True
+          assert v['require_artifact_png_payload'] is True and v['required_artifact_png_count']==3
+          r=d['rails']
+          assert r['thresholds_changed'] is False and r['retarget_changed'] is False and r['root_motion_applied'] is False
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False and r['visual_approval_claimed'] is False
+          assert r['mixamo_allowed'] is False and r['player_character_reuse_allowed'] is False
+          print('GATE8_WALK_FORMAL_VISUAL_STATIC_OK distances=2,5,8 artifact_pngs=3 alias_selected=false production_authorized=false')
+          PY
+          TEST=grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_visual_witness.gd.txt
+          grep -Fq 'const VISUAL_CLIP := "Walk_Formal"' "$TEST"
+          grep -Fq 'const VISUAL_DISTANCES_M: Array[float] = [2.0, 5.0, 8.0]' "$TEST"
+          grep -Fq 'VISUAL_CAMERA_FOV_DEG := 68.0' "$TEST"
+          grep -Fq 'visual_approval_claimed": false' "$TEST"
+          grep -Fq 'walk_alias_selected": ""' "$TEST"
+
+      - name: Download exact pinned CC0 animation source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-WalkFormalVisual/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          test -s /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python - <<'PY'
+          import os,zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              member=os.environ['ANIM_GLB']; assert member in z.namelist(); Path('/tmp/animation_source.glb').write_bytes(z.read(member))
+          PY
+          sha256sum /tmp/animation-source.zip > /tmp/animation-source.sha256
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-target-artifact; mkdir -p /tmp/gate8-target-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target-artifact
+          TARGET="$(find /tmp/gate8-target-artifact -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"; cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install exact Godot 4.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglx-mesa0 >/dev/null
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"; "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated skin-safe visual project
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"; mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01WalkFormalVisualWitness"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          window/size/window_width_override=1280
+          window/size/window_height_override=720
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          BASE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NATIVE_AB_DEPENDENCY_COMMIT}/grand-bruxelles-game/game/tests"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_test.gd"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_v2_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_rest_normalized_animation_ab_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_foot_slide_root_compensation_diagnostic.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_walk_mechanical_ab_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_walk_mechanical_ab_diagnostic.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_visual_witness.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_walk_formal_visual_witness.gd"
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-walk-formal-visual-import.log
+          test -d "$ISOLATED_PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-walk-formal-visual-import.log
+
+      - name: Render true 2m 5m 8m Walk_Formal witness
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 300s xvfb-run -a -s '-screen 0 1280x720x24' "$GODOT" --audio-driver Dummy --path "$ISOLATED_PROJECT" --rendering-method gl_compatibility --script res://game/tests/gate8_variant01_walk_formal_visual_witness.gd 2>&1 | tee /tmp/gate8-walk-formal-visual.log
+          RESULT="$ISOLATED_PROJECT/gate8_variant01_walk_formal_visual_witness_result.json"
+          test -s "$RESULT"; cp "$RESULT" /tmp/gate8_variant01_walk_formal_visual_witness_result.json
+          python - <<'PY'
+          import hashlib,json,struct
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8_variant01_walk_formal_visual_witness_result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-variant01-walk-formal-visual-witness-v1'
+          assert r['candidate_variant']==1 and r['candidate_static_verdict']=='AMELIORER'
+          assert r['walk_candidate']=='Walk_Formal' and r['walk_candidate_status']=='MECHANICAL_LEAD_NOT_ADOPTED'
+          assert r['distances_m']==[2.0,5.0,8.0]
+          assert r['visual_review_state']=='EVIDENCE_READY_PENDING_HUMAN_REVIEW'
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          assert r['runtime_population_changed'] is False and r['visual_approval_claimed'] is False
+          assert r['failures']==[]
+          t=r['target_integrity']
+          assert t['skinned_meshes']>0 and t['skinned_surfaces']>0
+          assert t['skins']==t['skinned_meshes'] and t['valid_skeleton_links']==t['skinned_meshes']
+          assert t['active_materials']==t['skinned_surfaces'] and t['skeleton_bones']>=22
+          captures=r['captures']; assert len(captures)==3
+          assert [float(x['distance_m']) for x in captures]==[2.0,5.0,8.0]
+          hashes=[]
+          for row in captures:
+              p=Path('/tmp/gate8-variant01-walk-formal-visual')/Path(row['path']).name
+              b=p.read_bytes(); assert b[:8]==b'\x89PNG\r\n\x1a\n' and b[12:16]==b'IHDR'
+              assert struct.unpack('>II',b[16:24])==(1280,720)
+              hashes.append(hashlib.sha256(b).hexdigest())
+          assert len(set(hashes))==3
+          Path('/tmp/gate8-walk-formal-image-hashes.txt').write_text('\n'.join(hashes)+'\n')
+          print('GATE8_WALK_FORMAL_VISUAL_EVIDENCE_OK captures=3 unique_hashes=3 distances=2,5,8 approval_claimed=false')
+          PY
+          grep -q '^GATE8_WALK_FORMAL_VISUAL_RESULT state=EVIDENCE_READY_PENDING_HUMAN_REVIEW captures=3 failures=0 alias_selected=false production_authorized=false$' /tmp/gate8-walk-formal-visual.log
+          test "$(grep -c '^GATE8_WALK_FORMAL_VISUAL_FRAME clip=Walk_Formal' /tmp/gate8-walk-formal-visual.log)" -eq 3
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-walk-formal-visual.log
+
+      - name: Stage visual evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-walk-formal-visual-evidence; mkdir -p /tmp/gate8-walk-formal-visual-evidence
+          for f in /tmp/gate8_variant01_walk_formal_visual_witness_result.json /tmp/gate8-walk-formal-visual.log /tmp/gate8-walk-formal-visual-import.log /tmp/gate8-walk-formal-image-hashes.txt /tmp/animation-source.sha256 /tmp/npc_gate_01.sha256 /tmp/godot-version.txt; do
+            if [ -s "$f" ]; then cp "$f" /tmp/gate8-walk-formal-visual-evidence/; fi
+          done
+          mapfile -t PNGS < <(find "$ISOLATED_PROJECT" -maxdepth 1 -type f -name 'gate8_variant01_walk-formal_*.png' -print | sort)
+          test "${#PNGS[@]}" -eq 3
+          for f in "${PNGS[@]}"; do cp "$f" /tmp/gate8-walk-formal-visual-evidence/; done
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          evidence=Path('/tmp/gate8-walk-formal-visual-evidence')
+          pngs=sorted(evidence.glob('gate8_variant01_walk-formal_*.png'))
+          assert len(pngs)==3, [p.name for p in pngs]
+          expected=Path('/tmp/gate8-walk-formal-image-hashes.txt').read_text().splitlines()
+          actual=[hashlib.sha256(p.read_bytes()).hexdigest() for p in pngs]
+          assert len(expected)==3 and set(actual)==set(expected), (actual, expected)
+          expected_names={
+              'gate8_variant01_walk-formal_2m.png',
+              'gate8_variant01_walk-formal_5m.png',
+              'gate8_variant01_walk-formal_8m.png',
+          }
+          assert {p.name for p in pngs}==expected_names
+          print('GATE8_WALK_FORMAL_ARTIFACT_PAYLOAD_OK pngs=3 hashes_match=true distances=2,5,8')
+          PY
+          sha256sum /tmp/gate8-walk-formal-visual-evidence/* | sort -k2 | tee /tmp/gate8-walk-formal-visual-evidence/sha256.txt
+
+      - name: Prove repository remained untouched
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --porcelain --untracked-files=all | tee /tmp/gate8-walk-formal-visual-git-status.txt
+          test ! -s /tmp/gate8-walk-formal-visual-git-status.txt
+
+      - name: Upload Walk_Formal visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-variant01-walk-formal-visual-witness
+          path: /tmp/gate8-walk-formal-visual-evidence
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

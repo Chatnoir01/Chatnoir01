@@ -1,0 +1,52 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-walk-formal-skin-space-contract-v1",
+  "owner_pr": 1264,
+  "base_main_sha": "c3369e94ed23d8067cbfa0059ca91c00d6836138",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "walk_candidate": "Walk_Formal",
+  "walk_alias_selected": "",
+  "run_alias_selected": "",
+  "sample_phase": 0.35,
+  "visual_evidence": {
+    "run_id": 32831363846,
+    "artifact_id": 9556897114,
+    "artifact_digest": "sha256:0b3b7e2cce8e1197e4f0f79c4e33da8f7e86c2c50e25e33ade42b2be24a60d4d",
+    "verdict": "JETER_SOLVER_OUTPUT",
+    "visible_defect": "severe torso-arm-leg stretching at 2m, persistent at 5m and 8m"
+  },
+  "source_animation": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_bytes": 14541205
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_digest": "sha256:fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "measurement": {
+    "space": "cpu_skin_space",
+    "vertex_formula": "sum(weight * (bone_global_pose_or_rest * bind_pose) * vertex) / sum(weight)",
+    "measure_triangle_edges": true,
+    "record_exact_endpoint_weights": true,
+    "minimum_edge_length_m": 0.00001,
+    "severe_absolute_edge_change_m": 0.25,
+    "severe_stretch_ratio": 3.0,
+    "severe_compression_ratio": 0.25,
+    "require_rigid_transform_regression": true
+  },
+  "rails": {
+    "retarget_changed": false,
+    "thresholds_changed": false,
+    "root_motion_applied": false,
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

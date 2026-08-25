@@ -1,0 +1,180 @@
+extends "res://game/tests/gate8_variant01_walk_formal_culprit_bone_transforms_diagnostic.gd"
+
+const AUTHORED_CHAIN_RESULT_PATH := "res://gate8_variant01_walk_formal_authored_delta_chain_result.json"
+const REVIEW_BONES := [
+    "DEF-spine.003",
+    "DEF-shoulder.L",
+    "DEF-upper_arm.L",
+    "DEF-shoulder.R",
+    "DEF-upper_arm.R",
+    "DEF-shin.L",
+    "DEF-foot.L"
+]
+const MAX_LOCAL_TRANSFER_ERROR_DEG := 0.25
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_authored_chain_result({"diagnostic_state": "BLOCKED_SETUP", "bones": []})
+        return
+    var animation_name := _resolve_animation_name(_source_player, VISUAL_CLIP)
+    if animation_name.is_empty():
+        _failures.append("authored_chain_clip_missing=%s" % VISUAL_CLIP)
+        _write_authored_chain_result({"diagnostic_state": "BLOCKED_CLIP", "bones": []})
+        return
+    var animation := _source_player.get_animation(animation_name)
+    if animation == null or animation.length <= 0.0:
+        _failures.append("authored_chain_clip_invalid=%s" % VISUAL_CLIP)
+        _write_authored_chain_result({"diagnostic_state": "BLOCKED_CLIP", "bones": []})
+        return
+    var sample_time := clampf(animation.length * VISUAL_SAMPLE_PHASE, 0.0, maxf(0.0, animation.length - 0.00001))
+    var ground_correction := await _pose_visual_candidate(animation_name, sample_time)
+    _source_skeleton.force_update_all_bone_transforms()
+    _canonical_proxy.force_update_all_bone_transforms()
+    _target_skeleton.force_update_all_bone_transforms()
+    var rows: Array = []
+    for bone_name in REVIEW_BONES:
+        rows.append(_measure_bone_chain(String(bone_name)))
+    _validate_chain(rows)
+    _write_authored_chain_result({
+        "diagnostic_state": "AUTHORED_DELTA_CHAIN_MEASURED" if _failures.is_empty() else "AUTHORED_DELTA_CHAIN_BLOCKED",
+        "sample_time_s": sample_time,
+        "ground_correction_m": ground_correction,
+        "bones": rows
+    })
+
+func _measure_bone_chain(bone_name: String) -> Dictionary:
+    var source_idx := _source_skeleton.find_bone(bone_name)
+    var proxy_idx := _canonical_proxy.find_bone(bone_name)
+    var target_idx := _target_skeleton.find_bone(bone_name)
+    if source_idx < 0 or proxy_idx < 0 or target_idx < 0:
+        _failures.append("authored_chain_bone_missing=%s source=%d proxy=%d target=%d" % [bone_name, source_idx, proxy_idx, target_idx])
+        return {"bone_name": bone_name, "error": "bone_missing"}
+    var source_local_delta := _local_delta(_source_skeleton, source_idx)
+    var proxy_local_delta := _local_delta(_canonical_proxy, proxy_idx)
+    var target_local_delta := _local_delta(_target_skeleton, target_idx)
+    var source_global_delta := _global_delta(_source_skeleton, source_idx)
+    var proxy_global_delta := _global_delta(_canonical_proxy, proxy_idx)
+    var target_global_delta := _global_delta(_target_skeleton, target_idx)
+    var source_proxy_error := _basis_rotation_error_deg(source_local_delta.basis, proxy_local_delta.basis)
+    var proxy_target_error := _basis_rotation_error_deg(proxy_local_delta.basis, target_local_delta.basis)
+    var parent_source := _parent_name(_source_skeleton, source_idx)
+    var parent_proxy := _parent_name(_canonical_proxy, proxy_idx)
+    var parent_target := _parent_name(_target_skeleton, target_idx)
+    var row := {
+        "bone_name": bone_name,
+        "source_parent": parent_source,
+        "proxy_parent": parent_proxy,
+        "target_parent": parent_target,
+        "source_local_rotation_deg": _rotation_angle_deg(source_local_delta.basis),
+        "proxy_local_rotation_deg": _rotation_angle_deg(proxy_local_delta.basis),
+        "target_local_rotation_deg": _rotation_angle_deg(target_local_delta.basis),
+        "source_global_rotation_deg": _rotation_angle_deg(source_global_delta.basis),
+        "proxy_global_rotation_deg": _rotation_angle_deg(proxy_global_delta.basis),
+        "target_global_rotation_deg": _rotation_angle_deg(target_global_delta.basis),
+        "source_local_translation_m": source_local_delta.origin.length(),
+        "proxy_local_translation_m": proxy_local_delta.origin.length(),
+        "target_local_translation_m": target_local_delta.origin.length(),
+        "source_global_translation_m": source_global_delta.origin.length(),
+        "proxy_global_translation_m": proxy_global_delta.origin.length(),
+        "target_global_translation_m": target_global_delta.origin.length(),
+        "source_to_proxy_local_error_deg": source_proxy_error,
+        "proxy_to_target_local_error_deg": proxy_target_error
+    }
+    print("GATE8_AUTHORED_DELTA bone=%s source_local_deg=%.6f proxy_local_deg=%.6f target_local_deg=%.6f source_global_deg=%.6f proxy_global_deg=%.6f target_global_deg=%.6f source_proxy_err=%.6f proxy_target_err=%.6f" % [
+        bone_name,
+        float(row["source_local_rotation_deg"]),
+        float(row["proxy_local_rotation_deg"]),
+        float(row["target_local_rotation_deg"]),
+        float(row["source_global_rotation_deg"]),
+        float(row["proxy_global_rotation_deg"]),
+        float(row["target_global_rotation_deg"]),
+        source_proxy_error,
+        proxy_target_error
+    ])
+    return row
+
+func _local_delta(skeleton: Skeleton3D, bone_idx: int) -> Transform3D:
+    var rest := skeleton.get_bone_rest(bone_idx)
+    var pose := skeleton.get_bone_pose(bone_idx)
+    return rest.affine_inverse() * pose
+
+func _global_delta(skeleton: Skeleton3D, bone_idx: int) -> Transform3D:
+    var rest := skeleton.get_bone_global_rest(bone_idx)
+    var pose := skeleton.get_bone_global_pose(bone_idx)
+    return rest.affine_inverse() * pose
+
+func _rotation_angle_deg(basis: Basis) -> float:
+    return rad_to_deg(basis.orthonormalized().get_rotation_quaternion().get_angle())
+
+func _basis_rotation_error_deg(a: Basis, b: Basis) -> float:
+    var qa := a.orthonormalized().get_rotation_quaternion().normalized()
+    var qb := b.orthonormalized().get_rotation_quaternion().normalized()
+    return rad_to_deg(qa.angle_to(qb))
+
+func _parent_name(skeleton: Skeleton3D, bone_idx: int) -> String:
+    var parent_idx := skeleton.get_bone_parent(bone_idx)
+    if parent_idx < 0:
+        return ""
+    return String(skeleton.get_bone_name(parent_idx))
+
+func _validate_chain(rows: Array) -> void:
+    if rows.size() != REVIEW_BONES.size():
+        _failures.append("authored_chain_count_mismatch=%d expected=%d" % [rows.size(), REVIEW_BONES.size()])
+        return
+    for row_value in rows:
+        var row: Dictionary = row_value
+        if row.has("error"):
+            continue
+        var source_proxy_error := float(row["source_to_proxy_local_error_deg"])
+        var proxy_target_error := float(row["proxy_to_target_local_error_deg"])
+        if not is_finite(source_proxy_error) or not is_finite(proxy_target_error):
+            _failures.append("authored_chain_non_finite_error=%s" % String(row["bone_name"]))
+            continue
+        if source_proxy_error > MAX_LOCAL_TRANSFER_ERROR_DEG:
+            _failures.append("authored_chain_source_proxy_error=%s:%.6f" % [String(row["bone_name"]), source_proxy_error])
+        if proxy_target_error > MAX_LOCAL_TRANSFER_ERROR_DEG:
+            _failures.append("authored_chain_proxy_target_error=%s:%.6f" % [String(row["bone_name"]), proxy_target_error])
+        if String(row["source_parent"]) != String(row["proxy_parent"]) or String(row["proxy_parent"]) != String(row["target_parent"]):
+            _failures.append("authored_chain_parent_mismatch=%s source=%s proxy=%s target=%s" % [
+                String(row["bone_name"]), String(row["source_parent"]), String(row["proxy_parent"]), String(row["target_parent"])
+            ])
+
+func _write_authored_chain_result(partial: Dictionary) -> void:
+    var result := {
+        "format": "grand-bruxelles-gate8-variant01-walk-formal-authored-delta-chain-v1",
+        "engine_version": Engine.get_version_info().get("string", "unknown"),
+        "candidate_variant": 1,
+        "candidate_static_verdict": "AMELIORER",
+        "walk_candidate": VISUAL_CLIP,
+        "sample_phase": VISUAL_SAMPLE_PHASE,
+        "source_local_delta_formula": "source_rest^-1 * source_pose",
+        "proxy_local_delta_formula": "proxy_rest^-1 * proxy_pose",
+        "target_local_delta_formula": "target_rest^-1 * target_pose",
+        "global_delta_formula": "global_rest^-1 * global_pose",
+        "max_local_transfer_error_deg": MAX_LOCAL_TRANSFER_ERROR_DEG,
+        "walk_alias_selected": "",
+        "run_alias_selected": "",
+        "production_authorized": false,
+        "activation_ready": false,
+        "adoption_ready": false,
+        "runtime_population_changed": false,
+        "visual_approval_claimed": false,
+        "retarget_changed": false,
+        "skin_changed": false,
+        "rest_pose_changed": false,
+        "thresholds_changed": false,
+        "failures": _failures
+    }
+    for key in partial.keys():
+        result[key] = partial[key]
+    result["failures"] = _failures
+    var file := FileAccess.open(AUTHORED_CHAIN_RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        quit(1)
+        return
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
+    print("GATE8_AUTHORED_DELTA_CHAIN_RESULT state=%s failures=%d production_authorized=false" % [String(result.get("diagnostic_state", "unknown")), _failures.size()])
+    quit(0 if _failures.is_empty() else 1)

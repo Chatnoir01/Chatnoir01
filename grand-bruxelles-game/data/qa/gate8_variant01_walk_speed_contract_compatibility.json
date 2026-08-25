@@ -1,0 +1,60 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-walk-speed-contract-compatibility-v1",
+  "base_main_sha": "fe252c6852acf07615b4a27935b2608b93933447",
+  "owner_pr": 1264,
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "source_scan_proof": {
+    "run_id": 32804954219,
+    "artifact_id": 9547820697,
+    "artifact_digest": "sha256:ecbe7766dfb2025c9239c378f46e8753961959f91ddcbd7ab4306208f597dcdb",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "required_root_speed_mean_mps": {
+      "Walk": 0.9053650,
+      "Walk_Formal": 0.9349154,
+      "Crouch_Fwd": 0.5915679
+    },
+    "contact_slide_peak_mps": {
+      "Walk": 1.2390648,
+      "Walk_Formal": 1.1595549,
+      "Crouch_Fwd": 0.6239878
+    }
+  },
+  "runtime_contract": {
+    "expected": {
+      "IDLE_EXIT_SPEED_MPS": 0.20,
+      "RUN_ENTER_SPEED_MPS": 1.65,
+      "WALK_REFERENCE_SPEED_MPS": 1.0,
+      "WALK_PLAYBACK_MIN": 0.68,
+      "WALK_PLAYBACK_MAX": 1.45
+    }
+  },
+  "semantic_roles": {
+    "Walk": "normal_walk",
+    "Walk_Formal": "normal_walk",
+    "Crouch_Fwd": "crouch_only"
+  },
+  "expected_decision": {
+    "state": "WALK_SPEED_COMPATIBLE_PENDING_GROUNDING_TORSO",
+    "compatible_normal_walk_candidates": ["Walk", "Walk_Formal"],
+    "rejected_normal_walk_candidates": ["Crouch_Fwd"],
+    "walk_alias_selected": ""
+  },
+  "rails": {
+    "runtime_speed_contract_changed": false,
+    "playback_bounds_changed": false,
+    "root_motion_applied": false,
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "grounding_gate_passed": false,
+    "torso_gate_passed": false,
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

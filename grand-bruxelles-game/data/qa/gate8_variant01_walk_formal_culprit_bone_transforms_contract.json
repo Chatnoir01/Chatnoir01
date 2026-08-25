@@ -1,0 +1,74 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-walk-formal-culprit-bone-transforms-v1",
+  "owner_pr": 1264,
+  "base_main_sha": "c66424a7f2367557932a307a892716e729da204a",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "walk_candidate": "Walk_Formal",
+  "sample_phase": 0.35,
+  "source_skin_space_evidence": {
+    "run_id": 32836382692,
+    "artifact_id": 9558784458,
+    "artifact_digest": "sha256:1792b2c24633586870eb4eaef6df0a44a593d56a2e9627800c8bbd2042e7a3c4"
+  },
+  "source_culprit_evidence": {
+    "run_id": 32842102890,
+    "artifact_id": 9560892341,
+    "artifact_digest": "sha256:bac89e76db4ad6af8f01af73c4b4c1ae8ab54cdd4074047bc563fdcab9e873ed"
+  },
+  "edges": [
+    {
+      "id": "max_absolute_edge",
+      "mesh": "Human_female_sportsuit01_gate8_export",
+      "surface": 0,
+      "triangle": 71,
+      "vertex_a": 351,
+      "vertex_b": 1080,
+      "expected_pair": ["DEF-upper_arm.L", "DEF-spine.003"],
+      "reproduction_gate": {"min_absolute_change_m": 0.5}
+    },
+    {
+      "id": "max_stretch_edge",
+      "mesh": "Human_female_sportsuit01_gate8_export",
+      "surface": 0,
+      "triangle": 1457,
+      "vertex_a": 257,
+      "vertex_b": 756,
+      "expected_pair": ["DEF-spine.003", "DEF-upper_arm.R"],
+      "reproduction_gate": {"min_stretch_ratio": 3.0}
+    },
+    {
+      "id": "min_compression_edge",
+      "mesh": "Human_shoes01_gate8_export",
+      "surface": 0,
+      "triangle": 3049,
+      "vertex_a": 1811,
+      "vertex_b": 920,
+      "expected_pair": ["DEF-shin.L", "DEF-foot.L"],
+      "reproduction_gate": {"max_compression_ratio": 0.25}
+    }
+  ],
+  "measurement": {
+    "transform_formula": "bone_global_(rest|pose) * skin_bind_pose",
+    "measure_endpoint_weighted_contributions": true,
+    "measure_pair_relative_rest_to_pose": true,
+    "measure_bone_skin_transform_delta": true,
+    "require_exact_edge_identity": true
+  },
+  "rails": {
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "retarget_changed": false,
+    "skin_changed": false,
+    "rest_pose_changed": false,
+    "thresholds_changed": false,
+    "root_motion_applied": false,
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

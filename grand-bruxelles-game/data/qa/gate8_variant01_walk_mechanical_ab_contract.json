@@ -1,0 +1,49 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-walk-mechanical-ab-contract-v1",
+  "owner_pr": 1264,
+  "base_main_sha": "648d38265eb2d862aa58956812a8175c7f59d3ab",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "source_animation": {
+    "name": "Quaternius Universal Animation Library Standard-1.0",
+    "license": "CC0-1.0",
+    "package_sha256": "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2",
+    "package_size_bytes": 14541205,
+    "clips": ["Walk", "Walk_Formal"]
+  },
+  "target": {
+    "name": "Gate-8 variant 01",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+  },
+  "live_walk_contract": {
+    "idle_exit_speed_mps": 0.2,
+    "run_enter_speed_mps": 1.65,
+    "reference_speed_mps": 1.0,
+    "playback_min": 0.68,
+    "playback_max": 1.45
+  },
+  "mechanical_gates": {
+    "sample_rate_hz": 120.0,
+    "max_ground_correction_span_m": 0.18,
+    "max_ground_correction_step_m": 0.08,
+    "max_mean_torso_bend_delta_deg": 15.0,
+    "max_peak_torso_bend_delta_deg": 30.0,
+    "foot_slide_evaluation": "comparative_irreducible_residual_no_new_absolute_threshold",
+    "absolute_foot_slide_acceptance_defined": false,
+    "visual_witness_allowed_only_after_mechanical_gate": true
+  },
+  "rails": {
+    "thresholds_changed": false,
+    "retarget_changed": false,
+    "root_motion_applied": false,
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

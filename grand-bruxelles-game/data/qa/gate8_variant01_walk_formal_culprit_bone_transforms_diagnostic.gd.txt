@@ -1,0 +1,269 @@
+extends "res://game/tests/gate8_variant01_walk_formal_skin_space_diagnostic.gd"
+
+const CULPRIT_RESULT_PATH := "res://gate8_variant01_walk_formal_culprit_bone_transforms_result.json"
+const EDGE_SPECS := [
+    {
+        "id": "max_absolute_edge",
+        "mesh": "Human_female_sportsuit01_gate8_export",
+        "surface": 0,
+        "triangle": 71,
+        "vertex_a": 351,
+        "vertex_b": 1080,
+        "expected_pair": ["DEF-upper_arm.L", "DEF-spine.003"],
+        "min_absolute_change_m": 0.5
+    },
+    {
+        "id": "max_stretch_edge",
+        "mesh": "Human_female_sportsuit01_gate8_export",
+        "surface": 0,
+        "triangle": 1457,
+        "vertex_a": 257,
+        "vertex_b": 756,
+        "expected_pair": ["DEF-spine.003", "DEF-upper_arm.R"],
+        "min_stretch_ratio": 3.0
+    },
+    {
+        "id": "min_compression_edge",
+        "mesh": "Human_shoes01_gate8_export",
+        "surface": 0,
+        "triangle": 3049,
+        "vertex_a": 1811,
+        "vertex_b": 920,
+        "expected_pair": ["DEF-shin.L", "DEF-foot.L"],
+        "max_compression_ratio": 0.25
+    }
+]
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_culprit_result({"diagnostic_state": "BLOCKED_SETUP", "edges": []})
+        return
+    var animation_name := _resolve_animation_name(_source_player, VISUAL_CLIP)
+    if animation_name.is_empty():
+        _failures.append("culprit_clip_missing=%s" % VISUAL_CLIP)
+        _write_culprit_result({"diagnostic_state": "BLOCKED_CLIP", "edges": []})
+        return
+    var animation := _source_player.get_animation(animation_name)
+    if animation == null or animation.length <= 0.0:
+        _failures.append("culprit_clip_invalid=%s" % VISUAL_CLIP)
+        _write_culprit_result({"diagnostic_state": "BLOCKED_CLIP", "edges": []})
+        return
+    var sample_time := clampf(animation.length * VISUAL_SAMPLE_PHASE, 0.0, maxf(0.0, animation.length - 0.00001))
+    var ground_correction := await _pose_visual_candidate(animation_name, sample_time)
+    _target_skeleton.force_update_all_bone_transforms()
+    var rows: Array = []
+    for spec in EDGE_SPECS:
+        rows.append(_measure_exact_edge(spec))
+    _validate_reproduction(rows)
+    _write_culprit_result({
+        "diagnostic_state": "CULPRIT_BONE_TRANSFORMS_MEASURED" if _failures.is_empty() else "CULPRIT_BONE_TRANSFORMS_BLOCKED",
+        "sample_time_s": sample_time,
+        "ground_correction_m": ground_correction,
+        "edges": rows
+    })
+
+func _measure_exact_edge(spec: Dictionary) -> Dictionary:
+    var mesh := _find_target_mesh(String(spec["mesh"]))
+    if mesh == null:
+        _failures.append("culprit_mesh_missing=%s" % String(spec["mesh"]))
+        return {"id": spec["id"], "error": "mesh_missing"}
+    var surface_index := int(spec["surface"])
+    if surface_index < 0 or surface_index >= mesh.mesh.get_surface_count():
+        _failures.append("culprit_surface_missing=%s:%d" % [mesh.name, surface_index])
+        return {"id": spec["id"], "error": "surface_missing"}
+    var arrays := mesh.mesh.surface_get_arrays(surface_index)
+    var vertices = arrays[Mesh.ARRAY_VERTEX]
+    var bones = arrays[Mesh.ARRAY_BONES]
+    var weights = arrays[Mesh.ARRAY_WEIGHTS]
+    if vertices == null or bones == null or weights == null or vertices.size() == 0:
+        _failures.append("culprit_surface_arrays_invalid=%s:%d" % [mesh.name, surface_index])
+        return {"id": spec["id"], "error": "surface_arrays_invalid"}
+    if bones.size() != weights.size() or bones.size() % vertices.size() != 0:
+        _failures.append("culprit_influence_layout_invalid=%s:%d" % [mesh.name, surface_index])
+        return {"id": spec["id"], "error": "influence_layout_invalid"}
+    var influences_per_vertex := int(bones.size() / vertices.size())
+    var va := int(spec["vertex_a"])
+    var vb := int(spec["vertex_b"])
+    if va < 0 or vb < 0 or va >= vertices.size() or vb >= vertices.size():
+        _failures.append("culprit_vertex_out_of_range=%s:%d" % [mesh.name, surface_index])
+        return {"id": spec["id"], "error": "vertex_out_of_range"}
+    var rest_a := _skin_vertex(vertices[va], va, bones, weights, influences_per_vertex, mesh.skin, true)
+    var rest_b := _skin_vertex(vertices[vb], vb, bones, weights, influences_per_vertex, mesh.skin, true)
+    var posed_a := _skin_vertex(vertices[va], va, bones, weights, influences_per_vertex, mesh.skin, false)
+    var posed_b := _skin_vertex(vertices[vb], vb, bones, weights, influences_per_vertex, mesh.skin, false)
+    var rest_len := rest_a.distance_to(rest_b)
+    var posed_len := posed_a.distance_to(posed_b)
+    var ratio := posed_len / maxf(rest_len, 0.000001)
+    var pair: Array = spec["expected_pair"]
+    var pair_record := _pair_transform_record(mesh.skin, String(pair[0]), String(pair[1]))
+    var endpoint_a := _endpoint_contributions(vertices[va], va, bones, weights, influences_per_vertex, mesh.skin)
+    var endpoint_b := _endpoint_contributions(vertices[vb], vb, bones, weights, influences_per_vertex, mesh.skin)
+    print("GATE8_CULPRIT_EDGE id=%s rest=%.6f posed=%.6f change=%.6f ratio=%.6f pair=%s|%s" % [String(spec["id"]), rest_len, posed_len, absf(posed_len-rest_len), ratio, String(pair[0]), String(pair[1])])
+    return {
+        "id": spec["id"],
+        "mesh": String(mesh.name),
+        "surface": surface_index,
+        "triangle": int(spec["triangle"]),
+        "vertex_a": va,
+        "vertex_b": vb,
+        "rest_length_m": rest_len,
+        "posed_length_m": posed_len,
+        "absolute_change_m": absf(posed_len-rest_len),
+        "ratio": ratio,
+        "expected_pair": pair,
+        "pair_transform": pair_record,
+        "endpoint_a": endpoint_a,
+        "endpoint_b": endpoint_b
+    }
+
+func _find_target_mesh(mesh_name: String) -> MeshInstance3D:
+    for mesh: MeshInstance3D in _target_meshes:
+        if is_instance_valid(mesh) and String(mesh.name) == mesh_name:
+            return mesh
+    return null
+
+func _endpoint_contributions(vertex: Vector3, vertex_index: int, bones, weights, influences_per_vertex: int, skin: Skin) -> Array:
+    var rows: Array = []
+    for influence: int in range(influences_per_vertex):
+        var slot := vertex_index * influences_per_vertex + influence
+        var weight := float(weights[slot])
+        if weight <= 0.000001:
+            continue
+        var bind_index := int(bones[slot])
+        if bind_index < 0 or bind_index >= skin.get_bind_count():
+            _failures.append("culprit_bind_index_invalid=%d" % bind_index)
+            continue
+        var bone_index := _resolve_skin_bone_index(skin, bind_index)
+        if bone_index < 0 or bone_index >= _target_skeleton.get_bone_count():
+            _failures.append("culprit_bone_unresolved bind=%d" % bind_index)
+            continue
+        var bone_name := String(_target_skeleton.get_bone_name(bone_index))
+        var rest_skin := _target_skeleton.get_bone_global_rest(bone_index) * skin.get_bind_pose(bind_index)
+        var pose_skin := _target_skeleton.get_bone_global_pose(bone_index) * skin.get_bind_pose(bind_index)
+        var rest_point := rest_skin * vertex
+        var posed_point := pose_skin * vertex
+        var delta := rest_skin.affine_inverse() * pose_skin
+        rows.append({
+            "bone_name": bone_name,
+            "bone_index": bone_index,
+            "bind_index": bind_index,
+            "weight": weight,
+            "rest_point": _vec3(rest_point),
+            "posed_point": _vec3(posed_point),
+            "weighted_rest_point": _vec3(rest_point * weight),
+            "weighted_posed_point": _vec3(posed_point * weight),
+            "point_displacement_m": rest_point.distance_to(posed_point),
+            "skin_transform_delta_translation_m": delta.origin.length(),
+            "skin_transform_delta_rotation_deg": rad_to_deg(delta.basis.get_rotation_quaternion().get_angle())
+        })
+    rows.sort_custom(func(a, b): return float(a["weight"]) > float(b["weight"]))
+    return rows
+
+func _pair_transform_record(skin: Skin, bone_a_name: String, bone_b_name: String) -> Dictionary:
+    var bind_a := _find_bind_for_bone_name(skin, bone_a_name)
+    var bind_b := _find_bind_for_bone_name(skin, bone_b_name)
+    if bind_a < 0 or bind_b < 0:
+        _failures.append("culprit_pair_bind_missing=%s|%s" % [bone_a_name, bone_b_name])
+        return {"error": "bind_missing"}
+    var bone_a := _resolve_skin_bone_index(skin, bind_a)
+    var bone_b := _resolve_skin_bone_index(skin, bind_b)
+    if bone_a < 0 or bone_b < 0:
+        _failures.append("culprit_pair_bone_missing=%s|%s" % [bone_a_name, bone_b_name])
+        return {"error": "bone_missing"}
+    var rest_skin_a := _target_skeleton.get_bone_global_rest(bone_a) * skin.get_bind_pose(bind_a)
+    var rest_skin_b := _target_skeleton.get_bone_global_rest(bone_b) * skin.get_bind_pose(bind_b)
+    var pose_skin_a := _target_skeleton.get_bone_global_pose(bone_a) * skin.get_bind_pose(bind_a)
+    var pose_skin_b := _target_skeleton.get_bone_global_pose(bone_b) * skin.get_bind_pose(bind_b)
+    var relative_rest := rest_skin_a.affine_inverse() * rest_skin_b
+    var relative_pose := pose_skin_a.affine_inverse() * pose_skin_b
+    var relative_delta := relative_rest.affine_inverse() * relative_pose
+    return {
+        "bone_a": bone_a_name,
+        "bone_b": bone_b_name,
+        "bone_a_skin_delta": _transform_delta_record(rest_skin_a, pose_skin_a),
+        "bone_b_skin_delta": _transform_delta_record(rest_skin_b, pose_skin_b),
+        "relative_rest_translation_m": relative_rest.origin.length(),
+        "relative_pose_translation_m": relative_pose.origin.length(),
+        "relative_delta_translation_m": relative_delta.origin.length(),
+        "relative_delta_rotation_deg": rad_to_deg(relative_delta.basis.get_rotation_quaternion().get_angle())
+    }
+
+func _find_bind_for_bone_name(skin: Skin, bone_name: String) -> int:
+    for bind_index: int in range(skin.get_bind_count()):
+        var bone_index := _resolve_skin_bone_index(skin, bind_index)
+        if bone_index >= 0 and bone_index < _target_skeleton.get_bone_count() and String(_target_skeleton.get_bone_name(bone_index)) == bone_name:
+            return bind_index
+    return -1
+
+func _transform_delta_record(rest_transform: Transform3D, posed_transform: Transform3D) -> Dictionary:
+    var delta := rest_transform.affine_inverse() * posed_transform
+    return {
+        "translation_m": delta.origin.length(),
+        "rotation_deg": rad_to_deg(delta.basis.get_rotation_quaternion().get_angle())
+    }
+
+func _validate_reproduction(rows: Array) -> void:
+    if rows.size() != EDGE_SPECS.size():
+        _failures.append("culprit_edge_count_mismatch=%d" % rows.size())
+        return
+    for i: int in range(rows.size()):
+        var row: Dictionary = rows[i]
+        var spec: Dictionary = EDGE_SPECS[i]
+        if row.has("error"):
+            continue
+        if spec.has("min_absolute_change_m") and float(row["absolute_change_m"]) < float(spec["min_absolute_change_m"]):
+            _failures.append("culprit_absolute_change_not_reproduced=%s" % String(spec["id"]))
+        if spec.has("min_stretch_ratio") and float(row["ratio"]) < float(spec["min_stretch_ratio"]):
+            _failures.append("culprit_stretch_not_reproduced=%s" % String(spec["id"]))
+        if spec.has("max_compression_ratio") and float(row["ratio"]) > float(spec["max_compression_ratio"]):
+            _failures.append("culprit_compression_not_reproduced=%s" % String(spec["id"]))
+        var pair: Array = row["expected_pair"]
+        for expected_name in pair:
+            var present := _endpoint_has_bone(row["endpoint_a"], String(expected_name)) or _endpoint_has_bone(row["endpoint_b"], String(expected_name))
+            if not present:
+                _failures.append("culprit_expected_bone_missing=%s:%s" % [String(spec["id"]), String(expected_name)])
+
+func _endpoint_has_bone(rows: Array, bone_name: String) -> bool:
+    for row in rows:
+        if String(row.get("bone_name", "")) == bone_name:
+            return true
+    return false
+
+func _vec3(value: Vector3) -> Array:
+    return [value.x, value.y, value.z]
+
+func _write_culprit_result(partial: Dictionary) -> void:
+    var result := {
+        "format": "grand-bruxelles-gate8-variant01-walk-formal-culprit-bone-transforms-v1",
+        "engine_version": Engine.get_version_info().get("string", "unknown"),
+        "candidate_variant": 1,
+        "candidate_static_verdict": "AMELIORER",
+        "walk_candidate": VISUAL_CLIP,
+        "sample_phase": VISUAL_SAMPLE_PHASE,
+        "transform_formula": "bone_global_(rest|pose) * skin_bind_pose",
+        "walk_alias_selected": "",
+        "run_alias_selected": "",
+        "production_authorized": false,
+        "activation_ready": false,
+        "adoption_ready": false,
+        "runtime_population_changed": false,
+        "visual_approval_claimed": false,
+        "retarget_changed": false,
+        "skin_changed": false,
+        "rest_pose_changed": false,
+        "thresholds_changed": false,
+        "failures": _failures
+    }
+    for key in partial.keys():
+        result[key] = partial[key]
+    result["failures"] = _failures
+    var file := FileAccess.open(CULPRIT_RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        quit(1)
+        return
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
+    print("GATE8_CULPRIT_BONE_TRANSFORMS_RESULT state=%s failures=%d production_authorized=false" % [String(result.get("diagnostic_state", "unknown")), _failures.size()])
+    quit(0 if _failures.is_empty() else 1)

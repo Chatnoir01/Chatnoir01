@@ -1,0 +1,232 @@
+extends "res://game/tests/gate8_variant01_walk_formal_skin_space_diagnostic.gd"
+
+const FULL_CYCLE_RESULT_PATH := "res://gate8_variant01_walk_vs_formal_full_cycle_result.json"
+const FULL_CYCLE_SAMPLE_RATE_HZ := 120.0
+const WALK_CLIPS := ["Walk", "Walk_Formal"]
+const UPPER_ARM_BONES := ["DEF-upper_arm.L", "DEF-upper_arm.R"]
+const EDGE_SPECS := [
+    {
+        "id": "left_armpit",
+        "mesh": "Human_female_sportsuit01_gate8_export",
+        "surface": 0,
+        "vertex_a": 351,
+        "vertex_b": 1080,
+        "expected_bones": ["DEF-upper_arm.L", "DEF-spine.003"]
+    },
+    {
+        "id": "right_armpit",
+        "mesh": "Human_female_sportsuit01_gate8_export",
+        "surface": 0,
+        "vertex_a": 257,
+        "vertex_b": 756,
+        "expected_bones": ["DEF-spine.003", "DEF-upper_arm.R"]
+    },
+    {
+        "id": "left_ankle",
+        "mesh": "Human_shoes01_gate8_export",
+        "surface": 0,
+        "vertex_a": 1811,
+        "vertex_b": 920,
+        "expected_bones": ["DEF-shin.L", "DEF-foot.L"]
+    }
+]
+const MATERIAL_REDUCTION_RATIO := 0.70
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_full_cycle_result({"diagnostic_state": "BLOCKED_SETUP", "clips": {}})
+        return
+    _run_skin_math_regression()
+    var integrity := _validate_target_visual_integrity()
+    var clip_rows := {}
+    for clip_name_value in WALK_CLIPS:
+        var clip_name := String(clip_name_value)
+        clip_rows[clip_name] = await _measure_clip_full_cycle(clip_name)
+    var comparison := _compare_clips(clip_rows)
+    _write_full_cycle_result({
+        "diagnostic_state": "FULL_CYCLE_MEASURED" if _failures.is_empty() else "FULL_CYCLE_BLOCKED",
+        "target_integrity": integrity,
+        "clips": clip_rows,
+        "comparison": comparison
+    })
+
+func _measure_clip_full_cycle(clip_name: String) -> Dictionary:
+    var animation_name := _resolve_animation_name(_source_player, clip_name)
+    if animation_name.is_empty():
+        _failures.append("full_cycle_clip_missing=%s" % clip_name)
+        return {"error": "clip_missing"}
+    var animation := _source_player.get_animation(animation_name)
+    if animation == null or animation.length <= 0.0:
+        _failures.append("full_cycle_clip_invalid=%s" % clip_name)
+        return {"error": "clip_invalid"}
+    var sample_count := maxi(80, int(ceil(animation.length * FULL_CYCLE_SAMPLE_RATE_HZ)))
+    var arm_max := {
+        "DEF-upper_arm.L": {"rotation_deg": 0.0, "phase": 0.0},
+        "DEF-upper_arm.R": {"rotation_deg": 0.0, "phase": 0.0}
+    }
+    var edge_max := {}
+    for spec_value in EDGE_SPECS:
+        var spec: Dictionary = spec_value
+        edge_max[String(spec["id"])] = {"absolute_change_m": 0.0, "ratio": 1.0, "phase": 0.0, "row": {}}
+    for sample_idx in range(sample_count):
+        var phase := float(sample_idx) / float(sample_count)
+        var sample_time := minf(animation.length * phase, maxf(0.0, animation.length - 0.00001))
+        await _pose_visual_candidate(animation_name, sample_time)
+        _source_skeleton.force_update_all_bone_transforms()
+        _target_skeleton.force_update_all_bone_transforms()
+        for bone_name_value in UPPER_ARM_BONES:
+            var bone_name := String(bone_name_value)
+            var bone_idx := _source_skeleton.find_bone(bone_name)
+            if bone_idx < 0:
+                _failures.append("full_cycle_arm_bone_missing=%s" % bone_name)
+                continue
+            var delta := _source_skeleton.get_bone_rest(bone_idx).affine_inverse() * _source_skeleton.get_bone_pose(bone_idx)
+            var angle_deg := rad_to_deg(delta.basis.orthonormalized().get_rotation_quaternion().get_angle())
+            var current_arm: Dictionary = arm_max[bone_name]
+            if angle_deg > float(current_arm["rotation_deg"]):
+                arm_max[bone_name] = {"rotation_deg": angle_deg, "phase": phase}
+        for spec_value in EDGE_SPECS:
+            var spec: Dictionary = spec_value
+            var row := _measure_exact_edge(spec)
+            if row.has("error"):
+                continue
+            var edge_id := String(spec["id"])
+            var current_edge: Dictionary = edge_max[edge_id]
+            if float(row["absolute_change_m"]) > float(current_edge["absolute_change_m"]):
+                edge_max[edge_id] = {
+                    "absolute_change_m": float(row["absolute_change_m"]),
+                    "ratio": float(row["ratio"]),
+                    "phase": phase,
+                    "row": row
+                }
+    var max_arm_swing := maxf(float(arm_max["DEF-upper_arm.L"]["rotation_deg"]), float(arm_max["DEF-upper_arm.R"]["rotation_deg"]))
+    print("GATE8_WALK_FULL_CYCLE clip=%s samples=%d max_arm_deg=%.6f left_armpit_m=%.6f right_armpit_m=%.6f ankle_m=%.6f" % [
+        clip_name,
+        sample_count,
+        max_arm_swing,
+        float(edge_max["left_armpit"]["absolute_change_m"]),
+        float(edge_max["right_armpit"]["absolute_change_m"]),
+        float(edge_max["left_ankle"]["absolute_change_m"])
+    ])
+    return {
+        "animation_name": animation_name,
+        "duration_s": animation.length,
+        "sample_rate_hz": FULL_CYCLE_SAMPLE_RATE_HZ,
+        "sample_count": sample_count,
+        "upper_arm_max": arm_max,
+        "max_upper_arm_swing_deg": max_arm_swing,
+        "edge_maxima": edge_max
+    }
+
+func _measure_exact_edge(spec: Dictionary) -> Dictionary:
+    var mesh := _find_target_mesh(String(spec["mesh"]))
+    if mesh == null or mesh.mesh == null or mesh.skin == null:
+        _failures.append("full_cycle_mesh_missing=%s" % String(spec["mesh"]))
+        return {"error": "mesh_missing"}
+    var surface_index := int(spec["surface"])
+    if surface_index < 0 or surface_index >= mesh.mesh.get_surface_count():
+        _failures.append("full_cycle_surface_invalid=%s:%d" % [String(spec["mesh"]), surface_index])
+        return {"error": "surface_invalid"}
+    var arrays := mesh.mesh.surface_get_arrays(surface_index)
+    var vertices = arrays[Mesh.ARRAY_VERTEX]
+    var bones = arrays[Mesh.ARRAY_BONES]
+    var weights = arrays[Mesh.ARRAY_WEIGHTS]
+    if vertices == null or bones == null or weights == null or vertices.size() == 0 or bones.size() == 0 or bones.size() != weights.size() or bones.size() % vertices.size() != 0:
+        _failures.append("full_cycle_influence_layout_invalid=%s" % String(spec["mesh"]))
+        return {"error": "influence_layout_invalid"}
+    var va := int(spec["vertex_a"])
+    var vb := int(spec["vertex_b"])
+    if va < 0 or vb < 0 or va >= vertices.size() or vb >= vertices.size():
+        _failures.append("full_cycle_vertex_out_of_range=%s:%d:%d" % [String(spec["mesh"]), va, vb])
+        return {"error": "vertex_out_of_range"}
+    var influences_per_vertex := int(bones.size() / vertices.size())
+    var rest_a := _skin_vertex(vertices[va], va, bones, weights, influences_per_vertex, mesh.skin, true)
+    var rest_b := _skin_vertex(vertices[vb], vb, bones, weights, influences_per_vertex, mesh.skin, true)
+    var posed_a := _skin_vertex(vertices[va], va, bones, weights, influences_per_vertex, mesh.skin, false)
+    var posed_b := _skin_vertex(vertices[vb], vb, bones, weights, influences_per_vertex, mesh.skin, false)
+    var rest_len := rest_a.distance_to(rest_b)
+    var posed_len := posed_a.distance_to(posed_b)
+    if rest_len < MIN_EDGE_LENGTH_M:
+        _failures.append("full_cycle_edge_too_short=%s" % String(spec["id"]))
+        return {"error": "edge_too_short"}
+    return {
+        "id": String(spec["id"]),
+        "mesh": String(spec["mesh"]),
+        "surface": surface_index,
+        "vertex_a": va,
+        "vertex_b": vb,
+        "rest_length_m": rest_len,
+        "posed_length_m": posed_len,
+        "absolute_change_m": absf(posed_len - rest_len),
+        "ratio": posed_len / rest_len,
+        "vertex_a_weights": _vertex_influences(va, bones, weights, influences_per_vertex, mesh.skin),
+        "vertex_b_weights": _vertex_influences(vb, bones, weights, influences_per_vertex, mesh.skin)
+    }
+
+func _find_target_mesh(mesh_name: String) -> MeshInstance3D:
+    for mesh: MeshInstance3D in _target_meshes:
+        if is_instance_valid(mesh) and String(mesh.name) == mesh_name:
+            return mesh
+    return null
+
+func _compare_clips(rows: Dictionary) -> Dictionary:
+    if not rows.has("Walk") or not rows.has("Walk_Formal") or rows["Walk"].has("error") or rows["Walk_Formal"].has("error"):
+        return {"state": "BLOCKED_COMPARISON"}
+    var walk: Dictionary = rows["Walk"]
+    var formal: Dictionary = rows["Walk_Formal"]
+    var formal_arm := maxf(0.000001, float(formal["max_upper_arm_swing_deg"]))
+    var arm_ratio := float(walk["max_upper_arm_swing_deg"]) / formal_arm
+    var edge_ratios := {}
+    var all_material := arm_ratio <= MATERIAL_REDUCTION_RATIO
+    for spec_value in EDGE_SPECS:
+        var edge_id := String((spec_value as Dictionary)["id"])
+        var walk_edge := float(walk["edge_maxima"][edge_id]["absolute_change_m"])
+        var formal_edge := maxf(0.000001, float(formal["edge_maxima"][edge_id]["absolute_change_m"]))
+        var ratio := walk_edge / formal_edge
+        edge_ratios[edge_id] = ratio
+        if edge_id != "left_ankle" and ratio > MATERIAL_REDUCTION_RATIO:
+            all_material = false
+    return {
+        "state": "WALK_MATERIALLY_REDUCES_ARM_AND_ARMPIT_DEFORMATION" if all_material else "WALK_DOES_NOT_MATERIALLY_REDUCE_ALL_CRITICAL_DEFORMATION",
+        "material_reduction_ratio": MATERIAL_REDUCTION_RATIO,
+        "walk_to_formal_arm_swing_ratio": arm_ratio,
+        "walk_to_formal_edge_change_ratios": edge_ratios,
+        "visual_witness_justified": all_material
+    }
+
+func _write_full_cycle_result(partial: Dictionary) -> void:
+    var result := {
+        "format": "grand-bruxelles-gate8-variant01-walk-vs-formal-full-cycle-v1",
+        "engine_version": Engine.get_version_info().get("string", "unknown"),
+        "candidate_variant": 1,
+        "candidate_static_verdict": "AMELIORER",
+        "clips": WALK_CLIPS,
+        "sample_rate_hz": FULL_CYCLE_SAMPLE_RATE_HZ,
+        "edge_specs": EDGE_SPECS,
+        "walk_alias_selected": "",
+        "run_alias_selected": "",
+        "production_authorized": false,
+        "activation_ready": false,
+        "adoption_ready": false,
+        "runtime_population_changed": false,
+        "visual_approval_claimed": false,
+        "retarget_changed": false,
+        "skin_changed": false,
+        "rest_pose_changed": false,
+        "thresholds_changed": false,
+        "root_motion_applied": false,
+        "failures": _failures
+    }
+    for key in partial.keys():
+        result[key] = partial[key]
+    result["failures"] = _failures
+    var file := FileAccess.open(FULL_CYCLE_RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        quit(1)
+        return
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
+    print("GATE8_WALK_VS_FORMAL_FULL_CYCLE_RESULT state=%s failures=%d production_authorized=false" % [String(result.get("diagnostic_state", "unknown")), _failures.size()])
+    quit(0 if _failures.is_empty() else 1)

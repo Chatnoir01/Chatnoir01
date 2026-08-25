@@ -1,0 +1,192 @@
+name: Grand Bruxelles Gate-8 Variant-01 Walk_Formal Culprit Bone Transforms
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-walk-formal-culprit-bone-transforms.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_culprit_bone_transforms_contract.json"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_culprit_bone_transforms_diagnostic.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_space_diagnostic.gd.txt"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_visual_witness.gd.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  culprit-bone-transforms:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ANIM_URL: "https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/"
+      ANIM_SHA256: "18ff1a7215f4852b320203e8aaf02a1578b5c8eef9027fbaedfcedc7b85a3ac2"
+      ANIM_BYTES: "14541205"
+      ANIM_GLB: "Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_ARTIFACT_SHA256: "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb"
+      TARGET_GLB_SHA256: "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+      NATIVE_AB_DEPENDENCY_COMMIT: "0f5dbcc64dd44e88490df575bae4664f6bd18520"
+      GODOT_URL: "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+      ISOLATED_PROJECT: "/tmp/gate8-variant01-walk-formal-culprit-bones"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head checkout
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Validate fail-closed culprit contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_culprit_bone_transforms_contract.json')
+          d=json.loads(p.read_text())
+          assert d['format']=='grand-bruxelles-gate8-variant01-walk-formal-culprit-bone-transforms-v1'
+          assert d['owner_pr']==1264 and d['base_main_sha']=='c66424a7f2367557932a307a892716e729da204a'
+          assert d['candidate_variant']==1 and d['candidate_static_verdict']=='AMELIORER'
+          assert d['walk_candidate']=='Walk_Formal' and float(d['sample_phase'])==0.35
+          assert d['source_skin_space_evidence']['artifact_id']==9558784458
+          assert d['source_culprit_evidence']['artifact_id']==9560892341
+          assert len(d['edges'])==3
+          ids=[e['id'] for e in d['edges']]; assert ids==['max_absolute_edge','max_stretch_edge','min_compression_edge']
+          r=d['rails']
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          for k in ['retarget_changed','skin_changed','rest_pose_changed','thresholds_changed','root_motion_applied','production_authorized','activation_ready','adoption_ready','runtime_population_changed','visual_approval_claimed','mixamo_allowed','player_character_reuse_allowed']:
+              assert r[k] is False
+          print('GATE8_CULPRIT_BONE_TRANSFORMS_STATIC_OK edges=3 production_authorized=false')
+          PY
+          T=grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_culprit_bone_transforms_diagnostic.gd.txt
+          grep -Fq 'bone_global_(rest|pose) * skin_bind_pose' "$T"
+          grep -Fq '_target_skeleton.get_bone_global_rest' "$T"
+          grep -Fq '_target_skeleton.get_bone_global_pose' "$T"
+          grep -Fq 'relative_delta_rotation_deg' "$T"
+          grep -Fq 'production_authorized": false' "$T"
+
+      - name: Download exact pinned CC0 animation source
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 -A 'Grand-Bruxelles-Gate8-CulpritBones/1.0' "$ANIM_URL" -o /tmp/animation-source.zip
+          test -s /tmp/animation-source.zip
+          test "$(sha256sum /tmp/animation-source.zip | awk '{print $1}')" = "$ANIM_SHA256"
+          test "$(stat -c '%s' /tmp/animation-source.zip)" = "$ANIM_BYTES"
+          python - <<'PY'
+          import os,zipfile
+          from pathlib import Path
+          with zipfile.ZipFile('/tmp/animation-source.zip') as z:
+              m=os.environ['ANIM_GLB']; assert m in z.namelist(); Path('/tmp/animation_source.glb').write_bytes(z.read(m))
+          PY
+          sha256sum /tmp/animation-source.zip > /tmp/animation-source.sha256
+
+      - name: Download immutable Gate-8 target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-target-artifact; mkdir -p /tmp/gate8-target-artifact
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${TARGET_ARTIFACT_ID}/zip" > /tmp/gate8-target.zip
+          test "$(sha256sum /tmp/gate8-target.zip | awk '{print $1}')" = "$TARGET_ARTIFACT_SHA256"
+          unzip -q /tmp/gate8-target.zip -d /tmp/gate8-target-artifact
+          TARGET="$(find /tmp/gate8-target-artifact -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"; cp "$TARGET" /tmp/npc_gate_01.glb
+          test "$(sha256sum /tmp/npc_gate_01.glb | awk '{print $1}')" = "$TARGET_GLB_SHA256"
+          sha256sum /tmp/npc_gate_01.glb > /tmp/npc_gate_01.sha256
+
+      - name: Install exact Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64' | head -1)"
+          test -x "$GODOT"; "$GODOT" --version | tee /tmp/godot-version.txt
+          grep -q '^4\.7\.1\.stable' /tmp/godot-version.txt
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+
+      - name: Build isolated culprit project
+        run: |
+          set -euo pipefail
+          rm -rf "$ISOLATED_PROJECT"; mkdir -p "$ISOLATED_PROJECT/assets" "$ISOLATED_PROJECT/game/tests"
+          cat > "$ISOLATED_PROJECT/project.godot" <<'EOF'
+          config_version=5
+          [application]
+          config/name="Gate8Variant01WalkFormalCulpritBones"
+          [display]
+          window/size/viewport_width=1280
+          window/size/viewport_height=720
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          EOF
+          cp /tmp/animation_source.glb "$ISOLATED_PROJECT/assets/animation_source.glb"
+          cp /tmp/npc_gate_01.glb "$ISOLATED_PROJECT/assets/npc_gate_01.glb"
+          BASE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${NATIVE_AB_DEPENDENCY_COMMIT}/grand-bruxelles-game/game/tests"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_test.gd"
+          curl -L --fail --retry 4 --retry-all-errors "$BASE_URL/gate8_variant01_native_retarget_ab_v2_test.gd" -o "$ISOLATED_PROJECT/game/tests/gate8_variant01_native_retarget_ab_v2_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_rest_normalized_animation_ab_witness.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_rest_normalized_animation_ab_test.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_foot_slide_root_compensation_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_foot_slide_root_compensation_diagnostic.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_walk_mechanical_ab_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_walk_mechanical_ab_diagnostic.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_visual_witness.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_walk_formal_visual_witness.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_skin_space_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_walk_formal_skin_space_diagnostic.gd"
+          cp grand-bruxelles-game/data/qa/gate8_variant01_walk_formal_culprit_bone_transforms_diagnostic.gd.txt "$ISOLATED_PROJECT/game/tests/gate8_variant01_walk_formal_culprit_bone_transforms_diagnostic.gd"
+          timeout 300s "$GODOT" --headless --editor --path "$ISOLATED_PROJECT" --quit-after 1200 2>&1 | tee /tmp/gate8-culprit-import.log
+          test -d "$ISOLATED_PROJECT/.godot/imported"
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-culprit-import.log
+
+      - name: Measure exact culprit bone transforms
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 300s "$GODOT" --headless --audio-driver Dummy --path "$ISOLATED_PROJECT" --script res://game/tests/gate8_variant01_walk_formal_culprit_bone_transforms_diagnostic.gd 2>&1 | tee /tmp/gate8-culprit-bones.log
+          STATUS=${PIPESTATUS[0]}; set -e
+          RESULT="$ISOLATED_PROJECT/gate8_variant01_walk_formal_culprit_bone_transforms_result.json"
+          test -s "$RESULT"; cp "$RESULT" /tmp/gate8_variant01_walk_formal_culprit_bone_transforms_result.json
+          python - <<'PY'
+          import json,math
+          from pathlib import Path
+          r=json.loads(Path('/tmp/gate8_variant01_walk_formal_culprit_bone_transforms_result.json').read_text())
+          assert r['format']=='grand-bruxelles-gate8-variant01-walk-formal-culprit-bone-transforms-v1'
+          assert r['engine_version'].startswith('4.7.1')
+          assert r['candidate_variant']==1 and r['candidate_static_verdict']=='AMELIORER'
+          assert r['walk_candidate']=='Walk_Formal' and float(r['sample_phase'])==0.35
+          assert r['diagnostic_state']=='CULPRIT_BONE_TRANSFORMS_MEASURED' and r['failures']==[]
+          assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
+          assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
+          rows=r['edges']; assert len(rows)==3
+          assert float(rows[0]['absolute_change_m'])>=0.5
+          assert float(rows[1]['ratio'])>=3.0
+          assert float(rows[2]['ratio'])<=0.25
+          for row in rows:
+              p=row['pair_transform'];
+              vals=[p['bone_a_skin_delta']['translation_m'],p['bone_a_skin_delta']['rotation_deg'],p['bone_b_skin_delta']['translation_m'],p['bone_b_skin_delta']['rotation_deg'],p['relative_delta_translation_m'],p['relative_delta_rotation_deg']]
+              assert all(math.isfinite(float(v)) for v in vals)
+              assert row['endpoint_a'] and row['endpoint_b']
+          print('GATE8_CULPRIT_BONE_TRANSFORMS_MEASURED edges=3 production_authorized=false')
+          PY
+          test "$STATUS" -eq 0
+          grep -q '^GATE8_CULPRIT_BONE_TRANSFORMS_RESULT state=CULPRIT_BONE_TRANSFORMS_MEASURED failures=0 production_authorized=false$' /tmp/gate8-culprit-bones.log
+          ! grep -E '^ERROR:|SCRIPT ERROR|Parse Error|Failed to load|Cannot open' /tmp/gate8-culprit-bones.log
+
+      - name: Stage diagnostic evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gate8-culprit-evidence; mkdir -p /tmp/gate8-culprit-evidence
+          for f in /tmp/gate8_variant01_walk_formal_culprit_bone_transforms_result.json /tmp/gate8-culprit-bones.log /tmp/gate8-culprit-import.log /tmp/animation-source.sha256 /tmp/npc_gate_01.sha256 /tmp/godot-version.txt; do
+            [ -f "$f" ] && cp "$f" /tmp/gate8-culprit-evidence/
+          done
+          git status --porcelain=v1 > /tmp/gate8-culprit-evidence/git-status.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-gate8-variant01-walk-formal-culprit-bone-transforms
+          path: /tmp/gate8-culprit-evidence
+          if-no-files-found: error
+          retention-days: 14

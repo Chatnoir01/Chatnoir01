@@ -1,0 +1,53 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-run-speed-contract-compatibility-v1",
+  "base_main_sha": "6b7821086efa669df24843acb50aa46d231ba814",
+  "owner_pr": 1264,
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "runtime_contract": {
+    "path": "grand-bruxelles-game/game/scripts/midi_realistic_authored_npc_runtime.gd",
+    "expected": {
+      "MAX_OBSERVED_SPEED_MPS": 2.4,
+      "RUN_ENTER_SPEED_MPS": 1.65,
+      "RUN_REFERENCE_SPEED_MPS": 1.85,
+      "RUN_PLAYBACK_MIN": 0.82,
+      "RUN_PLAYBACK_MAX": 1.22
+    }
+  },
+  "root_compensation_proof": {
+    "run_id": 32799163679,
+    "artifact_id": 9545906086,
+    "artifact_digest": "sha256:616cf21683387116142d1b6962d65c037831a614230670529d84ad7d889005b6",
+    "diagnostic_state": "FOOT_SLIDE_ROOT_COMPENSATION_MEASURED",
+    "double_support_residual_peak_mps": {
+      "Jog_Fwd": 0.0,
+      "Sprint": 0.0
+    },
+    "required_root_speed_mean_mps": {
+      "Jog_Fwd": 4.71173677841822,
+      "Sprint": 5.3499282002449
+    },
+    "required_root_speed_peak_mps": {
+      "Jog_Fwd": 6.65995168685913,
+      "Sprint": 11.613055229187
+    }
+  },
+  "expected_decision": {
+    "state": "CURRENT_CIVILIAN_SPEED_CONTRACT_INCOMPATIBLE",
+    "clip_verdict": "JETER_CURRENT_CIVILIAN_RUN_CONTRACT",
+    "compatible_clip_count": 0
+  },
+  "rails": {
+    "runtime_speed_contract_changed": false,
+    "playback_bounds_changed": false,
+    "root_motion_applied": false,
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "mixamo_allowed": false,
+    "player_character_reuse_allowed": false
+  }
+}

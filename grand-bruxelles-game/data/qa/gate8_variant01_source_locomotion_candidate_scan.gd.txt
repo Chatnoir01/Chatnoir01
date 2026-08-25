@@ -1,0 +1,57 @@
+extends "res://game/tests/gate8_variant01_foot_slide_root_compensation_diagnostic.gd"
+
+const SCAN_RESULT_PATH := "res://gate8_variant01_source_locomotion_candidate_scan_result.json"
+const SOURCE_CANDIDATES: Array[String] = ["Walk", "Walk_Formal", "Crouch_Fwd"]
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_scan_and_exit({
+            "format": "grand-bruxelles-gate8-variant01-source-locomotion-candidate-scan-result-v1",
+            "candidate_variant": 1,
+            "decision_state": "BLOCKED_SETUP",
+            "failures": _failures
+        })
+        return
+
+    _run_math_regressions()
+    var clips := {}
+    for clip: String in SOURCE_CANDIDATES:
+        clips[clip] = await _diagnose_clip(clip)
+
+    var result := {
+        "format": "grand-bruxelles-gate8-variant01-source-locomotion-candidate-scan-result-v1",
+        "engine_version": Engine.get_version_info().get("string", "unknown"),
+        "candidate_variant": 1,
+        "source_candidates": SOURCE_CANDIDATES,
+        "decision_state": "SOURCE_LOCOMOTION_CANDIDATE_SCAN_COMPLETE" if _failures.is_empty() else "BLOCKED_DIAGNOSTIC_FAILURE",
+        "clips": clips,
+        "sample_rate_hz": SAMPLE_RATE_HZ,
+        "contact_height_window_m": CONTACT_HEIGHT_WINDOW_M,
+        "normalization_formula": "D=Rs^-1*Ps; Pnormalized=Rt*D",
+        "retarget_engine": "RetargetModifier3D",
+        "root_motion_applied": false,
+        "run_alias_selected": "",
+        "production_authorized": false,
+        "activation_ready": false,
+        "adoption_ready": false,
+        "runtime_population_changed": false,
+        "visual_approval_claimed": false,
+        "failures": _failures
+    }
+    _write_scan_and_exit(result)
+
+func _write_scan_and_exit(result: Dictionary) -> void:
+    result["failures"] = _failures
+    var file := FileAccess.open(SCAN_RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        push_error("GATE8_SOURCE_CANDIDATE_SCAN_RESULT_OPEN_FAILED")
+        quit(1)
+        return
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
+    print("GATE8_SOURCE_CANDIDATE_SCAN state=%s candidates=%d failures=%d alias_selected=false production_authorized=false" % [
+        String(result.get("decision_state", "unknown")), SOURCE_CANDIDATES.size(), _failures.size()
+    ])
+    quit(0 if _failures.is_empty() else 1)

@@ -1,0 +1,247 @@
+extends "res://game/tests/gate8_variant01_walk_formal_visual_witness.gd"
+
+const SKIN_SPACE_RESULT_PATH := "res://gate8_variant01_walk_formal_skin_space_result.json"
+const SEVERE_ABSOLUTE_EDGE_CHANGE_M := 0.25
+const SEVERE_STRETCH_RATIO := 3.0
+const SEVERE_COMPRESSION_RATIO := 0.25
+const MIN_EDGE_LENGTH_M := 0.00001
+
+func _run() -> void:
+    root.size = Vector2i(1280, 720)
+    _build_world()
+    if not await _load_and_wire_native_retarget():
+        _write_skin_space_and_exit({
+            "format": "grand-bruxelles-gate8-variant01-walk-formal-skin-space-v1",
+            "candidate_variant": 1,
+            "diagnostic_state": "BLOCKED_SETUP"
+        })
+        return
+
+    _run_skin_math_regression()
+    var integrity := _validate_target_visual_integrity()
+    var animation_name := _resolve_animation_name(_source_player, VISUAL_CLIP)
+    if animation_name.is_empty():
+        _failures.append("skin_space_clip_missing=%s" % VISUAL_CLIP)
+        _write_skin_space_and_exit(_result_payload_skin(integrity, {}, 0.0, "BLOCKED_CLIP"))
+        return
+    var animation := _source_player.get_animation(animation_name)
+    if animation == null or animation.length <= 0.0:
+        _failures.append("skin_space_clip_invalid=%s" % VISUAL_CLIP)
+        _write_skin_space_and_exit(_result_payload_skin(integrity, {}, 0.0, "BLOCKED_CLIP"))
+        return
+
+    var sample_time := clampf(animation.length * VISUAL_SAMPLE_PHASE, 0.0, maxf(0.0, animation.length - 0.00001))
+    var ground_correction := await _pose_visual_candidate(animation_name, sample_time)
+    _target_skeleton.force_update_all_bone_transforms()
+    var deformation := _measure_skin_space_edges()
+    var severe := (
+        float(deformation.get("max_absolute_edge_change_m", 0.0)) >= SEVERE_ABSOLUTE_EDGE_CHANGE_M
+        or float(deformation.get("max_stretch_ratio", 1.0)) >= SEVERE_STRETCH_RATIO
+        or float(deformation.get("min_compression_ratio", 1.0)) <= SEVERE_COMPRESSION_RATIO
+    )
+    var state := "SEVERE_SKIN_SPACE_STRETCH_REPRODUCED" if severe else "VISIBLE_STRETCH_NOT_REPRODUCED_IN_CPU_SKIN_SPACE"
+    if not severe:
+        _failures.append("visible_stretch_not_reproduced_at_walk_formal_phase")
+    _write_skin_space_and_exit(_result_payload_skin(integrity, deformation, ground_correction, state))
+
+func _measure_skin_space_edges() -> Dictionary:
+    var edge_count := 0
+    var max_abs := 0.0
+    var max_ratio := 1.0
+    var min_ratio := 1.0
+    var max_abs_edge := {}
+    var max_ratio_edge := {}
+    var min_ratio_edge := {}
+    var weighted_vertex_count := 0
+
+    for mesh: MeshInstance3D in _target_meshes:
+        if not is_instance_valid(mesh) or mesh.mesh == null or mesh.skin == null:
+            continue
+        for surface_index: int in range(mesh.mesh.get_surface_count()):
+            var arrays := mesh.mesh.surface_get_arrays(surface_index)
+            var vertices = arrays[Mesh.ARRAY_VERTEX]
+            var bones = arrays[Mesh.ARRAY_BONES]
+            var weights = arrays[Mesh.ARRAY_WEIGHTS]
+            var indices = arrays[Mesh.ARRAY_INDEX]
+            if vertices == null or vertices.size() < 3:
+                continue
+            if bones == null or weights == null or bones.size() == 0 or bones.size() != weights.size() or bones.size() % vertices.size() != 0:
+                _failures.append("skin_space_influence_layout_invalid mesh=%s surface=%d vertices=%d bones=%d weights=%d" % [mesh.name, surface_index, vertices.size(), 0 if bones == null else bones.size(), 0 if weights == null else weights.size()])
+                continue
+            var influences_per_vertex := int(bones.size() / vertices.size())
+            if influences_per_vertex <= 0:
+                _failures.append("skin_space_zero_influences mesh=%s surface=%d" % [mesh.name, surface_index])
+                continue
+            weighted_vertex_count += vertices.size()
+            var triangle_indices: Array[int] = []
+            if indices != null and indices.size() >= 3:
+                for value in indices:
+                    triangle_indices.append(int(value))
+            else:
+                for idx: int in range(vertices.size()):
+                    triangle_indices.append(idx)
+            var triangle_count := int(triangle_indices.size() / 3)
+            for tri: int in range(triangle_count):
+                var a := triangle_indices[tri * 3]
+                var b := triangle_indices[tri * 3 + 1]
+                var c := triangle_indices[tri * 3 + 2]
+                for pair in [[a, b], [b, c], [c, a]]:
+                    var va := int(pair[0])
+                    var vb := int(pair[1])
+                    if va < 0 or vb < 0 or va >= vertices.size() or vb >= vertices.size():
+                        _failures.append("skin_space_index_out_of_range mesh=%s surface=%d triangle=%d" % [mesh.name, surface_index, tri])
+                        continue
+                    var rest_a := _skin_vertex(vertices[va], va, bones, weights, influences_per_vertex, mesh.skin, true)
+                    var rest_b := _skin_vertex(vertices[vb], vb, bones, weights, influences_per_vertex, mesh.skin, true)
+                    var posed_a := _skin_vertex(vertices[va], va, bones, weights, influences_per_vertex, mesh.skin, false)
+                    var posed_b := _skin_vertex(vertices[vb], vb, bones, weights, influences_per_vertex, mesh.skin, false)
+                    var rest_len := rest_a.distance_to(rest_b)
+                    var posed_len := posed_a.distance_to(posed_b)
+                    if rest_len < MIN_EDGE_LENGTH_M:
+                        continue
+                    var ratio := posed_len / rest_len
+                    var abs_change := absf(posed_len - rest_len)
+                    edge_count += 1
+                    var row := {
+                        "mesh": String(mesh.name),
+                        "surface": surface_index,
+                        "triangle": tri,
+                        "vertex_a": va,
+                        "vertex_b": vb,
+                        "rest_length_m": rest_len,
+                        "posed_length_m": posed_len,
+                        "absolute_change_m": abs_change,
+                        "ratio": ratio,
+                        "vertex_a_weights": _vertex_influences(va, bones, weights, influences_per_vertex, mesh.skin),
+                        "vertex_b_weights": _vertex_influences(vb, bones, weights, influences_per_vertex, mesh.skin)
+                    }
+                    if abs_change > max_abs:
+                        max_abs = abs_change
+                        max_abs_edge = row
+                    if ratio > max_ratio:
+                        max_ratio = ratio
+                        max_ratio_edge = row
+                    if ratio < min_ratio:
+                        min_ratio = ratio
+                        min_ratio_edge = row
+
+    if edge_count <= 0 or weighted_vertex_count <= 0:
+        _failures.append("skin_space_no_weighted_edges")
+    for value: float in [max_abs, max_ratio, min_ratio]:
+        if not is_finite(value):
+            _failures.append("skin_space_non_finite_metric")
+            break
+    print("GATE8_WALK_FORMAL_SKIN_SPACE edges=%d vertices=%d max_abs=%.6f max_ratio=%.6f min_ratio=%.6f" % [edge_count, weighted_vertex_count, max_abs, max_ratio, min_ratio])
+    return {
+        "weighted_vertex_count": weighted_vertex_count,
+        "edge_count": edge_count,
+        "max_absolute_edge_change_m": max_abs,
+        "max_stretch_ratio": max_ratio,
+        "min_compression_ratio": min_ratio,
+        "max_absolute_edge": max_abs_edge,
+        "max_stretch_edge": max_ratio_edge,
+        "min_compression_edge": min_ratio_edge
+    }
+
+func _skin_vertex(vertex: Vector3, vertex_index: int, bones, weights, influences_per_vertex: int, skin: Skin, use_rest: bool) -> Vector3:
+    var accumulated := Vector3.ZERO
+    var total_weight := 0.0
+    for influence: int in range(influences_per_vertex):
+        var slot := vertex_index * influences_per_vertex + influence
+        var weight := float(weights[slot])
+        if weight <= 0.0:
+            continue
+        var bind_index := int(bones[slot])
+        if bind_index < 0 or bind_index >= skin.get_bind_count():
+            _failures.append("skin_space_bind_index_invalid=%d" % bind_index)
+            continue
+        var bone_index := _resolve_skin_bone_index(skin, bind_index)
+        if bone_index < 0 or bone_index >= _target_skeleton.get_bone_count():
+            _failures.append("skin_space_bone_unresolved bind=%d" % bind_index)
+            continue
+        var bone_transform := _target_skeleton.get_bone_global_rest(bone_index) if use_rest else _target_skeleton.get_bone_global_pose(bone_index)
+        accumulated += (bone_transform * skin.get_bind_pose(bind_index)) * vertex * weight
+        total_weight += weight
+    if total_weight <= 0.000001:
+        _failures.append("skin_space_vertex_without_positive_weight=%d" % vertex_index)
+        return vertex
+    return accumulated / total_weight
+
+func _resolve_skin_bone_index(skin: Skin, bind_index: int) -> int:
+    var bone_index := skin.get_bind_bone(bind_index)
+    if bone_index >= 0:
+        return bone_index
+    var bind_name := String(skin.get_bind_name(bind_index))
+    if bind_name.is_empty():
+        return -1
+    return _target_skeleton.find_bone(bind_name)
+
+func _vertex_influences(vertex_index: int, bones, weights, influences_per_vertex: int, skin: Skin) -> Array:
+    var rows: Array = []
+    for influence: int in range(influences_per_vertex):
+        var slot := vertex_index * influences_per_vertex + influence
+        var weight := float(weights[slot])
+        if weight <= 0.000001:
+            continue
+        var bind_index := int(bones[slot])
+        var bone_index := -1
+        var bone_name := "UNRESOLVED"
+        if bind_index >= 0 and bind_index < skin.get_bind_count():
+            bone_index = _resolve_skin_bone_index(skin, bind_index)
+            if bone_index >= 0 and bone_index < _target_skeleton.get_bone_count():
+                bone_name = _target_skeleton.get_bone_name(bone_index)
+        rows.append({"bind_index": bind_index, "bone_index": bone_index, "bone_name": bone_name, "weight": weight})
+    return rows
+
+func _run_skin_math_regression() -> void:
+    var a := Vector3(0.1, 0.2, -0.3)
+    var b := Vector3(0.9, -0.1, 0.4)
+    var rigid := Transform3D(Basis(Vector3(0.2, 0.9, 0.3).normalized(), 0.73), Vector3(1.2, -0.7, 2.1))
+    var before := a.distance_to(b)
+    var after := (rigid * a).distance_to(rigid * b)
+    if absf(before - after) > 0.000001:
+        _failures.append("regression_rigid_transform_changed_edge_length")
+
+func _result_payload_skin(integrity: Dictionary, deformation: Dictionary, ground_correction: float, state: String) -> Dictionary:
+    return {
+        "format": "grand-bruxelles-gate8-variant01-walk-formal-skin-space-v1",
+        "engine_version": Engine.get_version_info().get("string", "unknown"),
+        "candidate_variant": 1,
+        "candidate_static_verdict": "AMELIORER",
+        "walk_candidate": VISUAL_CLIP,
+        "walk_candidate_status": "MECHANICAL_LEAD_NOT_ADOPTED",
+        "sample_phase": VISUAL_SAMPLE_PHASE,
+        "ground_correction_m": ground_correction,
+        "target_integrity": integrity,
+        "deformation": deformation,
+        "diagnostic_state": state,
+        "thresholds": {
+            "severe_absolute_edge_change_m": SEVERE_ABSOLUTE_EDGE_CHANGE_M,
+            "severe_stretch_ratio": SEVERE_STRETCH_RATIO,
+            "severe_compression_ratio": SEVERE_COMPRESSION_RATIO
+        },
+        "retarget_engine": "RetargetModifier3D",
+        "normalization_formula": "D=Rs^-1*Ps; Pnormalized=Rt*D",
+        "walk_alias_selected": "",
+        "run_alias_selected": "",
+        "production_authorized": false,
+        "activation_ready": false,
+        "adoption_ready": false,
+        "runtime_population_changed": false,
+        "visual_approval_claimed": false,
+        "retarget_changed": false,
+        "thresholds_changed": false,
+        "failures": _failures
+    }
+
+func _write_skin_space_and_exit(result: Dictionary) -> void:
+    var file := FileAccess.open(SKIN_SPACE_RESULT_PATH, FileAccess.WRITE)
+    if file == null:
+        _failures.append("skin_space_result_file_open_failed")
+        quit(1)
+        return
+    result["failures"] = _failures
+    file.store_string(JSON.stringify(result, "  "))
+    file.close()
+    print("GATE8_WALK_FORMAL_SKIN_SPACE_RESULT state=%s failures=%d alias_selected=false production_authorized=false" % [String(result.get("diagnostic_state", "unknown")), _failures.size()])
+    quit(0 if _failures.is_empty() else 1)

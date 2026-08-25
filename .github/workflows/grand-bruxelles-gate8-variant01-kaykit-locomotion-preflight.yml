@@ -1,0 +1,117 @@
+name: Grand Bruxelles Gate-8 Variant-01 KayKit Locomotion Preflight
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-kaykit-locomotion-preflight.yml"
+      - "grand-bruxelles-game/tests/gate8_variant01_kaykit_locomotion_preflight.gd"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_kaykit_walk_source_intake.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kaykit-locomotion-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SOURCE_URL: https://opengameart.org/sites/default/files/kaykit_character_animations_1.2.zip
+      EXPECTED_SHA256: c9d3fbea492dc6edd0903939369a564c2240b892430bcd99e0aee4876110bb8f
+      EXPECTED_SIZE: "7959257"
+      GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$(git rev-parse origin/main)" HEAD
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Acquire pinned KayKit and Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 "$SOURCE_URL" -o /tmp/kaykit.zip
+          test "$(sha256sum /tmp/kaykit.zip | awk '{print $1}')" = "$EXPECTED_SHA256"
+          test "$(stat -c '%s' /tmp/kaykit.zip)" = "$EXPECTED_SIZE"
+          curl -fL --retry 3 "$GODOT_URL" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --version | tee /tmp/godot-version.txt
+          grep -Fq '4.7.1' /tmp/godot-version.txt
+
+      - name: Build isolated import project
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/kaykit-unpack /tmp/kaykit-project
+          mkdir -p /tmp/kaykit-unpack /tmp/kaykit-project/kaykit /tmp/kaykit-project/tests
+          unzip -q /tmp/kaykit.zip -d /tmp/kaykit-unpack
+          find /tmp/kaykit-unpack -type f \( -iname '*.glb' -o -iname '*.gltf' \) -print0 | while IFS= read -r -d '' f; do cp "$f" /tmp/kaykit-project/kaykit/; done
+          test "$(find /tmp/kaykit-project/kaykit -maxdepth 1 -type f | wc -l)" -eq 4
+          cp grand-bruxelles-game/tests/gate8_variant01_kaykit_locomotion_preflight.gd /tmp/kaykit-project/tests/
+          cat > /tmp/kaykit-project/project.godot <<'EOF'
+          [application]
+          config/name="Gate8KayKitLocomotionPreflight"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path /tmp/kaykit-project --editor --quit-after 120 2>&1 | tee /tmp/kaykit-import.log
+          test -d /tmp/kaykit-project/.godot/imported
+
+      - name: Run locomotion measurement
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 180 /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --audio-driver Dummy --path /tmp/kaykit-project --script res://tests/gate8_variant01_kaykit_locomotion_preflight.gd 2>&1 | tee /tmp/kaykit-locomotion.log
+          status=${PIPESTATUS[0]}
+          set -e
+          test -f /tmp/gate8-kaykit-locomotion-preflight.json
+          cp /tmp/gate8-kaykit-locomotion-preflight.json /tmp/kaykit-locomotion-preflight.json
+          python - <<'PY'
+          import json
+          p='/tmp/kaykit-locomotion-preflight.json'
+          d=json.load(open(p))
+          assert d['production_authorized'] is False
+          assert d['activation_ready'] is False
+          assert d['adoption_ready'] is False
+          assert d['walk_alias_selected'] == '' and d['run_alias_selected'] == ''
+          assert set(d.get('metrics', {})) == {'idle','walk','run'}
+          for k,v in d['metrics'].items():
+              assert v['samples'] >= 2 and v['duration_s'] > 0
+              assert v['max_upper_arm_delta_deg'] >= 0
+              assert v['foot_vertical_span_m'] >= 0
+              assert v['contact_slide_mean_mps'] >= 0
+          assert d.get('failures') == []
+          print('GATE8_KAYKIT_LOCOMOTION_MEASUREMENT_OK')
+          PY
+          test "$status" -eq 0
+          grep -Fq 'GATE8_KAYKIT_LOCOMOTION_PREFLIGHT_OK' /tmp/kaykit-locomotion.log
+
+      - name: Prove ephemeral assets and clean checkout
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/kaykit.zip /tmp/kaykit-unpack /tmp/kaykit-project /tmp/godot /tmp/godot.zip
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Stage evidence
+        if: always()
+        run: |
+          mkdir -p /tmp/gate8-kaykit-locomotion-evidence
+          for f in /tmp/godot-version.txt /tmp/kaykit-import.log /tmp/kaykit-locomotion.log /tmp/kaykit-locomotion-preflight.json; do [ -f "$f" ] && cp "$f" /tmp/gate8-kaykit-locomotion-evidence/; done
+          git status --porcelain=v1 > /tmp/gate8-kaykit-locomotion-evidence/git-status.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-gate8-variant01-kaykit-locomotion-preflight
+          path: /tmp/gate8-kaykit-locomotion-evidence
+          if-no-files-found: error
+          retention-days: 14

@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/game/scripts/midi_city_machine_facade_material.gd"
       - "grand-bruxelles-game/game/zones/midi/midi_city_machine_zone.gd"
       - "grand-bruxelles-game/game/tests/midi_city_machine_facade_labo_contract_test.gd"
+      - "grand-bruxelles-game/data/qa/midi_city_machine_facade_labo.contract.json"
       - "grand-bruxelles-game/data/qa/playable_zone_catalog.json"
   workflow_dispatch:
 
@@ -84,6 +85,15 @@ jobs:
           assert zones['midi']['mode']=='fast_travel'
           assert zones['midi_machine_labo']['quality']=='LABO'
           assert zones['midi_machine_labo']['review_alias_of']=='midi'
+          contract=json.loads(Path('grand-bruxelles-game/data/qa/midi_city_machine_facade_labo.contract.json').read_text(encoding='utf-8'))
+          assert contract['schema']=='grand-bruxelles-midi-city-machine-facade-labo-contract-v1'
+          assert contract['zone_id']=='midi_machine_labo'
+          assert contract['review_alias_of']=='midi'
+          assert contract['ab_toggle_required'] is True
+          auth=contract['authorization']
+          assert auth['labo_visual_material_override'] is True
+          for key in ['geometry_mutation','semantic_windows','semantic_doors','building_material_identity','canonical_midi_runtime_replacement','jouable_promotion']:
+              assert auth[key] is False, key
           material=Path('grand-bruxelles-game/game/scripts/midi_city_machine_facade_material.gd').read_text(encoding='utf-8')
           for marker in [
               'semantic_windows_claimed", false',
@@ -93,5 +103,5 @@ jobs:
               'promotion_performed", false',
           ]:
               assert marker in material, marker
-          print('MIDI_CITY_MACHINE_FACADE_FAIL_CLOSED_OK promotion=false jouable=false semantics=false')
+          print('MIDI_CITY_MACHINE_FACADE_FAIL_CLOSED_OK promotion=false jouable=false semantics=false geometry_mutation=false')
           PY

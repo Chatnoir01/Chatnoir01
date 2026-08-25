@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Review Bourse canonical-cell registration readiness without registering it.
+"""Review Bourse canonical-cell registration evidence without opening runtime rails.
 
 Consumes only persisted, content-addressed repository evidence. It never queries
-remote services and never writes a canonical manifest or registered-cell index.
+remote services and never mutates the canonical manifest or registered-cell index.
+The reviewer is lifecycle-aware: before registration it proves readiness for a
+separate canonical-manifest review; after evidence-only registration it proves
+that the canonical manifest and registered index remain bound to the same locked
+source and boundary evidence.
 """
 from __future__ import annotations
 
@@ -42,6 +46,15 @@ FORBIDDEN_TRUE = (
     "safe_spawn_authorized",
     "jouable_promotion_authorized",
 )
+INDEX_CLOSED_RAILS = (
+    "road_crosswalk_authorized",
+    "runtime_directory_scan_authorized",
+    "runtime_mount_authorized",
+    "rendered_geometry_authorized",
+    "collision_authorized",
+    "safe_spawn_authorized",
+    "jouable_promotion_authorized",
+)
 
 
 def sha256(path: Path) -> str:
@@ -56,6 +69,63 @@ def require_false(payload: dict, keys=FORBIDDEN_TRUE) -> None:
     for key in keys:
         if payload.get(key) is not False:
             raise RuntimeError(f"{key} must remain explicitly false")
+
+
+def validate_canonical_registration(game_root: Path, registered: dict) -> dict | None:
+    canonical_path = game_root / CANONICAL_MANIFEST
+    registered_rows = [row for row in registered.get("entries", []) if str(row.get("cell_id")) == CELL_ID]
+    canonical_exists = canonical_path.is_file()
+    registered_exists = bool(registered_rows)
+    if canonical_exists != registered_exists:
+        raise RuntimeError("Bourse canonical manifest/index registration is partial or inconsistent")
+    if not canonical_exists:
+        return None
+    if len(registered_rows) != 1:
+        raise RuntimeError("Bourse registered-cell index must contain exactly one target row")
+
+    canonical = load(canonical_path)
+    if canonical.get("format") != "grand-bruxelles-cell-maturity-v1":
+        raise RuntimeError("Bourse canonical manifest format drift")
+    if canonical.get("cell_id") != CELL_ID or canonical.get("crs") != "EPSG:31370" or canonical.get("bbox") != BBOX:
+        raise RuntimeError("Bourse canonical manifest identity/CRS/bbox drift")
+    maturity = canonical.get("maturity") or {}
+    if maturity.get("state") != "data_ready":
+        raise RuntimeError("Bourse canonical manifest is not data_ready")
+    gates = maturity.get("gates") or {}
+    for key in ("runtime_geometry", "collisions", "streaming", "terrain", "heights", "photo_match", "performance"):
+        if gates.get(key) is not False:
+            raise RuntimeError(f"Bourse canonical maturity gate unexpectedly open: {key}")
+
+    provenance = canonical.get("provenance") or {}
+    if provenance.get("license") != "CC0-1.0" or provenance.get("source_semantic_sha256") != EXPECTED_SOURCE_SEMANTIC:
+        raise RuntimeError("Bourse canonical source provenance drift")
+    if provenance.get("municipality_assignment_policy") != "retain_all_official_intersections_no_dominant_municipality_canonicalization":
+        raise RuntimeError("Bourse canonical municipality policy drift")
+    if provenance.get("municipality_boundary_semantic_sha256") != EXPECTED_MUNICIPAL_SEMANTIC:
+        raise RuntimeError("Bourse canonical municipality-boundary digest drift")
+    intersections = provenance.get("municipality_intersections") or []
+    if [str(row.get("niscode")) for row in intersections] != ["21001", "21004"]:
+        raise RuntimeError("Bourse canonical municipality set/order drift")
+
+    row = registered_rows[0]
+    expected_path = CANONICAL_MANIFEST.as_posix()
+    if row.get("manifest_path") != expected_path:
+        raise RuntimeError("Bourse registered index manifest path drift")
+    if row.get("manifest_sha256") != sha256(canonical_path):
+        raise RuntimeError("Bourse registered index manifest hash drift")
+    if row.get("crs") != "EPSG:31370" or row.get("bbox") != BBOX or row.get("maturity_state") != "data_ready":
+        raise RuntimeError("Bourse registered index identity/CRS/bbox/maturity drift")
+    if row.get("evidence_only") is not True:
+        raise RuntimeError("Bourse registered index must remain evidence-only")
+    for key in ("runtime_mount_authorized", "rendered_geometry_authorized", "collision_authorized", "safe_spawn_authorized", "jouable_promotion_authorized"):
+        if row.get(key) is not False:
+            raise RuntimeError(f"Bourse registered row rail unexpectedly open: {key}")
+    return {
+        "manifest_path": expected_path,
+        "manifest_sha256": row["manifest_sha256"],
+        "registered_cell_count": int(registered.get("registered_cell_count", -1)),
+        "evidence_only": True,
+    }
 
 
 def build_review(game_root: Path, production_base_sha: str) -> dict:
@@ -144,18 +214,16 @@ def build_review(game_root: Path, production_base_sha: str) -> dict:
     if seen != set(EXPECTED_MUNICIPALITIES):
         raise RuntimeError("municipality set drift")
 
-    registered_ids = {entry.get("cell_id") for entry in registered.get("entries", [])}
-    if CELL_ID in registered_ids:
-        raise RuntimeError("Bourse is already registered; this review phase is obsolete")
-    if (game_root / CANONICAL_MANIFEST).exists():
-        raise RuntimeError("Bourse canonical manifest already exists; this review phase is obsolete")
-    for key in ("road_crosswalk_authorized", "runtime_directory_scan_authorized", "runtime_mount_authorized", "rendered_geometry_authorized", "collision_authorized", "safe_spawn_authorized", "jouable_promotion_authorized"):
+    for key in INDEX_CLOSED_RAILS:
         if registered.get(key) is not False:
             raise RuntimeError(f"registered-cell index rail unexpectedly open: {key}")
+    registration = validate_canonical_registration(game_root, registered)
+    post_registration = registration is not None
 
     review = {
         "schema": "grand-bruxelles-bourse-canonical-registration-review-v1",
-        "status": "READY_FOR_CANONICAL_MANIFEST_REVIEW_BOUNDARY_CELL",
+        "status": "REGISTERED_EVIDENCE_ONLY_REVIEW_RETAINED" if post_registration else "READY_FOR_CANONICAL_MANIFEST_REVIEW_BOUNDARY_CELL",
+        "lifecycle_phase": "registered_evidence_only" if post_registration else "pre_registration_review",
         "production_base_sha": production_base_sha,
         "cell_id": CELL_ID,
         "crs": "EPSG:31370",
@@ -179,8 +247,9 @@ def build_review(game_root: Path, production_base_sha: str) -> dict:
                 {"niscode": "21004", "inspire_id": EXPECTED_MUNICIPALITIES["21004"][0], "intersection_area_m2": EXPECTED_MUNICIPALITIES["21004"][1], "coverage_ratio": 0.16791493708716362},
             ],
         },
-        "registered_cell_count_before_review": int(registered["registered_cell_count"]),
-        "canonical_manifest_present": False,
+        "registered_cell_count": int(registered["registered_cell_count"]),
+        "canonical_manifest_present": post_registration,
+        "registration_evidence": registration,
         "registration_authorized": False,
         "road_cell_mapping_authorized": False,
         "runtime_directory_scan_authorized": False,
@@ -189,7 +258,11 @@ def build_review(game_root: Path, production_base_sha: str) -> dict:
         "collision_authorized": False,
         "safe_spawn_authorized": False,
         "jouable_promotion_authorized": False,
-        "next_action": "separate canonical-manifest candidate generation preserving both municipality intersections; do not mutate registered-cell index in this review lot",
+        "next_action": (
+            "retain evidence-only registration and continue separate road/runtime readiness gates; do not infer playability"
+            if post_registration else
+            "separate canonical-manifest candidate generation preserving both municipality intersections; do not mutate registered-cell index in this review lot"
+        ),
     }
     canonical = json.dumps(review, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     review["semantic_sha256"] = hashlib.sha256(canonical).hexdigest()

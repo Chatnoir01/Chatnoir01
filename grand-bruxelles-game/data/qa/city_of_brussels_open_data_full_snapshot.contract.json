@@ -1,0 +1,52 @@
+{
+  "schema": "grand-bruxelles-city-open-data-full-snapshot-contract-v1",
+  "source": {
+    "authority": "City of Brussels / Ville de Bruxelles / Stad Brussel",
+    "portal": "https://opendata.brussels.be",
+    "api_base": "https://opendata.brussels.be/api/explore/v2.1",
+    "catalog_discovery": "/catalog/datasets",
+    "record_retrieval": "/catalog/datasets/{dataset_id}/exports/json",
+    "federated_fallback": {
+      "authorized_only_when_catalog_federated_true": true,
+      "api_base": "https://data.opendatasoft.com/api/explore/v2.1",
+      "domain_id": "bruxellesdata",
+      "dataset_identity": "{dataset_id}@bruxellesdata",
+      "record_retrieval": "/catalog/datasets/{dataset_id}@bruxellesdata/exports/json",
+      "partial_records_pagination_allowed": false
+    },
+    "known_retired_federated_complete_exports": [
+      {
+        "dataset_id": "pandemie-covid-19-nombre-de-cas-confirmes-par-date-age-et-genre-belgique",
+        "required_catalog_federated": true,
+        "required_catalog_has_records": true,
+        "required_city_complete_export_http_status": 404,
+        "required_data_hub_city_domain_complete_export_http_status": 404,
+        "substitute_mirror_authorized": false,
+        "status": "SOURCE_BYTES_CURRENTLY_UNAVAILABLE_METADATA_ONLY_HOLD"
+      }
+    ],
+    "retrieval_note": "The catalogue is discovered dynamically at snapshot time; no fixed dataset count is assumed. Complete JSON exports are used instead of /records pagination. If and only if the City catalogue explicitly marks an entry federated=true and its municipal complete-export endpoint returns HTTP 404, the same City-domain dataset may be attempted as {dataset_id}@bruxellesdata from the public Opendatasoft Data Hub. One currently retired COVID federated entry is explicitly fail-closed as metadata-only only after both complete-export identities return 404; similarly named mirrors are not accepted as substitutes."
+  },
+  "execution": {
+    "catalog_fetched_once_per_run": true,
+    "deterministic_shard_count": 8,
+    "retry_http_statuses": [429, 500, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511],
+    "per_export_sha256": true,
+    "metadata_preserved": true,
+    "artifact_only": true,
+    "repository_data_persistence": false
+  },
+  "authorization": {
+    "source_acquisition": true,
+    "source_snapshot_artifact": true,
+    "source_registration": false,
+    "canonical_registration": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  },
+  "status": "FULL_PUBLIC_CATALOG_SNAPSHOT_PIPELINE_SOURCE_ONLY"
+}

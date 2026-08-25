@@ -1,0 +1,181 @@
+name: Grand Bruxelles Anneessens UrbIS Source Cell
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-anneessens-urbis-source-cell.yml"
+      - "grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.contract.json"
+      - "grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/**"
+      - "grand-bruxelles-game/tools/citygen/materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/measure_urbis_source_cell_semantic_lock.py"
+      - "grand-bruxelles-game/tools/citygen/test_materialize_urbis_source_cell.py"
+      - "grand-bruxelles-game/tools/citygen/test_measure_urbis_source_cell_semantic_lock.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.contract.json
+  LOCK: grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json
+  CELL_ID: bxl-e147500-n169500-s500
+  LOCKED_ARTIFACT_ID: "9569240423"
+  LOCKED_ARTIFACT_SHA256: 484a6b546d1f82c2847ba3fa6bac506b83eb0ca996ba29df1298faf66f740ee5
+  LOCKED_ARTIFACT_SIZE: "308618"
+
+jobs:
+  reproduce-authoritative-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry, locked artifact and closed rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          head_sha="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$live_main" "$head_sha"
+          python3 - "$live_main" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live = sys.argv[1]
+          contract = json.loads(Path("grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.contract.json").read_text(encoding="utf-8"))
+          lock = json.loads(Path("grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json").read_text(encoding="utf-8"))
+          assert contract["production_base_sha"] == live, (contract["production_base_sha"], live)
+          assert contract["status"] == "SEMANTIC_MEASUREMENT_LOCKED_SOURCE_ONLY"
+          assert contract["target"] == {"cell_id":"bxl-e147500-n169500-s500","crs":"EPSG:31370","bbox":[147500.0,169500.0,148000.0,170000.0]}
+          source = contract["source"]
+          assert source["authority"] == "Paradigm / Brussels-Capital Region"
+          assert source["service"] == "https://geoservices-urbis.irisnet.be/geoserver/urbisvector/wfs"
+          assert source["license"] == "CC0-1.0"
+          assert source["retrieval_model"] == "first_measurement_live_wfs_then_artifact_only_reproduction"
+          assert contract["municipality_assignment_authorized"] is False
+          evidence = contract["first_measurement_evidence"]
+          assert evidence == {
+            "workflow_run_id": 32863742209,
+            "artifact_id": 9569240423,
+            "artifact_sha256": "484a6b546d1f82c2847ba3fa6bac506b83eb0ca996ba29df1298faf66f740ee5",
+            "artifact_size_bytes": 308618,
+            "measurement_sha256": "bc85dec9a65283150ee628d8761154e0201311c5cfcbae95f92796daaa4039c5",
+            "measurement_size_bytes": 3313,
+            "package_manifest_sha256": "53712b26bcf3ad82929338b162451b585f94ca8aba843240c9b911a1465ce730",
+          }
+          expected = contract["expected"]
+          assert lock["source_semantic_sha256"] == expected["source_semantic_sha256"] == "496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0"
+          assert lock["manifest_source_digest"] == expected["manifest_source_digest"]
+          assert lock["manifest_sha256"] == expected["manifest_sha256"]
+          assert lock["maturity_sha256"] == expected["maturity_sha256"]
+          assert lock["maturity_state"] == "data_ready"
+          for name, spec in expected["layers"].items():
+            got = lock["layers"][name]
+            for key, value in spec.items():
+              assert got[key] == value, (name, key, got[key], value)
+          auth = contract["authorization"]
+          assert auth["source_acquisition"] is True
+          for key in ["source_persistence","source_registration","canonical_registration","road_to_cell_mapping","runtime_mount","rendered_geometry","collision","safe_spawn","jouable_promotion"]:
+            assert auth[key] is False, key
+          for key in ["registration_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+            assert lock[key] is False, key
+          print(f"ANNEESSENS_SOURCE_CELL_LOCK_CONTRACT_OK live_main={live} semantic={lock['source_semantic_sha256']} rails_closed=true")
+          PY
+          if git cat-file -e "origin/main:grand-bruxelles-game/data/urbis/remaining_brussels/cells/${CELL_ID}/manifest.json" 2>/dev/null; then
+            echo "RED: Anneessens source cell already exists on live main; ownership changed" >&2
+            exit 1
+          fi
+
+      - name: Run generic source semantic-lock regressions
+        run: python3 grand-bruxelles-game/tools/citygen/test_measure_urbis_source_cell_semantic_lock.py
+
+      - name: Restore exact RED-first artifact, never rescan mutable WFS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/anneessens-source-${LOCKED_ARTIFACT_ID}.zip"
+          unpack="$RUNNER_TEMP/anneessens-source-artifact"
+          source_root="$RUNNER_TEMP/$CELL_ID"
+          rm -rf "$zip" "$unpack" "$source_root"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${LOCKED_ARTIFACT_ID}/zip" > "$zip"
+          echo "${LOCKED_ARTIFACT_SHA256}  $zip" | sha256sum -c -
+          test "$(stat -c '%s' "$zip")" = "$LOCKED_ARTIFACT_SIZE"
+          mkdir -p "$unpack"
+          unzip -q "$zip" -d "$unpack"
+          echo "bc85dec9a65283150ee628d8761154e0201311c5cfcbae95f92796daaa4039c5  $unpack/measurement.json" | sha256sum -c -
+          test "$(stat -c '%s' "$unpack/measurement.json")" = "3313"
+          echo "53712b26bcf3ad82929338b162451b585f94ca8aba843240c9b911a1465ce730  $unpack/package_manifest.json" | sha256sum -c -
+          python3 - "$unpack" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          manifest=json.loads((root/"package_manifest.json").read_text(encoding="utf-8"))
+          rows=manifest["files"]
+          assert len(rows)==8, len(rows)
+          seen=set()
+          for row in rows:
+            rel=Path(row["path"])
+            assert not rel.is_absolute() and ".." not in rel.parts
+            p=root/rel
+            assert p.is_file(), rel
+            raw=p.read_bytes()
+            assert len(raw)==int(row["bytes"]), rel
+            assert hashlib.sha256(raw).hexdigest()==row["sha256"], rel
+            seen.add(str(rel))
+          expected={
+            "measurement.json",
+            "source-cell/manifest.json","source-cell/maturity.json",
+            "source-cell/raw/buildings.geojson","source-cell/raw/street_axes.geojson",
+            "source-cell/raw/street_surfaces.geojson","source-cell/raw/train_network.geojson","source-cell/raw/tram_network.geojson",
+          }
+          assert seen==expected,(seen,expected)
+          print(f"ANNEESSENS_ARTIFACT_PACKAGE_OK files={len(rows)}")
+          PY
+          cp -a "$unpack/source-cell" "$source_root"
+          test "$(basename "$source_root")" = "$CELL_ID"
+          echo "ANNEESSENS_LOCKED_ARTIFACT_RESTORED artifact=${LOCKED_ARTIFACT_ID} sha256=${LOCKED_ARTIFACT_SHA256} bytes=${LOCKED_ARTIFACT_SIZE}"
+
+      - name: Reproduce exact semantic measurement from locked bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/tools/citygen/measure_urbis_source_cell_semantic_lock.py \
+            --cell-dir "$RUNNER_TEMP/$CELL_ID" \
+            --output "$RUNNER_TEMP/anneessens_urbis_source_cell.reproduced.json"
+          cmp "$RUNNER_TEMP/anneessens_urbis_source_cell.reproduced.json" "$LOCK"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"anneessens_urbis_source_cell.reproduced.json").read_text(encoding="utf-8"))
+          assert d["cell_id"]=="bxl-e147500-n169500-s500"
+          assert d["source_semantic_sha256"]=="496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0"
+          assert d["layers"]["buildings"]["features"]==362
+          assert d["layers"]["buildings"]["ownership_filtered"]==52
+          assert d["layers"]["buildings"]["invalid_ownership_features"]==0
+          assert d["layers"]["street_axes"]["features"]==104
+          assert d["layers"]["street_surfaces"]["features"]==283
+          assert d["layers"]["tram_network"]["features"]==361
+          assert d["layers"]["train_network"]["features"]==361
+          for key in ["registration_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
+            assert d[key] is False,key
+          print("ANNEESSENS_SOURCE_CELL_LOCKED_EXACT semantic=496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0 buildings=362 axes=104 surfaces=283 tram=361 train=361 registration=false runtime=false")
+          PY
+
+      - name: Upload exact reproduction evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-urbis-source-cell-locked-reproduction
+          path: ${{ runner.temp }}/anneessens_urbis_source_cell.reproduced.json
+          if-no-files-found: error
+          retention-days: 30

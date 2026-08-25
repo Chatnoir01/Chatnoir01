@@ -47,8 +47,13 @@ func _run() -> void:
     main_mount.add_child(station)
 
     await process_frame
+    # Keep the three target names exact without sibling-name auto-renaming by
+    # placing each authored surface under its own structural subgroup.
     for index: int in range(EXPECTED_SURFACES):
-        station.add_child(_make_target(index))
+        var group := Node3D.new()
+        group.name = "FauquenbergSurfaceGroup_%d" % index
+        station.add_child(group)
+        group.add_child(_make_target(index))
 
     for _frame: int in range(40):
         if bool(runtime.call("ready_complete")):

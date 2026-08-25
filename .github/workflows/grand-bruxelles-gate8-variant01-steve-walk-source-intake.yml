@@ -1,0 +1,184 @@
+name: Grand Bruxelles Gate-8 Variant-01 Steve Walk Source Intake
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-steve-walk-source-intake.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_steve_walk_source_intake.json"
+      - "grand-bruxelles-game/tests/gate8_steve_blender_skeleton_inventory.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CONTRACT: grand-bruxelles-game/data/qa/gate8_variant01_steve_walk_source_intake.json
+  INVENTORY_SCRIPT: grand-bruxelles-game/tests/gate8_steve_blender_skeleton_inventory.py
+  SOURCE_PAGE: https://opengameart.org/content/npc-male-steve
+  SOURCE_ZIP: https://opengameart.org/sites/default/files/steve_npc1.zip
+  ARCHIVE_SHA256: e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5
+  ARCHIVE_BYTES: "1454243"
+  ARCHIVE_FILES: "11"
+
+jobs:
+  source-intake:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Require exact live-main base, narrow scope and closed rails
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git diff --name-only "$LIVE_MAIN_SHA" HEAD | sort > "$RUNNER_TEMP/changed-files.txt"
+          cat > "$RUNNER_TEMP/expected-files.txt" <<'EOF'
+          .github/workflows/grand-bruxelles-gate8-variant01-steve-walk-source-intake.yml
+          grand-bruxelles-game/data/qa/gate8_variant01_steve_walk_source_intake.json
+          grand-bruxelles-game/tests/gate8_steve_blender_skeleton_inventory.py
+          EOF
+          sort -o "$RUNNER_TEMP/expected-files.txt" "$RUNNER_TEMP/expected-files.txt"
+          diff -u "$RUNNER_TEMP/expected-files.txt" "$RUNNER_TEMP/changed-files.txt"
+          python3 - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live = sys.argv[1]
+          d = json.loads(Path("grand-bruxelles-game/data/qa/gate8_variant01_steve_walk_source_intake.json").read_text())
+          assert d["format"] == "grand-bruxelles-gate8-variant01-steve-walk-source-intake-v2"
+          assert d["base_main_sha"] == live, (d["base_main_sha"], live)
+          assert d["candidate_variant"] == 1
+          assert d["target_glb_sha256"] == "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9"
+          src = d["source"]
+          assert src["provider"] == "OpenGameArt"
+          assert src["title"] == "NPC male Steve"
+          assert src["author"] == "supersteve"
+          assert src["declared_license"] == "CC0-1.0"
+          assert src["page_url"] == "https://opengameart.org/content/npc-male-steve"
+          assert src["download_url"] == "https://opengameart.org/sites/default/files/steve_npc1.zip"
+          assert src["archive_name"] == "steve_npc1.zip"
+          assert src["archive_sha256"] == "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5"
+          assert src["archive_size_bytes"] == 1454243
+          assert src["archive_file_count"] == 11
+          assert src["exact_3d_source"] == "steve_npc1.blend"
+          gate = d["skeleton_inventory_gate"]
+          assert gate["required_humanoid_roles"] == ["hips", "left_upper_arm", "right_upper_arm", "left_foot", "right_foot"]
+          assert gate["required_semantic_clip"] == "walk"
+          assert gate["minimum_armature_count"] == 1
+          assert gate["minimum_bone_count"] == 10
+          assert gate["minimum_action_count"] == 1
+          assert gate["retarget_allowed_before_explicit_role_mapping"] is False
+          rails = d["rails"]
+          assert rails["source_intake_complete"] is True
+          assert rails["package_sha256_pinned"] is True
+          assert rails["skeleton_inventory_only"] is True
+          for key in ["humanoid_compatibility_claimed", "explicit_role_mapping_selected", "retarget_applied", "production_authorized", "activation_ready", "adoption_ready", "runtime_population_changed", "visual_approval_claimed", "player_character_reuse_allowed", "mixamo_payload_allowed"]:
+              assert rails[key] is False, key
+          assert rails["walk_alias_selected"] == ""
+          assert rails["run_alias_selected"] == ""
+          print(f"GATE8_STEVE_INTAKE_V2_CONTRACT_OK live_main={live} scope=3 package_pinned=true rails_closed=true")
+          PY
+
+      - name: Verify source page identity and declared CC0
+        run: |
+          set -euo pipefail
+          PAGE="$RUNNER_TEMP/steve-source-page.html"
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 120 \
+            -A 'Grand-Bruxelles-Gate8-Steve-Intake/2.0' "$SOURCE_PAGE" -o "$PAGE"
+          python3 - "$PAGE" <<'PY'
+          import sys
+          from pathlib import Path
+          text = Path(sys.argv[1]).read_text(errors="replace").lower()
+          required = ["npc male steve", "supersteve", "cc0", "steve_npc1.zip", "walk"]
+          missing = [token for token in required if token not in text]
+          assert not missing, missing
+          print("GATE8_STEVE_PAGE_IDENTITY_OK title=true author=true cc0=true archive=true walk=true")
+          PY
+
+      - name: Restore exact pinned source archive
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/steve_npc1.zip"
+          SRC="$RUNNER_TEMP/steve-source"
+          OUT="$RUNNER_TEMP/steve-intake"
+          mkdir -p "$SRC" "$OUT"
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 180 \
+            -A 'Grand-Bruxelles-Gate8-Steve-Intake/2.0' "$SOURCE_ZIP" -o "$ZIP"
+          echo "$ARCHIVE_SHA256  $ZIP" | sha256sum -c -
+          test "$(stat -c '%s' "$ZIP")" = "$ARCHIVE_BYTES"
+          unzip -t "$ZIP" >/dev/null
+          test "$(unzip -Z1 "$ZIP" | grep -vc '/$')" = "$ARCHIVE_FILES"
+          unzip -q "$ZIP" -d "$SRC"
+          test -s "$SRC/steve_npc1.blend"
+          printf '%s  %s\n' "$ARCHIVE_SHA256" steve_npc1.zip | tee "$OUT/package.sha256"
+          unzip -Z1 "$ZIP" | sort > "$OUT/archive-files.txt"
+          ! grep -Eiq 'mixamo|adobe' "$OUT/archive-files.txt"
+          echo "GATE8_STEVE_ARCHIVE_PIN_OK sha256=$ARCHIVE_SHA256 bytes=$ARCHIVE_BYTES files=$ARCHIVE_FILES source=steve_npc1.blend"
+
+      - name: Install Blender for Blender-only source preflight
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends blender >/dev/null
+          blender --version | head -n 2 | tee "$RUNNER_TEMP/steve-intake/blender-version.txt"
+
+      - name: Characterize real armature, skin and walk data
+        run: |
+          set -euo pipefail
+          blender --background "$RUNNER_TEMP/steve-source/steve_npc1.blend" \
+            --python "$INVENTORY_SCRIPT" -- \
+            --out "$RUNNER_TEMP/steve-intake/skeleton-inventory.json" \
+            2>&1 | tee "$RUNNER_TEMP/steve-intake/blender-inventory.log"
+          grep -q '^GATE8_STEVE_BLEND_INVENTORY_OK ' "$RUNNER_TEMP/steve-intake/blender-inventory.log"
+          python3 - "$RUNNER_TEMP/steve-intake/skeleton-inventory.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          d = json.loads(Path(sys.argv[1]).read_text())
+          assert d["format"] == "grand-bruxelles-gate8-variant01-steve-blender-skeleton-inventory-result-v1"
+          assert d["retarget_applied"] is False
+          assert d["walk_alias_selected"] == ""
+          assert d["run_alias_selected"] == ""
+          assert d["production_authorized"] is False
+          assert d["activation_ready"] is False
+          assert d["adoption_ready"] is False
+          assert d["visual_approval_claimed"] is False
+          allowed = {
+              "READY_FOR_GODOT_4_7_1_IMPORT_PREFLIGHT",
+              "BLOCKED_NON_HUMANOID_OR_UNSKINNED_SOURCE",
+              "BLOCKED_NO_WALK_CLIP_IN_BLEND_DATA",
+              "BLOCKED_NEEDS_EXPLICIT_ROLE_MAPPING",
+          }
+          assert d["mechanical_state"] in allowed, d["mechanical_state"]
+          if d["mechanical_state"] == "READY_FOR_GODOT_4_7_1_IMPORT_PREFLIGHT":
+              assert d["target_humanoid_retarget_compatible"] is True
+              assert d["explicit_role_candidates_complete"] is True
+              assert d["walk_clip_candidates"]
+          else:
+              assert d["target_humanoid_retarget_compatible"] is False
+          print(
+              "GATE8_STEVE_SKELETON_CHARACTERIZATION_OK "
+              f"state={d['mechanical_state']} armatures={d['armature_count']} "
+              f"skinned_meshes={d['skinned_mesh_count']} actions={d['action_count']} "
+              f"walk_candidates={len(d['walk_clip_candidates'])}"
+          )
+          PY
+
+      - name: Require repository remained untouched
+        if: always()
+        run: |
+          set -euo pipefail
+          git status --porcelain --untracked-files=all | tee "$RUNNER_TEMP/steve-intake/git-status.txt"
+          test ! -s "$RUNNER_TEMP/steve-intake/git-status.txt"
+
+      - name: Upload immutable intake and skeleton evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-variant01-steve-walk-source-intake
+          path: ${{ runner.temp }}/steve-intake
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

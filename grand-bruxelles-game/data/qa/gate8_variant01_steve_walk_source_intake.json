@@ -1,0 +1,62 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-steve-walk-source-intake-v2",
+  "base_main_sha": "20970cc84aae304b268d645d72d22598d6745b4b",
+  "candidate_variant": 1,
+  "target_glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+  "source": {
+    "provider": "OpenGameArt",
+    "title": "NPC male Steve",
+    "author": "supersteve",
+    "page_url": "https://opengameart.org/content/npc-male-steve",
+    "download_url": "https://opengameart.org/sites/default/files/steve_npc1.zip",
+    "declared_license": "CC0-1.0",
+    "archive_name": "steve_npc1.zip",
+    "archive_sha256": "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5",
+    "archive_size_bytes": 1454243,
+    "archive_file_count": 11,
+    "exact_3d_source": "steve_npc1.blend",
+    "declared_semantic_clips": [
+      "idle_or_idol",
+      "talk",
+      "point",
+      "walk",
+      "scared",
+      "sit"
+    ]
+  },
+  "skeleton_inventory_gate": {
+    "required_humanoid_roles": [
+      "hips",
+      "left_upper_arm",
+      "right_upper_arm",
+      "left_foot",
+      "right_foot"
+    ],
+    "required_semantic_clip": "walk",
+    "forbidden_payload_tokens": [
+      "mixamo",
+      "adobe"
+    ],
+    "minimum_armature_count": 1,
+    "minimum_bone_count": 10,
+    "minimum_action_count": 1,
+    "retarget_allowed_before_explicit_role_mapping": false
+  },
+  "rails": {
+    "source_intake_complete": true,
+    "package_sha256_pinned": true,
+    "skeleton_inventory_only": true,
+    "humanoid_compatibility_claimed": false,
+    "explicit_role_mapping_selected": false,
+    "retarget_applied": false,
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "player_character_reuse_allowed": false,
+    "mixamo_payload_allowed": false
+  }
+}

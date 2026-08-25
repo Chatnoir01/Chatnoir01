@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/data/qa/grand_place_correct_canonical_registration_review.contract.json"
       - "grand-bruxelles-game/tools/qa/review_grand_place_correct_canonical_registration.py"
       - "grand-bruxelles-game/tests/test_grand_place_correct_canonical_registration_review.py"
+      - "grand-bruxelles-game/data/provenance/grand_place_correct_canonical_registration.review.json"
       - "grand-bruxelles-game/data/provenance/grand_place_correct_urbis_source_cell.measurement.json"
       - "grand-bruxelles-game/data/provenance/grand_place_correct_source_cell_municipality.measurement.json"
       - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
@@ -68,6 +69,30 @@ jobs:
           for key in ["registration_authorized","road_cell_mapping_authorized","runtime_directory_scan_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"]:
               assert d[key] is False, key
           print(f"GRAND_PLACE_CORRECT_CANONICAL_REVIEW_ARTIFACT_OK semantic={d['semantic_sha256']} status={d['status']} rails_closed=true")
+          PY
+
+      - name: Require exact persisted semantic review lock
+        run: |
+          set -euo pipefail
+          GENERATED="$RUNNER_TEMP/grand_place_correct_canonical_registration.review.json"
+          LOCK="grand-bruxelles-game/data/provenance/grand_place_correct_canonical_registration.review.json"
+          test -f "$LOCK"
+          python3 - "$GENERATED" "$LOCK" <<'PY'
+          import json, sys
+          from pathlib import Path
+          generated=json.loads(Path(sys.argv[1]).read_text())
+          locked=json.loads(Path(sys.argv[2]).read_text())
+          assert locked == generated, "persisted canonical-review lock drifted from deterministic review"
+          assert locked["semantic_sha256"] == "4ca2750b7e1c47dc49d418a3b51702ca7a0b21e66c17192b07c849d9491387b0"
+          assert locked["status"] == "READY_FOR_CANONICAL_MANIFEST_REVIEW"
+          assert locked["registration_authorized"] is False
+          assert locked["road_cell_mapping_authorized"] is False
+          assert locked["runtime_mount_authorized"] is False
+          assert locked["rendered_geometry_authorized"] is False
+          assert locked["collision_authorized"] is False
+          assert locked["safe_spawn_authorized"] is False
+          assert locked["jouable_promotion_authorized"] is False
+          print(f"GRAND_PLACE_CORRECT_CANONICAL_REVIEW_LOCK_OK semantic={locked['semantic_sha256']} rails_closed=true")
           PY
 
       - name: Upload review evidence

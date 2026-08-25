@@ -1,0 +1,60 @@
+name: Grand Bruxelles Road Registered Cell Crosswalk
+
+on:
+  pull_request:
+    paths:
+      - 'grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json'
+      - 'grand-bruxelles-game/data/runtime/road_destination_runtime_index.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
+      - 'grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
+      - 'grand-bruxelles-game/tools/qa/build_road_registered_cell_crosswalk.py'
+      - 'grand-bruxelles-game/tools/qa/test_build_road_registered_cell_crosswalk.py'
+      - '.github/workflows/grand-bruxelles-road-registered-cell-crosswalk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  road-cell-crosswalk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
+            echo "RED: road-cell crosswalk candidate does not contain live main" >&2
+            exit 1
+          }
+          echo "ROAD_CELL_CROSSWALK_LIVE_MAIN_OK live=$LIVE_MAIN_SHA candidate=$(git rev-parse HEAD)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run road-cell crosswalk regressions
+        working-directory: grand-bruxelles-game/tools/qa
+        run: python test_build_road_registered_cell_crosswalk.py
+      - name: Regenerate deterministic crosswalk
+        run: |
+          python grand-bruxelles-game/tools/qa/build_road_registered_cell_crosswalk.py \
+            --coverage grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json \
+            --cells grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
+            --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \
+            --output /tmp/brussels_road_registered_cell_crosswalk.json
+      - name: Require byte-exact persisted lock
+        run: |
+          set -euo pipefail
+          cmp /tmp/brussels_road_registered_cell_crosswalk.json grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
+      - name: Validate existing handshake fail-closed rails
+        working-directory: grand-bruxelles-game/tools/qa
+        run: |
+          python road_registered_cell_handshake.py \
+            --road-index ../../data/runtime/road_destination_runtime_index.json \
+            --cell-index ../../data/provenance/brussels_registered_cell_manifest_index.json \
+            --crosswalk ../../data/provenance/brussels_road_registered_cell_crosswalk.json

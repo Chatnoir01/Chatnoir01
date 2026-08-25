@@ -1,0 +1,114 @@
+name: Grand Bruxelles Bourse Road Cell Municipality Preflight
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json"
+      - "grand-bruxelles-game/data/provenance/bourse_road_cell_municipality.measurement.json"
+      - "grand-bruxelles-game/tools/qa/measure_bourse_road_cell_municipality_preflight.py"
+      - "grand-bruxelles-game/tests/test_bourse_road_cell_municipality_preflight.py"
+      - ".github/workflows/grand-bruxelles-bourse-road-cell-municipality-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  municipality-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry
+        id: live
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor "$live_main" HEAD
+          echo "sha=$live_main" >> "$GITHUB_OUTPUT"
+          echo "BOURSE_PREFLIGHT_LIVE_MAIN=$live_main"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install bounded QA dependencies
+        run: python -m pip install --disable-pip-version-check pytest shapely
+
+      - name: Run fail-closed regressions
+        run: python -m pytest -q grand-bruxelles-game/tests/test_bourse_road_cell_municipality_preflight.py
+
+      - name: Measure official municipality coverage
+        run: |
+          python grand-bruxelles-game/tools/qa/measure_bourse_road_cell_municipality_preflight.py \
+            --candidate grand-bruxelles-game/data/city_machine/road_cell_coverage_candidates.json \
+            --production-base-sha "${{ steps.live.outputs.sha }}" \
+            --output "$RUNNER_TEMP/bourse_road_cell_municipality.json"
+
+      - name: Require source-only rails and exact Bourse accounting
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          d=json.loads((Path(os.environ['RUNNER_TEMP'])/'bourse_road_cell_municipality.json').read_text())
+          assert d['schema']=='grand-bruxelles-road-cell-municipality-preflight-v3'
+          assert d['production_base_sha']==os.environ['LIVE_MAIN']
+          assert d['candidate_source']['semantic_sha256']=='8aaca3178894950a8a1efe8235e3313f34d4d23656b968a9cbf87666284acd7b'
+          assert d['candidate_source']['road_source_sha256']=='899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398'
+          assert d['candidate_source']['road_semantic_sha256']=='4ec4ba4ad46a999d3ea32ab4a42b6825d6e43f11fcae92ac9b7a4236222913e0'
+          c=d['cell']; assert c['grid_cell_id']=='E147500_N170000'; assert c['anchor_id']=='bourse'
+          assert c['bbox']==[147500.0,170000.0,148000.0,170500.0]
+          assert c['road_count']==11 and c['point_hits']==62 and c['segment_hits']==53
+          assert c['road_ids']==[8512036,8512040,12357557,14391825,15497309,15497711,15497818,356328311,411724192,591894649,860225856]
+          assert d['municipality_source']['provider']=='Paradigm / Brussels-Capital Region'
+          assert d['municipality_source']['layer']=='urbisvector:Municipalities'
+          assert d['municipality_source']['crs']=='EPSG:31370'
+          assert d['municipality_source']['feature_count']==19
+          assert re.fullmatch(r'[0-9a-f]{64}', d['municipality_source']['raw_payload_sha256'])
+          assert re.fullmatch(r'[0-9a-f]{64}', d['semantic_sha256'])
+          for node in (d,d['municipality_coverage']):
+              for key in ('registration_authorized','road_cell_mapping_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized'):
+                  assert node[key] is False,key
+          print('BOURSE_MUNICIPALITY_MEASURED', d['status'], d['semantic_sha256'])
+          PY
+        env:
+          LIVE_MAIN: ${{ steps.live.outputs.sha }}
+
+      - name: Upload evidence before lock comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bourse-road-cell-municipality-preflight
+          path: ${{ runner.temp }}/bourse_road_cell_municipality.json
+          if-no-files-found: error
+
+      - name: RED-first require persisted semantic lock
+        shell: bash
+        run: |
+          python - <<'PY'
+          import copy, json, os
+          from pathlib import Path
+          generated=json.loads((Path(os.environ['RUNNER_TEMP'])/'bourse_road_cell_municipality.json').read_text())
+          lock_path=Path('grand-bruxelles-game/data/provenance/bourse_road_cell_municipality.measurement.json')
+          assert lock_path.is_file(), 'RED_FIRST_BOURSE_MUNICIPALITY_LOCK_NOT_PERSISTED'
+          lock=json.loads(lock_path.read_text())
+          assert lock['schema']=='grand-bruxelles-bourse-road-cell-municipality-lock-v1'
+          assert lock['production_base_sha']==generated['production_base_sha']
+          stable=copy.deepcopy(generated)
+          stable.pop('production_base_sha',None)
+          stable['municipality_source'].pop('raw_payload_sha256',None)
+          stable['municipality_coverage'].pop('transport_feature_ids',None)
+          assert stable==lock['stable_measurement'], (stable.get('semantic_sha256'), lock['stable_measurement'].get('semantic_sha256'))
+          assert lock['semantic_sha256']==generated['semantic_sha256']
+          print('BOURSE_MUNICIPALITY_LOCKED_EXACT', generated['status'], generated['semantic_sha256'])
+          PY

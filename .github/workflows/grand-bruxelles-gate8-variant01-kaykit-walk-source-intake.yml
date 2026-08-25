@@ -1,0 +1,121 @@
+name: Grand Bruxelles Gate-8 Variant-01 KayKit Walk Source Intake
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-gate8-variant01-kaykit-walk-source-intake.yml"
+      - "grand-bruxelles-game/data/qa/gate8_variant01_kaykit_walk_source_intake.json"
+      - "grand-bruxelles-game/tools/qa/check_gate8_variant01_kaykit_walk_source_intake.py"
+      - "grand-bruxelles-game/tests/test_gate8_variant01_kaykit_walk_source_intake.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kaykit-walk-source-intake:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CONTRACT: grand-bruxelles-game/data/qa/gate8_variant01_kaykit_walk_source_intake.json
+      TOOL: grand-bruxelles-game/tools/qa/check_gate8_variant01_kaykit_walk_source_intake.py
+      TEST: grand-bruxelles-game/tests/test_gate8_variant01_kaykit_walk_source_intake.py
+      SOURCE_URL: https://opengameart.org/sites/default/files/kaykit_character_animations_1.2.zip
+      EXPECTED_SHA256: c9d3fbea492dc6edd0903939369a564c2240b892430bcd99e0aee4876110bb8f
+      EXPECTED_SIZE: "7959257"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          test "$HEAD_SHA" = "${{ github.event.pull_request.head.sha }}"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$HEAD_SHA"
+          echo "GATE8_KAYKIT_LIVE_MAIN_OK live=$LIVE_MAIN_SHA head=$HEAD_SHA"
+
+      - name: Validate pinned fail-closed contract
+        run: |
+          set -euo pipefail
+          python "$TOOL" | tee /tmp/kaykit-contract.log
+          grep -Fq "GATE8_KAYKIT_SOURCE_PIN_OK sha256=$EXPECTED_SHA256 bytes=$EXPECTED_SIZE" /tmp/kaykit-contract.log
+
+      - name: Run pin drift regressions without runner dependencies
+        run: |
+          set -euo pipefail
+          python - <<'PY' | tee /tmp/kaykit-regressions.log
+          import importlib.util
+          from pathlib import Path
+          path = Path('grand-bruxelles-game/tests/test_gate8_variant01_kaykit_walk_source_intake.py')
+          spec = importlib.util.spec_from_file_location('kaykit_pin_tests', path)
+          mod = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          spec.loader.exec_module(mod)
+          tests = [mod.test_verified_contract_passes, mod.test_sha_or_size_drift_fails, mod.test_production_or_alias_opening_fails, mod.test_archive_inventory_drift_fails]
+          for test in tests: test()
+          print(f'GATE8_KAYKIT_PIN_REGRESSIONS_OK tests={len(tests)}')
+          PY
+          grep -Fxq 'GATE8_KAYKIT_PIN_REGRESSIONS_OK tests=4' /tmp/kaykit-regressions.log
+
+      - name: Reacquire exact CC0 source bytes
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 2 --user-agent 'GrandBruxellesGate8SourceIntake/2.0' "$SOURCE_URL" --output /tmp/kaykit-character-animations-1.2.zip
+          test -s /tmp/kaykit-character-animations-1.2.zip
+          unzip -tq /tmp/kaykit-character-animations-1.2.zip >/tmp/kaykit-unzip-test.log
+          ACTUAL_SHA256="$(sha256sum /tmp/kaykit-character-animations-1.2.zip | awk '{print $1}')"
+          ACTUAL_SIZE="$(stat -c '%s' /tmp/kaykit-character-animations-1.2.zip)"
+          test "$ACTUAL_SHA256" = "$EXPECTED_SHA256"
+          test "$ACTUAL_SIZE" = "$EXPECTED_SIZE"
+          echo "GATE8_KAYKIT_PINNED_BYTES_OK sha256=$ACTUAL_SHA256 bytes=$ACTUAL_SIZE" | tee /tmp/kaykit-pin.log
+
+      - name: Verify exact archive inventory and locomotion assets
+        run: |
+          set -euo pipefail
+          python - <<'PY' | tee /tmp/kaykit-source-intake.log
+          import json, re, zipfile
+          from pathlib import Path
+          zpath = Path('/tmp/kaykit-character-animations-1.2.zip')
+          with zipfile.ZipFile(zpath) as z: names = sorted(i.filename for i in z.infolist() if not i.is_dir())
+          gltf = [n for n in names if n.lower().endswith(('.gltf', '.glb'))]
+          fbx = [n for n in names if n.lower().endswith('.fbx')]
+          def exact_semantic(token):
+              rx = re.compile(r'(^|[^a-z0-9])' + re.escape(token) + r'([^a-z0-9]|$)', re.I)
+              return [n for n in names if rx.search(n)]
+          report = {'file_count': len(names), 'gltf_or_glb_count': len(gltf), 'fbx_count': len(fbx), 'idle_candidates': exact_semantic('idle'), 'walk_candidates': exact_semantic('walk'), 'run_candidates': exact_semantic('run'), 'production_authorized': False, 'activation_ready': False, 'adoption_ready': False, 'walk_alias_selected': '', 'run_alias_selected': ''}
+          assert report['file_count'] == 67 and report['gltf_or_glb_count'] == 4 and report['fbx_count'] == 34
+          assert len(report['idle_candidates']) == len(report['walk_candidates']) == len(report['run_candidates']) == 1
+          Path('/tmp/kaykit-source-intake.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+          print('GATE8_KAYKIT_ARCHIVE_IDENTITY_OK files=67 gltf=4 fbx=34 idle=1 walk=1 run=1')
+          PY
+
+      - name: Prove source bytes are ephemeral and checkout stays clean
+        run: |
+          set -euo pipefail
+          rm -f /tmp/kaykit-character-animations-1.2.zip
+          test -z "$(git status --porcelain=v1)"
+          echo 'GATE8_KAYKIT_EPHEMERAL_SOURCE_OK'
+
+      - name: Stage evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gate8-kaykit-source-intake-evidence
+          for f in /tmp/kaykit-contract.log /tmp/kaykit-regressions.log /tmp/kaykit-unzip-test.log /tmp/kaykit-pin.log /tmp/kaykit-source-intake.log /tmp/kaykit-source-intake.json; do [ -f "$f" ] && cp "$f" /tmp/gate8-kaykit-source-intake-evidence/; done
+          cp "$CONTRACT" /tmp/gate8-kaykit-source-intake-evidence/
+          git status --porcelain=v1 > /tmp/gate8-kaykit-source-intake-evidence/git-status.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-bruxelles-gate8-variant01-kaykit-walk-source-intake
+          path: /tmp/gate8-kaykit-source-intake-evidence
+          if-no-files-found: error
+          retention-days: 14

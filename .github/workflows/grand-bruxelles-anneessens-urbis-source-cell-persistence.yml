@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 env:
@@ -39,7 +39,7 @@ jobs:
           live=sys.argv[1]
           d=json.loads(Path("grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.persistence.contract.json").read_text())
           assert d["production_base_sha"] == live, (d["production_base_sha"], live)
-          assert d["status"] == "PERSISTENCE_CANDIDATE_ARTIFACT_ONLY"
+          assert d["status"] in {"PERSISTENCE_CANDIDATE_ARTIFACT_ONLY", "LOCKED_EXACT_SOURCE_ONLY_PERSISTED"}
           assert d["cell_id"] == "bxl-e147500-n169500-s500"
           assert d["source"]["license"] == "CC0-1.0"
           assert d["source"]["crs"] == "EPSG:31370"
@@ -105,13 +105,60 @@ jobs:
           path: ${{ runner.temp }}/anneessens-source/source-cell
           if-no-files-found: error
 
-      - name: Require candidate branch to persist exact artifact bytes
+      - name: Persist verified artifact bytes on the owned PR branch
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          test -n "$HEAD_BRANCH"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          REMOTE_HEAD="$(git ls-remote origin "refs/heads/$HEAD_BRANCH" | awk '{print $1}')"
+          test "$REMOTE_HEAD" = "$EXPECTED_HEAD"
+
           if [ ! -f "$CELL_DIR/manifest.json" ]; then
-            echo "RED: persistence candidate is measured and uploaded but not yet written to the branch; inspect artifact then persist exact bytes" >&2
+            mkdir -p "$CELL_DIR"
+            cp -a "$RUNNER_TEMP/anneessens-source/source-cell/." "$CELL_DIR/"
+          fi
+
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          c=json.loads(Path(os.environ["CONTRACT"]).read_text())
+          repo=Path(os.environ["CELL_DIR"])
+          artifact=Path(os.environ["RUNNER_TEMP"])/"anneessens-source"/"source-cell"
+          for rel,spec in c["expected_files"].items():
+              left=(artifact/rel).read_bytes()
+              right=(repo/rel).read_bytes()
+              assert left == right, rel
+              assert len(right) == spec["bytes"], rel
+              assert hashlib.sha256(right).hexdigest() == spec["sha256"], rel
+          print("ANNEESSENS_PERSISTENCE_BYTES_STAGED_EXACT files=7")
+          PY
+
+          git add "$CELL_DIR"
+          if git diff --cached --quiet; then
+            echo "ANNEESSENS_PERSISTENCE_ALREADY_PRESENT_EXACT"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data(anneessens): persist locked UrbIS source cell bytes"
+
+          REMOTE_HEAD="$(git ls-remote origin "refs/heads/$HEAD_BRANCH" | awk '{print $1}')"
+          if [ "$REMOTE_HEAD" != "$EXPECTED_HEAD" ]; then
+            echo "RED: owned PR branch advanced during persistence; refusing push" >&2
             exit 1
           fi
+          git push origin "HEAD:refs/heads/$HEAD_BRANCH"
+          echo "ANNEESSENS_PERSISTENCE_PUSHED commit=$(git rev-parse HEAD)"
+
+      - name: Require candidate branch workspace to contain exact artifact bytes
+        run: |
+          set -euo pipefail
+          test -f "$CELL_DIR/manifest.json"
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path

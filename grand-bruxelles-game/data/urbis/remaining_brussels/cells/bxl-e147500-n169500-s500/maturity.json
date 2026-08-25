@@ -1,0 +1,164 @@
+{
+  "bbox": [
+    147500.0,
+    169500.0,
+    148000.0,
+    170000.0
+  ],
+  "cell_id": "bxl-e147500-n169500-s500",
+  "collisions": {
+    "status": "not_validated"
+  },
+  "crs": "EPSG:31370",
+  "crs_evidence": {
+    "bbox": [
+      147500.0,
+      169500.0,
+      148000.0,
+      170000.0
+    ],
+    "contract": "manifest.crs + Lambert72-like positive ordered bbox",
+    "evidence_digest": "2a86620eca9784b6d8c8a86ba09e4f4a855b4e7439c164b2a44b76411bfb996e",
+    "gate_ready": true,
+    "source_crs": "EPSG:31370",
+    "status": "validated"
+  },
+  "format": "grand-bruxelles-cell-maturity-v1",
+  "geometry": {
+    "authoritative_geometry_ready": true,
+    "building_feature_count": 362,
+    "layers": [
+      "buildings"
+    ],
+    "source_manifest": "data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/manifest.json"
+  },
+  "heights": {
+    "status": "evidence_pending"
+  },
+  "maturity": {
+    "gates": {
+      "clutter": false,
+      "collisions": false,
+      "crs": true,
+      "facade": false,
+      "heights": false,
+      "license": false,
+      "materials": false,
+      "mobility": false,
+      "performance": false,
+      "photo_match": false,
+      "region_scalable": false,
+      "runtime_geometry": false,
+      "source_requirements": true,
+      "streaming": false,
+      "terrain": false,
+      "verification": true
+    },
+    "state": "data_ready"
+  },
+  "maturity_digest": "1a3aaf2c30f416ae728a892befff2028c0cad57cd77e3bef50c18617a98445a0",
+  "performance": {
+    "budget_pass": false,
+    "status": "not_measured_as_streamed_cell"
+  },
+  "photo_match": {
+    "open_major_mismatches": null,
+    "status": "not_evaluated"
+  },
+  "provenance": {
+    "buildings_source_digest": "ced1449ca92513bfd8b3dc21e10e7ee05bb0829a59c10963d9541c013552f00f",
+    "crs_evidence_digest": "2a86620eca9784b6d8c8a86ba09e4f4a855b4e7439c164b2a44b76411bfb996e",
+    "primary": "UrbIS WFS / Paradigm",
+    "source_manifest_digest": "21c54afa96f300a31d0dcea64b60f984073a5a2faa6a06b891618387c446a51d",
+    "source_records_present": true,
+    "source_requirements_digest": "277efa6b392cd07eedc4944f149dd4903d31c9a3b56775aba2d682d11632fd76",
+    "verification_evidence_digest": "fae415329bf42b0d1424bfeedf396f277c202f3b8ad46c5a9518c54815d1dc1b"
+  },
+  "source_requirements": {
+    "blockers": [],
+    "complete": true,
+    "contract": "manifest.layers[*].file",
+    "gate_ready": true,
+    "required_file_count": 5,
+    "requirements": [
+      {
+        "actual_features": 362,
+        "content_digest": "ced1449ca92513bfd8b3dc21e10e7ee05bb0829a59c10963d9541c013552f00f",
+        "declared_features": 362,
+        "file": "raw/buildings.geojson",
+        "layer": "buildings",
+        "status": "validated"
+      },
+      {
+        "actual_features": 104,
+        "content_digest": "171c1b000dc94b963fba03e722c9e3024be483c19479c8c23408cbe62a50e541",
+        "declared_features": 104,
+        "file": "raw/street_axes.geojson",
+        "layer": "street_axes",
+        "status": "validated"
+      },
+      {
+        "actual_features": 283,
+        "content_digest": "bd2368be004575cc99120c9cd88375333f0af056c71a75e3c91b7f69cc0b6af9",
+        "declared_features": 283,
+        "file": "raw/street_surfaces.geojson",
+        "layer": "street_surfaces",
+        "status": "validated"
+      },
+      {
+        "actual_features": 361,
+        "content_digest": "3ac66b704f416e47021167dc9eb83adcab6df425c5ec2ac657b69b7c1dbaaac7",
+        "declared_features": 361,
+        "file": "raw/train_network.geojson",
+        "layer": "train_network",
+        "status": "validated"
+      },
+      {
+        "actual_features": 361,
+        "content_digest": "1b1c1b3bf46161eacf16c74bc5da2b0775ff6dc2581a24312829fed880b0233a",
+        "declared_features": 361,
+        "file": "raw/tram_network.geojson",
+        "layer": "tram_network",
+        "status": "validated"
+      }
+    ],
+    "requirements_digest": "78fb3fe1873e24f899e27001de3fe6987d17e0ca4b7eab10d79d49492c3f9132",
+    "status": "validated"
+  },
+  "streaming": {
+    "status": "not_validated"
+  },
+  "terrain": {
+    "status": "evidence_pending"
+  },
+  "uncertainties": [
+    "runtime geometry not generated or validated",
+    "collision quality not validated",
+    "streaming behavior not validated",
+    "terrain evidence not acquired",
+    "building height evidence not acquired",
+    "shared materials not validated",
+    "player-facing facade treatment not validated",
+    "clutter baseline or explicit deferral not validated",
+    "traffic/pedestrian branchability or absence rationale not validated",
+    "asset/source licensing not validated for this cell",
+    "hero-independent regional scalability not validated",
+    "photo-match not evaluated for this cell",
+    "streamed-cell performance not measured"
+  ],
+  "verification_evidence": {
+    "blockers": [],
+    "checks": {
+      "authoritative_geometry_ready": true,
+      "building_feature_count_matches": true,
+      "canonical_ownership_valid": true,
+      "crs_contract_valid": true,
+      "source_identity_valid": true,
+      "source_requirements_complete": true
+    },
+    "contract": "deterministic authoritative source bootstrap checks",
+    "evidence_digest": "fae415329bf42b0d1424bfeedf396f277c202f3b8ad46c5a9518c54815d1dc1b",
+    "gate_ready": true,
+    "status": "validated"
+  }
+}

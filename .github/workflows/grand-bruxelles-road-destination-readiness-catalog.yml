@@ -44,17 +44,29 @@ jobs:
         run: python test_build_road_destination_readiness_catalog.py
       - name: Regenerate deterministic readiness catalog
         run: |
+          mkdir -p "$RUNNER_TEMP/road-destination-readiness"
           python grand-bruxelles-game/tools/qa/build_road_destination_readiness_catalog.py \
             --repo-root grand-bruxelles-game \
             --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \
             --cell-index grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
             --crosswalk grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json \
-            --output /tmp/brussels_road_destination_readiness_catalog.json
+            --output "$RUNNER_TEMP/road-destination-readiness/brussels_road_destination_readiness_catalog.json"
+      - name: Upload measured candidate before lock decision
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-destination-readiness-catalog-candidate
+          path: ${{ runner.temp }}/road-destination-readiness/brussels_road_destination_readiness_catalog.json
+          if-no-files-found: error
       - name: Require byte-exact persisted lock
         run: |
           set -euo pipefail
-          cmp /tmp/brussels_road_destination_readiness_catalog.json \
-            grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
+          LOCK=grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
+          GENERATED="$RUNNER_TEMP/road-destination-readiness/brussels_road_destination_readiness_catalog.json"
+          test -f "$LOCK" || {
+            echo "RED: readiness catalog lock missing; inspect uploaded candidate before persistence" >&2
+            exit 1
+          }
+          cmp "$GENERATED" "$LOCK"
       - name: Require evidence-only readiness rails
         run: |
           python - <<'PY'
@@ -65,7 +77,7 @@ jobs:
           assert d['destination_count'] == len(d['destinations'])
           assert d['destination_count'] > 0
           assert d['status'] == 'SOURCE_BACKED_REGISTERED_NOT_RENDERED'
-          assert all(v is False for k,v in d['authorization'].items())
+          assert all(v is False for v in d['authorization'].values())
           for row in d['destinations']:
               assert row['readiness'] == 'REGISTERED_NOT_RENDERED'
               for key in ['render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized']:

@@ -6,6 +6,9 @@ const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
 const RUNTIME_INDEX_PATH := "res://data/runtime/road_destination_runtime_index.json"
 const RUNTIME_INDEX_FORMAT := "grand-bruxelles-road-runtime-index-v1"
 const LEMONNIER_ID := 359177328
+const WITNESS_DIR := "res://artifacts/automatic_road"
+const WITNESS_PATH := WITNESS_DIR + "/automatic_road_player_witness.png"
+const WITNESS_METADATA_PATH := WITNESS_DIR + "/automatic_road_player_witness.json"
 
 
 func _initialize() -> void:
@@ -55,9 +58,6 @@ func _runtime_index_contract() -> Dictionary:
         var road_ids: Variant = descriptor.get("road_ids", [])
         if expected_sha.length() != 64 or not road_ids is Array or road_ids.is_empty():
             return {}
-        # JSON numbers are parsed as numeric Variants. Normalize them exactly as
-        # the production resolver does before testing membership, so the contract
-        # does not reject a valid deterministic index because of Variant typing.
         var normalized_road_ids: Dictionary = {}
         for raw_id: Variant in road_ids:
             var osm_id := int(raw_id)
@@ -84,6 +84,98 @@ func _rendered(world: Node, osm_id: int) -> bool:
         for child: Node in node.get_children():
             stack.append(child)
     return false
+
+
+func _authored_animation_driver_state(player: CharacterBody3D) -> Dictionary:
+    var visual := player.get_node_or_null("VisualUpgrade")
+    if visual == null or not visual.has_method("is_using_authored_character"):
+        return {}
+    if not bool(visual.call("is_using_authored_character")):
+        return {}
+    var authored := visual.get_node_or_null("AuthoredCharacter")
+    if authored == null:
+        return {}
+
+    var animation_player_count := 0
+    var animation_tree_count := 0
+    var active_driver_count := 0
+    var active_driver := ""
+    var active_animation := ""
+    var stack: Array[Node] = [authored]
+    while not stack.is_empty():
+        var node: Node = stack.pop_back()
+        if node is AnimationPlayer:
+            animation_player_count += 1
+            var animation_player := node as AnimationPlayer
+            if animation_player.is_playing() and not animation_player.current_animation.is_empty():
+                active_driver_count += 1
+                if active_driver.is_empty():
+                    active_driver = "AnimationPlayer"
+                    active_animation = animation_player.current_animation
+        elif node is AnimationTree:
+            animation_tree_count += 1
+            var animation_tree := node as AnimationTree
+            if animation_tree.active:
+                active_driver_count += 1
+                if active_driver.is_empty():
+                    active_driver = "AnimationTree"
+                    active_animation = "animation_tree_active"
+        for child: Node in node.get_children():
+            stack.append(child)
+
+    return {
+        "using_authored_character": true,
+        "animation_player_count": animation_player_count,
+        "animation_tree_count": animation_tree_count,
+        "active_driver_count": active_driver_count,
+        "active_driver": active_driver,
+        "active_animation": active_animation,
+    }
+
+
+func _capture_player_witness() -> Error:
+    var absolute_dir := ProjectSettings.globalize_path(WITNESS_DIR)
+    var mkdir_error := DirAccess.make_dir_recursive_absolute(absolute_dir)
+    if mkdir_error != OK and mkdir_error != ERR_ALREADY_EXISTS:
+        return mkdir_error
+    for _frame: int in range(3):
+        await process_frame
+    await RenderingServer.frame_post_draw
+    var image := root.get_texture().get_image()
+    if image == null or image.is_empty():
+        return ERR_CANT_CREATE
+    if image.get_width() != 1280 or image.get_height() != 720:
+        return ERR_INVALID_DATA
+    return image.save_png(WITNESS_PATH)
+
+
+func _write_witness_metadata(player: CharacterBody3D, witness_road_id: int, witness_road_name: String, ground_y: float, animation_state: Dictionary) -> Error:
+    var metadata := {
+        "schema": "grand_bruxelles_automatic_road_player_witness_runtime_v2",
+        "witness_road_osm_id": witness_road_id,
+        "witness_road_name": witness_road_name,
+        "lemonnier_probe_osm_id": LEMONNIER_ID,
+        "source_path": str(player.get_meta("automatic_road_direct_source_path", "")),
+        "source_sha256": str(player.get_meta("automatic_road_direct_source_sha256", "")).to_lower(),
+        "lookup_mode": str(player.get_meta("automatic_road_direct_lookup_mode", "")),
+        "ground_y": ground_y,
+        "ground_collision_proven": true,
+        "source_sightline_clear": bool(player.get_meta("automatic_road_direct_source_sightline_clear", false)),
+        "authored_player_visual": bool(animation_state.get("using_authored_character", false)),
+        "animation_player_count": int(animation_state.get("animation_player_count", 0)),
+        "animation_tree_count": int(animation_state.get("animation_tree_count", 0)),
+        "active_animation_driver_count": int(animation_state.get("active_driver_count", 0)),
+        "active_animation_driver": str(animation_state.get("active_driver", "")),
+        "active_animation": str(animation_state.get("active_animation", "")),
+        "bind_pose_capture_allowed": false,
+        "playability_claimed": false,
+    }
+    var file := FileAccess.open(WITNESS_METADATA_PATH, FileAccess.WRITE)
+    if file == null:
+        return FileAccess.get_open_error()
+    file.store_string(JSON.stringify(metadata, "  ") + "\n")
+    file.close()
+    return OK
 
 
 func _run() -> void:
@@ -208,5 +300,28 @@ func _run() -> void:
         _fail("source sightline gate missing")
         return
 
-    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d second=%d second_name=%s source=%s source_sha=%s ground_y=%.3f" % [expected_road_count, expected_document_count, LEMONNIER_ID, second_id, second_name, source_path, expected_source_sha, ground_y])
+    var animation_state := _authored_animation_driver_state(player)
+    if animation_state.is_empty() or not bool(animation_state.get("using_authored_character", false)):
+        _fail("authored player visual missing from player-view witness")
+        return
+    if int(animation_state.get("active_driver_count", 0)) <= 0:
+        _fail("authored player animation driver inactive; refusing bind/T-pose player-view witness")
+        return
+
+    var witness_error: Error = await _capture_player_witness()
+    if witness_error != OK:
+        _fail("1280x720 player witness capture failed: %s" % error_string(witness_error))
+        return
+    if not FileAccess.file_exists(WITNESS_PATH):
+        _fail("player witness PNG was not persisted")
+        return
+    var metadata_error := _write_witness_metadata(player, second_id, second_name, ground_y, animation_state)
+    if metadata_error != OK:
+        _fail("player witness runtime metadata failed: %s" % error_string(metadata_error))
+        return
+    if not FileAccess.file_exists(WITNESS_METADATA_PATH):
+        _fail("player witness runtime metadata was not persisted")
+        return
+
+    print("AUTOMATIC_ROAD_DIRECT_SPAWN_GREEN: indexed_roads=%d source_documents=%d first=%d witness=%d witness_name=%s source=%s source_sha=%s ground_y=%.3f lookup=deterministic_runtime_index animation_driver=%s animation=%s png=%s metadata=%s" % [expected_road_count, expected_document_count, LEMONNIER_ID, second_id, second_name, source_path, expected_source_sha, ground_y, str(animation_state.get("active_driver", "")), str(animation_state.get("active_animation", "")), WITNESS_PATH, WITNESS_METADATA_PATH])
     quit(0)

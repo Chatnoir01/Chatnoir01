@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 env:
@@ -18,7 +18,7 @@ env:
   CELL_DIR: grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500
 
 jobs:
-  persistence-candidate:
+  persistence-verification:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
@@ -72,22 +72,27 @@ jobs:
           echo "bc85dec9a65283150ee628d8761154e0201311c5cfcbae95f92796daaa4039c5  $UNPACK/measurement.json" | sha256sum -c -
           echo "53712b26bcf3ad82929338b162451b585f94ca8aba843240c9b911a1465ce730  $UNPACK/package_manifest.json" | sha256sum -c -
 
-      - name: Verify exact source-cell files and accounting
+      - name: Verify exact persisted source-cell bytes and accounting
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path
           contract=json.loads(Path(os.environ["CONTRACT"]).read_text())
-          root=Path(os.environ["RUNNER_TEMP"])/"anneessens-source"/"source-cell"
+          artifact=Path(os.environ["RUNNER_TEMP"])/"anneessens-source"/"source-cell"
+          repo=Path(os.environ["CELL_DIR"])
           for rel,spec in contract["expected_files"].items():
-              p=root/rel
-              assert p.is_file(), rel
-              raw=p.read_bytes()
-              assert len(raw)==spec["bytes"], (rel,len(raw),spec["bytes"])
-              assert hashlib.sha256(raw).hexdigest()==spec["sha256"], rel
-          manifest=json.loads((root/"manifest.json").read_text())
-          maturity=json.loads((root/"maturity.json").read_text())
+              left=artifact/rel
+              right=repo/rel
+              assert left.is_file(), f"artifact missing {rel}"
+              assert right.is_file(), f"persisted cell missing {rel}"
+              left_raw=left.read_bytes()
+              right_raw=right.read_bytes()
+              assert left_raw == right_raw, rel
+              assert len(right_raw) == spec["bytes"], (rel, len(right_raw), spec["bytes"])
+              assert hashlib.sha256(right_raw).hexdigest() == spec["sha256"], rel
+          manifest=json.loads((repo/"manifest.json").read_text())
+          maturity=json.loads((repo/"maturity.json").read_text())
           assert manifest["cell_id"] == contract["cell_id"]
           assert manifest["crs"] == "EPSG:31370"
           assert manifest["promotion"] == "source_only_no_runtime_mutation"
@@ -95,82 +100,15 @@ jobs:
           gates=maturity["maturity"]["gates"]
           for key in ["runtime_geometry","collisions","streaming","terrain","heights","photo_match","performance"]:
               assert gates[key] is False, key
-          print("ANNEESSENS_IMMUTABLE_SOURCE_BYTES_OK files=7 source_only=true")
-          PY
-
-      - name: Upload exact persistence candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: anneessens-urbis-source-cell-persistence-candidate
-          path: ${{ runner.temp }}/anneessens-source/source-cell
-          if-no-files-found: error
-
-      - name: Persist verified artifact bytes on the owned PR branch
-        if: github.event_name == 'pull_request'
-        env:
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          test -n "$HEAD_BRANCH"
-          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          REMOTE_HEAD="$(git ls-remote origin "refs/heads/$HEAD_BRANCH" | awk '{print $1}')"
-          test "$REMOTE_HEAD" = "$EXPECTED_HEAD"
-
-          # The branch may contain a partial cell skeleton (for example only
-          # manifest/maturity). Never use one file as a completeness proxy:
-          # overwrite exactly the seven authorized paths from the immutable
-          # artifact, then hash every byte before staging.
-          mkdir -p "$CELL_DIR"
-          cp -a "$RUNNER_TEMP/anneessens-source/source-cell/." "$CELL_DIR/"
-
-          python3 - <<'PY'
-          import hashlib, json, os
-          from pathlib import Path
-          c=json.loads(Path(os.environ["CONTRACT"]).read_text())
-          repo=Path(os.environ["CELL_DIR"])
-          artifact=Path(os.environ["RUNNER_TEMP"])/"anneessens-source"/"source-cell"
-          for rel,spec in c["expected_files"].items():
-              left=(artifact/rel).read_bytes()
-              right=(repo/rel).read_bytes()
-              assert left == right, rel
-              assert len(right) == spec["bytes"], rel
-              assert hashlib.sha256(right).hexdigest() == spec["sha256"], rel
-          print("ANNEESSENS_PERSISTENCE_BYTES_STAGED_EXACT files=7")
-          PY
-
-          git add "$CELL_DIR"
-          if git diff --cached --quiet; then
-            echo "ANNEESSENS_PERSISTENCE_ALREADY_PRESENT_EXACT"
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "data(anneessens): persist locked UrbIS source cell bytes"
-
-          REMOTE_HEAD="$(git ls-remote origin "refs/heads/$HEAD_BRANCH" | awk '{print $1}')"
-          if [ "$REMOTE_HEAD" != "$EXPECTED_HEAD" ]; then
-            echo "RED: owned PR branch advanced during persistence; refusing push" >&2
-            exit 1
-          fi
-          git push origin "HEAD:refs/heads/$HEAD_BRANCH"
-          echo "ANNEESSENS_PERSISTENCE_PUSHED commit=$(git rev-parse HEAD)"
-
-      - name: Require candidate branch workspace to contain exact artifact bytes
-        run: |
-          set -euo pipefail
-          test -f "$CELL_DIR/manifest.json"
-          python3 - <<'PY'
-          import hashlib, json, os
-          from pathlib import Path
-          c=json.loads(Path(os.environ["CONTRACT"]).read_text())
-          repo=Path(os.environ["CELL_DIR"])
-          artifact=Path(os.environ["RUNNER_TEMP"])/"anneessens-source"/"source-cell"
-          for rel,spec in c["expected_files"].items():
-              left=(artifact/rel).read_bytes()
-              right=(repo/rel).read_bytes()
-              assert left == right, rel
-              assert hashlib.sha256(right).hexdigest() == spec["sha256"], rel
           print("ANNEESSENS_SOURCE_PERSISTENCE_LOCKED_EXACT files=7 registration=false runtime=false")
           PY
+
+      - name: Upload persistence verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-urbis-source-cell-persistence-verification
+          path: |
+            ${{ env.CONTRACT }}
+            ${{ env.CELL_DIR }}/manifest.json
+            ${{ env.CELL_DIR }}/maturity.json
+          if-no-files-found: error

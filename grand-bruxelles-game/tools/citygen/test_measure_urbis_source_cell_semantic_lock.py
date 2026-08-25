@@ -42,8 +42,26 @@ def write_cell(root: Path, feature_id: str, x: float) -> None:
         "promotion": "source_only_no_runtime_mutation",
         "source_digest": "test-source-digest",
     }
+    maturity = {
+        "format": "grand-bruxelles-cell-maturity-v1",
+        "maturity": {
+            "state": "data_ready",
+            "gates": {
+                "source_requirements": True,
+                "verification": True,
+                "crs": True,
+                "runtime_geometry": False,
+                "collisions": False,
+                "streaming": False,
+                "terrain": False,
+                "heights": False,
+                "photo_match": False,
+                "performance": False,
+            },
+        },
+    }
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    (root / "maturity.json").write_text(json.dumps({"state": "data_ready"}, indent=2) + "\n")
+    (root / "maturity.json").write_text(json.dumps(maturity, indent=2, sort_keys=True) + "\n")
 
 
 def main() -> int:
@@ -58,12 +76,23 @@ def main() -> int:
         ma = measure_cell(a)
         mb = measure_cell(b)
         mc = measure_cell(c)
+        assert ma["maturity_state"] == "data_ready"
         assert ma["source_semantic_sha256"] == mb["source_semantic_sha256"], "transport Feature.id must not affect semantic identity"
         assert ma["source_semantic_sha256"] != mc["source_semantic_sha256"], "geometry drift must affect semantic identity"
         assert ma["registration_authorized"] is False
         assert ma["runtime_mount_authorized"] is False
         assert ma["jouable_promotion_authorized"] is False
         assert set(ma["layers"]) == {"buildings", "street_surfaces", "street_axes", "tram_network", "train_network"}
+
+        broken = json.loads((a / "maturity.json").read_text())
+        broken["maturity"]["gates"]["runtime_geometry"] = True
+        (a / "maturity.json").write_text(json.dumps(broken, indent=2, sort_keys=True) + "\n")
+        try:
+            measure_cell(a)
+        except ValueError as exc:
+            assert "runtime_geometry" in str(exc)
+        else:
+            raise AssertionError("runtime_geometry=true must fail closed")
     print("URBIS_SOURCE_CELL_SEMANTIC_MEASUREMENT_TEST_OK")
     return 0
 

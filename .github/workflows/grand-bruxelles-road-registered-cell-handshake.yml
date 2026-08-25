@@ -40,12 +40,16 @@ jobs:
       - name: Run fail-closed regressions
         working-directory: grand-bruxelles-game/tools/qa
         run: python test_road_registered_cell_handshake.py
-      - name: Prove production remains HOLD without explicit crosswalk
+      - name: Validate HOLD or explicit evidence-only crosswalk
         run: |
           set -euo pipefail
           CROSSWALK=grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
-          test ! -e "$CROSSWALK" || {
-            echo "RED: explicit road-cell crosswalk appeared; this HOLD-only lot must be superseded by a reviewed mapping lot" >&2
-            exit 1
-          }
-          echo "ROAD_CELL_HANDSHAKE_HOLD_OK explicit_crosswalk=absent runtime_mount=false rendered_geometry=false collision=false safe_spawn=false jouable=false"
+          if [ ! -e "$CROSSWALK" ]; then
+            echo "ROAD_CELL_HANDSHAKE_HOLD_OK explicit_crosswalk=absent runtime_mount=false rendered_geometry=false collision=false safe_spawn=false jouable=false"
+            exit 0
+          fi
+          python grand-bruxelles-game/tools/qa/road_registered_cell_handshake.py \
+            --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \
+            --cell-index grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
+            --crosswalk "$CROSSWALK"
+          echo "ROAD_CELL_HANDSHAKE_EVIDENCE_ONLY_OK explicit_crosswalk=present runtime_mount=false rendered_geometry=false collision=false safe_spawn=false jouable=false"

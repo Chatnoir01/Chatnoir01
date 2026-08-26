@@ -6,6 +6,7 @@ on:
       - 'grand-bruxelles-game/game/scripts/brussels_osm_facade_surface_runtime.gd'
       - 'grand-bruxelles-game/game/scripts/brussels_osm_facade_articulation_runtime.gd'
       - 'grand-bruxelles-game/game/tests/brussels_osm_facade_deferred_teardown_test.gd'
+      - 'grand-bruxelles-game/game/tests/shared_environment_external_signal_terminal_cleanup_test.py'
       - 'grand-bruxelles-game/data/qa/shared_environment_lifecycle_contract.json'
       - 'grand-bruxelles-game/game/tests/shared_environment_lifecycle_contract_test.py'
       - '.github/workflows/grand-bruxelles-osm-facade-deferred-teardown.yml'
@@ -32,6 +33,11 @@ jobs:
             echo "RED: facade teardown witness checked out stale/merge ref" >&2
             exit 1
           }
+      - name: Verify terminal external-signal cleanup contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 grand-bruxelles-game/game/tests/shared_environment_external_signal_terminal_cleanup_test.py
       - name: Install Godot 4.7.1
         shell: bash
         run: |

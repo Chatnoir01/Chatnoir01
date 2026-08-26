@@ -1,4 +1,3 @@
-import copy
 import json
 from pathlib import Path
 
@@ -47,6 +46,14 @@ def test_rejects_missing_or_malformed_frame_hashes():
     first = next(iter(gate["latest_human_review"]["frames"]))
     del gate["latest_human_review"]["frames"][first]["sha256"]
     with pytest.raises(HumanReviewValidationError, match="frame sha256"):
+        validate_human_review(gate)
+
+
+def test_rejects_duplicate_frame_hashes():
+    gate = _gate()
+    frames = list(gate["latest_human_review"]["frames"].values())
+    frames[1]["sha256"] = frames[0]["sha256"]
+    with pytest.raises(HumanReviewValidationError, match="distinct frame"):
         validate_human_review(gate)
 
 

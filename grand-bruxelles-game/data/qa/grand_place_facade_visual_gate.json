@@ -1,0 +1,54 @@
+{
+  "schema": "grand-bruxelles-grand-place-facade-visual-gate-v4",
+  "production_base_sha": "188ef30b9286f6ae84ffff80b332b3922864bec2",
+  "resolution": [1280, 720],
+  "camera_position": [319.01, 1.72, -535.20],
+  "fov_deg": 62.0,
+  "camera_position_source": "grand_place_clean_player_witness_pr711",
+  "required_views": 4,
+  "views": [
+    {"id":"canonical","target_method":"fixed_existing_witness","target":[321.91,11.8,-485.66],"minimum_gt3_percent":0.35,"minimum_gt8_percent":0.15,"minimum_bbox_width":180,"minimum_bbox_height":90},
+    {"id":"cornet_renard","target_method":"source_bbox_cluster_center","target_owner_ids":["1608847","1608851"],"minimum_gt3_percent":1.0,"minimum_gt8_percent":0.5,"minimum_bbox_width":220,"minimum_bbox_height":140,"last_observed_bbox_width":187,"last_observed_verdict":"reject"},
+    {"id":"brasseurs_rose_thabor","target_method":"source_bbox_cluster_center","target_owner_ids":["1639974","1635485","1646728"],"minimum_gt3_percent":1.0,"minimum_gt8_percent":0.5,"minimum_bbox_width":220,"minimum_bbox_height":140},
+    {"id":"maison_du_roi","target_method":"source_bbox_cluster_center","target_owner_ids":["1654360"],"minimum_gt3_percent":1.0,"minimum_gt8_percent":0.5,"minimum_bbox_width":220,"minimum_bbox_height":140}
+  ],
+  "evidence_contract": {
+    "artifact_kind": "grand_place_facade_visual_witness",
+    "required_resolution": [1280, 720],
+    "required_view_ids": ["canonical", "cornet_renard", "brasseurs_rose_thabor", "maison_du_roi"],
+    "generic_photo_match_artifact_is_sufficient": false,
+    "human_full_frame_inspection_required": true,
+    "numeric_gate_alone_is_sufficient": false
+  },
+  "latest_human_review": {
+    "head_sha": "44377dde1d3ac2d754e01c87ada1d129eb812ef7",
+    "workflow_run_id": 32850758541,
+    "artifact_id": 9564256215,
+    "artifact_digest": "sha256:af7fe0ab83684349078bb3a629edf901323238b231313688933396623a97e041",
+    "manifest_sha256": "5efd15ac8daf39782d2302d346235171541193cab860474fedddd281394120e8",
+    "png_sha256": {
+      "canonical.png": "0b0ea00dcee5a3ca196d380f6f4c92450649ec81898e44343ee4ea9a1650a234",
+      "cornet_renard.png": "209c3f05ae7a91e948291aced5771317a6719836494e2976d20c9a3f2aaeb07e",
+      "brasseurs_rose_thabor.png": "d826606c9d418d794254124212fec198239ebb9f781eda9f6d92323c4f1cf3f2",
+      "maison_du_roi.png": "a4534c2c4d27dd0227968acd4e3ede72b4990a9683ffae3fb0404176ee6994ee"
+    },
+    "resolution": [1280, 720],
+    "full_frame_inspected": true,
+    "overall_verdict": "reject",
+    "view_verdicts": {
+      "cornet_renard": "reject",
+      "maison_du_roi": "reject"
+    },
+    "production_culling": "CULL_BACK",
+    "source_geometry_changed": false,
+    "source_collision_changed": false,
+    "notes": [
+      "Exact-head artifact 9564256215 was SHA-256 checked before full-frame review; all four PNG hashes match png-sha256.txt and are pairwise distinct, and evidence-sha256.txt binds the manifest with all four PNGs.",
+      "Manifest SHA-256 5efd15ac8daf39782d2302d346235171541193cab860474fedddd281394120e8 is persisted with the human review so base/head/camera/owner provenance cannot silently drift.",
+      "Cornet/Renard remains secondary at the frozen player camera; authoritative width remains 187 px below the frozen 220 px minimum.",
+      "Maison du Roi still presents rear/internal structure in CULL_BACK; alternate culling modes remain diagnostic and visually worse."
+    ]
+  },
+  "freeze": {"ui_hidden":true,"player_hidden":true,"vehicles_hidden":true,"npc_hidden":true,"ambient_frozen":true},
+  "hard_rules": {"camera_position_move_for_pass":false,"fov_change_for_pass":false,"source_bbox_target_change_after_first_render":false,"threshold_reduction_after_first_render":false,"human_full_frame_pass_required":true,"numeric_pass_alone_authorizes_finished_perfect":false,"finished_perfect_on_this_phase":false}
+}

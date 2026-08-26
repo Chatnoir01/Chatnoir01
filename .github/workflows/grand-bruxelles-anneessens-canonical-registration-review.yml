@@ -1,0 +1,70 @@
+name: Anneessens Canonical Registration Review
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/anneessens_canonical_registration_review.contract.json"
+      - "grand-bruxelles-game/data/provenance/anneessens_canonical_registration.review.json"
+      - "grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json"
+      - "grand-bruxelles-game/data/provenance/anneessens_source_cell_municipality.measurement.json"
+      - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
+      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/**"
+      - "grand-bruxelles-game/tools/qa/review_anneessens_canonical_cell_registration.py"
+      - "grand-bruxelles-game/tools/qa/test_anneessens_canonical_cell_registration_review.py"
+      - ".github/workflows/grand-bruxelles-anneessens-canonical-registration-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main ancestry and contract base
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$LIVE_MAIN" HEAD
+          python - "$LIVE_MAIN" <<'PY'
+          import json,sys
+          from pathlib import Path
+          c=json.loads(Path("grand-bruxelles-game/data/qa/anneessens_canonical_registration_review.contract.json").read_text())
+          assert c["production_base_sha"]==sys.argv[1], (c["production_base_sha"],sys.argv[1])
+          print("ANNEESSENS_CANONICAL_REVIEW_LIVE_MAIN_OK",sys.argv[1])
+          PY
+          echo "LIVE_MAIN=$LIVE_MAIN" >> "$GITHUB_ENV"
+      - name: Run fail-closed regressions
+        run: python grand-bruxelles-game/tools/qa/test_anneessens_canonical_cell_registration_review.py
+      - name: Rebuild review from persisted evidence only
+        run: |
+          python grand-bruxelles-game/tools/qa/review_anneessens_canonical_cell_registration.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --production-base-sha "$LIVE_MAIN" \
+            --output "$RUNNER_TEMP/anneessens_canonical_registration.review.json"
+      - name: Require exact locked review and closed rails
+        run: |
+          cmp "$RUNNER_TEMP/anneessens_canonical_registration.review.json" grand-bruxelles-game/data/provenance/anneessens_canonical_registration.review.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path("grand-bruxelles-game/data/provenance/anneessens_canonical_registration.review.json").read_text())
+          assert p["status"]=="READY_FOR_CANONICAL_MANIFEST_REVIEW_BOUNDARY_CELL"
+          assert p["semantic_sha256"]=="ddab6c17ffee17a2741b2251e2b9a2ebdb81526a661e2ab91cd25958fef5bb8b"
+          assert [x["niscode"] for x in p["municipality_boundary"]["intersections"]]==["21013","21001","21004"]
+          for k in ("registration_authorized","road_cell_mapping_authorized","runtime_directory_scan_authorized","runtime_mount_authorized","rendered_geometry_authorized","collision_authorized","safe_spawn_authorized","jouable_promotion_authorized"):
+              assert p[k] is False,k
+          print("ANNEESSENS_CANONICAL_REGISTRATION_REVIEW_LOCKED_EXACT")
+          PY
+      - name: Upload review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anneessens-canonical-registration-review
+          path: ${{ runner.temp }}/anneessens_canonical_registration.review.json
+          if-no-files-found: error

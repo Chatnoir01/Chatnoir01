@@ -1,0 +1,47 @@
+{
+  "schema": "grand-bruxelles-anneessens-canonical-registration-review-contract-v1",
+  "production_base_sha": "7ce0ab04f0759c1458bc7e31968884bf5da95448",
+  "target": {
+    "cell_id": "bxl-e147500-n169500-s500",
+    "crs": "EPSG:31370",
+    "bbox": [
+      147500.0,
+      169500.0,
+      148000.0,
+      170000.0
+    ]
+  },
+  "source": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "service": "UrbIS vector WFS",
+    "license": "CC0-1.0",
+    "source_semantic_sha256": "496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0",
+    "manifest_sha256": "10aac9d4a2404ff23bb7d9af40b9e256b65aa6f25d33c7de1c1e3067244f43d2",
+    "maturity_sha256": "7ebbe70634650db6b2fe21b10e4ae87ede7f4c0c170b21b63d1be9765cc69f89",
+    "manifest_source_digest": "06cc9e818a815bb00c74435a03f7d6ff8c7084010316abef0314fd376c210480"
+  },
+  "municipality": {
+    "status": "HOLD_MUNICIPALITY_BOUNDARY_CELL",
+    "semantic_sha256": "4148e300ea5a81d60b5f16f0eab1186a3d646308cb7a4a4a1c5036b21e2bba8f",
+    "nis_codes": [
+      "21013",
+      "21001",
+      "21004"
+    ],
+    "coverage_sum": 1.0
+  },
+  "registered_index": {
+    "target_must_be_absent": true
+  },
+  "expected_review_semantic_sha256": "ddab6c17ffee17a2741b2251e2b9a2ebdb81526a661e2ab91cd25958fef5bb8b",
+  "authorization": {
+    "canonical_registration": false,
+    "road_to_cell_mapping": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  }
+}

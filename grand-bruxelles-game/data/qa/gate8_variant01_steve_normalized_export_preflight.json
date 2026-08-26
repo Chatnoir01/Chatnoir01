@@ -1,5 +1,5 @@
 {
-  "format": "grand-bruxelles-gate8-variant01-steve-normalized-export-preflight-v5",
+  "format": "grand-bruxelles-gate8-variant01-steve-normalized-export-preflight-v6",
   "base_main_sha": "7ce0ab04f0759c1458bc7e31968884bf5da95448",
   "source": {
     "name": "NPC male Steve",
@@ -21,33 +21,21 @@
     "static_verdict": "AMELIORER"
   },
   "normalization": {
-    "method": "ephemeral_controller_bridge_no_parent_scale_v5",
-    "red_reference_run": 32918396107,
-    "red_reference_max_baked_pose_position_error_m": 1.5499066473743874,
-    "red_assignment_run": 32922400044,
-    "red_assignment_bone": "f2.R.002",
-    "red_assignment_position_error_m": 0.021451851118810414,
-    "red_assignment_rotation_error_deg": 0.7548473741080977,
-    "controller_leaf_red_run": 32925637116,
-    "controller_leaf_red_bone": "poleelbo.R",
-    "controller_leaf_red_position_error_m": 0.027764198236259377,
-    "controller_leaf_red_rotation_error_deg": 0.5650972484457388,
-    "weighted_hand_red_run": 32925862392,
-    "weighted_hand_red_bone": "hand.R",
-    "weighted_hand_red_position_error_m": 0.018322910366781766,
-    "weighted_hand_red_rotation_error_deg": 2.3393807718643873,
-    "parent_scale_red_run": 32926622094,
-    "parent_scale_red_bone": "hand.R",
-    "parent_scale_red_position_error_m": 0.00000012013700229374393,
-    "parent_scale_red_rotation_error_deg": 1.8354114219735884,
-    "parent_scale_red_parent": "ikhand.R",
-    "parent_scale_red_parent_rotation_error_deg": 1.1183630084234288,
-    "parent_scale_red_parent_basis_scale": [0.8573974370956421, 0.8384586572647095, 0.8524900078773499],
-    "bake_solver": "controller_bridge_no_parent_scale_parent_first_matrix_v5",
+    "method": "native_visual_bake_original_hierarchy_then_controller_bridge_v6",
+    "red_manual_trs_run": 32930408411,
+    "red_manual_trs_bone": "armlo.R",
+    "red_manual_trs_position_error_m": 0.00685772872786266,
+    "red_manual_trs_rotation_error_deg": 0.7454570379380938,
+    "bake_solver": "native_visual_bake_original_hierarchy_then_controller_bridge_v6",
     "pose_exactness_scope": "all_nonzero_weighted_bones_plus_required_humanoid_roles",
     "controller_transform_policy": {
       "use_inherit_rotation": true,
       "inherit_scale": "NONE"
+    },
+    "export_policy": {
+      "export_def_bones": true,
+      "export_force_sampling": true,
+      "constraints_baked_before_hierarchy_repair": true
     },
     "expected_repairs": {
       "master": "pelvis",
@@ -60,15 +48,18 @@
     "expected_gaps_after": [],
     "max_rest_position_drift_m": 0.000001,
     "max_rest_rotation_drift_deg": 0.0001,
-    "max_assignment_position_error_m": 0.0001,
-    "max_assignment_rotation_error_deg": 0.10,
-    "max_baked_pose_position_error_m": 0.0001,
-    "max_baked_pose_rotation_error_deg": 0.10
+    "max_native_bake_position_error_m": 0.0001,
+    "max_native_bake_rotation_error_deg": 0.10,
+    "max_controller_assignment_position_error_m": 0.0001,
+    "max_controller_assignment_rotation_error_deg": 0.10,
+    "max_repaired_pose_position_error_m": 0.0001,
+    "max_repaired_pose_rotation_error_deg": 0.10
   },
   "godot_gate": {
     "version": "4.7.1",
     "required_roles": 17,
-    "minimum_source_bones": 55,
+    "require_all_protected_source_bones": true,
+    "require_moved_controllers_absent_after_deform_only_export": true,
     "minimum_target_bones": 53,
     "require_source_topology_gaps_after": [],
     "require_target_topology_gaps": [],

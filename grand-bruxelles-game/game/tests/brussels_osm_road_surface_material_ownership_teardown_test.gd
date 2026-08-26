@@ -127,6 +127,8 @@ func _run() -> void:
     var restore_runtime := restore_case["runtime"] as Node
     var restore_road := restore_case["road"] as CSGBox3D
     var restore_official := restore_case["official"] as MeshInstance3D
+    var restore_transform: Transform3D = restore_case["road_transform"]
+    var restore_size: Vector3 = restore_case["road_size"]
     root.remove_child(restore_runtime)
     if not _assert_teardown_registry_cleared(restore_runtime):
         return
@@ -139,10 +141,10 @@ func _run() -> void:
     if restore_official.has_meta("ground_network_presentation_family"):
         _fail("official presentation ownership metadata survived teardown")
         return
-    if not restore_road.transform.is_equal_approx(restore_case["road_transform"] as Transform3D):
+    if not restore_road.transform.is_equal_approx(restore_transform):
         _fail("generic road transform changed during material teardown")
         return
-    if not restore_road.size.is_equal_approx(restore_case["road_size"] as Vector3):
+    if not restore_road.size.is_equal_approx(restore_size):
         _fail("generic road size changed during material teardown")
         return
     await _cleanup_case(restore_case)
@@ -153,6 +155,8 @@ func _run() -> void:
     var preserve_runtime := preserve_case["runtime"] as Node
     var preserve_road := preserve_case["road"] as CSGBox3D
     var preserve_official := preserve_case["official"] as MeshInstance3D
+    var preserve_transform: Transform3D = preserve_case["road_transform"]
+    var preserve_size: Vector3 = preserve_case["road_size"]
     var later_road_owner := StandardMaterial3D.new()
     later_road_owner.set_meta("material_family", "test_later_road_owner")
     preserve_road.material = later_road_owner
@@ -172,10 +176,10 @@ func _run() -> void:
     if str(preserve_official.get_meta("ground_network_presentation_family", "")) != "test_later_official_owner":
         _fail("official road teardown removed a newer ownership marker")
         return
-    if not preserve_road.transform.is_equal_approx(preserve_case["road_transform"] as Transform3D):
+    if not preserve_road.transform.is_equal_approx(preserve_transform):
         _fail("generic road transform changed while preserving newer owner")
         return
-    if not preserve_road.size.is_equal_approx(preserve_case["road_size"] as Vector3):
+    if not preserve_road.size.is_equal_approx(preserve_size):
         _fail("generic road size changed while preserving newer owner")
         return
     await _cleanup_case(preserve_case)

@@ -82,6 +82,7 @@ def validate_human_review(gate: dict[str, Any]) -> dict[str, Any]:
         _fail("persisted human review must contain exactly four reviewed frames")
 
     frame_verdicts: list[str] = []
+    frame_hashes: set[str] = set()
     for frame_name, frame in frames.items():
         if not isinstance(frame_name, str) or not frame_name.endswith(".png"):
             _fail("review frame names must be PNG artifact paths")
@@ -90,6 +91,9 @@ def validate_human_review(gate: dict[str, Any]) -> dict[str, Any]:
         frame_sha = frame.get("sha256")
         if not isinstance(frame_sha, str) or SHA256.fullmatch(frame_sha) is None:
             _fail(f"frame sha256 must be 64 lowercase hex characters: {frame_name!r}")
+        if frame_sha in frame_hashes:
+            _fail("each reviewed view must bind to a distinct frame sha256")
+        frame_hashes.add(frame_sha)
         verdict = frame.get("verdict")
         if verdict not in ALLOWED_FRAME_VERDICTS:
             _fail(f"frame verdict must be one of {sorted(ALLOWED_FRAME_VERDICTS)}: {frame_name!r}")

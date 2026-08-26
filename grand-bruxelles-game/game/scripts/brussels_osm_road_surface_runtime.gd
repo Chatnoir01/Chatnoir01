@@ -26,6 +26,11 @@ func _ready() -> void:
         get_tree().node_added.connect(_on_node_added)
     call_deferred("_schedule_road_bind")
 
+func _exit_tree() -> void:
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+
 func _load_road_classes() -> Dictionary:
     var classes := {}
     if not FileAccess.file_exists(DATA_PATH):

@@ -12,9 +12,6 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
         self.assertFalse(segment_bbox_intersects((147000.0, 169000.0), (147500.0, 169500.0), bbox))
 
     def test_segment_bbox_intersection_rejects_extent_only_false_positive(self):
-        # The segment bbox overlaps the cell bbox, but the diagonal itself stays
-        # entirely below-left of the rectangle. The old extent-only test returned
-        # True here and could falsely prove road coverage.
         bbox = [2.5, 2.5, 3.0, 3.0]
         self.assertFalse(segment_bbox_intersects((0.0, 3.0), (3.0, 0.0), bbox))
 
@@ -35,32 +32,38 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
     def test_closed_authorization_contract(self):
         contract = json.loads(Path("data/qa/osm_road_extension_e148500_n170500.contract.json").read_text())
         self.assertEqual(contract["schema"], "grand-bruxelles-osm-road-extension-acquisition-v2")
+        self.assertEqual(contract["status"], "LOCKED_SOURCE_ONLY_ARTIFACT")
         self.assertEqual(contract["target"]["crs"], "EPSG:31370")
         self.assertEqual(contract["source"]["license"], "ODbL-1.0")
         self.assertTrue(contract["authorization"])
         self.assertTrue(all(value is False for value in contract["authorization"].values()))
 
-    def test_transport_fallback_is_bounded_and_explicit(self):
+    def test_locked_artifact_identity_is_complete(self):
         contract = json.loads(Path("data/qa/osm_road_extension_e148500_n170500.contract.json").read_text())
-        source = contract["source"]
-        endpoints = source["endpoints"]
-        self.assertGreaterEqual(len(endpoints), 2)
-        self.assertEqual(endpoints[0], source["endpoint"])
-        self.assertEqual(len(endpoints), len(set(endpoints)))
-        self.assertTrue(all(v.startswith("https://") and v.endswith("/api/interpreter") for v in endpoints))
-        self.assertGreaterEqual(source["transport_attempts_per_endpoint"], 1)
-        self.assertLessEqual(source["transport_attempts_per_endpoint"], 3)
-        self.assertGreater(source["transport_max_time_seconds"], source["overpass_timeout_seconds"])
-        self.assertLessEqual(source["transport_max_time_seconds"], 120)
+        evidence = contract["locked_evidence"]
+        self.assertEqual(evidence["workflow_run_id"], 32997864824)
+        self.assertEqual(evidence["artifact_id"], 9617302727)
+        self.assertEqual(evidence["artifact_zip_bytes"], 79621)
+        self.assertEqual(evidence["artifact_zip_sha256"], "8e5bd2508c5827cb9d14dc4a319044cbc6fbe2f96ed14fbca06b4db6e79933e3")
+        self.assertEqual(evidence["measurement_sha256"], "f372f418a0e8c64f90558fb15a901a187a3171f83e5a25c7091d441f0ca22fe8")
+        self.assertEqual(evidence["raw_bytes"], 538236)
+        self.assertEqual(evidence["raw_sha256"], "80544caed58414f3f3c58274659fcb9ec9487621976c263843af7c59d007b4ab")
+        self.assertEqual(evidence["semantic_sha256"], "7264a311b7688350126a9faa4a1e16eab7e7eea0cbc231217c3080488d7a41bf")
+        self.assertEqual(evidence["accounting"]["highway_way_count"], 591)
+        self.assertEqual(evidence["accounting"]["referenced_node_count"], 3508)
+        self.assertEqual(evidence["accounting"]["way_point_count"], 4568)
+        self.assertEqual(evidence["accounting"]["target_intersecting_way_count"], 591)
 
-    def test_workflow_never_parses_failed_transport_as_payload(self):
+    def test_locked_phase_workflow_is_artifact_only(self):
         workflow = Path("../.github/workflows/grand-bruxelles-osm-road-extension-e148500-n170500.yml").read_text()
-        self.assertIn('candidate="${RUNNER_TEMP}/overpass.raw.${endpoint_index}.${attempt}.json"', workflow)
-        self.assertIn('if curl ', workflow)
-        self.assertIn('python - "$candidate"', workflow)
-        self.assertIn('mv "$candidate" "$RUNNER_TEMP/overpass.raw.json"', workflow)
-        self.assertIn('test "$acquired" = true', workflow)
-        self.assertNotIn('> "$RUNNER_TEMP/overpass.raw.json"\n          python -m json.tool', workflow)
+        self.assertIn("actions/artifacts/9617302727/zip", workflow)
+        self.assertIn("8e5bd2508c5827cb9d14dc4a319044cbc6fbe2f96ed14fbca06b4db6e79933e3", workflow)
+        self.assertIn("Reproduce measurement from immutable artifact only", workflow)
+        self.assertIn("cmp \"$RUNNER_TEMP/locked_source/osm_road_extension_e148500_n170500.measurement.json\"", workflow)
+        self.assertNotIn("Build exact Overpass query from Lambert72 target cell", workflow)
+        self.assertNotIn("Acquire OSM road extension candidate with bounded endpoint failover", workflow)
+        self.assertNotIn("--data-urlencode", workflow)
+        self.assertNotIn("overpass.kumi.systems/api/interpreter\" >", workflow)
 
 
 if __name__ == "__main__":

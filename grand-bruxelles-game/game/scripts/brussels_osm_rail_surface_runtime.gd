@@ -23,6 +23,11 @@ func _ready() -> void:
         get_tree().node_added.connect(_on_node_added)
     call_deferred("_schedule_rail_bind")
 
+func _exit_tree() -> void:
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+
 func _is_generated_rails_root(node: Node) -> bool:
     if not node is Node3D or str(node.name) != "GeneratedRails":
         return false

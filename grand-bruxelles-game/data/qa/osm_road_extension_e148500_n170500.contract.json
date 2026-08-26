@@ -31,6 +31,27 @@
     "coverage_semantic_sha256": "8aaca3178894950a8a1efe8235e3313f34d4d23656b968a9cbf87666284acd7b",
     "gap_evidence_semantic_sha256": "65536c521ff9897b74046bc1ac5aa653d4dce08ea3a66d60a610b913481508a3"
   },
+  "locked_evidence": {
+    "workflow_run_id": 32997864824,
+    "artifact_id": 9617302727,
+    "artifact_name": "osm-road-extension-e148500-n170500-red-first",
+    "artifact_zip_bytes": 79621,
+    "artifact_zip_sha256": "8e5bd2508c5827cb9d14dc4a319044cbc6fbe2f96ed14fbca06b4db6e79933e3",
+    "measurement_sha256": "f372f418a0e8c64f90558fb15a901a187a3171f83e5a25c7091d441f0ca22fe8",
+    "raw_bytes": 538236,
+    "raw_sha256": "80544caed58414f3f3c58274659fcb9ec9487621976c263843af7c59d007b4ab",
+    "semantic_sha256": "7264a311b7688350126a9faa4a1e16eab7e7eea0cbc231217c3080488d7a41bf",
+    "acquired_at_utc": "2026-08-26T18:07:23Z",
+    "endpoint_used": "https://overpass-api.de/api/interpreter",
+    "overpass_query": "[out:json][timeout:60];way[\"highway\"](50.84490424,4.34745205,50.84940002,4.35455341);out body;>;out skel qt;",
+    "accounting": {
+      "highway_way_count": 591,
+      "referenced_node_count": 3508,
+      "way_point_count": 4568,
+      "target_intersecting_way_count": 591,
+      "lambert72_bbox": [148369.62392544962, 170391.58400658052, 149100.7747984568, 171143.6506265588]
+    }
+  },
   "authorization": {
     "source_refresh_authorized": false,
     "source_merge_authorized": false,
@@ -42,5 +63,5 @@
     "safe_spawn_authorized": false,
     "jouable_promotion_authorized": false
   },
-  "status": "MEASUREMENT_PENDING"
+  "status": "LOCKED_SOURCE_ONLY_ARTIFACT"
 }

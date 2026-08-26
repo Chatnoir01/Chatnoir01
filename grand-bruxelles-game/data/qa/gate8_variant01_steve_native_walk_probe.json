@@ -1,0 +1,50 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-steve-native-walk-probe-v1",
+  "base_main_sha": "77931606307c47078b361f54ec43822b03cb9e03",
+  "source": {
+    "name": "NPC male Steve reviewed proxy",
+    "license": "CC0-1.0",
+    "archive_sha256": "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5",
+    "archive_size_bytes": 1454243,
+    "proxy_preflight_pr": 1328,
+    "proxy_preflight_run": 33019113760,
+    "proxy_preflight_artifact": 9625775629,
+    "proxy_preflight_artifact_digest": "sha256:1ffb7d1669b35d418be5cb19d877b4859e21f08627aab191b07d14ed59dfaeda",
+    "required_animation": "walk",
+    "reviewed_role_count": 17
+  },
+  "target": {
+    "name": "Gate-8 variant 01",
+    "artifact_id": 9470539830,
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "required_bones": 53,
+    "required_skinned_meshes": 8,
+    "required_skinned_surfaces": 8,
+    "required_material_surfaces": 8
+  },
+  "probe": {
+    "engine": "Godot 4.7.1",
+    "modifier": "RetargetModifier3D",
+    "use_global_pose": false,
+    "position_enabled": false,
+    "rotation_enabled": true,
+    "scale_enabled": false,
+    "sample_count": 16,
+    "max_transfer_error_deg": 3.0,
+    "max_grounding_span_m": 0.18,
+    "max_skin_edge_absolute_change_m": 0.25,
+    "max_skin_stretch_ratio": 3.0,
+    "min_skin_compression_ratio": 0.25
+  },
+  "rails": {
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "visual_approval_claimed": false,
+    "runtime_population_changed": false,
+    "player_character_reuse_allowed": false,
+    "mixamo_payload_allowed": false
+  }
+}

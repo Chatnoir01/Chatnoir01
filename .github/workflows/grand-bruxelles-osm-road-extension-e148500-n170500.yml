@@ -1,0 +1,142 @@
+name: Grand Bruxelles OSM Road Extension E148500 N170500
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500.contract.json"
+      - "grand-bruxelles-game/tools/qa/acquire_osm_road_extension_candidate.py"
+      - "grand-bruxelles-game/tests/test_osm_road_extension_acquisition.py"
+      - ".github/workflows/grand-bruxelles-osm-road-extension-e148500-n170500.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  reproduce-locked-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and locked contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          CANDIDATE_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          python - "$LIVE_MAIN_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          c=json.loads(Path("grand-bruxelles-game/data/qa/osm_road_extension_e148500_n170500.contract.json").read_text())
+          assert c["production_base_sha"] == sys.argv[1], (c["production_base_sha"], sys.argv[1])
+          assert c["schema"] == "grand-bruxelles-osm-road-extension-acquisition-v2"
+          assert c["status"] == "LOCKED_SOURCE_ONLY_ARTIFACT"
+          assert c["target"]["crs"] == "EPSG:31370"
+          assert c["source"]["license"] == "ODbL-1.0"
+          assert c["locked_evidence"]["artifact_id"] == 9617302727
+          assert c["locked_evidence"]["workflow_run_id"] == 32997864824
+          assert all(v is False for v in c["authorization"].values())
+          print("OSM_ROAD_EXTENSION_LOCK_CONTRACT_OK", sys.argv[1], c["locked_evidence"]["semantic_sha256"])
+          PY
+
+      - name: Verify locked predecessor source
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398  data/osm/vertical_slice_01.game.json" | sha256sum -c -
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install projection dependency
+        run: python -m pip install --disable-pip-version-check pyproj
+
+      - name: Run fail-closed regressions
+        working-directory: grand-bruxelles-game
+        run: python -m unittest tests/test_osm_road_extension_acquisition.py -v
+
+      - name: Restore immutable acquisition artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT_ZIP="$RUNNER_TEMP/osm-road-extension-e148500-n170500-red-first.zip"
+          curl --fail --silent --show-error --location \
+            --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9617302727/zip" \
+            -o "$ARTIFACT_ZIP"
+          echo "8e5bd2508c5827cb9d14dc4a319044cbc6fbe2f96ed14fbca06b4db6e79933e3  $ARTIFACT_ZIP" | sha256sum -c -
+          test "$(wc -c < "$ARTIFACT_ZIP")" -eq 79621
+          mkdir -p "$RUNNER_TEMP/locked_source"
+          unzip -q "$ARTIFACT_ZIP" -d "$RUNNER_TEMP/locked_source"
+          test -f "$RUNNER_TEMP/locked_source/overpass.raw.json"
+          test -f "$RUNNER_TEMP/locked_source/overpass.query.txt"
+          test -f "$RUNNER_TEMP/locked_source/overpass.endpoint.txt"
+          test -f "$RUNNER_TEMP/locked_source/osm_road_extension_e148500_n170500.measurement.json"
+          echo "80544caed58414f3f3c58274659fcb9ec9487621976c263843af7c59d007b4ab  $RUNNER_TEMP/locked_source/overpass.raw.json" | sha256sum -c -
+          echo "f372f418a0e8c64f90558fb15a901a187a3171f83e5a25c7091d441f0ca22fe8  $RUNNER_TEMP/locked_source/osm_road_extension_e148500_n170500.measurement.json" | sha256sum -c -
+          test "$(wc -c < "$RUNNER_TEMP/locked_source/overpass.raw.json")" -eq 538236
+
+      - name: Reproduce measurement from immutable artifact only
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/qa/acquire_osm_road_extension_candidate.py \
+            --contract data/qa/osm_road_extension_e148500_n170500.contract.json \
+            --raw-overpass "$RUNNER_TEMP/locked_source/overpass.raw.json" \
+            --acquired-at "2026-08-26T18:07:23Z" \
+            --query "$(cat "$RUNNER_TEMP/locked_source/overpass.query.txt")" \
+            --endpoint-used "$(cat "$RUNNER_TEMP/locked_source/overpass.endpoint.txt")" \
+            --output "$RUNNER_TEMP/reproduced.measurement.json"
+          echo "f372f418a0e8c64f90558fb15a901a187a3171f83e5a25c7091d441f0ca22fe8  $RUNNER_TEMP/reproduced.measurement.json" | sha256sum -c -
+          cmp "$RUNNER_TEMP/locked_source/osm_road_extension_e148500_n170500.measurement.json" "$RUNNER_TEMP/reproduced.measurement.json"
+
+      - name: Require locked accounting, provenance and closed rails
+        working-directory: grand-bruxelles-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          c=json.loads(Path("data/qa/osm_road_extension_e148500_n170500.contract.json").read_text())
+          m=json.loads((Path(os.environ["RUNNER_TEMP"])/"reproduced.measurement.json").read_text())
+          e=c["locked_evidence"]
+          assert m["semantic_sha256"] == e["semantic_sha256"] == "7264a311b7688350126a9faa4a1e16eab7e7eea0cbc231217c3080488d7a41bf"
+          assert m["source"]["raw_sha256"] == e["raw_sha256"]
+          assert m["source"]["raw_bytes"] == e["raw_bytes"]
+          assert m["source"]["endpoint"] == e["endpoint_used"]
+          assert m["source"]["overpass_query"] == e["overpass_query"]
+          assert m["accounting"]["highway_way_count"] == e["accounting"]["highway_way_count"] == 591
+          assert m["accounting"]["referenced_node_count"] == e["accounting"]["referenced_node_count"] == 3508
+          assert m["accounting"]["way_point_count"] == e["accounting"]["way_point_count"] == 4568
+          assert m["accounting"]["target_intersecting_way_count"] == e["accounting"]["target_intersecting_way_count"] == 591
+          assert m["accounting"]["lambert72_bbox"] == e["accounting"]["lambert72_bbox"]
+          assert m["target"] == c["target"]
+          assert m["predecessor"] == c["predecessor"]
+          assert m["authorization"] == c["authorization"]
+          assert all(v is False for v in m["authorization"].values())
+          print("OSM_ROAD_EXTENSION_LOCKED_SOURCE_ONLY", m["semantic_sha256"], "ways=591 nodes=3508 points=4568")
+          PY
+
+      - name: Upload reproduction evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: osm-road-extension-e148500-n170500-locked-reproduction
+          path: ${{ runner.temp }}/reproduced.measurement.json
+          if-no-files-found: error

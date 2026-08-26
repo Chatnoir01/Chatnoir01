@@ -18,8 +18,10 @@ var _identity: Dictionary = {}
 var _fonsny_full_entrance_runtime: Node
 var _awaiting_midi := false
 var _bind_in_progress := false
+var _tearing_down := false
 
 func _ready() -> void:
+    _tearing_down = false
     # Midi-only mount point: keep this exact-location replacement isolated from
     # shared OSM facade/autoload ownership.
     _fonsny_full_entrance_runtime = FONSNY_FULL_ENTRANCE_RUNTIME.new()
@@ -33,8 +35,16 @@ func _ready() -> void:
     get_tree().node_added.connect(_on_node_added)
     call_deferred("_bind_existing_midi")
 
+func _exit_tree() -> void:
+    _tearing_down = true
+    _awaiting_midi = false
+    _bind_in_progress = false
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+
 func _bind_existing_midi() -> void:
-    if _ready_complete or _identity_failure or _bind_in_progress:
+    if _ready_complete or _identity_failure or _bind_in_progress or _tearing_down or not is_inside_tree():
         return
     var midi := get_tree().root.get_node_or_null("GrandBruxelles/MidiHeroZone")
     if midi == null:
@@ -44,14 +54,14 @@ func _bind_existing_midi() -> void:
         _apply_when_subtree_ready(midi)
 
 func _on_node_added(node: Node) -> void:
-    if _ready_complete or _identity_failure or _bind_in_progress or node.name != "MidiHeroZone":
+    if _ready_complete or _identity_failure or _bind_in_progress or _tearing_down or node.name != "MidiHeroZone":
         return
     _bind_in_progress = true
     _apply_when_subtree_ready(node)
 
 func _apply_when_subtree_ready(midi: Node) -> void:
     for _frame: int in range(SUBTREE_READY_FRAMES):
-        if not is_instance_valid(midi):
+        if _tearing_down or not is_inside_tree() or not is_instance_valid(midi):
             _bind_in_progress = false
             return
         _targets.clear()
@@ -59,7 +69,14 @@ func _apply_when_subtree_ready(midi: Node) -> void:
         if _targets.size() == EXPECTED_SURFACES:
             _apply_material()
             return
-        await get_tree().process_frame
+        var tree: SceneTree = get_tree()
+        if tree == null:
+            _bind_in_progress = false
+            return
+        await tree.process_frame
+        if _tearing_down or not is_inside_tree():
+            _bind_in_progress = false
+            return
     push_error("Midi concrete runtime: expected %d verified concrete surfaces, got %d after bounded Midi subtree population" % [EXPECTED_SURFACES, _targets.size()])
     _identity_failure = true
     _ready_complete = true
@@ -77,8 +94,9 @@ func _apply_material() -> void:
 func _finish_waiting() -> void:
     _awaiting_midi = false
     _bind_in_progress = false
-    if get_tree().node_added.is_connected(_on_node_added):
-        get_tree().node_added.disconnect(_on_node_added)
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
 
 func _read_identity() -> Dictionary:
     if not FileAccess.file_exists(IDENTITY_PATH):

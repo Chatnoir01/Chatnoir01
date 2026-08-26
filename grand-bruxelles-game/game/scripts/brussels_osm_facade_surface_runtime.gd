@@ -16,13 +16,20 @@ var _ready_complete := false
 var _failed := false
 var _hero_replacements_touched := 0
 var _bind_scheduled := false
+var _tearing_down := false
 
 func _ready() -> void:
+    _tearing_down = false
     process_mode = Node.PROCESS_MODE_ALWAYS
     var tree := get_tree()
-    if not tree.node_added.is_connected(_on_node_added):
+    if tree != null and not tree.node_added.is_connected(_on_node_added):
         tree.node_added.connect(_on_node_added)
     _schedule_apply()
+
+func _exit_tree() -> void:
+    _tearing_down = true
+    _bind_scheduled = false
+    _disconnect_mount_listener()
 
 func _palette_key(material: Material) -> String:
     if material is StandardMaterial3D:
@@ -47,23 +54,28 @@ func _valid_buildings_root(node: Node) -> bool:
     return node is Node3D and str(node.name) == "GeneratedBuildings" and node.get_parent() != null and str(node.get_parent().name) == "BrusselsOSM"
 
 func _find_existing_buildings_root() -> Node3D:
+    if _tearing_down or not is_inside_tree():
+        return null
+    var tree := get_tree()
+    if tree == null:
+        return null
     # One bounded recursive recovery covers legitimate test/editor mounts where
     # production main is already nested below a SubViewport before this autoload
     # gets a useful mount event. Event handling itself never performs a recursive
     # search; only the exact GeneratedBuildings node can schedule a retry.
-    for candidate: Node in get_tree().root.find_children("GeneratedBuildings", "Node3D", true, false):
+    for candidate: Node in tree.root.find_children("GeneratedBuildings", "Node3D", true, false):
         if _valid_buildings_root(candidate):
             return candidate as Node3D
     return null
 
 func _on_node_added(node: Node) -> void:
-    if _ready_complete or _failed:
+    if _tearing_down or not is_inside_tree() or _ready_complete or _failed:
         return
     if _valid_buildings_root(node):
         _schedule_apply()
 
 func _schedule_apply() -> void:
-    if _bind_scheduled or _ready_complete or _failed:
+    if _tearing_down or not is_inside_tree() or _bind_scheduled or _ready_complete or _failed:
         return
     _bind_scheduled = true
     call_deferred("_try_apply")
@@ -74,6 +86,8 @@ func _disconnect_mount_listener() -> void:
         tree.node_added.disconnect(_on_node_added)
 
 func _fail(message: String) -> void:
+    if _tearing_down:
+        return
     push_error("Brussels OSM facade surface runtime: %s" % message)
     _failed = true
     _ready_complete = true
@@ -81,7 +95,7 @@ func _fail(message: String) -> void:
 
 func _try_apply() -> void:
     _bind_scheduled = false
-    if _ready_complete or _failed:
+    if _tearing_down or not is_inside_tree() or _ready_complete or _failed:
         return
     var buildings_root := _find_existing_buildings_root()
     if buildings_root == null:
@@ -123,6 +137,8 @@ func _try_apply() -> void:
     print("BRUSSELS_OSM_FACADE_SURFACE_READY: buildings=%d materials=%d family=%s source=OSM license=ODbL-1.0 geometry_changed=false material_identity_claimed=false event_driven=true" % [_buildings.size(), _materials.size(), MATERIAL_FACTORY.MATERIAL_FAMILY])
 
 func _set_material_state(enabled: bool) -> void:
+    if _tearing_down or not is_inside_tree():
+        return
     for building: CSGPolygon3D in _buildings:
         if not is_instance_valid(building):
             continue
@@ -135,7 +151,7 @@ func _set_material_state(enabled: bool) -> void:
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled
-    if _ready_complete and not _failed:
+    if _ready_complete and not _failed and not _tearing_down and is_inside_tree():
         _set_material_state(enabled)
 
 func enhanced_enabled() -> bool:

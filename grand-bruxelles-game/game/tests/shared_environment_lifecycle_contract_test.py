@@ -36,9 +36,17 @@ EXPECTED_DEFERRED_BIND_GUARDS = {
     "game/scripts/anneessens_osm_furniture_runtime.gd": ("_try_bind",),
     "game/scripts/ixelles_midi_sidewalk_runtime.gd": ("_bind_existing_target", "_apply_candidate"),
     "game/scripts/brussels_base_ground_surface_runtime.gd": ("_bind_existing_main", "_try_bind_main"),
+    "game/scripts/brussels_osm_facade_surface_runtime.gd": ("_try_apply",),
+    "game/scripts/brussels_osm_facade_articulation_runtime.gd": ("_try_apply",),
     "game/scripts/brussels_bollard_runtime.gd": ("_schedule_scene_bind", "_recover_existing_scene"),
     "game/scripts/brussels_street_lamp_runtime.gd": ("_schedule_scene_bind", "_recover_existing_scene"),
     "game/scripts/brussels_corridor_tree_runtime.gd": ("_start_scene_watch",),
+}
+EXPECTED_EXTERNAL_SIGNAL_CLEANUP = {
+    "game/scripts/brussels_osm_facade_articulation_runtime.gd": (
+        "facade_surface_ready",
+        "_disconnect_base_runtime",
+    ),
 }
 EXPECTED_OWNED_ROOTS = {
     "game/scripts/brussels_bollard_runtime.gd": "BrusselsSourceBackedBollards",
@@ -95,7 +103,7 @@ def assert_exit_disconnect(source: str, rel_path: str) -> None:
         fail(f"teardown callback missing _exit_tree: {rel_path}")
     if "disconnect(" in exit_body:
         return
-    for helper_name in ("_stop_watching", "_disconnect_scene_watch"):
+    for helper_name in ("_stop_watching", "_disconnect_scene_watch", "_disconnect_mount_listener"):
         if f"{helper_name}()" not in exit_body:
             continue
         helper_body = top_level_function_body(source, helper_name)
@@ -122,6 +130,25 @@ def assert_deferred_bind_teardown_guard(source: str, rel_path: str, function_nam
                 f"deferred target can run after teardown/off-tree: {rel_path} "
                 f"function={function_name}"
             )
+
+
+def assert_external_signal_teardown_cleanup(
+    source: str,
+    rel_path: str,
+    signal_name: str,
+    helper_name: str,
+) -> None:
+    exit_body = top_level_function_body(source, "_exit_tree")
+    if not exit_body or f"{helper_name}()" not in exit_body:
+        fail(f"external runtime signal cleanup not called from _exit_tree: {rel_path}")
+    helper_body = top_level_function_body(source, helper_name)
+    if not helper_body:
+        fail(f"external runtime signal cleanup helper missing: {rel_path} helper={helper_name}")
+    if signal_name not in helper_body or "disconnect(" not in helper_body:
+        fail(
+            f"external runtime signal cleanup incomplete: {rel_path} "
+            f"signal={signal_name} helper={helper_name}"
+        )
 
 
 def assert_owned_root_teardown(source: str, rel_path: str, root_name: str) -> None:
@@ -158,6 +185,8 @@ def main() -> None:
         fail("per-frame global SceneTree discovery rail missing")
     if contract.get("deferred_bind_teardown_guard_required") is not True:
         fail("deferred-bind teardown lifecycle rail missing")
+    if contract.get("external_runtime_signal_teardown_cleanup_required") is not True:
+        fail("external runtime signal teardown lifecycle rail missing")
     if contract.get("runtime_owned_root_teardown_cleanup_required") is not True:
         fail("runtime-owned root teardown lifecycle rail missing")
 
@@ -187,6 +216,7 @@ def main() -> None:
     seen_paths: set[str] = set()
     seen_names: set[str] = set()
     seen_deferred_bind_guards: set[str] = set()
+    seen_external_signal_cleanup: set[str] = set()
     seen_owned_roots: set[str] = set()
     for entry in runtimes:
         if not isinstance(entry, dict):
@@ -235,6 +265,21 @@ def main() -> None:
         elif expected_guard_functions is not None:
             fail(f"known deferred-bind runtime lost teardown requirement: {rel_path}")
 
+        requires_external_cleanup = entry.get("external_signal_teardown_cleanup_required", False)
+        expected_external = EXPECTED_EXTERNAL_SIGNAL_CLEANUP.get(rel_path)
+        if requires_external_cleanup is True:
+            if expected_external is None:
+                fail(f"unexpected external signal teardown runtime registered: {rel_path}")
+            signal_name, helper_name = expected_external
+            if entry.get("external_signal_name") != signal_name:
+                fail(f"external signal identity drifted: {rel_path}")
+            if entry.get("external_signal_cleanup_helper") != helper_name:
+                fail(f"external signal cleanup helper drifted: {rel_path}")
+            assert_external_signal_teardown_cleanup(source, rel_path, signal_name, helper_name)
+            seen_external_signal_cleanup.add(rel_path)
+        elif expected_external is not None:
+            fail(f"known external signal runtime lost teardown cleanup requirement: {rel_path}")
+
         requires_owned_root_cleanup = entry.get("runtime_owned_root_teardown_cleanup_required", False)
         expected_root_name = EXPECTED_OWNED_ROOTS.get(rel_path)
         if requires_owned_root_cleanup is True:
@@ -253,6 +298,8 @@ def main() -> None:
         fail("lifecycle registry runtime path set drifted")
     if seen_deferred_bind_guards != set(EXPECTED_DEFERRED_BIND_GUARDS):
         fail("deferred-bind teardown runtime set drifted")
+    if seen_external_signal_cleanup != set(EXPECTED_EXTERNAL_SIGNAL_CLEANUP):
+        fail("external signal teardown runtime set drifted")
     if seen_owned_roots != set(EXPECTED_OWNED_ROOTS):
         fail("runtime-owned root teardown set drifted")
 
@@ -260,6 +307,7 @@ def main() -> None:
         "SHARED_ENVIRONMENT_LIFECYCLE_CONTRACT_OK: "
         f"runtimes={len(runtimes)} autoload_identity=locked "
         f"deferred_bind_guards={len(seen_deferred_bind_guards)} "
+        f"external_signal_cleanup={len(seen_external_signal_cleanup)} "
         f"owned_root_teardown={len(seen_owned_roots)} "
         "per_frame_global_tree_scan=0 legacy_polling=0 "
         "policy=dormant_event_driven_nested_mount_safe"

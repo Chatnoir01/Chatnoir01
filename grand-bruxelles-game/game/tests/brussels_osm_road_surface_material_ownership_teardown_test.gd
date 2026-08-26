@@ -17,8 +17,7 @@ func _remove_canonical_runtime() -> void:
     if canonical == null:
         return
     root.remove_child(canonical)
-    canonical.queue_free()
-    await process_frame
+    canonical.free()
 
 func _build_fixture() -> Dictionary:
     var scene := Node3D.new()
@@ -54,6 +53,7 @@ func _build_fixture() -> Dictionary:
 
     return {
         "scene": scene,
+        "roads_root": roads_root,
         "road": road,
         "legacy_material": legacy_material,
         "road_transform": road.transform,
@@ -62,14 +62,15 @@ func _build_fixture() -> Dictionary:
         "official_legacy": official_legacy,
     }
 
-func _mount_case() -> Dictionary:
+func _mount_case(label: String) -> Dictionary:
     var fixture := _build_fixture()
     var scene := fixture["scene"] as Node3D
+    var roads_root := fixture["roads_root"] as Node3D
     var runtime := RUNTIME_SCRIPT.new() as Node
-    root.add_child(runtime)
     root.add_child(scene)
-    for _frame: int in range(4):
-        await process_frame
+    root.add_child(runtime)
+    print("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_PHASE: case=%s phase=bind" % label)
+    runtime.call("_bind_roads_root", roads_root)
     fixture["runtime"] = runtime
     return fixture
 
@@ -111,17 +112,18 @@ func _cleanup_case(case: Dictionary) -> void:
     var runtime := case["runtime"] as Node
     var scene := case["scene"] as Node3D
     if runtime != null and is_instance_valid(runtime):
-        runtime.queue_free()
+        if runtime.get_parent() != null:
+            runtime.get_parent().remove_child(runtime)
+        runtime.free()
     if scene != null and is_instance_valid(scene):
         if scene.get_parent() != null:
             scene.get_parent().remove_child(scene)
-        scene.queue_free()
-    await process_frame
+        scene.free()
 
 func _run() -> void:
-    await _remove_canonical_runtime()
+    _remove_canonical_runtime()
 
-    var restore_case := await _mount_case()
+    var restore_case := _mount_case("restore")
     if not _assert_bound(restore_case):
         return
     var restore_runtime := restore_case["runtime"] as Node
@@ -129,6 +131,7 @@ func _run() -> void:
     var restore_official := restore_case["official"] as MeshInstance3D
     var restore_transform: Transform3D = restore_case["road_transform"]
     var restore_size: Vector3 = restore_case["road_size"]
+    print("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_PHASE: case=restore phase=remove")
     root.remove_child(restore_runtime)
     if not _assert_teardown_registry_cleared(restore_runtime):
         return
@@ -147,9 +150,9 @@ func _run() -> void:
     if not restore_road.size.is_equal_approx(restore_size):
         _fail("generic road size changed during material teardown")
         return
-    await _cleanup_case(restore_case)
+    _cleanup_case(restore_case)
 
-    var preserve_case := await _mount_case()
+    var preserve_case := _mount_case("preserve")
     if not _assert_bound(preserve_case):
         return
     var preserve_runtime := preserve_case["runtime"] as Node
@@ -164,6 +167,7 @@ func _run() -> void:
     later_official_owner.set_meta("material_family", "test_later_official_owner")
     preserve_official.material_override = later_official_owner
     preserve_official.set_meta("ground_network_presentation_family", "test_later_official_owner")
+    print("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_PHASE: case=preserve phase=remove")
     root.remove_child(preserve_runtime)
     if not _assert_teardown_registry_cleared(preserve_runtime):
         return
@@ -182,7 +186,7 @@ func _run() -> void:
     if not preserve_road.size.is_equal_approx(preserve_size):
         _fail("generic road size changed while preserving newer owner")
         return
-    await _cleanup_case(preserve_case)
+    _cleanup_case(preserve_case)
 
-    print("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_OK: fixture_osm_id=%d legacy_restored=true official_restored=true newer_owners_preserved=true registries_cleared=true geometry_changed=false" % TEST_OSM_ID)
+    print("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_OK: fixture_osm_id=%d legacy_restored=true official_restored=true newer_owners_preserved=true registries_cleared=true geometry_changed=false deterministic_bind=true" % TEST_OSM_ID)
     quit(0)

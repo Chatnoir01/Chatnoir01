@@ -31,6 +31,11 @@ EXPECTED_AUTOLOADS = {
     "BrusselsStreetLampRuntime": "game/scripts/brussels_street_lamp_runtime.gd",
     "BrusselsCorridorTreeRuntime": "game/scripts/brussels_corridor_tree_runtime.gd",
 }
+EXPECTED_DEFERRED_BIND_GUARDS = {
+    "game/scripts/anneessens_midi_sidewalk_runtime.gd": ("_try_bind",),
+    "game/scripts/anneessens_osm_furniture_runtime.gd": ("_try_bind",),
+    "game/scripts/ixelles_midi_sidewalk_runtime.gd": ("_bind_existing_target", "_apply_candidate"),
+}
 GLOBAL_TREE_SCAN_TOKENS = (
     "get_tree().root",
     ".find_child(",
@@ -75,6 +80,27 @@ def assert_no_per_frame_global_tree_scan(source: str, rel_path: str) -> None:
                 )
 
 
+def assert_deferred_bind_teardown_guard(source: str, rel_path: str, function_names: tuple[str, ...]) -> None:
+    if "call_deferred(" not in source:
+        fail(f"deferred-bind teardown contract marked on runtime without deferred work: {rel_path}")
+    if "var _tearing_down" not in source:
+        fail(f"deferred-bind teardown sentinel missing: {rel_path}")
+    exit_body = top_level_function_body(source, "_exit_tree")
+    if not exit_body or "_tearing_down = true" not in exit_body:
+        fail(f"deferred-bind teardown sentinel not set from _exit_tree: {rel_path}")
+    if "disconnect(" not in exit_body:
+        fail(f"deferred-bind watcher cleanup missing from _exit_tree: {rel_path}")
+    for function_name in function_names:
+        body = top_level_function_body(source, function_name)
+        if not body:
+            fail(f"deferred guard function missing: {rel_path} function={function_name}")
+        if "_tearing_down" not in body or "not is_inside_tree()" not in body:
+            fail(
+                f"deferred target can run after teardown/off-tree: {rel_path} "
+                f"function={function_name}"
+            )
+
+
 def main() -> None:
     if not CONTRACT_PATH.is_file():
         fail("shared Environment lifecycle contract missing")
@@ -96,6 +122,8 @@ def main() -> None:
         fail("shared Environment production autoload identity rail missing")
     if contract.get("per_frame_global_tree_scan_forbidden") is not True:
         fail("per-frame global SceneTree discovery rail missing")
+    if contract.get("deferred_bind_teardown_guard_required") is not True:
+        fail("deferred-bind teardown lifecycle rail missing")
 
     project_source = PROJECT_PATH.read_text(encoding="utf-8")
     project_pairs = [(m.group("name"), m.group("path")) for m in AUTOLOAD_RE.finditer(project_source)]
@@ -122,6 +150,7 @@ def main() -> None:
 
     seen_paths: set[str] = set()
     seen_names: set[str] = set()
+    seen_deferred_bind_guards: set[str] = set()
     for entry in runtimes:
         if not isinstance(entry, dict):
             fail("malformed lifecycle runtime entry")
@@ -156,14 +185,30 @@ def main() -> None:
             fail(f"event-driven wakeup missing from runtime: {rel_path}")
         assert_no_per_frame_global_tree_scan(source, rel_path)
 
+        requires_deferred_guard = entry.get("deferred_bind_teardown_guard_required", False)
+        expected_guard_functions = EXPECTED_DEFERRED_BIND_GUARDS.get(rel_path)
+        if requires_deferred_guard is True:
+            if expected_guard_functions is None:
+                fail(f"unexpected deferred-bind teardown runtime registered: {rel_path}")
+            declared_functions = entry.get("deferred_guard_functions")
+            if declared_functions != list(expected_guard_functions):
+                fail(f"deferred guard function contract drifted: {rel_path}")
+            assert_deferred_bind_teardown_guard(source, rel_path, expected_guard_functions)
+            seen_deferred_bind_guards.add(rel_path)
+        elif expected_guard_functions is not None:
+            fail(f"known deferred-bind runtime lost teardown requirement: {rel_path}")
+
     if seen_names != set(EXPECTED_AUTOLOADS):
         fail("lifecycle registry autoload alias set drifted")
     if seen_paths != set(EXPECTED_AUTOLOADS.values()):
         fail("lifecycle registry runtime path set drifted")
+    if seen_deferred_bind_guards != set(EXPECTED_DEFERRED_BIND_GUARDS):
+        fail("deferred-bind teardown runtime set drifted")
 
     print(
         "SHARED_ENVIRONMENT_LIFECYCLE_CONTRACT_OK: "
         f"runtimes={len(runtimes)} autoload_identity=locked "
+        f"deferred_bind_guards={len(seen_deferred_bind_guards)} "
         "per_frame_global_tree_scan=0 legacy_polling=0 "
         "policy=dormant_event_driven_nested_mount_safe"
     )

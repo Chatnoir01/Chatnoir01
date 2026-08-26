@@ -47,10 +47,58 @@ jobs:
             --cells grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
             --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \
             --output /tmp/brussels_road_registered_cell_crosswalk.json
-      - name: Require byte-exact persisted lock
+      - name: Upload regenerated crosswalk before lock decision
+        uses: actions/upload-artifact@v4
+        with:
+          name: brussels-road-registered-cell-crosswalk-candidate
+          path: /tmp/brussels_road_registered_cell_crosswalk.json
+          if-no-files-found: error
+          compression-level: 0
+      - name: Require exact persisted semantic lock
+        env:
+          PERSISTED: grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
+          CANDIDATE: /tmp/brussels_road_registered_cell_crosswalk.json
         run: |
           set -euo pipefail
-          cmp /tmp/brussels_road_registered_cell_crosswalk.json grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          def semantic_digest(payload):
+              basis = dict(payload)
+              embedded = basis.pop("semantic_sha256", None)
+              digest = hashlib.sha256(
+                  json.dumps(basis, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+              ).hexdigest()
+              if embedded != digest:
+                  raise SystemExit(
+                      f"RED: embedded road-cell semantic digest does not match full canonical payload: {embedded} != {digest}"
+                  )
+              return digest
+
+          persisted_path = Path(os.environ["PERSISTED"])
+          candidate_path = Path(os.environ["CANDIDATE"])
+          persisted_bytes = persisted_path.read_bytes()
+          candidate_bytes = candidate_path.read_bytes()
+          persisted = json.loads(persisted_bytes)
+          candidate = json.loads(candidate_bytes)
+
+          persisted_semantic = semantic_digest(persisted)
+          candidate_semantic = semantic_digest(candidate)
+          if persisted_semantic != candidate_semantic:
+              raise SystemExit(
+                  f"RED: persisted/candidate road-cell semantic drift: {persisted_semantic} != {candidate_semantic}"
+              )
+
+          print(
+              "ROAD_CELL_CROSSWALK_LOCK_SEMANTIC_EXACT "
+              f"semantic_sha256={persisted_semantic} "
+              f"persisted_raw_sha256={hashlib.sha256(persisted_bytes).hexdigest()} "
+              f"candidate_raw_sha256={hashlib.sha256(candidate_bytes).hexdigest()}"
+          )
+          PY
       - name: Validate existing handshake fail-closed rails
         working-directory: grand-bruxelles-game/tools/qa
         run: |

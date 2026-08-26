@@ -7,6 +7,7 @@ on:
       - "grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json"
       - "grand-bruxelles-game/data/qa/anneessens_urbis_source_cell.persistence.contract.json"
       - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/**"
+      - "grand-bruxelles-game/data/cell_manifests/bxl-e147500-n169500-s500.json"
       - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
       - "grand-bruxelles-game/data/provenance/anneessens_canonical_manifest_candidate.review.json"
       - "grand-bruxelles-game/tools/qa/build_anneessens_canonical_manifest_candidate.py"
@@ -26,7 +27,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: Require exact live-main ancestry
+      - name: Require exact live-main ancestry and resolve lifecycle phase
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
@@ -34,12 +35,20 @@ jobs:
           CANDIDATE_SHA="$(git rev-parse HEAD)"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA" || { echo "RED: candidate branch does not contain live main" >&2; exit 1; }
           echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          if test -e grand-bruxelles-game/data/cell_manifests/bxl-e147500-n169500-s500.json; then
+            echo "ANNEESSENS_CANONICAL_PHASE=registered_successor" >> "$GITHUB_ENV"
+            echo "ANNEESSENS_CANONICAL_PHASE registered_successor"
+          else
+            echo "ANNEESSENS_CANONICAL_PHASE=pre_registration" >> "$GITHUB_ENV"
+            echo "ANNEESSENS_CANONICAL_PHASE pre_registration"
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Run fail-closed candidate regressions
         run: python grand-bruxelles-game/tests/test_anneessens_canonical_manifest_candidate.py
       - name: Build deterministic boundary-cell candidate without registration
+        if: env.ANNEESSENS_CANONICAL_PHASE == 'pre_registration'
         run: |
           mkdir -p "$RUNNER_TEMP/anneessens-canonical-candidate"
           python grand-bruxelles-game/tools/qa/build_anneessens_canonical_manifest_candidate.py \
@@ -48,6 +57,7 @@ jobs:
             --out-candidate "$RUNNER_TEMP/anneessens-canonical-candidate/bxl-e147500-n169500-s500.candidate.json" \
             --out-review "$RUNNER_TEMP/anneessens-canonical-candidate/anneessens_canonical_manifest_candidate.review.json"
       - name: Prove candidate compatibility with registered-cell index builder in sandbox only
+        if: env.ANNEESSENS_CANONICAL_PHASE == 'pre_registration'
         run: |
           python - <<'PY'
           import importlib.util, os, shutil
@@ -70,12 +80,14 @@ jobs:
           print('ANNEESSENS_CANONICAL_MANIFEST_CANDIDATE_INDEX_COMPATIBLE_SANDBOX_ONLY')
           PY
       - name: Upload measured candidate before lock decision
+        if: env.ANNEESSENS_CANONICAL_PHASE == 'pre_registration'
         uses: actions/upload-artifact@v4
         with:
           name: anneessens-canonical-manifest-candidate
           path: ${{ runner.temp }}/anneessens-canonical-candidate
           if-no-files-found: error
       - name: Require persisted lock only after measured RED-first evidence exists
+        if: env.ANNEESSENS_CANONICAL_PHASE == 'pre_registration'
         run: |
           set -euo pipefail
           LOCK=grand-bruxelles-game/data/provenance/anneessens_canonical_manifest_candidate.review.json
@@ -95,4 +107,30 @@ jobs:
           assert [r['niscode'] for r in review['municipality_boundary']['intersections']]==['21013','21001','21004']
           assert all(v is False for v in review['authorization'].values())
           print('ANNEESSENS_CANONICAL_MANIFEST_CANDIDATE_DURABLY_LOCKED_UNREGISTERED')
+          PY
+      - name: Prove accepted candidate survives separate registration unchanged
+        if: env.ANNEESSENS_CANONICAL_PHASE == 'registered_successor'
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root=Path('grand-bruxelles-game')
+          target='bxl-e147500-n169500-s500'
+          lock=json.loads((root/'data/provenance/anneessens_canonical_manifest_candidate.review.json').read_text())
+          manifest_path=root/f'data/cell_manifests/{target}.json'
+          manifest_bytes=manifest_path.read_bytes()
+          manifest=json.loads(manifest_bytes)
+          index=json.loads((root/'data/provenance/brussels_registered_cell_manifest_index.json').read_text())
+          digest=hashlib.sha256(manifest_bytes).hexdigest()
+          assert digest==lock['candidate_manifest']['sha256']=='3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a'
+          assert manifest['provenance']['municipality_boundary_semantic_sha256']=='4148e300ea5a81d60b5f16f0eab1186a3d646308cb7a4a4a1c5036b21e2bba8f'
+          assert [r['niscode'] for r in manifest['provenance']['municipality_intersections']]==['21013','21001','21004']
+          rows=[row for row in index['entries'] if row['cell_id']==target]
+          assert len(rows)==1
+          assert rows[0]['manifest_sha256']==digest
+          assert rows[0]['evidence_only'] is True
+          for key in ['runtime_directory_scan_authorized','road_crosswalk_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized']:
+              assert index[key] is False, key
+          print(f'ANNEESSENS_CANONICAL_MANIFEST_SUCCESSOR_LOCK_OK manifest_sha={digest} registered_cells={index["registered_cell_count"]} rails_closed=true')
           PY

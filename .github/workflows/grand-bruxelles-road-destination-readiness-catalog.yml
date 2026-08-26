@@ -137,8 +137,10 @@ jobs:
           from pathlib import Path
           p=Path('grand-bruxelles-game/artifacts/road-destination-readiness/runtime-probe.json')
           d=json.loads(p.read_text())
+          catalog=json.loads(Path('grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json').read_text())
           assert d['schema'] == 'grand-bruxelles-road-destination-runtime-probe-v1'
-          assert d['destination_count'] == len(d['observations']) == 11
+          assert d['destination_count'] == len(d['observations']) == catalog['destination_count'] == len(catalog['destinations'])
+          assert d['catalog_semantic_sha256'] == catalog['semantic_sha256']
           assert set(d['required_corridor_approaches']) == {13842686, 411724192}
           assert d['measurement_only'] is True
           assert d['catalog_mutated'] is False
@@ -149,7 +151,7 @@ jobs:
               assert row['playability_claimed'] is False
               assert row['destination_advertisable'] is False
               assert row['jouable_authorized'] is False
-          print('ROAD_DESTINATION_RUNTIME_PROBE_RAILS_OK')
+          print(f"ROAD_DESTINATION_RUNTIME_PROBE_RAILS_OK destinations={d['destination_count']} runtime_ready={d['runtime_ready_witness_count']}")
           PY
       - name: Bind runtime probe with SHA-256 evidence
         run: |

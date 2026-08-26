@@ -143,15 +143,17 @@ func _run() -> void:
     await process_frame
 
     # Phase 3: a terminal successful bind must also release the cross-runtime
-    # facade_surface_ready subscription. Otherwise a ready Articulation owner
-    # would keep an unnecessary live dependency on Surface until teardown.
+    # facade_surface_ready subscription. It must additionally surrender the
+    # material it owns when Articulation is removed while Surface remains alive.
     var success_mount := _build_probe_mount(true)
+    var success_building := success_mount["building"] as CSGPolygon3D
     var success_surface := SURFACE_SCRIPT.new() as Node
     success_surface.name = "BrusselsOsmFacadeSurfaceRuntime"
     root.add_child(success_surface)
     if not await _wait_ready(success_surface, 12):
         _fail("surface did not reach terminal success for signal-cleanup probe")
         return
+    var surface_owned_material := success_building.material
 
     var success_articulation := ARTICULATION_SCRIPT.new() as Node
     success_articulation.name = "BrusselsOsmFacadeArticulationRuntime"
@@ -168,10 +170,21 @@ func _run() -> void:
     if not bool(success_articulation.call("geometry_unchanged")):
         _fail("terminal signal cleanup changed facade geometry")
         return
+    if success_building.material == surface_owned_material:
+        _fail("articulation never took material ownership in successful probe")
+        return
 
-    _cleanup_runtime(success_articulation)
+    root.remove_child(success_articulation)
+    if success_building.material != surface_owned_material:
+        _fail("articulation material ownership survived teardown")
+        return
+    if success_building.has_meta("facade_articulation_family"):
+        _fail("articulation ownership metadata survived teardown")
+        return
+    success_articulation.queue_free()
+
     _cleanup_runtime(success_surface)
     _cleanup_viewport(success_mount["viewport"] as SubViewport)
 
-    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_cleanup=true terminal_signal_cleanup=true post_teardown_ready=false geometry_changed=false")
+    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_cleanup=true terminal_signal_cleanup=true material_owner_cleanup=true post_teardown_ready=false geometry_changed=false")
     quit(0)

@@ -3,7 +3,7 @@ extends SceneTree
 const MAIN_SCENE := preload("res://game/main.tscn")
 const RESOLVER_SCRIPT := preload("res://game/scripts/automatic_road_direct_spawn.gd")
 const SOURCE_PATH := "res://data/osm/vertical_slice_01.game.json"
-const SOURCE_SHA256 := "a96123a6098c2a94dcef2622b6ea099c831f426e1ebfeb28a2edda74675c2493"
+const SOURCE_SHA256 := "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398"
 const TARGET_OSM_ID := 359177328
 const TARGET_NAME_FRAGMENT := "Maurice Lemonnier"
 const ARTIFACT_DIR := "res://artifacts/road_material_player_witness"

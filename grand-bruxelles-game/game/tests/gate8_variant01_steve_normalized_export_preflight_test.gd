@@ -32,39 +32,45 @@ func _run() -> void:
     _validate_map(source,SOURCE_ROLE_MAP,"source")
     _validate_map(target,TARGET_ROLE_MAP,"target")
     var protected_bones:Array = report.get("protected_bones", [])
-    var moved_controllers:Array = report.get("moved_controller_bones", [])
+    var omitted_controllers:Array = report.get("omitted_controller_bones", [])
     if protected_bones.size()<17: failures.append("protected_bone_manifest_too_small=%d"%protected_bones.size())
     for bone_value in protected_bones:
         var bone_name:=String(bone_value)
         if source.find_bone(bone_name)<0: failures.append("protected_source_bone_missing=%s"%bone_name)
-    for controller_value in moved_controllers:
+    for controller_value in omitted_controllers:
         var controller_name:=String(controller_value)
         if source.find_bone(controller_name)>=0: failures.append("nondeform_controller_exported=%s"%controller_name)
+    if omitted_controllers.size()!=5: failures.append("omitted_controller_count=%d expected=5"%omitted_controllers.size())
     if source.get_bone_count()<protected_bones.size(): failures.append("source_bone_count=%d protected_manifest=%d"%[source.get_bone_count(),protected_bones.size()])
     if target.get_bone_count()<53: failures.append("target_bone_count=%d expected>=53"%target.get_bone_count())
 
-    var source_gaps:=_collect_chain_gaps(source,SOURCE_ROLE_MAP)
+    var source_role_parent_count:=0
+    for role in REQUIRED_ROLES:
+        var idx:=source.find_bone(String(SOURCE_ROLE_MAP[role]))
+        if idx>=0 and source.get_bone_parent(idx)>=0: source_role_parent_count+=1
+    if source_role_parent_count!=0: failures.append("source_role_parent_count=%d expected=0_flattened"%source_role_parent_count)
+
     var target_gaps:=_collect_chain_gaps(target,TARGET_ROLE_MAP)
-    if not source_gaps.is_empty(): failures.append("source_topology_gaps=%s expected=[]"%JSON.stringify(source_gaps))
     if not target_gaps.is_empty(): failures.append("target_topology_gaps=%s expected=[]"%JSON.stringify(target_gaps))
 
     var source_walk:=_find_exact_loop_animation(_animation_inventory(source_root),"walk")
-    if source_walk.is_empty(): failures.append("source_walk_animation_missing_after_normalized_import")
-    var source_leg:=_mean_leg_length(source,SOURCE_ROLE_MAP)
+    if source_walk.is_empty(): failures.append("source_walk_animation_missing_after_flattened_import")
+    var source_leg:=_mean_flat_leg_length(source,SOURCE_ROLE_MAP)
     var target_leg:=_mean_leg_length(target,TARGET_ROLE_MAP)
     var ratio:=target_leg/source_leg if source_leg>0.000001 else 0.0
     if source_leg<=0.000001 or target_leg<=0.000001: failures.append("invalid_leg_length")
     elif ratio<0.45 or ratio>2.20: failures.append("leg_length_ratio=%.6f outside=0.45..2.20"%ratio)
 
+    var state:="READY_FOR_BONEMAP_RETARGET_PROBE_FLAT_SOURCE" if failures.is_empty() else "BLOCKED_FLATTENED_EXPORT_PREFLIGHT"
     var result:={
-        "format":"grand-bruxelles-gate8-variant01-steve-normalized-export-result-v2",
+        "format":"grand-bruxelles-gate8-variant01-steve-normalized-export-result-v3",
         "engine_version":Engine.get_version_info().get("string","unknown"),
         "source_bone_count":source.get_bone_count(),"target_bone_count":target.get_bone_count(),
-        "protected_bone_count":protected_bones.size(),"moved_controller_count":moved_controllers.size(),
-        "source_topology_gaps":source_gaps,"target_topology_gaps":target_gaps,
+        "protected_bone_count":protected_bones.size(),"omitted_controller_count":omitted_controllers.size(),
+        "source_role_parent_count":source_role_parent_count,"target_topology_gaps":target_gaps,
         "source_walk_animation_name":source_walk,"target_to_source_leg_ratio":ratio,
-        "source_normalization_verified":source_gaps.is_empty() and failures.is_empty(),
-        "mechanical_state":"READY_FOR_NATIVE_RETARGET_PROBE" if failures.is_empty() else "BLOCKED_NORMALIZED_EXPORT_PREFLIGHT",
+        "source_visual_roundtrip_verified":float(report.get("max_roundtrip_vertex_position_error_m",1.0))<=0.0001,
+        "mechanical_state":state,
         "bonemap_applied":false,"retarget_applied":false,"walk_alias_selected":"","run_alias_selected":"",
         "production_authorized":false,"activation_ready":false,"adoption_ready":false,"visual_approval_claimed":false,
         "failures":failures
@@ -131,6 +137,15 @@ func _mean_leg_length(skeleton:Skeleton3D,mapping:Dictionary)->float:
         total+=a.distance_to(b)+b.distance_to(c)
     return total*0.5
 
+func _mean_flat_leg_length(skeleton:Skeleton3D,mapping:Dictionary)->float:
+    var total:=0.0
+    for side in ["left","right"]:
+        var a:=skeleton.get_bone_rest(skeleton.find_bone(String(mapping["%s_upper_leg"%side]))).origin
+        var b:=skeleton.get_bone_rest(skeleton.find_bone(String(mapping["%s_lower_leg"%side]))).origin
+        var c:=skeleton.get_bone_rest(skeleton.find_bone(String(mapping["%s_foot"%side]))).origin
+        total+=a.distance_to(b)+b.distance_to(c)
+    return total*0.5
+
 func _animation_inventory(node:Node)->Array[String]:
     var players:Array[AnimationPlayer]=[]; _collect_players(node,players); var out:Array[String]=[]
     for p in players:
@@ -169,7 +184,7 @@ func _write_result(result:Dictionary)->void:
 
 func _finish(_result:Dictionary)->void:
     if failures.is_empty():
-        print("GATE8_STEVE_NORMALIZED_PREFLIGHT_OK state=READY_FOR_NATIVE_RETARGET_PROBE gaps=0 protected=true controllers_absent=true production_authorized=false")
+        print("GATE8_STEVE_NORMALIZED_PREFLIGHT_OK state=READY_FOR_BONEMAP_RETARGET_PROBE_FLAT_SOURCE flat_source=true protected=true controllers_absent=true target_gaps=0 production_authorized=false")
         quit(0); return
     for failure in failures: push_error("GATE8_STEVE_NORMALIZED_PREFLIGHT_FAIL %s"%failure)
     quit(1)

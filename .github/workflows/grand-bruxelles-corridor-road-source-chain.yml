@@ -1,0 +1,94 @@
+name: Grand Bruxelles Corridor Road Source Chain
+
+on:
+  pull_request:
+    paths:
+      - "grand-bruxelles-game/data/osm/vertical_slice_01.game.json"
+      - "grand-bruxelles-game/data/runtime/road_destination_runtime_index.json"
+      - "grand-bruxelles-game/data/qa/automatic_road_player_visual_gate.json"
+      - "grand-bruxelles-game/data/qa/corridor_road_source_chain.contract.json"
+      - "grand-bruxelles-game/tools/qa/audit_corridor_road_source_chain.py"
+      - "grand-bruxelles-game/tests/test_corridor_road_source_chain.py"
+      - ".github/workflows/grand-bruxelles-corridor-road-source-chain.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate with history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Require exact live-main continuity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          GB_LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          GB_HEAD_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$GB_LIVE_MAIN_SHA" "$GB_HEAD_SHA" || {
+            echo "CORRIDOR_ROAD_SOURCE_CHAIN_FAIL: stale candidate live_main=$GB_LIVE_MAIN_SHA head=$GB_HEAD_SHA" >&2
+            exit 1
+          }
+          export GB_LIVE_MAIN_SHA
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          gate = json.loads(Path('grand-bruxelles-game/data/qa/corridor_road_source_chain.contract.json').read_text(encoding='utf-8'))
+          expected = os.environ['GB_LIVE_MAIN_SHA']
+          actual = str(gate.get('production_base_sha', '')).strip()
+          if actual != expected:
+              raise SystemExit(f"CORRIDOR_ROAD_SOURCE_CHAIN_FAIL: stale production base contract={actual} live_main={expected}")
+          print(f"CORRIDOR_ROAD_SOURCE_CHAIN_LIVE_MAIN_OK sha={expected}")
+          PY
+          echo "GB_LIVE_MAIN_SHA=$GB_LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+      - name: Unit regressions
+        working-directory: grand-bruxelles-game
+        run: python3 -m unittest -v tests/test_corridor_road_source_chain.py
+      - name: Audit exact corridor source chain
+        working-directory: grand-bruxelles-game
+        run: |
+          python3 tools/qa/audit_corridor_road_source_chain.py \
+            --repo-root . \
+            --contract data/qa/corridor_road_source_chain.contract.json \
+            --output /tmp/corridor-road-source-chain-result.json
+      - name: Require locked source and QA-only player witness result
+        run: |
+          python3 - <<'PY'
+          import json, os
+          result = json.load(open('/tmp/corridor-road-source-chain-result.json', encoding='utf-8'))
+          assert result['schema'] == 'grand-bruxelles-corridor-road-source-chain-result-v3'
+          assert result['production_base_sha'] == os.environ['GB_LIVE_MAIN_SHA']
+          assert result['source_sha_locked'] is True
+          assert result['source_sha256'] == '899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398'
+          assert result['playability_claimed'] is False
+          assert len(result['representatives']) == 4
+          assert all(item['playable_authorized'] is False for item in result['representatives'])
+          assert all(item['source_points'] >= 2 for item in result['representatives'])
+          assert all(item['source_polyline_length'] > 0.0 for item in result['representatives'])
+          witness = result['accepted_player_witness']
+          assert witness['zone'] == 'anneessens'
+          assert witness['osm_id'] == 359177328
+          assert witness['resolution'] == [1280, 720]
+          assert witness['source_sha256'] == result['source_sha256']
+          assert witness['ground_collision_proven'] is True
+          assert witness['source_sightline_clear'] is True
+          assert witness['road_axis_alignment'] >= 0.90
+          assert witness['qa_witness_accepted'] is True
+          assert witness['playability_claimed'] is False
+          assert witness['destination_advertisable'] is False
+          assert witness['jouable_authorized'] is False
+          print('CORRIDOR_ROAD_SOURCE_CHAIN_RESULT_VERIFIED witness=anneessens:road-359177328 qa_only=true')
+          PY
+      - name: Upload deterministic source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: corridor-road-source-chain
+          path: /tmp/corridor-road-source-chain-result.json
+          if-no-files-found: error

@@ -65,9 +65,21 @@ func _assert_bound(case: Dictionary) -> bool:
     if not bool(runtime.call("ready_complete")) or bool(runtime.call("failed")):
         _fail("road surface runtime did not bind production roads")
         return false
+    if int(runtime.call("applied_road_count")) <= 0:
+        _fail("road runtime reported no owned road registry before teardown")
+        return false
     var material := road.material
     if material == null or str(material.get_meta("material_family", "")) != MATERIAL_FAMILY:
         _fail("road did not receive shared road material before teardown")
+        return false
+    return true
+
+func _assert_teardown_registry_cleared(runtime: Node) -> bool:
+    if int(runtime.call("applied_road_count")) != 0:
+        _fail("road registry survived synchronous teardown")
+        return false
+    if int(runtime.call("official_applied_road_count")) != 0:
+        _fail("official road registry survived synchronous teardown")
         return false
     return true
 
@@ -82,8 +94,8 @@ func _run() -> void:
     var restore_road := restore_case["road"] as CSGBox3D
     var legacy_material := restore_case["legacy_material"] as Material
     root.remove_child(restore_runtime)
-    restore_runtime.queue_free()
-    await process_frame
+    if not _assert_teardown_registry_cleared(restore_runtime):
+        return
     if restore_road.material != legacy_material:
         _fail("road runtime left its shared material behind after teardown")
         return
@@ -93,6 +105,7 @@ func _run() -> void:
     if not restore_road.size.is_equal_approx(restore_case["original_size"] as Vector3):
         _fail("road size changed during material teardown")
         return
+    restore_runtime.queue_free()
     root.remove_child(restore_scene)
     restore_scene.queue_free()
     await process_frame
@@ -107,8 +120,8 @@ func _run() -> void:
     later_owner.set_meta("material_family", "test_later_owner")
     preserve_road.material = later_owner
     root.remove_child(preserve_runtime)
-    preserve_runtime.queue_free()
-    await process_frame
+    if not _assert_teardown_registry_cleared(preserve_runtime):
+        return
     if preserve_road.material != later_owner:
         _fail("road teardown overwrote a newer material owner")
         return
@@ -118,8 +131,9 @@ func _run() -> void:
     if not preserve_road.size.is_equal_approx(preserve_case["original_size"] as Vector3):
         _fail("road size changed while preserving newer owner")
         return
+    preserve_runtime.queue_free()
     root.remove_child(preserve_scene)
     preserve_scene.queue_free()
 
-    print("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_OK: legacy_restored=true newer_owner_preserved=true geometry_changed=false")
+    print("BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_OK: legacy_restored=true newer_owner_preserved=true registries_cleared=true geometry_changed=false")
     quit(0)

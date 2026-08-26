@@ -11,14 +11,16 @@ var _target: MeshInstance3D = null
 var _material: ShaderMaterial = null
 var _ready_complete := false
 var _tree_bound := false
+var _tearing_down := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
+    _tearing_down = false
     _bind_tree()
     call_deferred("_bind_existing_target")
 
 func _bind_tree() -> void:
-    if _tree_bound:
+    if _tearing_down or _tree_bound:
         return
     var tree := get_tree()
     if tree == null:
@@ -28,6 +30,7 @@ func _bind_tree() -> void:
     _tree_bound = true
 
 func _exit_tree() -> void:
+    _tearing_down = true
     if not _tree_bound:
         return
     var tree := get_tree()
@@ -36,6 +39,8 @@ func _exit_tree() -> void:
     _tree_bound = false
 
 func _bind_existing_target() -> void:
+    if _tearing_down or not is_inside_tree():
+        return
     var tree := get_tree()
     if tree == null:
         return
@@ -44,11 +49,15 @@ func _bind_existing_target() -> void:
         _apply_target(candidate as MeshInstance3D)
 
 func _on_node_added(node: Node) -> void:
+    if _tearing_down or not is_inside_tree():
+        return
     if node == null or node.name != TARGET_NAME:
         return
     call_deferred("_apply_candidate", node)
 
 func _apply_candidate(node: Node) -> void:
+    if _tearing_down or not is_inside_tree():
+        return
     if node is MeshInstance3D and _is_valid_target(node):
         _apply_target(node as MeshInstance3D)
 
@@ -75,6 +84,8 @@ func _ensure_material() -> void:
     _material.set_meta("legacy_surface_type_semantics", "cell.street_surfaces.type")
 
 func _apply_target(target: MeshInstance3D) -> void:
+    if _tearing_down or not is_inside_tree():
+        return
     if target == null or not is_instance_valid(target) or not _is_valid_target(target):
         return
     _ensure_material()

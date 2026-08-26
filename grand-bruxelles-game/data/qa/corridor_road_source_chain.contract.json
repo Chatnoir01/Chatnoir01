@@ -1,10 +1,10 @@
 {
-  "schema": "grand-bruxelles-corridor-road-source-chain-contract-v3",
-  "production_base_sha": "75a786793aabda63288dd1eef456b1a12a0b5112",
+  "schema": "grand-bruxelles-corridor-road-source-chain-contract-v4",
+  "integration_floor_sha": "056daebc03ff2e0446d13f16fdc683337c744b9b",
   "runtime_index": "data/runtime/road_destination_runtime_index.json",
   "source_document": "data/osm/vertical_slice_01.game.json",
   "source_sha256": "899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398",
-  "policy": "source identity plus one accepted QA-only player witness; never authorizes destination advertisement, render, collision, safe spawn, runtime mount, JOUABLE or playability",
+  "policy": "candidate must contain live main; immutable integration floor must remain an ancestor of live main; source identity plus one accepted QA-only player witness never authorizes destination advertisement, render, collision, safe spawn, runtime mount, JOUABLE or playability",
   "accepted_player_witness": {
     "path": "data/qa/automatic_road_player_visual_gate.json",
     "zone": "anneessens",

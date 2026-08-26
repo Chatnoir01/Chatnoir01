@@ -25,7 +25,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: Require exact live-main continuity
+      - name: Require live-main continuity and immutable integration floor
         shell: bash
         run: |
           set -euo pipefail
@@ -36,18 +36,31 @@ jobs:
             echo "CORRIDOR_ROAD_SOURCE_CHAIN_FAIL: stale candidate live_main=$GB_LIVE_MAIN_SHA head=$GB_HEAD_SHA" >&2
             exit 1
           }
-          export GB_LIVE_MAIN_SHA
-          python3 - <<'PY'
-          import json, os
+          GB_INTEGRATION_FLOOR_SHA="$(python3 - <<'PY'
+          import json
           from pathlib import Path
           gate = json.loads(Path('grand-bruxelles-game/data/qa/corridor_road_source_chain.contract.json').read_text(encoding='utf-8'))
-          expected = os.environ['GB_LIVE_MAIN_SHA']
-          actual = str(gate.get('production_base_sha', '')).strip()
-          if actual != expected:
-              raise SystemExit(f"CORRIDOR_ROAD_SOURCE_CHAIN_FAIL: stale production base contract={actual} live_main={expected}")
-          print(f"CORRIDOR_ROAD_SOURCE_CHAIN_LIVE_MAIN_OK sha={expected}")
+          if gate.get('schema') != 'grand-bruxelles-corridor-road-source-chain-contract-v4':
+              raise SystemExit('CORRIDOR_ROAD_SOURCE_CHAIN_FAIL: contract schema must be v4')
+          if 'production_base_sha' in gate:
+              raise SystemExit('CORRIDOR_ROAD_SOURCE_CHAIN_FAIL: legacy production_base_sha forbidden')
+          value = str(gate.get('integration_floor_sha', '')).strip()
+          if len(value) != 40 or any(ch not in '0123456789abcdef' for ch in value):
+              raise SystemExit('CORRIDOR_ROAD_SOURCE_CHAIN_FAIL: invalid integration_floor_sha')
+          print(value)
           PY
+          )"
+          git cat-file -e "${GB_INTEGRATION_FLOOR_SHA}^{commit}" || {
+            echo "CORRIDOR_ROAD_SOURCE_CHAIN_FAIL: integration floor commit missing $GB_INTEGRATION_FLOOR_SHA" >&2
+            exit 1
+          }
+          git merge-base --is-ancestor "$GB_INTEGRATION_FLOOR_SHA" "$GB_LIVE_MAIN_SHA" || {
+            echo "CORRIDOR_ROAD_SOURCE_CHAIN_FAIL: integration floor is not ancestor of live main floor=$GB_INTEGRATION_FLOOR_SHA live_main=$GB_LIVE_MAIN_SHA" >&2
+            exit 1
+          }
+          echo "CORRIDOR_ROAD_SOURCE_CHAIN_CONTINUITY_OK floor=$GB_INTEGRATION_FLOOR_SHA live_main=$GB_LIVE_MAIN_SHA head=$GB_HEAD_SHA"
           echo "GB_LIVE_MAIN_SHA=$GB_LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          echo "GB_INTEGRATION_FLOOR_SHA=$GB_INTEGRATION_FLOOR_SHA" >> "$GITHUB_ENV"
       - name: Unit regressions
         working-directory: grand-bruxelles-game
         run: python3 -m unittest -v tests/test_corridor_road_source_chain.py
@@ -63,8 +76,8 @@ jobs:
           python3 - <<'PY'
           import json, os
           result = json.load(open('/tmp/corridor-road-source-chain-result.json', encoding='utf-8'))
-          assert result['schema'] == 'grand-bruxelles-corridor-road-source-chain-result-v3'
-          assert result['production_base_sha'] == os.environ['GB_LIVE_MAIN_SHA']
+          assert result['schema'] == 'grand-bruxelles-corridor-road-source-chain-result-v4'
+          assert result['integration_floor_sha'] == os.environ['GB_INTEGRATION_FLOOR_SHA']
           assert result['source_sha_locked'] is True
           assert result['source_sha256'] == '899bc73ee0eea3623d7cc45455a542c1704039ef0239c13c33b3c74b4a241398'
           assert result['playability_claimed'] is False

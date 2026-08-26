@@ -11,6 +11,22 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
         self.assertTrue(segment_bbox_intersects((148400.0, 170750.0), (148600.0, 170750.0), bbox))
         self.assertFalse(segment_bbox_intersects((147000.0, 169000.0), (147500.0, 169500.0), bbox))
 
+    def test_segment_bbox_intersection_rejects_extent_only_false_positive(self):
+        # The segment bbox overlaps the cell bbox, but the diagonal itself stays
+        # entirely below-left of the rectangle. The old extent-only test returned
+        # True here and could falsely prove road coverage.
+        bbox = [2.5, 2.5, 3.0, 3.0]
+        self.assertFalse(segment_bbox_intersects((0.0, 3.0), (3.0, 0.0), bbox))
+
+    def test_segment_bbox_intersection_accepts_boundary_touch(self):
+        bbox = [2.5, 2.5, 3.0, 3.0]
+        self.assertTrue(segment_bbox_intersects((2.0, 2.0), (2.5, 2.5), bbox))
+
+    def test_segment_bbox_intersection_handles_parallel_segments(self):
+        bbox = [10.0, 10.0, 20.0, 20.0]
+        self.assertTrue(segment_bbox_intersects((10.0, 15.0), (20.0, 15.0), bbox))
+        self.assertFalse(segment_bbox_intersects((10.0, 25.0), (20.0, 25.0), bbox))
+
     def test_canonical_digest_ignores_mapping_order(self):
         a = {"b": 2, "a": 1}
         b = {"a": 1, "b": 2}

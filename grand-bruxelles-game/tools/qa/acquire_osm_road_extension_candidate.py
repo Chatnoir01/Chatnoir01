@@ -16,10 +16,41 @@ def sha256_bytes(data):
 
 
 def segment_bbox_intersects(a, b, bbox):
-    minx, miny, maxx, maxy = bbox
-    sx0, sx1 = sorted((a[0], b[0]))
-    sy0, sy1 = sorted((a[1], b[1]))
-    return not (sx1 < minx or sx0 > maxx or sy1 < miny or sy0 > maxy)
+    """Return True only when segment AB intersects the closed axis-aligned bbox.
+
+    This uses Liang-Barsky clipping rather than comparing segment and cell bounding
+    boxes. A bbox-overlap-only test is fail-open for diagonal segments whose extent
+    overlaps the cell while the segment itself passes completely outside it.
+    """
+    minx, miny, maxx, maxy = map(float, bbox)
+    x0, y0 = map(float, a)
+    x1, y1 = map(float, b)
+    assert minx <= maxx and miny <= maxy, "Invalid target bbox"
+
+    dx = x1 - x0
+    dy = y1 - y0
+    p = (-dx, dx, -dy, dy)
+    q = (x0 - minx, maxx - x0, y0 - miny, maxy - y0)
+    t0 = 0.0
+    t1 = 1.0
+
+    for pi, qi in zip(p, q):
+        if pi == 0.0:
+            if qi < 0.0:
+                return False
+            continue
+        r = qi / pi
+        if pi < 0.0:
+            if r > t1:
+                return False
+            if r > t0:
+                t0 = r
+        else:
+            if r < t0:
+                return False
+            if r < t1:
+                t1 = r
+    return t0 <= t1
 
 
 def main():

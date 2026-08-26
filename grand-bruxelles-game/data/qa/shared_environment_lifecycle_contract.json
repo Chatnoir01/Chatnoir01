@@ -8,11 +8,13 @@
   "registry_complete_for_known_event_driven_runtimes": true,
   "production_autoload_identity_locked": true,
   "per_frame_global_tree_scan_forbidden": true,
+  "node_added_watcher_cleanup_required": true,
   "notes": [
     "This registry contains shared Environment runtimes already migrated to event-driven wakeup on production main.",
     "Exact-location Grand-Place/Bourse runtimes and NPC/gameplay systems are intentionally excluded.",
     "Autoload alias + path identity is locked so lifecycle coverage cannot remain green after a runtime is silently renamed, duplicated, or rewired.",
-    "Registered runtimes may perform local per-frame visibility/LOD work, but must not rediscover production mounts by globally traversing SceneTree from _process/_physics_process."
+    "Registered runtimes may perform local per-frame visibility/LOD work, but must not rediscover production mounts by globally traversing SceneTree from _process/_physics_process.",
+    "Every registered node_added watcher must be guarded and disconnected after successful binding or terminal failure so autoload listeners cannot leak across later mounts."
   ],
   "runtimes": [
     {"autoload_name": "MidiBlueStoneSurfaceRuntime", "path": "game/scripts/midi_blue_stone_surface_runtime.gd", "event_signal": "SceneTree.node_added", "nested_mount_recovery": true, "late_child_bind": true},

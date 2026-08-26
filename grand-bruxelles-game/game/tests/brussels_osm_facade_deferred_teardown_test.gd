@@ -70,10 +70,9 @@ func _run() -> void:
     _remove_canonical("BrusselsOsmFacadeSurfaceRuntime")
     await process_frame
 
-    var tree := get_tree()
-    if tree == null:
-        _fail("SceneTree missing")
-        return
+    # This script extends SceneTree, so self is the tree. get_tree() belongs
+    # to Node and would fail this witness at parse time before runtime checks.
+    var tree: SceneTree = self
 
     # Phase 1: Surface owns a SceneTree.node_added listener while waiting.
     # Teardown must synchronously disconnect it, even if its deferred bind has not run.

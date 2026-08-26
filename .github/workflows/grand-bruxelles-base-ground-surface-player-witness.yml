@@ -6,6 +6,7 @@ on:
       - 'grand-bruxelles-game/project.godot'
       - 'grand-bruxelles-game/game/main.tscn'
       - 'grand-bruxelles-game/game/tests/brussels_base_ground_surface_player_witness_test.gd'
+      - 'grand-bruxelles-game/game/tests/test_base_ground_surface_witness_live_provenance.py'
       - 'grand-bruxelles-game/game/scripts/brussels_base_ground_surface_runtime.gd'
       - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
       - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
@@ -24,6 +25,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
+
+      - name: Prove witness provenance contract
+        run: python3 grand-bruxelles-game/game/tests/test_base_ground_surface_witness_live_provenance.py
 
       - name: Install rendering dependencies
         run: |

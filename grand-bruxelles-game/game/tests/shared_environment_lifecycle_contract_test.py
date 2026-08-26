@@ -89,7 +89,11 @@ def assert_deferred_bind_teardown_guard(source: str, rel_path: str, function_nam
     if not exit_body or "_tearing_down = true" not in exit_body:
         fail(f"deferred-bind teardown sentinel not set from _exit_tree: {rel_path}")
     if "disconnect(" not in exit_body:
-        fail(f"deferred-bind watcher cleanup missing from _exit_tree: {rel_path}")
+        if "_stop_watching()" not in exit_body:
+            fail(f"deferred-bind watcher cleanup missing from _exit_tree: {rel_path}")
+        delegated_cleanup = top_level_function_body(source, "_stop_watching")
+        if not delegated_cleanup or "disconnect(" not in delegated_cleanup:
+            fail(f"delegated deferred-bind watcher cleanup is not verified: {rel_path}")
     for function_name in function_names:
         body = top_level_function_body(source, function_name)
         if not body:

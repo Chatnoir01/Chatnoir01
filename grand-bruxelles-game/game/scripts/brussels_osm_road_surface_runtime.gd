@@ -20,11 +20,19 @@ var _enhanced_enabled := true
 var _ready_complete := false
 var _failed := false
 var _road_bind_scheduled := false
+var _tearing_down := false
 
 func _ready() -> void:
+    _tearing_down = false
     if not get_tree().node_added.is_connected(_on_node_added):
         get_tree().node_added.connect(_on_node_added)
     call_deferred("_schedule_road_bind")
+
+func _exit_tree() -> void:
+    _tearing_down = true
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
 
 func _load_road_classes() -> Dictionary:
     var classes := {}
@@ -77,17 +85,24 @@ func _is_generated_road_child(node: Node) -> bool:
     return parent != null and _is_generated_roads_root(parent)
 
 func _schedule_road_bind() -> void:
-    if _failed or _road_bind_scheduled:
+    if _failed or _tearing_down or _road_bind_scheduled:
         return
     _road_bind_scheduled = true
     call_deferred("_recover_existing_roads")
 
 func _recover_existing_roads() -> void:
-    await get_tree().process_frame
-    _road_bind_scheduled = false
-    if _failed:
+    if _tearing_down or not is_inside_tree():
+        _road_bind_scheduled = false
         return
-    var roots := get_tree().root.find_children("GeneratedRoads", "Node3D", true, false)
+    var tree: SceneTree = get_tree()
+    if tree == null:
+        _road_bind_scheduled = false
+        return
+    await tree.process_frame
+    _road_bind_scheduled = false
+    if _failed or _tearing_down or not is_inside_tree():
+        return
+    var roots := tree.root.find_children("GeneratedRoads", "Node3D", true, false)
     for candidate: Node in roots:
         if _is_generated_roads_root(candidate):
             _bind_roads_root(candidate as Node3D)

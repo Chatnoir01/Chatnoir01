@@ -17,11 +17,19 @@ var _enhanced_enabled := true
 var _ready_complete := false
 var _failed := false
 var _rail_bind_scheduled := false
+var _tearing_down := false
 
 func _ready() -> void:
+    _tearing_down = false
     if not get_tree().node_added.is_connected(_on_node_added):
         get_tree().node_added.connect(_on_node_added)
     call_deferred("_schedule_rail_bind")
+
+func _exit_tree() -> void:
+    _tearing_down = true
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
 
 func _is_generated_rails_root(node: Node) -> bool:
     if not node is Node3D or str(node.name) != "GeneratedRails":
@@ -43,17 +51,24 @@ func _ensure_material() -> void:
         _enhanced_material = MATERIAL_FACTORY.create_material()
 
 func _schedule_rail_bind() -> void:
-    if _failed or _rail_bind_scheduled:
+    if _failed or _tearing_down or _rail_bind_scheduled:
         return
     _rail_bind_scheduled = true
     call_deferred("_recover_existing_rails")
 
 func _recover_existing_rails() -> void:
-    await get_tree().process_frame
-    _rail_bind_scheduled = false
-    if _failed:
+    if _tearing_down or not is_inside_tree():
+        _rail_bind_scheduled = false
         return
-    var roots := get_tree().root.find_children("GeneratedRails", "Node3D", true, false)
+    var tree: SceneTree = get_tree()
+    if tree == null:
+        _rail_bind_scheduled = false
+        return
+    await tree.process_frame
+    _rail_bind_scheduled = false
+    if _failed or _tearing_down or not is_inside_tree():
+        return
+    var roots := tree.root.find_children("GeneratedRails", "Node3D", true, false)
     for candidate: Node in roots:
         if _is_generated_rails_root(candidate):
             _bind_rails_root(candidate as Node3D)

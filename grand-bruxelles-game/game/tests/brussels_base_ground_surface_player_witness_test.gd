@@ -16,7 +16,6 @@ const MAX_CHANGED_FRACTION := 0.70
 const MIN_BBOX_WIDTH := 700
 const MIN_BBOX_HEIGHT := 250
 const EXPECTED_REVISION := 6
-const PRODUCTION_BASE_SHA := "3e49d0b5933b5c6588d164a8bfec997860c9c117"
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -24,6 +23,17 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
     push_error("BRUSSELS_BASE_GROUND_SURFACE_PLAYER_WITNESS_FAIL: %s" % message)
     quit(1)
+
+func _is_git_sha(value: String) -> bool:
+    if value.length() != 40:
+        return false
+    for index: int in range(value.length()):
+        var code := value.unicode_at(index)
+        var digit := code >= 48 and code <= 57
+        var lower_hex := code >= 97 and code <= 102
+        if not digit and not lower_hex:
+            return false
+    return true
 
 func _source_identity() -> Dictionary:
     if not FileAccess.file_exists(SOURCE_PATH):
@@ -109,6 +119,18 @@ func _diff_metrics(before: Image, after: Image) -> Dictionary:
     }
 
 func _run() -> void:
+    var live_main_sha := OS.get_environment("GB_LIVE_MAIN_SHA").strip_edges().to_lower()
+    var candidate_head_sha := OS.get_environment("GB_EVIDENCE_HEAD_SHA").strip_edges().to_lower()
+    if not _is_git_sha(live_main_sha):
+        _fail("GB_LIVE_MAIN_SHA missing or malformed")
+        return
+    if not _is_git_sha(candidate_head_sha):
+        _fail("GB_EVIDENCE_HEAD_SHA missing or malformed")
+        return
+    if live_main_sha == candidate_head_sha:
+        _fail("candidate head must be distinct from live main")
+        return
+
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(ARTIFACT_DIR))
     var source := _source_identity()
     if source.is_empty():
@@ -241,8 +263,9 @@ func _run() -> void:
         return
 
     var report := {
-        "schema": "grand-bruxelles-base-ground-surface-player-witness-v2",
-        "production_base_sha": PRODUCTION_BASE_SHA,
+        "schema": "grand-bruxelles-base-ground-surface-player-witness-v3",
+        "live_main_sha": live_main_sha,
+        "candidate_head_sha": candidate_head_sha,
         "presentation_revision": EXPECTED_REVISION,
         "target_osm_id": TARGET_OSM_ID,
         "target_name": str(player.get_meta("automatic_road_direct_source_name", source.get("name", ""))),
@@ -275,5 +298,5 @@ func _run() -> void:
     file.store_string(JSON.stringify(report, "  "))
     file.close()
 
-    print("BRUSSELS_BASE_GROUND_SURFACE_PLAYER_WITNESS_OK: revision=%d changed_fraction=%.6f mean_delta=%.6f bbox=%dx%d fov=%.2f human_review=pending" % [EXPECTED_REVISION, fraction, float(metrics["mean_changed_delta"]), int(metrics["bbox_width"]), int(metrics["bbox_height"]), review_camera.fov])
+    print("BRUSSELS_BASE_GROUND_SURFACE_PLAYER_WITNESS_OK: revision=%d changed_fraction=%.6f mean_delta=%.6f bbox=%dx%d fov=%.2f live_main=%s head=%s human_review=pending" % [EXPECTED_REVISION, fraction, float(metrics["mean_changed_delta"]), int(metrics["bbox_width"]), int(metrics["bbox_height"]), review_camera.fov, live_main_sha, candidate_head_sha])
     quit(0)

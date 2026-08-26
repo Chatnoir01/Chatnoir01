@@ -67,7 +67,13 @@ def main():
     assert contract["schema"] == "grand-bruxelles-osm-road-extension-acquisition-v2"
     assert contract["target"]["crs"] == "EPSG:31370"
     assert contract["source"]["license"] == "ODbL-1.0"
-    assert contract["status"] == "MEASUREMENT_PENDING"
+    status = contract["status"]
+    assert status in {"MEASUREMENT_PENDING", "LOCKED_SOURCE_ONLY_ARTIFACT"}, f"Unsupported acquisition lifecycle status: {status}"
+    if status == "LOCKED_SOURCE_ONLY_ARTIFACT":
+        evidence = contract.get("locked_evidence")
+        assert isinstance(evidence, dict) and evidence, "Locked phase requires locked_evidence"
+        assert isinstance(evidence.get("artifact_id"), int) and evidence["artifact_id"] > 0
+        assert isinstance(evidence.get("semantic_sha256"), str) and len(evidence["semantic_sha256"]) == 64
     assert all(v is False for v in contract["authorization"].values())
     endpoints = contract["source"].get("endpoints") or [contract["source"]["endpoint"]]
     assert args.endpoint_used in endpoints, "Acquisition endpoint is not contract-authorized"
@@ -156,6 +162,11 @@ def main():
         "authorization": contract["authorization"],
     }
     assert all(v is False for v in measurement["authorization"].values())
+    if status == "LOCKED_SOURCE_ONLY_ARTIFACT":
+        evidence = contract["locked_evidence"]
+        assert measurement["semantic_sha256"] == evidence["semantic_sha256"], "Locked semantic digest drift"
+        assert measurement["source"]["raw_sha256"] == evidence["raw_sha256"], "Locked raw payload drift"
+        assert measurement["source"]["raw_bytes"] == evidence["raw_bytes"], "Locked raw byte count drift"
     Path(args.output).write_text(json.dumps(measurement, ensure_ascii=False, indent=2) + "\n")
     print(f"OSM_ROAD_EXTENSION_MEASURED_SOURCE_ONLY ways={measurement['accounting']['highway_way_count']} intersecting={measurement['accounting']['target_intersecting_way_count']} semantic={semantic_sha} endpoint={args.endpoint_used}")
 

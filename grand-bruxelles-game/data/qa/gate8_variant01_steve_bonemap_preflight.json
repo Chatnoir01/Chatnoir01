@@ -1,0 +1,70 @@
+{
+  "format": "grand-bruxelles-gate8-variant01-steve-bonemap-preflight-v4",
+  "base_main_sha": "a1c74c0ffc61a35ed61dcee3a817508b74561eda",
+  "candidate_variant": 1,
+  "candidate_static_verdict": "AMELIORER",
+  "source": {
+    "name": "NPC male Steve",
+    "author": "supersteve",
+    "provider": "OpenGameArt",
+    "license": "CC0-1.0",
+    "archive_sha256": "e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5",
+    "archive_size_bytes": 1454243,
+    "source_file": "steve_npc1.blend",
+    "source_characterization_pr": 1308,
+    "godot_import_pr": 1316,
+    "godot_import_run": 32897875983,
+    "godot_import_artifact": 9582071252,
+    "godot_import_artifact_digest": "sha256:0a400378518797a2a59e06ca71361eab03c448ce2f1fbae0e6b082e7f2b10528"
+  },
+  "target": {
+    "artifact_id": 9470539830,
+    "artifact_zip_sha256": "fcbcb5f75061fefcc66519c383ac4f7ad56753a3a2240b10bdf004c9cca91ccb",
+    "glb": "npc_gate_01.glb",
+    "glb_sha256": "912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9",
+    "static_verdict": "AMELIORER"
+  },
+  "required_roles": ["hips","spine","chest","neck","head","left_upper_arm","left_forearm","left_hand","right_upper_arm","right_forearm","right_hand","left_upper_leg","left_lower_leg","left_foot","right_upper_leg","right_lower_leg","right_foot"],
+  "source_role_map": {"hips":"pelvis","spine":"waist","chest":"torso","neck":"neck","head":"head","left_upper_arm":"armup.L","left_forearm":"armlo.L","left_hand":"hand.L","right_upper_arm":"armup.R","right_forearm":"armlo.R","right_hand":"hand.R","left_upper_leg":"legup.L","left_lower_leg":"leglo.L","left_foot":"foot1.L","right_upper_leg":"legup.R","right_lower_leg":"leglo.R","right_foot":"foot1.R"},
+  "target_role_map": {"hips":"pelvis","spine":"spine_01","chest":"spine_02","neck":"neck_01","head":"head","left_upper_arm":"upperarm_l","left_forearm":"lowerarm_l","left_hand":"hand_l","right_upper_arm":"upperarm_r","right_forearm":"lowerarm_r","right_hand":"hand_r","left_upper_leg":"thigh_l","left_lower_leg":"calf_l","left_foot":"foot_l","right_upper_leg":"thigh_r","right_lower_leg":"calf_r","right_foot":"foot_r"},
+  "expected_source_topology_gaps": ["hips>spine","left_forearm>left_hand","left_lower_leg>left_foot","right_forearm>right_hand","right_lower_leg>right_foot"],
+  "characterization": {
+    "state": "BLOCKED_SPLIT_IK_DEFORM_TOPOLOGY",
+    "direct_native_humanoid_topology_compatible": false,
+    "bonemap_ready": false,
+    "reason": "Steve exports deform limbs and IK-controlled hands/feet on separate root branches; direct 17-role humanoid ancestor topology is not preserved after GLB import."
+  },
+  "measurement_gate": {
+    "godot_version": "4.7.1",
+    "isolated_project_required": true,
+    "required_role_count": 17,
+    "require_unique_role_assignment": true,
+    "require_exact_expected_source_topology_gaps": true,
+    "require_topology_gap_order_independence": true,
+    "require_target_ancestor_chain_consistency": true,
+    "record_full_bone_inventory": true,
+    "record_parent_inventory": true,
+    "record_animation_inventory": true,
+    "walk_detection": "exact_normalized_token",
+    "minimum_source_bones": 55,
+    "minimum_target_bones": 53,
+    "leg_length_ratio_min": 0.45,
+    "leg_length_ratio_max": 2.20,
+    "retarget_allowed": false
+  },
+  "rails": {
+    "explicit_role_mapping_selected": true,
+    "bonemap_applied": false,
+    "retarget_applied": false,
+    "walk_alias_selected": "",
+    "run_alias_selected": "",
+    "production_authorized": false,
+    "activation_ready": false,
+    "adoption_ready": false,
+    "runtime_population_changed": false,
+    "visual_approval_claimed": false,
+    "package_bytes_committed": false,
+    "player_character_reuse_allowed": false,
+    "mixamo_payload_allowed": false
+  }
+}

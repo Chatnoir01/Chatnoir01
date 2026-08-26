@@ -1,0 +1,106 @@
+name: Grand Bruxelles Midi City Open Data Overlap
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-city-open-data-overlap.yml"
+      - "grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json"
+      - "grand-bruxelles-game/tools/citygen/classify_city_open_data_midi_overlap.py"
+      - "grand-bruxelles-game/tests/test_city_open_data_midi_overlap.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SNAPSHOT: grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json
+  TOOL: grand-bruxelles-game/tools/citygen/classify_city_open_data_midi_overlap.py
+  SOURCE_URL: https://opendata.brussels.be/api/explore/v2.1/catalog/exports/json?limit=-1&offset=0&timezone=UTC
+
+jobs:
+  midi-city-open-data-overlap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and evidence-only rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$live_main" HEAD
+          python3 - "$live_main" <<'PY'
+          import json, sys
+          from pathlib import Path
+          live=sys.argv[1]
+          p=Path("grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json")
+          d=json.loads(p.read_text(encoding="utf-8"))
+          assert d["production_base_sha"] == live, (d["production_base_sha"], live)
+          assert d["target_zone"]["name"] == "Midi"
+          assert d["target_zone"]["crs"] == "EPSG:31370"
+          assert d["target_zone"]["bbox"] == [147250.0,168900.0,148500.0,170250.0]
+          assert d["candidate_rule"]["title_theme_inference_forbidden"] is True
+          assert all(value is False for value in d["authorization"].values())
+          print(f"MIDI_CITY_OPEN_DATA_LIVE_MAIN_OK live={live} status={d['status']} rails=closed")
+          PY
+
+      - name: Run deterministic classifier regressions
+        run: python3 grand-bruxelles-game/tests/test_city_open_data_midi_overlap.py
+
+      - name: Validate frozen snapshot offline or acquire RED-first evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(python3 - <<'PY'
+          import json
+          print(json.load(open("grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json"))["status"])
+          PY
+          )"
+          if [ "$status" = "FROZEN_METADATA_OVERLAP_EVIDENCE_ONLY" ]; then
+            python3 "$TOOL" validate --snapshot "$SNAPSHOT"
+            exit 0
+          fi
+          echo "RED_FIRST acquisition required"
+          mkdir -p "$RUNNER_TEMP/midi-city-open-data"
+          curl --fail --show-error --silent --location \
+            --retry 3 --retry-delay 2 \
+            "$SOURCE_URL" \
+            --output "$RUNNER_TEMP/midi-city-open-data/catalog.json"
+          retrieved_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          live_main="$(git rev-parse origin/main)"
+          python3 "$TOOL" acquire \
+            --catalog "$RUNNER_TEMP/midi-city-open-data/catalog.json" \
+            --output "$RUNNER_TEMP/midi-city-open-data/measurement.json" \
+            --retrieved-at "$retrieved_at" \
+            --production-base-sha "$live_main"
+          cp "$RUNNER_TEMP/midi-city-open-data/measurement.json" "$RUNNER_TEMP/midi-city-open-data/midi_city_open_data_zone_overlap.snapshot.json"
+
+      - name: Upload RED-first immutable acquisition evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-city-open-data-zone-overlap-acquisition
+          path: ${{ runner.temp }}/midi-city-open-data/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Require reviewed frozen snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(python3 - <<'PY'
+          import json
+          print(json.load(open("grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json"))["status"])
+          PY
+          )"
+          if [ "$status" != "FROZEN_METADATA_OVERLAP_EVIDENCE_ONLY" ]; then
+            echo "RED: acquisition artifact created; persist the reviewed exact measurement before this gate can turn green." >&2
+            exit 1
+          fi
+          echo "MIDI_CITY_OPEN_DATA_FROZEN_OK"

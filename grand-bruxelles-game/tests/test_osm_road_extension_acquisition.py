@@ -35,8 +35,13 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
         self.assertEqual(contract["status"], "LOCKED_SOURCE_ONLY_ARTIFACT")
         self.assertEqual(contract["target"]["crs"], "EPSG:31370")
         self.assertEqual(contract["source"]["license"], "ODbL-1.0")
-        self.assertEqual(contract["continuity"]["production_base_semantics"], "immutable_acquisition_floor")
-        self.assertEqual(contract["continuity"]["live_main_rule"], "acquisition_floor <= live_main <= candidate_head")
+        continuity = contract["continuity"]
+        evidence = contract["locked_evidence"]
+        self.assertEqual(continuity["policy"], "artifact-lock-independent-of-original-git-ancestry")
+        self.assertEqual(continuity["original_acquisition_base_sha"], "37cb3ce2d745ff4db17330636f6d712e028523c6")
+        self.assertEqual(continuity["locked_artifact_id"], evidence["artifact_id"])
+        self.assertEqual(continuity["locked_artifact_sha256"], evidence["artifact_zip_sha256"])
+        self.assertEqual(continuity["locked_semantic_sha256"], evidence["semantic_sha256"])
         self.assertTrue(contract["authorization"])
         self.assertTrue(all(value is False for value in contract["authorization"].values()))
 
@@ -71,6 +76,8 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
         workflow = Path("../.github/workflows/grand-bruxelles-osm-road-extension-e148500-n170500.yml").read_text()
         self.assertIn('git merge-base --is-ancestor "$ACQUISITION_BASE_SHA" "$LIVE_MAIN_SHA"', workflow)
         self.assertIn('git merge-base --is-ancestor "$LIVE_MAIN_SHA" "$CANDIDATE_SHA"', workflow)
+        self.assertIn('continuity["policy"] == "artifact-lock-independent-of-original-git-ancestry"', workflow)
+        self.assertIn('continuity["locked_artifact_id"] == c["locked_evidence"]["artifact_id"]', workflow)
         self.assertNotIn('c["production_base_sha"] == sys.argv[1]', workflow)
 
 

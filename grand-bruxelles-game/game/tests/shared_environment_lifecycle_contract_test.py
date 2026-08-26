@@ -35,6 +35,7 @@ EXPECTED_DEFERRED_BIND_GUARDS = {
     "game/scripts/anneessens_midi_sidewalk_runtime.gd": ("_try_bind",),
     "game/scripts/anneessens_osm_furniture_runtime.gd": ("_try_bind",),
     "game/scripts/ixelles_midi_sidewalk_runtime.gd": ("_bind_existing_target", "_apply_candidate"),
+    "game/scripts/brussels_base_ground_surface_runtime.gd": ("_bind_existing_main", "_try_bind_main"),
     "game/scripts/brussels_bollard_runtime.gd": ("_schedule_scene_bind", "_recover_existing_scene"),
     "game/scripts/brussels_street_lamp_runtime.gd": ("_schedule_scene_bind", "_recover_existing_scene"),
     "game/scripts/brussels_corridor_tree_runtime.gd": ("_start_scene_watch",),

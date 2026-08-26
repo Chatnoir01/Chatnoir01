@@ -17,11 +17,23 @@ var _ready_complete := false
 var _failed := false
 var _awaiting_main := false
 var _bind_in_progress := false
+var _tearing_down := false
 
 func _ready() -> void:
+    _tearing_down = false
     _awaiting_main = true
-    get_tree().node_added.connect(_on_node_added)
+    var tree := get_tree()
+    if not tree.node_added.is_connected(_on_node_added):
+        tree.node_added.connect(_on_node_added)
     call_deferred("_bind_existing_main")
+
+func _exit_tree() -> void:
+    _tearing_down = true
+    _awaiting_main = false
+    _bind_in_progress = false
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
 
 func _make_material() -> ShaderMaterial:
     var shader := Shader.new()
@@ -120,20 +132,23 @@ func _find_main_ancestor(node: Node) -> Node:
     return null
 
 func _bind_existing_main() -> void:
-    if _ready_complete or _failed or _bind_in_progress:
+    if _tearing_down or not is_inside_tree() or _ready_complete or _failed or _bind_in_progress:
         return
-    var main := get_tree().root.get_node_or_null(TARGET_MAIN_NODE)
+    var tree := get_tree()
+    if tree == null:
+        return
+    var main := tree.root.get_node_or_null(TARGET_MAIN_NODE)
     if main != null and not _is_production_main_candidate(main):
         main = null
     if main == null:
-        var candidate := get_tree().root.find_child(TARGET_MAIN_NODE, true, false)
+        var candidate := tree.root.find_child(TARGET_MAIN_NODE, true, false)
         if candidate != null and _is_production_main_candidate(candidate):
             main = candidate
     if main != null:
         _try_bind_main(main)
 
 func _on_node_added(node: Node) -> void:
-    if _ready_complete or _failed or _bind_in_progress:
+    if _tearing_down or not is_inside_tree() or _ready_complete or _failed or _bind_in_progress:
         return
     if node.name != TARGET_MAIN_NODE and node.name != TARGET_GROUND_NODE and not REQUIRED_MAIN_ANCHORS.has(str(node.name)):
         return
@@ -143,7 +158,7 @@ func _on_node_added(node: Node) -> void:
     call_deferred("_try_bind_main", main)
 
 func _try_bind_main(main: Node) -> void:
-    if _ready_complete or _failed or _bind_in_progress:
+    if _tearing_down or not is_inside_tree() or _ready_complete or _failed or _bind_in_progress:
         return
     if not _is_production_main_candidate(main):
         return
@@ -175,6 +190,8 @@ func _try_bind_main(main: Node) -> void:
     print("BRUSSELS_BASE_GROUND_SURFACE_READY: family=%s revision=%d material_only=true geometry_changed=false collision_changed=false procedural=true time_dependent=false camera_dependent=false multidirectional=true event_driven=true production_anchors=true" % [MATERIAL_FAMILY, PRESENTATION_REVISION])
 
 func _fail_binding(message: String) -> void:
+    if _tearing_down:
+        return
     push_error("Brussels base-ground surface runtime: %s" % message)
     _failed = true
     _ready_complete = true
@@ -183,17 +200,20 @@ func _fail_binding(message: String) -> void:
 func _finish_waiting() -> void:
     _awaiting_main = false
     _bind_in_progress = false
-    if get_tree().node_added.is_connected(_on_node_added):
-        get_tree().node_added.disconnect(_on_node_added)
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
 
 func _set_material_state(enabled: bool) -> void:
+    if _tearing_down or not is_inside_tree():
+        return
     if _ground == null or not is_instance_valid(_ground):
         return
     _ground.material = _enhanced_material if enabled else _legacy_material
 
 func set_enhanced_enabled(enabled: bool) -> void:
     _enhanced_enabled = enabled
-    if _ready_complete and not _failed:
+    if _ready_complete and not _failed and not _tearing_down and is_inside_tree():
         _set_material_state(enabled)
 
 func enhanced_enabled() -> bool:

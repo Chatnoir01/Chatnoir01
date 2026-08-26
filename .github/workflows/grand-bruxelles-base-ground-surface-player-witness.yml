@@ -6,6 +6,7 @@ on:
       - 'grand-bruxelles-game/project.godot'
       - 'grand-bruxelles-game/game/main.tscn'
       - 'grand-bruxelles-game/game/tests/brussels_base_ground_surface_player_witness_test.gd'
+      - 'grand-bruxelles-game/game/tests/test_base_ground_surface_witness_live_provenance.py'
       - 'grand-bruxelles-game/game/scripts/brussels_base_ground_surface_runtime.gd'
       - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
       - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
@@ -23,7 +24,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 1
+          fetch-depth: 0
+
+      - name: Bind exact live-main and candidate provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$HEAD_SHA" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD
+          test "$LIVE_MAIN_SHA" != "$HEAD_SHA"
+          echo "GB_LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          echo "GB_EVIDENCE_HEAD_SHA=$HEAD_SHA" >> "$GITHUB_ENV"
+          echo "BASE_GROUND_EVIDENCE_PROVENANCE_OK live_main=$LIVE_MAIN_SHA head=$HEAD_SHA"
+
+      - name: Prove witness provenance contract
+        run: python3 grand-bruxelles-game/game/tests/test_base_ground_surface_witness_live_provenance.py
 
       - name: Install rendering dependencies
         run: |
@@ -70,11 +89,16 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib, json, struct
+          import hashlib, json, os, struct
           from pathlib import Path
 
           root = Path('grand-bruxelles-game/artifacts/base_ground_surface_player_witness')
           source_path = Path('grand-bruxelles-game/data/osm/vertical_slice_01.game.json')
+          live = os.environ['GB_LIVE_MAIN_SHA']
+          head = os.environ['GB_EVIDENCE_HEAD_SHA']
+          assert len(live) == 40 and all(c in '0123456789abcdef' for c in live)
+          assert len(head) == 40 and all(c in '0123456789abcdef' for c in head)
+          assert live != head
           for name in ['base_ground_before.png', 'base_ground_after.png']:
               data = (root / name).read_bytes()
               assert data[:8] == b'\x89PNG\r\n\x1a\n', name
@@ -82,8 +106,10 @@ jobs:
               assert struct.unpack('>II', data[16:24]) == (1280, 720), name
 
           report = json.loads((root / 'base_ground_surface_player_witness.json').read_text())
-          assert report['schema'] == 'grand-bruxelles-base-ground-surface-player-witness-v2'
-          assert report['production_base_sha'] == '3e49d0b5933b5c6588d164a8bfec997860c9c117'
+          assert report['schema'] == 'grand-bruxelles-base-ground-surface-player-witness-v3'
+          assert report['live_main_sha'] == live
+          assert report['candidate_head_sha'] == head
+          assert 'production_base_sha' not in report
           assert report['presentation_revision'] == 6
           assert report['target_osm_id'] == 359177328
           assert report['source_sha256'] == hashlib.sha256(source_path.read_bytes()).hexdigest()
@@ -106,7 +132,7 @@ jobs:
           assert 0.18 <= metrics['changed_fraction'] <= 0.70, metrics
           assert metrics['bbox_width'] >= 700, metrics
           assert metrics['bbox_height'] >= 250, metrics
-          print('BASE_GROUND_SURFACE_PLAYER_WITNESS_EVIDENCE_OK', metrics)
+          print('BASE_GROUND_SURFACE_PLAYER_WITNESS_EVIDENCE_OK', live, head, metrics)
           PY
 
       - name: Bind evidence hashes

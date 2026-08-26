@@ -50,32 +50,34 @@ jobs:
           import json
           from pathlib import Path
           d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_steve_normalized_export_preflight.json').read_text())
-          n=d['normalization']
-          assert d['format'].endswith('-v5')
+          n=d['normalization']; g=d['godot_gate']
+          assert d['format'].endswith('-v6')
           assert d['base_main_sha']=='7ce0ab04f0759c1458bc7e31968884bf5da95448'
           assert d['source']['license']=='CC0-1.0'
           assert d['source']['characterization_run']==32914685397
           assert d['source']['characterization_state']=='BLOCKED_SPLIT_IK_DEFORM_TOPOLOGY'
-          assert n['red_reference_run']==32918396107 and n['red_reference_max_baked_pose_position_error_m']>1.5
-          assert n['red_assignment_run']==32922400044 and n['red_assignment_bone']=='f2.R.002'
-          assert n['controller_leaf_red_run']==32925637116 and n['controller_leaf_red_bone']=='poleelbo.R'
-          assert n['weighted_hand_red_run']==32925862392 and n['weighted_hand_red_bone']=='hand.R'
-          assert n['parent_scale_red_run']==32926622094 and n['parent_scale_red_bone']=='hand.R'
-          assert n['parent_scale_red_position_error_m']<1e-6
-          assert n['parent_scale_red_rotation_error_deg']>1.8
-          assert n['parent_scale_red_parent']=='ikhand.R'
-          assert n['parent_scale_red_parent_rotation_error_deg']>1.1
-          assert n['bake_solver']=='controller_bridge_no_parent_scale_parent_first_matrix_v5'
+          assert n['red_manual_trs_run']==32930408411 and n['red_manual_trs_bone']=='armlo.R'
+          assert n['red_manual_trs_position_error_m']>0.0068
+          assert n['red_manual_trs_rotation_error_deg']>0.74
+          assert n['bake_solver']=='native_visual_bake_original_hierarchy_then_controller_bridge_v6'
           assert n['pose_exactness_scope']=='all_nonzero_weighted_bones_plus_required_humanoid_roles'
           assert n['controller_transform_policy']=={'use_inherit_rotation':True,'inherit_scale':'NONE'}
+          assert n['export_policy']=={
+              'export_def_bones':True,
+              'export_force_sampling':True,
+              'constraints_baked_before_hierarchy_repair':True,
+          }
           assert n['expected_repairs']=={'master':'pelvis','ikhand.L':'armlo.L','ikhand.R':'armlo.R','ikfoot.L':'leglo.L','ikfoot.R':'leglo.R'}
           assert n['expected_gaps_after']==[]
-          assert d['godot_gate']['retarget_allowed'] is False
+          assert g['required_roles']==17
+          assert g['require_all_protected_source_bones'] is True
+          assert g['require_moved_controllers_absent_after_deform_only_export'] is True
+          assert g['retarget_allowed'] is False
           for k,v in d['rails'].items():
               if k=='source_normalization_applied_ephemerally': assert v is True
               elif k in ('walk_alias_selected','run_alias_selected'): assert v==''
               else: assert v is False, k
-          print('GATE8_STEVE_NORMALIZED_CONTRACT_OK solver=v5 scale_isolation=true exact_main=true retarget=false production=false')
+          print('GATE8_STEVE_NORMALIZED_CONTRACT_OK solver=v6 native_visual_bake=true deform_only=true exact_main=true retarget=false production=false')
           PY
 
       - name: Acquire pinned CC0 Steve source and normalize ephemeral export
@@ -96,31 +98,37 @@ jobs:
           STATUS=${PIPESTATUS[0]}
           set -e
           if [[ $STATUS -ne 0 ]]; then exit $STATUS; fi
-          grep -q '^GATE8_STEVE_NORMALIZED_EXPORT_OK ' "$RUNNER_TEMP/normalization.log"
+          grep -q '^GATE8_STEVE_NORMALIZED_EXPORT_OK solver=v6 ' "$RUNNER_TEMP/normalization.log"
           test -s /tmp/steve_normalized.glb
           sha256sum /tmp/steve_normalized.glb | tee "$RUNNER_TEMP/steve_normalized_glb.sha256"
           python3 - "$RUNNER_TEMP/normalization-report.json" <<'PY'
           import json,sys
           r=json.load(open(sys.argv[1]))
           repairs={'master':'pelvis','ikhand.L':'armlo.L','ikhand.R':'armlo.R','ikfoot.L':'leglo.L','ikfoot.R':'leglo.R'}
-          assert r['format'].endswith('-v5')
-          assert r['bake_solver']=='controller_bridge_no_parent_scale_parent_first_matrix_v5'
+          moved=sorted(repairs)
+          assert r['format'].endswith('-v6')
+          assert r['bake_solver']=='native_visual_bake_original_hierarchy_then_controller_bridge_v6'
+          assert r['red_manual_trs_run']==32930408411 and r['red_manual_trs_bone']=='armlo.R'
           assert r['topology_gaps_after']==[] and r['repairs']==repairs
           assert set(r['changed_parents'])==set(repairs)
           assert all(r['changed_parents'][k]['after']==v for k,v in repairs.items())
           assert r['weighted_bone_count']>0 and r['protected_bone_count']>=17
           assert set(r['weighted_bones']).issubset(set(r['protected_bones']))
-          assert all(r['controller_inherit_scale_after'][k]=='NONE' for k in repairs)
-          assert all(r['controller_inherit_rotation_after'][k] is True for k in repairs)
-          assert r['controller_parent_scale_isolated'] is True
+          assert sorted(r['moved_controller_bones'])==moved
+          assert not (set(r['moved_controller_bones']) & set(r['protected_bones']))
+          assert all(r['controller_inherit_scale_after'][k]=='NONE' for k in moved)
+          assert all(r['controller_inherit_rotation_after'][k] is True for k in moved)
+          assert r['export_def_bones'] is True and r['export_force_sampling'] is True
           assert r['max_rest_position_drift_m']<=1e-6
           assert r['max_rest_rotation_drift_deg']<=1e-4
-          assert r['max_assignment_position_error_m']<=1e-4
-          assert r['max_assignment_rotation_error_deg']<=0.10
-          assert r['max_baked_pose_position_error_m']<=1e-4
-          assert r['max_baked_pose_rotation_error_deg']<=0.10
+          assert r['max_native_bake_position_error_m']<=1e-4
+          assert r['max_native_bake_rotation_error_deg']<=0.10
+          assert r['max_controller_assignment_position_error_m']<=1e-4
+          assert r['max_controller_assignment_rotation_error_deg']<=0.10
+          assert r['max_repaired_pose_position_error_m']<=1e-4
+          assert r['max_repaired_pose_rotation_error_deg']<=0.10
           assert r['source_normalization_applied'] is True and r['runtime_authorized'] is False
-          print('GATE8_STEVE_NORMALIZATION_REPORT_OK gaps_after=0 solver=v5 scale_isolation=true runtime=false')
+          print('GATE8_STEVE_NORMALIZATION_REPORT_OK gaps_after=0 solver=v6 native_visual_bake=true deform_only=true runtime=false')
           PY
 
       - name: Restore immutable Gate-8 target
@@ -150,6 +158,7 @@ jobs:
           printf '%s\n' 'config_version=5' '[application]' 'config/name="Gate8SteveNormalizedExport"' '[rendering]' 'renderer/rendering_method="gl_compatibility"' 'renderer/rendering_method.mobile="gl_compatibility"' > "$PROJECT/project.godot"
           cp /tmp/steve_normalized.glb "$PROJECT/assets/steve_normalized.glb"
           cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"
+          cp "$RUNNER_TEMP/normalization-report.json" "$PROJECT/normalization-report.json"
           cp grand-bruxelles-game/game/tests/gate8_variant01_steve_normalized_export_preflight_test.gd "$PROJECT/game/tests/"
           timeout 300s "$GODOT" --headless --editor --path "$PROJECT" --quit-after 1200 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
           test -d "$PROJECT/.godot/imported"
@@ -164,7 +173,11 @@ jobs:
           python3 - "$RUNNER_TEMP/preflight-result.json" <<'PY'
           import json,sys
           r=json.load(open(sys.argv[1]))
-          assert r['source_bone_count']>=55 and r['target_bone_count']>=53
+          assert r['format'].endswith('-v2')
+          assert r['protected_bone_count']>=17
+          assert r['moved_controller_count']==5
+          assert r['source_bone_count']>=r['protected_bone_count']
+          assert r['target_bone_count']>=53
           assert r['source_topology_gaps']==[] and r['target_topology_gaps']==[]
           assert r['source_walk_animation_name']=='walk'
           assert 0.45<=float(r['target_to_source_leg_ratio'])<=2.20
@@ -174,9 +187,9 @@ jobs:
           assert r['walk_alias_selected']=='' and r['run_alias_selected']==''
           assert r['production_authorized'] is False and r['activation_ready'] is False and r['adoption_ready'] is False
           assert r['failures']==[]
-          print('GATE8_STEVE_NORMALIZED_GODOT_OK state=READY_FOR_NATIVE_RETARGET_PROBE gaps=0 production=false')
+          print('GATE8_STEVE_NORMALIZED_GODOT_OK state=READY_FOR_NATIVE_RETARGET_PROBE gaps=0 protected=true controllers_absent=true production=false')
           PY
-          grep -q '^GATE8_STEVE_NORMALIZED_PREFLIGHT_OK state=READY_FOR_NATIVE_RETARGET_PROBE gaps=0 aliases=false production_authorized=false$' "$RUNNER_TEMP/preflight.log"
+          grep -q '^GATE8_STEVE_NORMALIZED_PREFLIGHT_OK state=READY_FOR_NATIVE_RETARGET_PROBE gaps=0 protected=true controllers_absent=true production_authorized=false$' "$RUNNER_TEMP/preflight.log"
 
       - name: Require repository remained untouched
         if: always()

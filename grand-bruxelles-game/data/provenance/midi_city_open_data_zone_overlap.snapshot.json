@@ -1,0 +1,39 @@
+{
+  "schema": "grand-bruxelles-midi-city-open-data-zone-overlap-v1",
+  "status": "RED_FIRST_ACQUISITION_PENDING",
+  "production_base_sha": "056daebc03ff2e0446d13f16fdc683337c744b9b",
+  "provenance": {
+    "authority": "City of Brussels Open Data",
+    "catalog_export_url": "https://opendata.brussels.be/api/explore/v2.1/catalog/exports/json?limit=-1&offset=0&timezone=UTC",
+    "retrieved_at_utc": null,
+    "catalog_export_sha256": null,
+    "catalog_export_size_bytes": null,
+    "note": "RED-first placeholder; live API is permitted only to create the first immutable evidence artifact."
+  },
+  "target_zone": {
+    "name": "Midi",
+    "state": "JOUABLE",
+    "manifest": "grand-bruxelles-game/data/urbis/midi/manifest.json",
+    "crs": "EPSG:31370",
+    "bbox": [147250.0, 168900.0, 148500.0, 170250.0],
+    "bbox_wgs84": [4.3297073628844815, 50.830516520506116, 4.347460321372539, 50.84265685566135],
+    "bbox_wgs84_derivation": "envelope of all four EPSG:31370 bbox corners transformed to EPSG:4326"
+  },
+  "candidate_rule": {
+    "name": "explicit_geospatial_metadata_only",
+    "definition": "geometry_types non-empty OR catalog feature 'geo' OR schema contains geo_point_2d/geo_shape",
+    "title_theme_inference_forbidden": true
+  },
+  "authorization": {
+    "source_ingestion": false,
+    "source_persistence": false,
+    "source_registration": false,
+    "canonical_registration": false,
+    "runtime_directory_scan": false,
+    "runtime_mount": false,
+    "rendered_geometry": false,
+    "collision": false,
+    "safe_spawn": false,
+    "jouable_promotion": false
+  }
+}

@@ -158,6 +158,7 @@ def main():
     arms = [o for o in bpy.data.objects if o.type == "ARMATURE"]
     assert len(arms) == 1, f"expected one armature, got {len(arms)}"
     arm = arms[0]
+    source_bone_count = len(arm.data.bones)
     assert all(name in arm.data.bones for name in ROLE_MAP.values())
     assert all(name in arm.data.bones for name in LEGACY_CONTROLLERS)
 
@@ -195,10 +196,6 @@ def main():
     role_reference = capture_role_pose_samples(scene, arm, frames)
     mesh_reference, source_vertex_counts = capture_mesh_samples(scene, frames)
 
-    # glTF cannot encode shear. This rig produces non-decomposable child TRS under
-    # non-uniformly scaled parents, proven by prior red tests. Blender's exporter
-    # explicitly provides Flatten Bone Hierarchy for this case; deform-only export
-    # also bakes evaluated animation while omitting controller bones.
     bpy.ops.export_scene.gltf(
         filepath=str(out),
         export_format="GLB",
@@ -211,9 +208,6 @@ def main():
     )
     assert out.is_file() and out.stat().st_size > 0
 
-    # Strong visual/mechanical proof: round-trip the generated GLB back through
-    # Blender, then compare every evaluated mesh vertex and all 17 humanoid role
-    # transforms on every sampled frame against the original constrained source.
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=str(out))
     imported_arms = [o for o in bpy.data.objects if o.type == "ARMATURE"]
@@ -264,7 +258,7 @@ def main():
         "red_native_bake_bone": "armlo.R",
         "red_native_bake_position_error_m": 0.00801097044207385,
         "red_native_bake_rotation_error_deg": 1.054979493255945,
-        "source_bone_count": len(arm.data.bones) if arm.name in bpy.data.objects else None,
+        "source_bone_count": source_bone_count,
         "roundtrip_bone_count": len(imported_arm.data.bones),
         "weighted_bone_count": len(weighted_bones),
         "protected_bone_count": len(protected_bones),

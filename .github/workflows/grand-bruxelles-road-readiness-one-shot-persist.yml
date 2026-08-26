@@ -9,7 +9,7 @@ on:
       - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   persist-exact-artifact-equivalent:
@@ -61,20 +61,10 @@ jobs:
                   assert row[key] is False, (row['destination_id'],key)
           print('ROAD_READINESS_ONE_SHOT_CANDIDATE_VERIFIED')
           PY
-      - name: Persist only the verified readiness lock when needed
+      - name: Require persisted readiness lock already exact
         run: |
           set -euo pipefail
           OUT="$RUNNER_TEMP/brussels_road_destination_readiness_catalog.json"
           LOCK=grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
-          if cmp -s "$OUT" "$LOCK"; then
-            echo "ROAD_READINESS_ALREADY_LOCKED_EXACT"
-            exit 0
-          fi
-          cp "$OUT" "$LOCK"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$LOCK"
-          test "$(git diff --cached --name-only | wc -l)" -eq 1
-          test "$(git diff --cached --name-only)" = "$LOCK"
-          git commit -m "data(roads): lock current destination readiness catalog"
-          git push origin "HEAD:${{ github.head_ref }}"
+          cmp "$OUT" "$LOCK"
+          echo "ROAD_READINESS_ALREADY_LOCKED_EXACT"

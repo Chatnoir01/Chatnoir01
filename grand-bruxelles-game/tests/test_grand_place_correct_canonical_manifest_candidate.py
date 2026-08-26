@@ -25,9 +25,6 @@ locked_path = ROOT / "data/provenance/grand_place_correct_canonical_manifest_can
 index_path = ROOT / "data/provenance/brussels_registered_cell_manifest_index.json"
 
 if canonical_path.is_file():
-    # Successor lifecycle: preserve the historical candidate lock, but validate the
-    # legitimately registered evidence-only successor instead of calling the strict
-    # candidate builder, which must continue to reject post-registration execution.
     review = json.loads(locked_path.read_text(encoding="utf-8"))
     canonical = json.loads(canonical_path.read_text(encoding="utf-8"))
     index = json.loads(index_path.read_text(encoding="utf-8"))
@@ -38,8 +35,9 @@ if canonical_path.is_file():
     assert all(value is False for value in review["authorization"].values())
     assert canonical["cell_id"] == mod.CELL_ID
     assert canonical["crs"] == "EPSG:31370"
-    assert canonical["provenance"]["municipality"]["niscode"] == "21004"
-    assert canonical["provenance"]["municipality"]["coverage_ratio"] == 1.0
+    assert canonical["provenance"]["municipality_niscode"] == "21004"
+    assert canonical["provenance"]["municipality_coverage_ratio"] == 1.0
+    assert canonical["provenance"]["municipality_id"] == mod.MUNICIPALITY_ID
     assert all(value is False for value in canonical["maturity"]["gates"].values())
     rows = {row["cell_id"]: row for row in index["entries"]}
     row = rows[mod.CELL_ID]

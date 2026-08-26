@@ -1,0 +1,204 @@
+name: Grand Bruxelles Gate-8 Variant-01 Steve Reviewed Retarget Proxy Preflight
+
+on:
+  push:
+    branches: ["npc/gate8-steve-normalized-export-3148f8b"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  reviewed-proxy-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      EXPECTED_MAIN: 6d22140ee287d31c3177f67b64b4ef55a497c2dd
+      SOURCE_ZIP: https://opengameart.org/sites/default/files/steve_npc1.zip
+      SOURCE_SHA256: e892fe37336c74c0753d5c770686a0f4d32d2c096be2fe84ba7f4c3c2a9712d5
+      SOURCE_BYTES: "1454243"
+      TARGET_ARTIFACT_ID: "9470539830"
+      TARGET_GLB_SHA256: 912ac8dedf4509640f90771f4c9d3b1af818b59261caab4d9b3f1fb0fe3e2ac9
+      GODOT_URL: https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      PROJECT: /tmp/gate8-steve-reviewed-proxy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Require exact live main, bounded scope, and closed rails
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin main
+          LIVE="$(git rev-parse origin/main)"
+          test "$LIVE" = "$EXPECTED_MAIN"
+          git diff --name-only "$LIVE" HEAD | sort > "$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/grand-bruxelles-gate8-variant01-steve-normalized-export-preflight.yml' \
+            'grand-bruxelles-game/data/qa/gate8_variant01_steve_normalized_export_preflight.json' \
+            'grand-bruxelles-game/game/tests/gate8_variant01_steve_normalized_export_preflight_test.gd' \
+            'grand-bruxelles-game/tools/qa/diagnose_steve_pose_affine.py' \
+            'grand-bruxelles-game/tools/qa/normalize_steve_split_ik_export.py' | sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('grand-bruxelles-game/data/qa/gate8_variant01_steve_normalized_export_preflight.json').read_text())
+          assert d['base_main_sha']=='6d22140ee287d31c3177f67b64b4ef55a497c2dd'
+          n=d['normalization']
+          assert n['latest_completed_red_head_sha']=='080d28a4e24cc087bb2a96590d4b70025f8701d4'
+          assert n['latest_completed_red_run']==33014856226
+          assert n['latest_completed_red_artifact_id']==9624078223
+          assert n['latest_completed_red_artifact_digest']=='sha256:29cfbc9dee7cc5ffdaba43d8553d81366957065d4db62acd67d94fa11a4e6e69'
+          assert n['latest_completed_red_stage']=='component_payload_mathutils_normalization_precision'
+          assert n['matrix_roundtrip_excluded_from_rigidization_gate'] is True
+          assert n['rigid_payload_measurement']=='translation_plus_double_normalized_quaternion_components_before_mathutils_reconstruction'
+          assert n['max_rigidization_translation_error_m']==1e-9
+          assert n['max_rigidization_rotation_error_deg']==1e-6
+          assert n['proxy_scale_inheritance_policy']=='NONE_ON_ALL_REVIEWED_BONES'
+          assert n['reviewed_role_count']==17 and n['proxy_bone_count']==17
+          for k,v in d['rails'].items():
+              if k=='source_normalization_applied_ephemerally': assert v is True
+              elif k in ('walk_alias_selected','run_alias_selected'): assert v==''
+              else: assert v is False, k
+          diag=Path('grand-bruxelles-game/tools/qa/diagnose_steve_pose_affine.py').read_text()
+          assert 'apply_inherit_scale_policy' in diag
+          assert 'SOURCE_PRESERVED' in diag
+          assert 'diagnostic_policy_isolation_verified' in diag
+          norm=Path('grand-bruxelles-game/tools/qa/normalize_steve_split_ik_export.py').read_text()
+          assert 'rigid_pose_payload' in norm
+          assert 'payload_rotation_error' in norm
+          assert 'regression_rigid_payload_measurement' in norm
+          assert 'return (m.translation.copy(),_unit((q.w,q.x,q.y,q.z)))' in norm
+          assert 'qdeg_components(payload[1],(q.w,q.x,q.y,q.z))' in norm
+          assert 'samples[frame][role]=payload' in norm
+          assert "db.inherit_scale='NONE'" in norm
+          print('GATE8_STEVE_REVIEWED_PROXY_CONTRACT_OK roles=17 double_component_payload=true matrix_roundtrip_gate=false scale_policy=NONE retarget=false production=false')
+          PY
+
+      - name: Acquire pinned CC0 Steve source and diagnose pose representability
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-all-errors --retry-delay 2 "$SOURCE_ZIP" -o "$RUNNER_TEMP/steve.zip"
+          echo "$SOURCE_SHA256  $RUNNER_TEMP/steve.zip" | sha256sum -c -
+          test "$(stat -c '%s' "$RUNNER_TEMP/steve.zip")" = "$SOURCE_BYTES"
+          mkdir -p "$RUNNER_TEMP/steve-src" && unzip -q "$RUNNER_TEMP/steve.zip" -d "$RUNNER_TEMP/steve-src"
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends blender python3-numpy >/dev/null
+          blender --version | head -n 2 | tee "$RUNNER_TEMP/blender-version.txt"
+          grep -q '^Blender 4\.0\.2' "$RUNNER_TEMP/blender-version.txt"
+          blender --background "$RUNNER_TEMP/steve-src/steve_npc1.blend" --python-exit-code 42 \
+            --python grand-bruxelles-game/tools/qa/diagnose_steve_pose_affine.py \
+            -- --normalizer grand-bruxelles-game/tools/qa/normalize_steve_split_ik_export.py --report "$RUNNER_TEMP/affine-diagnostic.json" \
+            2>&1 | tee "$RUNNER_TEMP/affine-diagnostic.log"
+          grep -q '^GATE8_STEVE_AFFINE_DIAGNOSTIC_OK ' "$RUNNER_TEMP/affine-diagnostic.log"
+          python3 - "$RUNNER_TEMP/affine-diagnostic.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['format']=='grand-bruxelles-steve-reviewed-proxy-affine-diagnostic-v2'
+          assert r['diagnostic_policy_isolation_verified'] is True
+          assert r['mechanical_state'] in ('DESIRED_AFFINE_COMPONENTS_CAUSE_ROTATION_MISMATCH','PARENT_SCALE_INHERITANCE_CAUSES_ROTATION_MISMATCH')
+          assert r['reviewed_role_count']==17
+          preserved=r['rigid_desired_preserved_inheritance']
+          no_scale=r['rigid_desired_no_scale_inheritance']
+          assert preserved['inherit_scale_policy']=='SOURCE_PRESERVED'
+          assert no_scale['inherit_scale_policy']=='NONE'
+          assert all(v['proxy']==v['source'] for v in preserved['inherit_scale_signature'].values())
+          assert all(v['proxy']=='NONE' for v in no_scale['inherit_scale_signature'].values())
+          assert no_scale['rotation_error_deg']<=0.0001
+          assert no_scale['position_error_m']<=0.0001
+          assert r['retarget_applied'] is False and r['runtime_authorized'] is False
+          print('GATE8_STEVE_AFFINE_DIAGNOSTIC_VERIFIED state=%s rigid_preserved_rot_deg=%.9f no_scale_rot_deg=%.9f'%(r['mechanical_state'],preserved['rotation_error_deg'],no_scale['rotation_error_deg']))
+          PY
+
+      - name: Build ephemeral reviewed proxy under unchanged hard gates
+        run: |
+          set -euo pipefail
+          timeout 1800s blender --background "$RUNNER_TEMP/steve-src/steve_npc1.blend" --python-exit-code 42 \
+            --python grand-bruxelles-game/tools/qa/normalize_steve_split_ik_export.py \
+            -- --output /tmp/steve_reviewed_proxy.glb --report "$RUNNER_TEMP/normalization-report.json" \
+            2>&1 | tee "$RUNNER_TEMP/normalization.log"
+          grep -q '^GATE8_STEVE_REVIEWED_PROXY_EXPORT_OK .*pose_payload=COMPONENTS' "$RUNNER_TEMP/normalization.log"
+          test -s /tmp/steve_reviewed_proxy.glb
+          sha256sum /tmp/steve_reviewed_proxy.glb | tee "$RUNNER_TEMP/steve_reviewed_proxy.sha256"
+          python3 - "$RUNNER_TEMP/normalization-report.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r['state']=='READY_FOR_GODOT_IMPORT'
+          assert r['rigidization_measurement']=='payload_components_before_matrix_reconstruction'
+          assert r['matrix_roundtrip_excluded_from_rigidization_gate'] is True
+          assert r['max_rigidization_translation_error_m']<=1e-9
+          assert r['max_rigidization_rotation_error_deg']<=1e-6
+          assert r['proxy_scale_inheritance_policy']=='NONE_ON_ALL_REVIEWED_BONES'
+          assert r['proxy_scale_policy_mismatches']==[]
+          assert r['max_assignment_pose_position_error_m']<=0.0001
+          assert r['max_assignment_pose_rotation_error_deg']<=0.10
+          assert r['max_baked_pose_position_error_m']<=0.0001
+          assert r['max_baked_pose_rotation_error_deg']<=0.10
+          print('GATE8_STEVE_COMPONENT_PAYLOAD_PROXY_VERIFIED rigid_rot_deg=%.9f assignment_rot_deg=%.9f baked_rot_deg=%.9f'%(r['max_rigidization_rotation_error_deg'],r['max_assignment_pose_rotation_error_deg'],r['max_baked_pose_rotation_error_deg']))
+          PY
+
+      - name: Restore immutable Gate-8 target
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' "/repos/${{ github.repository }}/actions/artifacts/$TARGET_ARTIFACT_ID/zip" > "$RUNNER_TEMP/target.zip"
+          mkdir -p "$RUNNER_TEMP/target" && unzip -q "$RUNNER_TEMP/target.zip" -d "$RUNNER_TEMP/target"
+          TARGET="$(find "$RUNNER_TEMP/target" -type f -name 'npc_gate_01.glb' -print -quit)"
+          test -n "$TARGET"
+          echo "$TARGET_GLB_SHA256  $TARGET" | sha256sum -c -
+          cp "$TARGET" /tmp/npc_gate_01.glb
+
+      - name: Import reviewed source proxy and target under Godot 4.7.1
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 "$GODOT_URL" -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot*' -print -quit)"
+          chmod +x "$GODOT"
+          "$GODOT" --version | tee "$RUNNER_TEMP/godot-version.txt"
+          grep -q '^4\.7\.1' "$RUNNER_TEMP/godot-version.txt"
+          mkdir -p "$PROJECT/assets"
+          cp /tmp/steve_reviewed_proxy.glb "$PROJECT/assets/steve_reviewed_proxy.glb"
+          cp /tmp/npc_gate_01.glb "$PROJECT/assets/npc_gate_01.glb"
+          cp grand-bruxelles-game/game/tests/gate8_variant01_steve_normalized_export_preflight_test.gd "$PROJECT/gate_test.gd"
+          cat > "$PROJECT/project.godot" <<'EOF'
+          [application]
+          config/name="Gate8SteveReviewedProxy"
+          [rendering]
+          renderer/rendering_method="gl_compatibility"
+          renderer/rendering_method.mobile="gl_compatibility"
+          EOF
+          "$GODOT" --headless --path "$PROJECT" --editor --quit 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
+          "$GODOT" --headless --path "$PROJECT" --script res://gate_test.gd 2>&1 | tee "$RUNNER_TEMP/godot-preflight.log"
+          grep -q '^GATE8_STEVE_REVIEWED_PROXY_PREFLIGHT_OK state=READY_FOR_NATIVE_RETARGET_PROBE source_bones=17 gaps=0 aliases=false production_authorized=false' "$RUNNER_TEMP/godot-preflight.log"
+          cp "$PROJECT/gate8_variant01_steve_reviewed_proxy_result.json" "$RUNNER_TEMP/godot-result.json"
+
+      - name: Require repository remained untouched
+        if: always()
+        run: |
+          set -euo pipefail
+          git status --porcelain | tee "$RUNNER_TEMP/git-status.txt"
+          test ! -s "$RUNNER_TEMP/git-status.txt"
+
+      - name: Upload immutable proxy evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-bruxelles-gate8-variant01-steve-reviewed-retarget-proxy-preflight
+          path: |
+            ${{ runner.temp }}/affine-diagnostic.json
+            ${{ runner.temp }}/affine-diagnostic.log
+            ${{ runner.temp }}/normalization-report.json
+            ${{ runner.temp }}/normalization.log
+            ${{ runner.temp }}/blender-version.txt
+            ${{ runner.temp }}/steve_reviewed_proxy.sha256
+            ${{ runner.temp }}/godot-version.txt
+            ${{ runner.temp }}/godot-import.log
+            ${{ runner.temp }}/godot-preflight.log
+            ${{ runner.temp }}/godot-result.json
+            ${{ runner.temp }}/git-status.txt
+          if-no-files-found: ignore
+          retention-days: 14

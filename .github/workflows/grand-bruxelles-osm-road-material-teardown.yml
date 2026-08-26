@@ -14,7 +14,7 @@ permissions:
 jobs:
   road-material-teardown:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: Install display dependencies
@@ -34,6 +34,6 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_road_surface_material_ownership_teardown_test.gd 2>&1 | tee /tmp/road-material-teardown.log
+          timeout 120s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path grand-bruxelles-game --script res://game/tests/brussels_osm_road_surface_material_ownership_teardown_test.gd 2>&1 | tee /tmp/road-material-teardown.log
           if grep -E "SCRIPT ERROR|Parse Error:|BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_FAIL" /tmp/road-material-teardown.log; then exit 1; fi
           grep -q "BRUSSELS_OSM_ROAD_MATERIAL_TEARDOWN_OK" /tmp/road-material-teardown.log

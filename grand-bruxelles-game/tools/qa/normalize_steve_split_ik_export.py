@@ -29,18 +29,11 @@ CHAINS = [
 
 def arg(name, default=None):
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    if name in argv:
-        return argv[argv.index(name) + 1]
-    return default
+    return argv[argv.index(name) + 1] if name in argv else default
 
 
 def rot_error_deg(a, b):
     return math.degrees(a.to_quaternion().rotation_difference(b.to_quaternion()).angle)
-
-
-def scale_tuple(matrix):
-    s = matrix.to_scale()
-    return [float(s.x), float(s.y), float(s.z)]
 
 
 def parent_path(bone):
@@ -89,63 +82,40 @@ def weighted_bone_names(arm):
     return weighted
 
 
-def bone_depth(pbone):
-    depth = 0
-    cur = pbone.parent
-    while cur is not None:
-        depth += 1
-        cur = cur.parent
-    return depth
-
-
-def set_pose_matrices(arm, matrix_map):
-    ordered = sorted(list(arm.pose.bones), key=lambda pb: (bone_depth(pb), pb.name))
-    for _pass in range(2):
-        for pbone in ordered:
-            pbone.matrix = matrix_map[pbone.name]
-            bpy.context.view_layer.update()
-
-
 def pose_error(arm, matrix_map, names, frame):
     pos_max = 0.0
     rot_max = 0.0
     worst = {"frame": frame, "bone": "", "position_error_m": 0.0, "rotation_error_deg": 0.0}
     for name in names:
-        pb = arm.pose.bones[name]
+        current = arm.pose.bones[name].matrix
         desired = matrix_map[name]
-        pos_err = (pb.matrix.translation - desired.translation).length
-        rot_err = rot_error_deg(pb.matrix, desired)
+        pos_err = (current.translation - desired.translation).length
+        rot_err = rot_error_deg(current, desired)
         if pos_err > pos_max or rot_err > rot_max:
             worst = {
                 "frame": frame,
                 "bone": name,
                 "position_error_m": pos_err,
                 "rotation_error_deg": rot_err,
-                "parent": pb.parent.name if pb.parent else "",
-                "use_inherit_rotation": bool(pb.bone.use_inherit_rotation),
-                "inherit_scale": str(pb.bone.inherit_scale),
-                "use_local_location": bool(pb.bone.use_local_location),
-                "desired_scale": scale_tuple(desired),
-                "current_scale": scale_tuple(pb.matrix),
-                "basis_scale": scale_tuple(pb.matrix_basis),
+                "parent": arm.pose.bones[name].parent.name if arm.pose.bones[name].parent else "",
             }
         pos_max = max(pos_max, pos_err)
         rot_max = max(rot_max, rot_err)
-    if worst["bone"]:
-        pb = arm.pose.bones[worst["bone"]]
-        if pb.parent:
-            parent = pb.parent
-            desired_parent = matrix_map[parent.name]
-            worst.update({
-                "parent_position_error_m": (parent.matrix.translation - desired_parent.translation).length,
-                "parent_rotation_error_deg": rot_error_deg(parent.matrix, desired_parent),
-                "parent_use_inherit_rotation": bool(parent.bone.use_inherit_rotation),
-                "parent_inherit_scale": str(parent.bone.inherit_scale),
-                "parent_use_local_location": bool(parent.bone.use_local_location),
-                "parent_desired_scale": scale_tuple(desired_parent),
-                "parent_current_scale": scale_tuple(parent.matrix),
-                "parent_basis_scale": scale_tuple(parent.matrix_basis),
-            })
+    return pos_max, rot_max, worst
+
+
+def sampled_error(scene, arm, pose_samples, names, frames):
+    pos_max = 0.0
+    rot_max = 0.0
+    worst = {"frame": None, "bone": "", "position_error_m": 0.0, "rotation_error_deg": 0.0}
+    for frame in frames:
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        pos, rot, candidate = pose_error(arm, pose_samples[frame], names, frame)
+        if pos > pos_max or rot > rot_max:
+            worst = candidate
+        pos_max = max(pos_max, pos)
+        rot_max = max(rot_max, rot)
     return pos_max, rot_max, worst
 
 
@@ -161,7 +131,10 @@ def main():
     weighted_bones = weighted_bone_names(arm)
     assert weighted_bones, "expected at least one weighted armature bone"
     protected_bones = sorted(weighted_bones | set(ROLE_MAP.values()))
-    excluded_controller_bones = sorted(set(arm.data.bones.keys()) - set(protected_bones))
+    moved_controllers = sorted(REPAIRS.keys())
+    assert not (set(moved_controllers) & set(protected_bones)), "controller root unexpectedly influences skin"
+    assert all(arm.data.bones[name].use_deform for name in protected_bones), "protected bone must be deform-exportable"
+    assert all(not arm.data.bones[name].use_deform for name in moved_controllers), "moved controller must stay non-deform"
 
     walks = [a for a in bpy.data.actions if a.name.lower() == "walk"]
     assert len(walks) == 1, f"expected exact walk action, got {[a.name for a in bpy.data.actions]}"
@@ -170,6 +143,8 @@ def main():
     frame_start = int(math.floor(walk.frame_range[0]))
     frame_end = max(frame_start + 1, int(math.ceil(walk.frame_range[1])))
     frames = list(range(frame_start, frame_end + 1))
+    scene.frame_start = frame_start
+    scene.frame_end = frame_end
 
     if arm.animation_data is None:
         arm.animation_data_create()
@@ -185,8 +160,6 @@ def main():
     assert before_gaps == expected_gaps, before_gaps
     rest_before = {b.name: b.matrix_local.copy() for b in arm.data.bones}
     parent_before = {b.name: b.parent.name if b.parent else "" for b in arm.data.bones}
-    inherit_scale_before = {name: str(arm.data.bones[name].inherit_scale) for name in REPAIRS}
-    inherit_rotation_before = {name: bool(arm.data.bones[name].use_inherit_rotation) for name in REPAIRS}
     paths_before = {role: parent_path(arm.data.bones[name]) for role, name in ROLE_MAP.items()}
 
     pose_samples = {}
@@ -195,8 +168,36 @@ def main():
         bpy.context.view_layer.update()
         pose_samples[frame] = {pb.name: pb.matrix.copy() for pb in arm.pose.bones}
 
+    # First bake the constrained source in its ORIGINAL hierarchy. Blender's native
+    # visual-keying bake is designed for this exact job and avoids forcing evaluated
+    # non-decomposable matrices through a custom TRS solver after hierarchy surgery.
     bpy.context.view_layer.objects.active = arm
     arm.select_set(True)
+    bpy.ops.object.mode_set(mode="POSE")
+    bpy.ops.pose.select_all(action="SELECT")
+    result = bpy.ops.nla.bake(
+        frame_start=frame_start,
+        frame_end=frame_end,
+        step=1,
+        only_selected=False,
+        visual_keying=True,
+        clear_constraints=True,
+        clear_parents=False,
+        use_current_action=True,
+        clean_curves=False,
+        bake_types={'POSE'},
+    )
+    assert 'FINISHED' in result, result
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.context.view_layer.update()
+
+    native_pos, native_rot, native_worst = sampled_error(scene, arm, pose_samples, protected_bones, frames)
+    assert native_pos <= 1e-4, native_worst
+    assert native_rot <= 0.10, native_worst
+
+    # With constraints now baked away, repair the hierarchy without introducing an
+    # IK dependency cycle. Only the five non-deform controller roots move.
+    bpy.context.view_layer.objects.active = arm
     bpy.ops.object.mode_set(mode="EDIT")
     for child_name, parent_name in REPAIRS.items():
         child = arm.data.edit_bones[child_name]
@@ -206,16 +207,11 @@ def main():
         child.use_connect = False
         child.matrix = matrix
     bpy.ops.object.mode_set(mode="OBJECT")
-
-    # The moved nodes are controller roots, not deform bones. Their old global/master
-    # space did not receive non-uniform deform-chain scale. Once structurally inserted
-    # under armlo/leglo/pelvis, FULL scale inheritance introduces shear that a TRS
-    # animation cannot represent exactly. Preserve rotation inheritance but isolate
-    # only these five moved controller roots from parent scale.
-    for child_name in REPAIRS:
+    for child_name in moved_controllers:
         bone = arm.data.bones[child_name]
         bone.use_inherit_rotation = True
         bone.inherit_scale = 'NONE'
+        arm.pose.bones[child_name].rotation_mode = "QUATERNION"
     bpy.context.view_layer.update()
 
     rest_pos_max = 0.0
@@ -234,122 +230,98 @@ def main():
         if before != after:
             changed_parents[bone.name] = {"before": before, "after": after}
     assert set(changed_parents) == set(REPAIRS), changed_parents
-    for child_name, parent_name in REPAIRS.items():
-        assert changed_parents[child_name]["after"] == parent_name
-        assert arm.data.bones[child_name].inherit_scale == 'NONE'
-        assert arm.data.bones[child_name].use_inherit_rotation is True
-    after_gaps = role_gaps(arm)
-    assert after_gaps == [], after_gaps
+    assert role_gaps(arm) == []
 
-    for pb in arm.pose.bones:
-        for constraint in list(pb.constraints):
-            pb.constraints.remove(constraint)
-        pb.rotation_mode = "QUATERNION"
+    # Re-key only the five moved controller roots in their new parent spaces. The
+    # already-baked deform channels remain untouched.
+    controller_pos_max = 0.0
+    controller_rot_max = 0.0
+    controller_worst = {"frame": None, "bone": "", "position_error_m": 0.0, "rotation_error_deg": 0.0}
+    for frame in frames:
+        scene.frame_set(frame)
+        for _pass in range(2):
+            for name in moved_controllers:
+                arm.pose.bones[name].matrix = pose_samples[frame][name]
+                bpy.context.view_layer.update()
+        pos, rot, worst = pose_error(arm, pose_samples[frame], moved_controllers, frame)
+        if pos > controller_pos_max or rot > controller_rot_max:
+            controller_worst = worst
+        controller_pos_max = max(controller_pos_max, pos)
+        controller_rot_max = max(controller_rot_max, rot)
+        assert pos <= 1e-4, worst
+        assert rot <= 0.10, worst
+        for name in moved_controllers:
+            pb = arm.pose.bones[name]
+            pb.keyframe_insert(data_path="location", frame=frame, group=name)
+            pb.keyframe_insert(data_path="rotation_quaternion", frame=frame, group=name)
+            pb.keyframe_insert(data_path="scale", frame=frame, group=name)
+
+    repaired_pos, repaired_rot, repaired_worst = sampled_error(scene, arm, pose_samples, protected_bones, frames)
+    assert repaired_pos <= 1e-4, repaired_worst
+    assert repaired_rot <= 0.10, repaired_worst
+
     for track in list(arm.animation_data.nla_tracks):
         arm.animation_data.nla_tracks.remove(track)
-    baked = bpy.data.actions.new("walk")
-    arm.animation_data.action = baked
-    bpy.context.view_layer.update()
-
-    assignment_pos_max = 0.0
-    assignment_rot_max = 0.0
-    assignment_worst = {"frame": None, "bone": "", "position_error_m": 0.0, "rotation_error_deg": 0.0}
-    for frame in frames:
-        scene.frame_set(frame)
-        set_pose_matrices(arm, pose_samples[frame])
-        frame_pos, frame_rot, frame_worst = pose_error(arm, pose_samples[frame], protected_bones, frame)
-        if frame_pos > assignment_pos_max or frame_rot > assignment_rot_max:
-            assignment_worst = frame_worst
-        assignment_pos_max = max(assignment_pos_max, frame_pos)
-        assignment_rot_max = max(assignment_rot_max, frame_rot)
-        assert frame_pos <= 1e-4, frame_worst
-        assert frame_rot <= 0.10, frame_worst
-        for pb in arm.pose.bones:
-            pb.keyframe_insert(data_path="location", frame=frame, group=pb.name)
-            pb.keyframe_insert(data_path="rotation_quaternion", frame=frame, group=pb.name)
-            pb.keyframe_insert(data_path="scale", frame=frame, group=pb.name)
-
-    role_by_bone = {bone: role for role, bone in ROLE_MAP.items()}
-    pose_pos_max = 0.0
-    pose_rot_max = 0.0
-    pose_worst = {"frame": None, "role": "", "bone": "", "position_error_m": 0.0, "rotation_error_deg": 0.0}
-    for frame in frames:
-        scene.frame_set(frame)
-        bpy.context.view_layer.update()
-        frame_pos, frame_rot, frame_worst = pose_error(arm, pose_samples[frame], protected_bones, frame)
-        if frame_pos > pose_pos_max or frame_rot > pose_rot_max:
-            frame_worst["role"] = role_by_bone.get(frame_worst["bone"], "")
-            pose_worst = frame_worst
-        pose_pos_max = max(pose_pos_max, frame_pos)
-        pose_rot_max = max(pose_rot_max, frame_rot)
-    assert pose_pos_max <= 1e-4, pose_worst
-    assert pose_rot_max <= 0.10, pose_worst
+    for action in list(bpy.data.actions):
+        if action != walk:
+            bpy.data.actions.remove(action)
+    walk.name = "walk"
+    arm.animation_data.action = walk
 
     paths_after = {role: parent_path(arm.data.bones[name]) for role, name in ROLE_MAP.items()}
     report = {
-        "format": "grand-bruxelles-steve-source-normalized-export-v5",
-        "bake_solver": "controller_bridge_no_parent_scale_parent_first_matrix_v5",
-        "red_reference_run": 32918396107,
-        "red_reference_max_baked_pose_position_error_m": 1.5499066473743874,
-        "red_assignment_run": 32922400044,
-        "red_assignment_bone": "f2.R.002",
-        "red_assignment_position_error_m": 0.021451851118810414,
-        "red_assignment_rotation_error_deg": 0.7548473741080977,
-        "controller_leaf_red_run": 32925637116,
-        "controller_leaf_red_bone": "poleelbo.R",
-        "weighted_hand_red_run": 32925862392,
-        "weighted_hand_red_bone": "hand.R",
-        "weighted_hand_red_position_error_m": 0.018322910366781766,
-        "weighted_hand_red_rotation_error_deg": 2.3393807718643873,
-        "parent_scale_red_run": 32926622094,
-        "parent_scale_red_bone": "hand.R",
-        "parent_scale_red_position_error_m": 1.2013700229374393e-07,
-        "parent_scale_red_rotation_error_deg": 1.8354114219735884,
-        "parent_scale_red_parent": "ikhand.R",
-        "parent_scale_red_parent_rotation_error_deg": 1.1183630084234288,
-        "parent_scale_red_parent_basis_scale": [0.8573974370956421, 0.8384586572647095, 0.8524900078773499],
+        "format": "grand-bruxelles-steve-source-normalized-export-v6",
+        "bake_solver": "native_visual_bake_original_hierarchy_then_controller_bridge_v6",
+        "red_manual_trs_run": 32930408411,
+        "red_manual_trs_bone": "armlo.R",
+        "red_manual_trs_position_error_m": 0.00685772872786266,
+        "red_manual_trs_rotation_error_deg": 0.7454570379380938,
         "source_bone_count": len(arm.data.bones),
         "weighted_bone_count": len(weighted_bones),
         "protected_bone_count": len(protected_bones),
         "weighted_bones": sorted(weighted_bones),
         "protected_bones": protected_bones,
-        "excluded_controller_bones": excluded_controller_bones,
-        "action_name": baked.name,
-        "frame_start": frame_start,
-        "frame_end": frame_end,
-        "sampled_frames": len(frames),
+        "moved_controller_bones": moved_controllers,
         "repairs": REPAIRS,
         "changed_parents": changed_parents,
-        "controller_inherit_scale_before": inherit_scale_before,
-        "controller_inherit_scale_after": {name: str(arm.data.bones[name].inherit_scale) for name in REPAIRS},
-        "controller_inherit_rotation_before": inherit_rotation_before,
-        "controller_inherit_rotation_after": {name: bool(arm.data.bones[name].use_inherit_rotation) for name in REPAIRS},
         "topology_gaps_before": before_gaps,
-        "topology_gaps_after": after_gaps,
+        "topology_gaps_after": role_gaps(arm),
         "role_parent_paths_before": paths_before,
         "role_parent_paths_after": paths_after,
         "max_rest_position_drift_m": rest_pos_max,
         "max_rest_rotation_drift_deg": rest_rot_max,
-        "max_assignment_position_error_m": assignment_pos_max,
-        "max_assignment_rotation_error_deg": assignment_rot_max,
-        "assignment_worst": assignment_worst,
-        "max_baked_pose_position_error_m": pose_pos_max,
-        "max_baked_pose_rotation_error_deg": pose_rot_max,
-        "baked_pose_worst": pose_worst,
+        "max_native_bake_position_error_m": native_pos,
+        "max_native_bake_rotation_error_deg": native_rot,
+        "native_bake_worst": native_worst,
+        "max_controller_assignment_position_error_m": controller_pos_max,
+        "max_controller_assignment_rotation_error_deg": controller_rot_max,
+        "controller_assignment_worst": controller_worst,
+        "max_repaired_pose_position_error_m": repaired_pos,
+        "max_repaired_pose_rotation_error_deg": repaired_rot,
+        "repaired_pose_worst": repaired_worst,
+        "controller_inherit_scale_after": {name: str(arm.data.bones[name].inherit_scale) for name in moved_controllers},
+        "controller_inherit_rotation_after": {name: bool(arm.data.bones[name].use_inherit_rotation) for name in moved_controllers},
+        "export_def_bones": True,
+        "export_force_sampling": True,
         "source_normalization_applied": True,
-        "controller_parent_scale_isolated": True,
         "runtime_authorized": False,
     }
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True))
+
     bpy.ops.export_scene.gltf(
-        filepath=str(out), export_format="GLB", export_animations=True,
+        filepath=str(out),
+        export_format="GLB",
+        export_animations=True,
+        export_frame_range=True,
+        export_force_sampling=True,
+        export_def_bones=True,
         export_draco_mesh_compression_enable=False,
     )
     assert out.is_file() and out.stat().st_size > 0
     print(
-        "GATE8_STEVE_NORMALIZED_EXPORT_OK bones=%d weighted=%d protected=%d gaps_before=%d gaps_after=%d assignment_pos_error_m=%.9f assignment_rot_error_deg=%.6f pose_pos_error_m=%.9f pose_rot_error_deg=%.6f bytes=%d"
-        % (len(arm.data.bones), len(weighted_bones), len(protected_bones), len(before_gaps), len(after_gaps),
-           assignment_pos_max, assignment_rot_max, pose_pos_max, pose_rot_max, out.stat().st_size)
+        "GATE8_STEVE_NORMALIZED_EXPORT_OK solver=v6 protected=%d native_pos=%.9f native_rot=%.6f controller_pos=%.9f controller_rot=%.6f repaired_pos=%.9f repaired_rot=%.6f bytes=%d"
+        % (len(protected_bones), native_pos, native_rot, controller_pos_max, controller_rot_max,
+           repaired_pos, repaired_rot, out.stat().st_size)
     )
 
 

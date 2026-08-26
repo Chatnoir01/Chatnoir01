@@ -1,0 +1,88 @@
+name: Grand Bruxelles Midi City Open Data Overlap
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/grand-bruxelles-midi-city-open-data-overlap.yml"
+      - "grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json"
+      - "grand-bruxelles-game/tools/citygen/classify_city_open_data_midi_overlap.py"
+      - "grand-bruxelles-game/tests/test_city_open_data_midi_overlap.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SNAPSHOT: grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json
+  TOOL: grand-bruxelles-game/tools/citygen/classify_city_open_data_midi_overlap.py
+
+jobs:
+  midi-city-open-data-overlap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require exact live-main ancestry and evidence-only rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          live_main="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$live_main" HEAD
+          python3 - "$live_main" <<'PY'
+          import json, sys
+          from pathlib import Path
+
+          live = sys.argv[1]
+          p = Path("grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json")
+          d = json.loads(p.read_text(encoding="utf-8"))
+
+          assert d["production_base_sha"] == live, (d["production_base_sha"], live)
+          assert d["status"] == "FROZEN_METADATA_OVERLAP_EVIDENCE_ONLY"
+          assert d["target_zone"]["name"] == "Midi"
+          assert d["target_zone"]["state"] == "JOUABLE"
+          assert d["target_zone"]["crs"] == "EPSG:31370"
+          assert d["target_zone"]["bbox"] == [147250.0, 168900.0, 148500.0, 170250.0]
+          assert d["candidate_rule"]["name"] == "explicit_geospatial_metadata_only"
+          assert d["candidate_rule"]["title_theme_inference_forbidden"] is True
+          assert all(value is False for value in d["authorization"].values())
+          print(f"MIDI_CITY_OPEN_DATA_LIVE_MAIN_OK live={live} rails=closed")
+          PY
+
+      - name: Run deterministic classifier regressions
+        run: python3 grand-bruxelles-game/tests/test_city_open_data_midi_overlap.py
+
+      - name: Validate frozen snapshot offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$TOOL" validate --snapshot "$SNAPSHOT"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          d = json.loads(Path("grand-bruxelles-game/data/provenance/midi_city_open_data_zone_overlap.snapshot.json").read_text(encoding="utf-8"))
+          p = d["provenance"]
+          a = p["first_acquisition_artifact"]
+
+          assert d["catalog_total_datasets"] == 207
+          assert d["geospatial_candidate_count"] == 142
+          assert d["overlap_proven_count"] == 124
+          assert d["unresolved_count"] == 18
+          assert d["snapshot_semantic_sha256"] == "4afc8d3ae5406a63aa33853c910e22283581d057b603e6c713166c94118b53d7"
+          assert p["authority"] == "City of Brussels Open Data"
+          assert p["catalog_export_sha256"] == "7c7639799475e47d0ccd03b3a0d465959b250b9a27089c88dc292e683a2082c3"
+          assert p["catalog_export_size_bytes"] == 2366789
+          assert a["workflow_run_id"] == 32925659247
+          assert a["artifact_id"] == 9591407871
+          assert a["artifact_zip_sha256"] == "d1dd360d7e7a23f37441dd47dbcc812d0cd100140f632d551eb079256501a74a"
+          assert a["measurement_sha256"] == "a3494451c836fa81a01a50b22d160a55ceadadd95dbc80d6fbdd0338fb7e167d"
+          assert a["measurement_size_bytes"] == 112264
+          assert all(value is False for value in d["authorization"].values())
+          print("MIDI_CITY_OPEN_DATA_FROZEN_OK catalog=207 geospatial=142 overlap=124 unresolved=18 rails=closed")
+          PY

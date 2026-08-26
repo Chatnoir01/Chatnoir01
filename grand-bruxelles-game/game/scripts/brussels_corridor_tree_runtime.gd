@@ -32,13 +32,41 @@ var _last_lod_anchor := Vector3(INF, INF, INF)
 var _near_tree_count := 0
 var _far_tree_count := 0
 var _foliage_instance_count := 0
+var _tearing_down := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     call_deferred("_start_scene_watch")
 
+func _exit_tree() -> void:
+    _tearing_down = true
+    _disconnect_scene_watch()
+    _release_owned_root()
+    _scene = null
+
+func _release_owned_root() -> void:
+    if is_instance_valid(_root):
+        var parent := _root.get_parent()
+        if parent != null:
+            parent.remove_child(_root)
+        _root.queue_free()
+    _root = null
+    _trunk_batch = null
+    _dark_batch = null
+    _light_batch = null
+    _collision_body = null
+    _source_positions.clear()
+    _source_ids.clear()
+    _enhanced_materials.clear()
+    _legacy_materials.clear()
+    _lod_active = false
+    _last_lod_anchor = Vector3(INF, INF, INF)
+    _near_tree_count = 0
+    _far_tree_count = 0
+    _foliage_instance_count = 0
+
 func _process(_delta: float) -> void:
-    if not _ready_complete or _failed or _scene == null or _source_positions.is_empty():
+    if _tearing_down or not _ready_complete or _failed or _scene == null or _source_positions.is_empty():
         return
     var anchor := _player_anchor()
     if not is_finite(anchor.x):
@@ -66,6 +94,8 @@ func _production_scene_from_node(node: Node) -> Node3D:
     return null
 
 func _discover_production_scene() -> Node3D:
+    if _tearing_down or not is_inside_tree():
+        return null
     var current := get_tree().current_scene
     if current is Node3D and _scene_has_production_anchors(current as Node3D):
         return current as Node3D
@@ -75,19 +105,21 @@ func _discover_production_scene() -> Node3D:
     return null
 
 func _disconnect_scene_watch() -> void:
+    if not is_inside_tree():
+        return
     var callback := Callable(self, "_on_tree_node_added")
     if get_tree().node_added.is_connected(callback):
         get_tree().node_added.disconnect(callback)
 
 func _try_bind_scene(candidate: Node3D) -> void:
-    if _manual_binding or _ready_complete or candidate == null or not _scene_has_production_anchors(candidate):
+    if _tearing_down or not is_inside_tree() or _manual_binding or _ready_complete or candidate == null or not _scene_has_production_anchors(candidate):
         return
     _disconnect_scene_watch()
     _scene = candidate
     _build()
 
 func _on_tree_node_added(node: Node) -> void:
-    if _manual_binding or _ready_complete:
+    if _tearing_down or not is_inside_tree() or _manual_binding or _ready_complete:
         _disconnect_scene_watch()
         return
     if str(node.name) not in ["GeneratedRoads", "UrbISMidiExact", "Player"]:
@@ -95,7 +127,7 @@ func _on_tree_node_added(node: Node) -> void:
     _try_bind_scene(_production_scene_from_node(node))
 
 func _start_scene_watch() -> void:
-    if _manual_binding or _ready_complete:
+    if _tearing_down or not is_inside_tree() or _manual_binding or _ready_complete:
         return
     var callback := Callable(self, "_on_tree_node_added")
     if not get_tree().node_added.is_connected(callback):
@@ -103,33 +135,22 @@ func _start_scene_watch() -> void:
     _try_bind_scene(_discover_production_scene())
 
 func bind_scene(scene: Node3D) -> void:
+    if _tearing_down:
+        return
     if scene == null:
         _fail("manual scene binding received null scene")
         return
     _disconnect_scene_watch()
-    if is_instance_valid(_root):
-        _root.queue_free()
+    _release_owned_root()
     _scene = scene
     _manual_binding = true
-    _root = null
-    _trunk_batch = null
-    _dark_batch = null
-    _light_batch = null
-    _collision_body = null
-    _source_positions.clear()
-    _source_ids.clear()
-    _enhanced_materials.clear()
-    _legacy_materials.clear()
     _ready_complete = false
     _failed = false
-    _lod_active = false
-    _last_lod_anchor = Vector3(INF, INF, INF)
-    _near_tree_count = 0
-    _far_tree_count = 0
-    _foliage_instance_count = 0
     _build()
 
 func _fail(message: String) -> void:
+    if _tearing_down:
+        return
     _disconnect_scene_watch()
     push_error("Brussels corridor tree runtime: %s" % message)
     _failed = true
@@ -195,7 +216,7 @@ func _detach_visual_batch(batch: MultiMeshInstance3D) -> void:
     batch.queue_free()
 
 func _rebuild_visual_batches(anchor: Vector3, use_lod: bool) -> void:
-    if not is_instance_valid(_root) or _enhanced_materials.is_empty():
+    if _tearing_down or not is_instance_valid(_root) or _enhanced_materials.is_empty():
         return
     _detach_visual_batch(_trunk_batch)
     _detach_visual_batch(_dark_batch)
@@ -240,9 +261,13 @@ func _rebuild_visual_batches(anchor: Vector3, use_lod: bool) -> void:
     set_visual_enabled(_visual_enabled)
 
 func rebuild_visual_batches_for_anchor(anchor: Vector3) -> void:
+    if _tearing_down:
+        return
     _rebuild_visual_batches(anchor, lod_anchor_is_corridor_relevant(anchor, _source_positions))
 
 func _build() -> void:
+    if _tearing_down:
+        return
     if _scene == null:
         _fail("scene missing during build")
         return

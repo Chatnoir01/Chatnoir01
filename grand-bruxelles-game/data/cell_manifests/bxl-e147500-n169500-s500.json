@@ -1,0 +1,100 @@
+{
+  "bbox": [
+    147500.0,
+    169500.0,
+    148000.0,
+    170000.0
+  ],
+  "cell_id": "bxl-e147500-n169500-s500",
+  "collisions": {
+    "status": "not_validated"
+  },
+  "crs": "EPSG:31370",
+  "format": "grand-bruxelles-cell-maturity-v1",
+  "geometry": {
+    "authoritative_geometry_ready": true,
+    "layer_feature_counts": {
+      "buildings": 362,
+      "street_axes": 104,
+      "street_surfaces": 283,
+      "train_network": 361,
+      "tram_network": 361
+    },
+    "layers": [
+      "buildings",
+      "street_surfaces",
+      "street_axes",
+      "tram_network",
+      "train_network"
+    ],
+    "source_digest": "06cc9e818a815bb00c74435a03f7d6ff8c7084010316abef0314fd376c210480",
+    "source_manifest": "data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/manifest.json"
+  },
+  "heights": {
+    "reason": "no authoritative height evidence is registered for this canonical cell",
+    "status": "not_registered"
+  },
+  "maturity": {
+    "gates": {
+      "collisions": false,
+      "heights": false,
+      "performance": false,
+      "photo_match": false,
+      "runtime_geometry": false,
+      "streaming": false,
+      "terrain": false
+    },
+    "state": "data_ready"
+  },
+  "performance": {
+    "budget_pass": false,
+    "status": "not_measured_as_streamed_cell"
+  },
+  "photo_match": {
+    "open_major_mismatches": 0,
+    "required": false,
+    "status": "not_validated"
+  },
+  "provenance": {
+    "authoritative_source_manifest": "data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/manifest.json",
+    "authoritative_source_manifest_sha256": "10aac9d4a2404ff23bb7d9af40b9e256b65aa6f25d33c7de1c1e3067244f43d2",
+    "license": "CC0-1.0",
+    "municipality_assignment_policy": "retain_all_official_intersections_no_dominant_municipality_canonicalization",
+    "municipality_boundary_semantic_sha256": "4148e300ea5a81d60b5f16f0eab1186a3d646308cb7a4a4a1c5036b21e2bba8f",
+    "municipality_intersections": [
+      {
+        "coverage_ratio": 0.6455744665162007,
+        "inspire_id": "https://databrussels.be/id/municipality/5000083",
+        "niscode": "21013"
+      },
+      {
+        "coverage_ratio": 0.3516055345072097,
+        "inspire_id": "https://databrussels.be/id/municipality/5000071",
+        "niscode": "21001"
+      },
+      {
+        "coverage_ratio": 0.002819998976589587,
+        "inspire_id": "https://databrussels.be/id/municipality/5000074",
+        "niscode": "21004"
+      }
+    ],
+    "primary": "UrbIS WFS / Paradigm",
+    "source_records_present": true,
+    "source_semantic_sha256": "496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0"
+  },
+  "terrain": {
+    "source": "no authoritative terrain evidence registered for this canonical cell",
+    "status": "not_registered"
+  },
+  "transport": {
+    "rail_geometry_present": true,
+    "service_simulation_validated": false,
+    "tram_geometry_present": true
+  },
+  "uncertainties": [
+    "cell crosses Saint-Gilles, Anderlecht and Bruxelles; no single canonical municipality is inferred",
+    "terrain evidence is not registered for this canonical cell",
+    "height evidence is not registered for this canonical cell",
+    "runtime geometry, streaming, collisions, photo-match and performance remain unvalidated"
+  ]
+}

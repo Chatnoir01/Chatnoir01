@@ -1,16 +1,42 @@
 {
   "schema": "grand-bruxelles-driveway-registered-cell-crosswalk-v1",
-  "production_base_sha": "498a214f53e3805837a3d989522cb9a77f68a02c",
+  "production_base_sha": "54d9e9ddf6a1975348dcc13c87db38df0f8073a1",
   "source_catalog": {
     "schema": "grand-bruxelles-driveway-regional-cell-catalog-v1",
     "feature_count": 95805,
     "cell_count": 832,
     "cells_sha256": "9475d83f0524e917a0cdf89bced41a25b5521e5a7b842d29a9536a5302b2fe8b"
   },
-  "registered_manifest_count": 4,
-  "matched_registered_manifest_count": 4,
+  "registered_manifest_count": 5,
+  "matched_registered_manifest_count": 5,
   "unmatched_registered_manifest_count": 0,
   "matches": [
+    {
+      "registered_cell_id": "bxl-e147500-n169500-s500",
+      "driveway_cell_id": "E147500_N169500",
+      "manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+      "maturity_state": "data_ready",
+      "maturity_gates": {
+        "collisions": false,
+        "heights": false,
+        "performance": false,
+        "photo_match": false,
+        "runtime_geometry": false,
+        "streaming": false,
+        "terrain": false
+      },
+      "runtime_mount_authorized": false,
+      "collision_authorized": false,
+      "safe_spawn_authorized": false,
+      "jouable_promotion_authorized": false,
+      "driveway_municipalities": [
+        "Anderlecht",
+        "Saint-Gilles"
+      ],
+      "driveway_feature_count": 47,
+      "crosswalk_evidence_only": true,
+      "road_crosswalk_authorized": false
+    },
     {
       "registered_cell_id": "bxl-e147500-n170000-s500",
       "driveway_cell_id": "E147500_N170000",
@@ -126,5 +152,5 @@
   "collision_authorized": false,
   "safe_spawn_authorized": false,
   "jouable_promotion_authorized": false,
-  "semantic_sha256": "03d595f6eb178fe499d021d912266cd99a6873498bd575ff3785913d2f1916ae"
+  "semantic_sha256": "818b8b31924e9f05cc3de3566cb13be97c5c8e5e52fb3d5e917ba35d0b31390b"
 }

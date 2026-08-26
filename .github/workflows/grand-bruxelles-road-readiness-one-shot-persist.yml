@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/grand-bruxelles-road-readiness-one-shot-persist.yml'
+      - 'grand-bruxelles-game/tests/test_road_readiness_one_shot_no_self_mutation.py'
       - 'grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json'
       - 'grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json'
       - 'grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json'
@@ -27,44 +28,69 @@ jobs:
           git fetch --no-tags origin main
           LIVE_MAIN_SHA="$(git rev-parse origin/main)"
           git merge-base --is-ancestor "$LIVE_MAIN_SHA" HEAD || {
-            echo "RED: persistence candidate does not contain live main" >&2
+            echo "RED: readiness candidate does not contain live main" >&2
             exit 1
           }
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Regenerate and verify exact readiness candidate
+      - name: Prove PR readiness gate cannot self-mutate
+        run: python grand-bruxelles-game/tests/test_road_readiness_one_shot_no_self_mutation.py
+      - name: Regenerate and verify current fail-closed readiness topology
+        env:
+          EXPECTED_RAW_SHA256: 6040021f3cbfc16a752bfcc1e489f6a4a9aad5db0a2d708b07b12ca73d4eb5df
+          EXPECTED_SEMANTIC_SHA256: 0c16d8c14fe6195e40b58e4b11bbcb0b67a5756f4b4fff8132a0122f9ca98f1e
         run: |
           set -euo pipefail
           OUT="$RUNNER_TEMP/brussels_road_destination_readiness_catalog.json"
+          CELL_INDEX=grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json
+          CROSSWALK=grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json
           python grand-bruxelles-game/tools/qa/build_road_destination_readiness_catalog.py \
             --repo-root grand-bruxelles-game \
             --road-index grand-bruxelles-game/data/runtime/road_destination_runtime_index.json \
-            --cell-index grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json \
-            --crosswalk grand-bruxelles-game/data/provenance/brussels_road_registered_cell_crosswalk.json \
+            --cell-index "$CELL_INDEX" \
+            --crosswalk "$CROSSWALK" \
             --output "$OUT"
-          echo "1e2b65d49de3cb3b81ed91e8532ffa2e5703a9b5892fc3235d65f36efec6c1ed  $OUT" | sha256sum -c -
-          python - "$OUT" <<'PY'
-          import json,sys
+          python - "$OUT" "$CELL_INDEX" "$CROSSWALK" <<'PY'
+          import hashlib,json,os,sys
           from pathlib import Path
-          d=json.loads(Path(sys.argv[1]).read_text())
-          assert d['status']=='SOURCE_BACKED_REGISTERED_NOT_RENDERED'
-          assert d['destination_count']==11
-          assert d['mapped_cell_count']==2
-          assert d['registered_cell_index_semantic_sha256']=='2b34adfdda1adb2eb34aca7c89ca90e73a11633394b6fe3c3e30b2318cc00fac'
-          assert d['road_cell_crosswalk_semantic_sha256']=='e070145a19c1698cd92c3d3224d2d8e185d7faf128466ec502afa742f0ecbd88'
-          assert d['semantic_sha256']=='82ba769c606262eefcace412493b2171497070291fff8796c49a251c0ea2ef7a'
-          assert all(v is False for v in d['authorization'].values())
-          for row in d['destinations']:
+
+          raw=Path(sys.argv[1]).read_bytes()
+          out=json.loads(raw)
+          cells=json.loads(Path(sys.argv[2]).read_text())
+          crosswalk=json.loads(Path(sys.argv[3]).read_text())
+
+          assert hashlib.sha256(raw).hexdigest()==os.environ['EXPECTED_RAW_SHA256']
+          assert out['semantic_sha256']==os.environ['EXPECTED_SEMANTIC_SHA256']
+          assert out['status']=='SOURCE_BACKED_REGISTERED_NOT_RENDERED'
+          assert out['destination_count']==crosswalk['mapped_road_count']==56
+          assert out['mapped_cell_count']==crosswalk['mapped_cell_count']==3
+          assert out['registered_cell_index_semantic_sha256']==cells['semantic_sha256']=='8dd6b8994160b7a22b83f8be4ce63cfa4b579f724d51b3896c0426782b259187'
+          assert out['road_cell_crosswalk_semantic_sha256']==crosswalk['semantic_sha256']=='54f5b91eaff3a010eb22be86f48fc9b9d80d3496658bccc87051e5e532ead6a0'
+          assert crosswalk['road_cell_mapping_authorized'] is False
+          assert crosswalk['runtime_mount_authorized'] is False
+          assert crosswalk['rendered_geometry_authorized'] is False
+          assert crosswalk['collision_authorized'] is False
+          assert crosswalk['safe_spawn_authorized'] is False
+          assert crosswalk['jouable_promotion_authorized'] is False
+          assert all(v is False for v in out['authorization'].values())
+
+          destination_ids=[row['destination_id'] for row in out['destinations']]
+          assert len(destination_ids)==len(set(destination_ids)), 'duplicate destination id'
+          for row in out['destinations']:
               assert row['readiness']=='REGISTERED_NOT_RENDERED'
               for key in ['render_authorized','collision_authorized','runtime_mount_authorized','safe_spawn_authorized','jouable_authorized']:
                   assert row[key] is False, (row['destination_id'],key)
-          print('ROAD_READINESS_ONE_SHOT_CANDIDATE_VERIFIED')
+
+          print('ROAD_READINESS_READ_ONLY_TOPOLOGY_PROVEN raw='+hashlib.sha256(raw).hexdigest()+' semantic='+out['semantic_sha256'])
           PY
       - name: Require persisted readiness lock already exact
         run: |
           set -euo pipefail
           OUT="$RUNNER_TEMP/brussels_road_destination_readiness_catalog.json"
           LOCK=grand-bruxelles-game/data/provenance/brussels_road_destination_readiness_catalog.json
-          cmp "$OUT" "$LOCK"
-          echo "ROAD_READINESS_ALREADY_LOCKED_EXACT"
+          cmp "$OUT" "$LOCK" || {
+            echo "RED: persisted readiness lock is stale relative to current registered-cell/crosswalk topology" >&2
+            exit 1
+          }
+          echo "ROAD_READINESS_ALREADY_LOCKED_EXACT_READ_ONLY"

@@ -7,8 +7,8 @@ on:
       - "grand-bruxelles-game/data/provenance/anneessens_canonical_registration.review.json"
       - "grand-bruxelles-game/data/provenance/anneessens_urbis_source_cell.measurement.json"
       - "grand-bruxelles-game/data/provenance/anneessens_source_cell_municipality.measurement.json"
+      - "grand-bruxelles-game/data/cell_manifests/bxl-e147500-n169500-s500.json"
       - "grand-bruxelles-game/data/provenance/brussels_registered_cell_manifest_index.json"
-      - "grand-bruxelles-game/data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/**"
       - "grand-bruxelles-game/tools/qa/review_anneessens_canonical_cell_registration.py"
       - "grand-bruxelles-game/tools/qa/test_anneessens_canonical_cell_registration_review.py"
       - ".github/workflows/grand-bruxelles-anneessens-canonical-registration-review.yml"
@@ -26,29 +26,46 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: Require exact live-main ancestry and contract base
+      - name: Require exact live-main ancestry and resolve lifecycle phase
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
           LIVE_MAIN="$(git rev-parse origin/main)"
           git merge-base --is-ancestor "$LIVE_MAIN" HEAD
           python - "$LIVE_MAIN" <<'PY'
-          import json,sys
+          import json, subprocess, sys
           from pathlib import Path
-          c=json.loads(Path("grand-bruxelles-game/data/qa/anneessens_canonical_registration_review.contract.json").read_text())
-          assert c["production_base_sha"]==sys.argv[1], (c["production_base_sha"],sys.argv[1])
-          print("ANNEESSENS_CANONICAL_REVIEW_LIVE_MAIN_OK",sys.argv[1])
+          live=sys.argv[1]
+          root=Path('grand-bruxelles-game')
+          c=json.loads((root/'data/qa/anneessens_canonical_registration_review.contract.json').read_text())
+          manifest=root/'data/cell_manifests/bxl-e147500-n169500-s500.json'
+          if not manifest.exists():
+              assert c['production_base_sha']==live, (c['production_base_sha'],live)
+              print('ANNEESSENS_CANONICAL_REVIEW_PHASE pre_registration live_main='+live)
+          else:
+              subprocess.run(['git','merge-base','--is-ancestor',c['production_base_sha'],live],check=True)
+              assert c['production_base_sha']=='0950c847303057c13802667165fa836becae0321'
+              assert c['registered_index']['target_must_be_absent'] is True
+              print('ANNEESSENS_CANONICAL_REVIEW_PHASE registered_successor historical_contract_preserved=true live_main='+live)
           PY
           echo "LIVE_MAIN=$LIVE_MAIN" >> "$GITHUB_ENV"
+          if test -e grand-bruxelles-game/data/cell_manifests/bxl-e147500-n169500-s500.json; then
+            echo "ANNEESSENS_REVIEW_PHASE=registered_successor" >> "$GITHUB_ENV"
+          else
+            echo "ANNEESSENS_REVIEW_PHASE=pre_registration" >> "$GITHUB_ENV"
+          fi
       - name: Run fail-closed regressions
+        if: env.ANNEESSENS_REVIEW_PHASE == 'pre_registration'
         run: python grand-bruxelles-game/tools/qa/test_anneessens_canonical_cell_registration_review.py
       - name: Rebuild review from persisted evidence only
+        if: env.ANNEESSENS_REVIEW_PHASE == 'pre_registration'
         run: |
           python grand-bruxelles-game/tools/qa/review_anneessens_canonical_cell_registration.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --production-base-sha "$LIVE_MAIN" \
             --output "$RUNNER_TEMP/anneessens_canonical_registration.review.json"
       - name: Require exact locked review and closed rails
+        if: env.ANNEESSENS_REVIEW_PHASE == 'pre_registration'
         run: |
           cmp "$RUNNER_TEMP/anneessens_canonical_registration.review.json" grand-bruxelles-game/data/provenance/anneessens_canonical_registration.review.json
           python - <<'PY'
@@ -62,7 +79,40 @@ jobs:
               assert p[k] is False,k
           print("ANNEESSENS_CANONICAL_REGISTRATION_REVIEW_LOCKED_EXACT")
           PY
+      - name: Prove historical review remains immutable after separate registration
+        if: env.ANNEESSENS_REVIEW_PHASE == 'registered_successor'
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root=Path('grand-bruxelles-game')
+          target='bxl-e147500-n169500-s500'
+          review=json.loads((root/'data/provenance/anneessens_canonical_registration.review.json').read_text())
+          candidate=json.loads((root/'data/provenance/anneessens_canonical_manifest_candidate.review.json').read_text())
+          manifest_path=root/f'data/cell_manifests/{target}.json'
+          raw=manifest_path.read_bytes()
+          manifest=json.loads(raw)
+          index=json.loads((root/'data/provenance/brussels_registered_cell_manifest_index.json').read_text())
+          digest=hashlib.sha256(raw).hexdigest()
+          assert review['status']=='READY_FOR_CANONICAL_MANIFEST_REVIEW_BOUNDARY_CELL'
+          assert review['semantic_sha256']=='9aa213aeb334755e10d4ee8837498e47784a3644dd547a6f58243932d1fb7b34'
+          assert [x['niscode'] for x in review['municipality_boundary']['intersections']]==['21013','21001','21004']
+          for k in ('registration_authorized','road_cell_mapping_authorized','runtime_directory_scan_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized'):
+              assert review[k] is False,k
+          assert digest==candidate['candidate_manifest']['sha256']=='3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a'
+          assert manifest['provenance']['municipality_assignment_policy']=='retain_all_official_intersections_no_dominant_municipality_canonicalization'
+          assert [x['niscode'] for x in manifest['provenance']['municipality_intersections']]==['21013','21001','21004']
+          rows=[row for row in index['entries'] if row['cell_id']==target]
+          assert len(rows)==1
+          assert rows[0]['manifest_sha256']==digest
+          assert rows[0]['evidence_only'] is True
+          for k in ('runtime_directory_scan_authorized','road_crosswalk_authorized','runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized'):
+              assert index[k] is False,k
+          print(f'ANNEESSENS_CANONICAL_REVIEW_SUCCESSOR_OK historical_semantic={review["semantic_sha256"]} manifest_sha={digest} rails_closed=true')
+          PY
       - name: Upload review evidence
+        if: env.ANNEESSENS_REVIEW_PHASE == 'pre_registration'
         uses: actions/upload-artifact@v4
         with:
           name: anneessens-canonical-registration-review

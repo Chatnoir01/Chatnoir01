@@ -33,6 +33,7 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
     def test_locked_measurement_preserves_original_acquisition_base(self):
         contract = json.loads(Path("data/qa/osm_road_extension_e148500_n170500.contract.json").read_text())
         self.assertEqual(measurement_production_base_sha(contract), contract["continuity"]["original_acquisition_base_sha"])
+        self.assertEqual(contract["continuity"]["original_acquisition_base_sha"], "2b41e365cc7e5f89b6dc26e75ec3d296ef0a7a99")
         pending = copy.deepcopy(contract)
         pending["status"] = "MEASUREMENT_PENDING"
         self.assertEqual(measurement_production_base_sha(pending), pending["production_base_sha"])
@@ -46,7 +47,7 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
         continuity = contract["continuity"]
         evidence = contract["locked_evidence"]
         self.assertEqual(continuity["policy"], "artifact-lock-independent-of-original-git-ancestry")
-        self.assertEqual(continuity["original_acquisition_base_sha"], "37cb3ce2d745ff4db17330636f6d712e028523c6")
+        self.assertEqual(continuity["original_acquisition_base_sha"], "2b41e365cc7e5f89b6dc26e75ec3d296ef0a7a99")
         self.assertEqual(continuity["locked_artifact_id"], evidence["artifact_id"])
         self.assertEqual(continuity["locked_artifact_sha256"], evidence["artifact_zip_sha256"])
         self.assertEqual(continuity["locked_semantic_sha256"], evidence["semantic_sha256"])
@@ -88,6 +89,7 @@ class OsmRoadExtensionAcquisitionTests(unittest.TestCase):
         self.assertIn('m["production_base_sha"] == c["continuity"]["original_acquisition_base_sha"]', workflow)
         self.assertIn('continuity["policy"] == "artifact-lock-independent-of-original-git-ancestry"', workflow)
         self.assertIn('continuity["locked_artifact_id"] == c["locked_evidence"]["artifact_id"]', workflow)
+        self.assertIn('continuity["original_acquisition_base_sha"] == "2b41e365cc7e5f89b6dc26e75ec3d296ef0a7a99"', workflow)
 
 
 if __name__ == "__main__":

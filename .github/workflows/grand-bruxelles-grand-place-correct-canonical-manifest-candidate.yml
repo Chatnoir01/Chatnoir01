@@ -42,10 +42,20 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Detect lifecycle phase
+        id: lifecycle
+        run: |
+          if [ -f grand-bruxelles-game/data/cell_manifests/bxl-e148500-n170500-s500.json ]; then
+            echo "registered=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "registered=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run fail-closed candidate regressions
         run: python grand-bruxelles-game/tests/test_grand_place_correct_canonical_manifest_candidate.py
 
       - name: Build deterministic corrected Grand-Place candidate without registration
+        if: steps.lifecycle.outputs.registered == 'false'
         run: |
           mkdir -p "$RUNNER_TEMP/grand-place-correct-canonical-candidate"
           python grand-bruxelles-game/tools/qa/build_grand_place_correct_canonical_manifest_candidate.py \
@@ -55,6 +65,7 @@ jobs:
             --out-review "$RUNNER_TEMP/grand-place-correct-canonical-candidate/grand_place_correct_canonical_manifest_candidate.review.json"
 
       - name: Prove candidate compatibility with registered-cell index builder in sandbox only
+        if: steps.lifecycle.outputs.registered == 'false'
         run: |
           python - <<'PY'
           import importlib.util, os, shutil
@@ -78,13 +89,15 @@ jobs:
           PY
 
       - name: Upload measured candidate before lock decision
+        if: steps.lifecycle.outputs.registered == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: grand-place-correct-canonical-manifest-candidate
           path: ${{ runner.temp }}/grand-place-correct-canonical-candidate
           if-no-files-found: error
 
-      - name: Require persisted lock only after measured RED-first evidence exists
+      - name: Require persisted pre-registration lock
+        if: steps.lifecycle.outputs.registered == 'false'
         run: |
           set -euo pipefail
           LOCK=grand-bruxelles-game/data/provenance/grand_place_correct_canonical_manifest_candidate.review.json
@@ -98,18 +111,31 @@ jobs:
             diff -u "$LOCK" "$GENERATED" || true
             exit 1
           }
-          test ! -e grand-bruxelles-game/data/cell_manifests/bxl-e148500-n170500-s500.json || {
-            echo "RED: canonical manifest appeared before separate registration lot" >&2
-            exit 1
-          }
+
+      - name: Require registered successor preserves historical candidate evidence and closed rails
+        if: steps.lifecycle.outputs.registered == 'true'
+        run: |
           python - <<'PY'
-          import json, os
+          import json
           from pathlib import Path
-          review=json.loads(Path('grand-bruxelles-game/data/provenance/grand_place_correct_canonical_manifest_candidate.review.json').read_text())
+          game=Path('grand-bruxelles-game')
+          review=json.loads((game/'data/provenance/grand_place_correct_canonical_manifest_candidate.review.json').read_text())
+          manifest=json.loads((game/'data/cell_manifests/bxl-e148500-n170500-s500.json').read_text())
+          index=json.loads((game/'data/provenance/brussels_registered_cell_manifest_index.json').read_text())
           assert review['status']=='CANDIDATE_MEASURED_UNREGISTERED'
-          assert review['production_base_sha']==os.environ['LIVE_MAIN_SHA']
+          assert review['target']['cell_id']=='bxl-e148500-n170500-s500'
           assert review['municipality_evidence']['niscode']=='21004'
           assert review['municipality_evidence']['coverage_ratio']==1.0
           assert all(v is False for v in review['authorization'].values())
-          print('GRAND_PLACE_CORRECT_CANONICAL_MANIFEST_CANDIDATE_DURABLY_LOCKED_UNREGISTERED')
+          assert manifest['cell_id']=='bxl-e148500-n170500-s500'
+          assert manifest['crs']=='EPSG:31370'
+          assert manifest['provenance']['municipality']['niscode']=='21004'
+          assert manifest['provenance']['municipality']['coverage_ratio']==1.0
+          assert all(v is False for v in manifest['maturity']['gates'].values())
+          rows={row['cell_id']:row for row in index['entries']}
+          row=rows['bxl-e148500-n170500-s500']
+          assert row['evidence_only'] is True
+          for key in ['runtime_mount_authorized','rendered_geometry_authorized','collision_authorized','safe_spawn_authorized','jouable_promotion_authorized']:
+              assert row[key] is False, key
+          print('GRAND_PLACE_CORRECT_CANONICAL_MANIFEST_CANDIDATE_REGISTERED_SUCCESSOR_OK')
           PY

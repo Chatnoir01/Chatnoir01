@@ -9,6 +9,8 @@ on:
       - 'grand-bruxelles-game/game/scripts/automatic_road_direct_spawn.gd'
       - 'grand-bruxelles-game/game/main.tscn'
       - 'grand-bruxelles-game/data/osm/vertical_slice_01.game.json'
+      - 'grand-bruxelles-game/data/qa/corridor_road_source_chain.contract.json'
+      - 'grand-bruxelles-game/tests/test_road_material_player_witness_source_lock.py'
       - '.github/workflows/grand-bruxelles-road-material-player-witness.yml'
   workflow_dispatch:
 
@@ -21,6 +23,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
+
+      - name: Require canonical corridor source identity
+        run: python3 grand-bruxelles-game/tests/test_road_material_player_witness_source_lock.py
 
       - name: Install rendering dependencies
         run: |
@@ -69,9 +74,12 @@ jobs:
               width, height = struct.unpack('>II', data[16:24])
               assert (width, height) == (1280, 720), (name, width, height)
           report = json.loads((root / 'road_material_player_witness.json').read_text())
+          contract = json.loads(Path('grand-bruxelles-game/data/qa/corridor_road_source_chain.contract.json').read_text())
           assert report['schema'] == 'grand-bruxelles-road-material-player-witness-v1'
           assert report['target_osm_id'] == 359177328
           assert report['source_license'] == 'ODbL-1.0'
+          assert report['source_path'] == 'res://' + contract['source_document']
+          assert report['source_sha256'] == contract['source_sha256']
           assert report['lookup_mode'] == 'deterministic_runtime_index'
           assert report['resolution'] == [1280, 720]
           assert report['dynamic_review_noise_hidden'] is True

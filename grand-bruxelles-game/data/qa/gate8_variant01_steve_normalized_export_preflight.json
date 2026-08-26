@@ -1,5 +1,5 @@
 {
-  "format": "grand-bruxelles-gate8-variant01-steve-normalized-export-preflight-v6",
+  "format": "grand-bruxelles-gate8-variant01-steve-normalized-export-preflight-v7",
   "base_main_sha": "7ce0ab04f0759c1458bc7e31968884bf5da95448",
   "source": {
     "name": "NPC male Steve",
@@ -21,51 +21,37 @@
     "static_verdict": "AMELIORER"
   },
   "normalization": {
-    "method": "native_visual_bake_original_hierarchy_then_controller_bridge_v6",
+    "method": "gltf_deform_only_flatten_hierarchy_sampled_v7",
     "red_manual_trs_run": 32930408411,
     "red_manual_trs_bone": "armlo.R",
     "red_manual_trs_position_error_m": 0.00685772872786266,
     "red_manual_trs_rotation_error_deg": 0.7454570379380938,
-    "bake_solver": "native_visual_bake_original_hierarchy_then_controller_bridge_v6",
-    "pose_exactness_scope": "all_nonzero_weighted_bones_plus_required_humanoid_roles",
-    "controller_transform_policy": {
-      "use_inherit_rotation": true,
-      "inherit_scale": "NONE"
-    },
+    "red_native_bake_run": 32930829243,
+    "red_native_bake_bone": "armlo.R",
+    "red_native_bake_position_error_m": 0.00801097044207385,
+    "red_native_bake_rotation_error_deg": 1.054979493255945,
+    "pose_exactness_scope": "all_vertices_all_frames_plus_17_humanoid_roles",
     "export_policy": {
       "export_def_bones": true,
-      "export_force_sampling": true,
-      "constraints_baked_before_hierarchy_repair": true
+      "export_hierarchy_flatten_bones": true,
+      "export_force_sampling": true
     },
-    "expected_repairs": {
-      "master": "pelvis",
-      "ikhand.L": "armlo.L",
-      "ikhand.R": "armlo.R",
-      "ikfoot.L": "leglo.L",
-      "ikfoot.R": "leglo.R"
-    },
-    "expected_gaps_before": ["hips>spine","left_forearm>left_hand","left_lower_leg>left_foot","right_forearm>right_hand","right_lower_leg>right_foot"],
-    "expected_gaps_after": [],
-    "max_rest_position_drift_m": 0.000001,
-    "max_rest_rotation_drift_deg": 0.0001,
-    "max_native_bake_position_error_m": 0.0001,
-    "max_native_bake_rotation_error_deg": 0.10,
-    "max_controller_assignment_position_error_m": 0.0001,
-    "max_controller_assignment_rotation_error_deg": 0.10,
-    "max_repaired_pose_position_error_m": 0.0001,
-    "max_repaired_pose_rotation_error_deg": 0.10
+    "omitted_controller_bones": ["master", "ikhand.L", "ikhand.R", "ikfoot.L", "ikfoot.R"],
+    "max_roundtrip_role_position_error_m": 0.0001,
+    "max_roundtrip_role_rotation_error_deg": 0.10,
+    "max_roundtrip_vertex_position_error_m": 0.0001
   },
   "godot_gate": {
     "version": "4.7.1",
     "required_roles": 17,
     "require_all_protected_source_bones": true,
-    "require_moved_controllers_absent_after_deform_only_export": true,
-    "minimum_target_bones": 53,
-    "require_source_topology_gaps_after": [],
+    "require_omitted_controllers_absent": true,
+    "source_hierarchy_policy": "flattened_for_non_decomposable_trs",
     "require_target_topology_gaps": [],
     "require_exact_walk_after_import": true,
     "leg_length_ratio_min": 0.45,
     "leg_length_ratio_max": 2.20,
+    "retarget_probe_state": "READY_FOR_BONEMAP_RETARGET_PROBE_FLAT_SOURCE",
     "retarget_allowed": false
   },
   "rails": {

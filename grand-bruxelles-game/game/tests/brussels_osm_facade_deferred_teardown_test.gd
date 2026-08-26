@@ -183,8 +183,36 @@ func _run() -> void:
         return
     success_articulation.queue_free()
 
+    # Phase 4: teardown must be owner-aware. If a later owner replaces the
+    # articulation material before this runtime exits, teardown must not stomp it.
+    var owner_aware_articulation := ARTICULATION_SCRIPT.new() as Node
+    owner_aware_articulation.name = "BrusselsOsmFacadeArticulationRuntime"
+    root.add_child(owner_aware_articulation)
+    if not await _wait_ready(owner_aware_articulation, 12):
+        _fail("articulation did not reach terminal success for owner-aware probe")
+        return
+    var later_owner_material := StandardMaterial3D.new()
+    later_owner_material.albedo_color = Color(0.17, 0.22, 0.31, 1.0)
+    later_owner_material.roughness = 0.67
+    success_building.material = later_owner_material
+    success_building.set_meta("facade_articulation_family", "later_owner_probe")
+
+    root.remove_child(owner_aware_articulation)
+    if success_building.material != later_owner_material:
+        _fail("articulation teardown overwrote a later material owner")
+        return
+    if str(success_building.get_meta("facade_articulation_family", "")) != "later_owner_probe":
+        _fail("articulation teardown removed later owner metadata")
+        return
+    owner_aware_articulation.queue_free()
+
+    # Return the synthetic probe to Surface ownership before cleanup so this
+    # test does not leave a fabricated later-owner state behind.
+    success_building.material = surface_owned_material
+    success_building.remove_meta("facade_articulation_family")
+
     _cleanup_runtime(success_surface)
     _cleanup_viewport(success_mount["viewport"] as SubViewport)
 
-    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_cleanup=true terminal_signal_cleanup=true material_owner_cleanup=true post_teardown_ready=false geometry_changed=false")
+    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_cleanup=true terminal_signal_cleanup=true material_owner_cleanup=true later_owner_preserved=true post_teardown_ready=false geometry_changed=false")
     quit(0)

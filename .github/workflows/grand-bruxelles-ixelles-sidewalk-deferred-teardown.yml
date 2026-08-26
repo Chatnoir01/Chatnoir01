@@ -17,11 +17,13 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Require exact PR head ancestry
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin main --depth=1
+          git fetch origin main --no-tags
           git merge-base --is-ancestor origin/main HEAD
       - name: Install Godot 4.7.1
         run: |

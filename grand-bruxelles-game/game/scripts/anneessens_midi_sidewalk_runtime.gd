@@ -15,48 +15,64 @@ var _sidewalk_count := 0
 var _collision_count := 0
 var _manual_binding := false
 var _bind_scheduled := false
+var _tearing_down := false
 
 func _ready() -> void:
+    _tearing_down = false
     process_mode = Node.PROCESS_MODE_ALWAYS
     var tree := get_tree()
     if not tree.node_added.is_connected(_on_node_added):
         tree.node_added.connect(_on_node_added)
     _schedule_bind()
 
+func _exit_tree() -> void:
+    _tearing_down = true
+    _bind_scheduled = false
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
+
 func _on_node_added(_node: Node) -> void:
-    if _manual_binding or is_instance_valid(_scene):
+    if _tearing_down or _manual_binding or is_instance_valid(_scene):
         return
     _schedule_bind()
 
 func _schedule_bind() -> void:
-    if _bind_scheduled or _manual_binding or is_instance_valid(_scene):
+    if _tearing_down or not is_inside_tree() or _bind_scheduled or _manual_binding or is_instance_valid(_scene):
         return
     _bind_scheduled = true
     call_deferred("_try_bind")
 
+func _is_production_scene(candidate: Node3D) -> bool:
+    if candidate == null:
+        return false
+    return candidate.get_node_or_null("BrusselsOSM") != null \
+        and candidate.get_node_or_null("UrbISMidiExact") != null \
+        and candidate.get_node_or_null("Player") != null
+
 func _find_production_scene() -> Node3D:
-    var current := get_tree().current_scene
-    if current is Node3D:
+    if _tearing_down or not is_inside_tree():
+        return null
+    var tree := get_tree()
+    if tree == null:
+        return null
+    var current := tree.current_scene
+    if current is Node3D and _is_production_scene(current as Node3D):
         return current as Node3D
-    for child: Node in get_tree().root.get_children():
+    for child: Node in tree.root.get_children():
         if not child is Node3D:
             continue
         var candidate := child as Node3D
-        if candidate.get_node_or_null("BrusselsOSM") == null:
-            continue
-        if candidate.get_node_or_null("UrbISMidiExact") == null:
-            continue
-        if candidate.get_node_or_null("Player") == null:
-            continue
-        return candidate
+        if _is_production_scene(candidate):
+            return candidate
     return null
 
 func _try_bind() -> void:
     _bind_scheduled = false
-    if _manual_binding or is_instance_valid(_scene):
+    if _tearing_down or not is_inside_tree() or _manual_binding or is_instance_valid(_scene):
         return
     var candidate := _find_production_scene()
-    if candidate == null:
+    if candidate == null or _tearing_down or not is_inside_tree():
         return
     _bind_scene(candidate, false)
 
@@ -64,7 +80,7 @@ func bind_scene(scene: Node3D) -> void:
     _bind_scene(scene, true)
 
 func _bind_scene(scene: Node3D, manual: bool) -> void:
-    if scene == null:
+    if scene == null or (_tearing_down and not manual):
         return
     if is_instance_valid(_root):
         var parent := _root.get_parent()
@@ -89,8 +105,9 @@ func _bind_scene(scene: Node3D, manual: bool) -> void:
     _root.set_meta("presentation_recipe", "authored_midi_sidewalk_proxy_from_osm_road_alignment")
     _scene.add_child(_root)
     _build_from_existing_osm_roads()
-    if get_tree().node_added.is_connected(_on_node_added):
-        get_tree().node_added.disconnect(_on_node_added)
+    var tree := get_tree()
+    if tree != null and tree.node_added.is_connected(_on_node_added):
+        tree.node_added.disconnect(_on_node_added)
 
 func _build_from_existing_osm_roads() -> void:
     if not is_instance_valid(_scene) or not is_instance_valid(_root):

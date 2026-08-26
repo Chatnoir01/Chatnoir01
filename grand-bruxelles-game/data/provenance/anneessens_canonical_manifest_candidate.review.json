@@ -1,0 +1,83 @@
+{
+  "authorization": {
+    "canonical_manifest_write": false,
+    "collision": false,
+    "jouable_promotion": false,
+    "registered_index_mutation": false,
+    "rendered_geometry": false,
+    "road_to_cell_mapping": false,
+    "runtime_mount": false,
+    "safe_spawn": false
+  },
+  "candidate_manifest": {
+    "all_maturity_gates_false": true,
+    "artifact_filename": "bxl-e147500-n169500-s500.candidate.json",
+    "format": "grand-bruxelles-cell-maturity-v1",
+    "maturity_state": "data_ready",
+    "sha256": "3ec056c3c7c8d6ecb6ca5da35a8f6a685fbb14ef9b130065c85cc511b26b7e2a"
+  },
+  "municipality_boundary": {
+    "assignment_policy": "retain_all_official_intersections_no_dominant_municipality_canonicalization",
+    "intersections": [
+      {
+        "coverage_ratio": 0.6455744665162007,
+        "inspire_id": "https://databrussels.be/id/municipality/5000083",
+        "niscode": "21013"
+      },
+      {
+        "coverage_ratio": 0.3516055345072097,
+        "inspire_id": "https://databrussels.be/id/municipality/5000071",
+        "niscode": "21001"
+      },
+      {
+        "coverage_ratio": 0.002819998976589587,
+        "inspire_id": "https://databrussels.be/id/municipality/5000074",
+        "niscode": "21004"
+      }
+    ],
+    "semantic_sha256": "4148e300ea5a81d60b5f16f0eab1186a3d646308cb7a4a4a1c5036b21e2bba8f"
+  },
+  "next_action": "lock this measured candidate in a separate review file; do not write the canonical manifest or mutate the registered-cell index in this lot",
+  "production_base_sha": "dfe6cc721b5fb251263a8abc5a73f3b14421ccab",
+  "registered_cell_index": {
+    "path": "data/provenance/brussels_registered_cell_manifest_index.json",
+    "registered_cell_count": 4,
+    "target_registered": false
+  },
+  "schema": "grand-bruxelles-anneessens-canonical-manifest-candidate-review-v1",
+  "semantic_sha256": "afe01e02527d33677330555c3015bee87bea787e65ee1ea94dda967c537ebfc1",
+  "source_evidence": {
+    "authority": "Paradigm / Brussels-Capital Region",
+    "building_ownership": {
+      "invalid_ownership_features": 0,
+      "ownership_filtered": 52
+    },
+    "layer_accounting": {
+      "buildings": 362,
+      "street_axes": 104,
+      "street_surfaces": 283,
+      "train_network": 361,
+      "tram_network": 361
+    },
+    "license": "CC0-1.0",
+    "lock_path": "data/provenance/anneessens_urbis_source_cell.measurement.json",
+    "persistence_contract_path": "data/qa/anneessens_urbis_source_cell.persistence.contract.json",
+    "source_digest": "06cc9e818a815bb00c74435a03f7d6ff8c7084010316abef0314fd376c210480",
+    "source_manifest_path": "data/urbis/remaining_brussels/cells/bxl-e147500-n169500-s500/manifest.json",
+    "source_manifest_sha256": "10aac9d4a2404ff23bb7d9af40b9e256b65aa6f25d33c7de1c1e3067244f43d2",
+    "source_semantic_sha256": "496e1049db535dbf3db2192066f41f60e9297e7b7931d9a8a427d6ffa378f8b0"
+  },
+  "status": "CANDIDATE_MEASURED_UNREGISTERED",
+  "target": {
+    "bbox": [
+      147500.0,
+      169500.0,
+      148000.0,
+      170000.0
+    ],
+    "canonical_manifest_path": "data/cell_manifests/bxl-e147500-n169500-s500.json",
+    "canonical_manifest_present": false,
+    "cell_id": "bxl-e147500-n169500-s500",
+    "crs": "EPSG:31370"
+  }
+}

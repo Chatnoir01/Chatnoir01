@@ -147,6 +147,7 @@ func _run() -> void:
     # material it owns when Articulation is removed while Surface remains alive.
     var success_mount := _build_probe_mount(true)
     var success_building := success_mount["building"] as CSGPolygon3D
+    var success_legacy := success_mount["legacy"] as Material
     var success_surface := SURFACE_SCRIPT.new() as Node
     success_surface.name = "BrusselsOsmFacadeSurfaceRuntime"
     root.add_child(success_surface)
@@ -183,8 +184,8 @@ func _run() -> void:
         return
     success_articulation.queue_free()
 
-    # Phase 4: teardown must be owner-aware. If a later owner replaces the
-    # articulation material before this runtime exits, teardown must not stomp it.
+    # Phase 4: articulation teardown must be owner-aware. If a later owner replaces
+    # its material before this runtime exits, teardown must not stomp it.
     var owner_aware_articulation := ARTICULATION_SCRIPT.new() as Node
     owner_aware_articulation.name = "BrusselsOsmFacadeArticulationRuntime"
     root.add_child(owner_aware_articulation)
@@ -206,13 +207,45 @@ func _run() -> void:
         return
     owner_aware_articulation.queue_free()
 
-    # Return the synthetic probe to Surface ownership before cleanup so this
-    # test does not leave a fabricated later-owner state behind.
+    # Return the synthetic probe to Surface ownership before testing Surface teardown.
     success_building.material = surface_owned_material
     success_building.remove_meta("facade_articulation_family")
 
-    _cleanup_runtime(success_surface)
+    # Phase 5: Surface itself is also a presentation owner. Removing Surface after
+    # a successful bind must restore the exact legacy material and clear only its
+    # own metadata. This is deliberately RED on production until Surface gains an
+    # owner-aware teardown release path.
+    root.remove_child(success_surface)
+    if success_building.material != success_legacy:
+        _fail("surface material ownership survived teardown")
+        return
+    if success_building.has_meta("material_family"):
+        _fail("surface material-family ownership metadata survived teardown")
+        return
+    success_surface.queue_free()
+
+    # Phase 6: Surface teardown must also preserve a later material owner.
+    var later_surface := SURFACE_SCRIPT.new() as Node
+    later_surface.name = "BrusselsOsmFacadeSurfaceRuntime"
+    root.add_child(later_surface)
+    if not await _wait_ready(later_surface, 12):
+        _fail("surface did not reach terminal success for owner-aware teardown probe")
+        return
+    var later_surface_owner_material := StandardMaterial3D.new()
+    later_surface_owner_material.albedo_color = Color(0.28, 0.19, 0.16, 1.0)
+    later_surface_owner_material.roughness = 0.73
+    success_building.material = later_surface_owner_material
+    success_building.set_meta("material_family", "later_surface_owner_probe")
+    root.remove_child(later_surface)
+    if success_building.material != later_surface_owner_material:
+        _fail("surface teardown overwrote a later material owner")
+        return
+    if str(success_building.get_meta("material_family", "")) != "later_surface_owner_probe":
+        _fail("surface teardown removed later owner metadata")
+        return
+    later_surface.queue_free()
+
     _cleanup_viewport(success_mount["viewport"] as SubViewport)
 
-    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_cleanup=true terminal_signal_cleanup=true material_owner_cleanup=true later_owner_preserved=true post_teardown_ready=false geometry_changed=false")
+    print("BRUSSELS_OSM_FACADE_DEFERRED_TEARDOWN_OK: surface_listener_cleanup=true articulation_listener_cleanup=true base_signal_cleanup=true terminal_signal_cleanup=true articulation_material_owner_cleanup=true surface_material_owner_cleanup=true later_owners_preserved=true post_teardown_ready=false geometry_changed=false")
     quit(0)

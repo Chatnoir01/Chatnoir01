@@ -7,6 +7,7 @@ const EXPECTED_MAX_PALETTE := 6
 
 var _buildings: Array[CSGPolygon3D] = []
 var _legacy_materials: Dictionary = {}
+var _owned_materials: Dictionary = {}
 var _original_transforms: Dictionary = {}
 var _original_polygons: Dictionary = {}
 var _original_depths: Dictionary = {}
@@ -30,6 +31,7 @@ func _exit_tree() -> void:
     _tearing_down = true
     _bind_scheduled = false
     _disconnect_mount_listener()
+    _release_material_ownership()
 
 func _palette_key(material: Material) -> String:
     if material is StandardMaterial3D:
@@ -84,6 +86,35 @@ func _disconnect_mount_listener() -> void:
     var tree := get_tree()
     if tree != null and tree.node_added.is_connected(_on_node_added):
         tree.node_added.disconnect(_on_node_added)
+
+func _release_material_ownership() -> void:
+    for building: CSGPolygon3D in _buildings:
+        if not is_instance_valid(building):
+            continue
+        var instance_id := building.get_instance_id()
+        var owned := _owned_materials.get(instance_id) as Material
+        var baseline := _legacy_materials.get(instance_id) as Material
+        if owned != null and baseline != null and building.material == owned:
+            building.material = baseline
+        if str(building.get_meta("material_family", "")) == MATERIAL_FACTORY.MATERIAL_FAMILY:
+            building.remove_meta("material_family")
+            if str(building.get_meta("environment_role", "")) == "generic_osm_building_wall":
+                building.remove_meta("environment_role")
+            if str(building.get_meta("placement_provenance", "")) == "OpenStreetMap contributors via Overpass API":
+                building.remove_meta("placement_provenance")
+            if str(building.get_meta("license", "")) == "ODbL-1.0":
+                building.remove_meta("license")
+            if building.has_meta("building_material_claimed") and not bool(building.get_meta("building_material_claimed")):
+                building.remove_meta("building_material_claimed")
+            if building.has_meta("geometry_changed_by_facade_surface_runtime") and not bool(building.get_meta("geometry_changed_by_facade_surface_runtime")):
+                building.remove_meta("geometry_changed_by_facade_surface_runtime")
+    _buildings.clear()
+    _legacy_materials.clear()
+    _owned_materials.clear()
+    _original_transforms.clear()
+    _original_polygons.clear()
+    _original_depths.clear()
+    _materials.clear()
 
 func _fail(message: String) -> void:
     if _tearing_down:
@@ -145,7 +176,9 @@ func _set_material_state(enabled: bool) -> void:
         var instance_id := building.get_instance_id()
         if enabled:
             var legacy := _legacy_materials.get(instance_id) as Material
-            building.material = _shared_material_for(legacy)
+            var owned := _shared_material_for(legacy)
+            building.material = owned
+            _owned_materials[instance_id] = owned
         else:
             building.material = _legacy_materials.get(instance_id) as Material
 

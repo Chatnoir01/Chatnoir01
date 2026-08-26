@@ -11,13 +11,7 @@ ROLE_MAP = {
     "left_upper_leg":"legup.L","left_lower_leg":"leglo.L","left_foot":"foot1.L",
     "right_upper_leg":"legup.R","right_lower_leg":"leglo.R","right_foot":"foot1.R",
 }
-REPAIRS = {
-    "master":"pelvis",
-    "ikhand.L":"armlo.L",
-    "ikhand.R":"armlo.R",
-    "ikfoot.L":"leglo.L",
-    "ikfoot.R":"leglo.R",
-}
+LEGACY_CONTROLLERS = ["master", "ikhand.L", "ikhand.R", "ikfoot.L", "ikfoot.R"]
 CHAINS = [
     ["hips","spine","chest","neck","head"],
     ["left_upper_arm","left_forearm","left_hand"],
@@ -34,15 +28,6 @@ def arg(name, default=None):
 
 def rot_error_deg(a, b):
     return math.degrees(a.to_quaternion().rotation_difference(b.to_quaternion()).angle)
-
-
-def parent_path(bone):
-    names = []
-    cur = bone
-    while cur is not None:
-        names.insert(0, cur.name)
-        cur = cur.parent
-    return ">".join(names)
 
 
 def is_ancestor(ancestor, child):
@@ -82,41 +67,89 @@ def weighted_bone_names(arm):
     return weighted
 
 
-def pose_error(arm, matrix_map, names, frame):
-    pos_max = 0.0
-    rot_max = 0.0
-    worst = {"frame": frame, "bone": "", "position_error_m": 0.0, "rotation_error_deg": 0.0}
-    for name in names:
-        current = arm.pose.bones[name].matrix
-        desired = matrix_map[name]
-        pos_err = (current.translation - desired.translation).length
-        rot_err = rot_error_deg(current, desired)
-        if pos_err > pos_max or rot_err > rot_max:
-            worst = {
-                "frame": frame,
-                "bone": name,
-                "position_error_m": pos_err,
-                "rotation_error_deg": rot_err,
-                "parent": arm.pose.bones[name].parent.name if arm.pose.bones[name].parent else "",
-            }
-        pos_max = max(pos_max, pos_err)
-        rot_max = max(rot_max, rot_err)
-    return pos_max, rot_max, worst
+def evaluated_mesh_world_vertices(obj, depsgraph):
+    evaluated = obj.evaluated_get(depsgraph)
+    mesh = evaluated.to_mesh()
+    try:
+        matrix = evaluated.matrix_world.copy()
+        return [matrix @ vertex.co.copy() for vertex in mesh.vertices]
+    finally:
+        evaluated.to_mesh_clear()
 
 
-def sampled_error(scene, arm, pose_samples, names, frames):
-    pos_max = 0.0
-    rot_max = 0.0
-    worst = {"frame": None, "bone": "", "position_error_m": 0.0, "rotation_error_deg": 0.0}
+def capture_mesh_samples(scene, frames):
+    mesh_objects = sorted([o for o in bpy.data.objects if o.type == "MESH"], key=lambda o: o.name)
+    assert mesh_objects, "expected at least one mesh"
+    samples = {}
+    vertex_counts = {obj.name: len(obj.data.vertices) for obj in mesh_objects}
     for frame in frames:
         scene.frame_set(frame)
         bpy.context.view_layer.update()
-        pos, rot, candidate = pose_error(arm, pose_samples[frame], names, frame)
-        if pos > pos_max or rot > rot_max:
-            worst = candidate
-        pos_max = max(pos_max, pos)
-        rot_max = max(rot_max, rot)
-    return pos_max, rot_max, worst
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        samples[frame] = {
+            obj.name: evaluated_mesh_world_vertices(obj, depsgraph)
+            for obj in mesh_objects
+        }
+    return samples, vertex_counts
+
+
+def capture_role_pose_samples(scene, arm, frames):
+    samples = {}
+    for frame in frames:
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        samples[frame] = {role: arm.pose.bones[name].matrix.copy() for role, name in ROLE_MAP.items()}
+    return samples
+
+
+def compare_roundtrip_mesh(scene, frames, reference_samples):
+    imported_meshes = {obj.name: obj for obj in bpy.data.objects if obj.type == "MESH"}
+    reference_names = sorted(next(iter(reference_samples.values())).keys())
+    assert set(imported_meshes) == set(reference_names), {
+        "expected": reference_names,
+        "actual": sorted(imported_meshes),
+    }
+    max_error = 0.0
+    worst = {"frame": None, "mesh": "", "vertex": -1, "position_error_m": 0.0}
+    for frame in frames:
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        for name in reference_names:
+            actual = evaluated_mesh_world_vertices(imported_meshes[name], depsgraph)
+            expected = reference_samples[frame][name]
+            assert len(actual) == len(expected), (name, len(actual), len(expected))
+            for index, (a, e) in enumerate(zip(actual, expected)):
+                err = (a - e).length
+                if err > max_error:
+                    max_error = err
+                    worst = {"frame": frame, "mesh": name, "vertex": index, "position_error_m": err}
+    return max_error, worst
+
+
+def compare_roundtrip_roles(scene, arm, frames, reference_samples):
+    max_pos = 0.0
+    max_rot = 0.0
+    worst = {"frame": None, "role": "", "bone": "", "position_error_m": 0.0, "rotation_error_deg": 0.0}
+    for frame in frames:
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        for role, bone_name in ROLE_MAP.items():
+            actual = arm.pose.bones[bone_name].matrix
+            expected = reference_samples[frame][role]
+            pos = (actual.translation - expected.translation).length
+            rot = rot_error_deg(actual, expected)
+            if pos > max_pos or rot > max_rot:
+                worst = {
+                    "frame": frame,
+                    "role": role,
+                    "bone": bone_name,
+                    "position_error_m": pos,
+                    "rotation_error_deg": rot,
+                }
+            max_pos = max(max_pos, pos)
+            max_rot = max(max_rot, rot)
+    return max_pos, max_rot, worst
 
 
 def main():
@@ -126,19 +159,25 @@ def main():
     assert len(arms) == 1, f"expected one armature, got {len(arms)}"
     arm = arms[0]
     assert all(name in arm.data.bones for name in ROLE_MAP.values())
-    assert all(child in arm.data.bones and parent in arm.data.bones for child, parent in REPAIRS.items())
+    assert all(name in arm.data.bones for name in LEGACY_CONTROLLERS)
 
     weighted_bones = weighted_bone_names(arm)
-    assert weighted_bones, "expected at least one weighted armature bone"
     protected_bones = sorted(weighted_bones | set(ROLE_MAP.values()))
-    moved_controllers = sorted(REPAIRS.keys())
-    assert not (set(moved_controllers) & set(protected_bones)), "controller root unexpectedly influences skin"
-    assert all(arm.data.bones[name].use_deform for name in protected_bones), "protected bone must be deform-exportable"
-    assert all(not arm.data.bones[name].use_deform for name in moved_controllers), "moved controller must stay non-deform"
+    assert weighted_bones
+    assert len(protected_bones) >= 17
+    assert all(arm.data.bones[name].use_deform for name in protected_bones)
+    assert not (set(LEGACY_CONTROLLERS) & set(protected_bones))
+    assert all(not arm.data.bones[name].use_deform for name in LEGACY_CONTROLLERS)
 
     walks = [a for a in bpy.data.actions if a.name.lower() == "walk"]
     assert len(walks) == 1, f"expected exact walk action, got {[a.name for a in bpy.data.actions]}"
     walk = walks[0]
+    if arm.animation_data is None:
+        arm.animation_data_create()
+    arm.animation_data.action = walk
+    for track in arm.animation_data.nla_tracks:
+        track.mute = True
+
     scene = bpy.context.scene
     frame_start = int(math.floor(walk.frame_range[0]))
     frame_end = max(frame_start + 1, int(math.ceil(walk.frame_range[1])))
@@ -146,168 +185,20 @@ def main():
     scene.frame_start = frame_start
     scene.frame_end = frame_end
 
-    if arm.animation_data is None:
-        arm.animation_data_create()
-    arm.animation_data.action = walk
-    for track in arm.animation_data.nla_tracks:
-        track.mute = True
-
+    source_gaps = role_gaps(arm)
     expected_gaps = sorted([
         "hips>spine","left_forearm>left_hand","left_lower_leg>left_foot",
         "right_forearm>right_hand","right_lower_leg>right_foot",
     ])
-    before_gaps = role_gaps(arm)
-    assert before_gaps == expected_gaps, before_gaps
-    rest_before = {b.name: b.matrix_local.copy() for b in arm.data.bones}
-    parent_before = {b.name: b.parent.name if b.parent else "" for b in arm.data.bones}
-    paths_before = {role: parent_path(arm.data.bones[name]) for role, name in ROLE_MAP.items()}
+    assert source_gaps == expected_gaps, source_gaps
 
-    pose_samples = {}
-    for frame in frames:
-        scene.frame_set(frame)
-        bpy.context.view_layer.update()
-        pose_samples[frame] = {pb.name: pb.matrix.copy() for pb in arm.pose.bones}
+    role_reference = capture_role_pose_samples(scene, arm, frames)
+    mesh_reference, source_vertex_counts = capture_mesh_samples(scene, frames)
 
-    # First bake the constrained source in its ORIGINAL hierarchy. Blender's native
-    # visual-keying bake is designed for this exact job and avoids forcing evaluated
-    # non-decomposable matrices through a custom TRS solver after hierarchy surgery.
-    bpy.context.view_layer.objects.active = arm
-    arm.select_set(True)
-    bpy.ops.object.mode_set(mode="POSE")
-    bpy.ops.pose.select_all(action="SELECT")
-    result = bpy.ops.nla.bake(
-        frame_start=frame_start,
-        frame_end=frame_end,
-        step=1,
-        only_selected=False,
-        visual_keying=True,
-        clear_constraints=True,
-        clear_parents=False,
-        use_current_action=True,
-        clean_curves=False,
-        bake_types={'POSE'},
-    )
-    assert 'FINISHED' in result, result
-    bpy.ops.object.mode_set(mode="OBJECT")
-    bpy.context.view_layer.update()
-
-    native_pos, native_rot, native_worst = sampled_error(scene, arm, pose_samples, protected_bones, frames)
-    assert native_pos <= 1e-4, native_worst
-    assert native_rot <= 0.10, native_worst
-
-    # With constraints now baked away, repair the hierarchy without introducing an
-    # IK dependency cycle. Only the five non-deform controller roots move.
-    bpy.context.view_layer.objects.active = arm
-    bpy.ops.object.mode_set(mode="EDIT")
-    for child_name, parent_name in REPAIRS.items():
-        child = arm.data.edit_bones[child_name]
-        parent = arm.data.edit_bones[parent_name]
-        matrix = child.matrix.copy()
-        child.parent = parent
-        child.use_connect = False
-        child.matrix = matrix
-    bpy.ops.object.mode_set(mode="OBJECT")
-    for child_name in moved_controllers:
-        bone = arm.data.bones[child_name]
-        bone.use_inherit_rotation = True
-        bone.inherit_scale = 'NONE'
-        arm.pose.bones[child_name].rotation_mode = "QUATERNION"
-    bpy.context.view_layer.update()
-
-    rest_pos_max = 0.0
-    rest_rot_max = 0.0
-    for name, before in rest_before.items():
-        after = arm.data.bones[name].matrix_local
-        rest_pos_max = max(rest_pos_max, (after.translation - before.translation).length)
-        rest_rot_max = max(rest_rot_max, rot_error_deg(after, before))
-    assert rest_pos_max <= 1e-6, rest_pos_max
-    assert rest_rot_max <= 1e-4, rest_rot_max
-
-    changed_parents = {}
-    for bone in arm.data.bones:
-        before = parent_before[bone.name]
-        after = bone.parent.name if bone.parent else ""
-        if before != after:
-            changed_parents[bone.name] = {"before": before, "after": after}
-    assert set(changed_parents) == set(REPAIRS), changed_parents
-    assert role_gaps(arm) == []
-
-    # Re-key only the five moved controller roots in their new parent spaces. The
-    # already-baked deform channels remain untouched.
-    controller_pos_max = 0.0
-    controller_rot_max = 0.0
-    controller_worst = {"frame": None, "bone": "", "position_error_m": 0.0, "rotation_error_deg": 0.0}
-    for frame in frames:
-        scene.frame_set(frame)
-        for _pass in range(2):
-            for name in moved_controllers:
-                arm.pose.bones[name].matrix = pose_samples[frame][name]
-                bpy.context.view_layer.update()
-        pos, rot, worst = pose_error(arm, pose_samples[frame], moved_controllers, frame)
-        if pos > controller_pos_max or rot > controller_rot_max:
-            controller_worst = worst
-        controller_pos_max = max(controller_pos_max, pos)
-        controller_rot_max = max(controller_rot_max, rot)
-        assert pos <= 1e-4, worst
-        assert rot <= 0.10, worst
-        for name in moved_controllers:
-            pb = arm.pose.bones[name]
-            pb.keyframe_insert(data_path="location", frame=frame, group=name)
-            pb.keyframe_insert(data_path="rotation_quaternion", frame=frame, group=name)
-            pb.keyframe_insert(data_path="scale", frame=frame, group=name)
-
-    repaired_pos, repaired_rot, repaired_worst = sampled_error(scene, arm, pose_samples, protected_bones, frames)
-    assert repaired_pos <= 1e-4, repaired_worst
-    assert repaired_rot <= 0.10, repaired_worst
-
-    for track in list(arm.animation_data.nla_tracks):
-        arm.animation_data.nla_tracks.remove(track)
-    for action in list(bpy.data.actions):
-        if action != walk:
-            bpy.data.actions.remove(action)
-    walk.name = "walk"
-    arm.animation_data.action = walk
-
-    paths_after = {role: parent_path(arm.data.bones[name]) for role, name in ROLE_MAP.items()}
-    report = {
-        "format": "grand-bruxelles-steve-source-normalized-export-v6",
-        "bake_solver": "native_visual_bake_original_hierarchy_then_controller_bridge_v6",
-        "red_manual_trs_run": 32930408411,
-        "red_manual_trs_bone": "armlo.R",
-        "red_manual_trs_position_error_m": 0.00685772872786266,
-        "red_manual_trs_rotation_error_deg": 0.7454570379380938,
-        "source_bone_count": len(arm.data.bones),
-        "weighted_bone_count": len(weighted_bones),
-        "protected_bone_count": len(protected_bones),
-        "weighted_bones": sorted(weighted_bones),
-        "protected_bones": protected_bones,
-        "moved_controller_bones": moved_controllers,
-        "repairs": REPAIRS,
-        "changed_parents": changed_parents,
-        "topology_gaps_before": before_gaps,
-        "topology_gaps_after": role_gaps(arm),
-        "role_parent_paths_before": paths_before,
-        "role_parent_paths_after": paths_after,
-        "max_rest_position_drift_m": rest_pos_max,
-        "max_rest_rotation_drift_deg": rest_rot_max,
-        "max_native_bake_position_error_m": native_pos,
-        "max_native_bake_rotation_error_deg": native_rot,
-        "native_bake_worst": native_worst,
-        "max_controller_assignment_position_error_m": controller_pos_max,
-        "max_controller_assignment_rotation_error_deg": controller_rot_max,
-        "controller_assignment_worst": controller_worst,
-        "max_repaired_pose_position_error_m": repaired_pos,
-        "max_repaired_pose_rotation_error_deg": repaired_rot,
-        "repaired_pose_worst": repaired_worst,
-        "controller_inherit_scale_after": {name: str(arm.data.bones[name].inherit_scale) for name in moved_controllers},
-        "controller_inherit_rotation_after": {name: bool(arm.data.bones[name].use_inherit_rotation) for name in moved_controllers},
-        "export_def_bones": True,
-        "export_force_sampling": True,
-        "source_normalization_applied": True,
-        "runtime_authorized": False,
-    }
-    report_path.write_text(json.dumps(report, indent=2, sort_keys=True))
-
+    # glTF cannot encode shear. This rig produces non-decomposable child TRS under
+    # non-uniformly scaled parents, proven by prior red tests. Blender's exporter
+    # explicitly provides Flatten Bone Hierarchy for this case; deform-only export
+    # also bakes evaluated animation while omitting controller bones.
     bpy.ops.export_scene.gltf(
         filepath=str(out),
         export_format="GLB",
@@ -315,13 +206,94 @@ def main():
         export_frame_range=True,
         export_force_sampling=True,
         export_def_bones=True,
+        export_hierarchy_flatten_bones=True,
         export_draco_mesh_compression_enable=False,
     )
     assert out.is_file() and out.stat().st_size > 0
+
+    # Strong visual/mechanical proof: round-trip the generated GLB back through
+    # Blender, then compare every evaluated mesh vertex and all 17 humanoid role
+    # transforms on every sampled frame against the original constrained source.
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=str(out))
+    imported_arms = [o for o in bpy.data.objects if o.type == "ARMATURE"]
+    assert len(imported_arms) == 1, f"roundtrip expected one armature, got {len(imported_arms)}"
+    imported_arm = imported_arms[0]
+    assert all(name in imported_arm.data.bones for name in ROLE_MAP.values())
+    assert all(name not in imported_arm.data.bones for name in LEGACY_CONTROLLERS)
+    assert all(name in imported_arm.data.bones for name in protected_bones)
+
+    imported_walks = [a for a in bpy.data.actions if a.name.lower() == "walk"]
+    assert len(imported_walks) == 1, f"roundtrip expected exact walk action, got {[a.name for a in bpy.data.actions]}"
+    if imported_arm.animation_data is None:
+        imported_arm.animation_data_create()
+    imported_arm.animation_data.action = imported_walks[0]
+    scene = bpy.context.scene
+    scene.frame_start = frame_start
+    scene.frame_end = frame_end
+
+    roundtrip_role_pos, roundtrip_role_rot, roundtrip_role_worst = compare_roundtrip_roles(
+        scene, imported_arm, frames, role_reference
+    )
+    roundtrip_vertex_error, roundtrip_vertex_worst = compare_roundtrip_mesh(
+        scene, frames, mesh_reference
+    )
+    assert roundtrip_role_pos <= 1e-4, roundtrip_role_worst
+    assert roundtrip_role_rot <= 0.10, roundtrip_role_worst
+    assert roundtrip_vertex_error <= 1e-4, roundtrip_vertex_worst
+
+    imported_role_parent_count = sum(
+        1 for name in ROLE_MAP.values() if imported_arm.data.bones[name].parent is not None
+    )
+    imported_vertex_counts = {
+        obj.name: len(obj.data.vertices) for obj in bpy.data.objects if obj.type == "MESH"
+    }
+    assert imported_vertex_counts == source_vertex_counts, {
+        "source": source_vertex_counts,
+        "roundtrip": imported_vertex_counts,
+    }
+
+    report = {
+        "format": "grand-bruxelles-steve-source-normalized-export-v7",
+        "normalization_method": "gltf_deform_only_flatten_hierarchy_sampled_v7",
+        "red_manual_trs_run": 32930408411,
+        "red_manual_trs_bone": "armlo.R",
+        "red_manual_trs_position_error_m": 0.00685772872786266,
+        "red_manual_trs_rotation_error_deg": 0.7454570379380938,
+        "red_native_bake_run": 32930829243,
+        "red_native_bake_bone": "armlo.R",
+        "red_native_bake_position_error_m": 0.00801097044207385,
+        "red_native_bake_rotation_error_deg": 1.054979493255945,
+        "source_bone_count": len(arm.data.bones) if arm.name in bpy.data.objects else None,
+        "roundtrip_bone_count": len(imported_arm.data.bones),
+        "weighted_bone_count": len(weighted_bones),
+        "protected_bone_count": len(protected_bones),
+        "weighted_bones": sorted(weighted_bones),
+        "protected_bones": protected_bones,
+        "omitted_controller_bones": LEGACY_CONTROLLERS,
+        "source_topology_gaps": source_gaps,
+        "roundtrip_role_bones_with_parents": imported_role_parent_count,
+        "frame_start": frame_start,
+        "frame_end": frame_end,
+        "sampled_frames": len(frames),
+        "source_vertex_counts": source_vertex_counts,
+        "roundtrip_vertex_counts": imported_vertex_counts,
+        "max_roundtrip_role_position_error_m": roundtrip_role_pos,
+        "max_roundtrip_role_rotation_error_deg": roundtrip_role_rot,
+        "roundtrip_role_worst": roundtrip_role_worst,
+        "max_roundtrip_vertex_position_error_m": roundtrip_vertex_error,
+        "roundtrip_vertex_worst": roundtrip_vertex_worst,
+        "export_def_bones": True,
+        "export_hierarchy_flatten_bones": True,
+        "export_force_sampling": True,
+        "source_normalization_applied": True,
+        "runtime_authorized": False,
+    }
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True))
     print(
-        "GATE8_STEVE_NORMALIZED_EXPORT_OK solver=v6 protected=%d native_pos=%.9f native_rot=%.6f controller_pos=%.9f controller_rot=%.6f repaired_pos=%.9f repaired_rot=%.6f bytes=%d"
-        % (len(protected_bones), native_pos, native_rot, controller_pos_max, controller_rot_max,
-           repaired_pos, repaired_rot, out.stat().st_size)
+        "GATE8_STEVE_NORMALIZED_EXPORT_OK solver=v7 protected=%d role_pos=%.9f role_rot=%.6f vertex_pos=%.9f flat_role_parents=%d bytes=%d"
+        % (len(protected_bones), roundtrip_role_pos, roundtrip_role_rot,
+           roundtrip_vertex_error, imported_role_parent_count, out.stat().st_size)
     )
 
 

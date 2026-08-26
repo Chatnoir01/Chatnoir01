@@ -10,20 +10,45 @@ TARGETS = {
     "game/scripts/brussels_osm_facade_surface_runtime.gd": {
         "family": "brussels_osm_facade_surface_v1",
         "helper": "_release_material_ownership",
-        "owned_registry": "_owned_materials",
+        "required_helper_tokens": [
+            "_owned_materials",
+            "building.material == owned",
+            "building.material = baseline",
+            'remove_meta("material_family")',
+        ],
         "apply_function": "_set_material_state",
-        "apply_token": "_owned_materials[instance_id] = owned",
-        "restore_token": "building.material = baseline",
-        "meta_token": 'remove_meta("material_family")',
+        "required_apply_tokens": ["_owned_materials[instance_id] = owned"],
     },
     "game/scripts/brussels_osm_facade_articulation_runtime.gd": {
         "family": "brussels_osm_facade_articulation_v1",
         "helper": "_release_material_ownership",
-        "owned_registry": "_owned_materials",
+        "required_helper_tokens": [
+            "_owned_materials",
+            "building.material == owned",
+            "building.material = baseline",
+            'remove_meta("facade_articulation_family")',
+        ],
         "apply_function": "_try_apply",
-        "apply_token": "_owned_materials[instance_id] = candidate",
-        "restore_token": "building.material = baseline",
-        "meta_token": 'remove_meta("facade_articulation_family")',
+        "required_apply_tokens": ["_owned_materials[instance_id] = candidate"],
+    },
+    "game/scripts/brussels_osm_road_surface_runtime.gd": {
+        "family": "brussels_osm_road_surface_v1",
+        "helper": "_release_material_ownership",
+        "required_helper_tokens": [
+            "_owned_materials",
+            "road.material == owned",
+            "road.material = _legacy_materials.get(instance_id) as Material",
+            "_official_owned_materials",
+            "instance.material_override == owned",
+            "instance.material_override = _official_legacy_materials.get(instance_id) as Material",
+            'remove_meta("ground_network_presentation_family")',
+        ],
+        "apply_function": "_set_material_state",
+        "required_apply_tokens": [
+            "_owned_materials[instance_id] = owned",
+            "_official_owned_materials[instance_id] = owned",
+        ],
+        "official_family": "brussels_ground_network_official_material_v1",
     },
 }
 
@@ -71,6 +96,8 @@ def main() -> None:
             fail(f"material ownership cleanup helper drifted: {target_path}")
         if entry.get("owned_material_family") != expected["family"]:
             fail(f"owned material family drifted: {target_path}")
+        if "official_family" in expected and entry.get("owned_official_material_family") != expected["official_family"]:
+            fail(f"owned official material family drifted: {target_path}")
 
         source_path = ROOT / target_path
         source = source_path.read_text(encoding="utf-8")
@@ -79,29 +106,25 @@ def main() -> None:
             fail(f"teardown does not release material ownership: {target_path}")
 
         helper_body = function_body(source, expected["helper"])
-        required_tokens = (
-            expected["owned_registry"],
-            "building.material == owned",
-            expected["restore_token"],
-            expected["meta_token"],
-        )
-        for token in required_tokens:
+        for token in expected["required_helper_tokens"]:
             if token not in helper_body:
                 fail(f"owner-aware restore missing token in {target_path}: {token}")
 
         apply_body = function_body(source, expected["apply_function"])
-        if expected["apply_token"] not in apply_body:
-            fail(f"runtime does not persist exact owned material identity: {target_path}")
+        for token in expected["required_apply_tokens"]:
+            if token not in apply_body:
+                fail(f"runtime does not persist exact owned material identity in {target_path}: {token}")
 
         validated.append(target_path)
 
-    if len(validated) != 2:
-        fail("expected exactly two shared facade material owners")
+    if len(validated) != 3:
+        fail("expected exactly three shared material-owning runtimes")
 
     print(
         "SHARED_ENVIRONMENT_MATERIAL_OWNERSHIP_TEARDOWN_OK: "
-        "owners=2 surface_family=brussels_osm_facade_surface_v1 "
-        "articulation_family=brussels_osm_facade_articulation_v1 "
+        "owners=3 facade_surface=brussels_osm_facade_surface_v1 "
+        "facade_articulation=brussels_osm_facade_articulation_v1 "
+        "road_surface=brussels_osm_road_surface_v1 official_override=true "
         "owner_aware_restore=true geometry_changed=false"
     )
 
